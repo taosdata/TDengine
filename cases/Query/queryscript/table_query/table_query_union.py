@@ -53,6 +53,7 @@ class TDTestQuery(TDCase):
 
    #basic_param
     db = "table_union"
+    service_host = "ceph01"
     table_list = ['regular_table_1','stable_1_1','regular_table_2','stable_1_2','stable_2_1']
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
     table_null_list = ['regular_table_null','stable_1_3','stable_1_4','stable_2_2','stable_null_data_1']
@@ -60,34 +61,39 @@ class TDTestQuery(TDCase):
     testcasePath = os.path.split(__file__)[0]
     testcaseFilename = os.path.split(__file__)[-1]
 
-    def case_common(self):
-        #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
-        os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
-        self.tdCreateData.dropandcreateDB_random("%s" % self.db, 1) 
+    # def case_common(self):
+    #     #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
+    #     os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))   
+    #     self.tdCreateData.dropandcreateDB_random("%s" % self.db, 1) 
 
-        conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
-        cur1 = conn1.cursor()        
-        cur1.execute('use "%s";' %self.db)
-        sql = 'select * from regular_table_1 limit 5;'
-        cur1.execute(sql)
+    #     # conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
+    #     conn1 = taos.connect(host="%s" %self.service_host, user="root", password="taosdata", config="/etc/taos/")
+    #     cur1 = conn1.cursor()        
+    #     cur1.execute('use %s;' %self.db)
+    #     sql = 'select * from regular_table_1 limit 5;'
+    #     cur1.execute(sql)
 
-        return(conn1,cur1)
+    #     return(conn1,cur1)
+    
 
+    def data_create(self,db):
+        #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
+        os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        self.tdCreateData.dropandcreateDB_random("%s" % db, 1) 
+        
     def right_case1(self):       
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                   
 
-                print("case1:select * from regular_table_1 where condition union all select * from regular_table_2[null data] where condition && select * from ( union all )")
-                print("\n\n\n=========================================case1=========================================\n\n\n")
+                self.logger.info("case1:select * from regular_table_1 where condition union all select * from regular_table_2[null data] where condition && select * from ( union all )")
+                self.logger.info("\n\n\n=========================================case1=========================================\n\n\n")
                 regular_where = tdWhere.regular_where()
                 sql1 = 'select * from %s;' % self.table
                 for i in range(2,len(regular_where[2])+1):
@@ -101,29 +107,37 @@ class TDTestQuery(TDCase):
                         sql2 += " union all select * from %s where %s %s %s " %(self.table_null,q_where,q_like_match,q_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s ) " %(self.table,q_where,q_like_match,q_in_where)
                         sql2 += " union all select * from %s where %s %s %s " %(self.table_null,q_where,q_like_match,q_in_where)
-                        self.tdSql.error(sql2)
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from %s where %s %s %s" %(self.table_null,q_where,q_like_match,q_in_where)
                         sql2 += " union all select * from %s where %s %s %s" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                print("case1.1:select * from regular_table_1 where condition union all select * from regular_table_1[null data] where condition && select * from ( union all )")
-                print("\n\n\n=========================================case1.1=========================================\n\n\n")
+                self.logger.info("case1.1:select * from regular_table_1 where condition union all select * from regular_table_1[null data] where condition && select * from ( union all )")
+                self.logger.info("\n\n\n=========================================case1.1=========================================\n\n\n")
                 regular_where_all_and_null = tdWhere.regular_where_all_and_null()
                 sql1 = 'select * from %s;' % self.table
                 for i in range(2,len(regular_where_all_and_null[2])+1):
@@ -143,20 +157,26 @@ class TDTestQuery(TDCase):
                         sql2 += " union all select * from %s where %s %s %s" %(self.table,q_where_null,q_like_match_null,q_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from %s where %s %s %s" %(self.table,q_where_null,q_like_match_null,q_in_where)
                         sql2 += " union all select * from %s where %s %s %s" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
             except Exception as e:
@@ -165,23 +185,21 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num1 = sql.count('where')
-        print("sqlnum1 %d" % num1) 
+        self.logger.info("sqlnum1 %d" % num1) 
 
     def right_case2(self):
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                  
 
-                print("case2:select * from regular_table where condition order by ts asc | desc union all select * from regular_table[null data] where condition && select * from ( union all )")
-                print("\n\n\n=========================================case2=========================================\n\n\n")
+                self.logger.info("case2:select * from regular_table where condition order by ts asc | desc union all select * from regular_table[null data] where condition && select * from ( union all )")
+                self.logger.info("\n\n\n=========================================case2=========================================\n\n\n")
                 regular_where = tdWhere.regular_where()
                 sql1 = 'select * from %s ;' % self.table
                 for i in range(2,len(regular_where[2])+1):
@@ -191,24 +209,30 @@ class TDTestQuery(TDCase):
                         q_like_match = regular_where[3]
                         q_in_where = regular_where[4]
 
-                        sql2 = "select * from %s where %s %s %s order by ts " %(self.table,q_where,q_like_match,q_in_where)
-                        sql2 += " union all select * from %s where %s %s %s " %(self.table_null,q_where,q_like_match,q_in_where)
+                        sql2 = "select * from %s where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
+                        sql2 += " union all select * from %s where %s %s %s  order by ts" %(self.table_null,q_where,q_like_match,q_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
-                        sql= sql + sql2
-
-                        sql2 = "select * from %s where %s %s %s order by ts " %(self.table_null,q_where,q_like_match,q_in_where)
-                        sql2 += " union all select * from %s where %s %s %s order by ts " %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+
+                        sql2 = "(select * from %s where %s %s %s  order by ts) " %(self.table_null,q_where,q_like_match,q_in_where)
+                        sql2 += " union all (select * from %s where %s %s %s order by ts) " %(self.table,q_where,q_like_match,q_in_where)
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from %s where %s %s %s order by ts " %(self.table_null,q_where,q_like_match,q_in_where)
@@ -225,28 +249,34 @@ class TDTestQuery(TDCase):
                         q_like_match = regular_where[3]
                         q_in_where = regular_where[4]
 
-                        sql2 = "select * from %s where %s %s %s order by ts desc " %(self.table,q_where,q_like_match,q_in_where)
-                        sql2 += " union all select * from %s where %s %s %s " %(self.table_null,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        sql2 = "select * from %s where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
+                        sql2 += " union all select * from %s where %s %s %s order by ts desc  " %(self.table_null,q_where,q_like_match,q_in_where)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  #TD-16252
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  #TD-16252
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from %s where %s %s %s order by ts desc " %(self.table_null,q_where,q_like_match,q_in_where)
-                        sql2 += " union all select * from %s where %s %s %s order by ts desc " %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        sql2 = "(select * from %s where %s %s %s order by ts desc) " %(self.table_null,q_where,q_like_match,q_in_where)
+                        sql2 += " union all (select * from %s where %s %s %s order by ts desc) " %(self.table,q_where,q_like_match,q_in_where)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  #TD-16252
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  #TD-16252
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                print("case2.1:select * from regular_table where condition order by ts asc | desc union all select * from regular_table[null data] where condition && select * from ( union all )")
-                print("\n\n\n=========================================case2.1=========================================\n\n\n")
+                self.logger.info("case2.1:select * from regular_table where condition order by ts asc | desc union all select * from regular_table[null data] where condition && select * from ( union all )")
+                self.logger.info("\n\n\n=========================================case2.1=========================================\n\n\n")
                 regular_where_all_and_null = tdWhere.regular_where_all_and_null()
                 sql1 = 'select * from %s order by ts ;' % self.table
                 for i in range(2,len(regular_where_all_and_null[2])+1):
@@ -262,24 +292,30 @@ class TDTestQuery(TDCase):
                         q_where_null = str(q_where_null).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
                         q_like_match_null = regular_where_all_and_null[6]
 
-                        sql2 = "select * from %s where %s %s %s order by ts " %(self.table,q_where,q_like_match,q_in_where)
-                        sql2 += " union all select * from %s where %s %s %s " %(self.table,q_where_null,q_like_match_null,q_in_where)
+                        sql2 = "select * from %s where %s %s %s" %(self.table,q_where,q_like_match,q_in_where)
+                        sql2 += " union all select * from %s where %s %s %s order by ts  " %(self.table,q_where_null,q_like_match_null,q_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
-                        sql= sql + sql2
-
-                        sql2 = "select * from %s where %s %s %s order by ts " %(self.table,q_where_null,q_like_match_null,q_in_where)
-                        sql2 += " union all select * from %s where %s %s %s order by ts " %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+
+                        sql2 = "(select * from %s where %s %s %s order by ts) " %(self.table,q_where_null,q_like_match_null,q_in_where)
+                        sql2 += " union all (select * from %s where %s %s %s order by ts) " %(self.table,q_where,q_like_match,q_in_where)
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                 regular_where_all_and_null = tdWhere.regular_where_all_and_null()
@@ -297,24 +333,30 @@ class TDTestQuery(TDCase):
                         q_where_null = str(q_where_null).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","") 
                         q_like_match_null = regular_where_all_and_null[6]
 
-                        sql2 = "select * from %s where %s %s %s order by ts desc " %(self.table,q_where,q_like_match,q_in_where)
+                        sql2 = "select * from %s where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
                         sql2 += " union all select * from %s where %s %s %s order by ts desc " %(self.table,q_where_null,q_like_match_null,q_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  #TD-16252
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  #TD-16252
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from %s where %s %s %s order by ts desc " %(self.table,q_where_null,q_like_match_null,q_in_where)
-                        sql2 += " union all select * from %s where %s %s %s order by ts desc " %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        sql2 = "(select * from %s where %s %s %s order by ts desc) " %(self.table,q_where_null,q_like_match_null,q_in_where)
+                        sql2 += " union all (select * from %s where %s %s %s order by ts desc) " %(self.table,q_where,q_like_match,q_in_where)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  #TD-16252
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)  #TD-16252
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
             except Exception as e:
@@ -323,23 +365,21 @@ class TDTestQuery(TDCase):
         #self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num2 = sql.count('where')
-        print("sqlnum2 %d" % num2) 
+        self.logger.info("sqlnum2 %d" % num2) 
 
     def right_case3(self):        
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                   
 
-                print("case3:select * from regular_table_1 where condition order by ts limit union all select * from regular_table_2[null data] where condition && select * from ( union all )")
-                print("\n\n\n=========================================case3=========================================\n\n\n")
+                self.logger.info("case3:select * from regular_table_1 where condition order by ts limit union all select * from regular_table_2[null data] where condition && select * from ( union all )")
+                self.logger.info("\n\n\n=========================================case3=========================================\n\n\n")
                 regular_where = tdWhere.regular_where()
                 sql1 = 'select * from %s;' % self.table
                 for i in range(2,len(regular_where[2])+1):
@@ -349,33 +389,41 @@ class TDTestQuery(TDCase):
                         q_like_match = regular_where[3]
                         q_in_where = regular_where[4]
 
-                        sql2 = "select * from %s where %s %s %s order by ts limit 10 " %(self.table,q_where,q_like_match,q_in_where)
-                        sql2 += " union all select * from %s where %s %s %s " %(self.table_null,q_where,q_like_match,q_in_where)
+                        sql2 = "select * from %s where %s %s %s" %(self.table,q_where,q_like_match,q_in_where)
+                        sql2 += " union all select * from %s where %s %s %s  order by ts limit 10 " %(self.table_null,q_where,q_like_match,q_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
-                        sql= sql + sql2
-
-                        sql2 = "select * from %s where %s %s %s order by ts limit 10 " %(self.table_null,q_where,q_like_match,q_in_where)
-                        sql2 += " union all select * from %s where %s %s %s order by ts limit 10 " %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+
+                        sql2 = "(select * from %s where %s %s %s order by ts limit 10) " %(self.table_null,q_where,q_like_match,q_in_where)
+                        sql2 += " union all (select * from %s where %s %s %s order by ts limit 10) " %(self.table,q_where,q_like_match,q_in_where)
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from %s where %s %s %s order by ts limit 10 " %(self.table_null,q_where,q_like_match,q_in_where)
+                        sql2 = "(select * from %s where %s %s %s order by ts limit 10) " %(self.table_null,q_where,q_like_match,q_in_where)
                         sql2 += " union all select * from (select * from %s where %s %s %s order by ts limit 10 )" %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdSql.error(sql2)
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                print("case3.1:select * from regular_table_1 where condition order by ts limit union all select * from regular_table_1[null data] where condition && select * from ( union all )")
-                print("\n\n\n=========================================case3.1=========================================\n\n\n")
+                self.logger.info("case3.1:select * from regular_table_1 where condition order by ts limit union all select * from regular_table_1[null data] where condition && select * from ( union all )")
+                self.logger.info("\n\n\n=========================================case3.1=========================================\n\n\n")
                 regular_where_all_and_null = tdWhere.regular_where_all_and_null()
                 sql1 = 'select * from %s;' % self.table
                 for i in range(2,len(regular_where_all_and_null[2])+1):
@@ -391,24 +439,30 @@ class TDTestQuery(TDCase):
                         q_where_null = str(q_where_null).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")                            
                         q_like_match_null = regular_where_all_and_null[6]
 
-                        sql2 = "select * from %s where %s %s %s order by ts limit 10 " %(self.table,q_where,q_like_match,q_in_where)
-                        sql2 += " union all select * from %s where %s %s %s " %(self.table,q_where_null,q_like_match_null,q_in_where)
+                        sql2 = "select * from %s where %s %s %s" %(self.table,q_where,q_like_match,q_in_where)
+                        sql2 += " union all select * from %s where %s %s %s order by ts limit 10 " %(self.table,q_where_null,q_like_match_null,q_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
-                        sql= sql + sql2
-
-                        sql2 = "select * from %s where %s %s %s order by ts limit 10 " %(self.table,q_where_null,q_like_match_null,q_in_where)
-                        sql2 += " union all select * from %s where %s %s %s order by ts limit 10 " %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
+                        sql= sql + sql2
+
+                        sql2 = "(select * from %s where %s %s %s order by ts limit 10) " %(self.table,q_where_null,q_like_match_null,q_in_where)
+                        sql2 += " union all (select * from %s where %s %s %s order by ts limit 10) " %(self.table,q_where,q_like_match,q_in_where)
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
+                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
             except Exception as e:
@@ -417,23 +471,21 @@ class TDTestQuery(TDCase):
         #self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        print("sqlnum3 %d" % num3) 
+        self.logger.info("sqlnum3 %d" % num3) 
 
     def right_case4(self):      
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                
 
-                print("case4:select * from regular_table_1 where condition order by ts limit offset union all select * from regular_table_2[null data] where condition && select * from ( union all )")
-                print("\n\n\n=========================================case4=========================================\n\n\n")
+                self.logger.info("case4:select * from regular_table_1 where condition order by ts limit offset union all select * from regular_table_2[null data] where condition && select * from ( union all )")
+                self.logger.info("\n\n\n=========================================case4=========================================\n\n\n")
                 regular_where = tdWhere.regular_where()
                 sql1 = 'select * from %s limit 10 offset 5;' % self.table
                 for i in range(2,len(regular_where[2])+1):
@@ -443,28 +495,34 @@ class TDTestQuery(TDCase):
                         q_like_match = regular_where[3]
                         q_in_where = regular_where[4]
 
-                        sql2 = "select * from %s where %s %s %s order by ts limit 10 offset 5 " %(self.table,q_where,q_like_match,q_in_where)
+                        sql2 = "select * from %s where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
                         sql2 += " union all select * from %s where %s %s %s order by ts limit 10 offset 5 " %(self.table_null,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)#TD-16253
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)#TD-16253
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from %s where %s %s %s order by ts limit 10 offset 5 " %(self.table_null,q_where,q_like_match,q_in_where)
-                        sql2 += " union all select * from %s where %s %s %s order by ts limit 10 offset 5 " %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        sql2 = "(select * from %s where %s %s %s order by ts limit 10 offset 5) " %(self.table_null,q_where,q_like_match,q_in_where)
+                        sql2 += " union all (select * from %s where %s %s %s order by ts limit 10 offset 5) " %(self.table,q_where,q_like_match,q_in_where)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)#TD-16253
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)#TD-16253
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                print("case4.1:select * from regular_table_1 where condition order by ts limit offset union all select * from regular_table_1[null data] where condition && select * from ( union all )")
-                print("\n\n\n=========================================case4.1=========================================\n\n\n")
+                self.logger.info("case4.1:select * from regular_table_1 where condition order by ts limit offset union all select * from regular_table_1[null data] where condition && select * from ( union all )")
+                self.logger.info("\n\n\n=========================================case4.1=========================================\n\n\n")
                 regular_where_all_and_null = tdWhere.regular_where_all_and_null()
                 sql1 = 'select * from %s limit 10 offset 5;' % self.table
                 for i in range(2,len(regular_where_all_and_null[2])+1):
@@ -480,25 +538,31 @@ class TDTestQuery(TDCase):
                         q_where_null = str(q_where_null).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")                            
                         q_like_match_null = regular_where_all_and_null[6]
 
-                        sql2 = "select * from %s where %s %s %s order by ts limit 10 offset 5 " %(self.table,q_where,q_like_match,q_in_where)
+                        sql2 = "select * from %s where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
                         sql2 += " union all select * from %s where %s %s %s order by ts limit 10 offset 5 " %(self.table,q_where_null,q_like_match_null,q_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)#TD-16253
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from %s where %s %s %s order by ts limit 10  offset 5 " %(self.table,q_where_null,q_like_match_null,q_in_where)
-                        sql2 += " union all select * from %s where %s %s %s order by ts limit 10  offset 5 " %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)
+                        sql2 = "(select * from %s where %s %s %s order by ts limit 10  offset 5 )" %(self.table,q_where_null,q_like_match_null,q_in_where)
+                        sql2 += " union all (select * from %s where %s %s %s order by ts limit 10  offset 5 )" %(self.table,q_where,q_like_match,q_in_where)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)#TD-16253
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
-                        self.tdSql.error(sql2)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)#TD-16253
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from %s where %s %s %s order by ts limit 10  offset 5 " %(self.table,q_where_null,q_like_match_null,q_in_where)
-                        sql2 += " union all select * from (select * from %s where %s %s %s order by ts limit 10  offset 5) " %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdSql.error(sql2)
+                        sql2 = "(select * from %s where %s %s %s order by ts limit 10  offset 5) " %(self.table,q_where_null,q_like_match_null,q_in_where)
+                        sql2 += " union all (select * from (select * from %s where %s %s %s order by ts limit 10  offset 5)) " %(self.table,q_where,q_like_match,q_in_where)
+                        #self.tdCreateData.dataequal('%s' %sql1 ,10,10,'%s' %sql2 ,10,10)#TD-16253
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
             except Exception as e:
@@ -507,23 +571,21 @@ class TDTestQuery(TDCase):
         #self.tdSql.execute('''drop database if exists %s ;''' %self.db)
 
         num4 = sql.count('where')
-        print("sqlnum4 %d" % num4) 
+        self.logger.info("sqlnum4 %d" % num4) 
 
     def false_case1(self):
-        print("\n\n\n=======================================error case=======================================\n\n\n")
-        print("case1:select * from regular_table where condition interval | sliding | Fill && select * from ( select front )")
-        print("\n\n\n=========================================case1=========================================\n\n\n")
+        self.logger.info("\n\n\n=======================================error case=======================================\n\n\n")
+        self.logger.info("case1:select * from regular_table where condition interval | sliding | Fill && select * from ( select front )")
+        self.logger.info("\n\n\n=========================================case1=========================================\n\n\n")
 
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)               
 
                 regular_where = tdWhere.regular_where()
                 sql1 = 'select * from %s interval(3s) sliding(3n) Fill(NEXT);'  % self.table
@@ -558,25 +620,27 @@ class TDTestQuery(TDCase):
                 
     def run(self)-> bool:
         
+        self.data_create(self.db)
+           
         startTime1 = time.time()
         self.right_case1()
         endTime1 = time.time()       
-        print("total time1 %d s" % (endTime1 - startTime1))
+        self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
         startTime2 = time.time()
         self.right_case2()
         endTime2 = time.time()       
-        print("total time2 %d s" % (endTime2 - startTime2))
+        self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
         startTime3 = time.time()
         self.right_case3()
         endTime3 = time.time()
-        print("total time3 %ds" % (endTime3 - startTime3))
+        self.logger.info("total time3 %ds" % (endTime3 - startTime3))
 
         startTime4 = time.time()
         self.right_case4()  
         endTime4 = time.time()
-        print("total time4 %ds" % (endTime4 - startTime4))
+        self.logger.info("total time4 %ds" % (endTime4 - startTime4))
 
         #self.false_case1()
         self.rm_sql()

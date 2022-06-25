@@ -17,32 +17,30 @@ from taostest.util.common import TDCom
 class Testfsync(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
+        self.cfg = self.tdCom.Boundary.DB_PARAM_FSYNC_CONFIG
 
     def fsync_check(self):
         """
         fsync check
         """
-        test_param = "fsync"
-        # default
-        default_value = 3000
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        test_param = self.cfg["create_name"]
+        dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
+        # default
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
         self.tdSql.execute(f'drop database {dbname}')
-        # param_list
-        param_value_list = [0, 180000]
-        for param_value in param_value_list:
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        for param_value in self.cfg["boundary"]:
+            dbname = self.tdCom.get_long_name()
             self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
             self.tdSql.execute(f'drop database {dbname}')
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[0] - 1}')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[-1] + 1}')
+        dbname = self.tdCom.get_long_name()
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][-1] + 1}')
 
     def run(self) -> bool:
         self.fsync_check()

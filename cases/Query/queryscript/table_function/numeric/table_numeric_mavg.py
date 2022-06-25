@@ -46,29 +46,37 @@ class TDTestQuery(TDCase):
 
     #basic_param
     db = "table_numeric_mavg"
+    service_host = ""
     table_list = ['regular_table_1','stable_1_1','regular_table_2','stable_1_2','stable_2_1']
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
     table_null_list = ['regular_table_null','stable_1_3','stable_1_4','stable_2_2','stable_null_data_1']
     table_null = str(random.sample(table_null_list,1)).replace("[","").replace("]","").replace("'","")
     testcasePath = os.path.split(__file__)[0]
     testcaseFilename = os.path.split(__file__)[-1]
-
-    def case_common(self):
+    
+    def data_create(self,db):
         #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
         os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
-        self.tdCreateData.dropandcreateDB_random("%s" % self.db, 20) 
+        self.tdCreateData.dropandcreateDB_random("%s" % db, 20) 
+        
+    # def case_common(self):
+    #     #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
+    #     # os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+    #     # self.tdCreateData.dropandcreateDB_random("%s" % self.db, 20) 
 
-        conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
-        cur1 = conn1.cursor()        
-        cur1.execute('use "%s";' %self.db)
-        sql = 'select * from stable_1 limit 5;'
-        cur1.execute(sql)
+    #     # conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
+    #     conn1 = taos.connect(host="%s" %self.service_host, user="root", password="taosdata", config="/etc/taos/")
+    #     cur1 = conn1.cursor()        
+    #     cur1.execute('use %s;' %self.db)
+    #     sql = 'select * from regular_table_1 limit 5;'
+    #     cur1.execute(sql)
 
-        return(conn1,cur1)  
- 
+    #     return(conn1,cur1)  
+
+         
     def right_case_1(self):
-        print("\n==========================right case 1==========================\n")
-        case_common = self.case_common()
+        self.logger.info("\n==========================right case 1==========================\n")
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -77,12 +85,10 @@ class TDTestQuery(TDCase):
         for i in (6,):
             func = tdFunction.func_stable_special(i)
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                  
 
-                print("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
                 
                 stable_where = tdWhere.regular_where()
                 n = random.randrange(2,1001) 
@@ -98,18 +104,23 @@ class TDTestQuery(TDCase):
 
                         sql2 = "select %s from %s where  %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,1,'%s' %sql2 ,1,int('%d' %n),1,1)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,1,'%s' %sql2 ,1,int('%d' %n),1,1)
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
             except Exception as e:
@@ -118,11 +129,11 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num1 = sql.count('where')
-        print("sqlnum1 %d" % num1) 
+        self.logger.info("sqlnum1 %d" % num1) 
 
     def right_case_1_tbname(self):
-        print("\n==========================right case 1_tbname==========================\n")
-        case_common = self.case_common()
+        self.logger.info("\n==========================right case 1_tbname==========================\n")
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -131,17 +142,15 @@ class TDTestQuery(TDCase):
         for i in (6,):
             func = tdFunction.func_stable_special(i)
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                  
 
-                print("\n\n\n=======hanshu num = %d======right case_tbname========case1======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case1======\n\n\n" %i)
                 
                 stable_where = tdWhere.regular_where()                
                 n = random.randrange(2,1001) 
                 func = func.replace("num","%d" %n)
-                sql1 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
+                sql1 = "select %s from %s where tbname in ('%s') group by tbname;"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -150,15 +159,15 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from %s where tbname in ('%s') and %s %s %s group by tbname" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (select %s from %s where tbname in ('%s') and %s %s %s group by tbname)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and %s %s %s group by tbname" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s) where tbname in ('%s') and %s %s %s group by tbname" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
@@ -168,11 +177,11 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num1 = sql.count('where')
-        print("sqlnum1_tbname %d" % num1)
+        self.logger.info("sqlnum1_tbname %d" % num1)
         
     def right_case_2(self):
-        print("\n==========================right case 2==========================\n")
-        case_common = self.case_common()
+        self.logger.info("\n==========================right case 2==========================\n")
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -182,12 +191,10 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             func_desc = func # for desc
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                
 
-                print("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
 
                 stable_where = tdWhere.regular_where()
                 n = random.randrange(2,300) 
@@ -202,39 +209,36 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where  %s %s %s order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where  %s %s %s order by ts)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,1,'%s' %sql2 ,1,int('%d' %n),1,1)
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                      
                         sql2 = "select * from (select %s from %s where  %s %s %s order by ts)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where  %s %s %s order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where  %s %s %s ) order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where  %s %s %s order by ts ) order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
                 
                 stable_where = tdWhere.regular_where()
                 n = random.randrange(2,800) 
                 func_desc = func_desc.replace("num","%d" %n)
-                sql1 = 'select %s from %s order by ts desc;'  % (func_desc,self.table)
+                sql1 = 'select %s from (select * from %s order by ts desc);'  % (func_desc,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -244,33 +248,30 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where  %s %s %s order by ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where  %s %s %s order by ts desc)" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
                         
-                        sql2 = "select %s from (select * from %s where  %s %s %s order by ts desc)" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
+                        sql2 = "select %s from (select * from %s where  %s %s %s order by ts desc);" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,1,'%s' %sql2 ,1,int('%d' %n),1,1)
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where  %s %s %s order by ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where  %s %s %s ) order by ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where  %s %s %s order by ts desc ) order by ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
-                        #self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
             
 
@@ -280,11 +281,11 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num2 = sql.count('where')
-        print("sqlnum2 %d" % num2) 
+        self.logger.info("sqlnum2 %d" % num2) 
         
     def right_case_2_tbname(self):
-        print("\n==========================right case 2_tbname==========================\n")
-        case_common = self.case_common()
+        self.logger.info("\n==========================right case 2_tbname==========================\n")
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -294,17 +295,15 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             func_desc = func # for desc
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                 
 
-                print("\n\n\n=======hanshu num = %d======right case_tbname========case2======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case2======\n\n\n" %i)
 
                 stable_where = tdWhere.regular_where()
                 n = random.randrange(2,1001) 
                 func = func.replace("num","%d" %n)
-                sql1 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
+                sql1 = "select %s from %s where tbname in ('%s') group by tbname;"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -313,34 +312,34 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from %s where tbname in ('%s') and  %s %s %s group by tbname order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where tbname in ('%s') and  %s %s %s group by tbname order by ts)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
                       
-                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (select %s from %s where tbname in ('%s') and  %s %s %s group by tbname order by ts)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and  %s %s %s group by tbname order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s) where tbname in ('%s') and  %s %s %s group by tbname order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s group by tbname ) order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where tbname in ('%s') and  %s %s %s group by tbname ) order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts ) order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where tbname in ('%s') and  %s %s %s group by tbname order by ts ) order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
                 
                 stable_where = tdWhere.regular_where()
                 n = random.randrange(2,1001) 
                 func_desc = func_desc.replace("num","%d" %n)
-                sql1 = "select %s from %s where tbname in ('%s_1') group by tbname order by ts desc;"  % (func_desc,self.table,self.table)
+                sql1 = "select %s from %s where tbname in ('%s') group by tbname order by ts desc;"  % (func_desc,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -349,23 +348,23 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from %s where tbname in ('%s') and  %s %s %s group by tbname order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts desc)" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (select %s from %s where tbname in ('%s') and  %s %s %s group by tbname order by ts desc)" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and  %s %s %s group by tbname order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s) where tbname in ('%s') and  %s %s %s group by tbname order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s group by tbname ) order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where tbname in ('%s') and  %s %s %s group by tbname ) order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts desc ) order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where tbname in ('%s') and  %s %s %s group by tbname order by ts desc ) order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
             
@@ -375,11 +374,11 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num2 = sql.count('where')
-        print("sqlnum2_tbname %d" % num2) 
+        self.logger.info("sqlnum2_tbname %d" % num2) 
                         
     def right_case_3(self):
-        print("\n==========================right case 3==========================\n")
-        case_common = self.case_common()
+        self.logger.info("\n==========================right case 3==========================\n")
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -388,12 +387,10 @@ class TDTestQuery(TDCase):
         for i in (6,):
             func = tdFunction.func_stable_special(i)
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                  
 
-                print("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
                 
                 stable_where = tdWhere.regular_where()
                 n = random.randrange(2,300) 
@@ -408,18 +405,22 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where  %s %s %s order by ts limit 5000" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where  %s %s %s order by ts limit 5000)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
+                        self.tdSql.error(sql2)
+                        sql= sql + sql2
+                        
+                        sql2 = "select %s from (select * from %s where  %s %s %s order by ts limit 5000)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s) where  %s %s %s order by ts limit 5000" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,int('%d' %n),1,2,'%s' %sql2 ,1,int('%d' %n),1,2)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
             
             except Exception as e:
@@ -429,12 +430,12 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        print("sqlnum3 %d" % num3) 
+        self.logger.info("sqlnum3 %d" % num3) 
  
  
     def right_case_3_tbname(self):
-        print("\n==========================right case 3_tbname==========================\n")
-        case_common = self.case_common()
+        self.logger.info("\n==========================right case 3_tbname==========================\n")
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -443,17 +444,15 @@ class TDTestQuery(TDCase):
         for i in (6,):
             func = tdFunction.func_stable_special(i)
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                  
 
-                print("\n\n\n=======hanshu num = %d======right case_tbname========case3======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case3======\n\n\n" %i)
                 
                 stable_where = tdWhere.regular_where()
                 n = random.randrange(2,1001) 
                 func = func.replace("num","%d" %n)
-                sql1 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
+                sql1 = "select %s from %s where tbname in ('%s') group by tbname;"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -462,15 +461,15 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts limit 5000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from %s where tbname in ('%s') and  %s %s %s group by tbname order by ts limit 5000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname order by ts limit 5000)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (select %s from %s where tbname in ('%s') and %s %s %s group by tbname order by ts limit 5000)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)                       
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and %s %s %s group by tbname order by ts limit 5000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s) where tbname in ('%s') and %s %s %s group by tbname order by ts limit 5000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
             
@@ -480,7 +479,7 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        print("sqlnum3_tbname %d" % num3)  
+        self.logger.info("sqlnum3_tbname %d" % num3)  
                
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
@@ -488,26 +487,28 @@ class TDTestQuery(TDCase):
     def run(self):
         startTime = time.time() 
         
+        self.data_create(self.db)
+        
         startTime1 = time.time()
         self.right_case_1()
         self.right_case_1_tbname()
         endTime1 = time.time()       
-        print("total time1 %d s" % (endTime1 - startTime1))
+        self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
         startTime2 = time.time()
         self.right_case_2()
         self.right_case_2_tbname()
         endTime2 = time.time()       
-        print("total time2 %d s" % (endTime2 - startTime2))
+        self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
         startTime3 = time.time()
         self.right_case_3()
         self.right_case_3_tbname()
         endTime3 = time.time()
-        print("total time3 %ds" % (endTime3 - startTime3))     
+        self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
 
         endTime = time.time()
         self.rm_sql()
-        print("total time %ds" % (endTime - startTime))
+        self.logger.info("total time %ds" % (endTime - startTime))
 
 

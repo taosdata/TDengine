@@ -12,6 +12,7 @@ settings:
             dataDir: /var/lib/taos
             logDir: /var/log/taos
             debugFlag: 135
+            supportVnodes: 128
   - name: taospy
     fqdn: [ceph01]
     spec:
@@ -22,6 +23,7 @@ settings:
         logDir: /var/log/taos
         defaultJSONStrType: "nchar"
         debugFlag: 135
+        asyncLog: 0
 
   - name: taosAdapter
     fqdn: [ceph01]

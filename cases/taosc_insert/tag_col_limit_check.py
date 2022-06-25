@@ -117,19 +117,26 @@ class TestTagColLimit(TDCase):
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.error(f'create stable if not exists {dbname}.stb_error (col_ts timestamp, {col_key_name}a int) tags ({tag_key_name} int)')
         self.tdSql.error(f'create stable if not exists {dbname}.stb_error (col_ts timestamp, {col_key_name} int) tags ({tag_key_name}a int)')
+        self.tdSql.error(f'create table if not exists {dbname}.stb_error (col_ts timestamp, {col_key_name}a int)')
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, {col_key_name} int) tags ({tag_key_name} int)')
-        self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (1)')
+        self.tdSql.execute(f'create table if not exists {dbname}.ctb using {dbname}.stb tags (1)')
+        self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, {col_key_name} int)')
+        self.tdSql.execute(f'insert into {dbname}.ctb values (now, 1)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now, 1)')
-        self.tdSql.query(f"describe {dbname}.stb")
-        col_key_list = self.tdSql.getColNameList(True)[0]
-        self.tdSql.checkEqual(col_key_list, ['col_ts', col_key_name, tag_key_name])
+        for tbname in [f"{dbname}.stb", f"{dbname}.ctb", f"{dbname}.tb"]:
+            self.tdSql.query(f"describe {tbname}")
+            col_key_list = self.tdSql.getColNameList(True)[0]
+            if tbname == f"{dbname}.tb":
+                self.tdSql.checkEqual(col_key_list, ['col_ts', col_key_name])
+            else:
+                self.tdSql.checkEqual(col_key_list, ['col_ts', col_key_name, tag_key_name])
 
     def run(self):
         # !bug
         # self.tag_max_count_check()
         # self.stb_col_max_count_check()
         # self.tb_col_max_count_check()
-        # self.stb_sensitive_check()
+        self.stb_sensitive_check()
         self.tb_sensitive_check()
         self.tag_col_name_length_check()
 

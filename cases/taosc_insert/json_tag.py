@@ -20,30 +20,6 @@ class TestJsonTag(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
 
-    def insert_after_alter_column(self):
-        """
-        insert after alter column
-        """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
-        self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int, c2 int) tags (t1 int, t2 int)')
-        self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (1, 1)')
-        self.tdSql.execute(f'insert into {dbname}.tb values (now, 1, 1)')
-        # drop column
-        self.tdSql.execute(f'alter stable {dbname}.stb drop column c2')
-        self.tdSql.execute(f'insert into {dbname}.tb values (now-1m, 2)')
-        self.tdSql.error(f'insert into {dbname}.tb values (now-1m, 2, 2)')
-        self.tdSql.error(f'select t1, t2, c1, c2 from {dbname}.tb')
-        self.tdSql.query(f'select t1, t2, c1 from {dbname}.tb where c1 = 2')
-        self.tdSql.checkEqual(self.tdSql.query_data[0], [1, 1, 2])
-
-        # add column
-        self.tdSql.execute(f'alter stable {dbname}.stb add column c2 int')
-        self.tdSql.execute(f'insert into {dbname}.tb values (now-1m, 2, 2)')
-        self.tdSql.query(f'select t1, t2, c1, c2 from {dbname}.tb where c2 = 2')
-        self.tdSql.checkEqual(self.tdSql.query_data[0], [1, 1, 2, 2])
-        self.tdSql.execute(f'drop database if exists {dbname}')
-
     def run(self) -> bool:
         self.tdSql.execute("drop database if exists db_json;")
         print("==============step1 tag format =======")

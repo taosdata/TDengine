@@ -81,6 +81,22 @@ class TDFunction():
         int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return int_cloumn
     
+    def int_cloumn_1(self):  
+        # support all int type \ double type              
+        hanshu = ['AVG','SUM']   
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return int_cloumn
+    
+    def int_cloumn_2(self):  
+        # support all int type \ double type              
+        hanshu = ['MIN','MAX']   
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return int_cloumn
+    
     def int_ts_cloumn(self):  
         # support all int type \ double type \ ts type        
         hanshu = ['SPREAD']       
@@ -95,6 +111,10 @@ class TDFunction():
             func_stable_all = self.all_column()
         elif i == 2:
             func_stable_all = self.int_cloumn()
+        elif i == 21:
+            func_stable_all = self.int_cloumn_1()
+        elif i == 22:
+            func_stable_all = self.int_cloumn_2()
         elif i == 3:
             func_stable_all = self.int_ts_cloumn()      
 
@@ -112,6 +132,10 @@ class TDFunction():
             func_stable_tbname_all = self.all_column_tbname_3()
         elif i == 2:
             func_stable_tbname_all = self.int_cloumn()
+        elif i == 21:
+            func_stable_tbname_all = self.int_cloumn_1()
+        elif i == 22:
+            func_stable_tbname_all = self.int_cloumn_2()
         elif i == 3:
             func_stable_tbname_all = self.int_ts_cloumn()      
 
@@ -250,7 +274,7 @@ class TDFunction():
         int_cloumn_state = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         
         operator = ['LT' , 'GT' ,'GE','NE','EQ']  
-        oper = str(random.sample(operator,1)).replace("[","").replace("]","").replace("'","")        
+        oper = str(random.sample(operator,1)).replace("[","").replace("]","")#.replace("'","")        
                          
         if str(hanshu_select).replace("[","").replace("]","").replace("'","") == 'statecount':
             int_cloumn_state = int_cloumn_state.replace("oper","%s" %oper).replace(",time","")
@@ -265,6 +289,7 @@ class TDFunction():
         hanshu = ['HYPERLOGLOG']             
         column = ['(ts)','(_C0)','(_c0)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_binary)','(q_nchar)','(q_double)','(q_bool)','(q_ts)',
         '(q_bigint_null)','(q_smallint_null)','(q_tinyint_null)','(q_int_null)','(q_float_null)','(q_binary_null)','(q_nchar_null)','(q_double_null)','(q_bool_null)','(q_ts_null)'] 
+        column = ['(ts)','(_C0)','(_c0)','(_rowts)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_binary)','(q_nchar)','(q_double)','(q_bool)','(q_ts)']
      
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         all_cloumn_hyperloglog = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
@@ -393,8 +418,8 @@ class TDFunction():
             if i == 1:
                 bin_type = 'user_input'                
                 bin_description = {-11111119395555977777}  #9一会转译成，
-                # print(hanshu,column,int_histogram,normalized,bin_description)
-                # print(type(hanshu),type(column),type(int_histogram),type(normalized),type(bin_description))
+                # self.logger.info(hanshu,column,int_histogram,normalized,bin_description)
+                # self.logger.info(type(hanshu),type(column),type(int_histogram),type(normalized),type(bin_description))
                 hanshu_column = [hanshu , column, ',',"'%s'" %bin_type, ',',"'%s'" % bin_description, ',', "%d" %normalized,')']
                 int_histogram = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("{","[").replace("}","]").replace("9",",")
                 

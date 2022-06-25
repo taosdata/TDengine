@@ -22,37 +22,33 @@ class TestDoubleBoundary(TDCase):
         """
         max: +- 3.4e+38
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 double) tags (t1 double)')
-        self.tdSql.execute(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({self.tdCom.boundary_config["DOUBLE_MAX"]})')
-        self.tdSql.execute(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags (-{self.tdCom.boundary_config["DOUBLE_MAX"]})')
-        self.tdSql.execute(f'insert into {dbname}.tb1 values (now, -{self.tdCom.boundary_config["DOUBLE_MAX"]})')
-        self.tdSql.execute(f'insert into {dbname}.tb2 values (now, {self.tdCom.boundary_config["DOUBLE_MAX"]})')
-        # self.tdSql.query(f'select t1, c1 from {dbname}.tb1')
-        # self.tdSql.checkEqual(float(self.tdSql.query_data[0][0]), self.tdCom.boundary_config["DOUBLE_MAX"])
-        # self.tdSql.checkEqual(float(self.tdSql.query_data[0][1]), -self.tdCom.boundary_config["DOUBLE_MAX"])
-        # self.tdSql.query(f'select t1, c1 from {dbname}.tb2')
-        # self.tdSql.checkEqual(float(self.tdSql.query_data[0][0]), -self.tdCom.boundary_config["DOUBLE_MAX"])
-        # self.tdSql.checkEqual(float(self.tdSql.query_data[0][1]), self.tdCom.boundary_config["DOUBLE_MAX"])
-        self.tdSql.error(f'create stable if not exists {dbname}.stb_error1 (col_ts timestamp, c1 {self.tdCom.boundary_config["DOUBLE_MAX"]}) tags (t1 {self.tdCom.boundary_config["DOUBLE_MAX"]+1})')
-        self.tdSql.error(f'create stable if not exists {dbname}.stb_error2 (col_ts timestamp, c1 {self.tdCom.boundary_config["DOUBLE_MAX"]+1}) tags (t1 {self.tdCom.boundary_config["DOUBLE_MAX"]})')
-        self.tdSql.error(f'create stable if not exists {dbname}.stb_error3 (col_ts timestamp, c1 {self.tdCom.boundary_config["DOUBLE_MAX"]}) tags (t1 -{self.tdCom.boundary_config["DOUBLE_MAX"]-1})')
-        self.tdSql.error(f'create stable if not exists {dbname}.stb_error4 (col_ts timestamp, c1 -{self.tdCom.boundary_config["DOUBLE_MAX"]-1}) tags (t1 -{self.tdCom.boundary_config["DOUBLE_MAX"]})')
-        self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, {self.tdCom.boundary_config["DOUBLE_MAX"]+1})')
-        self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, -{self.tdCom.boundary_config["DOUBLE_MAX"]-1})')
-        self.tdSql.error(f'insert into {dbname}.tb values (now-1h, {self.tdCom.boundary_config["DOUBLE_MAX"]+1})')
-        self.tdSql.error(f'insert into {dbname}.tb values (now-1h, -{self.tdCom.boundary_config["DOUBLE_MAX"]-1})')
+        self.tdSql.execute(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({self.tdCom.Boundary.DOUBLE_BOUNDARY[1]})')
+        self.tdSql.execute(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags ({self.tdCom.Boundary.DOUBLE_BOUNDARY[0]})')
+        self.tdSql.execute(f'insert into {dbname}.tb1 values (now+1s, {self.tdCom.Boundary.DOUBLE_BOUNDARY[0]})')
+        self.tdSql.execute(f'insert into {dbname}.tb2 values (now+2s, {self.tdCom.Boundary.DOUBLE_BOUNDARY[1]})')
+        self.tdSql.query(f'select t1, c1 from {dbname}.tb1')
+        self.tdSql.checkEqual(float(self.tdSql.query_data[0][0]), self.tdCom.Boundary.DOUBLE_BOUNDARY[1])
+        self.tdSql.checkEqual(float(self.tdSql.query_data[0][1]), self.tdCom.Boundary.DOUBLE_BOUNDARY[0])
+        self.tdSql.query(f'select t1, c1 from {dbname}.tb2')
+        self.tdSql.checkEqual(float(self.tdSql.query_data[0][0]), self.tdCom.Boundary.DOUBLE_BOUNDARY[0])
+        self.tdSql.checkEqual(float(self.tdSql.query_data[0][1]), self.tdCom.Boundary.DOUBLE_BOUNDARY[1])
+        # self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({self.tdCom.Boundary.DOUBLE_BOUNDARY[1]+1})')
+        # self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({self.tdCom.Boundary.DOUBLE_BOUNDARY[0]-1})')
+        # self.tdSql.error(f'insert into {dbname}.tb1 values (now, {self.tdCom.Boundary.DOUBLE_BOUNDARY[1]+1})')
+        # self.tdSql.error(f'insert into {dbname}.tb1 values (now, {self.tdCom.Boundary.DOUBLE_BOUNDARY[0]-1})')
 
         self.tdSql.execute(f'create table if not exists {dbname}.tb3 (ts timestamp, c1 DOUBLE)')
-        self.tdSql.execute(f'insert into {dbname}.tb3 values (now, {self.tdCom.boundary_config["DOUBLE_MAX"]})')
-        self.tdSql.execute(f'insert into {dbname}.tb3 values (now, -{self.tdCom.boundary_config["DOUBLE_MAX"]})')
-        self.tdSql.query(f'select c1 from {dbname}.tb3 where c1={self.tdCom.boundary_config["DOUBLE_MAX"]}')
-        self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.tdCom.boundary_config["DOUBLE_MAX"])
-        self.tdSql.query(f'select c1 from {dbname}.tb3 where c1=-{self.tdCom.boundary_config["DOUBLE_MAX"]}')
-        self.tdSql.checkEqual(self.tdSql.query_data[0][0], -self.tdCom.boundary_config["DOUBLE_MAX"])
-        # self.tdSql.error(f'insert into {dbname}.tb3 values (now, {self.tdCom.boundary_config["DOUBLE_MAX"]+1})')
-        # self.tdSql.error(f'insert into {dbname}.tb3 values (now, -{self.tdCom.boundary_config["DOUBLE_MAX"]+1})')
+        self.tdSql.execute(f'insert into {dbname}.tb3 values (now+3s, {self.tdCom.Boundary.DOUBLE_BOUNDARY[1]})')
+        self.tdSql.execute(f'insert into {dbname}.tb3 values (now+4s, {self.tdCom.Boundary.DOUBLE_BOUNDARY[0]})')
+        self.tdSql.query(f'select c1 from {dbname}.tb3 where c1={self.tdCom.Boundary.DOUBLE_BOUNDARY[1]}')
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.tdCom.Boundary.DOUBLE_BOUNDARY[1])
+        self.tdSql.query(f'select c1 from {dbname}.tb3 where c1={self.tdCom.Boundary.DOUBLE_BOUNDARY[0]}')
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.tdCom.Boundary.DOUBLE_BOUNDARY[0])
+        # self.tdSql.error(f'insert into {dbname}.tb3 values (now, {self.tdCom.Boundary.DOUBLE_BOUNDARY[1]+1})')
+        # self.tdSql.error(f'insert into {dbname}.tb3 values (now, -{self.tdCom.Boundary.DOUBLE_BOUNDARY[1]+1})')
         self.tdSql.execute(f'drop database if exists {dbname}')
 
     def run(self):
@@ -63,7 +59,7 @@ class TestDoubleBoundary(TDCase):
 
     def desc(self) -> str:
         case_description = """
-            double_boundary_check <jayden>: [TD-12748] : double boundary check (max {self.tdCom.boundary_config["DOUBLE_MAX"]});
+            double_boundary_check <jayden>: [TD-12748] : double boundary check (max {self.tdCom.Boundary.DOUBLE_BOUNDARY[1]});
         """
         return case_description
 

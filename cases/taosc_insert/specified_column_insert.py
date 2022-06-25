@@ -53,41 +53,17 @@ class TestSpecifiedColumnInsert(TDCase):
         self.tdSql.checkEqual(int(self.tdSql.query_data[0][0]), 3)
         self.tdSql.execute(f'drop database if exists {dbname}')
 
-    def dif_update_specified_column(self):
-        """
-        update = 0, 1, 2
-        """
-        for update in [0, 1, 2]:
-            dbname = self.tdCom.get_long_name(length=5, mode="letters")
-            ts = self.tdCom.genTs()[0]
-            self.tdSql.execute(f'create database if not exists {dbname} update {update}')
-            self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned) tags \
-                (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, t4 bigint, t5 tinyint unsigned)')
-            self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({ts}, 1, 2, 3, 4, 5)')
-            self.tdSql.execute(f'insert into {dbname}.tb values ({ts}, 1, 2, 3, 4, 5)')
-            self.tdSql.execute(f'insert into {dbname}.tb (col_ts, c1, c2) values ({ts}, 1, null)')
-            self.tdSql.query(f'select c1, c2, c3, c4, c5 from {dbname}.stb')
-            if update == 0:
-                self.tdSql.checkEqual(self.tdSql.query_data, [(1, 2, 3, 4, 5)])
-            if update == 1:
-                self.tdSql.checkEqual(self.tdSql.query_data, [(1, None, None, None, None)])
-            if update == 2:
-                self.tdSql.checkEqual(self.tdSql.query_data, [(1, 2, 3, 4, 5)])
-            self.tdSql.execute(f'drop database if exists {dbname}')
-
     def run(self):
-        # self.stb_specified_column_insert()
+        self.stb_specified_column_insert()
         self.tb_specified_column_insert()
-        # self.dif_update_specified_column()
 
     def cleanup(self):
         pass
 
     def desc(self):
         case_description = """
-            stb_specified_column_insert <jayden>: [TD-13419] : specified column insert;\n
-            tb_specified_column_insert <jayden>: [TD-13419] : specified column insert;\n
-            dif_update_specified_column <jayden>: [TD-13419] : different update value of specified column;
+            stb_specified_column_insert <jayden>: [TD-13419] : specified column insert;
+            tb_specified_column_insert <jayden>: [TD-13419] : specified column insert;
         """
         return case_description
 

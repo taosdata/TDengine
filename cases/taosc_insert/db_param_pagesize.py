@@ -20,43 +20,61 @@ class TestPagesize(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
+        self.cfg = self.tdCom.Boundary.DB_PARAM_PAGESIZE_CONFIG
+
     def pagesize_check(self):
         """
         pagesize check
         """
-        test_param = "pagesize"
-        get_data = GetJson(self.logger, self.run_log_dir,self.env_setting)
-        # default
-        default_value = 4
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        test_param = self.cfg["create_name"]
+        get_data = GetJson(self.logger, self.run_log_dir, self.env_setting)
+        dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
-        
+        # default
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
         self.tdSql.query(f'show {dbname}.vgroups')
-        db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+        db_vnode_kv_dict = self.tdSql.getOneRow(1, dbname)
         data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
-        self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['szPage'])/1024)
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], int(data['config'][self.cfg["vnode_json_key"]])/1024)
         self.tdSql.execute(f'drop database {dbname}')
-        # param_list
-        param_value_list = [1, 16384]
-        for param_value in param_value_list:
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        # boundary
+        for param_value in self.cfg["boundary"]:
+            dbname = self.tdCom.get_long_name()
             self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
             self.tdSql.query(f'show {dbname}.vgroups')
-            db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+            db_vnode_kv_dict = self.tdSql.getOneRow(1, dbname)
             data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
-            self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['szPage'])/1024)
+            self.tdSql.checkEqual(db_field_kv_dict[test_param], int(data['config'][self.cfg["vnode_json_key"]])/1024)
             self.tdSql.execute(f'drop database {dbname}')
 
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[0] - 1}')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[-1] + 1}')
+        dbname = self.tdCom.get_long_name()
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][-1] + 1}')
 
+        #! alter database pagesize  bug:TD-16324
+        # dbname = self.tdCom.get_long_name()
+        # self.tdSql.execute(f'create database if not exists {dbname}')
+        # self.cfg["boundary"] = [1, 16384]
+        # for param_value in self.cfg["boundary"]:
+        #     dbname = self.tdCom.get_long_name()
+        #     self.tdSql.execute(f'alter database {dbname} {test_param} {param_value}')
+        #     self.tdSql.query('show databases')
+        #     db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+        #     self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+        #     self.tdSql.query(f'show {dbname}.vgroups')
+        #     db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+        #     data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+        #     self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['szPage'])/1024)
+        #! bug TD-16166
+        # for i in [self.cfg["boundary"][0]-1,self.cfg["boundary"][-1]+1,100.5,'abc']:
+        #     self.tdSql.error(f'alter database  {dbname} {test_param} {i}')
+        
+        # self.tdSql.execute(f'drop database {dbname}')
     def run(self) -> bool:
         self.pagesize_check()
 

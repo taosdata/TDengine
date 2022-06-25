@@ -1,0 +1,24 @@
+settings:
+  - name: taosd
+    fqdn: [vm130]
+    spec:
+      version: 3.0.0.0  #
+      config: # common config for all dnodes
+        firstEP: vm130:6030
+      dnodes:
+        - endpoint: vm130:6030
+          config_dir: /data/var/dnode1/config
+          config: # will write into taos.cfg
+            dataDir: /data/var/dnode1/data
+            logDir: /data/var/dnode1/log
+            debugFlag: 143
+  - name: taospy
+    fqdn: [vm130]
+    spec:
+      version: 2.5.0
+      client_version: 3.0.0.0
+      config:
+        firstEP: vm130:6030
+        logDir: /var/log/taos
+        defaultJSONStrType: "nchar"
+        debugFlag: 135

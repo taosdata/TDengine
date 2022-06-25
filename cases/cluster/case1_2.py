@@ -27,6 +27,7 @@ class Case2(ClusterCase):
         self.table_name = "tb"
         self.table_num = 10
         self.row_num = 500000  # row number per table
+        self.total_row = self.table_num * self.row_num
         self.max_restart_interval = [5, 10]
         self.restart_times = 5
         self.master_nodes = self.get_masters()
@@ -52,31 +53,16 @@ class Case2(ClusterCase):
             result = client_0.query(sql)
             data = result.fetch_all()
             self.logger.info("result: %s", str(data[0][0]))
-            if data[0][0] == 5000000:
+            if data[0][0] == self.total_row:
                 break
             i = i + 1
             time.sleep(2)
         # total row = self.table_num * self.row_num = 5000000
-        if data[0][0] != 5000000:
+        if data[0][0] != self.total_row:
             self.logger.error("row not match")
             self.error_msg = "row not match"
             self._status = False
             return
-        # check data
-        '''c1 = 0
-        i = 0;
-        while i < 10000:
-            sql = "select count(*) from %s where c1 = %d"  % (self.stb, c1)
-            # self.logger.info(sql)
-            result = client_0.query(sql)
-            data = result.fetch_all()
-            # self.logger.info("result: %s", str(data[0][0]))
-            if data[0][0] != 500:
-                self.logger.error("row not match c1 = %d", c1)
-                self.error_msg = f"row not match c1 = {c1}"
-                self.status = False
-            c1 = c1 + 50
-            i = i + 1'''
 
     def check_result(self):
         i = 0

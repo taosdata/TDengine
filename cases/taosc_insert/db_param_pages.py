@@ -21,28 +21,28 @@ class TestPages(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
+        self.cfg = self.tdCom.Boundary.DB_PARAM_PAGES_CONFIG
+
     def pages_check(self):
         """
         pages check
         """
-        test_param = "pages"
+        test_param = self.cfg["create_name"]
         get_data = GetJson(self.logger, self.run_log_dir,self.env_setting)
-        # default
-        default_value = 256
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
+        # default
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
         data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
-        self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['szCache']))
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], int(data['config'][self.cfg["vnode_json_key"]]))
         self.tdSql.execute(f'drop database {dbname}')
-        # param_list
-        param_value_list = [64]
-        for param_value in param_value_list:
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        # boundary
+        for param_value in self.cfg["boundary"]:
+            dbname = self.tdCom.get_long_name()
             self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
@@ -50,13 +50,32 @@ class TestPages(TDCase):
             self.tdSql.query(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
             data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
-            self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['szCache']))
+            self.tdSql.checkEqual(db_field_kv_dict[test_param], int(data['config'][self.cfg["vnode_json_key"]]))
             self.tdSql.execute(f'drop database {dbname}')
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[0] - 1}')
+        dbname = self.tdCom.get_long_name()
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
         
-
-    def run(self) -> bool:
+        #! alter database pages bug:TD-16324
+        # dbname = self.tdCom.get_long_name()
+        # self.tdSql.execute(f'create database if not exists {dbname}')
+        # self.tdSql.query('show databases')
+        # self.cfg["boundary"] = [64]
+        # for param_value in self.cfg["boundary"]:
+        #     dbname = self.tdCom.get_long_name()
+        #     self.tdSql.execute(f'alter database {dbname} {test_param} {param_value}')
+        #     self.tdSql.query('show databases')
+        #     db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+        #     self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+        #     self.tdSql.query(f'show {dbname}.vgroups')
+        #     db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+        #     data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+        #     self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config'][self.cfg["vnode_json_key"]]))
+        #! bug TD-16166
+        # for i in [self.cfg["boundary"][0]-1,100.1,'abc']:
+        #     self.tdSql.error(f'alter database {dbname} pages {i}')
+        
+        # self.tdSql.execute(f'drop database {dbname}')
+    def run(self):
         self.pages_check()
 
     def cleanup(self):

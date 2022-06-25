@@ -48,12 +48,13 @@ class TestNull(TDCase):
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
         tbname = "null"
         self.tdSql.error(f'create table if not exists {dbname}.{tbname} using {dbname}.stb tags (now, 1)')
-        self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (null, null)')
+        self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (null, null)')
+        self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, 1)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now, null)')
         self.tdSql.error(f'insert into {dbname}.tb values (null, 1)')
         self.tdSql.query(f'select tag_ts, t1, c1 from {dbname}.stb')
-        self.tdSql.checkEqual(self.tdSql.query_data[0][0], None)
-        self.tdSql.checkEqual(self.tdSql.query_data[0][1], None)
+        # self.tdSql.checkEqual(self.tdSql.query_data[0][0], None)
+        self.tdSql.checkEqual(self.tdSql.query_data[0][1], 1)
         self.tdSql.checkEqual(self.tdSql.query_data[0][2], None)
         self.tdSql.execute(f'drop database if exists {dbname}')
 
@@ -80,7 +81,8 @@ class TestNull(TDCase):
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(16), c12 nchar(16), c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
                 t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t11 binary(16), t12 nchar(16), t13 bool)')
         self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, "binary", "nchar", True)')
-        self.tdSql.execute(f'create table if not exists {dbname}.tb_null using {dbname}.stb tags (now, null, null, null, null, null, null, null, null, null, null, null, null, null)')
+        # ! TD-16547
+        # self.tdSql.execute(f'create table if not exists {dbname}.tb_null using {dbname}.stb tags (now, null, null, null, null, null, null, null, null, null, null, null, null, null)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, "binary", "nchar", True)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now-1h, null, null, null, null, null, null, null, null, null, null, null, null, null)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now-2h, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, "binary", "nchar", True)')
@@ -95,7 +97,7 @@ class TestNull(TDCase):
     def run(self):
         self.null_dbname_check()
         self.stb_null_check()
-        # self.child_tb_null_check()
+        self.child_tb_null_check()
         self.tb_null_check()
         self.polling_insert_check()
 

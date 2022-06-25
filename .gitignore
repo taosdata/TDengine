@@ -127,3 +127,5 @@ dmypy.json
 .pyre/
 run
 .idea
+node_modules
+package-lock.json

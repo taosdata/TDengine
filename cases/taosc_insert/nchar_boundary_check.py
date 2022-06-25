@@ -20,28 +20,27 @@ class TestNcharBoundary(TDCase):
 
     def nchar_length_check(self):
         """
-        # ! 已变更为48K, 但目前有问题, 待修复后更新用例
         max length: 4093
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
-        str_4093 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["NCHAR_MAX_LENGTH"], mode="letters")
-        str_4094 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1, mode="letters")
+        nchar_max = self.tdCom.get_long_name(length=self.tdCom.Boundary.NCHAR_MAX_LENGTH)
+        nchar_exceed = self.tdCom.get_long_name(length=self.tdCom.Boundary.NCHAR_MAX_LENGTH+1)
         # self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 nchar({self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]})) tags (t1 nchar({self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]}))')
-        # self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags ("{str_4093}")')
-        # self.tdSql.execute(f'insert into {dbname}.tb values (now, "{str_4093}")')
+        # self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags ("{nchar_max}")')
+        # self.tdSql.execute(f'insert into {dbname}.tb values (now, "{nchar_max}")')
         # self.tdSql.query(f'select t1, c1 from {dbname}.tb')
-        # self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), str_4093)
-        # self.tdSql.checkEqual(str(self.tdSql.query_data[0][1]), str_4093)
+        # self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), nchar_max)
+        # self.tdSql.checkEqual(str(self.tdSql.query_data[0][1]), nchar_max)
         # self.tdSql.error(f'create stable if not exists {dbname}.stb_error1 (col_ts timestamp, c1 nchar({self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]})) tags (t1 nchar({self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1}))')
         # self.tdSql.error(f'create stable if not exists {dbname}.stb_error2 (col_ts timestamp, c1 nchar({self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1})) tags (t1 nchar({self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]}))')
-        # self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, "{str_4094}")')
-        # self.tdSql.error(f'insert into {dbname}.tb values (now-1h, "{str_4094}")')
-        self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 nchar({self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]}))')
-        self.tdSql.execute(f'insert into {dbname}.tb values (now, "{str_4093}")')
+        # self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, "{nchar_exceed}")')
+        # self.tdSql.error(f'insert into {dbname}.tb values (now-1h, "{nchar_exceed}")')
+        self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 nchar({self.tdCom.Boundary.NCHAR_MAX_LENGTH}))')
+        self.tdSql.execute(f'insert into {dbname}.tb values (now, "{nchar_max}")')
         self.tdSql.query(f'select * from {dbname}.tb')
-        self.tdSql.checkEqual(str(self.tdSql.query_data[0][1]), str_4093)
-        self.tdSql.error(f'insert into {dbname}.tb values (now-1h, "{str_4094}")')
+        self.tdSql.checkEqual(str(self.tdSql.query_data[0][1]), nchar_max)
+        self.tdSql.error(f'insert into {dbname}.tb values (now-1h, "{nchar_exceed}")')
         self.tdSql.execute(f'drop database if exists {dbname}')
 
     def run(self):
