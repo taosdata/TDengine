@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndOffset.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
@@ -36,13 +36,15 @@ static int32_t mndOffsetActionUpdate(SSdb *pSdb, SMqOffsetObj *pOffset, SMqOffse
 static int32_t mndProcessCommitOffsetReq(SRpcMsg *pReq);
 
 int32_t mndInitOffset(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_OFFSET,
-                     .keyType = SDB_KEY_BINARY,
-                     .encodeFp = (SdbEncodeFp)mndOffsetActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndOffsetActionDecode,
-                     .insertFp = (SdbInsertFp)mndOffsetActionInsert,
-                     .updateFp = (SdbUpdateFp)mndOffsetActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndOffsetActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_OFFSET,
+      .keyType = SDB_KEY_BINARY,
+      .encodeFp = (SdbEncodeFp)mndOffsetActionEncode,
+      .decodeFp = (SdbDecodeFp)mndOffsetActionDecode,
+      .insertFp = (SdbInsertFp)mndOffsetActionInsert,
+      .updateFp = (SdbUpdateFp)mndOffsetActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndOffsetActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_COMMIT_OFFSET, mndProcessCommitOffsetReq);
 
