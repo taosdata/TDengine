@@ -59,7 +59,7 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/t
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_sample.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_hyperloglog.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_func_right.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_func_right_tbname.py --keep
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_func_right_tbname.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/split/stable_str_cast_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/split/stable_str_cast_2.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_length.py --keep --containers
