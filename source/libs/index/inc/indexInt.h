@@ -45,6 +45,7 @@ extern "C" {
 
 typedef enum { LT, LE, GT, GE, CONTAINS, EQ } RangeType;
 typedef enum { kTypeValue, kTypeDeletion } STermValueType;
+typedef enum { kRebuild, kFinished } SIdxStatus;
 
 typedef struct SIndexStat {
   int32_t totalAdded;    //
@@ -65,6 +66,7 @@ struct SIndex {
 
   char* path;
 
+  int8_t        status;
   SIndexStat    stat;
   TdThreadMutex mtx;
   tsem_t        sem;

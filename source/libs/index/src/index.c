@@ -39,7 +39,7 @@
 #define INDEX_DATA_BIGINT_NULL    0x8000000000000000LL
 #define INDEX_DATA_TIMESTAMP_NULL TSDB_DATA_BIGINT_NULL
 
-#define INDEX_DATA_FLOAT_NULL    0x7FF00000           // it is an NAN
+#define INDEX_DATA_FLOAT_NULL    0x7FF00000            // it is an NAN
 #define INDEX_DATA_DOUBLE_NULL   0x7FFFFF0000000000LL  // an NAN
 #define INDEX_DATA_NCHAR_NULL    0xFFFFFFFF
 #define INDEX_DATA_BINARY_NULL   0xFF
@@ -230,7 +230,7 @@ int indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* result
 }
 
 int indexDelete(SIndex* index, SIndexMultiTermQuery* query) { return 1; }
-int indexRebuild(SIndex* index, SIndexOpts* opts) { return 0; }
+// int indexRebuild(SIndex* index, SIndexOpts* opts) { return 0; }
 
 SIndexOpts* indexOptsCreate() { return NULL; }
 void        indexOptsDestroy(SIndexOpts* opts) { return; }
@@ -299,6 +299,7 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
 
   return tm;
 }
+
 void indexTermDestroy(SIndexTerm* p) {
   taosMemoryFree(p->colName);
   taosMemoryFree(p->colVal);
@@ -317,6 +318,54 @@ void indexMultiTermDestroy(SIndexMultiTerm* terms) {
     indexTermDestroy(p);
   }
   taosArrayDestroy(terms);
+}
+
+/*
+ * rebuild index
+ */
+
+static void idxSchedRebuildIdx(SSchedMsg* msg) {
+  // TODO
+  SIndex* idx = msg->ahandle;
+
+  int8_t st = kFinished;
+  atomic_store_8(&idx->status, st);
+  idxReleaseRef(idx->refId);
+}
+void indexRebuild(SIndexJson* idx, void* iter) {
+  // set up rebuild status
+  int8_t st = kRebuild;
+  atomic_store_8(&idx->status, st);
+
+  // task put into BG thread
+  SSchedMsg schedMsg = {0};
+  schedMsg.fp = idxSchedRebuildIdx;
+  schedMsg.ahandle = idx;
+  idxAcquireRef(idx->refId);
+  taosScheduleTask(indexQhandle, &schedMsg);
+}
+
+/*
+ * check index json status
+ **/
+bool indexIsRebuild(SIndex* idx) {
+  // idx rebuild or not
+  return ((SIdxStatus)atomic_load_8(&idx->status)) == kRebuild ? true : false;
+}
+/*
+ * rebuild index
+ */
+void indexJsonRebuild(SIndexJson* idx, void* iter) {
+  // idx rebuild or not
+  indexRebuild(idx, iter);
+}
+
+/*
+ * check index json status
+ **/
+bool indexJsonIsRebuild(SIndexJson* idx) {
+  // load idx rebuild or not
+  return ((SIdxStatus)atomic_load_8(&idx->status)) == kRebuild ? true : false;
 }
 
 static int idxTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result) {
