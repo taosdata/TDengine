@@ -263,7 +263,7 @@ class TDFunction():
     def int_cloumn_state(self):   
         hanshu = ['statecount','stateduration']
         hanshu_select = random.sample(hanshu,1)
-        self.logger.info(hanshu_select)
+        print(hanshu_select)
                 
         column = ['(q_bigint,oper,num,time)','(q_smallint,oper,num,time)','(q_tinyint,oper,num,time)','(q_int,oper,num,time)','(q_float,oper,num,time)','(q_double,oper,num,time)'] 
         hanshu_column = hanshu_select+random.sample(column,1)
