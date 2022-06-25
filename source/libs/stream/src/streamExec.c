@@ -109,7 +109,7 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
     if (type == STREAM_INPUT__TRIGGER) {
       blockDataDestroy(((SStreamTrigger*)data)->pBlock);
       taosFreeQitem(data);
-    } else if (type == STREAM_INPUT__DATA_BLOCK) {
+    } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE) {
       taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);
       taosFreeQitem(data);
     } else if (type == STREAM_INPUT__DATA_SUBMIT) {
