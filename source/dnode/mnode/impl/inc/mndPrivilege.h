@@ -64,6 +64,7 @@ void    mndCleanupPrivilege(SMnode *pMnode);
 
 int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType);
 int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb);
+int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *name);
 int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, int32_t showType);
 int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter);
 

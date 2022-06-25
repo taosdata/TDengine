@@ -480,7 +480,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -571,6 +571,10 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
 #endif
 
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db) != 0) {
+    return -1;
+  }
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq);
   mndTransSetDbName(pTrans, pTopic->db, NULL);
   if (pTrans == NULL) {
@@ -579,7 +583,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
 
   mDebug("trans:%d, used to drop topic:%s", pTrans->id, pTopic->name);
-
+  
   if (mndDropOffsetByTopic(pMnode, pTrans, dropReq.name) < 0) {
     ASSERT(0);
     return -1;
