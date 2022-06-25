@@ -170,37 +170,31 @@ static void *tdFreeTSmaStat(STSmaStat *pStat) {
 static void tdDestroyRSmaStat(SRSmaStat *pStat) {
   if (pStat) {
     smaDebug("vgId:%d, %s:%d free rsma stat", SMA_VID(pStat->pSma), __func__, __LINE__);
-    // step1: destroy the persist task
-    // disable the possible forthcoming task
+    // step 1: set persistence task cancelled
     atomic_store_8(&RSMA_TMR_STAT(pStat), TASK_TRIGGER_STAT_CANCELLED);
-    // clean timer
+
+    // step 3: wait the persistence thread to finish
+    int32_t nLoops = 0;
+    while (1) {
+      if (atomic_load_8(&RSMA_TMR_STAT(pStat)) == TASK_TRIGGER_STAT_FINISHED) {
+        break;
+      } else {
+        smaDebug("not destroyed since stat in %" PRIi8, atomic_load_8(&RSMA_TMR_STAT(pStat)));
+      }
+      ++nLoops;
+      if (nLoops > 1000) {
+        // sched_yield();
+        nLoops = 0;
+      }
+      taosSsleep(3);
+    }
+
+    // step 2: clean timer
     taosTmrStopA(&RSMA_TMR_ID(pStat));
     if (RSMA_TMR_HANDLE(pStat)) {
       taosTmrCleanUp(RSMA_TMR_HANDLE(pStat));
     }
-    // cancel persist thread
-    TdThread tid = (TdThread)atomic_load_u64(&pStat->persistThread);
-    if (tid > 0) {
-      int32_t tCode = 0;
-      if ((tCode = taosThreadCancel(tid)) != 0) {
-        smaWarn("vgId:%d, %s:%d persist thread %" PRIu64 " is running, fail to cancel the thread, code:%d",
-                SMA_VID(pStat->pSma), __func__, __LINE__, (uint64_t)tid, tCode);
-      } else {
-        smaDebug("vgId:%d, %s:%d persist thread %" PRIu64 " is running, succeed to cancel the thread",
-                 SMA_VID(pStat->pSma), __func__, __LINE__, (uint64_t)tid);
-        if ((tCode = taosThreadJoin(tid, NULL)) != 0) {
-          smaWarn("vgId:%d, %s:%d persist thread %" PRIu64 " is running, fail to cancel the thread, code:%d",
-                  SMA_VID(pStat->pSma), __func__, __LINE__, (uint64_t)tid, tCode);
-        } else {
-          smaDebug("vgId:%d, %s:%d persist thread %" PRIu64 " is running, succeed to cancel the thread",
-                   SMA_VID(pStat->pSma), __func__, __LINE__, (uint64_t)tid);
-        }
-      }
-    } else {
-      smaDebug("vgId:%d, %s:%d persist thread %" PRIu64 " is invalid, no need to cancel", SMA_VID(pStat->pSma),
-               __func__, __LINE__, (uint64_t)tid);
-    }
-    // step2: destroy the rsma info and associated fetch tasks
+    // step4: destroy the rsma info and associated fetch tasks
     // TODO: use taosHashSetFreeFp when taosHashSetFreeFp is ready.
     void *infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), NULL);
     while (infoHash) {

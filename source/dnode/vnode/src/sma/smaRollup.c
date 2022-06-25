@@ -15,7 +15,7 @@
 
 #include "sma.h"
 
-#define RSMA_QTASK_PERSIST_MS 7200000
+#define RSMA_QTASK_PERSIST_MS 5000
 typedef enum { TD_QTASK_TMP_FILE = 0, TD_QTASK_CUR_FILE } TD_QTASK_FILE_T;
 static const char *tdQTaskInfoFname[] = {"qtaskinfo.t", "qtaskinfo"};
 
@@ -647,9 +647,21 @@ static void *tdRSmaPersistExec(void *param) {
   int64_t    toffset = 0;
   bool       isFileCreated = false;
 
+#if 1
+  SArray *suidList = taosArrayInit(1, sizeof(tb_uid_t));
+  if (tsdbGetStbIdList(SMA_META(pSma), 0, suidList) < 0) {
+    ASSERT(0);
+  } else {
+    for (int32_t i = 0; i < taosArrayGetSize(suidList); ++i) {
+      tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
+      smaDebug("suid [%d] is %" PRIi64, i, suid);
+    }
+  }
+#endif
+
   void *infoHash = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), NULL);
   if (!infoHash) {
-    return NULL;
+    goto _end;
   }
 
   STFile  tFile = {0};
@@ -659,6 +671,7 @@ static void *tdRSmaPersistExec(void *param) {
     SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)infoHash;
     char      *pOutput = NULL;
     int32_t    len = 0;
+    int8_t     type = 0;
 #if 0
     smaDebug("table %" PRIi64 " sleep 15s start ...", pRSmaInfo->items[0].pRsmaInfo->suid);
     for (int32_t i = 15; i > 0; --i) {
@@ -667,46 +680,60 @@ static void *tdRSmaPersistExec(void *param) {
     }
     smaDebug("table %" PRIi64 " sleep 15s end ...", pRSmaInfo->items[0].pRsmaInfo->suid);
 #endif
-
-    if (qSerializeTaskStatus(pRSmaInfo->items[0].taskInfo, &pOutput, &len) < 0) {
-      smaError("vgId:%d, table %" PRIi64 " serialize rsma task failed since %s", vid,
-               pRSmaInfo->items[0].pRsmaInfo->suid, terrstr(terrno));
-      goto _err;
-    } else {
-      if (!pOutput) {
-        smaDebug("vgId:%d, table %" PRIi64 " serialize rsma task success with len %d and no need to persist", vid,
-                 pRSmaInfo->items[0].pRsmaInfo->suid, len);
-        infoHash = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), infoHash);
+    for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
+      qTaskInfo_t taskInfo = pRSmaInfo->items[i].taskInfo;
+      if (!taskInfo) {
+        smaDebug("vgId:%d, table %" PRIi64 " level %d qTaskInfo is NULL", vid, pRSmaInfo->suid, i + 1);
         continue;
       }
-      smaDebug("vgId:%d, table %" PRIi64 " serialize rsma task success with len %d and need persist", vid,
-               pRSmaInfo->items[0].pRsmaInfo->suid, len);
+      if (qSerializeTaskStatus(taskInfo, &pOutput, &len) < 0) {
+        smaError("vgId:%d, table %" PRIi64 " level %d serialize rsma task failed since %s", vid, pRSmaInfo->suid, i + 1,
+                 terrstr(terrno));
+        goto _err;
+      } else {
+        if (!pOutput) {
+          smaDebug("vgId:%d, table %" PRIi64 " level %d serialize rsma task success with len %d and no need to persist",
+                   vid, pRSmaInfo->suid, i + 1, len);
+          continue;
+        }
+        smaDebug("vgId:%d, table %" PRIi64 " level %d serialize rsma task success with len %d and need persist", vid,
+                 pRSmaInfo->suid, i + 1, len);
+#if 1
+        if (qDeserializeTaskStatus(taskInfo, pOutput, len) < 0) {
+          smaError("vgId:%d, table %" PRIi64 "level %d  deserialize rsma task failed since %s", vid, pRSmaInfo->suid,
+                   i + 1, terrstr(terrno));
+        } else {
+          smaDebug("vgId:%d, table %" PRIi64 " level %d deserialize rsma task success", vid, pRSmaInfo->suid, i + 1);
+        }
+#endif
+      }
+
+      if (!isFileCreated) {
+        char qTaskInfoFName[TSDB_FILENAME_LEN];
+        tdRSmaQTaskGetFName(vid, TD_QTASK_TMP_FILE, qTaskInfoFName);
+        tdInitTFile(&tFile, pTfs, qTaskInfoFName);
+        tdCreateTFile(&tFile, pTfs, true, -1);
+
+        isFileCreated = true;
+      }
+      len += (sizeof(len) + sizeof(pRSmaInfo->suid));
+      tdAppendTFile(&tFile, &len, sizeof(len), &toffset);
+      tdAppendTFile(&tFile, &pRSmaInfo->suid, sizeof(pRSmaInfo->suid), &toffset);
+      tdAppendTFile(&tFile, pOutput, len, &toffset);
+
+      taosMemoryFree(pOutput);
     }
-
-    if (!isFileCreated) {
-      char qTaskInfoFName[TSDB_FILENAME_LEN];
-      tdRSmaQTaskGetFName(vid, TD_QTASK_TMP_FILE, qTaskInfoFName);
-      tdInitTFile(&tFile, pTfs, qTaskInfoFName);
-      tdCreateTFile(&tFile, pTfs, true, -1);
-
-      isFileCreated = true;
-    }
-
-    tdAppendTFile(&tFile, &len, sizeof(len), &toffset);
-    tdAppendTFile(&tFile, pOutput, len, &toffset);
-
-    taosMemoryFree(pOutput);
     infoHash = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), infoHash);
   }
-_end:
+_normal:
   if (isFileCreated) {
     if (tdUpdateTFileHeader(&tFile) < 0) {
       smaError("vgId:%d, failed to update tfile %s header since %s", vid, TD_FILE_FULL_NAME(&tFile), tstrerror(terrno));
       tdCloseTFile(&tFile);
       tdRemoveTFile(&tFile);
-      return NULL;
+      goto _err;
     } else {
-      smaWarn("vgId:%d, succeed to update tfile %s header", vid, TD_FILE_FULL_NAME(&tFile));
+      smaDebug("vgId:%d, succeed to update tfile %s header", vid, TD_FILE_FULL_NAME(&tFile));
     }
 
     tdCloseTFile(&tFile);
@@ -717,21 +744,29 @@ _end:
     strncpy(pos, tdQTaskInfoFname[TD_QTASK_CUR_FILE], TSDB_FILENAME_LEN - POINTER_DISTANCE(pos, newFName));
     if (taosRenameFile(TD_FILE_FULL_NAME(&tFile), newFName) != 0) {
       smaError("vgId:%d, failed to rename %s to %s", vid, TD_FILE_FULL_NAME(&tFile), newFName);
+      goto _err;
     } else {
-      smaWarn("vgId:%d, succeed to rename %s to %s", vid, TD_FILE_FULL_NAME(&tFile), newFName);
+      smaDebug("vgId:%d, succeed to rename %s to %s", vid, TD_FILE_FULL_NAME(&tFile), newFName);
     }
   }
-  atomic_store_u64(&pRSmaStat->persistThread, 0);
-  atomic_store_8(&pRSmaStat->tmrStat, TASK_TRIGGER_STAT_ACTIVE);
-  taosThreadExit(NULL);
-  return NULL;
+  goto _end;
 _err:
-  // remove the .tmp file
   if (isFileCreated) {
     tdRemoveTFile(&tFile);
   }
-  atomic_store_u64(&pRSmaStat->persistThread, 0);
-  atomic_store_8(&pRSmaStat->tmrStat, TASK_TRIGGER_STAT_ACTIVE);
+_end:
+  if (TASK_TRIGGER_STAT_INACTIVE ==
+      atomic_val_compare_exchange_8(&pRSmaStat->tmrStat, TASK_TRIGGER_STAT_INACTIVE, TASK_TRIGGER_STAT_ACTIVE)) {
+    smaDebug("vgId:%d, persist task is active again", vid);
+  } else if (TASK_TRIGGER_STAT_CANCELLED == atomic_val_compare_exchange_8(&pRSmaStat->tmrStat,
+                                                                          TASK_TRIGGER_STAT_CANCELLED,
+                                                                          TASK_TRIGGER_STAT_FINISHED)) {
+    smaDebug("vgId:%d, persist task is cancelled", vid);
+  } else {
+    smaWarn("vgId:%d, persist task in abnormal stat %" PRIi8, vid, atomic_load_8(&pRSmaStat->tmrStat));
+    ASSERT(0);
+  }
+
   taosThreadExit(NULL);
   return NULL;
 }
@@ -740,15 +775,24 @@ static void tdRSmaPersistTask(SRSmaStat *pRSmaStat) {
   smaDebug("%s:%d entry ", __func__, __LINE__);
   TdThreadAttr thAttr;
   taosThreadAttrInit(&thAttr);
-  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_DETACHED);
   TdThread tid;
   if (taosThreadCreate(&tid, &thAttr, tdRSmaPersistExec, pRSmaStat) != 0) {
+    if (TASK_TRIGGER_STAT_INACTIVE ==
+        atomic_val_compare_exchange_8(&pRSmaStat->tmrStat, TASK_TRIGGER_STAT_INACTIVE, TASK_TRIGGER_STAT_ACTIVE)) {
+      smaDebug("persist task is active again");
+    } else if (TASK_TRIGGER_STAT_CANCELLED == atomic_val_compare_exchange_8(&pRSmaStat->tmrStat,
+                                                                            TASK_TRIGGER_STAT_CANCELLED,
+                                                                            TASK_TRIGGER_STAT_FINISHED)) {
+      smaDebug(" persist task is cancelled");
+    } else {
+      smaWarn("persist task in abnormal stat %" PRIi8, atomic_load_8(&pRSmaStat->tmrStat));
+      ASSERT(0);
+    }
     smaError("failed to create thread to persist rsma qTaskInfo since %s", strerror(errno));
   } else {
     smaDebug("persist thread is created");
-    atomic_store_u64(&pRSmaStat->persistThread, tid);
   }
-
   taosThreadAttrDestroy(&thAttr);
   smaDebug("%s:%d end ", __func__, __LINE__);
 }
@@ -761,30 +805,26 @@ static void tdRSmaPersistTask(SRSmaStat *pRSmaStat) {
  */
 static void tdRSmaPersistTrigger(void *param, void *tmrId) {
   SRSmaStat *pRSmaStat = param;
-
-  int8_t tmrStat = atomic_load_8(&pRSmaStat->tmrStat);
-
+  int8_t     tmrStat =
+      atomic_val_compare_exchange_8(&pRSmaStat->tmrStat, TASK_TRIGGER_STAT_ACTIVE, TASK_TRIGGER_STAT_INACTIVE);
   switch (tmrStat) {
     case TASK_TRIGGER_STAT_ACTIVE: {
       smaDebug("%s:%d rsma persistence start since active", __func__, __LINE__);
-      if (atomic_load_8(&pRSmaStat->tmrStat) != TASK_TRIGGER_STAT_CANCELLED) {
-        atomic_store_8(&pRSmaStat->tmrStat, TASK_TRIGGER_STAT_INACTIVE);
-        tdRSmaPersistTask(pRSmaStat);
-        taosTmrReset(tdRSmaPersistTrigger, RSMA_QTASK_PERSIST_MS, pRSmaStat, pRSmaStat->tmrHandle, &pRSmaStat->tmrId);
-      }
-    } break;
-    case TASK_TRIGGER_STAT_CANCELLED: {
-      smaDebug("%s:%drsma persistence not start since cancelled", __func__, __LINE__);
-    } break;
-    case TASK_TRIGGER_STAT_INACTIVE: {
-      smaDebug("%s:%drsma persistence not start since inactive", __func__, __LINE__);
+      tdRSmaPersistTask(pRSmaStat);
       taosTmrReset(tdRSmaPersistTrigger, RSMA_QTASK_PERSIST_MS, pRSmaStat, pRSmaStat->tmrHandle, &pRSmaStat->tmrId);
     } break;
+    case TASK_TRIGGER_STAT_CANCELLED: {
+      atomic_store_8(&pRSmaStat->tmrStat, TASK_TRIGGER_STAT_FINISHED);
+      smaDebug("%s:%d rsma persistence not start since cancelled", __func__, __LINE__);
+    } break;
+    case TASK_TRIGGER_STAT_INACTIVE: {
+      smaDebug("%s:%d rsma persistence not start since inactive", __func__, __LINE__);
+    } break;
     case TASK_TRIGGER_STAT_INIT: {
-      smaDebug("%s:%drsma persistence not start since init", __func__, __LINE__);
+      smaDebug("%s:%d rsma persistence not start since init", __func__, __LINE__);
     } break;
     default: {
-      smaWarn("%s:%drsma persistence stat %" PRIi8 " is unknown", __func__, __LINE__, tmrStat);
+      smaWarn("%s:%d rsma persistence not start since unknown stat %" PRIi8, __func__, __LINE__, tmrStat);
     } break;
   }
 }

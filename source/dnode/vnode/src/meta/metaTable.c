@@ -23,7 +23,7 @@ static int metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateTtlIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME);
-static int metaUpdateStbIdx(SMeta *pMeta, const SMetaEntry *pME);
+static int metaUpdateSuidIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
 static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type);
 
@@ -210,7 +210,7 @@ _drop_super_table:
               &pMeta->txn);
   tdbTbDelete(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &pMeta->txn);
   tdbTbDelete(pMeta->pUidIdx, &pReq->suid, sizeof(tb_uid_t), &pMeta->txn);
-  tdbTbDelete(pMeta->pStbIdx, &pReq->suid, sizeof(tb_uid_t), &pMeta->txn);
+  tdbTbDelete(pMeta->pSuidIdx, &pReq->suid, sizeof(tb_uid_t), &pMeta->txn);
 
   metaULock(pMeta);
 
@@ -442,7 +442,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
   } else if (e.type == TSDB_NORMAL_TABLE) {
     // drop schema.db (todo)
   } else if (e.type == TSDB_SUPER_TABLE) {
-    tdbTbDelete(pMeta->pStbIdx, &e.uid, sizeof(tb_uid_t), &pMeta->txn);
+    tdbTbDelete(pMeta->pSuidIdx, &e.uid, sizeof(tb_uid_t), &pMeta->txn);
     // drop schema.db (todo)
   }
 
@@ -913,8 +913,8 @@ static int metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME) {
   return tdbTbInsert(pMeta->pUidIdx, &pME->uid, sizeof(tb_uid_t), &pME->version, sizeof(int64_t), &pMeta->txn);
 }
 
-static int metaUpdateStbIdx(SMeta *pMeta, const SMetaEntry *pME) {
-  return tdbTbInsert(pMeta->pStbIdx, &pME->uid, sizeof(tb_uid_t), NULL, 0, &pMeta->txn);
+static int metaUpdateSuidIdx(SMeta *pMeta, const SMetaEntry *pME) {
+  return tdbTbInsert(pMeta->pSuidIdx, &pME->uid, sizeof(tb_uid_t), NULL, 0, &pMeta->txn);
 }
 
 static int metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME) {
@@ -1089,7 +1089,7 @@ static int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME) {
     if (metaSaveToSkmDb(pMeta, pME) < 0) goto _err;
 
     if (pME->type == TSDB_SUPER_TABLE) {
-      if (metaUpdateStbIdx(pMeta, pME) < 0) goto _err;
+      if (metaUpdateSuidIdx(pMeta, pME) < 0) goto _err;
     }
   }
 

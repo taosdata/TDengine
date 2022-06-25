@@ -125,6 +125,7 @@ int32_t      tsdbGetFileBlocksDistInfo(tsdbReaderT *pReader, STableBlockDistInfo
 bool         isTsdbCacheLastRow(tsdbReaderT *pReader);
 int32_t      tsdbGetAllTableList(SMeta *pMeta, uint64_t uid, SArray *list);
 int32_t      tsdbGetCtbIdList(SMeta *pMeta, int64_t suid, SArray *list);
+int32_t      tsdbGetStbIdList(SMeta *pMeta, int64_t suid, SArray *list);
 void        *tsdbGetIdx(SMeta *pMeta);
 void        *tsdbGetIvtIdx(SMeta *pMeta);
 int64_t      tsdbGetNumOfRowsInMemTable(tsdbReaderT *pHandle);

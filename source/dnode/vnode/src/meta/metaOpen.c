@@ -92,8 +92,8 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
     goto _err;
   }
 
-  // open pStbIdx
-  ret = tdbTbOpen("stb.idx", sizeof(tb_uid_t), 0, uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pStbIdx);
+  // open pSuidIdx
+  ret = tdbTbOpen("suid.idx", sizeof(tb_uid_t), 0, uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pSuidIdx);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta super table index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
@@ -148,7 +148,7 @@ _err:
   if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
   if (pMeta->pTagIdx) tdbTbClose(pMeta->pTagIdx);
   if (pMeta->pCtbIdx) tdbTbClose(pMeta->pCtbIdx);
-  if (pMeta->pStbIdx) tdbTbClose(pMeta->pStbIdx);
+  if (pMeta->pSuidIdx) tdbTbClose(pMeta->pSuidIdx);
   if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);
   if (pMeta->pUidIdx) tdbTbClose(pMeta->pUidIdx);
   if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
@@ -170,7 +170,7 @@ int metaClose(SMeta *pMeta) {
     if (pMeta->pTagIdx) tdbTbClose(pMeta->pTagIdx);
 #endif
     if (pMeta->pCtbIdx) tdbTbClose(pMeta->pCtbIdx);
-    if (pMeta->pStbIdx) tdbTbClose(pMeta->pStbIdx);
+    if (pMeta->pSuidIdx) tdbTbClose(pMeta->pSuidIdx);
     if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);
     if (pMeta->pUidIdx) tdbTbClose(pMeta->pUidIdx);
     if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
