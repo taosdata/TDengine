@@ -300,7 +300,7 @@ int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     return 0;
   }
-  ASSERT(pBlock->type == STREAM_DATA_TYPE_SSDATA_BLOCK);
+  ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK);
 
   qInfo("stream continue dispatching: task %d", pTask->taskId);
 
