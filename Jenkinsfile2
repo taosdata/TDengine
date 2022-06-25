@@ -79,6 +79,7 @@ def pre_test(){
             git pull >/dev/null
             git log -5
             echo "`date "+%Y%m%d-%H%M%S"` ${JOB_NAME}:${BRANCH_NAME}:${BUILD_ID}:${CHANGE_TARGET}" >>${WKDIR}/jenkins.log
+            echo "CHANGE_BRANCH:${CHANGE_BRANCH}" >>${WKDIR}/jenkins.log
             echo "community log: `git log -5`" >>${WKDIR}/jenkins.log
             git fetch origin +refs/pull/${CHANGE_ID}/merge
             git checkout -qf FETCH_HEAD
@@ -95,6 +96,7 @@ def pre_test(){
             git pull >/dev/null
             git log -5
             echo "`date "+%Y%m%d-%H%M%S"` ${JOB_NAME}:${BRANCH_NAME}:${BUILD_ID}:${CHANGE_TARGET}" >>${WKDIR}/jenkins.log
+            echo "CHANGE_BRANCH:${CHANGE_BRANCH}" >>${WKDIR}/jenkins.log
             echo "tdinternal log: `git log -5`" >>${WKDIR}/jenkins.log
             git fetch origin +refs/pull/${CHANGE_ID}/merge
             git checkout -qf FETCH_HEAD
