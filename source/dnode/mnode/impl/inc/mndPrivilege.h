@@ -57,6 +57,8 @@ typedef enum {
   MND_OPER_USE_DB,
   MND_OPER_WRITE_DB,
   MND_OPER_READ_DB,
+  MND_OPER_READ_OR_WRITE_DB,
+  MND_OPER_SHOW_VARIBALES,
 } EOperType;
 
 int32_t mndInitPrivilege(SMnode *pMnode);
@@ -64,8 +66,8 @@ void    mndCleanupPrivilege(SMnode *pMnode);
 
 int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType);
 int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb);
-int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *name);
-int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, int32_t showType);
+int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *dbname);
+int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, EShowType showType, const char *dbname);
 int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter);
 
 #ifdef __cplusplus
