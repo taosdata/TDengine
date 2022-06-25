@@ -4028,6 +4028,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
     int32_t   len = (int32_t)(pStart - (char*)keyBuf);
     uint64_t groupId = calcGroupId(keyBuf, len);
     taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &groupId, sizeof(uint64_t));
+    info->groupId = groupId;
     groupNum++;
 
     nodesClearList(groupNew);
@@ -4127,7 +4128,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
           return NULL;
         }
       } else {  // Create one table group.
-        STableKeyInfo info = {.lastKey = 0, .uid = pBlockNode->uid};
+        STableKeyInfo info = {.lastKey = 0, .uid = pBlockNode->uid, .groupId = 0};
         taosArrayPush(pTableListInfo->pTableList, &info);
       }
 
