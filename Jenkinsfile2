@@ -392,27 +392,6 @@ pipeline {
                                         cd ${WKC}/packaging
                                         ./release.sh -v cluster -n 3.0.0.100 -s static
                                     '''
-                                    sh '''
-                                        echo "install ..."
-                                        cd ${WKC}/release
-                                        tar xzf TDengine-enterprise-server-3.0.0.100-Linux-x64.tar.gz
-                                        cd TDengine-enterprise-server-3.0.0.100
-                                        service taosd stop || :
-                                        rm -rf /var/lib/taos
-                                        ./install.sh -e no
-                                    '''
-                                    sh '''
-                                        echo "checking ..."
-                                        which taos
-                                        which taosd
-                                        rm -rf ${WK}/debug
-                                        mv ${WKC}/debug ${WK}/
-                                    '''
-                                    sh '''
-                                        echo "install taospy ..."
-                                        cd ${WKPY}
-                                        pip3 install .
-                                    '''
                                 }
                             }
                         }
