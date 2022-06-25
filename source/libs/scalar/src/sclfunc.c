@@ -915,6 +915,24 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         }
         break;
       }
+      case TSDB_DATA_TYPE_BOOL: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          *(bool *)output = taosStr2Int8(varDataVal(input), NULL, 10);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          newBuf[len] = 0;
+          *(bool *)output = taosStr2Int8(newBuf, NULL, 10);
+          taosMemoryFree(newBuf);
+        } else {
+          GET_TYPED_DATA(*(bool *)output, bool, inputType, input);
+        }
+        break;
+      }
       case TSDB_DATA_TYPE_TIMESTAMP: {
         if (inputType == TSDB_DATA_TYPE_BINARY || inputType == TSDB_DATA_TYPE_NCHAR) {
           //convert to 0
