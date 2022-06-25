@@ -12,7 +12,7 @@ import java.util.concurrent.LinkedBlockingDeque;
 // ANCHOR: WriteTask
 class WriteTask {
     // How many records will trigger writing before queue
-    final static int maxBachSize = 500;
+    final static int maxBatchSize = 500;
     //
     final static int taskQueueCapacity = 1000;
 
@@ -51,7 +51,7 @@ class WriteTask {
                 if (line != null) {
                     processLine(tbValues, line);
                     count += 1;
-                    if (count == maxBachSize) {
+                    if (count == maxBatchSize) {
                         // trigger writing when count of buffered records reached maxBachSize
                         flushValues(stmt, tbValues);
                         count = 0;
