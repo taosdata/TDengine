@@ -24,7 +24,7 @@ class ClusterDnodes(TDDnodes):
 
 
 class ConfigureyCluster:
-    """This will create defined number of dnodes and create a cluset.
+    """This will create defined number of dnodes and create a cluster.
        at the same time, it will return TDDnodes list:  dnodes, """
     hostname= socket.gethostname()
 
@@ -85,8 +85,8 @@ class ConfigureyCluster:
             count+=1
             time.sleep(1)
         else:
-            tdLog.debug("create cluster with %d dnode but  check dnode not ready within 5s ! "%self.dnodeNums)
-            return -1
+            tdLog.exit("create cluster with %d dnode but  check dnode not ready within 5s ! "%self.dnodeNums)
+            
 
 
 cluster = ConfigureyCluster()
