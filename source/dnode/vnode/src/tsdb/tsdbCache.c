@@ -271,7 +271,7 @@ static int32_t mergeLastRowFileSet(STbDataIter *iter, STbDataIter *iiter, SDFile
 
     tMapDataGetItemByIdx(&blockMap, iBlock, &block, tGetBlock);
 
-    code = tsdbReadBlockData(pDataFReader, &blockIdx, &block, &blockData, NULL, 0, NULL, NULL);
+    code = tsdbReadBlockData(pDataFReader, &blockIdx, &block, &blockData, NULL, NULL);
     if (code) goto _err;
 
     int32_t nRow = blockData.nRow;
@@ -311,6 +311,7 @@ _err:
   return code;
 }
 #endif
+
 typedef enum SFSNEXTROWSTATES {
   SFSNEXTROW_FS,
   SFSNEXTROW_FILESET,
@@ -383,7 +384,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
         tBlockDataReset(&state->blockData);
 
         tMapDataGetItemByIdx(&state->blockMap, state->iBlock, &block, tGetBlock);
-        code = tsdbReadBlockData(state->pDataFReader, &state->blockIdx, &block, &state->blockData, NULL, 0, NULL, NULL);
+        code = tsdbReadBlockData(state->pDataFReader, &state->blockIdx, &block, &state->blockData, NULL, NULL);
         if (code) goto _err;
 
         state->nRow = state->blockData.nRow;
@@ -601,9 +602,9 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
       // bool deleted = tsdbKeyDeleted(maxKey, pSkyline, &iSkyline);
       if (!deleted) {
         merge[nMerge++] = max[i];
-      } else {
-        input[iMax[i]].next = true;
       }
+
+      input[iMax[i]].next = deleted;
     }
 
     // merge if nMerge > 1

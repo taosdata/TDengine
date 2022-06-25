@@ -61,6 +61,8 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno);
 int32_t tsdbBegin(STsdb *pTsdb) {
   int32_t code = 0;
 
+  if (!pTsdb) return code;
+
   code = tsdbMemTableCreate(pTsdb, &pTsdb->mem);
   if (code) goto _err;
 
