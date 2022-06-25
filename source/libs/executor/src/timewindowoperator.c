@@ -3900,18 +3900,22 @@ _error:
 // merge interval operator
 typedef struct SMergeIntervalAggOperatorInfo {
   SIntervalAggOperatorInfo intervalAggOperatorInfo;
-
-  SHashObj*    groupIntervalHash;
-  void*        groupIntervalIter;
+  SList*       groupIntervals;
+  SListIter   groupIntervalsIter;
   bool         hasGroupId;
   uint64_t     groupId;
   SSDataBlock* prefetchedBlock;
   bool         inputBlocksFinished;
 } SMergeIntervalAggOperatorInfo;
 
+typedef struct SGroupTimeWindow {
+  uint64_t groupId;
+  STimeWindow window;
+} SGroupTimeWindow;
+
 void destroyMergeIntervalOperatorInfo(void* param, int32_t numOfOutput) {
   SMergeIntervalAggOperatorInfo* miaInfo = (SMergeIntervalAggOperatorInfo*)param;
-  taosHashCleanup(miaInfo->groupIntervalHash);
+  tdListFree(miaInfo->groupIntervals);
   destroyIntervalOperatorInfo(&miaInfo->intervalAggOperatorInfo, numOfOutput);
 }
 
@@ -3940,15 +3944,22 @@ static int32_t outputPrevIntervalResult(SOperatorInfo* pOperatorInfo, uint64_t t
   bool                           ascScan = (iaInfo->order == TSDB_ORDER_ASC);
   SExprSupp*                     pExprSup = &pOperatorInfo->exprSupp;
 
-  STimeWindow* prevWin = taosHashGet(miaInfo->groupIntervalHash, &tableGroupId, sizeof(tableGroupId));
-  if (prevWin == NULL) {
-    taosHashPut(miaInfo->groupIntervalHash, &tableGroupId, sizeof(tableGroupId), newWin, sizeof(STimeWindow));
-    return 0;
-  }
+  SGroupTimeWindow groupTimeWindow = {.groupId = tableGroupId, .window = *newWin};
+  tdListAppend(miaInfo->groupIntervals, &groupTimeWindow);
 
-  if ((ascScan && newWin->skey > prevWin->skey || (!ascScan) && newWin->skey < prevWin->skey)) {
-    finalizeWindowResult(pOperatorInfo, tableGroupId, prevWin, pResultBlock);
-    taosHashPut(miaInfo->groupIntervalHash, &tableGroupId, sizeof(tableGroupId), newWin, sizeof(STimeWindow));
+  SListIter iter = {0};
+  tdListInitIter(miaInfo->groupIntervals, &iter, TD_LIST_FORWARD);
+  SListNode* listNode = NULL;
+  while ((listNode = tdListNext(&iter)) != NULL) {
+    SGroupTimeWindow* prevGrpWin = (SGroupTimeWindow*)listNode->data;
+    if (prevGrpWin->groupId != tableGroupId ) {
+      continue;
+    }
+    STimeWindow* prevWin = &prevGrpWin->window;
+    if ((ascScan && newWin->skey > prevWin->ekey || (!ascScan) && newWin->skey < prevWin->ekey)) {
+      finalizeWindowResult(pOperatorInfo, tableGroupId, prevWin, pResultBlock);
+      tdListPopNode(miaInfo->groupIntervals, listNode);
+    }
   }
 
   return 0;
@@ -4075,6 +4086,7 @@ static SSDataBlock* doMergeIntervalAgg(SOperatorInfo* pOperator) {
       }
 
       if (pBlock == NULL) {
+        tdListInitIter(miaInfo->groupIntervals, &miaInfo->groupIntervalsIter, TD_LIST_FORWARD);
         miaInfo->inputBlocksFinished = true;
         break;
       }
@@ -4100,14 +4112,12 @@ static SSDataBlock* doMergeIntervalAgg(SOperatorInfo* pOperator) {
   }
 
   if (miaInfo->inputBlocksFinished) {
-    void* win = taosHashIterate(miaInfo->groupIntervalHash, miaInfo->groupIntervalIter);
-    if (win != NULL) {
-      miaInfo->groupIntervalIter = win;
+    SListNode* listNode = tdListNext(&miaInfo->groupIntervalsIter);
 
-      size_t    len = 0;
-      uint64_t* pTableGroupId = taosHashGetKey(win, &len);
-      finalizeWindowResult(pOperator, *pTableGroupId, win, pRes);
-      pRes->info.groupId = *pTableGroupId;
+    if (listNode != NULL) {
+      SGroupTimeWindow* grpWin = (SGroupTimeWindow*)(listNode->data);
+      finalizeWindowResult(pOperator, grpWin->groupId, &grpWin->window, pRes);
+      pRes->info.groupId = grpWin->groupId;
     }
   }
 
@@ -4129,8 +4139,7 @@ SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SExprI
     goto _error;
   }
 
-  miaInfo->groupIntervalHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_NO_LOCK);
-  miaInfo->groupIntervalIter = NULL;
+  miaInfo->groupIntervals = tdListNew(sizeof(SGroupTimeWindow));
 
   SIntervalAggOperatorInfo* iaInfo = &miaInfo->intervalAggOperatorInfo;
 
