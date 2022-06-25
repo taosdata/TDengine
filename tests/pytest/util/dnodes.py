@@ -508,7 +508,6 @@ class TDDnode:
 
     def stoptaosd(self):
         if (not self.remoteIP == ""):
-            print("123")
             self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].running=1\ntdDnodes.dnodes[%d].stop()"%(self.index-1,self.index-1))
             tdLog.info("stop dnode%d"%self.index)
             return
@@ -518,18 +517,21 @@ class TDDnode:
             toBeKilled = "valgrind.bin"
 
         if self.running != 0:
-            psCmd = "ps -ef|grep -w %s| grep dnode%d|grep -v grep | awk '{print $2}'" % (toBeKilled,self.index)
-            processID = subprocess.check_output(
-                psCmd, shell=True).decode("utf-8")
-
-            while(processID):
-                killCmd = "kill -INT %s > /dev/null 2>&1" % processID
-                os.system(killCmd)
-                time.sleep(1)
+            if platform.system().lower() == 'windows':
+                os.system("wmic process where \"name='taosd.exe' and CommandLine like '%%dnode%d%%'\" get processId | xargs echo | awk '{print $2}' | xargs taskkill -f -pid"%self.index)
+            else:
+                psCmd = "ps -ef|grep -w %s| grep dnode%d|grep -v grep | awk '{print $2}'" % (toBeKilled,self.index)
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8")
-            if self.valgrind:
-                time.sleep(2)
+
+                while(processID):
+                    killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+                    os.system(killCmd)
+                    time.sleep(1)
+                    processID = subprocess.check_output(
+                        psCmd, shell=True).decode("utf-8")
+                if self.valgrind:
+                    time.sleep(2)
 
             self.running = 0
             tdLog.debug("dnode:%d is stopped by kill -INT" % (self.index))
