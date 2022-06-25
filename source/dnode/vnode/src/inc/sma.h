@@ -196,7 +196,7 @@ struct STFInfo {
   uint32_t magic;
   uint32_t ftype;
   uint32_t fver;
-  uint64_t fsize;
+  int64_t  fsize;
 };
 
 struct STFile {

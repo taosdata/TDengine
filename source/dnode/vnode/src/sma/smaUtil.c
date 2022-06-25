@@ -34,7 +34,7 @@ static int32_t tdEncodeTFInfo(void **buf, STFInfo *pInfo) {
   tlen += taosEncodeFixedU32(buf, pInfo->magic);
   tlen += taosEncodeFixedU32(buf, pInfo->ftype);
   tlen += taosEncodeFixedU32(buf, pInfo->fver);
-  tlen += taosEncodeFixedU64(buf, pInfo->fsize);
+  tlen += taosEncodeFixedI64(buf, pInfo->fsize);
 
   return tlen;
 }
@@ -43,7 +43,7 @@ static void *tdDecodeTFInfo(void *buf, STFInfo *pInfo) {
   buf = taosDecodeFixedU32(buf, &(pInfo->magic));
   buf = taosDecodeFixedU32(buf, &(pInfo->ftype));
   buf = taosDecodeFixedU32(buf, &(pInfo->fver));
-  buf = taosDecodeFixedU64(buf, &(pInfo->fsize));
+  buf = taosDecodeFixedI64(buf, &(pInfo->fsize));
   return buf;
 }
 
@@ -138,6 +138,7 @@ int64_t tdAppendTFile(STFile *pTFile, void *buf, int64_t nbyte, int64_t *offset)
     return -1;
   }
 
+  smaDebug("%s:%d %s pTFile->info.fsize:%" PRIi64 " toffset:%" PRIi64 " \n", __func__, __LINE__, TD_FILE_FULL_NAME(pTFile), pTFile->info.fsize, toffset);
   ASSERT(pTFile->info.fsize == toffset);
 
   if (offset) {

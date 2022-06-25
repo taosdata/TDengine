@@ -3704,9 +3704,6 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
 int32_t tFreeSCreateVnodeReq(SCreateVnodeReq *pReq) {
   taosArrayDestroy(pReq->pRetensions);
   pReq->pRetensions = NULL;
-  if (pReq->isTsma) {
-    taosMemoryFreeClear(pReq->pTsma);
-  }
   return 0;
 }
 

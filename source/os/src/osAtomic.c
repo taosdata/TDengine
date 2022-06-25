@@ -314,6 +314,16 @@ int64_t atomic_load_64(int64_t volatile *ptr) {
 #endif
 }
 
+int64_t atomic_load_u64(uint64_t volatile* ptr) {
+#ifdef WINDOWS
+  return (*(uint64_t volatile*)(ptr));
+#elif defined(_TD_NINGSI_60)
+  return __sync_fetch_and_add((ptr), 0);
+#else
+  return __atomic_load_n((ptr), __ATOMIC_SEQ_CST);
+#endif
+}
+
 void* atomic_load_ptr(void *ptr) {
 #ifdef WINDOWS
   return (*(void* volatile*)(ptr));
@@ -357,6 +367,16 @@ void atomic_store_32(int32_t volatile *ptr, int32_t val) {
 void atomic_store_64(int64_t volatile *ptr, int64_t val) {
 #ifdef WINDOWS
   ((*(int64_t volatile*)(ptr)) = (int64_t)(val));
+#elif defined(_TD_NINGSI_60)
+  (*(ptr)=(val));
+#else
+  __atomic_store_n((ptr), (val), __ATOMIC_SEQ_CST);
+#endif
+}
+
+void atomic_store_u64(uint64_t volatile *ptr, uint64_t val) {
+#ifdef WINDOWS
+  ((*(uint64_t volatile*)(ptr)) = (uint64_t)(val));
 #elif defined(_TD_NINGSI_60)
   (*(ptr)=(val));
 #else
