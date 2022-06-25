@@ -80,17 +80,17 @@ endi
 
 if $data03 != 4 then
   print ======$data03
-  return -1
+  goto loop1
 endi
 
 if $data04 != 52 then
   print ======$data04
-  return -1
+  goto loop1
 endi
 
 if $data05 != 13 then
   print ======$data05
-  return -1
+  goto loop1
 endi
 
 # row 1
@@ -179,7 +179,7 @@ sql use test1;
 sql create stable st(ts timestamp, a int, b int , c int) tags(ta int,tb int,tc int);
 sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
-sql create stream stream_t2 trigger at_once  into streamtST1 as select  _wstartts, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st interval(10s) ;
+sql create stream stream_t2 trigger at_once  watermark 20s into streamtST1 as select  _wstartts, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st interval(10s) ;
 
 sql insert into ts1 values(1648791211000,1,2,3);
 sql insert into ts1 values(1648791222001,2,2,3);
