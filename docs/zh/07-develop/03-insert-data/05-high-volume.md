@@ -21,9 +21,28 @@ title: 高效写入
 
 在 Java 示例程序中采用拼接 SQL 的写入方式。
 
-```java title="Java 示例程序"
-{{#include docs/examples/java/src/main/java/com/taos/example/FastWriteExample.java}}
+```java title="主程序"
+{{#include docs/examples/java/src/main/java/com/taos/example/highvolume/FastWriteExample.java:main}}
 ```
+
+<details>
+<summary>写任务的实现</summary>
+
+```java 
+{{#include docs/examples/java/src/main/java/com/taos/example/highvolume/WriteTask.java:WriteTask}}
+```
+</details>
+
+<details>
+<summary>读任务的实现</summary>
+
+```java 
+{{#include docs/examples/java/src/main/java/com/taos/example/highvolume/ReadTask.java:ReadTask}}
+```
+
+</details>
+
+
 
 ## Python 示例程序
 
