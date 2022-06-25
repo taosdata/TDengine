@@ -17,7 +17,7 @@ from util.sql import *
 from util.common import *
 
 class TDTestCase:
-    updatecfgDict = {'ttlUnit':10,'ttlPushInterval':5}
+    updatecfgDict = {'ttlUnit':5,'ttlPushInterval':3}
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())      
@@ -32,7 +32,7 @@ class TDTestCase:
         tdSql.query(f'show tables')
         tdSql.checkRows(self.tbnum)
         tdSql.execute('reset query cache')
-        sleep(self.updatecfgDict['ttlUnit']*self.ttl_param+5)
+        sleep(self.updatecfgDict['ttlUnit']*self.ttl_param+self.updatecfgDict['ttlPushInterval'])
         tdSql.query(f'show tables')
         tdSql.checkRows(0)
 
@@ -41,7 +41,7 @@ class TDTestCase:
             tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags({i}) ttl {self.ttl_param}')
         tdSql.query(f'show tables')
         tdSql.checkRows(self.tbnum)
-        sleep(self.updatecfgDict['ttlUnit']*self.ttl_param+5)
+        sleep(self.updatecfgDict['ttlUnit']*self.ttl_param+self.updatecfgDict['ttlPushInterval'])
         tdSql.query(f'show tables')
         tdSql.checkRows(0)
 
