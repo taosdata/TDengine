@@ -144,6 +144,23 @@ int32_t queryBuildDnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryBuildGetSerVerMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void*(*mallcFp)(int32_t)) {
+  if (NULL == msg || NULL == msgLen) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SServerVerReq req = {0};
+
+  int32_t bufLen = tSerializeSServerVerReq(NULL, 0, &req);
+  void   *pBuf = (*mallcFp)(bufLen);
+  tSerializeSServerVerReq(pBuf, bufLen, &req);
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t queryBuildGetDBCfgMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void*(*mallcFp)(int32_t)) {
   if (NULL == msg || NULL == msgLen) {
@@ -467,6 +484,26 @@ int32_t queryProcessDnodeListRsp(void *output, char *msg, int32_t msgSize) {
   return code;
 }
 
+int32_t queryProcessGetSerVerRsp(void *output, char *msg, int32_t msgSize) {
+  SServerVerRsp out = {0};
+  int32_t       code = 0;
+
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    code = TSDB_CODE_TSC_INVALID_INPUT;
+    return code;
+  }
+
+  if (tDeserializeSServerVerRsp(msg, msgSize, &out) != 0) {
+    qError("invalid svr ver rsp msg, msgSize:%d", msgSize);
+    code = TSDB_CODE_INVALID_MSG;
+    return code;
+  }
+
+  *(char**)output = strdup(out.ver);
+
+  return code;
+}
+
 
 int32_t queryProcessGetDbCfgRsp(void *output, char *msg, int32_t msgSize) {
   SDbCfgRsp out = {0};
@@ -583,6 +620,7 @@ void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_TABLE_INDEX)]  = queryBuildGetTbIndexMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_CFG)]        = queryBuildGetTbCfgMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_TABLE_CFG)]        = queryBuildGetTbCfgMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_SERVER_VERSION)]   = queryBuildGetSerVerMsg;
 
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)]      = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_META)]      = queryProcessTableMetaRsp;
@@ -596,6 +634,7 @@ void initQueryModuleMsgHandle() {
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_TABLE_INDEX)] = queryProcessGetTbIndexRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_CFG)]       = queryProcessGetTbCfgRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_CFG)]       = queryProcessGetTbCfgRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_SERVER_VERSION)]  = queryProcessGetSerVerRsp;
 }
 
 #pragma GCC diagnostic pop

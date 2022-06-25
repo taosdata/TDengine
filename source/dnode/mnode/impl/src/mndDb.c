@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDb.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndDnode.h"
 #include "mndOffset.h"
 #include "mndShow.h"
@@ -506,6 +506,9 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   }
 
   mDebug("db:%s, start to create, vgroups:%d", createReq.db, createReq.numOfVgroups);
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL) != 0) {
+    goto _OVER;
+  }
 
   pDb = mndAcquireDb(pMnode, createReq.db);
   if (pDb != NULL) {
@@ -523,10 +526,6 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
   if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL) != 0) {
     goto _OVER;
   }
 
@@ -700,7 +699,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_ALTER_DB, pDb) != 0) {
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -980,7 +979,7 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
     }
   }
 
-  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb) != 0) {
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -1127,7 +1126,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
 
       mError("db:%s, failed to process use db req since %s", usedbReq.db, terrstr());
     } else {
-      if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb) != 0) {
+      if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb) != 0) {
         goto _OVER;
       }
 
@@ -1252,7 +1251,7 @@ static int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_COMPACT_DB, pDb) != 0) {
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_COMPACT_DB, pDb) != 0) {
     goto _OVER;
   }
 

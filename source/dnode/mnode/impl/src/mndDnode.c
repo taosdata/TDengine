@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDnode.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndMnode.h"
 #include "mndQnode.h"
 #include "mndShow.h"
@@ -48,6 +48,7 @@ static int32_t  mndDnodeActionInsert(SSdb *pSdb, SDnodeObj *pDnode);
 static int32_t  mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode);
 static int32_t  mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOld, SDnodeObj *pNew);
 static int32_t  mndProcessDnodeListReq(SRpcMsg *pReq);
+static int32_t  mndProcessShowVariablesReq(SRpcMsg *pReq);
 
 static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq);
@@ -78,6 +79,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_DND_CONFIG_DNODE_RSP, mndProcessConfigDnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STATUS, mndProcessStatusReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DNODE_LIST, mndProcessDnodeListReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
@@ -554,6 +556,59 @@ _OVER:
   return code;
 }
 
+static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
+  SShowVariablesRsp rsp = {0};
+  int32_t       code = -1;
+
+  rsp.variables = taosArrayInit(4, sizeof(SVariablesInfo));
+  if (NULL == rsp.variables) {
+    mError("failed to alloc SVariablesInfo array while process show variables req");
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  SVariablesInfo info = {0};
+
+  strcpy(info.name, "statusInterval");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
+  taosArrayPush(rsp.variables, &info);
+
+  strcpy(info.name, "timezone");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
+  taosArrayPush(rsp.variables, &info);
+  
+  strcpy(info.name, "locale");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
+  taosArrayPush(rsp.variables, &info);
+
+  strcpy(info.name, "charset");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
+  taosArrayPush(rsp.variables, &info);
+
+  int32_t rspLen = tSerializeSShowVariablesRsp(NULL, 0, &rsp);
+  void   *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  tSerializeSShowVariablesRsp(pRsp, rspLen, &rsp);
+
+  pReq->info.rspLen = rspLen;
+  pReq->info.rsp = pRsp;
+  code = 0;
+
+_OVER:
+
+  if (code != 0) {
+    mError("failed to get show variables info since %s", terrstr());
+  }
+
+  tFreeSShowVariablesRsp(&rsp);
+
+  return code;
+}
+
 static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
   int32_t         code = -1;
@@ -566,6 +621,9 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   }
 
   mInfo("dnode:%s:%d, start to create", createReq.fqdn, createReq.port);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DNODE) != 0) {
+    goto _OVER;
+  }
 
   if (createReq.fqdn[0] == 0 || createReq.port <= 0 || createReq.port > UINT16_MAX) {
     terrno = TSDB_CODE_MND_INVALID_DNODE_EP;
@@ -576,10 +634,6 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   snprintf(ep, TSDB_EP_LEN, "%s:%d", createReq.fqdn, createReq.port);
   pDnode = mndAcquireDnodeByEp(pMnode, ep);
   if (pDnode != NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DNODE) != 0) {
     goto _OVER;
   }
 
@@ -661,6 +715,9 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   }
 
   mInfo("dnode:%d, start to drop, ep:%s:%d", dropReq.dnodeId, dropReq.fqdn, dropReq.port);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
+    goto _OVER;
+  }
 
   pDnode = mndAcquireDnode(pMnode, dropReq.dnodeId);
   if (pDnode == NULL) {
@@ -697,10 +754,6 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     }
   }
 
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
-    goto _OVER;
-  }
-
   code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -726,6 +779,10 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   }
 
   mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE) != 0) {
+    return -1;
+  }
+
   SDnodeObj *pDnode = mndAcquireDnode(pMnode, cfgReq.dnodeId);
   if (pDnode == NULL) {
     mError("dnode:%d, failed to config since %s ", cfgReq.dnodeId, terrstr());

@@ -370,6 +370,15 @@ bool syncIsReady(int64_t rid) {
   ASSERT(rid == pSyncNode->rid);
   bool b = (pSyncNode->state == TAOS_SYNC_STATE_LEADER) && pSyncNode->restoreFinish;
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+
+  // if false, set error code
+  if (false == b) {
+    if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+      terrno = TSDB_CODE_SYN_NOT_LEADER;
+    } else {
+      terrno = TSDB_CODE_APP_NOT_READY;
+    }
+  }
   return b;
 }
 
@@ -480,12 +489,30 @@ void syncGetEpSet(int64_t rid, SEpSet* pEpSet) {
     snprintf(pEpSet->eps[i].fqdn, sizeof(pEpSet->eps[i].fqdn), "%s", (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodeFqdn);
     pEpSet->eps[i].port = (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodePort;
     (pEpSet->numOfEps)++;
-
-    sInfo("syncGetEpSet index:%d %s:%d", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+    sInfo("vgId:%d sync get epset: index:%d %s:%d", pSyncNode->vgId, i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
   }
   pEpSet->inUse = pSyncNode->pRaftCfg->cfg.myIndex;
+  sInfo("vgId:%d sync get epset in-use:%d", pSyncNode->vgId, pEpSet->inUse);
 
-  sInfo("syncGetEpSet pEpSet->inUse:%d ", pEpSet->inUse);
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+}
+
+void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    memset(pEpSet, 0, sizeof(*pEpSet));
+    return;
+  }
+  ASSERT(rid == pSyncNode->rid);
+  pEpSet->numOfEps = 0;
+  for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
+    snprintf(pEpSet->eps[i].fqdn, sizeof(pEpSet->eps[i].fqdn), "%s", (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodeFqdn);
+    pEpSet->eps[i].port = (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodePort;
+    (pEpSet->numOfEps)++;
+    sInfo("vgId:%d sync get retry epset: index:%d %s:%d", pSyncNode->vgId, i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+  }
+  pEpSet->inUse = (pSyncNode->pRaftCfg->cfg.myIndex + 1) % pEpSet->numOfEps;
+  sInfo("vgId:%d sync get retry epset in-use:%d", pSyncNode->vgId, pEpSet->inUse);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
 }

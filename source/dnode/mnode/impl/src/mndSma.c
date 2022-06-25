@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndSma.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndInfoSchema.h"
@@ -533,7 +533,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
 #if 0
   smaObj.timezone = pCreate->timezone;
 #endif
-  smaObj.timezone = tsTimezone; // use timezone of server
+  smaObj.timezone = tsTimezone;  // use timezone of server
   smaObj.interval = pCreate->interval;
   smaObj.offset = pCreate->offset;
   smaObj.sliding = pCreate->sliding;
@@ -623,7 +623,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   if (mndSetUpdateSmaStbCommitLogs(pMnode, pTrans, pStb) != 0) goto _OVER;
   // if (mndSetCreateSmaRedoActions(pMnode, pTrans, pDb, &smaObj) != 0) goto _OVER;
   if (mndSetCreateSmaVgroupRedoActions(pMnode, pTrans, pDb, &streamObj.fixedSinkVg, &smaObj) != 0) goto _OVER;
-  if (mndScheduleStream(pMnode, pTrans, &streamObj) != 0) goto _OVER;
+  if (mndScheduleStream(pMnode, &streamObj) != 0) goto _OVER;
   if (mndPersistStream(pMnode, pTrans, &streamObj) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
@@ -713,7 +713,7 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -974,7 +974,7 @@ static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
 

@@ -227,6 +227,7 @@ class TDTestCase:
 
         # fisr add three mnodes;
         tdSql.execute("create mnode on dnode 2")
+        time.sleep(10)
         tdSql.execute("create mnode on dnode 3")
 
         # fisrt check statut ready
