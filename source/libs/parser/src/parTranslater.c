@@ -1369,6 +1369,7 @@ static EDealRes rewriteExprToGroupKeyFunc(STranslateContext* pCxt, SNode** pNode
     *pNode = (SNode*)pFunc;
     pCxt->errCode = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
   }
+  pCxt->pCurrSelectStmt->hasAggFuncs = true;
 
   return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
 }
@@ -2506,8 +2507,24 @@ static SNode* createOrderByExpr(STranslateContext* pCxt) {
   return (SNode*)pOrder;
 }
 
-// from: select tail(expr, k, f) from t where_clause partition_by_clause order_by_clause ...
-// to: select expr from t where_clause order by _rowts desc limit k offset f
+/* case 1:
+ * in:  select tail(expr, k, f) from t where_clause
+ * out: select expr from t where_clause order by _rowts desc limit k offset f
+ *
+ * case 2:
+ * in:  select tail(expr, k, f) from t where_clause partition_by_clause
+ * out: select expr from t where_clause partition_by_clause sort by _rowts desc limit k offset f
+ *
+ * case 3:
+ * in:  select tail(expr, k, f) from t where_clause order_by_clause limit_clause
+ * out: select expr from (
+ *        select expr from t where_clause order by _rowts desc limit k offset f
+ *      ) order_by_clause limit_clause
+ *
+ * case 4:
+ * in:  select tail(expr, k, f) from t where_clause partition_by_clause limit_clause
+ * out:
+ */
 static int32_t rewriteTailStmt(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (!pSelect->hasTailFunc) {
     return TSDB_CODE_SUCCESS;
