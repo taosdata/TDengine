@@ -66,7 +66,7 @@ class ReadTask {
             while (it.hasNext()) {
                 String line = it.next();
                 String tbName = line.substring(0, line.indexOf(','));
-                int writeTaskId = tbName.hashCode() % numberWriteTask;
+                int writeTaskId = Math.abs(tbName.hashCode()) % numberWriteTask;
                 writeTasks.get(writeTaskId).put(line);
             }
         } catch (InterruptedException e) {
