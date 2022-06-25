@@ -88,12 +88,10 @@ _err:
 
 int tsdbClose(STsdb **pTsdb) {
   if (*pTsdb) {
-    // TODO: destroy mem/imem
     taosThreadMutexDestroy(&(*pTsdb)->mutex);
     tsdbFSClose((*pTsdb)->fs);
-    // tsdbFreeFS((*pTsdb)->fs);
-    taosMemoryFreeClear(*pTsdb);
     tsdbCloseCache((*pTsdb)->lruCache);
+    taosMemoryFreeClear(*pTsdb);
   }
   return 0;
 }

@@ -522,7 +522,7 @@ int32_t tsdbFSBegin(STsdbFS *pFS) {
   for (int32_t iSet = 0; iSet < taosArrayGetSize(pFS->cState->aDFileSet); iSet++) {
     SDFileSet *pDFileSet = (SDFileSet *)taosArrayGet(pFS->cState->aDFileSet, iSet);
 
-    if (taosArrayPush(pFS->nState->aDFileSet, &pDFileSet) == NULL) {
+    if (taosArrayPush(pFS->nState->aDFileSet, pDFileSet) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
     }

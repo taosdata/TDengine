@@ -924,7 +924,7 @@ int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SMapData *mBlockIdx, uint8_t **
   // build
   n = 0;
   n += tPutU32(*ppBuf + n, TSDB_FILE_DLMT);
-  n += tPutMapData(*ppBuf, mBlockIdx);
+  n += tPutMapData(*ppBuf + n, mBlockIdx);
   taosCalcChecksumAppend(0, *ppBuf, size);
 
   ASSERT(n + sizeof(TSCKSUM) == size);

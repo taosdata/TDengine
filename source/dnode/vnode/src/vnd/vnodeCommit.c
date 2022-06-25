@@ -215,6 +215,7 @@ int vnodeCommit(SVnode *pVnode) {
   // save info
   info.config = pVnode->config;
   info.state.committed = pVnode->state.applied;
+  info.state.commitID = pVnode->state.commitID;
   snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
   if (vnodeSaveInfo(dir, &info) < 0) {
     ASSERT(0);
@@ -298,7 +299,6 @@ static int vnodeEncodeState(const void *pObj, SJson *pJson) {
   const SVState *pState = (SVState *)pObj;
 
   if (tjsonAddIntegerToObject(pJson, "commit version", pState->committed) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "applied version", pState->applied) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "commit ID", pState->commitID) < 0) return -1;
 
   return 0;
@@ -309,8 +309,6 @@ static int vnodeDecodeState(const SJson *pJson, void *pObj) {
 
   int32_t code;
   tjsonGetNumberValue(pJson, "commit version", pState->committed, code);
-  if (code < 0) return -1;
-  tjsonGetNumberValue(pJson, "applied version", pState->applied, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "commit ID", pState->commitID, code);
   if (code < 0) return -1;
