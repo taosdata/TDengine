@@ -99,8 +99,8 @@ int32_t create_stream() {
   /*const char* sql = "select sum(k) from tu1 interval(10m)";*/
   /*pRes = tmq_create_stream(pConn, "stream1", "out1", sql);*/
   pRes = taos_query(pConn,
-                    "create stream stream1 trigger at_once into outstb as select _wstartts, sum(k) from st1 "
-                    "partition by tbname interval(10s) ");
+                    "create stream stream1 trigger at_once into outstb as select _wstartts, sum(k) from st1 partition "
+                    "by tbname interval(10s) ");
   if (taos_errno(pRes) != 0) {
     printf("failed to create stream stream1, reason:%s\n", taos_errstr(pRes));
     return -1;

@@ -104,6 +104,8 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
   pRetrieve->streamBlockType = pBlock->info.type;
   pRetrieve->numOfRows = htonl(pBlock->info.rows);
   pRetrieve->numOfCols = htonl(numOfCols);
+  pRetrieve->skey = htobe64(pBlock->info.window.skey);
+  pRetrieve->ekey = htobe64(pBlock->info.window.ekey);
 
   int32_t actualLen = 0;
   blockCompressEncode(pBlock, pRetrieve->data, &actualLen, numOfCols, false);
@@ -171,6 +173,8 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   pRetrieve->completed = 1;
   pRetrieve->streamBlockType = pBlock->info.type;
   pRetrieve->numOfRows = htonl(pBlock->info.rows);
+  pRetrieve->skey = htobe64(pBlock->info.window.skey);
+  pRetrieve->ekey = htobe64(pBlock->info.window.ekey);
 
   int32_t numOfCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
   pRetrieve->numOfCols = htonl(numOfCols);
@@ -296,7 +300,7 @@ int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     return 0;
   }
-  ASSERT(pBlock->type == STREAM_DATA_TYPE_SSDATA_BLOCK);
+  ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK);
 
   qInfo("stream continue dispatching: task %d", pTask->taskId);
 
