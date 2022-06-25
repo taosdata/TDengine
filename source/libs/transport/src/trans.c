@@ -79,6 +79,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   return pRpc;
 }
 void rpcClose(void* arg) {
+  tInfo("start to close rpc");
   SRpcInfo* pRpc = (SRpcInfo*)arg;
   (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
   transCloseExHandleMgt(pRpc->refMgt);
