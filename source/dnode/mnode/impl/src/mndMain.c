@@ -557,6 +557,8 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   } else {
     terrno = TSDB_CODE_APP_NOT_READY;
   }
+
+  return -1;
 }
 
 static int32_t mndCheckMsgContent(SRpcMsg *pMsg) {
