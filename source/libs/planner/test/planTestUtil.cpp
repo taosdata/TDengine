@@ -85,8 +85,9 @@ class PlannerTestBaseImpl {
  public:
   PlannerTestBaseImpl() : sqlNo_(0) {}
 
-  void useDb(const string& acctId, const string& db) {
-    caseEnv_.acctId_ = acctId;
+  void useDb(const string& user, const string& db) {
+    caseEnv_.acctId_ = 0;
+    caseEnv_.user_ = user;
     caseEnv_.db_ = db;
     caseEnv_.nsql_ = g_skipSql;
   }
@@ -193,7 +194,8 @@ class PlannerTestBaseImpl {
 
  private:
   struct caseEnv {
-    string  acctId_;
+    int32_t acctId_;
+    string  user_;
     string  db_;
     int32_t nsql_;
 
@@ -295,7 +297,7 @@ class PlannerTestBaseImpl {
     transform(stmtEnv_.sql_.begin(), stmtEnv_.sql_.end(), stmtEnv_.sql_.begin(), ::tolower);
 
     SParseContext cxt = {0};
-    cxt.acctId = atoi(caseEnv_.acctId_.c_str());
+    cxt.acctId = caseEnv_.acctId_;
     cxt.db = caseEnv_.db_.c_str();
     cxt.pSql = stmtEnv_.sql_.c_str();
     cxt.sqlLen = stmtEnv_.sql_.length();
@@ -319,12 +321,13 @@ class PlannerTestBaseImpl {
 
   void doParseBoundSql(SQuery* pQuery) {
     SParseContext cxt = {0};
-    cxt.acctId = atoi(caseEnv_.acctId_.c_str());
+    cxt.acctId = caseEnv_.acctId_;
     cxt.db = caseEnv_.db_.c_str();
     cxt.pSql = stmtEnv_.sql_.c_str();
     cxt.sqlLen = stmtEnv_.sql_.length();
     cxt.pMsg = stmtEnv_.msgBuf_.data();
     cxt.msgLen = stmtEnv_.msgBuf_.max_size();
+    cxt.pUser = caseEnv_.user_.c_str();
 
     DO_WITH_THROW(qStmtParseQuerySql, &cxt, pQuery);
     res_.ast_ = toString(pQuery->pRoot);
@@ -364,6 +367,7 @@ class PlannerTestBaseImpl {
 
   void setPlanContext(SQuery* pQuery, SPlanContext* pCxt) {
     pCxt->queryId = 1;
+    pCxt->pUser = caseEnv_.user_.c_str();
     if (QUERY_NODE_CREATE_TOPIC_STMT == nodeType(pQuery->pRoot)) {
       pCxt->pAstRoot = ((SCreateTopicStmt*)pQuery->pRoot)->pQuery;
       pCxt->topicQuery = true;
@@ -403,7 +407,7 @@ PlannerTestBase::PlannerTestBase() : impl_(new PlannerTestBaseImpl()) {}
 
 PlannerTestBase::~PlannerTestBase() {}
 
-void PlannerTestBase::useDb(const std::string& acctId, const std::string& db) { impl_->useDb(acctId, db); }
+void PlannerTestBase::useDb(const std::string& user, const std::string& db) { impl_->useDb(user, db); }
 
 void PlannerTestBase::run(const std::string& sql) { return impl_->run(sql); }
 

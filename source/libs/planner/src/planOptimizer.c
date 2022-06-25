@@ -1061,6 +1061,7 @@ static EDealRes partTagsOptRebuildTbanmeImpl(SNode** pNode, void* pContext) {
     }
     strcpy(pFunc->functionName, "tbname");
     pFunc->funcType = FUNCTION_TYPE_TBNAME;
+    pFunc->node.resType = ((SColumnNode*)*pNode)->node.resType;
     nodesDestroyNode(*pNode);
     *pNode = (SNode*)pFunc;
     return DEAL_RES_IGNORE_CHILD;
@@ -1188,7 +1189,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ConditionPushDown", .optimizeFunc = cpdOptimize},
   {.pName = "OrderByPrimaryKey", .optimizeFunc = opkOptimize},
   {.pName = "SmaIndex",          .optimizeFunc = smaOptimize},
-  // {.pName = "PartitionTags",     .optimizeFunc = partTagsOptimize},
+  {.pName = "PartitionTags",     .optimizeFunc = partTagsOptimize},
   {.pName = "EliminateProject",  .optimizeFunc = eliminateProjOptimize}
 };
 // clang-format on
