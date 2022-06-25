@@ -724,13 +724,12 @@ void cliConnCb(uv_connect_t* req, int status) {
 }
 
 static void cliHandleQuit(SCliMsg* pMsg, SCliThrd* pThrd) {
+  pThrd->quit = true;
   tDebug("cli work thread %p start to quit", pThrd);
   destroyCmsg(pMsg);
   destroyConnPool(pThrd->pool);
   uv_timer_stop(&pThrd->timer);
   uv_walk(pThrd->loop, cliWalkCb, NULL);
-
-  pThrd->quit = true;
 
   // uv_stop(pThrd->loop);
 }
@@ -977,7 +976,10 @@ void cliWalkCb(uv_handle_t* handle, void* arg) {
 }
 
 int cliRBChoseIdx(STrans* pTransInst) {
-  int64_t index = pTransInst->index;
+  int8_t index = pTransInst->index;
+  if (pTransInst->numOfThreads == 0) {
+    return -1;
+  }
   if (pTransInst->index++ >= pTransInst->numOfThreads) {
     pTransInst->index = 0;
   }
@@ -1120,6 +1122,7 @@ SCliThrd* transGetWorkThrdFromHandle(int64_t handle) {
 SCliThrd* transGetWorkThrd(STrans* trans, int64_t handle) {
   if (handle == 0) {
     int idx = cliRBChoseIdx(trans);
+    if (idx < 0) return NULL;
     return ((SCliObj*)trans->tcphandle)->pThreadObj[idx];
   }
   return transGetWorkThrdFromHandle(handle);

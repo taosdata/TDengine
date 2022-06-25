@@ -136,7 +136,7 @@ void destroyTscObj(void *pObj) {
   schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
   if (0 == connNum) {
     // TODO
-    closeTransporter(pTscObj);
+    // closeTransporter(pTscObj);
   }
   tscDebug("connObj 0x%" PRIx64 " destroyed, totalConn:%" PRId64, *(int64_t *)pTscObj->id,
            pTscObj->pAppInfo->numOfConns);
