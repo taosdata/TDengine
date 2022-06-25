@@ -158,8 +158,8 @@ class SMAschema:
                     del self.other[k]
 
 
-from ...pytest.util.sql import *
-from ...pytest.util.constant import *
+# from ...pytest.util.sql import *
+# from ...pytest.util.constant import *
 
 class TDTestCase:
     updatecfgDict = {"querySmaOptimize": 1}
@@ -169,6 +169,7 @@ class TDTestCase:
         tdSql.init(conn.cursor(), False)
         self.precision = "ms"
         self.sma_count = 0
+        self.sma_created_index = []
 
     """
         create sma index :
@@ -347,14 +348,16 @@ class TDTestCase:
             if _sma_func_col not in _col_list:
                 return False
 
-        if not sma.sliding or not self.__check_sma_sliding(sma.sliding):
+        if sma.sliding and not self.__check_sma_sliding(sma.sliding):
             return False
         interval, _ =  self.__get_interval_offset(sma.interval)
-        if not sma.interval or not self.__check_sma_interval(sma.interval) or tdSql.get_times(interval) < tdSql.get_times(sma.sliding):
+        if not sma.interval or not self.__check_sma_interval(sma.interval) :
             return False
-        if not sma.watermark or not self.__check_sma_watermark(sma.watermark):
+        if sma.sliding and tdSql.get_times(interval) < tdSql.get_times(sma.sliding):
             return False
-        if not sma.max_delay or not self.__check_sma_max_delay(sma.max_delay):
+        if sma.watermark and not self.__check_sma_watermark(sma.watermark):
+            return False
+        if sma.max_delay and not self.__check_sma_max_delay(sma.max_delay):
             return False
         if sma.other:
             return False
@@ -365,6 +368,10 @@ class TDTestCase:
         if self.__sma_create_check(sma):
             tdSql.query(self.__create_sma_index(sma))
             self.sma_count += 1
+            self.sma_created_index.append(sma.index_name)
+            tdSql.query("show streams")
+            tdSql.checkRows(self.sma_count)
+
         else:
             tdSql.error(self.__create_sma_index(sma))
 
@@ -385,7 +392,12 @@ class TDTestCase:
     def sma_drop_check(self, sma:SMAschema):
         if self.__sma_drop_check(sma):
             tdSql.query(self.__drop_sma_index(sma))
+            print(self.__drop_sma_index(sma))
             self.sma_count -= 1
+            self.sma_created_index = list(filter(lambda x: x != sma.index_name, self.sma_created_index))
+            tdSql.query("show streams")
+            tdSql.checkRows(self.sma_count)
+
         else:
             tdSql.error(self.__drop_sma_index(sma))
 
@@ -418,27 +430,56 @@ class TDTestCase:
         cur_sqls = []
         # err_set
         # # case 1: required fields check
-        # err_sqls.append( SMAschema(creation="", tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        # err_sqls.append( SMAschema(index_name="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        # err_sqls.append( SMAschema(index_flag="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        # err_sqls.append( SMAschema(operator="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        # err_sqls.append( SMAschema(tbname="", func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        ### 1.1 create
+        err_sqls.append( SMAschema(creation="", tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(index_name="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(index_flag="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(operator="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(tbname="", func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         err_sqls.append( SMAschema(func=("",),tbname=STBNAME ) )
-        # err_sqls.append( SMAschema(interval=(""),tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        # err_sqls.append( SMAschema(sliding="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        # err_sqls.append( SMAschema(max_delay="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        # err_sqls.append( SMAschema(watermark="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(interval=(""),tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+
+        # current_set
+
+        cur_sqls.append( SMAschema(max_delay="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        cur_sqls.append( SMAschema(watermark="",index_name="sma_index_2",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        cur_sqls.append( SMAschema(sliding="",index_name='sma_index_3',tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+
 
         return err_sqls, cur_sqls
-
 
     def test_create_sma(self):
         err_sqls , cur_sqls = self.__create_sma_sql
         for err_sql in err_sqls:
             self.sma_create_check(err_sql)
+        for cur_sql in cur_sqls:
+            self.sma_create_check(cur_sql)
+
+    @property
+    def __drop_sma_sql(self):
+        err_sqls = []
+        cur_sqls = []
+        # err_set
+        ## case 1: required fields check
+        err_sqls.append( SMAschema(drop="") )
+        err_sqls.append( SMAschema(drop_flag="") )
+        err_sqls.append( SMAschema(index_name="") )
+
+        for index in self.sma_created_index:
+            cur_sqls.append(SMAschema(index_name=index))
+
+        return err_sqls, cur_sqls
+
+    def test_drop_sma(self):
+        err_sqls , cur_sqls = self.__drop_sma_sql
+        for err_sql in err_sqls:
+            self.sma_drop_check(err_sql)
+        for cur_sql in cur_sqls:
+            self.sma_drop_check(cur_sql)
 
     def all_test(self):
         self.test_create_sma()
+        self.test_drop_sma()
 
         pass
 
@@ -545,8 +586,8 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step1:create table in normal database")
         tdSql.prepare()
         self.__create_tb()
-        self.__insert_data()
-        self.all_test()
+        # self.__insert_data()
+        # self.all_test()
 
         return
 

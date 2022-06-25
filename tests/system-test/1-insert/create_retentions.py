@@ -21,9 +21,9 @@ SINT_UN_COL = "c_sint_un"
 BINT_UN_COL = "c_bint_un"
 INT_UN_COL  = "c_int_un"
 
-BINARY_COL  = "c8"
-NCHAR_COL   = "c9"
-TS_COL      = "c10"
+BINARY_COL  = "c_binary"
+NCHAR_COL   = "c_nchar"
+TS_COL      = "c_ts"
 
 NUM_COL     = [ INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, ]
 CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
