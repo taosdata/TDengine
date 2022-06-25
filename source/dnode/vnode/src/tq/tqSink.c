@@ -43,7 +43,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       taosArrayPush(tagArray, &tagVal);
       tTagNew(tagArray, 1, false, &pTag);
       if (pTag == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        taosArrayDestroy(schemaReqs);
         taosArrayDestroy(tagArray);
         return NULL;
       }
