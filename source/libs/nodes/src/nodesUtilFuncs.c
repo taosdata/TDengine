@@ -210,6 +210,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       return makeNode(type, sizeof(SShowDnodeVariablesStmt));
@@ -644,7 +645,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_SCORES_STMT:
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
-    case QUERY_NODE_SHOW_TRANSACTIONS_STMT: {
+    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
