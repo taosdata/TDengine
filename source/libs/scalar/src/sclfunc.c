@@ -881,8 +881,8 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_TIMESTAMP: {
         if (inputType == TSDB_DATA_TYPE_BINARY || inputType == TSDB_DATA_TYPE_NCHAR) {
-          //not support
-          return TSDB_CODE_FAILED;
+          //convert to 0
+          *(int64_t *)output = 0;
         } else {
           GET_TYPED_DATA(*(int64_t *)output, int64_t, inputType, input);
         }
@@ -897,8 +897,16 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           len = sprintf(varDataVal(output), "%.*s", len, varDataVal(input));
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
-          //not support
-          return TSDB_CODE_FAILED;
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          len = TMIN(len, outputLen - VARSTR_HEADER_SIZE);
+          memcpy(varDataVal(output), newBuf, len);
+          varDataSetLen(output, len);
+          taosMemoryFree(newBuf);
         } else {
           char tmp[400] = {0};
           NUM_TO_STRING(inputType, input, sizeof(tmp), tmp);
