@@ -713,7 +713,7 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -974,7 +974,7 @@ static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
 

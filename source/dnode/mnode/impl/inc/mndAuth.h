@@ -24,6 +24,9 @@ extern "C" {
 
 typedef enum {
   MND_OPER_CONNECT = 1,
+  MND_OPER_CREATE_ACCT,
+  MND_OPER_DROP_ACCT,
+  MND_OPER_ALTER_ACCT,
   MND_OPER_CREATE_USER,
   MND_OPER_DROP_USER,
   MND_OPER_ALTER_USER,
@@ -45,6 +48,8 @@ typedef enum {
   MND_OPER_CREATE_FUNC,
   MND_OPER_DROP_FUNC,
   MND_OPER_KILL_TRANS,
+  MND_OPER_KILL_CONN,
+  MND_OPER_KILL_QUERY,
   MND_OPER_CREATE_DB,
   MND_OPER_ALTER_DB,
   MND_OPER_DROP_DB,
@@ -57,10 +62,10 @@ typedef enum {
 int32_t mndInitAuth(SMnode *pMnode);
 void    mndCleanupAuth(SMnode *pMnode);
 
-int32_t mndCheckOperAuth(SMnode *pMnode, const char *user, EOperType operType);
-int32_t mndCheckDbAuth(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb);
-int32_t mndCheckShowAuth(SMnode *pMnode, const char *user, int32_t showType);
-int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter);
+int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType);
+int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb);
+int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, int32_t showType);
+int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter);
 
 #ifdef __cplusplus
 }

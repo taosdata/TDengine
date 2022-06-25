@@ -279,7 +279,7 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
   }
 
   mDebug("qnode:%d, start to create", createReq.dnodeId);
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_CREATE_QNODE) != 0) {
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_QNODE) != 0) {
     goto _OVER;
   }
 
@@ -390,7 +390,7 @@ static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
   }
 
   mDebug("qnode:%d, start to drop", dropReq.dnodeId);
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_DROP_QNODE) != 0) {
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_QNODE) != 0) {
     goto _OVER;
   }
 

@@ -1212,7 +1212,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
   }
 
   mInfo("vgId:%d, start to redistribute vgroup to dnode %d:%d:%d", req.vgId, req.dnodeId1, req.dnodeId2, req.dnodeId3);
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_REDISTRIBUTE_VGROUP) != 0) {
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_REDISTRIBUTE_VGROUP) != 0) {
     goto _OVER;
   }
 
@@ -1507,7 +1507,7 @@ static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq) {
   SDbObj *pDb = NULL;
 
   mDebug("vgId:%d, start to split", vgId);
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_SPLIT_VGROUP) != 0) {
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SPLIT_VGROUP) != 0) {
     goto _OVER;
   }
 
@@ -1657,7 +1657,7 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
   }
 
   mInfo("start to balance vgroup");
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_BALANCE_VGROUP) != 0) {
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_BALANCE_VGROUP) != 0) {
     goto _OVER;
   }
 

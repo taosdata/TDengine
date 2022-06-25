@@ -73,7 +73,7 @@ static int32_t mndProcessAuthReq(SRpcMsg *pReq) {
   return code;
 }
 
-int32_t mndCheckOperAuth(SMnode *pMnode, const char *user, EOperType operType) {
+int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType) {
   int32_t   code = 0;
   SUserObj *pUser = mndAcquireUser(pMnode, user);
 
@@ -95,6 +95,8 @@ int32_t mndCheckOperAuth(SMnode *pMnode, const char *user, EOperType operType) {
 
   switch (operType) {
     case MND_OPER_CONNECT:
+    case MND_OPER_CREATE_FUNC:
+    case MND_OPER_DROP_FUNC:
       break;
     default:
       terrno = TSDB_CODE_MND_NO_RIGHTS;
@@ -106,7 +108,7 @@ _OVER:
   return code;
 }
 
-int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter) {
+int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter) {
   if (pUser->superUser && pAlter->alterType != TSDB_ALTER_USER_PASSWD) {
     terrno = TSDB_CODE_MND_NO_RIGHTS;
     return -1;
@@ -129,7 +131,7 @@ int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SAlterUserRe
   return -1;
 }
 
-int32_t mndCheckShowAuth(SMnode *pMnode, const char *user, int32_t showType) {
+int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, int32_t showType) {
   int32_t   code = 0;
   SUserObj *pUser = mndAcquireUser(pMnode, user);
 
@@ -162,7 +164,7 @@ _OVER:
   return code;
 }
 
-int32_t mndCheckDbAuth(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb) {
+int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb) {
   int32_t   code = 0;
   SUserObj *pUser = mndAcquireUser(pMnode, user);
 

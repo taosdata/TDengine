@@ -283,7 +283,7 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
   }
 
   mDebug("func:%s, start to create", createReq.name);
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_CREATE_FUNC) != 0) {
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_FUNC) != 0) {
     goto _OVER;
   }
 
@@ -346,7 +346,7 @@ static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
   }
 
   mDebug("func:%s, start to drop", dropReq.name);
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_DROP_FUNC) != 0) {
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_FUNC) != 0) {
     goto _OVER;
   }
 
