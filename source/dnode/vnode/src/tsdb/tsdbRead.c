@@ -506,11 +506,9 @@ int32_t tsdbSetTableList(tsdbReaderT reader, SArray* tableList){
 
 tsdbReaderT tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* tableList, uint64_t qId,
                             uint64_t taskId) {
-#if 0
   if(taosArrayGetSize(tableList) == 0){
     return NULL;
   }
-#endif
   STsdbReadHandle* pTsdbReadHandle = tsdbQueryTablesImpl(pVnode, pCond, qId, taskId);
   if (pTsdbReadHandle == NULL) {
     return NULL;
