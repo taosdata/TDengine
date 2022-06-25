@@ -1284,6 +1284,7 @@ void    tFreeSShowRsp(SShowRsp* pRsp);
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   char    tb[TSDB_TABLE_NAME_LEN];
+  char    user[TSDB_USER_LEN];
   int64_t showId;
 } SRetrieveTableReq;
 
