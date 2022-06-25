@@ -359,7 +359,7 @@ struct SMapData {
 typedef struct {
   int16_t cid;
   int8_t  type;
-  int8_t  flag;
+  int8_t  flag;  // HAS_NONE|HAS_NULL|HAS_VALUE
   int64_t offset;
   int64_t size;
 } SBlockCol;

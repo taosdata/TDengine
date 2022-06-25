@@ -58,7 +58,7 @@ _err:
   return code;
 }
 
-static int32_t tMapDataGetOffset(SMapData *pMapData, int32_t idx) {
+static FORCE_INLINE int32_t tMapDataGetOffset(SMapData *pMapData, int32_t idx) {
   switch (pMapData->flag) {
     case TSDB_OFFSET_I8:
       return ((int8_t *)pMapData->pOfst)[idx];
@@ -130,7 +130,7 @@ int32_t tPutMapData(uint8_t *p, SMapData *pMapData) {
     n += tPutU8(p ? p + n : p, TSDB_OFFSET_I8);
     if (p) {
       for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
-        n += tPutI8(p + n, (int8_t)(((int32_t *)pMapData->pData)[iItem]));
+        n += tPutI8(p + n, (int8_t)tMapDataGetOffset(pMapData, iItem));
       }
     } else {
       n = n + sizeof(int8_t) * pMapData->nItem;
@@ -139,7 +139,7 @@ int32_t tPutMapData(uint8_t *p, SMapData *pMapData) {
     n += tPutU8(p ? p + n : p, TSDB_OFFSET_I16);
     if (p) {
       for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
-        n += tPutI16(p + n, (int16_t)(((int32_t *)pMapData->pData)[iItem]));
+        n += tPutI16(p + n, (int16_t)tMapDataGetOffset(pMapData, iItem));
       }
     } else {
       n = n + sizeof(int16_t) * pMapData->nItem;
@@ -148,7 +148,7 @@ int32_t tPutMapData(uint8_t *p, SMapData *pMapData) {
     n += tPutU8(p ? p + n : p, TSDB_OFFSET_I32);
     if (p) {
       for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
-        n += tPutI32(p + n, (int32_t)(((int32_t *)pMapData->pData)[iItem]));
+        n += tPutI32(p + n, tMapDataGetOffset(pMapData, iItem));
       }
     } else {
       n = n + sizeof(int32_t) * pMapData->nItem;
@@ -331,7 +331,7 @@ void tBlockReset(SBlock *pBlock) {
   pBlock->last = -1;
   pBlock->hasDup = 0;
   pBlock->cmprAlg = -1;
-  for (int8_t iSubBlock = 0; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
+  for (int8_t iSubBlock = 0; iSubBlock < TSDB_MAX_SUBBLOCKS; iSubBlock++) {
     pBlock->aSubBlock[iSubBlock].offset = -1;
     pBlock->aSubBlock[iSubBlock].ksize = -1;
     pBlock->aSubBlock[iSubBlock].bsize = -1;
