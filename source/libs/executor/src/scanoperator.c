@@ -1067,9 +1067,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
         }
       }
 
-      // TODO refactor @liao
       taosArrayDestroy(block.pDataBlock);
-
       if (pInfo->pRes->pDataBlock == NULL) {
         // TODO add log
         pOperator->status = OP_EXEC_DONE;
@@ -1574,6 +1572,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
     while (1) {
       int64_t startTs = taosGetTimestampUs();
       strncpy(pInfo->req.tb, tNameGetTableName(&pInfo->name), tListLen(pInfo->req.tb));
+      strcpy(pInfo->req.user, pInfo->pUser);
 
       if (pInfo->showRewrite) {
         char dbName[TSDB_DB_NAME_LEN] = {0};
@@ -1706,7 +1705,7 @@ int32_t buildDbTableInfoBlock(const SSDataBlock* p, const SSysTableMeta* pSysDbT
 }
 
 SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode* pScanPhyNode,
-                                              SExecTaskInfo* pTaskInfo) {
+                                              const char* pUser, SExecTaskInfo* pTaskInfo) {
   SSysTableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SSysTableScanInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -1719,13 +1718,14 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   SSDataBlock*        pResBlock = createResDataBlock(pDescNode);
 
   int32_t num = 0;
-  SArray* colList = extractColMatchInfo(pScanNode->pScanCols, pDescNode, &num, COL_MATCH_FROM_COL_ID);
+  SArray* colList    = extractColMatchInfo(pScanNode->pScanCols, pDescNode, &num, COL_MATCH_FROM_COL_ID);
 
-  pInfo->accountId = pScanPhyNode->accountId;
+  pInfo->accountId   = pScanPhyNode->accountId;
+  pInfo->pUser       = taosMemoryStrDup((void*) pUser);
   pInfo->showRewrite = pScanPhyNode->showRewrite;
-  pInfo->pRes = pResBlock;
-  pInfo->pCondition = pScanNode->node.pConditions;
-  pInfo->scanCols = colList;
+  pInfo->pRes        = pResBlock;
+  pInfo->pCondition  = pScanNode->node.pConditions;
+  pInfo->scanCols    = colList;
 
   initResultSizeInfo(pOperator, 4096);
 
@@ -1741,13 +1741,13 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
     pInfo->readHandle = *(SReadHandle*)readHandle;
   }
 
-  pOperator->name = "SysTableScanOperator";
+  pOperator->name         = "SysTableScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
+  pOperator->blocking     = false;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->info         = pInfo;
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pResBlock->pDataBlock);
-  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->pTaskInfo    = pTaskInfo;
 
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, doSysTableScan, NULL, NULL, destroySysScanOperator, NULL, NULL, NULL);

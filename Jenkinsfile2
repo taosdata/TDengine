@@ -4,11 +4,6 @@ import jenkins.model.CauseOfInterruption
 node {
 }
 
-win_test_stage = 0
-linux_ready = 0
-linux_node_ip = ""
-linux_node_pass = ""
-
 def abortPreviousBuilds() {
     def currentJobName = env.JOB_NAME
     def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -289,7 +284,6 @@ def run_win_ctest() {
     '''
 }
 def run_win_test() {
-    echo "LINUX NODE: ${linux_node_ip} - ${linux_node_pass}"
     bat '''
         echo "windows test ..."
         cd %WIN_CONNECTOR_ROOT%
@@ -298,9 +292,8 @@ def run_win_test() {
         ls -l C:\\Windows\\System32\\taos.dll
         time /t
         cd %WIN_SYSTEM_TEST_ROOT%
-        echo "node: ''' + linux_node_ip + ''':''' + linux_node_pass + '''"
         echo "testing ..."
-        test-all.bat  "{\\\"host\\\":\\\"''' + linux_node_ip + '''\\\",\\\"port\\\":22,\\\"user\\\":\\\"root\\\",\\\"password\\\":\\\"''' + linux_node_pass + '''\\\",\\\"path\\\":\\\"/var/lib/jenkins/workspace/TDinternal\\\"}"
+        test-all.bat ci
         time /t
     '''
 }
@@ -331,16 +324,8 @@ pipeline {
                                 pre_test_win()
                                 pre_test_build_win()
                                 run_win_ctest()
-                                script {
-                                    while(linux_ready == 0) {
-                                        sleep(8)
-                                    }
-                                }
                                 run_win_test()
                             }
-                        }
-                        script {
-                            win_test_stage = 1
                         }
                     }
                 }
@@ -351,17 +336,6 @@ pipeline {
                         changeRequest()
                     }
                     steps {
-                        script {
-                            linux_node_ip = sh (
-                                script: 'jq .ip /home/node_info.json | sed "s/\\\"//g"',
-                                returnStdout: true
-                            ).trim()
-                            linux_node_pass = sh (
-                                script: 'jq .password /home/node_info.json | sed "s/\\\"//g" |sed "s/\\!/^^^^^^^^\\!/g"',
-                                returnStdout: true
-                            ).trim()
-                            echo "${linux_node_ip}:${linux_node_pass}"
-                        }
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                             timeout(time: 120, unit: 'MINUTES'){
                                 pre_test()
@@ -418,36 +392,7 @@ pipeline {
                                         cd ${WKC}/packaging
                                         ./release.sh -v cluster -n 3.0.0.100 -s static
                                     '''
-                                    sh '''
-                                        echo "install ..."
-                                        cd ${WKC}/release
-                                        tar xzf TDengine-enterprise-server-3.0.0.100-Linux-x64.tar.gz
-                                        cd TDengine-enterprise-server-3.0.0.100
-                                        service taosd stop || :
-                                        rm -rf /var/lib/taos
-                                        ./install.sh -e no
-                                    '''
-                                    sh '''
-                                        echo "checking ..."
-                                        which taos
-                                        which taosd
-                                        rm -rf ${WK}/debug
-                                        mv ${WKC}/debug ${WK}/
-                                    '''
-                                    sh '''
-                                        echo "install taospy ..."
-                                        cd ${WKPY}
-                                        pip3 install .
-                                    '''
                                 }
-                            }
-                        }
-                        script {
-                            linux_ready = 1
-                        }
-                        script {
-                            while(win_test_stage == 0){
-                                sleep(12)
                             }
                         }
                     }
