@@ -1450,6 +1450,25 @@ static int32_t rewriteColsToSelectValFunc(STranslateContext* pCxt, SSelectStmt* 
   return pCxt->errCode;
 }
 
+static EDealRes rewriteExprsToGroupKeyFuncImpl(SNode** pNode, void* pContext) {
+  STranslateContext* pCxt = pContext;
+  SNode*             pPartKey = NULL;
+  FOREACH(pPartKey, pCxt->pCurrSelectStmt->pPartitionByList) {
+    if (nodesEqualNode(pPartKey, *pNode)) {
+      return rewriteExprToGroupKeyFunc(pCxt, pNode);
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t rewriteExprsToGroupKeyFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  nodesRewriteExprs(pSelect->pProjectionList, rewriteExprsToGroupKeyFuncImpl, pCxt);
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && !pSelect->isDistinct) {
+    nodesRewriteExprs(pSelect->pOrderByList, rewriteExprsToGroupKeyFuncImpl, pCxt);
+  }
+  return pCxt->errCode;
+}
+
 typedef struct CheckAggColCoexistCxt {
   STranslateContext* pTranslateCxt;
   bool               existAggFunc;
@@ -1459,28 +1478,28 @@ typedef struct CheckAggColCoexistCxt {
   bool               existOtherAggFunc;
 } CheckAggColCoexistCxt;
 
-static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
+static EDealRes doCheckAggColCoexist(SNode* pNode, void* pContext) {
   CheckAggColCoexistCxt* pCxt = (CheckAggColCoexistCxt*)pContext;
-  if (isSelectFunc(*pNode)) {
+  if (isSelectFunc(pNode)) {
     ++(pCxt->selectFuncNum);
-  } else if (isAggFunc(*pNode)) {
+  } else if (isAggFunc(pNode)) {
     pCxt->existOtherAggFunc = true;
   }
-  if (isAggFunc(*pNode)) {
+  if (isAggFunc(pNode)) {
     pCxt->existAggFunc = true;
     return DEAL_RES_IGNORE_CHILD;
   }
-  if (isIndefiniteRowsFunc(*pNode)) {
+  if (isIndefiniteRowsFunc(pNode)) {
     pCxt->existIndefiniteRowsFunc = true;
     return DEAL_RES_IGNORE_CHILD;
   }
   SNode* pPartKey = NULL;
   FOREACH(pPartKey, pCxt->pTranslateCxt->pCurrSelectStmt->pPartitionByList) {
-    if (nodesEqualNode(pPartKey, *pNode)) {
-      return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
+    if (nodesEqualNode(pPartKey, pNode)) {
+      return DEAL_RES_IGNORE_CHILD;
     }
   }
-  if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
+  if (isScanPseudoColumnFunc(pNode) || QUERY_NODE_COLUMN == nodeType(pNode)) {
     pCxt->existCol = true;
   }
   return DEAL_RES_CONTINUE;
@@ -1496,9 +1515,9 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
                                .existIndefiniteRowsFunc = false,
                                .selectFuncNum = 0,
                                .existOtherAggFunc = false};
-  nodesRewriteExprs(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
+  nodesWalkExprs(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
   if (!pSelect->isDistinct) {
-    nodesRewriteExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
+    nodesWalkExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
   }
   if (1 == cxt.selectFuncNum && !cxt.existOtherAggFunc) {
     return rewriteColsToSelectValFunc(pCxt, pSelect);
@@ -1508,6 +1527,9 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   }
   if (cxt.existIndefiniteRowsFunc && cxt.existCol) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  }
+  if (cxt.existAggFunc && NULL != pSelect->pPartitionByList) {
+    return rewriteExprsToGroupKeyFunc(pCxt, pSelect);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -6039,7 +6061,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
         TSWAP(pQuery->pCmdMsg, pCxt->pCmdMsg);
         pQuery->msgType = pQuery->pCmdMsg->msgType;
       }
-      break;      
+      break;
     default:
       pQuery->execMode = QUERY_EXEC_MODE_RPC;
       if (NULL != pCxt->pCmdMsg) {
