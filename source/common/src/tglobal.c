@@ -963,6 +963,10 @@ int32_t taosSetCfg(SConfig *pCfg, char* name) {
         tsTelemPort = (uint16_t)cfgGetItem(pCfg, "telemetryPort")->i32;
       } else if (strcasecmp("transPullupInterval", name) == 0) {
         tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
+      } else if (strcasecmp("ttlUnit", name) == 0) {
+        tsTtlUnit = cfgGetItem(pCfg, "ttlUnit")->i32;
+      } else if (strcasecmp("ttlPushInterval", name) == 0) {
+        tsTtlPushInterval = cfgGetItem(pCfg, "ttlPushInterval")->i32;
       } else if (strcasecmp("tmrDebugFlag", name) == 0) {
         tmrDebugFlag = cfgGetItem(pCfg, "tmrDebugFlag")->i32;
       } else if (strcasecmp("tsdbDebugFlag", name) == 0) {

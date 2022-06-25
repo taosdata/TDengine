@@ -157,7 +157,7 @@ step61:
 	if $x == 10 then
 		return -1
 	endi
-sql show mnodes
+sql show mnodes -x step61
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
