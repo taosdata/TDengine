@@ -24,18 +24,19 @@ extern "C" {
 #include "taos.h"
 
 typedef struct SPlanContext {
-  uint64_t queryId;
-  int32_t  acctId;
-  SEpSet   mgmtEpSet;
-  SNode*   pAstRoot;
-  bool     topicQuery;
-  bool     streamQuery;
-  bool     rSmaQuery;
-  bool     showRewrite;
-  int8_t   triggerType;
-  int64_t  watermark;
-  char*    pMsg;
-  int32_t  msgLen;
+  uint64_t    queryId;
+  int32_t     acctId;
+  SEpSet      mgmtEpSet;
+  SNode*      pAstRoot;
+  bool        topicQuery;
+  bool        streamQuery;
+  bool        rSmaQuery;
+  bool        showRewrite;
+  int8_t      triggerType;
+  int64_t     watermark;
+  char*       pMsg;
+  int32_t     msgLen;
+  const char* pUser;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

@@ -376,7 +376,8 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .pAstRoot = pQuery->pRoot,
                       .showRewrite = pQuery->showRewrite,
                       .pMsg = pRequest->msgBuf,
-                      .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE};
+                      .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
+                      .pUser = pRequest->pTscObj->user};
 
   return qCreateQueryPlan(&cxt, pPlan, pNodeList);
 }
@@ -954,7 +955,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
                           .pAstRoot = pQuery->pRoot,
                           .showRewrite = pQuery->showRewrite,
                           .pMsg = pRequest->msgBuf,
-                          .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE};
+                          .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
+                          .pUser = pRequest->pTscObj->user};
 
       SAppInstInfo* pAppInfo = getAppInfo(pRequest);
       code = qCreateQueryPlan(&cxt, &pRequest->body.pDag, pMnodeList);
@@ -1836,17 +1838,18 @@ _OVER:
   return code;
 }
 
-int32_t appendTbToReq(SArray* pList, int32_t pos1, int32_t len1, int32_t pos2, int32_t len2, const char* str, int32_t acctId, char* db) {
+int32_t appendTbToReq(SArray* pList, int32_t pos1, int32_t len1, int32_t pos2, int32_t len2, const char* str,
+                      int32_t acctId, char* db) {
   SName name;
- 
+
   if (len1 <= 0) {
     return -1;
   }
 
-  const char *dbName = db;
-  const char *tbName = NULL;
-  int32_t dbLen = 0;
-  int32_t tbLen = 0;
+  const char* dbName = db;
+  const char* tbName = NULL;
+  int32_t     dbLen = 0;
+  int32_t     tbLen = 0;
   if (len2 > 0) {
     dbName = str + pos1;
     dbLen = len1;
@@ -1857,7 +1860,7 @@ int32_t appendTbToReq(SArray* pList, int32_t pos1, int32_t len1, int32_t pos2, i
     tbName = str + pos1;
     tbLen = len1;
   }
-  
+
   if (tNameSetDbName(&name, acctId, dbName, dbLen)) {
     return -1;
   }
@@ -1877,18 +1880,18 @@ int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, 
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
-  
-  bool inEscape = false;
+
+  bool    inEscape = false;
   int32_t code = 0;
-  
+
   int32_t vIdx = 0;
   int32_t vPos[2];
   int32_t vLen[2];
 
   memset(vPos, -1, sizeof(vPos));
   memset(vLen, 0, sizeof(vLen));
-  
-  for (int32_t i = 0; ; ++i) {
+
+  for (int32_t i = 0;; ++i) {
     if (0 == *(tbList + i)) {
       if (vPos[vIdx] >= 0 && vLen[vIdx] <= 0) {
         vLen[vIdx] = i - vPos[vIdx];
@@ -1901,7 +1904,7 @@ int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, 
 
       break;
     }
-    
+
     if ('`' == *(tbList + i)) {
       inEscape = !inEscape;
       if (!inEscape) {
@@ -1948,7 +1951,7 @@ int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, 
       if (code) {
         goto _return;
       }
-      
+
       memset(vPos, -1, sizeof(vPos));
       memset(vLen, 0, sizeof(vLen));
       vIdx = 0;
@@ -1962,8 +1965,7 @@ int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, 
       continue;
     }
 
-    if (('a' <= *(tbList + i) && 'z' >= *(tbList + i)) || 
-        ('A' <= *(tbList + i) && 'Z' >= *(tbList + i)) ||
+    if (('a' <= *(tbList + i) && 'z' >= *(tbList + i)) || ('A' <= *(tbList + i) && 'Z' >= *(tbList + i)) ||
         ('0' <= *(tbList + i) && '9' >= *(tbList + i))) {
       if (vLen[vIdx] > 0) {
         goto _return;
@@ -1985,32 +1987,31 @@ _return:
 
   taosArrayDestroy(*pReq);
   *pReq = NULL;
-  
+
   return terrno;
 }
 
 void syncCatalogFn(SMetaData* pResult, void* param, int32_t code) {
-  SSyncQueryParam *pParam = param;
+  SSyncQueryParam* pParam = param;
   pParam->pRequest->code = code;
 
   tsem_post(&pParam->sem);
 }
 
-
-void syncQueryFn(void *param, void *res, int32_t code) {
-  SSyncQueryParam *pParam = param;
+void syncQueryFn(void* param, void* res, int32_t code) {
+  SSyncQueryParam* pParam = param;
   pParam->pRequest = res;
   pParam->pRequest->code = code;
 
   tsem_post(&pParam->sem);
 }
 
-void taosAsyncQueryImpl(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param, bool validateOnly) {
-  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
+void taosAsyncQueryImpl(TAOS* taos, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly) {
+  STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
   if (pTscObj == NULL || sql == NULL || NULL == fp) {
     terrno = TSDB_CODE_INVALID_PARA;
     if (pTscObj) {
-      releaseTscObj(*(int64_t *)taos);
+      releaseTscObj(*(int64_t*)taos);
     } else {
       terrno = TSDB_CODE_TSC_DISCONNECTED;
     }
@@ -2027,7 +2028,7 @@ void taosAsyncQueryImpl(TAOS *taos, const char *sql, __taos_async_fn_t fp, void 
     return;
   }
 
-  SRequestObj *pRequest = NULL;
+  SRequestObj* pRequest = NULL;
   int32_t      code = buildRequest(pTscObj, sql, sqlLen, &pRequest);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
@@ -2041,45 +2042,41 @@ void taosAsyncQueryImpl(TAOS *taos, const char *sql, __taos_async_fn_t fp, void 
   doAsyncQuery(pRequest, false);
 }
 
-
-TAOS_RES *taosQueryImpl(TAOS *taos, const char *sql, bool validateOnly) {
+TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
   if (NULL == taos) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }
 
-  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
+  STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
   if (pTscObj == NULL || sql == NULL) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }
 
 #if SYNC_ON_TOP_OF_ASYNC
-  SSyncQueryParam *param = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
+  SSyncQueryParam* param = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   tsem_init(&param->sem, 0, 0);
 
   taosAsyncQueryImpl(taos, sql, syncQueryFn, param, validateOnly);
   tsem_wait(&param->sem);
 
-  releaseTscObj(*(int64_t *)taos);
+  releaseTscObj(*(int64_t*)taos);
 
   return param->pRequest;
 #else
   size_t sqlLen = strlen(sql);
   if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
-    releaseTscObj(*(int64_t *)taos);
+    releaseTscObj(*(int64_t*)taos);
     tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     return NULL;
   }
 
-  TAOS_RES *pRes = execQuery(pTscObj, sql, sqlLen, validateOnly);
+  TAOS_RES* pRes = execQuery(pTscObj, sql, sqlLen, validateOnly);
 
-  releaseTscObj(*(int64_t *)taos);
+  releaseTscObj(*(int64_t*)taos);
 
   return pRes;
 #endif
 }
-
-
-

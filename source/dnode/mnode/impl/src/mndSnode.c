@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndSnode.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndDnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
@@ -285,6 +285,9 @@ static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
   }
 
   mDebug("snode:%d, start to create", createReq.dnodeId);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_SNODE) != 0) {
+    goto _OVER;
+  }
 
   pObj = mndAcquireSnode(pMnode, createReq.dnodeId);
   if (pObj != NULL) {
@@ -297,10 +300,6 @@ static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
   pDnode = mndAcquireDnode(pMnode, createReq.dnodeId);
   if (pDnode == NULL) {
     terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
-    goto _OVER;
-  }
-
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_CREATE_SNODE) != 0) {
     goto _OVER;
   }
 
@@ -398,6 +397,9 @@ static int32_t mndProcessDropSnodeReq(SRpcMsg *pReq) {
   }
 
   mDebug("snode:%d, start to drop", dropReq.dnodeId);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_SNODE) != 0) {
+    goto _OVER;
+  }
 
   if (dropReq.dnodeId <= 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -406,10 +408,6 @@ static int32_t mndProcessDropSnodeReq(SRpcMsg *pReq) {
 
   pObj = mndAcquireSnode(pMnode, dropReq.dnodeId);
   if (pObj == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_DROP_SNODE) != 0) {
     goto _OVER;
   }
 

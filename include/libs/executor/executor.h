@@ -36,7 +36,7 @@ typedef struct SReadHandle {
   void*   vnode;
   void*   mnd;
   SMsgCb* pMsgCb;
-  int8_t  initTsdbReader;
+//  int8_t  initTsdbReader;
 } SReadHandle;
 
 enum {

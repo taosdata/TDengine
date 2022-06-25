@@ -116,7 +116,8 @@ typedef void *tsdbReaderT;
 #define BLOCK_LOAD_TABLE_SEQ_ORDER  2
 #define BLOCK_LOAD_TABLE_RR_ORDER   3
 
-tsdbReaderT  tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *tableInfoGroup, uint64_t qId,
+int32_t      tsdbSetTableList(tsdbReaderT reader, SArray* tableList);
+tsdbReaderT  tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *tableList, uint64_t qId,
                             uint64_t taskId);
 tsdbReaderT  tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *groupList, uint64_t qId,
                                 void *pMemRef);
@@ -195,7 +196,6 @@ struct SVnodeCfg {
 typedef struct {
   TSKEY    lastKey;
   uint64_t uid;
-  uint64_t groupId;
 } STableKeyInfo;
 
 struct SMetaEntry {

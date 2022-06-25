@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndAcct.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndBnode.h"
 #include "mndCluster.h"
 #include "mndConsumer.h"
@@ -100,7 +100,7 @@ static void *mndThreadFp(void *param) {
     taosMsleep(100);
     if (mndGetStop(pMnode)) break;
 
-    if (lastTime % (tsTransPullupInterval * 10) == 1) {
+    if (lastTime % (tsTtlPushInterval * 10) == 1) {
       mndTtlTimer(pMnode);
     }
 
@@ -239,7 +239,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-grant", mndInitGrant, mndCleanupGrant) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-auth", mndInitAuth, mndCleanupAuth) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-privilege", mndInitPrivilege, mndCleanupPrivilege) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-acct", mndInitAcct, mndCleanupAcct) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stream", mndInitStream, mndCleanupStream) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-topic", mndInitTopic, mndCleanupTopic) != 0) return -1;
@@ -539,18 +539,23 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
   mError("msg:%p, failed to check mnode state since %s, type:%s, numOfMnodes:%d inUse:%d", pMsg, terrstr(),
          TMSG_INFO(pMsg->msgType), epSet.numOfEps, epSet.inUse);
-  for (int32_t i = 0; i < epSet.numOfEps; ++i) {
-    mInfo("mnode index:%d, ep:%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
-  }
 
-  int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
-  pMsg->info.rsp = rpcMallocCont(contLen);
-  if (pMsg->info.rsp != NULL) {
-    tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet);
-    pMsg->info.rspLen = contLen;
-    terrno = TSDB_CODE_RPC_REDIRECT;
+  if (epSet.numOfEps > 0) {
+    for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+      mInfo("mnode index:%d, ep:%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
+    }
+
+    int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
+    pMsg->info.rsp = rpcMallocCont(contLen);
+    if (pMsg->info.rsp != NULL) {
+      tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet);
+      pMsg->info.rspLen = contLen;
+      terrno = TSDB_CODE_RPC_REDIRECT;
+    } else {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+    }
   } else {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_APP_NOT_READY;
   }
 
   return -1;
