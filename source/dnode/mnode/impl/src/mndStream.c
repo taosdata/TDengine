@@ -634,7 +634,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     if (dropReq.igNotExists) {
       mDebug("stream:%s, not exist, ignore not exist is set", dropReq.name);
       sdbRelease(pMnode->pSdb, pStream);
-      return -1;
+      return 0;
     } else {
       terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
       return -1;
