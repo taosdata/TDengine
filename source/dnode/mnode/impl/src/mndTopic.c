@@ -401,6 +401,10 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     }
   } else if (pCreate->subType == TOPIC_SUB_TYPE__TABLE) {
     SStbObj *pStb = mndAcquireStb(pMnode, pCreate->subStbName);
+    if (pStb == NULL) {
+      terrno = TSDB_CODE_MND_STB_NOT_EXIST;
+      return -1;
+    }
     topicObj.stbUid = pStb->uid;
   }
   /*} else if (pCreate->subType == TOPIC_SUB_TYPE__DB) {*/
