@@ -2654,25 +2654,33 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
         syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
         // user commit
-        bool internalExecute = (ths->pFsm->FpCommitCb != NULL) && syncUtilUserCommit(pEntry->originalRpcType);
-        if (ths->replicaNum == 1) {
-          internalExecute = syncNodeIsOptimizedOneReplica(ths, &rpcMsg) && !(ths->restoreFinish);
-        }
+        if ((ths->pFsm->FpCommitCb != NULL) && syncUtilUserCommit(pEntry->originalRpcType)) {
+          bool internalExecute = true;
+          if ((ths->replicaNum == 1) && ths->restoreFinish && (ths->vgId != 1)) {
+            internalExecute = false;
+          }
 
-        // execute fsm in apply thread, or execute outside syncPropose
-        if (internalExecute) {
-          SFsmCbMeta cbMeta = {0};
-          cbMeta.index = pEntry->index;
-          cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
-          cbMeta.isWeak = pEntry->isWeak;
-          cbMeta.code = 0;
-          cbMeta.state = ths->state;
-          cbMeta.seqNum = pEntry->seqNum;
-          cbMeta.term = pEntry->term;
-          cbMeta.currentTerm = ths->pRaftStore->currentTerm;
-          cbMeta.flag = flag;
+          do {
+            char logBuf[128];
+            snprintf(logBuf, sizeof(logBuf), "index:%ld, internalExecute:%d", i, internalExecute);
+            syncNodeEventLog(ths, logBuf);
+          } while (0);
 
-          ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, cbMeta);
+          // execute fsm in apply thread, or execute outside syncPropose
+          if (internalExecute) {
+            SFsmCbMeta cbMeta = {0};
+            cbMeta.index = pEntry->index;
+            cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
+            cbMeta.isWeak = pEntry->isWeak;
+            cbMeta.code = 0;
+            cbMeta.state = ths->state;
+            cbMeta.seqNum = pEntry->seqNum;
+            cbMeta.term = pEntry->term;
+            cbMeta.currentTerm = ths->pRaftStore->currentTerm;
+            cbMeta.flag = flag;
+
+            ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, cbMeta);
+          }
         }
 
         // config change

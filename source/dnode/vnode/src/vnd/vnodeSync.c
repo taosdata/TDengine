@@ -155,7 +155,6 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
           if (rsp.info.handle != NULL) {
             tmsgSendRsp(&rsp);
           }
-          code = 0;
         }
       }
     }
@@ -183,10 +182,12 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
       SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info};
       tmsgSendRedirectRsp(&rsp, &newEpSet);
     } else {
-      if (terrno != 0) code = terrno;
-      vError("vgId:%d, msg:%p failed to propose since %s, code:0x%x", vgId, pMsg, tstrerror(code), code);
-      SRpcMsg rsp = {.code = code, .info = pMsg->info};
-      tmsgSendRsp(&rsp);
+      if (code != 1) {
+        if (terrno != 0) code = terrno;
+        vError("vgId:%d, msg:%p failed to propose since %s, code:0x%x", vgId, pMsg, tstrerror(code), code);
+        SRpcMsg rsp = {.code = code, .info = pMsg->info};
+        tmsgSendRsp(&rsp);
+      }
     }
 
     vGTrace("vgId:%d, msg:%p is freed, code:0x%x", vgId, pMsg, code);
