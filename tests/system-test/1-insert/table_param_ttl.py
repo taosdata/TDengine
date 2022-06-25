@@ -46,12 +46,7 @@ class TDTestCase:
         tdSql.checkRows(0)
 
     def run(self):
-    
         self.ttl_check()
-        
-        
-
-        
 
     def stop(self):
         tdSql.close()
