@@ -14,7 +14,7 @@
  */
 
 #include "mndStream.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
@@ -437,10 +437,6 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
     goto _OVER;
   }
 
-  if (mndCheckDbAuth(pMnode, user, MND_OPER_WRITE_DB, pDb) != 0) {
-    goto _OVER;
-  }
-
   int32_t numOfStbs = -1;
   if (mndGetNumOfStbs(pMnode, pDb->name, &numOfStbs) != 0) {
     goto _OVER;
@@ -542,19 +538,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // TODO check read auth for source and write auth for target
-#if 0
-  pDb = mndAcquireDb(pMnode, createStreamReq.sourceDB);
-  if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
-    goto _OVER;
-  }
-
-  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
-    goto _OVER;
-  }
-#endif
-
   // build stream obj from request
   SStreamObj streamObj = {0};
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
@@ -588,6 +571,16 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   // add stream to trans
   if (mndPersistStream(pMnode, pTrans, &streamObj) < 0) {
     mError("stream:%s, failed to schedule since %s", createStreamReq.name, terrstr());
+    mndTransDrop(pTrans);
+    goto _OVER;
+  }
+
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, streamObj.sourceDb) != 0) {
+    mndTransDrop(pTrans);
+    goto _OVER;
+  }
+
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, streamObj.targetDb) != 0) {
     mndTransDrop(pTrans);
     goto _OVER;
   }
@@ -641,13 +634,9 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     }
   }
 
-#if 0
-  // todo check auth
-  pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
-  if (pUser == NULL) {
-    goto DROP_STREAM_OVER;
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb) != 0) {
+    return -1;
   }
-#endif
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq);
   if (pTrans == NULL) {

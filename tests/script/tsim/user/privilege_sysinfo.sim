@@ -13,14 +13,32 @@ print user sysinfo0 login
 sql close
 sql connect sysinfo0
 
-system sh/exec.sh -n dnode1 -s stop
-return
-
 print =============== check oper
 sql_error create user u1 pass 'u1'
 sql_error drop user sysinfo1
 sql_error alter user sysinfo1 pass '1'
 sql_error alter user sysinfo0 pass '1'
 
+sql_error create dnode $hostname port 7200
+sql_error drop dnode 1
+
+sql_error create qnode on dnode 1
+sql_error drop qnode on dnode 1
+
+sql_error create mnode on dnode 1
+sql_error drop mnode on dnode 1
+
+sql_error create snode on dnode 1
+sql_error drop snode on dnode 1
+
+sql_error redistribute vgroup 2 dnode 1 dnode 2
+sql_error balance vgroup
+
+sql_error kill transaction 1
+sql_error kill connection 1
+sql_error kill query 1
+
+print =============== check db
+sql_error create database db
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -2,7 +2,7 @@
 SETLOCAL EnableDelayedExpansion
 for /F "tokens=1,2 delims=#" %%a in ('"prompt #$H#$E# & echo on & for %%b in (1) do     rem"') do (  set "DEL=%%a")
 set /a a=0
-if %1 == full (
+if "%1" == "full" (
     echo Windows Taosd Full Test
     set /a exitNum=0
     del /Q /F failed.txt

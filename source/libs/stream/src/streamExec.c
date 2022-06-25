@@ -45,11 +45,16 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
       ASSERT(false);
     }
     if (output == NULL) {
-      if (pItem->type == STREAM_INPUT__DATA_RETRIEVE && !hasData) {
-        SSDataBlock block = {0};
-        block.info.type = STREAM_PUSH_DATA;
-        block.info.childId = pTask->selfChildId;
-        taosArrayPush(pRes, &block);
+      if (pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
+        //SSDataBlock block = {0};
+        //block.info.type = STREAM_PUSH_EMPTY;
+        //block.info.childId = pTask->selfChildId;
+        SStreamDataBlock* pRetrieveBlock = (SStreamDataBlock*)data;
+        ASSERT(taosArrayGetSize(pRetrieveBlock->blocks) == 1);
+        SSDataBlock* pBlock = createOneDataBlock(taosArrayGet(pRetrieveBlock->blocks, 0), true);
+        pBlock->info.type = STREAM_PUSH_EMPTY;
+        pBlock->info.childId = pTask->selfChildId;
+        taosArrayPush(pRes, pBlock);
       }
       break;
     }
