@@ -264,6 +264,7 @@ typedef struct SRateInfo {
 
 typedef struct SGroupKeyInfo{
   bool  hasResult;
+  bool  isNull;
   char  data[];
 } SGroupKeyInfo;
 
@@ -5371,14 +5372,21 @@ int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
   int32_t bytes = pInputCol->info.bytes;
 
   int32_t startIndex = pInput->startRowIndex;
-  if (colDataIsNull_s(pInputCol, startIndex)) {
-    pInfo->hasResult = false;
+
+  //escape rest of data blocks to avoid first entry be overwritten.
+  if (pInfo->hasResult) {
     goto _group_key_over;
   }
 
-  pInfo->hasResult = true;
+  if (colDataIsNull_s(pInputCol, startIndex)) {
+    pInfo->isNull = true;
+    pInfo->hasResult = true;
+    goto _group_key_over;
+  }
+
   char* data = colDataGetData(pInputCol, startIndex);
   memcpy(pInfo->data, data, bytes);
+  pInfo->hasResult = true;
 
 _group_key_over:
 
@@ -5393,7 +5401,12 @@ int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
 
   SGroupKeyInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  colDataAppend(pCol, pBlock->info.rows, pInfo->data, pInfo->hasResult ? false : true);
+
+  if (pInfo->hasResult) {
+    colDataAppend(pCol, pBlock->info.rows, pInfo->data, pInfo->isNull ? true : false);
+  } else {
+    pResInfo->numOfRes = 0;
+  }
 
   return pResInfo->numOfRes;
 }
