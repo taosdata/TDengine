@@ -914,6 +914,9 @@ void syncNodeStart(SSyncNode* pSyncNode) {
     syncNodeBecomeLeader(pSyncNode, "one replica start");
 
     // Raft 3.6.2 Committing entries from previous terms
+    syncNodeAppendNoop(pSyncNode);
+    syncMaybeAdvanceCommitIndex(pSyncNode);
+
     return;
   }
 
@@ -1662,6 +1665,12 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     // change isStandBy to normal (election timeout)
     if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
       syncNodeBecomeLeader(pSyncNode, tmpbuf);
+
+      // Raft 3.6.2 Committing entries from previous terms
+      syncNodeReplicate(pSyncNode);
+      syncNodeAppendNoop(pSyncNode);
+      syncMaybeAdvanceCommitIndex(pSyncNode);
+
     } else {
       syncNodeBecomeFollower(pSyncNode, tmpbuf);
     }
@@ -1807,15 +1816,8 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   // stop elect timer
   syncNodeStopElectTimer(pSyncNode);
 
-  // start replicate right now!
-  syncNodeReplicate(pSyncNode);
-
   // start heartbeat timer
   syncNodeStartHeartbeatTimer(pSyncNode);
-
-  // append noop
-  syncNodeAppendNoop(pSyncNode);
-  syncMaybeAdvanceCommitIndex(pSyncNode);  // maybe only one replica
 
   // trace log
   do {
@@ -1841,9 +1843,9 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   syncNodeLog2("==state change syncNodeCandidate2Leader==", pSyncNode);
 
   // Raft 3.6.2 Committing entries from previous terms
-
-  // do not use this
-  // syncNodeEqNoop(pSyncNode);
+  syncNodeReplicate(pSyncNode);
+  syncNodeAppendNoop(pSyncNode);
+  syncMaybeAdvanceCommitIndex(pSyncNode);
 }
 
 void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
