@@ -431,7 +431,7 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
       goto SUBSCRIBE_OVER;
     }
 
-    if (mndCheckDbPrivilege(pMnode, pMsg->info.conn.user, MND_OPER_READ_DB, pTopic->db) != 0) {
+    if (mndCheckDbPrivilegeByName(pMnode, pMsg->info.conn.user, MND_OPER_READ_DB, pTopic->db) != 0) {
       goto SUBSCRIBE_OVER;
     }
 
