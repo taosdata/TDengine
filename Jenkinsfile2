@@ -293,7 +293,7 @@ def run_win_test() {
         time /t
         cd %WIN_SYSTEM_TEST_ROOT%
         echo "testing ..."
-        test-all.bat
+        test-all.bat ci
         time /t
     '''
 }
