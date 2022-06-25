@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndConsumer.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
@@ -428,6 +428,10 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
     if (pTopic == NULL) {
       terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
+      goto SUBSCRIBE_OVER;
+    }
+
+    if (mndCheckDbPrivilegeByName(pMnode, pMsg->info.conn.user, MND_OPER_READ_DB, pTopic->db) != 0) {
       goto SUBSCRIBE_OVER;
     }
 

@@ -109,11 +109,15 @@ int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t
 }
 
 bool tqNextDataBlock(STqReadHandle* pHandle) {
+  if (pHandle->pMsg == NULL) return false;
   while (1) {
     if (tGetSubmitMsgNext(&pHandle->msgIter, &pHandle->pBlock) < 0) {
       return false;
     }
-    if (pHandle->pBlock == NULL) return false;
+    if (pHandle->pBlock == NULL) {
+      pHandle->pMsg = NULL;
+      return false;
+    }
 
     if (pHandle->tbIdHash == NULL) {
       return true;
@@ -243,7 +247,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle, uint64_
       if (!tdSTSRowIterNext(&iter, pColData->info.colId, pColData->info.type, &sVal)) {
         break;
       }
-      if (colDataAppend(pColData, curRow, sVal.val, sVal.valType == TD_VTYPE_NULL) < 0) {
+      if (colDataAppend(pColData, curRow, sVal.val, sVal.valType != TD_VTYPE_NORM) < 0) {
         goto FAIL;
       }
     }

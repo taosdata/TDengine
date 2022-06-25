@@ -223,9 +223,8 @@ int64_t tsdbGetNumOfRowsInMemTable(tsdbReaderT* pHandle) {
   return rows;
 }
 
-static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, STableListInfo* pTableList) {
-  size_t tableSize = taosArrayGetSize(pTableList->pTableList);
-  assert(tableSize >= 1);
+static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, SArray* pTableList) {
+  size_t tableSize = taosArrayGetSize(pTableList);
 
   // allocate buffer in order to load data blocks from file
   SArray* pTableCheckInfo = taosArrayInit(tableSize, sizeof(STableCheckInfo));
@@ -235,7 +234,7 @@ static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, S
 
   // todo apply the lastkey of table check to avoid to load header file
   for (int32_t j = 0; j < tableSize; ++j) {
-    STableKeyInfo* pKeyInfo = (STableKeyInfo*)taosArrayGet(pTableList->pTableList, j);
+    STableKeyInfo* pKeyInfo = (STableKeyInfo*)taosArrayGet(pTableList, j);
 
     STableCheckInfo info = {.lastKey = pKeyInfo->lastKey, .tableId = pKeyInfo->uid};
     info.suid = pTsdbReadHandle->suid;
@@ -254,8 +253,6 @@ static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, S
               pTsdbReadHandle->idStr);
   }
 
-  // TODO  group table according to the tag value.
-  taosArraySort(pTableCheckInfo, tsdbCheckInfoCompar);
   return pTableCheckInfo;
 }
 
@@ -497,8 +494,21 @@ static int32_t setCurrentSchema(SVnode* pVnode, STsdbReadHandle* pTsdbReadHandle
   return TSDB_CODE_SUCCESS;
 }
 
-tsdbReaderT tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
+int32_t tsdbSetTableList(tsdbReaderT reader, SArray* tableList){
+  STsdbReadHandle* pTsdbReadHandle = reader;
+  if(pTsdbReadHandle->pTableCheckInfo) taosArrayDestroy(pTsdbReadHandle->pTableCheckInfo);
+  pTsdbReadHandle->pTableCheckInfo = createCheckInfoFromTableGroup(pTsdbReadHandle, tableList);
+  if (pTsdbReadHandle->pTableCheckInfo == NULL) {
+    return TSDB_CODE_TDB_OUT_OF_MEMORY;
+  }
+  return TDB_CODE_SUCCESS;
+}
+
+tsdbReaderT tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* tableList, uint64_t qId,
                             uint64_t taskId) {
+  if(taosArrayGetSize(tableList) == 0){
+    return NULL;
+  }
   STsdbReadHandle* pTsdbReadHandle = tsdbQueryTablesImpl(pVnode, pCond, qId, taskId);
   if (pTsdbReadHandle == NULL) {
     return NULL;
@@ -543,7 +553,7 @@ tsdbReaderT tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, STableLis
   }
 
   tsdbDebug("%p total numOfTable:%" PRIzu " in this query, table %" PRIzu " %s", pTsdbReadHandle,
-            taosArrayGetSize(pTsdbReadHandle->pTableCheckInfo), taosArrayGetSize(tableList->pTableList),
+            taosArrayGetSize(pTsdbReadHandle->pTableCheckInfo), taosArrayGetSize(tableList),
             pTsdbReadHandle->idStr);
 
   return (tsdbReaderT)pTsdbReadHandle;
@@ -639,7 +649,7 @@ tsdbReaderT tsdbQueryLastRow(SVnode* pVnode, SQueryTableDataCond* pCond, STableL
     return NULL;
   }
 
-  STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)tsdbReaderOpen(pVnode, pCond, pList, qId, taskId);
+  STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)tsdbReaderOpen(pVnode, pCond, pList->pTableList, qId, taskId);
   if (pTsdbReadHandle == NULL) {
     return NULL;
   }
@@ -3641,17 +3651,6 @@ SArray* tsdbRetrieveDataBlock(tsdbReaderT* pTsdbReadHandle, SArray* pIdList) {
         return pHandle->pResBlock->pDataBlock;
       }
     }
-  }
-}
-
-static int tsdbCheckInfoCompar(const void* key1, const void* key2) {
-  if (((STableCheckInfo*)key1)->tableId < ((STableCheckInfo*)key2)->tableId) {
-    return -1;
-  } else if (((STableCheckInfo*)key1)->tableId > ((STableCheckInfo*)key2)->tableId) {
-    return 1;
-  } else {
-    ASSERT(false);
-    return 0;
   }
 }
 

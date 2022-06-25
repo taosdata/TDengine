@@ -109,6 +109,9 @@ python3 ./test.py -f 2-query/distribute_agg_apercentile.py
 python3 ./test.py -f 2-query/distribute_agg_avg.py
 python3 ./test.py -f 2-query/distribute_agg_stddev.py
 python3 ./test.py -f 2-query/twa.py
+python3 ./test.py -f 2-query/irate.py
+
+python3 ./test.py -f 2-query/function_null.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py 
 python3 ./test.py -f 6-cluster/5dnode2mnode.py 
@@ -139,3 +142,4 @@ python3 ./test.py -f 7-tmq/stbFilter.py
 python3 ./test.py -f 7-tmq/tmqCheckData.py
 python3 ./test.py -f 7-tmq/tmqUdf.py
 #python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 5
+python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
