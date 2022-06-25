@@ -450,6 +450,15 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   int32_t code = TSDB_CODE_SUCCESS;
 
   // set grouyp keys, agg funcs and having conditions
+  if (TSDB_CODE_SUCCESS == code && pSelect->hasAggFuncs) {
+    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, fmIsAggFunc, &pAgg->pAggFuncs);
+  }
+
+  // rewrite the expression in subsequent clauses
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteExprsForSelect(pAgg->pAggFuncs, pSelect, SQL_CLAUSE_GROUP_BY);
+  }
+
   if (NULL != pSelect->pGroupByList) {
     pAgg->pGroupKeys = nodesCloneList(pSelect->pGroupByList);
     if (NULL == pAgg->pGroupKeys) {
@@ -457,18 +466,9 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code && pSelect->hasAggFuncs) {
-    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, fmIsAggFunc, &pAgg->pAggFuncs);
-  }
-
   // rewrite the expression in subsequent clauses
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pAgg->pGroupKeys, pSelect, SQL_CLAUSE_GROUP_BY);
-  }
-
-  // rewrite the expression in subsequent clauses
-  if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExprsForSelect(pAgg->pAggFuncs, pSelect, SQL_CLAUSE_GROUP_BY);
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pHaving) {
