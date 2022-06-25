@@ -1061,6 +1061,7 @@ static EDealRes partTagsOptRebuildTbanmeImpl(SNode** pNode, void* pContext) {
     }
     strcpy(pFunc->functionName, "tbname");
     pFunc->funcType = FUNCTION_TYPE_TBNAME;
+    pFunc->node.resType = ((SColumnNode*)*pNode)->node.resType;
     nodesDestroyNode(*pNode);
     *pNode = (SNode*)pFunc;
     return DEAL_RES_IGNORE_CHILD;
@@ -1117,8 +1118,7 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
   }
 
   SProjectLogicNode* pProjectNode = (SProjectLogicNode*)pNode;
-  if (-1 != pProjectNode->limit || -1 != pProjectNode->slimit || -1 != pProjectNode->offset ||
-      -1 != pProjectNode->soffset) {
+  if (NULL != pProjectNode->node.pLimit || NULL != pProjectNode->node.pSlimit) {
     return false;
   }
 
@@ -1189,7 +1189,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ConditionPushDown", .optimizeFunc = cpdOptimize},
   {.pName = "OrderByPrimaryKey", .optimizeFunc = opkOptimize},
   {.pName = "SmaIndex",          .optimizeFunc = smaOptimize},
-  // {.pName = "PartitionTags",     .optimizeFunc = partTagsOptimize},
+  {.pName = "PartitionTags",     .optimizeFunc = partTagsOptimize},
   {.pName = "EliminateProject",  .optimizeFunc = eliminateProjOptimize}
 };
 // clang-format on

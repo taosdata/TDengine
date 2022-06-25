@@ -370,6 +370,15 @@ bool syncIsReady(int64_t rid) {
   ASSERT(rid == pSyncNode->rid);
   bool b = (pSyncNode->state == TAOS_SYNC_STATE_LEADER) && pSyncNode->restoreFinish;
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+
+  // if false, set error code
+  if (false == b) {
+    if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+      terrno = TSDB_CODE_SYN_NOT_LEADER;
+    } else {
+      terrno = TSDB_CODE_APP_NOT_READY;
+    }
+  }
   return b;
 }
 
@@ -480,12 +489,30 @@ void syncGetEpSet(int64_t rid, SEpSet* pEpSet) {
     snprintf(pEpSet->eps[i].fqdn, sizeof(pEpSet->eps[i].fqdn), "%s", (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodeFqdn);
     pEpSet->eps[i].port = (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodePort;
     (pEpSet->numOfEps)++;
-
-    sInfo("syncGetEpSet index:%d %s:%d", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+    sInfo("vgId:%d sync get epset: index:%d %s:%d", pSyncNode->vgId, i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
   }
   pEpSet->inUse = pSyncNode->pRaftCfg->cfg.myIndex;
+  sInfo("vgId:%d sync get epset in-use:%d", pSyncNode->vgId, pEpSet->inUse);
 
-  sInfo("syncGetEpSet pEpSet->inUse:%d ", pEpSet->inUse);
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+}
+
+void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    memset(pEpSet, 0, sizeof(*pEpSet));
+    return;
+  }
+  ASSERT(rid == pSyncNode->rid);
+  pEpSet->numOfEps = 0;
+  for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
+    snprintf(pEpSet->eps[i].fqdn, sizeof(pEpSet->eps[i].fqdn), "%s", (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodeFqdn);
+    pEpSet->eps[i].port = (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodePort;
+    (pEpSet->numOfEps)++;
+    sInfo("vgId:%d sync get retry epset: index:%d %s:%d", pSyncNode->vgId, i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+  }
+  pEpSet->inUse = (pSyncNode->pRaftCfg->cfg.myIndex + 1) % pEpSet->numOfEps;
+  sInfo("vgId:%d sync get retry epset in-use:%d", pSyncNode->vgId, pEpSet->inUse);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
 }
@@ -1322,11 +1349,11 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
       snprintf(logBuf, sizeof(logBuf),
                "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
                "replica-num:%d, "
-               "lconfig:%ld, changing:%d, %s",
+               "lconfig:%ld, changing:%d, restore:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
-               pSyncNode->changing, printStr);
+               pSyncNode->changing, pSyncNode->restoreFinish, printStr);
     } else {
       snprintf(logBuf, sizeof(logBuf), "%s", str);
     }
@@ -1339,11 +1366,11 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
       snprintf(s, len,
                "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
                "replica-num:%d, "
-               "lconfig:%ld, changing:%d, %s",
+               "lconfig:%ld, changing:%d, restore:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
-               pSyncNode->changing, printStr);
+               pSyncNode->changing, pSyncNode->restoreFinish, printStr);
     } else {
       snprintf(s, len, "%s", str);
     }
@@ -1403,14 +1430,34 @@ void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
 char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
   int   len = 256;
   char* s = (char*)taosMemoryMalloc(len);
+
+  SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
+  if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+    pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
+  }
+  SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
+  SyncIndex logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
+
   snprintf(s, len,
-           "syncNode: vgId:%d, currentTerm:%lu, commitIndex:%ld, state:%d %s, isStandBy:%d, "
-           "electTimerLogicClock:%lu, "
-           "electTimerLogicClockUser:%lu, "
-           "electTimerMS:%d, replicaNum:%d",
-           pSyncNode->vgId, pSyncNode->pRaftStore->currentTerm, pSyncNode->commitIndex, pSyncNode->state,
-           syncUtilState2String(pSyncNode->state), pSyncNode->pRaftCfg->isStandBy, pSyncNode->electTimerLogicClock,
-           pSyncNode->electTimerLogicClockUser, pSyncNode->electTimerMS, pSyncNode->replicaNum);
+           "vgId:%d, sync %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
+           "replica-num:%d, "
+           "lconfig:%ld, changing:%d, restore:%d",
+           pSyncNode->vgId, syncUtilState2String(pSyncNode->state), pSyncNode->pRaftStore->currentTerm,
+           pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy,
+           pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing, pSyncNode->restoreFinish);
+
+  /*
+    snprintf(s, len,
+             "syncNode: vgId:%d, term:%lu, commit:%ld, state:%d %s, standby:%d, "
+             "lc:%lu, "
+             "lc-user:%lu, "
+             "ems:%d, replica-num:%d, restore:%d, changing:%d",
+             pSyncNode->vgId, pSyncNode->pRaftStore->currentTerm, pSyncNode->commitIndex, pSyncNode->state,
+             syncUtilState2String(pSyncNode->state), pSyncNode->pRaftCfg->isStandBy, pSyncNode->electTimerLogicClock,
+             pSyncNode->electTimerLogicClockUser, pSyncNode->electTimerMS, pSyncNode->replicaNum,
+             pSyncNode->restoreFinish, pSyncNode->changing);
+  */
+
   return s;
 }
 

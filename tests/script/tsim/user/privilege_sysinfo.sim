@@ -1,0 +1,26 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== create user and login
+sql create user sysinfo0 pass 'taosdata'
+sql create user sysinfo1 pass 'taosdata'
+sql alter user sysinfo0 sysinfo 0
+sql alter user sysinfo1 sysinfo 1
+
+print user sysinfo0 login
+sql close
+sql connect sysinfo0
+
+system sh/exec.sh -n dnode1 -s stop
+return
+
+print =============== check oper
+sql_error create user u1 pass 'u1'
+sql_error drop user sysinfo1
+sql_error alter user sysinfo1 pass '1'
+sql_error alter user sysinfo0 pass '1'
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

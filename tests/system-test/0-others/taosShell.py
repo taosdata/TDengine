@@ -44,13 +44,13 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
 
     tdLog.info ("taos cmd: %s" % taosCmd)
 
-    child = taosExpect.spawn(taosCmd, timeout=3)
+    child = taosExpect.spawn(taosCmd, timeout=10)
     #output = child.readline()
     #print (output.decode())
     if len(expectString) != 0:
-        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=6)
+        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=10)
     else:
-        i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=6)
+        i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=10)
 
     if platform.system().lower() == 'windows':
         retResult = child.before

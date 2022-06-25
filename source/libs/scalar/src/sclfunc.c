@@ -36,9 +36,6 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   SColumnInfoData *pOutputData = pOutput->columnData;
 
   int32_t type = GET_PARAM_TYPE(pInput);
-  if (!IS_NUMERIC_TYPE(type)) {
-    return TSDB_CODE_FAILED;
-  }
 
   switch (type) {
     case TSDB_DATA_TYPE_FLOAT: {
@@ -119,6 +116,13 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
       break;
     }
 
+    case TSDB_DATA_TYPE_NULL: {
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        colDataAppendNULL(pOutputData, i);
+      }
+      break;
+    }
+
     default: {
       colDataAssign(pOutputData, pInputData, pInput->numOfRows, NULL);
     }
@@ -130,9 +134,6 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 
 static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _double_fn valFn) {
   int32_t type = GET_PARAM_TYPE(pInput);
-  if (inputNum != 1 || !IS_NUMERIC_TYPE(type)) {
-    return TSDB_CODE_FAILED;
-  }
 
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -142,7 +143,7 @@ static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SS
   double *out = (double *)pOutputData->pData;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
-    if (colDataIsNull_s(pInputData, i)) {
+    if (colDataIsNull_s(pInputData, i) || IS_NULL_TYPE(type)) {
       colDataAppendNULL(pOutputData, i);
       continue;
     }
@@ -159,10 +160,6 @@ static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SS
 }
 
 static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _double_fn_2 valFn) {
-  if (inputNum != 2 || !IS_NUMERIC_TYPE(GET_PARAM_TYPE(&pInput[0])) || !IS_NUMERIC_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
-    return TSDB_CODE_FAILED;
-  }
-
   SColumnInfoData *pInputData[2];
   SColumnInfoData *pOutputData = pOutput->columnData;
   _getDoubleValue_fn_t getValueFn[2];
@@ -175,11 +172,15 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
   double *out = (double *)pOutputData->pData;
   double result;
 
+  bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+                      IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
+
   int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
   if (pInput[0].numOfRows == pInput[1].numOfRows) {
     for (int32_t i = 0; i < numOfRows; ++i) {
       if (colDataIsNull_s(pInputData[0], i) ||
-          colDataIsNull_s(pInputData[1], i)) {
+          colDataIsNull_s(pInputData[1], i) ||
+          hasNullType) {
         colDataAppendNULL(pOutputData, i);
         continue;
       }
@@ -191,7 +192,7 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
       }
     }
   } else if (pInput[0].numOfRows == 1) { //left operand is constant
-    if (colDataIsNull_s(pInputData[0], 0)) {
+    if (colDataIsNull_s(pInputData[0], 0) || hasNullType) {
       colDataAppendNNULL(pOutputData, 0, pInput[1].numOfRows);
     } else {
       for (int32_t i = 0; i < numOfRows; ++i) {
@@ -210,7 +211,7 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
       }
     }
   } else if (pInput[1].numOfRows == 1) {
-    if (colDataIsNull_s(pInputData[1], 0)) {
+    if (colDataIsNull_s(pInputData[1], 0) || hasNullType) {
       colDataAppendNNULL(pOutputData, 0, pInput[0].numOfRows);
     } else {
       for (int32_t i = 0; i < numOfRows; ++i) {
@@ -236,9 +237,6 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
 
 static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _float_fn f1, _double_fn d1) {
   int32_t type = GET_PARAM_TYPE(pInput);
-  if (inputNum != 1 || !IS_NUMERIC_TYPE(type)) {
-    return TSDB_CODE_FAILED;
-  }
 
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -268,6 +266,13 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
           continue;
         }
         out[i] = d1(in[i]);
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_NULL: {
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        colDataAppendNULL(pOutputData, i);
       }
       break;
     }

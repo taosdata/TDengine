@@ -348,6 +348,9 @@ static SPhysiNode* makePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
     return NULL;
   }
 
+  pPhysiNode->pLimit = pLogicNode->pLimit;
+  pPhysiNode->pSlimit = pLogicNode->pSlimit;
+
   int32_t code = createDataBlockDesc(pCxt, pLogicNode->pTargets, &pPhysiNode->pOutputDataBlockDesc);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pPhysiNode);
@@ -921,11 +924,6 @@ static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChild
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pProject->limit = pProjectLogicNode->limit;
-  pProject->offset = pProjectLogicNode->offset;
-  pProject->slimit = pProjectLogicNode->slimit;
-  pProject->soffset = pProjectLogicNode->soffset;
-
   int32_t code = TSDB_CODE_SUCCESS;
   if (0 == LIST_LENGTH(pChildren)) {
     pProject->pProjections = nodesCloneList(pProjectLogicNode->pProjections);
@@ -1199,6 +1197,9 @@ static int32_t createSortPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
     nodesDestroyNode((SNode*)pSort);
   }
 
+  nodesDestroyList(pPrecalcExprs);
+  nodesDestroyList(pSortKeys);
+
   return code;
 }
 
@@ -1452,6 +1453,9 @@ static SSubplan* makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubpl
   pSubplan->id = pLogicSubplan->id;
   pSubplan->subplanType = pLogicSubplan->subplanType;
   pSubplan->level = pLogicSubplan->level;
+  if (NULL != pCxt->pPlanCxt->pUser) {
+    strcpy(pSubplan->user, pCxt->pPlanCxt->pUser);
+  }
   return pSubplan;
 }
 

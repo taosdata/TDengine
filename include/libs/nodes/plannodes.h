@@ -32,6 +32,8 @@ typedef struct SLogicNode {
   struct SLogicNode* pParent;
   int32_t            optimizedFlag;
   uint8_t            precision;
+  SNode*             pLimit;
+  SNode*             pSlimit;
 } SLogicNode;
 
 typedef enum EScanType {
@@ -92,10 +94,6 @@ typedef struct SProjectLogicNode {
   SLogicNode node;
   SNodeList* pProjections;
   char       stmtName[TSDB_TABLE_NAME_LEN];
-  int64_t    limit;
-  int64_t    offset;
-  int64_t    slimit;
-  int64_t    soffset;
 } SProjectLogicNode;
 
 typedef struct SIndefRowsFuncLogicNode {
@@ -248,6 +246,8 @@ typedef struct SPhysiNode {
   SNode*              pConditions;
   SNodeList*          pChildren;
   struct SPhysiNode*  pParent;
+  SNode*              pLimit;
+  SNode*              pSlimit;
 } SPhysiNode;
 
 typedef struct SScanPhysiNode {
@@ -297,10 +297,6 @@ typedef STableScanPhysiNode SStreamScanPhysiNode;
 typedef struct SProjectPhysiNode {
   SPhysiNode node;
   SNodeList* pProjections;
-  int64_t    limit;
-  int64_t    offset;
-  int64_t    slimit;
-  int64_t    soffset;
 } SProjectPhysiNode;
 
 typedef struct SIndefRowsFuncPhysiNode {
@@ -378,7 +374,7 @@ typedef struct SIntervalPhysiNode {
   int8_t           slidingUnit;
 } SIntervalPhysiNode;
 
-typedef SIntervalPhysiNode  SMergeIntervalPhysiNode;
+typedef SIntervalPhysiNode SMergeIntervalPhysiNode;
 typedef SIntervalPhysiNode SMergeAlignedIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamFinalIntervalPhysiNode;
@@ -462,6 +458,7 @@ typedef struct SSubplan {
   int32_t        msgType;  // message type for subplan, used to denote the send message type to vnode.
   int32_t        level;    // the execution level of current subplan, starting from 0 in a top-down manner.
   char           dbFName[TSDB_DB_FNAME_LEN];
+  char           user[TSDB_USER_LEN];
   SQueryNodeAddr execNode;      // for the scan/modify subplan, the optional execution node
   SQueryNodeStat execNodeStat;  // only for scan subplan
   SNodeList*     pChildren;     // the datasource subplan,from which to fetch the result

@@ -93,8 +93,13 @@ int32_t mndCheckOperAuth(SMnode *pMnode, const char *user, EOperType operType) {
     goto _OVER;
   }
 
-  terrno = TSDB_CODE_MND_NO_RIGHTS;
-  code = -1;
+  switch (operType) {
+    case MND_OPER_CONNECT:
+      break;
+    default:
+      terrno = TSDB_CODE_MND_NO_RIGHTS;
+      code = -1;
+  }
 
 _OVER:
   mndReleaseUser(pMnode, pUser);
@@ -102,7 +107,13 @@ _OVER:
 }
 
 int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter) {
+  if (pUser->superUser && pAlter->alterType != TSDB_ALTER_USER_PASSWD) {
+    terrno = TSDB_CODE_MND_NO_RIGHTS;
+    return -1;
+  }
+
   if (pOperUser->superUser) return 0;
+
   if (!pOperUser->enable) {
     terrno = TSDB_CODE_MND_USER_DISABLED;
     return -1;

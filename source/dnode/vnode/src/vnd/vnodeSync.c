@@ -144,11 +144,15 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
       vnodeAccumBlockMsg(pVnode, pMsg->msgType);
     } else if (code == -1 && terrno == TSDB_CODE_SYN_NOT_LEADER) {
       SEpSet newEpSet = {0};
+      syncGetRetryEpSet(pVnode->sync, &newEpSet);
+
+      /*
       syncGetEpSet(pVnode->sync, &newEpSet);
       SEp *pEp = &newEpSet.eps[newEpSet.inUse];
       if (pEp->port == tsServerPort && strcmp(pEp->fqdn, tsLocalFqdn) == 0) {
         newEpSet.inUse = (newEpSet.inUse + 1) % newEpSet.numOfEps;
       }
+      */
 
       vGTrace("vgId:%d, msg:%p is redirect since not leader, numOfEps:%d inUse:%d", vgId, pMsg, newEpSet.numOfEps,
               newEpSet.inUse);
