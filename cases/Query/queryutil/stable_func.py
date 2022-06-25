@@ -132,6 +132,10 @@ class TDFunction():
             func_stable_tbname_all = self.all_column_tbname_3()
         elif i == 2:
             func_stable_tbname_all = self.int_cloumn()
+        elif i == 21:
+            func_stable_tbname_all = self.int_cloumn_1()
+        elif i == 22:
+            func_stable_tbname_all = self.int_cloumn_2()
         elif i == 3:
             func_stable_tbname_all = self.int_ts_cloumn()      
 
