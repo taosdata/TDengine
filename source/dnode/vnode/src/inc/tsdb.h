@@ -126,6 +126,7 @@ int32_t tBlockCmprFn(const void *p1, const void *p2);
 void    tBlockIdxReset(SBlockIdx *pBlockIdx);
 int32_t tPutBlockIdx(uint8_t *p, void *ph);
 int32_t tGetBlockIdx(uint8_t *p, void *ph);
+int32_t tCmprBlockIdx(void const *lhs, void const *rhs);
 // SColdata
 #define tColDataInit() ((SColData){0})
 void    tColDataReset(SColData *pColData, int16_t cid, int8_t type);
@@ -141,9 +142,9 @@ void    tBlockDataReset(SBlockData *pBlockData);
 void    tBlockDataClear(SBlockData *pBlockData);
 int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
 // SDelIdx
-int32_t tCmprDelIdx(void const *lhs, void const *rhs);
 int32_t tPutDelIdx(uint8_t *p, void *ph);
 int32_t tGetDelIdx(uint8_t *p, void *ph);
+int32_t tCmprDelIdx(void const *lhs, void const *rhs);
 // SDelData
 int32_t tPutDelData(uint8_t *p, void *ph);
 int32_t tGetDelData(uint8_t *p, void *ph);
