@@ -851,7 +851,6 @@ typedef struct {
 int32_t tSerializeSServerVerRsp(void* buf, int32_t bufLen, SServerVerRsp* pRsp);
 int32_t tDeserializeSServerVerRsp(void* buf, int32_t bufLen, SServerVerRsp* pRsp);
 
-
 typedef struct SQueryNodeAddr {
   int32_t nodeId;  // vgId or qnodeId
   SEpSet  epSet;
@@ -877,7 +876,6 @@ typedef struct {
 int32_t tSerializeSDnodeListRsp(void* buf, int32_t bufLen, SDnodeListRsp* pRsp);
 int32_t tDeserializeSDnodeListRsp(void* buf, int32_t bufLen, SDnodeListRsp* pRsp);
 void    tFreeSDnodeListRsp(SDnodeListRsp* pRsp);
-
 
 typedef struct {
   SArray* pArray;  // Array of SUseDbRsp
@@ -1245,19 +1243,18 @@ int32_t tSerializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesReq
 int32_t tDeserializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesReq* pReq);
 
 typedef struct {
-  char  name[TSDB_CONFIG_OPTION_LEN + 1];
-  char  value[TSDB_CONFIG_VALUE_LEN + 1];
+  char name[TSDB_CONFIG_OPTION_LEN + 1];
+  char value[TSDB_CONFIG_VALUE_LEN + 1];
 } SVariablesInfo;
 
 typedef struct {
-  SArray *variables;  //SArray<SVariablesInfo>
+  SArray* variables;  // SArray<SVariablesInfo>
 } SShowVariablesRsp;
 
 int32_t tSerializeSShowVariablesRsp(void* buf, int32_t bufLen, SShowVariablesRsp* pReq);
 int32_t tDeserializeSShowVariablesRsp(void* buf, int32_t bufLen, SShowVariablesRsp* pReq);
 
 void tFreeSShowVariablesRsp(SShowVariablesRsp* pRsp);
-
 
 /*
  * sql: show tables like '%a_%'
@@ -1308,6 +1305,8 @@ typedef struct {
   int32_t compLen;
   int32_t numOfRows;
   int32_t numOfCols;
+  int64_t skey;
+  int64_t ekey;
   char    data[];
 } SRetrieveTableRsp;
 
