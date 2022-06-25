@@ -1215,7 +1215,8 @@ static int32_t eliminateSetOpOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan*
       FOREACH(pChild, pSetOpNode->pChildren) {
           ((SLogicNode*)pChild)->pParent = pSetOpNode->pParent;
       }
-      nodesListInsertList(pSetOpNode->pParent->pChildren, cell, pSetOpNode->pChildren);
+      INSERT_LIST(pSetOpNode->pParent->pChildren, pSetOpNode->pChildren);
+
       pSetOpNode->pChildren = NULL;
       ERASE_NODE(pSetOpNode->pParent->pChildren);
       return TSDB_CODE_SUCCESS;
