@@ -348,8 +348,8 @@ static SPhysiNode* makePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
     return NULL;
   }
 
-  pPhysiNode->pLimit = pLogicNode->pLimit;
-  pPhysiNode->pSlimit = pLogicNode->pSlimit;
+  TSWAP(pPhysiNode->pLimit, pLogicNode->pLimit);
+  TSWAP(pPhysiNode->pSlimit, pLogicNode->pSlimit);
 
   int32_t code = createDataBlockDesc(pCxt, pLogicNode->pTargets, &pPhysiNode->pOutputDataBlockDesc);
   if (TSDB_CODE_SUCCESS != code) {
