@@ -156,6 +156,7 @@ void shellRunSingleCommandImp(char *command) {
     }
 
     fname = sptr + 2;
+    while (*fname == ' ') fname++;
     *sptr = '\0';
   }
 
