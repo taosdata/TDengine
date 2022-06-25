@@ -34,6 +34,8 @@ TEST_F(PlanPartitionByTest, withAggFunc) {
   useDb("root", "test");
 
   run("select count(*) from t1 partition by c1");
+
+  run("select count(*), c1 from t1 partition by c1");
 }
 
 TEST_F(PlanPartitionByTest, withInterval) {
@@ -41,8 +43,12 @@ TEST_F(PlanPartitionByTest, withInterval) {
 
   // normal/child table
   run("select count(*) from t1 partition by c1 interval(10s)");
+
+  run("select count(*), c1 from t1 partition by c1 interval(10s)");
   // super table
   run("select count(*) from st1 partition by tag1, tag2 interval(10s)");
+
+  run("select count(*), tag1 from st1 partition by tag1, tag2 interval(10s)");
 }
 
 TEST_F(PlanPartitionByTest, withGroupBy) {

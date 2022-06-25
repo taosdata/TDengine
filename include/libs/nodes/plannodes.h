@@ -75,6 +75,7 @@ typedef struct SScanLogicNode {
   double        filesFactor;
   SArray*       pSmaIndexes;
   SNodeList*    pPartTags;
+  bool          partSort;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
