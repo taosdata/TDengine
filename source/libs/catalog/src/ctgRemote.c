@@ -217,6 +217,21 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       qDebug("Got stb cfg from mnode, tbFName:%s", target);
       break;
     }    
+    case TDMT_MND_SERVER_VERSION: {
+      if (TSDB_CODE_SUCCESS != rspCode) {
+        qError("error rsp for svr ver from mnode, error:%s", tstrerror(rspCode));
+        CTG_ERR_RET(rspCode);
+      }
+      
+      code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
+      if (code) {
+        qError("Process svr ver rsp failed, error:%s", tstrerror(code));
+        CTG_ERR_RET(code);
+      }
+      
+      qDebug("Got svr ver from mnode");
+      break;
+    }
     default:
       qError("invalid req type %s", TMSG_INFO(reqType));
       return TSDB_CODE_APP_ERROR;
@@ -807,6 +822,40 @@ int32_t ctgGetTableCfgFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, const S
   rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp);
 
   CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)tbFName));
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgGetSvrVerFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, char **out, SCtgTask* pTask) {
+  char *msg = NULL;
+  int32_t msgLen = 0;
+  int32_t reqType = TDMT_MND_SERVER_VERSION;
+  void*(*mallocFp)(int32_t) = pTask ? taosMemoryMalloc : rpcMallocCont;
+
+  qDebug("try to get svr ver from mnode");
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(reqType)](NULL, &msg, 0, &msgLen, mallocFp);
+  if (code) {
+    ctgError("Build get svr ver msg failed, code:%s", tstrerror(code));
+    CTG_ERR_RET(code);
+  }
+
+  if (pTask) {
+    CTG_ERR_RET(ctgUpdateMsgCtx(&pTask->msgCtx, reqType, NULL, NULL));
+    
+    CTG_RET(ctgAsyncSendMsg(pCtg, pConn, pTask, reqType, msg, msgLen));
+  }
+  
+  SRpcMsg rpcMsg = {
+      .msgType = reqType,
+      .pCont   = msg,
+      .contLen = msgLen,
+  };
+
+  SRpcMsg rpcRsp = {0};
+  rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp);
+
+  CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, NULL));
   
   return TSDB_CODE_SUCCESS;
 }
