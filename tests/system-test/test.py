@@ -22,9 +22,6 @@ import json
 import platform
 import socket
 import threading
-from distutils.log import warn as printf
-from tkinter import N
-from fabric2 import Connection
 sys.path.append("../pytest")
 from util.log import *
 from util.dnodes import *
