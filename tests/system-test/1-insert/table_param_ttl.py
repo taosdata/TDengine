@@ -25,18 +25,30 @@ class TDTestCase:
         self.stbname = 'stb'
         self.tbnum = 10
         self.ttl_param = 1
-    def ttl_check(self):
+        self.default_ttl = 100
+        self.modify_ttl = 1
+    def ttl_check_ntb(self):
         tdSql.prepare()
+
         for i in range(self.tbnum):
             tdSql.execute(f'create table {self.ntbname}_{i} (ts timestamp,c0 int) ttl {self.ttl_param}')
         tdSql.query(f'show tables')
         tdSql.checkRows(self.tbnum)
-        tdSql.execute('reset query cache')
         sleep(self.updatecfgDict['ttlUnit']*self.ttl_param+self.updatecfgDict['ttlPushInterval'])
         tdSql.query(f'show tables')
         tdSql.checkRows(0)
-
+        for i in range(self.tbnum):
+            tdSql.execute(f'create table {self.ntbname}_{i} (ts timestamp,c0 int) ttl {self.default_ttl}')
+        for i in range(int(self.tbnum/2)):
+            tdSql.execute(f'alter table {self.ntbname}_{i} ttl {self.modify_ttl}')
+        sleep(self.updatecfgDict['ttlUnit']*self.modify_ttl+self.updatecfgDict['ttlPushInterval'])
+        tdSql.query(f'show tables')
+        tdSql.checkRows(self.tbnum - int(self.tbnum/2))
+        tdSql.execute('drop database db')
+    def ttl_check_ctb(self):
+        tdSql.prepare()
         tdSql.execute(f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int)')
+
         for i in range(self.tbnum):
             tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags({i}) ttl {self.ttl_param}')
         tdSql.query(f'show tables')
@@ -44,9 +56,20 @@ class TDTestCase:
         sleep(self.updatecfgDict['ttlUnit']*self.ttl_param+self.updatecfgDict['ttlPushInterval'])
         tdSql.query(f'show tables')
         tdSql.checkRows(0)
+        for i in range(self.tbnum):
+            tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags({i}) ttl {self.default_ttl}')
+        tdSql.query(f'show tables')
+        tdSql.checkRows(self.tbnum)
+        for i in range(int(self.tbnum/2)):
+            tdSql.execute(f'alter table {self.stbname}_{i} ttl {self.modify_ttl}')
+        sleep(self.updatecfgDict['ttlUnit']*self.modify_ttl+self.updatecfgDict['ttlPushInterval'])
+        tdSql.query(f'show tables')
+        tdSql.checkRows(self.tbnum - int(self.tbnum/2))
+        tdSql.execute('drop database db')
 
     def run(self):
-        self.ttl_check()
+        self.ttl_check_ntb()
+        self.ttl_check_ctb()
 
     def stop(self):
         tdSql.close()
