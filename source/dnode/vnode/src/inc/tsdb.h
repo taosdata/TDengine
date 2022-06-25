@@ -204,7 +204,7 @@ int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter, uint8_t **ppBuf);
 int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf);
 int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf, SBlockIdx *pBlockIdx);
 int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_t **ppBuf1, uint8_t **ppBuf2,
-                           SBlockIdx *pBlockIdx, SBlock *pBlock);
+                           SBlockIdx *pBlockIdx, SBlock *pBlock, int8_t cmprAlg);
 int32_t tsdbWriteBlockSMA(SDataFWriter *pWriter, SBlockSMA *pBlockSMA, int64_t *rOffset, int64_t *rSize);
 
 SDFileSet *tsdbDataFWriterGetWSet(SDataFWriter *pWriter);
@@ -213,8 +213,10 @@ int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pS
 int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SMapData *pMapData, uint8_t **ppBuf);
 int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData, uint8_t **ppBuf);
+int32_t tsdbReadColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBlock, int16_t *aColId, int32_t nCol,
+                        SBlockData *pBlockData);
 int32_t tsdbReadBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBlock, SBlockData *pBlockData,
-                          int16_t *aColId, int32_t nCol, uint8_t **ppBuf1, uint8_t **ppBuf2);
+                          uint8_t **ppBuf1, uint8_t **ppBuf2);
 int32_t tsdbReadBlockSMA(SDataFReader *pReader, SBlockSMA *pBlkSMA);
 // SDelFWriter
 int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb);
@@ -365,6 +367,8 @@ typedef struct {
 } SBlockCol;
 
 typedef struct {
+  int64_t  nRow;
+  int8_t   cmprAlg;
   int64_t  offset;
   int64_t  ksize;
   int64_t  bsize;
@@ -379,7 +383,6 @@ struct SBlock {
   int32_t   nRow;
   int8_t    last;
   int8_t    hasDup;
-  int8_t    cmprAlg;
   int8_t    nSubBlock;
   SSubBlock aSubBlock[TSDB_MAX_SUBBLOCKS];
 };
@@ -404,6 +407,7 @@ struct SColData {
   int32_t *aOffset;
   int32_t  nData;
   uint8_t *pData;
+  uint8_t *pBuf;
 };
 
 struct SBlockData {

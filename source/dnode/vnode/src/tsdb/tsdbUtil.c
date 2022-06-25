@@ -118,43 +118,43 @@ _exit:
 
 int32_t tPutMapData(uint8_t *p, SMapData *pMapData) {
   int32_t n = 0;
-  int32_t maxOffset;
 
   ASSERT(pMapData->flag == TSDB_OFFSET_I32);
-  ASSERT(pMapData->nItem > 0);
-
-  maxOffset = tMapDataGetOffset(pMapData, pMapData->nItem - 1);
 
   n += tPutI32v(p ? p + n : p, pMapData->nItem);
-  if (maxOffset <= INT8_MAX) {
-    n += tPutU8(p ? p + n : p, TSDB_OFFSET_I8);
-    if (p) {
-      for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
-        n += tPutI8(p + n, (int8_t)tMapDataGetOffset(pMapData, iItem));
+  if (pMapData->nItem) {
+    int32_t maxOffset = tMapDataGetOffset(pMapData, pMapData->nItem - 1);
+
+    if (maxOffset <= INT8_MAX) {
+      n += tPutU8(p ? p + n : p, TSDB_OFFSET_I8);
+      if (p) {
+        for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
+          n += tPutI8(p + n, (int8_t)tMapDataGetOffset(pMapData, iItem));
+        }
+      } else {
+        n = n + sizeof(int8_t) * pMapData->nItem;
+      }
+    } else if (maxOffset <= INT16_MAX) {
+      n += tPutU8(p ? p + n : p, TSDB_OFFSET_I16);
+      if (p) {
+        for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
+          n += tPutI16(p + n, (int16_t)tMapDataGetOffset(pMapData, iItem));
+        }
+      } else {
+        n = n + sizeof(int16_t) * pMapData->nItem;
       }
     } else {
-      n = n + sizeof(int8_t) * pMapData->nItem;
-    }
-  } else if (maxOffset <= INT16_MAX) {
-    n += tPutU8(p ? p + n : p, TSDB_OFFSET_I16);
-    if (p) {
-      for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
-        n += tPutI16(p + n, (int16_t)tMapDataGetOffset(pMapData, iItem));
+      n += tPutU8(p ? p + n : p, TSDB_OFFSET_I32);
+      if (p) {
+        for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
+          n += tPutI32(p + n, tMapDataGetOffset(pMapData, iItem));
+        }
+      } else {
+        n = n + sizeof(int32_t) * pMapData->nItem;
       }
-    } else {
-      n = n + sizeof(int16_t) * pMapData->nItem;
     }
-  } else {
-    n += tPutU8(p ? p + n : p, TSDB_OFFSET_I32);
-    if (p) {
-      for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
-        n += tPutI32(p + n, tMapDataGetOffset(pMapData, iItem));
-      }
-    } else {
-      n = n + sizeof(int32_t) * pMapData->nItem;
-    }
+    n += tPutBinary(p ? p + n : p, pMapData->pData, pMapData->nData);
   }
-  n += tPutBinary(p ? p + n : p, pMapData->pData, pMapData->nData);
 
   return n;
 }
@@ -163,23 +163,25 @@ int32_t tGetMapData(uint8_t *p, SMapData *pMapData) {
   int32_t n = 0;
 
   n += tGetI32v(p + n, &pMapData->nItem);
-  n += tGetU8(p + n, &pMapData->flag);
-  pMapData->pOfst = p + n;
-  switch (pMapData->flag) {
-    case TSDB_OFFSET_I8:
-      n = n + sizeof(int8_t) * pMapData->nItem;
-      break;
-    case TSDB_OFFSET_I16:
-      n = n + sizeof(int16_t) * pMapData->nItem;
-      break;
-    case TSDB_OFFSET_I32:
-      n = n + sizeof(int32_t) * pMapData->nItem;
-      break;
+  if (pMapData->nItem) {
+    n += tGetU8(p + n, &pMapData->flag);
+    pMapData->pOfst = p + n;
+    switch (pMapData->flag) {
+      case TSDB_OFFSET_I8:
+        n = n + sizeof(int8_t) * pMapData->nItem;
+        break;
+      case TSDB_OFFSET_I16:
+        n = n + sizeof(int16_t) * pMapData->nItem;
+        break;
+      case TSDB_OFFSET_I32:
+        n = n + sizeof(int32_t) * pMapData->nItem;
+        break;
 
-    default:
-      ASSERT(0);
+      default:
+        ASSERT(0);
+    }
+    n += tGetBinary(p + n, &pMapData->pData, &pMapData->nData);
   }
-  n += tGetBinary(p + n, &pMapData->pData, &pMapData->nData);
 
   return n;
 }
@@ -330,8 +332,9 @@ void tBlockReset(SBlock *pBlock) {
   pBlock->nRow = 0;
   pBlock->last = -1;
   pBlock->hasDup = 0;
-  pBlock->cmprAlg = -1;
   for (int8_t iSubBlock = 0; iSubBlock < TSDB_MAX_SUBBLOCKS; iSubBlock++) {
+    pBlock->aSubBlock[iSubBlock].nRow = 0;
+    pBlock->aSubBlock[iSubBlock].cmprAlg = -1;
     pBlock->aSubBlock[iSubBlock].offset = -1;
     pBlock->aSubBlock[iSubBlock].ksize = -1;
     pBlock->aSubBlock[iSubBlock].bsize = -1;
@@ -357,9 +360,10 @@ int32_t tPutBlock(uint8_t *p, void *ph) {
   n += tPutI32v(p ? p + n : p, pBlock->nRow);
   n += tPutI8(p ? p + n : p, pBlock->last);
   n += tPutI8(p ? p + n : p, pBlock->hasDup);
-  n += tPutI8(p ? p + n : p, pBlock->cmprAlg);
   n += tPutI8(p ? p + n : p, pBlock->nSubBlock);
   for (int8_t iSubBlock = 0; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
+    n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].nRow);
+    n += tPutI8(p ? p + n : p, pBlock->aSubBlock[iSubBlock].cmprAlg);
     n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].offset);
     n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].ksize);
     n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].bsize);
@@ -380,9 +384,10 @@ int32_t tGetBlock(uint8_t *p, void *ph) {
   n += tGetI32v(p + n, &pBlock->nRow);
   n += tGetI8(p + n, &pBlock->last);
   n += tGetI8(p + n, &pBlock->hasDup);
-  n += tGetI8(p + n, &pBlock->cmprAlg);
   n += tGetI8(p + n, &pBlock->nSubBlock);
   for (int8_t iSubBlock = 0; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
+    n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].nRow);
+    n += tGetI8(p + n, &pBlock->aSubBlock[iSubBlock].cmprAlg);
     n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].offset);
     n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].ksize);
     n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].bsize);

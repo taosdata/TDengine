@@ -722,8 +722,7 @@ static int32_t tsdbCommitMemoryData(SCommitter *pCommitter, STbData *pTbData) {
     row = tBlockDataLastRow(pBlockData);
     if (tsdbKeyCmprFn(&pBlock->maxKey, &TSDBROW_KEY(&row)) < 0) pBlock->maxKey = TSDBROW_KEY(&row);
     pBlock->last = pBlockData->nRow < pCommitter->minRow ? 1 : 0;
-    pBlock->cmprAlg = pCommitter->cmprAlg;
-    code = tsdbWriteBlockData(pCommitter->pWriter, pBlockData, NULL, NULL, pBlockIdx, pBlock);
+    code = tsdbWriteBlockData(pCommitter->pWriter, pBlockData, NULL, NULL, pBlockIdx, pBlock, pCommitter->cmprAlg);
     if (code) goto _err;
 
     // Design SMA and write SMA to file
@@ -760,17 +759,10 @@ _err:
 static int32_t tsdbCommitDiskData(SCommitter *pCommitter, SBlockIdx *oBlockIdx) {
   int32_t     code = 0;
   SMapData   *mBlockO = &pCommitter->oBlockMap;
-  SMapData   *mBlockN = &pCommitter->nBlockMap;
   SBlock     *pBlockO = &pCommitter->oBlock;
+  SMapData   *mBlockN = &pCommitter->nBlockMap;
   SBlock     *pBlockN = &pCommitter->nBlock;
-  SBlockIdx  *pBlockIdx = &(SBlockIdx){.suid = oBlockIdx->suid,
-                                       .uid = oBlockIdx->uid,
-                                       .maxKey = oBlockIdx->maxKey,
-                                       .minKey = oBlockIdx->minKey,
-                                       .minVersion = oBlockIdx->minVersion,
-                                       .maxVersion = oBlockIdx->maxVersion,
-                                       .offset = -1,
-                                       .size = -1};
+  SBlockIdx  *pBlockIdx = &(SBlockIdx){0};
   SBlockData *pBlockDataO = &pCommitter->oBlockData;
 
   // read
@@ -784,13 +776,12 @@ static int32_t tsdbCommitDiskData(SCommitter *pCommitter, SBlockIdx *oBlockIdx) 
 
     if (pBlockO->last) {
       ASSERT(iBlock == mBlockO->nItem - 1);
-      code = tsdbReadBlockData(pCommitter->pReader, oBlockIdx, pBlockO, pBlockDataO, NULL, -1, NULL, NULL);
+      code = tsdbReadBlockData(pCommitter->pReader, oBlockIdx, pBlockO, pBlockDataO, NULL, NULL);
       if (code) goto _err;
 
       tBlockReset(pBlockN);
       pBlockN->last = 1;
-      pBlockN->cmprAlg = pBlockO->cmprAlg;
-      code = tsdbWriteBlockData(pCommitter->pWriter, pBlockDataO, NULL, NULL, pBlockIdx, pBlockN);
+      code = tsdbWriteBlockData(pCommitter->pWriter, pBlockDataO, NULL, NULL, pBlockIdx, pBlockN, pCommitter->cmprAlg);
       if (code) goto _err;
 
       code = tMapDataPutItem(mBlockN, pBlockN, tPutBlock);
@@ -802,6 +793,7 @@ static int32_t tsdbCommitDiskData(SCommitter *pCommitter, SBlockIdx *oBlockIdx) 
   }
 
   // SBlock
+  *pBlockIdx = *oBlockIdx;
   code = tsdbWriteBlock(pCommitter->pWriter, mBlockN, NULL, pBlockIdx);
   if (code) goto _err;
 
@@ -812,7 +804,7 @@ static int32_t tsdbCommitDiskData(SCommitter *pCommitter, SBlockIdx *oBlockIdx) 
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb Commit disk data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d tsdb commit disk data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
