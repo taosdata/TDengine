@@ -389,9 +389,9 @@ int metaTtlDropTable(SMeta *pMeta, int64_t ttl, SArray *tbUids) {
   return 0;
 }
 
-static void metaBuildTtlIdxKey(STtlIdxKey *ttlKey, const SMetaEntry *pME) {
-  int32_t ttlDays;
-  int64_t ctime;
+static void metaBuildTtlIdxKey(STtlIdxKey *ttlKey, const SMetaEntry *pME){
+  int64_t    ttlDays;
+  int64_t    ctime;
   if (pME->type == TSDB_CHILD_TABLE) {
     ctime = pME->ctbEntry.ctime;
     ttlDays = pME->ctbEntry.ttlDays;

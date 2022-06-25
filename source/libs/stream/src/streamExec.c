@@ -17,6 +17,7 @@
 
 static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) {
   void* exec = pTask->exec.executor;
+  bool  hasData = false;
 
   // set input
   SStreamQueueItem* pItem = (SStreamQueueItem*)data;
@@ -27,7 +28,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
     ASSERT(pTask->isDataScan);
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)data;
     qSetStreamInput(exec, pSubmit->data, STREAM_DATA_TYPE_SUBMIT_BLOCK, false);
-  } else if (pItem->type == STREAM_INPUT__DATA_BLOCK) {
+  } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)data;
     SArray*           blocks = pBlock->blocks;
     qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK, false);
@@ -43,7 +44,16 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
     if (qExecTask(exec, &output, &ts) < 0) {
       ASSERT(false);
     }
-    if (output == NULL) break;
+    if (output == NULL) {
+      if (pItem->type == STREAM_INPUT__DATA_RETRIEVE && !hasData) {
+        SSDataBlock block = {0};
+        block.info.type = STREAM_PUSH_DATA;
+        block.info.childId = pTask->selfChildId;
+        taosArrayPush(pRes, &block);
+      }
+      break;
+    }
+    hasData = true;
 
     if (output->info.type == STREAM_RETRIEVE) {
       if (streamBroadcastToChildren(pTask, output) < 0) {
