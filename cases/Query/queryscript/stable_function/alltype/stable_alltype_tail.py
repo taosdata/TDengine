@@ -77,7 +77,7 @@ class TDTestQuery(TDCase):
  
  
     def right_case_1(self):
-        print("\n==========================right case 1==========================\n")
+        self.logger.info("\n==========================right case 1==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
@@ -91,11 +91,11 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)              
 
-                print("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
                 n1,n2 = random.randrange(2,101) , random.randrange(0,101) 
-                print("n1=%d,n2=%d" %(n1,n2))
+                self.logger.info("n1=%d,n2=%d" %(n1,n2))
                 func = func.replace("num1","%d" %n1).replace("num2","%d" %n2)
                 sql1 = 'select %s from %s;'  % (func,self.table)   
                 
@@ -124,7 +124,7 @@ class TDTestQuery(TDCase):
 
                 stable_where = tdWhere.stable_where()
                 n1,n2 = random.randrange(2,101) , random.randrange(0,101) 
-                print("n1=%d,n2=%d" %(n1,n2))
+                self.logger.info("n1=%d,n2=%d" %(n1,n2))
                 func_tbname = func_tbname.replace("num1","%d" %n1).replace("num2","%d" %n2)
                 sql1 = 'select %s from %s group by tbname;'  % (func_tbname,self.table)   
                 
@@ -155,10 +155,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num1 = sql.count('where')
-        print("sqlnum1 %d" % num1) 
+        self.logger.info("sqlnum1 %d" % num1) 
 
     def right_case_1_tbname(self):
-        print("\n==========================right case 1_tbname==========================\n")
+        self.logger.info("\n==========================right case 1_tbname==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
@@ -172,7 +172,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                
 
-                print("\n\n\n=======hanshu num = %d======right case_tbname========case1======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case1======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()                
                 n1,n2 = random.randrange(2,101) , random.randrange(0,101) 
@@ -232,10 +232,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num1 = sql.count('where')
-        print("sqlnum1_tbname %d" % num1)
+        self.logger.info("sqlnum1_tbname %d" % num1)
         
     def right_case_2(self):
-        print("\n==========================right case 2==========================\n")
+        self.logger.info("\n==========================right case 2==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
@@ -250,7 +250,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)             
 
-                print("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
 
                 stable_where = tdWhere.stable_where()
                 n1,n2 = random.randrange(2,101) , random.randrange(0,101) 
@@ -376,10 +376,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num2 = sql.count('where')
-        print("sqlnum2 %d" % num2) 
+        self.logger.info("sqlnum2 %d" % num2) 
         
     def right_case_2_tbname(self):
-        print("\n==========================right case 2_tbname==========================\n")
+        self.logger.info("\n==========================right case 2_tbname==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
@@ -394,7 +394,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                 
 
-                print("\n\n\n=======hanshu num = %d======right case_tbname========case2======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case2======\n\n\n" %i)
 
                 stable_where = tdWhere.stable_where()
                 n1,n2 = random.randrange(2,101) , random.randrange(0,101) 
@@ -517,10 +517,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num2 = sql.count('where')
-        print("sqlnum2_tbname %d" % num2) 
+        self.logger.info("sqlnum2_tbname %d" % num2) 
                         
     def right_case_3(self):
-        print("\n==========================right case 3==========================\n")
+        self.logger.info("\n==========================right case 3==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
@@ -534,7 +534,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                 
 
-                print("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
                 n1,n2 = random.randrange(2,101) , random.randrange(0,101) 
@@ -597,11 +597,11 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        print("sqlnum3 %d" % num3) 
+        self.logger.info("sqlnum3 %d" % num3) 
  
  
     def right_case_3_tbname(self):
-        print("\n==========================right case 3_tbname==========================\n")
+        self.logger.info("\n==========================right case 3_tbname==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
@@ -615,7 +615,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)               
 
-                print("\n\n\n=======hanshu num = %d======right case_tbname========case3======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case3======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
                 n1,n2 = random.randrange(2,101) , random.randrange(0,101) 
@@ -675,7 +675,7 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        print("sqlnum3_tbname %d" % num3)         
+        self.logger.info("sqlnum3_tbname %d" % num3)         
 
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
@@ -689,22 +689,22 @@ class TDTestQuery(TDCase):
         self.right_case_1()
         self.right_case_1_tbname()
         endTime1 = time.time()       
-        print("total time1 %d s" % (endTime1 - startTime1))
+        self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
         startTime2 = time.time()
         self.right_case_2()
         self.right_case_2_tbname()
         endTime2 = time.time()       
-        print("total time2 %d s" % (endTime2 - startTime2))
+        self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
         startTime3 = time.time()
         self.right_case_3()
         self.right_case_3_tbname()
         endTime3 = time.time()
-        print("total time3 %ds" % (endTime3 - startTime3))     
+        self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
 
         endTime = time.time()
         self.rm_sql()
-        print("total time %ds" % (endTime - startTime))
+        self.logger.info("total time %ds" % (endTime - startTime))
 
 
