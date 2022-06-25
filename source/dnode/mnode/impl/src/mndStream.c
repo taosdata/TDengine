@@ -494,7 +494,7 @@ static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
   return 0;
 }
 
-static int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
+int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
   int32_t lv = taosArrayGetSize(pStream->tasks);
   for (int32_t i = 0; i < lv; i++) {
     SArray *pTasks = taosArrayGetP(pStream->tasks, i);
