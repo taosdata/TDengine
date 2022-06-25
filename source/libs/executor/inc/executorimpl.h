@@ -348,7 +348,6 @@ typedef struct SStreamBlockScanInfo {
   SInterval      interval;     // if the upstream is an interval operator, the interval info is also kept here.
   SArray*        childIds;
   SessionWindowSupporter sessionSup;
-  bool            assignBlockUid; // assign block uid to groupId, temporarily used for generating rollup SMA.
   int32_t         scanWinIndex;   // for state operator
   int32_t         pullDataResIndex;
   SSDataBlock*    pPullDataRes;             // pull data SSDataBlock
