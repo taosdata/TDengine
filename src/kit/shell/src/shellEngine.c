@@ -1878,7 +1878,8 @@ int wsclient_send_sql(char *command, WS_ACTION_TYPE type) {
  int code = 1;
  cJSON *json = cJSON_CreateObject();
  cJSON *_args = cJSON_CreateObject();
- cJSON_AddNumberToObject(_args, "req_id", 1);
+ cJSON_AddNumberToObject(_args, "req_id", wsclient.reqId);
+ wsclient.reqId++;
  switch (type) {
    case WS_CONN:
      cJSON_AddStringToObject(json, "action", "conn");
@@ -1979,6 +1980,12 @@ void wsclient_parse_frame(SWSParser * parser, uint8_t * recv_buffer) {
   }
   if (msg_opcode == 0x9) {
     parser->frame = PING_FRAME;
+  } else if (msg_opcode == 0x2) {
+    parser->frame = BINARY_FRAME;
+  } else if (msg_opcode == 0x1) {
+    parser->frame = TEXT_FRAME;
+  } else if (msg_opcode == 0xA) {
+    parser->frame = PONG_FRAME;
   }
   parser->offset = pos;
   parser->payload_length = payload_length;

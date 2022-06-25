@@ -44,8 +44,9 @@ typedef struct SShellHistory {
 
 typedef enum enumWebSocketFrameType {
   TEXT_FRAME = 0x81,
-  PING_FRAME = 0x19,
+  PING_FRAME = 0x89,
   PONG_FRAME = 0x8A,
+  BINARY_FRAME = 0x82
 } WebSocketFrameType;
 
 typedef struct SWSParser {
@@ -120,6 +121,7 @@ typedef struct {
 
 typedef struct {
  WS_STATUS status;
+ int64_t   reqId;
 } WebSocketClient;
 
 /**************** Function declarations ****************/

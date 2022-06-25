@@ -56,6 +56,13 @@ START:
        recv_buffer[i] = recv_buffer[i + 2];
      }
      recv_buffer[i] = '\0';
+     if ((char)(recv_buffer[0]) == '{') {
+       tfree(args.response_buffer);
+       args.response_buffer = calloc(1, bytes -1);
+       memcpy(args.response_buffer, recv_buffer, bytes - 2);
+       args.response_buffer[bytes - 2] = '\0';
+       return NULL;
+     }
      wsclient_parse_frame(&parser, recv_buffer);
    } else {
      goto START;
@@ -229,6 +236,7 @@ int main(int argc, char* argv[]) {
   if (args.restful || args.cloud) {
 #ifdef LINUX
     taosSetSignal(SIGPIPE, shellRestfulSendInterruptHandler);
+    wsclient.reqId = 0;
 #endif
   }
 
