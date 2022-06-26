@@ -437,6 +437,9 @@ void *shellLoopQuery(void *arg) {
   
   do {
     // Read command from shell.
+    if (args.restful || args.cloud) {
+      pthread_create(&ppid, NULL, pingHandler, NULL);
+    }
     memset(command, 0, MAX_COMMAND_SIZE);
     set_terminal_mode();
     err = shellReadCommand(con, command);

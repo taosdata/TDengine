@@ -356,6 +356,9 @@ void *shellLoopQuery(void *arg) {
   int32_t err = 0;
 
   do {
+    if (args.restful || args.cloud) {
+      pthread_create(&ppid, NULL, pingHandler, NULL);
+    }
     memset(command, 0, MAX_COMMAND_SIZE);
     shellPrintPrompt();
 

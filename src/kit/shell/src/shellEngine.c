@@ -275,6 +275,7 @@ void freeResultWithRid(int64_t rid) {
 }
 
 void shellRunCommandOnWebsocket(char command[]) {
+  pthread_cancel(ppid);
  int64_t et;
  wordexp_t full_path;
  char *    sptr = NULL;

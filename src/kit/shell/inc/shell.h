@@ -143,6 +143,7 @@ void shellCheck(TAOS* con, SShellArguments* args);
 void get_history_path(char* history);
 void shellCheck(TAOS* con, SShellArguments* args);
 void cleanup_handler(void* arg);
+void* pingHandler(void *arg);
 void exitShell();
 int shellDumpResult(TAOS_RES* con, char* fname, int* error_no, bool printMode);
 int wsclientDumpResult(cJSON* query, char *fname, int *error_no, bool vertical, uint64_t limit);
@@ -171,4 +172,5 @@ extern SShellArguments args;
 extern int64_t         result;
 extern WebSocketClient wsclient;
 extern pthread_t       rpid;
+extern pthread_t       ppid;
 #endif

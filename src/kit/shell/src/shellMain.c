@@ -20,6 +20,7 @@
 
 pthread_t pid;
 pthread_t rpid;
+pthread_t ppid;
 static tsem_t cancelSem;
 WebSocketClient wsclient;
 
@@ -28,6 +29,19 @@ void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) {
 }
 
 void shellRestfulSendInterruptHandler(int32_t signum, void *sigInfo, void *context) {}
+
+void* pingHandler(void *arg) {
+  while (1) {
+    char recv_buffer[TEMP_RECV_BUF];
+    int bytes = recv(args.socket, recv_buffer, TEMP_RECV_BUF - 1, 0);
+    SWSParser parser;
+    wsclient_parse_frame(&parser, recv_buffer);
+    if (parser.frame == PING_FRAME) {
+      wsclient_send("pong", PONG_FRAME);
+    }
+  }
+  return NULL;
+}
 
 void* recvHandler(void *arg) {
 START:
@@ -236,8 +250,8 @@ int main(int argc, char* argv[]) {
   if (args.restful || args.cloud) {
 #ifdef LINUX
     taosSetSignal(SIGPIPE, shellRestfulSendInterruptHandler);
-    wsclient.reqId = 0;
 #endif
+    wsclient.reqId = 0;
   }
 
   /* Get grant information */
