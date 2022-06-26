@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndMnode.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndDnode.h"
 #include "mndShow.h"
 #include "mndSync.h"
@@ -389,6 +389,9 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
   }
 
   mDebug("mnode:%d, start to create", createReq.dnodeId);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_MNODE) != 0) {
+    goto _OVER;
+  }
 
   pObj = mndAcquireMnode(pMnode, createReq.dnodeId);
   if (pObj != NULL) {
@@ -411,10 +414,6 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
 
   if (!mndIsDnodeOnline(pDnode, taosGetTimestampMs())) {
     terrno = TSDB_CODE_NODE_OFFLINE;
-    goto _OVER;
-  }
-
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_CREATE_MNODE) != 0) {
     goto _OVER;
   }
 
@@ -495,7 +494,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
   {
     int32_t contLen = tSerializeSSetStandbyReq(NULL, 0, &standbyReq) + sizeof(SMsgHead);
     void   *pReq = taosMemoryMalloc(contLen);
-    tSerializeSSetStandbyReq((char*)pReq + sizeof(SMsgHead), contLen, &standbyReq);
+    tSerializeSSetStandbyReq((char *)pReq + sizeof(SMsgHead), contLen, &standbyReq);
     SMsgHead *pHead = pReq;
     pHead->contLen = htonl(contLen);
     pHead->vgId = htonl(MNODE_HANDLE);
@@ -595,6 +594,9 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   }
 
   mDebug("mnode:%d, start to drop", dropReq.dnodeId);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
+    goto _OVER;
+  }
 
   if (dropReq.dnodeId <= 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -618,10 +620,6 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
 
   if (!mndIsDnodeOnline(pObj->pDnode, taosGetTimestampMs())) {
     terrno = TSDB_CODE_NODE_OFFLINE;
-    goto _OVER;
-  }
-
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
     goto _OVER;
   }
 

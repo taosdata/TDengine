@@ -287,6 +287,7 @@ static bool isTableOk(STableKeyInfo* info, SNode *pTagCond, SMeta *metaHandle){
 int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo* pListInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   pListInfo->pTableList = taosArrayInit(8, sizeof(STableKeyInfo));
+  if(pListInfo->pTableList == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   uint64_t tableUid = pScanNode->uid;
 
@@ -338,6 +339,11 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
     STableKeyInfo info = {.lastKey = 0, .uid = tableUid, .groupId = 0};
     taosArrayPush(pListInfo->pTableList, &info);
   }
+  pListInfo->pGroupList = taosArrayInit(4, POINTER_BYTES);
+  if(pListInfo->pGroupList == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  //put into list as default group, remove it if grouping sorting is required later
+  taosArrayPush(pListInfo->pGroupList, &pListInfo->pTableList);
 
   return code;
 }

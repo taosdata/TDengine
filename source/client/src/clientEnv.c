@@ -13,11 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
 #include "catalog.h"
-#include "functionMgt.h"
 #include "clientInt.h"
 #include "clientLog.h"
+#include "functionMgt.h"
+#include "os.h"
 #include "query.h"
 #include "scheduler.h"
 #include "tcache.h"
@@ -38,7 +38,7 @@ static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t    tscInitRes = 0;
 
 static void registerRequest(SRequestObj *pRequest) {
-  STscObj *pTscObj = acquireTscObj(*(int64_t*)pRequest->pTscObj->id);
+  STscObj *pTscObj = acquireTscObj(*(int64_t *)pRequest->pTscObj->id);
 
   assert(pTscObj != NULL);
 
@@ -54,14 +54,14 @@ static void registerRequest(SRequestObj *pRequest) {
     int32_t currentInst = atomic_add_fetch_64((int64_t *)&pSummary->currentRequests, 1);
     tscDebug("0x%" PRIx64 " new Request from connObj:0x%" PRIx64
              ", current:%d, app current:%d, total:%d, reqId:0x%" PRIx64,
-             pRequest->self, *(int64_t*)pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
+             pRequest->self, *(int64_t *)pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
   }
 }
 
 static void deregisterRequest(SRequestObj *pRequest) {
   assert(pRequest != NULL);
 
-  STscObj          *pTscObj = pRequest->pTscObj;
+  STscObj *           pTscObj = pRequest->pTscObj;
   SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
 
   int32_t currentInst = atomic_sub_fetch_64((int64_t *)&pActivity->currentRequests, 1);
@@ -70,8 +70,8 @@ static void deregisterRequest(SRequestObj *pRequest) {
   int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
   tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64 " elapsed:%" PRIu64
            " ms, current:%d, app current:%d",
-           pRequest->self, *(int64_t*)pTscObj->id, pRequest->requestId, duration / 1000, num, currentInst);
-  releaseTscObj(*(int64_t*)pTscObj->id);
+           pRequest->self, *(int64_t *)pTscObj->id, pRequest->requestId, duration / 1000, num, currentInst);
+  releaseTscObj(*(int64_t *)pTscObj->id);
 }
 
 // todo close the transporter properly
@@ -80,12 +80,13 @@ void closeTransporter(STscObj *pTscObj) {
     return;
   }
 
-  tscDebug("free transporter:%p in connObj: 0x%" PRIx64, pTscObj->pAppInfo->pTransporter, *(int64_t*)pTscObj->id);
+  tscDebug("free transporter:%p in connObj: 0x%" PRIx64, pTscObj->pAppInfo->pTransporter, *(int64_t *)pTscObj->id);
   rpcClose(pTscObj->pAppInfo->pTransporter);
 }
 
 static bool clientRpcRfp(int32_t code) {
-  if (code == TSDB_CODE_RPC_REDIRECT) {
+  if (code == TSDB_CODE_RPC_REDIRECT || code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_NODE_NOT_DEPLOYED ||
+      code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_APP_NOT_READY) {
     return true;
   } else {
     return false;
@@ -128,16 +129,17 @@ void closeAllRequests(SHashObj *pRequests) {
 void destroyTscObj(void *pObj) {
   STscObj *pTscObj = pObj;
 
-  SClientHbKey connKey = {.tscRid = *(int64_t*)pTscObj->id, .connType = pTscObj->connType};
+  SClientHbKey connKey = {.tscRid = *(int64_t *)pTscObj->id, .connType = pTscObj->connType};
   hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
   int64_t connNum = atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   closeAllRequests(pTscObj->pRequests);
   schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
   if (0 == connNum) {
-    // TODO 
-    //closeTransporter(pTscObj);
+    // TODO
+    // closeTransporter(pTscObj);
   }
-  tscDebug("connObj 0x%" PRIx64 " destroyed, totalConn:%" PRId64, *(int64_t*)pTscObj->id, pTscObj->pAppInfo->numOfConns);
+  tscDebug("connObj 0x%" PRIx64 " destroyed, totalConn:%" PRId64, *(int64_t *)pTscObj->id,
+           pTscObj->pAppInfo->numOfConns);
   taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFreeClear(pTscObj);
 }
@@ -167,10 +169,10 @@ void *createTscObj(const char *user, const char *auth, const char *db, int32_t c
 
   taosThreadMutexInit(&pObj->mutex, NULL);
   pObj->id = taosMemoryMalloc(sizeof(int64_t));
-  *(int64_t*)pObj->id = taosAddRef(clientConnRefPool, pObj);
+  *(int64_t *)pObj->id = taosAddRef(clientConnRefPool, pObj);
   pObj->schemalessType = 1;
 
-  tscDebug("connObj created, 0x%" PRIx64, *(int64_t*)pObj->id);
+  tscDebug("connObj created, 0x%" PRIx64, *(int64_t *)pObj->id);
   return pObj;
 }
 
@@ -326,7 +328,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
     return 0;
   }
 
-  SConfig     *pCfg = taosGetCfg();
+  SConfig *    pCfg = taosGetCfg();
   SConfigItem *pItem = NULL;
 
   switch (option) {

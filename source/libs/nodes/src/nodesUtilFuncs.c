@@ -346,9 +346,11 @@ static void destroyVgDataBlockArray(SArray* pArray) {
 }
 
 static void destroyLogicNode(SLogicNode* pNode) {
-  nodesDestroyList(pNode->pChildren);
-  nodesDestroyNode(pNode->pConditions);
   nodesDestroyList(pNode->pTargets);
+  nodesDestroyNode(pNode->pConditions);
+  nodesDestroyList(pNode->pChildren);
+  nodesDestroyNode(pNode->pLimit);
+  nodesDestroyNode(pNode->pSlimit);
 }
 
 static void destroyPhysiNode(SPhysiNode* pNode) {
@@ -368,6 +370,7 @@ static void destroyWinodwPhysiNode(SWinodwPhysiNode* pNode) {
 static void destroyScanPhysiNode(SScanPhysiNode* pNode) {
   destroyPhysiNode((SPhysiNode*)pNode);
   nodesDestroyList(pNode->pScanCols);
+  nodesDestroyList(pNode->pScanPseudoCols);
 }
 
 static void destroyDataSinkNode(SDataSinkNode* pNode) { nodesDestroyNode((SNode*)pNode->pInputDataBlockDesc); }
@@ -516,6 +519,9 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pWindow);
       nodesDestroyList(pStmt->pGroupByList);
       nodesDestroyNode(pStmt->pHaving);
+      nodesDestroyNode(pStmt->pRange);
+      nodesDestroyNode(pStmt->pEvery);
+      nodesDestroyNode(pStmt->pFill);
       nodesDestroyList(pStmt->pOrderByList);
       nodesDestroyNode((SNode*)pStmt->pLimit);
       nodesDestroyNode((SNode*)pStmt->pSlimit);
@@ -779,6 +785,8 @@ void nodesDestroyNode(SNode* pNode) {
       SInterpFuncLogicNode* pLogicNode = (SInterpFuncLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pFuncs);
+      nodesDestroyNode(pLogicNode->pFillValues);
+      nodesDestroyNode(pLogicNode->pTimeSeries);
       break;
     }
     case QUERY_NODE_LOGIC_SUBPLAN: {
@@ -793,14 +801,21 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(((SQueryLogicPlan*)pNode)->pTopSubplans);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN: {
+      STableScanPhysiNode* pPhyNode = (STableScanPhysiNode*)pNode;
+      destroyScanPhysiNode((SScanPhysiNode*)pNode);
+      nodesDestroyList(pPhyNode->pDynamicScanFuncs);
+      nodesDestroyList(pPhyNode->pPartitionTags);
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
       SProjectPhysiNode* pPhyNode = (SProjectPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
@@ -891,6 +906,8 @@ void nodesDestroyNode(SNode* pNode) {
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);
       nodesDestroyList(pPhyNode->pFuncs);
+      nodesDestroyNode(pPhyNode->pFillValues);
+      nodesDestroyNode(pPhyNode->pTimeSeries);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
@@ -1220,6 +1237,7 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_JSON:
       pNode->datum.p = (char*)value;
       break;
     default:

@@ -14,10 +14,10 @@
  */
 
 #include "mndStream.h"
-#include "mndAuth.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
+#include "mndPrivilege.h"
 #include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
@@ -321,6 +321,10 @@ FAIL:
 }
 
 int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
+  ASSERT(pTask->isDataScan == 0 || pTask->isDataScan == 1);
+  if (pTask->isDataScan == 0 && pTask->sinkType == TASK_SINK__NONE) {
+    ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
+  }
   SEncoder encoder;
   tEncoderInit(&encoder, NULL, 0);
   tEncodeSStreamTask(&encoder, pTask);
@@ -433,10 +437,6 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
     goto _OVER;
   }
 
-  if (mndCheckDbAuth(pMnode, user, MND_OPER_WRITE_DB, pDb) != 0) {
-    goto _OVER;
-  }
-
   int32_t numOfStbs = -1;
   if (mndGetNumOfStbs(pMnode, pDb->name, &numOfStbs) != 0) {
     goto _OVER;
@@ -490,7 +490,7 @@ static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
   return 0;
 }
 
-static int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
+int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
   int32_t lv = taosArrayGetSize(pStream->tasks);
   for (int32_t i = 0; i < lv; i++) {
     SArray *pTasks = taosArrayGetP(pStream->tasks, i);
@@ -538,19 +538,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // TODO check read auth for source and write auth for target
-#if 0
-  pDb = mndAcquireDb(pMnode, createStreamReq.sourceDB);
-  if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
-    goto _OVER;
-  }
-
-  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
-    goto _OVER;
-  }
-#endif
-
   // build stream obj from request
   SStreamObj streamObj = {0};
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
@@ -584,6 +571,16 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   // add stream to trans
   if (mndPersistStream(pMnode, pTrans, &streamObj) < 0) {
     mError("stream:%s, failed to schedule since %s", createStreamReq.name, terrstr());
+    mndTransDrop(pTrans);
+    goto _OVER;
+  }
+
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, streamObj.sourceDb) != 0) {
+    mndTransDrop(pTrans);
+    goto _OVER;
+  }
+
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, streamObj.targetDb) != 0) {
     mndTransDrop(pTrans);
     goto _OVER;
   }
@@ -630,20 +627,16 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     if (dropReq.igNotExists) {
       mDebug("stream:%s, not exist, ignore not exist is set", dropReq.name);
       sdbRelease(pMnode->pSdb, pStream);
-      return -1;
+      return 0;
     } else {
       terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
       return -1;
     }
   }
 
-#if 0
-  // todo check auth
-  pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
-  if (pUser == NULL) {
-    goto DROP_STREAM_OVER;
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb) != 0) {
+    return -1;
   }
-#endif
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq);
   if (pTrans == NULL) {

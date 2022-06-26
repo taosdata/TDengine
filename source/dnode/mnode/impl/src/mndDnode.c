@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDnode.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndMnode.h"
 #include "mndQnode.h"
 #include "mndShow.h"
@@ -558,7 +558,11 @@ _OVER:
 
 static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   SShowVariablesRsp rsp = {0};
-  int32_t       code = -1;
+  int32_t           code = -1;
+
+  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_SHOW_VARIBALES) != 0) {
+    goto _OVER;
+  }
 
   rsp.variables = taosArrayInit(4, sizeof(SVariablesInfo));
   if (NULL == rsp.variables) {
@@ -609,7 +613,6 @@ _OVER:
   return code;
 }
 
-
 static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
   int32_t         code = -1;
@@ -622,6 +625,9 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   }
 
   mInfo("dnode:%s:%d, start to create", createReq.fqdn, createReq.port);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DNODE) != 0) {
+    goto _OVER;
+  }
 
   if (createReq.fqdn[0] == 0 || createReq.port <= 0 || createReq.port > UINT16_MAX) {
     terrno = TSDB_CODE_MND_INVALID_DNODE_EP;
@@ -632,10 +638,6 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   snprintf(ep, TSDB_EP_LEN, "%s:%d", createReq.fqdn, createReq.port);
   pDnode = mndAcquireDnodeByEp(pMnode, ep);
   if (pDnode != NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DNODE) != 0) {
     goto _OVER;
   }
 
@@ -717,6 +719,9 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   }
 
   mInfo("dnode:%d, start to drop, ep:%s:%d", dropReq.dnodeId, dropReq.fqdn, dropReq.port);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
+    goto _OVER;
+  }
 
   pDnode = mndAcquireDnode(pMnode, dropReq.dnodeId);
   if (pDnode == NULL) {
@@ -753,10 +758,6 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     }
   }
 
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
-    goto _OVER;
-  }
-
   code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -782,6 +783,10 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   }
 
   mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE) != 0) {
+    return -1;
+  }
+
   SDnodeObj *pDnode = mndAcquireDnode(pMnode, cfgReq.dnodeId);
   if (pDnode == NULL) {
     mError("dnode:%d, failed to config since %s ", cfgReq.dnodeId, terrstr());

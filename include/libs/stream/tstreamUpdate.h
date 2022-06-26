@@ -32,12 +32,15 @@ typedef struct SUpdateInfo {
   int64_t interval;
   int64_t watermark;
   TSKEY minTS;
+  SScalableBf* pCloseWinSBF;
 } SUpdateInfo;
 
 SUpdateInfo *updateInfoInitP(SInterval* pInterval, int64_t watermark);
 SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t watermark);
 bool updateInfoIsUpdated(SUpdateInfo *pInfo, tb_uid_t tableId, TSKEY ts);
 void updateInfoDestroy(SUpdateInfo *pInfo);
+void updateInfoAddCloseWindowSBF(SUpdateInfo *pInfo);
+void updateInfoDestoryColseWinSBF(SUpdateInfo *pInfo);
 
 #ifdef __cplusplus
 }

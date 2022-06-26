@@ -109,11 +109,15 @@ int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t
 }
 
 bool tqNextDataBlock(STqReadHandle* pHandle) {
+  if (pHandle->pMsg == NULL) return false;
   while (1) {
     if (tGetSubmitMsgNext(&pHandle->msgIter, &pHandle->pBlock) < 0) {
       return false;
     }
-    if (pHandle->pBlock == NULL) return false;
+    if (pHandle->pBlock == NULL) {
+      pHandle->pMsg = NULL;
+      return false;
+    }
 
     if (pHandle->tbIdHash == NULL) {
       return true;
@@ -142,10 +146,7 @@ bool tqNextDataBlockFilterOut(STqReadHandle* pHandle, SHashObj* filterOutUids) {
   return false;
 }
 
-int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle, uint64_t* pGroupId, uint64_t* pUid,
-                            int32_t* pNumOfRows) {
-  *pUid = 0;
-
+int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle) {
   // TODO: cache multiple schema
   int32_t sversion = htonl(pHandle->pBlock->sversion);
   if (pHandle->cachedSchemaSuid == 0 || pHandle->cachedSchemaVer != sversion ||
@@ -176,7 +177,6 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle, uint64_
   STSchema*       pTschema = pHandle->pSchema;
   SSchemaWrapper* pSchemaWrapper = pHandle->pSchemaWrapper;
 
-  *pNumOfRows = pHandle->msgIter.numOfRows;
   int32_t colNumNeed = taosArrayGetSize(pHandle->pColIdList);
 
   if (colNumNeed == 0) {
@@ -217,14 +217,11 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle, uint64_
     }
   }
 
-  if (blockDataEnsureCapacity(pBlock, *pNumOfRows) < 0) {
+  if (blockDataEnsureCapacity(pBlock, pHandle->msgIter.numOfRows) < 0) {
     goto FAIL;
   }
 
   int32_t colActual = blockDataGetNumOfCols(pBlock);
-
-  // TODO in stream shuffle case, fetch groupId
-  *pGroupId = 0;
 
   STSRowIter iter = {0};
   tdSTSRowIterInit(&iter, pTschema);
@@ -232,7 +229,10 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle, uint64_
   int32_t curRow = 0;
 
   tInitSubmitBlkIter(&pHandle->msgIter, pHandle->pBlock, &pHandle->blkIter);
-  *pUid = pHandle->msgIter.uid;  // set the uid of table for submit block
+
+  pBlock->info.groupId = 0;
+  pBlock->info.uid = pHandle->msgIter.uid;  // set the uid of table for submit block
+  pBlock->info.rows = pHandle->msgIter.numOfRows;
 
   while ((row = tGetSubmitBlkNext(&pHandle->blkIter)) != NULL) {
     tdSTSRowIterReset(&iter, row);
@@ -243,7 +243,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle, uint64_
       if (!tdSTSRowIterNext(&iter, pColData->info.colId, pColData->info.type, &sVal)) {
         break;
       }
-      if (colDataAppend(pColData, curRow, sVal.val, sVal.valType == TD_VTYPE_NULL) < 0) {
+      if (colDataAppend(pColData, curRow, sVal.val, sVal.valType != TD_VTYPE_NORM) < 0) {
         goto FAIL;
       }
     }

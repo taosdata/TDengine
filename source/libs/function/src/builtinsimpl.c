@@ -262,6 +262,13 @@ typedef struct SRateInfo {
   int8_t  hasResult;  // flag to denote has value
 } SRateInfo;
 
+typedef struct SGroupKeyInfo{
+  bool  hasResult;
+  bool  isNull;
+  char  data[];
+} SGroupKeyInfo;
+
+
 #define SET_VAL(_info, numOfElem, res) \
   do {                                 \
     if ((numOfElem) <= 0) {            \
@@ -2399,6 +2406,12 @@ bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
   pEnv->calcMemSize = pNode->node.resType.bytes;
+  return true;
+}
+
+bool getGroupKeyFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  pEnv->calcMemSize = sizeof(SGroupKeyInfo) + pNode->node.resType.bytes;
   return true;
 }
 
@@ -5345,6 +5358,55 @@ int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SRateInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   double result = doCalcRate(pInfo, 1000);
   colDataAppend(pCol, pBlock->info.rows, (const char*)&result, pResInfo->isNullRes);
+
+  return pResInfo->numOfRes;
+}
+
+int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SGroupKeyInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*   pInputCol = pInput->pData[0];
+
+  int32_t bytes = pInputCol->info.bytes;
+
+  int32_t startIndex = pInput->startRowIndex;
+
+  //escape rest of data blocks to avoid first entry be overwritten.
+  if (pInfo->hasResult) {
+    goto _group_key_over;
+  }
+
+  if (colDataIsNull_s(pInputCol, startIndex)) {
+    pInfo->isNull = true;
+    pInfo->hasResult = true;
+    goto _group_key_over;
+  }
+
+  char* data = colDataGetData(pInputCol, startIndex);
+  memcpy(pInfo->data, data, bytes);
+  pInfo->hasResult = true;
+
+_group_key_over:
+
+  SET_VAL(pResInfo, 1, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+
+  SGroupKeyInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  if (pInfo->hasResult) {
+    colDataAppend(pCol, pBlock->info.rows, pInfo->data, pInfo->isNull ? true : false);
+  } else {
+    pResInfo->numOfRes = 0;
+  }
 
   return pResInfo->numOfRes;
 }

@@ -11,7 +11,9 @@
 
 # -*- coding: utf-8 -*-
 
+from asyncore import loop
 from collections import defaultdict
+import subprocess
 import random
 import string
 import threading
@@ -75,7 +77,7 @@ class TMQCom:
         
         return resultList
 
-    def startTmqSimProcess(self,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0):
+    def startTmqSimProcess(self,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0,alias=0):
         buildPath = tdCom.getBuildPath()
         cfgPath = tdCom.getClientCfgPath()
         if valgrind == 1:
@@ -84,34 +86,63 @@ class TMQCom:
             shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
         
         if (platform.system().lower() == 'windows'):
-            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
+            processorName = buildPath + '\\build\\bin\\tmq_sim.exe'
+            if alias != 0:
+                processorNameNew = buildPath + '\\build\\bin\\tmq_sim_new.exe'
+                shellCmd = 'cp %s %s'%(processorName, processorNameNew)
+                os.system(shellCmd)
+                processorName = processorNameNew
+            shellCmd = 'mintty -h never ' + processorName + ' -c ' + cfgPath
             shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName) 
             shellCmd += "> nul 2>&1 &"   
         else:
-            shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
+            processorName = buildPath + '/build/bin/tmq_sim'
+            if alias != 0:
+                processorNameNew = buildPath + '/build/bin/tmq_sim_new'
+                shellCmd = 'cp %s %s'%(processorName, processorNameNew)
+                os.system(shellCmd)
+                processorName = processorNameNew
+            shellCmd = 'nohup ' + processorName + ' -c ' + cfgPath
             shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName) 
             shellCmd += "> /dev/null 2>&1 &"
         tdLog.info(shellCmd)
-        os.system(shellCmd)
+        os.system(shellCmd) 
 
-    def getStartConsumeNotifyFromTmqsim(self,cdbName='cdb'):
-        while 1:
+    def stopTmqSimProcess(self, processorName):
+        psCmd = "ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
+        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+        while(processID):
+            killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+            os.system(killCmd)
+            time.sleep(0.2)
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+        tdLog.debug("%s is stopped by kill -INT" % (processorName))
+
+    def getStartConsumeNotifyFromTmqsim(self,cdbName='cdb',rows=1):
+        loopFlag = 1
+        while loopFlag:
             tdSql.query("select * from %s.notifyinfo"%cdbName)
             #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
-            if (tdSql.getRows() == 1) and (tdSql.getData(0, 1) == 0):
-                break
-            else:
-                time.sleep(0.1)
+            actRows = tdSql.getRows()
+            if (actRows >= rows):
+                for i in range(actRows):
+                    if tdSql.getData(i, 1) == 0:
+                        loopFlag = 0
+                        break            
+            time.sleep(0.1)
         return
 
-    def getStartCommitNotifyFromTmqsim(self,cdbName='cdb'):
-        while 1:
+    def getStartCommitNotifyFromTmqsim(self,cdbName='cdb',rows=2):
+        loopFlag = 1
+        while loopFlag:
             tdSql.query("select * from %s.notifyinfo"%cdbName)
             #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
-            if tdSql.getRows() == 2 :
-                print(tdSql.getData(0, 1), tdSql.getData(1, 1))
-                if tdSql.getData(1, 1) == 1:
-                    break
+            actRows = tdSql.getRows()
+            if (actRows >= rows):
+                for i in range(actRows):
+                    if tdSql.getData(i, 1) == 1:
+                        loopFlag = 0
+                        break            
             time.sleep(0.1)
         return
 

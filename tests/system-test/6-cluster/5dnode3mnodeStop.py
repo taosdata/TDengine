@@ -12,7 +12,10 @@ from util.dnodes import TDDnodes
 from util.dnodes import TDDnode
 from util.cluster import *
 from test import tdDnodes
+sys.path.append("./6-cluster")
 
+from clusterCommonCreate import *
+from clusterCommonCheck import * 
 import time
 import socket
 import subprocess
@@ -216,59 +219,84 @@ class TDTestCase:
         else:
             tdLog.exit("create cluster with %d dnode but  check dnode not ready within 5s ! "%dnodeNumbers)
 
-    def five_dnode_three_mnode(self,dnodenumber):
-        self.check_dnodes_status(5)
-        tdSql.query("show mnodes;")   
-        tdLog.debug(self.host)
-        tdSql.checkRows(1)    
+    def fiveDnodeThreeMnode(self,dnodenumbers,mnodeNums,restartNumber):
+        tdLog.printNoPrefix("======== test case 1: ")
+        paraDict = {'dbName':     'db',
+                    'dropFlag':   1,
+                    'event':      '',
+                    'vgroups':    4,
+                    'replica':    1,
+                    'stbName':    'stb',
+                    'colPrefix':  'c',
+                    'tagPrefix':  't',
+                    'colSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
+                    'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
+                    'ctbPrefix':  'ctb',
+                    'ctbNum':     1,
+                    'rowsPerTbl': 10000,
+                    'batchNum':   10,
+                    'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
+                    'pollDelay':  10,
+                    'showMsg':    1,
+                    'showRow':    1}
+        dnodenumbers=int(dnodenumbers)
+        mnodeNums=int(mnodeNums)
+        dbNumbers = int(dnodenumbers * restartNumber)
+        
+        tdLog.info("first check dnode and mnode")
+        tdSql.query("show dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
-        tdSql.checkData(0,2,'leader')
-        tdSql.checkData(0,3,'ready')
+        tdSql.checkData(4,1,'%s:6430'%self.host)
+        clusterComCheck.checkDnodes(dnodenumbers)
+        clusterComCheck.checkMnodeStatus(1)
 
         # fisr add three mnodes;
+        tdLog.info("fisr add three mnodes and check mnode status")
         tdSql.execute("create mnode on dnode 2")
+        clusterComCheck.checkMnodeStatus(2)
         tdSql.execute("create mnode on dnode 3")
+        clusterComCheck.checkMnodeStatus(3)
 
-        # fisrt check statut ready
-        self.check3mnode()
-
-
+        # add some error operations and 
+        tdLog.info("Confirm the status of the dnode again")
         tdSql.error("create mnode on dnode 2")
-
         tdSql.query("show dnodes;")
-        # tdLog.debug(tdSql.queryResult)
-
-        tdLog.debug("stop and follower of mnode") 
+        print(tdSql.queryResult)
+        clusterComCheck.checkDnodes(dnodenumbers)
+        # restart all taosd
         tdDnodes=cluster.dnodes
-        # tdLog.debug(tdDnodes[0])
 
         tdDnodes[1].stoptaosd()
-        self.check3mnode2off()
+        clusterComCheck.check3mnodeoff(2,3)
         tdDnodes[1].starttaosd()
-        self.check3mnode()
+        clusterComCheck.checkMnodeStatus(3)
 
         tdDnodes[2].stoptaosd()
-        self.check3mnode3off()
+        clusterComCheck.check3mnodeoff(3,3)
         tdDnodes[2].starttaosd()
-        self.check3mnode()
+        clusterComCheck.checkMnodeStatus(3)
 
         tdDnodes[0].stoptaosd()
-        self.check3mnode1off()
+        clusterComCheck.check3mnodeoff(1,3)
         tdDnodes[0].starttaosd()
-        self.check3mnode()
+        clusterComCheck.checkMnodeStatus(3)
 
-        self.check3mnode()
+        tdLog.info("Take turns stopping all dnodes ") 
+        # seperate vnode and mnode in different dnodes.
+        # create database and stable
         stopcount =0 
         while stopcount <= 2:
-            for i in range(dnodenumber):
+            tdLog.info("first restart loop")
+            for i in range(dnodenumbers):
                 tdDnodes[i].stoptaosd()
                 tdDnodes[i].starttaosd()
-                # self.check3mnode()
             stopcount+=1
-        self.check3mnode()
+        clusterComCheck.checkDnodes(dnodenumbers)
+        clusterComCheck.checkMnodeStatus(3)
 
     def run(self): 
-        self.five_dnode_three_mnode(5)
+        # print(self.master_dnode.cfgDict)
+        self.fiveDnodeThreeMnode(5,3,1)
  
     def stop(self):
         tdSql.close()

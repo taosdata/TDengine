@@ -145,10 +145,10 @@ static SArray* filterQualifiedChildTables(const SStreamBlockScanInfo* pScanInfo,
       continue;
     }
 
-    ASSERT(mr.me.type == TSDB_CHILD_TABLE);
-    if (mr.me.ctbEntry.suid != pScanInfo->tableUid) {
+    if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != pScanInfo->tableUid) {
       continue;
     }
+    // TODO handle ntb case
 
     taosArrayPush(qa, id);
   }
