@@ -2456,111 +2456,6 @@ static int32_t rewriteUniqueStmt(STranslateContext* pCxt, SSelectStmt* pSelect) 
   return cxt.pTranslateCxt->errCode;
 }
 
-typedef struct SRwriteTailCxt {
-  STranslateContext* pTranslateCxt;
-  int64_t            limit;
-  int64_t            offset;
-} SRwriteTailCxt;
-
-static EDealRes rewriteTailFunc(SNode** pNode, void* pContext) {
-  SRwriteTailCxt* pCxt = pContext;
-  if (QUERY_NODE_FUNCTION == nodeType(*pNode)) {
-    SFunctionNode* pFunc = (SFunctionNode*)*pNode;
-    if (FUNCTION_TYPE_TAIL == pFunc->funcType) {
-      pCxt->limit = ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i;
-      if (3 == LIST_LENGTH(pFunc->pParameterList)) {
-        pCxt->offset = ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 2))->datum.i;
-      }
-      SNode* pExpr = nodesListGetNode(pFunc->pParameterList, 0);
-      strcpy(((SExprNode*)pExpr)->aliasName, ((SExprNode*)*pNode)->aliasName);
-      NODES_CLEAR_LIST(pFunc->pParameterList);
-      nodesDestroyNode(*pNode);
-      *pNode = pExpr;
-      return DEAL_RES_IGNORE_CHILD;
-    }
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static int32_t createLimieNode(SRwriteTailCxt* pCxt, SLimitNode** pOutput) {
-  *pOutput = (SLimitNode*)nodesMakeNode(QUERY_NODE_LIMIT);
-  if (NULL == *pOutput) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  (*pOutput)->limit = pCxt->limit;
-  (*pOutput)->offset = pCxt->offset;
-  return TSDB_CODE_SUCCESS;
-}
-
-static SNode* createOrderByExpr(STranslateContext* pCxt) {
-  SOrderByExprNode* pOrder = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
-  if (NULL == pOrder) {
-    return NULL;
-  }
-  pCxt->errCode = createPrimaryKeyCol(pCxt, &pOrder->pExpr);
-  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
-    nodesDestroyNode((SNode*)pOrder);
-    return NULL;
-  }
-  pOrder->order = ORDER_DESC;
-  pOrder->nullOrder = NULL_ORDER_FIRST;
-  return (SNode*)pOrder;
-}
-
-static int32_t rewriteTailStmtInplace(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  SRwriteTailCxt cxt = {.pTranslateCxt = pCxt, .limit = -1, .offset = -1};
-  nodesRewriteExprs(pSelect->pProjectionList, rewriteTailFunc, &cxt);
-  int32_t code = nodesListMakeStrictAppend(&pSelect->pOrderByList, createOrderByExpr(pCxt));
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createLimieNode(&cxt, &pSelect->pLimit);
-  }
-  pSelect->hasIndefiniteRowsFunc = false;
-  pSelect->groupSort = (NULL != pSelect->pPartitionByList);
-  return code;
-}
-
-static int32_t rewriteTailStmtSubquery(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  SSelectStmt* pSubquery = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
-  if (NULL == pSubquery) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  TSWAP(pSubquery->pProjectionList, pSelect->pProjectionList);
-
-  return TSDB_CODE_PAR_INTERNAL_ERROR;
-}
-
-/* case 1:
- * in:  select tail(expr, k, f) from t where_clause
- * out: select expr from t where_clause order by _rowts desc limit k offset f
- *
- * case 2:
- * in:  select tail(expr, k, f) from t where_clause partition_by_clause
- * out: select expr from t where_clause partition_by_clause sort by _rowts desc limit k offset f
- *
- * case 3:
- * in:  select tail(expr, k, f) from t where_clause order_by_clause limit_clause
- * out: select expr from (
- *        select expr from t where_clause order by _rowts desc limit k offset f
- *      ) order_by_clause limit_clause
- *
- * case 4:
- * in:  select tail(expr, k, f) from t where_clause partition_by_clause limit_clause
- * out: select expr from (
- *        select expr, part_key_list from t where_clause partition_by_clause sort by _rowts desc limit k offset f
- *      ) partition_by_clause limit_clause
- */
-static int32_t rewriteTailStmt(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (!pSelect->hasTailFunc) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (NULL == pSelect->pOrderByList && NULL == pSelect->pLimit && NULL == pSelect->pSlimit) {
-    return rewriteTailStmtInplace(pCxt, pSelect);
-  } else {
-    return rewriteTailStmtSubquery(pCxt, pSelect);
-  }
-}
-
 typedef struct SReplaceOrderByAliasCxt {
   STranslateContext* pTranslateCxt;
   SNodeList*         pProjectionList;
@@ -2637,9 +2532,6 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteUniqueStmt(pCxt, pSelect);
   }
-  // if (TSDB_CODE_SUCCESS == code) {
-  //   code = rewriteTailStmt(pCxt, pSelect);
-  // }
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteTimelineFunc(pCxt, pSelect);
   }
