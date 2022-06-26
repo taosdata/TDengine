@@ -2406,7 +2406,7 @@ static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData,
   if (pInfo->num < maxLen) {
     valuePairAssign(pList[pInfo->num], type, (const char *)&val.i64, ts, pTags, pTagInfo, stage);
 
-    taosheapsort((void *) pList, sizeof(tValuePair **), pInfo->num + 1, (const void *) &type, topBotComparFn, (const void *) &pTagInfo->tagsLen, topBotSwapFn, 0);
+    taosheapsort((void *) pList, sizeof(tValuePair *), pInfo->num + 1, (const void *) &type, topBotComparFn, (const void *) &pTagInfo->tagsLen, topBotSwapFn, 0);
  
     pInfo->num++;
   } else {
@@ -2414,7 +2414,7 @@ static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData,
         (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u64 > pList[0]->v.u64) ||
         (IS_FLOAT_TYPE(type) && val.dKey > pList[0]->v.dKey)) {
       valuePairAssign(pList[0], type, (const char *)&val.i64, ts, pTags, pTagInfo, stage);
-      taosheapadjust((void *) pList, sizeof(tValuePair **), 0, maxLen - 1, (const void *) &type, topBotComparFn, (const void *) &pTagInfo->tagsLen, topBotSwapFn, 0);
+      taosheapadjust((void *) pList, sizeof(tValuePair *), 0, maxLen - 1, (const void *) &type, topBotComparFn, (const void *) &pTagInfo->tagsLen, topBotSwapFn, 0);
     }
   }
 }
@@ -2430,7 +2430,7 @@ static void do_bottom_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pDa
   if (pInfo->num < maxLen) {
     valuePairAssign(pList[pInfo->num], type, (const char *)&val.i64, ts, pTags, pTagInfo, stage);
 
-    taosheapsort((void *) pList, sizeof(tValuePair **), pInfo->num + 1, (const void *) &type, topBotComparFn, (const void *) &pTagInfo->tagsLen, topBotSwapFn, 1);
+    taosheapsort((void *) pList, sizeof(tValuePair *), pInfo->num + 1, (const void *) &type, topBotComparFn, (const void *) &pTagInfo->tagsLen, topBotSwapFn, 1);
 
     pInfo->num++;
   } else {
@@ -2438,7 +2438,7 @@ static void do_bottom_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pDa
         (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u64 < pList[0]->v.u64) ||
         (IS_FLOAT_TYPE(type) && val.dKey < pList[0]->v.dKey)) {
       valuePairAssign(pList[0], type, (const char *)&val.i64, ts, pTags, pTagInfo, stage);
-      taosheapadjust((void *) pList, sizeof(tValuePair **), 0, maxLen - 1, (const void *) &type, topBotComparFn, (const void *) &pTagInfo->tagsLen, topBotSwapFn, 1);
+      taosheapadjust((void *) pList, sizeof(tValuePair *), 0, maxLen - 1, (const void *) &type, topBotComparFn, (const void *) &pTagInfo->tagsLen, topBotSwapFn, 1);
     }
   }
 }
@@ -5049,7 +5049,7 @@ static void do_reservoir_sample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, in
     assignResultSample(pCtx, pInfo, pInfo->numSampled, ts, pData, type, bytes, NULL);
     pInfo->numSampled++;
   } else {
-    int32_t j = rand() % (pInfo->totalPoints);
+    int32_t j = random() % (pInfo->totalPoints);
     if (j < samplesK) {
       assignResultSample(pCtx, pInfo, j, ts, pData, type, bytes, NULL);
     }
@@ -5749,12 +5749,12 @@ static void do_tail_function_add(STailInfo *pInfo, int32_t maxLen, void *pData, 
   if (pInfo->num < maxLen) {
     valueTailAssign(pList[pInfo->num], bytes, pData, ts, pTagInfo, pTags, stage);
 
-    taosheapsort((void *) pList, sizeof(TailUnit **), pInfo->num + 1, NULL, tailComparFn, NULL, tailSwapFn, 0);
+    taosheapsort((void *) pList, sizeof(TailUnit *), pInfo->num + 1, NULL, tailComparFn, NULL, tailSwapFn, 0);
 
     pInfo->num++;
   } else if(pList[0]->timestamp < ts) {
     valueTailAssign(pList[0], bytes, pData, ts, pTagInfo, pTags, stage);
-    taosheapadjust((void *) pList, sizeof(TailUnit **), 0, maxLen - 1, NULL, tailComparFn, NULL, tailSwapFn, 0);
+    taosheapadjust((void *) pList, sizeof(TailUnit *), 0, maxLen - 1, NULL, tailComparFn, NULL, tailSwapFn, 0);
   }
 }
 
