@@ -1236,17 +1236,10 @@ static int32_t rewriteTailOptCreateSort(SIndefRowsFuncLogicNode* pIndef, SLogicN
 
   // tail(expr, [limit, offset,] _rowts)
   SFunctionNode* pTail = (SFunctionNode*)nodesListGetNode(pIndef->pFuncs, 0);
-  int32_t        limitIndex = LIST_LENGTH(pTail->pParameterList) > 2 ? 1 : -1;
-  int32_t        offsetIndex = LIST_LENGTH(pTail->pParameterList) > 3 ? 2 : -1;
   int32_t        rowtsIndex = LIST_LENGTH(pTail->pParameterList) - 1;
 
   int32_t code = nodesListMakeStrictAppend(
       &pSort->pSortKeys, rewriteTailOptCreateOrderByExpr(nodesListGetNode(pTail->pParameterList, rowtsIndex)));
-  if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteTailOptCreateLimit(limitIndex < 0 ? NULL : nodesListGetNode(pTail->pParameterList, limitIndex),
-                                     offsetIndex < 0 ? NULL : nodesListGetNode(pTail->pParameterList, offsetIndex),
-                                     &pSort->node.pLimit);
-  }
   if (TSDB_CODE_SUCCESS == code) {
     pSort->node.pTargets = nodesCloneList(((SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0))->pTargets);
     if (NULL == pSort->node.pTargets) {
@@ -1281,8 +1274,17 @@ static int32_t rewriteTailOptCreateProject(SIndefRowsFuncLogicNode* pIndef, SLog
   TSWAP(pProject->node.pTargets, pIndef->node.pTargets);
   pProject->node.precision = pIndef->node.precision;
 
-  int32_t code = nodesListMakeStrictAppend(
-      &pProject->pProjections, rewriteTailOptCreateProjectExpr((SFunctionNode*)nodesListGetNode(pIndef->pFuncs, 0)));
+  // tail(expr, [limit, offset,] _rowts)
+  SFunctionNode* pTail = (SFunctionNode*)nodesListGetNode(pIndef->pFuncs, 0);
+  int32_t        limitIndex = LIST_LENGTH(pTail->pParameterList) > 2 ? 1 : -1;
+  int32_t        offsetIndex = LIST_LENGTH(pTail->pParameterList) > 3 ? 2 : -1;
+
+  int32_t code = nodesListMakeStrictAppend(&pProject->pProjections, rewriteTailOptCreateProjectExpr(pTail));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteTailOptCreateLimit(limitIndex < 0 ? NULL : nodesListGetNode(pTail->pParameterList, limitIndex),
+                                     offsetIndex < 0 ? NULL : nodesListGetNode(pTail->pParameterList, offsetIndex),
+                                     &pProject->node.pLimit);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = (SLogicNode*)pProject;
   } else {

@@ -188,8 +188,8 @@ class TDTestCase:
 
     def check_tail_table(self , tbname , col_name , tail_rows , offset):
         tail_sql = f"select tail({col_name} , {tail_rows} , {offset}) from {tbname}"
-        equal_sql = f"select {col_name} from (select ts , {col_name} from {tbname} order by ts desc limit {tail_rows} offset {offset}) order by ts"
-        #equal_sql = f"select {col_name} from {tbname} order by ts desc limit {tail_rows} offset {offset}"
+        #equal_sql = f"select {col_name} from (select ts , {col_name} from {tbname} order by ts desc limit {tail_rows} offset {offset}) order by ts"
+        equal_sql = f"select {col_name} from {tbname} order by ts desc limit {tail_rows} offset {offset}"
         tdSql.query(tail_sql)
         tail_result = tdSql.queryResult
 
