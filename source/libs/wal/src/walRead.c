@@ -104,6 +104,8 @@ static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
     return -1;
   }
 
+  pRead->pReadLogTFile = pLogTFile;
+
   walBuildIdxName(pRead->pWal, fileFirstVer, fnameStr);
   TdFilePtr pIdxTFile = taosOpenFile(fnameStr, TD_FILE_READ);
   if (pIdxTFile == NULL) {
@@ -112,7 +114,6 @@ static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
     return -1;
   }
 
-  pRead->pReadLogTFile = pLogTFile;
   pRead->pReadIdxTFile = pIdxTFile;
   return 0;
 }

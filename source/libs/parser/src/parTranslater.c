@@ -5044,6 +5044,7 @@ typedef struct SVgroupCreateTableBatch {
 
 static void destroyCreateTbReq(SVCreateTbReq* pReq) {
   taosMemoryFreeClear(pReq->name);
+  taosMemoryFreeClear(pReq->comment);
   taosMemoryFreeClear(pReq->ntb.schemaRow.pSchema);
 }
 
@@ -5061,6 +5062,7 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   if (pStmt->pOptions->commentNull == false) {
     req.comment = strdup(pStmt->pOptions->comment);
     if (NULL == req.comment) {
+      destroyCreateTbReq(&req);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     req.commentLen = strlen(pStmt->pOptions->comment);
@@ -5132,6 +5134,7 @@ static void destroyCreateTbReqBatch(SVgroupCreateTableBatch* pTbBatch) {
   for (int32_t i = 0; i < size; ++i) {
     SVCreateTbReq* pTableReq = taosArrayGet(pTbBatch->req.pArray, i);
     taosMemoryFreeClear(pTableReq->name);
+    taosMemoryFreeClear(pTableReq->comment);
 
     if (pTableReq->type == TSDB_NORMAL_TABLE) {
       taosMemoryFreeClear(pTableReq->ntb.schemaRow.pSchema);

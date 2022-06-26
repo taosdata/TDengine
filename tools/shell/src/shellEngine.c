@@ -156,6 +156,7 @@ void shellRunSingleCommandImp(char *command) {
     }
 
     fname = sptr + 2;
+    while (*fname == ' ') fname++;
     *sptr = '\0';
   }
 
@@ -858,9 +859,7 @@ void shellGetGrantInfo() {
 
   int32_t code = taos_errno(tres);
   if (code != TSDB_CODE_SUCCESS) {
-    if (code == TSDB_CODE_OPS_NOT_SUPPORT) {
-      fprintf(stdout, "Server is Community Edition, %s\n\n", sinfo);
-    } else {
+    if (code != TSDB_CODE_OPS_NOT_SUPPORT && code != TSDB_CODE_MND_NO_RIGHTS) {
       fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\n\n", code, taos_errstr(tres));
     }
     return;

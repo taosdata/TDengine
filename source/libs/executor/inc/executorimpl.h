@@ -293,6 +293,7 @@ typedef enum EStreamScanMode {
   STREAM_SCAN_FROM_RES,
   STREAM_SCAN_FROM_UPDATERES,
   STREAM_SCAN_FROM_DATAREADER,
+  STREAM_SCAN_FROM_DATAREADER_RETRIEVE,
 } EStreamScanMode;
 
 typedef struct SCatchSupporter {
@@ -348,7 +349,9 @@ typedef struct SStreamBlockScanInfo {
   SArray*        childIds;
   SessionWindowSupporter sessionSup;
   bool            assignBlockUid; // assign block uid to groupId, temporarily used for generating rollup SMA.
-  int32_t         scanWinIndex;
+  int32_t         scanWinIndex;   // for state operator
+  int32_t         pullDataResIndex;
+  SSDataBlock*    pPullDataRes;             // pull data SSDataBlock
 } SStreamBlockScanInfo;
 
 typedef struct SSysTableScanInfo {
@@ -427,8 +430,13 @@ typedef struct SStreamFinalIntervalOperatorInfo {
   STimeWindowAggSupp twAggSup;
   SArray*            pChildren;
   SSDataBlock*       pUpdateRes;
+  bool               returnUpdate;
   SPhysiNode*        pPhyNode;           // create new child
   bool               isFinal;
+  SHashObj*          pPullDataMap;
+  SArray*            pPullWins;          // SPullWindowInfo
+  int32_t            pullIndex;
+  SSDataBlock*       pPullDataRes;
 } SStreamFinalIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
@@ -851,6 +859,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex);
 
 int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey);
+SSDataBlock* createPullDataBlock();
 
 #ifdef __cplusplus
 }

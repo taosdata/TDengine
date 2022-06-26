@@ -42,6 +42,9 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
       char          fnameStr[WAL_FILE_LEN];
       walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
       taosRemoveFile(fnameStr);
+
+      walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
+      taosRemoveFile(fnameStr);
     }
   }
   walRemoveMeta(pWal);
@@ -105,7 +108,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   }
 
   walBuildIdxName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
-  TdFilePtr pIdxTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ);
+  TdFilePtr pIdxTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
 
   if (pIdxTFile == NULL) {
     taosThreadMutexUnlock(&pWal->mutex);
@@ -126,7 +129,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   ASSERT(entry.ver == ver);
 
   walBuildLogName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
-  TdFilePtr pLogTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ);
+  TdFilePtr pLogTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
   if (pLogTFile == NULL) {
     // TODO
     taosThreadMutexUnlock(&pWal->mutex);
@@ -307,8 +310,8 @@ int walRoll(SWal *pWal) {
 
 static int walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   SWalIdxEntry entry = {.ver = ver, .offset = offset};
-  /*int64_t      idxOffset = taosLSeekFile(pWal->pWriteIdxTFile, 0, SEEK_CUR);*/
-  /*wDebug("write index: ver: %ld, offset: %ld, at %ld", ver, offset, idxOffset);*/
+  int64_t      idxOffset = taosLSeekFile(pWal->pWriteIdxTFile, 0, SEEK_END);
+  wDebug("write index: ver: %ld, offset: %ld, at %ld", ver, offset, idxOffset);
   int64_t size = taosWriteFile(pWal->pWriteIdxTFile, &entry, sizeof(SWalIdxEntry));
   if (size != sizeof(SWalIdxEntry)) {
     terrno = TAOS_SYSTEM_ERROR(errno);

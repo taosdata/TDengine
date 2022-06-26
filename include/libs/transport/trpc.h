@@ -34,10 +34,8 @@ extern int32_t tsRpcHeadSize;
 typedef struct {
   uint32_t clientIp;
   uint16_t clientPort;
-  union {
-    char    user[TSDB_USER_LEN];
-    int64_t applyIndex;
-  };
+  int64_t  applyIndex;
+  char     user[TSDB_USER_LEN];
 } SRpcConnInfo;
 
 typedef struct SRpcHandleInfo {
