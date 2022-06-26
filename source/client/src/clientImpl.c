@@ -2008,7 +2008,9 @@ void syncCatalogFn(SMetaData* pResult, void* param, int32_t code) {
 void syncQueryFn(void* param, void* res, int32_t code) {
   SSyncQueryParam* pParam = param;
   pParam->pRequest = res;
-  pParam->pRequest->code = code;
+  if (pParam->pRequest) {
+    pParam->pRequest->code = code;
+  }
 
   tsem_post(&pParam->sem);
 }

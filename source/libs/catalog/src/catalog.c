@@ -1127,12 +1127,14 @@ int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion** users, uint32_
   }
 
   *num = taosHashGetSize(pCtg->userCache);
-  if (*num > 0) {
-    *users = taosMemoryCalloc(*num, sizeof(SUserAuthVersion));
-    if (NULL == *users) {
-      ctgError("calloc %d userAuthVersion failed", *num);
-      CTG_API_LEAVE(TSDB_CODE_OUT_OF_MEMORY);
-    }
+  if (*num <= 0) {
+    CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  }
+  
+  *users = taosMemoryCalloc(*num, sizeof(SUserAuthVersion));
+  if (NULL == *users) {
+    ctgError("calloc %d userAuthVersion failed", *num);
+    CTG_API_LEAVE(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   uint32_t      i = 0;
@@ -1144,6 +1146,11 @@ int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion** users, uint32_
     (*users)[i].user[len] = 0;
     (*users)[i].version = pAuth->version;
     ++i;
+    if (i >= *num) {
+      taosHashCancelIterate(pCtg->userCache, pAuth);
+      break;
+    }
+    
     pAuth = taosHashIterate(pCtg->userCache, pAuth);
   }
 

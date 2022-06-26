@@ -37,10 +37,12 @@ int32_t  clientConnRefPool = -1;
 static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t    tscInitRes = 0;
 
-static void registerRequest(SRequestObj *pRequest) {
+static int32_t registerRequest(SRequestObj *pRequest) {
   STscObj *pTscObj = acquireTscObj(*(int64_t *)pRequest->pTscObj->id);
-
-  assert(pTscObj != NULL);
+  if (NULL == pTscObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;  
+    return terrno;
+  }
 
   // connection has been released already, abort creating request.
   pRequest->self = taosAddRef(clientReqRefPool, pRequest);
@@ -56,6 +58,8 @@ static void registerRequest(SRequestObj *pRequest) {
              ", current:%d, app current:%d, total:%d, reqId:0x%" PRIx64,
              pRequest->self, *(int64_t *)pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static void deregisterRequest(SRequestObj *pRequest) {
@@ -202,7 +206,10 @@ void *createRequest(STscObj *pObj, int32_t type) {
   pRequest->msgBufLen = ERROR_MSG_BUF_DEFAULT_SIZE;
   tsem_init(&pRequest->body.rspSem, 0, 0);
 
-  registerRequest(pRequest);
+  if (registerRequest(pRequest)) {
+    doDestroyRequest(pRequest);
+    return NULL;
+  }
 
   return pRequest;
 }
@@ -230,11 +237,9 @@ int32_t releaseRequest(int64_t rid) { return taosReleaseRef(clientReqRefPool, ri
 
 int32_t removeRequest(int64_t rid) { return taosRemoveRef(clientReqRefPool, rid); }
 
-static void doDestroyRequest(void *p) {
+void doDestroyRequest(void *p) {
   assert(p != NULL);
   SRequestObj *pRequest = (SRequestObj *)p;
-
-  assert(RID_VALID(pRequest->self));
 
   taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
 
@@ -253,7 +258,9 @@ static void doDestroyRequest(void *p) {
 
   destroyQueryExecRes(&pRequest->body.resInfo.execRes);
 
-  deregisterRequest(pRequest);
+  if (pRequest->self) {
+    deregisterRequest(pRequest);
+  }
   taosMemoryFreeClear(pRequest);
 }
 

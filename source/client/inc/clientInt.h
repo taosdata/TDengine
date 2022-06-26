@@ -301,6 +301,7 @@ void         destroyRequest(SRequestObj* pRequest);
 SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);
 int32_t      removeRequest(int64_t rid);
+void         doDestroyRequest(void *p);
 
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);

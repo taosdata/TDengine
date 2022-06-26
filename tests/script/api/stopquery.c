@@ -23,6 +23,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <string.h>
+#include <pthread.h>
 #include "taos.h"
 
 
@@ -35,7 +36,7 @@ int64_t st, et;
 char hostName[128];
 char dbName[128];
 char tbName[128];
-char runTimes = 1;
+int32_t runTimes = 10000;
 
 typedef struct {
   int       id;
@@ -49,6 +50,7 @@ typedef struct {
 } STable;
 
 typedef struct SSP_CB_PARAM {
+  TAOS    *taos;
   bool     fetch;
   int32_t *end;
 } SSP_CB_PARAM;
@@ -72,6 +74,16 @@ static void sqExecSQL(TAOS *taos, char *command) {
 
   taos_free_result(pSql);
 }
+
+static void sqExecSQLE(TAOS *taos, char *command) {
+  int i;
+  int32_t   code = -1;
+
+  TAOS_RES *pSql = taos_query(taos, command);
+
+  taos_free_result(pSql);
+}
+
 
 void sqExit(char* prefix, const char* errMsg) {
   fprintf(stderr, "%s error: %s\n", prefix, errMsg);
@@ -123,6 +135,27 @@ void sqFreeQueryCb(void *param, TAOS_RES *pRes, int code) {
 }
 
 
+void sqCloseFetchCb(void *param, TAOS_RES *pRes, int numOfRows) {
+  SSP_CB_PARAM *qParam = (SSP_CB_PARAM *)param;
+  taos_close(qParam->taos);
+
+  *qParam->end = 1;
+}
+
+void sqCloseQueryCb(void *param, TAOS_RES *pRes, int code) {
+  SSP_CB_PARAM *qParam = (SSP_CB_PARAM *)param;
+  if (code == 0 && pRes) {
+    if (qParam->fetch) {
+      taos_fetch_rows_a(pRes, sqFreeFetchCb, param);
+    } else {
+      taos_close(qParam->taos);
+      *qParam->end = 1;
+    }
+  } else {
+    sqExit("select", taos_errstr(pRes));
+  }
+}
+
 int sqSyncStopQuery(bool fetch) {
   CASE_ENTER();  
   for (int32_t i = 0; i < runTimes; ++i) {
@@ -130,6 +163,9 @@ int sqSyncStopQuery(bool fetch) {
     int32_t code = 0;
     TAOS   *taos = taos_connect(hostName, "root", "taosdata", NULL, 0);
     if (taos == NULL) sqExit("taos_connect", taos_errstr(NULL));
+
+    sprintf(sql, "reset query cache");
+    sqExecSQL(taos, sql);
 
     sprintf(sql, "use %s", dbName);
     sqExecSQL(taos, sql);
@@ -161,6 +197,9 @@ int sqAsyncStopQuery(bool fetch) {
     TAOS   *taos = taos_connect(hostName, "root", "taosdata", NULL, 0);
     if (taos == NULL) sqExit("taos_connect", taos_errstr(NULL));
 
+    sprintf(sql, "reset query cache");
+    sqExecSQL(taos, sql);
+
     sprintf(sql, "use %s", dbName);
     sqExecSQL(taos, sql);
 
@@ -187,6 +226,9 @@ int sqSyncFreeQuery(bool fetch) {
     int32_t code = 0;
     TAOS   *taos = taos_connect(hostName, "root", "taosdata", NULL, 0);
     if (taos == NULL) sqExit("taos_connect", taos_errstr(NULL));
+
+    sprintf(sql, "reset query cache");
+    sqExecSQL(taos, sql);
 
     sprintf(sql, "use %s", dbName);
     sqExecSQL(taos, sql);
@@ -216,6 +258,9 @@ int sqAsyncFreeQuery(bool fetch) {
     TAOS   *taos = taos_connect(hostName, "root", "taosdata", NULL, 0);
     if (taos == NULL) sqExit("taos_connect", taos_errstr(NULL));
 
+    sprintf(sql, "reset query cache");
+    sqExecSQL(taos, sql);
+
     sprintf(sql, "use %s", dbName);
     sqExecSQL(taos, sql);
 
@@ -235,8 +280,119 @@ int sqAsyncFreeQuery(bool fetch) {
   CASE_LEAVE();  
 }
 
+int sqSyncCloseQuery(bool fetch) {
+  CASE_ENTER();  
+  for (int32_t i = 0; i < runTimes; ++i) {
+    char    sql[1024]  = {0};
+    int32_t code = 0;
+    TAOS   *taos = taos_connect(hostName, "root", "taosdata", NULL, 0);
+    if (taos == NULL) sqExit("taos_connect", taos_errstr(NULL));
+
+    sprintf(sql, "reset query cache");
+    sqExecSQL(taos, sql);
+
+    sprintf(sql, "use %s", dbName);
+    sqExecSQL(taos, sql);
+
+    sprintf(sql, "select * from %s", tbName);
+    TAOS_RES* pRes = taos_query(taos, sql);
+    code = taos_errno(pRes);
+    if (code) {
+      sqExit("taos_query", taos_errstr(pRes));
+    }
+
+    if (fetch) {
+      taos_fetch_row(pRes);
+    }
+    
+    taos_close(taos);
+  }
+  CASE_LEAVE();  
+}
+
+int sqAsyncCloseQuery(bool fetch) {
+  CASE_ENTER();  
+  for (int32_t i = 0; i < runTimes; ++i) {
+    char    sql[1024]  = {0};
+    int32_t code = 0;
+    TAOS   *taos = taos_connect(hostName, "root", "taosdata", NULL, 0);
+    if (taos == NULL) sqExit("taos_connect", taos_errstr(NULL));
+
+    sprintf(sql, "reset query cache");
+    sqExecSQL(taos, sql);
+
+    sprintf(sql, "use %s", dbName);
+    sqExecSQL(taos, sql);
+
+    sprintf(sql, "select * from %s", tbName);
+
+    int32_t qEnd = 0;
+    SSP_CB_PARAM param = {0};
+    param.fetch = fetch;
+    param.end = &qEnd;
+    taos_query_a(taos, sql, sqFreeQueryCb, &param);
+    while (0 == qEnd) {
+      usleep(5000);
+    }
+  }
+  CASE_LEAVE();  
+}
+
+void *syncQueryThreadFp(void *arg) {
+  SSP_CB_PARAM* qParam = (SSP_CB_PARAM*)arg;
+  char    sql[1024]  = {0};
+  int32_t code = 0;
+  TAOS   *taos = taos_connect(hostName, "root", "taosdata", NULL, 0);
+  if (taos == NULL) sqExit("taos_connect", taos_errstr(NULL));
+
+  qParam->taos = taos;
+
+  sprintf(sql, "reset query cache");
+  sqExecSQLE(taos, sql);
+  
+  sprintf(sql, "use %s", dbName);
+  sqExecSQLE(taos, sql);
+  
+  sprintf(sql, "select * from %s", tbName);
+  TAOS_RES* pRes = taos_query(taos, sql);
+  
+  if (qParam->fetch) {
+    taos_fetch_row(pRes);
+  }
+
+  taos_free_result(pRes);
+}
+
+void *closeThreadFp(void *arg) {
+  SSP_CB_PARAM* qParam = (SSP_CB_PARAM*)arg;
+  while (true) {
+    if (qParam->taos) {
+      usleep(rand() % 10000);
+      taos_close(qParam->taos);
+      break;
+    }
+    usleep(1);
+  }
+}
+
+
+int sqConSyncCloseQuery(bool fetch) {
+  CASE_ENTER();  
+  pthread_t qid, cid;
+  for (int32_t i = 0; i < runTimes; ++i) {
+    SSP_CB_PARAM param = {0};
+    param.fetch = fetch;
+    pthread_create(&qid, NULL, syncQueryThreadFp, (void*)&param);
+    pthread_create(&cid, NULL, closeThreadFp, (void*)&param);
+    
+    pthread_join(qid, NULL);
+    pthread_join(cid, NULL);
+  }
+  CASE_LEAVE();  
+}
 
 void sqRunAllCase(void) {
+/*
   sqSyncStopQuery(false);
   sqSyncStopQuery(true);
   sqAsyncStopQuery(false);
@@ -247,6 +403,14 @@ void sqRunAllCase(void) {
   sqAsyncFreeQuery(false);
   sqAsyncFreeQuery(true);
 
+  sqSyncCloseQuery(false);
+  sqSyncCloseQuery(true);
+  sqAsyncCloseQuery(false);
+  sqAsyncCloseQuery(true);
+*/  
+  sqConSyncCloseQuery(false);
+  sqConSyncCloseQuery(true);
+
 }
 
 
@@ -256,6 +420,8 @@ int main(int argc, char *argv[]) {
     exit(0);
   }
 
+  srand((unsigned int)time(NULL));
+  
   strcpy(hostName, argv[1]);
   strcpy(dbName, argv[2]);
   strcpy(tbName, argv[3]);
