@@ -808,6 +808,7 @@ int32_t getMaximumIdleDurationSec();
  * ops:     root operator
  * data:    *data save the result of encode, need to be freed by caller
  * length:  *length save the length of *data
+ * nOptrWithVal: *nOptrWithVal save the number of optr with value
  * return:  result code, 0 means success
  */
 int32_t encodeOperator(SOperatorInfo* ops, char** data, int32_t *length);
