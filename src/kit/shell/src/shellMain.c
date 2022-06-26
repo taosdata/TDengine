@@ -32,8 +32,8 @@ void shellRestfulSendInterruptHandler(int32_t signum, void *sigInfo, void *conte
 
 void* pingHandler(void *arg) {
   while (1) {
-    char recv_buffer[TEMP_RECV_BUF];
-    int bytes = recv(args.socket, recv_buffer, TEMP_RECV_BUF - 1, 0);
+    uint8_t recv_buffer[TEMP_RECV_BUF];
+    recv(args.socket, recv_buffer, TEMP_RECV_BUF - 1, 0);
     SWSParser parser;
     wsclient_parse_frame(&parser, recv_buffer);
     if (parser.frame == PING_FRAME) {
