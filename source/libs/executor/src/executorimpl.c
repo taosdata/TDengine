@@ -2929,6 +2929,13 @@ int32_t aggEncodeResultRow(SOperatorInfo* pOperator, char** result, int32_t* len
   int32_t         totalSize =
       sizeof(int32_t) + sizeof(int32_t) + size * (sizeof(int32_t) + keyLen + sizeof(int32_t) + pSup->resultRowSize);
 
+  // no result
+  if (getTotalBufSize(pSup->pResultBuf) == 0) {
+    *result = NULL;
+    *length = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+  
   *result = (char*)taosMemoryCalloc(1, totalSize);
   if (*result == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -4482,6 +4489,8 @@ int32_t encodeOperator(SOperatorInfo* ops, char** result, int32_t* length) {
       }
       return code;
     }
+    
+    ASSERT(currLength >= 0);
 
     if (*result == NULL) {
       *result = (char*)taosMemoryCalloc(1, currLength + sizeof(int32_t));
@@ -4507,7 +4516,6 @@ int32_t encodeOperator(SOperatorInfo* ops, char** result, int32_t* length) {
     taosMemoryFree(pCurrent);
     *length = *(int32_t*)(*result);
   }
-
   for (int32_t i = 0; i < ops->numOfDownstream; ++i) {
     code = encodeOperator(ops->pDownstream[i], result, length);
     if (code != TDB_CODE_SUCCESS) {
