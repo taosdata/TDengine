@@ -288,6 +288,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SMergePhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
       return makeNode(type, sizeof(SSortPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT:
+      return makeNode(type, sizeof(SGroupSortPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
       return makeNode(type, sizeof(SIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
@@ -850,7 +852,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pTargets);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_SORT: {
+    case QUERY_NODE_PHYSICAL_PLAN_SORT:
+    case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT: {
       SSortPhysiNode* pPhyNode = (SSortPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);

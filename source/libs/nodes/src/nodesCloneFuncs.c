@@ -436,6 +436,7 @@ static int32_t logicFillCopy(const SFillLogicNode* pSrc, SFillLogicNode* pDst) {
 static int32_t logicSortCopy(const SSortLogicNode* pSrc, SSortLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pSortKeys);
+  COPY_SCALAR_FIELD(groupSort);
   return TSDB_CODE_SUCCESS;
 }
 

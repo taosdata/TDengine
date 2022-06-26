@@ -1183,6 +1183,143 @@ static int32_t eliminateProjOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   return eliminateProjOptimizeImpl(pCxt, pLogicSubplan, pProjectNode);
 }
 
+static bool rewriteTailOptMayBeOptimized(SLogicNode* pNode) {
+  return QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC == nodeType(pNode) && ((SIndefRowsFuncLogicNode*)pNode)->isTailFunc;
+}
+
+static SNode* rewriteTailOptCreateOrderByExpr(SNode* pSortKey) {
+  SOrderByExprNode* pOrder = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
+  if (NULL == pOrder) {
+    return NULL;
+  }
+  pOrder->order = ORDER_DESC;
+  pOrder->pExpr = nodesCloneNode(pSortKey);
+  if (NULL == pOrder->pExpr) {
+    nodesDestroyNode((SNode*)pOrder);
+    return NULL;
+  }
+  return (SNode*)pOrder;
+}
+
+static int32_t rewriteTailOptCreateLimit(SNode* pLimit, SNode* pOffset, SNode** pOutput) {
+  SLimitNode* pLimitNode = (SLimitNode*)nodesMakeNode(QUERY_NODE_LIMIT);
+  if (NULL == pLimitNode) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pLimitNode->limit = NULL == pLimit ? -1 : ((SValueNode*)pLimit)->datum.i;
+  pLimitNode->offset = NULL == pOffset ? -1 : ((SValueNode*)pOffset)->datum.i;
+  *pOutput = (SNode*)pLimitNode;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool rewriteTailOptNeedGroupSort(SIndefRowsFuncLogicNode* pIndef) {
+  return 1 == LIST_LENGTH(pIndef->node.pChildren) &&
+         QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(nodesListGetNode(pIndef->node.pChildren, 0));
+}
+
+static int32_t rewriteTailOptCreateSort(SIndefRowsFuncLogicNode* pIndef, SLogicNode** pOutput) {
+  SSortLogicNode* pSort = (SSortLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT);
+  if (NULL == pSort) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pSort->groupSort = rewriteTailOptNeedGroupSort(pIndef);
+  TSWAP(pSort->node.pChildren, pIndef->node.pChildren);
+  pSort->node.precision = pIndef->node.precision;
+
+  // tail(expr, [limit, offset,] _rowts)
+  SFunctionNode* pTail = (SFunctionNode*)nodesListGetNode(pIndef->pFuncs, 0);
+  int32_t        limitIndex = LIST_LENGTH(pTail->pParameterList) > 2 ? 1 : -1;
+  int32_t        offsetIndex = LIST_LENGTH(pTail->pParameterList) > 3 ? 2 : -1;
+  int32_t        rowtsIndex = LIST_LENGTH(pTail->pParameterList) - 1;
+
+  int32_t code = nodesListMakeStrictAppend(
+      &pSort->pSortKeys, rewriteTailOptCreateOrderByExpr(nodesListGetNode(pTail->pParameterList, rowtsIndex)));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteTailOptCreateLimit(limitIndex < 0 ? NULL : nodesListGetNode(pTail->pParameterList, limitIndex),
+                                     offsetIndex < 0 ? NULL : nodesListGetNode(pTail->pParameterList, offsetIndex),
+                                     &pSort->node.pLimit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pSort->node.pTargets = nodesCloneList(((SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0))->pTargets);
+    if (NULL == pSort->node.pTargets) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = (SLogicNode*)pSort;
+  } else {
+    nodesDestroyNode((SNode*)pSort);
+  }
+
+  return code;
+}
+
+static SNode* rewriteTailOptCreateProjectExpr(SFunctionNode* pTail) {
+  SNode* pExpr = nodesCloneNode(nodesListGetNode(pTail->pParameterList, 0));
+  if (NULL == pExpr) {
+    return NULL;
+  }
+  strcpy(((SExprNode*)pExpr)->aliasName, pTail->node.aliasName);
+  return pExpr;
+}
+
+static int32_t rewriteTailOptCreateProject(SIndefRowsFuncLogicNode* pIndef, SLogicNode** pOutput) {
+  SProjectLogicNode* pProject = (SProjectLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT);
+  if (NULL == pProject) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  TSWAP(pProject->node.pTargets, pIndef->node.pTargets);
+  pProject->node.precision = pIndef->node.precision;
+
+  int32_t code = nodesListMakeStrictAppend(
+      &pProject->pProjections, rewriteTailOptCreateProjectExpr((SFunctionNode*)nodesListGetNode(pIndef->pFuncs, 0)));
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = (SLogicNode*)pProject;
+  } else {
+    nodesDestroyNode((SNode*)pProject);
+  }
+  return code;
+}
+
+static int32_t rewriteTailOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,
+                                       SIndefRowsFuncLogicNode* pIndef) {
+  SLogicNode* pSort = NULL;
+  SLogicNode* pProject = NULL;
+  int32_t     code = rewriteTailOptCreateSort(pIndef, &pSort);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteTailOptCreateProject(pIndef, &pProject);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeAppend(&pProject->pChildren, (SNode*)pSort);
+    pSort->pParent = pProject;
+    pSort = NULL;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pIndef, pProject);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    nodesDestroyNode((SNode*)pIndef);
+  } else {
+    nodesDestroyNode((SNode*)pSort);
+    nodesDestroyNode((SNode*)pProject);
+  }
+  return code;
+}
+
+static int32_t rewriteTailOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SIndefRowsFuncLogicNode* pIndef =
+      (SIndefRowsFuncLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, rewriteTailOptMayBeOptimized);
+
+  if (NULL == pIndef) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return rewriteTailOptimizeImpl(pCxt, pLogicSubplan, pIndef);
+}
+
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "OptimizeScanData",  .optimizeFunc = osdOptimize},
@@ -1190,7 +1327,8 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "OrderByPrimaryKey", .optimizeFunc = opkOptimize},
   {.pName = "SmaIndex",          .optimizeFunc = smaOptimize},
   {.pName = "PartitionTags",     .optimizeFunc = partTagsOptimize},
-  {.pName = "EliminateProject",  .optimizeFunc = eliminateProjOptimize}
+  {.pName = "EliminateProject",  .optimizeFunc = eliminateProjOptimize},
+  {.pName = "RewriteTail",       .optimizeFunc = rewriteTailOptimize}
 };
 // clang-format on
 

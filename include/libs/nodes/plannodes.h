@@ -24,6 +24,8 @@ extern "C" {
 #include "querynodes.h"
 #include "tname.h"
 
+#define SLOT_NAME_LEN TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN
+
 typedef struct SLogicNode {
   ENodeType          type;
   SNodeList*         pTargets;  // SColumnNode
@@ -100,6 +102,7 @@ typedef struct SProjectLogicNode {
 typedef struct SIndefRowsFuncLogicNode {
   SLogicNode node;
   SNodeList* pFuncs;
+  bool       isTailFunc;
 } SIndefRowsFuncLogicNode;
 
 typedef struct SInterpFuncLogicNode {
@@ -184,6 +187,7 @@ typedef struct SFillLogicNode {
 typedef struct SSortLogicNode {
   SLogicNode node;
   SNodeList* pSortKeys;
+  bool       groupSort;
 } SSortLogicNode;
 
 typedef struct SPartitionLogicNode {
@@ -230,6 +234,7 @@ typedef struct SSlotDescNode {
   bool      reserve;
   bool      output;
   bool      tag;
+  char      name[SLOT_NAME_LEN];
 } SSlotDescNode;
 
 typedef struct SDataBlockDescNode {

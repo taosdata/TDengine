@@ -2507,6 +2507,28 @@ static SNode* createOrderByExpr(STranslateContext* pCxt) {
   return (SNode*)pOrder;
 }
 
+static int32_t rewriteTailStmtInplace(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  SRwriteTailCxt cxt = {.pTranslateCxt = pCxt, .limit = -1, .offset = -1};
+  nodesRewriteExprs(pSelect->pProjectionList, rewriteTailFunc, &cxt);
+  int32_t code = nodesListMakeStrictAppend(&pSelect->pOrderByList, createOrderByExpr(pCxt));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createLimieNode(&cxt, &pSelect->pLimit);
+  }
+  pSelect->hasIndefiniteRowsFunc = false;
+  pSelect->groupSort = (NULL != pSelect->pPartitionByList);
+  return code;
+}
+
+static int32_t rewriteTailStmtSubquery(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  SSelectStmt* pSubquery = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
+  if (NULL == pSubquery) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  TSWAP(pSubquery->pProjectionList, pSelect->pProjectionList);
+
+  return TSDB_CODE_PAR_INTERNAL_ERROR;
+}
+
 /* case 1:
  * in:  select tail(expr, k, f) from t where_clause
  * out: select expr from t where_clause order by _rowts desc limit k offset f
@@ -2523,21 +2545,20 @@ static SNode* createOrderByExpr(STranslateContext* pCxt) {
  *
  * case 4:
  * in:  select tail(expr, k, f) from t where_clause partition_by_clause limit_clause
- * out:
+ * out: select expr from (
+ *        select expr, part_key_list from t where_clause partition_by_clause sort by _rowts desc limit k offset f
+ *      ) partition_by_clause limit_clause
  */
 static int32_t rewriteTailStmt(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (!pSelect->hasTailFunc) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SRwriteTailCxt cxt = {.pTranslateCxt = pCxt, .limit = -1, .offset = -1};
-  nodesRewriteExprs(pSelect->pProjectionList, rewriteTailFunc, &cxt);
-  int32_t code = nodesListMakeStrictAppend(&pSelect->pOrderByList, createOrderByExpr(pCxt));
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createLimieNode(&cxt, &pSelect->pLimit);
+  if (NULL == pSelect->pOrderByList && NULL == pSelect->pLimit && NULL == pSelect->pSlimit) {
+    return rewriteTailStmtInplace(pCxt, pSelect);
+  } else {
+    return rewriteTailStmtSubquery(pCxt, pSelect);
   }
-  pSelect->hasIndefiniteRowsFunc = false;
-  return code;
 }
 
 typedef struct SReplaceOrderByAliasCxt {
