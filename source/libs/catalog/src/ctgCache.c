@@ -1536,8 +1536,6 @@ void ctgClearAllInstance(void) {
 
     pIter = taosHashIterate(gCtgMgmt.pCluster, pIter);
   }
-
-  taosHashClear(gCtgMgmt.pCluster);
 }
 
 void ctgFreeAllInstance(void) {

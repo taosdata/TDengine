@@ -119,7 +119,7 @@ void closeAllRequests(SHashObj *pRequests) {
   while (pIter != NULL) {
     int64_t *rid = pIter;
 
-    releaseRequest(*rid);
+    removeRequest(*rid);
 
     pIter = taosHashIterate(pRequests, pIter);
   }
@@ -222,6 +222,12 @@ void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
   }
 }
 
+SRequestObj *acquireRequest(int64_t rid) { return (SRequestObj *)taosAcquireRef(clientReqRefPool, rid); }
+
+int32_t releaseRequest(int64_t rid) { return taosReleaseRef(clientReqRefPool, rid); }
+
+int32_t removeRequest(int64_t rid) { return taosRemoveRef(clientReqRefPool, rid); }
+
 static void doDestroyRequest(void *p) {
   assert(p != NULL);
   SRequestObj *pRequest = (SRequestObj *)p;
@@ -239,7 +245,6 @@ static void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
-  qDestroyQueryPlan(pRequest->body.pDag);
 
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->dbList);
@@ -255,12 +260,8 @@ void destroyRequest(SRequestObj *pRequest) {
     return;
   }
 
-  taosRemoveRef(clientReqRefPool, pRequest->self);
+  removeRequest(pRequest->self);
 }
-
-SRequestObj *acquireRequest(int64_t rid) { return (SRequestObj *)taosAcquireRef(clientReqRefPool, rid); }
-
-int32_t releaseRequest(int64_t rid) { return taosReleaseRef(clientReqRefPool, rid); }
 
 void taos_init_imp(void) {
   // In the APIs of other program language, taos_cleanup is not available yet.

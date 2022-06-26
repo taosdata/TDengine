@@ -1757,7 +1757,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
   }
 
   int32_t  code = TSDB_CODE_SUCCESS;
-  SSchema* pSchema = pDataBlock->pTableMeta->schema;
+  SSchema* pSchema = getTableTagSchema(pDataBlock->pTableMeta);
 
   bool  isJson = false;
   STag* pTag = NULL;

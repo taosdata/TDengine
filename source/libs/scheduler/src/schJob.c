@@ -42,7 +42,7 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schInitJob(SSchedulerReq *pReq, SSchJob **pSchJob, SQueryResult* pRes, bool syncSchedule) {
+int32_t schInitJob(SSchedulerReq *pReq, SSchJob **pSchJob) {
   int32_t  code = 0;
   int64_t  refId = -1;
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
@@ -54,12 +54,14 @@ int32_t schInitJob(SSchedulerReq *pReq, SSchJob **pSchJob, SQueryResult* pRes, b
   pJob->attr.explainMode = pReq->pDag->explainInfo.mode;
   pJob->conn = *pReq->pConn;
   pJob->sql = pReq->sql;
+  pJob->pDag = pReq->pDag;
   pJob->reqKilled = pReq->reqKilled;
-  pJob->userRes.queryRes = pRes;
   pJob->userRes.execFp = pReq->fp;
   pJob->userRes.userParam = pReq->cbParam;
-  
-  if (pReq->pNodeList != NULL) {
+
+  if (pReq->pNodeList == NULL || taosArrayGetSize(pReq->pNodeList) <= 0) {
+    qDebug("QID:0x%" PRIx64 " input exec nodeList is empty", pReq->pDag->queryId);
+  } else {
     pJob->nodeList = taosArrayDup(pReq->pNodeList);
   }
   
@@ -546,8 +548,6 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
 
   pJob->levelNum = levelNum;
   pJob->levelIdx = levelNum - 1;
-
-  pJob->subPlans = pDag->pSubplans;
 
   SSchLevel      level = {0};
   SNodeListNode *plans = NULL;
@@ -1491,8 +1491,6 @@ void schFreeJobImpl(void *job) {
 
   schDropJobAllTasks(pJob);
 
-  pJob->subPlans = NULL;  // it is a reference to pDag->pSubplans
-
   int32_t numOfLevels = taosArrayGetSize(pJob->levels);
   for (int32_t i = 0; i < numOfLevels; ++i) {
     SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
@@ -1521,6 +1519,8 @@ void schFreeJobImpl(void *job) {
 
   destroyQueryExecRes(&pJob->execRes);
 
+  qDestroyQueryPlan(pJob->pDag);
+
   taosMemoryFreeClear(pJob->userRes.queryRes);
   taosMemoryFreeClear(pJob->resData);
   taosMemoryFree(pJob);
@@ -1533,88 +1533,11 @@ void schFreeJobImpl(void *job) {
   }
 }
 
-int32_t schExecJobImpl(SSchedulerReq *pReq, int64_t *job, SQueryResult* pRes, bool sync) {
-  if (pReq->pNodeList == NULL || taosArrayGetSize(pReq->pNodeList) <= 0) {
-    qDebug("QID:0x%" PRIx64 " input exec nodeList is empty", pReq->pDag->queryId);
-  }
-
-  int32_t  code = 0;
-  SSchJob *pJob = NULL;
-  SCH_ERR_JRET(schInitJob(pReq, &pJob, pRes, sync));
-
-  qDebug("QID:0x%" PRIx64 " sch job refId 0x%"PRIx64 " started", pReq->pDag->queryId, pJob->refId);
-  *job = pJob->refId;
-
-  SCH_ERR_JRET(schBeginOperation(pJob, SCH_OP_EXEC, sync));
-
-  code = schLaunchJob(pJob);
-
-  if (sync) {
-    SCH_JOB_DLOG("will wait for rsp now, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
-    tsem_wait(&pJob->rspSem);
-    
-    schEndOperation(pJob);
-  } else if (code) {
-    schPostJobRes(pJob, SCH_OP_EXEC);
-  }
-
-  SCH_JOB_DLOG("job exec done, job status:%s, jobId:0x%" PRIx64, SCH_GET_JOB_STATUS_STR(pJob), pJob->refId);
-
-  schReleaseJob(pJob->refId);
-  
-  SCH_RET(code);
-
-_return:
-
-  if (!sync) {
-    pReq->fp(NULL, pReq->cbParam, code);
-  }
-
-  schReleaseJob(pJob->refId);
-  
-  SCH_RET(code);
-}
-
-int32_t schExecJob(SSchedulerReq *pReq, int64_t *pJob, SQueryResult *pRes) {
-  int32_t code = 0;
-  
-  *pJob = 0;
-  
-  if (EXPLAIN_MODE_STATIC == pReq->pDag->explainInfo.mode) {
-    SCH_ERR_JRET(schExecStaticExplainJob(pReq, pJob, true));
-  } else {
-    SCH_ERR_JRET(schExecJobImpl(pReq, pJob, NULL, true));
-  }
-
-_return:
-
-  if (*pJob) {
-    SSchJob *job = schAcquireJob(*pJob);
-    schSetJobQueryRes(job, pRes);
-    schReleaseJob(*pJob);
-  }
-
-  return code;
-}
-
-int32_t schAsyncExecJob(SSchedulerReq *pReq, int64_t *pJob) {
-  int32_t code = 0;
-
-  *pJob = 0;
-
-  if (EXPLAIN_MODE_STATIC == pReq->pDag->explainInfo.mode) {
-    SCH_RET(schExecStaticExplainJob(pReq, pJob, false));
-  }
-  
-  SCH_ERR_RET(schExecJobImpl(pReq, pJob, NULL, false));
-
-  return code;
-}
-
-int32_t schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync) {
+int32_t schLaunchStaticExplainJob(SSchedulerReq *pReq, SSchJob *pJob, bool sync) {
   qDebug("QID:0x%" PRIx64 " job started", pReq->pDag->queryId);
 
   int32_t  code = 0;
+/*  
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
     qError("QID:0x%" PRIx64 " calloc %d failed", pReq->pDag->queryId, (int32_t)sizeof(SSchJob));
@@ -1625,10 +1548,10 @@ int32_t schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync) {
 
   pJob->sql = pReq->sql;
   pJob->reqKilled = pReq->reqKilled;
+  pJob->pDag = pReq->pDag;
   pJob->attr.queryJob = true;
   pJob->attr.explainMode = pReq->pDag->explainInfo.mode;
   pJob->queryId = pReq->pDag->queryId;
-  pJob->subPlans = pReq->pDag->pSubplans;
   pJob->userRes.execFp = pReq->fp;
   pJob->userRes.userParam = pReq->cbParam;
   
@@ -1637,11 +1560,14 @@ int32_t schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync) {
   code = schBeginOperation(pJob, SCH_OP_EXEC, sync);
   if (code) {
     pReq->fp(NULL, pReq->cbParam, code);
+    schFreeJobImpl(pJob);
     SCH_ERR_RET(code);
   }
-  
+*/
+
   SCH_ERR_JRET(qExecStaticExplain(pReq->pDag, (SRetrieveTableRsp **)&pJob->resData));
 
+/*
   int64_t refId = taosAddRef(schMgmt.jobRef, pJob);
   if (refId < 0) {
     SCH_JOB_ELOG("taosAddRef job failed, error:%s", tstrerror(terrno));
@@ -1656,10 +1582,10 @@ int32_t schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync) {
   pJob->refId = refId;
 
   SCH_JOB_DLOG("job refId:0x%" PRIx64, pJob->refId);
+*/
 
   pJob->status = JOB_TASK_STATUS_PARTIAL_SUCCEED;
   
-  *job = pJob->refId;
   SCH_JOB_DLOG("job exec done, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
   
   if (!sync) {
@@ -1668,7 +1594,7 @@ int32_t schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync) {
     schEndOperation(pJob);
   }
 
-  schReleaseJob(pJob->refId);
+//  schReleaseJob(pJob->refId);
 
   SCH_RET(code);
 
@@ -1713,5 +1639,41 @@ int32_t schAsyncFetchRows(SSchJob *pJob) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+
+int32_t schExecJobImpl(SSchedulerReq *pReq, SSchJob *pJob, bool sync) {
+  int32_t  code = 0;
+
+  qDebug("QID:0x%" PRIx64 " sch job refId 0x%"PRIx64 " started", pReq->pDag->queryId, pJob->refId);
+
+  SCH_ERR_JRET(schBeginOperation(pJob, SCH_OP_EXEC, sync));
+
+  if (EXPLAIN_MODE_STATIC == pReq->pDag->explainInfo.mode) {
+    code = schLaunchStaticExplainJob(pReq, pJob, true);
+  } else {
+    code = schLaunchJob(pJob);
+    if (sync) {
+      SCH_JOB_DLOG("will wait for rsp now, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
+      tsem_wait(&pJob->rspSem);
+      
+      schEndOperation(pJob);
+    } else if (code) {
+      schPostJobRes(pJob, SCH_OP_EXEC);
+    }
+  }
+
+  SCH_JOB_DLOG("job exec done, job status:%s, jobId:0x%" PRIx64, SCH_GET_JOB_STATUS_STR(pJob), pJob->refId);
+  
+  SCH_RET(code);
+
+_return:
+
+  if (!sync) {
+    pReq->fp(NULL, pReq->cbParam, code);
+  }
+  
+  SCH_RET(code);
+}
+
 
 

@@ -183,7 +183,7 @@ typedef struct SRequestSendRecvBody {
   void*              param;
   SDataBuf           requestMsg;
   int64_t            queryJob;  // query job, created according to sql query DAG.
-  struct SQueryPlan* pDag;      // the query dag, generated according to the sql statement.
+  int32_t            subplanNum;
   SReqResultInfo     resInfo;
 } SRequestSendRecvBody;
 
@@ -300,6 +300,7 @@ void*        createRequest(STscObj* pObj, int32_t type);
 void         destroyRequest(SRequestObj* pRequest);
 SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);
+int32_t      removeRequest(int64_t rid);
 
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);

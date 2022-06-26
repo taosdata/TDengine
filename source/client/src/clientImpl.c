@@ -876,13 +876,17 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
       SArray* pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
-      code = getPlan(pRequest, pQuery, &pRequest->body.pDag, pMnodeList);
-      if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
-        SArray* pNodeList = NULL;
-        buildSyncExecNodeList(pRequest, &pNodeList, pMnodeList);
-        
-        code = scheduleQuery(pRequest, pRequest->body.pDag, pNodeList);
-        taosArrayDestroy(pNodeList);
+      SQueryPlan* pDag = NULL;
+      code = getPlan(pRequest, pQuery, &pDag, pMnodeList);
+      if (TSDB_CODE_SUCCESS == code) {        
+        pRequest->body.subplanNum = pDag->numOfSubplans;
+        if (!pRequest->validateOnly) {
+          SArray* pNodeList = NULL;
+          buildSyncExecNodeList(pRequest, &pNodeList, pMnodeList);
+          
+          code = scheduleQuery(pRequest, pDag, pNodeList);
+          taosArrayDestroy(pNodeList);
+        }
       }
       taosArrayDestroy(pMnodeList);
       break;
@@ -959,10 +963,13 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData *pResultM
                           .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE};
 
       SAppInstInfo* pAppInfo = getAppInfo(pRequest);
-      code = qCreateQueryPlan(&cxt, &pRequest->body.pDag, pMnodeList);
+      SQueryPlan* pDag = NULL;
+      code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
       if (code) {
         tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
                  pRequest->requestId);
+      } else {
+        pRequest->body.subplanNum = pDag->numOfSubplans;
       }
 
       if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
@@ -973,7 +980,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData *pResultM
             .pTrans = pAppInfo->pTransporter, .requestId = pRequest->requestId, .requestObjRefId = pRequest->self};
         SSchedulerReq req = {.pConn = &conn,
                              .pNodeList = pNodeList,
-                             .pDag = pRequest->body.pDag,
+                             .pDag = pDag,
                              .sql = pRequest->sqlstr,
                              .startTs = pRequest->metric.start,
                              .fp = schedulerExecCb,
@@ -2026,6 +2033,7 @@ void taosAsyncQueryImpl(TAOS *taos, const char *sql, __taos_async_fn_t fp, void 
   if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
     tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
+    releaseTscObj(*(int64_t *)taos);
 
     fp(param, NULL, terrno);
     return;
@@ -2035,6 +2043,7 @@ void taosAsyncQueryImpl(TAOS *taos, const char *sql, __taos_async_fn_t fp, void 
   int32_t      code = buildRequest(pTscObj, sql, sqlLen, &pRequest);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
+    releaseTscObj(*(int64_t *)taos);
     fp(param, NULL, terrno);
     return;
   }
@@ -2043,6 +2052,7 @@ void taosAsyncQueryImpl(TAOS *taos, const char *sql, __taos_async_fn_t fp, void 
   pRequest->body.queryFp = fp;
   pRequest->body.param = param;
   doAsyncQuery(pRequest, false);
+  releaseTscObj(*(int64_t *)taos);  
 }
 
 
