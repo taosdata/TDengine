@@ -73,6 +73,10 @@ class TDTestCase:
         sql = tdSql.getData(0, 1)
         tdSql.checkEqual(True, sql.startswith("CREATE DATABASE `电力系统`"))
 
+        tdSql.error("create database ``")
+        tdSql.execute("create database ` `")
+        tdSql.error("create database ` `")
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

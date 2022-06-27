@@ -159,6 +159,22 @@ class TDTestCase:
         tdSql.query("select ts `时间戳` from tt3")
         tdSql.checkRows(1)
 
+        tdSql.error("create table tt4(`` timestamp, c1 int)")
+        tdSql.error("create table tt4(` ` timestamp, ` ` int)")
+        tdSql.error("create table tt4(`tb1` timestamp, `tb1` int)")
+        
+        ts = 1656040651000
+        tdSql.execute("create table `T4`(` ` timestamp, c1 int, `C1` int)")
+        tdSql.execute("insert into `T4`(` `, `C1`) values(%d, 1)" % ts)
+        tdSql.query("select * from `T4`")
+        tdSql.checkRows(1)
+        tdSql.execute("delete from `T4` where ` ` = '2022-06-24 11:17:31.000'")
+        tdSql.query("select * from `T4`")
+        tdSql.checkRows(0)
+
+        tdSql.error("alter table `T4` add column `` double")
+
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

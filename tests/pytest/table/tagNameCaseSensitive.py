@@ -56,6 +56,26 @@ class TDTestCase:
         tdSql.query("describe `STB5`")
         tdSql.checkRows(5)
 
+        ts = 1656040651000
+        tdSql.error("create table `STB6`(ts timestamp, c1 int) tags(`` int)")
+        tdSql.error("create table `STB6`(ts timestamp, c1 int) tags(` ` int, ` ` binary(20))")
+        tdSql.execute("create table `STB6`(ts timestamp, c1 int) tags(` ` int)")
+        tdSql.execute("insert into tb6 using `STB6` tags(1) values(%d, 1)(%d, 2)(%d, 3)" % (ts, ts + 1000, ts + 2000))
+        tdSql.execute("insert into tb7 using `STB6` tags(2) values(%d, 1)(%d, 2)(%d, 3)" % (ts, ts + 1000, ts + 2000))
+        tdSql.query("select * from `STB6`")
+        tdSql.checkRows(6)
+
+        tdSql.execute("delete from `STB6` where ` ` = 1 and ts = '2022-06-24 11:17:31.000'")
+        tdSql.checkAffectedRows(1)
+        tdSql.query("select * from `STB6`")
+        tdSql.checkRows(5)
+        tdSql.execute("delete from `STB6` where ` ` = 2")
+        tdSql.checkAffectedRows(3)
+        tdSql.query("select * from `STB6`")
+        tdSql.checkRows(2)
+
+        tdSql.error("alter table `STB6` add tag `` nchar(20)")
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
