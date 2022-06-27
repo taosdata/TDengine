@@ -26,9 +26,9 @@ extern "C" {
 
 extern bool gRaftDetailLog;
 
-#define SYNC_INDEX_BEGIN   0
+#define SYNC_INDEX_BEGIN 0
 #define SYNC_INDEX_INVALID -1
-#define SYNC_TERM_INVALID  0xFFFFFFFFFFFFFFFF
+#define SYNC_TERM_INVALID 0xFFFFFFFFFFFFFFFF
 
 typedef uint64_t SyncNodeId;
 typedef int32_t  SyncGroupId;
