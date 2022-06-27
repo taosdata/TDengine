@@ -448,7 +448,7 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
       qDebug("%s start to repeat ascending order scan data blocks due to query func required", GET_TASKID(pTaskInfo));
       for (int32_t i = 0; i < pTableScanInfo->cond.numOfTWindows; ++i) {
         STimeWindow* pWin = &pTableScanInfo->cond.twindows[i];
-        qDebug("%s\t qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
+        qDebug("%s qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
       }
       // do prepare for the next round table scan operation
       tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
@@ -467,7 +467,7 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
     qDebug("%s start to descending order scan data blocks due to query func required", GET_TASKID(pTaskInfo));
     for (int32_t i = 0; i < pTableScanInfo->cond.numOfTWindows; ++i) {
       STimeWindow* pWin = &pTableScanInfo->cond.twindows[i];
-      qDebug("%s\t qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
+      qDebug("%s qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
     }
 
     while (pTableScanInfo->scanTimes < total) {
@@ -492,7 +492,7 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
                GET_TASKID(pTaskInfo));
         for (int32_t i = 0; i < pTableScanInfo->cond.numOfTWindows; ++i) {
           STimeWindow* pWin = &pTableScanInfo->cond.twindows[i];
-          qDebug("%s\t qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
+          qDebug("%s qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
         }
         tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
         pTableScanInfo->curTWinIdx = 0;

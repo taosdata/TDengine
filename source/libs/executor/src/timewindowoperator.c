@@ -956,6 +956,12 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
 
     getTableScanInfo(pOperator, &pInfo->order, &scanFlag);
 
+    if (pInfo->scalarSupp.pExprInfo != NULL) {
+      SExprSupp* pExprSup =& pInfo->scalarSupp;
+      projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx,
+          pExprSup->numOfExprs, NULL);
+    }
+
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pSup->pCtx, pBlock, pInfo->order, scanFlag, true);
     hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, scanFlag, NULL);
@@ -1324,6 +1330,12 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       break;
     }
 
+    if (pInfo->scalarSupp.pExprInfo != NULL) {
+      SExprSupp* pExprSup = &pInfo->scalarSupp;
+      projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx,
+                            pExprSup->numOfExprs, NULL);
+    }
+
     if (pBlock->info.type == STREAM_REPROCESS) {
       doClearWindows(&pInfo->aggSup, &pOperator->exprSupp, &pInfo->interval, 0, pOperator->exprSupp.numOfExprs, pBlock,
                      NULL);
@@ -1446,18 +1458,27 @@ void increaseTs(SqlFunctionCtx* pCtx) {
 
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          STimeWindowAggSupp* pTwAggSupp, SExecTaskInfo* pTaskInfo, bool isStream) {
+                                          STimeWindowAggSupp* pTwAggSupp, SIntervalPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, bool isStream) {
   SIntervalAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SIntervalAggOperatorInfo));
   SOperatorInfo*            pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
 
-  pInfo->win = pTaskInfo->window;
-  pInfo->order = TSDB_ORDER_ASC;
-  pInfo->interval = *pInterval;
+  pInfo->win       = pTaskInfo->window;
+  pInfo->order     = TSDB_ORDER_ASC;
+  pInfo->interval  = *pInterval;
   pInfo->execModel = pTaskInfo->execModel;
-  pInfo->twAggSup = *pTwAggSupp;
+  pInfo->twAggSup  = *pTwAggSupp;
+
+  if (pPhyNode->window.pExprs != NULL) {
+    int32_t    numOfScalar = 0;
+    SExprInfo* pScalarExprInfo = createExprInfo(pPhyNode->window.pExprs, NULL, &numOfScalar);
+    int32_t code = initExprSupp(&pInfo->scalarSupp, pScalarExprInfo, numOfScalar);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
+  }
 
   pInfo->primaryTsIndex = primaryTsSlotId;
 
