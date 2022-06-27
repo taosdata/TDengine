@@ -476,6 +476,19 @@ class TDTestCase:
             tdSql.execute('insert into tb3 values (now()+{}s, {}, {})'.format(i,PI*(5+i)/2 ,PI*(5+i)/2))
 
         self.check_result_auto_cos("select num1,num2 from tb3;" , "select cos(num1),cos(num2) from tb3")
+
+    def support_super_table_test(self):
+        tdSql.execute(" use db ")
+        self.check_result_auto_cos( " select c5 from stb1 order by ts " , "select cos(c5) from stb1 order by ts" )
+        self.check_result_auto_cos( " select c5 from stb1 order by tbname " , "select cos(c5) from stb1 order by tbname" )
+        self.check_result_auto_cos( " select c5 from stb1 where c1 > 0 order by tbname  " , "select cos(c5) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_cos( " select c5 from stb1 where c1 > 0 order by tbname  " , "select cos(c5) from stb1 where c1 > 0 order by tbname" )
+
+        self.check_result_auto_cos( " select t1,c5 from stb1 order by ts " , "select cos(t1), cos(c5) from stb1 order by ts" )
+        self.check_result_auto_cos( " select t1,c5 from stb1 order by tbname " , "select cos(t1) ,cos(c5) from stb1 order by tbname" )
+        self.check_result_auto_cos( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select cos(t1) ,cos(c5) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_cos( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select cos(t1) , cos(c5) from stb1 where c1 > 0 order by tbname" )
+        pass
     
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
@@ -508,6 +521,10 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step7: cos filter query ============") 
 
         self.abs_func_filter()
+
+        tdLog.printNoPrefix("==========step8: check cos result of  stable query ============")
+
+        self.support_super_table_test()
 
 
     def stop(self):
