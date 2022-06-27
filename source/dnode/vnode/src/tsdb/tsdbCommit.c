@@ -729,9 +729,29 @@ _err:
   return code;
 }
 
-static int32_t tsdbCommitMoveDiskBlock(SCommitter *pCommitter, SBlock *pBlock) {
+static int32_t tsdbCommitTableDiskData(SCommitter *pCommitter, SBlock *pBlock) {
   int32_t code = 0;
-  // TODO
+
+  if (pBlock->last) {
+    // TODO
+    code = tsdbReadBlockData(pCommitter->pReader, NULL, pBlock, &pCommitter->oBlockData, NULL, NULL);
+    if (code) goto _err;
+
+    code =
+        tsdbWriteBlockData(pCommitter->pWriter, &pCommitter->oBlockData, NULL, NULL, NULL, NULL, pCommitter->cmprAlg);
+    if (code) goto _err;
+
+    code = tMapDataPutItem(&pCommitter->nBlockMap, &pCommitter->nBlock, tPutBlock);
+    if (code) goto _err;
+  } else {
+    code = tMapDataPutItem(&pCommitter->nBlockMap, pBlock, tPutBlock);
+    if (code) goto _err;
+  }
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb commit table disk data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -789,7 +809,7 @@ static int32_t tsdbMergeMemDisk(SCommitter *pCommitter, STbData *pTbData, SBlock
           pRow = tsdbTbDataIterGet(pIter);
         } else if (c > 0) {
           // just move the block (todo)
-          code = tsdbCommitMoveDiskBlock(pCommitter, pBlock);
+          code = tsdbCommitTableDiskData(pCommitter, pBlock);
           if (code) goto _err;
 
           iBlock++;
@@ -815,7 +835,7 @@ static int32_t tsdbMergeMemDisk(SCommitter *pCommitter, STbData *pTbData, SBlock
         }
       }
     } else if (pBlock) {
-      code = tsdbCommitMoveDiskBlock(pCommitter, pBlock);
+      code = tsdbCommitTableDiskData(pCommitter, pBlock);
       if (code) goto _err;
 
       iBlock++;
@@ -848,6 +868,113 @@ _exit:
 
 _err:
   tsdbError("vgId:%d tsdb merge mem disk data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData, SBlockIdx *pBlockIdx) {
+  int32_t      code = 0;
+  STbDataIter *pIter = &(STbDataIter){0};
+  TSDBROW     *pRow;
+  int32_t      iBlock = 0;
+  int32_t      nBlock;
+
+  if (pTbData) {
+    tsdbTbDataIterOpen(pTbData, &(TSDBKEY){.ts = pCommitter->minKey, .version = VERSION_MIN}, 0, pIter);
+    pRow = tsdbTbDataIterGet(pIter);
+  } else {
+    pIter = NULL;
+    pRow = NULL;
+  }
+
+  if (pBlockIdx) {
+    code = tsdbReadBlock(pCommitter->pReader, pBlockIdx, &pCommitter->oBlockMap, NULL);
+    if (code) goto _err;
+
+    nBlock = pCommitter->oBlockMap.nItem;
+    ASSERT(nBlock > 0);
+  } else {
+    nBlock = 0;
+  }
+
+  if ((pRow == NULL || TSDBROW_TS(pRow) > pCommitter->maxKey) && nBlock == 0) goto _exit;
+
+  // start ===========
+  tMapDataReset(&pCommitter->nBlockMap);
+  SBlock *pBlock = NULL;  // (todo)
+  int32_t c;
+
+  // merge ===========
+  while (true) {
+    if (((pRow == NULL) || TSDBROW_TS(pRow) > pCommitter->maxKey) && pBlock == NULL) break;
+
+    if (pRow && TSDBROW_TS(pRow) <= pCommitter->maxKey && pBlock) {
+      if (pBlock->last) {
+        code = tsdbMergeBlockAndMem(pCommitter, pIter, pBlockIdx, pBlock,
+                                    (TSDBKEY){.ts = pCommitter->maxKey + 1, .version = VERSION_MIN}, 0);
+        if (code) goto _err;
+
+        pRow = tsdbTbDataIterGet(pIter);
+        iBlock++;
+      } else {
+        c = tBlockCmprFn(&(SBlock){}, pBlock);
+        if (c > 0) {
+          code = tsdbCommitTableDiskData(pCommitter, pBlock);
+          if (code) goto _err;
+
+          iBlock++;
+        } else if (c < 0) {
+          code = tsdbCommitMemoryDataImpl(pCommitter, pIter, pBlock->minKey, 1);
+          if (code) goto _err;
+
+          pRow = tsdbTbDataIterGet(pIter);
+        } else {
+          int64_t nOvlp = 0;  // (todo)
+          if (pBlock->nRow + nOvlp <= pCommitter->maxRow && pBlock->nSubBlock < TSDB_MAX_SUBBLOCKS) {
+            // add as a subblock
+          } else {
+            if (iBlock == nBlock - 1) {
+              code = tsdbMergeBlockAndMem(pCommitter, pIter, pBlockIdx, pBlock,
+                                          (TSDBKEY){.ts = pCommitter->maxKey + 1, .version = VERSION_MIN}, 0);
+
+              if (code) goto _err;
+            } else {
+              // code = tsdbMergeBlockAndMem(pCommitter, pIter, pBlockIdx, pBlock, pBlock[1].minKey, 1);
+              if (code) goto _err;
+            }
+          }
+        }
+      }
+    } else if (pBlock) {
+      code = tsdbCommitTableDiskData(pCommitter, pBlock);
+      if (code) goto _err;
+
+      // move to next block (todo)
+    } else {
+      code = tsdbCommitMemoryDataImpl(pCommitter, pIter,
+                                      (TSDBKEY){.ts = pCommitter->maxKey + 1, .version = VERSION_MIN}, 0);
+      if (code) goto _err;
+
+      pRow = tsdbTbDataIterGet(pIter);
+      ASSERT(pRow == NULL || TSDBROW_TS(pRow) > pCommitter->maxKey);
+    }
+  }
+
+  // end
+  // code = tsdbWriteBlock();
+  if (code) goto _err;
+
+  code = tMapDataPutItem(&pCommitter->nBlockIdxMap, NULL, tPutBlockIdx);
+  if (code) goto _err;
+
+_exit:
+  if (pIter) {
+    pRow = tsdbTbDataIterGet(pIter);
+    if (pRow) pCommitter->nextKey = TMIN(pCommitter->nextKey, TSDBROW_TS(pRow));
+  }
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb commit table data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
