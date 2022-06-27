@@ -140,17 +140,6 @@ static void uvHandleRegister(SSvrMsg* msg, SWorkThrd* thrd);
 static void (*transAsyncHandle[])(SSvrMsg* msg, SWorkThrd* thrd) = {uvHandleResp, uvHandleQuit, uvHandleRelease,
                                                                     uvHandleRegister, NULL};
 
-static int32_t exHandlesMgt;
-
-// void       uvInitEnv();
-// void       uvOpenExHandleMgt(int size);
-// void       uvCloseExHandleMgt();
-// int64_t    uvAddExHandle(void* p);
-// int32_t    uvRemoveExHandle(int64_t refId);
-// int32_t    uvReleaseExHandle(int64_t refId);
-// void       uvDestoryExHandle(void* handle);
-// SExHandle* uvAcquireExHandle(int64_t refId);
-
 static void uvDestroyConn(uv_handle_t* handle);
 
 // server and worker thread
@@ -787,11 +776,15 @@ static void destroyConn(SSvrConn* conn, bool clear) {
 
   transDestroyBuffer(&conn->readBuf);
   if (clear) {
-    tTrace("conn %p to be destroyed", conn);
-    // uv_shutdown_t* req = taosMemoryMalloc(sizeof(uv_shutdown_t));
-    uv_close((uv_handle_t*)conn->pTcp, uvDestroyConn);
-    // uv_close(conn->pTcp)
-    // uv_shutdown(req, (uv_stream_t*)conn->pTcp, uvShutDownCb);
+    if (uv_is_active((uv_handle_t*)conn->pTcp)) {
+      tTrace("conn %p to be destroyed", conn);
+      // uv_shutdown_t* req = taosMemoryMalloc(sizeof(uv_shutdown_t));
+      uv_close((uv_handle_t*)conn->pTcp, uvDestroyConn);
+      // uv_close(conn->pTcp)
+      // uv_shutdown(req, (uv_stream_t*)conn->pTcp, uvShutDownCb);
+    } else {
+      uvDestroyConn((uv_handle_t*)conn->pTcp);
+    }
   }
 }
 static void destroyConnRegArg(SSvrConn* conn) {
@@ -824,7 +817,6 @@ static void uvDestroyConn(uv_handle_t* handle) {
   transRemoveExHandle(conn->refId);
 
   tDebug("%s conn %p destroy", transLabel(thrd->pTransInst), conn);
-  // uv_timer_stop(&conn->pTimer);
   transQueueDestroy(&conn->srvMsgs);
 
   QUEUE_REMOVE(&conn->queue);
