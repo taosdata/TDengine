@@ -130,10 +130,10 @@ DLL_EXPORT void       taos_cleanup(void);
 DLL_EXPORT int        taos_options(TSDB_OPTION option, const void *arg, ...);
 DLL_EXPORT int        taos_init(void);
 DLL_EXPORT TAOS      *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
-DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
-DLL_EXPORT void  taos_close(TAOS *taos);
+DLL_EXPORT TAOS      *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
+DLL_EXPORT void       taos_close(TAOS *taos);
 
-const char *taos_data_type(int type);
+const char           *taos_data_type(int type);
 
 DLL_EXPORT TAOS_STMT *taos_stmt_init(TAOS *taos);
 DLL_EXPORT int        taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length);

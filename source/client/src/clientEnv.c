@@ -38,7 +38,7 @@ static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t    tscInitRes = 0;
 
 static int32_t registerRequest(SRequestObj *pRequest) {
-  STscObj *pTscObj = acquireTscObj(*(int64_t *)pRequest->pTscObj->id);
+  STscObj *pTscObj = acquireTscObj(pRequest->pTscObj->id);
   if (NULL == pTscObj) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;  
     return terrno;
@@ -56,7 +56,7 @@ static int32_t registerRequest(SRequestObj *pRequest) {
     int32_t currentInst = atomic_add_fetch_64((int64_t *)&pSummary->currentRequests, 1);
     tscDebug("0x%" PRIx64 " new Request from connObj:0x%" PRIx64
              ", current:%d, app current:%d, total:%d, reqId:0x%" PRIx64,
-             pRequest->self, *(int64_t *)pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
+             pRequest->self, pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -74,8 +74,8 @@ static void deregisterRequest(SRequestObj *pRequest) {
   int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
   tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64 " elapsed:%" PRIu64
            " ms, current:%d, app current:%d",
-           pRequest->self, *(int64_t *)pTscObj->id, pRequest->requestId, duration / 1000, num, currentInst);
-  releaseTscObj(*(int64_t *)pTscObj->id);
+           pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000, num, currentInst);
+  releaseTscObj(pTscObj->id);
 }
 
 // todo close the transporter properly
@@ -84,7 +84,7 @@ void closeTransporter(STscObj *pTscObj) {
     return;
   }
 
-  tscDebug("free transporter:%p in connObj: 0x%" PRIx64, pTscObj->pAppInfo->pTransporter, *(int64_t *)pTscObj->id);
+  tscDebug("free transporter:%p in connObj: 0x%" PRIx64, pTscObj->pAppInfo->pTransporter, pTscObj->id);
   rpcClose(pTscObj->pAppInfo->pTransporter);
 }
 
@@ -133,16 +133,15 @@ void closeAllRequests(SHashObj *pRequests) {
 void destroyTscObj(void *pObj) {
   STscObj *pTscObj = pObj;
 
-  SClientHbKey connKey = {.tscRid = *(int64_t *)pTscObj->id, .connType = pTscObj->connType};
+  SClientHbKey connKey = {.tscRid = pTscObj->id, .connType = pTscObj->connType};
   hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
   int64_t connNum = atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   closeAllRequests(pTscObj->pRequests);
   schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
   if (0 == connNum) {
-    // TODO
-    // closeTransporter(pTscObj);
+    closeTransporter(pTscObj);
   }
-  tscDebug("connObj 0x%" PRIx64 " destroyed, totalConn:%" PRId64, *(int64_t *)pTscObj->id,
+  tscDebug("connObj 0x%" PRIx64 " p:%p destroyed, totalConn:%" PRId64, pTscObj->id, pTscObj, 
            pTscObj->pAppInfo->numOfConns);
   taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFreeClear(pTscObj);
@@ -172,11 +171,10 @@ void *createTscObj(const char *user, const char *auth, const char *db, int32_t c
   }
 
   taosThreadMutexInit(&pObj->mutex, NULL);
-  pObj->id = taosMemoryMalloc(sizeof(int64_t));
-  *(int64_t *)pObj->id = taosAddRef(clientConnRefPool, pObj);
+  pObj->id = taosAddRef(clientConnRefPool, pObj);
   pObj->schemalessType = 1;
 
-  tscDebug("connObj created, 0x%" PRIx64, *(int64_t *)pObj->id);
+  tscDebug("connObj created, 0x%" PRIx64 ",p:%p", pObj->id, pObj);
   return pObj;
 }
 

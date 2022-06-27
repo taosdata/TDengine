@@ -1170,7 +1170,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
     taos_close_internal(pTscObj);
     pTscObj = NULL;
   } else {
-    tscDebug("0x%" PRIx64 " connection is opening, connId:%u, dnodeConn:%p, reqId:0x%" PRIx64, *(int64_t*)pTscObj->id,
+    tscDebug("0x%" PRIx64 " connection is opening, connId:%u, dnodeConn:%p, reqId:0x%" PRIx64, pTscObj->id,
              pTscObj->connId, pTscObj->pAppInfo->pTransporter, pRequest->requestId);
     destroyRequest(pRequest);
   }
@@ -1333,7 +1333,9 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
 
   STscObj* pObj = taos_connect_internal(ip, user, NULL, auth, db, port, CONN_TYPE__QUERY);
   if (pObj) {
-    return pObj->id;
+    int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
+    *rid = pObj->id;
+    return (TAOS*)rid;
   }
 
   return NULL;
@@ -2016,11 +2018,18 @@ void syncQueryFn(void* param, void* res, int32_t code) {
 }
 
 void taosAsyncQueryImpl(TAOS* taos, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly) {
-  STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
+  if (NULL == taos) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    fp(param, NULL, terrno);
+    return;
+  }
+
+  int64_t rid = *(int64_t*)taos;
+  STscObj* pTscObj = acquireTscObj(rid);
   if (pTscObj == NULL || sql == NULL || NULL == fp) {
     terrno = TSDB_CODE_INVALID_PARA;
     if (pTscObj) {
-      releaseTscObj(*(int64_t*)taos);
+      releaseTscObj(rid);
     } else {
       terrno = TSDB_CODE_TSC_DISCONNECTED;
     }
@@ -2032,7 +2041,7 @@ void taosAsyncQueryImpl(TAOS* taos, const char* sql, __taos_async_fn_t fp, void*
   if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
     tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
-    releaseTscObj(*(int64_t *)taos);
+    releaseTscObj(rid);
 
     fp(param, NULL, terrno);
     return;
@@ -2042,7 +2051,7 @@ void taosAsyncQueryImpl(TAOS* taos, const char* sql, __taos_async_fn_t fp, void*
   int32_t      code = buildRequest(pTscObj, sql, sqlLen, &pRequest);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    releaseTscObj(*(int64_t *)taos);
+    releaseTscObj(rid);
     fp(param, NULL, terrno);
     return;
   }
@@ -2051,7 +2060,7 @@ void taosAsyncQueryImpl(TAOS* taos, const char* sql, __taos_async_fn_t fp, void*
   pRequest->body.queryFp = fp;
   pRequest->body.param = param;
   doAsyncQuery(pRequest, false);
-  releaseTscObj(*(int64_t *)taos);  
+  releaseTscObj(rid);  
 }
 
 TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
@@ -2060,7 +2069,8 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
     return NULL;
   }
 
-  STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
+  int64_t rid = *(int64_t*)taos;
+  STscObj* pTscObj = acquireTscObj(rid);
   if (pTscObj == NULL || sql == NULL) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
@@ -2070,16 +2080,16 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
   SSyncQueryParam* param = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   tsem_init(&param->sem, 0, 0);
 
-  taosAsyncQueryImpl(taos, sql, syncQueryFn, param, validateOnly);
+  taosAsyncQueryImpl((TAOS*)&rid, sql, syncQueryFn, param, validateOnly);
   tsem_wait(&param->sem);
 
-  releaseTscObj(*(int64_t*)taos);
+  releaseTscObj(rid);
 
   return param->pRequest;
 #else
   size_t sqlLen = strlen(sql);
   if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
-    releaseTscObj(*(int64_t*)taos);
+    releaseTscObj(rid);
     tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     return NULL;
@@ -2087,7 +2097,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
 
   TAOS_RES* pRes = execQuery(pTscObj, sql, sqlLen, validateOnly);
 
-  releaseTscObj(*(int64_t*)taos);
+  releaseTscObj(rid);
 
   return pRes;
 #endif
