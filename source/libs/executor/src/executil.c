@@ -271,6 +271,7 @@ static bool isTableOk(STableKeyInfo* info, SNode *pTagCond, SMeta *metaHandle){
   SNode*  pNew = NULL;
   int32_t code = scalarCalculateConstants(pTagCondTmp, &pNew);
   if (TSDB_CODE_SUCCESS != code) {
+    terrno = code;
     nodesDestroyNode(pTagCondTmp);
     return false;
   }
@@ -323,11 +324,18 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
       code = tsdbGetAllTableList(metaHandle, tableUid, pListInfo->pTableList);
     }
 
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("failed  to  get tableIds, reason: %s, suid: %" PRIu64 "", tstrerror(code), tableUid);
+      terrno = code;
+      return code;
+    }
+
     if(pTagCond){
       int32_t i = 0;
       while(i < taosArrayGetSize(pListInfo->pTableList)) {
         STableKeyInfo* info = taosArrayGet(pListInfo->pTableList, i);
         bool isOk = isTableOk(info, pTagCond, metaHandle);
+        if(terrno) return terrno;
         if(!isOk){
           taosArrayRemove(pListInfo->pTableList, i);
           continue;

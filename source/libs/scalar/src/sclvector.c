@@ -160,6 +160,9 @@ int64_t getVectorBigintValue_JSON(void *src, int32_t index){
     return 0;
   } else if(*data == TSDB_DATA_TYPE_NCHAR) {   // json inner type can not be BINARY
     convertNcharToDouble(data+CHAR_BYTES, &out);
+  } else if(tTagIsJson(data)){
+    terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
+    return 0;
   } else {
     convertNumberToNumber(data+CHAR_BYTES, &out, *data, TSDB_DATA_TYPE_DOUBLE);
   }
@@ -416,6 +419,9 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
       else if(*data == TSDB_DATA_TYPE_NCHAR) {
         data += CHAR_BYTES;
         convertType = TSDB_DATA_TYPE_NCHAR;
+      } else if(tTagIsJson(data)){
+        terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
+        return terrno;
       } else {
         convertNumberToNumber(data+CHAR_BYTES, colDataGetNumData(pOut->columnData, i), *data, outType);
         continue;
@@ -461,7 +467,10 @@ double getVectorDoubleValue_JSON(void *src, int32_t index){
     return out;
   } else if(*data == TSDB_DATA_TYPE_NCHAR) {   // json inner type can not be BINARY
     convertNcharToDouble(data+CHAR_BYTES, &out);
-  } else {
+  } else if(tTagIsJson(data)){
+    terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
+    return 0;
+  } else{
     convertNumberToNumber(data+CHAR_BYTES, &out, *data, TSDB_DATA_TYPE_DOUBLE);
   }
   return out;
@@ -493,10 +502,18 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
   }
 
   if(typeLeft == TSDB_DATA_TYPE_JSON){
+    if(tTagIsJson(*pLeftData)){
+      terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
+      return false;
+    }
     typeLeft = **pLeftData;
     (*pLeftData) ++;
   }
   if(typeRight == TSDB_DATA_TYPE_JSON){
+    if(tTagIsJson(*pLeftData)){
+      terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
+      return false;
+    }
     typeRight = **pRightData;
     (*pRightData) ++;
   }
@@ -1576,7 +1593,11 @@ void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, 
 void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord, int32_t optr) {
   int32_t       i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
   int32_t       step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
+
   __compar_fn_t fp = filterGetCompFunc(GET_PARAM_TYPE(pLeft), optr);
+  if(terrno != TSDB_CODE_SUCCESS){
+    return;
+  }
 
   pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
 
@@ -1709,6 +1730,7 @@ void vectorIsTrue(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut,
 STagVal getJsonValue(char *json, char *key, bool *isExist) {
   STagVal val = {.pKey = key};
   if (tTagIsJson((const STag *)json) == false){
+    terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
     if(isExist){
       *isExist = false;
     }

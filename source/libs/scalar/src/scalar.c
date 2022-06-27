@@ -551,7 +551,9 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   SScalarParam* pLeft = &params[0];
   SScalarParam* pRight = paramNum > 1 ? &params[1] : NULL;
 
+  terrno = TSDB_CODE_SUCCESS;
   OperatorFn(pLeft, pRight, output, TSDB_ORDER_ASC);
+  code = terrno;
 
 _return:
   for (int32_t i = 0; i < paramNum; ++i) {

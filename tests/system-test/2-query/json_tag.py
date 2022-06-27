@@ -213,8 +213,18 @@ class TDTestCase:
 
         # test where with json tag
         tdSql.query("select * from jsons1_1 where jtag is not null")
-        # tdSql.query("select * from jsons1 where jtag='{\"tag1\":11,\"tag2\":\"\"}'")
+        tdSql.error("select * from jsons1 where jtag='{\"tag1\":11,\"tag2\":\"\"}'")
         tdSql.error("select * from jsons1 where jtag->'tag1'={}")
+
+        # test json error
+        tdSql.error("select jtag + 1 from jsons1")
+        tdSql.error("select jtag > 1 from jsons1")
+        tdSql.error("select jtag like \"1\" from jsons1")
+        tdSql.error("select jtag in  (\"1\") from jsons1")
+        tdSql.error("select jtag from jsons1 where jtag > 1")
+        tdSql.error("select jtag from jsons1 where jtag like 'fsss'")
+        tdSql.error("select jtag from jsons1 where jtag in (1)")
+
 
         # where json value is string
         tdSql.query("select * from jsons1 where jtag->'tag2'='beijing'")
@@ -364,7 +374,7 @@ class TDTestCase:
         tdSql.checkRows(2)
 
         # test where condition in  no support in
-        # tdSql.error("select * from jsons1 where jtag->'tag1' in ('beijing')")
+        tdSql.error("select * from jsons1 where jtag->'tag1' in ('beijing')")
 
         # test where condition match/nmath
         tdSql.query("select * from jsons1 where jtag->'tag1' match 'ma'")
@@ -382,8 +392,8 @@ class TDTestCase:
         tdSql.execute("insert into jsons1_14 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":null}') values(1591062628000, 2, NULL, '你就会', 'dws')")
         tdSql.query("select distinct jtag->'tag1' from jsons1")
         tdSql.checkRows(8)
-        tdSql.query("select distinct jtag from jsons1")
-        tdSql.checkRows(9)
+        # tdSql.query("select distinct jtag from jsons1")
+        # tdSql.checkRows(9)
 
         #test dumplicate key with normal colomn
         tdSql.execute("INSERT INTO jsons1_15 using jsons1 tags('{\"tbname\":\"tt\",\"databool\":true,\"datastr\":\"是是是\"}') values(1591060828000, 4, false, 'jjsf', \"你就会\")")
@@ -419,9 +429,9 @@ class TDTestCase:
         tdSql.checkData(7, 1, "false")
 
 
-        # tdSql.error("select count(*) from jsons1 group by jtag")
-        # tdSql.error("select count(*) from jsons1 partition by jtag")
-        # tdSql.error("select count(*) from jsons1 group by jtag order by jtag")
+        tdSql.error("select count(*) from jsons1 group by jtag")
+        tdSql.error("select count(*) from jsons1 partition by jtag")
+        tdSql.error("select count(*) from jsons1 group by jtag order by jtag")
         tdSql.error("select count(*) from jsons1 group by jtag->'tag1' order by jtag->'tag2'")
         tdSql.error("select count(*) from jsons1 group by jtag->'tag1' order by jtag")
         tdSql.query("select count(*),jtag->'tag1' from jsons1 group by jtag->'tag1' order by jtag->'tag1' desc")
@@ -487,6 +497,7 @@ class TDTestCase:
         tdSql.checkData(5, 0, '{"tag1":false,"tag2":"beijing"}')
 
         tdSql.error("select jtag->'tag1' from (select jtag->'tag1', dataint from jsons1)")
+        tdSql.error("select t->'tag1' from (select jtag->'tag1' as t, dataint from jsons1)")
         # tdSql.query("select ts,jtag->'tag1' from (select jtag->'tag1',tbname,ts from jsons1 order by ts)")
         # tdSql.checkRows(11)
         # tdSql.checkData(1, 1, "jsons1_1")

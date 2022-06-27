@@ -4013,6 +4013,12 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
         isNull[index++] = 0;
         char*       data = nodesGetValueFromNode(pValue);
         if (pValue->node.resType.type == TSDB_DATA_TYPE_JSON){
+          if(tTagIsJson(data)){
+            terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
+            taosMemoryFree(keyBuf);
+            nodesClearList(groupNew);
+            return terrno;
+          }
           int32_t len = getJsonValueLen(data);
           memcpy(pStart, data, len);
           pStart += len;
@@ -4070,6 +4076,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       STableMergeScanPhysiNode* pTableScanNode = (STableMergeScanPhysiNode*)pPhyNode;
       int32_t code = createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId);
       if(code){
+        pTaskInfo->code = code;
         return NULL;
       }
       code = extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
@@ -4095,7 +4102,11 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
             .maxTs = INT64_MIN,
       };
       if (pHandle) {
-        createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId);
+        int32_t code = createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId);
+        if(code){
+          pTaskInfo->code = code;
+          return NULL;
+        }
       }
 
       SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle, pTableScanNode, pTaskInfo, &twSup, queryId, taskId);
