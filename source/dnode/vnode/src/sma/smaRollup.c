@@ -529,7 +529,7 @@ static int32_t tdFetchAndSubmitRSmaResult(SRSmaInfoItem *pItem, int8_t blkType) 
 #if 1
     char flag[10] = {0};
     snprintf(flag, 10, "level %" PRIi8, pItem->level);
-    blockDebugShowData(pResult, flag);
+    blockDebugShowDataBlocks(pResult, flag);
 #endif
     STsdb      *sinkTsdb = (pItem->level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb1 : pSma->pRSmaTsdb2);
     SSubmitReq *pReq = NULL;
