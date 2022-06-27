@@ -1235,6 +1235,45 @@ static int32_t eliminateSetOpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLo
   return eliminateSetOpOptimizeImpl(pCxt, pLogicSubplan, pSetOpNode);
 }
 
+//===================================================================================================================
+// merge projects
+static bool mergeProjectsMayBeOptimized(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren)) {
+    return false;
+  }
+  SLogicNode *pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pChild) || 1 < LIST_LENGTH(pChild->pChildren) ||
+      NULL != pChild->pConditions || NULL != pNode->pLimit || NULL != pNode->pSlimit) {
+    return false;
+  }
+  return true;
+}
+
+typedef struct SMergeProjectionsContext {
+
+} SMergeProjectionsContext;
+
+static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t mergeProjectsOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SLogicNode* pProjectNode) {
+  SProjectLogicNode* pProject = (SProjectLogicNode*)pProjectNode;
+  SProjectLogicNode* pChild = (SProjectLogicNode*)nodesListGetNode(pProjectNode->pChildren, 0);
+  SMergeProjectionsContext cxt = {};
+  nodesRewriteExprs(pChild->pProjections, mergeProjectionsExpr, &cxt);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mergeProjectsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SLogicNode* pProjectNode = optFindPossibleNode(pLogicSubplan->pNode, mergeProjectsMayBeOptimized);
+  if (NULL == pProjectNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return mergeProjectsOptimizeImpl(pCxt, pLogicSubplan, pProjectNode);
+}
+
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "OptimizeScanData",           .optimizeFunc = osdOptimize},
@@ -1242,8 +1281,11 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "OrderByPrimaryKey",          .optimizeFunc = opkOptimize},
   {.pName = "SmaIndex",                   .optimizeFunc = smaOptimize},
   {.pName = "PartitionTags",              .optimizeFunc = partTagsOptimize},
+  {.pName = "MergeProjects",              .optimizeFunc = mergeProjectsOptimize},
   {.pName = "EliminateProject",           .optimizeFunc = eliminateProjOptimize},
   {.pName = "EliminateSetOperator",       .optimizeFunc = eliminateSetOpOptimize}
+  {.pName = "EliminateSetOperator",       .optimizeFunc = eliminateSetOpOptimize},
+  {.pName = "RewriteTail",                .optimizeFunc = rewriteTailOptimize},
 };
 // clang-format on
 
