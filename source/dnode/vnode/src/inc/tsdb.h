@@ -104,6 +104,8 @@ int32_t tRowMergerGetRow(SRowMerger *pMerger, STSRow **ppRow);
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 // TSDBKEY
 int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
+#define MIN_TSDBKEY(KEY1, KEY2) ((tsdbKeyCmprFn(&(KEY1), &(KEY2)) < 0) ? (KEY1) : (KEY2))
+#define MAX_TSDBKEY(KEY1, KEY2) ((tsdbKeyCmprFn(&(KEY1), &(KEY2)) > 0) ? (KEY1) : (KEY2))
 // KEYINFO
 #define tKEYINFOInit()                                          \
   ((KEYINFO){.maxKey = {.ts = TSKEY_MIN, .version = -1},        \
@@ -139,6 +141,8 @@ int32_t tColDataPCmprFn(const void *p1, const void *p2);
 // SBlockData
 #define tBlockDataFirstRow(PBLOCKDATA) tsdbRowFromBlockData(PBLOCKDATA, 0)
 #define tBlockDataLastRow(PBLOCKDATA)  tsdbRowFromBlockData(PBLOCKDATA, (PBLOCKDATA)->nRow - 1)
+#define tBlockDataFirstKey(PBLOCKDATA) TSDBROW_KEY(&tBlockDataFirstRow(PBLOCKDATA))
+#define tBlockDataLastKey(PBLOCKDATA)  TSDBROW_KEY(&tBlockDataLastRow(PBLOCKDATA))
 int32_t tBlockDataInit(SBlockData *pBlockData);
 void    tBlockDataReset(SBlockData *pBlockData);
 void    tBlockDataClear(SBlockData *pBlockData);
