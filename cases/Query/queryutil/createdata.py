@@ -856,8 +856,8 @@ class TDCreateData():
         data = self.tdSql.getData(row, col)
                    
         if oper == "TIME":
-            #self.logger.info(data,value)
-            self.logger.info(pd.to_datetime(data) , pd.to_datetime(value))
+            #self.logger.info(f"data,value")
+            self.logger.info(f"pd.to_datetime(data) , pd.to_datetime(value)")
             chazhi = pd.to_datetime(data) - pd.to_datetime(value)
             # self.logger.info(chazhi)
             # self.logger.info(chazhi.total_seconds())
@@ -876,8 +876,8 @@ class TDCreateData():
                     self._set_error_msg(f"TIME（时间对比）checkEqual error, elm={data} expect_elm={value}")
                     return False    
         elif oper == "SYS_TIME":
-            self.logger.info(data,value)
-            self.logger.info(pd.to_datetime(data) , pd.to_datetime(value))
+            self.logger.info(f"data,value")
+            self.logger.info(f"pd.to_datetime(data) , pd.to_datetime(value)")
             chazhi = pd.to_datetime(data) - pd.to_datetime(value)
             self.logger.info(chazhi)
             
@@ -896,8 +896,8 @@ class TDCreateData():
                     return False  
                                 
         elif oper == "TODAY":
-            #self.logger.info(data,value)
-            self.logger.info(pd.to_datetime(data) , pd.to_datetime(value))
+            #self.logger.info(f"data,value")
+            self.logger.info(f"pd.to_datetime(data),pd.to_datetime(value)")
             chazhi = pd.to_datetime(data) - pd.to_datetime(value)
             # self.logger.info(chazhi)
             # self.logger.info(chazhi.total_seconds())
@@ -916,9 +916,9 @@ class TDCreateData():
                     self._set_error_msg(f"TODAY（时间对比）checkEqual error, elm={data} expect_elm={value}")
                     return False    
         elif oper == "SYS_TODAY":
-            self.logger.info(pd.to_datetime(data) , pd.to_datetime(value))
+            self.logger.info(f"pd.to_datetime(data) , pd.to_datetime(value)")
             chazhi = pd.to_datetime(data) - pd.to_datetime(value)
-            self.logger.info(chazhi,abs(float(chazhi.total_seconds())))
+            self.logger.info(f"chazhi,abs(float(chazhi.total_seconds()))")
             
             if pd.to_datetime(data) == pd.to_datetime(value):  
                 self.logger.debug(f"SYS_TODAY（时间对比=）checkEqual success, elm={data} expect_elm={value}")                 
@@ -935,7 +935,7 @@ class TDCreateData():
                     return False   
                   
         elif oper == "TIMEZONE":
-            #self.logger.info(data,value)            
+            #self.logger.info(f"data,value")            
             if data == value:  
                 self.logger.debug(f"TIMEZONE（时间对比=）checkEqual success, elm={data} expect_elm={value}")                 
                 return True 
@@ -946,7 +946,7 @@ class TDCreateData():
                     self._set_error_msg(f"TIMEZONE（时间对比）checkEqual error, elm={data} expect_elm={value}")
                     return False    
         elif oper == "SYS_TIMEZONE":
-            self.logger.info(data,value)            
+            self.logger.info(f"data,value")            
             if str(data).split()[0] == str(value):  
                 self.logger.debug(f"SYS_TIMEZONE（时间对比=）checkEqual success, elm={data} expect_elm={value}")                 
                 return True 
@@ -959,7 +959,7 @@ class TDCreateData():
                   
         elif oper == "TO_ISO8601":
             #处理data格式，只保留+之前的，eg：2022-03-30T15:11:36.432+0800 保留2022-03-30T15:11:36.432
-            self.logger.info(data,value)
+            self.logger.info(f"data,value")
             data = str(data).split("+")[0]
             value = str(value).split("+")[0]
             chazhi =(datetime.datetime.strptime(data, "%Y-%m-%dT%H:%M:%S.%f") - datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f")).total_seconds()            
@@ -980,7 +980,7 @@ class TDCreateData():
                     self._set_error_msg(f"TO_ISO8601（时间对比）checkEqual error, elm={data} expect_elm={value}")
                     return False    
         elif oper == "SYS_TO_ISO8601":
-            self.logger.info(data,value)
+            self.logger.info(f"data,value")
             data = str(data).split("+")[0]
             value = str(value).split("+")[0]
             chazhi =(datetime.datetime.strptime(data, "%Y-%m-%dT%H:%M:%S.%f") - datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f")).total_seconds()                                    
@@ -997,7 +997,7 @@ class TDCreateData():
                   
         elif oper == "TO_UNIXTIMESTAMP":
             #处理data格式，只保留+之前的，eg：2022-03-30T15:11:36.432+0800 保留2022-03-30T15:11:36.432
-            self.logger.info(data,value)
+            self.logger.info(f"data,value")
             data = str(data).split("+")[0]
             value = str(value).split("+")[0]
             if data == value:  
@@ -1010,7 +1010,7 @@ class TDCreateData():
                     self._set_error_msg(f"TO_UNIXTIMESTAMP（时间对比）checkEqual error, elm={data} expect_elm={value}")
                     return False    
         elif oper == "SYS_TO_UNIXTIMESTAMP":
-            self.logger.info(data,value)
+            self.logger.info(f"data,value")
             data = str(data).split("+")[0]
             value = str(value).split("+")[0]                                    
             #有的机器有8个小时时差，因此增加8个小时28800s
