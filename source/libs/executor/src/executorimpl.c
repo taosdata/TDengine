@@ -4306,7 +4306,11 @@ STsdbReader* doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle
   }
 
   STsdbReader* pReader;
-  tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo, queryId, taskId, &pReader);
+  code = tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo, queryId, taskId, &pReader);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   cleanupQueryTableDataCond(&cond);
 
   return pReader;

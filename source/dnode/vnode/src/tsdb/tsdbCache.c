@@ -650,6 +650,10 @@ int32_t tsdbCacheGetLastrow(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, STSRo
     if (code < 0 || pRow == NULL) {
       return -1;
     }
+
+    tsdbCacheInsertLastrow(pCache, uid, pRow);
+    LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
+    *ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
   }
 
   return code;
