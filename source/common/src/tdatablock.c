@@ -1605,7 +1605,7 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
   return buf;
 }
 
-void blockDebugShowData(const SArray* dataBlocks, const char* flag) {
+void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
   char    pBuf[128] = {0};
   int32_t sz = taosArrayGetSize(dataBlocks);
   for (int32_t i = 0; i < sz; i++) {
