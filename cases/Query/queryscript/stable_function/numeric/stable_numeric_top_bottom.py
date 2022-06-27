@@ -106,21 +106,21 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select ts,%s from %s where  %s %s %s" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql3 ,1,2,'%s' %sql2 ,1,2)
+                        self.tdCreateData.data_matrix_equal('%s' %sql3 ,1,int('%d' %(n-1)),1,2,'%s' %sql2 ,1,int('%d' %(n-1)),1,2)
                         self.tdCreateData.data2in1('%s' %sql1 ,1,100,1,2,'%s' %sql2 ,1,int('%d' %(n-1)),1,2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select ts,%s from %s where %s %s %s)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql3 ,1,2,'%s' %sql2 ,1,2)
+                        self.tdCreateData.data_matrix_equal('%s' %sql3 ,1,int('%d' %(n-1)),1,2,'%s' %sql2 ,1,int('%d' %(n-1)),1,2)
                         self.tdCreateData.data2in1('%s' %sql1 ,1,100,1,2,'%s' %sql2 ,1,int('%d' %(n-1)),1,2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select ts,%s from (select * from %s) where %s %s %s" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql3 ,1,2,'%s' %sql2 ,1,2)
+                        self.tdCreateData.data_matrix_equal('%s' %sql3 ,1,int('%d' %(n-1)),1,2,'%s' %sql2 ,1,int('%d' %(n-1)),1,2)
                         self.tdCreateData.data2in1('%s' %sql1 ,1,100,1,2,'%s' %sql2 ,1,int('%d' %(n-1)),1,2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
@@ -168,14 +168,14 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select ts,%s from %s where tbname in ('%s_1') and %s %s %s" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql3 ,1,2,'%s' %sql2 ,1,2)
+                        self.tdCreateData.data_matrix_equal('%s' %sql3 ,1,int('%d' %(n-1)),1,2,'%s' %sql2 ,1,int('%d' %(n-1)),1,2)
                         self.tdCreateData.data2in1('%s' %sql1 ,1,100,1,2,'%s' %sql2 ,1,int('%d' %(n-1)),1,2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select ts,%s from %s where tbname in ('%s_1') and %s %s %s)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql3 ,1,2,'%s' %sql2 ,1,2)
+                        self.tdCreateData.data_matrix_equal('%s' %sql3 ,1,int('%d' %(n-1)),1,2,'%s' %sql2 ,1,int('%d' %(n-1)),1,2)
                         self.tdCreateData.data2in1('%s' %sql1 ,1,100,1,2,'%s' %sql2 ,1,int('%d' %(n-1)),1,2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
