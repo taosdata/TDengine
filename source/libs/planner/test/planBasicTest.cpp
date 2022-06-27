@@ -56,6 +56,8 @@ TEST_F(PlanBasicTest, uniqueFunc) {
 
   run("SELECT UNIQUE(c2 + 10) FROM t1 WHERE c1 > 10");
 
+  run("SELECT UNIQUE(c2 + 10), c2 FROM t1 WHERE c1 > 10");
+
   run("SELECT UNIQUE(c2 + 10), ts, c2 FROM t1 WHERE c1 > 10");
 
   run("SELECT UNIQUE(c1) a FROM t1 ORDER BY a");
