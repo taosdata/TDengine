@@ -293,6 +293,7 @@ typedef enum EStreamScanMode {
   STREAM_SCAN_FROM_RES,
   STREAM_SCAN_FROM_UPDATERES,
   STREAM_SCAN_FROM_DATAREADER,
+  STREAM_SCAN_FROM_DATAREADER_RETRIEVE,
 } EStreamScanMode;
 
 typedef struct SCatchSupporter {
@@ -348,7 +349,9 @@ typedef struct SStreamBlockScanInfo {
   SArray*        childIds;
   SessionWindowSupporter sessionSup;
   bool            assignBlockUid; // assign block uid to groupId, temporarily used for generating rollup SMA.
-  int32_t         scanWinIndex;
+  int32_t         scanWinIndex;   // for state operator
+  int32_t         pullDataResIndex;
+  SSDataBlock*    pPullDataRes;             // pull data SSDataBlock
 } SStreamBlockScanInfo;
 
 typedef struct SSysTableScanInfo {
@@ -400,7 +403,7 @@ typedef struct SIntervalAggOperatorInfo {
   // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
   SOptrBasicInfo     binfo;              // basic info
   SAggSupporter      aggSup;             // aggregate supporter
-
+  SExprSupp          scalarSupp;         // supporter for perform scalar function
   SGroupResInfo      groupResInfo;       // multiple results build supporter
   SInterval          interval;           // interval info
   int32_t            primaryTsIndex;     // primary time stamp slot id from result of downstream operator.
@@ -427,8 +430,13 @@ typedef struct SStreamFinalIntervalOperatorInfo {
   STimeWindowAggSupp twAggSup;
   SArray*            pChildren;
   SSDataBlock*       pUpdateRes;
+  bool               returnUpdate;
   SPhysiNode*        pPhyNode;           // create new child
   bool               isFinal;
+  SHashObj*          pPullDataMap;
+  SArray*            pPullWins;          // SPullWindowInfo
+  int32_t            pullIndex;
+  SSDataBlock*       pPullDataRes;
 } SStreamFinalIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
@@ -722,15 +730,12 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
 SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode *pNode, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* pProjPhyNode, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortPhyNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createMultiwaySortMergeOperatorInfo(SOperatorInfo** downStreams, int32_t numStreams, SSDataBlock* pInputBlock,
-                                                   SSDataBlock* pResBlock, SArray* pSortInfo, SArray* pColMatchColInfo,
-                                                   SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** dowStreams, size_t numStreams, SMergePhysiNode* pMergePhysiNode, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t num, SArray* pSortInfo, SArray* pGroupInfo, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          STimeWindowAggSupp *pTwAggSupp, SExecTaskInfo* pTaskInfo, bool isStream);
+                                          STimeWindowAggSupp* pTwAggSupp, SIntervalPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, bool isStream);
 
 SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
@@ -800,9 +805,10 @@ int32_t getMaximumIdleDurationSec();
  * ops:     root operator
  * data:    *data save the result of encode, need to be freed by caller
  * length:  *length save the length of *data
+ * nOptrWithVal: *nOptrWithVal save the number of optr with value
  * return:  result code, 0 means success
  */
-int32_t encodeOperator(SOperatorInfo* ops, char** data, int32_t *length);
+int32_t encodeOperator(SOperatorInfo* ops, char** data, int32_t *length, int32_t *nOptrWithVal);
 
 /*
  * ops:    root operator, created by caller
@@ -851,6 +857,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex);
 
 int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey);
+SSDataBlock* createPullDataBlock();
 
 #ifdef __cplusplus
 }

@@ -126,7 +126,7 @@ cJSON *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr) {
 
 char *syncIndexMgr2Str(SSyncIndexMgr *pSyncIndexMgr) {
   cJSON *pJson = syncIndexMgr2Json(pSyncIndexMgr);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }

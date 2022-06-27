@@ -157,7 +157,10 @@ int32_t taosNonblockwrite(TdSocketPtr pSocket, char *ptr, int32_t nbytes);
 int64_t taosCopyFds(TdSocketPtr pSrcSocket, TdSocketPtr pDestSocket, int64_t len);
 void    taosWinSocketInit();
 
-int taosCreateSocketWithTimeOutOpt(uint32_t conn_timeout_sec);
+/*
+ * set timeout(ms)
+ */
+int32_t taosCreateSocketWithTimeout(uint32_t timeout);
 
 TdSocketPtr       taosOpenUdpSocket(uint32_t localIp, uint16_t localPort);
 TdSocketPtr       taosOpenTcpClientSocket(uint32_t ip, uint16_t port, uint32_t localIp);

@@ -159,7 +159,12 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
 }
 
 SArray* createSortInfo(SNodeList* pNodeList) {
-  size_t  numOfCols = LIST_LENGTH(pNodeList);
+  size_t numOfCols = 0;
+  if (pNodeList != NULL) {
+    numOfCols = LIST_LENGTH(pNodeList);
+  } else {
+    numOfCols = 0;
+  }
   SArray* pList = taosArrayInit(numOfCols, sizeof(SBlockOrderInfo));
   if (pList == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -316,7 +321,7 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
       }
 
       for (int i = 0; i < taosArrayGetSize(res); i++) {
-        STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, .uid = *(uint64_t*)taosArrayGet(res, i)};
+        STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, .uid = *(uint64_t*)taosArrayGet(res, i), .groupId = 0};
         taosArrayPush(pListInfo->pTableList, &info);
       }
       taosArrayDestroy(res);
@@ -344,7 +349,7 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
       }
     }
   }else {  // Create one table group.
-    STableKeyInfo info = {.lastKey = 0, .uid = tableUid};
+    STableKeyInfo info = {.lastKey = 0, .uid = tableUid, .groupId = 0};
     taosArrayPush(pListInfo->pTableList, &info);
   }
   pListInfo->pGroupList = taosArrayInit(4, POINTER_BYTES);

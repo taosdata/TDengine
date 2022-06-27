@@ -115,6 +115,7 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
       .srcNodeId = pTask->nodeId,
       .srcTaskId = pTask->taskId,
       .pRetrieve = pRetrieve,
+      .retrieveLen = dataStrLen,
   };
 
   int32_t sz = taosArrayGetSize(pTask->childEpInfo);
@@ -146,7 +147,7 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
         .code = 0,
         .msgType = TDMT_STREAM_RETRIEVE,
         .pCont = buf,
-        .contLen = len,
+        .contLen = sizeof(SMsgHead) + len,
     };
 
     if (tmsgSendReq(&pEpInfo->epSet, &rpcMsg) < 0) {
@@ -300,7 +301,7 @@ int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     return 0;
   }
-  ASSERT(pBlock->type == STREAM_DATA_TYPE_SSDATA_BLOCK);
+  ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK);
 
   qInfo("stream continue dispatching: task %d", pTask->taskId);
 
