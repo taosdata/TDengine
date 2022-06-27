@@ -308,6 +308,7 @@ int32_t raftCacheGetEntryP(struct SRaftEntryCache* pCache, SyncIndex index, SSyn
 int32_t raftCacheDelEntry(struct SRaftEntryCache* pCache, SyncIndex index) {
   taosThreadMutexLock(&(pCache->mutex));
   taosHashRemove(pCache->pEntryHash, &index, sizeof(index));
+  --(pCache->currentCount);
   taosThreadMutexUnlock(&(pCache->mutex));
   return 0;
 }
@@ -334,6 +335,8 @@ int32_t raftCacheGetAndDel(struct SRaftEntryCache* pCache, SyncIndex index, SSyn
     } while (0);
 
     taosHashRemove(pCache->pEntryHash, &index, sizeof(index));
+    --(pCache->currentCount);
+
     taosThreadMutexUnlock(&(pCache->mutex));
     return 0;
   }
@@ -346,6 +349,7 @@ int32_t raftCacheGetAndDel(struct SRaftEntryCache* pCache, SyncIndex index, SSyn
 int32_t raftCacheClear(struct SRaftEntryCache* pCache) {
   taosThreadMutexLock(&(pCache->mutex));
   taosHashClear(pCache->pEntryHash);
+  pCache->currentCount = 0;
   taosThreadMutexUnlock(&(pCache->mutex));
   return 0;
 }
