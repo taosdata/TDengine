@@ -1204,6 +1204,112 @@ static FORCE_INLINE int32_t compareKvRowColId(const void *key1, const void *key2
   }
 }
 
+int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
+  STColumn *pTColumn;
+  SColVal  *pColVal;
+  int32_t   nColVal = taosArrayGetSize(pArray);
+  int32_t   varDataLen = 0;
+  int32_t   maxVarDataLen = 0;
+  int32_t   iColVal = 0;
+  void     *varBuf = NULL;
+
+  ASSERT(nColVal > 1);
+
+  for (int32_t iColumn = 0; iColumn < pTSchema->numOfCols; ++iColumn) {
+    pTColumn = &pTSchema->columns[iColumn];
+    if (iColVal < nColVal) {
+      pColVal = (SColVal *)taosArrayGet(pArray, iColVal);
+    } else {
+      pColVal = NULL;
+    }
+
+    if (iColumn == 0) {
+      ASSERT(pColVal->cid == pTColumn->colId);
+      ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
+      ASSERT(pTColumn->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
+    } else {
+      if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+        if (pColVal) {
+          varDataLen += (pColVal->value.nData + sizeof(VarDataLenT));
+          if (maxVarDataLen < pColVal->value.nData) {
+            maxVarDataLen = pColVal->value.nData;
+          }
+        } else {
+          varDataLen += sizeof(VarDataLenT);
+          if (pTColumn->type == TSDB_DATA_TYPE_VARCHAR) {
+            varDataLen += CHAR_BYTES;
+            if (maxVarDataLen < CHAR_BYTES) {
+              maxVarDataLen = CHAR_BYTES;
+            }
+          } else {
+            varDataLen += INT_BYTES;
+            if (maxVarDataLen < INT_BYTES) {
+              maxVarDataLen = INT_BYTES;
+            }
+          }
+        }
+      }
+    }
+
+    ++iColVal;
+  }
+
+  *ppRow = (STSRow *)taosMemoryCalloc(
+      1, sizeof(STSRow) + pTSchema->flen + varDataLen + TD_BITMAP_BYTES(pTSchema->numOfCols - 1));
+
+  if (!(*ppRow)) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if (maxVarDataLen > 0) {
+    varBuf = taosMemoryMalloc(maxVarDataLen + sizeof(VarDataLenT));
+    if (!varBuf) {
+      taosMemoryFreeClear(*ppRow);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+  }
+
+  SRowBuilder rb = {0};
+  tdSRowInit(&rb, pTSchema->version);
+  tdSRowSetInfo(&rb, pTSchema->numOfCols, pTSchema->numOfCols, pTSchema->flen);
+  tdSRowResetBuf(&rb, *ppRow);
+
+  iColVal = 0;
+  for (int32_t iColumn = 0; iColumn < pTSchema->numOfCols; ++iColumn) {
+    pTColumn = &pTSchema->columns[iColumn];
+
+    TDRowValT   valType = TD_VTYPE_NORM;
+    const void *val = NULL;
+    if (iColVal < nColVal) {
+      pColVal = (SColVal *)taosArrayGet(pArray, iColVal);
+      if (pColVal->isNone) {
+        valType = TD_VTYPE_NONE;
+      } else if (pColVal->isNull) {
+        valType = TD_VTYPE_NULL;
+      } else if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+        varDataSetLen(varBuf, pColVal->value.nData);
+        memcpy(varDataVal(varBuf), pColVal->value.pData, pColVal->value.nData);
+        val = varBuf;
+      } else {
+        val = (const void *)&pColVal->value.i64;
+      }
+    } else {
+      pColVal = NULL;
+      valType = TD_VTYPE_NONE;
+    }
+
+    tdAppendColValToRow(&rb, pTColumn->colId, pTColumn->type, valType, val, true, pTColumn->offset, iColVal);
+
+    ++iColVal;
+  }
+
+  taosMemoryFreeClear(varBuf);
+
+  return 0;
+}
+
 bool tdSTSRowGetVal(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal) {
   if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
     pVal->val = &pIter->pRow->ts;

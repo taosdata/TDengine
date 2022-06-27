@@ -313,6 +313,7 @@ typedef struct {
 
 void    tdSTSRowIterReset(STSRowIter *pIter, STSRow *pRow);
 void    tdSTSRowIterInit(STSRowIter *pIter, STSchema *pSchema);
+int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow);
 bool    tdSTSRowGetVal(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal);
 bool    tdGetTpRowDataOfCol(STSRowIter *pIter, col_type_t colType, int32_t offset, SCellVal *pVal);
 bool    tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId, col_type_t colType, col_id_t *nIdx, SCellVal *pVal);
