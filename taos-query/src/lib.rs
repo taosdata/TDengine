@@ -5,10 +5,11 @@
 
 use futures::stream::TryStreamExt;
 use itertools::Itertools;
-use mdsn::IntoDsn;
-pub use mdsn::{Address, Dsn, DsnError};
-use serde::de::{value::Error as DeError, DeserializeOwned};
+use serde::de::DeserializeOwned;
 use std::{fmt::Debug, marker::PhantomData, rc::Rc};
+
+pub use mdsn::{Address, Dsn, DsnError, IntoDsn};
+pub use serde::de::value::Error as DeError;
 
 pub mod common;
 mod de;
@@ -16,7 +17,7 @@ pub mod helpers;
 mod insert;
 
 mod iter;
-pub(crate) mod util;
+pub mod util;
 
 pub use iter::*;
 
@@ -367,12 +368,12 @@ where
     // type B: for<'b> BlockExt<'b, 'b>;
     type AsyncResultSet: AsyncFetchable;
 
-    async fn query<T: AsRef<str> + Send>(
+    async fn query<T: AsRef<str> + Send + Sync>(
         &'q self,
         sql: T,
     ) -> Result<Self::AsyncResultSet, Self::Error>;
 
-    async fn exec<T: AsRef<str> + Send>(&'q self, sql: T) -> Result<usize, Self::Error> {
+    async fn exec<T: AsRef<str> + Send + Sync>(&'q self, sql: T) -> Result<usize, Self::Error> {
         let sql = sql.as_ref();
         log::trace!("exec sql: {sql}");
         self.query(sql).await.map(|res| res.affected_rows() as _)
@@ -380,7 +381,7 @@ where
 
     async fn exec_many<T, I>(&'q self, input: I) -> Result<usize, Self::Error>
     where
-        T: AsRef<str> + Send,
+        T: AsRef<str> + Send+ Sync,
         I::IntoIter: Send,
         I: IntoIterator<Item = T> + Send,
     {
@@ -406,7 +407,7 @@ where
     /// let one: (i32, String, Timestamp) =
     ///    taos.query_one("select c1,c2,c3 from table1 limit 1")?.unwrap_or_default();
     /// ```
-    async fn query_one<T: AsRef<str> + Send, O: DeserializeOwned + Send>(
+    async fn query_one<T: AsRef<str> + Send+ Sync, O: DeserializeOwned + Send>(
         &'q self,
         sql: T,
     ) -> Result<Option<O>, Self::Error> {
@@ -422,7 +423,7 @@ where
             .map_or(Ok(None), |v| v.map(Some).map_err(Into::into))
     }
 
-    async fn create_topic<N: AsRef<str> + Send, S: AsRef<str> + Send>(
+    async fn create_topic<N: AsRef<str> + Send+ Sync, S: AsRef<str> + Send>(
         &'q self,
         name: N,
         sql: S,
@@ -436,7 +437,7 @@ where
 
     async fn create_topic_as_database(
         &'q self,
-        name: impl AsRef<str> + Send + 'async_trait,
+        name: impl AsRef<str> + Send+ Sync + 'async_trait,
         db: impl std::fmt::Display + Send + 'async_trait,
     ) -> Result<(), Self::Error> {
         let name = name.as_ref();
@@ -480,11 +481,11 @@ where
         ))
     }
 
-    fn exec_sync<T: AsRef<str> + Send>(&'q self, sql: T) -> Result<usize, Self::Error> {
+    fn exec_sync<T: AsRef<str> + Send+ Sync>(&'q self, sql: T) -> Result<usize, Self::Error> {
         futures::executor::block_on(self.exec(sql))
     }
 
-    fn query_sync<T: AsRef<str> + Send>(
+    fn query_sync<T: AsRef<str> + Send+ Sync>(
         &'q self,
         sql: T,
     ) -> Result<Self::AsyncResultSet, Self::Error> {

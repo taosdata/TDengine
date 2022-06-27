@@ -2,9 +2,9 @@ mod inner;
 
 use std::io::Write;
 
-use super::{Column, Field, Precision};
+use super::{BorrowedValue, Column, Field, Precision};
 
-use crate::util::*;
+use crate::{util::*, BlockExt};
 pub use inner::*;
 
 use bitflags::bitflags;
@@ -31,11 +31,13 @@ bitflags! {
     }
 }
 
+#[derive(Debug)]
 pub struct Block {
     database: Option<String>,
     table: Option<String>,
     fields: Option<Vec<Field>>,
     raw: OnceCell<RawBlock>,
+    precision: Precision,
     columns: OnceCell<Vec<Column>>,
 }
 
@@ -92,6 +94,7 @@ impl Inlinable for Block {
             table,
             fields,
             raw,
+            precision,
             columns: OnceCell::new(),
         })
     }
@@ -168,6 +171,7 @@ impl Block {
             database: None,
             table: None,
             fields: None,
+            precision: Precision::Millisecond,
             columns: OnceCell::new(),
         }
     }
@@ -212,6 +216,16 @@ impl Block {
         self.as_raw_block().ncols()
     }
 
+    #[inline]
+    pub const fn precision(&self) -> Precision {
+        self.precision
+    }
+
+    #[inline]
+    pub unsafe fn get_ref_unchecked(&self, row: usize, col: usize) -> BorrowedValue {
+        self.as_raw_block().get_ref_unchecked(row, col)
+    }
+
     fn flags(&self) -> Fx {
         let mut flags = Fx::default();
         if self.has_database_name() {
@@ -224,6 +238,35 @@ impl Block {
             flags |= Fx::HAS_FL;
         }
         flags
+    }
+}
+
+impl BlockExt for Block {
+    fn num_of_rows(&self) -> usize {
+        self.nrows()
+    }
+
+    fn fields(&self) -> &[Field] {
+        self.fields()
+    }
+
+    fn precision(&self) -> Precision {
+        self.precision()
+    }
+
+    fn is_null(&self, row: usize, col: usize) -> bool {
+        todo!()
+    }
+
+    unsafe fn cell_unchecked(&self, row: usize, col: usize) -> (&Field, BorrowedValue) {
+        (
+            self.get_field_unchecked(col),
+            self.get_ref_unchecked(row, col),
+        )
+    }
+
+    unsafe fn get_col_unchecked(&self, col: usize) -> super::BorrowedColumn {
+        todo!()
     }
 }
 

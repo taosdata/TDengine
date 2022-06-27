@@ -106,14 +106,15 @@ impl TaosOptions {
     });
 
     pub fn set_config_json(&self, json: &str) {
-        let c_str = CString::new(json).expect("json to c string");
-        unsafe {
-            let res = taos_set_config(c_str.as_ptr());
-            if res.code != SET_CONF_RET_SUCC {
-                let msg = CStr::from_ptr(&res.msg as _);
-                panic!("set config failed: {}", msg.to_string_lossy());
-            }
-        }
+        todo!()
+        // let c_str = CString::new(json).expect("json to c string");
+        // unsafe {
+        //     let res = taos_set_config(c_str.as_ptr());
+        //     if res.code != SET_CONF_RET_SUCC {
+        //         let msg = CStr::from_ptr(&res.msg as _);
+        //         panic!("set config failed: {}", msg.to_string_lossy());
+        //     }
+        // }
     }
 
     pub fn set_param(&mut self, key: impl Into<String>, value: impl Into<String>) -> &mut Self {

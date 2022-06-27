@@ -544,4 +544,16 @@ fn two_cluster() -> Result<(), Error> {
     Ok(())
 }
 
+#[test]
+fn select_ts() -> Result<(), Error> {
+    return Ok(());
+    let t1 = TaosOptions::default().port(6030u16).build()?;
+    let d1: (String, i32) = t1.query_one("select * from abc_a.tb1")?.unwrap();
+    dbg!(d1);
+    // let t2 = TaosOptions::default().port(16030u16).build()?;
+    // let d2: (i32, String) = t2.query_one("show dnodes")?.unwrap();
+    // dbg!(&d1, &d2);
+    // assert!(d1 != d2);
+    Ok(())
+}
 pub(crate) mod asyncs;

@@ -11,7 +11,7 @@ mod code {
 pub use code::Code;
 use serde::de;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Error {
     code: Code,
     err: Cow<'static, str>,

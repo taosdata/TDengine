@@ -92,6 +92,11 @@ impl RawStmt {
     }
 
     #[inline]
+    pub fn set_tags(&mut self, tags: &[TaosBind]) -> Result<(), Error> {
+        self.ok(unsafe { taos_stmt_set_tags(self.as_ptr(), tags.as_ptr() as _)})
+    }
+
+    #[inline]
     pub fn use_result(&mut self) -> RawRes {
         unsafe { RawRes::from_ptr_unchecked(taos_stmt_use_result(self.as_ptr())) }
     }
@@ -174,17 +179,21 @@ fn test_tbname_tags() -> Result<(), Error> {
     taos.query("create database if not exists stt1 keep 36500")?;
     taos.query("use stt1")?;
     taos.query(
-        "create stable if not exists st1(ts timestamp, v int) tags(t1 int, t2 bool)"
+        // "create stable if not exists st1(ts timestamp, v int) tags(jt json)"
+        "create stable if not exists st1(ts timestamp, v int) tags(jt int, t1 float)"
     )?;
 
     let mut stmt = RawStmt::from_raw_taos(&taos);
     let sql = "insert into ? using st1 tags(?, ?) values(?, ?)";
     stmt.prepare(sql)?;
 
-    let tags = vec![TaosBind::from(&1i32), TaosBind::from(&true)];
+    // let tags = vec![TaosBind::from_json(r#"{"name":"value"}"#)];
+    let tags = vec![TaosBind::from(&0i32),TaosBind::from(&0.0f32)];
     println!("tags: {tags:#?}");
     let tbname = "tb1";
-    stmt.set_tbname_tags_v3(&tbname, &tags)?;
+    stmt.set_tbname(tbname)?;
+    stmt.set_tags(&tags)?;
+    // stmt.set_tbname_tags_v3(&tbname, &tags)?;
     println!("bind");
 
     // todo: get_param not implemented in taosc 3.0
@@ -200,8 +209,23 @@ fn test_tbname_tags() -> Result<(), Error> {
 
     assert!(stmt.affected_rows() == 1);
 
-    let res = taos.query("select count(*) from st1")?;
+    // stmt.prepare("insert into tb1 values(?,?)")?;
+    // let params = vec![TaosBind::from(&ITimestamp(1)), TaosBind::from(&0i32)];
+    // stmt.bind_param(&params)?;
+    // println!("add batch");
 
-    taos.query("drop database stt1")?;
+    // stmt.add_batch()?;
+    // stmt.execute()?;
+
+
+    // let res = taos.query("select * from st1")?;
+
+    // if let Some((_, rows, _)) = res.fetch_block()? {
+    //     assert_eq!(rows, 2);
+    // } else {
+    //     panic!("no data retrieved");
+    // }
+
+    // taos.query("drop database stt1")?;
     Ok(())
 }

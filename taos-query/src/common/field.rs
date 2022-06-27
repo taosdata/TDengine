@@ -15,7 +15,7 @@ use super::ty::Ty;
 /// 2. `{ name: "n", ty: NChar, bytes: 100 }`, a `NCHAR` filed with name `n`,
 ///    bytes length 100 which is the length of the variable-length data.
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Field {
     name: String,
     ty: Ty,

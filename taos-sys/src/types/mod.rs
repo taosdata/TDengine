@@ -102,8 +102,8 @@ impl BindFrom for TaosBindV3 {
     fn null() -> Self {
         Self(TaosMultiBind {
             buffer_type: Ty::Null as _,
-            buffer: std::ptr::null_mut(),
             buffer_length: 0,
+            buffer: std::ptr::null_mut(),
             length: std::ptr::null_mut(),
             is_null: std::ptr::null_mut(),
             num: 1 as _,
@@ -113,7 +113,7 @@ impl BindFrom for TaosBindV3 {
     fn from_primitive<T: IsValue>(v: &T) -> Self {
         let mut param = TaosMultiBind::new(T::TY);
         param.buffer_length = T::TY.fixed_length();
-        param.buffer = v as *const T as _;
+        param.buffer = box_into_raw(v.clone()) as *const T as _;
         param.length = box_into_raw(param.buffer_length) as _;
         param.is_null = box_into_raw(0) as _;
         Self(param)
@@ -136,7 +136,14 @@ impl BindFrom for TaosBindV3 {
         param.is_null = box_into_raw(0i8) as _;
         Self(param)
     }
-
+    fn from_json(v: &str) -> Self {
+        let mut param = TaosMultiBind::new(Ty::Json);
+        param.buffer_length = v.len();
+        param.buffer = v.as_ptr() as _;
+        param.length = box_into_raw(param.buffer_length) as _;
+        param.is_null = box_into_raw(0i8) as _;
+        Self(param)
+    }
     fn from_nchar(v: &str) -> Self {
         let mut param = TaosMultiBind::new(Ty::NChar);
         param.buffer_length = v.len();
@@ -207,6 +214,7 @@ pub trait BindFrom: Sized {
     fn from_timestamp(v: i64) -> Self;
     fn from_varchar(v: &str) -> Self;
     fn from_nchar(v: &str) -> Self;
+    fn from_json(v: &str) -> Self;
     fn from_binary(v: &str) -> Self {
         Self::from_varchar(v)
     }
@@ -239,7 +247,13 @@ impl BindFrom for TaosBindV2 {
         param.length = box_into_raw(param.buffer_length) as _;
         param
     }
-
+    fn from_json(v: &str) -> Self {
+        let mut param = Self::new(Ty::Json);
+        param.buffer_length = v.len();
+        param.buffer = v.as_ptr() as _;
+        param.length = box_into_raw(param.buffer_length) as _;
+        param
+    }
     fn from_nchar(v: &str) -> Self {
         let mut param = Self::new(Ty::NChar);
         param.buffer_length = v.len();

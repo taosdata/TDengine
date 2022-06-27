@@ -9,3 +9,4 @@ cobertura.xml
 lcov.info
 tarpaulin-report.html
 tarpaulin-report.json
+rust-toolchain

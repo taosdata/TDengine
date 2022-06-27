@@ -20,6 +20,12 @@ pub enum Precision {
     Nanosecond,
 }
 
+impl Default for Precision {
+    fn default() -> Self {
+        Self::Millisecond
+    }
+}
+
 impl PartialEq<str> for Precision {
     fn eq(&self, other: &str) -> bool {
         self.as_str() == other

@@ -59,23 +59,22 @@ fn test_bin() {
 ///
 /// The length of bitmap is decided by number of rows of this data block, and the length of each column data is
 /// recorded in the first segment, next to the struct header
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RawBlock {
-    data: *mut u8,
-    len: usize,
-    cap: usize, // usually same to len.
+    data: Vec<u8>,
     rows: usize,
     cols: usize,
     precision: Precision,
     offsets: OnceCell<Vec<(Ty, isize, isize)>>,
 }
 
+unsafe impl Send for RawBlock {}
+unsafe impl Sync for RawBlock {}
+
 impl Default for RawBlock {
     fn default() -> Self {
         Self {
-            data: std::ptr::null_mut(),
-            len: Default::default(),
-            cap: Default::default(),
+            data: Default::default(),
             rows: Default::default(),
             cols: Default::default(),
             precision: Precision::Millisecond,
@@ -84,37 +83,40 @@ impl Default for RawBlock {
     }
 }
 
-impl Drop for RawBlock {
-    #[inline]
-    fn drop(&mut self) {
-        unsafe { Vec::from_raw_parts(self.data, self.len, self.cap) };
-    }
-}
+// impl Drop for RawBlock {
+//     #[inline]
+//     fn drop(&mut self) {
+//         unsafe { Vec::from_raw_parts(self.data, self.len, self.cap) };
+//     }
+// }
 
 impl Inlinable for RawBlock {
     /// **NOTE**: raw block bytes is not enough to parse data from.
     /// You must call [with_rows](#method.with_rows)
     fn read_inlined<R: std::io::Read>(mut reader: R) -> std::io::Result<Self> {
-        let bytes = reader.read_inlined_bytes::<4>()?;
-        Ok(Self::new(bytes))
+        let len = reader.read_u32()? as usize;
+        let mut bytes = Vec::with_capacity(len - 4);
+        bytes.resize(len - 4, 0);
+        reader.read_exact(&mut bytes)?;
+        Ok(Self::new(dbg!(bytes)))
     }
 
     fn write_inlined<W: std::io::Write>(&self, mut wtr: W) -> std::io::Result<usize> {
-        wtr.write_inlined_bytes::<4>(self.as_bytes())
+        let bytes = self.as_bytes();
+        wtr.write_u32(bytes.len() as u32)?;
+        wtr.write(bytes)
     }
 }
 impl RawBlock {
     #[inline]
     pub fn new(mut vec: Vec<u8>) -> Self {
-        let data = vec.as_mut_ptr();
-        let len = vec.len();
-        let cap = vec.capacity();
-        assert_eq!(len, cap);
-        std::mem::forget(vec);
+        // let data = vec.as_mut_ptr();
+        // let len = vec.len();
+        // let cap = vec.capacity();
+        // assert_eq!(len, cap);
+        // std::mem::forget(vec);
         Self {
-            data,
-            len,
-            cap,
+            data: vec,
             rows: Default::default(),
             cols: Default::default(),
             precision: Precision::Millisecond,
@@ -149,22 +151,15 @@ impl RawBlock {
         precision: Precision,
     ) -> Self {
         let len = *transmute::<*const u8, *const u32>(data) as usize;
-        let data = std::slice::from_raw_parts(data.offset(4), len).to_vec();
+        let data = std::slice::from_raw_parts(data.offset(4), len - 4).to_vec();
         Self::from_bytes(data, rows, cols, precision)
     }
 
     #[inline]
     /// Build inner block from bytes.
     pub fn from_bytes(mut vec: Vec<u8>, rows: usize, cols: usize, precision: Precision) -> Self {
-        let data = vec.as_mut_ptr();
-        let len = vec.len();
-        let cap = vec.capacity();
-        assert_eq!(len, cap);
-        std::mem::forget(vec);
         Self {
-            data,
-            len,
-            cap,
+            data: vec,
             rows,
             cols,
             precision,
@@ -174,8 +169,8 @@ impl RawBlock {
 
     #[inline]
     /// The whole block slice length.
-    pub const fn len(&self) -> usize {
-        self.len
+    pub fn len(&self) -> usize {
+        self.data.len()
     }
 
     #[inline]
@@ -190,15 +185,15 @@ impl RawBlock {
 
     #[inline]
     /// The group id of the raw block.
-    pub const fn group_id(&self) -> u64 {
+    pub fn group_id(&self) -> u64 {
         unsafe { *std::mem::transmute::<*const u8, *const u64>(self.as_ptr()) }
     }
 
     /// Inner block as bytes slice.
     #[inline]
-    #[rustversion::attr(nightly, const)]
+    // #[rustversion::attr(nightly, const)]
     pub fn as_bytes(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.data, self.len) }
+        &self.data
     }
 
     #[inline]
@@ -210,13 +205,14 @@ impl RawBlock {
     #[inline]
     /// Raw data into block bytes.
     pub fn into_vec(self) -> Vec<u8> {
-        unsafe { Vec::from_raw_parts(self.data, self.len, self.cap) }
+        // unsafe { Vec::from_raw_parts(self.data, self.len, self.cap) }
+        self.data
     }
 
     #[inline]
     /// Pointer to raw block data slice.
-    const fn as_ptr(&self) -> *const u8 {
-        self.data
+    fn as_ptr(&self) -> *const u8 {
+        self.data.as_ptr()
     }
 
     #[inline]
@@ -241,7 +237,7 @@ impl RawBlock {
     }
 
     /// Pointer to specific offset.
-    const unsafe fn offset(&self, count: isize) -> *const u8 {
+    unsafe fn offset(&self, count: isize) -> *const u8 {
         self.as_ptr().offset(count)
     }
 
@@ -260,9 +256,11 @@ impl RawBlock {
     ///   - For non-var-type, it's the is-null bitmap.
     /// 2. Offset to the start position of real column data.
     fn column_offsets(&self) -> &[(Ty, isize, isize)] {
+        dbg!(self.as_bytes());
         self.offsets.get_or_init(|| {
-            let lengths = self.lengths();
-            let mut data_offset = self.data_offset();
+            dbg!(self.as_bytes());
+            let lengths = dbg!(self.lengths());
+            let mut data_offset = dbg!(self.data_offset());
             self.schemas()
                 .iter()
                 .enumerate()
@@ -273,14 +271,14 @@ impl RawBlock {
                         data_offset = o.2 + lengths[i] as isize;
                         o
                     } else {
-                        let o = (
+                        let o = dbg!(
                             col.ty,
                             data_offset,
                             data_offset + self.bitmap_len() as isize,
                         );
                         data_offset = o.2 + lengths[i] as isize;
 
-                        assert!(data_offset < self.len() as isize);
+                        //assert!(data_offset < self.len() as isize);
                         o
                     }
                 })
@@ -290,7 +288,7 @@ impl RawBlock {
 
     /// Column schema extractor.
     #[inline]
-    pub const fn schemas(&self) -> &[ColSchema] {
+    pub fn schemas(&self) -> &[ColSchema] {
         unsafe {
             let ptr = self.offset(self.schema_offset());
             slice::from_raw_parts(ptr as *mut ColSchema, self.cols)
@@ -299,21 +297,21 @@ impl RawBlock {
 
     /// Get column data type.
     #[inline]
-    #[rustversion::attr(nightly, const)]
+    // #[rustversion::attr(nightly, const)]
     pub fn get_type_of(&self, col: usize) -> Ty {
         self.get_schema_of(col).ty
     }
 
     /// Get column schema which includes data type and bytes length.
     #[inline]
-    #[rustversion::attr(nightly, const)]
+    // #[rustversion::attr(nightly, const)]
     pub fn get_schema_of(&self, col: usize) -> &ColSchema {
         unsafe { self.schemas().get_unchecked(col) }
     }
 
     #[inline]
     /// Lengths for each column raw data.
-    const fn lengths(&self) -> &[i32] {
+    fn lengths(&self) -> &[i32] {
         unsafe {
             let ptr = self.offset(self.lengths_offset());
             slice::from_raw_parts(ptr as *mut i32, self.cols)
@@ -508,7 +506,10 @@ impl RawBlock {
                     Value::Json(json)
                 }
             }
-            ty => unreachable!("unsupported type: {ty}"),
+            ty => {
+                dbg!(*ty as u8);
+                unreachable!("unsupported type: {ty}")
+            }
         }
     }
 }

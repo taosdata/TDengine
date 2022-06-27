@@ -1,3 +1,5 @@
+use std::slice;
+
 // todo: some const functions are not available for stable Rust.
 use taos_query::common::{RawBlock, Value};
 #[test]
@@ -64,11 +66,18 @@ fn raw_block_full_test() -> Result<(), taos_error::Error> {
         (1655793421374,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)\
         (1655793421375,true, -1, -1, -1, -1, 1, 1, 1, 1, 0.0, 0.0, 'abc', '涛思𝄞数据')",
     )?;
-    let rs = taos.query("select * from stb1 order by tbname,ts")?;
+    // let rs = taos.query("select * from stb1 order by tbname,ts")?;
+     let rs = taos.query("select ts from abc_a.tb1 limit 1")?;
     let fields = rs.fields();
     let precision = rs.precision();
     let field_count = rs.field_count();
     let (ptr, rows) = rs.fetch_raw_block()?;
+    let mut len_bytes = [0u8; 4];
+    for i in 0..4 {
+        len_bytes[i] = unsafe { ptr.offset(i as isize).read() };
+    }
+    let len = u32::from_le_bytes(len_bytes);
+    let raw = dbg!(unsafe { slice::from_raw_parts(ptr, len as _)});
 
     let inner = unsafe { RawBlock::from_ptr(ptr, rows as _, field_count as _, precision) };
     let gid = inner.group_id();
