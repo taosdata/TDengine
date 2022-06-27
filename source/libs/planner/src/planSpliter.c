@@ -775,6 +775,7 @@ static int32_t stbSplCreatePartSortNode(SSortLogicNode* pSort, SLogicNode** pOut
     pPartSort->node.pChildren = pChildren;
     splSetParent((SLogicNode*)pPartSort);
     pPartSort->pSortKeys = pSortKeys;
+    pPartSort->groupSort = pSort->groupSort;
     code = stbSplCreateMergeKeys(pPartSort->pSortKeys, pPartSort->node.pTargets, &pMergeKeys);
   }
 
