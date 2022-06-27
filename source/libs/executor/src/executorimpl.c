@@ -4269,17 +4269,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     pOptr = createGroupSortOperatorInfo(ops[0], (SGroupSortPhysiNode*)pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == type) {
     SMergePhysiNode* pMergePhyNode = (SMergePhysiNode*)pPhyNode;
-
-    SDataBlockDescNode* pDescNode = pPhyNode->pOutputDataBlockDesc;
-    SSDataBlock*        pResBlock = createResDataBlock(pDescNode);
-
-    SArray* sortInfo = createSortInfo(pMergePhyNode->pMergeKeys);
-    int32_t numOfOutputCols = 0;
-    SArray* pColList =
-        extractColMatchInfo(pMergePhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
-    SPhysiNode*  pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, 0);
-    SSDataBlock* pInputDataBlock = createResDataBlock(pChildNode->pOutputDataBlockDesc);
-    pOptr = createMultiwaySortMergeOperatorInfo(ops, size, pInputDataBlock, pResBlock, sortInfo, pColList, pTaskInfo);
+    pOptr = createMultiwayMergeOperatorInfo(ops, size, pMergePhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION == type) {
     SSessionWinodwPhysiNode* pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
 
