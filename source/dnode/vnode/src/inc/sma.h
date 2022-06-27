@@ -176,14 +176,17 @@ static FORCE_INLINE void tdSmaStatSetDropped(STSmaStat *pTStat) {
 
 static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
+void          *tdFreeRSmaInfo(SRSmaInfo *pInfo);
 
-void *tdFreeRSmaInfo(SRSmaInfo *pInfo);
-
+int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
+int32_t tdProcessRSmaRestoreImpl(SSma *pSma);
 int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg);
 int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg);
 int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
 
 // smaFileUtil ================
+
+#define TD_FILE_HEAD_SIZE 512
 
 typedef struct STFInfo STFInfo;
 typedef struct STFile  STFile;
@@ -220,12 +223,14 @@ int64_t tdReadTFile(STFile *pTFile, void *buf, int64_t nbyte);
 int64_t tdSeekTFile(STFile *pTFile, int64_t offset, int whence);
 int64_t tdWriteTFile(STFile *pTFile, void *buf, int64_t nbyte);
 int64_t tdAppendTFile(STFile *pTFile, void *buf, int64_t nbyte, int64_t *offset);
+int64_t tdGetTFileSize(STFile *pTFile, int64_t *size);
 int32_t tdRemoveTFile(STFile *pTFile);
 int32_t tdLoadTFileHeader(STFile *pTFile, STFInfo *pInfo);
 int32_t tdUpdateTFileHeader(STFile *pTFile);
 void    tdUpdateTFileMagic(STFile *pTFile, void *pCksm);
 void    tdCloseTFile(STFile *pTFile);
-void    tdGetVndFileName(int32_t vid, const char *dname, const char *fname, char *outputName);
+
+void tdGetVndFileName(int32_t vid, const char *dname, const char *fname, char *outputName);
 
 #ifdef __cplusplus
 }
