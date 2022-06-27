@@ -87,7 +87,6 @@ int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
   // update the appInstInfo
   pTscObj->pAppInfo->clusterId = connectRsp.clusterId;
-  atomic_add_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
   pTscObj->connType = connectRsp.connType;
 

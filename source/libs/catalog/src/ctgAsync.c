@@ -789,6 +789,8 @@ _return:
 
 int32_t ctgCallUserCb(void* param) {
   SCtgJob* pJob = (SCtgJob*)param;
+
+  //taosSsleep(2);
   
   (*pJob->userFp)(&pJob->jobRes, pJob->userParam, pJob->jobResCode);
 

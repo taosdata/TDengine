@@ -790,22 +790,40 @@ SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
   return pAppHbMgr;
 }
 
+void hbFreeAppHbMgr(SAppHbMgr *pTarget) {
+  void *pIter = taosHashIterate(pTarget->activeInfo, NULL);
+  while (pIter != NULL) {
+    SClientHbReq *pOneReq = pIter;
+    tFreeClientHbReq(pOneReq);
+    pIter = taosHashIterate(pTarget->activeInfo, pIter);
+  }
+  taosHashCleanup(pTarget->activeInfo);
+  pTarget->activeInfo = NULL;
+  
+  taosMemoryFree(pTarget->key);
+  taosMemoryFree(pTarget);
+}
+
+void hbRemoveAppHbMrg(SAppHbMgr **pAppHbMgr) {
+  taosThreadMutexLock(&clientHbMgr.lock);
+  int32_t mgrSize = taosArrayGetSize(clientHbMgr.appHbMgrs);
+  for (int32_t i = 0; i < mgrSize; ++i) {
+    SAppHbMgr *pItem = taosArrayGetP(clientHbMgr.appHbMgrs, i);
+    if (pItem == *pAppHbMgr) {
+      hbFreeAppHbMgr(*pAppHbMgr);
+      *pAppHbMgr = NULL;
+      taosArrayRemove(clientHbMgr.appHbMgrs, i);
+      break;
+    }
+  }
+  taosThreadMutexUnlock(&clientHbMgr.lock);
+}
+
 void appHbMgrCleanup(void) {
   int sz = taosArrayGetSize(clientHbMgr.appHbMgrs);
   for (int i = 0; i < sz; i++) {
     SAppHbMgr *pTarget = taosArrayGetP(clientHbMgr.appHbMgrs, i);
-
-    void *pIter = taosHashIterate(pTarget->activeInfo, NULL);
-    while (pIter != NULL) {
-      SClientHbReq *pOneReq = pIter;
-      tFreeClientHbReq(pOneReq);
-      pIter = taosHashIterate(pTarget->activeInfo, pIter);
-    }
-    taosHashCleanup(pTarget->activeInfo);
-    pTarget->activeInfo = NULL;
-
-    taosMemoryFree(pTarget->key);
-    taosMemoryFree(pTarget);
+    hbFreeAppHbMgr(pTarget);
   }
 }
 

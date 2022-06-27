@@ -79,13 +79,13 @@ static void deregisterRequest(SRequestObj *pRequest) {
 }
 
 // todo close the transporter properly
-void closeTransporter(STscObj *pTscObj) {
-  if (pTscObj == NULL || pTscObj->pAppInfo->pTransporter == NULL) {
+void closeTransporter(SAppInstInfo *pAppInfo) {
+  if (pAppInfo == NULL || pAppInfo->pTransporter == NULL) {
     return;
   }
 
-  tscDebug("free transporter:%p in connObj: 0x%" PRIx64, pTscObj->pAppInfo->pTransporter, pTscObj->id);
-  rpcClose(pTscObj->pAppInfo->pTransporter);
+  tscDebug("free transporter:%p in app inst %p", pAppInfo->pTransporter, pAppInfo);
+  rpcClose(pAppInfo->pTransporter);
 }
 
 static bool clientRpcRfp(int32_t code) {
@@ -130,6 +130,21 @@ void closeAllRequests(SHashObj *pRequests) {
   }
 }
 
+void destroyAppInst(SAppInstInfo* pAppInfo) {
+  tscDebug("destroy app inst mgr %p", pAppInfo);
+  
+  hbRemoveAppHbMrg(&pAppInfo->pAppHbMgr);
+  taosHashRemove(appInfo.pInstMap, pAppInfo->instKey, strlen(pAppInfo->instKey));
+  taosMemoryFreeClear(pAppInfo->instKey);
+  closeTransporter(pAppInfo);
+  
+  taosThreadMutexLock(&pAppInfo->qnodeMutex);
+  taosArrayDestroy(pAppInfo->pQnodeList);
+  taosThreadMutexUnlock(&pAppInfo->qnodeMutex);  
+
+  taosMemoryFree(pAppInfo);
+}
+
 void destroyTscObj(void *pObj) {
   STscObj *pTscObj = pObj;
 
@@ -138,11 +153,12 @@ void destroyTscObj(void *pObj) {
   int64_t connNum = atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   closeAllRequests(pTscObj->pRequests);
   schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
-  if (0 == connNum) {
-    closeTransporter(pTscObj);
-  }
-  tscDebug("connObj 0x%" PRIx64 " p:%p destroyed, totalConn:%" PRId64, pTscObj->id, pTscObj, 
+  tscDebug("connObj 0x%" PRIx64 " p:%p destroyed, remain inst totalConn:%" PRId64, pTscObj->id, pTscObj, 
            pTscObj->pAppInfo->numOfConns);
+
+  if (0 == connNum) {
+    destroyAppInst(pTscObj->pAppInfo);
+  }
   taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFreeClear(pTscObj);
 }
@@ -173,6 +189,8 @@ void *createTscObj(const char *user, const char *auth, const char *db, int32_t c
   taosThreadMutexInit(&pObj->mutex, NULL);
   pObj->id = taosAddRef(clientConnRefPool, pObj);
   pObj->schemalessType = 1;
+
+  atomic_add_fetch_64(&pObj->pAppInfo->numOfConns, 1);
 
   tscDebug("connObj created, 0x%" PRIx64 ",p:%p", pObj->id, pObj);
   return pObj;

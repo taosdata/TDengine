@@ -368,6 +368,7 @@ void *closeThreadFp(void *arg) {
   while (true) {
     if (qParam->taos) {
       usleep(rand() % 10000);
+      //usleep(1000000);
       taos_close(qParam->taos);
       break;
     }

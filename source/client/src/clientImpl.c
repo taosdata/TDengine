@@ -122,7 +122,10 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
     p->pAppHbMgr = appHbMgrInit(p, key);
     taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
-
+    p->instKey = key;
+    key = NULL;
+    tscDebug("new app inst mgr %p, user:%s, ip:%s, port:%d", p, user, ip, port);
+    
     pInst = &p;
   }
 

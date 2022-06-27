@@ -66,7 +66,7 @@ enum {
 typedef struct SAppInstInfo SAppInstInfo;
 
 typedef struct {
-  char* key;
+  char*   key;
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
@@ -118,6 +118,7 @@ struct SAppInstInfo {
   uint64_t           clusterId;
   void*              pTransporter;
   SAppHbMgr*         pAppHbMgr;
+  char*              instKey;
 };
 
 typedef struct SAppInfo {
@@ -336,6 +337,7 @@ int  hbHandleRsp(SClientHbBatchRsp* hbRsp);
 // cluster level
 SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char* key);
 void       appHbMgrCleanup(void);
+void       hbRemoveAppHbMrg(SAppHbMgr **pAppHbMgr);
 
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
