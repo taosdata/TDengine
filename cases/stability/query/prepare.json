@@ -1,12 +1,12 @@
 {
     "filetype": "insert",
     "cfgdir": "/etc/taos/",
-    "host": "HOST",
-    "port": PORT,
+    "host": "trd04",
+    "port": 6030,
     "user": "root",
     "password": "taosdata",
-    "thread_count": THREADCOUNT,
-    "thread_count_create_tbl": THREADCOUNTCREATETABLE,
+    "thread_count": 8,
+    "thread_count_create_tbl": 8,
     "result_file": "./insert_res.txt",
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,
@@ -17,19 +17,19 @@
             "dbinfo": {
                 "name": "db",
                 "drop": "yes",
-                "vgroups": VGROUPS 
+                "vgroups": 8
             },
             "super_tables": [
                 {
                     "name": "stb",
                     "child_table_exists": "no",
-                    "childtable_count": CHILDTABLECOUNT,
+                    "childtable_count": 100,
                     "childtable_prefix": "stb_",
                     "auto_create_table": "no",
                     "batch_create_tbl_num": 50000,
                     "data_source": "rand",
                     "insert_mode": "taosc",
-                    "insert_rows": INSERTROWS,
+                    "insert_rows": 10,
                     "interlace_rows": 100000,
                     "insert_interval": 0,
                     "max_sql_len": 10000000,
@@ -42,34 +42,217 @@
                     "tags_file": "",
                     "columns": [
                         {
-                            "type": "INT"
+                            "type": "int",
+                            "name": "q_int"
+                        },
+                        {
+                            "type": "INT",
+                            "name": "q_int_null"
+                        },
+                        {
+                            "type": "BIGINT",
+                           "name": "q_bigint"
+                        },
+                        {
+                            "type": "BIGINT",
+                            "name": "q_bigint_null"
+                        },
+                        {
+                            "type": "SMALLINT",
+                           "name": "q_smallint"
+                        },
+                        {
+                            "type": "SMALLINT",
+                          "name": "q_smallint_null"
                         },
                         {
                             "type": "TINYINT",
-                            "count": 1
+                            "name": "q_tinyint"
                         },
-                        {"type": "DOUBLE"},
-
+                        {
+                            "type": "TINYINT",
+                            "name": "q_tinyint_null"
+                        },
+                        {
+                            "type": "float",
+                            "name": "q_float"
+                        },
+                        {
+                            "type": "float",
+                            "name": "q_float_null"
+                        },
+                        {
+                            "type": "double",
+                            "name": "q_double"
+                        },
+                        {
+                            "type": "double",
+                            "name": "q_double_null"
+                        },
+                        {
+                            "type": "bool",
+                            "name": "q_bool"
+                        },
+                        {
+                            "type": "bool",
+                            "name": "q_bool_null"
+                        },
                         {
                             "type": "BINARY",
-                            "len": 40,
-                            "count": 1
+                            "len": 100,
+                            "name": "q_binary"
+                        },
+                        {
+                            "type": "BINARY",
+                            "len": 100,
+                            "name": "q_binary1"
+                        },
+                        {
+                            "type": "BINARY",
+                            "len": 100,
+                            "name": "q_binary2"
+                        },
+                        {
+                            "type": "BINARY",
+                            "len": 100,
+                            "name": "q_binary3"
+                        },
+                        {
+                            "type": "BINARY",
+                            "len": 100,
+                            "name": "q_binary4"
+                        },
+                        {
+                            "type": "BINARY",
+                            "len": 100,
+                            "name": "q_binary5"
+                        },
+                        {
+                            "type": "BINARY",
+                            "len": 100,
+                            "name": "q_binary6"
+                        },
+                        {
+                            "type": "BINARY",
+                            "len": 100,
+                            "name": "q_binary7"
+                        },
+                        {
+                            "type": "BINARY",
+                            "len": 100,
+                            "name": "q_binary8"
+                        },
+                        {
+                            "type": "BINARY",
+                            "len": 20,
+                            "name": "q_binary_null"
+                        },
+                        {
+                            "type": "nchar",
+                            "len": 100,
+                            "name": "q_nchar"
+                        },
+                        {
+                            "type": "nchar",
+                            "len": 100,
+                            "name": "q_nchar1"
+                        },
+                        {
+                            "type": "nchar",
+                            "len": 100,
+                            "name": "q_nchar2"
+                        },
+                        {
+                            "type": "nchar",
+                            "len": 100,
+                            "name": "q_nchar3"
+                        },
+                        {
+                            "type": "nchar",
+                            "len": 100,
+                            "name": "q_nchar4"
+                        },
+                        {
+                            "type": "nchar",
+                            "len": 100,
+                            "name": "q_nchar5"
+                        },
+                        {
+                            "type": "nchar",
+                            "len": 100,
+                            "name": "q_nchar6"
+                        },
+                        {
+                            "type": "nchar",
+                            "len": 100,
+                            "name": "q_nchar7"
+                        },
+                        {
+                            "type": "nchar",
+                            "len": 100,
+                            "name": "q_nchar8"
                         },
                         {
                             "type": "nchar",
                             "len": 20,
-                            "count": 1
+                            "name": "q_nchar_null"
+                        },
+                        {
+                            "type": "timestamp",
+                            "name": "q_ts"
+                        },
+                        {
+                            "type": "timestamp",
+                            "name": "q_ts_null"
                         }
                     ],
                     "tags": [
                         {
-                            "type": "TINYINT",
-                            "count": 1
+                            "type": "nchar",
+                            "len": 100,
+                            "name": "loc"
                         },
                         {
-                            "type": "BINARY",
-                            "len": 16,
-                            "count": 1
+                            "type": "int",
+                            "name": "t_int"
+                        },
+                        {
+                            "type": "bigint",
+                            "name": "t_bigint"
+                        },
+                        {
+                            "type": "smallint",
+                            "name": "t_smallint"
+                        },
+                        {
+                            "type": "tinyint",
+                            "name": "t_tinyint"
+                        },
+                        {
+                            "type": "bool",
+                            "name": "t_bool"
+                        },
+                        {
+                            "type": "float",
+                            "name": "t_float"
+                        },
+                        {
+                            "type": "double",
+                            "name": "t_double"
+                        },
+                        {
+                            "type": "timestamp",
+                            "name": "t_ts"
+                        },
+                        {
+                            "type": "binary",
+                            "len": 20,
+                            "name": "t_binary"
+                        },
+                        {
+                            "type": "nchar",
+                            "len": 20,
+                            "name": "t_nchar"
                         }
                     ]
                 }
