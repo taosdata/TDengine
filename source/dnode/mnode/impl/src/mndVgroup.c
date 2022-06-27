@@ -15,10 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "mndVgroup.h"
-#include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
@@ -896,6 +896,8 @@ int32_t mndAddAlterVnodeConfirmAction(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   action.pCont = pHead;
   action.contLen = contLen;
   action.msgType = TDMT_VND_ALTER_CONFIRM;
+  // incorrect redirect result will cause this erro
+  action.retryCode = TSDB_CODE_VND_INVALID_VGROUP_ID;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pHead);
@@ -942,6 +944,8 @@ static int32_t mndAddSetVnodeStandByAction(SMnode *pMnode, STrans *pTrans, SDbOb
   action.contLen = contLen;
   action.msgType = TDMT_SYNC_SET_VNODE_STANDBY;
   action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
+  // Keep retrying until the target vnode is not the leader
+  action.retryCode = TSDB_CODE_SYN_IS_LEADER;
 
   if (isRedo) {
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
@@ -1229,7 +1233,8 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
     }
 
     if (req.dnodeId1 == pVgroup->vnodeGid[0].dnodeId) {
-      terrno = TSDB_CODE_MND_VGROUP_UN_CHANGED;
+      // terrno = TSDB_CODE_MND_VGROUP_UN_CHANGED;
+      code = 0;
       goto _OVER;
     }
 
@@ -1351,7 +1356,8 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
     }
 
     if (pNew1 == NULL && pOld1 == NULL && pNew2 == NULL && pOld2 == NULL && pNew3 == NULL && pOld3 == NULL) {
-      terrno = TSDB_CODE_MND_VGROUP_UN_CHANGED;
+      // terrno = TSDB_CODE_MND_VGROUP_UN_CHANGED;
+      code = 0;
       goto _OVER;
     }
 
