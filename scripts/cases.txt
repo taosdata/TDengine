@@ -34,6 +34,9 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/t
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_state.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_mavg.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_mavg.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_func_right.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_func_right_tbname.py --keep --containers
+
 
 # 150 seconds (at most)
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_floor_ceil_round.py --keep --containers
@@ -133,7 +136,6 @@ taostest --use=common_insert.yaml --case=taosc_insert/utinyint_boundary_check.py
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_unique.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_tail.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_mode.py --keep --containers
-#new:taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_csum.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_histogram.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_leastsquares.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_percentile.py --keep --containers
@@ -158,17 +160,16 @@ taostest --use=common_insert.yaml --case=taosc_insert/utinyint_boundary_check.py
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_elapsed.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_interval.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_now.py --keep --containers
-#new: taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_rtrim.py --keep --containers
+#new split:taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_rtrim.py --keep --containers
+#new split:taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_concat.py --keep --containers
+#new split:taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_cast.py --keep --containers
+#new split:taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_csum.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_substr.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_substr.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query_null.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_func_error.py --keep
-#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_func_right.py --keep
-#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_func_right_tbname.py --keep
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_func_error.py --keep
-#new:taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_concat.py --keep --containers
-#new:taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_cast.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/stable_query.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/stable_query_null.py --keep --containers
 #taostest --use=common_insert.yaml --case=schemaless_insert/influxdb_line_protocol_taosc_insert.py --keep --containers
