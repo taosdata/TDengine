@@ -156,6 +156,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
 
 static void tdDestroyTSmaStat(STSmaStat *pStat) {
   if (pStat) {
+    smaDebug("destroy tsma stat");
     tDestroyTSma(pStat->pTSma);
     taosMemoryFreeClear(pStat->pTSma);
     taosMemoryFreeClear(pStat->pTSchema);
@@ -170,7 +171,7 @@ static void *tdFreeTSmaStat(STSmaStat *pStat) {
 
 static void tdDestroyRSmaStat(SRSmaStat *pStat) {
   if (pStat) {
-    smaDebug("vgId:%d, %s:%d free rsma stat", SMA_VID(pStat->pSma), __func__, __LINE__);
+    smaDebug("vgId:%d destroy rsma stat", SMA_VID(pStat->pSma));
     // step 1: set persistence task cancelled
     atomic_store_8(RSMA_TRIGGER_STAT(pStat), TASK_TRIGGER_STAT_CANCELLED);
 
@@ -245,16 +246,12 @@ void *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
 int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
   if (pSmaStat) {
     if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
-      smaDebug("%s:%d destroy tsma stat", __func__, __LINE__);
       tdDestroyTSmaStat(SMA_TSMA_STAT(pSmaStat));
     } else if (smaType == TSDB_SMA_TYPE_ROLLUP) {
-      smaDebug("%s:%d destroy rsma stat", __func__, __LINE__);
       tdDestroyRSmaStat(SMA_RSMA_STAT(pSmaStat));
     } else {
       ASSERT(0);
     }
-  } else {
-    smaDebug("%s:%d no need to destroy rsma stat", __func__, __LINE__);
   }
   return TSDB_CODE_SUCCESS;
 }

@@ -190,8 +190,8 @@ static int32_t rsmaRestore(SSma *pSma) {
     if (TABLE_IS_ROLLUP(mr.me.flags)) {
       SRSmaParam *param = &mr.me.stbEntry.rsmaParam;
       for (int i = 0; i < 2; ++i) {
-        smaDebug("%s:%d table:%" PRIi64 " maxdelay[%d]:%" PRIi64 " watermark[%d]:%" PRIi64, __func__, __LINE__, suid, i,
-                 param->maxdelay[i], i, param->watermark[i]);
+        smaDebug("vgId: %d table:%" PRIi64 " maxdelay[%d]:%" PRIi64 " watermark[%d]:%" PRIi64, TD_VID(pSma->pVnode),
+                 suid, i, param->maxdelay[i], i, param->watermark[i]);
       }
     }
   }
