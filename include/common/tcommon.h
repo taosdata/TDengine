@@ -101,17 +101,17 @@ typedef struct SColumnInfoData {
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {
-  // STimeWindow  twindow;
   uint64_t     suid;
   int32_t      order;  // desc|asc order to iterate the data block
   int32_t      numOfCols;
   SColumnInfo* colList;
-  bool         loadExternalRows;  // load external rows or not
-  int32_t      type;              // data block load type:
+  int32_t      type;             // data block load type:
   int32_t      numOfTWindows;
   STimeWindow* twindows;
-  int64_t      startVersion;
-  int64_t      endVersion;
+  int32_t      numOfTables;      // number of tables
+  uint64_t*    uidList;          // table uid list
+  int64_t      startVersion;     // start version
+  int64_t      endVersion;       // end version
 } SQueryTableDataCond;
 
 void*   blockDataDestroy(SSDataBlock* pBlock);
