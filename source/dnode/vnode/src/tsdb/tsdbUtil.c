@@ -749,8 +749,9 @@ _exit:
 
 int32_t tRowMergerGetRow(SRowMerger *pMerger, STSRow **ppRow) {
   int32_t code = 0;
-  // TODO
-  ASSERT(0);
+
+  code = tdSTSRowNew(pMerger->pArray, pMerger->pTSchema, ppRow);
+
   return code;
 }
 
