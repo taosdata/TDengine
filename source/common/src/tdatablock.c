@@ -1613,7 +1613,7 @@ void blockDebugShowData(const SArray* dataBlocks, const char* flag) {
     size_t       numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
 
     int32_t rows = pDataBlock->info.rows;
-    printf("%s |block type %d |child id %d|\n", flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId);
+    printf("%s |block type %d |child id %d|group id %zX\n", flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.groupId);
     for (int32_t j = 0; j < rows; j++) {
       printf("%s |", flag);
       for (int32_t k = 0; k < numOfCols; k++) {
