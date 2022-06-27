@@ -142,7 +142,8 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
 
 SSDataBlock* loadNextDataBlock(void* param) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
-  return pOperator->fpSet.getNextFn(pOperator);
+  SSDataBlock *pBlock = pOperator->fpSet.getNextFn(pOperator);
+  return pBlock;
 }
 
 // todo refactor: merged with fetch fp
@@ -505,7 +506,9 @@ typedef struct SMultiwaySortMergeOperatorInfo {
 
   SSDataBlock* pInputBlock;
   int64_t      startTs;  // sort start time
-  uint64_t     groupId;
+  bool  hasGroupId;
+  uint64_t groupId;
+  STupleHandle *prefetchedTuple;
 } SMultiwaySortMergeOperatorInfo;
 
 int32_t doOpenMultiwaySortMergeOperator(SOperatorInfo* pOperator) {
@@ -560,12 +563,30 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
   blockDataEnsureCapacity(p, capacity);
 
   while (1) {
-    STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
+    STupleHandle* pTupleHandle = NULL;
+    if (pInfo->prefetchedTuple == NULL) {
+      pTupleHandle = tsortNextTuple(pHandle);
+    } else {
+      pTupleHandle = pInfo->prefetchedTuple;
+      pInfo->groupId = tsortGetGroupId(pTupleHandle);
+      pInfo->prefetchedTuple = NULL;
+    }
+
     if (pTupleHandle == NULL) {
       break;
     }
 
-    appendOneRowToDataBlock(p, pTupleHandle);
+    uint64_t tupleGroupId = tsortGetGroupId(pTupleHandle);
+    if (!pInfo->hasGroupId) {
+      pInfo->groupId = tupleGroupId;
+      pInfo->hasGroupId = true;
+      appendOneRowToDataBlock(p, pTupleHandle);
+    } else if (pInfo->groupId == tupleGroupId) {
+      appendOneRowToDataBlock(p, pTupleHandle);
+    } else {
+      pInfo->prefetchedTuple = pTupleHandle;
+      break;
+    }
     if (p->info.rows >= capacity) {
       break;
     }
@@ -608,7 +629,6 @@ SSDataBlock* doMultiwaySortMerge(SOperatorInfo* pOperator) {
 
   SSDataBlock* pBlock = getMultiwaySortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes,
                                                    pOperator->resultInfo.capacity, pInfo->pColMatchInfo, pOperator);
-
   if (pBlock != NULL) {
     pOperator->resultInfo.totalRows += pBlock->info.rows;
   } else {
