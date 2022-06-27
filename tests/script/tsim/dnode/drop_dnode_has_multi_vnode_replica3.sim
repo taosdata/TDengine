@@ -222,12 +222,6 @@ if $rows != 4 then
   return -1
 endi
 
-print =============== step6: select data
-sql show d1.tables
-if $rows != 1 then
-  return -1
-endi
-
 print =============== step62 wait vgroup2
 $x = 0
 step62:
@@ -346,6 +340,13 @@ if $data(4)[8] == leader then
 endi
 if  $leaderExist != 1 then
   goto step65
+endi
+
+print =============== step7: select data
+print ===> $data00 $data01 
+sql show d1.tables
+if $rows != 1 then
+  return -1
 endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
