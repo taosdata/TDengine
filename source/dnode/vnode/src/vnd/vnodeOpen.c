@@ -172,9 +172,9 @@ void vnodeClose(SVnode *pVnode) {
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     walClose(pVnode->pWal);
-    smaCloseEx(pVnode->pSma);
     tqClose(pVnode->pTq);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
+    smaCloseEx(pVnode->pSma);
     metaClose(pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
     // destroy handle
