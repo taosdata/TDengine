@@ -1377,12 +1377,6 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       break;
     }
 
-    if (pInfo->scalarSupp.pExprInfo != NULL) {
-      SExprSupp* pExprSup = &pInfo->scalarSupp;
-      projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx,
-                            pExprSup->numOfExprs, NULL);
-    }
-
     if (pBlock->info.type == STREAM_CLEAR) {
       doClearWindows(&pInfo->aggSup, &pOperator->exprSupp, &pInfo->interval, 0, pOperator->exprSupp.numOfExprs, pBlock,
                      NULL);
@@ -1391,6 +1385,11 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     } else if (pBlock->info.type == STREAM_GET_ALL) {
       getAllIntervalWindow(pInfo->aggSup.pResultRowHashTable, pUpdated);
       continue;
+    }
+
+    if (pInfo->scalarSupp.pExprInfo != NULL) {
+      SExprSupp* pExprSup = &pInfo->scalarSupp;
+      projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL);
     }
 
     // The timewindow that overlaps the timestamps of the input pBlock need to be recalculated and return to the
@@ -2494,7 +2493,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       if (IS_FINAL_OP(pInfo)) {
         int32_t                   childIndex = getChildIndex(pBlock);
         SOperatorInfo*            pChildOp = taosArrayGetP(pInfo->pChildren, childIndex);
-        SIntervalAggOperatorInfo* pChildInfo = pChildOp->info;
+        SStreamFinalIntervalOperatorInfo* pChildInfo = pChildOp->info;
         SExprSupp*                pChildSup = &pChildOp->exprSupp;
 
         doClearWindows(&pChildInfo->aggSup, pChildSup, &pChildInfo->interval, pChildInfo->primaryTsIndex,
