@@ -126,16 +126,28 @@ _err:
   return -1;
 }
 
-int32_t smaClose(SSma *pSma) {
+int32_t smaCloseEnv(SSma *pSma) {
+  if(pSma) {
+    SMA_TSMA_ENV(pSma) = tdFreeSmaEnv(SMA_TSMA_ENV(pSma));
+    SMA_RSMA_ENV(pSma) = tdFreeSmaEnv(SMA_RSMA_ENV(pSma));
+  }
+  return 0;
+}
+
+int32_t smaCloseEx(SSma *pSma) {
   if (pSma) {
     taosThreadMutexDestroy(&pSma->mutex);
     if SMA_RSMA_TSDB0 (pSma) tsdbClose(&SMA_RSMA_TSDB0(pSma));
     if SMA_RSMA_TSDB1 (pSma) tsdbClose(&SMA_RSMA_TSDB1(pSma));
     if SMA_RSMA_TSDB2 (pSma) tsdbClose(&SMA_RSMA_TSDB2(pSma));
-    // SMA_TSMA_ENV(pSma) = tdFreeSmaEnv(SMA_TSMA_ENV(pSma));
-    // SMA_RSMA_ENV(pSma) = tdFreeSmaEnv(SMA_RSMA_ENV(pSma));
     taosMemoryFreeClear(pSma);
   }
+  return 0;
+}
+
+int32_t smaClose(SSma *pSma) {
+  smaCloseEnv(pSma);
+  smaCloseEx(pSma);
   return 0;
 }
 
