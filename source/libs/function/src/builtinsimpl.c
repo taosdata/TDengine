@@ -4737,17 +4737,17 @@ static void doModeAdd(SModeInfo* pInfo, char* data, bool isNull) {
   }
 
   int32_t      hashKeyBytes = IS_VAR_DATA_TYPE(pInfo->colType) ? varDataTLen(data) : pInfo->colBytes;
-  SModeItem*      pHashItem = taosHashGet(pInfo->pHash, data, hashKeyBytes);
+  SModeItem**     pHashItem = taosHashGet(pInfo->pHash, data, hashKeyBytes);
   if (pHashItem == NULL) {
     int32_t      size = sizeof(SModeItem) + pInfo->colBytes;
     SModeItem* pItem  = (SModeItem*)(pInfo->pItems + pInfo->numOfPoints * size);
     memcpy(pItem->data, data, pInfo->colBytes);
     pItem->count += 1;
 
-    taosHashPut(pInfo->pHash, data, hashKeyBytes, (char*)pItem, sizeof(SModeItem*));
+    taosHashPut(pInfo->pHash, data, hashKeyBytes, &pItem, sizeof(SModeItem*));
     pInfo->numOfPoints++;
   } else {
-    pHashItem->count += 1;
+    (*pHashItem)->count += 1;
   }
 }
 
@@ -4771,6 +4771,8 @@ int32_t modeFunction(SqlFunctionCtx* pCtx) {
     }
   }
 
+  SET_VAL(pResInfo, 1, 1);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4789,13 +4791,12 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       maxCount = pItem->count;
       resIndex = i;
     } else if (pItem->count == maxCount) {
-      colDataAppendNULL(pCol, currentRow);
-      return pResInfo->numOfRes;
+      resIndex = -1;
     }
   }
 
   SModeItem* pResItem = (SModeItem*)(pInfo->pItems + resIndex * (sizeof(SModeItem) + pInfo->colBytes));
-  colDataAppend(pCol, currentRow, pResItem->data, false);
+  colDataAppend(pCol, currentRow, pResItem->data, (resIndex == -1) ? true : false);
 
   return pResInfo->numOfRes;
 }
