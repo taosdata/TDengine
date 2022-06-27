@@ -181,6 +181,17 @@ void taos_free_result(TAOS_RES *res) {
   }
 }
 
+void taos_kill_query(TAOS *taos) {
+  if (NULL == taos) {
+    return;
+  }
+  int64_t rid = *(int64_t*)taos;
+  
+  STscObj* pTscObj = acquireTscObj(rid);
+  closeAllRequests(pTscObj->pRequests);
+  releaseTscObj(rid);
+}
+
 int taos_field_count(TAOS_RES *res) {
   if (res == NULL || TD_RES_TMQ_META(res)) {
     return 0;
