@@ -1188,6 +1188,7 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
     } else if (code == pAction->retryCode) {
       mDebug("trans:%d, %s:%d receive code:0x%x and retry", pTrans->id, mndTransStr(pAction->stage), pAction->id, code);
       taosMsleep(300);
+      action--;
       continue;
     } else {
       terrno = code;
