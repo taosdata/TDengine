@@ -165,11 +165,9 @@ void rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
 
 int32_t rpcInit() {
   transInit();
-  // impl later
   return 0;
 }
 void rpcCleanup(void) {
-  // impl later
   transCleanup();
   return;
 }
