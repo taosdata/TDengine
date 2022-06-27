@@ -586,8 +586,16 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step1:create table in normal database")
         tdSql.prepare()
         self.__create_tb()
-        # self.__insert_data()
-        # self.all_test()
+        self.__insert_data()
+        self.all_test()
+
+        # drop databases, create same name db、stb and sma index
+        tdSql.prepare()
+        self.__create_tb()
+        self.__insert_data()
+        self.all_test()
+
+
 
         return
 
