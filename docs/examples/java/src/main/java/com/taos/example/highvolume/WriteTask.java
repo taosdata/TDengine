@@ -10,28 +10,12 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 
 // ANCHOR: WriteTask
-class WriteTask {
+class WriteTask implements Runnable {
     final static int maxBatchSize = 500;
-    //
-    final static int taskQueueCapacity = 1000;
+    private final BlockingQueue<String> queue;
 
-    private Thread writeThread = new Thread(this::doWriteTask);
-
-    private BlockingQueue<String> queue = new LinkedBlockingDeque<>(taskQueueCapacity);
-
-    /**
-     * Public interface for adding task to task queue.
-     * It will be invoked in read thread.
-     */
-    public void put(String line) throws InterruptedException {
-        queue.put(line);
-    }
-
-    /**
-     * Start writing thread.
-     */
-    public void start() {
-        writeThread.start();
+    public WriteTask(BlockingQueue<String> taskQueue) {
+        this.queue = taskQueue;
     }
 
     private static Connection getConnection() throws SQLException {
@@ -39,7 +23,7 @@ class WriteTask {
         return DriverManager.getConnection(jdbcUrl);
     }
 
-    private void doWriteTask() {
+    public void run() {
         int count = 0;
         try {
             Connection conn = getConnection();
