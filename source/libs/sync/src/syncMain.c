@@ -1355,11 +1355,16 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
   int32_t userStrLen = strlen(str);
 
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
-  if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+  if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
     pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
   }
-  SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
-  SyncIndex logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
+
+  SyncIndex logLastIndex = SYNC_INDEX_INVALID;
+  SyncIndex logBeginIndex = SYNC_INDEX_INVALID;
+  if (pSyncNode->pLogStore != NULL) {
+    logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
+    logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
+  }
 
   char* pCfgStr = syncCfg2SimpleStr(&(pSyncNode->pRaftCfg->cfg));
   char* printStr = "";
