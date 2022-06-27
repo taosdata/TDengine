@@ -79,17 +79,17 @@ endi
 
 if $data03 != 4 then
   print ======$data03
-  return -1
+  goto loop1
 endi
 
 if $data04 != 52 then
   print ======$data04
-  return -1
+  goto loop1
 endi
 
 if $data05 != 13 then
   print ======$data05
-  return -1
+  goto loop1
 endi
 
 # row 1

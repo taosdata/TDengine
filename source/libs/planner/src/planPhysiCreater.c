@@ -348,8 +348,8 @@ static SPhysiNode* makePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
     return NULL;
   }
 
-  pPhysiNode->pLimit = pLogicNode->pLimit;
-  pPhysiNode->pSlimit = pLogicNode->pSlimit;
+  TSWAP(pPhysiNode->pLimit, pLogicNode->pLimit);
+  TSWAP(pPhysiNode->pSlimit, pLogicNode->pSlimit);
 
   int32_t code = createDataBlockDesc(pCxt, pLogicNode->pTargets, &pPhysiNode->pOutputDataBlockDesc);
   if (TSDB_CODE_SUCCESS != code) {
@@ -862,6 +862,9 @@ static int32_t createIndefRowsFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
     nodesDestroyNode((SNode*)pIdfRowsFunc);
   }
 
+  nodesDestroyList(pPrecalcExprs);
+  nodesDestroyList(pFuncs);
+
   return code;
 }
 
@@ -912,6 +915,9 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
   } else {
     nodesDestroyNode((SNode*)pInterpFunc);
   }
+
+  nodesDestroyList(pPrecalcExprs);
+  nodesDestroyList(pFuncs);
 
   return code;
 }
@@ -1047,6 +1053,9 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   } else {
     nodesDestroyNode((SNode*)pWindow);
   }
+
+  nodesDestroyList(pPrecalcExprs);
+  nodesDestroyList(pFuncs);
 
   return code;
 }
@@ -1240,6 +1249,9 @@ static int32_t createPartitionPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
   } else {
     nodesDestroyNode((SNode*)pPart);
   }
+
+  nodesDestroyList(pPrecalcExprs);
+  nodesDestroyList(pPartitionKeys);
 
   return code;
 }

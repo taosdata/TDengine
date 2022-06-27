@@ -450,6 +450,15 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   int32_t code = TSDB_CODE_SUCCESS;
 
   // set grouyp keys, agg funcs and having conditions
+  if (TSDB_CODE_SUCCESS == code && pSelect->hasAggFuncs) {
+    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, fmIsAggFunc, &pAgg->pAggFuncs);
+  }
+
+  // rewrite the expression in subsequent clauses
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteExprsForSelect(pAgg->pAggFuncs, pSelect, SQL_CLAUSE_GROUP_BY);
+  }
+
   if (NULL != pSelect->pGroupByList) {
     pAgg->pGroupKeys = nodesCloneList(pSelect->pGroupByList);
     if (NULL == pAgg->pGroupKeys) {
@@ -460,15 +469,6 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   // rewrite the expression in subsequent clauses
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pAgg->pGroupKeys, pSelect, SQL_CLAUSE_GROUP_BY);
-  }
-
-  if (TSDB_CODE_SUCCESS == code && pSelect->hasAggFuncs) {
-    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, fmIsAggFunc, &pAgg->pAggFuncs);
-  }
-
-  // rewrite the expression in subsequent clauses
-  if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExprsForSelect(pAgg->pAggFuncs, pSelect, SQL_CLAUSE_GROUP_BY);
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pHaving) {
@@ -780,8 +780,8 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pProject->node.pLimit = (SNode*)pSelect->pLimit;
-  pProject->node.pSlimit = (SNode*)pSelect->pSlimit;
+  TSWAP(pProject->node.pLimit, pSelect->pLimit);
+  TSWAP(pProject->node.pSlimit, pSelect->pSlimit);
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -940,7 +940,7 @@ static int32_t createSetOpSortLogicNode(SLogicPlanContext* pCxt, SSetOperator* p
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pSort->node.pLimit = pSetOperator->pLimit;
+  TSWAP(pSort->node.pLimit, pSetOperator->pLimit);
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -973,7 +973,7 @@ static int32_t createSetOpProjectLogicNode(SLogicPlanContext* pCxt, SSetOperator
   }
 
   if (NULL == pSetOperator->pOrderByList) {
-    pProject->node.pLimit = pSetOperator->pLimit;
+    TSWAP(pProject->node.pLimit, pSetOperator->pLimit);
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1004,7 +1004,7 @@ static int32_t createSetOpAggLogicNode(SLogicPlanContext* pCxt, SSetOperator* pS
   }
 
   if (NULL == pSetOperator->pOrderByList) {
-    pAgg->node.pLimit = pSetOperator->pLimit;
+    TSWAP(pAgg->node.pSlimit, pSetOperator->pLimit);
   }
 
   int32_t code = TSDB_CODE_SUCCESS;

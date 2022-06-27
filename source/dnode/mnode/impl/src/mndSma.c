@@ -15,11 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "mndSma.h"
-#include "mndAuth.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
+#include "mndPrivilege.h"
 #include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
@@ -713,7 +713,7 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -857,6 +857,23 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
   mDebug("trans:%d, used to drop sma:%s", pTrans->id, pSma->name);
   mndTransSetDbName(pTrans, pDb->name, NULL);
 
+  SStreamObj *pStream = mndAcquireStream(pMnode, pSma->name);
+  if (pStream == NULL || pStream->smaId != pSma->uid) {
+    sdbRelease(pMnode->pSdb, pStream);
+    goto _OVER;
+  } else {
+    if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
+      mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
+      sdbRelease(pMnode->pSdb, pStream);
+      goto _OVER;
+    }
+
+    // drop stream
+    if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
+      sdbRelease(pMnode->pSdb, pStream);
+      goto _OVER;
+    }
+  }
   if (mndSetDropSmaRedoLogs(pMnode, pTrans, pSma) != 0) goto _OVER;
   if (mndSetDropSmaVgroupRedoLogs(pMnode, pTrans, pVgroup) != 0) goto _OVER;
   if (mndSetDropSmaCommitLogs(pMnode, pTrans, pSma) != 0) goto _OVER;
@@ -974,7 +991,7 @@ static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
 

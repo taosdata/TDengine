@@ -111,7 +111,7 @@ int32_t streamTaskEnqueue(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg*
 
   // enqueue
   if (pData != NULL) {
-    pData->type = STREAM_DATA_TYPE_SSDATA_BLOCK;
+    pData->type = STREAM_INPUT__DATA_BLOCK;
     pData->srcVgId = pReq->dataSrcVgId;
     // decode
     /*pData->blocks = pReq->data;*/
@@ -146,7 +146,7 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
 
   // enqueue
   if (pData != NULL) {
-    pData->type = STREAM_DATA_TYPE_SSDATA_BLOCK;
+    pData->type = STREAM_INPUT__DATA_RETRIEVE;
     pData->srcVgId = 0;
     // decode
     /*pData->blocks = pReq->data;*/
@@ -170,7 +170,7 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
   pCont->rspToTaskId = pReq->srcTaskId;
   pCont->rspFromTaskId = pReq->dstTaskId;
   pRsp->pCont = buf;
-  pRsp->contLen = sizeof(SMsgHead) + sizeof(SStreamDispatchRsp);
+  pRsp->contLen = sizeof(SMsgHead) + sizeof(SStreamRetrieveRsp);
   tmsgSendRsp(pRsp);
   return status == TASK_INPUT_STATUS__NORMAL ? 0 : -1;
 }

@@ -25,11 +25,10 @@ extern "C" {
 
 #define TSWAP(a, b)                              \
   do {                                           \
-    char *__tmp = taosMemoryMalloc(sizeof(a));   \
+    char *__tmp = alloca(sizeof(a));             \
     memcpy(__tmp, &(a), sizeof(a));              \
     memcpy(&(a), &(b), sizeof(a));               \
     memcpy(&(b), __tmp, sizeof(a));              \
-    taosMemoryFree(__tmp);                       \
   } while (0)
 
 #ifdef WINDOWS

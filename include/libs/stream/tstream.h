@@ -58,6 +58,7 @@ enum {
 enum {
   STREAM_INPUT__DATA_SUBMIT = 1,
   STREAM_INPUT__DATA_BLOCK,
+  STREAM_INPUT__DATA_RETRIEVE,
   STREAM_INPUT__TRIGGER,
   STREAM_INPUT__CHECKPOINT,
   STREAM_INPUT__DROP,
@@ -318,7 +319,7 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
       return -1;
     }
     taosWriteQitem(pTask->inputQueue->queue, pSubmitClone);
-  } else if (pItem->type == STREAM_INPUT__DATA_BLOCK) {
+  } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
   } else if (pItem->type == STREAM_INPUT__CHECKPOINT) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);

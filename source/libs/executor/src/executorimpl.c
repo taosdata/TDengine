@@ -2929,6 +2929,13 @@ int32_t aggEncodeResultRow(SOperatorInfo* pOperator, char** result, int32_t* len
   int32_t         totalSize =
       sizeof(int32_t) + sizeof(int32_t) + size * (sizeof(int32_t) + keyLen + sizeof(int32_t) + pSup->resultRowSize);
 
+  // no result
+  if (getTotalBufSize(pSup->pResultBuf) == 0) {
+    *result = NULL;
+    *length = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+  
   *result = (char*)taosMemoryCalloc(1, totalSize);
   if (*result == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -4028,6 +4035,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
     int32_t   len = (int32_t)(pStart - (char*)keyBuf);
     uint64_t groupId = calcGroupId(keyBuf, len);
     taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &groupId, sizeof(uint64_t));
+    info->groupId = groupId;
     groupNum++;
 
     nodesClearList(groupNew);
@@ -4043,7 +4051,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
 }
 
 SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
-                                  uint64_t queryId, uint64_t taskId, STableListInfo* pTableListInfo) {
+                                  uint64_t queryId, uint64_t taskId, STableListInfo* pTableListInfo, const char* pUser) {
   int32_t type = nodeType(pPhyNode);
 
   if (pPhyNode->pChildren == NULL || LIST_LENGTH(pPhyNode->pChildren) == 0) {
@@ -4103,8 +4111,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
       SSystemTableScanPhysiNode* pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
-      return createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pTaskInfo);
-
+      return createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pUser, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN == type) {
       STagScanPhysiNode* pScanPhyNode = (STagScanPhysiNode*)pPhyNode;
 
@@ -4127,7 +4134,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
           return NULL;
         }
       } else {  // Create one table group.
-        STableKeyInfo info = {.lastKey = 0, .uid = pBlockNode->uid};
+        STableKeyInfo info = {.lastKey = 0, .uid = pBlockNode->uid, .groupId = 0};
         taosArrayPush(pTableListInfo->pTableList, &info);
       }
 
@@ -4167,7 +4174,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
   SOperatorInfo** ops = taosMemoryCalloc(size, POINTER_BYTES);
   for (int32_t i = 0; i < size; ++i) {
     SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
-    ops[i] = createOperatorTree(pChildNode, pTaskInfo, pHandle, queryId, taskId, pTableListInfo);
+    ops[i] = createOperatorTree(pChildNode, pTaskInfo, pHandle, queryId, taskId, pTableListInfo, pUser);
     if (ops[i] == NULL) {
       return NULL;
     }
@@ -4482,6 +4489,8 @@ int32_t encodeOperator(SOperatorInfo* ops, char** result, int32_t* length) {
       }
       return code;
     }
+    
+    ASSERT(currLength >= 0);
 
     if (*result == NULL) {
       *result = (char*)taosMemoryCalloc(1, currLength + sizeof(int32_t));
@@ -4507,7 +4516,6 @@ int32_t encodeOperator(SOperatorInfo* ops, char** result, int32_t* length) {
     taosMemoryFree(pCurrent);
     *length = *(int32_t*)(*result);
   }
-
   for (int32_t i = 0; i < ops->numOfDownstream; ++i) {
     code = encodeOperator(ops->pDownstream[i], result, length);
     if (code != TDB_CODE_SUCCESS) {
@@ -4600,7 +4608,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   (*pTaskInfo)->tableqinfoList.pTagCond = pPlan->pTagCond;
   (*pTaskInfo)->tableqinfoList.pTagIndexCond = pPlan->pTagIndexCond;
   (*pTaskInfo)->pRoot =
-      createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId, &(*pTaskInfo)->tableqinfoList);
+      createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId, &(*pTaskInfo)->tableqinfoList, pPlan->user);
 
   if (NULL == (*pTaskInfo)->pRoot) {
     code = (*pTaskInfo)->code;

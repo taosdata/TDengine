@@ -1220,18 +1220,19 @@ static int32_t translateSubstr(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
 static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // The number of parameters has been limited by the syntax definition
-  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  //uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+
   // The function return type has been set during syntax parsing
   uint8_t para2Type = pFunc->node.resType.type;
-  if (para2Type != TSDB_DATA_TYPE_BIGINT && para2Type != TSDB_DATA_TYPE_UBIGINT &&
-      para2Type != TSDB_DATA_TYPE_VARCHAR && para2Type != TSDB_DATA_TYPE_NCHAR &&
-      para2Type != TSDB_DATA_TYPE_TIMESTAMP) {
-    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-  if ((para2Type == TSDB_DATA_TYPE_TIMESTAMP && IS_VAR_DATA_TYPE(para1Type)) ||
-      (para2Type == TSDB_DATA_TYPE_BINARY && para1Type == TSDB_DATA_TYPE_NCHAR)) {
-    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-  }
+  //if (para2Type != TSDB_DATA_TYPE_BIGINT && para2Type != TSDB_DATA_TYPE_UBIGINT &&
+  //    para2Type != TSDB_DATA_TYPE_VARCHAR && para2Type != TSDB_DATA_TYPE_NCHAR &&
+  //    para2Type != TSDB_DATA_TYPE_TIMESTAMP) {
+  //  return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  //}
+  //if ((para2Type == TSDB_DATA_TYPE_TIMESTAMP && IS_VAR_DATA_TYPE(para1Type)) ||
+  //    (para2Type == TSDB_DATA_TYPE_BINARY && para1Type == TSDB_DATA_TYPE_NCHAR)) {
+  //  return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  //}
 
   int32_t para2Bytes = pFunc->node.resType.bytes;
   if (IS_VAR_DATA_TYPE(para2Type)) {
@@ -1274,13 +1275,12 @@ static bool validateTimestampDigits(const SValueNode* pVal) {
   }
 
   int64_t tsVal = pVal->datum.i;
-  char fraction[20] = {0};
+  char    fraction[20] = {0};
   NUM_TO_STRING(pVal->node.resType.type, &tsVal, sizeof(fraction), fraction);
   int32_t tsDigits = (int32_t)strlen(fraction);
 
   if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS) {
-    if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS ||
-        tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS ||
+    if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS || tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS ||
         tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
       return true;
     } else {
@@ -1507,6 +1507,11 @@ static int32_t translateBlockDistFunc(SFunctionNode* pFunc, char* pErrBuf, int32
 
 static int32_t translateBlockDistInfoFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   pFunc->node.resType = (SDataType){.bytes = 128, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateGroupKeyFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2519,6 +2524,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = groupKeyFunction,
     .finalizeFunc = groupKeyFinalize,
+    .pPartialFunc = "_group_key",
+    .pMergeFunc   = "_group_key"
   },
 };
 // clang-format on

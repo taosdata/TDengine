@@ -86,7 +86,13 @@ class TMQCom:
             shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
         
         if (platform.system().lower() == 'windows'):
-            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
+            processorName = buildPath + '\\build\\bin\\tmq_sim.exe'
+            if alias != 0:
+                processorNameNew = buildPath + '\\build\\bin\\tmq_sim_new.exe'
+                shellCmd = 'cp %s %s'%(processorName, processorNameNew)
+                os.system(shellCmd)
+                processorName = processorNameNew
+            shellCmd = 'mintty -h never ' + processorName + ' -c ' + cfgPath
             shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName) 
             shellCmd += "> nul 2>&1 &"   
         else:
