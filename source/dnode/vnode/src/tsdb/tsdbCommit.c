@@ -1034,6 +1034,11 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData, SBl
 
         pRow = tsdbTbDataIterGet(pIter);
         iBlock++;
+        if (iBlock < nBlock) {
+          tMapDataGetItemByIdx(&pCommitter->oBlockMap, iBlock, pBlock, tGetBlock);
+        } else {
+          pBlock = NULL;
+        }
       } else {
         int32_t c = tBlockCmprFn(&(SBlock){.maxKey = TSDBROW_KEY(pRow), .minKey = TSDBROW_KEY(pRow)}, pBlock);
         if (c > 0) {
