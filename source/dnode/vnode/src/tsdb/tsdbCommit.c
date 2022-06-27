@@ -729,9 +729,29 @@ _err:
   return code;
 }
 
-static int32_t tsdbCommitMoveDiskBlock(SCommitter *pCommitter, SBlock *pBlock) {
+static int32_t tsdbCommitTableDiskData(SCommitter *pCommitter, SBlock *pBlock) {
   int32_t code = 0;
-  // TODO
+
+  if (pBlock->last) {
+    // TODO
+    code = tsdbReadBlockData(pCommitter->pReader, NULL, pBlock, &pCommitter->oBlockData, NULL, NULL);
+    if (code) goto _err;
+
+    code =
+        tsdbWriteBlockData(pCommitter->pWriter, &pCommitter->oBlockData, NULL, NULL, NULL, NULL, pCommitter->cmprAlg);
+    if (code) goto _err;
+
+    code = tMapDataPutItem(&pCommitter->nBlockMap, &pCommitter->nBlock, tPutBlock);
+    if (code) goto _err;
+  } else {
+    code = tMapDataPutItem(&pCommitter->nBlockMap, pBlock, tPutBlock);
+    if (code) goto _err;
+  }
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb commit table disk data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -789,7 +809,7 @@ static int32_t tsdbMergeMemDisk(SCommitter *pCommitter, STbData *pTbData, SBlock
           pRow = tsdbTbDataIterGet(pIter);
         } else if (c > 0) {
           // just move the block (todo)
-          code = tsdbCommitMoveDiskBlock(pCommitter, pBlock);
+          code = tsdbCommitTableDiskData(pCommitter, pBlock);
           if (code) goto _err;
 
           iBlock++;
@@ -815,7 +835,7 @@ static int32_t tsdbMergeMemDisk(SCommitter *pCommitter, STbData *pTbData, SBlock
         }
       }
     } else if (pBlock) {
-      code = tsdbCommitMoveDiskBlock(pCommitter, pBlock);
+      code = tsdbCommitTableDiskData(pCommitter, pBlock);
       if (code) goto _err;
 
       iBlock++;
@@ -879,6 +899,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData, SBl
   if ((pRow == NULL || TSDBROW_TS(pRow) > pCommitter->maxKey) && nBlock == 0) goto _exit;
 
   // start ===========
+  tMapDataReset(&pCommitter->nBlockMap);
   SBlock *pBlock = NULL;  // (todo)
   int32_t c;
 
@@ -897,7 +918,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData, SBl
       } else {
         c = tBlockCmprFn(&(SBlock){}, pBlock);
         if (c > 0) {
-          code = tsdbCommitMoveDiskBlock(pCommitter, pBlock);
+          code = tsdbCommitTableDiskData(pCommitter, pBlock);
           if (code) goto _err;
 
           iBlock++;
@@ -924,7 +945,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData, SBl
         }
       }
     } else if (pBlock) {
-      code = tsdbCommitMoveDiskBlock(pCommitter, pBlock);
+      code = tsdbCommitTableDiskData(pCommitter, pBlock);
       if (code) goto _err;
 
       // move to next block (todo)
