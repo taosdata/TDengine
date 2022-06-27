@@ -15,9 +15,6 @@
 #ifdef USE_UV
 #include "transComm.h"
 
-static int32_t transSCliInst = 0;
-static int32_t refMgt = 0;
-
 typedef struct SCliConn {
   T_REF_DECLARE()
   uv_connect_t connReq;
@@ -503,12 +500,12 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
 }
 static void allocConnRef(SCliConn* conn, bool update) {
   if (update) {
-    transRemoveExHandle(refMgt, conn->refId);
+    transRemoveExHandle(conn->refId);
   }
   SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
   exh->handle = conn;
   exh->pThrd = conn->hostThrd;
-  exh->refId = transAddExHandle(refMgt, exh);
+  exh->refId = transAddExHandle(exh);
   conn->refId = exh->refId;
 }
 static void addConnToPool(void* pool, SCliConn* conn) {
@@ -602,9 +599,13 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   tTrace("%s conn %p remove from conn pool", CONN_GET_INST_LABEL(conn), conn);
   QUEUE_REMOVE(&conn->conn);
   QUEUE_INIT(&conn->conn);
-  transRemoveExHandle(refMgt, conn->refId);
+  transRemoveExHandle(conn->refId);
   if (clear) {
-    uv_close((uv_handle_t*)conn->stream, cliDestroy);
+    if (uv_is_active((uv_handle_t*)conn->stream)) {
+      uv_close((uv_handle_t*)conn->stream, cliDestroy);
+    } else {
+      cliDestroy((uv_handle_t*)conn->stream);
+    }
   }
 }
 static void cliDestroy(uv_handle_t* handle) {
@@ -735,7 +736,7 @@ static void cliHandleQuit(SCliMsg* pMsg, SCliThrd* pThrd) {
 }
 static void cliHandleRelease(SCliMsg* pMsg, SCliThrd* pThrd) {
   int64_t    refId = (int64_t)(pMsg->msg.info.handle);
-  SExHandle* exh = transAcquireExHandle(refMgt, refId);
+  SExHandle* exh = transAcquireExHandle(refId);
   if (exh == NULL) {
     tDebug("%" PRId64 " already release", refId);
   }
@@ -761,7 +762,7 @@ SCliConn* cliGetConn(SCliMsg* pMsg, SCliThrd* pThrd, bool* ignore) {
   SCliConn* conn = NULL;
   int64_t   refId = (int64_t)(pMsg->msg.info.handle);
   if (refId != 0) {
-    SExHandle* exh = transAcquireExHandle(refMgt, refId);
+    SExHandle* exh = transAcquireExHandle(refId);
     if (exh == NULL) {
       *ignore = true;
       destroyCmsg(pMsg);
@@ -769,7 +770,7 @@ SCliConn* cliGetConn(SCliMsg* pMsg, SCliThrd* pThrd, bool* ignore) {
       // assert(0);
     } else {
       conn = exh->handle;
-      transReleaseExHandle(refMgt, refId);
+      transReleaseExHandle(refId);
     }
     return conn;
   };
@@ -898,10 +899,6 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
       tDebug("success to create tranport-cli thread %d", i);
     }
     cli->pThreadObj[i] = pThrd;
-  }
-  int ref = atomic_add_fetch_32(&transSCliInst, 1);
-  if (ref == 1) {
-    refMgt = transOpenExHandleMgt(50000);
   }
 
   return cli;
@@ -1086,10 +1083,6 @@ void transCloseClient(void* arg) {
   }
   taosMemoryFree(cli->pThreadObj);
   taosMemoryFree(cli);
-  int ref = atomic_sub_fetch_32(&transSCliInst, 1);
-  if (ref == 0) {
-    transCloseExHandleMgt(refMgt);
-  }
 }
 void transRefCliHandle(void* handle) {
   if (handle == NULL) {
@@ -1111,12 +1104,12 @@ void transUnrefCliHandle(void* handle) {
 }
 SCliThrd* transGetWorkThrdFromHandle(int64_t handle) {
   SCliThrd*  pThrd = NULL;
-  SExHandle* exh = transAcquireExHandle(refMgt, handle);
+  SExHandle* exh = transAcquireExHandle(handle);
   if (exh == NULL) {
     return NULL;
   }
   pThrd = exh->pThrd;
-  transReleaseExHandle(refMgt, handle);
+  transReleaseExHandle(handle);
   return pThrd;
 }
 SCliThrd* transGetWorkThrd(STrans* trans, int64_t handle) {

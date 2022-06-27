@@ -36,7 +36,7 @@ static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) {
   return 0;
 }
 void* rpcOpen(const SRpcInit* pInit) {
-  transInitEnv();
+  rpcInit();
 
   SRpcInfo* pRpc = taosMemoryCalloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) {
@@ -82,7 +82,6 @@ void rpcClose(void* arg) {
   tInfo("start to close rpc");
   SRpcInfo* pRpc = (SRpcInfo*)arg;
   (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
-  transCloseExHandleMgt(pRpc->refMgt);
   taosMemoryFree(pRpc);
 
   return;
@@ -164,17 +163,14 @@ void rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   transSetDefaultAddr(thandle, ip, fqdn);
 }
 
-// void rpcSetMsgTraceId(SRpcMsg* pMsg, STraceId uid) {
-//  SRpcHandleInfo* pInfo = &pMsg->info;
-//  pInfo->traceId = uid;
-//}
-
 int32_t rpcInit() {
+  transInit();
   // impl later
   return 0;
 }
 void rpcCleanup(void) {
   // impl later
+  transCleanup();
   return;
 }
 
