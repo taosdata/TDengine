@@ -116,12 +116,11 @@ int32_t     metaTbCursorNext(SMTbCursor *pTbCur);
 // typedef struct STsdb STsdb;
 typedef struct STsdbReader STsdbReader;
 
-#define BLOCK_LOAD_OFFSET_SEQ_ORDER 1
-#define BLOCK_LOAD_TABLE_SEQ_ORDER  2
-#define BLOCK_LOAD_TABLE_RR_ORDER   3
+#define BLOCK_LOAD_OFFSET_ORDER    1
+#define BLOCK_LOAD_TABLESEQ_ORDER  2
+#define BLOCK_LOAD_EXTERN_ORDER    3
 
-int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *tableInfoGroup, uint64_t qId,
-                       uint64_t taskId, STsdbReader **ppReader);
+int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInfo* pTableList, uint64_t qId, uint64_t taskId, STsdbReader** ppReader);
 void    tsdbReaderClose(STsdbReader *pReader);
 bool    tsdbNextDataBlock(STsdbReader *pReader);
 void    tsdbRetrieveDataBlockInfo(STsdbReader *pReader, SDataBlockInfo *pDataBlockInfo);

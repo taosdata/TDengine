@@ -782,7 +782,13 @@ static int32_t tsdbCommitDiskData(SCommitter *pCommitter, SBlockIdx *oBlockIdx) 
       if (code) goto _err;
 
       tBlockReset(pBlockN);
-      pBlockN->last = 1;
+      pBlockN->minKey = pBlockO->minKey;
+      pBlockN->maxKey = pBlockO->maxKey;
+      pBlockN->minVersion = pBlockO->minVersion;
+      pBlockN->maxVersion = pBlockO->maxVersion;
+      pBlockN->nRow = pBlockO->nRow;
+      pBlockN->last = pBlockO->last;
+      pBlockN->hasDup = pBlockO->hasDup;
       code = tsdbWriteBlockData(pCommitter->pWriter, pBlockDataO, NULL, NULL, pBlockIdx, pBlockN, pCommitter->cmprAlg);
       if (code) goto _err;
 
@@ -964,7 +970,7 @@ static int32_t tsdbCommitFileDataEnd(SCommitter *pCommitter) {
   if (code) goto _err;
 
   // update file header
-  code = tsdbUpdateDFileSetHeader(pCommitter->pWriter, NULL);
+  code = tsdbUpdateDFileSetHeader(pCommitter->pWriter);
   if (code) goto _err;
 
   // upsert SDFileSet

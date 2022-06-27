@@ -24,3 +24,4 @@ if(${BUILD_WITH_TRAFT})
 endif(${BUILD_WITH_TRAFT})
 
 add_subdirectory(tdev)
+add_subdirectory(lz4)
