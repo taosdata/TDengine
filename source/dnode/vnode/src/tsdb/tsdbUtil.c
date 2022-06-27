@@ -634,6 +634,10 @@ int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow) {
   return n;
 }
 
+int32_t tsdbRowCmprFn(const void *p1, const void *p2) {
+  return tsdbKeyCmprFn(&TSDBROW_KEY((TSDBROW *)p1), &TSDBROW_KEY((TSDBROW *)p2));
+}
+
 // SRowIter ======================================================
 void tRowIterInit(SRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
   pIter->pRow = pRow;
