@@ -404,7 +404,7 @@ class TDTestCase:
                 f"insert into sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         
-        tdSql.query("select tail(c2,2) from sub1_bound")
+        tdSql.query("select tail(c2,2) from sub1_bound order by 1 desc")
         tdSql.checkRows(2)
         tdSql.checkData(0,0,9223372036854775803)
 
