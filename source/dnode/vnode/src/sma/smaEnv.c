@@ -217,7 +217,7 @@ static void tdDestroyRSmaStat(SRSmaStat *pStat) {
       }
     }
 
-    // step 6: free the timer handle
+    // step 6: cleanup the timer handle
     if (RSMA_TMR_HANDLE(pStat)) {
       taosTmrCleanUp(RSMA_TMR_HANDLE(pStat));
     }

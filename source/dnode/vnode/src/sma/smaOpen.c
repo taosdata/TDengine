@@ -18,7 +18,7 @@
 
 static int32_t smaEvalDays(SRetention *r, int8_t precision);
 static int32_t smaSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int type);
-static int32_t smaRestore(SSma *pSma);
+static int32_t rsmaRestore(SSma *pSma);
 
 #define SMA_SET_KEEP_CFG(l)                                                                       \
   do {                                                                                            \
@@ -101,6 +101,9 @@ int32_t smaOpen(SVnode *pVnode) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
+  pVnode->pSma = pSma;
+
   pSma->pVnode = pVnode;
   taosThreadMutexInit(&pSma->mutex, NULL);
   pSma->locked = false;
@@ -118,13 +121,11 @@ int32_t smaOpen(SVnode *pVnode) {
         ASSERT(0);
       }
     }
-  }
 
-  pVnode->pSma = pSma;
-
-  // restore the sma
-  if (smaRestore(pSma) < 0) {
-    goto _err;
+    // restore the rsma
+    if (rsmaRestore(pSma) < 0) {
+      goto _err;
+    }
   }
 
   return 0;
@@ -164,7 +165,9 @@ int32_t smaClose(SSma *pSma) {
  * @param pSma
  * @return int32_t
  */
-static int32_t smaRestore(SSma *pSma) {
+static int32_t rsmaRestore(SSma *pSma) {
+  ASSERT(VND_IS_RSMA(pSma->pVnode));
+
   // iterate all stables to restore the rsma env
   SArray *suidList = taosArrayInit(1, sizeof(tb_uid_t));
   if (tsdbGetStbIdList(SMA_META(pSma), 0, suidList) < 0) {
