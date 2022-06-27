@@ -252,7 +252,7 @@ int         transSendAsync(SAsyncPool* pool, queue* mq);
   do {                                                                                                             \
     if (id > 0) {                                                                                                  \
       tTrace("handle step1");                                                                                      \
-      SExHandle* exh2 = transAcquireExHandle(refMgt, id);                                                          \
+      SExHandle* exh2 = transAcquireExHandle(id);                                                                  \
       if (exh2 == NULL || id != exh2->refId) {                                                                     \
         tTrace("handle %p except, may already freed, ignore msg, ref1: %" PRIu64 ", ref2 : %" PRIu64 "", exh1,     \
                exh2 ? exh2->refId : 0, id);                                                                        \
@@ -260,7 +260,7 @@ int         transSendAsync(SAsyncPool* pool, queue* mq);
       }                                                                                                            \
     } else if (id == 0) {                                                                                          \
       tTrace("handle step2");                                                                                      \
-      SExHandle* exh2 = transAcquireExHandle(refMgt, id);                                                          \
+      SExHandle* exh2 = transAcquireExHandle(id);                                                                  \
       if (exh2 == NULL || id == exh2->refId) {                                                                     \
         tTrace("handle %p except, may already freed, ignore msg, ref1: %" PRIu64 ", ref2 : %" PRIu64 "", exh1, id, \
                exh2 ? exh2->refId : 0);                                                                            \
@@ -273,6 +273,7 @@ int         transSendAsync(SAsyncPool* pool, queue* mq);
       goto _return2;                                                                                               \
     }                                                                                                              \
   } while (0)
+
 int  transInitBuffer(SConnBuffer* buf);
 int  transClearBuffer(SConnBuffer* buf);
 int  transDestroyBuffer(SConnBuffer* buf);
@@ -390,13 +391,15 @@ bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
  */
 void transThreadOnce();
 
-void       transInitEnv();
+void transInit();
+void transCleanup();
+
 int32_t    transOpenExHandleMgt(int size);
-void       transCloseExHandleMgt(int32_t mgt);
-int64_t    transAddExHandle(int32_t mgt, void* p);
-int32_t    transRemoveExHandle(int32_t mgt, int64_t refId);
-SExHandle* transAcquireExHandle(int32_t mgt, int64_t refId);
-int32_t    transReleaseExHandle(int32_t mgt, int64_t refId);
+void       transCloseExHandleMgt();
+int64_t    transAddExHandle(void* p);
+int32_t    transRemoveExHandle(int64_t refId);
+SExHandle* transAcquireExHandle(int64_t refId);
+int32_t    transReleaseExHandle(int64_t refId);
 void       transDestoryExHandle(void* handle);
 
 #ifdef __cplusplus
