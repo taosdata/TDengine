@@ -31,6 +31,8 @@
 #./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica3.sim
 ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_leader.sim
 ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim
+./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v2.sim
+./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
 
 # ---- insert
 ./test.sh -f tsim/insert/basic0.sim
