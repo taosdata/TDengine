@@ -1045,18 +1045,26 @@ static int32_t translateFirstLastMerge(SFunctionNode* pFunc, char* pErrBuf, int3
   return translateFirstLastImpl(pFunc, pErrBuf, len, false);
 }
 
-static int32_t translateUnique(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+static int32_t translateUniqueMode(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isUnique) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
   SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
   if (!nodesExprHasColumn(pPara)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "The parameters of UNIQUE must contain columns");
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "The parameters of %s must contain columns", isUnique ? "UNIQUE" : "MODE");
   }
 
   pFunc->node.resType = ((SExprNode*)pPara)->resType;
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateUnique(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateUniqueMode(pFunc, pErrBuf, len, true);
+}
+
+static int32_t translateMode(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateUniqueMode(pFunc, pErrBuf, len, false);
 }
 
 static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -2109,13 +2117,23 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "unique",
     .type = FUNCTION_TYPE_UNIQUE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | 
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC |
                       FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_WINDOW_FUNC | FUNC_MGT_FORBID_GROUP_BY_FUNC,
     .translateFunc = translateUnique,
     .getEnvFunc   = getUniqueFuncEnv,
     .initFunc     = uniqueFunctionSetup,
     .processFunc  = uniqueFunction,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "mode",
+    .type = FUNCTION_TYPE_MODE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateMode,
+    .getEnvFunc   = getUniqueFuncEnv,
+    .initFunc     = uniqueFunctionSetup,
+    .processFunc  = uniqueFunction,
+    .finalizeFunc = functionFinalize,
   },
   {
     .name = "abs",
