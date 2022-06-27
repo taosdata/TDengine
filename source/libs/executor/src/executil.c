@@ -595,7 +595,8 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
   }
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
-    if (strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
+    if (strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "_select_value") == 0 ||
+        strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "_group_key") == 0) {
       pValCtx[num++] = &pCtx[i];
     } else if (fmIsSelectFunc(pCtx[i].functionId)) {
       p = &pCtx[i];

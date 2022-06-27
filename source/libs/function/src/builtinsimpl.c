@@ -1485,6 +1485,8 @@ void setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuple
         colDataAppend(pDstCol, rowIndex, (pStart + ps), false);
       }
     }
+
+    releaseBufPage(pCtx->pBuf, pPage);
   }
 }
 
