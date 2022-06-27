@@ -1,0 +1,29 @@
+{
+    "filetype": "query",
+    "cfgdir": "/etc/taos",
+    "host": "HOST",
+    "port": PORT,
+    "user": "root",
+    "password": "taosdata",
+    "confirm_parameter_prompt": "no",
+    "databases": "test",
+    "query_times": QUERYTIMES,
+    "query_mode": "taosc",
+    "specified_table_query": {
+        "query_interval": 1,
+        "concurrent": 3,
+        "sqls": [
+        ]
+    },
+    "super_table_query": {
+        "stblname": "meters",
+        "query_interval": 1,
+        "threads": THREADS,
+        "sqls": [
+            {
+                "sql": "select last_row(ts) from xxxx",
+                "result": "./query_res2.txt"
+            }
+        ]
+    }
+}
