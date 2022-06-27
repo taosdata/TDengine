@@ -3096,8 +3096,9 @@ static int32_t handleLimitOffset(SOperatorInfo* pOperator, SSDataBlock* pBlock) 
   }
 
   // check for the limitation in each group
-  if (pProjectInfo->limit.limit > 0 && pProjectInfo->curOutput + pRes->info.rows >= pProjectInfo->limit.limit) {
-    pRes->info.rows = (int32_t)(pProjectInfo->limit.limit - pProjectInfo->curOutput);
+  if (pProjectInfo->limit.limit >= 0 && pProjectInfo->curOutput + pRes->info.rows >= pProjectInfo->limit.limit) {
+    int32_t keepRows = (int32_t)(pProjectInfo->limit.limit - pProjectInfo->curOutput);
+    blockDataKeepFirstNRows(pRes, keepRows);
     if (pProjectInfo->slimit.limit > 0 && pProjectInfo->slimit.limit <= pProjectInfo->curGroupOutput) {
       pOperator->status = OP_EXEC_DONE;
     }

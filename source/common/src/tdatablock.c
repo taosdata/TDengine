@@ -1407,6 +1407,7 @@ static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
 
 static void colDataTrimFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+    pColInfoData->varmeta.length -= pColInfoData->varmeta.offset[n];
     memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[n], (total - n) * sizeof(int32_t));
     memset(&pColInfoData->varmeta.offset[total - n], 0, n);
   } else {
@@ -1431,6 +1432,33 @@ int32_t blockDataTrimFirstNRows(SSDataBlock* pBlock, size_t n) {
     }
 
     pBlock->info.rows -= n;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
+  if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+    pColInfoData->varmeta.length = pColInfoData->varmeta.offset[n] - pColInfoData->varmeta.offset[0];
+    memset(&pColInfoData->varmeta.offset[n], 0, total - n);
+  }
+}
+
+int32_t blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n) {
+  if (n == 0) {
+    blockDataCleanup(pBlock);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pBlock->info.rows <= n) {
+    return TSDB_CODE_SUCCESS;
+  } else {
+    size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+      colDataKeepFirstNRows(pColInfoData, n, pBlock->info.rows);
+    }
+
+    pBlock->info.rows = n;
   }
   return TSDB_CODE_SUCCESS;
 }
