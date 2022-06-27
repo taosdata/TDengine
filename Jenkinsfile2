@@ -338,6 +338,14 @@ pipeline {
                         changeRequest()
                     }
                     steps {
+                        script {
+                            def linux_node_ip = sh (
+                                script: 'ip addr|grep 192|grep -v virbr|awk "{print \\\$2}"|sed "s/\\/.*//"',
+                                returnStdout: true
+                            ).trim()
+                            echo "${linux_node_ip}"
+                            echo "${WKDIR}/restore.sh -p ${BRANCH_NAME} -n ${BUILD_ID} -c {container name}"
+                        }
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                             timeout(time: 120, unit: 'MINUTES'){
                                 pre_test()
