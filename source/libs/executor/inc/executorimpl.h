@@ -348,6 +348,7 @@ typedef struct SStreamBlockScanInfo {
   SInterval      interval;     // if the upstream is an interval operator, the interval info is also kept here.
   SArray*        childIds;
   SessionWindowSupporter sessionSup;
+  bool            assignBlockUid; // assign block uid to groupId, temporarily used for generating rollup SMA.
   int32_t         scanWinIndex;   // for state operator
   int32_t         pullDataResIndex;
   SSDataBlock*    pPullDataRes;             // pull data SSDataBlock
@@ -402,7 +403,7 @@ typedef struct SIntervalAggOperatorInfo {
   // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
   SOptrBasicInfo     binfo;              // basic info
   SAggSupporter      aggSup;             // aggregate supporter
-
+  SExprSupp          scalarSupp;         // supporter for perform scalar function
   SGroupResInfo      groupResInfo;       // multiple results build supporter
   SInterval          interval;           // interval info
   int32_t            primaryTsIndex;     // primary time stamp slot id from result of downstream operator.
@@ -737,7 +738,7 @@ SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t
 
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          STimeWindowAggSupp *pTwAggSupp, SExecTaskInfo* pTaskInfo, bool isStream);
+                                          STimeWindowAggSupp* pTwAggSupp, SIntervalPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, bool isStream);
 
 SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
@@ -807,6 +808,7 @@ int32_t getMaximumIdleDurationSec();
  * ops:     root operator
  * data:    *data save the result of encode, need to be freed by caller
  * length:  *length save the length of *data
+ * nOptrWithVal: *nOptrWithVal save the number of optr with value
  * return:  result code, 0 means success
  */
 int32_t encodeOperator(SOperatorInfo* ops, char** data, int32_t *length);

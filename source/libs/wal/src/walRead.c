@@ -103,6 +103,7 @@ static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
     wError("cannot open file %s, since %s", fnameStr, terrstr());
     return -1;
   }
+
   pRead->pReadLogTFile = pLogTFile;
 
   walBuildIdxName(pRead->pWal, fileFirstVer, fnameStr);

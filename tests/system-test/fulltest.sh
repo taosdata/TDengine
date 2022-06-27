@@ -23,6 +23,7 @@ python3 ./test.py -f 1-insert/alter_stable.py
 python3 ./test.py -f 1-insert/alter_table.py
 python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
 python3 ./test.py -f 1-insert/table_comment.py
+python3 ./test.py -f 1-insert/table_param_ttl.py
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
@@ -143,3 +144,4 @@ python3 ./test.py -f 7-tmq/tmqCheckData.py
 python3 ./test.py -f 7-tmq/tmqUdf.py
 #python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 5
 python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
+python3 ./test.py -f 7-tmq/tmqShow.py

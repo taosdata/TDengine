@@ -15,9 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDb.h"
-#include "mndPrivilege.h"
 #include "mndDnode.h"
 #include "mndOffset.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSma.h"
 #include "mndStb.h"
@@ -1336,7 +1336,7 @@ char *buildRetension(SArray *pRetension) {
 }
 
 static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, int32_t rows, int64_t numOfTables,
-                           bool sysDb, ESdbStatus objStatus) {
+                           bool sysDb, ESdbStatus objStatus, bool sysinfo) {
   int32_t cols = 0;
 
   int32_t     bytes = pShow->pMeta->pSchemas[cols].bytes;
@@ -1354,7 +1354,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
   char statusB[24] = {0};
   STR_WITH_SIZE_TO_VARSTR(statusB, status, strlen(status));
 
-  if (sysDb) {
+  if (sysDb || !sysinfo) {
     for (int32_t i = 0; i < pShow->numOfColumns; ++i) {
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, i);
       if (i == 0) {
@@ -1528,17 +1528,21 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   SDbObj    *pDb = NULL;
   ESdbStatus objStatus = 0;
 
+  SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
+  if (pUser == NULL) return 0;
+  bool sysinfo = pUser->sysInfo;
+
   // Append the information_schema database into the result.
   if (!pShow->sysDbRsp) {
     SDbObj infoschemaDb = {0};
     setInformationSchemaDbCfg(&infoschemaDb);
-    dumpDbInfoData(pBlock, &infoschemaDb, pShow, numOfRows, 14, true, 0);
+    dumpDbInfoData(pBlock, &infoschemaDb, pShow, numOfRows, 14, true, 0, 1);
 
     numOfRows += 1;
 
     SDbObj perfschemaDb = {0};
     setPerfSchemaDbCfg(&perfschemaDb);
-    dumpDbInfoData(pBlock, &perfschemaDb, pShow, numOfRows, 3, true, 0);
+    dumpDbInfoData(pBlock, &perfschemaDb, pShow, numOfRows, 3, true, 0, 1);
 
     numOfRows += 1;
     pShow->sysDbRsp = true;
@@ -1550,16 +1554,19 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
       break;
     }
 
-    int32_t numOfTables = 0;
-    sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, NULL, NULL);
+    if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb) == 0) {
+      int32_t numOfTables = 0;
+      sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, NULL, NULL);
 
-    dumpDbInfoData(pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus);
-    numOfRows++;
+      dumpDbInfoData(pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus, sysinfo);
+      numOfRows++;
+    }
+
     sdbRelease(pSdb, pDb);
   }
 
   pShow->numOfRows += numOfRows;
-
+  mndReleaseUser(pMnode, pUser);
   return numOfRows;
 }
 

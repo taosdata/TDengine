@@ -635,8 +635,9 @@ void loop_consume(SThreadInfo* pInfo) {
     }
   }
 
+  int32_t consumeDelay = g_stConfInfo.consumeDelay == -1 ? -1 : (g_stConfInfo.consumeDelay * 1000);
   while (running) {
-    TAOS_RES* tmqMsg = tmq_consumer_poll(pInfo->tmq, g_stConfInfo.consumeDelay * 1000);
+    TAOS_RES* tmqMsg = tmq_consumer_poll(pInfo->tmq, consumeDelay);
     if (tmqMsg) {
       if (0 != g_stConfInfo.showMsgFlag) {
         totalRows += msg_process(tmqMsg, pInfo, totalMsgs);

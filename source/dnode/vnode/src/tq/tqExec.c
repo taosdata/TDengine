@@ -112,7 +112,7 @@ int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkR
     tqReadHandleSetMsg(pReader, pReq, 0);
     while (tqNextDataBlock(pReader)) {
       SSDataBlock block = {0};
-      if (tqRetrieveDataBlock(&block, pReader, &block.info.groupId, &block.info.uid, &block.info.rows) < 0) {
+      if (tqRetrieveDataBlock(&block, pReader) < 0) {
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;
         ASSERT(0);
       }
@@ -129,7 +129,7 @@ int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkR
     tqReadHandleSetMsg(pReader, pReq, 0);
     while (tqNextDataBlockFilterOut(pReader, pExec->execDb.pFilterOutTbUid)) {
       SSDataBlock block = {0};
-      if (tqRetrieveDataBlock(&block, pReader, &block.info.groupId, &block.info.uid, &block.info.rows) < 0) {
+      if (tqRetrieveDataBlock(&block, pReader) < 0) {
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;
         ASSERT(0);
       }

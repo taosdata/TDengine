@@ -137,6 +137,25 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
         vError("vgId:%d, failed to pre-process msg:%p since %s", vgId, pMsg, terrstr());
       } else {
         code = syncPropose(pVnode->sync, pMsg, vnodeIsMsgWeak(pMsg->msgType));
+        if (code == 1) {
+          do {
+            static int32_t cnt = 0;
+            if (cnt++ % 1000 == 1) {
+              vInfo("vgId:%d, msg:%p apply right now, apply index:%ld, msgtype:%s,%d", vgId, pMsg,
+                    pMsg->info.conn.applyIndex, TMSG_INFO(pMsg->msgType), pMsg->msgType);
+            }
+          } while (0);
+
+          SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
+          if (vnodeProcessWriteReq(pVnode, pMsg, pMsg->info.conn.applyIndex, &rsp) < 0) {
+            rsp.code = terrno;
+            vInfo("vgId:%d, msg:%p failed to apply right now since %s", vgId, pMsg, terrstr());
+          }
+
+          if (rsp.info.handle != NULL) {
+            tmsgSendRsp(&rsp);
+          }
+        }
       }
     }
 
@@ -163,10 +182,12 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
       SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info};
       tmsgSendRedirectRsp(&rsp, &newEpSet);
     } else {
-      if (terrno != 0) code = terrno;
-      vError("vgId:%d, msg:%p failed to propose since %s, code:0x%x", vgId, pMsg, tstrerror(code), code);
-      SRpcMsg rsp = {.code = code, .info = pMsg->info};
-      tmsgSendRsp(&rsp);
+      if (code != 1) {
+        if (terrno != 0) code = terrno;
+        vError("vgId:%d, msg:%p failed to propose since %s, code:0x%x", vgId, pMsg, tstrerror(code), code);
+        SRpcMsg rsp = {.code = code, .info = pMsg->info};
+        tmsgSendRsp(&rsp);
+      }
     }
 
     vGTrace("vgId:%d, msg:%p is freed, code:0x%x", vgId, pMsg, code);
@@ -260,7 +281,7 @@ int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      ret = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg, NULL);
       syncClientRequestDestroy(pSyncMsg);
 
     } else if (pRpcMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
@@ -359,34 +380,18 @@ static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta c
   SyncIndex beginIndex = SYNC_INDEX_INVALID;
   char      logBuf[256] = {0};
 
-  if (pFsm->FpGetSnapshotInfo != NULL) {
-    (*pFsm->FpGetSnapshotInfo)(pFsm, &snapshot);
-    beginIndex = snapshot.lastApplyIndex;
-  }
+  snprintf(logBuf, sizeof(logBuf),
+           "==callback== ==CommitCb== execute, pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, beginIndex :%ld\n",
+           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
+           beginIndex);
+  syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 
-  if (cbMeta.index > beginIndex) {
-    snprintf(
-        logBuf, sizeof(logBuf),
-        "==callback== ==CommitCb== execute, pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, beginIndex :%ld\n",
-        pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), beginIndex);
-    syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
-
-    SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
-    rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
-    memcpy(rpcMsg.pCont, pMsg->pCont, pMsg->contLen);
-    syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &rpcMsg.info);
-    rpcMsg.info.conn.applyIndex = cbMeta.index;
-    tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
-
-  } else {
-    char logBuf[256] = {0};
-    snprintf(logBuf, sizeof(logBuf),
-             "==callback== ==CommitCb== do not execute, pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, "
-             "beginIndex :%ld\n",
-             pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
-             beginIndex);
-    syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
-  }
+  SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
+  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
+  memcpy(rpcMsg.pCont, pMsg->pCont, pMsg->contLen);
+  syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &rpcMsg.info);
+  rpcMsg.info.conn.applyIndex = cbMeta.index;
+  tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
 }
 
 static void vnodeSyncPreCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
