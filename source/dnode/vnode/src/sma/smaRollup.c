@@ -74,6 +74,12 @@ struct SRSmaQTaskFIter {
   int32_t nBufPos;
 };
 
+static FORCE_INLINE int32_t tdRSmaQTaskInfoContLen(int32_t lenWithHead) {
+  return lenWithHead - sizeof(int32_t) - sizeof(int8_t) - sizeof(int64_t);
+}
+
+static FORCE_INLINE void tdRSmaQTaskInfoIterDestroy(SRSmaQTaskFIter *pIter) { taosMemoryFreeClear(pIter->buf); }
+
 static FORCE_INLINE void tdFreeTaskHandle(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level) {
   // Note: free/kill may in RC
   qTaskInfo_t otaskHandle = atomic_load_ptr(taskHandle);
@@ -768,7 +774,7 @@ static void *tdRSmaPersistExec(void *param) {
 
         isFileCreated = true;
       }
-      len += (sizeof(len)+ sizeof(type) + sizeof(pRSmaInfo->suid));
+      len += (sizeof(len) + sizeof(type) + sizeof(pRSmaInfo->suid));
       tdAppendTFile(&tFile, &len, sizeof(len), &toffset);
       tdAppendTFile(&tFile, &type, sizeof(type), &toffset);
       tdAppendTFile(&tFile, &pRSmaInfo->suid, sizeof(pRSmaInfo->suid), &toffset);
@@ -956,11 +962,15 @@ int32_t tdProcessRSmaRestoreImpl(SSma *pSma) {
     if (isEnd) {
       break;
     }
-    if((code = tdRSmaQTaskInfoItemRestore(pSma, &infoItem)) < 0){
+    if ((code = tdRSmaQTaskInfoItemRestore(pSma, &infoItem)) < 0) {
       break;
     }
   }
-  if (code < 0) goto _err;
+  tdRSmaQTaskInfoIterDestroy(&fIter);
+
+  if (code < 0) {
+    goto _err;
+  }
 
   metaReaderClear(&mr);
   taosArrayDestroy(suidList);
@@ -1091,12 +1101,7 @@ static int32_t tdRSmaQTaskInfoIterNextBlock(SRSmaQTaskFIter *pIter, bool *isFini
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE int32_t tdRSmaQTaskInfoContLen(int32_t lenWithHead) {
-  return lenWithHead - sizeof(int32_t) - sizeof(int8_t) - sizeof(int64_t);
-}
-
 static int32_t tdRSmaQTaskInfoIterNext(SRSmaQTaskFIter *pIter, SRSmaQTaskInfoItem *pItem, bool *isEnd) {
-  
   while (1) {
     // block iter
     bool isFinish = false;
@@ -1112,7 +1117,7 @@ static int32_t tdRSmaQTaskInfoIterNext(SRSmaQTaskFIter *pIter, SRSmaQTaskInfoIte
     // consume the block
     int32_t qTaskInfoLenWithHead = 0;
     pIter->buf = taosDecodeFixedI32(pIter->buf, &qTaskInfoLenWithHead);
-    if(qTaskInfoLenWithHead < 0) {
+    if (qTaskInfoLenWithHead < 0) {
       terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
       return TSDB_CODE_FAILED;
     }
