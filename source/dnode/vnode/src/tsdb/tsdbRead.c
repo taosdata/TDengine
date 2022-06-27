@@ -2886,6 +2886,9 @@ int32_t tsdbGetCtbIdList(SMeta* pMeta, int64_t suid, SArray* list) {
  */
 int32_t tsdbGetStbIdList(SMeta* pMeta, int64_t suid, SArray* list) {
   SMStbCursor* pCur = metaOpenStbCursor(pMeta, suid);
+  if(!pCur) {
+    return TSDB_CODE_FAILED;
+  }
 
   while (1) {
     tb_uid_t id = metaStbCursorNext(pCur);

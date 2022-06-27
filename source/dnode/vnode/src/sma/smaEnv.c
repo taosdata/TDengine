@@ -174,11 +174,8 @@ static void tdDestroyRSmaStat(SRSmaStat *pStat) {
     // step 1: set persistence task cancelled
     atomic_store_8(RSMA_TRIGGER_STAT(pStat), TASK_TRIGGER_STAT_CANCELLED);
 
-    // step 2: clean timer
+    // step 2: stop the persistence timer
     taosTmrStopA(&RSMA_TMR_ID(pStat));
-    if (RSMA_TMR_HANDLE(pStat)) {
-      taosTmrCleanUp(RSMA_TMR_HANDLE(pStat));
-    }
 
     // step 3: wait the persistence thread to finish
     int32_t nLoops = 0;
@@ -194,7 +191,6 @@ static void tdDestroyRSmaStat(SRSmaStat *pStat) {
           sched_yield();
           nLoops = 0;
         }
-        taosMsleep(1000);  // TODO: remove this line when release
       }
     }
 
@@ -219,7 +215,11 @@ static void tdDestroyRSmaStat(SRSmaStat *pStat) {
         sched_yield();
         nLoops = 0;
       }
-      taosMsleep(1000); // TODO: remove this line when release
+    }
+
+    // step 6: free the timer handle
+    if (RSMA_TMR_HANDLE(pStat)) {
+      taosTmrCleanUp(RSMA_TMR_HANDLE(pStat));
     }
   }
 }

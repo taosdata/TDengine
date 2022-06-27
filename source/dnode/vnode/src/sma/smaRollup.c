@@ -246,7 +246,7 @@ int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq *pReq) {
 
   SMeta      *pMeta = pVnode->pMeta;
   SMsgCb     *pMsgCb = &pVnode->msgCb;
-  SRSmaParam *param = &pReq->pRSmaParam;
+  SRSmaParam *param = &pReq->rsmaParam;
 
   if ((param->qmsgLen[0] == 0) && (param->qmsgLen[1] == 0)) {
     smaWarn("vgId:%d, no qmsg1/qmsg2 for rollup stable %s %" PRIi64, SMA_VID(pSma), pReq->name, pReq->suid);
@@ -502,8 +502,10 @@ static int32_t tdFetchAndSubmitRSmaResult(SRSmaInfoItem *pItem, int8_t blkType) 
     }
 
     taosMemoryFreeClear(pReq);
+  } else if (terrno == 0) {
+    smaDebug("vgId:%d, no rsma %" PRIi8 " data fetched yet", SMA_VID(pSma), pItem->level);
   } else {
-    smaDebug("vgId:%d, no rsma %" PRIi8 " data generated since %s", SMA_VID(pSma), pItem->level, tstrerror(terrno));
+    smaDebug("vgId:%d, no rsma %" PRIi8 " data fetched since %s", SMA_VID(pSma), pItem->level, tstrerror(terrno));
   }
 
   tdDestroySDataBlockArray(pResult);
@@ -660,18 +662,6 @@ static void *tdRSmaPersistExec(void *param) {
   if (TASK_TRIGGER_STAT_CANCELLED == atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat))) {
     goto _end;
   }
-
-#if 0
-  SArray *suidList = taosArrayInit(1, sizeof(tb_uid_t));
-  if (tsdbGetStbIdList(SMA_META(pSma), 0, suidList) < 0) {
-    ASSERT(0);
-  } else {
-    for (int32_t i = 0; i < taosArrayGetSize(suidList); ++i) {
-      tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
-      smaDebug("suid [%d] is %" PRIi64, i, suid);
-    }
-  }
-#endif
 
   void *infoHash = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), NULL);
   if (!infoHash) {
@@ -852,6 +842,7 @@ static void tdRSmaPersistTrigger(void *param, void *tmrId) {
     } break;
     default: {
       smaWarn("%s:%d rsma persistence not start since unknown stat %" PRIi8, __func__, __LINE__, tmrStat);
+      ASSERT(0);
     } break;
   }
 }

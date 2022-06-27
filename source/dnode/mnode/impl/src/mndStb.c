@@ -427,17 +427,17 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.schemaTag.pSchema = pStb->pTags;
 
   if (req.rollup) {
-    req.pRSmaParam.maxdelay[0] = pStb->maxdelay[0];
-    req.pRSmaParam.maxdelay[1] = pStb->maxdelay[1];
+    req.rsmaParam.maxdelay[0] = pStb->maxdelay[0];
+    req.rsmaParam.maxdelay[1] = pStb->maxdelay[1];
     if (pStb->ast1Len > 0) {
-      if (mndConvertRsmaTask(&req.pRSmaParam.qmsg[0], &req.pRSmaParam.qmsgLen[0], pStb->pAst1, pStb->uid,
-                             STREAM_TRIGGER_WINDOW_CLOSE, req.pRSmaParam.watermark[0]) < 0) {
+      if (mndConvertRsmaTask(&req.rsmaParam.qmsg[0], &req.rsmaParam.qmsgLen[0], pStb->pAst1, pStb->uid,
+                             STREAM_TRIGGER_WINDOW_CLOSE, req.rsmaParam.watermark[0]) < 0) {
         goto _err;
       }
     }
     if (pStb->ast2Len > 0) {
-      if (mndConvertRsmaTask(&req.pRSmaParam.qmsg[1], &req.pRSmaParam.qmsgLen[1], pStb->pAst2, pStb->uid,
-                             STREAM_TRIGGER_WINDOW_CLOSE, req.pRSmaParam.watermark[1]) < 0) {
+      if (mndConvertRsmaTask(&req.rsmaParam.qmsg[1], &req.rsmaParam.qmsgLen[1], pStb->pAst2, pStb->uid,
+                             STREAM_TRIGGER_WINDOW_CLOSE, req.rsmaParam.watermark[1]) < 0) {
         goto _err;
       }
     }
@@ -470,12 +470,12 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   tEncoderClear(&encoder);
 
   *pContLen = contLen;
-  taosMemoryFreeClear(req.pRSmaParam.qmsg[0]);
-  taosMemoryFreeClear(req.pRSmaParam.qmsg[1]);
+  taosMemoryFreeClear(req.rsmaParam.qmsg[0]);
+  taosMemoryFreeClear(req.rsmaParam.qmsg[1]);
   return pHead;
 _err:
-  taosMemoryFreeClear(req.pRSmaParam.qmsg[0]);
-  taosMemoryFreeClear(req.pRSmaParam.qmsg[1]);
+  taosMemoryFreeClear(req.rsmaParam.qmsg[0]);
+  taosMemoryFreeClear(req.rsmaParam.qmsg[1]);
   return NULL;
 }
 

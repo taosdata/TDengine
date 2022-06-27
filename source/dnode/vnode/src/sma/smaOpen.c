@@ -18,6 +18,7 @@
 
 static int32_t smaEvalDays(SRetention *r, int8_t precision);
 static int32_t smaSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int type);
+static int32_t smaRestore(SSma *pSma);
 
 #define SMA_SET_KEEP_CFG(l)                                                                       \
   do {                                                                                            \
@@ -120,6 +121,12 @@ int32_t smaOpen(SVnode *pVnode) {
   }
 
   pVnode->pSma = pSma;
+
+  // restore the sma
+  if (smaRestore(pSma) < 0) {
+    goto _err;
+  }
+
   return 0;
 _err:
   taosMemoryFreeClear(pSma);
@@ -127,7 +134,7 @@ _err:
 }
 
 int32_t smaCloseEnv(SSma *pSma) {
-  if(pSma) {
+  if (pSma) {
     SMA_TSMA_ENV(pSma) = tdFreeSmaEnv(SMA_TSMA_ENV(pSma));
     SMA_RSMA_ENV(pSma) = tdFreeSmaEnv(SMA_RSMA_ENV(pSma));
   }
@@ -153,13 +160,41 @@ int32_t smaClose(SSma *pSma) {
 
 /**
  * @brief rsma env restore
- * 
- * @param pSma 
- * @return int32_t 
+ *
+ * @param pSma
+ * @return int32_t
  */
-int32_t smaRestore(SSma *pSma) {
-  if (!pSma) return 0;
+static int32_t smaRestore(SSma *pSma) {
   // iterate all stables to restore the rsma env
-  
+  SArray *suidList = taosArrayInit(1, sizeof(tb_uid_t));
+  if (tsdbGetStbIdList(SMA_META(pSma), 0, suidList) < 0) {
+    smaError("failed to restore rsma since get stb id list error: %s", terrstr());
+    return TSDB_CODE_FAILED;
+  }
+
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, SMA_META(pSma), 0);
+  for (int32_t i = 0; i < taosArrayGetSize(suidList); ++i) {
+    tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
+    smaDebug("suid [%d] is %" PRIi64, i, suid);
+    if (metaGetTableEntryByUid(&mr, suid) < 0) {
+      metaReaderClear(&mr);
+      taosArrayDestroy(suidList);
+      smaError("failed to get table meta for %" PRIi64 " since %s", suid, terrstr());
+      return TSDB_CODE_FAILED;
+    }
+    ASSERT(mr.me.type == TSDB_SUPER_TABLE);
+    if (TABLE_IS_ROLLUP(mr.me.flags)) {
+      SRSmaParam *param = &mr.me.stbEntry.rsmaParam;
+      for (int i = 0; i < 2; ++i) {
+        smaDebug("%s:%d table:%" PRIi64 " maxdelay[%d]:%" PRIi64 " watermark[%d]:%" PRIi64, __func__, __LINE__, suid, i,
+                 param->maxdelay[i], i, param->watermark[i]);
+      }
+    }
+  }
+
+  metaReaderClear(&mr);
+  taosArrayDestroy(suidList);
+
   return TSDB_CODE_SUCCESS;
 }

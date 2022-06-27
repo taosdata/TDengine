@@ -342,6 +342,7 @@ SMStbCursor *metaOpenStbCursor(SMeta *pMeta, tb_uid_t suid) {
 
   pStbCur = (SMStbCursor *)taosMemoryCalloc(1, sizeof(*pStbCur));
   if (pStbCur == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -351,6 +352,7 @@ SMStbCursor *metaOpenStbCursor(SMeta *pMeta, tb_uid_t suid) {
 
   ret = tdbTbcOpen(pMeta->pSuidIdx, &pStbCur->pCur, NULL);
   if (ret < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     metaULock(pMeta);
     taosMemoryFree(pStbCur);
     return NULL;
