@@ -607,7 +607,9 @@ static int32_t tsdbReadSubBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx,
   int64_t    n;
   TdFilePtr  pFD = pBlock->last ? pReader->pLastFD : pReader->pDataFD;
   SSubBlock *pSubBlock = &pBlock->aSubBlock[iSubBlock];
-  SBlockCol *pBlockCol = &(SBlockCol){};
+  SBlockCol *pBlockCol = &(SBlockCol){0};
+
+  tBlockDataReset(pBlockData);
 
   // realloc
   code = tsdbRealloc(ppBuf1, pSubBlock->bsize);
@@ -789,10 +791,41 @@ int32_t tsdbReadBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *p
   if (code) goto _err;
 
   // read remain block data and do merg
-  iSubBlock++;
-  for (; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
-    ASSERT(0);
+  if (pBlock->nSubBlock > 1) {
+    SBlockData *pBlockData1 = &(SBlockData){0};
+    SBlockData *pBlockData2 = &(SBlockData){0};
+
+    for (iSubBlock = 1; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
+      code = tsdbReadSubBlockData(pReader, pBlockIdx, pBlock, iSubBlock, pBlockData, ppBuf1, ppBuf2);
+      if (code) {
+        tBlockDataClear(pBlockData1);
+        tBlockDataClear(pBlockData2);
+        goto _err;
+      }
+
+      code = tBlockDataCopy(pBlockData, pBlockData2);
+      if (code) {
+        tBlockDataClear(pBlockData1);
+        tBlockDataClear(pBlockData2);
+        goto _err;
+      }
+
+      // merge two block data
+      code = tBlockDataMerge(pBlockData1, pBlockData2, pBlockData);
+      if (code) {
+        tBlockDataClear(pBlockData1);
+        tBlockDataClear(pBlockData2);
+        goto _err;
+      }
+    }
+
+    tBlockDataClear(pBlockData1);
+    tBlockDataClear(pBlockData2);
   }
+
+  ASSERT(pBlock->nRow == pBlockData->nRow);
+  ASSERT(tsdbKeyCmprFn(&pBlock->minKey, &TSDBROW_KEY(&tBlockDataFirstRow(pBlockData))) == 0);
+  ASSERT(tsdbKeyCmprFn(&pBlock->maxKey, &TSDBROW_KEY(&tBlockDataLastRow(pBlockData))) == 0);
 
   if (pBuf1) tsdbFree(pBuf1);
   if (pBuf2) tsdbFree(pBuf2);

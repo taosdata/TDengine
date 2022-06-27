@@ -86,8 +86,8 @@ typedef struct STsdbFSState   STsdbFSState;
 #define TSDBROW_VERSION(ROW)                  (((ROW)->type == 0) ? (ROW)->version : (ROW)->pBlockData->aVersion[(ROW)->iRow])
 #define TSDBROW_SVERSION(ROW)                 TD_ROW_SVER((ROW)->pTSRow)
 #define TSDBROW_KEY(ROW)                      ((TSDBKEY){.version = TSDBROW_VERSION(ROW), .ts = TSDBROW_TS(ROW)})
-#define tsdbRowFromTSRow(VERSION, TSROW)      ((TSDBROW){.type = 0, .version = (VERSION), .pTSRow = (TSROW)});
-#define tsdbRowFromBlockData(BLOCKDATA, IROW) ((TSDBROW){.type = 1, .pBlockData = (BLOCKDATA), .iRow = (IROW)});
+#define tsdbRowFromTSRow(VERSION, TSROW)      ((TSDBROW){.type = 0, .version = (VERSION), .pTSRow = (TSROW)})
+#define tsdbRowFromBlockData(BLOCKDATA, IROW) ((TSDBROW){.type = 1, .pBlockData = (BLOCKDATA), .iRow = (IROW)})
 void    tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow);
 int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow);
@@ -132,6 +132,7 @@ int32_t tCmprBlockIdx(void const *lhs, void const *rhs);
 void    tColDataReset(SColData *pColData, int16_t cid, int8_t type);
 void    tColDataClear(void *ph);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
+int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest);
 int32_t tColDataGetValue(SColData *pColData, int32_t iRow, SColVal *pColVal);
 int32_t tColDataPCmprFn(const void *p1, const void *p2);
 // SBlockData
@@ -142,6 +143,8 @@ void    tBlockDataReset(SBlockData *pBlockData);
 void    tBlockDataClear(SBlockData *pBlockData);
 int32_t tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
 int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
+int32_t tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData);
+int32_t tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest);
 // SDelIdx
 int32_t tPutDelIdx(uint8_t *p, void *ph);
 int32_t tGetDelIdx(uint8_t *p, void *ph);
@@ -374,9 +377,9 @@ typedef struct {
   int64_t  nRow;
   int8_t   cmprAlg;
   int64_t  offset;
-  int64_t  vsize;  // VERSION size
-  int64_t  ksize;  // TSKEY size
-  int64_t  bsize;
+  int64_t  vsize;      // VERSION size
+  int64_t  ksize;      // TSKEY size
+  int64_t  bsize;      // total block size
   SMapData mBlockCol;  // SMapData<SBlockCol>
 } SSubBlock;
 
@@ -412,7 +415,6 @@ struct SColData {
   int32_t *aOffset;
   int32_t  nData;
   uint8_t *pData;
-  uint8_t *pBuf;
 };
 
 struct SBlockData {
