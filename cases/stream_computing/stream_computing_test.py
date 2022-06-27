@@ -44,12 +44,21 @@ class StreamComputingTest(TDCase):
         self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "leastsquares(c1, 1, 2)", "spread(c1)", 
         "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
         "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "leastsquares(t1, 1, 2)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
+        self.udf_function_list = ["min(udf1(c1))", "max(udf1(c2))", "sum(udf1(c3))", "first(udf1(c4))", "last(udf1(c5))", "apercentile(udf1(c6), 50)", "avg(udf1(c7))", "count(udf1(c8))", "leastsquares(udf1(c1), 1, 2)", "spread(udf1(c1))", 
+        "stddev(udf1(c2))", "hyperloglog(udf1(c11))", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(udf1(t1))", "max(udf1(t2))", "sum(udf1(t3))",
+        "first(udf1(t4))", "last(udf1(t5))", "apercentile(udf1(t6), 50)", "avg(udf1(t7))", "count(udf1(t8))", "leastsquares(udf1(t1), 1, 2)", "spread(udf1(t1))", "stddev(udf1(t2))", "hyperloglog(udf1(t11))"]
         # self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c1)", "first(c1)", "last(c1)", "apercentile(c1, 50)", "last_row(c1)", "avg(c1)", "count(c1)", "leastsquares(c1, 1, 2)", "spread(c1)", "stddev(c2)", "hyperloglog(c3)", 
         #     'histogram(c1, "user_input", "[1, 3, 5, 7]", 0)', "now()", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "timezone()", "today()", "to_iso8601(now)",  'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
         self.stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list)))
         self.stb_source_select_str = ','.join(self.downsampling_function_list)
         self.tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list[0:16])))
         self.tb_source_select_str = ','.join(self.downsampling_function_list[0:16])
+
+        self.udf_stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.udf_function_list)))
+        self.udf_stb_source_select_str = ','.join(self.udf_function_list)
+        self.udf_tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.udf_function_list[0:16])))
+        self.udf_tb_source_select_str = ','.join(self.udf_function_list[0:16])
+
         self.date_time = self.tdCom.genTs(precision=self.precision)[0]
         self.stb_data_filter_sql = f'ts >= {self.date_time}+1s and c1 = 1 or c2 > 1 and c3 != 4 or c4 <= 3 and c9 <> 0 or c10 is not Null or c11 is Null or \
                 c12 between "na" and "nchar4" and c11 not between "bi" and "binary" and c12 match "nchar[19]" and c12 nmatch "nchar[25]" or c13 = True or \
@@ -664,6 +673,39 @@ class StreamComputingTest(TDCase):
         self.tdCom.create_stable(stbname=self.stb_name)
         self.tdCom.create_ctable(stbname=self.stb_name, ctbname=self.ctb_name)
         self.tdCom.create_table(tbname=self.tb_name)
+
+    def udf_interval_order(self, interval, precision, vgroups=1):
+        self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data(interval=interval, precision=precision, vgroups=vgroups)
+        self.tdCom.write_latency(self.case_name)
+        # TODO
+        #libudf1, libudf2 = self.tdCom.get_udf_so_path()
+        # create stb/ctb/tb stream
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstartts AS start, {self.udf_stb_source_select_str}  from {self.stb_name} interval({self.dataDict["interval"]}s)')
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstartts AS start, {self.udf_stb_source_select_str}  from {self.ctb_name} interval({self.dataDict["interval"]}s)')
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstartts AS start, {self.udf_tb_source_select_str}  from {self.tb_name} interval({self.dataDict["interval"]}s)')
+
+        # insert data
+        count = 1
+        step_count = 1
+        for i in range(1, self.range_count):
+            ctb_name = self.tdCom.get_long_name()
+            self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
+            if i % 2 == 0:
+                step_count += i
+                for j in range(count, step_count):
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{j}s')
+                count += i
+            else:
+                step_count += 1
+                for i in range(2):
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{count}s')
+                count += 1
+            # check result
+            self.tdCom.check_query_data(f'select start, {self.udf_stb_output_select_str} from {self.stb_name}{self.des_table_suffix}', f'select _wstartts AS start, {self.udf_stb_source_select_str}  from {self.stb_name} partition by tbname interval({self.dataDict["interval"]}s)')
+            self.tdCom.check_query_data(f'select start, {self.udf_stb_output_select_str} from {self.ctb_name}{self.des_table_suffix}', f'select _wstartts AS start, {self.udf_stb_source_select_str}  from {self.ctb_name} partition by tbname interval({self.dataDict["interval"]}s)')
+            self.tdCom.check_query_data(f'select start, {self.udf_tb_output_select_str} from {self.tb_name}{self.des_table_suffix}', f'select _wstartts AS start, {self.udf_tb_source_select_str}  from {self.tb_name} partition by tbname interval({self.dataDict["interval"]}s)')
+
 
     def partitionby_interval_order(self, interval, precision=None, vgroups=1):
         self.case_name = sys._getframe().f_code.co_name
