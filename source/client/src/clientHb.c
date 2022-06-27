@@ -66,25 +66,31 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
     if (rsp->vgVersion < 0) {
       code = catalogRemoveDB(pCatalog, rsp->db, rsp->uid);
     } else {
-      SDBVgInfo vgInfo = {0};
-      vgInfo.vgVersion = rsp->vgVersion;
-      vgInfo.hashMethod = rsp->hashMethod;
-      vgInfo.vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-      if (NULL == vgInfo.vgHash) {
+      SDBVgInfo *vgInfo = taosMemoryCalloc(1, sizeof(SDBVgInfo));
+      if (NULL == vgInfo) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      
+      vgInfo->vgVersion = rsp->vgVersion;
+      vgInfo->hashMethod = rsp->hashMethod;
+      vgInfo->vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+      if (NULL == vgInfo->vgHash) {
+        taosMemoryFree(vgInfo);
         tscError("hash init[%d] failed", rsp->vgNum);
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
       }
 
       for (int32_t j = 0; j < rsp->vgNum; ++j) {
         SVgroupInfo *pInfo = taosArrayGet(rsp->pVgroupInfos, j);
-        if (taosHashPut(vgInfo.vgHash, &pInfo->vgId, sizeof(int32_t), pInfo, sizeof(SVgroupInfo)) != 0) {
+        if (taosHashPut(vgInfo->vgHash, &pInfo->vgId, sizeof(int32_t), pInfo, sizeof(SVgroupInfo)) != 0) {
           tscError("hash push failed, errno:%d", errno);
-          taosHashCleanup(vgInfo.vgHash);
+          taosHashCleanup(vgInfo->vgHash);
+          taosMemoryFree(vgInfo);
           return TSDB_CODE_TSC_OUT_OF_MEMORY;
         }
       }
 
-      catalogUpdateDBVgInfo(pCatalog, rsp->db, rsp->uid, &vgInfo);
+      catalogUpdateDBVgInfo(pCatalog, rsp->db, rsp->uid, vgInfo);
     }
 
     if (code) {

@@ -789,8 +789,6 @@ _return:
 
 int32_t ctgCallUserCb(void* param) {
   SCtgJob* pJob = (SCtgJob*)param;
-
-  //taosSsleep(2);
   
   (*pJob->userFp)(&pJob->jobRes, pJob->userParam, pJob->jobResCode);
 
@@ -827,6 +825,9 @@ _return:
   qDebug("QID:0x%" PRIx64 " ctg call user callback with rsp %s", pJob->queryId, tstrerror(code));
 
   pJob->jobResCode = code;
+
+  taosSsleep(2);
+  qDebug("QID:0x%" PRIx64 " ctg after sleep", pJob->queryId);
   
   taosAsyncExec(ctgCallUserCb, pJob, NULL);
   
