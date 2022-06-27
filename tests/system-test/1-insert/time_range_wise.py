@@ -17,10 +17,10 @@ TINT_COL = "c_tint"
 FLOAT_COL = "c_float"
 DOUBLE_COL = "c_double"
 BOOL_COL = "c_bool"
-TINT_UN_COL = "c_tint_un"
-SINT_UN_COL = "c_sint_un"
-BINT_UN_COL = "c_bint_un"
-INT_UN_COL = "c_int_un"
+TINT_UN_COL = "c_utint"
+SINT_UN_COL = "c_usint"
+BINT_UN_COL = "c_ubint"
+INT_UN_COL = "c_uint"
 BINARY_COL = "c_binary"
 NCHAR_COL = "c_nchar"
 TS_COL = "c_ts"
@@ -100,6 +100,7 @@ class SMAschema:
     show_msg            : str           = "INDEXES"
     show_oper           : str           = "FROM"
     dbname              : str           = None
+    rollup_db           : bool          = False
 
     def __post_init__(self):
         if isinstance(self.other, dict):
@@ -157,6 +158,11 @@ class SMAschema:
                     self.show_oper = v
                     del self.other[k]
 
+                if k.lower() == "rollup_db" and isinstance(v, bool) and not self.rollup_db:
+                    self.rollup_db = v
+                    del self.other[k]
+
+
 
 # from ...pytest.util.sql import *
 # from ...pytest.util.constant import *
@@ -166,7 +172,7 @@ class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
         self.precision = "ms"
         self.sma_count = 0
         self.sma_created_index = []
@@ -319,6 +325,10 @@ class TDTestCase:
     def __sma_create_check(self, sma:SMAschema):
         if  self.updatecfgDict["querySmaOptimize"] == 0:
             return False
+        # # TODO: if database is a rollup-db, can not create sma index
+        # tdSql.query("select database()")
+        # if sma.rollup_db :
+        #     return False
         tdSql.query("show stables")
         if not sma.tbname:
             return False
@@ -332,7 +342,7 @@ class TDTestCase:
             return False
         if not sma.index_flag or not isinstance(sma.index_flag, str) or  sma.index_flag.upper() != "SMA INDEX" :
             return False
-        if not sma.index_name or not isinstance(sma.index_name, str):
+        if not sma.index_name or not isinstance(sma.index_name, str) or sma.index_name.upper() in TAOS_KEYWORDS:
             return False
         if not sma.operator or not isinstance(sma.operator, str) or sma.operator.upper() != "ON":
             return False
@@ -430,7 +440,6 @@ class TDTestCase:
         cur_sqls = []
         # err_set
         # # case 1: required fields check
-        ### 1.1 create
         err_sqls.append( SMAschema(creation="", tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         err_sqls.append( SMAschema(index_name="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         err_sqls.append( SMAschema(index_flag="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
@@ -438,6 +447,16 @@ class TDTestCase:
         err_sqls.append( SMAschema(tbname="", func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         err_sqls.append( SMAschema(func=("",),tbname=STBNAME ) )
         err_sqls.append( SMAschema(interval=(""),tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+
+        # # case 2: err fields
+        err_sqls.append( SMAschema(creation="show",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(creation="alter",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(creation="select",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+
+        err_sqls.append( SMAschema(index_flag="SMA INDEXES", tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(index_flag="SMA INDEX ,", tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(index_name="tbname", tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+
 
         # current_set
 
@@ -474,8 +493,8 @@ class TDTestCase:
         err_sqls , cur_sqls = self.__drop_sma_sql
         for err_sql in err_sqls:
             self.sma_drop_check(err_sql)
-        for cur_sql in cur_sqls:
-            self.sma_drop_check(cur_sql)
+        # for cur_sql in cur_sqls:
+        #     self.sma_drop_check(cur_sql)
 
     def all_test(self):
         self.test_create_sma()
@@ -586,14 +605,14 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step1:create table in normal database")
         tdSql.prepare()
         self.__create_tb()
-        self.__insert_data()
+        # self.__insert_data()
         self.all_test()
 
         # drop databases, create same name db、stb and sma index
-        tdSql.prepare()
-        self.__create_tb()
-        self.__insert_data()
-        self.all_test()
+        # tdSql.prepare()
+        # self.__create_tb()
+        # self.__insert_data()
+        # self.all_test()
 
 
 
