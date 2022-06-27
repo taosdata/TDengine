@@ -355,6 +355,7 @@ void tBlockReset(SBlock *pBlock) {
     pBlock->aSubBlock[iSubBlock].nRow = 0;
     pBlock->aSubBlock[iSubBlock].cmprAlg = -1;
     pBlock->aSubBlock[iSubBlock].offset = -1;
+    pBlock->aSubBlock[iSubBlock].vsize = -1;
     pBlock->aSubBlock[iSubBlock].ksize = -1;
     pBlock->aSubBlock[iSubBlock].bsize = -1;
     tMapDataReset(&pBlock->aSubBlock->mBlockCol);

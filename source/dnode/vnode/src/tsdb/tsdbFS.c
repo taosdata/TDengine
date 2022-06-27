@@ -171,7 +171,71 @@ _err:
 
 static int32_t tsdbApplyDFileSetChange(STsdbFS *pFS, SDFileSet *pFrom, SDFileSet *pTo) {
   int32_t code = 0;
-  // TODO
+  char    fname[TSDB_FILENAME_LEN];
+
+  if (pFrom && pTo) {
+    // head
+    if (tsdbFileIsSame(pFrom, pTo, TSDB_HEAD_FILE)) {
+      ASSERT(0);
+    } else {
+      tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_HEAD_FILE, fname);
+      taosRemoveFile(fname);
+    }
+
+    // data
+    if (tsdbFileIsSame(pFrom, pTo, TSDB_DATA_FILE)) {
+      if (pFrom->fData.size > pTo->fData.size) {
+        code = tsdbDFileRollback(pFS->pTsdb, pTo, TSDB_DATA_FILE);
+        if (code) goto _err;
+      }
+    } else {
+      tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_DATA_FILE, fname);
+      taosRemoveFile(fname);
+    }
+
+    // last
+    if (tsdbFileIsSame(pFrom, pTo, TSDB_LAST_FILE)) {
+      if (pFrom->fLast.size > pTo->fLast.size) {
+        code = tsdbDFileRollback(pFS->pTsdb, pTo, TSDB_LAST_FILE);
+        if (code) goto _err;
+      }
+    } else {
+      tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_LAST_FILE, fname);
+      taosRemoveFile(fname);
+    }
+
+    // sma
+    if (tsdbFileIsSame(pFrom, pTo, TSDB_SMA_FILE)) {
+      if (pFrom->fSma.size > pTo->fSma.size) {
+        code = tsdbDFileRollback(pFS->pTsdb, pTo, TSDB_SMA_FILE);
+        if (code) goto _err;
+      }
+    } else {
+      tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_SMA_FILE, fname);
+      taosRemoveFile(fname);
+    }
+  } else if (pFrom) {
+    // head
+    tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_HEAD_FILE, fname);
+    taosRemoveFile(fname);
+
+    // data
+    tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_DATA_FILE, fname);
+    taosRemoveFile(fname);
+
+    // last
+    tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_LAST_FILE, fname);
+    taosRemoveFile(fname);
+
+    // fsm
+    tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_SMA_FILE, fname);
+    taosRemoveFile(fname);
+  }
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb apply disk file set change failed since %s", TD_VID(pFS->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 

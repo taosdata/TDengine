@@ -1047,99 +1047,35 @@ _err:
   return code;
 }
 
-int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter, uint8_t **ppBuf) {
+int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter) {
   int32_t    code = 0;
   int64_t    size = TSDB_FHDR_SIZE;
   int64_t    n;
-  uint8_t   *pBuf = NULL;
+  uint8_t    hdr[TSDB_FHDR_SIZE];
   SHeadFile *pHeadFile = &pWriter->wSet.fHead;
   SDataFile *pDataFile = &pWriter->wSet.fData;
   SLastFile *pLastFile = &pWriter->wSet.fLast;
   SSmaFile  *pSmaFile = &pWriter->wSet.fSma;
 
-  // alloc
-  if (!ppBuf) ppBuf = &pBuf;
-  code = tsdbRealloc(ppBuf, size);
+  // head ==============
+  code = tsdbUpdateDFileHdr(pWriter->pHeadFD, &pWriter->wSet, TSDB_HEAD_FILE);
   if (code) goto _err;
 
-  // head ==============
-  // build
-  memset(*ppBuf, 0, size);
-  tPutDataFileHdr(*ppBuf, &pWriter->wSet, TSDB_HEAD_FILE);
-  taosCalcChecksumAppend(0, *ppBuf, size);
-
-  // seek
-  if (taosLSeekFile(pWriter->pHeadFD, 0, SEEK_SET) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  // write
-  n = taosWriteFile(pWriter->pHeadFD, *ppBuf, size);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
   // data ==============
-  memset(*ppBuf, 0, size);
-  tPutDataFileHdr(*ppBuf, &pWriter->wSet, TSDB_DATA_FILE);
-  taosCalcChecksumAppend(0, *ppBuf, size);
-
-  // seek
-  if (taosLSeekFile(pWriter->pDataFD, 0, SEEK_SET) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  // write
-  n = taosWriteFile(pWriter->pDataFD, *ppBuf, size);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
+  code = tsdbUpdateDFileHdr(pWriter->pHeadFD, &pWriter->wSet, TSDB_DATA_FILE);
+  if (code) goto _err;
 
   // last ==============
-  memset(*ppBuf, 0, size);
-  tPutDataFileHdr(*ppBuf, &pWriter->wSet, TSDB_LAST_FILE);
-  taosCalcChecksumAppend(0, *ppBuf, size);
-
-  // seek
-  if (taosLSeekFile(pWriter->pLastFD, 0, SEEK_SET) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  // write
-  n = taosWriteFile(pWriter->pLastFD, *ppBuf, size);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
+  code = tsdbUpdateDFileHdr(pWriter->pHeadFD, &pWriter->wSet, TSDB_LAST_FILE);
+  if (code) goto _err;
 
   // sma ==============
-  memset(*ppBuf, 0, size);
-  tPutDataFileHdr(*ppBuf, &pWriter->wSet, TSDB_SMA_FILE);
-  taosCalcChecksumAppend(0, *ppBuf, size);
+  code = tsdbUpdateDFileHdr(pWriter->pHeadFD, &pWriter->wSet, TSDB_SMA_FILE);
+  if (code) goto _err;
 
-  // seek
-  if (taosLSeekFile(pWriter->pSmaFD, 0, SEEK_SET) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  // write
-  n = taosWriteFile(pWriter->pSmaFD, *ppBuf, size);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  tsdbFree(pBuf);
   return code;
 
 _err:
-  tsdbFree(pBuf);
   tsdbError("vgId:%d update DFileSet header failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
