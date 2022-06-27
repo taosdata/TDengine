@@ -477,7 +477,7 @@ double getVectorDoubleValue_JSON(void *src, int32_t index){
 }
 
 void* ncharTobinary(void *buf){            // todo need to remove , if tobinary is nchar
-  int32_t inputLen = varDataLen(buf);
+  int32_t inputLen = varDataTLen(buf);
 
   void* t = taosMemoryCalloc(1, inputLen);
   int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t));

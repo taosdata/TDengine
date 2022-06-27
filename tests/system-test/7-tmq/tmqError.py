@@ -288,7 +288,10 @@ class TDTestCase:
             tdLog.exit("tmq consume rows error!")
 
         tdSql.query("drop topic %s"%topicFromStb1)
-        os.system('pkill tmq_sim')
+        if (platform.system().lower() == 'windows'):
+            os.system("TASKKILL /F /IM tmq_sim.exe")
+        else:
+            os.system('pkill tmq_sim')
 
         tdLog.printNoPrefix("======== test case 1 end ...... ")  
 

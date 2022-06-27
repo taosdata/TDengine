@@ -81,6 +81,19 @@ void taos_cleanup(void) {
   taosCloseLog();
 }
 
+static setConfRet taos_set_config_imp(const char *config){
+  setConfRet ret = {SET_CONF_RET_SUCC, {0}};
+  // TODO: need re-implementation
+  return ret;
+}
+
+setConfRet taos_set_config(const char *config){
+// TODO  pthread_mutex_lock(&setConfMutex);
+  setConfRet ret = taos_set_config_imp(config);
+//  pthread_mutex_unlock(&setConfMutex);
+  return ret;
+}
+
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   tscDebug("try to connect to %s:%u, user:%s db:%s", ip, port, user, db);
   if (user == NULL) {
@@ -199,10 +212,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   return pResInfo->userFields;
 }
 
-
-TAOS_RES *taos_query(TAOS *taos, const char *sql) {
-  return taosQueryImpl(taos, sql, false);
-}
+TAOS_RES *taos_query(TAOS *taos, const char *sql) { return taosQueryImpl(taos, sql, false); }
 
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   if (res == NULL) {
@@ -593,11 +603,11 @@ int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
   return pResInfo->pCol[columnIndex].offset;
 }
 
-int taos_validate_sql(TAOS *taos, const char *sql) { 
-  TAOS_RES* pObj = taosQueryImpl(taos, sql, true);
+int taos_validate_sql(TAOS *taos, const char *sql) {
+  TAOS_RES *pObj = taosQueryImpl(taos, sql, true);
 
   int code = taos_errno(pObj);
-  
+
   taos_free_result(pObj);
   return code;
 }
@@ -884,10 +894,10 @@ void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress) {
 
 int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   const int32_t MAX_TABLE_NAME_LENGTH = 12 * 1024 * 1024;  // 12MB list
-  int32_t code = 0;
-  SRequestObj *pRequest = NULL;
-  SCatalogReq catalogReq = {0};
-  
+  int32_t       code = 0;
+  SRequestObj  *pRequest = NULL;
+  SCatalogReq   catalogReq = {0};
+
   if (NULL == tableNameList) {
     return TSDB_CODE_SUCCESS;
   }
@@ -911,26 +921,25 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     goto _return;
   }
 
-  SCatalog* pCtg = NULL;
+  SCatalog *pCtg = NULL;
   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCtg);
   if (code != TSDB_CODE_SUCCESS) {
     goto _return;
   }
 
-  char* sql = "taos_load_table_info";
+  char *sql = "taos_load_table_info";
   code = buildRequest(pTscObj, sql, strlen(sql), &pRequest);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     goto _return;
   }
-  
+
   SSyncQueryParam param = {0};
   tsem_init(&param.sem, 0, 0);
   param.pRequest = pRequest;
 
-  SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
-                           .requestId = pRequest->requestId,
-                           .requestObjRefId = pRequest->self};
+  SRequestConnInfo conn = {
+      .pTrans = pTscObj->pAppInfo->pTransporter, .requestId = pRequest->requestId, .requestObjRefId = pRequest->self};
 
   conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
@@ -950,7 +959,6 @@ _return:
 
   return code;
 }
-
 
 TAOS_STMT *taos_stmt_init(TAOS *taos) {
   STscObj *pObj = acquireTscObj(*(int64_t *)taos);

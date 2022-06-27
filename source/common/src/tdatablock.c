@@ -1170,7 +1170,7 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows) 
 
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
   int32_t code = 0;
-  ASSERT(numOfRows > 0);
+  // ASSERT(numOfRows > 0);
 
   if (numOfRows == 0) {
     return TSDB_CODE_SUCCESS;
@@ -1234,6 +1234,32 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
   dst->info.rows = src->info.rows;
   dst->info.capacity = src->info.rows;
   return 0;
+}
+
+int32_t copyDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
+  ASSERT(src != NULL && dst != NULL);
+
+  blockDataCleanup(dst);
+  int32_t code = blockDataEnsureCapacity(dst, src->info.rows);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return code;
+  }
+
+  size_t numOfCols = taosArrayGetSize(src->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pDst = taosArrayGet(dst->pDataBlock, i);
+    SColumnInfoData* pSrc = taosArrayGet(src->pDataBlock, i);
+    if (pSrc->pData == NULL) {
+      continue;
+    }
+
+    colDataAssign(pDst, pSrc, src->info.rows, &src->info);
+  }
+
+  dst->info.rows = src->info.rows;
+  dst->info.window = src->info.window;
+  return TSDB_CODE_SUCCESS;
 }
 
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
@@ -1613,7 +1639,7 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
   return buf;
 }
 
-void blockDebugShowData(const SArray* dataBlocks, const char* flag) {
+void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
   char    pBuf[128] = {0};
   int32_t sz = taosArrayGetSize(dataBlocks);
   for (int32_t i = 0; i < sz; i++) {
@@ -1621,7 +1647,7 @@ void blockDebugShowData(const SArray* dataBlocks, const char* flag) {
     size_t       numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
 
     int32_t rows = pDataBlock->info.rows;
-    printf("%s |block type %d |child id %d|\n", flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId);
+    printf("%s |block type %d |child id %d|group id %zX\n", flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.groupId);
     for (int32_t j = 0; j < rows; j++) {
       printf("%s |", flag);
       for (int32_t k = 0; k < numOfCols; k++) {
@@ -1659,6 +1685,57 @@ void blockDebugShowData(const SArray* dataBlocks, const char* flag) {
       printf("\n");
     }
   }
+}
+
+// for debug
+char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) {
+  int32_t size = 2048;
+  *pDataBuf = taosMemoryCalloc(size, 1);
+  char*   dumpBuf = *pDataBuf;
+  char    pBuf[128] = {0};
+  int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
+  int32_t rows = pDataBlock->info.rows;
+  int32_t len = 0;
+  len += snprintf(dumpBuf + len, size - len, "\n%s |block type %d |child id %d|\n", flag,
+                  (int32_t)pDataBlock->info.type, pDataBlock->info.childId);
+  for (int32_t j = 0; j < rows; j++) {
+    len += snprintf(dumpBuf + len, size - len, "%s |", flag);
+    for (int32_t k = 0; k < colNum; k++) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
+      void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
+      if (colDataIsNull(pColInfoData, rows, j, NULL)) {
+        len += snprintf(dumpBuf + len, size - len, " %15s |", "NULL");
+        continue;
+      }
+      switch (pColInfoData->info.type) {
+        case TSDB_DATA_TYPE_TIMESTAMP:
+          formatTimestamp(pBuf, *(uint64_t*)var, TSDB_TIME_PRECISION_MILLI);
+          len += snprintf(dumpBuf + len, size - len, " %25s |", pBuf);
+          break;
+        case TSDB_DATA_TYPE_INT:
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(int32_t*)var);
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          len += snprintf(dumpBuf + len, size - len, " %15u |", *(uint32_t*)var);
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          len += snprintf(dumpBuf + len, size - len, " %15ld |", *(int64_t*)var);
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          len += snprintf(dumpBuf + len, size - len, " %15lu |", *(uint64_t*)var);
+          break;
+        case TSDB_DATA_TYPE_FLOAT:
+          len += snprintf(dumpBuf + len, size - len, " %15f |", *(float*)var);
+          break;
+        case TSDB_DATA_TYPE_DOUBLE:
+          len += snprintf(dumpBuf + len, size - len, " %15lf |", *(double*)var);
+          break;
+      }
+    }
+    len += snprintf(dumpBuf + len, size - len, "\n");
+  }
+  len += snprintf(dumpBuf + len, size - len, "%s |end\n", flag);
+  return dumpBuf;
 }
 
 /**
