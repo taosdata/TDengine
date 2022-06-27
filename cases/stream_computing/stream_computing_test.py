@@ -40,14 +40,28 @@ class StreamComputingTest(TDCase):
         self.stream_suffix = "_stream"
         # ! TD-16571 histogram
         # ! TD-16570 last_row(c1)
-        # ! now() timezone() to_iso8601(1)
+        # ! now() timezone() to_iso8601(now)
         self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "leastsquares(c1, 1, 2)", "spread(c1)", 
         "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
         "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "leastsquares(t1, 1, 2)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
+        # self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c1)", "first(c1)", "last(c1)", "apercentile(c1, 50)", "last_row(c1)", "avg(c1)", "count(c1)", "leastsquares(c1, 1, 2)", "spread(c1)", "stddev(c2)", "hyperloglog(c3)", 
+        #     'histogram(c1, "user_input", "[1, 3, 5, 7]", 0)', "now()", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "timezone()", "today()", "to_iso8601(now)",  'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
         self.stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list)))
         self.stb_source_select_str = ','.join(self.downsampling_function_list)
         self.tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list[0:16])))
         self.tb_source_select_str = ','.join(self.downsampling_function_list[0:16])
+        self.date_time = self.tdCom.genTs(precision=self.precision)[0]
+        self.stb_data_filter_sql = f'ts >= {self.date_time}+1s and c1 = 1 or c2 > 1 and c3 != 4 or c4 <= 3 and c9 <> 0 or c10 is not Null or c11 is Null or \
+                c12 between "na" and "nchar4" and c11 not between "bi" and "binary" and c12 match "nchar[19]" and c12 nmatch "nchar[25]" or c13 = True or \
+                c5 in (1, 2, 3) or c6 not in (6, 7) and c12 like "nch%" and c11 not like "bina_" and c6 <= 10 or c12 is Null or c8 >= 4 and t1 = 1 or t2 > 1 \
+                and t3 != 4 or c4 <= 3 and t9 <> 0 or t10 is not Null or t11 is Null or t12 between "na" and "nchar4" and t11 not between "bi" and "binary" \
+                or t12 match "nchar[19]" or t12 nmatch "nchar[25]" or t13 = True or t5 in (1, 2, 3) or t6 not in (6, 7) and t12 like "nch%" \
+                and t11 not like "bina_" and t6 <= 10 or t12 is Null or t8 >= 4'
+        self.tb_data_filter_sql = self.stb_data_filter_sql.partition(" and t1")[0]
+
+        self.filter_source_select_elm = "*"
+        self.stb_filter_des_select_elm = "ts, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13"
+        self.tb_filter_des_select_elm = self.stb_filter_des_select_elm.partition(", t1")[0]
 
         self.state_window_range = list()
         self.interation = 3
@@ -62,30 +76,16 @@ class StreamComputingTest(TDCase):
         else:
             pass
 
-    def data_filter(self):
+    def data_filter(self, vgroups=1, range_count=None):
         self.case_name = sys._getframe().f_code.co_name
-        dataDict = {
-            "stb_name" : f"{self.case_name}_stb",
-            "ctb_name" : f"{self.case_name}_ct1",
-            "tb_name" : f"{self.case_name}_tb1",
-            "source_select_elm" : "*",
-            "des_select_elm" : "c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13",
-            "filter_sql" : f'ts >= {self.date_time}+1s and c1 = 1 or c2 > 1 and c3 != 4 or c4 <= 3 and c9 <> 0 or c10 is not Null or c11 is Null or \
-                c12 between "na" and "nchar4" and 118 not between "bi" and "binary" and c12 match "nchar[19]" and c12 nmatch "nchar[25]" or c13 = True or \
-                c5 in (1, 2, 3) or c6 not in (6, 7) and c12 like "nch%" and c11 not like "bina_" and c6 <= 10 or c12 is Null or c8 >= 4'
-        }
 
-        # create stb/ctb/tb
-        self.tdCom.create_stable(stbname=dataDict["stb_name"])
-        self.tdCom.create_ctable(stbname=dataDict["stb_name"], ctbname=dataDict["ctb_name"])
-        self.tdCom.create_table(tbname=dataDict["tb_name"])
-
+        self.prepare_data(vgroups=vgroups, range_count=range_count)
         self.tdCom.write_latency(self.case_name)
-        
+
         # create stb/ctb/tb stream
-        self.tdCom.create_stream(stream_name=f'{dataDict["stb_name"]}{self.stream_suffix}', des_table=f'{dataDict["stb_name"]}{self.des_table_suffix}', source_sql=f'select {dataDict["source_select_elm"]} from {dataDict["stb_name"]} where {dataDict["filter_sql"]}')
-        self.tdCom.create_stream(stream_name=f'{dataDict["ctb_name"]}{self.stream_suffix}', des_table=f'{dataDict["ctb_name"]}{self.des_table_suffix}', source_sql=f'select {dataDict["source_select_elm"]} from {dataDict["ctb_name"]} where {dataDict["filter_sql"]}')
-        self.tdCom.create_stream(stream_name=f'{dataDict["tb_name"]}{self.stream_suffix}', des_table=f'{dataDict["tb_name"]}{self.des_table_suffix}', source_sql=f'select {dataDict["source_select_elm"]} from {dataDict["tb_name"]} where {dataDict["filter_sql"]}')
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select {self.filter_source_select_elm} from {self.stb_name} where {self.stb_data_filter_sql}', trigger_mode="at_once")
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select {self.filter_source_select_elm} from {self.ctb_name} where {self.stb_data_filter_sql}', trigger_mode="at_once")
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select {self.filter_source_select_elm} from {self.tb_name} where {self.tb_data_filter_sql}', trigger_mode="at_once")
 
         # insert data
         count = 1
@@ -94,19 +94,19 @@ class StreamComputingTest(TDCase):
             if i % 2 == 0:
                 step_count += i
                 for j in range(count, step_count):
-                    self.tdCom.insert_rows(tbname=dataDict["ctb_name"] ,ts_value=f'{self.date_time}+{j}s')
-                    self.tdCom.insert_rows(tbname=dataDict["tb_name"] ,ts_value=f'{self.date_time}+{j}s')
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{j}s')
+                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=f'{self.date_time}+{j}s')
                 count += i
             else:
                 step_count += 1
                 for i in range(2):
-                    self.tdCom.insert_rows(tbname=dataDict["ctb_name"] ,ts_value=f'{self.date_time}+{count}s')
-                    self.tdCom.insert_rows(tbname=dataDict["tb_name"] ,ts_value=f'{self.date_time}+{count}s')
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{count}s')
+                    self.tdCom.insert_rows(tbname=self.tb_name, ts_value=f'{self.date_time}+{count}s')
                 count += 1
             # check result
-            self.tdCom.check_stream(f'select {dataDict["des_select_elm"]} from {dataDict["stb_name"]}{self.des_table_suffix} where {dataDict["filter_sql"]};', f'select {dataDict["des_select_elm"]} from {dataDict["stb_name"]} where {dataDict["filter_sql"]};', count-1)
-            self.tdCom.check_stream(f'select {dataDict["des_select_elm"]} from {dataDict["ctb_name"]}{self.des_table_suffix} where {dataDict["filter_sql"]};', f'select {dataDict["des_select_elm"]} from {dataDict["ctb_name"]} where {dataDict["filter_sql"]};', count-1)
-            self.tdCom.check_stream(f'select {dataDict["des_select_elm"]} from {dataDict["tb_name"]}{self.des_table_suffix} where {dataDict["filter_sql"]};', f'select {dataDict["des_select_elm"]} from {dataDict["tb_name"]} where {dataDict["filter_sql"]};', count-1)
+            self.tdCom.check_stream(f'select {self.stb_filter_des_select_elm} from {self.stb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.stb_name} where {self.stb_data_filter_sql};', count-1)
+            self.tdCom.check_stream(f'select {self.tb_filter_des_select_elm} from {self.ctb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.ctb_name} where {self.stb_data_filter_sql};', count-1)
+            self.tdCom.check_stream(f'select {self.tb_filter_des_select_elm} from {self.tb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.tb_name} where {self.tb_data_filter_sql};', count-1)
 
     def downsampling(self):
         self.case_name = sys._getframe().f_code.co_name
@@ -117,13 +117,13 @@ class StreamComputingTest(TDCase):
         self.tdSql.execute('create table if not exists downsampling_tb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool);')
         # ! TD-16571 histogram
         # ! TD-16570 last_row(c1)
-        # ! now() timezone() to_iso8601(1)
+        # ! now() timezone() to_iso8601(now)
         function_list = ["min(c1)", "max(c2)", "sum(c1)", "first(c1)", "last(c1)", "apercentile(c1, 50)", "avg(c1)", "count(c1)", "leastsquares(c1, 1, 2)", "spread(c1)", "stddev(c2)", "hyperloglog(c3)", 
            "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
         # function_list = ['to_unixtimestamp("1970-01-01T08:00:00+08:00")']
         # function_list = ["to_iso8601(1)"]
         # function_list = ["min(c1)", "max(c2)", "sum(c1)", "first(c1)", "last(c1)", "apercentile(c1, 50)", "last_row(c1)", "avg(c1)", "count(c1)", "leastsquares(c1, 1, 2)", "spread(c1)", "stddev(c2)", "hyperloglog(c3)", 
-        #     'histogram(c1, "user_input", "[1, 3, 5, 7]", 0)', "now()", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "timezone()", "today()", "to_iso8601(1)",  'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
+        #     'histogram(c1, "user_input", "[1, 3, 5, 7]", 0)', "now()", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "timezone()", "today()", "to_iso8601(now)",  'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
         output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list)))
         source_select_str = ','.join(self.downsampling_function_list)
         self.tdCom.write_latency(self.case_name)
@@ -417,6 +417,7 @@ class StreamComputingTest(TDCase):
 
     def life_cycle(self):
         self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data()
         self.tdCom.createDb(dbname="long_life_cycle", vgroups=1, duration="14400m", keep="14400m")
         self.tdCom.createDb(dbname="short_life_cycle", vgroups=1, duration="7200m", keep="7200m")
         self.tdSql.execute('create table if not exists long_life_cycle.life_cycle_stb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 nchar(20), c5 nchar(20)) tags (t1 int);')
@@ -629,7 +630,7 @@ class StreamComputingTest(TDCase):
         self.tdCom.drop_all_streams()
         self.tdCom.drop_all_db()
 
-    def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, precision="ms", vgroups=1):
+    def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", vgroups=1):
         self.clean_env()
         self.dataDict = {
             "stb_name" : f"{self.case_name}_stb",
@@ -641,8 +642,11 @@ class StreamComputingTest(TDCase):
             "state_window": state_window,
             "state_window_max": state_window_max,
             "iteration": interation,
+            "range_count": range_count,
             "start_ts": 1655903478508,
         }
+        if range_count is not None:
+            self.range_count = range_count
         if precision is not None:
             self.precision = precision
         self.set_precision_offset(self.precision)
@@ -660,6 +664,42 @@ class StreamComputingTest(TDCase):
         self.tdCom.create_stable(stbname=self.stb_name)
         self.tdCom.create_ctable(stbname=self.stb_name, ctbname=self.ctb_name)
         self.tdCom.create_table(tbname=self.tb_name)
+
+    def partitionby_interval_order(self, interval, precision=None, vgroups=1):
+        self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data(interval=interval, precision=precision, vgroups=vgroups)
+        self.tdCom.write_latency(self.case_name)
+        ctb_name_list = list()
+        for i in range(1, self.range_count):
+            ctb_name = self.tdCom.get_long_name()
+            ctb_name_list.append(ctb_name)
+            self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
+
+        # create stb/ctb/tb stream
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstartts AS start, {self.stb_source_select_str}  from {self.stb_name} partition by tbname interval({self.dataDict["interval"]}s)')
+
+        # insert data
+        count = 1
+        step_count = 1
+        for i in range(1, self.range_count):
+            ctb_name = self.tdCom.get_long_name()
+            self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
+            if i % 2 == 0:
+                step_count += i
+                for j in range(count, step_count):
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{j}s')
+                    for ctb_name in ctb_name_list:
+                        self.tdCom.insert_rows(tbname=ctb_name, ts_value=f'{self.date_time}+{j}s')
+                count += i
+            else:
+                step_count += 1
+                for i in range(2):
+                    self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=f'{self.date_time}+{count}s')
+                    for ctb_name in ctb_name_list:
+                        self.tdCom.insert_rows(tbname=ctb_name, ts_value=f'{self.date_time}+{count}s')
+                count += 1
+            # check result
+            self.tdCom.check_query_data(f'select start, {self.stb_output_select_str} from {self.stb_name}{self.des_table_suffix}', f'select _wstartts AS start, {self.stb_source_select_str}  from {self.stb_name} partition by tbname interval({self.dataDict["interval"]}s)')
 
     def window_close_state_window_order(self, state_window, interation, vgroups=1):
         self.case_name = sys._getframe().f_code.co_name
@@ -1030,20 +1070,22 @@ class StreamComputingTest(TDCase):
         # # self.disorder_data()
         # self.trigger_window_close()
         # self.trigger_max_delay()
+        # ! TD-16843
+        # self.partitionby_interval_order(interval=random.randint(10, 15))
         # ! bug
-        # self.window_close_state_window_order(state_window="c1", interation=self.interation)
-        self.window_close_interval_order(interval=random.randint(10, 15), watermark=None, interation=self.interation)
-        self.window_close_interval_order(interval=random.randint(10, 15), watermark=random.randint(15, 20), interation=self.interation)
-        self.window_close_session_order(session=random.randint(10, 15), interation=self.interation)
-        self.watermark_window_close_session_order(session=random.randint(10, 15), watermark=random.randint(20, 30), interation=self.interation)
+        self.window_close_state_window_order(state_window="c1", interation=self.interation)
+        # self.window_close_interval_order(interval=random.randint(10, 15), watermark=None, interation=self.interation)
+        # self.window_close_interval_order(interval=random.randint(10, 15), watermark=random.randint(15, 20), interation=self.interation)
+        # self.window_close_session_order(session=random.randint(10, 15), interation=self.interation)
+        # self.watermark_window_close_session_order(session=random.randint(10, 15), watermark=random.randint(20, 30), interation=self.interation)
 
-        self.max_delay_interval_order(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s", interation=self.interation)
-        # ! bug
-        # self.max_delay_interval_order(interval=10, watermark=17, max_delay=f"2s", interation=self.interation)
-        self.max_delay_session_order(session=random.randint(10, 15), max_delay=f"2s", interation=self.interation)
-        self.watermark_max_delay_session_order(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s", interation=self.interation)
-        self.data_filter()
-        self.life_cycle()
+        # self.max_delay_interval_order(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s", interation=self.interation)
+        # # ! bug
+        # # self.max_delay_interval_order(interval=10, watermark=17, max_delay=f"2s", interation=self.interation)
+        # self.max_delay_session_order(session=random.randint(10, 15), max_delay=f"2s", interation=self.interation)
+        # self.watermark_max_delay_session_order(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s", interation=self.interation)
+        # self.data_filter()
+        # self.life_cycle()
         # TODO confirm
         # self.downsampling()
         # self.state_window_function()
