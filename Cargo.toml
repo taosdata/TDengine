@@ -5,6 +5,7 @@ members = [
   "taos-macros",
   "taos-sys",
   "taos-query",
+  "taos-ws",
   "taos",
 ]
 

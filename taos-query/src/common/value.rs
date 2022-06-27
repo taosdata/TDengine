@@ -125,6 +125,36 @@ impl<'b> BorrowedValue<'b> {
         }
     }
 
+    pub fn to_json_value(&self) -> serde_json::Value {
+        use BorrowedValue::*;
+        match self {
+            Null => serde_json::Value::Null,
+            Bool(v) => serde_json::Value::Bool(*v),
+            TinyInt(v) => serde_json::Value::Number(serde_json::Number::from(*v)),
+            SmallInt(v) => serde_json::Value::Number(serde_json::Number::from(*v)),
+            Int(v) => serde_json::Value::Number(serde_json::Number::from(*v)),
+            BigInt(v) => serde_json::Value::Number(serde_json::Number::from(*v)),
+            UTinyInt(v) => serde_json::Value::Number(serde_json::Number::from(*v)),
+            USmallInt(v) => serde_json::Value::Number(serde_json::Number::from(*v)),
+            UInt(v) => serde_json::Value::Number(serde_json::Number::from(*v)),
+            UBigInt(v) => serde_json::Value::Number(serde_json::Number::from(*v)),
+            Float(v) => serde_json::Value::Number(serde_json::Number::from_f64(*v as f64).unwrap()),
+            Double(v) => {
+                serde_json::Value::Number(serde_json::Number::from_f64(*v as f64).unwrap())
+            }
+            VarChar(v) => serde_json::Value::String(v.to_string()),
+            Timestamp(v) => serde_json::Value::Number(serde_json::Number::from(v.as_raw_i64())),
+            Json(v) => serde_json::Value::Number(
+                serde_json::from_slice(v).expect("json should always be deserialized"),
+            ),
+            NChar(str) => serde_json::Value::String(str.to_string()),
+            VarBinary(_) => todo!(),
+            Decimal(_) => todo!(),
+            Blob(_) => todo!(),
+            MediumBlob(_) => todo!(),
+        }
+    }
+
     #[inline]
     pub fn into_value(self) -> Value {
         use BorrowedValue::*;
@@ -184,7 +214,29 @@ pub enum Value {
 
 impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        use Value::*;
+        match self {
+            Null => f.write_str("NULL"),
+            Bool(v) => f.write_fmt(format_args!("{v}")),
+            TinyInt(v) => f.write_fmt(format_args!("{v}")),
+            SmallInt(v) => f.write_fmt(format_args!("{v}")),
+            Int(v) => f.write_fmt(format_args!("{v}")),
+            BigInt(v) => f.write_fmt(format_args!("{v}")),
+            Float(v) => f.write_fmt(format_args!("{v}")),
+            Double(v) => f.write_fmt(format_args!("{v}")),
+            VarChar(v) => f.write_fmt(format_args!("{v}")),
+            Timestamp(v) => f.write_fmt(format_args!("{v}")),
+            NChar(v) => f.write_fmt(format_args!("{v}")),
+            UTinyInt(v) => f.write_fmt(format_args!("{v}")),
+            USmallInt(v) => f.write_fmt(format_args!("{v}")),
+            UInt(v) => f.write_fmt(format_args!("{v}")),
+            UBigInt(v) => f.write_fmt(format_args!("{v}")),
+            Json(v) => f.write_fmt(format_args!("{v}")),
+            VarBinary(_) => todo!(),
+            Decimal(_) => todo!(),
+            Blob(_) => todo!(),
+            MediumBlob(_) => todo!(),
+        }
     }
 }
 
@@ -307,6 +359,34 @@ impl Value {
                 .format("%Y-%m-%dT%H:%M:%S%.f")
                 .to_string()),
             _ => unreachable!("un supported type to string"),
+        }
+    }
+
+    pub fn to_json_value(&self) -> serde_json::Value {
+        use Value::*;
+        match self {
+            Null => serde_json::Value::Null,
+            Bool(v) => serde_json::Value::Bool(*v),
+            TinyInt(v) => serde_json::Value::Number(serde_json::Number::from(*v)),
+            SmallInt(v) => serde_json::Value::Number(serde_json::Number::from(*v)),
+            Int(v) => serde_json::Value::Number(serde_json::Number::from(*v)),
+            BigInt(v) => serde_json::Value::Number(serde_json::Number::from(*v)),
+            UTinyInt(v) => serde_json::Value::Number(serde_json::Number::from(*v)),
+            USmallInt(v) => serde_json::Value::Number(serde_json::Number::from(*v)),
+            UInt(v) => serde_json::Value::Number(serde_json::Number::from(*v)),
+            UBigInt(v) => serde_json::Value::Number(serde_json::Number::from(*v)),
+            Float(v) => serde_json::Value::Number(serde_json::Number::from_f64(*v as f64).unwrap()),
+            Double(v) => {
+                serde_json::Value::Number(serde_json::Number::from_f64(*v as f64).unwrap())
+            }
+            VarChar(v) => serde_json::Value::String(v.to_string()),
+            Timestamp(v) => serde_json::Value::Number(serde_json::Number::from(v.as_raw_i64())),
+            Json(v) => v.clone(),
+            NChar(str) => serde_json::Value::String(str.to_string()),
+            VarBinary(_) => todo!(),
+            Decimal(_) => todo!(),
+            Blob(_) => todo!(),
+            MediumBlob(_) => todo!(),
         }
     }
 }

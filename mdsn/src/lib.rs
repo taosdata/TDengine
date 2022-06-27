@@ -87,6 +87,8 @@ pub enum DsnError {
     PortErr(#[from] ParseIntError),
     #[error("invalid driver {0}")]
     InvalidDriver(String),
+    #[error("invalid protocol {0}")]
+    InvalidProtocol(String),
     #[error("invalid connection {0}")]
     InvalidConnection(String),
     #[error("invalid addresses {0:?}")]
@@ -800,5 +802,4 @@ fn params() {
 fn parse_taos_tmq() {
     let s = "taos://root:taosdata@localhost/aa23d04011eca42cf7d8c1dd05a37985?topics=aa23d04011eca42cf7d8c1dd05a37985&group.id=tg2";
     let _ = Dsn::from_str(&s).unwrap();
-
 }

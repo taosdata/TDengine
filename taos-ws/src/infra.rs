@@ -1,0 +1,501 @@
+use std::str::FromStr;
+
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
+use serde_with::NoneAsEmptyString;
+use taos_query::common::RawBlock;
+use taos_query::common::{Precision, Ty};
+use websocket::Message;
+use websocket::OwnedMessage;
+
+pub type ReqId = u64;
+
+/// Type for result ID.
+pub type ResId = u64;
+
+#[serde_as]
+#[derive(Debug, Serialize, Default, Clone)]
+pub struct WsConnReq {
+    pub(crate) user: Option<String>,
+    pub(crate) password: Option<String>,
+    #[serde_as(as = "NoneAsEmptyString")]
+    pub(crate) db: Option<String>,
+}
+
+impl WsConnReq {
+    pub fn new(user: impl Into<String>, password: impl Into<String>) -> Self {
+        Self {
+            user: Some(user.into()),
+            password: Some(password.into()),
+            db: None,
+        }
+    }
+    pub fn with_database(mut self, db: impl Into<String>) -> Self {
+        self.db = Some(db.into());
+        self
+    }
+}
+
+#[derive(Debug, Serialize, Clone, Copy)]
+pub struct WsResArgs {
+    pub req_id: ReqId,
+    pub id: ResId,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "action", content = "args")]
+#[serde(rename_all = "snake_case")]
+pub enum WsSend {
+    Conn {
+        req_id: ReqId,
+        #[serde(flatten)]
+        req: WsConnReq,
+    },
+    Query {
+        req_id: ReqId,
+        sql: String,
+    },
+    Fetch(WsResArgs),
+    FetchBlock(WsResArgs),
+    Close(WsResArgs),
+}
+
+#[test]
+fn test_serde_send() {
+    let s = WsSend::Conn {
+        req_id: 1,
+        req: WsConnReq::new("root", "taosdata"),
+    };
+    let v = serde_json::to_value(&s).unwrap();
+    let j = serde_json::json!({
+        "action": "conn",
+        "args": {
+            "req_id": 1,
+            "user": "root",
+            "password": "taosdata",
+            "db": ""
+        }
+    });
+    assert_eq!(v, j);
+}
+
+#[derive(Debug, Serialize)]
+pub struct WsFetchArgs {
+    req_id: ReqId,
+    id: ResId,
+}
+
+#[derive(Debug, Deserialize, Default, Clone)]
+#[serde(default)]
+pub struct WsQueryResp {
+    #[serde(default)]
+    pub id: ResId,
+    pub is_update: bool,
+    pub affected_rows: usize,
+    pub fields_count: usize,
+    pub fields_names: Option<Vec<String>>,
+    pub fields_types: Option<Vec<Ty>>,
+    pub fields_lengths: Option<Vec<u32>>,
+    pub precision: Precision,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct WsFetchResp {
+    pub id: ResId,
+    pub completed: bool,
+    pub lengths: Option<Vec<u32>>,
+    pub rows: usize,
+}
+
+#[derive(Debug, Clone)]
+pub enum WsFetchData {
+    Fetch(WsFetchResp),
+    Block(RawBlock),
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(tag = "action")]
+#[serde(rename_all = "snake_case")]
+pub enum WsRecvData {
+    Conn,
+    Query(WsQueryResp),
+    Fetch(WsFetchResp),
+    Block(Vec<u32>),
+}
+
+#[serde_as]
+#[derive(Debug, Deserialize)]
+pub struct WsRecv {
+    pub code: i32,
+    #[serde_as(as = "NoneAsEmptyString")]
+    pub message: Option<String>,
+    pub req_id: ReqId,
+    #[serde(flatten)]
+    pub data: WsRecvData,
+}
+
+impl WsRecv {
+    pub(crate) fn ok(self) -> (ReqId, WsRecvData, Result<(), taos_error::Error>) {
+        (
+            self.req_id,
+            self.data,
+            if self.code == 0 {
+                Ok(())
+            } else {
+                Err(taos_error::Error::new(
+                    self.code,
+                    self.message.unwrap_or_default(),
+                ))
+            },
+        )
+    }
+}
+
+#[test]
+fn test_serde_recv_data() {
+    let json = r#"{
+        "code": 0,
+        "message": "",
+        "action": "conn",
+        "req_id": 1
+    }"#;
+    let d: WsRecv = serde_json::from_str(&json).unwrap();
+    dbg!(d);
+}
+
+pub(crate) trait ToMessage: Serialize {
+    fn to_message(&self) -> Message {
+        Message::text(serde_json::to_string(self).unwrap())
+    }
+
+    fn to_owned_message(&self) -> OwnedMessage {
+        OwnedMessage::Text(serde_json::to_string(self).unwrap())
+    }
+
+    fn to_msg(&self) -> tokio_tungstenite::tungstenite::Message {
+        tokio_tungstenite::tungstenite::Message::Text(serde_json::to_string(self).unwrap())
+    }
+}
+
+impl ToMessage for WsSend {}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        collections::HashMap,
+        sync::{Arc, Mutex},
+    };
+    use websocket::ClientBuilder;
+
+    use crate::*;
+    use taos_query::common::RawBlock;
+
+    use super::*;
+
+    #[test]
+    fn dsn_error() {
+        Ws::from_dsn("").unwrap_err();
+    }
+
+    #[test]
+    fn thread() -> anyhow::Result<()> {
+        use std::thread;
+        use websocket::Message;
+
+        let mut ws = ClientBuilder::new("ws://localhost:6041/rest/ws")?;
+
+        let client = ws.connect_insecure()?;
+
+        let (mut receiver, mut sender) = client.split().unwrap();
+        let login = WsSend::Conn {
+            req_id: 1,
+            req: WsConnReq::new("root", "taosdata"),
+        };
+        sender.send_message(&login.to_message()).unwrap();
+
+        let recv = receiver.recv_message()?;
+
+        // connect
+        let _ = match recv {
+            websocket::OwnedMessage::Text(text) => {
+                let v: WsRecv = serde_json::from_str(&text).unwrap();
+                match v.data {
+                    WsRecvData::Conn => (),
+                    _ => unreachable!(),
+                }
+            }
+            _ => unreachable!(),
+        };
+
+        let sender = Arc::new(Mutex::new(sender));
+
+        let tx2recv = sender.clone();
+
+        let data = Arc::new(Mutex::new(
+            HashMap::<ReqId, oneshot::Sender<WsQueryResp>>::new(),
+        ));
+
+        let fetches = Arc::new(Mutex::new(HashMap::<
+            ResId,
+            std::sync::mpsc::Sender<WsFetchData>,
+        >::new()));
+
+        let data_sender = data.clone();
+        let fetches_sender = fetches.clone();
+        // message handler for query/fetch/fetch_block
+        thread::spawn(move || {
+            for message in receiver.incoming_messages() {
+                if let Ok(message) = message {
+                    match message {
+                        websocket::OwnedMessage::Text(text) => {
+                            let v: WsRecv = serde_json::from_str(&text).unwrap();
+                            match v.data {
+                                WsRecvData::Conn => todo!(),
+                                WsRecvData::Query(query) => {
+                                    if let Some(sender) =
+                                        data_sender.lock().unwrap().remove(&v.req_id)
+                                    {
+                                        sender.send(query).unwrap();
+                                    }
+                                }
+                                WsRecvData::Fetch(fetch) => {
+                                    if let Some(sender) =
+                                        fetches_sender.lock().unwrap().get(&fetch.id)
+                                    {
+                                        sender.send(WsFetchData::Fetch(fetch)).unwrap();
+                                    }
+                                }
+                                // Block type is for binary.
+                                WsRecvData::Block(_) => unreachable!(),
+                            }
+                        }
+                        websocket::OwnedMessage::Binary(block) => {
+                            let mut slice = block.as_slice();
+                            use taos_query::util::InlinableRead;
+                            let res_id = slice.read_u64().unwrap();
+                            if let Some(sender) = fetches_sender.lock().unwrap().remove(&res_id) {
+                                let raw = slice.read_inlinable::<RawBlock>().unwrap();
+                                sender.send(WsFetchData::Block(raw)).unwrap();
+                            }
+                        }
+                        websocket::OwnedMessage::Close(_) => todo!(),
+                        websocket::OwnedMessage::Ping(bytes) => {
+                            let mut writer = tx2recv.lock().unwrap();
+                            writer.send_message(&Message::pong(bytes)).unwrap()
+                        }
+                        websocket::OwnedMessage::Pong(_) => {
+                            // do nothing
+                        }
+                    }
+                } else {
+                    let err = message.unwrap_err();
+                    dbg!(err);
+                }
+            }
+        });
+
+        // create a query request
+        let sql = "show databases".to_string();
+        let (tx, rx) = oneshot::channel();
+
+        println!("show databases");
+
+        let req_id = 1;
+        let query = WsSend::Query { req_id, sql };
+
+        {
+            // prepare for receiving.
+            data.lock().unwrap().insert(req_id, tx);
+            sender.lock().unwrap().send_message(&query.to_message())?;
+            // unlock mutex
+        }
+
+        let query_resp = rx.recv().unwrap();
+        let id = query_resp.id;
+
+        let res_args = WsResArgs { req_id, id };
+
+        let fetch = WsSend::Fetch(res_args);
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        {
+            // prepare for receiving.
+            fetches.lock().unwrap().insert(req_id, tx);
+            sender.lock().unwrap().send_message(&fetch.to_message())?;
+            // unlock mutex when out of scope.
+        }
+
+        let fetch_resp = if let WsFetchData::Fetch(fetch) = rx.recv().unwrap() {
+            fetch
+        } else {
+            unreachable!()
+        };
+
+        let fetch_block = WsSend::FetchBlock(res_args);
+
+        {
+            // prepare for receiving.
+            sender
+                .lock()
+                .unwrap()
+                .send_message(&fetch_block.to_message())?;
+            // unlock mutex when out of scope.
+        }
+
+        if let Ok(WsFetchData::Block(mut raw)) = rx.recv() {
+            raw.with_rows(fetch_resp.rows)
+                .with_cols(query_resp.fields_count)
+                .with_precision(query_resp.precision);
+            dbg!(&raw);
+
+            for row in 0..raw.nrows() {
+                for col in 0..raw.ncols() {
+                    let v = unsafe { raw.get_unchecked(row, col) };
+                    println!("({}, {}): {}", row, col, v);
+                }
+            }
+        }
+
+        let close = WsSend::Close(res_args);
+        {
+            sender.lock().unwrap().send_message(&close.to_message())?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_connect_sequential() -> Result<(), Error> {
+        let mut ws = ClientBuilder::new("ws://localhost:6041/rest/ws")?;
+
+        let mut client = ws.connect_insecure()?;
+
+        let login = WsSend::Conn {
+            req_id: 1,
+            req: WsConnReq::new("root", "taosdata"),
+        };
+
+        dbg!(&login);
+        client.send_message(&login.to_message()).unwrap();
+
+        println!("receiving");
+
+        let recv = client.recv_message()?;
+        println!("received");
+        match recv {
+            websocket::OwnedMessage::Text(text) => {
+                let v: WsRecv = serde_json::from_str(&text).unwrap();
+                dbg!(v);
+            }
+            websocket::OwnedMessage::Binary(_) => todo!(),
+            websocket::OwnedMessage::Close(_) => todo!(),
+            websocket::OwnedMessage::Ping(_) => todo!(),
+            websocket::OwnedMessage::Pong(_) => todo!(),
+        }
+
+        let query = WsSend::Query {
+            req_id: 2,
+            sql: "show databases".to_string(),
+        };
+
+        client.send_message(&query.to_message()).unwrap();
+
+        println!("receiving");
+
+        let query_resp = loop {
+            let recv = client.recv_message()?;
+            println!("received");
+            match recv {
+                websocket::OwnedMessage::Text(text) => {
+                    let j: serde_json::Value = serde_json::from_str(&text).unwrap();
+                    dbg!(j);
+                    let v: WsRecv = serde_json::from_str(&text).unwrap();
+                    dbg!(&v);
+                    match v.data {
+                        WsRecvData::Conn => todo!(),
+                        WsRecvData::Query(resp) => break resp,
+                        WsRecvData::Fetch(_) => todo!(),
+                        WsRecvData::Block(_) => todo!(),
+                    }
+                }
+                websocket::OwnedMessage::Binary(_) => todo!(),
+                websocket::OwnedMessage::Close(_) => todo!(),
+                websocket::OwnedMessage::Ping(_) => todo!(),
+                websocket::OwnedMessage::Pong(_) => todo!(),
+            }
+        };
+        dbg!(&query_resp);
+
+        let id = query_resp.id;
+        let req_id = 2;
+        let res_args = WsResArgs { req_id, id };
+
+        assert!(!query_resp.is_update);
+
+        loop {
+            // Now we can fetch blocks.
+
+            // 1. call fetch
+            let fetch = WsSend::Fetch(res_args);
+            client.send_message(&fetch.to_message()).unwrap();
+            let fetch_resp = match client.recv_message()? {
+                websocket::OwnedMessage::Text(text) => {
+                    let j: serde_json::Value = serde_json::from_str(&text).unwrap();
+                    dbg!(j);
+                    let v: WsRecv = serde_json::from_str(&text).unwrap();
+                    dbg!(&v);
+                    match v.data {
+                        WsRecvData::Conn => unreachable!(),
+                        WsRecvData::Query(_) => unreachable!(),
+                        WsRecvData::Fetch(resp) => resp,
+                        WsRecvData::Block(_) => todo!(),
+                    }
+                }
+                websocket::OwnedMessage::Binary(_) => todo!(),
+                websocket::OwnedMessage::Close(_) => todo!(),
+                websocket::OwnedMessage::Ping(_) => todo!(),
+                websocket::OwnedMessage::Pong(_) => todo!(),
+            };
+            dbg!(&fetch_resp);
+
+            if fetch_resp.completed {
+                break;
+            }
+
+            let fetch_block = WsSend::FetchBlock(res_args);
+            client.send_message(&fetch_block.to_message()).unwrap();
+
+            let mut raw = match client.recv_message()? {
+                websocket::OwnedMessage::Binary(bytes) => {
+                    use taos_query::util::InlinableRead;
+
+                    dbg!(&bytes[0..16]);
+
+                    dbg!(bytes.len());
+
+                    let mut slice = bytes.as_slice();
+                    let _ = slice.read_u64().unwrap();
+                    slice.read_inlinable::<RawBlock>().unwrap()
+                }
+                _ => unreachable!(),
+            };
+
+            raw.with_rows(fetch_resp.rows)
+                .with_cols(query_resp.fields_count)
+                .with_precision(query_resp.precision);
+            dbg!(&raw);
+
+            for row in 0..raw.nrows() {
+                for col in 0..raw.ncols() {
+                    let v = unsafe { raw.get_unchecked(row, col) };
+                    println!("({}, {}): {}", row, col, v);
+                }
+            }
+        }
+
+        let close = WsSend::Close(res_args);
+        client.send_message(&close.to_message()).unwrap();
+
+        Ok(())
+    }
+}

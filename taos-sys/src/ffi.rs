@@ -92,6 +92,8 @@ extern "C" {
 
     pub fn taos_stmt_set_tbname(stmt: *mut TAOS_STMT, name: *const c_char) -> c_int;
 
+    pub fn taos_stmt_set_tags(stmt: *mut TAOS_STMT, tags: *mut TaosBind) -> c_int;
+
     pub fn taos_stmt_set_sub_tbname(stmt: *mut TAOS_STMT, name: *const c_char) -> c_int;
 
     pub fn taos_stmt_is_insert(stmt: *mut TAOS_STMT, insert: *mut c_int) -> c_int;

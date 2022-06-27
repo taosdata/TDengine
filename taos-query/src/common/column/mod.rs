@@ -3,7 +3,7 @@ use itertools::Itertools;
 
 // use crate::stmt::MultiBind;
 
-use super::value::BorrowedValue;
+use super::{value::BorrowedValue, Value};
 
 #[derive(Debug, serde::Serialize)]
 pub enum BorrowedColumn<'b> {
@@ -97,6 +97,33 @@ impl<'block> BorrowedColumn<'block> {
             _ => unreachable!(),
         }
     }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Null(n) => *n,
+            Self::Bool(nulls, values) => values.len(),
+            Self::TinyInt(nulls, values) => values.len(),
+            Self::SmallInt(nulls, values) => values.len(),
+            Self::Int(nulls, values) => values.len(),
+            Self::BigInt(nulls, values) => values.len(),
+            Self::UTinyInt(nulls, values) => values.len(),
+            Self::USmallInt(nulls, values) => values.len(),
+            Self::UInt(nulls, values) => values.len(),
+            Self::UBigInt(nulls, values) => values.len(),
+            Self::Float(nulls, values) => values.len(),
+            Self::Double(nulls, values) => values.len(),
+            Self::Timestamp(nulls, values) => values.len(),
+            Self::Binary(values) => values.len(),
+            Self::NChar(values) => values.len(),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn to_json_array(&self) -> Vec<serde_json::Value> {
+        (0..self.len())
+            .map(|value| self.get(value).to_json_value())
+            .collect()
+    }
 }
 
 impl<'block> BorrowedColumn<'block> {
@@ -138,6 +165,82 @@ impl<'block> BorrowedColumn<'block> {
             }
             _ => unreachable!("unsupported data type"),
         }
+    }
+}
+
+impl Column {
+    pub fn get(&self, index: usize) -> Value {
+        macro_rules! get_primitive {
+            ($target:ident, $nulls:expr, $values:expr) => {
+                paste::paste! {
+                    if $nulls.get_unchecked(index) {
+                        Value::Null
+                    } else {
+                        Value::$target(*unsafe { $values.get_unchecked(index) })
+                    }
+                }
+            };
+        }
+        match self {
+            Self::Null(_n) => Value::Null,
+            Self::Bool(nulls, values) => get_primitive!(Bool, nulls, values),
+            Self::TinyInt(nulls, values) => get_primitive!(TinyInt, nulls, values),
+            Self::SmallInt(nulls, values) => get_primitive!(SmallInt, nulls, values),
+            Self::Int(nulls, values) => get_primitive!(Int, nulls, values),
+            Self::BigInt(nulls, values) => get_primitive!(BigInt, nulls, values),
+            Self::UTinyInt(nulls, values) => get_primitive!(UTinyInt, nulls, values),
+            Self::USmallInt(nulls, values) => get_primitive!(USmallInt, nulls, values),
+            Self::UInt(nulls, values) => get_primitive!(UInt, nulls, values),
+            Self::UBigInt(nulls, values) => get_primitive!(UBigInt, nulls, values),
+            Self::Float(nulls, values) => get_primitive!(Float, nulls, values),
+            Self::Double(nulls, values) => get_primitive!(Double, nulls, values),
+            Self::Timestamp(nulls, _values) => {
+                if nulls.get_unchecked(index) {
+                    Value::Null
+                } else {
+                    // BorrowedValue::Timestamp(TimestampValue::new(*unsafe { values.get_unchecked(index) }, self.precision()))
+                    todo!()
+                }
+            }
+            Self::Binary(values) => match unsafe { values.get_unchecked(index) } {
+                Some(bytes) => {
+                    Value::VarChar(unsafe { std::str::from_utf8_unchecked(bytes).to_string() })
+                }
+                None => Value::Null,
+            },
+            Self::NChar(values) => match unsafe { values.get_unchecked(index).as_ref() } {
+                Some(value) => Value::NChar(value.to_string()),
+                None => Value::Null,
+            },
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Null(n) => *n,
+            Self::Bool(nulls, values) => values.len(),
+            Self::TinyInt(nulls, values) => values.len(),
+            Self::SmallInt(nulls, values) => values.len(),
+            Self::Int(nulls, values) => values.len(),
+            Self::BigInt(nulls, values) => values.len(),
+            Self::UTinyInt(nulls, values) => values.len(),
+            Self::USmallInt(nulls, values) => values.len(),
+            Self::UInt(nulls, values) => values.len(),
+            Self::UBigInt(nulls, values) => values.len(),
+            Self::Float(nulls, values) => values.len(),
+            Self::Double(nulls, values) => values.len(),
+            Self::Timestamp(nulls, values) => values.len(),
+            Self::Binary(values) => values.len(),
+            Self::NChar(values) => values.len(),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn to_json_array(&self) -> Vec<serde_json::Value> {
+        (0..self.len())
+            .map(|value| self.get(value).to_json_value())
+            .collect()
     }
 }
 

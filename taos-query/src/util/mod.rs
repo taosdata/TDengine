@@ -27,28 +27,28 @@ pub trait InlinableWrite: Write {
     #[inline]
     /// Write a [u16] value to writer.
     fn write_u16(&mut self, value: u16) -> std::io::Result<usize> {
-        self.write(&value.to_le_bytes())?;
+        self.write_all(&value.to_le_bytes())?;
         Ok(1)
     }
 
     #[inline]
     /// Write a [u32] value to writer.
     fn write_u32(&mut self, value: u32) -> std::io::Result<usize> {
-        self.write(&value.to_le_bytes())?;
+        self.write_all(&value.to_le_bytes())?;
         Ok(1)
     }
 
     #[inline]
     /// Write a [u64] value to writer.
     fn write_u64(&mut self, value: u64) -> std::io::Result<usize> {
-        self.write(&value.to_le_bytes())?;
+        self.write_all(&value.to_le_bytes())?;
         Ok(1)
     }
 
     #[inline]
     /// Write a [u128] value to writer.
     fn write_u128(&mut self, value: u128) -> std::io::Result<usize> {
-        self.write(&value.to_le_bytes())?;
+        self.write_all(&value.to_le_bytes())?;
         Ok(1)
     }
 
