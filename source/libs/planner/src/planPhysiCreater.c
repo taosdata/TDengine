@@ -520,12 +520,13 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
   pTableScan->dataRequired = pScanLogicNode->dataRequired;
   pTableScan->pDynamicScanFuncs = nodesCloneList(pScanLogicNode->pDynamicScanFuncs);
-  pTableScan->pPartitionTags = nodesCloneList(pScanLogicNode->pPartTags);
+  pTableScan->pGroupTags = nodesCloneList(pScanLogicNode->pGroupTags);
   if ((NULL != pScanLogicNode->pDynamicScanFuncs && NULL == pTableScan->pDynamicScanFuncs) ||
-      (NULL != pScanLogicNode->pPartTags && NULL == pTableScan->pPartitionTags)) {
+      (NULL != pScanLogicNode->pGroupTags && NULL == pTableScan->pGroupTags)) {
     nodesDestroyNode((SNode*)pTableScan);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pTableScan->groupSort = pScanLogicNode->groupSort;
   pTableScan->interval = pScanLogicNode->interval;
   pTableScan->offset = pScanLogicNode->offset;
   pTableScan->sliding = pScanLogicNode->sliding;
@@ -1330,6 +1331,7 @@ static int32_t createMergePhysiNode(SPhysiPlanContext* pCxt, SMergeLogicNode* pM
 
   pMerge->numOfChannels = pMergeLogicNode->numOfChannels;
   pMerge->srcGroupId = pMergeLogicNode->srcGroupId;
+  pMerge->groupSort = pMergeLogicNode->groupSort;
 
   int32_t code = addDataBlockSlots(pCxt, pMergeLogicNode->pInputs, pMerge->node.pOutputDataBlockDesc);
 

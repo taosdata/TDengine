@@ -711,7 +711,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pTagCond);
       nodesDestroyNode(pLogicNode->pTagIndexCond);
       taosArrayDestroy(pLogicNode->pSmaIndexes);
-      nodesDestroyList(pLogicNode->pPartTags);
+      nodesDestroyList(pLogicNode->pGroupTags);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
@@ -815,7 +815,7 @@ void nodesDestroyNode(SNode* pNode) {
       STableScanPhysiNode* pPhyNode = (STableScanPhysiNode*)pNode;
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       nodesDestroyList(pPhyNode->pDynamicScanFuncs);
-      nodesDestroyList(pPhyNode->pPartitionTags);
+      nodesDestroyList(pPhyNode->pGroupTags);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {

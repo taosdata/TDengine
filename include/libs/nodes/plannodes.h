@@ -76,8 +76,8 @@ typedef struct SScanLogicNode {
   int16_t       tsColId;
   double        filesFactor;
   SArray*       pSmaIndexes;
-  SNodeList*    pPartTags;
-  bool          partSort;
+  SNodeList*    pGroupTags;
+  bool          groupSort;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -141,6 +141,7 @@ typedef struct SMergeLogicNode {
   SNodeList* pInputs;
   int32_t    numOfChannels;
   int32_t    srcGroupId;
+  bool       groupSort;
 } SMergeLogicNode;
 
 typedef enum EWindowType { WINDOW_TYPE_INTERVAL = 1, WINDOW_TYPE_SESSION, WINDOW_TYPE_STATE } EWindowType;
@@ -284,7 +285,8 @@ typedef struct STableScanPhysiNode {
   double         ratio;
   int32_t        dataRequired;
   SNodeList*     pDynamicScanFuncs;
-  SNodeList*     pPartitionTags;
+  SNodeList*     pGroupTags;
+  bool           groupSort;
   int64_t        interval;
   int64_t        offset;
   int64_t        sliding;
@@ -358,6 +360,7 @@ typedef struct SMergePhysiNode {
   SNodeList* pTargets;
   int32_t    numOfChannels;
   int32_t    srcGroupId;
+  bool       groupSort;
 } SMergePhysiNode;
 
 typedef struct SWinodwPhysiNode {

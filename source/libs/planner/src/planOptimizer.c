@@ -20,7 +20,7 @@
 
 #define OPTIMIZE_FLAG_MASK(n) (1 << n)
 
-#define OPTIMIZE_FLAG_OSD             OPTIMIZE_FLAG_MASK(0)
+#define OPTIMIZE_FLAG_SCAN_PATH       OPTIMIZE_FLAG_MASK(0)
 #define OPTIMIZE_FLAG_PUSH_DOWN_CONDE OPTIMIZE_FLAG_MASK(1)
 
 #define OPTIMIZE_FLAG_SET_MASK(val, mask)  (val) |= (mask)
@@ -91,7 +91,7 @@ static bool scanPathOptHaveNormalCol(SNodeList* pList) {
 }
 
 static bool scanPathOptMayBeOptimized(SLogicNode* pNode) {
-  if (OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_OSD)) {
+  if (OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH)) {
     return false;
   }
   if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode)) {
@@ -241,7 +241,7 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   if (TSDB_CODE_SUCCESS == code && (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs)) {
     info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
     info.pScan->pDynamicScanFuncs = info.pDsoFuncs;
-    OPTIMIZE_FLAG_SET_MASK(info.pScan->node.optimizedFlag, OPTIMIZE_FLAG_OSD);
+    OPTIMIZE_FLAG_SET_MASK(info.pScan->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
     pCxt->optimized = true;
   }
   nodesDestroyList(info.pSdrFuncs);
@@ -1073,7 +1073,7 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   int32_t         code = TSDB_CODE_SUCCESS;
   SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
   if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
-    TSWAP(((SPartitionLogicNode*)pNode)->pPartitionKeys, pScan->pPartTags);
+    TSWAP(((SPartitionLogicNode*)pNode)->pPartitionKeys, pScan->pGroupTags);
     int32_t code = replaceLogicNode(pLogicSubplan, pNode, (SLogicNode*)pScan);
     if (TSDB_CODE_SUCCESS == code) {
       NODES_CLEAR_LIST(pNode->pChildren);
@@ -1083,7 +1083,7 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     SNode* pGroupKey = NULL;
     FOREACH(pGroupKey, ((SAggLogicNode*)pNode)->pGroupKeys) {
       code = nodesListMakeStrictAppend(
-          &pScan->pPartTags, nodesCloneNode(nodesListGetNode(((SGroupingSetNode*)pGroupKey)->pParameterList, 0)));
+          &pScan->pGroupTags, nodesCloneNode(nodesListGetNode(((SGroupingSetNode*)pGroupKey)->pParameterList, 0)));
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }
@@ -1091,7 +1091,7 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     NODES_DESTORY_LIST(((SAggLogicNode*)pNode)->pGroupKeys);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = partTagsOptRebuildTbanme(pScan->pPartTags);
+    code = partTagsOptRebuildTbanme(pScan->pGroupTags);
   }
   return code;
 }
@@ -1212,7 +1212,7 @@ static bool rewriteTailOptNeedGroupSort(SIndefRowsFuncLogicNode* pIndef) {
   }
   SNode* pChild = nodesListGetNode(pIndef->node.pChildren, 0);
   return QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pChild) ||
-         (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) && NULL != ((SScanLogicNode*)pChild)->pPartTags);
+         (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) && NULL != ((SScanLogicNode*)pChild)->pGroupTags);
 }
 
 static int32_t rewriteTailOptCreateSort(SIndefRowsFuncLogicNode* pIndef, SLogicNode** pOutput) {
