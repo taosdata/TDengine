@@ -140,6 +140,7 @@ int32_t tColDataPCmprFn(const void *p1, const void *p2);
 int32_t tBlockDataInit(SBlockData *pBlockData);
 void    tBlockDataReset(SBlockData *pBlockData);
 void    tBlockDataClear(SBlockData *pBlockData);
+int32_t tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
 int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
 // SDelIdx
 int32_t tPutDelIdx(uint8_t *p, void *ph);
@@ -364,14 +365,17 @@ typedef struct {
   int8_t  type;
   int8_t  flag;  // HAS_NONE|HAS_NULL|HAS_VALUE
   int64_t offset;
-  int64_t size;
+  int64_t bsize;  // bitmap size
+  int64_t csize;  // compressed column value size
+  int64_t osize;  // original column value size (only save for variant data type)
 } SBlockCol;
 
 typedef struct {
   int64_t  nRow;
   int8_t   cmprAlg;
   int64_t  offset;
-  int64_t  ksize;
+  int64_t  vsize;  // VERSION size
+  int64_t  ksize;  // TSKEY size
   int64_t  bsize;
   SMapData mBlockCol;  // SMapData<SBlockCol>
 } SSubBlock;

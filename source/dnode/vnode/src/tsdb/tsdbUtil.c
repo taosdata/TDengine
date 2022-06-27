@@ -384,6 +384,7 @@ int32_t tPutBlock(uint8_t *p, void *ph) {
     n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].nRow);
     n += tPutI8(p ? p + n : p, pBlock->aSubBlock[iSubBlock].cmprAlg);
     n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].offset);
+    n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].vsize);
     n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].ksize);
     n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].bsize);
     n += tPutMapData(p ? p + n : p, &pBlock->aSubBlock[iSubBlock].mBlockCol);
@@ -408,6 +409,7 @@ int32_t tGetBlock(uint8_t *p, void *ph) {
     n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].nRow);
     n += tGetI8(p + n, &pBlock->aSubBlock[iSubBlock].cmprAlg);
     n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].offset);
+    n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].vsize);
     n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].ksize);
     n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].bsize);
     n += tGetMapData(p + n, &pBlock->aSubBlock[iSubBlock].mBlockCol);
@@ -443,7 +445,13 @@ int32_t tPutBlockCol(uint8_t *p, void *ph) {
 
   if (pBlockCol->flag != HAS_NULL) {
     n += tPutI64v(p ? p + n : p, pBlockCol->offset);
-    n += tPutI64v(p ? p + n : p, pBlockCol->size);
+    if (pBlockCol->flag != HAS_VALUE) {
+      n += tPutI64v(p ? p + n : p, pBlockCol->bsize);
+    }
+    n += tPutI64v(p ? p + n : p, pBlockCol->csize);
+    if (IS_VAR_DATA_TYPE(pBlockCol->type)) {
+      n += tPutI64v(p ? p + n : p, pBlockCol->osize);
+    }
   }
 
   return n;
@@ -461,7 +469,17 @@ int32_t tGetBlockCol(uint8_t *p, void *ph) {
 
   if (pBlockCol->flag != HAS_NULL) {
     n += tGetI64v(p + n, &pBlockCol->offset);
-    n += tGetI64v(p + n, &pBlockCol->size);
+    if (pBlockCol->flag != HAS_VALUE) {
+      n += tGetI64v(p + n, &pBlockCol->bsize);
+    } else {
+      pBlockCol->bsize = 0;
+    }
+    n += tGetI64v(p + n, &pBlockCol->csize);
+    if (IS_VAR_DATA_TYPE(pBlockCol->type)) {
+      n += tGetI64v(p + n, &pBlockCol->osize);
+    } else {
+      pBlockCol->osize = -1;
+    }
   }
 
   return n;
@@ -1039,24 +1057,30 @@ void tBlockDataClear(SBlockData *pBlockData) {
   taosArrayDestroyEx(pBlockData->aColData, tColDataClear);
 }
 
-static SColData *tBlockDataAddBlockCol(SBlockData *pBlockData, int32_t iColData, int16_t cid, int8_t type) {
+int32_t tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData) {
+  int32_t   code = 0;
   SColData *pColData = NULL;
   int32_t   idx = taosArrayGetSize(pBlockData->aColDataP);
 
   if (idx >= taosArrayGetSize(pBlockData->aColData)) {
-    if (taosArrayPush(pBlockData->aColData, &((SColData){0})) == NULL) return NULL;
+    if (taosArrayPush(pBlockData->aColData, &((SColData){0})) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
   }
   pColData = (SColData *)taosArrayGet(pBlockData->aColData, idx);
-  tColDataReset(pColData, cid, type);
 
-  if (taosArrayInsert(pBlockData->aColDataP, iColData, &pColData) == NULL) return NULL;
-
-  // append NONE
-  for (int32_t i = 0; i < pBlockData->nRow; i++) {
-    if (tColDataAppendValue(pColData, &COL_VAL_NONE(cid, type)) != 0) return NULL;
+  if (taosArrayInsert(pBlockData->aColDataP, iColData, &pColData) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
   }
 
-  return pColData;
+  *ppColData = pColData;
+  return code;
+
+_err:
+  *ppColData = NULL;
+  return code;
 }
 
 int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
@@ -1092,10 +1116,14 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
       code = tColDataAppendValue(pColData, &(COL_VAL_NONE(pColData->cid, pColData->type)));
       if (code) goto _err;
     } else {
-      pColData = tBlockDataAddBlockCol(pBlockData, iColData, pColVal->cid, pColVal->type);
-      if (pColData == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _err;
+      code = tBlockDataAddColData(pBlockData, iColData, &pColData);
+      if (code) goto _err;
+
+      // append a NONE
+      tColDataReset(pColData, pColVal->cid, pColVal->type);
+      for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
+        code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColVal->cid, pColVal->type));
+        if (code) goto _err;
       }
 
       code = tColDataAppendValue(pColData, pColVal);
@@ -1119,10 +1147,13 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   }
 
   while (pColVal) {
-    pColData = tBlockDataAddBlockCol(pBlockData, iColData, pColVal->cid, pColVal->type);
-    if (pColData == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
+    code = tBlockDataAddColData(pBlockData, iColData, &pColData);
+    if (code) goto _err;
+
+    tColDataReset(pColData, pColVal->cid, pColVal->type);
+    for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
+      code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColVal->cid, pColVal->type));
+      if (code) goto _err;
     }
 
     code = tColDataAppendValue(pColData, pColVal);
