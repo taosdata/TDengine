@@ -50,6 +50,8 @@ typedef struct {
   SDelFWriter *pDelFWriter;
   SMapData     nDelIdxMap;   // SMapData<SDelIdx>, new
   SMapData     nDelDataMap;  // SMapData<SDelData>, new
+  SArray      *aDelIdx;
+  SArray      *aDelData;
 } SCommitter;
 
 static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter);
@@ -926,63 +928,59 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
       int32_t c = tTABLEIDCmprFn(pTbData, pBlockIdx);
 
       if (c == 0) {
-        code = tsdbCommitTableData(pCommitter, pTbData, pBlockIdx);
-        if (code) goto _err;
-
-        iBlockIdx++;
-        if (iBlockIdx < nBlockIdx) {
-          tMapDataGetItemByIdx(&pCommitter->oBlockIdxMap, iBlockIdx, pBlockIdx, tGetBlockIdx);
-        } else {
-          pBlockIdx = NULL;
-        }
-        iTbData++;
-        if (iTbData < nTbData) {
-          pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
-        } else {
-          pTbData = NULL;
-        }
+        goto _commit_table_mem_and_disk;
       } else if (c < 0) {
-        code = tsdbCommitTableData(pCommitter, NULL, pBlockIdx);
-        if (code) goto _err;
-
-        iBlockIdx++;
-        if (iBlockIdx < nBlockIdx) {
-          tMapDataGetItemByIdx(&pCommitter->oBlockIdxMap, iBlockIdx, pBlockIdx, tGetBlockIdx);
-        } else {
-          pBlockIdx = NULL;
-        }
+        goto _commit_table_mem_data;
       } else {
-        code = tsdbCommitTableData(pCommitter, pTbData, NULL);
-        if (code) goto _err;
-
-        iTbData++;
-        if (iTbData < nTbData) {
-          pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
-        } else {
-          pTbData = NULL;
-        }
+        goto _commit_table_disk_data;
       }
     } else if (pBlockIdx) {
-      code = tsdbCommitTableData(pCommitter, NULL, pBlockIdx);
-      if (code) goto _err;
-
-      iBlockIdx++;
-      if (iBlockIdx < nBlockIdx) {
-        tMapDataGetItemByIdx(&pCommitter->oBlockIdxMap, iBlockIdx, pBlockIdx, tGetBlockIdx);
-      } else {
-        pBlockIdx = NULL;
-      }
+      goto _commit_table_disk_data;
     } else {
-      code = tsdbCommitTableData(pCommitter, pTbData, NULL);
-      if (code) goto _err;
-
-      iTbData++;
-      if (iTbData < nTbData) {
-        pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
-      } else {
-        pTbData = NULL;
-      }
+      goto _commit_table_mem_data;
     }
+
+  _commit_table_mem_data:
+    code = tsdbCommitTableData(pCommitter, pTbData, NULL);
+    if (code) goto _err;
+
+    iTbData++;
+    if (iTbData < nTbData) {
+      pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
+    } else {
+      pTbData = NULL;
+    }
+    continue;
+
+  _commit_table_disk_data:
+    code = tsdbCommitTableData(pCommitter, NULL, pBlockIdx);
+    if (code) goto _err;
+
+    iBlockIdx++;
+    if (iBlockIdx < nBlockIdx) {
+      tMapDataGetItemByIdx(&pCommitter->oBlockIdxMap, iBlockIdx, pBlockIdx, tGetBlockIdx);
+    } else {
+      pBlockIdx = NULL;
+    }
+    continue;
+
+  _commit_table_mem_and_disk:
+    code = tsdbCommitTableData(pCommitter, pTbData, pBlockIdx);
+    if (code) goto _err;
+
+    iBlockIdx++;
+    if (iBlockIdx < nBlockIdx) {
+      tMapDataGetItemByIdx(&pCommitter->oBlockIdxMap, iBlockIdx, pBlockIdx, tGetBlockIdx);
+    } else {
+      pBlockIdx = NULL;
+    }
+    iTbData++;
+    if (iTbData < nTbData) {
+      pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
+    } else {
+      pTbData = NULL;
+    }
+    continue;
   }
 
   return code;
