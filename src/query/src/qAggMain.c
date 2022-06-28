@@ -419,8 +419,8 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   assert(functionId != TSDB_FUNC_SCALAR_EXPR);
 
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
-      functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAGPRJ ||
-      functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP)
+      functionId == TSDB_FUNC_MIN_COL_DUMMY || functionId == TSDB_FUNC_MAX_COL_DUMMY || functionId == TSDB_FUNC_DIFF ||
+      functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP)
   {
     *type = (int16_t)dataType;
     *bytes = dataBytes;
@@ -518,6 +518,12 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     }
 
     if (functionId == TSDB_FUNC_MIN || functionId == TSDB_FUNC_MAX) {
+      *type = TSDB_DATA_TYPE_BINARY;
+      *bytes = (dataBytes + DATA_SET_FLAG_SIZE);
+      *interBytes = *bytes;
+
+      return TSDB_CODE_SUCCESS;
+    } else if (functionId == TSDB_FUNC_MIN_ROW || functionId == TSDB_FUNC_MAX_ROW) {
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = (dataBytes + DATA_SET_FLAG_SIZE);
       *interBytes = *bytes;
@@ -677,6 +683,10 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *bytes = sizeof(double);
     *interBytes = sizeof(SStddevInfo);
   } else if (functionId == TSDB_FUNC_MIN || functionId == TSDB_FUNC_MAX) {
+    *type = (int16_t)dataType;
+    *bytes = dataBytes;
+    *interBytes = dataBytes + DATA_SET_FLAG_SIZE;
+  } else if (functionId == TSDB_FUNC_MIN_ROW || functionId == TSDB_FUNC_MAX_ROW) {
     *type = (int16_t)dataType;
     *bytes = dataBytes;
     *interBytes = dataBytes + DATA_SET_FLAG_SIZE;
@@ -1001,6 +1011,7 @@ int32_t noDataRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
 #define UPDATE_DATA(ctx, left, right, num, sign, k) \
   do {                                              \
     if (((left) < (right)) ^ (sign)) {              \
+      (ctx)->updateIndex = true;                    \
       (left) = (right);                             \
       DO_UPDATE_TAG_COLUMNS(ctx, k);                \
       (num) += 1;                                   \
@@ -1727,6 +1738,152 @@ static void min_func_merge(SQLFunctionCtx *pCtx) {
 }
 
 static void max_func_merge(SQLFunctionCtx *pCtx) {
+  int32_t numOfElem = minmax_merge_impl(pCtx, pCtx->outputBytes, pCtx->pOutput, 0);
+
+  SET_VAL(pCtx, numOfElem, 1);
+
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  if (numOfElem > 0) {
+    pResInfo->hasResult = DATA_SET_FLAG;
+  }
+}
+
+static bool min_row_func_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultInfo) {
+  if (!function_setup(pCtx, pResultInfo)) {
+    return false;  // not initialized since it has been initialized
+  }
+
+  GET_TRUE_DATA_TYPE();
+
+  switch (type) {
+    case TSDB_DATA_TYPE_TINYINT:
+      *((int8_t *)pCtx->pOutput) = INT8_MAX;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      *(uint8_t *) pCtx->pOutput = UINT8_MAX;
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      *((int16_t *)pCtx->pOutput) = INT16_MAX;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      *((uint16_t *)pCtx->pOutput) = UINT16_MAX;
+      break;
+    case TSDB_DATA_TYPE_INT:
+      *((int32_t *)pCtx->pOutput) = INT32_MAX;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      *((uint32_t *)pCtx->pOutput) = UINT32_MAX;
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      *((int64_t *)pCtx->pOutput) = INT64_MAX;
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      *((uint64_t *)pCtx->pOutput) = UINT64_MAX;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      *((float *)pCtx->pOutput) = FLT_MAX;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      SET_DOUBLE_VAL(((double *)pCtx->pOutput), DBL_MAX);
+      break;
+    default:
+      qError("illegal data type:%d in min_row query", pCtx->inputType);
+  }
+
+  return true;
+}
+
+static bool max_row_func_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultInfo) {
+  if (!function_setup(pCtx, pResultInfo)) {
+    return false;  // not initialized since it has been initialized
+  }
+
+  GET_TRUE_DATA_TYPE();
+
+  switch (type) {
+    case TSDB_DATA_TYPE_TINYINT:
+      *((int8_t *)pCtx->pOutput) = INT8_MIN;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      *((uint8_t *)pCtx->pOutput) = 0;
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      *((int16_t *)pCtx->pOutput) = INT16_MIN;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      *((uint16_t *)pCtx->pOutput) = 0;
+      break;
+    case TSDB_DATA_TYPE_INT:
+      *((int32_t *)pCtx->pOutput) = INT32_MIN;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      *((uint32_t *)pCtx->pOutput) = 0;
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      *((int64_t *)pCtx->pOutput) = INT64_MIN;
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      *((uint64_t *)pCtx->pOutput) = 0;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      *((float *)pCtx->pOutput) = -FLT_MAX;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      SET_DOUBLE_VAL(((double *)pCtx->pOutput), -DBL_MAX);
+      break;
+    default:
+      qError("illegal data type:%d in max_row query", pCtx->inputType);
+  }
+
+  return true;
+}
+
+static void min_row_function(SQLFunctionCtx *pCtx) {
+  int32_t notNullElems = 0;
+  minMax_function(pCtx, pCtx->pOutput, 1, &notNullElems);
+
+  SET_VAL(pCtx, notNullElems, 1);
+
+  if (notNullElems > 0) {
+    SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+    pResInfo->hasResult = DATA_SET_FLAG;
+
+    // set the flag for super table query
+    if (pCtx->stableQuery) {
+      *(pCtx->pOutput + pCtx->inputBytes) = DATA_SET_FLAG;
+    }
+  }
+}
+
+static void max_row_function(SQLFunctionCtx *pCtx) {
+  int32_t notNullElems = 0;
+  minMax_function(pCtx, pCtx->pOutput, 0, &notNullElems);
+
+  SET_VAL(pCtx, notNullElems, 1);
+
+  if (notNullElems > 0) {
+    SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+    pResInfo->hasResult = DATA_SET_FLAG;
+
+    // set the flag for super table query
+    if (pCtx->stableQuery) {
+      *(pCtx->pOutput + pCtx->inputBytes) = DATA_SET_FLAG;
+    }
+  }
+}
+
+static void min_row_func_merge(SQLFunctionCtx *pCtx) {
+  int32_t notNullElems = minmax_merge_impl(pCtx, pCtx->outputBytes, pCtx->pOutput, 1);
+
+  SET_VAL(pCtx, notNullElems, 1);
+
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  if (notNullElems > 0) {
+    pResInfo->hasResult = DATA_SET_FLAG;
+  }
+}
+
+static void max_row_func_merge(SQLFunctionCtx *pCtx) {
   int32_t numOfElem = minmax_merge_impl(pCtx, pCtx->outputBytes, pCtx->pOutput, 0);
 
   SET_VAL(pCtx, numOfElem, 1);
@@ -3408,6 +3565,72 @@ static void copy_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, pCtx->size, 1);
   
   char *pData = GET_INPUT_DATA_LIST(pCtx);
+  assignVal(pCtx->pOutput, pData, pCtx->inputBytes, pCtx->inputType);
+}
+
+static char *get_data_by_offset(char *src, int16_t inputType, int32_t inputBytes, int32_t offset) {
+  char *res = NULL;
+
+  switch (inputType) {
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_UTINYINT:
+      res = (char *) ((int8_t *) src + offset);
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+      res = (char *) ((int16_t *) src + offset);
+      break;
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_UINT:
+      res = (char *) ((int32_t *) src + offset);
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      res = (char *) ((float *) src + offset);
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      res = (char *) ((double *) src + offset);
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      res = (char *) ((int64_t *) src + offset);
+      break;
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      res = src + offset * inputBytes;
+      break;
+    default: {
+      res = src;
+    }
+  }
+
+  return res;
+}
+
+static void min_row_copy_function(SQLFunctionCtx *pCtx) {
+  int16_t index = pCtx->minRowIndex;
+  if (index < 0 || !pCtx->updateIndex) {
+    return;
+  }
+
+  SET_VAL(pCtx, pCtx->size, 1);
+
+  char *pData = GET_INPUT_DATA_LIST(pCtx);
+  pData = get_data_by_offset(pData, pCtx->inputType, pCtx->inputBytes, index);
+  assignVal(pCtx->pOutput, pData, pCtx->inputBytes, pCtx->inputType);
+}
+
+static void max_row_copy_function(SQLFunctionCtx *pCtx) {
+  int16_t index = pCtx->maxRowIndex;
+  if (index < 0 || !pCtx->updateIndex) {
+    return;
+  }
+
+  SET_VAL(pCtx, pCtx->size, 1);
+
+  char *pData = GET_INPUT_DATA_LIST(pCtx);
+  pData = get_data_by_offset(pData, pCtx->inputType, pCtx->inputBytes, index);
   assignVal(pCtx->pOutput, pData, pCtx->inputBytes, pCtx->inputType);
 }
 
@@ -6052,8 +6275,8 @@ int32_t functionCompatList[] = {
     1,              1,              1,         1,         -1,           1,          1,           1,           5,            1,          1,
     // tid_tag,     deriv,          csum,      mavg,      sample,       block_info, elapsed,     histogram,   unique,       mode,       tail
     6,              8,              -1,        -1,        -1,           7,          1,           -1,          -1,           1,          -1,
-    // stateCount,  stateDuration,  wstart,    wstop,     wduration,    qstart,     qstop,       qduration,   hyperloglog
-    1,              1,              1,         1,         1,            1,          1,           1,           1,
+    // stateCount,  stateDuration,  wstart,    wstop,     wduration,    qstart,     qstop,       qduration,   hyperloglog,  min_row,    max_row
+    1,              1,              1,         1,         1,            1,          1,           1,           1,            1,          1
 };
 
 SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
@@ -6670,5 +6893,53 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               hll_func_finalizer,
                               hll_func_merge,
                               dataBlockRequired,
+                          },
+                          {
+                              // 51
+                              "min_row",
+                              TSDB_FUNC_MIN_ROW,
+                              TSDB_FUNC_MIN_ROW,
+                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                              min_row_func_setup,
+                              min_row_function,
+                              function_finalizer,
+                              min_row_func_merge,
+                              dataBlockRequired,
+                          },
+                          {
+                              // 52
+                              "max_row",
+                              TSDB_FUNC_MAX_ROW,
+                              TSDB_FUNC_MAX_ROW,
+                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                              max_row_func_setup,
+                              max_row_function,
+                              function_finalizer,
+                              max_row_func_merge,
+                              dataBlockRequired,
+                          },
+                          {
+                              // 53
+                              "min_col_dummy",
+                              TSDB_FUNC_MIN_COL_DUMMY,
+                              TSDB_FUNC_MIN_COL_DUMMY,
+                              TSDB_BASE_FUNC_SO,
+                              function_setup,
+                              min_row_copy_function,
+                              doFinalizer,
+                              copy_function,
+                              noDataRequired,
+                          },
+                          {
+                              // 54
+                              "max_col_dummy",
+                              TSDB_FUNC_MAX_COL_DUMMY,
+                              TSDB_FUNC_MAX_COL_DUMMY,
+                              TSDB_BASE_FUNC_SO,
+                              function_setup,
+                              max_row_copy_function,
+                              doFinalizer,
+                              copy_function,
+                              noDataRequired,
                           }
 };
