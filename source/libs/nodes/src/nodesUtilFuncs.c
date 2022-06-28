@@ -1500,7 +1500,8 @@ typedef struct SCollectFuncsCxt {
 
 static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   SCollectFuncsCxt* pCxt = (SCollectFuncsCxt*)pContext;
-  if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId)) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId) &&
+      !(((SExprNode*)pNode)->orderAlias)) {
     pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, nodesCloneNode(pNode));
     return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
   }

@@ -1052,7 +1052,8 @@ static int32_t translateUniqueMode(SFunctionNode* pFunc, char* pErrBuf, int32_t 
 
   SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
   if (!nodesExprHasColumn(pPara)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "The parameters of %s must contain columns", isUnique ? "UNIQUE" : "MODE");
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "The parameters of %s must contain columns",
+                           isUnique ? "UNIQUE" : "MODE");
   }
 
   pFunc->node.resType = ((SExprNode*)pPara)->resType;
@@ -1228,19 +1229,19 @@ static int32_t translateSubstr(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
 static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // The number of parameters has been limited by the syntax definition
-  //uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  // uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
 
   // The function return type has been set during syntax parsing
   uint8_t para2Type = pFunc->node.resType.type;
-  //if (para2Type != TSDB_DATA_TYPE_BIGINT && para2Type != TSDB_DATA_TYPE_UBIGINT &&
-  //    para2Type != TSDB_DATA_TYPE_VARCHAR && para2Type != TSDB_DATA_TYPE_NCHAR &&
-  //    para2Type != TSDB_DATA_TYPE_TIMESTAMP) {
-  //  return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-  //}
-  //if ((para2Type == TSDB_DATA_TYPE_TIMESTAMP && IS_VAR_DATA_TYPE(para1Type)) ||
-  //    (para2Type == TSDB_DATA_TYPE_BINARY && para1Type == TSDB_DATA_TYPE_NCHAR)) {
-  //  return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-  //}
+  // if (para2Type != TSDB_DATA_TYPE_BIGINT && para2Type != TSDB_DATA_TYPE_UBIGINT &&
+  //     para2Type != TSDB_DATA_TYPE_VARCHAR && para2Type != TSDB_DATA_TYPE_NCHAR &&
+  //     para2Type != TSDB_DATA_TYPE_TIMESTAMP) {
+  //   return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  // }
+  // if ((para2Type == TSDB_DATA_TYPE_TIMESTAMP && IS_VAR_DATA_TYPE(para1Type)) ||
+  //     (para2Type == TSDB_DATA_TYPE_BINARY && para1Type == TSDB_DATA_TYPE_NCHAR)) {
+  //   return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  // }
 
   int32_t para2Bytes = pFunc->node.resType.bytes;
   if (IS_VAR_DATA_TYPE(para2Type)) {
@@ -1890,7 +1891,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "first",
     .type = FUNCTION_TYPE_FIRST,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -1925,7 +1926,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "last",
     .type = FUNCTION_TYPE_LAST,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -2117,7 +2118,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "unique",
     .type = FUNCTION_TYPE_UNIQUE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC |
+    .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | 
                       FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_WINDOW_FUNC | FUNC_MGT_FORBID_GROUP_BY_FUNC,
     .translateFunc = translateUnique,
     .getEnvFunc   = getUniqueFuncEnv,
