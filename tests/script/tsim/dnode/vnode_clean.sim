@@ -1,30 +1,14 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
 
-system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
-
-system sh/cfg.sh -n dnode1 -c wallevel -v 1
-system sh/cfg.sh -n dnode2 -c wallevel -v 1
-system sh/cfg.sh -n dnode3 -c wallevel -v 1
-system sh/cfg.sh -n dnode4 -c wallevel -v 1
-
-system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
-system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 4
-system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 4
-system sh/cfg.sh -n dnode4 -c maxTablesPerVnode -v 4
-
 print ========== step1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-sql create database d1 
+sql create database d1 vgroups 1
 sql create table d1.t1 (t timestamp, i int)
 sql insert into d1.t1 values(now+1s, 15)
 sql insert into d1.t1 values(now+2s, 14)
@@ -33,34 +17,49 @@ sql insert into d1.t1 values(now+4s, 12)
 sql insert into d1.t1 values(now+5s, 11)
 
 sql show dnodes
-print dnode1 openVnodes $data2_1
-if $data2_1 != 1 then
+print dnode1 openVnodes $data(1)[2]
+if $data(1)[2] != 1 then
 	return -1
 endi
 
 print ========== step2
-sql create dnode $hostname2
+sql create dnode $hostname port 7200
 system sh/exec.sh -n dnode2 -s start
 
 $x = 0
-show2: 
+step2:
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then
-	  return -1
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
 	endi
 sql show dnodes
-print dnode1 openVnodes $data2_1
-print dnode2 openVnodes $data2_2
-if $data2_1 != 0 then
-	goto show2
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
 endi
-if $data2_2 != 1 then
-	goto show2
+if $data(1)[4] != ready then
+  goto step2
+endi
+if $data(2)[4] != ready then
+  goto step2
+endi
+
+sql balance vgroup
+sql show dnodes
+print dnode1 openVnodes $data(1)[2]
+print dnode2 openVnodes $data(2)[2]
+if $data(1)[2] != 0 then
+	return -1
+endi
+if $data(2)[2] != 1 then
+	return -1
 endi
 
 print ========== step3
-sql create database d2 
+sql create database d2 vgroups 1
 
 sql create table d2.t2 (t timestamp, i int) 
 sql insert into d2.t2 values(now+1s, 25)
@@ -69,65 +68,68 @@ sql insert into d2.t2 values(now+3s, 23)
 sql insert into d2.t2 values(now+4s, 22)
 sql insert into d2.t2 values(now+5s, 21)
 
-$x = 0
 sql show dnodes
-print dnode1 openVnodes $data2_1
-print dnode2 openVnodes $data2_2
-if $data2_1 != 0 then
+print dnode1 openVnodes $data(1)[2]
+print dnode2 openVnodes $data(2)[2]
+if $data(1)[2] != 0 then
 	return -1
 endi
-if $data2_2 != 2 then
+if $data(2)[2] != 2 then
 	return -1
 endi
 
 print ========== step4
-sql drop dnode $hostname2
-
-$x = 0
-show4: 
-	$x = $x + 1
-	sleep 1000
-	if $x == 20 then
-	  return -1
-	endi
+sql drop dnode 2
 sql show dnodes
-print dnode1 openVnodes $data2_1
-print dnode2 openVnodes $data2_2
-if $data2_1 != 2 then
-    goto show4
+print dnode1 openVnodes $data(1)[2]
+print dnode2 openVnodes $data(2)[2]
+if $data(1)[2] != 2 then
+	return -1
 endi
-if $data2_2 != null then
-    goto show4
-endi
-if $rows != 1 then
-    goto show4
+if $data(2)[2] != null then
+	return -1
 endi
 
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 
 print ========== step5
-sql create dnode $hostname3
+sql create dnode $hostname port 7300
 system sh/exec.sh -n dnode3 -s start
 
 $x = 0
-show5: 
+step5:
 	$x = $x + 1
 	sleep 1000
-	if $x == 40 then 
-	  return -1
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
 	endi
 sql show dnodes
-print dnode1 openVnodes $data2_1
-print dnode3 openVnodes $data2_3
-if $data2_1 != 0 then
-    goto show5
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
 endi
-if $data2_3 != 2 then
-    goto show5
+if $data(1)[4] != ready then
+  goto step5
+endi
+if $data(3)[4] != ready then
+  goto step5
+endi
+
+sql balance vgroup
+sql show dnodes
+print dnode1 openVnodes $data(1)[2]
+print dnode2 openVnodes $data(3)[2]
+if $data(1)[2] != 1 then
+	return -1
+endi
+if $data(3)[2] != 1 then
+	return -1
 endi
 
 print ========== step6
-sql create database d3 
+sql create database d3 vgroups 1
 sql create table d3.t3 (t timestamp, i int)
 sql insert into d3.t3 values(now+1s, 35)
 sql insert into d3.t3 values(now+2s, 34)
@@ -136,43 +138,61 @@ sql insert into d3.t3 values(now+4s, 32)
 sql insert into d3.t3 values(now+5s, 31)
 
 sql show dnodes
-print dnode1 openVnodes $data2_1
-print dnode2 openVnodes $data2_3
-if $data2_1 != 0 then
+print dnode1 openVnodes $data(1)[2]
+print dnode2 openVnodes $data(3)[2]
+if $data(1)[2] != 1 then
 	return -1
 endi
-if $data2_3 != 3 then
+if $data(3)[2] != 2 then
 	return -1
 endi
 
 print ========== step7
-sql create dnode $hostname4
+sql create dnode $hostname port 7400
 system sh/exec.sh -n dnode4 -s start
 
 $x = 0
-show7: 
+step7:
 	$x = $x + 1
 	sleep 1000
-	if $x == 40 then 
+	if $x == 10 then
+	  print ====> dnode not ready!
 		return -1
 	endi
-	
 sql show dnodes
-print dnode1 openVnodes $data2_1
-print dnode3 openVnodes $data2_3
-print dnode4 openVnodes $data2_4
-if $data2_1 != 0 then
-  goto show7
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+if $rows != 3 then
+  return -1
 endi
-if $data2_3 != 2 then
-  goto show7
+if $data(1)[4] != ready then
+  goto step7
 endi
-if $data2_4 != 1 then
-  goto show7
+if $data(3)[4] != ready then
+  goto step7
+endi
+if $data(4)[4] != ready then
+  goto step7
+endi
+
+sql balance vgroup
+sql show dnodes
+print dnode1 openVnodes $data(1)[2]
+print dnode2 openVnodes $data(3)[2]
+print dnode2 openVnodes $data(4)[2]
+if $data(1)[2] != 0 then
+	return -1
+endi
+if $data(3)[2] != 2 then
+	return -1
+endi
+if $data(4)[2] != 1 then
+	return -1
 endi
 
 print ========== step8
-sql create database d4
+sql create database d4 vgroups 1
 sql create table d4.t4 (t timestamp, i int) 
 sql insert into d4.t4 values(now+1s, 45)
 sql insert into d4.t4 values(now+2s, 44)
@@ -180,53 +200,39 @@ sql insert into d4.t4 values(now+3s, 43)
 sql insert into d4.t4 values(now+4s, 42)
 sql insert into d4.t4 values(now+5s, 41)
 
-$x = 0
-show8: 
-	$x = $x + 1
-	sleep 1000
-	if $x == 20 then
-	  return -1
-	endi
 sql show dnodes
-print dnode1 openVnodes $data2_1
-print dnode3 openVnodes $data2_3
-print dnode4 openVnodes $data2_4
-if $data2_1 != 0 then
-  goto show8
+print dnode1 openVnodes $data(1)[2]
+print dnode2 openVnodes $data(3)[2]
+print dnode2 openVnodes $data(4)[2]
+if $data(1)[2] != 0 then
+	return -1
 endi
-if $data2_3 != 2 then
-  goto show8
+if $data(3)[2] != 2 then
+	return -1
 endi
-if $data2_4 != 2 then
-  goto show8
+if $data(4)[2] != 2 then
+	return -1
 endi
 
 print ========== step9
-sql drop dnode $hostname3
-
-$x = 0
-show9: 
-	$x = $x + 1
-	sleep 1000
-	if $x == 20 then
-	  return -1
-	endi
-
+sql drop dnode 3
 sql show dnodes
-print dnode1 openVnodes $data2_1
-print dnode3 openVnodes $data2_3
-print dnode4 openVnodes $data2_4
-if $data2_1 != 0 then
-  goto show9
+print dnode1 openVnodes $data(1)[2]
+print dnode2 openVnodes $data(3)[2]
+print dnode2 openVnodes $data(4)[2]
+if $data(1)[2] != 1 then
+	return -1
 endi
-if $data2_3 != null then
-  goto show9
+if $data(3)[2] != null then
+	return -1
 endi
-if $data2_4 != 4 then
-  goto show9
+if $data(4)[2] != 3 then
+	return -1
 endi
 
-system sh/exec.sh -n dnode3 -s stop 
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+sql reset query cache
+sleep 100
 
 print ========== step10
 sql select * from d1.t1  order by t desc
