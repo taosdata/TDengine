@@ -2300,7 +2300,6 @@ int32_t tDeserializeSServerVerRsp(void *buf, int32_t bufLen, SServerVerRsp *pRsp
   return 0;
 }
 
-
 int32_t tSerializeSQnodeListRsp(void *buf, int32_t bufLen, SQnodeListRsp *pRsp) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -2386,7 +2385,6 @@ int32_t tDeserializeSDnodeListRsp(void *buf, int32_t bufLen, SDnodeListRsp *pRsp
 }
 
 void tFreeSDnodeListRsp(SDnodeListRsp *pRsp) { taosArrayDestroy(pRsp->dnodeList); }
-
 
 int32_t tSerializeSCompactDbReq(void *buf, int32_t bufLen, SCompactDbReq *pReq) {
   SEncoder encoder = {0};
@@ -2909,20 +2907,19 @@ int32_t tDeserializeSShowVariablesReq(void *buf, int32_t bufLen, SShowVariablesR
   return 0;
 }
 
-int32_t tEncodeSVariablesInfo(SEncoder* pEncoder, SVariablesInfo* pInfo) {
+int32_t tEncodeSVariablesInfo(SEncoder *pEncoder, SVariablesInfo *pInfo) {
   if (tEncodeCStr(pEncoder, pInfo->name) < 0) return -1;
   if (tEncodeCStr(pEncoder, pInfo->value) < 0) return -1;
   return 0;
 }
 
-int32_t tDecodeSVariablesInfo(SDecoder* pDecoder, SVariablesInfo* pInfo) {
+int32_t tDecodeSVariablesInfo(SDecoder *pDecoder, SVariablesInfo *pInfo) {
   if (tDecodeCStrTo(pDecoder, pInfo->name) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pInfo->value) < 0) return -1;
   return 0;
 }
 
-
-int32_t tSerializeSShowVariablesRsp(void* buf, int32_t bufLen, SShowVariablesRsp* pRsp) {
+int32_t tSerializeSShowVariablesRsp(void *buf, int32_t bufLen, SShowVariablesRsp *pRsp) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
 
@@ -2930,7 +2927,7 @@ int32_t tSerializeSShowVariablesRsp(void* buf, int32_t bufLen, SShowVariablesRsp
   int32_t varNum = taosArrayGetSize(pRsp->variables);
   if (tEncodeI32(&encoder, varNum) < 0) return -1;
   for (int32_t i = 0; i < varNum; ++i) {
-    SVariablesInfo* pInfo = taosArrayGet(pRsp->variables, i);
+    SVariablesInfo *pInfo = taosArrayGet(pRsp->variables, i);
     if (tEncodeSVariablesInfo(&encoder, pInfo) < 0) return -1;
   }
   tEndEncode(&encoder);
@@ -2940,7 +2937,7 @@ int32_t tSerializeSShowVariablesRsp(void* buf, int32_t bufLen, SShowVariablesRsp
   return tlen;
 }
 
-int32_t tDeserializeSShowVariablesRsp(void* buf, int32_t bufLen, SShowVariablesRsp* pRsp) {
+int32_t tDeserializeSShowVariablesRsp(void *buf, int32_t bufLen, SShowVariablesRsp *pRsp) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
@@ -2962,11 +2959,11 @@ int32_t tDeserializeSShowVariablesRsp(void* buf, int32_t bufLen, SShowVariablesR
   return 0;
 }
 
-void tFreeSShowVariablesRsp(SShowVariablesRsp* pRsp) {
+void tFreeSShowVariablesRsp(SShowVariablesRsp *pRsp) {
   if (NULL == pRsp) {
     return;
   }
-  
+
   taosArrayDestroy(pRsp->variables);
 }
 
@@ -5385,5 +5382,37 @@ int32_t tDecodeSTqOffset(SDecoder *pDecoder, STqOffset *pOffset) {
     ASSERT(0);
   }
   if (tDecodeCStrTo(pDecoder, pOffset->subKey) < 0) return -1;
+  return 0;
+}
+
+int32_t tEncodeDeleteRes(SEncoder *pCoder, const SDeleteRes *pRes) {
+  int32_t nUid = taosArrayGetSize(pRes->uidList);
+
+  if (tEncodeU64(pCoder, pRes->suid) < 0) return -1;
+  if (tEncodeI32v(pCoder, nUid) < 0) return -1;
+  for (int32_t iUid = 0; iUid < nUid; iUid++) {
+    if (tEncodeU64(pCoder, *(uint64_t *)taosArrayGet(pRes->uidList, iUid)) < 0) return -1;
+  }
+  if (tEncodeI64(pCoder, pRes->skey) < 0) return -1;
+  if (tEncodeI64(pCoder, pRes->ekey) < 0) return -1;
+  if (tEncodeI64v(pCoder, pRes->affectedRows) < 0) return -1;
+
+  return 0;
+}
+
+int32_t tDecodeDeleteRes(SDecoder *pCoder, SDeleteRes *pRes) {
+  int32_t  nUid;
+  uint64_t uid;
+
+  if (tDecodeU64(pCoder, &pRes->suid) < 0) return -1;
+  if (tDecodeI32v(pCoder, &nUid) < 0) return -1;
+  for (int32_t iUid = 0; iUid < nUid; iUid++) {
+    if (tDecodeU64(pCoder, &uid) < 0) return -1;
+    taosArrayPush(pRes->uidList, &uid);
+  }
+  if (tDecodeI64(pCoder, &pRes->skey) < 0) return -1;
+  if (tDecodeI64(pCoder, &pRes->ekey) < 0) return -1;
+  if (tDecodeI64v(pCoder, &pRes->affectedRows) < 0) return -1;
+
   return 0;
 }
