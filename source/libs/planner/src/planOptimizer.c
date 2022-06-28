@@ -1616,6 +1616,82 @@ static int32_t rewriteUniqueOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   return rewriteUniqueOptimizeImpl(pCxt, pLogicSubplan, pIndef);
 }
 
+// merge projects
+static bool mergeProjectsMayBeOptimized(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren)) {
+    return false;
+  }
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pChild) || 1 < LIST_LENGTH(pChild->pChildren) ||
+      NULL != pChild->pConditions || NULL != pNode->pLimit || NULL != pNode->pSlimit) {
+    return false;
+  }
+  return true;
+}
+
+typedef struct SMergeProjectionsContext {
+  SProjectLogicNode* pChildProj;
+  int32_t            errCode;
+} SMergeProjectionsContext;
+
+static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
+  SMergeProjectionsContext* pCxt = pContext;
+  SProjectLogicNode*        pChildProj = pCxt->pChildProj;
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    SNode* pTarget;
+    FOREACH(pTarget, ((SLogicNode*)pChildProj)->pTargets) {
+      if (nodesEqualNode(pTarget, *pNode)) {
+        SNode* pProjection;
+        FOREACH(pProjection, pChildProj->pProjections) {
+          if (0 == strcmp(((SColumnNode*)pTarget)->colName, ((SExprNode*)pProjection)->aliasName)) {
+            SNode* pExpr = nodesCloneNode(pProjection);
+            if (pExpr == NULL) {
+              pCxt->errCode = terrno;
+              return DEAL_RES_ERROR;
+            }
+            nodesDestroyNode(*pNode);
+            *pNode = pExpr;
+          }
+        }
+      }
+    }
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t mergeProjectsOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SLogicNode* pSelfNode) {
+  SLogicNode*              pChild = (SLogicNode*)nodesListGetNode(pSelfNode->pChildren, 0);
+  SMergeProjectionsContext cxt = {.pChildProj = (SProjectLogicNode*)pChild, .errCode = TSDB_CODE_SUCCESS};
+
+  nodesRewriteExprs(((SProjectLogicNode*)pSelfNode)->pProjections, mergeProjectionsExpr, &cxt);
+  int32_t code = cxt.errCode;
+
+  if (TSDB_CODE_SUCCESS == code) {
+    if (1 == LIST_LENGTH(pChild->pChildren)) {
+      SLogicNode* pGrandChild = (SLogicNode*)nodesListGetNode(pChild->pChildren, 0);
+      code = replaceLogicNode(pLogicSubplan, pChild, pGrandChild);
+    } else {  // no grand child
+      NODES_CLEAR_LIST(pSelfNode->pChildren);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    NODES_CLEAR_LIST(pChild->pChildren);
+  }
+  nodesDestroyNode((SNode*)pChild);
+  return code;
+}
+
+static int32_t mergeProjectsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SLogicNode* pProjectNode = optFindPossibleNode(pLogicSubplan->pNode, mergeProjectsMayBeOptimized);
+  if (NULL == pProjectNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return mergeProjectsOptimizeImpl(pCxt, pLogicSubplan, pProjectNode);
+}
+
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
@@ -1623,6 +1699,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "SortPrimaryKey",             .optimizeFunc = sortPrimaryKeyOptimize},
   {.pName = "SmaIndex",                   .optimizeFunc = smaIndexOptimize},
   {.pName = "PartitionTags",              .optimizeFunc = partTagsOptimize},
+  {.pName = "MergeProjects",              .optimizeFunc = mergeProjectsOptimize},
   {.pName = "EliminateProject",           .optimizeFunc = eliminateProjOptimize},
   {.pName = "EliminateSetOperator",       .optimizeFunc = eliminateSetOpOptimize},
   {.pName = "RewriteTail",                .optimizeFunc = rewriteTailOptimize},

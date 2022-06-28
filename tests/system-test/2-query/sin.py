@@ -476,6 +476,19 @@ class TDTestCase:
             tdSql.execute('insert into tb3 values (now()+{}s, {}, {})'.format(i,PI*(5+i)/2 ,PI*(5+i)/2))
 
         self.check_result_auto_sin("select num1,num2 from tb3;" , "select sin(num1),sin(num2) from tb3")
+
+    def support_super_table_test(self):
+        tdSql.execute(" use db ")
+        self.check_result_auto_sin( " select c5 from stb1 order by ts " , "select sin(c5) from stb1 order by ts" )
+        self.check_result_auto_sin( " select c5 from stb1 order by tbname " , "select sin(c5) from stb1 order by tbname" )
+        self.check_result_auto_sin( " select c5 from stb1 where c1 > 0 order by tbname  " , "select sin(c5) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_sin( " select c5 from stb1 where c1 > 0 order by tbname  " , "select sin(c5) from stb1 where c1 > 0 order by tbname" )
+
+        self.check_result_auto_sin( " select t1,c5 from stb1 order by ts " , "select sin(t1), sin(c5) from stb1 order by ts" )
+        self.check_result_auto_sin( " select t1,c5 from stb1 order by tbname " , "select sin(t1) ,sin(c5) from stb1 order by tbname" )
+        self.check_result_auto_sin( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select sin(t1) ,sin(c5) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_sin( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select sin(t1) , sin(c5) from stb1 where c1 > 0 order by tbname" )
+        pass
     
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
@@ -508,6 +521,10 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step7: sin filter query ============") 
 
         self.abs_func_filter()
+
+        tdLog.printNoPrefix("==========step8: check sin result of  stable query ============")
+
+        self.support_super_table_test()
 
         
 

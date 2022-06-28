@@ -202,7 +202,7 @@ void transDestroyAsyncPool(SAsyncPool* pool) {
   taosMemoryFree(pool->asyncs);
   taosMemoryFree(pool);
 }
-int transSendAsync(SAsyncPool* pool, queue* q) {
+int transAsyncSend(SAsyncPool* pool, queue* q) {
   int idx = pool->index;
   idx = idx % pool->nAsync;
   // no need mutex here

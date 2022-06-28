@@ -234,7 +234,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   if (retrieveReq.user[0] != 0) {
     memcpy(pReq->info.conn.user, retrieveReq.user, TSDB_USER_LEN);
   } else {
-    memcpy(pReq->info.conn.user, TSDB_DEFAULT_USER, TSDB_USER_LEN);
+    memcpy(pReq->info.conn.user, TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER) + 1);
   }
   if (mndCheckShowPrivilege(pMnode, pReq->info.conn.user, pShow->type, retrieveReq.db) != 0) {
     return -1;

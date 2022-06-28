@@ -637,5 +637,13 @@ class TDCom:
                 column_value_str = ", ".join(str(v) for v in column_value_list)
                 insert_sql = f'insert into {dbname}.{tbname} values ({column_value_str});'
                 tsql.execute(insert_sql)
-
+    def getOneRow(self, location, containElm):
+        res_list = list()
+        if 0 <= location < tdSql.queryRows:
+            for row in tdSql.queryResult:
+                if row[location] == containElm:
+                    res_list.append(row)
+            return res_list
+        else:
+            tdLog.exit(f"getOneRow out of range: row_index={location} row_count={self.query_row}")
 tdCom = TDCom()
