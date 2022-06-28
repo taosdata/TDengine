@@ -147,6 +147,9 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
       int64_t rows = 33;
       SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, 8, 1);
       blockDataAppendColInfo(*pRes, &infoData);
+      blockDataEnsureCapacity(*pRes, 1);
+      (*pRes)->info.rows = 1;
+
       SColumnInfoData* pCol1 = taosArrayGet((*pRes)->pDataBlock, 0);
       colDataAppend(pCol1, 0, (char*)&rows, false);
       first = 0;
