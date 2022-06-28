@@ -99,6 +99,16 @@ TEST_F(PlanBasicTest, lastRowFunc) {
   run("SELECT LAST_ROW(c1) FROM st1");
 }
 
+TEST_F(PlanBasicTest, sampleFunc) {
+  useDb("root", "test");
+
+  run("SELECT SAMPLE(c1, 10) FROM t1");
+
+  run("SELECT SAMPLE(c1, 10) FROM st1");
+
+  run("SELECT SAMPLE(c1, 10) FROM st1 PARTITION BY TBNAME");
+}
+
 TEST_F(PlanBasicTest, withoutFrom) {
   useDb("root", "test");
 

@@ -1034,12 +1034,30 @@ static SNodeList* partTagsGetPartKeys(SLogicNode* pNode) {
   }
 }
 
+static SNodeList* partTagsGetFuncs(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
+    return NULL;
+  } else {
+    return ((SAggLogicNode*)pNode)->pAggFuncs;
+  }
+}
+
+static bool partTagsOptAreSupportedFuncs(SNodeList* pFuncs) {
+  SNode* pFunc = NULL;
+  FOREACH(pFunc, pFuncs) {
+    if (fmIsIndefiniteRowsFunc(((SFunctionNode*)pFunc)->funcId) && !fmIsSelectFunc(((SFunctionNode*)pFunc)->funcId)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static bool partTagsOptMayBeOptimized(SLogicNode* pNode) {
   if (!partTagsIsOptimizableNode(pNode)) {
     return false;
   }
 
-  return !partTagsOptHasCol(partTagsGetPartKeys(pNode));
+  return !partTagsOptHasCol(partTagsGetPartKeys(pNode)) && partTagsOptAreSupportedFuncs(partTagsGetFuncs(pNode));
 }
 
 static EDealRes partTagsOptRebuildTbanmeImpl(SNode** pNode, void* pContext) {
@@ -1065,13 +1083,13 @@ static int32_t partTagsOptRebuildTbanme(SNodeList* pPartKeys) {
   return code;
 }
 
-static SNode* partTagsCreateGroupKeyFunc(SNode* pNode) {
+static SNode* partTagsCreateWrapperFunc(const char* pFuncName, SNode* pNode) {
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == pFunc) {
     return NULL;
   }
 
-  strcpy(pFunc->functionName, "_group_key");
+  strcpy(pFunc->functionName, pFuncName);
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
     snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), "%s.%s", pCol->tableAlias, pCol->colName);
@@ -1091,15 +1109,31 @@ static SNode* partTagsCreateGroupKeyFunc(SNode* pNode) {
   return (SNode*)pFunc;
 }
 
-static int32_t partTagsRewriteGroupTagsToGroupKeyFuncs(SNodeList* pGroupTags, SNodeList* pAggFuncs) {
-  SNode* pNode = NULL;
-  FOREACH(pNode, pGroupTags) {
-    int32_t code = nodesListStrictAppend(pAggFuncs, partTagsCreateGroupKeyFunc(pNode));
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
+static bool partTagsHasIndefRowsSelectFunc(SNodeList* pFuncs) {
+  SNode* pFunc = NULL;
+  FOREACH(pFunc, pFuncs) {
+    if (fmIsIndefiniteRowsFunc(((SFunctionNode*)pFunc)->funcId)) {
+      return true;
     }
   }
-  return TSDB_CODE_SUCCESS;
+  return false;
+}
+
+static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, SNodeList* pAggFuncs) {
+  bool    hasIndefRowsSelectFunc = partTagsHasIndefRowsSelectFunc(pAggFuncs);
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pGroupTags) {
+    if (hasIndefRowsSelectFunc) {
+      code = nodesListStrictAppend(pAggFuncs, partTagsCreateWrapperFunc("_select_value", pNode));
+    } else {
+      code = nodesListStrictAppend(pAggFuncs, partTagsCreateWrapperFunc("_group_key", pNode));
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+  return code;
 }
 
 static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
@@ -1128,7 +1162,7 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       }
     }
     NODES_DESTORY_LIST(pAgg->pGroupKeys);
-    code = partTagsRewriteGroupTagsToGroupKeyFuncs(pScan->pGroupTags, pAgg->pAggFuncs);
+    code = partTagsRewriteGroupTagsToFuncs(pScan->pGroupTags, pAgg->pAggFuncs);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = partTagsOptRebuildTbanme(pScan->pGroupTags);
