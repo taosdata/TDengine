@@ -24,6 +24,8 @@ class StreamComputingTest(TDCase):
         self.stream_case_env_root = os.path.join(os.environ["TEST_ROOT"], "cases/stream_computing")
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
+        self.taospy_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taospy")
+        self._fqdn = self.taospy_setting["fqdn"][0]
         self.case_name = None
         self.tbname = None
         self.precision = "ms"
@@ -55,6 +57,8 @@ class StreamComputingTest(TDCase):
         self.udf_function_list = ["min(udf1(c1))", "max(udf1(c2))", "sum(udf1(c3))", "first(udf1(c4))", "last(udf1(c5))", "apercentile(udf1(c6), 50)", "avg(udf1(c7))", "count(udf1(c8))", "leastsquares(udf1(c1), 1, 2)", "spread(udf1(c1))", 
         "stddev(udf1(c2))", "hyperloglog(udf1(c11))", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(udf1(t1))", "max(udf1(t2))", "sum(udf1(t3))",
         "first(udf1(t4))", "last(udf1(t5))", "apercentile(udf1(t6), 50)", "avg(udf1(t7))", "count(udf1(t8))", "leastsquares(udf1(t1), 1, 2)", "spread(udf1(t1))", "stddev(udf1(t2))", "hyperloglog(udf1(t11))"]
+        self.udf_function_list = ["min(udf1(c1))", "max(udf1(c2))", "sum(udf1(c3))", "apercentile(udf1(c6), 50)", "avg(udf1(c7))", "count(udf1(c8))", "leastsquares(udf1(c1), 1, 2)", "spread(udf1(c1))",
+        "stddev(udf1(c2))", "hyperloglog(udf1(c11))", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
         # self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c1)", "first(c1)", "last(c1)", "apercentile(c1, 50)", "last_row(c1)", "avg(c1)", "count(c1)", "leastsquares(c1, 1, 2)", "spread(c1)", "stddev(c2)", "hyperloglog(c3)", 
         #     'histogram(c1, "user_input", "[1, 3, 5, 7]", 0)', "now()", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "timezone()", "today()", "to_iso8601(now)",  'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
         self.stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list)))
@@ -85,6 +89,12 @@ class StreamComputingTest(TDCase):
 
         self.state_window_range = list()
         self.interation = 3
+        self.udf1 = "/tmp/libudf1.so"
+        self.udf2 = "/tmp/libudf2.so"
+
+
+    def build_udf_so(self):
+        self._remote.cmd(self._fqdn, [f'gcc -fPIC -shared -o {self.udf1} {self.stream_case_env_root}/udf1.c', f'gcc -fPIC -shared -o {self.udf2} {self.stream_case_env_root}/udf2.c'])
 
     def set_precision_offset(self, precision):
         if precision == "ms":
@@ -685,12 +695,15 @@ class StreamComputingTest(TDCase):
         self.tdCom.create_ctable(stbname=self.stb_name, ctbname=self.ctb_name)
         self.tdCom.create_table(tbname=self.tb_name)
 
-    def udf_interval_order(self, interval, precision, vgroups=1):
+    def udf_interval_order(self, interval, precision=None, vgroups=1, udf_size=8):
         self.case_name = sys._getframe().f_code.co_name
         self.prepare_data(interval=interval, precision=precision, vgroups=vgroups)
+        self.tdCom.drop_all_udfs()
         self.tdCom.write_latency(self.case_name)
-        # TODO
-        #libudf1, libudf2 = self.tdCom.get_udf_so_path()
+        udf1 = "udf1"
+        udf2 = "udf2"
+        self.build_udf_so()
+        self.tdCom.create_udf(udf1, self.udf1, udf_size)
         # create stb/ctb/tb stream
         self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstartts AS start, {self.udf_stb_source_select_str}  from {self.stb_name} interval({self.dataDict["interval"]}s)')
         self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstartts AS start, {self.udf_stb_source_select_str}  from {self.ctb_name} interval({self.dataDict["interval"]}s)')
@@ -1122,8 +1135,9 @@ class StreamComputingTest(TDCase):
         # # self.disorder_data()
         # self.trigger_window_close()
         # self.trigger_max_delay()
+        self.udf_interval_order(interval=10)
         # ! TD-16843
-        self.partitionby_interval_order(interval=10)
+        # self.partitionby_interval_order(interval=10)
         # ! bug
         # self.window_close_state_window_order(state_window="c1", interation=self.interation)
         # self.window_close_interval_order(interval=random.randint(10, 15), watermark=None, interation=self.interation)
