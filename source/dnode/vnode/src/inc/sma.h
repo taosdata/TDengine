@@ -28,7 +28,8 @@ extern "C" {
 #define smaError(...) do { if (smaDebugFlag & DEBUG_ERROR) { taosPrintLog("SMA ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
 #define smaWarn(...)  do { if (smaDebugFlag & DEBUG_WARN)  { taosPrintLog("SMA WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
 #define smaInfo(...)  do { if (smaDebugFlag & DEBUG_INFO)  { taosPrintLog("SMA ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define smaDebug(...) do { if (smaDebugFlag & DEBUG_DEBUG) { taosPrintLog("SMA ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); }} while(0)
+// #define smaDebug(...) do { if (smaDebugFlag & DEBUG_DEBUG) { taosPrintLog("SMA ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); }} while(0)
+#define smaDebug(...)  do { if (smaDebugFlag & DEBUG_WARN)  { taosPrintLog("SMA WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
 #define smaTrace(...) do { if (smaDebugFlag & DEBUG_TRACE) { taosPrintLog("SMA ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
@@ -205,16 +206,16 @@ struct STFile {
   uint8_t   state;
 };
 
-#define TD_FILE_F(tf)            (&((tf)->f))
-#define TD_FILE_PFILE(tf)        ((tf)->pFile)
-#define TD_FILE_OPENED(tf)       (TD_FILE_PFILE(tf) != NULL)
-#define TD_FILE_FULL_NAME(tf)    (TD_FILE_F(tf)->aname)
-#define TD_FILE_REL_NAME(tf)     (TD_FILE_F(tf)->rname)
-#define TD_FILE_OPENED(tf)       (TD_FILE_PFILE(tf) != NULL)
-#define TD_FILE_CLOSED(tf)       (!TD_FILE_OPENED(tf))
-#define TD_FILE_SET_CLOSED(f)    (TD_FILE_PFILE(f) = NULL)
-#define TD_FILE_SET_STATE(tf, s) ((tf)->state = (s))
-#define TD_FILE_DID(tf)          (TD_FILE_F(tf)->did)
+#define TD_TFILE_F(tf)            (&((tf)->f))
+#define TD_TFILE_PFILE(tf)        ((tf)->pFile)
+#define TD_TFILE_OPENED(tf)       (TD_TFILE_PFILE(tf) != NULL)
+#define TD_TFILE_FULL_NAME(tf)    (TD_TFILE_F(tf)->aname)
+#define TD_TFILE_REL_NAME(tf)     (TD_TFILE_F(tf)->rname)
+#define TD_TFILE_OPENED(tf)       (TD_TFILE_PFILE(tf) != NULL)
+#define TD_TFILE_CLOSED(tf)       (!TD_TFILE_OPENED(tf))
+#define TD_TFILE_SET_CLOSED(f)    (TD_TFILE_PFILE(f) = NULL)
+#define TD_TFILE_SET_STATE(tf, s) ((tf)->state = (s))
+#define TD_TFILE_DID(tf)          (TD_TFILE_F(tf)->did)
 
 int32_t tdInitTFile(STFile *pTFile, STfs *pTfs, const char *fname);
 int32_t tdCreateTFile(STFile *pTFile, STfs *pTfs, bool updateHeader, int8_t fType);

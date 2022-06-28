@@ -123,7 +123,7 @@ int32_t smaOpen(SVnode *pVnode) {
     }
 
     // restore the rsma
-#if 0
+#if 1
     if (rsmaRestore(pSma) < 0) {
       goto _err;
     }
@@ -151,12 +151,6 @@ int32_t smaCloseEx(SSma *pSma) {
     if SMA_RSMA_TSDB2 (pSma) tsdbClose(&SMA_RSMA_TSDB2(pSma));
     taosMemoryFreeClear(pSma);
   }
-  return 0;
-}
-
-int32_t smaClose(SSma *pSma) {
-  smaCloseEnv(pSma);
-  smaCloseEx(pSma);
   return 0;
 }
 
