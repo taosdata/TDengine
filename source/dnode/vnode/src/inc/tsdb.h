@@ -464,10 +464,6 @@ struct SDelData {
 struct SDelIdx {
   tb_uid_t suid;
   tb_uid_t uid;
-  TSKEY    minKey;
-  TSKEY    maxKey;
-  int64_t  minVersion;
-  int64_t  maxVersion;
   int64_t  offset;
   int64_t  size;
 };

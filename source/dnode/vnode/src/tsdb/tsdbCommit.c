@@ -168,10 +168,6 @@ static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDel
     delIdx.suid = pDelIdx->suid;
     delIdx.uid = pDelIdx->uid;
   }
-  delIdx.minKey = TSKEY_MAX;
-  delIdx.maxKey = TSKEY_MIN;
-  delIdx.minVersion = INT64_MAX;
-  delIdx.maxVersion = INT64_MIN;
 
   // start
   tMapDataReset(&pCommitter->oDelDataMap);
@@ -189,11 +185,6 @@ static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDel
 
     code = tMapDataPutItem(&pCommitter->nDelDataMap, pDelData, tPutDelData);
     if (code) goto _err;
-
-    if (delIdx.minKey > pDelData->sKey) delIdx.minKey = pDelData->sKey;
-    if (delIdx.maxKey < pDelData->eKey) delIdx.maxKey = pDelData->eKey;
-    if (delIdx.minVersion > pDelData->version) delIdx.minVersion = pDelData->version;
-    if (delIdx.maxVersion < pDelData->version) delIdx.maxVersion = pDelData->version;
   }
 
   // memory
@@ -201,11 +192,6 @@ static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDel
   for (; pDelData; pDelData = pDelData->pNext) {
     code = tMapDataPutItem(&pCommitter->nDelDataMap, pDelData, tPutDelData);
     if (code) goto _err;
-
-    if (delIdx.minKey > pDelData->sKey) delIdx.minKey = pDelData->sKey;
-    if (delIdx.maxKey < pDelData->eKey) delIdx.maxKey = pDelData->eKey;
-    if (delIdx.minVersion > pDelData->version) delIdx.minVersion = pDelData->version;
-    if (delIdx.maxVersion < pDelData->version) delIdx.maxVersion = pDelData->version;
   }
 
   ASSERT(pCommitter->nDelDataMap.nItem > 0);

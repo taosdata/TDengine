@@ -304,18 +304,17 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
   pMetaRsp->precision = pVnode->config.tsdbCfg.precision;
 }
 
-static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp){
-
+static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SArray *tbUids = taosArrayInit(8, sizeof(int64_t));
   if (tbUids == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  int32_t t = ntohl(*(int32_t*)pReq);
+  int32_t t = ntohl(*(int32_t *)pReq);
   vError("rec ttl time:%d", t);
   int32_t ret = metaTtlDropTable(pVnode->pMeta, t, tbUids);
-  if(ret != 0){
+  if (ret != 0) {
     goto end;
   }
-  if(taosArrayGetSize(tbUids) > 0){
+  if (taosArrayGetSize(tbUids) > 0) {
     tqUpdateTbUidList(pVnode->pTq, tbUids, false);
   }
 
