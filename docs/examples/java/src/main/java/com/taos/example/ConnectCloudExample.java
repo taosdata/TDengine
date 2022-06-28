@@ -12,7 +12,7 @@ public class ConnectCloudExample {
         String jdbcUrl = System.getenv("TDENGINE_JDBC_URL");
         try(Connection conn = DriverManager.getConnection(jdbcUrl)) {
             try(Statement stmt = conn.createStatement()) {
-                // test the connection by firing a query
+                // test the connection by execute a query
                 stmt.executeQuery("select server_version()");
             }
         }
