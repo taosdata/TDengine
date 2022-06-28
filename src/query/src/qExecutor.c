@@ -3338,7 +3338,7 @@ int32_t binarySearchForKey(char *pValue, int num, TSKEY key, int order) {
   int32_t midPos = -1;
   int32_t numOfRows;
 
-  if (num <= 0) {
+  if (num <= 0 || pValue == NULL) {
     return -1;
   }
 
@@ -5097,7 +5097,9 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
     int16_t order = (pQueryAttr->order.order == pRuntimeEnv->pTsBuf->tsOrder) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
     tsBufResetPos(pRuntimeEnv->pTsBuf);
     tsBufSetTraverseOrder(pRuntimeEnv->pTsBuf, order);
-    tsBufNextPos(pTsBuf);
+    if (!tsBufNextPos(pTsBuf)) {
+      return TSDB_CODE_FAILED;
+    }
   }
 
   int32_t ps = DEFAULT_PAGE_SIZE;
@@ -5942,6 +5944,7 @@ SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
 
       pDataBlock->pDataBlock = taosArrayInit(numOfOutput, sizeof(SColumnInfoData));
       if (pDataBlock->pDataBlock == NULL) {
+        free(pDataBlock);
         goto _clean;
       }
 
@@ -6475,6 +6478,10 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
     goto group_finished_exit;
   }
 
+  if (!pBlock) {
+    return false;
+  }
+
   assert(pOperatorInfo->numOfOutput > 1);
 
   for (int32_t i = 1; i < pOperatorInfo->numOfOutput; ++i) {
@@ -6489,8 +6496,12 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
     }
   }
 
+  if (!pCtx) {
+    return false;
+  }
+
   TSKEY* tsCols = NULL;
-  if (pBlock && pBlock->pDataBlock != NULL) {
+  if (pBlock->pDataBlock != NULL) {
     SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, 0);
     tsCols = (int64_t*) pColDataInfo->pData;
     assert(tsCols[0] == pBlock->info.window.skey && tsCols[pBlock->info.rows - 1] == pBlock->info.window.ekey);
@@ -7582,7 +7593,7 @@ SOperatorInfo* createProjectOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
     return NULL;
   }
 
-  pInfo->seed = rand();
+  pInfo->seed = (uint32_t) random();
   pInfo->bufCapacity = pRuntimeEnv->resultInfo.capacity;
 
   SOptrBasicInfo* pBInfo = &pInfo->binfo;
@@ -7765,7 +7776,7 @@ SOperatorInfo* createTimeEveryOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
 
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
-  pInfo->seed = rand();
+  pInfo->seed = (uint32_t) random();
   pInfo->bufCapacity = pRuntimeEnv->resultInfo.capacity;
   pInfo->groupDone = true;
   pInfo->lastGroupIdx = -1;
@@ -8107,10 +8118,12 @@ SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
   }
 
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
+  if (pInfo->pRes == NULL) {
+    goto _clean;
+  }
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-
-  if (pInfo->pRes == NULL || pOperator == NULL) {
+  if (pOperator == NULL) {
     goto _clean;
   }
 
@@ -8448,7 +8461,7 @@ SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperat
   pInfo->pDistinctDataInfo = taosArrayInit(numOfOutput, sizeof(SDistinctDataInfo));
   pInfo->pSet = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, (int32_t) pInfo->outputCapacity);
- 
+
   if (pInfo->pDistinctDataInfo == NULL || pInfo->pSet == NULL || pInfo->pRes == NULL) {
     goto _clean;
   }
