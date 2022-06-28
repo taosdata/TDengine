@@ -83,6 +83,38 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, tb_uid_t uid, STSRow *row) {
   return code;
 }
 
+int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row) {
+  int32_t code = 0;
+  STSRow *cacheRow = NULL;
+  char    key[32] = {0};
+  int     keyLen = 0;
+
+  getTableCacheKey(uid, "l", key, &keyLen);
+  LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
+  if (h) {
+    cacheRow = (STSRow *)taosLRUCacheValue(pCache, h);
+    if (row->ts >= cacheRow->ts) {
+      if (TD_ROW_LEN(row) <= TD_ROW_LEN(cacheRow)) {
+        tdRowCpy(cacheRow, row);
+      } else {
+        tsdbCacheDeleteLastrow(pCache, uid);
+        tsdbCacheInsertLastrow(pCache, uid, row);
+      }
+    }
+  } else {
+    cacheRow = tdRowDup(row);
+
+    _taos_lru_deleter_t deleter = deleteTableCacheLastrow;
+    LRUStatus           status =
+        taosLRUCacheInsert(pCache, key, keyLen, cacheRow, TD_ROW_LEN(cacheRow), deleter, NULL, TAOS_LRU_PRIORITY_LOW);
+    if (status != TAOS_LRU_STATUS_OK) {
+      code = -1;
+    }
+  }
+
+  return code;
+}
+
 static tb_uid_t getTableSuidByUid(tb_uid_t uid, STsdb *pTsdb) {
   tb_uid_t suid = 0;
 
@@ -139,7 +171,7 @@ static int32_t getTableDelDataFromDelIdx(SDelFReader *pDelReader, SDelIdx *pDelI
   if (pDelIdx) {
     tMapDataReset(&delDataMap);
 
-    code = tsdbReadDelData(pDelReader, pDelIdx, &delDataMap, NULL);
+    // code = tsdbReadDelData(pDelReader, pDelIdx, &delDataMap, NULL);
     if (code) goto _err;
 
     for (int32_t iDelData = 0; iDelData < delDataMap.nItem; ++iDelData) {
@@ -213,7 +245,7 @@ static int32_t getTableDelIdx(SDelFReader *pDelFReader, tb_uid_t suid, tb_uid_t 
   SDelIdx  idx = {.suid = suid, .uid = uid};
 
   tMapDataReset(&delIdxMap);
-  code = tsdbReadDelIdx(pDelFReader, &delIdxMap, NULL);
+  // code = tsdbReadDelIdx(pDelFReader, &delIdxMap, NULL);
   if (code) goto _err;
 
   code = tMapDataSearch(&delIdxMap, &idx, tGetDelIdx, tCmprDelIdx, pDelIdx);
@@ -704,6 +736,31 @@ int32_t tsdbCacheGetLastrow(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, STSRo
     }
 
     tsdbCacheInsertLastrow(pCache, uid, pRow);
+    LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
+    *ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
+  }
+
+  return code;
+}
+
+int32_t tsdbCacheGetLast(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
+  int32_t code = 0;
+  char    key[32] = {0};
+  int     keyLen = 0;
+
+  getTableCacheKey(uid, "l", key, &keyLen);
+  LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
+  if (h) {
+    *ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
+  } else {
+    STSRow *pRow = NULL;
+    // code = mergeLast(uid, pTsdb, &pRow);
+    // if table's empty or error, return code of -1
+    if (code < 0 || pRow == NULL) {
+      return -1;
+    }
+
+    tsdbCacheInsertLast(pCache, uid, pRow);
     LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
     *ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
   }
