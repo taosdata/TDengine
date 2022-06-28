@@ -332,19 +332,10 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
 
 void uvOnSendCb(uv_write_t* req, int status) {
   SSvrConn* conn = req->data;
-  // transClearBuffer(&conn->readBuf);
   if (status == 0) {
     tTrace("conn %p data already was written on stream", conn);
     if (!transQueueEmpty(&conn->srvMsgs)) {
       SSvrMsg* msg = transQueuePop(&conn->srvMsgs);
-      // if (msg->type == Release && conn->status != ConnNormal) {
-      //  conn->status = ConnNormal;
-      //  transUnrefSrvHandle(conn);
-      //  reallocConnRef(conn);
-      //  destroySmsg(msg);
-      //  transQueueClear(&conn->srvMsgs);
-      //  return;
-      //}
       destroySmsg(msg);
       // send second data, just use for push
       if (!transQueueEmpty(&conn->srvMsgs)) {
@@ -370,6 +361,7 @@ void uvOnSendCb(uv_write_t* req, int status) {
         }
       }
     }
+    transUnrefSrvHandle(conn);
   } else {
     tError("conn %p failed to write data, %s", conn, uv_err_name(status));
     conn->broken = true;
@@ -439,7 +431,7 @@ static void uvStartSendRespInternal(SSvrMsg* smsg) {
   uv_buf_t wb;
   uvPrepareSendData(smsg, &wb);
 
-  // uv_timer_stop(&pConn->pTimer);
+  transRefSrvHandle(pConn);
   uv_write(&pConn->pWriter, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
 }
 static void uvStartSendResp(SSvrMsg* smsg) {
@@ -780,12 +772,9 @@ static void destroyConn(SSvrConn* conn, bool clear) {
 
   transDestroyBuffer(&conn->readBuf);
   if (clear) {
-    if (uv_is_active((uv_handle_t*)conn->pTcp)) {
+    if (!uv_is_closing((uv_handle_t*)conn->pTcp)) {
       tTrace("conn %p to be destroyed", conn);
-      // uv_shutdown_t* req = taosMemoryMalloc(sizeof(uv_shutdown_t));
       uv_close((uv_handle_t*)conn->pTcp, uvDestroyConn);
-      // uv_close(conn->pTcp)
-      // uv_shutdown(req, (uv_stream_t*)conn->pTcp, uvShutDownCb);
     } else {
       uvDestroyConn((uv_handle_t*)conn->pTcp);
     }
