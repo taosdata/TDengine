@@ -1113,11 +1113,8 @@ SCliThrd* transGetWorkThrdFromHandle(int64_t handle) {
   SCliThrd*  pThrd = NULL;
   SExHandle* exh = transAcquireExHandle(handle);
   if (exh == NULL) {
-    tTrace("no, no %" PRId64 "", handle);
     return NULL;
   }
-  tTrace("YY %" PRId64 "", handle);
-
   pThrd = exh->pThrd;
   transReleaseExHandle(handle);
   return pThrd;
