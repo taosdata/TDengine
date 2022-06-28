@@ -464,8 +464,7 @@ void* destroyConnPool(void* pool) {
   SConnList* connList = taosHashIterate((SHashObj*)pool, NULL);
   while (connList != NULL) {
     while (!QUEUE_IS_EMPTY(&connList->conn)) {
-      queue* h = QUEUE_HEAD(&connList->conn);
-      // QUEUE_REMOVE(h);
+      queue*    h = QUEUE_HEAD(&connList->conn);
       SCliConn* c = QUEUE_DATA(h, SCliConn, conn);
       cliDestroyConn(c, true);
     }
@@ -613,7 +612,10 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   }
 }
 static void cliDestroy(uv_handle_t* handle) {
-  if (uv_handle_get_type(handle) != UV_TCP || handle->data == NULL) return;
+  if (uv_handle_get_type(handle) != UV_TCP || handle->data == NULL) {
+    return;
+  }
+
   SCliConn* conn = handle->data;
   transRemoveExHandle(conn->refId);
   taosMemoryFree(conn->ip);
