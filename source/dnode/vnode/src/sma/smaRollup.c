@@ -40,6 +40,10 @@ static int32_t tdRSmaQTaskInfoIterNextBlock(SRSmaQTaskInfoIter *pIter, bool *isF
 static int32_t tdRSmaQTaskInfoRestore(SSma *pSma, SRSmaQTaskInfoIter *pIter);
 static int32_t tdRSmaQTaskInfoItemRestore(SSma *pSma, const SRSmaQTaskInfoItem *infoItem);
 
+static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma);
+static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma);
+static int32_t tdRSmaRestoreTSDataReload(SSma *pSma);
+
 struct SRSmaInfoItem {
   SRSmaInfo *pRsmaInfo;
   void      *taskInfo;  // qTaskInfo_t
@@ -246,6 +250,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaInfo 
     pItem->pRsmaInfo = pRSmaInfo;
     pItem->taskInfo = qCreateStreamExecTaskInfo(param->qmsg[idx], pReadHandle);
     if (!pItem->taskInfo) {
+      terrno = TSDB_CODE_RSMA_QTASKINFO_CREATE;
       goto _err;
     }
     pItem->triggerStat = TASK_TRIGGER_STAT_INACTIVE;
@@ -696,10 +701,9 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t inputType) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tdProcessRSmaRestoreImpl(SSma *pSma) {
+static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma) {
   SVnode *pVnode = pSma->pVnode;
 
-  // step 1: iterate all stables to restore the rsma env
   SArray *suidList = taosArrayInit(1, sizeof(tb_uid_t));
   if (tsdbGetStbIdList(SMA_META(pSma), 0, suidList) < 0) {
     taosArrayDestroy(suidList);
@@ -741,42 +745,88 @@ int32_t tdProcessRSmaRestoreImpl(SSma *pSma) {
     }
   }
 
-  // step 2: retrieve qtaskinfo items from the persistence file(rsma/qtaskinfo) and restore
-  STFile tFile = {0};
-  char   qTaskInfoFName[TSDB_FILENAME_LEN];
+  metaReaderClear(&mr);
+  taosArrayDestroy(suidList);
+
+  return TSDB_CODE_SUCCESS;
+_err:
+  metaReaderClear(&mr);
+  taosArrayDestroy(suidList);
+
+  return TSDB_CODE_FAILED;
+}
+
+static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma) {
+  SVnode *pVnode = pSma->pVnode;
+  STFile  tFile = {0};
+  char    qTaskInfoFName[TSDB_FILENAME_LEN];
 
   tdRSmaQTaskInfoGetFName(TD_VID(pVnode), TD_QTASK_CUR_FILE, qTaskInfoFName);
   if (tdInitTFile(&tFile, pVnode->pTfs, qTaskInfoFName) < 0) {
     goto _err;
   }
-  
-  if(!taosCheckExistFile(TD_TFILE_FULL_NAME(&tFile))) {
-    metaReaderClear(&mr);
-    taosArrayDestroy(suidList);
+
+  if (!taosCheckExistFile(TD_TFILE_FULL_NAME(&tFile))) {
     return TSDB_CODE_SUCCESS;
   }
 
   if (tdOpenTFile(&tFile, TD_FILE_READ) < 0) {
     goto _err;
   }
-  
+
   SRSmaQTaskInfoIter fIter = {0};
   if (tdRSmaQTaskInfoIterInit(&fIter, &tFile) < 0) {
+    tdRSmaQTaskInfoIterDestroy(&fIter);
+    tdCloseTFile(&tFile);
     goto _err;
   }
-  SRSmaQTaskInfoItem infoItem = {0};
+
   if (tdRSmaQTaskInfoRestore(pSma, &fIter) < 0) {
     tdRSmaQTaskInfoIterDestroy(&fIter);
+    tdCloseTFile(&tFile);
     goto _err;
   }
 
   tdRSmaQTaskInfoIterDestroy(&fIter);
-  metaReaderClear(&mr);
-  taosArrayDestroy(suidList);
+  tdCloseTFile(&tFile);
   return TSDB_CODE_SUCCESS;
 _err:
-  metaReaderClear(&mr);
-  taosArrayDestroy(suidList);
+  smaError("rsma restore, qtaskinfo reload failed since %s", terrstr());
+  return TSDB_CODE_FAILED;
+}
+
+/**
+ * @brief reload ts data from checkpoint
+ * 
+ * @param pSma 
+ * @return int32_t 
+ */
+static int32_t tdRSmaRestoreTSDataReload(SSma *pSma) {
+  // TODO
+  return TSDB_CODE_SUCCESS;
+_err:
+  smaError("rsma restore, ts data reload failed since %s", terrstr());
+  return TSDB_CODE_FAILED;
+}
+
+int32_t tdProcessRSmaRestoreImpl(SSma *pSma) {
+  // step 1: iterate all stables to restore the rsma env
+  if (tdRSmaRestoreQTaskInfoInit(pSma) < 0) {
+    goto _err;
+  }
+
+  // step 2: retrieve qtaskinfo items from the persistence file(rsma/qtaskinfo) and restore
+  if (tdRSmaRestoreQTaskInfoReload(pSma) < 0) {
+    goto _err;
+  }
+
+  // step 3: reload ts data from checkpoint
+  if (tdRSmaRestoreTSDataReload(pSma) < 0) {
+    goto _err;
+  }
+
+  return TSDB_CODE_SUCCESS;
+_err:
   smaError("failed to restore rsma task since %s", terrstr());
   return TSDB_CODE_FAILED;
 }

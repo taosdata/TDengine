@@ -3,58 +3,85 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
-system sh/cfg.sh -n dnode1 -c walLevel -v 2
-system sh/cfg.sh -n dnode2 -c walLevel -v 2
-system sh/cfg.sh -n dnode3 -c walLevel -v 2
-system sh/cfg.sh -n dnode4 -c walLevel -v 2
-system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
-system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
-system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
-system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
-system sh/exec.sh -n dnode1 -s start
+system sh/deploy.sh -n dnode5 -i 5
+system sh/deploy.sh -n dnode6 -i 6
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode2 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode3 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode4 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode5 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode6 -c supportVnodes -v 4
 
+print ========== step1
+system sh/exec.sh -n dnode1 -s start
 sql connect
 
-sql create dnode $hostname2
-sql create dnode $hostname3
-sql create dnode $hostname4
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+sql create dnode $hostname port 7400
+sql create dnode $hostname port 7500
+sql create dnode $hostname port 7600
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 system sh/exec.sh -n dnode4 -s start
+system sh/exec.sh -n dnode5 -s start
+system sh/exec.sh -n dnode6 -s start
 
 $x = 0
-createDnode: 
+step10:
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then 
-	  return -1
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
 	endi
-sql show dnodes;
-if $data4_2 == offline then
-  goto createDnode
-endi  
-if $data4_3 == offline then
-  goto createDnode
-endi  
-if $data4_4 == offline then
-  goto createDnode
-endi  
+sql show dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+if $rows != 6 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step10
+endi
+if $data(2)[4] != ready then
+  goto step10
+endi
+if $data(3)[4] != ready then
+  goto step10
+endi
+if $data(4)[4] != ready then
+  goto step10
+endi
+if $data(5)[4] != ready then
+  goto step10
+endi
+if $data(6)[4] != ready then
+  goto step10
+endi
 
 print ======================== dnode1 start
-
-$dbPrefix = r2d4_db
-$tbPrefix = r2d4_tb
-$mtPrefix = r2d4_mt
+$dbPrefix = r3d6_db
+$tbPrefix = r3d6_tb
+$mtPrefix = r3d6_mt
 $tbNum = 10
 $rowNum = 20
 $totalNum = 200
+
+sql show dnodes;
+print dnodes ==> $rows
+if $rows != 6 then 
+  return -1
+endi
 
 print =============== step1
 $i = 0
 $db = $dbPrefix . $i
 $mt = $mtPrefix . $i
 
-sql create database $db replica 2 
+sql create database $db replica 3 vgroups 3
 sql use $db
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
 
@@ -113,20 +140,20 @@ if $data00 != $rowNum then
 endi
 
 print =============== step5
-sql select count(tbcol) as b from $tb interval(1m)
+sql select _wstartts, count(tbcol) as b from $tb interval(1m)
 print ===> $data01
 if $data01 != 1 then 
   return -1
 endi
 
-sql select count(tbcol) as b from $tb interval(1d)
+sql select _wstartts, count(tbcol) as b from $tb interval(1d)
 print ===> $data01
 if $data01 != $rowNum then 
   return -1
 endi
 
 print =============== step6
-sql select count(tbcol) as b from $tb where ts <= 1519833840000 interval(1m)
+sql select _wstartts, count(tbcol) as b from $tb where ts <= 1519833840000 interval(1m)
 print ===> $data01
 if $data01 != 1 then 
   return -1
@@ -168,13 +195,13 @@ if $data00 != 25 then
 endi
 
 print =============== step9
-sql select count(tbcol) as b from $mt interval(1m)
-print ===> $data01
-if $data01 != 10 then 
-  return -1
-endi
+#sql select _wstartts, count(tbcol) as b from $mt interval(1m)
+#print ===> $data01
+#if $data01 != 10 then 
+# return -1
+#endi
 
-sql select count(tbcol) as b from $mt interval(1d)
+sql select _wstartts, count(tbcol) as b from $mt interval(1d)
 print ===> $data01
 if $data01 != 200 then 
   return -1
@@ -188,23 +215,6 @@ if $data00 != $rowNum then
 endi
 
 if $rows != $tbNum then 
-  return -1
-endi
-
-print =============== step11
-sql select count(tbcol) as b from $mt  where ts <= 1519833840000 interval(1m) group by tgcol
-print ===> $data01
-if $data01 != 1 then 
-  return -1
-endi
-if $rows != 50 then 
-  return -1
-endi
-return
-print =============== clear
-sql drop database $db
-sql show databases
-if $rows != 0 then 
   return -1
 endi
 
