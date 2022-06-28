@@ -186,7 +186,7 @@ if __name__ == "__main__":
     tdLog.info("Procedures for tdengine deployed in %s" % (host))
     if platform.system().lower() == 'windows':
         fileName = fileName.replace("/", os.sep)
-        if (masterIp == "" and not fileName[0:12] == "0-others\\udf"):
+        if (masterIp == "" and not fileName == "0-others\\udf_create.py"):
             threading.Thread(target=checkRunTimeError,daemon=True).start()
         tdLog.info("Procedures for testing self-deployment")
         tdDnodes.init(deployPath, masterIp)
