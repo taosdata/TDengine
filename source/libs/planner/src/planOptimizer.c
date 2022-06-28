@@ -1405,19 +1405,19 @@ static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t mergeProjectsOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SLogicNode* pProjectNode) {
-  SProjectLogicNode* pProject = (SProjectLogicNode*)pProjectNode;
-  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProjectNode->pChildren, 0);
-  SMergeProjectionsContext cxt = {.pChildProj = (SProjectLogicNode*)pChild};
+static int32_t mergeProjectsOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SLogicNode* pSelfNode) {
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pSelfNode->pChildren, 0);
+  SMergeProjectionsContext cxt = {.pChildProj = (SProjectLogicNode*)pChild, .errCode = TSDB_CODE_SUCCESS};
 
-  nodesRewriteExprs(pProject->pProjections, mergeProjectionsExpr, &cxt);
+  nodesRewriteExprs(((SProjectLogicNode*)pSelfNode)->pProjections, mergeProjectionsExpr, &cxt);
   int32_t code = cxt.errCode;
+
   if (TSDB_CODE_SUCCESS == code) {
     if (1 == LIST_LENGTH(pChild->pChildren)) {
       SLogicNode* pGrandChild = (SLogicNode*)nodesListGetNode(pChild->pChildren, 0);
       code = replaceLogicNode(pLogicSubplan, pChild, pGrandChild);
     } else {  // no grand child
-      NODES_CLEAR_LIST(pProjectNode->pChildren);
+      NODES_CLEAR_LIST(pSelfNode->pChildren);
     }
   }
 
