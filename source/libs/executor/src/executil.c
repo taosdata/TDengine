@@ -189,9 +189,9 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SSlotDescNode* pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
-    if (!pDescNode->output) {  // todo disable it temporarily
-      continue;
-    }
+    /*if (!pDescNode->output) {  // todo disable it temporarily*/
+    /*continue;*/
+    /*}*/
 
     SColumnInfoData idata =
         createColumnInfoData(pDescNode->dataType.type, pDescNode->dataType.bytes, pDescNode->slotId);

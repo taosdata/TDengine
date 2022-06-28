@@ -623,6 +623,7 @@ typedef struct {
     col_id_t colId;
     int16_t  slotId;
   };
+  bool output;  // TODO remove it later
 
   int16_t type;
   int32_t bytes;
