@@ -250,6 +250,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaInfo 
     pItem->pRsmaInfo = pRSmaInfo;
     pItem->taskInfo = qCreateStreamExecTaskInfo(param->qmsg[idx], pReadHandle);
     if (!pItem->taskInfo) {
+      terrno = TSDB_CODE_RSMA_QTASKINFO_CREATE;
       goto _err;
     }
     pItem->triggerStat = TASK_TRIGGER_STAT_INACTIVE;
@@ -790,7 +791,7 @@ static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma) {
   tdCloseTFile(&tFile);
   return TSDB_CODE_SUCCESS;
 _err:
-  smaError("failed to restore rsma task since %s", terrstr());
+  smaError("rsma restore, qtaskinfo reload failed since %s", terrstr());
   return TSDB_CODE_FAILED;
 }
 
@@ -804,12 +805,11 @@ static int32_t tdRSmaRestoreTSDataReload(SSma *pSma) {
   // TODO
   return TSDB_CODE_SUCCESS;
 _err:
+  smaError("rsma restore, ts data reload failed since %s", terrstr());
   return TSDB_CODE_FAILED;
 }
 
 int32_t tdProcessRSmaRestoreImpl(SSma *pSma) {
-  SVnode *pVnode = pSma->pVnode;
-
   // step 1: iterate all stables to restore the rsma env
   if (tdRSmaRestoreQTaskInfoInit(pSma) < 0) {
     goto _err;
