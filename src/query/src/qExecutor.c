@@ -6477,10 +6477,6 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
     goto group_finished_exit;
   }
 
-  if (!pBlock) {
-    return false;
-  }
-
   assert(pOperatorInfo->numOfOutput > 1);
 
   for (int32_t i = 1; i < pOperatorInfo->numOfOutput; ++i) {
@@ -6495,15 +6491,15 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
     }
   }
 
-  if (!pCtx) {
-    return false;
-  }
-
   TSKEY* tsCols = NULL;
-  if (pBlock->pDataBlock != NULL) {
+  if (pBlock && pBlock->pDataBlock != NULL) {
     SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, 0);
     tsCols = (int64_t*) pColDataInfo->pData;
     assert(tsCols[0] == pBlock->info.window.skey && tsCols[pBlock->info.rows - 1] == pBlock->info.window.ekey);
+  }
+
+  if (pCtx == NULL) {
+    return false;
   }
 
   if (pCtx->startTs == INT64_MIN) {
