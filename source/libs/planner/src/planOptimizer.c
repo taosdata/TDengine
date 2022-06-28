@@ -1623,7 +1623,7 @@ static bool mergeProjectsMayBeOptimized(SLogicNode* pNode) {
   }
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
   if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pChild) || 1 < LIST_LENGTH(pChild->pChildren) ||
-      NULL != pChild->pConditions || NULL != pNode->pLimit || NULL != pNode->pSlimit) {
+      NULL != pChild->pConditions || NULL != pChild->pLimit || NULL != pChild->pSlimit) {
     return false;
   }
   return true;
@@ -1680,6 +1680,7 @@ static int32_t mergeProjectsOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     NODES_CLEAR_LIST(pChild->pChildren);
   }
   nodesDestroyNode((SNode*)pChild);
+  pCxt->optimized = true;
   return code;
 }
 
