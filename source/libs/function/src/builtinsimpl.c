@@ -2593,8 +2593,15 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
         }
         memcpy(pInfo->buf, data, bytes);
         *(TSKEY*)(pInfo->buf + bytes) = cts;
-        //        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
-        pInfo->hasResult = true;
+        //handle selectivity
+        STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
+        if (!pInfo->hasResult) {
+          saveTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+          pInfo->hasResult = true;
+        } else {
+          copyTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+        }
+        //DO_UPDATE_TAG_COLUMNS(pCtx, ts);
         pResInfo->numOfRes = 1;
       }
       break;
@@ -2616,9 +2623,16 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
         }
         memcpy(pInfo->buf, data, bytes);
         *(TSKEY*)(pInfo->buf + bytes) = cts;
-        pInfo->hasResult = true;
+        //handle selectivity
+        STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
+        if (!pInfo->hasResult) {
+          saveTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+          pInfo->hasResult = true;
+        } else {
+          copyTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+        }
         pResInfo->numOfRes = 1;
-        //        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
+        //DO_UPDATE_TAG_COLUMNS(pCtx, ts);
       }
       break;
     }
