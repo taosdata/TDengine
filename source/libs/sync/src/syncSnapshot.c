@@ -363,8 +363,9 @@ char *snapshotSender2SimpleStr(SSyncSnapshotSender *pSender, char *event) {
   uint16_t port;
   syncUtilU642Addr(destId.addr, host, sizeof(host), &port);
 
-  snprintf(s, len, "%s %p laindex:%ld laterm:%lu lcindex:%ld seq:%d ack:%d finish:%d pterm:%lu replica-index:%d %s:%d",
-           event, pSender, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
+  snprintf(s, len,
+           "%s {%p laindex:%ld laterm:%lu lcindex:%ld seq:%d ack:%d finish:%d pterm:%lu replica-index:%d %s:%d}", event,
+           pSender, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
            pSender->snapshot.lastConfigIndex, pSender->seq, pSender->ack, pSender->finish, pSender->privateTerm,
            pSender->replicaIndex, host, port);
 
@@ -629,7 +630,7 @@ char *snapshotReceiver2SimpleStr(SSyncSnapshotReceiver *pReceiver, char *event) 
   uint16_t port;
   syncUtilU642Addr(fromId.addr, host, sizeof(host), &port);
 
-  snprintf(s, len, "%s %p start:%d ack:%d term:%lu pterm:%lu from:%s:%d laindex:%ld laterm:%lu lcindex:%ld", event,
+  snprintf(s, len, "%s {%p start:%d ack:%d term:%lu pterm:%lu from:%s:%d laindex:%ld laterm:%lu lcindex:%ld}", event,
            pReceiver, pReceiver->start, pReceiver->ack, pReceiver->term, pReceiver->privateTerm, host, port,
            pReceiver->snapshot.lastApplyIndex, pReceiver->snapshot.lastApplyTerm, pReceiver->snapshot.lastConfigIndex);
 
