@@ -275,8 +275,11 @@ static int32_t hbAsyncCallBack(void *param, const SDataBuf *pMsg, int32_t code) 
 
   int32_t rspNum = taosArrayGetSize(pRsp.rsps);
 
+  taosThreadMutexLock(&appInfo.mutex);
+
   SAppInstInfo **pInst = taosHashGet(appInfo.pInstMap, key, strlen(key));
   if (pInst == NULL || NULL == *pInst) {
+    taosThreadMutexUnlock(&appInfo.mutex);
     tscError("cluster not exist, key:%s", key);
     taosMemoryFreeClear(param);
     tFreeClientHbBatchRsp(&pRsp);
@@ -299,6 +302,8 @@ static int32_t hbAsyncCallBack(void *param, const SDataBuf *pMsg, int32_t code) 
       break;
     }
   }
+
+  taosThreadMutexUnlock(&appInfo.mutex);
 
   tFreeClientHbBatchRsp(&pRsp);
 

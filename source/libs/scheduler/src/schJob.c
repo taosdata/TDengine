@@ -85,20 +85,6 @@ int32_t schInitJob(SSchedulerReq *pReq, SSchJob **pSchJob) {
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  pJob->succTasks =
-      taosHashInit(pReq->pDag->numOfSubplans, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
-  if (NULL == pJob->succTasks) {
-    SCH_JOB_ELOG("taosHashInit %d succTasks failed", pReq->pDag->numOfSubplans);
-    SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
-  pJob->failTasks =
-      taosHashInit(pReq->pDag->numOfSubplans, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
-  if (NULL == pJob->failTasks) {
-    SCH_JOB_ELOG("taosHashInit %d failTasks failed", pReq->pDag->numOfSubplans);
-    SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
   tsem_init(&pJob->rspSem, 0, 0);
 
   refId = taosAddRef(schMgmt.jobRef, pJob);
@@ -724,6 +710,7 @@ int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+/*
 int32_t schMoveTaskToSuccList(SSchJob *pJob, SSchTask *pTask, bool *moved) {
   if (0 != taosHashRemove(pJob->execTasks, &pTask->taskId, sizeof(pTask->taskId))) {
     SCH_TASK_WLOG("remove task from execTask list failed, may not exist, status:%s", SCH_GET_TASK_STATUS_STR(pTask));
@@ -801,6 +788,7 @@ int32_t schMoveTaskToExecList(SSchJob *pJob, SSchTask *pTask, bool *moved) {
 
   return TSDB_CODE_SUCCESS;
 }
+*/
 
 int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bool *needRetry) {
   int8_t status = 0;
@@ -1047,9 +1035,7 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
   if (!needRetry) {
     SCH_TASK_ELOG("task failed and no more retry, code:%s", tstrerror(errCode));
 
-    if (SCH_GET_TASK_STATUS(pTask) == JOB_TASK_STATUS_EXECUTING) {
-      SCH_ERR_JRET(schMoveTaskToFailList(pJob, pTask, &moved));
-    } else {
+    if (SCH_GET_TASK_STATUS(pTask) != JOB_TASK_STATUS_EXECUTING) {
       SCH_TASK_ELOG("task not in executing list, status:%s", SCH_GET_TASK_STATUS_STR(pTask));
       SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
     }
@@ -1115,8 +1101,6 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
   SCH_LOG_TASK_END_TS(pTask);
 
-  SCH_ERR_JRET(schMoveTaskToSuccList(pJob, pTask, &moved));
-
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_PARTIAL_SUCCEED);
 
   SCH_ERR_JRET(schRecordTaskSucceedNode(pJob, pTask));
@@ -1149,8 +1133,6 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     }
 
     pJob->fetchTask = pTask;
-
-    SCH_ERR_JRET(schMoveTaskToExecList(pJob, pTask, &moved));
 
     SCH_RET(schProcessOnJobPartialSuccess(pJob));
   }
@@ -1466,8 +1448,8 @@ void schDropTaskInHashList(SSchJob *pJob, SHashObj *list) {
 
 void schDropJobAllTasks(SSchJob *pJob) {
   schDropTaskInHashList(pJob, pJob->execTasks);
-  schDropTaskInHashList(pJob, pJob->succTasks);
-  schDropTaskInHashList(pJob, pJob->failTasks);
+//  schDropTaskInHashList(pJob, pJob->succTasks);
+//  schDropTaskInHashList(pJob, pJob->failTasks);
 }
 
 int32_t schCancelJob(SSchJob *pJob) {
@@ -1507,8 +1489,8 @@ void schFreeJobImpl(void *job) {
   schFreeFlowCtrl(pJob);
 
   taosHashCleanup(pJob->execTasks);
-  taosHashCleanup(pJob->failTasks);
-  taosHashCleanup(pJob->succTasks);
+//  taosHashCleanup(pJob->failTasks);
+//  taosHashCleanup(pJob->succTasks);
   taosHashCleanup(pJob->taskList);
   
   taosArrayDestroy(pJob->levels);

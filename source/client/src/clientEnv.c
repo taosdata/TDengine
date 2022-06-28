@@ -132,9 +132,14 @@ void closeAllRequests(SHashObj *pRequests) {
 
 void destroyAppInst(SAppInstInfo* pAppInfo) {
   tscDebug("destroy app inst mgr %p", pAppInfo);
+
+  taosThreadMutexLock(&appInfo.mutex);
   
   hbRemoveAppHbMrg(&pAppInfo->pAppHbMgr);
   taosHashRemove(appInfo.pInstMap, pAppInfo->instKey, strlen(pAppInfo->instKey));
+
+  taosThreadMutexUnlock(&appInfo.mutex);
+
   taosMemoryFreeClear(pAppInfo->instKey);
   closeTransporter(pAppInfo);
   

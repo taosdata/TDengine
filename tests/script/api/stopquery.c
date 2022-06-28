@@ -36,7 +36,7 @@ int64_t st, et;
 char hostName[128];
 char dbName[128];
 char tbName[128];
-int32_t runTimes = 1;
+int32_t runTimes = 10000;
 
 typedef struct {
   int       id;
@@ -367,8 +367,7 @@ void *closeThreadFp(void *arg) {
   SSP_CB_PARAM* qParam = (SSP_CB_PARAM*)arg;
   while (true) {
     if (qParam->taos) {
-      //usleep(rand() % 10000);
-      usleep(1000000);
+      usleep(rand() % 10000);
       taos_close(qParam->taos);
       break;
     }

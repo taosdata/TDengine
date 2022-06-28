@@ -826,8 +826,8 @@ _return:
 
   pJob->jobResCode = code;
 
-  taosSsleep(2);
-  qDebug("QID:0x%" PRIx64 " ctg after sleep", pJob->queryId);
+  //taosSsleep(2);
+  //qDebug("QID:0x%" PRIx64 " ctg after sleep", pJob->queryId);
   
   taosAsyncExec(ctgCallUserCb, pJob, NULL);
   

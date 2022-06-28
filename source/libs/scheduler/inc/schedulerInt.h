@@ -218,9 +218,7 @@ typedef struct SSchJob {
   int32_t          levelIdx;
   SEpSet           dataSrcEps;
   SHashObj        *taskList;
-  SHashObj        *execTasks; // executing tasks, key:taskid, value:SQueryTask*
-  SHashObj        *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
-  SHashObj        *failTasks; // failed tasks, key:taskid, value:SQueryTask*
+  SHashObj        *execTasks; // executing and executed tasks, key:taskid, value:SQueryTask*
   SHashObj        *flowCtrl;  // key is ep, element is SSchFlowControl
 
   SExplainCtx     *explainCtx;
