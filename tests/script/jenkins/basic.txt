@@ -21,9 +21,6 @@
 #./test.sh -f tsim/db/delete_part.sim
 #./test.sh -f tsim/db/delete.sim
 ./test.sh -f tsim/db/error1.sim
-#./test.sh -f tsim/db/replica_add13.sim
-#./test.sh -f tsim/db/replica_part.sim
-#./test.sh -f tsim/db/replica_reduce31.sim
 ./test.sh -f tsim/db/taosdlog.sim
 
 # ---- dnode
@@ -174,6 +171,12 @@
 ./test.sh -f tsim/vnode/replica3_vgroup.sim
 #./test.sh -f tsim/vnode/replica3_many.sim
 #./test.sh -f tsim/vnode/replica3_import.sim
+#./test.sh -f tsim/vnode/stable_balance_replica1.sim
+./test.sh -f tsim/vnode/stable_dnode2_stop.sim
+./test.sh -f tsim/vnode/stable_dnode2.sim
+#./test.sh -f tsim/vnode/stable_dnode3.sim
+#./test.sh -f tsim/vnode/stable_replica3_dnode6.sim
+#./test.sh -f tsim/vnode/stable_replica3_vnode3.sim
 
 # --- sync
 ./test.sh -f tsim/sync/3Replica1VgElect.sim

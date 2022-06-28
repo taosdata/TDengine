@@ -1,27 +1,40 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
-system sh/cfg.sh -n dnode1 -c walLevel -v 2
-system sh/cfg.sh -n dnode2 -c walLevel -v 2
-system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
-system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
-system sh/exec.sh -n dnode1 -s start
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode2 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode3 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode4 -c supportVnodes -v 4
 
+print ========== step1
+system sh/exec.sh -n dnode1 -s start
 sql connect
-sql create dnode $hostname2
+
+sql create dnode $hostname port 7200
 system sh/exec.sh -n dnode2 -s start
 
 $x = 0
-createDnode: 
+step1:
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then 
-	  return -1
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
 	endi
-sql show dnodes;
-if $data4_2 == offline then
-  goto createDnode
-endi  
+sql show dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi 
+if $data(2)[4] != ready then
+  goto step1
+endi
 
 print ======================== dnode1 start
 
@@ -43,7 +56,7 @@ $i = 0
 $db = $dbPrefix . $i
 $mt = $mtPrefix . $i
 
-sql create database $db 
+sql create database $db vgroups 3
 sql use $db
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
 
@@ -72,7 +85,6 @@ endi
 sleep 100
 
 system sh/exec.sh -n dnode2 -s stop  -x SIGINT
-sleep 3000
 
 print =============== step2
 sql select count(*) from $mt -x step2
@@ -84,7 +96,27 @@ sql select count(tbcol) from $mt  -x step21
 step21:
 
 system sh/exec.sh -n dnode2 -s start
-sleep 3000
+
+$x = 0
+dnode2:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql show dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto dnode2
+endi 
+if $data(2)[4] != ready then
+  goto dnode2
+endi
 
 print =============== step3
 sql select count(tbcol) as c from $mt where ts <= 1519833840000
@@ -106,13 +138,13 @@ if $data00 != 25 then
 endi
 
 print =============== step4
-sql select count(tbcol) as b from $mt interval(1m)
+sql select _wstartts, count(tbcol) as b from $mt interval(1m)
 print ===> $data01
 if $data01 != 10 then 
   return -1
 endi
 
-sql select count(tbcol) as b from $mt interval(1d)
+sql select _wstartts, count(tbcol) as b from $mt interval(1d)
 print ===> $data01
 if $data01 != 200 then 
   return -1
@@ -129,20 +161,10 @@ if $rows != $tbNum then
   return -1
 endi
 
-print =============== step6
-sql select count(tbcol) as b from $mt  where ts <= 1519833840000 interval(1m) group by tgcol
-print ===> $data01
-if $data01 != 1 then 
-  return -1
-endi
-if $rows != 50 then 
-  return -1
-endi
-
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 
@@ -150,7 +172,3 @@ system sh/exec.sh -n dnode1 -s stop  -x SIGINT
 system sh/exec.sh -n dnode2 -s stop  -x SIGINT
 system sh/exec.sh -n dnode3 -s stop  -x SIGINT
 system sh/exec.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec.sh -n dnode8 -s stop  -x SIGINT
