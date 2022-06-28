@@ -571,10 +571,6 @@ int32_t tPutDelIdx(uint8_t *p, void *ph) {
 
   n += tPutI64(p ? p + n : p, pDelIdx->suid);
   n += tPutI64(p ? p + n : p, pDelIdx->uid);
-  n += tPutI64(p ? p + n : p, pDelIdx->minKey);
-  n += tPutI64(p ? p + n : p, pDelIdx->maxKey);
-  n += tPutI64v(p ? p + n : p, pDelIdx->minVersion);
-  n += tPutI64v(p ? p + n : p, pDelIdx->maxVersion);
   n += tPutI64v(p ? p + n : p, pDelIdx->offset);
   n += tPutI64v(p ? p + n : p, pDelIdx->size);
 
@@ -587,10 +583,6 @@ int32_t tGetDelIdx(uint8_t *p, void *ph) {
 
   n += tGetI64(p + n, &pDelIdx->suid);
   n += tGetI64(p + n, &pDelIdx->uid);
-  n += tGetI64(p + n, &pDelIdx->minKey);
-  n += tGetI64(p + n, &pDelIdx->maxKey);
-  n += tGetI64v(p + n, &pDelIdx->minVersion);
-  n += tGetI64v(p + n, &pDelIdx->maxVersion);
   n += tGetI64v(p + n, &pDelIdx->offset);
   n += tGetI64v(p + n, &pDelIdx->size);
 

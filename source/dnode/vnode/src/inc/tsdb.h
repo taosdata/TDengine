@@ -236,14 +236,14 @@ int32_t tsdbReadBlockSMA(SDataFReader *pReader, SBlockSMA *pBlkSMA);
 // SDelFWriter
 int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb);
 int32_t tsdbDelFWriterClose(SDelFWriter *pWriter, int8_t sync);
-int32_t tsdbWriteDelData(SDelFWriter *pWriter, SMapData *pDelDataMap, uint8_t **ppBuf, SDelIdx *pDelIdx);
-int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SMapData *pDelIdxMap, uint8_t **ppBuf);
-int32_t tsdbUpdateDelFileHdr(SDelFWriter *pWriter, uint8_t **ppBuf);
+int32_t tsdbWriteDelData(SDelFWriter *pWriter, SArray *aDelData, uint8_t **ppBuf, SDelIdx *pDelIdx);
+int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SArray *aDelIdx, uint8_t **ppBuf);
+int32_t tsdbUpdateDelFileHdr(SDelFWriter *pWriter);
 // SDelFReader
 int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb, uint8_t **ppBuf);
 int32_t tsdbDelFReaderClose(SDelFReader *pReader);
-int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SMapData *pDelDataMap, uint8_t **ppBuf);
-int32_t tsdbReadDelIdx(SDelFReader *pReader, SMapData *pDelIdxMap, uint8_t **ppBuf);
+int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData, uint8_t **ppBuf);
+int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx, uint8_t **ppBuf);
 
 // tsdbCache
 int32_t tsdbOpenCache(STsdb *pTsdb);
@@ -464,20 +464,12 @@ struct SDelData {
 struct SDelIdx {
   tb_uid_t suid;
   tb_uid_t uid;
-  TSKEY    minKey;
-  TSKEY    maxKey;
-  int64_t  minVersion;
-  int64_t  maxVersion;
   int64_t  offset;
   int64_t  size;
 };
 
 struct SDelFile {
   int64_t commitID;
-  TSKEY   minKey;
-  TSKEY   maxKey;
-  int64_t minVersion;
-  int64_t maxVersion;
   int64_t size;
   int64_t offset;
 };
@@ -559,6 +551,12 @@ struct STsdbFS {
   int8_t         inTxn;
   STsdbFSState  *cState;
   STsdbFSState  *nState;
+};
+
+struct SDelFWriter {
+  STsdb    *pTsdb;
+  SDelFile  fDel;
+  TdFilePtr pWriteH;
 };
 
 #ifdef __cplusplus
