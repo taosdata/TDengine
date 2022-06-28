@@ -595,22 +595,26 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
 
   *ppRow = NULL;
 
-  SDelFReader *pDelFReader;
-  SDelFile    *pDelFile = tsdbFSStateGetDelFile(pTsdb->fs->cState);
-  code = tsdbDelFReaderOpen(&pDelFReader, pDelFile, pTsdb, NULL);
-  if (code) goto _err;
-
-  SDelIdx delIdx;
-  code = getTableDelIdx(pDelFReader, suid, uid, &delIdx);
-  if (code) goto _err;
-
   SArray *pSkyline = taosArrayInit(32, sizeof(TSDBKEY));
-  code = getTableDelSkyline(pMem, pIMem, pDelFReader, &delIdx, pSkyline);
-  if (code) goto _err;
+
+  SDelFile *pDelFile = tsdbFSStateGetDelFile(pTsdb->fs->cState);
+  if (pDelFile) {
+    SDelFReader *pDelFReader;
+
+    code = tsdbDelFReaderOpen(&pDelFReader, pDelFile, pTsdb, NULL);
+    if (code) goto _err;
+
+    SDelIdx delIdx;
+    code = getTableDelIdx(pDelFReader, suid, uid, &delIdx);
+    if (code) goto _err;
+
+    code = getTableDelSkyline(pMem, pIMem, pDelFReader, &delIdx, pSkyline);
+    if (code) goto _err;
+
+    tsdbDelFReaderClose(pDelFReader);
+  }
 
   int iSkyline = taosArrayGetSize(pSkyline) - 1;
-
-  tsdbDelFReaderClose(pDelFReader);
 
   SBlockIdx idx = {.suid = suid, .uid = uid};
 
