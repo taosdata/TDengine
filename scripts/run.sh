@@ -13,10 +13,11 @@ function usage() {
     echo -e "\t -v TDengine version"
     echo -e "\t -n docker network prefix"
     echo -e "\t -o default timeout value"
+    echo -e "\t -e enable sub log dir"
     echo -e "\t -h help"
 }
 
-while getopts "m:t:b:l:o:v:d:w:n:sfh" opt; do
+while getopts "m:t:b:l:o:v:d:w:n:esfh" opt; do
     case $opt in
         m)
             config_file=$OPTARG
@@ -51,6 +52,9 @@ while getopts "m:t:b:l:o:v:d:w:n:sfh" opt; do
         v)
             tdengine_version=$OPTARG
             ;;
+        e)
+            sublogdir_enabled=1
+            ;;
         h)
             usage
             exit 0
@@ -77,15 +81,28 @@ if [ -z $docker_network_prefix ]; then
 fi
 
 date_tag=`date +%Y%m%d-%H%M%S`
-test_log_dir="${branch}_${date_tag}"
+if [ ! -z "$sublogdir_enabled" ]; then
+    test_log_dir="${branch}_${date_tag}"
+fi
 if [ -z $log_folder ]; then
-    log_dir="log/${test_log_dir}"
+    if [ ! -z "$test_log_dir" ]; then
+        log_dir="log/${test_log_dir}"
+    else
+        log_dir="log"
+    fi
 else
-    log_dir="$log_folder/${test_log_dir}"
+    if [ ! -z "$test_log_dir" ]; then
+        log_dir="$log_folder/${test_log_dir}"
+    else
+        log_dir="$log_folder"
+    fi
 fi
 
-mkdir -p $log_dir
-rm -rf $log_dir/*
+if [ ! -z "$log_dir" ]; then
+    mkdir -p $log_dir
+    rm -rf $log_dir/*
+    export TAOSTEST_LOG_DIR="$log_dir"
+fi
 
 if [ ! -z "$last_failed" ]; then
     last_log_dir=`ls $log_folder|sort|tail -n2|head -n1`
@@ -162,7 +179,7 @@ function run_thread() {
         runcase_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
     fi
     local count=0
-    local script="TEST_ROOT=${workdirs[index]}/TestNG $TIMEOUT_PREFIX"
+    local script="TEST_ROOT=${workdirs[index]}/TestNG TAOSTEST_LOG_DIR=${log_dir} $TIMEOUT_PREFIX"
 
     # script="echo"
     while [ 1 ]; do
@@ -226,7 +243,7 @@ function run_thread() {
             cmd="$cmd --taostest-pkg $taostest_pkg"
         fi
         # set network
-        cmd="$cmd --source-dir ${workdirs[index]}/TDinternal --docker-network ${docker_network_prefix}_${thread_no}"
+        cmd="$cmd --source-dir ${workdirs[index]}/TDinternal --docker-network ${docker_network_prefix}_${thread_no} --sql_recording"
         local ret=0
         local redo_count=1
         start_time=`date +%s`
@@ -286,8 +303,13 @@ function run_thread() {
             # echo "====================================================="
             echo -e "\e[34m log file: $log_full_path \e[0m"
             if [ ! -z "$web_server" ]; then
-                flock -x $lock_file -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  ${web_server}/$test_log_dir/$log_file\" >>$log_dir/failed.txt"
-                echo "$web_server/$test_log_dir/$log_file"
+                if [ ! -z "$test_log_dir" ]; then
+                    flock -x $lock_file -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  ${web_server}/$test_log_dir/$log_file\" >>$log_dir/failed.txt"
+                    echo "$web_server/$test_log_dir/$log_file"
+                else
+                    flock -x $lock_file -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  ${web_server}/$log_file\" >>$log_dir/failed.txt"
+                    echo "$web_server/$log_file"
+                fi
             else
                 flock -x $lock_file -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  log file: $log_full_path\" >>$log_dir/failed.txt"
             fi
