@@ -1375,19 +1375,57 @@ static bool mergeProjectsMayBeOptimized(SLogicNode* pNode) {
 }
 
 typedef struct SMergeProjectionsContext {
-
+  SProjectLogicNode* pChildProj;
+  int32_t errCode;
 } SMergeProjectionsContext;
 
 static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
+  SMergeProjectionsContext* pCxt = pContext;
+  SProjectLogicNode* pChildProj = pCxt->pChildProj;
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    SNode* pTarget;
+    FOREACH(pTarget, ((SLogicNode*)pChildProj)->pTargets) {
+      if (nodesEqualNode(pTarget, *pNode)) {
+        SNode* pProjection;
+        FOREACH(pProjection, pChildProj->pProjections) {
+          if (0 == strcmp(((SColumnNode*)pTarget)->colName, ((SExprNode*)pProjection)->aliasName)) {
+            SNode* pExpr = nodesCloneNode(pProjection);
+            if (pExpr == NULL) {
+              pCxt->errCode = terrno;
+              return DEAL_RES_ERROR;
+            }
+            nodesDestroyNode(*pNode);
+            *pNode = pExpr;
+          }
+        }
+      }
+    }
+    return DEAL_RES_IGNORE_CHILD;
+  }
   return DEAL_RES_CONTINUE;
 }
 
 static int32_t mergeProjectsOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SLogicNode* pProjectNode) {
   SProjectLogicNode* pProject = (SProjectLogicNode*)pProjectNode;
-  SProjectLogicNode* pChild = (SProjectLogicNode*)nodesListGetNode(pProjectNode->pChildren, 0);
-  SMergeProjectionsContext cxt = {};
-  nodesRewriteExprs(pChild->pProjections, mergeProjectionsExpr, &cxt);
-  return TSDB_CODE_SUCCESS;
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProjectNode->pChildren, 0);
+  SMergeProjectionsContext cxt = {.pChildProj = (SProjectLogicNode*)pChild};
+
+  nodesRewriteExprs(pProject->pProjections, mergeProjectionsExpr, &cxt);
+  int32_t code = cxt.errCode;
+  if (TSDB_CODE_SUCCESS == code) {
+    if (1 == LIST_LENGTH(pChild->pChildren)) {
+      SLogicNode* pGrandChild = (SLogicNode*)nodesListGetNode(pChild->pChildren, 0);
+      code = replaceLogicNode(pLogicSubplan, pChild, pGrandChild);
+    } else {  // no grand child
+      NODES_CLEAR_LIST(pProjectNode->pChildren);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    NODES_CLEAR_LIST(pChild->pChildren);
+  }
+  nodesDestroyNode((SNode*)pChild);
+  return code;
 }
 
 static int32_t mergeProjectsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
