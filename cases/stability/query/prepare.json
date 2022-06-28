@@ -21,10 +21,10 @@
             },
             "super_tables": [
                 {
-                    "name": "stb",
+                    "name": "STBNAME",
                     "child_table_exists": "no",
                     "childtable_count": 100,
-                    "childtable_prefix": "stb_",
+                    "childtable_prefix": "STBNAME_",
                     "auto_create_table": "no",
                     "batch_create_tbl_num": 50000,
                     "data_source": "rand",

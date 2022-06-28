@@ -5,8 +5,8 @@
     "port": PORT,
     "user": "root",
     "password": "taosdata",
-    "thread_count": THREADCOUNT,
-    "thread_count_create_tbl": THREADCOUNT_CREATETABLE,
+    "thread_count": 32,
+    "thread_count_create_tbl": 8,
     "result_file": "./insert_res.txt",
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,
@@ -28,9 +28,8 @@
                     "auto_create_table": "no",
                     "batch_create_tbl_num": 50000,
                     "data_source": "rand",
-                    "insert_mode": "INSERTMODE",
-                    "line_protocol": "LINEPROTOCOL",
-                    "tcp_transfer": "TCPTRANSFER",
+                    "insert_mode": "sml",
+                    "line_protocol": "telnet",
                     "insert_rows": INSERTROWS,
                     "interlace_rows": 100000,
                     "insert_interval": 0,
@@ -45,22 +44,6 @@
                     "columns": [
                         {
                             "type": "INT"
-                        },
-                        {
-                            "type": "TINYINT",
-                            "count": 1
-                        },
-                        {"type": "DOUBLE"},
-
-                        {
-                            "type": "BINARY",
-                            "len": 40,
-                            "count": 1
-                        },
-                        {
-                            "type": "nchar",
-                            "len": 20,
-                            "count": 1
                         }
                     ],
                     "tags": [
