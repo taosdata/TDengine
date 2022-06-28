@@ -2,12 +2,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "tudf.h"
+#include "taosudf.h"
 
-#undef malloc
-#define malloc malloc
-#undef free
-#define free free
 
 DLL_EXPORT int32_t udf1_init() {
   return 0;
