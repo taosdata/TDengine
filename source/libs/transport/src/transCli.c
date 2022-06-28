@@ -316,8 +316,9 @@ void cliHandleResp(SCliConn* conn) {
 
   if (CONN_NO_PERSIST_BY_APP(conn)) {
     pMsg = transQueuePop(&conn->cliMsgs);
-    pCtx = pMsg->ctx;
-    transMsg.info.ahandle = pCtx->ahandle;
+
+    pCtx = pMsg ? pMsg->ctx : NULL;
+    transMsg.info.ahandle = pCtx ? pCtx->ahandle : NULL;
     tDebug("%s conn %p get ahandle %p, persist: 0", CONN_GET_INST_LABEL(conn), conn, transMsg.info.ahandle);
   } else {
     uint64_t ahandle = (uint64_t)pHead->ahandle;
@@ -501,6 +502,7 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
 static void allocConnRef(SCliConn* conn, bool update) {
   if (update) {
     transRemoveExHandle(conn->refId);
+    conn->refId = -1;
   }
   SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
   exh->handle = conn;
@@ -600,6 +602,8 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   QUEUE_REMOVE(&conn->conn);
   QUEUE_INIT(&conn->conn);
   transRemoveExHandle(conn->refId);
+  conn->refId = -1;
+
   if (clear) {
     if (!uv_is_closing((uv_handle_t*)conn->stream)) {
       uv_close((uv_handle_t*)conn->stream, cliDestroy);
@@ -609,8 +613,11 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   }
 }
 static void cliDestroy(uv_handle_t* handle) {
+  if (uv_handle_get_type(handle) != UV_TCP || handle->data == NULL) return;
   SCliConn* conn = handle->data;
+  transRemoveExHandle(conn->refId);
   taosMemoryFree(conn->ip);
+  conn->stream->data = NULL;
   taosMemoryFree(conn->stream);
   transCtxCleanup(&conn->ctx);
   transQueueDestroy(&conn->cliMsgs);
@@ -968,7 +975,7 @@ void cliSendQuit(SCliThrd* thrd) {
 }
 void cliWalkCb(uv_handle_t* handle, void* arg) {
   if (!uv_is_closing(handle)) {
-    uv_close(handle, NULL);
+    uv_close(handle, cliDestroy);
   }
 }
 
@@ -1106,8 +1113,11 @@ SCliThrd* transGetWorkThrdFromHandle(int64_t handle) {
   SCliThrd*  pThrd = NULL;
   SExHandle* exh = transAcquireExHandle(handle);
   if (exh == NULL) {
+    tTrace("no, no %" PRId64 "", handle);
     return NULL;
   }
+  tTrace("YY %" PRId64 "", handle);
+
   pThrd = exh->pThrd;
   transReleaseExHandle(handle);
   return pThrd;

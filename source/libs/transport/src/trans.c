@@ -83,6 +83,7 @@ void rpcClose(void* arg) {
   SRpcInfo* pRpc = (SRpcInfo*)arg;
   (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
   taosMemoryFree(pRpc);
+  tInfo("finish to close rpc");
 
   return;
 }
