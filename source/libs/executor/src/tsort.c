@@ -86,6 +86,7 @@ SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t page
 
   pSortHandle->pOrderedSource     = taosArrayInit(4, POINTER_BYTES);
   pSortHandle->cmpParam.orderInfo = pSortInfo;
+  pSortHandle->cmpParam.cmpGroupId = false;
 
   tsortSetComparFp(pSortHandle, msortComparFn);
 
@@ -146,7 +147,7 @@ static int32_t doAddNewExternalMemSource(SDiskbasedBuf *pBuf, SArray* pAllSource
   int32_t rowSize = blockDataGetSerialRowSize(pSource->src.pBlock);
 
   // The value of numOfRows must be greater than 0, which is guaranteed by the previous memory allocation
-  int32_t numOfRows = (getBufPageSize(pBuf) - blockDataGetSerialMetaSize(pBlock->info.numOfCols))/rowSize;
+  int32_t numOfRows = (getBufPageSize(pBuf) - blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock)))/rowSize;
   ASSERT(numOfRows > 0);
   return blockDataEnsureCapacity(pSource->src.pBlock, numOfRows);
 }
@@ -177,7 +178,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
       return terrno;
     }
 
-    int32_t size = blockDataGetSize(p) + sizeof(int32_t)  + p->info.numOfCols * sizeof(int32_t);
+    int32_t size = blockDataGetSize(p) + sizeof(int32_t)  + taosArrayGetSize(p->pDataBlock) * sizeof(int32_t);
     assert(size <= getBufPageSize(pHandle->pBuf));
 
     blockDataToBuf(pPage, p);
@@ -251,7 +252,7 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
 }
 
 static void appendOneRowToDataBlock(SSDataBlock *pBlock, const SSDataBlock* pSource, int32_t* rowIndex) {
-  for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+  for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
 
     SColumnInfoData* pSrcColInfo = taosArrayGet(pSource->pDataBlock, i);
@@ -374,9 +375,10 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
   SSDataBlock* pLeftBlock = pLeftSource->src.pBlock;
   SSDataBlock* pRightBlock = pRightSource->src.pBlock;
 
-  // first sort by block groupId
-  if (pLeftBlock->info.groupId != pRightBlock->info.groupId) {
-    return pLeftBlock->info.groupId < pRightBlock->info.groupId ? -1 : 1;
+  if (pParam->cmpGroupId) {
+    if (pLeftBlock->info.groupId != pRightBlock->info.groupId) {
+      return pLeftBlock->info.groupId < pRightBlock->info.groupId ? -1 : 1;
+    }
   }
 
   for(int32_t i = 0; i < pInfo->size; ++i) {
@@ -498,7 +500,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
           return terrno;
         }
 
-        int32_t size = blockDataGetSize(pDataBlock) + sizeof(int32_t) + pDataBlock->info.numOfCols * sizeof(int32_t);
+        int32_t size = blockDataGetSize(pDataBlock) + sizeof(int32_t) + taosArrayGetSize(pDataBlock->pDataBlock) * sizeof(int32_t);
         assert(size <= getBufPageSize(pHandle->pBuf));
 
         blockDataToBuf(pPage, pDataBlock);
@@ -685,6 +687,11 @@ int32_t tsortSetComparFp(SSortHandle* pHandle, _sort_merge_compar_fn_t fp) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tsortSetCompareGroupId(SSortHandle* pHandle, bool compareGroupId) {
+  pHandle->cmpParam.cmpGroupId = compareGroupId;
+  return TSDB_CODE_SUCCESS;
+}
+
 STupleHandle* tsortNextTuple(SSortHandle* pHandle) {
   if (pHandle->cmpParam.numOfSources == pHandle->numOfCompletedSources) {
     return NULL;
@@ -743,6 +750,10 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex) {
   } else {
     return colDataGetData(pColInfo, pVHandle->rowIndex);
   }
+}
+
+uint64_t tsortGetGroupId(STupleHandle* pVHandle) {
+  return pVHandle->pBlock->info.groupId;
 }
 
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {

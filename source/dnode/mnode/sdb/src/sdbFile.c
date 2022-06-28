@@ -519,11 +519,11 @@ static void sdbCloseIter(SSdbIter *pIter) {
     pIter->name = NULL;
   }
 
-  mInfo("sdbiter:%p, is closed, total:%" PRId64, pIter, pIter->total);
+  mDebug("sdbiter:%p, is closed, total:%" PRId64, pIter, pIter->total);
   taosMemoryFree(pIter);
 }
 
-int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter) {
+int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *term, int64_t *config) {
   SSdbIter *pIter = sdbCreateIter(pSdb);
   if (pIter == NULL) return -1;
 
@@ -552,7 +552,11 @@ int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter) {
   }
 
   *ppIter = pIter;
-  mInfo("sdbiter:%p, is created to read snapshot, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
+  if (index != NULL) *index = commitIndex;
+  if (term != NULL) *term = commitTerm;
+  if (config != NULL) *config = commitConfig;
+
+  mDebug("sdbiter:%p, is created to read snapshot, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
         pIter, commitIndex, commitTerm, commitConfig, pIter->name);
   return 0;
 }
@@ -579,14 +583,14 @@ int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len) {
     taosMemoryFree(pBuf);
     return -1;
   } else if (readlen == 0) {
-    mInfo("sdbiter:%p, read snapshot to the end, total:%" PRId64, pIter, pIter->total);
+    mDebug("sdbiter:%p, read snapshot to the end, total:%" PRId64, pIter, pIter->total);
     *ppBuf = NULL;
     *len = 0;
     taosMemoryFree(pBuf);
     return 0;
   } else {  // (readlen <= maxlen)
     pIter->total += readlen;
-    mInfo("sdbiter:%p, read:%d bytes from snapshot, total:%" PRId64, pIter, readlen, pIter->total);
+    mDebug("sdbiter:%p, read:%d bytes from snapshot, total:%" PRId64, pIter, readlen, pIter->total);
     *ppBuf = pBuf;
     *len = readlen;
     return 0;
@@ -605,7 +609,7 @@ int32_t sdbStartWrite(SSdb *pSdb, SSdbIter **ppIter) {
   }
 
   *ppIter = pIter;
-  mInfo("sdbiter:%p, is created to write snapshot, file:%s", pIter, pIter->name);
+  mDebug("sdbiter:%p, is created to write snapshot, file:%s", pIter, pIter->name);
   return 0;
 }
 
@@ -614,7 +618,7 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply) {
 
   if (!isApply) {
     sdbCloseIter(pIter);
-    mInfo("sdbiter:%p, not apply to sdb", pIter);
+    mDebug("sdbiter:%p, not apply to sdb", pIter);
     return 0;
   }
 
@@ -637,7 +641,7 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply) {
     return -1;
   }
 
-  mInfo("sdbiter:%p, successfully applyed to sdb", pIter);
+  mDebug("sdbiter:%p, successfully applyed to sdb", pIter);
   return 0;
 }
 
@@ -650,6 +654,6 @@ int32_t sdbDoWrite(SSdb *pSdb, SSdbIter *pIter, void *pBuf, int32_t len) {
   }
 
   pIter->total += writelen;
-  mInfo("sdbiter:%p, write:%d bytes to snapshot, total:%" PRId64, pIter, writelen, pIter->total);
+  mDebug("sdbiter:%p, write:%d bytes to snapshot, total:%" PRId64, pIter, writelen, pIter->total);
   return 0;
 }

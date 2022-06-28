@@ -28,7 +28,7 @@ class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        tdSql.init(conn.cursor(), False)
 
     def __query_condition(self,tbname):
         query_condition = []
@@ -238,7 +238,7 @@ class TDTestCase:
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                  {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
                  {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
-            ) tags (t1 int)
+            ) tags (tag1 int)
             '''
         create_ntb_sql = f'''create table t1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,

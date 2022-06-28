@@ -77,6 +77,7 @@ void    vnodeFree(void* p);
 
 // meta
 typedef struct SMCtbCursor SMCtbCursor;
+typedef struct SMStbCursor SMStbCursor;
 typedef struct STbUidStore STbUidStore;
 
 int             metaOpen(SVnode* pVnode, SMeta** ppMeta);
@@ -98,6 +99,9 @@ int             metaGetTbNum(SMeta* pMeta);
 SMCtbCursor*    metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid);
 void            metaCloseCtbCursor(SMCtbCursor* pCtbCur);
 tb_uid_t        metaCtbCursorNext(SMCtbCursor* pCtbCur);
+SMStbCursor*    metaOpenStbCursor(SMeta* pMeta, tb_uid_t uid);
+void            metaCloseStbCursor(SMStbCursor* pStbCur);
+tb_uid_t        metaStbCursorNext(SMStbCursor* pStbCur);
 STSma*          metaGetSmaInfoByIndex(SMeta* pMeta, int64_t indexUid);
 STSmaWrapper*   metaGetSmaInfoByTable(SMeta* pMeta, tb_uid_t uid, bool deepCopy);
 SArray*         metaGetSmaIdsByTable(SMeta* pMeta, tb_uid_t uid);
@@ -140,7 +144,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId);
-int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
+int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* data);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
@@ -148,6 +152,8 @@ int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 
 SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
                             const char* stbFullName, int32_t vgId);
@@ -155,6 +161,8 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool
 // sma
 int32_t smaOpen(SVnode* pVnode);
 int32_t smaClose(SSma* pSma);
+int32_t smaCloseEnv(SSma* pSma);
+int32_t smaCloseEx(SSma* pSma);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
@@ -244,7 +252,6 @@ struct SVnode {
 
 struct STbUidStore {
   tb_uid_t  suid;
-  tb_uid_t  uid;  // TODO: just for debugging, remove when uid provided in SSDataBlock
   SArray*   tbUids;
   SHashObj* uidHash;
 };

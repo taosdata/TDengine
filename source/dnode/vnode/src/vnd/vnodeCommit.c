@@ -68,7 +68,12 @@ int vnodeBegin(SVnode *pVnode) {
   return 0;
 }
 
-int vnodeShouldCommit(SVnode *pVnode) { return pVnode->inUse->size > pVnode->config.szBuf / 3; }
+int vnodeShouldCommit(SVnode *pVnode) {
+  if (pVnode->inUse) {
+    return pVnode->inUse->size > pVnode->config.szBuf / 3;
+  }
+  return false;
+}
 
 int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   char      fname[TSDB_FILENAME_LEN];

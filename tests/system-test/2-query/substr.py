@@ -23,12 +23,15 @@ CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
 BOOLEAN_COL = [ BOOL_COL, ]
 TS_TYPE_COL = [ TS_COL, ]
 
+ERR_POS     = 0
+CURRENT_POS = 1
+LENS        = 6
 
 class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(),False)
 
     def __substr_condition(self):  # sourcery skip: extract-method
         substr_condition = []
@@ -76,6 +79,7 @@ class TDTestCase:
 
             if  pos < 1:
                 tdSql.error(f"select substr( {condition}, {pos}, {lens}) , {condition} from {tbname} ")
+                break
 
             tdSql.query(f"select substr( {condition}, {pos}, {lens}) , {condition} from {tbname} ")
             for j in range(tdSql.queryRows):
@@ -127,7 +131,7 @@ class TDTestCase:
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
         tbname = ["ct1", "ct2", "ct4", "t1", "stb1"]
         for tb in tbname:
-            self.__substr_check(tb, 1, 6)
+            self.__substr_check(tb, CURRENT_POS, LENS)
             tdLog.printNoPrefix(f"==========current sql condition check in {tb} over==========")
 
     def __test_error(self):
@@ -137,7 +141,7 @@ class TDTestCase:
         for tb in tbname:
             for errsql in self.__substr_err_check(tb):
                 tdSql.error(sql=errsql)
-            self.__substr_check(tb, 0, 6)
+            self.__substr_check(tb, ERR_POS, LENS)
             tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 
 
@@ -154,7 +158,7 @@ class TDTestCase:
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                  {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
                  {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
-            ) tags (t1 int)
+            ) tags (tag1 int)
             '''
         create_ntb_sql = f'''create table t1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,

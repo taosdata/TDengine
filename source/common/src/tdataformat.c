@@ -856,21 +856,6 @@ void debugPrintSTag(STag *pTag, const char *tag, int32_t ln) {
   printf("\n");
 }
 
-void debugCheckTags(STag *pTag) {
-  switch (pTag->flags) {
-    case 0x0:
-    case 0x20:
-    case 0x40:
-    case 0x60:
-      break;
-    default:
-      ASSERT(0);
-  }
-
-  ASSERT(pTag->nTag <= 128 && pTag->nTag >= 0);
-  ASSERT(pTag->ver <= 512 && pTag->ver >= 0);  // temp condition for pTag->ver
-}
-
 static int32_t tPutTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
   int32_t n = 0;
 
@@ -918,6 +903,18 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
 
   return n;
 }
+
+bool tTagIsJson(const void *pTag){
+  return (((const STag *)pTag)->flags & TD_TAG_JSON);
+}
+
+bool tTagIsJsonNull(void *data){
+  STag *pTag = (STag*)data;
+  int8_t   isJson = tTagIsJson(pTag);
+  if(!isJson) return false;
+  return ((STag*)data)->nTag == 0;
+}
+
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
   int32_t  code = 0;
   uint8_t *p = NULL;
@@ -981,7 +978,6 @@ int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
   debugPrintSTag(*ppTag, __func__, __LINE__);
 #endif
 
-  debugCheckTags(*ppTag);  // TODO: remove this line after debug
   return code;
 
 _err:

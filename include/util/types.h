@@ -32,7 +32,7 @@ extern "C" {
 #define GET_UINT64_VAL(x) (*(uint64_t *)(x))
 
 static FORCE_INLINE float taos_align_get_float(const char *pBuf) {
-#if __STDC_VERSION__ >= 201112L
+#if __STDC_VERSION__ >= 201112LL
   static_assert(sizeof(float) == sizeof(uint32_t), "sizeof(float) must equal to sizeof(uint32_t)");
 #else
   assert(sizeof(float) == sizeof(uint32_t));
@@ -43,7 +43,7 @@ static FORCE_INLINE float taos_align_get_float(const char *pBuf) {
 }
 
 static FORCE_INLINE double taos_align_get_double(const char *pBuf) {
-#if __STDC_VERSION__ >= 201112L
+#if __STDC_VERSION__ >= 201112LL
   static_assert(sizeof(double) == sizeof(uint64_t), "sizeof(double) must equal to sizeof(uint64_t)");
 #else
   assert(sizeof(double) == sizeof(uint64_t));

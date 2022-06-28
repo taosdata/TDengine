@@ -34,10 +34,8 @@ extern int32_t tsRpcHeadSize;
 typedef struct {
   uint32_t clientIp;
   uint16_t clientPort;
-  union {
-    char    user[TSDB_USER_LEN];
-    int64_t applyIndex;
-  };
+  int64_t  applyIndex;
+  char     user[TSDB_USER_LEN];
 } SRpcConnInfo;
 
 typedef struct SRpcHandleInfo {
@@ -71,7 +69,7 @@ typedef struct SRpcMsg {
 } SRpcMsg;
 
 typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *rf);
-typedef bool (*RpcRfp)(int32_t code);
+typedef bool (*RpcRfp)(int32_t code, tmsg_t msgType);
 
 typedef struct SRpcInit {
   char     localFqdn[TSDB_FQDN_LEN];

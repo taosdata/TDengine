@@ -27,7 +27,7 @@ extern "C" {
 #include "syncInt.h"
 #include "taosdef.h"
 
-#define CONFIG_FILE_LEN 1024
+#define CONFIG_FILE_LEN 2048
 
 #define MAX_CONFIG_INDEX_COUNT 512
 
@@ -49,14 +49,14 @@ int32_t   raftCfgClose(SRaftCfg *pRaftCfg);
 int32_t   raftCfgPersist(SRaftCfg *pRaftCfg);
 int32_t   raftCfgAddConfigIndex(SRaftCfg *pRaftCfg, SyncIndex configIndex);
 
-cJSON  *syncCfg2Json(SSyncCfg *pSyncCfg);
-char   *syncCfg2Str(SSyncCfg *pSyncCfg);
-char   *syncCfg2SimpleStr(SSyncCfg *pSyncCfg);
+cJSON * syncCfg2Json(SSyncCfg *pSyncCfg);
+char *  syncCfg2Str(SSyncCfg *pSyncCfg);
+char *  syncCfg2SimpleStr(SSyncCfg *pSyncCfg);
 int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg);
 int32_t syncCfgFromStr(const char *s, SSyncCfg *pSyncCfg);
 
-cJSON  *raftCfg2Json(SRaftCfg *pRaftCfg);
-char   *raftCfg2Str(SRaftCfg *pRaftCfg);
+cJSON * raftCfg2Json(SRaftCfg *pRaftCfg);
+char *  raftCfg2Str(SRaftCfg *pRaftCfg);
 int32_t raftCfgFromJson(const cJSON *pRoot, SRaftCfg *pRaftCfg);
 int32_t raftCfgFromStr(const char *s, SRaftCfg *pRaftCfg);
 

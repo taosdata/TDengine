@@ -114,8 +114,10 @@ void dumpStb(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "tagVer", pObj->tagVer);
     tjsonAddIntegerToObject(item, "colVer", pObj->colVer);
     tjsonAddIntegerToObject(item, "nextColId", pObj->nextColId);
-    tjsonAddIntegerToObject(item, "xFilesFactor", pObj->xFilesFactor * 10000);
-    tjsonAddIntegerToObject(item, "delay", pObj->delay);
+    tjsonAddIntegerToObject(item, "watermark1", pObj->watermark[0]);
+    tjsonAddIntegerToObject(item, "watermark2", pObj->watermark[1]);
+    tjsonAddIntegerToObject(item, "maxdelay1", pObj->maxdelay[0]);
+    tjsonAddIntegerToObject(item, "maxdelay2", pObj->maxdelay[1]);
     tjsonAddIntegerToObject(item, "ttl", pObj->ttl);
     tjsonAddIntegerToObject(item, "numOfColumns", pObj->numOfColumns);
     tjsonAddIntegerToObject(item, "numOfTags", pObj->numOfTags);

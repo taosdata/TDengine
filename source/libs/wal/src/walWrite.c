@@ -23,7 +23,7 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
 
   void *pIter = NULL;
   while (1) {
-    taosHashIterate(pWal->pRefHash, pIter);
+    pIter = taosHashIterate(pWal->pRefHash, pIter);
     if (pIter == NULL) break;
     SWalRef *pRef = (SWalRef *)pIter;
     if (pRef->ver != -1) {
@@ -41,6 +41,9 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
       SWalFileInfo *pFileInfo = taosArrayGet(pWal->fileInfoSet, i);
       char          fnameStr[WAL_FILE_LEN];
       walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
+      taosRemoveFile(fnameStr);
+
+      walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
       taosRemoveFile(fnameStr);
     }
   }
@@ -105,7 +108,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   }
 
   walBuildIdxName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
-  TdFilePtr pIdxTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ);
+  TdFilePtr pIdxTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
 
   if (pIdxTFile == NULL) {
     taosThreadMutexUnlock(&pWal->mutex);
@@ -126,7 +129,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   ASSERT(entry.ver == ver);
 
   walBuildLogName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
-  TdFilePtr pLogTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ);
+  TdFilePtr pLogTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
   if (pLogTFile == NULL) {
     // TODO
     taosThreadMutexUnlock(&pWal->mutex);
@@ -141,7 +144,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   // validate offset
   SWalHead head;
   ASSERT(taosValidFile(pLogTFile));
-  int size = taosReadFile(pLogTFile, &head, sizeof(SWalHead));
+  int64_t size = taosReadFile(pLogTFile, &head, sizeof(SWalHead));
   if (size != sizeof(SWalHead)) {
     return -1;
   }
@@ -149,24 +152,40 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
 
   ASSERT(code == 0);
   if (code != 0) {
+    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    ASSERT(0);
     return -1;
   }
   if (head.head.version != ver) {
-    // TODO
+    ASSERT(0);
+    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
+
   // truncate old files
   code = taosFtruncateFile(pLogTFile, entry.offset);
   if (code < 0) {
+    ASSERT(0);
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   code = taosFtruncateFile(pIdxTFile, idxOff);
   if (code < 0) {
+    ASSERT(0);
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   pWal->vers.lastVer = ver - 1;
+  if (pWal->vers.lastVer < pWal->vers.firstVer) {
+    ASSERT(pWal->vers.lastVer == pWal->vers.firstVer - 1);
+    pWal->vers.firstVer = -1;
+  }
   ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->lastVer = ver - 1;
   ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->fileSize = entry.offset;
+  if (((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->lastVer < ver - 1) {
+    ASSERT(((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->fileSize == 0);
+    ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->firstVer = -1;
+  }
   taosCloseFile(&pIdxTFile);
   taosCloseFile(&pLogTFile);
 
@@ -291,9 +310,9 @@ int walRoll(SWal *pWal) {
 
 static int walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   SWalIdxEntry entry = {.ver = ver, .offset = offset};
-  /*int64_t      idxOffset = taosLSeekFile(pWal->pWriteIdxTFile, 0, SEEK_CUR);*/
-  /*wDebug("write index: ver: %ld, offset: %ld, at %ld", ver, offset, idxOffset);*/
-  int size = taosWriteFile(pWal->pWriteIdxTFile, &entry, sizeof(SWalIdxEntry));
+  int64_t      idxOffset = taosLSeekFile(pWal->pWriteIdxTFile, 0, SEEK_END);
+  wDebug("write index: ver: %ld, offset: %ld, at %ld", ver, offset, idxOffset);
+  int64_t size = taosWriteFile(pWal->pWriteIdxTFile, &entry, sizeof(SWalIdxEntry));
   if (size != sizeof(SWalIdxEntry)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     // TODO truncate
@@ -384,8 +403,12 @@ int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLog
   }
 
   // set status
+  if (pWal->vers.firstVer == -1) pWal->vers.firstVer = index;
   pWal->vers.lastVer = index;
   pWal->totSize += sizeof(SWalHead) + bodyLen;
+  if (walGetCurFileInfo(pWal)->firstVer == -1) {
+    walGetCurFileInfo(pWal)->firstVer = index;
+  }
   walGetCurFileInfo(pWal)->lastVer = index;
   walGetCurFileInfo(pWal)->fileSize += sizeof(SWalHead) + bodyLen;
 

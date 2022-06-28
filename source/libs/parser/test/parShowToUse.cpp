@@ -25,6 +25,15 @@ class ParserShowToUseTest : public ParserDdlTest {};
 // todo SHOW apps
 // todo SHOW connections
 
+TEST_F(ParserShowToUseTest, showConsumers) {
+  useDb("root", "test");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SELECT_STMT); });
+
+  run("SHOW CONSUMERS");
+}
+
 TEST_F(ParserShowToUseTest, showCreateDatabase) {
   useDb("root", "test");
 
@@ -45,7 +54,7 @@ TEST_F(ParserShowToUseTest, showCreateSTable) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SHOW_CREATE_STABLE_STMT);
     ASSERT_EQ(pQuery->execMode, QUERY_EXEC_MODE_LOCAL);
     ASSERT_TRUE(pQuery->haveResultSet);
-    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pMeta, nullptr);
+    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pCfg, nullptr);
   });
 
   run("SHOW CREATE STABLE st1");
@@ -58,7 +67,7 @@ TEST_F(ParserShowToUseTest, showCreateTable) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SHOW_CREATE_TABLE_STMT);
     ASSERT_EQ(pQuery->execMode, QUERY_EXEC_MODE_LOCAL);
     ASSERT_TRUE(pQuery->haveResultSet);
-    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pMeta, nullptr);
+    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pCfg, nullptr);
   });
 
   run("SHOW CREATE TABLE t1");
@@ -76,6 +85,12 @@ TEST_F(ParserShowToUseTest, showDnodes) {
   run("SHOW dnodes");
 }
 
+TEST_F(ParserShowToUseTest, showDnodeVariables) {
+  useDb("root", "test");
+
+  run("SHOW DNODE 1 VARIABLES");
+}
+
 TEST_F(ParserShowToUseTest, showFunctions) {
   useDb("root", "test");
 
@@ -83,6 +98,12 @@ TEST_F(ParserShowToUseTest, showFunctions) {
 }
 
 // todo SHOW licence
+
+TEST_F(ParserShowToUseTest, showLocalVariables) {
+  useDb("root", "test");
+
+  run("SHOW LOCAL VARIABLES");
+}
 
 TEST_F(ParserShowToUseTest, showIndexes) {
   useDb("root", "test");
@@ -131,6 +152,15 @@ TEST_F(ParserShowToUseTest, showStreams) {
   run("SHOW streams");
 }
 
+TEST_F(ParserShowToUseTest, showSubscriptions) {
+  useDb("root", "test");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SELECT_STMT); });
+
+  run("SHOW SUBSCRIPTIONS");
+}
+
 TEST_F(ParserShowToUseTest, showTransactions) {
   useDb("root", "test");
 
@@ -157,7 +187,11 @@ TEST_F(ParserShowToUseTest, showUsers) {
   run("SHOW users");
 }
 
-// todo SHOW variables
+TEST_F(ParserShowToUseTest, showVariables) {
+  useDb("root", "test");
+
+  run("SHOW VARIABLES");
+}
 
 TEST_F(ParserShowToUseTest, showVgroups) {
   useDb("root", "test");

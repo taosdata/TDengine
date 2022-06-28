@@ -156,6 +156,7 @@ void shellRunSingleCommandImp(char *command) {
     }
 
     fname = sptr + 2;
+    while (*fname == ' ') fname++;
     *sptr = '\0';
   }
 
@@ -393,15 +394,11 @@ void shellPrintNChar(const char *str, int32_t length, int32_t width) {
       break;
     }
     int w = 0;
-#ifdef WINDOWS
-    w = bytes;
-#else
     if(*(str + pos) == '\t' || *(str + pos) == '\n' || *(str + pos) == '\r'){
       w = bytes;
     }else{
       w = taosWcharWidth(wc);
     }
-#endif
     pos += bytes;
 
     if (w <= 0) {
@@ -523,6 +520,16 @@ bool shellIsLimitQuery(const char *sql) {
 
   return false;
 }
+
+bool shellIsShowQuery(const char *sql) {
+  //todo refactor
+  if (taosStrCaseStr(sql, "show ") != NULL) {
+    return true;
+  }
+
+  return false;
+}
+
 
 int32_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
   TAOS_ROW row = taos_fetch_row(tres);
@@ -686,7 +693,7 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
 
   uint64_t resShowMaxNum = UINT64_MAX;
 
-  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsLimitQuery(sql)) {
+  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsLimitQuery(sql) && !shellIsShowQuery(sql)) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
@@ -852,9 +859,7 @@ void shellGetGrantInfo() {
 
   int32_t code = taos_errno(tres);
   if (code != TSDB_CODE_SUCCESS) {
-    if (code == TSDB_CODE_OPS_NOT_SUPPORT) {
-      fprintf(stdout, "Server is Community Edition, %s\n\n", sinfo);
-    } else {
+    if (code != TSDB_CODE_OPS_NOT_SUPPORT && code != TSDB_CODE_MND_NO_RIGHTS) {
       fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\n\n", code, taos_errstr(tres));
     }
     return;

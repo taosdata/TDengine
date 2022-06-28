@@ -231,7 +231,13 @@ static const SSysDbTableSchema transSchema[] = {
 
 static const SSysDbTableSchema configSchema[] = {
     {.name = "name", .bytes = TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "value", .bytes = TSDB_CONIIG_VALUE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "value", .bytes = TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+};
+
+static const SSysDbTableSchema variablesSchema[] = {
+    {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "name", .bytes = TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "value", .bytes = TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
 static const SSysTableMeta infosMeta[] = {
@@ -253,6 +259,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_LICENCES, grantsSchema, tListLen(grantsSchema)},
     {TSDB_INS_TABLE_VGROUPS, vgroupsSchema, tListLen(vgroupsSchema)},
     {TSDB_INS_TABLE_CONFIGS, configSchema, tListLen(configSchema)},
+    {TSDB_INS_TABLE_DNODE_VARIABLES, variablesSchema, tListLen(variablesSchema)},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

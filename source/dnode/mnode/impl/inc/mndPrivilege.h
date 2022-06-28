@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_AUTH_H_
-#define _TD_MND_AUTH_H_
+#ifndef _TD_MND_PRIVILEGE_H
+#define _TD_MND_PRIVILEGE_H
 
 #include "mndInt.h"
 
@@ -23,13 +23,18 @@ extern "C" {
 #endif
 
 typedef enum {
-  MND_OPER_CREATE_USER = 1,
+  MND_OPER_CONNECT = 1,
+  MND_OPER_CREATE_ACCT,
+  MND_OPER_DROP_ACCT,
+  MND_OPER_ALTER_ACCT,
+  MND_OPER_CREATE_USER,
   MND_OPER_DROP_USER,
   MND_OPER_ALTER_USER,
   MND_OPER_CREATE_BNODE,
   MND_OPER_DROP_BNODE,
   MND_OPER_CREATE_DNODE,
   MND_OPER_DROP_DNODE,
+  MND_OPER_CONFIG_DNODE,
   MND_OPER_CREATE_MNODE,
   MND_OPER_DROP_MNODE,
   MND_OPER_CREATE_QNODE,
@@ -37,11 +42,14 @@ typedef enum {
   MND_OPER_CREATE_SNODE,
   MND_OPER_DROP_SNODE,
   MND_OPER_REDISTRIBUTE_VGROUP,
+  MND_OPER_MERGE_VGROUP,
   MND_OPER_SPLIT_VGROUP,
   MND_OPER_BALANCE_VGROUP,
   MND_OPER_CREATE_FUNC,
   MND_OPER_DROP_FUNC,
   MND_OPER_KILL_TRANS,
+  MND_OPER_KILL_CONN,
+  MND_OPER_KILL_QUERY,
   MND_OPER_CREATE_DB,
   MND_OPER_ALTER_DB,
   MND_OPER_DROP_DB,
@@ -49,18 +57,21 @@ typedef enum {
   MND_OPER_USE_DB,
   MND_OPER_WRITE_DB,
   MND_OPER_READ_DB,
+  MND_OPER_READ_OR_WRITE_DB,
+  MND_OPER_SHOW_VARIBALES,
 } EOperType;
 
-int32_t mndInitAuth(SMnode *pMnode);
-void    mndCleanupAuth(SMnode *pMnode);
+int32_t mndInitPrivilege(SMnode *pMnode);
+void    mndCleanupPrivilege(SMnode *pMnode);
 
-int32_t mndCheckOperAuth(SMnode *pMnode, const char *user, EOperType operType);
-int32_t mndCheckDbAuth(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb);
-int32_t mndCheckShowAuth(SMnode *pMnode, const char *user, int32_t showType);
-int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter);
+int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType);
+int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb);
+int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *dbname);
+int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, EShowType showType, const char *dbname);
+int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_AUTH_H_*/
+#endif /*_TD_MND_PRIVILEGE_H*/
