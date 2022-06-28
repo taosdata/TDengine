@@ -81,7 +81,7 @@ class TDTestCase:
         user = "root"
         password = "taosdata"
         port =6030 
-        con=taos.connect(host=host, user=user, password=password, config=cfg ,port=port,config="/home/chr/TDengine/sim/psim/cfg/")
+        con=taos.connect(host=host, user=user, password=password, config=cfg ,port=port)
         cur=con.cursor()
         print(cur)
         return cur
