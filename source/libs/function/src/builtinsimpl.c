@@ -2409,11 +2409,11 @@ int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx)
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getFirstLastInfoSize(int32_t resBytes) { return sizeof(SFirstLastRes) + resBytes + sizeof(int64_t); }
+int32_t getFirstLastInfoSize(int32_t resBytes) { return sizeof(SFirstLastRes) + resBytes + sizeof(int64_t) + sizeof(STuplePos); }
 
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
-  pEnv->calcMemSize = sizeof(SFirstLastRes) + pNode->node.resType.bytes + sizeof(int64_t) + sizeof(STuplePos);
+  pEnv->calcMemSize = getFirstLastInfoSize(pNode->node.resType.bytes);
   return true;
 }
 
@@ -2642,7 +2642,10 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void firstLastTransferInfo(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst) {
+static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst) {
+  SInputColumnInfoData* pColInfo = &pCtx->input;
+  int32_t start = pColInfo->startRowIndex;
+
   pOutput->bytes = pInput->bytes;
   TSKEY* tsIn = (TSKEY*)(pInput->buf + pInput->bytes);
   TSKEY* tsOut = (TSKEY*)(pOutput->buf + pInput->bytes);
@@ -2659,7 +2662,14 @@ static void firstLastTransferInfo(SFirstLastRes* pInput, SFirstLastRes* pOutput,
   }
   *tsOut = *tsIn;
   memcpy(pOutput->buf, pInput->buf, pOutput->bytes);
-  pOutput->hasResult = true;
+  //handle selectivity
+  STuplePos* pTuplePos = (STuplePos*)(pOutput->buf + pOutput->bytes + sizeof(TSKEY));
+  if (!pOutput->hasResult) {
+    saveTupleData(pCtx, start, pCtx->pSrcBlock, pTuplePos);
+    pOutput->hasResult = true;
+  } else {
+    copyTupleData(pCtx, start, pCtx->pSrcBlock, pTuplePos);
+  }
   return;
 }
 
@@ -2674,7 +2684,7 @@ static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuer
   char*          data = colDataGetData(pCol, start);
   SFirstLastRes* pInputInfo = (SFirstLastRes*)varDataVal(data);
 
-  firstLastTransferInfo(pInputInfo, pInfo, isFirstQuery);
+  firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery);
 
   int32_t numOfElems = pInputInfo->hasResult ? 1 : 0;
 
@@ -2696,6 +2706,7 @@ int32_t firstLastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   SFirstLastRes* pRes = GET_ROWCELL_INTERBUF(pResInfo);
   colDataAppend(pCol, pBlock->info.rows, pRes->buf, pResInfo->isNullRes);
+  //handle selectivity
   STuplePos* pTuplePos = (STuplePos*)(pRes->buf + pRes->bytes + sizeof(TSKEY));
   setSelectivityValue(pCtx, pBlock, pTuplePos, pBlock->info.rows);
 
@@ -2716,6 +2727,9 @@ int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
   colDataAppend(pCol, pBlock->info.rows, res, false);
+  //handle selectivity
+  STuplePos* pTuplePos = (STuplePos*)(pRes->buf + pRes->bytes + sizeof(TSKEY));
+  setSelectivityValue(pCtx, pBlock, pTuplePos, pBlock->info.rows);
 
   taosMemoryFree(res);
   return 1;
