@@ -58,7 +58,7 @@ class TDTestQuery(TDCase):
     testcasePath = os.path.split(__file__)[0]
     testcaseFilename = os.path.split(__file__)[-1]
     #通过第三方的numpy的校验的数量
-    np_check_num = 10;
+    np_check_num = 5;
 
     # def case_common(self):
     #     #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
@@ -148,11 +148,11 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where %s %s %s group by tbname);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        #rows = self.tdSql.query(sql2).row_count 
-                        # self.time_check_row(sql1,sql2,rows)
-                        # self.np_check_row(sql1,sql2,rows)
-                        # cur1.execute(sql2) #TD-16258
-                        # self.tdCreateData.explain_sql(sql2)
+                        rows = self.tdSql.query(sql2).row_count 
+                        self.time_check_row(sql1,sql2,rows)
+                        self.np_check_row(sql1,sql2,rows)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where %s %s %s group by tbname;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
@@ -184,7 +184,7 @@ class TDTestQuery(TDCase):
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case1======\n\n\n" %i)
                 
                 stable_where = tdWhere.regular_where()
-                sql1 = "select %s from %s where tbname in ('%s');"  % (func,self.table,self.table)
+                sql1 = "select %s from %s where tbname in ('%s') order by ts;"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -195,17 +195,18 @@ class TDTestQuery(TDCase):
 
                         sql2 = "select %s from %s where tbname in ('%s') and %s %s %s group by tbname;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql2).row_count 
-                        # self.time_check_row(sql1,sql2,rows) #TD-16289
-                        # self.np_check_row(sql1,sql2,rows)
+                        self.time_check_row(sql1,sql2,rows) 
+                        self.np_check_row(sql1,sql2,rows)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where tbname in ('%s') and %s %s %s group by tbname);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.time_check_row(sql1,sql2,rows) #TD-16258
-                        # self.np_check_row(sql1,sql2,rows)
-                        # cur1.execute(sql2)
-                        # self.tdCreateData.explain_sql(sql2)
+                        rows = self.tdSql.query(sql2).row_count 
+                        self.time_check_row(sql1,sql2,rows)
+                        self.np_check_row(sql1,sql2,rows)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where tbname in ('%s') and %s %s %s group by tbname;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
@@ -214,15 +215,16 @@ class TDTestQuery(TDCase):
 
                         sql2 = "select %s from %s where tbname in ('%s') and %s %s %s; " %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql2).row_count 
-                        # self.time_check_row(sql1,sql2,rows) #TD-16289
-                        # self.np_check_row(sql1,sql2,rows)
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2       
                         
                         sql2 = "select * from (select %s from %s where tbname in ('%s') and %s %s %s );" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.time_check(sql1,sql2)#TD-16289
-                        # self.np_check(sql1,sql2)
+                        rows = self.tdSql.query(sql2).row_count 
+                        self.time_check_row(sql1,sql2,rows)
+                        self.np_check_row(sql1,sql2,rows)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -267,21 +269,21 @@ class TDTestQuery(TDCase):
 
                         sql2 = "select %s from %s where  %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.time_check(sql1,sql2)
-                        #self.np_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.time_check(sql1,sql2) #TD-16258
-                        # self.np_check(sql1,sql2)
-                        # cur1.execute(sql2)
-                        # self.tdCreateData.explain_sql(sql2)
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.time_check(sql1,sql2)
-                        # self.np_check(sql1,sql2)
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -402,7 +404,7 @@ class TDTestQuery(TDCase):
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case2======\n\n\n" %i)
 
                 stable_where = tdWhere.regular_where()
-                sql1 = "select %s from %s where tbname in ('%s');"  % (func,self.table,self.table)
+                sql1 = "select %s from %s where tbname in ('%s') order by ts;"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -444,15 +446,15 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select %s from %s where tbname in ('%s') and  %s %s %s order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.time_check(sql1,sql2)#TD-16289
-                        # self.np_check(sql1,sql2)
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                             
                         sql2 = "select %s from (select * from %s where tbname in ('%s') and  %s %s %s order by ts);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.time_check(sql1,sql2)#TD-16289
-                        # self.np_check(sql1,sql2)
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -469,7 +471,10 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where tbname in ('%s') and  %s %s %s order by ts ) order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdSql.error(sql2)
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                                         
                 stable_where = tdWhere.regular_where()
@@ -499,10 +504,7 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s where tbname in ('%s') and  %s %s %s group by tbname) order by ts desc;" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.time_check(sql1,sql2)
-                        self.np_check(sql1,sql2)
-                        cur1.execute(sql2)
-                        self.tdCreateData.explain_sql(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where tbname in ('%s') and  %s %s %s order by ts desc ) group by tbname order by ts desc;" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
@@ -514,15 +516,15 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select %s from %s where tbname in ('%s') and  %s %s %s order by ts desc;" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.time_check(sql1,sql2)#TD-16289
-                        # self.np_check(sql1,sql2)
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2                        
 
                         sql2 = "select * from (select %s from %s where tbname in ('%s') and  %s %s %s order by ts desc);" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.time_check(sql1,sql2)#TD-16289
-                        # self.np_check(sql1,sql2)
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -532,14 +534,17 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where tbname in ('%s') and  %s %s %s ) order by ts desc;" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.time_check(sql1,sql2)#TD-16289
-                        # self.np_check(sql1,sql2)
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s where tbname in ('%s') and  %s %s %s order by ts desc ) order by ts desc;" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdSql.error(sql2)
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                                   
             except Exception as e:
@@ -739,7 +744,7 @@ class TDTestQuery(TDCase):
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case3======\n\n\n" %i)
                 
                 stable_where = tdWhere.regular_where()
-                sql1 = "select %s from %s where tbname in ('%s');"  % (func,self.table,self.table)
+                sql1 = "select %s from %s where tbname in ('%s') order by ts ;"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -761,17 +766,17 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select %s from %s where tbname in ('%s') and  %s %s %s order by ts limit 1000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.time_check(sql1,sql2)#TD-16289
-                        # self.np_check(sql1,sql2)
-                        cur1.execute(sql2) 
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
+                        cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where tbname in ('%s') and %s %s %s order by ts limit 1000)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.time_check(sql1,sql2)#TD-16289
-                        # self.np_check(sql1,sql2)
-                        # cur1.execute(sql2) #TD-16273
-                        # self.tdCreateData.explain_sql(sql2)
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where tbname in ('%s') and %s %s %s order by ts limit 1000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
@@ -820,17 +825,17 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where  %s %s %s order by ts limit 1000)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.time_check(sql1,sql2)
-                        # self.np_check(sql1,sql2)
-                        # cur1.execute(sql2) #TD-16273
-                        # self.tdCreateData.explain_sql(sql2)
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s) where  %s %s %s order by ts limit 1000" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.time_check(sql1,sql2)
-                        # self.np_check(sql1,sql2)
-                        # cur1.execute(sql2) #TD-16272
-                        # self.tdCreateData.explain_sql(sql2)
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
             
             except Exception as e:
@@ -852,18 +857,18 @@ class TDTestQuery(TDCase):
         self.data_create(self.db)
                          
         startTime1 = time.time()
-        # self.right_case_1_groupby()
-        # self.right_case_1_tbname()
-        # self.right_case_1()
+        self.right_case_1_groupby()
+        self.right_case_1_tbname()
+        self.right_case_1()
         endTime1 = time.time()       
         self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
-        # startTime2 = time.time()
+        startTime2 = time.time()
         self.right_case_2_groupby()
         self.right_case_2_tbname()
         self.right_case_2()
-        # endTime2 = time.time()       
-        # self.logger.info("total time2 %d s" % (endTime2 - startTime2))
+        endTime2 = time.time()       
+        self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
         startTime3 = time.time()
         self.right_case_3_groupby()
