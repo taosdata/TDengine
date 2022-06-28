@@ -24,22 +24,25 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   if (tEncodeCStr(pCoder, pME->name) < 0) return -1;
 
   if (pME->type == TSDB_SUPER_TABLE) {
+    if (tEncodeI8(pCoder, pME->flags) < 0) return -1;  // TODO: need refactor?
     if (tEncodeSSchemaWrapper(pCoder, &pME->stbEntry.schemaRow) < 0) return -1;
     if (tEncodeSSchemaWrapper(pCoder, &pME->stbEntry.schemaTag) < 0) return -1;
+    if (TABLE_IS_ROLLUP(pME->flags)) {
+      if (tEncodeSRSmaParam(pCoder, &pME->stbEntry.rsmaParam) < 0) return -1;
+    }
   } else if (pME->type == TSDB_CHILD_TABLE) {
     if (tEncodeI64(pCoder, pME->ctbEntry.ctime) < 0) return -1;
     if (tEncodeI32(pCoder, pME->ctbEntry.ttlDays) < 0) return -1;
-    if (tEncodeI32(pCoder, pME->ctbEntry.commentLen) < 0) return -1;
+    if (tEncodeI32v(pCoder, pME->ctbEntry.commentLen) < 0) return -1;
     if (pME->ctbEntry.commentLen > 0){
       if (tEncodeCStr(pCoder, pME->ctbEntry.comment) < 0) return -1;
     }
     if (tEncodeI64(pCoder, pME->ctbEntry.suid) < 0) return -1;
-    debugCheckTags((STag*)pME->ctbEntry.pTags); // TODO: remove after debug
     if (tEncodeTag(pCoder, (const STag *)pME->ctbEntry.pTags) < 0) return -1;
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     if (tEncodeI64(pCoder, pME->ntbEntry.ctime) < 0) return -1;
     if (tEncodeI32(pCoder, pME->ntbEntry.ttlDays) < 0) return -1;
-    if (tEncodeI32(pCoder, pME->ntbEntry.commentLen) < 0) return -1;
+    if (tEncodeI32v(pCoder, pME->ntbEntry.commentLen) < 0) return -1;
     if (pME->ntbEntry.commentLen > 0){
       if (tEncodeCStr(pCoder, pME->ntbEntry.comment) < 0) return -1;
     }
@@ -64,23 +67,26 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
   if (tDecodeCStr(pCoder, &pME->name) < 0) return -1;
 
   if (pME->type == TSDB_SUPER_TABLE) {
+    if (tDecodeI8(pCoder, &pME->flags) < 0) return -1;  // TODO: need refactor?
     if (tDecodeSSchemaWrapperEx(pCoder, &pME->stbEntry.schemaRow) < 0) return -1;
     if (tDecodeSSchemaWrapperEx(pCoder, &pME->stbEntry.schemaTag) < 0) return -1;
+    if (TABLE_IS_ROLLUP(pME->flags)) {
+      if (tDecodeSRSmaParam(pCoder, &pME->stbEntry.rsmaParam) < 0) return -1;
+    }
   } else if (pME->type == TSDB_CHILD_TABLE) {
     if (tDecodeI64(pCoder, &pME->ctbEntry.ctime) < 0) return -1;
     if (tDecodeI32(pCoder, &pME->ctbEntry.ttlDays) < 0) return -1;
-    if (tDecodeI32(pCoder, &pME->ctbEntry.commentLen) < 0) return -1;
+    if (tDecodeI32v(pCoder, &pME->ctbEntry.commentLen) < 0) return -1;
     if (pME->ctbEntry.commentLen > 0){
       if (tDecodeCStr(pCoder, &pME->ctbEntry.comment) < 0)
         return -1;
     }
     if (tDecodeI64(pCoder, &pME->ctbEntry.suid) < 0) return -1;
     if (tDecodeTag(pCoder, (STag **)&pME->ctbEntry.pTags) < 0) return -1;  // (TODO)
-    debugCheckTags((STag*)pME->ctbEntry.pTags); // TODO: remove after debug
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     if (tDecodeI64(pCoder, &pME->ntbEntry.ctime) < 0) return -1;
     if (tDecodeI32(pCoder, &pME->ntbEntry.ttlDays) < 0) return -1;
-    if (tDecodeI32(pCoder, &pME->ntbEntry.commentLen) < 0) return -1;
+    if (tDecodeI32v(pCoder, &pME->ntbEntry.commentLen) < 0) return -1;
     if (pME->ntbEntry.commentLen > 0){
       if (tDecodeCStr(pCoder, &pME->ntbEntry.comment) < 0) return -1;
     }

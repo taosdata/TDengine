@@ -17,8 +17,6 @@
 
 // smaFileUtil ================
 
-#define TD_FILE_HEAD_SIZE 512
-
 #define TD_FILE_STATE_OK  0
 #define TD_FILE_STATE_BAD 1
 
@@ -69,6 +67,11 @@ int64_t tdSeekTFile(STFile *pTFile, int64_t offset, int whence) {
   }
 
   return loffset;
+}
+
+int64_t tdGetTFileSize(STFile *pTFile, int64_t *size) {
+  ASSERT(TD_FILE_OPENED(pTFile));
+  return taosFStatFile(pTFile->pFile, size, NULL);
 }
 
 int64_t tdReadTFile(STFile *pTFile, void *buf, int64_t nbyte) {

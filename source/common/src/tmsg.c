@@ -4763,7 +4763,7 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
   if (tEncodeSSchemaWrapper(pCoder, &pReq->schemaRow) < 0) return -1;
   if (tEncodeSSchemaWrapper(pCoder, &pReq->schemaTag) < 0) return -1;
   if (pReq->rollup) {
-    if (tEncodeSRSmaParam(pCoder, &pReq->pRSmaParam) < 0) return -1;
+    if (tEncodeSRSmaParam(pCoder, &pReq->rsmaParam) < 0) return -1;
   }
 
   tEndEncode(pCoder);
@@ -4779,7 +4779,7 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
   if (tDecodeSSchemaWrapper(pCoder, &pReq->schemaRow) < 0) return -1;
   if (tDecodeSSchemaWrapper(pCoder, &pReq->schemaTag) < 0) return -1;
   if (pReq->rollup) {
-    if (tDecodeSRSmaParam(pCoder, &pReq->pRSmaParam) < 0) return -1;
+    if (tDecodeSRSmaParam(pCoder, &pReq->rsmaParam) < 0) return -1;
   }
 
   tEndDecode(pCoder);

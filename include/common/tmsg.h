@@ -1886,7 +1886,7 @@ typedef struct SVCreateStbReq {
   int8_t         rollup;
   SSchemaWrapper schemaRow;
   SSchemaWrapper schemaTag;
-  SRSmaParam     pRSmaParam;
+  SRSmaParam     rsmaParam;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);
