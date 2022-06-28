@@ -749,9 +749,17 @@ int32_t tdProcessRSmaRestoreImpl(SSma *pSma) {
   if (tdInitTFile(&tFile, pVnode->pTfs, qTaskInfoFName) < 0) {
     goto _err;
   }
+  
+  if(!taosCheckExistFile(TD_TFILE_FULL_NAME(&tFile))) {
+    metaReaderClear(&mr);
+    taosArrayDestroy(suidList);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (tdOpenTFile(&tFile, TD_FILE_READ) < 0) {
     goto _err;
   }
+  
   SRSmaQTaskInfoIter fIter = {0};
   if (tdRSmaQTaskInfoIterInit(&fIter, &tFile) < 0) {
     goto _err;
