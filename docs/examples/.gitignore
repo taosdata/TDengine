@@ -1,3 +1,5 @@
 .vscode
 *.lock
+.env
+*.~
 .idea
