@@ -13,13 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "filter.h"
+#include "executorimpl.h"
 #include "function.h"
 #include "functionMgt.h"
 #include "os.h"
 #include "querynodes.h"
 #include "systable.h"
-#include "tglobal.h"
 #include "tname.h"
 #include "ttime.h"
 
@@ -32,8 +31,6 @@
 #include "thash.h"
 #include "ttypes.h"
 #include "vnode.h"
-
-#include "executorInt.h"
 
 #define SET_REVERSE_SCAN_FLAG(_info) ((_info)->scanFlag = REVERSE_SCAN)
 #define SWITCH_ORDER(n)              (((n) = ((n) == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC))
@@ -2537,7 +2534,8 @@ static SSDataBlock* doScanLastrow(SOperatorInfo* pOperator) {
 
   // check if it is a group by tbname
   if (size == taosArrayGetSize(pInfo->pTableList)) {
-    tsdbRetrieveLastRow(pInfo->readHandle.vnode, pInfo->pTableList, LASTROW_RETRIEVE_TYPE_ALL, pInfo->pRes);
+    blockDataCleanup(pInfo->pRes);
+    tsdbRetrieveLastRow(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds);
     return (pInfo->pRes->info.rows == 0)? NULL:pInfo->pRes;
   } else {
     //todo fetch the result for each group
@@ -2550,9 +2548,10 @@ static SSDataBlock* doScanLastrow(SOperatorInfo* pOperator) {
 static void destroyLastrowScanOperator(void* param, int32_t numOfOutput) {
   SLastrowScanInfo* pInfo = (SLastrowScanInfo*) param;
   blockDataDestroy(pInfo->pRes);
+  tsdbLastrowReaderClose(pInfo->pLastrowReader);
 }
 
-SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
+SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandle* readHandle,
                                          SArray* pTableList, SExecTaskInfo* pTaskInfo) {
   SLastrowScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SLastrowScanInfo));
   SOperatorInfo*    pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
@@ -2562,7 +2561,34 @@ SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pTableScanNode, 
 
   pInfo->pTableList = pTableList;
   pInfo->readHandle = *readHandle;
-  pInfo->pRes = createResDataBlock(pTableScanNode->node.pOutputDataBlockDesc);
+  pInfo->pRes = createResDataBlock(pScanNode->node.pOutputDataBlockDesc);
+
+  int32_t numOfCols = 0;
+  pInfo->pColMatchInfo = extractColMatchInfo(pScanNode->pScanCols, pScanNode->node.pOutputDataBlockDesc, &numOfCols, COL_MATCH_FROM_COL_ID);
+  int32_t* pCols = taosMemoryMalloc(numOfCols * sizeof(int32_t));
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColMatchInfo* pColMatch = taosArrayGet(pInfo->pColMatchInfo, i);
+    pCols[i] = pColMatch->colId;
+  }
+
+  pInfo->pSlotIds = taosMemoryMalloc(numOfCols * sizeof(pInfo->pSlotIds[0]));
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColMatchInfo* pColMatch = taosArrayGet(pInfo->pColMatchInfo, i);
+    for(int32_t j = 0; j < pTaskInfo->schemaVer.sw->nCols; ++j) {
+      if (pColMatch->colId == pTaskInfo->schemaVer.sw->pSchema[j].colId && pColMatch->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        pInfo->pSlotIds[pColMatch->targetSlotId] = -1;
+        break;
+      }
+
+      if (pColMatch->colId == pTaskInfo->schemaVer.sw->pSchema[j].colId) {
+        pInfo->pSlotIds[pColMatch->targetSlotId] = j;
+        break;
+      }
+    }
+  }
+
+  tsdbLastRowReaderOpen(readHandle->vnode, LASTROW_RETRIEVE_TYPE_ALL, pTableList, pCols, numOfCols, &pInfo->pLastrowReader);
+  taosMemoryFree(pCols);
 
   pOperator->name         = "LastrowScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN;
@@ -2570,8 +2596,10 @@ SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pTableScanNode, 
   pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
   pOperator->pTaskInfo    = pTaskInfo;
+  pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
 
   initResultSizeInfo(pOperator, 1024);
+  blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
 
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, doScanLastrow, NULL, NULL, destroyLastrowScanOperator,

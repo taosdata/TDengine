@@ -1873,11 +1873,11 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "last_row",
     .type = FUNCTION_TYPE_LAST_ROW,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
-    .translateFunc = translateLastRow,
-    .getEnvFunc   = getMinmaxFuncEnv,
-    .initFunc     = minmaxFunctionSetup,
-    .processFunc  = maxFunction,
-    .finalizeFunc = functionFinalize
+    .translateFunc = translateFirstLast,
+    .getEnvFunc   = getFirstLastFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = lastrowFunction,
+    .finalizeFunc = firstLastFinalize
   },
   {
     .name = "first",

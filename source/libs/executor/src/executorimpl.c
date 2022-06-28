@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <executorimpl.h>
+#include <vnode.h>
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
@@ -2803,7 +2805,7 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
   int32_t type = pOperator->operatorType;
   if (type == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE || type == QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN ||
       type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN ||
-      type == QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN) {
+      type == QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN) {
     *order = TSDB_ORDER_ASC;
     *scanFlag = MAIN_SCAN;
     return TSDB_CODE_SUCCESS;
@@ -3886,15 +3888,15 @@ int32_t extractTableSchemaVersion(SReadHandle* pHandle, uint64_t uid, SExecTaskI
   pTaskInfo->schemaVer.tablename = strdup(mr.me.name);
 
   if (mr.me.type == TSDB_SUPER_TABLE) {
-    pTaskInfo->schemaVer.sversion = mr.me.stbEntry.schemaRow.version;
+    pTaskInfo->schemaVer.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
     pTaskInfo->schemaVer.tversion = mr.me.stbEntry.schemaTag.version;
   } else if (mr.me.type == TSDB_CHILD_TABLE) {
     tb_uid_t suid = mr.me.ctbEntry.suid;
     metaGetTableEntryByUid(&mr, suid);
-    pTaskInfo->schemaVer.sversion = mr.me.stbEntry.schemaRow.version;
+    pTaskInfo->schemaVer.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
     pTaskInfo->schemaVer.tversion = mr.me.stbEntry.schemaTag.version;
   } else {
-    pTaskInfo->schemaVer.sversion = mr.me.ntbEntry.schemaRow.version;
+    pTaskInfo->schemaVer.sw = tCloneSSchemaWrapper(&mr.me.ntbEntry.schemaRow);
   }
 
   metaReaderClear(&mr);
@@ -4177,9 +4179,11 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 //        return NULL;
 //      }
 
+      int32_t code = extractTableSchemaVersion(pHandle, pScanNode->uid, pTaskInfo);
+
       pTableListInfo->pTableList = taosArrayInit(4, sizeof(STableKeyInfo));
       if (pScanNode->tableType == TSDB_SUPER_TABLE) {
-        int32_t code = vnodeGetAllTableList(pHandle->meta, pScanNode->uid, pTableListInfo->pTableList);
+        code = vnodeGetAllTableList(pHandle->meta, pScanNode->uid, pTableListInfo->pTableList);
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = terrno;
           return NULL;

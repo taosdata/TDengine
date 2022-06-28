@@ -142,8 +142,8 @@ typedef struct SExecTaskInfo {
   struct {
     char          *tablename;
     char          *dbname;
-    int32_t        sversion;
     int32_t        tversion;
+    SSchemaWrapper*sw;
   } schemaVer;
 
   STableListInfo   tableqinfoList;       // this is a table list
@@ -296,6 +296,9 @@ typedef struct SLastrowScanInfo {
   SSDataBlock    *pRes;
   SArray         *pTableList;
   SReadHandle     readHandle;
+  void           *pLastrowReader;
+  SArray         *pColMatchInfo;
+  int32_t        *pSlotIds;
 } SLastrowScanInfo;
 
 typedef enum EStreamScanMode {

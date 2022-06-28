@@ -106,6 +106,8 @@ bool irateFuncSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResInfo);
 int32_t irateFunction(SqlFunctionCtx *pCtx);
 int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
+int32_t lastrowFunction(SqlFunctionCtx* pCtx);
+
 bool getFirstLastFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t firstFunction(SqlFunctionCtx *pCtx);
 int32_t firstFunctionMerge(SqlFunctionCtx *pCtx);
