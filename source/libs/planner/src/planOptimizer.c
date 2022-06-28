@@ -1092,7 +1092,7 @@ static SNode* partTagsCreateWrapperFunc(const char* pFuncName, SNode* pNode) {
   strcpy(pFunc->functionName, pFuncName);
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), "%s.%s", pCol->tableAlias, pCol->colName);
+    sprintf(pFunc->node.aliasName, "%s.%s", pCol->tableAlias, pCol->colName);
   } else {
     strcpy(pFunc->node.aliasName, ((SExprNode*)pNode)->aliasName);
   }
@@ -1199,7 +1199,8 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
   }
 
   SProjectLogicNode* pProjectNode = (SProjectLogicNode*)pNode;
-  if (NULL != pProjectNode->node.pLimit || NULL != pProjectNode->node.pSlimit) {
+  if (NULL != pProjectNode->node.pLimit || NULL != pProjectNode->node.pSlimit ||
+      NULL != pProjectNode->node.pConditions) {
     return false;
   }
 
@@ -1463,9 +1464,9 @@ static SNode* rewriteUniqueOptCreateFirstFunc(SFunctionNode* pSelectValue, SNode
 
   strcpy(pFunc->functionName, "first");
   if (NULL != pSelectValue) {
-    snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), "%s", pSelectValue->node.aliasName);
+    sprintf(pFunc->node.aliasName, "%s", pSelectValue->node.aliasName);
   } else {
-    snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), "%s.%p", pFunc->functionName, pFunc);
+    sprintf(pFunc->node.aliasName, "%s.%p", pFunc->functionName, pFunc);
   }
   int32_t code = nodesListMakeStrictAppend(&pFunc->pParameterList, nodesCloneNode(pCol));
   if (TSDB_CODE_SUCCESS == code) {
