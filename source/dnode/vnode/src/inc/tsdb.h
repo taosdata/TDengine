@@ -121,6 +121,7 @@ int32_t tGetBlockCol(uint8_t *p, void *ph);
 #define tBlockInit() ((SBlock){0})
 void    tBlockReset(SBlock *pBlock);
 void    tBlockClear(SBlock *pBlock);
+int32_t tBlockCopy(SBlock *pBlockSrc, SBlock *pBlockDest);
 int32_t tPutBlock(uint8_t *p, void *ph);
 int32_t tGetBlock(uint8_t *p, void *ph);
 int32_t tBlockCmprFn(const void *p1, const void *p2);
@@ -164,6 +165,7 @@ void    tsdbFree(uint8_t *pBuf);
 #define tMapDataInit() ((SMapData){0})
 void    tMapDataReset(SMapData *pMapData);
 void    tMapDataClear(SMapData *pMapData);
+int32_t tMapDataCopy(SMapData *pMapDataSrc, SMapData *pMapDataDest);
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *));
 int32_t tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *));
 int32_t tMapDataSearch(SMapData *pMapData, void *pSearchItem, int32_t (*tGetItemFn)(uint8_t *, void *),

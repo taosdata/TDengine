@@ -342,33 +342,6 @@ _err:
   return code;
 }
 
-// static int32_t tsdbGetOverlapRowNumber(STbDataIter *pIter, SBlock *pBlock) {
-//   int32_t     nRow = 0;
-//   TSDBROW    *pRow;
-//   TSDBKEY     key;
-//   int32_t     c = 0;
-//   STbDataIter iter = *pIter;
-
-//   iter.pRow = NULL;
-//   while (true) {
-//     pRow = tsdbTbDataIterGet(pIter);
-
-//     if (pRow == NULL) break;
-//     key = tsdbRowKey(pRow);
-
-//     c = tBlockCmprFn(&(SBlock){.info.maxKey = key, .info.minKey = key}, pBlock);
-//     if (c == 0) {
-//       nRow++;
-//     } else if (c > 0) {
-//       break;
-//     } else {
-//       ASSERT(0);
-//     }
-//   }
-
-//   return nRow;
-// }
-
 static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   int32_t    code = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
@@ -981,6 +954,82 @@ _err:
   return code;
 }
 
+static int32_t tsdbGetOvlpNRow(STbDataIter *pIter, SBlock *pBlock) {
+  int32_t     nRow = 0;
+  TSDBROW    *pRow;
+  TSDBKEY     key;
+  int32_t     c = 0;
+  STbDataIter iter = *pIter;
+
+  iter.pRow = NULL;
+  while (true) {
+    pRow = tsdbTbDataIterGet(pIter);
+
+    if (pRow == NULL) break;
+    key = TSDBROW_KEY(pRow);
+
+    c = tBlockCmprFn(&(SBlock){.maxKey = key, .minKey = key}, pBlock);
+    if (c == 0) {
+      nRow++;
+    } else if (c > 0) {
+      break;
+    } else {
+      ASSERT(0);
+    }
+  }
+
+  return nRow;
+}
+
+static int32_t tsdbMergeAsSubBlock(SCommitter *pCommitter, STbDataIter *pIter, SBlock *pBlock) {
+  int32_t     code = 0;
+  SBlockData *pBlockData = &pCommitter->nBlockData;
+  SBlockIdx  *pBlockIdx = &(SBlockIdx){.suid = pIter->pTbData->suid, .uid = pIter->pTbData->uid};
+  TSDBROW    *pRow;
+
+  tBlockDataReset(pBlockData);
+  pRow = tsdbTbDataIterGet(pIter);
+  code = tsdbCommitterUpdateSchema(pCommitter, pBlockIdx->suid, pBlockIdx->uid, TSDBROW_SVERSION(pRow));
+  if (code) goto _err;
+  while (true) {
+    if (pRow) break;
+    code = tBlockDataAppendRow(pBlockData, pRow, pCommitter->pTSchema);
+    if (code) goto _err;
+
+    tsdbTbDataIterNext(pIter);
+    pRow = tsdbTbDataIterGet(pIter);
+    if (pRow) {
+      int32_t c = tBlockCmprFn(&(SBlock){}, pBlock);
+
+      if (c == 0) {
+        code = tsdbCommitterUpdateSchema(pCommitter, pIter->pTbData->suid, pIter->pTbData->uid, TSDBROW_SVERSION(pRow));
+        if (code) goto _err;
+      } else if (c > 0) {
+        pRow = NULL;
+      } else {
+        ASSERT(0);
+      }
+    }
+  }
+
+  // write as a subblock
+  code = tBlockCopy(pBlock, &pCommitter->nBlock);
+  if (code) goto _err;
+
+  code = tsdbWriteBlockData(pCommitter->pWriter, pBlockData, NULL, NULL, pBlockIdx, &pCommitter->nBlock,
+                            pCommitter->cmprAlg);
+  if (code) goto _err;
+
+  code = tMapDataPutItem(&pCommitter->nBlockMap, &pCommitter->nBlock, tPutBlock);
+  if (code) goto _err;
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb merge as subblock failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
 static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData, SBlockIdx *pBlockIdx) {
   int32_t      code = 0;
   STbDataIter *pIter = &(STbDataIter){0};
@@ -1070,19 +1119,26 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData, SBl
           if (pRow && TSDBROW_TS(pRow) > pCommitter->maxKey) pRow = NULL;
         } else {
           // merge memory and disk
-          int64_t nOvlp = 0;  // (todo)
+          int32_t nOvlp = tsdbGetOvlpNRow(pIter, pBlock);
+          ASSERT(nOvlp);
           if (pBlock->nRow + nOvlp <= pCommitter->maxRow && pBlock->nSubBlock < TSDB_MAX_SUBBLOCKS) {
-            // add as a subblock
+            code = tsdbMergeAsSubBlock(pCommitter, pIter, pBlock);
+            if (code) goto _err;
           } else {
-            if (iBlock == nBlock - 1) {
-              code = tsdbMergeTableData(pCommitter, pIter, pBlock,
-                                        (TSDBKEY){.ts = pCommitter->maxKey + 1, .version = VERSION_MIN}, 0);
+            TSDBKEY toKey = {.ts = pCommitter->maxKey + 1, .version = VERSION_MIN};
+            int8_t  toDataOnly = 0;
 
-              if (code) goto _err;
-            } else {
-              // code = tsdbMergeTableData(pCommitter, pIter, pBlock, pBlock[1].minKey, 1);
-              if (code) goto _err;
+            if (iBlock < nBlock - 1) {
+              toDataOnly = 1;
+
+              SBlock nextBlock = {0};
+              tBlockReset(&nextBlock);
+              tMapDataGetItemByIdx(&pCommitter->oBlockMap, iBlock + 1, &nextBlock, tGetBlock);
+              toKey = nextBlock.minKey;
             }
+
+            code = tsdbMergeTableData(pCommitter, pIter, pBlock, toKey, toDataOnly);
+            if (code) goto _err;
           }
 
           pRow = tsdbTbDataIterGet(pIter);
