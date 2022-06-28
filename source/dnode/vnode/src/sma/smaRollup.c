@@ -15,7 +15,7 @@
 
 #include "sma.h"
 
-#define RSMA_QTASKINFO_PERSIST_MS 5000  // 7200000
+#define RSMA_QTASKINFO_PERSIST_MS 7200000
 #define RSMA_QTASKINFO_BUFSIZE    32768
 #define RSMA_QTASKINFO_HEAD_LEN   (sizeof(int32_t) + sizeof(int8_t) + sizeof(int64_t))  // len + type + suid
 typedef enum { TD_QTASK_TMP_FILE = 0, TD_QTASK_CUR_FILE } TD_QTASK_FILE_T;
