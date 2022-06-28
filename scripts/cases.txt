@@ -51,6 +51,7 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeri
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_stddev.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_sin_cos_tan.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_sqrt.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/multi_process_run.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_apercentile.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_pow_log.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_sin_cos_tan.py --keep --containers
@@ -102,7 +103,6 @@ taostest --use=common_insert.yaml --case=taosc_insert/error_insert_check.py --ke
 taostest --use=common_insert.yaml --case=taosc_insert/float_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/illegal_type_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/int_boundary_check.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/multi_process_run.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/multi_table_insert.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/nchar_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/smallint_boundary_check.py --keep --containers
