@@ -236,7 +236,7 @@ void        blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* 
                                 int8_t needCompress);
 const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRows, const char* pData);
 
-void blockDebugShowData(const SArray* dataBlocks, const char* flag);
+void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag);
 // for debug
 char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf);
 

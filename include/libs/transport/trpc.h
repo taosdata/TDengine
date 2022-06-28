@@ -69,7 +69,7 @@ typedef struct SRpcMsg {
 } SRpcMsg;
 
 typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *rf);
-typedef bool (*RpcRfp)(int32_t code);
+typedef bool (*RpcRfp)(int32_t code, tmsg_t msgType);
 
 typedef struct SRpcInit {
   char     localFqdn[TSDB_FQDN_LEN];
