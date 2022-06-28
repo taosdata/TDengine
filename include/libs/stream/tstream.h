@@ -327,9 +327,8 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
     taosWriteQitem(pTask->inputQueue->queue, pItem);
   }
 
-  if (pItem->type != STREAM_INPUT__TRIGGER && pItem->type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0 &&
-      pTask->triggerStatus == TASK_TRIGGER_STATUS__IN_ACTIVE) {
-    atomic_store_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__ACTIVE);
+  if (pItem->type != STREAM_INPUT__TRIGGER && pItem->type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
+    atomic_val_compare_exchange_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__IN_ACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
   }
 
   // TODO: back pressure

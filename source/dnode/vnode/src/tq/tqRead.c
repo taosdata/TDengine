@@ -231,7 +231,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle) {
   tInitSubmitBlkIter(&pHandle->msgIter, pHandle->pBlock, &pHandle->blkIter);
 
   pBlock->info.groupId = 0;
-  pBlock->info.uid = pHandle->msgIter.uid;  // set the uid of table for submit block
+  pBlock->info.uid = pHandle->msgIter.uid;
   pBlock->info.rows = pHandle->msgIter.numOfRows;
 
   while ((row = tGetSubmitBlkNext(&pHandle->blkIter)) != NULL) {
@@ -251,8 +251,8 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle) {
   }
   return 0;
 
-FAIL:  // todo refactor here
-       //  if (*ppCols) taosArrayDestroy(*ppCols);
+FAIL:
+  tDeleteSSDataBlock(pBlock);
   return -1;
 }
 

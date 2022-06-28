@@ -137,8 +137,8 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create topic topic_ctb_column with meta as database abc1");
-  /*pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from st1");*/
+  /*pRes = taos_query(pConn, "create topic topic_ctb_column with meta as database abc1");*/
+  pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3,t1 from st1 where t1 = 2000");
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topic_ctb_column, reason:%s\n", taos_errstr(pRes));
     return -1;
