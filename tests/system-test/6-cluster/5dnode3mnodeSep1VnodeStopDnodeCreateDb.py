@@ -65,6 +65,31 @@ class TDTestCase:
         self._async_raise(thread.ident, SystemExit)
 
 
+    def insertData(self,countstart,countstop):
+        # fisrt add data : db\stable\childtable\general table
+        
+        for couti in range(countstart,countstop):
+            tdLog.debug("drop database if exists db%d" %couti)
+            tdSql.execute("drop database if exists db%d" %couti)
+            print("create database if not exists db%d replica 1 duration 300" %couti)
+            tdSql.execute("create database if not exists db%d replica 1 duration 300" %couti)
+            tdSql.execute("use db%d" %couti)
+            tdSql.execute(
+            '''create table stb1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            tags (t1 int)
+            '''
+            )
+            tdSql.execute(
+                '''
+                create table t1
+                (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+                '''
+            )
+            for i in range(4):
+                tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+
+
     def fiveDnodeThreeMnode(self,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
         tdLog.printNoPrefix("======== test case 1: ")
         paraDict = {'dbName':     'db',
@@ -111,6 +136,8 @@ class TDTestCase:
         clusterComCheck.checkDnodes(dnodeNumbers)
 
         # create database and stable
+
+
         tdDnodes=cluster.dnodes
         stopcount =0
         threads=[]
@@ -122,36 +149,36 @@ class TDTestCase:
             tr.start()
 
         tdLog.info("Take turns stopping Mnodes ") 
-        while stopcount < restartNumbers:
-            tdLog.info(" restart loop: %d"%stopcount )
-            if stopRole == "mnode":
-                for i in range(mnodeNums):
-                    tdDnodes[i].stoptaosd()
-                    # sleep(10)
-                    tdDnodes[i].starttaosd()
-                    # sleep(10) 
-            elif stopRole == "vnode":
-                for i in range(vnodeNumbers):
-                    tdDnodes[i+mnodeNums].stoptaosd()
-                    # sleep(10)
-                    tdDnodes[i+mnodeNums].starttaosd()
-                    # sleep(10)
-            elif stopRole == "dnode":
-                for i in range(dnodeNumbers):
-                    tdDnodes[i].stoptaosd()
-                    # sleep(10)
-                    tdDnodes[i].starttaosd()
-                    # sleep(10) 
+        # while stopcount < restartNumbers:
+        #     tdLog.info(" restart loop: %d"%stopcount )
+        #     if stopRole == "mnode":
+        #         for i in range(mnodeNums):
+        #             tdDnodes[i].stoptaosd()
+        #             # sleep(10)
+        #             tdDnodes[i].starttaosd()
+        #             # sleep(10) 
+        #     elif stopRole == "vnode":
+        #         for i in range(vnodeNumbers):
+        #             tdDnodes[i+mnodeNums].stoptaosd()
+        #             # sleep(10)
+        #             tdDnodes[i+mnodeNums].starttaosd()
+        #             # sleep(10)
+        #     elif stopRole == "dnode":
+        #         for i in range(dnodeNumbers):
+        #             tdDnodes[i].stoptaosd()
+        #             # sleep(10)
+        #             tdDnodes[i].starttaosd()
+        #             # sleep(10) 
 
-            # dnodeNumbers don't include database of schema
-            if clusterComCheck.checkDnodes(dnodeNumbers):
-                tdLog.info("check dnodes status is ready")
-            else:
-                tdLog.info("check dnodes status is not ready")
-                self.stopThread(threads)
-                tdLog.exit("one or more of dnodes failed to start ")
-                # self.check3mnode()
-            stopcount+=1
+        #     # dnodeNumbers don't include database of schema
+        #     if clusterComCheck.checkDnodes(dnodeNumbers):
+        #         tdLog.info("check dnodes status is ready")
+        #     else:
+        #         tdLog.info("check dnodes status is not ready")
+        #         self.stopThread(threads)
+        #         tdLog.exit("one or more of dnodes failed to start ")
+        #         # self.check3mnode()
+        #     stopcount+=1
             
         for tr in threads:
             tr.join()
@@ -163,7 +190,7 @@ class TDTestCase:
 
     def run(self): 
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=2,stopRole='mnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=2,stopRole='dnode')
 
     def stop(self):
         tdSql.close()
