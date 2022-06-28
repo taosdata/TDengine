@@ -2413,7 +2413,7 @@ int32_t getFirstLastInfoSize(int32_t resBytes) { return sizeof(SFirstLastRes) + 
 
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
-  pEnv->calcMemSize = sizeof(SFirstLastRes) + pNode->node.resType.bytes + sizeof(int64_t);
+  pEnv->calcMemSize = sizeof(SFirstLastRes) + pNode->node.resType.bytes + sizeof(int64_t) + sizeof(STuplePos);
   return true;
 }
 
@@ -2491,9 +2491,15 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
         }
         memcpy(pInfo->buf, data, bytes);
         *(TSKEY*)(pInfo->buf + bytes) = cts;
-        pInfo->hasResult = true;
-        //        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
-
+        //handle selectivity
+        STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
+        if (!pInfo->hasResult) {
+          saveTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+          pInfo->hasResult = true;
+        } else {
+          copyTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+        }
+        //DO_UPDATE_TAG_COLUMNS(pCtx, ts);
         pResInfo->numOfRes = 1;
         break;
       }
@@ -2525,8 +2531,15 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
         }
         memcpy(pInfo->buf, data, bytes);
         *(TSKEY*)(pInfo->buf + bytes) = cts;
-        pInfo->hasResult = true;
-        //        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
+        //handle selectivity
+        STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
+        if (!pInfo->hasResult) {
+          saveTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+          pInfo->hasResult = true;
+        } else {
+          copyTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+        }
+        //DO_UPDATE_TAG_COLUMNS(pCtx, ts);
         pResInfo->numOfRes = 1;
         break;
       }
@@ -2669,6 +2682,8 @@ int32_t firstLastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   SFirstLastRes* pRes = GET_ROWCELL_INTERBUF(pResInfo);
   colDataAppend(pCol, pBlock->info.rows, pRes->buf, pResInfo->isNullRes);
+  STuplePos* pTuplePos = (STuplePos*)(pRes->buf + pRes->bytes + sizeof(TSKEY));
+  setSelectivityValue(pCtx, pBlock, pTuplePos, pBlock->info.rows);
 
   return pResInfo->numOfRes;
 }
