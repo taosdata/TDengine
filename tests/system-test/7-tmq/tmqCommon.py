@@ -159,7 +159,7 @@ class TMQCom:
         tdLog.debug("complete to create %s.%s" %(dbName, stbName))
         return
 
-    def create_ctable(self,tsql=None, dbName='dbx',stbName='stb',ctbPrefix='ctb',ctbNum=1):
+    def create_ctable(self,tsql=None, dbName='dbx',stbName='stb',ctbPrefix='ctb',ctbNum=1,ctbStartIdx=0):
         tsql.execute("use %s" %dbName)
         pre_create = "create table"
         sql = pre_create
@@ -168,8 +168,10 @@ class TMQCom:
             tagValue = 'beijing'
             if (i % 2 == 0):
                 tagValue = 'shanghai'
+            elif (i % 3 == 0):
+                tagValue = 'changsha'
             
-            sql += " %s%d using %s tags(%d, '%s')"%(ctbPrefix,i,stbName,i+1, tagValue)
+            sql += " %s%d using %s tags(%d, '%s')"%(ctbPrefix,i+ctbStartIdx,stbName,i+ctbStartIdx+1, tagValue)
             if (i > 0) and (i%100 == 0):
                 tsql.execute(sql)
                 sql = pre_create
@@ -235,7 +237,7 @@ class TMQCom:
         tdLog.debug("insert data ............ [OK]")
         return
 
-    def insert_data_2(self,tsql,dbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs):
+    def insert_data_2(self,tsql,dbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs,ctbStartIdx=0):
         tdLog.debug("start to insert data ............")
         tsql.execute("use %s" %dbName)
         pre_insert = "insert into "
@@ -245,7 +247,7 @@ class TMQCom:
         startTs = int(round(t * 1000))
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
         for i in range(ctbNum):
-            sql += " %s%d values "%(ctbPrefix,i)
+            sql += " %s%d values "%(ctbPrefix,i+ctbStartIdx)
             for j in range(rowsPerTbl):
                 if (j % 2 == 0):
                     sql += "(%d, %d, %d, 'tmqrow_%d', now) "%(startTs + j, j, j, j)
@@ -254,7 +256,7 @@ class TMQCom:
                 if (j > 0) and ((j%batchNum == 0) or (j == rowsPerTbl - 1)):
                     tsql.execute(sql)
                     if j < rowsPerTbl - 1:
-                        sql = "insert into %s%d values " %(ctbPrefix,i)
+                        sql = "insert into %s%d values " %(ctbPrefix,i+ctbStartIdx)
                     else:
                         sql = "insert into "
         #end sql
@@ -354,7 +356,10 @@ class TMQCom:
     def threadFunctionForInsert(self, **paraDict):
         # create new connector for new tdSql instance in my thread
         newTdSql = tdCom.newTdSql()
-        self.insert_data_2(newTdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])
+        if 'ctbStartIdx' in paraDict.keys():
+            self.insert_data_2(newTdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"],paraDict["ctbStartIdx"])
+        else:
+            self.insert_data_2(newTdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])
         return
 
     def asyncInsertData(self, paraDict):

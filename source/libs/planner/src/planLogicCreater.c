@@ -507,6 +507,8 @@ static int32_t createIndefRowsFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pIdfRowsFunc->isTailFunc = pSelect->hasTailFunc;
+
   // indefinite rows functions and _select_values functions
   int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, fmIsVectorFunc, &pIdfRowsFunc->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
@@ -732,6 +734,8 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   if (NULL == pSort) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  pSort->groupSort = pSelect->groupSort;
 
   int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_ORDER_BY, NULL, COLLECT_COL_TYPE_ALL, &pSort->node.pTargets);
   if (TSDB_CODE_SUCCESS == code && NULL == pSort->node.pTargets) {
