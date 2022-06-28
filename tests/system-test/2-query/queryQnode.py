@@ -81,7 +81,7 @@ class TDTestCase:
         user = "root"
         password = "taosdata"
         port =6030 
-        con=taos.connect(host=host, user=user, password=password, config=cfg ,port=port,config="/home/chr/TDengine/sim/psim/cfg/")
+        con=taos.connect(host=host, user=user, password=password, config=cfg ,port=port)
         cur=con.cursor()
         print(cur)
         return cur
@@ -276,7 +276,6 @@ class TDTestCase:
             tdSql.checkData(0,0,rowsPerSTable)
         return 
      
-     
     # test case1 base 
     def test_case1(self):
         #stableCount=threadNumbersCtb
@@ -292,68 +291,6 @@ class TDTestCase:
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         
         tdLog.debug("-----create database and muti-thread create tables test------- ")
-        #host,dbname,stbname,vgroups,threadNumbers,tcountStart,tcountStop
-        #host, dbname, stbname, threadNumbers, chilCount, ts_start, childrowcount
-        self.mutiThread_create_tables(
-            host=parameterDict['host'],
-            dbname=parameterDict['dbname'],
-            stbname=parameterDict['stbname'], 
-            vgroups=parameterDict['vgroups'], 
-            threadNumbers=parameterDict['threadNumbersCtb'], 
-            childcount=parameterDict['tablesPerStb'])
-
-        self.mutiThread_insert_data(
-            host=parameterDict['host'],
-            dbname=parameterDict['dbname'],
-            stbname=parameterDict['stbname'], 
-            threadNumbers=parameterDict['threadNumbersIda'],
-            chilCount=parameterDict['tablesPerStb'],
-            ts_start=parameterDict['startTs'],
-            childrowcount=parameterDict['rowsPerTable'])
-
-        tableCount=parameterDict['threadNumbersCtb']*parameterDict['tablesPerStb']
-        rowsPerStable=parameterDict['rowsPerTable']*parameterDict['tablesPerStb']
-
-        self.checkData(dbname=parameterDict['dbname'],stbname=parameterDict['stbname'], stableCount=parameterDict['threadNumbersCtb'],CtableCount=tableCount,rowsPerSTable=rowsPerStable)
-    
-    def test_case3(self):
-        #stableCount=threadNumbersCtb
-        parameterDict = {'vgroups':        1,    \
-                         'threadNumbersCtb': 8,  \
-                         'stableCount':   5,      \
-                         'tablesPerStb':    10,  \
-                         'rowsPerTable':    100,  \
-                         'dbname':    'db1',    \
-                         'stbname':    'stb1',   \
-                         'host':  'localhost',    \
-                         'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
-                         
-        self.taosBenchCreate(
-            parameterDict['host'],
-            "no",
-            parameterDict['dbname'], 
-            parameterDict['stbname'], 
-            parameterDict['vgroups'],  
-            parameterDict['threadNumbersCtb'], 
-            parameterDict['tablesPerStb'])
-        tableCount=parameterDict['threadNumbersCtb']*parameterDict['tablesPerStb']
-        rowsPerStable=parameterDict['rowsPerTable']*parameterDict['tablesPerStb']
-
-        self.checkData(
-            dbname=parameterDict['dbname'],
-            stbname=parameterDict['stbname'], 
-            stableCount=parameterDict['threadNumbersCtb'],
-            CtableCount=tableCount,
-            rowsPerSTable=rowsPerStable)
-
-        # self.taosBenchCreate("test209","no","db2", "stb2", 1, 8, 1*10000)
-
-        # self.taosBenchCreate("chenhaoran02","no","db1", "stb1", 1, 8, 1*10000)
-
-        # self.taosBenchCreate("db1", "stb1", 4, 5, 100*10000)
-        # self.taosBenchCreate("db1", "stb1", 1, 5, 100*10000)
-
-        return 
 
     def test_case4(self):
         self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 1, 2, 1*10)
@@ -392,14 +329,9 @@ class TDTestCase:
     # run case   
     def run(self):
 
-        # create database and tables。
-        self.test_case1()
-        tdLog.debug(" LIMIT test_case1 ............ [OK]")
-
-        # taosBenchmark：create database/table and insert data
-        self.test_case3()
+        # test qnode
+        self.test_case4()
         tdLog.debug(" LIMIT test_case3 ............ [OK]")
-
 
 
         return 
