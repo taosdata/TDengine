@@ -100,7 +100,6 @@ taostest --use=common_insert.yaml --case=taosc_insert/double_boundary_check.py -
 taostest --use=common_insert.yaml --case=taosc_insert/error_insert_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/float_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/illegal_type_check.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/multi_process_run.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/multi_table_insert.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/specified_column_insert.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/stable_param_comment.py --keep --containers
