@@ -23,6 +23,7 @@ settings:
         logDir: /var/log/taos
         debugFlag: 135
         asyncLog: 0
+        smlChildTableName: "id"
 
   - name: taosAdapter
     fqdn: [ceph01]
