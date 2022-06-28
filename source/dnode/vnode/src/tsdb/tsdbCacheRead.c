@@ -47,9 +47,9 @@ int32_t tsdbRetrieveLastRow(void* pVnode, const SArray* pTableIdList, int32_t ty
     int64_t lastKey = INT64_MIN;
     bool    internalResult = false;
     for (int32_t i = 0; i < numOfTables; ++i) {
-      tb_uid_t* uid = taosArrayGet(pTableIdList, i);
+      STableKeyInfo* pKeyInfo = taosArrayGet(pTableIdList, i);
 
-      int32_t code = tsdbCacheGetLastrow(pv->pTsdb->lruCache, *uid, pv->pTsdb, &pRow);
+      int32_t code = tsdbCacheGetLastrow(pv->pTsdb->lruCache, pKeyInfo->uid, pv->pTsdb, &pRow);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
