@@ -5097,9 +5097,8 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
     int16_t order = (pQueryAttr->order.order == pRuntimeEnv->pTsBuf->tsOrder) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
     tsBufResetPos(pRuntimeEnv->pTsBuf);
     tsBufSetTraverseOrder(pRuntimeEnv->pTsBuf, order);
-    if (!tsBufNextPos(pTsBuf)) {
-      return TSDB_CODE_FAILED;
-    }
+    bool ret = tsBufNextPos(pTsBuf);
+    UNUSED(ret);
   }
 
   int32_t ps = DEFAULT_PAGE_SIZE;
@@ -5770,7 +5769,7 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
     goto _clean;
   }
 
-  pInfo->seed = rand();
+  pInfo->seed = taosSafeRand();
   setDefaultOutputBuf(pRuntimeEnv, &pInfo->binfo, pInfo->seed, MERGE_STAGE);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
@@ -5944,7 +5943,7 @@ SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
 
       pDataBlock->pDataBlock = taosArrayInit(numOfOutput, sizeof(SColumnInfoData));
       if (pDataBlock->pDataBlock == NULL) {
-        free(pDataBlock);
+        tfree(pDataBlock);
         goto _clean;
       }
 
@@ -7388,7 +7387,7 @@ SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
     goto _clean;
   }
 
-  pInfo->seed = rand();
+  pInfo->seed = taosSafeRand();
   setDefaultOutputBuf(pRuntimeEnv, &pInfo->binfo, pInfo->seed, MASTER_SCAN);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
@@ -7593,7 +7592,7 @@ SOperatorInfo* createProjectOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
     return NULL;
   }
 
-  pInfo->seed = (uint32_t) random();
+  pInfo->seed = taosSafeRand();
   pInfo->bufCapacity = pRuntimeEnv->resultInfo.capacity;
 
   SOptrBasicInfo* pBInfo = &pInfo->binfo;
@@ -7776,7 +7775,7 @@ SOperatorInfo* createTimeEveryOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
 
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
-  pInfo->seed = (uint32_t) random();
+  pInfo->seed = taosSafeRand();
   pInfo->bufCapacity = pRuntimeEnv->resultInfo.capacity;
   pInfo->groupDone = true;
   pInfo->lastGroupIdx = -1;
