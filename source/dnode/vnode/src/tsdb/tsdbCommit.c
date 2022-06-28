@@ -45,13 +45,10 @@ typedef struct {
   STSchema     *pTSchema;
   /* commit del */
   SDelFReader *pDelFReader;
-  SMapData     oDelIdxMap;   // SMapData<SDelIdx>, old
-  SMapData     oDelDataMap;  // SMapData<SDelData>, old
   SDelFWriter *pDelFWriter;
-  SMapData     nDelIdxMap;   // SMapData<SDelIdx>, new
-  SMapData     nDelDataMap;  // SMapData<SDelData>, new
-  SArray      *aDelIdx;
-  SArray      *aDelData;
+  SArray      *aDelIdx;   // SArray<SDelIdx>
+  SArray      *aDelIdxN;  // SArray<SDelIdx>
+  SArray      *aDelData;  // SArray<SDelData>
 } SCommitter;
 
 static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter);
@@ -121,23 +118,37 @@ static int32_t tsdbCommitDelStart(SCommitter *pCommitter) {
   int32_t    code = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
   SMemTable *pMemTable = pTsdb->imem;
-  SDelFile  *pDelFileR = NULL;  // TODO
-  SDelFile  *pDelFileW = NULL;  // TODO
 
-  tMapDataReset(&pCommitter->oDelIdxMap);
-  tMapDataReset(&pCommitter->nDelIdxMap);
+  pCommitter->aDelIdx = taosArrayInit(0, sizeof(SDelIdx));
+  if (pCommitter->aDelIdx == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
 
-  // load old
+  pCommitter->aDelData = taosArrayInit(0, sizeof(SDelData));
+  if (pCommitter->aDelData == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  pCommitter->aDelIdxN = taosArrayInit(0, sizeof(SDelIdx));
+  if (pCommitter->aDelIdxN == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  SDelFile *pDelFileR = pTsdb->fs->nState->pDelFile;
   if (pDelFileR) {
     code = tsdbDelFReaderOpen(&pCommitter->pDelFReader, pDelFileR, pTsdb, NULL);
     if (code) goto _err;
 
-    code = tsdbReadDelIdx(pCommitter->pDelFReader, &pCommitter->oDelIdxMap, NULL);
+    code = tsdbReadDelIdx(pCommitter->pDelFReader, pCommitter->aDelIdx, NULL);
     if (code) goto _err;
   }
 
   // prepare new
-  code = tsdbDelFWriterOpen(&pCommitter->pDelFWriter, pDelFileW, pTsdb);
+  SDelFile wDelFile = {.commitID = pCommitter->commitID, .size = 0, .offset = 0};
+  code = tsdbDelFWriterOpen(&pCommitter->pDelFWriter, &wDelFile, pTsdb);
   if (code) goto _err;
 
 _exit:
@@ -151,60 +162,51 @@ _err:
 
 static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDelIdx *pDelIdx) {
   int32_t   code = 0;
-  SDelData *pDelData = &(SDelData){};
+  SDelData *pDelData;
   tb_uid_t  suid;
   tb_uid_t  uid;
-  SDelIdx   delIdx;  // TODO
 
-  // check no del data, just return
-  if (pTbData && pTbData->pHead == NULL) {
-    pTbData = NULL;
-  }
-  if (pTbData == NULL && pDelIdx == NULL) goto _exit;
+  taosArrayClear(pCommitter->aDelData);
 
-  // prepare
   if (pTbData) {
-    delIdx.suid = pTbData->suid;
-    delIdx.uid = pTbData->uid;
-  } else {
-    delIdx.suid = pDelIdx->suid;
-    delIdx.uid = pDelIdx->uid;
-  }
+    suid = pTbData->suid;
+    uid = pTbData->uid;
 
-  // start
-  tMapDataReset(&pCommitter->oDelDataMap);
-  tMapDataReset(&pCommitter->nDelDataMap);
+    if (pTbData->pHead == NULL) {
+      pTbData = NULL;
+    }
+  }
 
   if (pDelIdx) {
-    code = tsdbReadDelData(pCommitter->pDelFReader, pDelIdx, &pCommitter->oDelDataMap, NULL);
+    suid = pDelIdx->suid;
+    uid = pDelIdx->uid;
+
+    code = tsdbReadDelData(pCommitter->pDelFReader, pDelIdx, pCommitter->aDelData, NULL);
     if (code) goto _err;
   }
 
-  // disk
-  for (int32_t iDelData = 0; iDelData < pCommitter->oDelDataMap.nItem; iDelData++) {
-    code = tMapDataGetItemByIdx(&pCommitter->oDelDataMap, iDelData, pDelData, tGetDelData);
-    if (code) goto _err;
+  if (pTbData == NULL && pDelIdx == NULL) goto _exit;
 
-    code = tMapDataPutItem(&pCommitter->nDelDataMap, pDelData, tPutDelData);
-    if (code) goto _err;
-  }
+  SDelIdx delIdx = {.suid = suid, .uid = uid};
 
   // memory
   pDelData = pTbData ? pTbData->pHead : NULL;
   for (; pDelData; pDelData = pDelData->pNext) {
-    code = tMapDataPutItem(&pCommitter->nDelDataMap, pDelData, tPutDelData);
-    if (code) goto _err;
+    if (taosArrayPush(pCommitter->aDelData, pDelData) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
   }
 
-  ASSERT(pCommitter->nDelDataMap.nItem > 0);
-
   // write
-  code = tsdbWriteDelData(pCommitter->pDelFWriter, &pCommitter->nDelDataMap, NULL, &delIdx);
+  code = tsdbWriteDelData(pCommitter->pDelFWriter, pCommitter->aDelData, NULL, &delIdx);
   if (code) goto _err;
 
   // put delIdx
-  code = tMapDataPutItem(&pCommitter->nDelIdxMap, &delIdx, tPutDelIdx);
-  if (code) goto _err;
+  if (taosArrayPush(pCommitter->aDelIdx, &delIdx) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
 
 _exit:
   return code;
@@ -219,30 +221,23 @@ static int32_t tsdbCommitDelImpl(SCommitter *pCommitter) {
   STsdb     *pTsdb = pCommitter->pTsdb;
   SMemTable *pMemTable = pTsdb->imem;
   int32_t    iDelIdx = 0;
-  int32_t    nDelIdx = pCommitter->oDelIdxMap.nItem;
+  int32_t    nDelIdx = taosArrayGetSize(pCommitter->aDelIdx);
   int32_t    iTbData = 0;
   int32_t    nTbData = taosArrayGetSize(pMemTable->aTbData);
   STbData   *pTbData;
   SDelIdx   *pDelIdx;
-  SDelIdx    delIdx;
-  int32_t    c;
 
   ASSERT(nTbData > 0);
 
   pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
-  if (iDelIdx < nDelIdx) {
-    code = tMapDataGetItemByIdx(&pCommitter->oDelIdxMap, iDelIdx, &delIdx, tGetDelIdx);
-    if (code) goto _err;
-    pDelIdx = &delIdx;
-  } else {
-    pDelIdx = NULL;
-  }
+  pDelIdx = (iDelIdx < nDelIdx) ? (SDelIdx *)taosArrayGet(pCommitter->aDelIdx, iDelIdx) : NULL;
 
   while (true) {
     if (pTbData == NULL && pDelIdx == NULL) break;
 
     if (pTbData && pDelIdx) {
-      c = tTABLEIDCmprFn(pTbData, pDelIdx);
+      int32_t c = tTABLEIDCmprFn(pTbData, pDelIdx);
+
       if (c == 0) {
         goto _commit_mem_and_disk_del;
       } else if (c < 0) {
@@ -258,44 +253,27 @@ static int32_t tsdbCommitDelImpl(SCommitter *pCommitter) {
   _commit_mem_del:
     code = tsdbCommitTableDel(pCommitter, pTbData, NULL);
     if (code) goto _err;
+
     iTbData++;
-    if (iTbData < nTbData) {
-      pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
-    } else {
-      pTbData = NULL;
-    }
+    pTbData = (iTbData < nTbData) ? (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData) : NULL;
     continue;
 
   _commit_disk_del:
     code = tsdbCommitTableDel(pCommitter, NULL, pDelIdx);
     if (code) goto _err;
+
     iDelIdx++;
-    if (iDelIdx < nDelIdx) {
-      code = tMapDataGetItemByIdx(&pCommitter->oDelIdxMap, iDelIdx, &delIdx, tGetDelIdx);
-      if (code) goto _err;
-      pDelIdx = &delIdx;
-    } else {
-      pDelIdx = NULL;
-    }
+    pDelIdx = (iDelIdx < nDelIdx) ? (SDelIdx *)taosArrayGet(pCommitter->aDelIdx, iDelIdx) : NULL;
     continue;
 
   _commit_mem_and_disk_del:
     code = tsdbCommitTableDel(pCommitter, pTbData, pDelIdx);
     if (code) goto _err;
+
     iTbData++;
+    pTbData = (iTbData < nTbData) ? (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData) : NULL;
     iDelIdx++;
-    if (iTbData < nTbData) {
-      pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
-    } else {
-      pTbData = NULL;
-    }
-    if (iDelIdx < nDelIdx) {
-      code = tMapDataGetItemByIdx(&pCommitter->oDelIdxMap, iDelIdx, &delIdx, tGetDelIdx);
-      if (code) goto _err;
-      pDelIdx = &delIdx;
-    } else {
-      pDelIdx = NULL;
-    }
+    pDelIdx = (iDelIdx < nDelIdx) ? (SDelIdx *)taosArrayGet(pCommitter->aDelIdx, iDelIdx) : NULL;
     continue;
   }
 
@@ -308,11 +286,15 @@ _err:
 
 static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
   int32_t code = 0;
+  STsdb  *pTsdb = pCommitter->pTsdb;
 
-  code = tsdbWriteDelIdx(pCommitter->pDelFWriter, &pCommitter->nDelIdxMap, NULL);
+  code = tsdbWriteDelIdx(pCommitter->pDelFWriter, pCommitter->aDelIdxN, NULL);
   if (code) goto _err;
 
-  code = tsdbUpdateDelFileHdr(pCommitter->pDelFWriter, NULL);
+  code = tsdbUpdateDelFileHdr(pCommitter->pDelFWriter);
+  if (code) goto _err;
+
+  code = tsdbFSStateUpsertDelFile(pTsdb->fs->nState, &pCommitter->pDelFWriter->fDel);
   if (code) goto _err;
 
   code = tsdbDelFWriterClose(pCommitter->pDelFWriter, 1);
@@ -322,6 +304,10 @@ static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
     code = tsdbDelFReaderClose(pCommitter->pDelFReader);
     if (code) goto _err;
   }
+
+  taosArrayDestroy(pCommitter->aDelIdx);
+  taosArrayDestroy(pCommitter->aDelData);
+  taosArrayDestroy(pCommitter->aDelIdxN);
 
   return code;
 
