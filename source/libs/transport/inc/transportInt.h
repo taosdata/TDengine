@@ -52,7 +52,7 @@ typedef struct {
   char     user[TSDB_UNI_LEN];  // meter ID
 
   void (*cfp)(void* parent, SRpcMsg*, SEpSet*);
-  bool (*retry)(int32_t code);
+  bool (*retry)(int32_t code, tmsg_t msgType);
   int index;
 
   void*         parent;
