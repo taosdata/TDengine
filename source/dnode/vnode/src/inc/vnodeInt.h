@@ -64,6 +64,7 @@ typedef struct STsdbSnapshotReader STsdbSnapshotReader;
 #define VNODE_TQ_DIR    "tq"
 #define VNODE_WAL_DIR   "wal"
 #define VNODE_TSMA_DIR  "tsma"
+#define VNODE_RSMA_DIR  "rsma"
 #define VNODE_RSMA0_DIR "tsdb"
 #define VNODE_RSMA1_DIR "rsma1"
 #define VNODE_RSMA2_DIR "rsma2"
@@ -161,7 +162,6 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool
 
 // sma
 int32_t smaOpen(SVnode* pVnode);
-int32_t smaClose(SSma* pSma);
 int32_t smaCloseEnv(SSma* pSma);
 int32_t smaCloseEx(SSma* pSma);
 
