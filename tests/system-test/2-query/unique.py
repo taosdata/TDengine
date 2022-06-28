@@ -266,7 +266,7 @@ class TDTestCase:
         tdSql.query("select unique(c1) from ct4")
         tdSql.checkRows(10)
 
-        tdSql.error("select unique(c1),tbname from ct1")
+        #tdSql.error("select unique(c1),tbname from ct1") #support
         #tdSql.error("select unique(c1),t1 from ct1")    #support
 
         # unique with common col 
