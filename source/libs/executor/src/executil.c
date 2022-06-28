@@ -159,7 +159,12 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
 }
 
 SArray* createSortInfo(SNodeList* pNodeList) {
-  size_t  numOfCols = LIST_LENGTH(pNodeList);
+  size_t numOfCols = 0;
+  if (pNodeList != NULL) {
+    numOfCols = LIST_LENGTH(pNodeList);
+  } else {
+    numOfCols = 0;
+  }
   SArray* pList = taosArrayInit(numOfCols, sizeof(SBlockOrderInfo));
   if (pList == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

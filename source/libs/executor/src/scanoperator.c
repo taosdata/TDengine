@@ -448,7 +448,7 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
       qDebug("%s start to repeat ascending order scan data blocks due to query func required", GET_TASKID(pTaskInfo));
       for (int32_t i = 0; i < pTableScanInfo->cond.numOfTWindows; ++i) {
         STimeWindow* pWin = &pTableScanInfo->cond.twindows[i];
-        qDebug("%s\t qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
+        qDebug("%s qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
       }
       // do prepare for the next round table scan operation
       tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
@@ -467,7 +467,7 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
     qDebug("%s start to descending order scan data blocks due to query func required", GET_TASKID(pTaskInfo));
     for (int32_t i = 0; i < pTableScanInfo->cond.numOfTWindows; ++i) {
       STimeWindow* pWin = &pTableScanInfo->cond.twindows[i];
-      qDebug("%s\t qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
+      qDebug("%s qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
     }
 
     while (pTableScanInfo->scanTimes < total) {
@@ -492,7 +492,7 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
                GET_TASKID(pTaskInfo));
         for (int32_t i = 0; i < pTableScanInfo->cond.numOfTWindows; ++i) {
           STimeWindow* pWin = &pTableScanInfo->cond.twindows[i];
-          qDebug("%s\t qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
+          qDebug("%s qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
         }
         tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
         pTableScanInfo->curTWinIdx = 0;
@@ -2053,7 +2053,7 @@ int32_t createScanTableListInfo(STableScanPhysiNode* pTableScanNode, SReadHandle
     qDebug("no table qualified for query, TID:0x%" PRIx64 ", QID:0x%" PRIx64, taskId, queryId);
     return TSDB_CODE_SUCCESS;
   }
-  code = generateGroupIdMap(pTableListInfo, pHandle, pTableScanNode->pPartitionTags);
+  code = generateGroupIdMap(pTableListInfo, pHandle, pTableScanNode->pGroupTags);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -2457,7 +2457,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
-  if (pTableScanNode->pPartitionTags) {
+  if (pTableScanNode->pGroupTags) {
     taosArraySort(pTableListInfo->pTableList, compareTableKeyInfoByGid);
   }
 

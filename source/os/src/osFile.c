@@ -157,14 +157,14 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
 #ifdef WINDOWS
   bool code = MoveFileEx(oldName, newName, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
   if (!code) {
-    printf("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
+    printf("failed to rename file %s to %s, reason:%s\n", oldName, newName, strerror(errno));
   }
 
   return !code;
 #else
   int32_t code = rename(oldName, newName);
   if (code < 0) {
-    printf("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
+    printf("failed to rename file %s to %s, reason:%s\n", oldName, newName, strerror(errno));
   }
 
   return code;

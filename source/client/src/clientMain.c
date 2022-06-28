@@ -81,6 +81,19 @@ void taos_cleanup(void) {
   taosCloseLog();
 }
 
+static setConfRet taos_set_config_imp(const char *config){
+  setConfRet ret = {SET_CONF_RET_SUCC, {0}};
+  // TODO: need re-implementation
+  return ret;
+}
+
+setConfRet taos_set_config(const char *config){
+// TODO  pthread_mutex_lock(&setConfMutex);
+  setConfRet ret = taos_set_config_imp(config);
+//  pthread_mutex_unlock(&setConfMutex);
+  return ret;
+}
+
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   tscDebug("try to connect to %s:%u, user:%s db:%s", ip, port, user, db);
   if (user == NULL) {

@@ -67,6 +67,14 @@ TEST_F(PlanBasicTest, tailFunc) {
   run("SELECT TAIL(c1, 10) FROM t1");
 
   run("SELECT TAIL(c2 + 10, 10, 80) FROM t1 WHERE c1 > 10");
+
+  run("SELECT TAIL(c2 + 10, 10, 80) FROM t1 WHERE c1 > 10 PARTITION BY c1");
+
+  run("SELECT TAIL(c2 + 10, 10, 80) FROM t1 WHERE c1 > 10 ORDER BY 1");
+
+  run("SELECT TAIL(c2 + 10, 10, 80) FROM t1 WHERE c1 > 10 LIMIT 5");
+
+  run("SELECT TAIL(c2 + 10, 10, 80) FROM t1 WHERE c1 > 10 PARTITION BY c1 LIMIT 5");
 }
 
 TEST_F(PlanBasicTest, interpFunc) {

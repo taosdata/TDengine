@@ -987,7 +987,7 @@ void sendQuitToWorkThrd(SWorkThrd* pThrd) {
   SSvrMsg* msg = taosMemoryCalloc(1, sizeof(SSvrMsg));
   msg->type = Quit;
   tDebug("server send quit msg to work thread");
-  transSendAsync(pThrd->asyncPool, &msg->q);
+  transAsyncSend(pThrd->asyncPool, &msg->q);
 }
 
 void transCloseServer(void* arg) {
@@ -1053,7 +1053,7 @@ void transReleaseSrvHandle(void* handle) {
   m->type = Release;
 
   tTrace("%s conn %p start to release", transLabel(pThrd->pTransInst), exh->handle);
-  transSendAsync(pThrd->asyncPool, &m->q);
+  transAsyncSend(pThrd->asyncPool, &m->q);
   transReleaseExHandle(refId);
   return;
 _return1:
@@ -1082,7 +1082,7 @@ void transSendResponse(const STransMsg* msg) {
 
   STraceId* trace = (STraceId*)&msg->info.traceId;
   tGTrace("conn %p start to send resp (1/2)", exh->handle);
-  transSendAsync(pThrd->asyncPool, &m->q);
+  transAsyncSend(pThrd->asyncPool, &m->q);
   transReleaseExHandle(refId);
   return;
 _return1:
@@ -1111,7 +1111,7 @@ void transRegisterMsg(const STransMsg* msg) {
   m->type = Register;
 
   tTrace("%s conn %p start to register brokenlink callback", transLabel(pThrd->pTransInst), exh->handle);
-  transSendAsync(pThrd->asyncPool, &m->q);
+  transAsyncSend(pThrd->asyncPool, &m->q);
   transReleaseExHandle(refId);
   return;
 
