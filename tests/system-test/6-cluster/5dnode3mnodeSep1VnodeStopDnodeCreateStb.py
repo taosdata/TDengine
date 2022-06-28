@@ -65,10 +65,34 @@ class TDTestCase:
         self._async_raise(thread.ident, SystemExit)
 
 
+    def insertData(self,countstart,countstop):
+        # fisrt add data : db\stable\childtable\general table
+        
+        for couti in range(countstart,countstop):
+            tdLog.debug("drop database if exists db%d" %couti)
+            tdSql.execute("drop database if exists db%d" %couti)
+            print("create database if not exists db%d replica 1 duration 300" %couti)
+            tdSql.execute("create database if not exists db%d replica 1 duration 300" %couti)
+            tdSql.execute("use db%d" %couti)
+            tdSql.execute(
+            '''create table stb1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            tags (t1 int)
+            '''
+            )
+            tdSql.execute(
+                '''
+                create table t1
+                (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+                '''
+            )
+            for i in range(4):
+                tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+
+
     def fiveDnodeThreeMnode(self,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
         tdLog.printNoPrefix("======== test case 1: ")
-        paraDict = {'dbName':     'db',
-                    'dbNumbers':   20,
+        paraDict = {'dbName':     'db0_0',
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    4,
@@ -86,8 +110,8 @@ class TDTestCase:
         dnodeNumbers=int(dnodeNumbers)
         mnodeNums=int(mnodeNums)
         vnodeNumbers = int(dnodeNumbers-mnodeNums)
-        allDbNumbers=(paraDict['dbNumbers']*restartNumbers)
         allStbNumbers=(paraDict['stbNumbers']*restartNumbers)
+        dbNumbers = 1
        
         tdLog.info("first check dnode and mnode")
         tdSql.query("show dnodes;")
@@ -111,17 +135,18 @@ class TDTestCase:
         clusterComCheck.checkDnodes(dnodeNumbers)
 
         # create database and stable
+        clusterComCreate.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])
+        tdLog.info("Take turns stopping Mnodes ") 
+
         tdDnodes=cluster.dnodes
         stopcount =0
         threads=[]
         for i in range(restartNumbers):
-            dbNameIndex = '%s%d'%(paraDict["dbName"],i)
-            threads.append(threading.Thread(target=clusterComCreate.create_databases, args=(tdSql, dbNameIndex,paraDict["dbNumbers"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
+            stableName= '%s%d'%(paraDict['stbName'],i)
+            threads.append(threading.Thread(target=clusterComCreate.create_stables, args=(tdSql, paraDict["dbName"],stableName,paraDict['stbNumbers'])))
 
         for tr in threads:
             tr.start()
-
-        tdLog.info("Take turns stopping Mnodes ") 
         while stopcount < restartNumbers:
             tdLog.info(" restart loop: %d"%stopcount )
             if stopRole == "mnode":
@@ -145,9 +170,10 @@ class TDTestCase:
 
             # dnodeNumbers don't include database of schema
             if clusterComCheck.checkDnodes(dnodeNumbers):
-                tdLog.info("check dnodes status is ready")
+                tdLog.info("123")
             else:
-                tdLog.info("check dnodes status is not ready")
+                print("456")
+            
                 self.stopThread(threads)
                 tdLog.exit("one or more of dnodes failed to start ")
                 # self.check3mnode()
@@ -156,14 +182,17 @@ class TDTestCase:
         for tr in threads:
             tr.join()
         clusterComCheck.checkDnodes(dnodeNumbers)
-        clusterComCheck.checkDbRows(allDbNumbers)
-        for i in range(restartNumbers):
-            clusterComCheck.checkDb(paraDict['dbNumbers'],restartNumbers,dbNameIndex = '%s%d'%(paraDict["dbName"],i))
+        clusterComCheck.checkDbRows(dbNumbers)
+        clusterComCheck.checkDb(dbNumbers,1,'db0')
+
+        tdSql.execute("use %s" %(paraDict["dbName"]))
+        tdSql.query("show stables")
+        tdSql.checkRows(allStbNumbers)
 
 
     def run(self): 
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=2,stopRole='mnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=2,stopRole='dnode')
 
     def stop(self):
         tdSql.close()

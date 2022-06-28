@@ -379,6 +379,11 @@ class TDCom:
         tdLog.info("cfgPath: %s" % cfgPath)
         return cfgPath
 
+    def newcon(self,host='localhost',port=6030,user='root',password='taosdata'):
+        con=taos.connect(host=host, user=user, password=password, port=port)
+        print(con)
+        return con
+
     def newcur(self,host='localhost',port=6030,user='root',password='taosdata'):
         cfgPath = self.getClientCfgPath()
         con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port)

@@ -61,10 +61,8 @@ step12:
 	endi
 sql show d1.vgroups
 print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
-print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
-print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
-print ===> $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37 $data38 $data39
-if $rows != 4 then
+$leaderExist = 0
+if $rows != 1 then
   return -1
 endi
 if $data(2)[4] == leader then
@@ -91,10 +89,8 @@ step13:
 	endi
 sql show d1.vgroups
 print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
-print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
-print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
-print ===> $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37 $data38 $data39
-if $rows != 4 then
+$leaderExist = 0
+if $rows != 1 then
   return -1
 endi
 if $data(3)[4] == leader then
@@ -121,12 +117,7 @@ step14:
 	endi
 sql show d1.vgroups
 print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
-print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
-print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
-print ===> $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37 $data38 $data39
-if $rows != 4 then
-  return -1
-endi
+$leaderExist = 0
 if $data(4)[4] == leader then
   $leaderExist = 1
 endi
@@ -151,12 +142,7 @@ step15:
 	endi
 sql show d1.vgroups
 print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
-print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
-print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
-print ===> $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37 $data38 $data39
-if $rows != 4 then
-  return -1
-endi
+$leaderExist = 0
 if $data(4)[4] == leader then
   $leaderExist = 1
 endi

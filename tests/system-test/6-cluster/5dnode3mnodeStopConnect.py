@@ -7,30 +7,28 @@ import os
 from util.log import *
 from util.sql import *
 from util.cases import *
+from util.dnodes import *
 from util.dnodes import TDDnodes
 from util.dnodes import TDDnode
+from util.common import *
 from util.cluster import *
+from test import tdDnodes
 sys.path.append("./6-cluster")
-from clusterCommonCreate import *
-from clusterCommonCheck import clusterComCheck 
 
+from clusterCommonCreate import *
+from clusterCommonCheck import * 
 import time
 import socket
 import subprocess
 from multiprocessing import Process
-import threading 
-import time
-import inspect
-import ctypes
 
+        
 class TDTestCase:
 
     def init(self,conn ,logSql):
         tdLog.debug(f"start to excute {__file__}")
-        self.TDDnodes = None
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
-
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -47,48 +45,6 @@ class TDTestCase:
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
         return buildPath
-
-    def _async_raise(self, tid, exctype):
-        """raises the exception, performs cleanup if needed"""
-        if not inspect.isclass(exctype):
-            exctype = type(exctype)
-        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, ctypes.py_object(exctype))
-        if res == 0:
-            raise ValueError("invalid thread id")
-        elif res != 1:
-            # """if it returns a number greater than one, you're in trouble, 
-            # and you should call it again with exc=NULL to revert the effect"""
-            ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, None)
-            raise SystemError("PyThreadState_SetAsyncExc failed")
-
-    def stopThread(self,thread):
-        self._async_raise(thread.ident, SystemExit)
-
-
-    def insertData(self,countstart,countstop):
-        # fisrt add data : db\stable\childtable\general table
-        
-        for couti in range(countstart,countstop):
-            tdLog.debug("drop database if exists db%d" %couti)
-            tdSql.execute("drop database if exists db%d" %couti)
-            print("create database if not exists db%d replica 1 duration 300" %couti)
-            tdSql.execute("create database if not exists db%d replica 1 duration 300" %couti)
-            tdSql.execute("use db%d" %couti)
-            tdSql.execute(
-            '''create table stb1
-            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
-            tags (t1 int)
-            '''
-            )
-            tdSql.execute(
-                '''
-                create table t1
-                (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
-                '''
-            )
-            for i in range(4):
-                tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
-
 
     def fiveDnodeThreeMnode(self,dnodenumbers,mnodeNums,restartNumber):
         tdLog.printNoPrefix("======== test case 1: ")
@@ -135,44 +91,39 @@ class TDTestCase:
         print(tdSql.queryResult)
         clusterComCheck.checkDnodes(dnodenumbers)
 
+        # check status of connection
+
+
+
+        # restart all taosd
+        tdDnodes=cluster.dnodes 
+        for i in range(mnodeNums):
+            tdDnodes[i].stoptaosd()
+            for j in range(dnodenumbers):
+                if j != i:
+                    cluster.checkConnectStatus(j)
+            clusterComCheck.check3mnodeoff(i+1,3)
+            clusterComCheck.init(cluster.checkConnectStatus(i+1))        
+            tdDnodes[i].starttaosd()
+            clusterComCheck.checkMnodeStatus(mnodeNums)
+            
         tdLog.info("Take turns stopping all dnodes ") 
         # seperate vnode and mnode in different dnodes.
         # create database and stable
-        tdDnodes=cluster.dnodes
         stopcount =0 
-        while stopcount < restartNumber:
+        while stopcount <= 2:
+            tdLog.info("first restart loop")
             for i in range(dnodenumbers):
-                # threads=[]
-                # threads = MyThreadFunc(self.insert_data(i*2,i*2+2)) 
-                paraDict["dbName"]= 'db%d%d'%(stopcount,i)
-                threads=threading.Thread(target=clusterComCreate.create_database, args=(tdSql, paraDict["dbName"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica']))
-                threads.start()
                 tdDnodes[i].stoptaosd()
-                # sleep(10)
                 tdDnodes[i].starttaosd()
-                # sleep(10)
-
-            if clusterComCheck.checkDnodes(dnodenumbers):
-                # threads.join()
-                tdLog.info("first restart loop")
-            else:
-                print("456")
-                threads.join()
-                self.stopThread(threads)
-                tdLog.exit("one or more of dnodes failed to start ")
-                # self.check3mnode()
             stopcount+=1
-        threads.join()
         clusterComCheck.checkDnodes(dnodenumbers)
-        clusterComCheck.checkDbRows(dbNumbers)
-        for i in range(restartNumber):
-            clusterComCheck.checkDb(dnodenumbers,'db%d'%i)
-
+        clusterComCheck.checkMnodeStatus(3)
 
     def run(self): 
         # print(self.master_dnode.cfgDict)
         self.fiveDnodeThreeMnode(5,3,1)
-
+ 
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
