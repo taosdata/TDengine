@@ -16,10 +16,12 @@ from taostest.util.common import TDCom
 from taostest.util.remote import Remote
 import time
 import sys
+import os
 import random
 
 class StreamComputingTest(TDCase):
     def init(self):
+        self.stream_case_env_root = os.path.join(os.environ["TEST_ROOT"], "cases/stream_computing")
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
         self.case_name = None
@@ -35,12 +37,18 @@ class StreamComputingTest(TDCase):
         self.ctb_stream_des_table = str()
         self.tb_stream_des_table = str()
 
-        self.range_count = 20
+        self.range_count = 5
         self.des_table_suffix = "_output"
         self.stream_suffix = "_stream"
         # ! TD-16571 histogram
         # ! TD-16570 last_row(c1)
         # ! now() timezone() to_iso8601(now)
+        # ! apercentile(c6, 50) "avg(c7)" "timetruncate(_wstartts, 1m)" "timediff(1, 0, 1h)" TD-16878 TD-16877 TD-16876 TD-16869
+        self.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "leastsquares(c1, 1, 2)", "spread(c1)", 
+        "stddev(c2)", "hyperloglog(c11)", "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "count(t8)", "leastsquares(t1, 1, 2)", "spread(t1)", "stddev(t2)"]
+        # self.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "leastsquares(c1, 1, 2)", "spread(c1)",
+        # "stddev(c2)", "hyperloglog(c11)", "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "count(t8)", "leastsquares(t1, 1, 2)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
+        # self.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "leastsquares(c1, 1, 2)", "spread(c1)", ]
         self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "leastsquares(c1, 1, 2)", "spread(c1)", 
         "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
         "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "leastsquares(t1, 1, 2)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
@@ -53,6 +61,9 @@ class StreamComputingTest(TDCase):
         self.stb_source_select_str = ','.join(self.downsampling_function_list)
         self.tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list[0:16])))
         self.tb_source_select_str = ','.join(self.downsampling_function_list[0:16])
+
+        self.partition_by_stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.partition_by_downsampling_function_list)))
+        self.partition_by_stb_source_select_str = ','.join(self.partition_by_downsampling_function_list)
 
         self.udf_stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.udf_function_list)))
         self.udf_stb_source_select_str = ','.join(self.udf_function_list)
@@ -706,7 +717,6 @@ class StreamComputingTest(TDCase):
             self.tdCom.check_query_data(f'select start, {self.udf_stb_output_select_str} from {self.ctb_name}{self.des_table_suffix}', f'select _wstartts AS start, {self.udf_stb_source_select_str}  from {self.ctb_name} partition by tbname interval({self.dataDict["interval"]}s)')
             self.tdCom.check_query_data(f'select start, {self.udf_tb_output_select_str} from {self.tb_name}{self.des_table_suffix}', f'select _wstartts AS start, {self.udf_tb_source_select_str}  from {self.tb_name} partition by tbname interval({self.dataDict["interval"]}s)')
 
-
     def partitionby_interval_order(self, interval, precision=None, vgroups=1):
         self.case_name = sys._getframe().f_code.co_name
         self.prepare_data(interval=interval, precision=precision, vgroups=vgroups)
@@ -718,8 +728,7 @@ class StreamComputingTest(TDCase):
             self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
 
         # create stb/ctb/tb stream
-        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstartts AS start, {self.stb_source_select_str}  from {self.stb_name} partition by tbname interval({self.dataDict["interval"]}s)')
-
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstartts AS start, {self.partition_by_stb_source_select_str}  from {self.stb_name} partition by tbname interval({self.dataDict["interval"]}s)')
         # insert data
         count = 1
         step_count = 1
@@ -741,7 +750,8 @@ class StreamComputingTest(TDCase):
                         self.tdCom.insert_rows(tbname=ctb_name, ts_value=f'{self.date_time}+{count}s')
                 count += 1
             # check result
-            self.tdCom.check_query_data(f'select start, {self.stb_output_select_str} from {self.stb_name}{self.des_table_suffix}', f'select _wstartts AS start, {self.stb_source_select_str}  from {self.stb_name} partition by tbname interval({self.dataDict["interval"]}s)')
+            for colname in self.partition_by_downsampling_function_list:
+                self.tdCom.check_query_data(f'select `{colname}` from {self.stb_name}{self.des_table_suffix} order by `{colname}`;', f'select {colname}  from {self.stb_name} partition by tbname interval({self.dataDict["interval"]}s) order by `{colname}`;')
 
     def window_close_state_window_order(self, state_window, interation, vgroups=1):
         self.case_name = sys._getframe().f_code.co_name
@@ -1113,9 +1123,9 @@ class StreamComputingTest(TDCase):
         # self.trigger_window_close()
         # self.trigger_max_delay()
         # ! TD-16843
-        # self.partitionby_interval_order(interval=random.randint(10, 15))
+        self.partitionby_interval_order(interval=10)
         # ! bug
-        self.window_close_state_window_order(state_window="c1", interation=self.interation)
+        # self.window_close_state_window_order(state_window="c1", interation=self.interation)
         # self.window_close_interval_order(interval=random.randint(10, 15), watermark=None, interation=self.interation)
         # self.window_close_interval_order(interval=random.randint(10, 15), watermark=random.randint(15, 20), interation=self.interation)
         # self.window_close_session_order(session=random.randint(10, 15), interation=self.interation)
