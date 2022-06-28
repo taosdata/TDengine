@@ -232,8 +232,6 @@ TEST_F(ParserSelectTest, groupBySemanticCheck) {
 
   run("SELECT COUNT(*) cnt, c1 FROM t1 WHERE c1 > 0", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
   run("SELECT COUNT(*) cnt, c2 FROM t1 WHERE c1 > 0 GROUP BY c1", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
-  run("SELECT COUNT(*) cnt, c2 FROM t1 WHERE c1 > 0 PARTITION BY c2 GROUP BY c1",
-      TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
 }
 
 TEST_F(ParserSelectTest, orderBy) {

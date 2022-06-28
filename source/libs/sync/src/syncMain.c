@@ -1488,18 +1488,6 @@ char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
            pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy,
            pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing, pSyncNode->restoreFinish);
 
-  /*
-    snprintf(s, len,
-             "syncNode: vgId:%d, term:%lu, commit:%ld, state:%d %s, standby:%d, "
-             "lc:%lu, "
-             "lc-user:%lu, "
-             "ems:%d, replica-num:%d, restore:%d, changing:%d",
-             pSyncNode->vgId, pSyncNode->pRaftStore->currentTerm, pSyncNode->commitIndex, pSyncNode->state,
-             syncUtilState2String(pSyncNode->state), pSyncNode->pRaftCfg->isStandBy, pSyncNode->electTimerLogicClock,
-             pSyncNode->electTimerLogicClockUser, pSyncNode->electTimerMS, pSyncNode->replicaNum,
-             pSyncNode->restoreFinish, pSyncNode->changing);
-  */
-
   return s;
 }
 

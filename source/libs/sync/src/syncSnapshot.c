@@ -683,7 +683,16 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         needRsp = true;
 
       } else {
-        ASSERT(0);
+        // error log
+        do {
+          char logBuf[96];
+          snprintf(logBuf, sizeof(logBuf), "snapshot receiver recv error seq:%d, my ack:%d", pMsg->seq, pReceiver->ack);
+          char *eventLog = snapshotReceiver2SimpleStr(pReceiver, logBuf);
+          syncNodeErrorLog(pSyncNode, eventLog);
+          taosMemoryFree(eventLog);
+        } while (0);
+
+        return -1;
       }
 
       // send ack
@@ -764,8 +773,8 @@ int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
 
       } else {
         do {
-          char logBuf[64];
-          snprintf(logBuf, sizeof(logBuf), "error ack, recv ack:%d, my seq:%d", pMsg->ack, pSender->seq);
+          char logBuf[96];
+          snprintf(logBuf, sizeof(logBuf), "snapshot sender recv error ack:%d, my seq:%d", pMsg->ack, pSender->seq);
           char *eventLog = snapshotSender2SimpleStr(pSender, logBuf);
           syncNodeErrorLog(pSyncNode, eventLog);
           taosMemoryFree(eventLog);
