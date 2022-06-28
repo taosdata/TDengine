@@ -5965,7 +5965,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_EXPLAIN_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
       pQuery->haveResultSet = true;
-      pQuery->msgType = TDMT_VND_QUERY;
+      pQuery->msgType = TDMT_SCH_QUERY;
       break;
     case QUERY_NODE_DELETE_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;

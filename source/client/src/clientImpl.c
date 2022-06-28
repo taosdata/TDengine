@@ -808,7 +808,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       code = handleSubmitExecRes(pRequest, pRes->res, pCatalog, &epset);
       break;
     }
-    case TDMT_VND_QUERY: {
+    case TDMT_SCH_QUERY: {
       code = handleQueryExecRes(pRequest, pRes->res, pCatalog, &epset);
       break;
     }

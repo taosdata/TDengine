@@ -216,7 +216,7 @@ void destroyQueryExecRes(SQueryExecRes* pRes) {
       tFreeSSubmitRsp((SSubmitRsp*)pRes->res);
       break;
     }
-    case TDMT_VND_QUERY: {
+    case TDMT_SCH_QUERY: {
       taosArrayDestroy((SArray*)pRes->res);
       break;
     }

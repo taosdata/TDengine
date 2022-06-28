@@ -118,7 +118,7 @@ void schtBuildQueryDag(SQueryPlan *dag) {
   scanPlan->level = 1;
   scanPlan->pParents = nodesMakeList();
   scanPlan->pNode = (SPhysiNode*)taosMemoryCalloc(1, sizeof(SPhysiNode));
-  scanPlan->msgType = TDMT_VND_QUERY;
+  scanPlan->msgType = TDMT_SCH_QUERY;
 
   mergePlan->id.queryId = qId;
   mergePlan->id.groupId = schtMergeTemplateId;
@@ -130,7 +130,7 @@ void schtBuildQueryDag(SQueryPlan *dag) {
   mergePlan->pChildren = nodesMakeList();
   mergePlan->pParents = NULL;
   mergePlan->pNode = (SPhysiNode*)taosMemoryCalloc(1, sizeof(SPhysiNode));
-  mergePlan->msgType = TDMT_VND_QUERY;
+  mergePlan->msgType = TDMT_SCH_QUERY;
 
   merge->pNodeList = nodesMakeList();
   scan->pNodeList = nodesMakeList();
@@ -181,7 +181,7 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
     scanPlan[i].level = 1;
     scanPlan[i].pParents = nodesMakeList();
     scanPlan[i].pNode = (SPhysiNode*)taosMemoryCalloc(1, sizeof(SPhysiNode));
-    scanPlan[i].msgType = TDMT_VND_QUERY;
+    scanPlan[i].msgType = TDMT_SCH_QUERY;
 
     nodesListAppend(scanPlan[i].pParents, (SNode*)mergePlan);
     nodesListAppend(mergePlan->pChildren, (SNode*)(scanPlan + i));
@@ -198,7 +198,7 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
 
   mergePlan->pParents = NULL;
   mergePlan->pNode = (SPhysiNode*)taosMemoryCalloc(1, sizeof(SPhysiNode));
-  mergePlan->msgType = TDMT_VND_QUERY;
+  mergePlan->msgType = TDMT_SCH_QUERY;
 
   nodesListAppend(merge->pNodeList, (SNode*)mergePlan);
 
@@ -896,7 +896,7 @@ TEST(queryTest, flowCtrlCase) {
 
       taosHashCancelIterate(pJob->execTasks, pIter);
 
-      if (task->lastMsgType == TDMT_VND_QUERY) {
+      if (task->lastMsgType == TDMT_SCH_QUERY) {
         SQueryTableRsp rsp = {0};
         code = schHandleResponseMsg(pJob, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
         

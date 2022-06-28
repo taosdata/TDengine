@@ -1555,7 +1555,7 @@ static int32_t createPhysiSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogic
   if (SUBPLAN_TYPE_MODIFY == pLogicSubplan->subplanType) {
     code = buildVnodeModifySubplan(pCxt, pLogicSubplan, pSubplan);
   } else {
-    pSubplan->msgType = TDMT_VND_QUERY;
+    pSubplan->msgType = TDMT_SCH_QUERY;
     code = createPhysiNode(pCxt, pLogicSubplan->pNode, pSubplan, &pSubplan->pNode);
     if (TSDB_CODE_SUCCESS == code && !pCxt->pPlanCxt->streamQuery && !pCxt->pPlanCxt->topicQuery) {
       code = createDataDispatcher(pCxt, pSubplan->pNode, &pSubplan->pDataSink);

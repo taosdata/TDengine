@@ -1183,7 +1183,7 @@ int32_t schFetchFromRemote(SSchJob *pJob) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SCH_ERR_JRET(schBuildAndSendMsg(pJob, pJob->fetchTask, &pJob->resNode, TDMT_VND_FETCH));
+  SCH_ERR_JRET(schBuildAndSendMsg(pJob, pJob->fetchTask, &pJob->resNode, TDMT_SCH_FETCH));
 
   return TSDB_CODE_SUCCESS;
 
@@ -1222,7 +1222,7 @@ void schDropTaskOnExecNode(SSchJob *pJob, SSchTask *pTask) {
   while (nodeInfo) {
     SCH_SET_TASK_HANDLE(pTask, nodeInfo->handle);
 
-    schBuildAndSendMsg(pJob, pTask, &nodeInfo->addr, TDMT_VND_DROP_TASK);
+    schBuildAndSendMsg(pJob, pTask, &nodeInfo->addr, TDMT_SCH_DROP_TASK);
 
     nodeInfo = taosHashIterate(pTask->execNodes, nodeInfo);
   }
@@ -1307,7 +1307,7 @@ int32_t schSaveJobQueryRes(SSchJob *pJob, SQueryTableRsp *rsp) {
     tbInfo.tversion = rsp->tversion;
 
     taosArrayPush((SArray *)pJob->execRes.res, &tbInfo);
-    pJob->execRes.msgType = TDMT_VND_QUERY;
+    pJob->execRes.msgType = TDMT_SCH_QUERY;
   }
 
   return TSDB_CODE_SUCCESS;

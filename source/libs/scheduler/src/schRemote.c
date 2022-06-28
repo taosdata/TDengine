@@ -568,22 +568,22 @@ int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
     case TDMT_VND_SUBMIT:
       *fp = schHandleSubmitCallback;
       break;
-    case TDMT_VND_QUERY:
+    case TDMT_SCH_QUERY:
       *fp = schHandleQueryCallback;
       break;
     case TDMT_VND_DELETE:
       *fp = schHandleDeleteCallback;
       break;
-    case TDMT_VND_EXPLAIN:
+    case TDMT_SCH_EXPLAIN:
       *fp = schHandleExplainCallback;
       break;
-    case TDMT_VND_FETCH:
+    case TDMT_SCH_FETCH:
       *fp = schHandleFetchCallback;
       break;
-    case TDMT_VND_DROP_TASK:
+    case TDMT_SCH_DROP_TASK:
       *fp = schHandleDropCallback;
       break;
-    case TDMT_VND_QUERY_HEARTBEAT:
+    case TDMT_SCH_QUERY_HEARTBEAT:
       *fp = schHandleHbCallback;
       break;
     case TDMT_SCH_LINK_BROKEN:
@@ -694,7 +694,7 @@ int32_t schMakeHbRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
 
   int32_t              msgType = TDMT_VND_QUERY_HEARTBEAT_RSP;
   __async_send_cb_fn_t fp = NULL;
-  SCH_ERR_JRET(schGetCallbackFp(TDMT_VND_QUERY_HEARTBEAT, &fp));
+  SCH_ERR_JRET(schGetCallbackFp(TDMT_SCH_QUERY_HEARTBEAT, &fp));
 
   param->nodeEpId = epId;
   param->pTrans = pJob->conn.pTrans;
@@ -784,7 +784,7 @@ int32_t schMakeQueryRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   }
 
   SSchTrans trans = {.pTrans = pJob->conn.pTrans, .pHandle = SCH_GET_TASK_HANDLE(pTask)};
-  SCH_ERR_JRET(schGenerateCallBackInfo(pJob, pTask, NULL, 0, TDMT_VND_EXPLAIN, &trans, false, &pExplainMsgSendInfo));
+  SCH_ERR_JRET(schGenerateCallBackInfo(pJob, pTask, NULL, 0, TDMT_SCH_EXPLAIN, &trans, false, &pExplainMsgSendInfo));
 
   int32_t    msgType = TDMT_VND_EXPLAIN_RSP;
   SRpcCtxVal ctxVal = {.val = pExplainMsgSendInfo, .clone = schCloneSMsgSendInfo};
@@ -882,7 +882,7 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
   SEpSet *epSet = &addr->epSet;
 
   SMsgSendInfo *pMsgSendInfo = NULL;
-  bool isHb = (TDMT_VND_QUERY_HEARTBEAT == msgType);
+  bool isHb = (TDMT_SCH_QUERY_HEARTBEAT == msgType);
   SCH_ERR_JRET(schGenerateCallBackInfo(pJob, pTask, msg, msgSize, msgType, trans, isHb, &pMsgSendInfo));
   SCH_ERR_JRET(schUpdateSendTargetInfo(pMsgSendInfo, addr, pTask));       
 
@@ -926,7 +926,7 @@ int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId, SArray* taskAction) {
   int32_t         code = 0;
   SRpcCtx         rpcCtx = {0};
   SSchTrans       trans = {0};
-  int32_t         msgType = TDMT_VND_QUERY_HEARTBEAT;
+  int32_t         msgType = TDMT_SCH_QUERY_HEARTBEAT;
 
   req.header.vgId = nodeEpId->nodeId;
   req.sId = schMgmt.sId;
@@ -1032,7 +1032,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       tSerializeSVDeleteReq(msg, msgSize, &req);
       break;
     }
-    case TDMT_VND_QUERY: {
+    case TDMT_SCH_QUERY: {
       SCH_ERR_RET(schMakeQueryRpcCtx(pJob, pTask, &rpcCtx));
 
       uint32_t len = strlen(pJob->sql);
@@ -1060,7 +1060,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       persistHandle = true;
       break;
     }
-    case TDMT_VND_FETCH: {
+    case TDMT_SCH_FETCH: {
       msgSize = sizeof(SResFetchReq);
       msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {
@@ -1078,7 +1078,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 
       break;
     }
-    case TDMT_VND_DROP_TASK: {
+    case TDMT_SCH_DROP_TASK: {
       msgSize = sizeof(STaskDropReq);
       msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {
@@ -1096,7 +1096,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       pMsg->refId = htobe64(pJob->refId);
       break;
     }
-    case TDMT_VND_QUERY_HEARTBEAT: {
+    case TDMT_SCH_QUERY_HEARTBEAT: {
       SCH_ERR_RET(schMakeHbRpcCtx(pJob, pTask, &rpcCtx));
 
       SSchedulerHbReq req = {0};
@@ -1135,7 +1135,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
   SCH_ERR_JRET(schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, msgSize, persistHandle,
                                (rpcCtx.args ? &rpcCtx : NULL)));
 
-  if (msgType == TDMT_VND_QUERY) {
+  if (msgType == TDMT_SCH_QUERY) {
     SCH_ERR_RET(schAppendTaskExecNode(pJob, pTask, addr, pTask->execIdx));
   }
 

@@ -169,7 +169,7 @@ int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   req->taskId = tId;
 
   SRpcMsg pNewMsg = {
-      .msgType = TDMT_VND_QUERY_CONTINUE,
+      .msgType = TDMT_SCH_QUERY_CONTINUE,
       .pCont = req,
       .contLen = sizeof(SQueryContinueReq),
       .code = 0,
@@ -202,7 +202,7 @@ int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   req->refId = htobe64(rId);
 
   SRpcMsg brokenMsg = {
-      .msgType = TDMT_VND_DROP_TASK,
+      .msgType = TDMT_SCH_DROP_TASK,
       .pCont = req,
       .contLen = sizeof(STaskDropReq),
       .code = TSDB_CODE_RPC_NETWORK_UNAVAIL,
@@ -236,7 +236,7 @@ int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SRpcHandleInfo *
   }
 
   SRpcMsg brokenMsg = {
-      .msgType = TDMT_VND_QUERY_HEARTBEAT,
+      .msgType = TDMT_SCH_QUERY_HEARTBEAT,
       .pCont = msg,
       .contLen = msgSize,
       .code = TSDB_CODE_RPC_NETWORK_UNAVAIL,
