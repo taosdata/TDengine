@@ -100,6 +100,7 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_OBJECT_FIELD(resType, sizeof(SDataType));
   COPY_CHAR_ARRAY_FIELD(aliasName);
   COPY_CHAR_ARRAY_FIELD(userAlias);
+  COPY_SCALAR_FIELD(orderAlias);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -351,7 +352,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(tsColId);
   COPY_SCALAR_FIELD(filesFactor);
-  CLONE_NODE_LIST_FIELD(pPartTags);
+  CLONE_NODE_LIST_FIELD(pGroupTags);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -401,6 +402,7 @@ static int32_t logicMergeCopy(const SMergeLogicNode* pSrc, SMergeLogicNode* pDst
   CLONE_NODE_LIST_FIELD(pInputs);
   COPY_SCALAR_FIELD(numOfChannels);
   COPY_SCALAR_FIELD(srcGroupId);
+  COPY_SCALAR_FIELD(groupSort);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -436,6 +438,7 @@ static int32_t logicFillCopy(const SFillLogicNode* pSrc, SFillLogicNode* pDst) {
 static int32_t logicSortCopy(const SSortLogicNode* pSrc, SSortLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pSortKeys);
+  COPY_SCALAR_FIELD(groupSort);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -500,7 +503,7 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_SCALAR_FIELD(ratio);
   COPY_SCALAR_FIELD(dataRequired);
   CLONE_NODE_LIST_FIELD(pDynamicScanFuncs);
-  CLONE_NODE_LIST_FIELD(pPartitionTags);
+  CLONE_NODE_LIST_FIELD(pGroupTags);
   COPY_SCALAR_FIELD(interval);
   COPY_SCALAR_FIELD(offset);
   COPY_SCALAR_FIELD(sliding);

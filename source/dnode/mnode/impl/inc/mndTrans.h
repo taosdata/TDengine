@@ -39,8 +39,10 @@ typedef struct {
   int32_t   id;
   int32_t   errCode;
   int32_t   acceptableCode;
-  ETrnStage stage;
+  int32_t   retryCode;
   ETrnAct   actionType;
+  ETrnStage stage;
+  int8_t    reserved;
   int8_t    rawWritten;
   int8_t    msgSent;
   int8_t    msgReceived;

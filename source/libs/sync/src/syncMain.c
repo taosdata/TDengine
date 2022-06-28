@@ -698,7 +698,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
   } else {
     ret = -1;
     terrno = TSDB_CODE_SYN_NOT_LEADER;
-    sError("syncPropose not leader, %s", syncUtilState2String(pSyncNode->state));
+    sError("sync propose not leader, %s", syncUtilState2String(pSyncNode->state));
     goto _END;
   }
 
@@ -1355,11 +1355,16 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
   int32_t userStrLen = strlen(str);
 
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
-  if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+  if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
     pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
   }
-  SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
-  SyncIndex logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
+
+  SyncIndex logLastIndex = SYNC_INDEX_INVALID;
+  SyncIndex logBeginIndex = SYNC_INDEX_INVALID;
+  if (pSyncNode->pLogStore != NULL) {
+    logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
+    logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
+  }
 
   char* pCfgStr = syncCfg2SimpleStr(&(pSyncNode->pRaftCfg->cfg));
   char* printStr = "";
@@ -1409,46 +1414,59 @@ void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
   int32_t userStrLen = strlen(str);
 
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
-  if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+  if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
     pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
   }
-  SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
-  SyncIndex logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
+
+  SyncIndex logLastIndex = SYNC_INDEX_INVALID;
+  SyncIndex logBeginIndex = SYNC_INDEX_INVALID;
+  if (pSyncNode->pLogStore != NULL) {
+    logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
+    logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
+  }
+
+  char* pCfgStr = syncCfg2SimpleStr(&(pSyncNode->pRaftCfg->cfg));
+  char* printStr = "";
+  if (pCfgStr != NULL) {
+    printStr = pCfgStr;
+  }
 
   if (userStrLen < 256) {
-    char logBuf[128 + 256];
+    char logBuf[256 + 256];
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(logBuf, sizeof(logBuf),
                "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
                "replica-num:%d, "
-               "lconfig:%ld, changing:%d",
+               "lconfig:%ld, changing:%d, restore:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
-               pSyncNode->changing);
+               pSyncNode->changing, pSyncNode->restoreFinish, printStr);
     } else {
       snprintf(logBuf, sizeof(logBuf), "%s", str);
     }
     sError("%s", logBuf);
 
   } else {
-    int   len = 128 + userStrLen;
+    int   len = 256 + userStrLen;
     char* s = (char*)taosMemoryMalloc(len);
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(s, len,
                "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
                "replica-num:%d, "
-               "lconfig:%ld, changing:%d",
+               "lconfig:%ld, changing:%d, restore:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
-               pSyncNode->changing);
+               pSyncNode->changing, pSyncNode->restoreFinish, printStr);
     } else {
       snprintf(s, len, "%s", str);
     }
     sError("%s", s);
     taosMemoryFree(s);
   }
+
+  taosMemoryFree(pCfgStr);
 }
 
 char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
@@ -1469,18 +1487,6 @@ char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
            pSyncNode->vgId, syncUtilState2String(pSyncNode->state), pSyncNode->pRaftStore->currentTerm,
            pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy,
            pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing, pSyncNode->restoreFinish);
-
-  /*
-    snprintf(s, len,
-             "syncNode: vgId:%d, term:%lu, commit:%ld, state:%d %s, standby:%d, "
-             "lc:%lu, "
-             "lc-user:%lu, "
-             "ems:%d, replica-num:%d, restore:%d, changing:%d",
-             pSyncNode->vgId, pSyncNode->pRaftStore->currentTerm, pSyncNode->commitIndex, pSyncNode->state,
-             syncUtilState2String(pSyncNode->state), pSyncNode->pRaftCfg->isStandBy, pSyncNode->electTimerLogicClock,
-             pSyncNode->electTimerLogicClockUser, pSyncNode->electTimerMS, pSyncNode->replicaNum,
-             pSyncNode->restoreFinish, pSyncNode->changing);
-  */
 
   return s;
 }

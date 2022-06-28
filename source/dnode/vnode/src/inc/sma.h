@@ -176,14 +176,17 @@ static FORCE_INLINE void tdSmaStatSetDropped(STSmaStat *pTStat) {
 
 static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
+void          *tdFreeRSmaInfo(SRSmaInfo *pInfo);
 
-void *tdFreeRSmaInfo(SRSmaInfo *pInfo);
-
+int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
+int32_t tdProcessRSmaRestoreImpl(SSma *pSma);
 int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg);
 int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg);
 int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
 
 // smaFileUtil ================
+
+#define TD_FILE_HEAD_SIZE 512
 
 typedef struct STFInfo STFInfo;
 typedef struct STFile  STFile;
@@ -202,16 +205,16 @@ struct STFile {
   uint8_t   state;
 };
 
-#define TD_FILE_F(tf)            (&((tf)->f))
-#define TD_FILE_PFILE(tf)        ((tf)->pFile)
-#define TD_FILE_OPENED(tf)       (TD_FILE_PFILE(tf) != NULL)
-#define TD_FILE_FULL_NAME(tf)    (TD_FILE_F(tf)->aname)
-#define TD_FILE_REL_NAME(tf)     (TD_FILE_F(tf)->rname)
-#define TD_FILE_OPENED(tf)       (TD_FILE_PFILE(tf) != NULL)
-#define TD_FILE_CLOSED(tf)       (!TD_FILE_OPENED(tf))
-#define TD_FILE_SET_CLOSED(f)    (TD_FILE_PFILE(f) = NULL)
-#define TD_FILE_SET_STATE(tf, s) ((tf)->state = (s))
-#define TD_FILE_DID(tf)          (TD_FILE_F(tf)->did)
+#define TD_TFILE_F(tf)            (&((tf)->f))
+#define TD_TFILE_PFILE(tf)        ((tf)->pFile)
+#define TD_TFILE_OPENED(tf)       (TD_TFILE_PFILE(tf) != NULL)
+#define TD_TFILE_FULL_NAME(tf)    (TD_TFILE_F(tf)->aname)
+#define TD_TFILE_REL_NAME(tf)     (TD_TFILE_F(tf)->rname)
+#define TD_TFILE_OPENED(tf)       (TD_TFILE_PFILE(tf) != NULL)
+#define TD_TFILE_CLOSED(tf)       (!TD_TFILE_OPENED(tf))
+#define TD_TFILE_SET_CLOSED(f)    (TD_TFILE_PFILE(f) = NULL)
+#define TD_TFILE_SET_STATE(tf, s) ((tf)->state = (s))
+#define TD_TFILE_DID(tf)          (TD_TFILE_F(tf)->did)
 
 int32_t tdInitTFile(STFile *pTFile, STfs *pTfs, const char *fname);
 int32_t tdCreateTFile(STFile *pTFile, STfs *pTfs, bool updateHeader, int8_t fType);
@@ -220,12 +223,14 @@ int64_t tdReadTFile(STFile *pTFile, void *buf, int64_t nbyte);
 int64_t tdSeekTFile(STFile *pTFile, int64_t offset, int whence);
 int64_t tdWriteTFile(STFile *pTFile, void *buf, int64_t nbyte);
 int64_t tdAppendTFile(STFile *pTFile, void *buf, int64_t nbyte, int64_t *offset);
+int64_t tdGetTFileSize(STFile *pTFile, int64_t *size);
 int32_t tdRemoveTFile(STFile *pTFile);
 int32_t tdLoadTFileHeader(STFile *pTFile, STFInfo *pInfo);
 int32_t tdUpdateTFileHeader(STFile *pTFile);
 void    tdUpdateTFileMagic(STFile *pTFile, void *pCksm);
 void    tdCloseTFile(STFile *pTFile);
-void    tdGetVndFileName(int32_t vid, const char *dname, const char *fname, char *outputName);
+
+void tdGetVndFileName(int32_t vid, const char *dname, const char *fname, char *outputName);
 
 #ifdef __cplusplus
 }

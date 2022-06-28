@@ -606,7 +606,23 @@ class TDTestCase:
         tdSql.checkData(0,3,math.pow(63.500000000,2))
         tdSql.checkData(0,5,None)
       
+
+    def support_super_table_test(self):
+        tdSql.execute(" use db ")
+        self.check_result_auto_pow2( " select c5 from stb1 order by ts " , "select pow(c5,2) from stb1 order by ts" )
+        self.check_result_auto_pow2( " select c5 from stb1 order by tbname " , "select pow(c5,2) from stb1 order by tbname" )
+        self.check_result_auto_pow2( " select c5 from stb1 where c1 > 0 order by tbname  " , "select pow(c5,2) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_pow2( " select c5 from stb1 where c1 > 0 order by tbname  " , "select pow(c5,2) from stb1 where c1 > 0 order by tbname" )
+
+        self.check_result_auto_pow2( " select t1,c5 from stb1 order by ts " , "select pow(t1,2), pow(c5,2) from stb1 order by ts" )
+        self.check_result_auto_pow2( " select t1,c5 from stb1 order by tbname " , "select pow(t1,2) ,pow(c5,2) from stb1 order by tbname" )
+        self.check_result_auto_pow2( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select pow(t1,2) ,pow(c5,2) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_pow2( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select pow(t1,2) , pow(c5,2) from stb1 where c1 > 0 order by tbname" )
+        pass
     
+    
+
+
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
@@ -642,7 +658,9 @@ class TDTestCase:
 
         self.abs_func_filter()
 
-        
+        tdLog.printNoPrefix("==========step9: check pow result of  stable query ============")
+
+        self.support_super_table_test()    
 
     def stop(self):
         tdSql.close()

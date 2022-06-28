@@ -17,6 +17,7 @@ add_executable(syncVotesRespondTest "")
 add_executable(syncIndexMgrTest "")
 add_executable(syncLogStoreTest "")
 add_executable(syncEntryTest "")
+add_executable(syncEntryCacheTest "")
 add_executable(syncRequestVoteTest "")
 add_executable(syncRequestVoteReplyTest "")
 add_executable(syncAppendEntriesTest "")
@@ -128,6 +129,10 @@ target_sources(syncLogStoreTest
 target_sources(syncEntryTest
     PRIVATE
     "syncEntryTest.cpp"
+)
+target_sources(syncEntryCacheTest
+    PRIVATE
+    "syncEntryCacheTest.cpp"
 )
 target_sources(syncRequestVoteTest
     PRIVATE
@@ -358,6 +363,11 @@ target_include_directories(syncLogStoreTest
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncEntryTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncEntryCacheTest
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -607,6 +617,10 @@ target_link_libraries(syncLogStoreTest
     gtest_main
 )
 target_link_libraries(syncEntryTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncEntryCacheTest
     sync
     gtest_main
 )

@@ -1355,25 +1355,6 @@ static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR;
 }
 
-static EDealRes rewriteExprToGroupKeyFunc(STranslateContext* pCxt, SNode** pNode) {
-  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
-  if (NULL == pFunc) {
-    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
-    return DEAL_RES_ERROR;
-  }
-
-  strcpy(pFunc->functionName, "_group_key");
-  strcpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName);
-  pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
-  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    *pNode = (SNode*)pFunc;
-    pCxt->errCode = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
-  }
-  pCxt->pCurrSelectStmt->hasAggFuncs = true;
-
-  return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
-}
-
 static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   SCheckExprForGroupByCxt* pCxt = (SCheckExprForGroupByCxt*)pContext;
   if (!nodesIsExprNode(*pNode) || isAliasColumn(*pNode)) {
@@ -1393,7 +1374,13 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   SNode* pGroupNode = NULL;
   FOREACH(pGroupNode, getGroupByList(pCxt->pTranslateCxt)) {
     if (nodesEqualNode(getGroupByNode(pGroupNode), *pNode)) {
-      return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
+      return DEAL_RES_IGNORE_CHILD;
+    }
+  }
+  SNode* pPartKey = NULL;
+  FOREACH(pPartKey, pCxt->pTranslateCxt->pCurrSelectStmt->pPartitionByList) {
+    if (nodesEqualNode(pPartKey, *pNode)) {
+      return DEAL_RES_IGNORE_CHILD;
     }
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
@@ -1447,25 +1434,6 @@ static int32_t rewriteColsToSelectValFunc(STranslateContext* pCxt, SSelectStmt* 
   nodesRewriteExprs(pSelect->pProjectionList, rewriteColsToSelectValFuncImpl, pCxt);
   if (TSDB_CODE_SUCCESS == pCxt->errCode && !pSelect->isDistinct) {
     nodesRewriteExprs(pSelect->pOrderByList, rewriteColsToSelectValFuncImpl, pCxt);
-  }
-  return pCxt->errCode;
-}
-
-static EDealRes rewriteExprsToGroupKeyFuncImpl(SNode** pNode, void* pContext) {
-  STranslateContext* pCxt = pContext;
-  SNode*             pPartKey = NULL;
-  FOREACH(pPartKey, pCxt->pCurrSelectStmt->pPartitionByList) {
-    if (nodesEqualNode(pPartKey, *pNode)) {
-      return rewriteExprToGroupKeyFunc(pCxt, pNode);
-    }
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static int32_t rewriteExprsToGroupKeyFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  nodesRewriteExprs(pSelect->pProjectionList, rewriteExprsToGroupKeyFuncImpl, pCxt);
-  if (TSDB_CODE_SUCCESS == pCxt->errCode && !pSelect->isDistinct) {
-    nodesRewriteExprs(pSelect->pOrderByList, rewriteExprsToGroupKeyFuncImpl, pCxt);
   }
   return pCxt->errCode;
 }
@@ -1528,9 +1496,6 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   }
   if (cxt.existIndefiniteRowsFunc && cxt.existCol) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
-  }
-  if (cxt.existAggFunc && NULL != pSelect->pPartitionByList) {
-    return rewriteExprsToGroupKeyFunc(pCxt, pSelect);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2408,138 +2373,6 @@ static EDealRes rewriteSeletcValueFunc(STranslateContext* pCxt, SNode** pNode) {
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR;
 }
 
-static EDealRes rewriteUniqueFunc(SNode** pNode, void* pContext) {
-  SRwriteUniqueCxt* pCxt = pContext;
-  if (QUERY_NODE_FUNCTION == nodeType(*pNode)) {
-    SFunctionNode* pFunc = (SFunctionNode*)*pNode;
-    if (FUNCTION_TYPE_UNIQUE == pFunc->funcType) {
-      SNode* pExpr = nodesListGetNode(pFunc->pParameterList, 0);
-      NODES_CLEAR_LIST(pFunc->pParameterList);
-      strcpy(((SExprNode*)pExpr)->aliasName, ((SExprNode*)*pNode)->aliasName);
-      nodesDestroyNode(*pNode);
-      *pNode = pExpr;
-      pCxt->pExpr = pExpr;
-      return DEAL_RES_IGNORE_CHILD;
-    } else if (FUNCTION_TYPE_SELECT_VALUE == pFunc->funcType) {
-      return rewriteSeletcValueFunc(pCxt->pTranslateCxt, pNode);
-    }
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static SNode* createGroupingSet(SNode* pExpr) {
-  SGroupingSetNode* pGroupingSet = (SGroupingSetNode*)nodesMakeNode(QUERY_NODE_GROUPING_SET);
-  if (NULL == pGroupingSet) {
-    return NULL;
-  }
-  pGroupingSet->groupingSetType = GP_TYPE_NORMAL;
-  if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pGroupingSet->pParameterList, nodesCloneNode(pExpr))) {
-    nodesDestroyNode((SNode*)pGroupingSet);
-    return NULL;
-  }
-  return (SNode*)pGroupingSet;
-}
-
-// from: select unique(expr), col1 + col2 from t where_clause partition_by_clause order_by_clause ...
-// to: select expr, first(col1) + first(col2) from t where_clause partition_by_clause group by expr order_by_clause ...
-static int32_t rewriteUniqueStmt(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (!pSelect->hasUniqueFunc) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SRwriteUniqueCxt cxt = {.pTranslateCxt = pCxt, .pExpr = NULL};
-  nodesRewriteExprs(pSelect->pProjectionList, rewriteUniqueFunc, &cxt);
-  if (TSDB_CODE_SUCCESS == cxt.pTranslateCxt->errCode) {
-    cxt.pTranslateCxt->errCode = nodesListMakeStrictAppend(&pSelect->pGroupByList, createGroupingSet(cxt.pExpr));
-  }
-  pSelect->hasIndefiniteRowsFunc = false;
-  return cxt.pTranslateCxt->errCode;
-}
-
-typedef struct SRwriteTailCxt {
-  STranslateContext* pTranslateCxt;
-  int64_t            limit;
-  int64_t            offset;
-} SRwriteTailCxt;
-
-static EDealRes rewriteTailFunc(SNode** pNode, void* pContext) {
-  SRwriteTailCxt* pCxt = pContext;
-  if (QUERY_NODE_FUNCTION == nodeType(*pNode)) {
-    SFunctionNode* pFunc = (SFunctionNode*)*pNode;
-    if (FUNCTION_TYPE_TAIL == pFunc->funcType) {
-      pCxt->limit = ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i;
-      if (3 == LIST_LENGTH(pFunc->pParameterList)) {
-        pCxt->offset = ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 2))->datum.i;
-      }
-      SNode* pExpr = nodesListGetNode(pFunc->pParameterList, 0);
-      strcpy(((SExprNode*)pExpr)->aliasName, ((SExprNode*)*pNode)->aliasName);
-      NODES_CLEAR_LIST(pFunc->pParameterList);
-      nodesDestroyNode(*pNode);
-      *pNode = pExpr;
-      return DEAL_RES_IGNORE_CHILD;
-    }
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static int32_t createLimieNode(SRwriteTailCxt* pCxt, SLimitNode** pOutput) {
-  *pOutput = (SLimitNode*)nodesMakeNode(QUERY_NODE_LIMIT);
-  if (NULL == *pOutput) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  (*pOutput)->limit = pCxt->limit;
-  (*pOutput)->offset = pCxt->offset;
-  return TSDB_CODE_SUCCESS;
-}
-
-static SNode* createOrderByExpr(STranslateContext* pCxt) {
-  SOrderByExprNode* pOrder = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
-  if (NULL == pOrder) {
-    return NULL;
-  }
-  pCxt->errCode = createPrimaryKeyCol(pCxt, &pOrder->pExpr);
-  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
-    nodesDestroyNode((SNode*)pOrder);
-    return NULL;
-  }
-  pOrder->order = ORDER_DESC;
-  pOrder->nullOrder = NULL_ORDER_FIRST;
-  return (SNode*)pOrder;
-}
-
-/* case 1:
- * in:  select tail(expr, k, f) from t where_clause
- * out: select expr from t where_clause order by _rowts desc limit k offset f
- *
- * case 2:
- * in:  select tail(expr, k, f) from t where_clause partition_by_clause
- * out: select expr from t where_clause partition_by_clause sort by _rowts desc limit k offset f
- *
- * case 3:
- * in:  select tail(expr, k, f) from t where_clause order_by_clause limit_clause
- * out: select expr from (
- *        select expr from t where_clause order by _rowts desc limit k offset f
- *      ) order_by_clause limit_clause
- *
- * case 4:
- * in:  select tail(expr, k, f) from t where_clause partition_by_clause limit_clause
- * out:
- */
-static int32_t rewriteTailStmt(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (!pSelect->hasTailFunc) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SRwriteTailCxt cxt = {.pTranslateCxt = pCxt, .limit = -1, .offset = -1};
-  nodesRewriteExprs(pSelect->pProjectionList, rewriteTailFunc, &cxt);
-  int32_t code = nodesListMakeStrictAppend(&pSelect->pOrderByList, createOrderByExpr(pCxt));
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createLimieNode(&cxt, &pSelect->pLimit);
-  }
-  pSelect->hasIndefiniteRowsFunc = false;
-  return code;
-}
-
 typedef struct SReplaceOrderByAliasCxt {
   STranslateContext* pTranslateCxt;
   SNodeList*         pProjectionList;
@@ -2558,6 +2391,7 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
           pCxt->pTranslateCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
           return DEAL_RES_ERROR;
         }
+        ((SExprNode*)pNew)->orderAlias = true;
         nodesDestroyNode(*pNode);
         *pNode = pNew;
         return DEAL_RES_CONTINUE;
@@ -2613,12 +2447,6 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterp(pCxt, pSelect);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteUniqueStmt(pCxt, pSelect);
-  }
-  // if (TSDB_CODE_SUCCESS == code) {
-  //   code = rewriteTailStmt(pCxt, pSelect);
-  // }
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteTimelineFunc(pCxt, pSelect);
   }
