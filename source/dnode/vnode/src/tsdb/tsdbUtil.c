@@ -35,6 +35,39 @@ void tMapDataClear(SMapData *pMapData) {
   }
 }
 
+int32_t tMapDataCopy(SMapData *pMapDataSrc, SMapData *pMapDataDest) {
+  int32_t code = 0;
+  int32_t size;
+
+  pMapDataDest->nItem = pMapDataSrc->nItem;
+  pMapDataDest->flag = pMapDataSrc->flag;
+
+  switch (pMapDataDest->flag) {
+    case TSDB_OFFSET_I32:
+      size = sizeof(int32_t) * pMapDataDest->nItem;
+      break;
+    case TSDB_OFFSET_I16:
+      size = sizeof(int16_t) * pMapDataDest->nItem;
+      break;
+    case TSDB_OFFSET_I8:
+      size = sizeof(int8_t) * pMapDataDest->nItem;
+      break;
+    default:
+      ASSERT(0);
+  }
+  code = tsdbRealloc(&pMapDataDest->pOfst, size);
+  if (code) goto _exit;
+  memcpy(pMapDataDest->pOfst, pMapDataSrc->pOfst, size);
+
+  pMapDataDest->nData = pMapDataSrc->nData;
+  code = tsdbRealloc(&pMapDataDest->pData, pMapDataDest->nData);
+  if (code) goto _exit;
+  memcpy(pMapDataDest->pData, pMapDataSrc->pData, pMapDataDest->nData);
+
+_exit:
+  return code;
+}
+
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *)) {
   int32_t code = 0;
   int32_t offset = pMapData->nData;
@@ -367,6 +400,32 @@ void tBlockClear(SBlock *pBlock) {
   for (int8_t iSubBlock = 0; iSubBlock < TSDB_MAX_SUBBLOCKS; iSubBlock++) {
     tMapDataClear(&pBlock->aSubBlock->mBlockCol);
   }
+}
+
+int32_t tBlockCopy(SBlock *pBlockSrc, SBlock *pBlockDest) {
+  int32_t code = 0;
+
+  pBlockDest->minKey = pBlockSrc->minKey;
+  pBlockDest->maxKey = pBlockSrc->maxKey;
+  pBlockDest->minVersion = pBlockSrc->minVersion;
+  pBlockDest->maxVersion = pBlockSrc->maxVersion;
+  pBlockDest->nRow = pBlockSrc->nRow;
+  pBlockDest->last = pBlockSrc->last;
+  pBlockDest->hasDup = pBlockSrc->hasDup;
+  pBlockDest->nSubBlock = pBlockSrc->nSubBlock;
+  for (int32_t iSubBlock = 0; iSubBlock < pBlockSrc->nSubBlock; iSubBlock++) {
+    pBlockDest->aSubBlock[iSubBlock].nRow = pBlockSrc->aSubBlock[iSubBlock].nRow;
+    pBlockDest->aSubBlock[iSubBlock].cmprAlg = pBlockSrc->aSubBlock[iSubBlock].cmprAlg;
+    pBlockDest->aSubBlock[iSubBlock].offset = pBlockSrc->aSubBlock[iSubBlock].offset;
+    pBlockDest->aSubBlock[iSubBlock].vsize = pBlockSrc->aSubBlock[iSubBlock].vsize;
+    pBlockDest->aSubBlock[iSubBlock].ksize = pBlockSrc->aSubBlock[iSubBlock].ksize;
+    pBlockDest->aSubBlock[iSubBlock].bsize = pBlockSrc->aSubBlock[iSubBlock].bsize;
+    code = tMapDataCopy(&pBlockSrc->aSubBlock[iSubBlock].mBlockCol, &pBlockDest->aSubBlock[iSubBlock].mBlockCol);
+    if (code) goto _exit;
+  }
+
+_exit:
+  return code;
 }
 
 int32_t tPutBlock(uint8_t *p, void *ph) {
