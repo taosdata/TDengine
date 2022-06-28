@@ -77,3 +77,5 @@ cat $tmp_target_file|sort|uniq >$target_file
 
 wc -l $target_file
 
+exit 0
+
