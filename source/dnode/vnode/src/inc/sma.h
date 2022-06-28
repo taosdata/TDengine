@@ -32,11 +32,13 @@ extern "C" {
 #define smaTrace(...) do { if (smaDebugFlag & DEBUG_TRACE) { taosPrintLog("SMA ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
-typedef struct SSmaEnv      SSmaEnv;
-typedef struct SSmaStat     SSmaStat;
-typedef struct SSmaStatItem SSmaStatItem;
-typedef struct SSmaKey      SSmaKey;
-typedef struct SRSmaInfo    SRSmaInfo;
+typedef struct SSmaEnv       SSmaEnv;
+typedef struct SSmaStat      SSmaStat;
+typedef struct STSmaStat     STSmaStat;
+typedef struct SRSmaStat     SRSmaStat;
+typedef struct SSmaKey       SSmaKey;
+typedef struct SRSmaInfo     SRSmaInfo;
+typedef struct SRSmaInfoItem SRSmaInfoItem;
 
 struct SSmaEnv {
   TdThreadRwlock lock;
@@ -44,27 +46,48 @@ struct SSmaEnv {
   SSmaStat      *pStat;
 };
 
-#define SMA_ENV_LOCK(env)       ((env)->lock)
-#define SMA_ENV_TYPE(env)       ((env)->type)
-#define SMA_ENV_STAT(env)       ((env)->pStat)
-#define SMA_ENV_STAT_ITEM(env) ((env)->pStat->tsmaStatItem)
+#define SMA_ENV_LOCK(env) ((env)->lock)
+#define SMA_ENV_TYPE(env) ((env)->type)
+#define SMA_ENV_STAT(env) ((env)->pStat)
 
-struct SSmaStatItem {
+struct STSmaStat {
   int8_t    state;  // ETsdbSmaStat
   STSma    *pTSma;  // cache schema
   STSchema *pTSchema;
 };
 
+struct SRSmaStat {
+  SSma     *pSma;
+  void     *tmrHandle;
+  tmr_h     tmrId;
+  int32_t   tmrSeconds;
+  int8_t    triggerStat;
+  int8_t    runningStat;
+  SHashObj *rsmaInfoHash;  // key: stbUid, value: SRSmaInfo;
+};
+
 struct SSmaStat {
   union {
-    SSmaStatItem tsmaStatItem;
-    SHashObj    *rsmaInfoHash;  // key: stbUid, value: SRSmaInfo;
+    STSmaStat tsmaStat;  // time-range-wise sma
+    SRSmaStat rsmaStat;  // rollup sma
   };
   T_REF_DECLARE()
 };
-#define SMA_STAT_ITEM(s)      ((s)->tsmaStatItem)
-#define SMA_STAT_INFO_HASH(s) ((s)->rsmaInfoHash)
+#define SMA_TSMA_STAT(s)     (&(s)->tsmaStat)
+#define SMA_RSMA_STAT(s)     (&(s)->rsmaStat)
+#define RSMA_INFO_HASH(r)    ((r)->rsmaInfoHash)
+#define RSMA_TMR_ID(r)       ((r)->tmrId)
+#define RSMA_TMR_HANDLE(r)   ((r)->tmrHandle)
+#define RSMA_TRIGGER_STAT(r) (&(r)->triggerStat)
+#define RSMA_RUNNING_STAT(r) (&(r)->runningStat)
 
+enum {
+  TASK_TRIGGER_STAT_INIT = 0,
+  TASK_TRIGGER_STAT_ACTIVE = 1,
+  TASK_TRIGGER_STAT_INACTIVE = 2,
+  TASK_TRIGGER_STAT_CANCELLED = 3,
+  TASK_TRIGGER_STAT_FINISHED = 4,
+};
 void  tdDestroySmaEnv(SSmaEnv *pSmaEnv);
 void *tdFreeSmaEnv(SSmaEnv *pSmaEnv);
 
@@ -106,61 +129,108 @@ static FORCE_INLINE int32_t tdUnLockSmaEnv(SSmaEnv *pEnv) {
   return 0;
 }
 
-static FORCE_INLINE int8_t tdSmaStat(SSmaStatItem *pStatItem) {
-  if (pStatItem) {
-    return atomic_load_8(&pStatItem->state);
+static FORCE_INLINE int8_t tdSmaStat(STSmaStat *pTStat) {
+  if (pTStat) {
+    return atomic_load_8(&pTStat->state);
   }
   return TSDB_SMA_STAT_UNKNOWN;
 }
 
-static FORCE_INLINE bool tdSmaStatIsOK(SSmaStatItem *pStatItem, int8_t *state) {
-  if (!pStatItem) {
+static FORCE_INLINE bool tdSmaStatIsOK(STSmaStat *pTStat, int8_t *state) {
+  if (!pTStat) {
     return false;
   }
 
   if (state) {
-    *state = atomic_load_8(&pStatItem->state);
+    *state = atomic_load_8(&pTStat->state);
     return *state == TSDB_SMA_STAT_OK;
   }
-  return atomic_load_8(&pStatItem->state) == TSDB_SMA_STAT_OK;
+  return atomic_load_8(&pTStat->state) == TSDB_SMA_STAT_OK;
 }
 
-static FORCE_INLINE bool tdSmaStatIsExpired(SSmaStatItem *pStatItem) {
-  return pStatItem ? (atomic_load_8(&pStatItem->state) & TSDB_SMA_STAT_EXPIRED) : true;
+static FORCE_INLINE bool tdSmaStatIsExpired(STSmaStat *pTStat) {
+  return pTStat ? (atomic_load_8(&pTStat->state) & TSDB_SMA_STAT_EXPIRED) : true;
 }
 
-static FORCE_INLINE bool tdSmaStatIsDropped(SSmaStatItem *pStatItem) {
-  return pStatItem ? (atomic_load_8(&pStatItem->state) & TSDB_SMA_STAT_DROPPED) : true;
+static FORCE_INLINE bool tdSmaStatIsDropped(STSmaStat *pTStat) {
+  return pTStat ? (atomic_load_8(&pTStat->state) & TSDB_SMA_STAT_DROPPED) : true;
 }
 
-static FORCE_INLINE void tdSmaStatSetOK(SSmaStatItem *pStatItem) {
-  if (pStatItem) {
-    atomic_store_8(&pStatItem->state, TSDB_SMA_STAT_OK);
+static FORCE_INLINE void tdSmaStatSetOK(STSmaStat *pTStat) {
+  if (pTStat) {
+    atomic_store_8(&pTStat->state, TSDB_SMA_STAT_OK);
   }
 }
 
-static FORCE_INLINE void tdSmaStatSetExpired(SSmaStatItem *pStatItem) {
-  if (pStatItem) {
-    atomic_or_fetch_8(&pStatItem->state, TSDB_SMA_STAT_EXPIRED);
+static FORCE_INLINE void tdSmaStatSetExpired(STSmaStat *pTStat) {
+  if (pTStat) {
+    atomic_or_fetch_8(&pTStat->state, TSDB_SMA_STAT_EXPIRED);
   }
 }
 
-static FORCE_INLINE void tdSmaStatSetDropped(SSmaStatItem *pStatItem) {
-  if (pStatItem) {
-    atomic_or_fetch_8(&pStatItem->state, TSDB_SMA_STAT_DROPPED);
+static FORCE_INLINE void tdSmaStatSetDropped(STSmaStat *pTStat) {
+  if (pTStat) {
+    atomic_or_fetch_8(&pTStat->state, TSDB_SMA_STAT_DROPPED);
   }
 }
 
-static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType);
-void          *tdFreeSmaStatItem(SSmaStatItem *pSmaStatItem);
 static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
+void          *tdFreeRSmaInfo(SRSmaInfo *pInfo);
 
-void *tdFreeRSmaInfo(SRSmaInfo *pInfo);
-
+int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
+int32_t tdProcessRSmaRestoreImpl(SSma *pSma);
 int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg);
 int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg);
 int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
+
+// smaFileUtil ================
+
+#define TD_FILE_HEAD_SIZE 512
+
+typedef struct STFInfo STFInfo;
+typedef struct STFile  STFile;
+
+struct STFInfo {
+  uint32_t magic;
+  uint32_t ftype;
+  uint32_t fver;
+  int64_t  fsize;
+};
+
+struct STFile {
+  STFInfo   info;
+  STfsFile  f;
+  TdFilePtr pFile;
+  uint8_t   state;
+};
+
+#define TD_FILE_F(tf)            (&((tf)->f))
+#define TD_FILE_PFILE(tf)        ((tf)->pFile)
+#define TD_FILE_OPENED(tf)       (TD_FILE_PFILE(tf) != NULL)
+#define TD_FILE_FULL_NAME(tf)    (TD_FILE_F(tf)->aname)
+#define TD_FILE_REL_NAME(tf)     (TD_FILE_F(tf)->rname)
+#define TD_FILE_OPENED(tf)       (TD_FILE_PFILE(tf) != NULL)
+#define TD_FILE_CLOSED(tf)       (!TD_FILE_OPENED(tf))
+#define TD_FILE_SET_CLOSED(f)    (TD_FILE_PFILE(f) = NULL)
+#define TD_FILE_SET_STATE(tf, s) ((tf)->state = (s))
+#define TD_FILE_DID(tf)          (TD_FILE_F(tf)->did)
+
+int32_t tdInitTFile(STFile *pTFile, STfs *pTfs, const char *fname);
+int32_t tdCreateTFile(STFile *pTFile, STfs *pTfs, bool updateHeader, int8_t fType);
+int32_t tdOpenTFile(STFile *pTFile, int flags);
+int64_t tdReadTFile(STFile *pTFile, void *buf, int64_t nbyte);
+int64_t tdSeekTFile(STFile *pTFile, int64_t offset, int whence);
+int64_t tdWriteTFile(STFile *pTFile, void *buf, int64_t nbyte);
+int64_t tdAppendTFile(STFile *pTFile, void *buf, int64_t nbyte, int64_t *offset);
+int64_t tdGetTFileSize(STFile *pTFile, int64_t *size);
+int32_t tdRemoveTFile(STFile *pTFile);
+int32_t tdLoadTFileHeader(STFile *pTFile, STFInfo *pInfo);
+int32_t tdUpdateTFileHeader(STFile *pTFile);
+void    tdUpdateTFileMagic(STFile *pTFile, void *pCksm);
+void    tdCloseTFile(STFile *pTFile);
+
+void tdGetVndFileName(int32_t vid, const char *dname, const char *fname, char *outputName);
 
 #ifdef __cplusplus
 }

@@ -25,85 +25,125 @@
 #ifdef WINDOWS
 #define TD_USE_WINSOCK
 #endif
+
 #include "mockCatalog.h"
+
+#include "systable.h"
 namespace {
 
 void generateInformationSchema(MockCatalogService* mcs) {
   {
-    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "dnodes", TSDB_SYSTEM_TABLE, 1)
-                                 .addColumn("id", TSDB_DATA_TYPE_INT);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "mnodes", TSDB_SYSTEM_TABLE, 1)
-                                 .addColumn("id", TSDB_DATA_TYPE_INT);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "modules", TSDB_SYSTEM_TABLE, 1)
-                                 .addColumn("id", TSDB_DATA_TYPE_INT);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "qnodes", TSDB_SYSTEM_TABLE, 1)
-                                 .addColumn("id", TSDB_DATA_TYPE_INT);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_databases", TSDB_SYSTEM_TABLE, 1)
-                                 .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_functions", TSDB_SYSTEM_TABLE, 1)
-                                 .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_FUNC_NAME_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_indexes", TSDB_SYSTEM_TABLE, 2)
-                                 .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
-                                 .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_stables", TSDB_SYSTEM_TABLE, 2)
-                                 .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
-                                 .addColumn("stable_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_tables", TSDB_SYSTEM_TABLE, 2)
-                                 .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
-                                 .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_DNODES, TSDB_SYSTEM_TABLE, 1)
+            .addColumn("id", TSDB_DATA_TYPE_INT);
     builder.done();
   }
   {
     ITableBuilder& builder =
-        mcs->createTableBuilder("information_schema", "user_table_distributed", TSDB_SYSTEM_TABLE, 1)
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_MNODES, TSDB_SYSTEM_TABLE, 1)
+            .addColumn("id", TSDB_DATA_TYPE_INT);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_MODULES, TSDB_SYSTEM_TABLE, 1)
+            .addColumn("id", TSDB_DATA_TYPE_INT);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_QNODES, TSDB_SYSTEM_TABLE, 1)
+            .addColumn("id", TSDB_DATA_TYPE_INT);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_USER_DATABASES, TSDB_SYSTEM_TABLE, 1)
+            .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_USER_FUNCTIONS, TSDB_SYSTEM_TABLE, 1)
+            .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_FUNC_NAME_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_USER_INDEXES, TSDB_SYSTEM_TABLE, 2)
+            .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+            .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_USER_STABLES, TSDB_SYSTEM_TABLE, 2)
+            .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+            .addColumn("stable_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_USER_TABLES, TSDB_SYSTEM_TABLE, 2)
+            .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+            .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED, TSDB_SYSTEM_TABLE, 1)
             .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN);
     builder.done();
   }
   {
-    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_users", TSDB_SYSTEM_TABLE, 1)
-                                 .addColumn("user_name", TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN);
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_USER_USERS, TSDB_SYSTEM_TABLE, 1)
+            .addColumn("user_name", TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN);
     builder.done();
   }
   {
-    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "vgroups", TSDB_SYSTEM_TABLE, 1)
-                                 .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN);
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VGROUPS, TSDB_SYSTEM_TABLE, 1)
+            .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_CONFIGS, TSDB_SYSTEM_TABLE, 1)
+            .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_CONFIG_OPTION_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_DNODE_VARIABLES, TSDB_SYSTEM_TABLE, 1)
+            .addColumn("dnode_id", TSDB_DATA_TYPE_INT);
     builder.done();
   }
 }
 
 void generatePerformanceSchema(MockCatalogService* mcs) {
   {
-    ITableBuilder& builder = mcs->createTableBuilder("performance_schema", "trans", TSDB_SYSTEM_TABLE, 1)
-                                 .addColumn("id", TSDB_DATA_TYPE_INT);
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_TRANS, TSDB_SYSTEM_TABLE, 1)
+            .addColumn("id", TSDB_DATA_TYPE_INT);
     builder.done();
   }
   {
-    ITableBuilder& builder = mcs->createTableBuilder("performance_schema", "streams", TSDB_SYSTEM_TABLE, 1)
-                                 .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_STREAMS, TSDB_SYSTEM_TABLE, 1)
+            .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_CONSUMERS, TSDB_SYSTEM_TABLE, 1)
+            .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder =
+        mcs->createTableBuilder(TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_SUBSCRIPTIONS, TSDB_SYSTEM_TABLE, 1)
+            .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
     builder.done();
   }
 }
@@ -187,6 +227,12 @@ void generateFunctions(MockCatalogService* mcs) {
                       8);
 }
 
+void generateDnodes(MockCatalogService* mcs) {
+  mcs->createDnode(1, "host1", 7030);
+  mcs->createDnode(2, "host2", 7030);
+  mcs->createDnode(3, "host3", 7030);
+}
+
 }  // namespace
 
 int32_t __catalogGetHandle(const char* clusterId, struct SCatalog** catalogHandle) { return 0; }
@@ -241,6 +287,16 @@ int32_t __catalogGetTableIndex(SCatalog* pCtg, void* pTrans, const SEpSet* pMgmt
   return g_mockCatalogService->catalogGetTableIndex(pName, pRes);
 }
 
+int32_t __catalogGetDnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray** pDnodeList) {
+  return g_mockCatalogService->catalogGetDnodeList(pDnodeList);
+}
+
+int32_t __catalogRefreshGetTableCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
+                                    STableCfg** pCfg) {
+  *pCfg = (STableCfg*)taosMemoryCalloc(1, sizeof(STableCfg));
+  return 0;
+}
+
 void initMetaDataEnv() {
   g_mockCatalogService.reset(new MockCatalogService());
 
@@ -258,6 +314,8 @@ void initMetaDataEnv() {
   stub.set(catalogRefreshGetTableMeta, __catalogRefreshGetTableMeta);
   stub.set(catalogRemoveTableMeta, __catalogRemoveTableMeta);
   stub.set(catalogGetTableIndex, __catalogGetTableIndex);
+  stub.set(catalogGetDnodeList, __catalogGetDnodeList);
+  stub.set(catalogRefreshGetTableCfg, __catalogRefreshGetTableCfg);
   // {
   //   AddrAny any("libcatalog.so");
   //   std::map<std::string,void*> result;
@@ -307,6 +365,7 @@ void generateMetaData() {
   generateTestST1(g_mockCatalogService.get());
   generateTestST2(g_mockCatalogService.get());
   generateFunctions(g_mockCatalogService.get());
+  generateDnodes(g_mockCatalogService.get());
   g_mockCatalogService->showTables();
 }
 

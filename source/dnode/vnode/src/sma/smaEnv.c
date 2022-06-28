@@ -21,9 +21,10 @@ typedef struct SSmaStat SSmaStat;
 
 // declaration of static functions
 
-static int32_t  tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType);
+static int32_t  tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pSma);
 static SSmaEnv *tdNewSmaEnv(const SSma *pSma, int8_t smaType, const char *path);
 static int32_t  tdInitSmaEnv(SSma *pSma, int8_t smaType, const char *path, SSmaEnv **pEnv);
+static void    *tdFreeTSmaStat(STSmaStat *pStat);
 
 // implementation
 
@@ -45,7 +46,7 @@ static SSmaEnv *tdNewSmaEnv(const SSma *pSma, int8_t smaType, const char *path) 
     return NULL;
   }
 
-  if (tdInitSmaStat(&SMA_ENV_STAT(pEnv), smaType) != TSDB_CODE_SUCCESS) {
+  if (tdInitSmaStat(&SMA_ENV_STAT(pEnv), smaType, pSma) != TSDB_CODE_SUCCESS) {
     tdFreeSmaEnv(pEnv);
     return NULL;
   }
@@ -105,7 +106,7 @@ int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
   return 0;
 }
 
-static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType) {
+static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pSma) {
   ASSERT(pSmaStat != NULL);
 
   if (*pSmaStat) {  // no lock
@@ -125,10 +126,22 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType) {
     }
 
     if (smaType == TSDB_SMA_TYPE_ROLLUP) {
-      SMA_STAT_INFO_HASH(*pSmaStat) = taosHashInit(
-          RSMA_TASK_INFO_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+      SRSmaStat *pRSmaStat = (SRSmaStat *)(*pSmaStat);
+      pRSmaStat->pSma = (SSma *)pSma;
+      // init timer
+      RSMA_TMR_HANDLE(pRSmaStat) = taosTmrInit(10000, 100, 10000, "RSMA");
+      if (!RSMA_TMR_HANDLE(pRSmaStat)) {
+        taosMemoryFreeClear(*pSmaStat);
+        return TSDB_CODE_FAILED;
+      }
 
-      if (!SMA_STAT_INFO_HASH(*pSmaStat)) {
+      // init hash
+      RSMA_INFO_HASH(pRSmaStat) = taosHashInit(
+          RSMA_TASK_INFO_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+      if (!RSMA_INFO_HASH(pRSmaStat)) {
+        if (RSMA_TMR_HANDLE(pRSmaStat)) {
+          taosTmrCleanUp(RSMA_TMR_HANDLE(pRSmaStat));
+        }
         taosMemoryFreeClear(*pSmaStat);
         return TSDB_CODE_FAILED;
       }
@@ -141,16 +154,84 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType) {
   return TSDB_CODE_SUCCESS;
 }
 
-void *tdFreeSmaStatItem(SSmaStatItem *pSmaStatItem) {
-  if (pSmaStatItem) {
-    tDestroyTSma(pSmaStatItem->pTSma);
-    taosMemoryFreeClear(pSmaStatItem->pTSma);
-    taosMemoryFreeClear(pSmaStatItem);
+static void tdDestroyTSmaStat(STSmaStat *pStat) {
+  if (pStat) {
+    smaDebug("destroy tsma stat");
+    tDestroyTSma(pStat->pTSma);
+    taosMemoryFreeClear(pStat->pTSma);
+    taosMemoryFreeClear(pStat->pTSchema);
   }
+}
+
+static void *tdFreeTSmaStat(STSmaStat *pStat) {
+  tdDestroyTSmaStat(pStat);
+  taosMemoryFreeClear(pStat);
   return NULL;
 }
 
-void* tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
+static void tdDestroyRSmaStat(SRSmaStat *pStat) {
+  if (pStat) {
+    smaDebug("vgId:%d destroy rsma stat", SMA_VID(pStat->pSma));
+    // step 1: set persistence task cancelled
+    atomic_store_8(RSMA_TRIGGER_STAT(pStat), TASK_TRIGGER_STAT_CANCELLED);
+
+    // step 2: stop the persistence timer
+    taosTmrStopA(&RSMA_TMR_ID(pStat));
+
+    // step 3: wait the persistence thread to finish
+    int32_t nLoops = 0;
+    if (atomic_load_8(RSMA_RUNNING_STAT(pStat)) == 1) {
+      while (1) {
+        if (atomic_load_8(RSMA_TRIGGER_STAT(pStat)) == TASK_TRIGGER_STAT_FINISHED) {
+          break;
+        } else {
+          smaDebug("not destroyed since rsma stat in %" PRIi8, atomic_load_8(RSMA_TRIGGER_STAT(pStat)));
+        }
+        ++nLoops;
+        if (nLoops > 1000) {
+          sched_yield();
+          nLoops = 0;
+        }
+      }
+    }
+
+    // step 4: destroy the rsma info and associated fetch tasks
+    // TODO: use taosHashSetFreeFp when taosHashSetFreeFp is ready.
+    void *infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), NULL);
+    while (infoHash) {
+      SRSmaInfo *pSmaInfo = *(SRSmaInfo **)infoHash;
+      tdFreeRSmaInfo(pSmaInfo);
+      infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), infoHash);
+    }
+    taosHashCleanup(RSMA_INFO_HASH(pStat));
+
+    // step 5: wait all triggered fetch tasks finished
+    nLoops = 0;
+    while (1) {
+      if (T_REF_VAL_GET((SSmaStat *)pStat) == 0) {
+        break;
+      }
+      ++nLoops;
+      if (nLoops > 1000) {
+        sched_yield();
+        nLoops = 0;
+      }
+    }
+
+    // step 6: cleanup the timer handle
+    if (RSMA_TMR_HANDLE(pStat)) {
+      taosTmrCleanUp(RSMA_TMR_HANDLE(pStat));
+    }
+  }
+}
+
+static void *tdFreeRSmaStat(SRSmaStat *pStat) {
+  tdDestroyRSmaStat(pStat);
+  taosMemoryFreeClear(pStat);
+  return NULL;
+}
+
+void *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
   tdDestroySmaState(pSmaStat, smaType);
   taosMemoryFreeClear(pSmaStat);
   return NULL;
@@ -165,16 +246,9 @@ void* tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
 int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
   if (pSmaStat) {
     if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
-      tdFreeSmaStatItem(&pSmaStat->tsmaStatItem);
+      tdDestroyTSmaStat(SMA_TSMA_STAT(pSmaStat));
     } else if (smaType == TSDB_SMA_TYPE_ROLLUP) {
-      // TODO: use taosHashSetFreeFp when taosHashSetFreeFp is ready.
-      void *infoHash = taosHashIterate(SMA_STAT_INFO_HASH(pSmaStat), NULL);
-      while (infoHash) {
-        SRSmaInfo *pInfoHash = *(SRSmaInfo **)infoHash;
-        tdFreeRSmaInfo(pInfoHash);
-        infoHash = taosHashIterate(SMA_STAT_INFO_HASH(pSmaStat), infoHash);
-      }
-      taosHashCleanup(SMA_STAT_INFO_HASH(pSmaStat));
+      tdDestroyRSmaStat(SMA_RSMA_STAT(pSmaStat));
     } else {
       ASSERT(0);
     }
@@ -208,7 +282,6 @@ int32_t tdUnLockSma(SSma *pSma) {
 int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
   SSmaEnv *pEnv = NULL;
 
-  // return if already init
   switch (smaType) {
     case TSDB_SMA_TYPE_TIME_RANGE:
       if ((pEnv = (SSmaEnv *)atomic_load_ptr(&SMA_TSMA_ENV(pSma)))) {

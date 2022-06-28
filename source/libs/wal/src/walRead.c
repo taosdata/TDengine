@@ -100,10 +100,11 @@ static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
   TdFilePtr pLogTFile = taosOpenFile(fnameStr, TD_FILE_READ);
   if (pLogTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    terrno = TSDB_CODE_WAL_INVALID_VER;
     wError("cannot open file %s, since %s", fnameStr, terrstr());
     return -1;
   }
+
+  pRead->pReadLogTFile = pLogTFile;
 
   walBuildIdxName(pRead->pWal, fileFirstVer, fnameStr);
   TdFilePtr pIdxTFile = taosOpenFile(fnameStr, TD_FILE_READ);
@@ -113,7 +114,6 @@ static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
     return -1;
   }
 
-  pRead->pReadLogTFile = pLogTFile;
   pRead->pReadIdxTFile = pIdxTFile;
   return 0;
 }
@@ -259,6 +259,12 @@ int32_t walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **p
 
 int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
   int64_t code;
+
+  if (pRead->pWal->vers.firstVer == -1) {
+    terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
+    return -1;
+  }
+
   // TODO: check wal life
   if (pRead->curVersion != ver) {
     if (walReadSeekVer(pRead, ver) < 0) {
@@ -267,14 +273,23 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
     }
   }
 
+  if (ver > pRead->pWal->vers.lastVer || ver < pRead->pWal->vers.firstVer) {
+    wError("invalid version: % " PRId64 ", first ver %ld, last ver %ld", ver, pRead->pWal->vers.firstVer,
+           pRead->pWal->vers.lastVer);
+    terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
+    return -1;
+  }
+
   ASSERT(taosValidFile(pRead->pReadLogTFile) == true);
 
   code = taosReadFile(pRead->pReadLogTFile, pRead->pHead, sizeof(SWalHead));
   if (code != sizeof(SWalHead)) {
     if (code < 0)
       terrno = TAOS_SYSTEM_ERROR(errno);
-    else
+    else {
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+      ASSERT(0);
+    }
     return -1;
   }
 
@@ -299,8 +314,10 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
       pRead->pHead->head.bodyLen) {
     if (code < 0)
       terrno = TAOS_SYSTEM_ERROR(errno);
-    else
+    else {
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+      ASSERT(0);
+    }
     return -1;
   }
 

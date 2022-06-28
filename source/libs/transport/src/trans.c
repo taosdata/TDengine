@@ -79,6 +79,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   return pRpc;
 }
 void rpcClose(void* arg) {
+  tInfo("start to close rpc");
   SRpcInfo* pRpc = (SRpcInfo*)arg;
   (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
   transCloseExHandleMgt(pRpc->refMgt);
@@ -162,11 +163,6 @@ void rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   // later
   transSetDefaultAddr(thandle, ip, fqdn);
 }
-
-// void rpcSetMsgTraceId(SRpcMsg* pMsg, STraceId uid) {
-//  SRpcHandleInfo* pInfo = &pMsg->info;
-//  pInfo->traceId = uid;
-//}
 
 int32_t rpcInit() {
   // impl later

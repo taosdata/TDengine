@@ -22,7 +22,8 @@ python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
 python3 ./test.py -f 1-insert/alter_stable.py
 python3 ./test.py -f 1-insert/alter_table.py
 python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
-# python3 ./test.py -f 1-inerst/create_table_comment.py
+python3 ./test.py -f 1-insert/table_comment.py
+python3 ./test.py -f 1-insert/table_param_ttl.py
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
@@ -35,6 +36,7 @@ python3 ./test.py -f 2-query/lower.py
 python3 ./test.py -f 2-query/join.py
 python3 ./test.py -f 2-query/join2.py
 python3 ./test.py -f 2-query/cast.py
+python3 ./test.py -f 2-query/substr.py
 python3 ./test.py -f 2-query/union.py
 python3 ./test.py -f 2-query/union1.py
 python3 ./test.py -f 2-query/concat.py
@@ -105,11 +107,21 @@ python3 ./test.py -f 2-query/distribute_agg_min.py
 python3 ./test.py -f 2-query/distribute_agg_sum.py
 python3 ./test.py -f 2-query/distribute_agg_spread.py
 python3 ./test.py -f 2-query/distribute_agg_apercentile.py
+python3 ./test.py -f 2-query/distribute_agg_avg.py
+python3 ./test.py -f 2-query/distribute_agg_stddev.py
+python3 ./test.py -f 2-query/twa.py
+python3 ./test.py -f 2-query/irate.py
+
+python3 ./test.py -f 2-query/function_null.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py 
 python3 ./test.py -f 6-cluster/5dnode2mnode.py 
-#python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py
-#python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py
+python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
+python3 ./test.py -f  6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
+# BUG python3 ./test.py -f  6-cluster/5dnode3mnodeSep1VnodeStopCreateDb.py  -N 5 -M 3
+# BUG python3 ./test.py -f  6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py  -N 5 -M 3
+
+# python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py 
 
 python3 ./test.py -f 7-tmq/basic5.py
@@ -127,3 +139,10 @@ python3 ./test.py -f 7-tmq/subscribeStb4.py
 python3 ./test.py -f 7-tmq/db.py
 python3 ./test.py -f 7-tmq/tmqError.py
 python3 ./test.py -f 7-tmq/schema.py
+python3 ./test.py -f 7-tmq/stbFilter.py
+python3 ./test.py -f 7-tmq/tmqCheckData.py
+python3 ./test.py -f 7-tmq/tmqCheckData1.py
+python3 ./test.py -f 7-tmq/tmqUdf.py
+#python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 5
+python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
+python3 ./test.py -f 7-tmq/tmqShow.py

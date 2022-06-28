@@ -132,7 +132,31 @@ TEST_F(ParserInitialDTest, dropDnode) {
 TEST_F(ParserInitialDTest, dropIndex) {
   useDb("root", "test");
 
-  run("DROP index index1 on t1");
+  SMDropSmaReq expect = {0};
+
+  auto clearDropSmaReq = [&]() { memset(&expect, 0, sizeof(SMDropSmaReq)); };
+
+  auto setDropSmaReq = [&](const char* pName, int8_t igNotExists = 0) {
+    sprintf(expect.name, "0.test.%s", pName);
+    expect.igNotExists = igNotExists;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_DROP_INDEX_STMT);
+    SMDropSmaReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSMDropSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(std::string(req.name), std::string(expect.name));
+    ASSERT_EQ(req.igNotExists, expect.igNotExists);
+  });
+
+  setDropSmaReq("index1");
+  run("DROP INDEX index1");
+  clearDropSmaReq();
+
+  setDropSmaReq("index2", 1);
+  run("DROP INDEX IF EXISTS index2");
+  clearDropSmaReq();
 }
 
 TEST_F(ParserInitialDTest, dropMnode) {
@@ -159,7 +183,35 @@ TEST_F(ParserInitialDTest, dropSTable) {
   run("DROP STABLE st1");
 }
 
-// todo DROP stream
+TEST_F(ParserInitialDTest, dropStream) {
+  useDb("root", "test");
+
+  SMDropStreamReq expect = {0};
+
+  auto clearDropStreamReq = [&]() { memset(&expect, 0, sizeof(SMDropStreamReq)); };
+
+  auto setDropStreamReq = [&](const char* pStream, int8_t igNotExists = 0) {
+    sprintf(expect.name, "0.%s", pStream);
+    expect.igNotExists = igNotExists;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_DROP_STREAM_STMT);
+    SMDropStreamReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSMDropStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(std::string(req.name), std::string(expect.name));
+    ASSERT_EQ(req.igNotExists, expect.igNotExists);
+  });
+
+  setDropStreamReq("s1");
+  run("DROP STREAM s1");
+  clearDropStreamReq();
+
+  setDropStreamReq("s2", 1);
+  run("DROP STREAM IF EXISTS s2");
+  clearDropStreamReq();
+}
 
 TEST_F(ParserInitialDTest, dropTable) {
   useDb("root", "test");

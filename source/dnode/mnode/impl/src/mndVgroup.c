@@ -15,10 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "mndVgroup.h"
-#include "mndAuth.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
@@ -896,6 +896,8 @@ int32_t mndAddAlterVnodeConfirmAction(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   action.pCont = pHead;
   action.contLen = contLen;
   action.msgType = TDMT_VND_ALTER_CONFIRM;
+  // incorrect redirect result will cause this erro
+  action.retryCode = TSDB_CODE_VND_INVALID_VGROUP_ID;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pHead);
@@ -942,6 +944,8 @@ static int32_t mndAddSetVnodeStandByAction(SMnode *pMnode, STrans *pTrans, SDbOb
   action.contLen = contLen;
   action.msgType = TDMT_SYNC_SET_VNODE_STANDBY;
   action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
+  // Keep retrying until the target vnode is not the leader
+  action.retryCode = TSDB_CODE_SYN_IS_LEADER;
 
   if (isRedo) {
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
@@ -1003,7 +1007,7 @@ int32_t mndSetMoveVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
 
   mInfo("vgId:%d, will add 1 vnodes", pVgroup->vgId);
   if (mndAddVnodeToVgroup(pMnode, &newVg, pArray) != 0) return -1;
-  if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, &newVg, &newVg.vnodeGid[1], true) != 0) return -1;
+  if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, &newVg, &newVg.vnodeGid[newVg.replica - 1], true) != 0) return -1;
   if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, &newVg, TDMT_VND_ALTER_REPLICA) != 0) return -1;
   if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, &newVg) != 0) return -1;
 
@@ -1017,6 +1021,20 @@ int32_t mndSetMoveVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
   if (mndAddDropVnodeAction(pMnode, pTrans, pDb, &newVg, &del, true) != 0) return -1;
   if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, &newVg) != 0) return -1;
 
+  {
+    SSdbRaw *pRaw = mndVgroupActionEncode(&newVg);
+    if (pRaw == NULL || mndTransAppendRedolog(pTrans, pRaw) != 0) return -1;
+    sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    pRaw = NULL;
+  }
+
+  {
+    SSdbRaw *pRaw = mndVgroupActionEncode(&newVg);
+    if (pRaw == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) return -1;
+    sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    pRaw = NULL;
+  }
+
   mInfo("vgId:%d, vgroup info after move, replica:%d", newVg.vgId, newVg.replica);
   for (int32_t i = 0; i < newVg.replica; ++i) {
     mInfo("vgId:%d, vnode:%d dnode:%d", newVg.vgId, i, newVg.vnodeGid[i].dnodeId);
@@ -1025,6 +1043,7 @@ int32_t mndSetMoveVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
 }
 
 int32_t mndSetMoveVgroupsInfoToTrans(SMnode *pMnode, STrans *pTrans, int32_t delDnodeId) {
+  int32_t code = 0;
   SArray *pArray = mndBuildDnodesArray(pMnode, delDnodeId);
   if (pArray == NULL) return -1;
 
@@ -1042,18 +1061,24 @@ int32_t mndSetMoveVgroupsInfoToTrans(SMnode *pMnode, STrans *pTrans, int32_t del
       }
     }
 
+    code = 0;
     if (vnIndex != -1) {
       mInfo("vgId:%d, vnode:%d will be removed from dnode:%d", pVgroup->vgId, vnIndex, delDnodeId);
       SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
-      mndSetMoveVgroupInfoToTrans(pMnode, pTrans, pDb, pVgroup, vnIndex, pArray);
+      code = mndSetMoveVgroupInfoToTrans(pMnode, pTrans, pDb, pVgroup, vnIndex, pArray);
       mndReleaseDb(pMnode, pDb);
     }
 
     sdbRelease(pMnode->pSdb, pVgroup);
+
+    if (code != 0) {
+      sdbCancelFetch(pMnode->pSdb, pIter);
+      break;
+    }
   }
 
   taosArrayDestroy(pArray);
-  return 0;
+  return code;
 }
 
 static int32_t mndAddIncVgroupReplicaToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup,
@@ -1156,10 +1181,19 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
     if (mndAddDecVgroupReplicaFromTrans(pMnode, pTrans, pDb, &newVg, pOld3->id) != 0) goto _OVER;
   }
 
-  pRaw = mndVgroupActionEncode(&newVg);
-  if (pRaw == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
-  pRaw = NULL;
+  {
+    pRaw = mndVgroupActionEncode(&newVg);
+    if (pRaw == NULL || mndTransAppendRedolog(pTrans, pRaw) != 0) goto _OVER;
+    sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    pRaw = NULL;
+  }
+
+  {
+    pRaw = mndVgroupActionEncode(&newVg);
+    if (pRaw == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
+    sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    pRaw = NULL;
+  }
 
   mInfo("vgId:%d, vgroup info after redistribute, replica:%d", newVg.vgId, newVg.replica);
   for (int32_t i = 0; i < newVg.replica; ++i) {
@@ -1200,8 +1234,9 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
   }
 
   mInfo("vgId:%d, start to redistribute vgroup to dnode %d:%d:%d", req.vgId, req.dnodeId1, req.dnodeId2, req.dnodeId3);
-
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_REDISTRIBUTE_VGROUP) != 0) goto _OVER;
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_REDISTRIBUTE_VGROUP) != 0) {
+    goto _OVER;
+  }
 
   pVgroup = mndAcquireVgroup(pMnode, req.vgId);
   if (pVgroup == NULL) goto _OVER;
@@ -1216,7 +1251,8 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
     }
 
     if (req.dnodeId1 == pVgroup->vnodeGid[0].dnodeId) {
-      terrno = TSDB_CODE_MND_VGROUP_UN_CHANGED;
+      // terrno = TSDB_CODE_MND_VGROUP_UN_CHANGED;
+      code = 0;
       goto _OVER;
     }
 
@@ -1338,7 +1374,8 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
     }
 
     if (pNew1 == NULL && pOld1 == NULL && pNew2 == NULL && pOld2 == NULL && pNew3 == NULL && pOld3 == NULL) {
-      terrno = TSDB_CODE_MND_VGROUP_UN_CHANGED;
+      // terrno = TSDB_CODE_MND_VGROUP_UN_CHANGED;
+      code = 0;
       goto _OVER;
     }
 
@@ -1411,13 +1448,25 @@ int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, S
     } else {
     }
 
-    SSdbRaw *pVgRaw = mndVgroupActionEncode(&newVgroup);
-    if (pVgRaw == NULL) return -1;
-    if (mndTransAppendCommitlog(pTrans, pVgRaw) != 0) {
-      sdbFreeRaw(pVgRaw);
-      return -1;
+    {
+      SSdbRaw *pVgRaw = mndVgroupActionEncode(&newVgroup);
+      if (pVgRaw == NULL) return -1;
+      if (mndTransAppendRedolog(pTrans, pVgRaw) != 0) {
+        sdbFreeRaw(pVgRaw);
+        return -1;
+      }
+      sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
     }
-    sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+
+    {
+      SSdbRaw *pVgRaw = mndVgroupActionEncode(&newVgroup);
+      if (pVgRaw == NULL) return -1;
+      if (mndTransAppendCommitlog(pTrans, pVgRaw) != 0) {
+        sdbFreeRaw(pVgRaw);
+        return -1;
+      }
+      sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+    }
   }
 
   return 0;
@@ -1494,14 +1543,15 @@ static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq) {
   SDbObj *pDb = NULL;
 
   mDebug("vgId:%d, start to split", vgId);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SPLIT_VGROUP) != 0) {
+    goto _OVER;
+  }
 
   pVgroup = mndAcquireVgroup(pMnode, vgId);
   if (pVgroup == NULL) goto _OVER;
 
   pDb = mndAcquireDb(pMnode, pVgroup->dbName);
   if (pDb == NULL) goto _OVER;
-
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_SPLIT_VGROUP) != 0) goto _OVER;
 
   code = mndSplitVgroup(pMnode, pReq, pDb, pVgroup);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -1524,12 +1574,23 @@ static int32_t mndSetBalanceVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SD
   if (mndAddIncVgroupReplicaToTrans(pMnode, pTrans, pDb, &newVg, pDst->id) != 0) return -1;
   if (mndAddDecVgroupReplicaFromTrans(pMnode, pTrans, pDb, &newVg, pSrc->id) != 0) return -1;
 
-  SSdbRaw *pRaw = mndVgroupActionEncode(&newVg);
-  if (pRaw == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) {
-    sdbFreeRaw(pRaw);
-    return -1;
+  {
+    SSdbRaw *pRaw = mndVgroupActionEncode(&newVg);
+    if (pRaw == NULL || mndTransAppendRedolog(pTrans, pRaw) != 0) {
+      sdbFreeRaw(pRaw);
+      return -1;
+    }
+    sdbSetRawStatus(pRaw, SDB_STATUS_READY);
   }
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+
+  {
+    SSdbRaw *pRaw = mndVgroupActionEncode(&newVg);
+    if (pRaw == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+      sdbFreeRaw(pRaw);
+      return -1;
+    }
+    sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  }
 
   mInfo("vgId:%d, vgroup info after balance, replica:%d", newVg.vgId, newVg.replica);
   for (int32_t i = 0; i < newVg.replica; ++i) {
@@ -1538,14 +1599,20 @@ static int32_t mndSetBalanceVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SD
   return 0;
 }
 
-static int32_t mndBalanceVgroupBetweenDnode(SMnode *pMnode, STrans *pTrans, SDnodeObj *pSrc, SDnodeObj *pDst) {
+static int32_t mndBalanceVgroupBetweenDnode(SMnode *pMnode, STrans *pTrans, SDnodeObj *pSrc, SDnodeObj *pDst,
+                                            SHashObj *pBalancedVgroups) {
   void   *pIter = NULL;
   int32_t code = -1;
+  SSdb   *pSdb = pMnode->pSdb;
 
   while (1) {
     SVgObj *pVgroup = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+    if (taosHashGet(pBalancedVgroups, &pVgroup->vgId, sizeof(int32_t)) != NULL) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
     bool existInSrc = false;
     bool existInDst = false;
@@ -1556,13 +1623,18 @@ static int32_t mndBalanceVgroupBetweenDnode(SMnode *pMnode, STrans *pTrans, SDno
     }
 
     if (!existInSrc || existInDst) {
-      sdbRelease(pMnode->pSdb, pVgroup);
+      sdbRelease(pSdb, pVgroup);
+      continue;
     }
 
     SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
     code = mndSetBalanceVgroupInfoToTrans(pMnode, pTrans, pDb, pVgroup, pSrc, pDst);
+    if (code == 0) {
+      code = taosHashPut(pBalancedVgroups, &pVgroup->vgId, sizeof(int32_t), &pVgroup->vgId, sizeof(int32_t));
+    }
     mndReleaseDb(pMnode, pDb);
-    sdbRelease(pMnode->pSdb, pVgroup);
+    sdbRelease(pSdb, pVgroup);
+    sdbCancelFetch(pSdb, pIter);
     break;
   }
 
@@ -1573,6 +1645,10 @@ static int32_t mndBalanceVgroup(SMnode *pMnode, SRpcMsg *pReq, SArray *pArray) {
   int32_t code = -1;
   int32_t numOfVgroups = 0;
   STrans *pTrans = NULL;
+  SHashObj *pBalancedVgroups = NULL;
+
+  pBalancedVgroups = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (pBalancedVgroups == NULL) goto _OVER;
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq);
   if (pTrans == NULL) goto _OVER;
@@ -1581,23 +1657,33 @@ static int32_t mndBalanceVgroup(SMnode *pMnode, SRpcMsg *pReq, SArray *pArray) {
 
   while (1) {
     taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
-    SDnodeObj *pSrc = taosArrayGet(pArray, 0);
-    SDnodeObj *pDst = taosArrayGet(pArray, taosArrayGetSize(pArray) - 1);
+    for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
+      SDnodeObj *pDnode = taosArrayGet(pArray, i);
+      mDebug("dnode:%d, equivalent vnodes:%d support:%d, score:%f", pDnode->id, pDnode->numOfVnodes,
+             pDnode->numOfSupportVnodes, (float)pDnode->numOfVnodes / pDnode->numOfSupportVnodes);
+    }
+
+    SDnodeObj *pSrc = taosArrayGet(pArray, taosArrayGetSize(pArray) - 1);
+    SDnodeObj *pDst = taosArrayGet(pArray, 0);
 
     float srcScore = (float)(pSrc->numOfVnodes - 1) / pSrc->numOfSupportVnodes;
     float dstScore = (float)(pDst->numOfVnodes + 1) / pDst->numOfSupportVnodes;
-    if (srcScore + 0.0001 < dstScore) {
-      mDebug("trans:%d, balance vgroup from dnode:%d to dnode:%d", pTrans->id, pSrc->id, pDst->id);
-      code = mndBalanceVgroupBetweenDnode(pMnode, pTrans, pSrc, pDst);
+    mDebug("trans:%d, after balance, src dnode:%d score:%f, dst dnode:%d score:%f", pTrans->id, pSrc->id, srcScore,
+           pDst->id, dstScore);
+
+    if (srcScore > dstScore - 0.000001) {
+      code = mndBalanceVgroupBetweenDnode(pMnode, pTrans, pSrc, pDst, pBalancedVgroups);
       if (code == 0) {
+        pSrc->numOfVnodes--;
+        pDst->numOfVnodes++;
         numOfVgroups++;
         continue;
       } else {
-        mError("trans:%d, failed to balance vgroup from dnode:%d to dnode:%d", pTrans->id, pSrc->id, pDst->id);
-        return -1;
+        mDebug("trans:%d, no vgroup need to balance from dnode:%d to dnode:%d", pTrans->id, pSrc->id, pDst->id);
+        break;
       }
     } else {
-      mDebug("trans:%d, no vgroup need to balance vgroup any more", pTrans->id);
+      mDebug("trans:%d, no vgroup need to balance any more", pTrans->id);
       break;
     }
   }
@@ -1623,9 +1709,16 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
   void   *pIter = NULL;
   int64_t curMs = taosGetTimestampMs();
 
-  mDebug("start to balance vgroup");
+  SBalanceVgroupReq req = {0};
+  if (tDeserializeSBalanceVgroupReq(pReq->pCont, pReq->contLen, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
 
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_BALANCE_VGROUP) != 0) goto _OVER;
+  mInfo("start to balance vgroup");
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_BALANCE_VGROUP) != 0) {
+    goto _OVER;
+  }
 
   while (1) {
     SDnodeObj *pDnode = NULL;

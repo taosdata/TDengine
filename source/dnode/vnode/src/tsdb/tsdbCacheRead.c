@@ -18,9 +18,6 @@
 #include "tcommon.h"
 #include "tsdb.h"
 
-#define LASTROW_RETRIEVE_TYPE_ALL        0x1
-#define LASTROW_RETRIEVE_TYPE_SINGLE     0x2
-
 // todo parse the stsrow and set the results
 static void keepOneRow(const STSRow* pRow, SSDataBlock* pBlock) {
   int32_t rowIndex = pBlock->info.rows;

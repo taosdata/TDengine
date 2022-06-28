@@ -116,11 +116,14 @@ int32_t     metaTbCursorNext(SMTbCursor *pTbCur);
 // typedef struct STsdb STsdb;
 typedef struct STsdbReader STsdbReader;
 
-#define BLOCK_LOAD_OFFSET_ORDER    1
-#define BLOCK_LOAD_TABLESEQ_ORDER  2
-#define BLOCK_LOAD_EXTERN_ORDER    3
+#define BLOCK_LOAD_OFFSET_ORDER          1
+#define BLOCK_LOAD_TABLESEQ_ORDER        2
+#define BLOCK_LOAD_EXTERN_ORDER          3
 
-int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInfo* pTableList, uint64_t qId, uint64_t taskId, STsdbReader** ppReader);
+#define LASTROW_RETRIEVE_TYPE_ALL        0x1
+#define LASTROW_RETRIEVE_TYPE_SINGLE     0x2
+
+int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTableList, STsdbReader** ppReader, const char* idstr);
 void    tsdbReaderClose(STsdbReader *pReader);
 bool    tsdbNextDataBlock(STsdbReader *pReader);
 void    tsdbRetrieveDataBlockInfo(STsdbReader *pReader, SDataBlockInfo *pDataBlockInfo);
@@ -129,6 +132,7 @@ SArray *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdLis
 void    tsdbResetReadHandle(STsdbReader *pReader, SQueryTableDataCond *pCond, int32_t tWinIdx);
 int32_t tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 int64_t tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
+int32_t tsdbRetrieveLastRow(void* pVnode, const SArray* pTableIdList, int32_t type, SSDataBlock* pResBlock);
 
 // tq
 
@@ -144,8 +148,7 @@ int32_t tqReadHandleRemoveTbUidList(STqReadHandle *pHandle, const SArray *tbUidL
 int32_t tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
 bool    tqNextDataBlock(STqReadHandle *pHandle);
 bool    tqNextDataBlockFilterOut(STqReadHandle *pHandle, SHashObj *filterOutUids);
-int32_t tqRetrieveDataBlock(SArray **ppCols, STqReadHandle *pHandle, uint64_t *pGroupId, uint64_t *pUid,
-                            int32_t *pNumOfRows, int16_t *pNumOfCols);
+int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReadHandle *pHandle);
 
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
@@ -190,17 +193,23 @@ struct SVnodeCfg {
 typedef struct {
   TSKEY    lastKey;
   uint64_t uid;
+  uint64_t groupId;
 } STableKeyInfo;
 
+#define TABLE_ROLLUP_ON       ((int8_t)0x1)
+#define TABLE_IS_ROLLUP(FLG)  (((FLG) & (TABLE_ROLLUP_ON)) != 0)
+#define TABLE_SET_ROLLUP(FLG) ((FLG) |= TABLE_ROLLUP_ON)
 struct SMetaEntry {
   int64_t  version;
   int8_t   type;
+  int8_t   flags;  // TODO: need refactor?
   tb_uid_t uid;
   char    *name;
   union {
     struct {
       SSchemaWrapper schemaRow;
       SSchemaWrapper schemaTag;
+      SRSmaParam     rsmaParam;
     } stbEntry;
     struct {
       int64_t  ctime;

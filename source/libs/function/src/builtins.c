@@ -79,7 +79,8 @@ static int32_t translateIn2NumOutDou(SFunctionNode* pFunc, char* pErrBuf, int32_
 
   uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
-  if (!IS_NUMERIC_TYPE(para1Type) || !IS_NUMERIC_TYPE(para2Type)) {
+  if ((!IS_NUMERIC_TYPE(para1Type) && !IS_NULL_TYPE(para1Type)) ||
+      (!IS_NUMERIC_TYPE(para2Type) && !IS_NULL_TYPE(para2Type))) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -109,13 +110,13 @@ static int32_t translateLogarithm(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   }
 
   uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if (!IS_NUMERIC_TYPE(para1Type)) {
+  if (!IS_NUMERIC_TYPE(para1Type) && !IS_NULL_TYPE(para1Type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
   if (2 == numOfParams) {
     uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
-    if (!IS_NUMERIC_TYPE(para2Type)) {
+    if (!IS_NUMERIC_TYPE(para2Type) && !IS_NULL_TYPE(para2Type)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
@@ -419,71 +420,12 @@ static int32_t translateTopBot(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t topCreateMergePara(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
+int32_t topBotCreateMergePara(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
   int32_t code = nodesListMakeAppend(pParameters, pPartialRes);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListStrictAppend(*pParameters, nodesCloneNode(nodesListGetNode(pRawParameters, 1)));
   }
   return TSDB_CODE_SUCCESS;
-}
-
-static int32_t translateTopBotImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
-  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
-
-  if (isPartial) {
-    if (2 != numOfParams) {
-      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-
-    uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-    uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
-    if (!IS_NUMERIC_TYPE(para1Type) || !IS_INTEGER_TYPE(para2Type)) {
-      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-
-    // param1
-    SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
-    if (nodeType(pParamNode1) != QUERY_NODE_VALUE) {
-      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-
-    SValueNode* pValue = (SValueNode*)pParamNode1;
-    if (pValue->node.resType.type != TSDB_DATA_TYPE_BIGINT) {
-      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-
-    if (pValue->datum.i < 1 || pValue->datum.i > 100) {
-      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-
-    pValue->notReserved = true;
-
-    // set result type
-    pFunc->node.resType =
-        (SDataType){.bytes = getTopBotInfoSize(pValue->datum.i) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
-  } else {
-    if (1 != numOfParams) {
-      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-
-    uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-    if (TSDB_DATA_TYPE_BINARY != para1Type) {
-      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-
-    // Do nothing. We can only access output of partial functions as input,
-    // so original input type cannot be obtained, resType will be set same
-    // as original function input type after merge function created.
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t translateTopBotPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  return translateTopBotImpl(pFunc, pErrBuf, len, true);
-}
-
-static int32_t translateTopBotMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  return translateTopBotImpl(pFunc, pErrBuf, len, false);
 }
 
 static int32_t translateSpread(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -1037,6 +979,21 @@ static int32_t translateDerivative(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+
+  if (!IS_NUMERIC_TYPE(colType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // first(col_list) will be rewritten as first(col)
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
@@ -1263,18 +1220,19 @@ static int32_t translateSubstr(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
 static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // The number of parameters has been limited by the syntax definition
-  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  //uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+
   // The function return type has been set during syntax parsing
   uint8_t para2Type = pFunc->node.resType.type;
-  if (para2Type != TSDB_DATA_TYPE_BIGINT && para2Type != TSDB_DATA_TYPE_UBIGINT &&
-      para2Type != TSDB_DATA_TYPE_VARCHAR && para2Type != TSDB_DATA_TYPE_NCHAR &&
-      para2Type != TSDB_DATA_TYPE_TIMESTAMP) {
-    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-  if ((para2Type == TSDB_DATA_TYPE_TIMESTAMP && IS_VAR_DATA_TYPE(para1Type)) ||
-      (para2Type == TSDB_DATA_TYPE_BINARY && para1Type == TSDB_DATA_TYPE_NCHAR)) {
-    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-  }
+  //if (para2Type != TSDB_DATA_TYPE_BIGINT && para2Type != TSDB_DATA_TYPE_UBIGINT &&
+  //    para2Type != TSDB_DATA_TYPE_VARCHAR && para2Type != TSDB_DATA_TYPE_NCHAR &&
+  //    para2Type != TSDB_DATA_TYPE_TIMESTAMP) {
+  //  return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  //}
+  //if ((para2Type == TSDB_DATA_TYPE_TIMESTAMP && IS_VAR_DATA_TYPE(para1Type)) ||
+  //    (para2Type == TSDB_DATA_TYPE_BINARY && para1Type == TSDB_DATA_TYPE_NCHAR)) {
+  //  return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  //}
 
   int32_t para2Bytes = pFunc->node.resType.bytes;
   if (IS_VAR_DATA_TYPE(para2Type)) {
@@ -1309,6 +1267,28 @@ static bool validateMinuteRange(int8_t hour, int8_t minute, char sign) {
   }
 
   return false;
+}
+
+static bool validateTimestampDigits(const SValueNode* pVal) {
+  if (!IS_INTEGER_TYPE(pVal->node.resType.type)) {
+    return false;
+  }
+
+  int64_t tsVal = pVal->datum.i;
+  char    fraction[20] = {0};
+  NUM_TO_STRING(pVal->node.resType.type, &tsVal, sizeof(fraction), fraction);
+  int32_t tsDigits = (int32_t)strlen(fraction);
+
+  if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS) {
+    if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS || tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS ||
+        tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 static bool validateTimezoneFormat(const SValueNode* pVal) {
@@ -1423,6 +1403,15 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
+  if (QUERY_NODE_VALUE == nodeType(nodesListGetNode(pFunc->pParameterList, 0))) {
+    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
+
+    if (!validateTimestampDigits(pValue)) {
+      pFunc->node.resType = (SDataType){.bytes = 0, .type = TSDB_DATA_TYPE_BINARY};
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
   // param1
   if (numOfParams == 2) {
     SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
@@ -1521,9 +1510,24 @@ static int32_t translateBlockDistInfoFunc(SFunctionNode* pFunc, char* pErrBuf, i
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateGroupKeyFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
+  return TSDB_CODE_SUCCESS;
+}
+
 static bool getBlockDistFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(STableBlockDistInfo);
   return true;
+}
+
+static int32_t translateGroupKey(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  pFunc->node.resType = ((SExprNode*)pPara)->resType;
+  return TSDB_CODE_SUCCESS;
 }
 
 // clang-format off
@@ -1735,31 +1739,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = topFunction,
     .finalizeFunc = topBotFinalize,
     .combineFunc  = topCombine,
-    .pPartialFunc = "_top_partial",
-    .pMergeFunc   = "_top_merge",
-    // .createMergeParaFuc = topCreateMergePara
-  },
-  {
-    .name = "_top_partial",
-    .type = FUNCTION_TYPE_TOP_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
-    .translateFunc = translateTopBotPartial,
-    .getEnvFunc   = getTopBotFuncEnv,
-    .initFunc     = topBotFunctionSetup,
-    .processFunc  = topFunction,
-    .finalizeFunc = topBotPartialFinalize,
-    .combineFunc  = topCombine,
-  },
-  {
-    .name = "_top_merge",
-    .type = FUNCTION_TYPE_TOP_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
-    .translateFunc = translateTopBotMerge,
-    .getEnvFunc   = getTopBotMergeFuncEnv,
-    .initFunc     = functionSetup,
-    .processFunc  = topFunctionMerge,
-    .finalizeFunc = topBotMergeFinalize,
-    .combineFunc  = topCombine,
+    .pPartialFunc = "top",
+    .pMergeFunc   = "top",
+    .createMergeParaFuc = topBotCreateMergePara
   },
   {
     .name = "bottom",
@@ -1771,30 +1753,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = bottomFunction,
     .finalizeFunc = topBotFinalize,
     .combineFunc  = bottomCombine,
-    .pPartialFunc = "_bottom_partial",
-    .pMergeFunc   = "_bottom_merge"
-  },
-  {
-    .name = "_bottom_partial",
-    .type = FUNCTION_TYPE_BOTTOM_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
-    .translateFunc = translateTopBotPartial,
-    .getEnvFunc   = getTopBotFuncEnv,
-    .initFunc     = topBotFunctionSetup,
-    .processFunc  = bottomFunction,
-    .finalizeFunc = topBotPartialFinalize,
-    .combineFunc  = bottomCombine,
-  },
-  {
-    .name = "_bottom_merge",
-    .type = FUNCTION_TYPE_BOTTOM_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
-    .translateFunc = translateTopBotMerge,
-    .getEnvFunc   = getTopBotMergeFuncEnv,
-    .initFunc     = functionSetup,
-    .processFunc  = bottomFunctionMerge,
-    .finalizeFunc = topBotMergeFinalize,
-    .combineFunc  = bottomCombine,
+    .pPartialFunc = "bottom",
+    .pMergeFunc   = "bottom",
+    .createMergeParaFuc = topBotCreateMergePara
   },
   {
     .name = "spread",
@@ -1899,9 +1860,19 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = functionFinalize
   },
   {
+    .name = "irate",
+    .type = FUNCTION_TYPE_IRATE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateIrate,
+    .getEnvFunc   = getIrateFuncEnv,
+    .initFunc     = irateFuncSetup,
+    .processFunc  = irateFunction,
+    .finalizeFunc = irateFinalize
+  },
+  {
     .name = "last_row",
     .type = FUNCTION_TYPE_LAST_ROW,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateLastRow,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = minmaxFunctionSetup,
@@ -2068,7 +2039,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "diff",
     .type = FUNCTION_TYPE_DIFF,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_WINDOW_FUNC,
     .translateFunc = translateDiff,
     .getEnvFunc   = getDiffFuncEnv,
     .initFunc     = diffFunctionSetup,
@@ -2078,7 +2049,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "statecount",
     .type = FUNCTION_TYPE_STATE_COUNT,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_WINDOW_FUNC,
     .translateFunc = translateStateCount,
     .getEnvFunc   = getStateFuncEnv,
     .initFunc     = functionSetup,
@@ -2088,7 +2059,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "stateduration",
     .type = FUNCTION_TYPE_STATE_DURATION,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_WINDOW_FUNC,
     .translateFunc = translateStateDuration,
     .getEnvFunc   = getStateFuncEnv,
     .initFunc     = functionSetup,
@@ -2098,7 +2069,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "csum",
     .type = FUNCTION_TYPE_CSUM,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_WINDOW_FUNC,
     .translateFunc = translateCsum,
     .getEnvFunc   = getCsumFuncEnv,
     .initFunc     = functionSetup,
@@ -2108,7 +2079,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "mavg",
     .type = FUNCTION_TYPE_MAVG,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_WINDOW_FUNC,
     .translateFunc = translateMavg,
     .getEnvFunc   = getMavgFuncEnv,
     .initFunc     = mavgFunctionSetup,
@@ -2524,7 +2495,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSelectivityFuncEnv,  // todo remove this function later.
     .initFunc     = functionSetup,
     .processFunc  = NULL,
-    .finalizeFunc = NULL
+    .finalizeFunc = NULL,
+    .pPartialFunc = "_select_value",
+    .pMergeFunc   = "_select_value"
   },
   {
     .name = "_block_dist",
@@ -2532,6 +2505,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateBlockDistFunc,
     .getEnvFunc   = getBlockDistFuncEnv,
+    .initFunc     = blockDistSetup,
     .processFunc  = blockDistFunction,
     .finalizeFunc = blockDistFinalize
   },
@@ -2540,7 +2514,19 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_BLOCK_DIST_INFO,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC,
     .translateFunc = translateBlockDistInfoFunc,
-  }
+  },
+  {
+    .name = "_group_key",
+    .type = FUNCTION_TYPE_GROUP_KEY,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateGroupKey,
+    .getEnvFunc   = getGroupKeyFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = groupKeyFunction,
+    .finalizeFunc = groupKeyFinalize,
+    .pPartialFunc = "_group_key",
+    .pMergeFunc   = "_group_key"
+  },
 };
 // clang-format on
 

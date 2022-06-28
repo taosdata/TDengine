@@ -88,11 +88,11 @@ void taosSetSystemLocale(const char *inLocale, const char *inCharSet) {
 
 void taosGetSystemLocale(char *outLocale, char *outCharset) {
 #ifdef WINDOWS
-  char *locale = setlocale(LC_CTYPE, "chs");
+  char *locale = setlocale(LC_CTYPE, "en_US.UTF-8");
   if (locale != NULL) {
     tstrncpy(outLocale, locale, TD_LOCALE_LEN);
   }
-  strcpy(outCharset, "cp936");
+  strcpy(outCharset, "UTF-8");
 
 #elif defined(_TD_DARWIN_64)
   /*

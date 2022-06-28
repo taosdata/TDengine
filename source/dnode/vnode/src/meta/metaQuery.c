@@ -219,11 +219,9 @@ _err:
 }
 
 int metaTtlSmaller(SMeta *pMeta, uint64_t ttl, SArray *uidList){
-  metaRLock(pMeta);
   TBC *    pCur;
   int ret = tdbTbcOpen(pMeta->pTtlIdx, &pCur, NULL);
   if (ret < 0) {
-    metaULock(pMeta);
     return ret;
   }
 
@@ -249,6 +247,7 @@ int metaTtlSmaller(SMeta *pMeta, uint64_t ttl, SArray *uidList){
   tdbTbcClose(pCur);
 
   tdbFree(pKey);
+
   return 0;
 }
 
@@ -265,8 +264,8 @@ struct SMCtbCursor {
 SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
   SMCtbCursor *pCtbCur = NULL;
   SCtbIdxKey   ctbIdxKey;
-  int          ret;
-  int          c;
+  int          ret = 0;
+  int          c = 0;
 
   pCtbCur = (SMCtbCursor *)taosMemoryCalloc(1, sizeof(*pCtbCur));
   if (pCtbCur == NULL) {
@@ -324,6 +323,72 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
   }
 
   return pCtbIdxKey->uid;
+}
+
+struct SMStbCursor {
+  SMeta   *pMeta;
+  TBC     *pCur;
+  tb_uid_t suid;
+  void    *pKey;
+  void    *pVal;
+  int      kLen;
+  int      vLen;
+};
+
+SMStbCursor *metaOpenStbCursor(SMeta *pMeta, tb_uid_t suid) {
+  SMStbCursor *pStbCur = NULL;
+  int          ret = 0;
+  int          c = 0;
+
+  pStbCur = (SMStbCursor *)taosMemoryCalloc(1, sizeof(*pStbCur));
+  if (pStbCur == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pStbCur->pMeta = pMeta;
+  pStbCur->suid = suid;
+  metaRLock(pMeta);
+
+  ret = tdbTbcOpen(pMeta->pSuidIdx, &pStbCur->pCur, NULL);
+  if (ret < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    metaULock(pMeta);
+    taosMemoryFree(pStbCur);
+    return NULL;
+  }
+
+  // move to the suid
+  tdbTbcMoveTo(pStbCur->pCur, &suid, sizeof(suid), &c);
+  if (c > 0) {
+    tdbTbcMoveToNext(pStbCur->pCur);
+  }
+
+  return pStbCur;
+}
+
+void metaCloseStbCursor(SMStbCursor *pStbCur) {
+  if (pStbCur) {
+    if (pStbCur->pMeta) metaULock(pStbCur->pMeta);
+    if (pStbCur->pCur) {
+      tdbTbcClose(pStbCur->pCur);
+
+      tdbFree(pStbCur->pKey);
+      tdbFree(pStbCur->pVal);
+    }
+
+    taosMemoryFree(pStbCur);
+  }
+}
+
+tb_uid_t metaStbCursorNext(SMStbCursor *pStbCur) {
+  int ret;
+
+  ret = tdbTbcNext(pStbCur->pCur, &pStbCur->pKey, &pStbCur->kLen, &pStbCur->pVal, &pStbCur->vLen);
+  if (ret < 0) {
+    return 0;
+  }
+  return *(tb_uid_t*)pStbCur->pKey;
 }
 
 STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
@@ -613,9 +678,6 @@ const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *val) {
   ASSERT(pEntry->type == TSDB_CHILD_TABLE);
   STag *tag = (STag *)pEntry->ctbEntry.pTags;
   if (type == TSDB_DATA_TYPE_JSON) {
-    if (tag->nTag == 0) {
-      return NULL;
-    }
     return tag;
   }
   bool find = tTagGet(tag, val);

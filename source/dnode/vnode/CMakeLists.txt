@@ -29,6 +29,7 @@ target_sources(
     # sma
     "src/sma/sma.c"
     "src/sma/smaEnv.c"
+    "src/sma/smaUtil.c"
     "src/sma/smaOpen.c"
     "src/sma/smaRollup.c"
     "src/sma/smaTimeRange.c"

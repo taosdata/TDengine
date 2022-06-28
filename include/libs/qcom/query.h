@@ -16,6 +16,7 @@
 #ifndef _TD_QUERY_H_
 #define _TD_QUERY_H_
 
+// clang-foramt off
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -71,7 +72,7 @@ typedef struct SIndexMeta {
 } SIndexMeta;
 
 typedef struct STbVerInfo {
-  char tbFName[TSDB_TABLE_FNAME_LEN];
+  char    tbFName[TSDB_TABLE_FNAME_LEN];
   int32_t sversion;
   int32_t tversion;
 } STbVerInfo;
@@ -141,7 +142,7 @@ typedef struct SDataBuf {
 
 typedef struct STargetInfo {
   ETargetType type;
-  char*       dbFName; // used to update db's vgroup epset
+  char*       dbFName;  // used to update db's vgroup epset
   int32_t     vgId;
 } STargetInfo;
 
@@ -149,15 +150,15 @@ typedef int32_t (*__async_send_cb_fn_t)(void* param, const SDataBuf* pMsg, int32
 typedef int32_t (*__async_exec_fn_t)(void* param);
 
 typedef struct SRequestConnInfo {
-  void*     pTrans;
-  uint64_t  requestId;
-  int64_t   requestObjRefId;
-  SEpSet    mgmtEps;
+  void*    pTrans;
+  uint64_t requestId;
+  int64_t  requestObjRefId;
+  SEpSet   mgmtEps;
 } SRequestConnInfo;
 
 typedef struct SMsgSendInfo {
-  __async_send_cb_fn_t fp;  // async callback function
-  STargetInfo          target; // for update epset
+  __async_send_cb_fn_t fp;      // async callback function
+  STargetInfo          target;  // for update epset
   void*                param;
   uint64_t             requestId;
   uint64_t             requestObjRefId;
@@ -206,9 +207,15 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STabl
 char*   jobTaskStatusStr(int32_t status);
 
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
-void destroyQueryExecRes(SQueryExecRes* pRes);
 
-extern int32_t (*queryBuildMsg[TDMT_MAX])(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void*(*mallocFp)(int32_t));
+void    destroyQueryExecRes(SQueryExecRes* pRes);
+int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t* len);
+char*   parseTagDatatoJson(void* p);
+int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
+int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
+
+extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
+                                          void* (*mallocFp)(int32_t));
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t msgSize);
 
 #define SET_META_TYPE_NULL(t)       (t) = META_TYPE_NULL_TABLE
@@ -219,7 +226,7 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define NEED_CLIENT_RM_TBLMETA_ERROR(_code)                                                   \
   ((_code) == TSDB_CODE_PAR_TABLE_NOT_EXIST || (_code) == TSDB_CODE_VND_TB_NOT_EXIST ||       \
    (_code) == TSDB_CODE_PAR_INVALID_COLUMNS_NUM || (_code) == TSDB_CODE_PAR_INVALID_COLUMN || \
-   (_code) == TSDB_CODE_PAR_TAGS_NOT_MATCHED || (_code) == TSDB_CODE_PAR_VALUE_TOO_LONG || \
+   (_code) == TSDB_CODE_PAR_TAGS_NOT_MATCHED || (_code) == TSDB_CODE_PAR_VALUE_TOO_LONG ||    \
    (_code) == TSDB_CODE_PAR_INVALID_DROP_COL || ((_code) == TSDB_CODE_TDB_INVALID_TABLE_ID))
 #define NEED_CLIENT_REFRESH_VG_ERROR(_code) \
   ((_code) == TSDB_CODE_VND_HASH_MISMATCH || (_code) == TSDB_CODE_VND_INVALID_VGROUP_ID)
@@ -227,11 +234,13 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define NEED_CLIENT_HANDLE_ERROR(_code)                                          \
   (NEED_CLIENT_RM_TBLMETA_ERROR(_code) || NEED_CLIENT_REFRESH_VG_ERROR(_code) || \
    NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code))
-#define NEED_CLIENT_RM_TBLMETA_REQ(_type) ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_VND_CREATE_STB \
-  || (_type) == TDMT_VND_DROP_TABLE || (_type) == TDMT_VND_DROP_STB)
+#define NEED_CLIENT_RM_TBLMETA_REQ(_type)                                                                  \
+  ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_VND_CREATE_STB || (_type) == TDMT_VND_DROP_TABLE || \
+   (_type) == TDMT_VND_DROP_STB)
 
-#define NEED_SCHEDULER_RETRY_ERROR(_code) \
-  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
+#define NEED_SCHEDULER_RETRY_ERROR(_code)                                           \
+  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL || \
+   (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
 
 #define REQUEST_TOTAL_EXEC_TIMES 2
 
@@ -262,19 +271,19 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define qDebug(...)                                                                     \
   do {                                                                                  \
     if (qDebugFlag & DEBUG_DEBUG) {                                                     \
-      taosPrintLog("QRY ", DEBUG_DEBUG, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+      taosPrintLog("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__);                       \
     }                                                                                   \
   } while (0)
 #define qTrace(...)                                                                     \
   do {                                                                                  \
     if (qDebugFlag & DEBUG_TRACE) {                                                     \
-      taosPrintLog("QRY ", DEBUG_TRACE, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+      taosPrintLog("QRY ", DEBUG_TRACE, qDebugFlag, __VA_ARGS__);                       \
     }                                                                                   \
   } while (0)
 #define qDebugL(...)                                                                           \
   do {                                                                                         \
     if (qDebugFlag & DEBUG_DEBUG) {                                                            \
-      taosPrintLongString("QRY ", DEBUG_DEBUG, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+      taosPrintLongString("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__);                       \
     }                                                                                          \
   } while (0)
 
@@ -308,3 +317,4 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #endif
 
 #endif /*_TD_QUERY_H_*/
+       // clang-foramt on

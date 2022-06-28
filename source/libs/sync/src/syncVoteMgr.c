@@ -24,7 +24,7 @@ static void voteGrantedClearVotes(SVotesGranted *pVotesGranted) {
 
 SVotesGranted *voteGrantedCreate(SSyncNode *pSyncNode) {
   SVotesGranted *pVotesGranted = taosMemoryMalloc(sizeof(SVotesGranted));
-  assert(pVotesGranted != NULL);
+  ASSERT(pVotesGranted != NULL);
   memset(pVotesGranted, 0, sizeof(SVotesGranted));
 
   pVotesGranted->replicas = &(pSyncNode->replicasId);
@@ -62,9 +62,9 @@ bool voteGrantedMajority(SVotesGranted *pVotesGranted) {
 }
 
 void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
-  assert(pMsg->voteGranted == true);
-  assert(pMsg->term == pVotesGranted->term);
-  assert(syncUtilSameId(&pVotesGranted->pSyncNode->myRaftId, &pMsg->destId));
+  ASSERT(pMsg->voteGranted == true);
+  ASSERT(pMsg->term == pVotesGranted->term);
+  ASSERT(syncUtilSameId(&pVotesGranted->pSyncNode->myRaftId, &pMsg->destId));
 
   int j = -1;
   for (int i = 0; i < pVotesGranted->replicaNum; ++i) {
@@ -73,14 +73,14 @@ void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
       break;
     }
   }
-  assert(j != -1);
-  assert(j >= 0 && j < pVotesGranted->replicaNum);
+  ASSERT(j != -1);
+  ASSERT(j >= 0 && j < pVotesGranted->replicaNum);
 
   if (pVotesGranted->isGranted[j] != true) {
     ++(pVotesGranted->votes);
     pVotesGranted->isGranted[j] = true;
   }
-  assert(pVotesGranted->votes <= pVotesGranted->replicaNum);
+  ASSERT(pVotesGranted->votes <= pVotesGranted->replicaNum);
 }
 
 void voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term) {
@@ -162,7 +162,7 @@ void voteGrantedLog2(char *s, SVotesGranted *pObj) {
 // SVotesRespond -----------------------------
 SVotesRespond *votesRespondCreate(SSyncNode *pSyncNode) {
   SVotesRespond *pVotesRespond = taosMemoryMalloc(sizeof(SVotesRespond));
-  assert(pVotesRespond != NULL);
+  ASSERT(pVotesRespond != NULL);
   memset(pVotesRespond, 0, sizeof(SVotesRespond));
 
   pVotesRespond->replicas = &(pSyncNode->replicasId);
@@ -198,15 +198,15 @@ bool votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId) {
 }
 
 void votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *pMsg) {
-  assert(pVotesRespond->term == pMsg->term);
+  ASSERT(pVotesRespond->term == pMsg->term);
   for (int i = 0; i < pVotesRespond->replicaNum; ++i) {
     if (syncUtilSameId(&((*(pVotesRespond->replicas))[i]), &pMsg->srcId)) {
-      // assert(pVotesRespond->isRespond[i] == false);
+      // ASSERT(pVotesRespond->isRespond[i] == false);
       pVotesRespond->isRespond[i] = true;
       return;
     }
   }
-  assert(0);
+  ASSERT(0);
 }
 
 void votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term) {

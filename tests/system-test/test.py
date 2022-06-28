@@ -22,12 +22,11 @@ import json
 import platform
 import socket
 import threading
-from distutils.log import warn as printf
-from fabric2 import Connection
 sys.path.append("../pytest")
 from util.log import *
 from util.dnodes import *
 from util.cases import *
+from util.cluster import *
 
 import taos
 
@@ -37,7 +36,9 @@ def checkRunTimeError():
     while 1:
         time.sleep(1)
         timeCount = timeCount + 1
+        print("checkRunTimeError",timeCount)
         if (timeCount>900):
+            print("stop the test.")
             os.system("TASKKILL /F /IM taosd.exe")
             os.system("TASKKILL /F /IM taos.exe")
             os.system("TASKKILL /F /IM tmq_sim.exe")
@@ -58,10 +59,12 @@ if __name__ == "__main__":
     logSql = True
     stop = 0
     restart = False
+    dnodeNums = 1
+    mnodeNums = 0
     updateCfgDict = {}
     execCmd = ""
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd'])
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -77,6 +80,9 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-d update cfg dict, base64 json str')
             tdLog.printNoPrefix('-k not kill valgrind processer')
             tdLog.printNoPrefix('-e eval str to run')
+            tdLog.printNoPrefix('-N create dnodes numbers in clusters')
+            tdLog.printNoPrefix('-M create mnode numbers in clusters')
+
             sys.exit(0)
 
         if key in ['-r', '--restart']: 
@@ -126,6 +132,12 @@ if __name__ == "__main__":
                 print('updateCfgDict convert fail.')
                 sys.exit(0)
 
+        if key in ['-N', '--dnodeNums']:
+            dnodeNums = value
+
+        if key in ['-M', '--mnodeNums']:
+            mnodeNums = value
+
     if not execCmd == "":
         tdDnodes.init(deployPath)
         print(execCmd)
@@ -173,9 +185,9 @@ if __name__ == "__main__":
 
     tdLog.info("Procedures for tdengine deployed in %s" % (host))
     if platform.system().lower() == 'windows':
+        fileName = fileName.replace("/", os.sep)
         if (masterIp == "" and not fileName[0:12] == "0-others\\udf"):
             threading.Thread(target=checkRunTimeError,daemon=True).start()
-        tdCases.logSql(logSql)
         tdLog.info("Procedures for testing self-deployment")
         tdDnodes.init(deployPath, masterIp)
         tdDnodes.setTestCluster(testCluster)
@@ -194,18 +206,46 @@ if __name__ == "__main__":
             uModule = importlib.import_module(moduleName)
             try:
                 ucase = uModule.TDTestCase()
-                if ((json.dumps(updateCfgDict) == '{}') and (ucase.updatecfgDict is not None)):
+                if ((json.dumps(updateCfgDict) == '{}') and hasattr(ucase, 'updatecfgDict')):
                     updateCfgDict = ucase.updatecfgDict
                     updateCfgDictStr = "-d %s"%base64.b64encode(json.dumps(updateCfgDict).encode()).decode()
             except Exception as r:
                 print(r)
         else:
             pass
-        tdDnodes.deploy(1,updateCfgDict)
-        tdDnodes.start(1)
-        conn = taos.connect(
-            host="%s"%(host),
-            config=tdDnodes.sim.getCfgDir())
+        if dnodeNums == 1 :
+            tdDnodes.deploy(1,updateCfgDict)
+            tdDnodes.start(1)
+            tdCases.logSql(logSql)
+        else :
+            tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
+            dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums,mnodeNums=mnodeNums)
+            tdDnodes = ClusterDnodes(dnodeslist)
+            tdDnodes.init(deployPath, masterIp)
+            tdDnodes.setTestCluster(testCluster)
+            tdDnodes.setValgrind(valgrind)
+            tdDnodes.stopAll()
+            for dnode in tdDnodes.dnodes:
+                tdDnodes.deploy(dnode.index,{})
+            for dnode in tdDnodes.dnodes:
+                tdDnodes.starttaosd(dnode.index)
+            tdCases.logSql(logSql)
+            conn = taos.connect(
+                host,
+                config=tdDnodes.getSimCfgPath())
+            print(tdDnodes.getSimCfgPath(),host)
+            cluster.create_dnode(conn)
+            try:
+                if cluster.check_dnode(conn) :
+                    print("check dnode ready")
+            except Exception as r:
+                print(r)
+        if ucase is not None and hasattr(ucase, 'noConn') and ucase.noConn == True:
+            conn = None
+        else:
+            conn = taos.connect(
+                host="%s"%(host),
+                config=tdDnodes.sim.getCfgDir())
         if is_test_framework:
             tdCases.runOneWindows(conn, fileName)
         else:
@@ -232,11 +272,35 @@ if __name__ == "__main__":
                     updateCfgDict = ucase.updatecfgDict
             except:
                 pass
-        tdDnodes.deploy(1,updateCfgDict)
-        tdDnodes.start(1)
-
-        tdCases.logSql(logSql)
-
+        if dnodeNums == 1 :
+            tdDnodes.deploy(1,updateCfgDict)
+            tdDnodes.start(1)
+            tdCases.logSql(logSql)
+        else :
+            tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
+            dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums,mnodeNums=mnodeNums)
+            tdDnodes = ClusterDnodes(dnodeslist)
+            tdDnodes.init(deployPath, masterIp)
+            tdDnodes.setTestCluster(testCluster)
+            tdDnodes.setValgrind(valgrind)
+            tdDnodes.stopAll()
+            for dnode in tdDnodes.dnodes:
+                tdDnodes.deploy(dnode.index,{})
+            for dnode in tdDnodes.dnodes:
+                tdDnodes.starttaosd(dnode.index)
+            tdCases.logSql(logSql)
+            conn = taos.connect(
+                host,
+                config=tdDnodes.getSimCfgPath())
+            print(tdDnodes.getSimCfgPath(),host)
+            cluster.create_dnode(conn)
+            try:
+                if cluster.check_dnode(conn) :
+                    print("check dnode ready")
+            except Exception as r:
+                print(r)
+            
+            
         if testCluster:
             tdLog.info("Procedures for testing cluster")
             if fileName == "all":
@@ -248,10 +312,12 @@ if __name__ == "__main__":
             conn = taos.connect(
                 host,
                 config=tdDnodes.getSimCfgPath())
+                
             if fileName == "all":
                 tdCases.runAllLinux(conn)
             else:
                 tdCases.runOneLinux(conn, fileName)
+            
         if restart:
             if fileName == "all":
                 tdLog.info("not need to query ")
@@ -267,4 +333,5 @@ if __name__ == "__main__":
                     tdCases.runOneLinux(conn, sp[0] + "_" + "restart.py")
                 else:
                     tdLog.info("not need to query")
-    conn.close()
+    if conn is not None:
+        conn.close()

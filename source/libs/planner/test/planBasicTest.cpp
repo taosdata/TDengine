@@ -37,13 +37,6 @@ TEST_F(PlanBasicTest, whereClause) {
   run("SELECT * FROM t1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59'");
 }
 
-TEST_F(PlanBasicTest, joinClause) {
-  useDb("root", "test");
-
-  run("SELECT t1.c1, t2.c2 FROM st1s1 t1, st1s2 t2 WHERE t1.ts = t2.ts");
-  run("SELECT t1.c1, t2.c2 FROM st1s1 t1 JOIN st1s2 t2 ON t1.ts = t2.ts");
-}
-
 TEST_F(PlanBasicTest, func) {
   useDb("root", "test");
 
@@ -74,6 +67,14 @@ TEST_F(PlanBasicTest, tailFunc) {
   run("SELECT TAIL(c1, 10) FROM t1");
 
   run("SELECT TAIL(c2 + 10, 10, 80) FROM t1 WHERE c1 > 10");
+
+  run("SELECT TAIL(c2 + 10, 10, 80) FROM t1 WHERE c1 > 10 PARTITION BY c1");
+
+  run("SELECT TAIL(c2 + 10, 10, 80) FROM t1 WHERE c1 > 10 ORDER BY 1");
+
+  run("SELECT TAIL(c2 + 10, 10, 80) FROM t1 WHERE c1 > 10 LIMIT 5");
+
+  run("SELECT TAIL(c2 + 10, 10, 80) FROM t1 WHERE c1 > 10 PARTITION BY c1 LIMIT 5");
 }
 
 TEST_F(PlanBasicTest, interpFunc) {
@@ -82,4 +83,22 @@ TEST_F(PlanBasicTest, interpFunc) {
   run("SELECT INTERP(c1) FROM t1");
 
   run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
+}
+
+TEST_F(PlanBasicTest, lastRowFunc) {
+  useDb("root", "test");
+
+  run("SELECT LAST_ROW(c1) FROM t1");
+
+  run("SELECT LAST_ROW(*) FROM t1");
+
+  run("SELECT LAST_ROW(c1, c2) FROM t1");
+
+  run("SELECT LAST_ROW(c1) FROM st1");
+}
+
+TEST_F(PlanBasicTest, withoutFrom) {
+  useDb("root", "test");
+
+  run("SELECT 1");
 }

@@ -16,9 +16,11 @@
 #include <string>
 
 #include <gtest/gtest.h>
+
 #include "functionMgt.h"
 #include "getopt.h"
 #include "mockCatalog.h"
+#include "parser.h"
 #include "planTestUtil.h"
 
 class PlannerEnv : public testing::Environment {
@@ -30,7 +32,12 @@ class PlannerEnv : public testing::Environment {
     initLog(TD_TMP_DIR_PATH "td");
   }
 
-  virtual void TearDown() { destroyMetaDataEnv(); }
+  virtual void TearDown() {
+    destroyMetaDataEnv();
+    qCleanupKeywordsTable();
+    fmFuncMgtDestroy();
+    taosCloseLog();
+  }
 
   PlannerEnv() {}
   virtual ~PlannerEnv() {}
@@ -69,6 +76,7 @@ static void parseArg(int argc, char* argv[]) {
   static struct option long_options[] = {
     {"dump", optional_argument, NULL, 'd'},
     {"skipSql", required_argument, NULL, 's'},
+    {"limitSql", required_argument, NULL, 'i'},
     {"log", required_argument, NULL, 'l'},
     {0, 0, 0, 0}
   };
@@ -80,6 +88,9 @@ static void parseArg(int argc, char* argv[]) {
         break;
       case 's':
         setSkipSqlNum(optarg);
+        break;
+      case 'i':
+        setLimitSqlNum(optarg);
         break;
       case 'l':
         setLogLevel(optarg);
