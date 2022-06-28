@@ -1284,7 +1284,9 @@ void catalogDestroy(void) {
 
   atomic_store_8((int8_t*)&gCtgMgmt.exit, true);
 
-  ctgClearCacheEnqueue(NULL, true, true, true);
+  if (!taosCheckCurrentInDll()) {
+    ctgClearCacheEnqueue(NULL, true, true, true);
+  }
 
   taosHashCleanup(gCtgMgmt.pCluster);
   gCtgMgmt.pCluster = NULL;
