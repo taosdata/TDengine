@@ -84,7 +84,7 @@ class TDTestQuery(TDCase):
         # 1: support all table, support all data type  [hanshu = ['COUNT','FIRST','LAST','LAST_ROW']]]
         # 2: support all int type \ double type  [hanshu = ['AVG','SUM','MIN','MAX']]
         # 3: support all int type \ double type \ ts type [hanshu = ['SPREAD']]
-        for i in (1,2,3):
+        for i in (11,12,2,3):#13 last_row
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -135,7 +135,7 @@ class TDTestQuery(TDCase):
         # 1: support all table, support all data type  [hanshu = ['COUNT','FIRST','LAST','LAST_ROW']]]
         # 2: support all int type \ double type  [hanshu = ['AVG','SUM','MIN','MAX']]
         # 3: support all int type \ double type \ ts type [hanshu = ['SPREAD']]
-        for i in (1,2,3):
+        for i in (11,12,2,3):#13 last_row
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  

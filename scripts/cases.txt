@@ -13,6 +13,10 @@ taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/s
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_rtrim.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query_union.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_top_bottom.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_today.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_now.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_zone.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_elapsed.py --keep --containers
 
 
 # 200 seconds (at most)
@@ -68,7 +72,6 @@ taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/s
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/split/stable_str_cast_2.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_length.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_interval.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_today.py --keep --containers
 
 
 # 100 seconds (at most)
@@ -143,12 +146,10 @@ taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_j
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_histogram.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_leastsquares.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_percentile.py --keep --containers
-#taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_zone.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_to_iso8601.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_to_unixtimestamp.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_truncate.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_timediff.py --keep --containers
-#taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_elapsed.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_interval.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_now.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_today.py --keep --containers
@@ -159,7 +160,6 @@ taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_j
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_timediff.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_elapsed.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_interval.py --keep --containers
-#taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_now.py --keep --containers
 #new split:taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_rtrim.py --keep --containers
 #new split:taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_concat.py --keep --containers
 #new split:taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_cast.py --keep --containers

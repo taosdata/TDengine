@@ -789,7 +789,7 @@ class TDFunction():
         column = ['(ts)','(_c0)','(_C0)','(ts,time_unit)','(_c0,time_unit)','(_C0,time_unit)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
           
-        time_units = ['nums','numm','numh','numd','','numa']      
+        time_units = ['nums','numm','numh','numd','numa']      
         time_unit = str(random.sample(time_units,1)).replace("[","").replace("]","").replace("'","")          
         time_num = random.randint(0, 1000)  
         time_unit = time_unit.replace("num","%d" %time_num)         
