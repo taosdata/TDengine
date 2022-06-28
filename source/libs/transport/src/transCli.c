@@ -601,7 +601,7 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   QUEUE_INIT(&conn->conn);
   transRemoveExHandle(conn->refId);
   if (clear) {
-    if (uv_is_active((uv_handle_t*)conn->stream)) {
+    if (!uv_is_closing((uv_handle_t*)conn->stream)) {
       uv_close((uv_handle_t*)conn->stream, cliDestroy);
     } else {
       cliDestroy((uv_handle_t*)conn->stream);

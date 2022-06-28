@@ -431,10 +431,14 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
 }
 
 static void uvStartSendRespInternal(SSvrMsg* smsg) {
+  SSvrConn* pConn = smsg->pConn;
+  if (pConn->broken) {
+    return;
+  }
+
   uv_buf_t wb;
   uvPrepareSendData(smsg, &wb);
 
-  SSvrConn* pConn = smsg->pConn;
   // uv_timer_stop(&pConn->pTimer);
   uv_write(&pConn->pWriter, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
 }
