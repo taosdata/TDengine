@@ -4177,6 +4177,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 //        return NULL;
 //      }
 
+      pTableListInfo->pTableList = taosArrayInit(4, sizeof(STableKeyInfo));
       if (pScanNode->tableType == TSDB_SUPER_TABLE) {
         int32_t code = vnodeGetAllTableList(pHandle->meta, pScanNode->uid, pTableListInfo->pTableList);
         if (code != TSDB_CODE_SUCCESS) {
