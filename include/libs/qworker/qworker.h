@@ -36,6 +36,7 @@ typedef struct SDeleteRes {
   SArray*  uidList;
   int64_t  skey;
   int64_t  ekey;
+  int64_t  affectedRows;
 } SDeleteRes;
 
 typedef struct SQWorkerCfg {
@@ -82,7 +83,7 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int6
 
 int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
-int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SRpcMsg *pRsp, SDeleteRes *pRes);
+int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SDeleteRes *pRes);
 
 void qWorkerDestroy(void **qWorkerMgmt);
 

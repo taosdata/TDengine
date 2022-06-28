@@ -288,7 +288,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, int64_t version, SRpcMsg *pMsg, SRp
 
   switch (pMsg->msgType) {
     case TDMT_VND_DELETE:
-      return qWorkerProcessDeleteMsg(&handle, pVnode->pQuery, pMsg, pRsp, &res);
+      return qWorkerProcessDeleteMsg(&handle, pVnode->pQuery, pMsg, &res);
     default:
       vError("unknown msg type:%d in write queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
