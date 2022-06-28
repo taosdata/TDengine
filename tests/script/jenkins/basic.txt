@@ -162,6 +162,13 @@
 # --- valgrind
 ./test.sh -f tsim/valgrind/checkError.sim -v
 
+# --- vnode
+#./test.sh -f tsim/vnode/replica3_basic.sim
+#./test.sh -f tsim/vnode/replica3_repeat.sim
+./test.sh -f tsim/vnode/replica3_vgroup.sim
+#./test.sh -f tsim/vnode/replica3_many.sim
+#./test.sh -f tsim/vnode/replica3_import.sim
+
 # --- sync
 ./test.sh -f tsim/sync/3Replica1VgElect.sim
 ./test.sh -f tsim/sync/3Replica5VgElect.sim

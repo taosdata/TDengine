@@ -24,7 +24,7 @@ system sh/exec.sh -n dnode3 -s start
 system sh/exec.sh -n dnode4 -s start
 
 $x = 0
-step1:
+step10:
 	$x = $x + 1
 	sleep 1000
 	if $x == 10 then
@@ -40,19 +40,74 @@ if $rows != 4 then
   return -1
 endi
 if $data(1)[4] != ready then
-  goto step1
+  goto step10
 endi
 if $data(2)[4] != ready then
-  goto step1
+  goto step10
 endi
 if $data(3)[4] != ready then
-  goto step1
+  goto step10
 endi
 if $data(4)[4] != ready then
-  goto step1
+  goto step10
 endi
 
 sql create database d1 replica 3 vgroups 1
+$x = 0
+step11:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $rows != 1 then
+  return -1
+endi
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step11
+endi
+
+sql create database d2 replica 3 vgroups 1
+$x = 0
+step12:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> d2 not ready!
+		return -1
+	endi
+sql show d2.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $rows != 1 then
+  return -1
+endi
+if $data(3)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(3)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(3)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step12
+endi
+
 sql create table d1.t1 (t timestamp, i int) 
 sql insert into d1.t1 values(now+1s, 15) 
 sql insert into d1.t1 values(now+2s, 14)
@@ -60,7 +115,6 @@ sql insert into d1.t1 values(now+3s, 13)
 sql insert into d1.t1 values(now+4s, 12)
 sql insert into d1.t1 values(now+5s, 11)
 
-sql create database d2 replica 3 vgroups 1
 sql create table d2.t2 (t timestamp, i int) 
 sql insert into d2.t2 values(now+1s, 25)
 sql insert into d2.t2 values(now+2s, 24)
