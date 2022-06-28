@@ -65,7 +65,8 @@ else
     cmd="$cmd | xargs cat "
 fi
 
-tmp_target_file=/tmp/$target_file
+tmp_target_file=`basename $target_file`
+tmp_target_file="/tmp/$tmp_target_file"
 rm -rf $tmp_target_file
 if [ -f "$target_file" ]; then
     cp $target_file $tmp_target_file
