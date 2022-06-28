@@ -57,7 +57,7 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
 void                 snapshotSenderDestroy(SSyncSnapshotSender *pSender);
 bool                 snapshotSenderIsStart(SSyncSnapshotSender *pSender);
 void                 snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshot snapshot, void *pReader);
-void                 snapshotSenderStop(SSyncSnapshotSender *pSender);
+void                 snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish);
 int32_t              snapshotSend(SSyncSnapshotSender *pSender);
 int32_t              snapshotReSend(SSyncSnapshotSender *pSender);
 
@@ -82,7 +82,7 @@ SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId from
 void                   snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver);
 void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncTerm privateTerm, SyncSnapshotSend *pBeginMsg);
 bool snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver);
-void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver, bool apply);
+void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
 
 cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver);
 char  *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver);

@@ -347,10 +347,7 @@ if  $leaderExist != 1 then
   goto step65
 endi
 
-
-
 print =============== step7: select data
-
 sql show d1.tables
 print rows $rows
 if $rows != 6 then

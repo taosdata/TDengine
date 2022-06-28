@@ -243,7 +243,7 @@ int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       char          *syncNodeStr = sync2SimpleStr(pVnode->sync);
       static int64_t vndTick = 0;
       if (++vndTick % 10 == 1) {
-        vGTrace("vgId:%d, sync heartbeat msg:%s, %s", syncGetVgId(pVnode->sync), TMSG_INFO(pMsg->msgType), syncNodeStr);
+        vGTrace("vgId:%d, sync trace msg:%s, %s", syncGetVgId(pVnode->sync), TMSG_INFO(pMsg->msgType), syncNodeStr);
       }
       if (gRaftDetailLog) {
         char logBuf[512] = {0};
