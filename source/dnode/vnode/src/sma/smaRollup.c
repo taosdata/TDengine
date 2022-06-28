@@ -757,9 +757,8 @@ _err:
 
 static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma) {
   SVnode *pVnode = pSma->pVnode;
-
-  STFile tFile = {0};
-  char   qTaskInfoFName[TSDB_FILENAME_LEN];
+  STFile  tFile = {0};
+  char    qTaskInfoFName[TSDB_FILENAME_LEN];
 
   tdRSmaQTaskInfoGetFName(TD_VID(pVnode), TD_QTASK_CUR_FILE, qTaskInfoFName);
   if (tdInitTFile(&tFile, pVnode->pTfs, qTaskInfoFName) < 0) {
@@ -776,15 +775,21 @@ static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma) {
 
   SRSmaQTaskInfoIter fIter = {0};
   if (tdRSmaQTaskInfoIterInit(&fIter, &tFile) < 0) {
+    tdRSmaQTaskInfoIterDestroy(&fIter);
+    tdCloseTFile(&tFile);
     goto _err;
   }
 
   if (tdRSmaQTaskInfoRestore(pSma, &fIter) < 0) {
+    tdRSmaQTaskInfoIterDestroy(&fIter);
+    tdCloseTFile(&tFile);
     goto _err;
   }
 
-_err:
   tdRSmaQTaskInfoIterDestroy(&fIter);
+  tdCloseTFile(&tFile);
+  return TSDB_CODE_SUCCESS;
+_err:
   smaError("failed to restore rsma task since %s", terrstr());
   return TSDB_CODE_FAILED;
 }
