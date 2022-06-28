@@ -442,7 +442,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       syncPingReplyDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
       SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
-      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
+      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg, NULL);
       syncClientRequestDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
       SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
@@ -491,7 +491,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       syncPingReplyDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
       SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
-      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
+      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg, NULL);
       syncClientRequestDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
       SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);

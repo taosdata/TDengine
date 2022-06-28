@@ -15,7 +15,7 @@
 
 #include "sma.h"
 
-#define TD_FILE_HEAD_SIZE 512
+// smaFileUtil ================
 
 #define TD_FILE_STATE_OK  0
 #define TD_FILE_STATE_BAD 1
@@ -32,7 +32,7 @@ static int32_t tdEncodeTFInfo(void **buf, STFInfo *pInfo) {
   tlen += taosEncodeFixedU32(buf, pInfo->magic);
   tlen += taosEncodeFixedU32(buf, pInfo->ftype);
   tlen += taosEncodeFixedU32(buf, pInfo->fver);
-  tlen += taosEncodeFixedU64(buf, pInfo->fsize);
+  tlen += taosEncodeFixedI64(buf, pInfo->fsize);
 
   return tlen;
 }
@@ -41,7 +41,7 @@ static void *tdDecodeTFInfo(void *buf, STFInfo *pInfo) {
   buf = taosDecodeFixedU32(buf, &(pInfo->magic));
   buf = taosDecodeFixedU32(buf, &(pInfo->ftype));
   buf = taosDecodeFixedU32(buf, &(pInfo->fver));
-  buf = taosDecodeFixedU64(buf, &(pInfo->fsize));
+  buf = taosDecodeFixedI64(buf, &(pInfo->fsize));
   return buf;
 }
 
@@ -67,6 +67,11 @@ int64_t tdSeekTFile(STFile *pTFile, int64_t offset, int whence) {
   }
 
   return loffset;
+}
+
+int64_t tdGetTFileSize(STFile *pTFile, int64_t *size) {
+  ASSERT(TD_FILE_OPENED(pTFile));
+  return taosFStatFile(pTFile->pFile, size, NULL);
 }
 
 int64_t tdReadTFile(STFile *pTFile, void *buf, int64_t nbyte) {
@@ -236,3 +241,6 @@ int32_t tdCreateTFile(STFile *pTFile, STfs *pTfs, bool updateHeader, int8_t fTyp
 }
 
 int32_t tdRemoveTFile(STFile *pTFile) { return tfsRemoveFile(TD_FILE_F(pTFile)); }
+
+// smaXXXUtil ================
+// ...

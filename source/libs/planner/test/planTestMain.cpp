@@ -76,6 +76,7 @@ static void parseArg(int argc, char* argv[]) {
   static struct option long_options[] = {
     {"dump", optional_argument, NULL, 'd'},
     {"skipSql", required_argument, NULL, 's'},
+    {"limitSql", required_argument, NULL, 'i'},
     {"log", required_argument, NULL, 'l'},
     {0, 0, 0, 0}
   };
@@ -87,6 +88,9 @@ static void parseArg(int argc, char* argv[]) {
         break;
       case 's':
         setSkipSqlNum(optarg);
+        break;
+      case 'i':
+        setLimitSqlNum(optarg);
         break;
       case 'l':
         setLogLevel(optarg);

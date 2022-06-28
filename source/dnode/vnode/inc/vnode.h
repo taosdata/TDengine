@@ -125,6 +125,7 @@ int32_t     tsdbGetFileBlocksDistInfo(tsdbReaderT *pReader, STableBlockDistInfo 
 bool        isTsdbCacheLastRow(tsdbReaderT *pReader);
 int32_t     tsdbGetAllTableList(SMeta *pMeta, uint64_t uid, SArray *list);
 int32_t     tsdbGetCtbIdList(SMeta *pMeta, int64_t suid, SArray *list);
+int32_t     tsdbGetStbIdList(SMeta *pMeta, int64_t suid, SArray *list);
 void       *tsdbGetIdx(SMeta *pMeta);
 void       *tsdbGetIvtIdx(SMeta *pMeta);
 int64_t     tsdbGetNumOfRowsInMemTable(tsdbReaderT *pHandle);
@@ -198,15 +199,20 @@ typedef struct {
   uint64_t groupId;
 } STableKeyInfo;
 
+#define TABLE_ROLLUP_ON       ((int8_t)0x1)
+#define TABLE_IS_ROLLUP(FLG)  (((FLG) & (TABLE_ROLLUP_ON)) != 0)
+#define TABLE_SET_ROLLUP(FLG) ((FLG) |= TABLE_ROLLUP_ON)
 struct SMetaEntry {
   int64_t  version;
   int8_t   type;
+  int8_t   flags;  // TODO: need refactor?
   tb_uid_t uid;
   char    *name;
   union {
     struct {
       SSchemaWrapper schemaRow;
       SSchemaWrapper schemaTag;
+      SRSmaParam     rsmaParam;
     } stbEntry;
     struct {
       int64_t  ctime;

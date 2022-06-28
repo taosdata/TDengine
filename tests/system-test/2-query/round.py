@@ -432,6 +432,20 @@ class TDTestCase:
 
         self.check_result_auto("select c1+1 ,c2 , c3*1 , c4/2, c5/2, c6 from sub1_bound" ,"select round(c1+1) ,round(c2) , round(c3*1) , round(c4/2), round(c5)/2, round(c6) from sub1_bound ")
 
+    def support_super_table_test(self):
+        tdSql.execute(" use db ")
+        self.check_result_auto( " select c5 from stb1 order by ts " , "select round(c5) from stb1 order by ts" )
+        self.check_result_auto( " select c5 from stb1 order by tbname " , "select round(c5) from stb1 order by tbname" )
+        self.check_result_auto( " select c5 from stb1 where c1 > 0 order by tbname  " , "select round(c5) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto( " select c5 from stb1 where c1 > 0 order by tbname  " , "select round(c5) from stb1 where c1 > 0 order by tbname" )
+
+        self.check_result_auto( " select t1,c5 from stb1 order by ts " , "select round(t1), round(c5) from stb1 order by ts" )
+        self.check_result_auto( " select t1,c5 from stb1 order by tbname " , "select round(t1) ,round(c5) from stb1 order by tbname" )
+        self.check_result_auto( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select round(t1) ,round(c5) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select round(t1) , round(c5) from stb1 where c1 > 0 order by tbname" )
+        pass
+    
+    
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
@@ -458,6 +472,10 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step6: round filter query ============") 
 
         self.abs_func_filter()
+
+        tdLog.printNoPrefix("==========step7: check round result of  stable query ============")
+
+        self.support_super_table_test()
 
     def stop(self):
         tdSql.close()

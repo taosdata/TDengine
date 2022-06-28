@@ -69,6 +69,7 @@ struct SMeta {
   TTB*    pUidIdx;
   TTB*    pNameIdx;
   TTB*    pCtbIdx;
+  TTB*    pSuidIdx;
   // ivt idx and idx
   void* pTagIvtIdx;
   TTB*  pTagIdx;

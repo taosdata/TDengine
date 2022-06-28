@@ -1027,7 +1027,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
    */
   STransConnCtx* pCtx = pMsg->ctx;
   int32_t        code = pResp->code;
-  if (pTransInst->retry != NULL && pTransInst->retry(code)) {
+  if (pTransInst->retry != NULL && pTransInst->retry(code, pResp->msgType - 1)) {
     pMsg->sent = 0;
     pCtx->retryCnt += 1;
     if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
