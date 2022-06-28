@@ -75,8 +75,6 @@ taostest --setup=common_insert.yaml --case=taosc_insert/alter_table.py --keep --
 taostest --use=common_insert.yaml --case=taosc_insert/alter_insert.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/auto_create_table.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/batch_insert.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/bigint_boundary_check.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/binary_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/bool_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/child_tb_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/db_check.py --keep --containers
@@ -101,23 +99,24 @@ taostest --use=common_insert.yaml --case=taosc_insert/double_boundary_check.py -
 taostest --use=common_insert.yaml --case=taosc_insert/error_insert_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/float_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/illegal_type_check.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/int_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/multi_process_run.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/multi_table_insert.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/nchar_boundary_check.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/smallint_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/specified_column_insert.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/stable_param_comment.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/stb_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/tag_col_limit_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/tb_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/timestamp_check.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/tinyint_boundary_check.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/ubigint_boundary_check.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/uint_boundary_check.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/usmallint_boundary_check.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/utinyint_boundary_check.py --keep --containers
-
+taostest --use=common_insert.yaml --case=taosc_insert/timestamp_check.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/null_check.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/numeric_type_boundary_check.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/str_type_boundary_check.py --keep --containers
+taostest --use=common_insert.yaml --case=schemaless_insert/influxdb_line_protocol_taosc_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_telnet_protocol_taosc_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_json_protocol_taosc_insert.py --keep --containers
+taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/influxdb_line_protocol_taosc_insert.py --keep --containers
+taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_telnet_protocol_taosc_insert.py --keep --containers
+taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_json_protocol_taosc_insert.py --keep --containers
 
 # commented out cases
 # taostest --use=common_insert.yaml --case=taosc_insert/db_param_keep.py --keep --containers
@@ -172,10 +171,6 @@ taostest --use=common_insert.yaml --case=taosc_insert/utinyint_boundary_check.py
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_func_error.py --keep
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/stable_query.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/stable_query_null.py --keep --containers
-#taostest --use=common_insert.yaml --case=schemaless_insert/influxdb_line_protocol_taosc_insert.py --keep --containers
-#taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_telnet_protocol_taosc_insert.py --keep --containers
-#taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_json_protocol_taosc_insert.py --keep --containers
-# taostest --use=common_insert.yaml --case=taosc_insert/null_check.py --keep --containers
 # taostest --use=common_insert.yaml --case=taosc_insert/multi_threads_test.py --keep --containers
 # taostest --use=common_insert.yaml --case=taosc_insert/json_tag.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/stable_query_union.py --keep --containers
