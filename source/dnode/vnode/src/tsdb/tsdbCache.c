@@ -165,21 +165,23 @@ static int32_t getMemLastRow(SMemTable *mem, tb_uid_t suid, tb_uid_t uid, STSRow
 static int32_t getTableDelDataFromDelIdx(SDelFReader *pDelReader, SDelIdx *pDelIdx, SArray *aDelData) {
   int32_t code = 0;
 
-  SMapData delDataMap;
-  SDelData delData;
+  // SMapData delDataMap;
+  // SDelData delData;
 
   if (pDelIdx) {
-    tMapDataReset(&delDataMap);
+    // tMapDataReset(&delDataMap);
 
     // code = tsdbReadDelData(pDelReader, pDelIdx, &delDataMap, NULL);
+    code = tsdbReadDelData(pDelReader, pDelIdx, aDelData, NULL);
     if (code) goto _err;
-
+    /*
     for (int32_t iDelData = 0; iDelData < delDataMap.nItem; ++iDelData) {
       code = tMapDataGetItemByIdx(&delDataMap, iDelData, &delData, tGetDelData);
       if (code) goto _err;
 
       taosArrayPush(aDelData, &delData);
     }
+    */
   }
 
 _err:
@@ -241,14 +243,17 @@ _err:
 static int32_t getTableDelIdx(SDelFReader *pDelFReader, tb_uid_t suid, tb_uid_t uid, SDelIdx *pDelIdx) {
   int32_t code = 0;
 
-  SMapData delIdxMap;
-  SDelIdx  idx = {.suid = suid, .uid = uid};
+  // SMapData delIdxMap;
+  SArray *pDelIdxArray = taosArrayInit(32, sizeof(SDelIdx));
+  SDelIdx idx = {.suid = suid, .uid = uid};
 
-  tMapDataReset(&delIdxMap);
-  // code = tsdbReadDelIdx(pDelFReader, &delIdxMap, NULL);
+  // tMapDataReset(&delIdxMap);
+  //  code = tsdbReadDelIdx(pDelFReader, &delIdxMap, NULL);
+  code = tsdbReadDelIdx(pDelFReader, pDelIdxArray, NULL);
   if (code) goto _err;
 
-  code = tMapDataSearch(&delIdxMap, &idx, tGetDelIdx, tCmprDelIdx, pDelIdx);
+  // code = tMapDataSearch(&delIdxMap, &idx, tGetDelIdx, tCmprDelIdx, pDelIdx);
+  pDelIdx = taosArraySearch(pDelIdxArray, &idx, tCmprDelIdx, TD_EQ);
   if (code) goto _err;
 
 _err:
