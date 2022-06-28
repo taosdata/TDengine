@@ -26,6 +26,7 @@ class TestTagColLimit(TDCase):
         tag_str = self.tdCom.gen_tag_col_str("tag", "int", self.tdCom.boundary_config["MAX_TAG_COUNT"])
         dbname = self.tdCom.get_long_name(length=5, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
+        print(tag_str_exceed)
         self.tdSql.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags ({tag_str_exceed})')
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags ({tag_str})')
         tag_value_str = '1, ' * (self.tdCom.boundary_config["MAX_TAG_COUNT"] - 1) + '1'
@@ -39,13 +40,13 @@ class TestTagColLimit(TDCase):
         """
         max col count: 4096
         """
-        col_str_exceed = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-1)
-        col_str = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-2)
+        col_str_exceed = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.boundary_config["MAX_TAG_COL_COUNT"])
+        col_str = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-1)
         dbname = self.tdCom.get_long_name(length=5, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
         self.tdSql.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, {col_str_exceed}) tags (t1 int)')
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, {col_str}) tags (t1 int)')
-        col_value_str = '1, ' * (self.tdCom.boundary_config["MAX_TAG_COL_COUNT"] - 3) + '1'
+        col_value_str = '1, ' * (self.tdCom.boundary_config["MAX_TAG_COL_COUNT"] - 2) + '1'
         self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (1)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now, {col_value_str})')
         self.tdSql.query(f'select col4093 from {dbname}.stb')
@@ -56,16 +57,15 @@ class TestTagColLimit(TDCase):
         """
         max col count: 4096
         """
-        col_str_exceed = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-1)
-        col_str = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-2)
+        col_str_exceed = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.boundary_config["MAX_TAG_COL_COUNT"])
+        col_str = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-1)
         dbname = self.tdCom.get_long_name(length=5, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
-        self.tdSql.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, {col_str_exceed}) tags (t1 int)')
-        self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, {col_str}) tags (t1 int)')
-        col_value_str = '1, ' * (self.tdCom.boundary_config["MAX_TAG_COL_COUNT"] - 3) + '1'
-        self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (1)')
+        self.tdSql.error(f'create table if not exists {dbname}.tb (col_ts timestamp, {col_str_exceed})')
+        self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, {col_str})')
+        col_value_str = '1, ' * (self.tdCom.boundary_config["MAX_TAG_COL_COUNT"] - 2) + '1'
         self.tdSql.execute(f'insert into {dbname}.tb values (now, {col_value_str})')
-        self.tdSql.query(f'select col4093 from {dbname}.stb')
+        self.tdSql.query(f'select col4094 from {dbname}.tb')
         self.tdSql.checkEqual(int(self.tdSql.query_data[0][0]), 1)
         self.tdSql.execute(f'drop database if exists {dbname}')
 
@@ -132,8 +132,8 @@ class TestTagColLimit(TDCase):
                 self.tdSql.checkEqual(col_key_list, ['col_ts', col_key_name, tag_key_name])
 
     def run(self):
-        # !bug
-        # self.tag_max_count_check()
+        self.tag_max_count_check()
+        # # ! TD-16721
         # self.stb_col_max_count_check()
         # self.tb_col_max_count_check()
         self.stb_sensitive_check()
