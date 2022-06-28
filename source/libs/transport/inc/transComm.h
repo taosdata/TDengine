@@ -148,6 +148,7 @@ typedef struct {
   char release : 2;
   char secured : 2;
   char spi : 2;
+  char hasEpSet : 2;  // contain epset or not, 0(default): no epset, 1: contain epset
 
   char     user[TSDB_UNI_LEN];
   STraceId traceId;

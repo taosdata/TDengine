@@ -312,6 +312,7 @@ void cliHandleResp(SCliConn* conn) {
   transMsg.msgType = pHead->msgType;
   transMsg.info.ahandle = NULL;
   transMsg.info.traceId = pHead->traceId;
+  transMsg.info.hasEpSet = pHead->hasEpSet;
 
   SCliMsg*       pMsg = NULL;
   STransConnCtx* pCtx = NULL;
@@ -1014,6 +1015,23 @@ void cliCompareAndSwap(int8_t* val, int8_t exp, int8_t newVal) {
     *val = newVal;
   }
 }
+
+bool cliTryToExtractEpSet(STransMsg* pResp, SEpSet* dst) {
+  if (pResp == NULL || pResp->info.hasEpSet == 0) {
+    return false;
+  }
+  tDeserializeSEpSet(pResp->pCont, pResp->contLen, dst);
+  int32_t tlen = tSerializeSEpSet(NULL, 0, dst);
+
+  int32_t bufLen = pResp->contLen - tlen;
+  char*   buf = rpcMallocCont(bufLen);
+
+  memcpy(buf, pResp->pCont + tlen, bufLen);
+
+  pResp->pCont = buf;
+  pResp->contLen = bufLen;
+  return true;
+}
 int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
@@ -1058,6 +1076,12 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   }
 
   STraceId* trace = &pResp->info.traceId;
+
+  if (cliTryToExtractEpSet(pResp, &pCtx->epSet)) {
+    char tbuf[256] = {0};
+    EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
+    tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
+  }
   if (pCtx->pSem != NULL) {
     tGTrace("%s conn %p(sync) handle resp", CONN_GET_INST_LABEL(pConn), pConn);
     if (pCtx->pRsp == NULL) {
