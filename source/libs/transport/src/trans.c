@@ -141,7 +141,7 @@ void rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
 }
 
 void    rpcSendResponse(const SRpcMsg* pMsg) { transSendResponse(pMsg); }
-int32_t rpcGetConnInfo(void* thandle, SRpcConnInfo* pInfo) { return transGetConnInfo((void*)thandle, pInfo); }
+int32_t rpcGetConnInfo(void* thandle, SRpcConnInfo* pInfo) { return 0; }
 
 void rpcRefHandle(void* handle, int8_t type) {
   assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
