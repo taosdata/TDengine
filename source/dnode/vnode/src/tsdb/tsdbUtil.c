@@ -545,6 +545,16 @@ int32_t tGetBlockCol(uint8_t *p, void *ph) {
   return n;
 }
 
+int32_t tBlockColCmprFn(const void *p1, const void *p2) {
+  if (((SBlockCol *)p1)->cid < ((SBlockCol *)p2)->cid) {
+    return -1;
+  } else if (((SBlockCol *)p1)->cid > ((SBlockCol *)p2)->cid) {
+    return 1;
+  }
+
+  return 0;
+}
+
 // SDelIdx ======================================================
 int32_t tCmprDelIdx(void const *lhs, void const *rhs) {
   SDelIdx *lDelIdx = *(SDelIdx **)lhs;

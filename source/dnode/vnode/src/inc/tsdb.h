@@ -117,6 +117,7 @@ int32_t tGetKEYINFO(uint8_t *p, KEYINFO *pKeyInfo);
 // SBlockCol
 int32_t tPutBlockCol(uint8_t *p, void *ph);
 int32_t tGetBlockCol(uint8_t *p, void *ph);
+int32_t tBlockColCmprFn(const void *p1, const void *p2);
 // SBlock
 #define tBlockInit() ((SBlock){0})
 void    tBlockReset(SBlock *pBlock);
@@ -229,7 +230,7 @@ int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SMapData *pMapData, uint8_t **ppBuf);
 int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData, uint8_t **ppBuf);
 int32_t tsdbReadColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBlock, int16_t *aColId, int32_t nCol,
-                        SBlockData *pBlockData);
+                        SBlockData *pBlockData, uint8_t **ppBuf1, uint8_t **ppBuf2);
 int32_t tsdbReadBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBlock, SBlockData *pBlockData,
                           uint8_t **ppBuf1, uint8_t **ppBuf2);
 int32_t tsdbReadBlockSMA(SDataFReader *pReader, SBlockSMA *pBlkSMA);
