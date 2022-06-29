@@ -772,6 +772,7 @@ int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
         snapshotReSend(pSender);
 
       } else {
+        // error log
         do {
           char logBuf[96];
           snprintf(logBuf, sizeof(logBuf), "snapshot sender recv error ack:%d, my seq:%d", pMsg->ack, pSender->seq);
