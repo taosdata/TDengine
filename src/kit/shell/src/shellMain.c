@@ -20,10 +20,14 @@
 
 pthread_t pid;
 static tsem_t cancelSem;
+bool stop_fetch = false;
+int64_t ws_id = 0;
 
 void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) {
   tsem_post(&cancelSem);
 }
+
+void shellRestfulSendInterruptHandler(int32_t signum, void *sigInfo, void *context) {}
 
 void *cancelHandler(void *arg) {
   setThreadName("cancelHandler");
@@ -33,7 +37,12 @@ void *cancelHandler(void *arg) {
       taosMsleep(10);
       continue;
     }
-
+    if (args.restful || args.cloud) {
+      stop_fetch = true;
+      if (wsclient_send_sql(NULL, WS_CLOSE, ws_id)) {
+        exit(EXIT_FAILURE);
+      }
+    }
 #ifdef LINUX
     int64_t rid = atomic_val_compare_exchange_64(&result, result, 0);
     SSqlObj* pSql = taosAcquireRef(tscObjRef, rid);
@@ -44,7 +53,6 @@ void *cancelHandler(void *arg) {
     exit(0);
 #endif
   }
-  
   return NULL;
 }
 
@@ -69,14 +77,14 @@ int checkVersion() {
 }
 
 // Global configurations
-SShellArguments args = {
-  .host = NULL,
+SShellArguments args = {.host = NULL,
 #ifndef TD_WINDOWS
   .password = NULL,
 #endif
   .user = NULL,
   .database = NULL,
   .timezone = NULL,
+  .restful = false,
   .is_raw_time = false,
   .is_use_passwd = false,
   .dump_config = false,
@@ -87,8 +95,13 @@ SShellArguments args = {
   .pktLen = 1000,
   .pktNum = 100,
   .pktType = "TCP",
-  .netTestRole = NULL
-};
+  .netTestRole = NULL,
+  .cloudDsn = NULL,
+  .cloud = true,
+  .cloudHost = NULL,
+  .cloudPort = NULL,
+  .cloudToken = NULL,
+  };
 
 /*
  * Main function.
@@ -127,11 +140,21 @@ int main(int argc, char* argv[]) {
     exit(0);
   }
 
-  /* Initialize the shell */
-  TAOS* con = shellInit(&args);
-  if (con == NULL) {
-    exit(EXIT_FAILURE);
+  if (args.cloud) {
+      if (parse_cloud_dsn()) {
+          exit(EXIT_FAILURE);
+      }
+      if (tcpConnect(args.cloudHost, atoi(args.cloudPort))) {
+          exit(EXIT_FAILURE);
+      }
+  } else if (args.restful) {
+      if (tcpConnect(args.host, args.port)) {
+          exit(EXIT_FAILURE);
+      }
   }
+
+  /* Initialize the shell */
+  shellInit(&args);
 
   if (tsem_init(&cancelSem, 0, 0) != 0) {
     printf("failed to create cancel semphore\n");
@@ -146,13 +169,18 @@ int main(int argc, char* argv[]) {
   taosSetSignal(SIGINT, shellQueryInterruptHandler);
   taosSetSignal(SIGHUP, shellQueryInterruptHandler);
   taosSetSignal(SIGABRT, shellQueryInterruptHandler);
+  if (args.restful || args.cloud) {
+#ifdef LINUX
+    taosSetSignal(SIGPIPE, shellRestfulSendInterruptHandler);
+#endif
+  }
 
   /* Get grant information */
-  shellGetGrantInfo(con);
+  shellGetGrantInfo(args.con);
 
   /* Loop to query the input. */
   while (1) {
-    pthread_create(&pid, NULL, shellLoopQuery, con);
+    pthread_create(&pid, NULL, shellLoopQuery, args.con);
     pthread_join(pid, NULL);
   }
 }

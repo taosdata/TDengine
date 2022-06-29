@@ -14,25 +14,27 @@
  */
 
 // TAOS standard API example. The same syntax as MySQL, but only a subset
-// to compile: gcc -o tqdemo tqdemo.c -ltaos
+// to compile: gcc -o tqdemo tqdemo.c -ltaos -lcurl
 
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <taos.h>  // TAOS header file
+#include <curl/curl.h>
 
 void print_results(TAOS *taos, char *qstr);
+void restful_demo(char *host, char *qstr);
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {  
   char qstr[1024];
   TAOS_RES *pSql = NULL;
-
+  
   // connect to server
   if (argc < 2) {
     printf("please input server-ip \n");
     return 0;
-  }
+  }  
 
   TAOS *taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
   if (taos == NULL) {
@@ -43,7 +45,7 @@ int main(int argc, char *argv[]) {
   TAOS_RES* res;
   // create topic
   res = taos_query(taos, "create topic tq_test partitions 10");
-  taos_free_result(res);
+  taos_free_result(res);  
 
   res = taos_query(taos, "use tq_test");
   taos_free_result(res);
@@ -60,10 +62,13 @@ int main(int argc, char *argv[]) {
   }
 
   // query data
-  print_results(taos, "select * from tq_test.ps");
+  // print_results(taos, "select * from tq_test.ps");  
 
   taos_close(taos);
   taos_cleanup();
+
+  // restful demo
+  restful_demo(argv[1], "show topics");
 }
 
 
@@ -91,4 +96,27 @@ void print_results(TAOS *taos, char *qstr) {
     printf("%s\n", temp);
   }
   taos_free_result(res);
+}
+
+void restful_demo(char *host, char *qstr) {
+  CURL *curl;
+  CURLcode res;
+
+  curl = curl_easy_init();
+  if(curl == NULL) {
+    printf("failed to create curl connection");
+    return;
+  }
+
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append(headers, "Authorization: Basic cm9vdDp0YW9zZGF0YQ==");
+  char url[1000];
+  sprintf(url, "%s:6041/rest/sql", host);
+  curl_easy_setopt(curl, CURLOPT_URL, url);
+  curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);  
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, qstr);
+
+  res = curl_easy_perform(curl);  
+  curl_easy_cleanup(curl);
 }

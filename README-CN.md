@@ -1,17 +1,26 @@
+<p>
+<p align="center">
+  <a href="https://tdengine.com" target="_blank">
+  <img
+    src="docs/assets/tdengine.svg"
+    alt="TDengine"
+    width="500"
+  />
+  </a>
+</p>
+<p>
+
 [![Build Status](https://travis-ci.org/taosdata/TDengine.svg?branch=master)](https://travis-ci.org/taosdata/TDengine)
 [![Build status](https://ci.appveyor.com/api/projects/status/kf3pwh2or5afsgl9/branch/master?svg=true)](https://ci.appveyor.com/project/sangshuduo/tdengine-2n8ge/branch/master)
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 [![tdengine](https://snapcraft.io//tdengine/badge.svg)](https://snapcraft.io/tdengine)
 
-[![TDengine](TDenginelogo.png)](https://www.taosdata.com)
-
-简体中文 | [English](./README.md)
-很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
+简体中文 | [English](README.md) | 很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
 
 # TDengine 简介
 
-TDengine 是一款高性能、分布式、支持 SQL 的时序数据库。而且除时序数据库功能外，它还提供缓存、数据订阅、流式计算等功能，最大程度减少研发和运维的复杂度，且核心代码，包括集群功能全部开源（开源协议，AGPL v3.0）。与其他时序数据数据库相比，TDengine 有以下特点：
+TDengine 是一款高性能、分布式、支持 SQL 的时序数据库（Time-Series Database）。而且除时序数据库功能外，它还提供缓存、数据订阅、流式计算等功能，最大程度减少研发和运维的复杂度，且核心代码，包括集群功能全部开源（开源协议，AGPL v3.0）。与其他时序数据数据库相比，TDengine 有以下特点：
 
 - **高性能**：通过创新的存储引擎设计，无论是数据写入还是查询，TDengine 的性能比通用数据库快 10 倍以上，也远超其他时序数据库，而且存储空间也大为节省。
 
@@ -154,12 +163,23 @@ git submodule update --init --recursive
 
 ### Linux 系统
 
+可以运行代码仓库中的 `build.sh` 脚本编译出 TDengine 和 taosTools（包含 taosBenchmark 和 taosdump）。
+
 ```bash
-mkdir debug && cd debug
-cmake .. && cmake --build .
+./build.sh
 ```
 
-您可以选择使用 jemalloc 作为内存分配器，替代默认的 glibc：
+这个脚本等价于执行如下命令：
+
+```bash
+git submodule update --init --recursive
+mkdir debug
+cd debug
+cmake .. -DBUILD_TOOLS=true
+make
+```
+
+您也可以选择使用 jemalloc 作为内存分配器，替代默认的 glibc：
 
 ```bash
 apt install autoconf

@@ -368,7 +368,7 @@ static int32_t handlePassword(SSqlCmd* pCmd, SStrToken* pPwd) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  if (pPwd->n > TSDB_PASS_LEN - 1) {
+  if (pPwd->n >= TSDB_PASS_LEN) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
@@ -1055,6 +1055,12 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       char      buf[TSDB_TABLE_FNAME_LEN];
       SStrToken sTblToken;
       sTblToken.z = buf;
+      // enterprise check
+#ifndef TD_ENTERPRISE
+      const char* msg = "This feature is not supported in the community version. Please use the enterprise version.";
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
+#endif
+
       // check
       if (validateTableName(tbName->z, tbName->n, &sTblToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), STR_INVALID_TABLE_NAME);
@@ -10133,6 +10139,9 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
     char fname[TSDB_TABLE_FNAME_LEN] = {0};
     tNameExtractFullName(&pTableMetaInfo->name, fname);
     STableMetaVgroupInfo* p = taosHashGet(pCmd->pTableMetaMap, fname, strnlen(fname, TSDB_TABLE_FNAME_LEN));
+    if (p == NULL) {
+      return TSDB_CODE_TSC_NO_META_CACHED;
+    }
 
     pTableMetaInfo->pTableMeta        = tscTableMetaDup(p->pTableMeta);
     pTableMetaInfo->tableMetaCapacity = tscGetTableMetaSize(pTableMetaInfo->pTableMeta);
@@ -10248,6 +10257,9 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
     tstrncpy(pTableMetaInfo1->aliasName, subInfo->aliasName.z, subInfo->aliasName.n + 1);
   }
 
+  if (TPARSER_HAS_TOKEN(pSqlNode->interval.interval) && pSub->order.orderColId == INT32_MIN) {
+    pSub->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
+  }
   // NOTE: order mix up in subquery not support yet.
   pQueryInfo->order = pSub->order;
 

@@ -1,17 +1,26 @@
+<p>
+<p align="center">
+  <a href="https://tdengine.com" target="_blank">
+  <img
+    src="docs/assets/tdengine.svg"
+    alt="TDengine"
+    width="500"
+  />
+  </a>
+</p>
+<p>
+
 [![Build Status](https://cloud.drone.io/api/badges/taosdata/TDengine/status.svg?ref=refs/heads/master)](https://cloud.drone.io/taosdata/TDengine)
 [![Build status](https://ci.appveyor.com/api/projects/status/kf3pwh2or5afsgl9/branch/master?svg=true)](https://ci.appveyor.com/project/sangshuduo/tdengine-2n8ge/branch/master)
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 [![tdengine](https://snapcraft.io//tdengine/badge.svg)](https://snapcraft.io/tdengine)
 
-[![TDengine](TDenginelogo.png)](https://www.taosdata.com)
-
-English | [简体中文](./README-CN.md)
-We are hiring, check [here](https://www.taosdata.com/en/careers/)
+English | [简体中文](README-CN.md) | We are hiring, check [here](https://tdengine.com/careers)
 
 # What is TDengine？
 
-TDengine is a high-performance, scalable time-series database with SQL support. Its code including cluster feature is open source under [GNU AGPL v3.0](http://www.gnu.org/licenses/agpl-3.0.html). Besides the database, it provides caching, stream processing, data data subscription and other functionalities to reduce the complexity and cost of development and operation. TDengine differentiates itself from other TSDBs with the following advantages.
+TDengine is a high-performance, scalable time-series database with SQL support. Its code including cluster feature is open source under [GNU AGPL v3.0](http://www.gnu.org/licenses/agpl-3.0.html). Besides the database, it provides caching, stream processing, data subscription and other functionalities to reduce the complexity and cost of development and operation. TDengine differentiates itself from other TSDBs with the following advantages.
 
 - **High Performance**: TDengine outperforms other time series databases in data ingestion and querying while significantly reducing storage cost and compute costs, with an innovatively designed and purpose-built storage engine.
 
@@ -38,7 +47,7 @@ for details. The documentation from our website can also be downloaded locally f
 
 # Building
 
-At the moment, TDengine only supports building and running on Linux systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or from the source code. This quick guide is for installation from the source only.
+At the moment, TDengine server only supports running on Linux systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or build it from the source code. This quick guide is for installation from the source only.
 
 To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in the project directory.
 
@@ -169,9 +178,20 @@ You can modify the file ~/.gitconfig to use ssh protocol instead of https for be
 
 ### On Linux platform
 
+You can run the bash script `build.sh` to build both TDengine and taosTools including taosBenchmark and taosdump as below:
+
 ```bash
-mkdir debug && cd debug
-cmake .. && cmake --build .
+./build.sh
+```
+
+It equals to execute following commands:
+
+```bash
+git submodule update --init --recursive
+mkdir debug
+cd debug
+cmake .. -DBUILD_TOOLS=true
+make
 ```
 
 Note TDengine 2.3.x.0 and later use a component named 'taosAdapter' to play http daemon role by default instead of the http daemon embedded in the early version of TDengine. The taosAdapter is programmed by go language. If you pull TDengine source code to the latest from an existing codebase, please execute 'git submodule update --init --recursive' to pull taosAdapter source code. Please install go language version 1.14 or above for compiling taosAdapter. If you meet difficulties regarding 'go mod', especially you are from China, you can use a proxy to solve the problem.
