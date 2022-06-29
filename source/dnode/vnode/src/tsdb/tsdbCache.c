@@ -1007,7 +1007,7 @@ int32_t tsdbCacheGetLastrow(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, STSRo
 
   return code;
 }
-
+#if 0
 int32_t tsdbCacheGetLast(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
   int32_t code = 0;
   char    key[32] = {0};
@@ -1030,6 +1030,63 @@ int32_t tsdbCacheGetLast(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, STSRow *
     *ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
   }
 
+  // taosLRUCacheRelease(pCache, h, true);
+
+  return code;
+}
+#endif
+int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHandle **handle) {
+  int32_t code = 0;
+  char    key[32] = {0};
+  int     keyLen = 0;
+
+  getTableCacheKey(uid, "lr", key, &keyLen);
+  LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
+  if (h) {
+    //*ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
+  } else {
+    STSRow *pRow = NULL;
+    code = mergeLastRow(uid, pTsdb, &pRow);
+    // if table's empty or error, return code of -1
+    if (code < 0 || pRow == NULL) {
+      return -1;
+    }
+
+    tsdbCacheInsertLastrow(pCache, uid, pRow);
+    h = taosLRUCacheLookup(pCache, key, keyLen);
+    //*ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
+  }
+
+  *handle = h;
+  // taosLRUCacheRelease(pCache, h, true);
+
+  return code;
+}
+
+int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHandle **handle) {
+  int32_t code = 0;
+  char    key[32] = {0};
+  int     keyLen = 0;
+
+  getTableCacheKey(uid, "l", key, &keyLen);
+  LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
+  if (h) {
+    //*ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
+
+  } else {
+    STSRow *pRow = NULL;
+    code = mergeLast(uid, pTsdb, &pRow);
+    // if table's empty or error, return code of -1
+    if (code < 0 || pRow == NULL) {
+      return -1;
+    }
+
+    tsdbCacheInsertLast(pCache, uid, pRow);
+    h = taosLRUCacheLookup(pCache, key, keyLen);
+    //*ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
+  }
+
+  *handle = h;
   // taosLRUCacheRelease(pCache, h, true);
 
   return code;
