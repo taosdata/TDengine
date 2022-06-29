@@ -205,7 +205,7 @@ int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
       .msgType = TDMT_SCH_DROP_TASK,
       .pCont = req,
       .contLen = sizeof(STaskDropReq),
-      .code = TSDB_CODE_RPC_NETWORK_UNAVAIL,
+      .code = TSDB_CODE_RPC_BROKEN_LINK,
       .info = *pConn,
   };
 
@@ -239,7 +239,7 @@ int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SRpcHandleInfo *
       .msgType = TDMT_SCH_QUERY_HEARTBEAT,
       .pCont = msg,
       .contLen = msgSize,
-      .code = TSDB_CODE_RPC_NETWORK_UNAVAIL,
+      .code = TSDB_CODE_RPC_BROKEN_LINK,
       .info = *pConn,
   };
 
@@ -484,7 +484,7 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int6
 
   SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .code = pMsg->code, .connInfo = pMsg->info};
 
-  if (TSDB_CODE_RPC_NETWORK_UNAVAIL == pMsg->code) {
+  if (TSDB_CODE_RPC_BROKEN_LINK == pMsg->code) {
     QW_SCH_TASK_DLOG("receive drop task due to network broken, error:%s", tstrerror(pMsg->code));
   }
 
@@ -522,7 +522,7 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_
 
   uint64_t sId = req.sId;
   SQWMsg   qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .code = pMsg->code, .connInfo = pMsg->info};
-  if (TSDB_CODE_RPC_NETWORK_UNAVAIL == pMsg->code) {
+  if (TSDB_CODE_RPC_BROKEN_LINK == pMsg->code) {
     QW_SCH_DLOG("receive Hb msg due to network broken, error:%s", tstrerror(pMsg->code));
   }
 
