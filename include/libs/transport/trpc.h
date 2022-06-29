@@ -45,7 +45,7 @@ typedef struct SRpcHandleInfo {
   int32_t  noResp;         // has response or not(default 0, 0: resp, 1: no resp);
   int32_t  persistHandle;  // persist handle or not
   STraceId traceId;
-  // int64_t traceId;
+  int8_t   hasEpSet;
 
   // app info
   void *ahandle;  // app handle set by client
@@ -123,7 +123,7 @@ void *  rpcReallocCont(void *ptr, int32_t contLen);
 void rpcSendRequest(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
 void rpcSendResponse(const SRpcMsg *pMsg);
 void rpcRegisterBrokenLinkArg(SRpcMsg *msg);
-void rpcReleaseHandle(void *handle, int8_t type);  // just release client conn to rpc instance, no close sock
+void rpcReleaseHandle(void *handle, int8_t type);  // just release conn to rpc instance, no close sock
 
 // These functions will not be called in the child process
 void    rpcSendRedirectRsp(void *pConn, const SEpSet *pEpSet);
