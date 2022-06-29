@@ -63,6 +63,7 @@ int32_t schValidateReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgTy
     case TDMT_VND_ALTER_TABLE_RSP:
     case TDMT_VND_SUBMIT_RSP:
     case TDMT_VND_DELETE_RSP:
+    case TDMT_VND_COMMIT_RSP:
       break;
     default:
       SCH_TASK_ELOG("unknown rsp msg, type:%s, status:%s", TMSG_INFO(msgType), jobTaskStatusStr(taskStatus));
@@ -101,6 +102,11 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
   SCH_ERR_JRET(schValidateReceivedMsgType(pJob, pTask, msgType));
 
   switch (msgType) {
+    case TDMT_VND_COMMIT_RSP: {
+       SCH_ERR_JRET(rspCode);
+       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
+       break;
+    }				      
     case TDMT_VND_CREATE_TABLE_RSP: {
       SVCreateTbBatchRsp batchRsp = {0};
       if (msg) {
