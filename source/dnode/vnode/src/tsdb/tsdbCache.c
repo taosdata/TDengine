@@ -1087,7 +1087,8 @@ int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUH
     code = mergeLastRow(uid, pTsdb, &pRow);
     // if table's empty or error, return code of -1
     if (code < 0 || pRow == NULL) {
-      return -1;
+      *handle = NULL;
+      return 0;
     }
 
     tsdbCacheInsertLastrow(pCache, uid, pRow);
@@ -1116,7 +1117,8 @@ int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHand
     code = mergeLast(uid, pTsdb, &pRow);
     // if table's empty or error, return code of -1
     if (code < 0 || pRow == NULL) {
-      return -1;
+      *handle = NULL;
+      return 0;
     }
 
     tsdbCacheInsertLast(pCache, uid, pRow);
