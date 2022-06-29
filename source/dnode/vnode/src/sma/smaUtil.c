@@ -141,8 +141,8 @@ int64_t tdAppendTFile(STFile *pTFile, void *buf, int64_t nbyte, int64_t *offset)
   }
 
 #if 1
-  smaDebug("append to file %s, offset:%" PRIi64 " + nbyte:%" PRIi64 " =%" PRIi64, TD_TFILE_FULL_NAME(pTFile), toffset,
-           nbyte, toffset + nbyte);
+  smaDebug("append to file %s, offset:%" PRIi64 " nbyte:%" PRIi64 " fsize:%" PRIi64, TD_TFILE_FULL_NAME(pTFile),
+           toffset, nbyte, toffset + nbyte);
 #endif
 
   ASSERT(pTFile->info.fsize == toffset);
@@ -179,8 +179,8 @@ void tdCloseTFile(STFile *pTFile) {
   }
 }
 
-void tdGetVndFileName(int32_t vid, const char *dname, const char *fname, char *outputName) {
-  snprintf(outputName, TSDB_FILENAME_LEN, "vnode/vnode%d/%s/%s", vid, dname, fname);
+void tdGetVndFileName(int32_t vgId, const char *dname, const char *fname, char *outputName) {
+  snprintf(outputName, TSDB_FILENAME_LEN, "vnode/vnode%d/%s/%s", vgId, dname, fname);
 }
 
 int32_t tdInitTFile(STFile *pTFile, STfs *pTfs, const char *fname) {

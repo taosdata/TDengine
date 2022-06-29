@@ -27,6 +27,7 @@
 #include "tdatablock.h"
 #include "tdb.h"
 #include "tencode.h"
+#include "tref.h"
 #include "tfs.h"
 #include "tglobal.h"
 #include "tjson.h"
