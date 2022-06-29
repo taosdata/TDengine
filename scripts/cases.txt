@@ -5,6 +5,10 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/ta
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/split/stable_str_concat_2.py --keep --containers
 
 # 300 seconds (at most)
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_today.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_now.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_zone.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_elapsed.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/split/stable_str_concat_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_lower.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_upper.py --keep --containers
@@ -13,10 +17,6 @@ taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/s
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_rtrim.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query_union.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_top_bottom.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_today.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_now.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_zone.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_elapsed.py --keep --containers
 
 
 # 200 seconds (at most)
