@@ -378,13 +378,10 @@ typedef struct SDelayQueue {
   uv_loop_t*  loop;
 } SDelayQueue;
 
-int transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
-
+int  transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
 void transDQDestroy(SDelayQueue* queue);
+int  transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 
-int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
-
-// void transPrintEpSet(SEpSet* pEpSet);
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
 /*
  * init global func

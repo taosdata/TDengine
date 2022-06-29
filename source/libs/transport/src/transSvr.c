@@ -1126,6 +1126,4 @@ _return2:
   rpcFreeCont(msg->pCont);
 }
 
-int transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }
-
 #endif
