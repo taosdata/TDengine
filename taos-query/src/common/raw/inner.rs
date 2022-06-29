@@ -256,7 +256,7 @@ impl RawBlock {
     ///   - For non-var-type, it's the is-null bitmap.
     /// 2. Offset to the start position of real column data.
     fn column_offsets(&self) -> &[(Ty, isize, isize)] {
-        dbg!(self.as_bytes());
+        // dbg!(self.as_bytes());
         self.offsets.get_or_init(|| {
             dbg!(self.as_bytes());
             let lengths = dbg!(self.lengths());
