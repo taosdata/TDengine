@@ -55,9 +55,10 @@ int32_t schInitJob(SSchedulerReq *pReq, SSchJob **pSchJob) {
   pJob->conn = *pReq->pConn;
   pJob->sql = pReq->sql;
   pJob->pDag = pReq->pDag;
-  pJob->reqKilled = pReq->reqKilled;
-  pJob->userRes.execFp = pReq->fp;
-  pJob->userRes.userParam = pReq->cbParam;
+  pJob->chkKillFp = pReq->chkKillFp;
+  pJob->chkKillParam = pReq->chkKillParam;
+  pJob->userRes.execFp = pReq->execFp;
+  pJob->userRes.userParam = pReq->execParam;
 
   if (pReq->pNodeList == NULL || taosArrayGetSize(pReq->pNodeList) <= 0) {
     qDebug("QID:0x%" PRIx64 " input exec nodeList is empty", pReq->pDag->queryId);
@@ -182,7 +183,7 @@ FORCE_INLINE bool schJobNeedToStop(SSchJob *pJob, int8_t *pStatus) {
     *pStatus = status;
   }
 
-  if (*pJob->reqKilled) {
+  if ((*pJob->chkKillFp)(pJob->chkKillParam)) {
     schUpdateJobStatus(pJob, JOB_TASK_STATUS_DROPPING);
     schUpdateJobErrCode(pJob, TSDB_CODE_TSC_QUERY_KILLED);
 
@@ -1584,7 +1585,7 @@ _return:
 
   schEndOperation(pJob);
   if (!sync) {
-    pReq->fp(NULL, pReq->cbParam, code);
+    pReq->execFp(NULL, pReq->execParam, code);
   }
   
   schFreeJobImpl(pJob);
@@ -1651,7 +1652,7 @@ int32_t schExecJobImpl(SSchedulerReq *pReq, SSchJob *pJob, bool sync) {
 _return:
 
   if (!sync) {
-    pReq->fp(NULL, pReq->cbParam, code);
+    pReq->execFp(NULL, pReq->execParam, code);
   }
   
   SCH_RET(code);

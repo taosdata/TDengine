@@ -511,8 +511,8 @@ void* schtRunJobThread(void *aa) {
     req.pNodeList = qnodeList;
     req.pDag = &dag;
     req.sql = "select * from tb";
-    req.fp = schtQueryCb;
-    req.cbParam = &queryDone;
+    req.execFp = schtQueryCb;
+    req.execParam = &queryDone;
     
     code = schedulerAsyncExecJob(&req, &queryJobRefId);      
     assert(code == 0);
@@ -663,8 +663,8 @@ TEST(queryTest, normalCase) {
   req.pNodeList = qnodeList;
   req.pDag = &dag;
   req.sql = "select * from tb";
-  req.fp = schtQueryCb;
-  req.cbParam = &queryDone;
+  req.execFp = schtQueryCb;
+  req.execParam = &queryDone;
     
   code = schedulerAsyncExecJob(&req, &job);  
   ASSERT_EQ(code, 0);
@@ -767,8 +767,8 @@ TEST(queryTest, readyFirstCase) {
   req.pNodeList = qnodeList;
   req.pDag = &dag;
   req.sql = "select * from tb";
-  req.fp = schtQueryCb;
-  req.cbParam = &queryDone;
+  req.execFp = schtQueryCb;
+  req.execParam = &queryDone;
   code = schedulerAsyncExecJob(&req, &job);
   ASSERT_EQ(code, 0);
 
@@ -874,8 +874,8 @@ TEST(queryTest, flowCtrlCase) {
   req.pNodeList = qnodeList;
   req.pDag = &dag;
   req.sql = "select * from tb";
-  req.fp = schtQueryCb;
-  req.cbParam = &queryDone;
+  req.execFp = schtQueryCb;
+  req.execParam = &queryDone;
 
   code = schedulerAsyncExecJob(&req, &job);
   ASSERT_EQ(code, 0);
@@ -987,8 +987,8 @@ TEST(insertTest, normalCase) {
   req.pNodeList = qnodeList;
   req.pDag = &dag;
   req.sql = "insert into tb values(now,1)";
-  req.fp = schtQueryCb;
-  req.cbParam = NULL;
+  req.execFp = schtQueryCb;
+  req.execParam = NULL;
   
   code = schedulerExecJob(&req, &insertJobRefId, &res);
   ASSERT_EQ(code, 0);

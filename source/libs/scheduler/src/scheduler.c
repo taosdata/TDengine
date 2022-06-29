@@ -140,7 +140,7 @@ int32_t schedulerFetchRows(int64_t job, void **pData) {
   SCH_RET(code);
 }
 
-void schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* param) {
+void schedulerAsyncFetchRows(int64_t job, schedulerFetchFp fp, void* param) {
   qDebug("scheduler async fetch rows start");
 
   int32_t code = 0;
