@@ -847,7 +847,7 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
-                            sql2 = "select %s from (select * from %s) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            sql2 = "select %s from (select * from %s order by ts) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
@@ -910,7 +910,7 @@ class TDTestQuery(TDCase):
                         #     self.tdSql.error(sql2)
                         #     sql= sql + sql2
                                               
-                        for i in (11,12,13,14,15,16,17,18,19,20,22):                         
+                        for i in (11,12,13,14,15,16,17,18,19,20,):  #22先忽略，本来不支持超级表，现在支持了                       
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case1=======time num = %d======interval======\n\n\n" %i)
                             #sql1 = 'select %s from %s %s group by tbname;'  % (func,self.table,time_window_new)                            
@@ -1799,33 +1799,33 @@ class TDTestQuery(TDCase):
         
         self.data_create(self.db)
           
-        # startTime1 = time.time()
-        # self.right_case_1_groupby()
-        # self.right_case_1_tbname()
-        # self.error_case_1()
-        # endTime1 = time.time()       
-        # self.logger.info("total time1 %d s" % (endTime1 - startTime1))
+        startTime1 = time.time()
+        self.right_case_1_groupby()
+        self.right_case_1_tbname()
+        self.error_case_1()
+        endTime1 = time.time()       
+        self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
-        # startTime2 = time.time()
-        # self.right_case_2_groupby()
-        # self.right_case_2_tbname()
-        # self.error_case_2()
-        # endTime2 = time.time()       
-        # self.logger.info("total time2 %d s" % (endTime2 - startTime2))
+        startTime2 = time.time()
+        self.right_case_2_groupby()
+        self.right_case_2_tbname()
+        self.error_case_2()
+        endTime2 = time.time()       
+        self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
-        # startTime3 = time.time()
-        # self.right_case_3_groupby()
-        # self.right_case_3_tbname()
-        # self.error_case_3()
-        # endTime3 = time.time()
-        # self.logger.info("total time3 %ds" % (endTime3 - startTime3))       
+        startTime3 = time.time()
+        self.right_case_3_groupby()
+        self.right_case_3_tbname()
+        self.error_case_3()
+        endTime3 = time.time()
+        self.logger.info("total time3 %ds" % (endTime3 - startTime3))       
          
-        # startTime4 = time.time()
+        startTime4 = time.time()
         self.right_case_1_interval()
         self.right_case_2_interval()
         self.right_case_3_interval()
-        # endTime4 = time.time()
-        # self.logger.info("total time4 %ds" % (endTime4 - startTime4))  
+        endTime4 = time.time()
+        self.logger.info("total time4 %ds" % (endTime4 - startTime4))  
         
         endTime = time.time()
         self.rm_sql()

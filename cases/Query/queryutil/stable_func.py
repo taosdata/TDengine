@@ -734,7 +734,7 @@ class TDFunction():
         t = time.time()  
         t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t)) 
         column_select = ['q_ts','ts','_c0','_C0','1600000000000','1600000000000000','1600000000000000000',
-        '%d' %t, '%d * 1000' %t, '%d * 1000000' %t,'t_to_s']    
+        '%d' %t, '%d000' %t, '%d000000' %t,'t_to_s']    
         column_1 = random.sample(column_select,1)
         column = ['(%s,timeutil)'%(column_1)]
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
@@ -753,7 +753,7 @@ class TDFunction():
         #增加指定格式的时间 ts_val
         t = time.time()          
         column_select = ['q_ts','ts','_c0','_C0','1600000000000','1600000000000000','1600000000000000000',
-        '%d' %t, '%d * 1000' %t, '%d * 1000000' %t,'t_to_s'] 
+        '%d' %t, '%d000' %t, '%d000000' %t,'t_to_s'] 
         column_1,column_2 = random.sample(column_select,1),random.sample(column_select,1)
         column = ['(%s,%s,timeutil)'%(column_1,column_2)]
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
@@ -772,7 +772,7 @@ class TDFunction():
         hanshu = ['TIMEDIFF']  
         t = time.time()  
         column_select = ['q_ts','ts','_c0','_C0','1600000000000','1600000000000000','1600000000000000000',
-        '%d' %t, '%d * 1000' %t, '%d * 1000000' %t,'t_to_s']
+        '%d' %t, '%d000' %t, '%d000000' %t,'t_to_s']
         column_1,column_2 = random.sample(column_select,1),random.sample(column_select,1)
         column = ['(%s,%s)'%(column_1,column_2)]
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
