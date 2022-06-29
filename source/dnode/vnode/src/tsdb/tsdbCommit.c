@@ -405,6 +405,28 @@ _exit:
   return code;
 }
 
+static int32_t tsdbCommitBlockData(SCommitter *pCommitter, SBlockData *pBlockData, SBlock *pBlock, SBlockIdx *pBlockIdx,
+                                   int8_t toDataOnly) {
+  int32_t code = 0;
+
+  if (!toDataOnly && pBlockData->nRow < pCommitter->minRow) {
+    pBlock->last = 1;
+  } else {
+    pBlock->last = 0;
+  }
+
+  code = tsdbWriteBlockData(pCommitter->pWriter, pBlockData, NULL, NULL, pBlockIdx, pBlock, pCommitter->cmprAlg);
+  if (code) goto _err;
+
+  code = tMapDataPutItem(&pCommitter->nBlockMap, pBlock, tPutBlock);
+  if (code) goto _err;
+
+  return code;
+
+_err:
+  return code;
+}
+
 static int32_t tsdbMergeTableData(SCommitter *pCommitter, STbDataIter *pIter, SBlock *pBlockMerge, TSDBKEY toKey,
                                   int8_t toDataOnly) {
   int32_t     code = 0;
@@ -552,7 +574,7 @@ static int32_t tsdbCommitTableMemData(SCommitter *pCommitter, STbDataIter *pIter
     continue;
 
   _write_block:
-    if (!toDataOnly && pBlockData->nRow < pCommitter->minKey) {
+    if (!toDataOnly && pBlockData->nRow < pCommitter->minRow) {
       pBlock->last = 1;
     } else {
       pBlock->last = 0;
