@@ -1331,3 +1331,16 @@ int32_t tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest) {
 _exit:
   return code;
 }
+
+void tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData) {
+  ASSERT(cid != PRIMARYKEY_TIMESTAMP_COL_ID);
+
+  SColData *pColData = &(SColData){.cid = cid};
+
+  void *p = taosArraySearch(pBlockData->aColDataP, &pColData, tColDataPCmprFn, TD_EQ);
+  if (p == NULL) {
+    *ppColData = NULL;
+  } else {
+    *ppColData = *(SColData **)p;
+  }
+}
