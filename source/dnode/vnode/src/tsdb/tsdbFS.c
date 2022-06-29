@@ -176,7 +176,8 @@ static int32_t tsdbApplyDFileSetChange(STsdbFS *pFS, SDFileSet *pFrom, SDFileSet
   if (pFrom && pTo) {
     // head
     if (tsdbFileIsSame(pFrom, pTo, TSDB_HEAD_FILE)) {
-      ASSERT(0);
+      ASSERT(pFrom->fHead.size == pTo->fHead.size);
+      ASSERT(pFrom->fHead.offset == pTo->fHead.offset);
     } else {
       tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_HEAD_FILE, fname);
       taosRemoveFile(fname);
