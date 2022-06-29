@@ -118,7 +118,9 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int
     p->groupId = *(uint64_t*) key;
     p->pos = *(SResultRowPosition*) pData;
     memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
+#ifdef BUF_PAGE_DEBUG
     qDebug("page_groupRes, groupId:%"PRIu64",pageId:%d,offset:%d\n", p->groupId, p->pos.pageId, p->pos.offset);
+#endif
     taosArrayPush(pGroupResInfo->pRows, &p);
   }
 
@@ -607,8 +609,9 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
       p = &pCtx[i];
     }
   }
-
+#ifdef BUF_PAGE_DEBUG
   qDebug("page_setSelect num:%d", num);
+#endif
   if (p != NULL) {
     p->subsidiaries.pCtx = pValCtx;
     p->subsidiaries.num = num;
