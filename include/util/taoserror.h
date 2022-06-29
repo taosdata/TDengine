@@ -25,7 +25,7 @@ extern "C" {
 // clang-format off
 
 #define TAOS_DEF_ERROR_CODE(mod, code) ((int32_t)((0x80000000 | ((mod)<<16) | (code))))
- 
+
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
 #define TAOS_SUCCEEDED(err)                 ((err) >= 0)
 #define TAOS_FAILED(err)                    ((err) < 0)
@@ -35,7 +35,7 @@ const char* terrstr();
 
 int32_t* taosGetErrno();
 #define terrno                              (*taosGetErrno())
- 
+
 #define TSDB_CODE_SUCCESS                   0
 #define TSDB_CODE_FAILED                    -1   // unknown or needn't tell detail error
 
@@ -470,11 +470,11 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_CTG_INTERNAL_ERROR            TAOS_DEF_ERROR_CODE(0, 0x2400)
 #define TSDB_CODE_CTG_INVALID_INPUT             TAOS_DEF_ERROR_CODE(0, 0x2401)
 #define TSDB_CODE_CTG_NOT_READY                 TAOS_DEF_ERROR_CODE(0, 0x2402)
-#define TSDB_CODE_CTG_MEM_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x2403)
-#define TSDB_CODE_CTG_SYS_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x2404)
-#define TSDB_CODE_CTG_DB_DROPPED                TAOS_DEF_ERROR_CODE(0, 0x2405)
-#define TSDB_CODE_CTG_OUT_OF_SERVICE            TAOS_DEF_ERROR_CODE(0, 0x2406)
-#define TSDB_CODE_CTG_VG_META_MISMATCH          TAOS_DEF_ERROR_CODE(0, 0x2407)
+#define TSDB_CODE_CTG_SYS_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x2403)
+#define TSDB_CODE_CTG_DB_DROPPED                TAOS_DEF_ERROR_CODE(0, 0x2404)
+#define TSDB_CODE_CTG_OUT_OF_SERVICE            TAOS_DEF_ERROR_CODE(0, 0x2405)
+#define TSDB_CODE_CTG_VG_META_MISMATCH          TAOS_DEF_ERROR_CODE(0, 0x2406)
+#define TSDB_CODE_CTG_EXIT                      TAOS_DEF_ERROR_CODE(0, 0x2407)
 
 //scheduler&qworker
 #define TSDB_CODE_SCH_STATUS_ERROR              TAOS_DEF_ERROR_CODE(0, 0x2501)
@@ -619,6 +619,7 @@ int32_t* taosGetErrno();
 //rsma
 #define TSDB_CODE_RSMA_INVALID_ENV               TAOS_DEF_ERROR_CODE(0, 0x3150)
 #define TSDB_CODE_RSMA_INVALID_STAT              TAOS_DEF_ERROR_CODE(0, 0x3151)
+#define TSDB_CODE_RSMA_QTASKINFO_CREATE          TAOS_DEF_ERROR_CODE(0, 0x3152)
 
 //index
 #define TSDB_CODE_INDEX_REBUILDING               TAOS_DEF_ERROR_CODE(0, 0x3200)

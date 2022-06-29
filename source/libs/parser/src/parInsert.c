@@ -67,6 +67,13 @@ typedef struct SInsertParseContext {
   SParseMetaCache*   pMetaCache;
 } SInsertParseContext;
 
+typedef struct SInsertParseSyntaxCxt {
+  SParseContext*   pComCxt;
+  char*            pSql;
+  SMsgBuf          msg;
+  SParseMetaCache* pMetaCache;
+} SInsertParseSyntaxCxt;
+
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
 
 static uint8_t TRUE_VALUE = (uint8_t)TSDB_TRUE;
@@ -1098,11 +1105,24 @@ static int32_t storeTableMeta(SInsertParseContext* pCxt, SHashObj* pHash, SName*
   return taosHashPut(pHash, pName, len, &pBackup, POINTER_BYTES);
 }
 
+static int32_t skipUsingClause(SInsertParseSyntaxCxt* pCxt);
+
+// pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
+static int32_t ignoreAutoCreateTableClause(SInsertParseContext* pCxt) {
+  SToken sToken;
+  NEXT_TOKEN(pCxt->pSql, sToken);
+  SInsertParseSyntaxCxt cxt = {.pComCxt = pCxt->pComCxt, .pSql = pCxt->pSql, .msg = pCxt->msg, .pMetaCache = NULL};
+  int32_t               code = skipUsingClause(&cxt);
+  pCxt->pSql = cxt.pSql;
+  return code;
+}
+
 // pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
 static int32_t parseUsingClause(SInsertParseContext* pCxt, SName* name, char* tbFName) {
   int32_t      len = strlen(tbFName);
   STableMeta** pMeta = taosHashGet(pCxt->pSubTableHashObj, tbFName, len);
   if (NULL != pMeta) {
+    CHECK_CODE(ignoreAutoCreateTableClause(pCxt));
     return cloneTableMeta(*pMeta, &pCxt->pTableMeta);
   }
 
@@ -1521,13 +1541,6 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery, SParseMetaCache
   destroyInsertParseContext(&context);
   return code;
 }
-
-typedef struct SInsertParseSyntaxCxt {
-  SParseContext*   pComCxt;
-  char*            pSql;
-  SMsgBuf          msg;
-  SParseMetaCache* pMetaCache;
-} SInsertParseSyntaxCxt;
 
 static int32_t skipParentheses(SInsertParseSyntaxCxt* pCxt) {
   SToken  sToken;

@@ -148,6 +148,7 @@ typedef struct {
   char release : 2;
   char secured : 2;
   char spi : 2;
+  char hasEpSet : 2;  // contain epset or not, 0(default): no epset, 1: contain epset
 
   char     user[TSDB_UNI_LEN];
   STraceId traceId;
@@ -229,7 +230,7 @@ typedef struct {
 
 SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb);
 void        transDestroyAsyncPool(SAsyncPool* pool);
-int         transSendAsync(SAsyncPool* pool, queue* mq);
+int         transAsyncSend(SAsyncPool* pool, queue* mq);
 
 #define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc) \
   do {                                                        \
@@ -294,7 +295,6 @@ void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STra
 void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
 void transSendResponse(const STransMsg* msg);
 void transRegisterMsg(const STransMsg* msg);
-int  transGetConnInfo(void* thandle, STransHandleInfo* pInfo);
 void transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
 
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
@@ -377,13 +377,10 @@ typedef struct SDelayQueue {
   uv_loop_t*  loop;
 } SDelayQueue;
 
-int transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
-
+int  transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
 void transDQDestroy(SDelayQueue* queue);
+int  transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 
-int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
-
-// void transPrintEpSet(SEpSet* pEpSet);
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
 /*
  * init global func

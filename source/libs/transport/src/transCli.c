@@ -312,6 +312,7 @@ void cliHandleResp(SCliConn* conn) {
   transMsg.msgType = pHead->msgType;
   transMsg.info.ahandle = NULL;
   transMsg.info.traceId = pHead->traceId;
+  transMsg.info.hasEpSet = pHead->hasEpSet;
 
   SCliMsg*       pMsg = NULL;
   STransConnCtx* pCtx = NULL;
@@ -967,7 +968,7 @@ void cliSendQuit(SCliThrd* thrd) {
   // cli can stop gracefully
   SCliMsg* msg = taosMemoryCalloc(1, sizeof(SCliMsg));
   msg->type = Quit;
-  transSendAsync(thrd->asyncPool, &msg->q);
+  transAsyncSend(thrd->asyncPool, &msg->q);
 }
 void cliWalkCb(uv_handle_t* handle, void* arg) {
   if (!uv_is_closing(handle)) {
@@ -1014,6 +1015,23 @@ void cliCompareAndSwap(int8_t* val, int8_t exp, int8_t newVal) {
     *val = newVal;
   }
 }
+
+bool cliTryToExtractEpSet(STransMsg* pResp, SEpSet* dst) {
+  if (pResp == NULL || pResp->info.hasEpSet == 0) {
+    return false;
+  }
+  tDeserializeSEpSet(pResp->pCont, pResp->contLen, dst);
+  int32_t tlen = tSerializeSEpSet(NULL, 0, dst);
+
+  int32_t bufLen = pResp->contLen - tlen;
+  char*   buf = rpcMallocCont(bufLen);
+
+  memcpy(buf, (char*)pResp->pCont + tlen, bufLen);
+
+  pResp->pCont = buf;
+  pResp->contLen = bufLen;
+  return true;
+}
 int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
@@ -1030,7 +1048,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
    */
   STransConnCtx* pCtx = pMsg->ctx;
   int32_t        code = pResp->code;
-  if (pTransInst->retry != NULL && pTransInst->retry(code)) {
+  if (pTransInst->retry != NULL && pTransInst->retry(code, pResp->msgType - 1)) {
     pMsg->sent = 0;
     pCtx->retryCnt += 1;
     if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
@@ -1058,6 +1076,12 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   }
 
   STraceId* trace = &pResp->info.traceId;
+
+  if (cliTryToExtractEpSet(pResp, &pCtx->epSet)) {
+    char tbuf[256] = {0};
+    EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
+    tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
+  }
   if (pCtx->pSem != NULL) {
     tGTrace("%s conn %p(sync) handle resp", CONN_GET_INST_LABEL(pConn), pConn);
     if (pCtx->pRsp == NULL) {
@@ -1138,7 +1162,7 @@ void transReleaseCliHandle(void* handle) {
   cmsg->msg = tmsg;
   cmsg->type = Release;
 
-  transSendAsync(pThrd->asyncPool, &cmsg->q);
+  transAsyncSend(pThrd->asyncPool, &cmsg->q);
   return;
 }
 
@@ -1171,7 +1195,7 @@ void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
   STraceId* trace = &pReq->info.traceId;
   tGTrace("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", transLabel(pTransInst), pThrd->pid,
           EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
-  ASSERT(transSendAsync(pThrd->asyncPool, &(cliMsg->q)) == 0);
+  ASSERT(transAsyncSend(pThrd->asyncPool, &(cliMsg->q)) == 0);
   return;
 }
 
@@ -1205,7 +1229,7 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransM
   tGTrace("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", transLabel(pTransInst), pThrd->pid,
           EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
 
-  transSendAsync(pThrd->asyncPool, &(cliMsg->q));
+  transAsyncSend(pThrd->asyncPool, &(cliMsg->q));
   tsem_wait(sem);
   tsem_destroy(sem);
   taosMemoryFree(sem);
@@ -1234,7 +1258,7 @@ void transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
     SCliThrd* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[i];
     tDebug("%s update epset at thread:%08" PRId64 "", pTransInst->label, thrd->pid);
 
-    transSendAsync(thrd->asyncPool, &(cliMsg->q));
+    transAsyncSend(thrd->asyncPool, &(cliMsg->q));
   }
 }
 #endif

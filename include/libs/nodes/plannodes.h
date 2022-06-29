@@ -103,6 +103,7 @@ typedef struct SIndefRowsFuncLogicNode {
   SLogicNode node;
   SNodeList* pFuncs;
   bool       isTailFunc;
+  bool       isUniqueFunc;
 } SIndefRowsFuncLogicNode;
 
 typedef struct SInterpFuncLogicNode {

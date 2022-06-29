@@ -685,6 +685,12 @@ literal_func(A) ::= NOW(B).                                                     
 noarg_func(A) ::= NOW(B).                                                         { A = B; }
 noarg_func(A) ::= TODAY(B).                                                       { A = B; }
 noarg_func(A) ::= TIMEZONE(B).                                                    { A = B; }
+noarg_func(A) ::= DATABASE(B).                                                    { A = B; }
+noarg_func(A) ::= CLIENT_VERSION(B).                                              { A = B; }
+noarg_func(A) ::= SERVER_VERSION(B).                                              { A = B; }
+noarg_func(A) ::= SERVER_STATUS(B).                                               { A = B; }
+noarg_func(A) ::= CURRENT_USER(B).                                                { A = B; }
+noarg_func(A) ::= USER(B).                                                        { A = B; }
 
 %type star_func                                                                   { SToken }
 %destructor star_func                                                             { }

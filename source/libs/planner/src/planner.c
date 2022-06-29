@@ -85,6 +85,23 @@ int32_t qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstream
   return setSubplanExecutionNode(subplan->pNode, groupId, pSource);
 }
 
+static void clearSubplanExecutionNode(SPhysiNode* pNode) {
+  if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pNode)) {
+    SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pNode;
+    NODES_DESTORY_LIST(pExchange->pSrcEndPoints);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == nodeType(pNode)) {
+    SMergePhysiNode* pMerge = (SMergePhysiNode*)pNode;
+    pMerge->numOfChannels = LIST_LENGTH(pMerge->node.pChildren);
+    SNode* pChild = NULL;
+    FOREACH(pChild, pMerge->node.pChildren) { NODES_DESTORY_LIST(((SExchangePhysiNode*)pChild)->pSrcEndPoints); }
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) { clearSubplanExecutionNode((SPhysiNode*)pChild); }
+}
+
+void qClearSubplanExecutionNode(SSubplan* pSubplan) { clearSubplanExecutionNode(pSubplan->pNode); }
+
 int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
   if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType && NULL == pSubplan->pNode) {
     SDataInserterNode* insert = (SDataInserterNode*)pSubplan->pDataSink;

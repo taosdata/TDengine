@@ -141,7 +141,7 @@ void rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
 }
 
 void    rpcSendResponse(const SRpcMsg* pMsg) { transSendResponse(pMsg); }
-int32_t rpcGetConnInfo(void* thandle, SRpcConnInfo* pInfo) { return transGetConnInfo((void*)thandle, pInfo); }
+int32_t rpcGetConnInfo(void* thandle, SRpcConnInfo* pInfo) { return -1; }
 
 void rpcRefHandle(void* handle, int8_t type) {
   assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
@@ -163,11 +163,6 @@ void rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   // later
   transSetDefaultAddr(thandle, ip, fqdn);
 }
-
-// void rpcSetMsgTraceId(SRpcMsg* pMsg, STraceId uid) {
-//  SRpcHandleInfo* pInfo = &pMsg->info;
-//  pInfo->traceId = uid;
-//}
 
 int32_t rpcInit() {
   // impl later

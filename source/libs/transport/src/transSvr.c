@@ -144,15 +144,6 @@ static void (*transAsyncHandle[])(SSvrMsg* msg, SWorkThrd* thrd) = {uvHandleResp
 
 static int32_t exHandlesMgt;
 
-// void       uvInitEnv();
-// void       uvOpenExHandleMgt(int size);
-// void       uvCloseExHandleMgt();
-// int64_t    uvAddExHandle(void* p);
-// int32_t    uvRemoveExHandle(int64_t refId);
-// int32_t    uvReleaseExHandle(int64_t refId);
-// void       uvDestoryExHandle(void* handle);
-// SExHandle* uvAcquireExHandle(int64_t refId);
-
 static void uvDestroyConn(uv_handle_t* handle);
 
 // server and worker thread
@@ -350,16 +341,8 @@ void uvOnSendCb(uv_write_t* req, int status) {
     tTrace("conn %p data already was written on stream", conn);
     if (!transQueueEmpty(&conn->srvMsgs)) {
       SSvrMsg* msg = transQueuePop(&conn->srvMsgs);
-      // if (msg->type == Release && conn->status != ConnNormal) {
-      //  conn->status = ConnNormal;
-      //  transUnrefSrvHandle(conn);
-      //  reallocConnRef(conn);
-      //  destroySmsg(msg);
-      //  transQueueClear(&conn->srvMsgs);
-      //  return;
-      //}
       destroySmsg(msg);
-      // send second data, just use for push
+      // send cached data
       if (!transQueueEmpty(&conn->srvMsgs)) {
         msg = (SSvrMsg*)transQueueGet(&conn->srvMsgs, 0);
         if (msg->type == Register && conn->status == ConnAcquire) {
@@ -396,7 +379,6 @@ static void uvOnPipeWriteCb(uv_write_t* req, int status) {
     tError("fail to dispatch conn to work thread");
   }
   uv_close((uv_handle_t*)req->data, uvFreeCb);
-  // taosMemoryFree(req->data);
   taosMemoryFree(req);
 }
 
@@ -410,6 +392,7 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
   pHead->ahandle = (uint64_t)pMsg->info.ahandle;
   pHead->traceId = pMsg->info.traceId;
+  pHead->hasEpSet = pMsg->info.hasEpSet;
 
   if (pConn->status == ConnNormal) {
     pHead->msgType = pConn->inType + 1;
@@ -422,6 +405,7 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
       transUnrefSrvHandle(pConn);
     } else {
       pHead->msgType = pMsg->msgType;
+      // set up resp msg type
       if (pHead->msgType == 0 && transMsgLenFromCont(pMsg->contLen) == sizeof(STransMsgHead))
         pHead->msgType = pConn->inType + 1;
     }
@@ -999,7 +983,7 @@ void sendQuitToWorkThrd(SWorkThrd* pThrd) {
   SSvrMsg* msg = taosMemoryCalloc(1, sizeof(SSvrMsg));
   msg->type = Quit;
   tDebug("server send quit msg to work thread");
-  transSendAsync(pThrd->asyncPool, &msg->q);
+  transAsyncSend(pThrd->asyncPool, &msg->q);
 }
 
 void transCloseServer(void* arg) {
@@ -1070,7 +1054,7 @@ void transReleaseSrvHandle(void* handle) {
   m->type = Release;
 
   tTrace("%s conn %p start to release", transLabel(pThrd->pTransInst), exh->handle);
-  transSendAsync(pThrd->asyncPool, &m->q);
+  transAsyncSend(pThrd->asyncPool, &m->q);
   transReleaseExHandle(refMgt, refId);
   return;
 _return1:
@@ -1099,7 +1083,7 @@ void transSendResponse(const STransMsg* msg) {
 
   STraceId* trace = (STraceId*)&msg->info.traceId;
   tGTrace("conn %p start to send resp (1/2)", exh->handle);
-  transSendAsync(pThrd->asyncPool, &m->q);
+  transAsyncSend(pThrd->asyncPool, &m->q);
   transReleaseExHandle(refMgt, refId);
   return;
 _return1:
@@ -1128,7 +1112,7 @@ void transRegisterMsg(const STransMsg* msg) {
   m->type = Register;
 
   tTrace("%s conn %p start to register brokenlink callback", transLabel(pThrd->pTransInst), exh->handle);
-  transSendAsync(pThrd->asyncPool, &m->q);
+  transAsyncSend(pThrd->asyncPool, &m->q);
   transReleaseExHandle(refMgt, refId);
   return;
 
@@ -1141,7 +1125,5 @@ _return2:
   tTrace("handle %p failed to register brokenlink", exh);
   rpcFreeCont(msg->pCont);
 }
-
-int transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }
 
 #endif

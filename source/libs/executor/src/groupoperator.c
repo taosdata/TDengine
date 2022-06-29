@@ -37,7 +37,7 @@ static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFreeClear(pInfo->keyBuf);
   taosArrayDestroy(pInfo->pGroupCols);
   taosArrayDestroy(pInfo->pGroupColVals);
-  cleanupExecSupp(&pInfo->scalarSup);
+  cleanupExprSupp(&pInfo->scalarSup);
 }
 
 static int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char** keyBuf, const SArray* pGroupColList) {
@@ -716,7 +716,7 @@ static void destroyPartitionOperatorInfo(void* param, int32_t numOfOutput) {
   taosHashCleanup(pInfo->pGroupSet);
   taosMemoryFree(pInfo->columnOffset);
 
-  cleanupExecSupp(&pInfo->scalarSup);
+  cleanupExprSupp(&pInfo->scalarSup);
 }
 
 SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNode* pPartNode, SExecTaskInfo* pTaskInfo) {

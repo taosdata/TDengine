@@ -123,14 +123,15 @@ int32_t smaOpen(SVnode *pVnode) {
     }
 
     // restore the rsma
+#if 1
     if (rsmaRestore(pSma) < 0) {
       goto _err;
     }
+#endif
   }
 
   return 0;
 _err:
-  taosMemoryFreeClear(pSma);
   return -1;
 }
 
@@ -153,12 +154,6 @@ int32_t smaCloseEx(SSma *pSma) {
   return 0;
 }
 
-int32_t smaClose(SSma *pSma) {
-  smaCloseEnv(pSma);
-  smaCloseEx(pSma);
-  return 0;
-}
-
 /**
  * @brief rsma env restore
  *
@@ -168,36 +163,5 @@ int32_t smaClose(SSma *pSma) {
 static int32_t rsmaRestore(SSma *pSma) {
   ASSERT(VND_IS_RSMA(pSma->pVnode));
 
-  // iterate all stables to restore the rsma env
-  SArray *suidList = taosArrayInit(1, sizeof(tb_uid_t));
-  if (tsdbGetStbIdList(SMA_META(pSma), 0, suidList) < 0) {
-    smaError("failed to restore rsma since get stb id list error: %s", terrstr());
-    return TSDB_CODE_FAILED;
-  }
-
-  SMetaReader mr = {0};
-  metaReaderInit(&mr, SMA_META(pSma), 0);
-  for (int32_t i = 0; i < taosArrayGetSize(suidList); ++i) {
-    tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
-    smaDebug("suid [%d] is %" PRIi64, i, suid);
-    if (metaGetTableEntryByUid(&mr, suid) < 0) {
-      metaReaderClear(&mr);
-      taosArrayDestroy(suidList);
-      smaError("failed to get table meta for %" PRIi64 " since %s", suid, terrstr());
-      return TSDB_CODE_FAILED;
-    }
-    ASSERT(mr.me.type == TSDB_SUPER_TABLE);
-    if (TABLE_IS_ROLLUP(mr.me.flags)) {
-      SRSmaParam *param = &mr.me.stbEntry.rsmaParam;
-      for (int i = 0; i < 2; ++i) {
-        smaDebug("vgId: %d table:%" PRIi64 " maxdelay[%d]:%" PRIi64 " watermark[%d]:%" PRIi64, TD_VID(pSma->pVnode),
-                 suid, i, param->maxdelay[i], i, param->watermark[i]);
-      }
-    }
-  }
-
-  metaReaderClear(&mr);
-  taosArrayDestroy(suidList);
-
-  return TSDB_CODE_SUCCESS;
+  return tdProcessRSmaRestoreImpl(pSma);
 }
