@@ -423,6 +423,18 @@ TEST_F(ParserSelectTest, withoutFrom) {
   useDb("root", "test");
 
   run("SELECT 1");
+
+  run("SELECT DATABASE()");
+
+  run("SELECT CLIENT_VERSION()");
+
+  run("SELECT SERVER_VERSION()");
+
+  run("SELECT SERVER_STATUS()");
+
+  run("SELECT CURRENT_USER()");
+
+  run("SELECT USER()");
 }
 
 }  // namespace ParserTest
