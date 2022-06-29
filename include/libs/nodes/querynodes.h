@@ -89,6 +89,7 @@ typedef struct SValueNode {
   bool      isDuration;
   bool      translate;
   bool      notReserved;
+  bool      isNull;
   int16_t   placeholderNo;
   union {
     bool     b;

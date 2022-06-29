@@ -925,10 +925,24 @@ uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
 }
 
 int32_t taosGetFqdn(char *fqdn) {
+#ifdef WINDOWS
+  // Initialize Winsock
+  WSADATA wsaData;
+  int     iResult;
+  iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+  if (iResult != 0) {
+    // printf("WSAStartup failed: %d\n", iResult);
+    return 1;
+  }
+#endif
   char hostname[1024];
   hostname[1023] = '\0';
   if (gethostname(hostname, 1023) == -1) {
-    // printf("failed to get hostname, reason:%s", strerror(errno));
+#ifdef WINDOWS
+    printf("failed to get hostname, reason:%s", strerror(WSAGetLastError()));
+#else
+    printf("failed to get hostname, reason:%s", strerror(errno));
+#endif
     assert(0);
     return -1;
   }

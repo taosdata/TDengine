@@ -203,6 +203,7 @@ class ParserTestBaseImpl {
     pCxt->pMsg = stmtEnv_.msgBuf_.data();
     pCxt->msgLen = stmtEnv_.msgBuf_.max_size();
     pCxt->async = async;
+    pCxt->svrVer = "3.0.0.0";
   }
 
   void doParse(SParseContext* pCxt, SQuery** pQuery) {

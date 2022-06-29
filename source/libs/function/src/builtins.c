@@ -1539,6 +1539,36 @@ static int32_t translateGroupKey(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateDatabaseFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = TSDB_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateClientVersionFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = TSDB_VERSION_LEN, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateServerVersionFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = TSDB_VERSION_LEN, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateServerStatusFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes, .type = TSDB_DATA_TYPE_INT};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateCurrentUserFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = TSDB_USER_LEN, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateUserFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = TSDB_USER_LEN, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
 // clang-format off
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
@@ -2545,6 +2575,42 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = groupKeyFinalize,
     .pPartialFunc = "_group_key",
     .pMergeFunc   = "_group_key"
+  },
+  {
+    .name = "database",
+    .type = FUNCTION_TYPE_DATABASE,
+    .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateDatabaseFunc,
+  },
+  {
+    .name = "client_version",
+    .type = FUNCTION_TYPE_CLIENT_VERSION,
+    .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateClientVersionFunc,
+  },
+  {
+    .name = "server_version",
+    .type = FUNCTION_TYPE_SERVER_VERSION,
+    .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateServerVersionFunc,
+  },
+  {
+    .name = "server_status",
+    .type = FUNCTION_TYPE_SERVER_STATUS,
+    .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateServerStatusFunc,
+  },
+  {
+    .name = "current_user",
+    .type = FUNCTION_TYPE_CURRENT_USER,
+    .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateCurrentUserFunc,
+  },
+  {
+    .name = "user",
+    .type = FUNCTION_TYPE_USER,
+    .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateUserFunc,
   },
 };
 // clang-format on
