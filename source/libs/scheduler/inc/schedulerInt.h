@@ -383,6 +383,7 @@ char*   schGetOpStr(SCH_OP_TYPE type);
 int32_t schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync);
 int32_t schInitJob(SSchedulerReq *pReq, SSchJob **pSchJob);
 int32_t schSetJobQueryRes(SSchJob* pJob, SQueryResult* pRes);
+int32_t schUpdateTaskCandidateAddr(SSchTask *pTask, SEpSet* pEpSet);
 
 
 #ifdef __cplusplus

@@ -65,7 +65,7 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) {
 }
 
 int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg * pMsg) {
-  if (TDMT_SCH_QUERY != pMsg->msgType) {
+  if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) {
     return 0;
   }
 
@@ -79,6 +79,7 @@ int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg) {
 
   switch (pMsg->msgType) {
     case TDMT_SCH_QUERY:
+    case TDMT_SCH_MERGE_QUERY:
       code = qWorkerProcessQueryMsg(&handle, pQnode->pQuery, pMsg, ts);
       break;
     case TDMT_SCH_QUERY_CONTINUE:

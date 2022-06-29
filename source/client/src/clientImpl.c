@@ -808,7 +808,8 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       code = handleSubmitExecRes(pRequest, pRes->res, pCatalog, &epset);
       break;
     }
-    case TDMT_SCH_QUERY: {
+    case TDMT_SCH_QUERY: 
+    case TDMT_SCH_MERGE_QUERY: {
       code = handleQueryExecRes(pRequest, pRes->res, pCatalog, &epset);
       break;
     }
@@ -1306,7 +1307,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
 
   updateTargetEpSet(pSendInfo, pTscObj, pMsg, pEpSet);
 
-  SDataBuf buf = {.len = pMsg->contLen, .pData = NULL, .handle = pMsg->info.handle};
+  SDataBuf buf = {.len = pMsg->contLen, .pData = NULL, .handle = pMsg->info.handle, .pEpSet = pEpSet};
 
   if (pMsg->contLen > 0) {
     buf.pData = taosMemoryCalloc(1, pMsg->contLen);

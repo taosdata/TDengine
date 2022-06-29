@@ -527,9 +527,9 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
 
 static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   if (!IsReq(pMsg)) return 0;
-  if (pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_SCH_QUERY_CONTINUE ||
-      pMsg->msgType == TDMT_SCH_QUERY_HEARTBEAT || pMsg->msgType == TDMT_SCH_FETCH ||
-      pMsg->msgType == TDMT_SCH_DROP_TASK) {
+  if (pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_SCH_MERGE_QUERY || 
+      pMsg->msgType == TDMT_SCH_QUERY_CONTINUE || pMsg->msgType == TDMT_SCH_QUERY_HEARTBEAT || 
+      pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_SCH_DROP_TASK) {
     return 0;
   }
   if (mndAcquireRpcRef(pMsg->info.node) == 0) return 0;

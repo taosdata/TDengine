@@ -90,15 +90,6 @@ int32_t schValidateReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgTy
 int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, char *msg, int32_t msgSize,
                              int32_t rspCode) {
   int32_t code = 0;
-  int8_t  status = 0;
-
-  if (schJobNeedToStop(pJob, &status)) {
-    SCH_TASK_ELOG("rsp not processed cause of job status, job status:%s, rspCode:0x%x", jobTaskStatusStr(status), rspCode);
-    taosMemoryFreeClear(msg);              
-    SCH_RET(atomic_load_32(&pJob->errCode));
-  }
-
-  SCH_ERR_JRET(schValidateReceivedMsgType(pJob, pTask, msgType));
 
   switch (msgType) {
     case TDMT_VND_CREATE_TABLE_RSP: {
@@ -392,8 +383,23 @@ int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, in
 
   bool dropExecNode = (msgType == TDMT_SCH_LINK_BROKEN || rspCode == TSDB_CODE_RPC_NETWORK_UNAVAIL);
   SCH_ERR_JRET(schUpdateTaskHandle(pJob, pTask, dropExecNode, pMsg->handle, pParam->execIdx));
+
+  int8_t  status = 0;
+  if (schJobNeedToStop(pJob, &status)) {
+    SCH_TASK_ELOG("rsp will not be processed cause of job status %s, rspCode:0x%x", jobTaskStatusStr(status), rspCode);
+    code = atomic_load_32(&pJob->errCode);
+    goto _return;
+  }
+
+  SCH_ERR_JRET(schValidateReceivedMsgType(pJob, pTask, msgType));
+
+  if (NEED_SCHEDULER_REDIRECT_ERROR(rspCode) || ((rspCode == TSDB_CODE_RPC_NETWORK_UNAVAIL) && msgSize > 0)) {
+    code = schHandleRedirect(pJob, pTask, msgType, pMsg, rspCode);
+    goto _return;
+  }
   
   SCH_ERR_JRET(schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode));
+  pMsg->pData = NULL;
 
 _return:
 
@@ -405,6 +411,7 @@ _return:
     schReleaseJob(pParam->refId);
   }
 
+  taosMemoryFreeClear(pMsg->pData);
   taosMemoryFreeClear(param);
   SCH_RET(code);
 }
@@ -569,6 +576,7 @@ int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
       *fp = schHandleSubmitCallback;
       break;
     case TDMT_SCH_QUERY:
+    case TDMT_SCH_MERGE_QUERY:
       *fp = schHandleQueryCallback;
       break;
     case TDMT_VND_DELETE:
@@ -1032,7 +1040,8 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       tSerializeSVDeleteReq(msg, msgSize, &req);
       break;
     }
-    case TDMT_SCH_QUERY: {
+    case TDMT_SCH_QUERY: 
+    case TDMT_SCH_MERGE_QUERY: {
       SCH_ERR_RET(schMakeQueryRpcCtx(pJob, pTask, &rpcCtx));
 
       uint32_t len = strlen(pJob->sql);
@@ -1135,7 +1144,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
   SCH_ERR_JRET(schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, msgSize, persistHandle,
                                (rpcCtx.args ? &rpcCtx : NULL)));
 
-  if (msgType == TDMT_SCH_QUERY) {
+  if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY) {
     SCH_ERR_RET(schAppendTaskExecNode(pJob, pTask, addr, pTask->execIdx));
   }
 

@@ -682,6 +682,25 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t schUpdateTaskCandidateAddr(SSchTask *pTask, SEpSet* pEpSet) {
+  if (NULL == pTask->candidateAddrs || 1 != taosArrayGetSize(pTask->candidateAddrs)) {
+    SCH_TASK_ELOG("not able to update cndidate addr, addr num %d", (pTask->candidateAddrs ? taosArrayGetSize(pTask->candidateAddrs): 0));
+    SCH_ERR_RET(TSDB_CODE_APP_ERROR);
+  }
+
+  SQueryNodeAddr* pAddr = taosArrayGet(pTask->candidateAddrs, 0);
+
+  SEp* pOld = &pAddr->epSet.eps[pAddr->epSet.inUse];
+  SEp* pNew = &pEpSet->eps[pEpSet->inUse];
+
+  SCH_TASK_DLOG("update task ep from %s:%d to %s:%d", pOld->fqdn, pOld->port, pNew->fqdn, pNew->port);
+
+  memcpy(&pAddr->epSet, pEpSet, sizeof(pAddr->epSet));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t schRemoveTaskFromExecList(SSchJob *pJob, SSchTask *pTask) {
   int32_t code = taosHashRemove(pJob->execTasks, &pTask->taskId, sizeof(pTask->taskId));
   if (code) {
@@ -821,7 +840,6 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
     return TSDB_CODE_SUCCESS;
   }
 
-  // TODO CHECK epList/condidateList
   if (SCH_IS_DATA_SRC_TASK(pTask)) {
     if ((pTask->execIdx + 1) >= SCH_TASK_NUM_OF_EPS(&pTask->plan->execNode)) {
       *needRetry = false;
@@ -853,7 +871,6 @@ int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_NOT_START);
   
   if (SCH_TASK_NEED_FLOW_CTRL(pJob, pTask)) {
-    SCH_ERR_RET(schDecTaskFlowQuota(pJob, pTask));
     SCH_ERR_RET(schLaunchTasksInFlowCtrlList(pJob, pTask));
   }
 
@@ -1237,7 +1254,8 @@ int32_t schRescheduleTask(SSchJob *pJob, SSchTask *pTask) {
   }
 
   SCH_LOCK_TASK(pTask);
-  if (JOB_TASK_STATUS_EXECUTING == pTask->status && pJob->fetchTask != pTask && taosArrayGetSize(pTask->candidateAddrs) > 1) {
+  if (SCH_TASK_TIMEOUT(pTask) && JOB_TASK_STATUS_EXECUTING == pTask->status && 
+      pJob->fetchTask != pTask && taosArrayGetSize(pTask->candidateAddrs) > 1) {
     SCH_TASK_DLOG("task execIdx %d will be rescheduled now", pTask->execIdx);
     schDropTaskOnExecNode(pJob, pTask);
     taosHashClear(pTask->execNodes);
@@ -1281,7 +1299,7 @@ int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId* pEpId, SArray* pStatusList) {
       continue;
     }
 
-    if (taskStatus->status == JOB_TASK_STATUS_NOT_START && SCH_TASK_TIMEOUT(pTask)) {
+    if (taskStatus->status == JOB_TASK_STATUS_NOT_START) {
       schRescheduleTask(pJob, pTask);
     }
 
@@ -1653,6 +1671,87 @@ _return:
   if (!sync) {
     pReq->fp(NULL, pReq->cbParam, code);
   }
+  
+  SCH_RET(code);
+}
+
+int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, int32_t rspCode) {
+  int32_t code = 0;
+  
+  if ((pTask->execIdx + 1) >= pTask->maxExecTimes) {
+    SCH_TASK_DLOG("task no more retry since reach max try times, execIdx:%d", pTask->execIdx);
+    SCH_UNLOCK_TASK(pTask);
+    schProcessOnJobFailure(pJob, rspCode);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SCH_TASK_DLOG("task will be redirected now, status:%d", SCH_GET_TASK_STATUS_STR(pTask));
+  
+  schDropTaskOnExecNode(pJob, pTask);
+  taosHashClear(pTask->execNodes);
+  SCH_ERR_JRET(schRemoveTaskFromExecList(pJob, pTask));
+  schDeregisterTaskHb(pJob, pTask);
+  atomic_sub_fetch_32(&pTask->level->taskLaunchedNum, 1);
+  taosMemoryFreeClear(pTask->msg);
+  pTask->msgLen = 0;
+  pTask->lastMsgType = 0;
+  memset(&pTask->succeedAddr, 0, sizeof(pTask->succeedAddr));
+
+  if (SCH_IS_DATA_SRC_QRY_TASK(pTask)) {
+    if (SCH_TASK_NEED_FLOW_CTRL(pJob, pTask)) {
+      if (JOB_TASK_STATUS_EXECUTING == SCH_GET_TASK_STATUS(pTask)) {
+        SCH_ERR_JRET(schLaunchTasksInFlowCtrlList(pJob, pTask));
+      }
+    }    
+  } else {
+    pTask->childReady = 0;
+    
+    int32_t childrenNum = taosArrayGetSize(pTask->children);
+    for (int32_t i = 0; i < childrenNum; ++i) {
+      SSchTask* pChild = taosArrayGetP(pTask->children, i);
+      SCH_LOCK_TASK(pChild);
+      code = schDoTaskRedirect(pJob, pChild, rspCode);
+      SCH_UNLOCK_TASK(pChild);
+      SCH_ERR_JRET(code);
+    }
+    
+    qClearSubplanExecutionNode(pTask->plan);
+  }
+
+  SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_NOT_START);
+  
+  SCH_ERR_JRET(schLaunchTask(pJob, pTask));
+
+  SCH_UNLOCK_TASK(pTask);
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  code = schProcessOnTaskFailure(pJob, pTask, code);
+  
+  SCH_UNLOCK_TASK(pTask);
+
+  SCH_RET(code);  
+}
+
+int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, int32_t msgType, SDataBuf* pData, int32_t rspCode) {
+  int32_t code = 0;
+
+  if (SCH_IS_DATA_SRC_QRY_TASK(pTask)) {
+    if (NULL == pData->pEpSet) {
+      SCH_TASK_ELOG("no epset updated while got error %s", tstrerror(rspCode));
+      SCH_ERR_JRET(rspCode);
+    }
+
+    SCH_ERR_JRET(schUpdateTaskCandidateAddr(pTask, pData->pEpSet));
+  }
+
+  schDoTaskRedirect(pJob, pTask, rspCode);
+
+_return:
+
+  schProcessOnTaskFailure(pJob, pTask, code);
   
   SCH_RET(code);
 }
