@@ -514,6 +514,8 @@ int32_t tmqCommitMsgImpl(tmq_t* tmq, const TAOS_RES* msg, int8_t async, tmq_comm
   pParamSet->userParam = userParam;
   tsem_init(&pParamSet->rspSem, 0, 0);
 
+  int32_t code = -1;
+
   for (int32_t i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
     SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
     if (strcmp(pTopic->topicName, topic) != 0) continue;
@@ -529,8 +531,6 @@ int32_t tmqCommitMsgImpl(tmq_t* tmq, const TAOS_RES* msg, int8_t async, tmq_comm
       }
     }
   }
-
-  int32_t code = -1;
 
 HANDLE_RSP:
   if (pParamSet->totalRspNum == 0) {
