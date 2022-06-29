@@ -25,7 +25,7 @@ extern "C" {
 // clang-format off
 
 #define TAOS_DEF_ERROR_CODE(mod, code) ((int32_t)((0x80000000 | ((mod)<<16) | (code))))
- 
+
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
 #define TAOS_SUCCEEDED(err)                 ((err) >= 0)
 #define TAOS_FAILED(err)                    ((err) < 0)
@@ -35,7 +35,7 @@ const char* terrstr();
 
 int32_t* taosGetErrno();
 #define terrno                              (*taosGetErrno())
- 
+
 #define TSDB_CODE_SUCCESS                   0
 #define TSDB_CODE_FAILED                    -1   // unknown or needn't tell detail error
 
@@ -615,6 +615,7 @@ int32_t* taosGetErrno();
 //rsma
 #define TSDB_CODE_RSMA_INVALID_ENV               TAOS_DEF_ERROR_CODE(0, 0x3150)
 #define TSDB_CODE_RSMA_INVALID_STAT              TAOS_DEF_ERROR_CODE(0, 0x3151)
+#define TSDB_CODE_RSMA_QTASKINFO_CREATE          TAOS_DEF_ERROR_CODE(0, 0x3152)
 
 //index
 #define TSDB_CODE_INDEX_REBUILDING               TAOS_DEF_ERROR_CODE(0, 0x3200)

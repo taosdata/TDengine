@@ -191,6 +191,11 @@ bool getUniqueFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool uniqueFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t uniqueFunction(SqlFunctionCtx *pCtx);
 
+bool getModeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool modeFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t modeFunction(SqlFunctionCtx *pCtx);
+int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
 bool getTwaFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool twaFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t twaFunction(SqlFunctionCtx *pCtx);

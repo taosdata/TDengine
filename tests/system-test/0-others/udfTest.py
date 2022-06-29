@@ -301,13 +301,13 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.query("select ceil(num1) , min(num1) from tb;")
         tdSql.checkRows(1)
-        tdSql.error("select udf1(num1) , first(num1) from tb;")
+        tdSql.query("select udf1(num1) , first(num1) from tb;")
         
-        tdSql.error("select abs(num1) , first(num1) from tb;")
+        tdSql.query("select abs(num1) , first(num1) from tb;")
         
-        tdSql.error("select udf1(num1) , last(num1) from tb;")
+        tdSql.query("select udf1(num1) , last(num1) from tb;")
         
-        tdSql.error("select round(num1) , last(num1) from tb;")
+        tdSql.query("select round(num1) , last(num1) from tb;")
         
         tdSql.query("select udf1(num1) , top(num1,1) from tb;")
         tdSql.checkRows(1)
@@ -327,9 +327,9 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.query("select floor(c1) , min(c1) from stb1;")
         tdSql.checkRows(1)
-        tdSql.error("select udf1(c1) , first(c1) from stb1;")
+        tdSql.query("select udf1(c1) , first(c1) from stb1;")
         
-        tdSql.error("select udf1(c1) , last(c1) from stb1;")
+        tdSql.query("select udf1(c1) , last(c1) from stb1;")
         
         tdSql.query("select udf1(c1) , top(c1 ,1) from stb1;")
         tdSql.checkRows(1)

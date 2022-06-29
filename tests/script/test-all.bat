@@ -19,7 +19,7 @@ for /F "usebackq tokens=*" %%i in (!caseFile!) do (
             call :GetTimeSeconds !time!
             set time1=!_timeTemp!
             echo Start at !time!
-            call !line:./test.sh=wtest.bat! > result_!a!.txt 2>error_!a!.txt
+            call !line:./test.sh=wtest.bat! > result_!a!.txt 2>error_!a!.txt || set /a errorlevel=8
             if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && set /a exitNum=8 && echo %%i >>failed.txt ) else ( call :colorEcho 0a "Success" &echo. )
         )
     )
