@@ -17,23 +17,27 @@
 #include "syncRaftCfg.h"
 #include "syncRaftStore.h"
 
-// refactor, log[0 .. n] ==> log[m .. n]
+//-------------------------------
+// log[m .. n]
+
+// public function
 static int32_t   raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncIndex snapshotIndex);
 static SyncIndex raftLogBeginIndex(struct SSyncLogStore* pLogStore);
 static SyncIndex raftLogEndIndex(struct SSyncLogStore* pLogStore);
 static SyncIndex raftLogWriteIndex(struct SSyncLogStore* pLogStore);
 static bool      raftLogIsEmpty(struct SSyncLogStore* pLogStore);
 static int32_t   raftLogEntryCount(struct SSyncLogStore* pLogStore);
-
 static SyncIndex raftLogLastIndex(struct SSyncLogStore* pLogStore);
 static SyncTerm  raftLogLastTerm(struct SSyncLogStore* pLogStore);
 static int32_t   raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
 static int32_t   raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry);
 static int32_t   raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
 
+// private function
 static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** ppLastEntry);
 
 //-------------------------------
+// log[0 .. n]
 static SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore);
 static SyncIndex       logStoreLastIndex(SSyncLogStore* pLogStore);
 static SyncTerm        logStoreLastTerm(SSyncLogStore* pLogStore);
@@ -43,6 +47,65 @@ static int32_t         logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex from
 static int32_t         logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index);
 static SyncIndex       logStoreGetCommitIndex(SSyncLogStore* pLogStore);
 
+//-------------------------------
+SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
+  SSyncLogStore* pLogStore = taosMemoryMalloc(sizeof(SSyncLogStore));
+  ASSERT(pLogStore != NULL);
+
+  pLogStore->data = taosMemoryMalloc(sizeof(SSyncLogStoreData));
+  ASSERT(pLogStore->data != NULL);
+
+  SSyncLogStoreData* pData = pLogStore->data;
+  pData->pSyncNode = pSyncNode;
+  pData->pWal = pSyncNode->pWal;
+  ASSERT(pData->pWal != NULL);
+
+  taosThreadMutexInit(&(pData->mutex), NULL);
+  pData->pWalHandle = walOpenReadHandle(pData->pWal);
+  ASSERT(pData->pWalHandle != NULL);
+
+  pLogStore->appendEntry = logStoreAppendEntry;
+  pLogStore->getEntry = logStoreGetEntry;
+  pLogStore->truncate = logStoreTruncate;
+  pLogStore->getLastIndex = logStoreLastIndex;
+  pLogStore->getLastTerm = logStoreLastTerm;
+  pLogStore->updateCommitIndex = logStoreUpdateCommitIndex;
+  pLogStore->getCommitIndex = logStoreGetCommitIndex;
+
+  pLogStore->syncLogRestoreFromSnapshot = raftLogRestoreFromSnapshot;
+  pLogStore->syncLogBeginIndex = raftLogBeginIndex;
+  pLogStore->syncLogEndIndex = raftLogEndIndex;
+  pLogStore->syncLogIsEmpty = raftLogIsEmpty;
+  pLogStore->syncLogEntryCount = raftLogEntryCount;
+  pLogStore->syncLogLastIndex = raftLogLastIndex;
+  pLogStore->syncLogLastTerm = raftLogLastTerm;
+  pLogStore->syncLogAppendEntry = raftLogAppendEntry;
+  pLogStore->syncLogGetEntry = raftLogGetEntry;
+  pLogStore->syncLogTruncate = raftLogTruncate;
+  pLogStore->syncLogWriteIndex = raftLogWriteIndex;
+
+  return pLogStore;
+}
+
+void logStoreDestory(SSyncLogStore* pLogStore) {
+  if (pLogStore != NULL) {
+    SSyncLogStoreData* pData = pLogStore->data;
+
+    taosThreadMutexLock(&(pData->mutex));
+    if (pData->pWalHandle != NULL) {
+      walCloseReadHandle(pData->pWalHandle);
+      pData->pWalHandle = NULL;
+    }
+    taosThreadMutexUnlock(&(pData->mutex));
+    taosThreadMutexDestroy(&(pData->mutex));
+
+    taosMemoryFree(pLogStore->data);
+    taosMemoryFree(pLogStore);
+  }
+}
+
+//-------------------------------
+// log[m .. n]
 static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncIndex snapshotIndex) {
   ASSERT(snapshotIndex >= 0);
 
@@ -61,7 +124,7 @@ static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncI
              err, errStr, sysErr, sysErrStr);
     syncNodeErrorLog(pData->pSyncNode, logBuf);
 
-    ASSERT(0);
+    return -1;
   }
 
   return 0;
@@ -265,63 +328,7 @@ static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** pp
 }
 
 //-------------------------------
-SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
-  SSyncLogStore* pLogStore = taosMemoryMalloc(sizeof(SSyncLogStore));
-  ASSERT(pLogStore != NULL);
-
-  pLogStore->data = taosMemoryMalloc(sizeof(SSyncLogStoreData));
-  ASSERT(pLogStore->data != NULL);
-
-  SSyncLogStoreData* pData = pLogStore->data;
-  pData->pSyncNode = pSyncNode;
-  pData->pWal = pSyncNode->pWal;
-  ASSERT(pData->pWal != NULL);
-
-  taosThreadMutexInit(&(pData->mutex), NULL);
-  pData->pWalHandle = walOpenReadHandle(pData->pWal);
-  ASSERT(pData->pWalHandle != NULL);
-
-  pLogStore->appendEntry = logStoreAppendEntry;
-  pLogStore->getEntry = logStoreGetEntry;
-  pLogStore->truncate = logStoreTruncate;
-  pLogStore->getLastIndex = logStoreLastIndex;
-  pLogStore->getLastTerm = logStoreLastTerm;
-  pLogStore->updateCommitIndex = logStoreUpdateCommitIndex;
-  pLogStore->getCommitIndex = logStoreGetCommitIndex;
-
-  pLogStore->syncLogRestoreFromSnapshot = raftLogRestoreFromSnapshot;
-  pLogStore->syncLogBeginIndex = raftLogBeginIndex;
-  pLogStore->syncLogEndIndex = raftLogEndIndex;
-  pLogStore->syncLogIsEmpty = raftLogIsEmpty;
-  pLogStore->syncLogEntryCount = raftLogEntryCount;
-  pLogStore->syncLogLastIndex = raftLogLastIndex;
-  pLogStore->syncLogLastTerm = raftLogLastTerm;
-  pLogStore->syncLogAppendEntry = raftLogAppendEntry;
-  pLogStore->syncLogGetEntry = raftLogGetEntry;
-  pLogStore->syncLogTruncate = raftLogTruncate;
-  pLogStore->syncLogWriteIndex = raftLogWriteIndex;
-
-  return pLogStore;
-}
-
-void logStoreDestory(SSyncLogStore* pLogStore) {
-  if (pLogStore != NULL) {
-    SSyncLogStoreData* pData = pLogStore->data;
-
-    taosThreadMutexLock(&(pData->mutex));
-    if (pData->pWalHandle != NULL) {
-      walCloseReadHandle(pData->pWalHandle);
-      pData->pWalHandle = NULL;
-    }
-    taosThreadMutexUnlock(&(pData->mutex));
-    taosThreadMutexDestroy(&(pData->mutex));
-
-    taosMemoryFree(pLogStore->data);
-    taosMemoryFree(pLogStore);
-  }
-}
-
-//-------------------------------
+// log[0 .. n]
 int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
