@@ -295,7 +295,6 @@ void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STra
 void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
 void transSendResponse(const STransMsg* msg);
 void transRegisterMsg(const STransMsg* msg);
-int  transGetConnInfo(void* thandle, STransHandleInfo* pInfo);
 void transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
 
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
