@@ -54,13 +54,13 @@ print mnode2Role $mnode2Role
 $mnode3Role = $data2_3
 print mnode3Role $mnode3Role
 
-if $mnode1Role != master then
+if $mnode1Role != leader then
   goto show1
 endi
-if $mnode2Role != slave then
+if $mnode2Role != follower then
   goto show1
 endi
-if $mnode3Role != slave then
+if $mnode3Role != follower then
   goto show1
 endi
 

@@ -986,7 +986,7 @@ static SMemRow getSMemRowInTableMem(STableCheckInfo* pCheckInfo, int32_t order, 
       return rmem;
     } else {
       pCheckInfo->chosen = CHECKINFO_CHOSEN_BOTH;
-      extraRow = rimem;
+      *extraRow = rimem;
       return rmem;
     }
   } else {
@@ -1298,7 +1298,7 @@ static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, int6
             range.from = i;
           }
         }
-        range.to = 0;
+        range.to = sblock;
         taosArrayPush(pArray, &range);
         range.from = -1;
         break;
@@ -1314,7 +1314,7 @@ static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, int6
       if(range.from == -1) {
         range.from = i;
       } else {
-        if(range.to + 1 != i) {
+        if(range.to - 1 != i) {
           // add the previous
           taosArrayPush(pArray, &range);
           range.from = i;
@@ -1359,15 +1359,16 @@ static void shrinkBlocksByQuery(STsdbQueryHandle *pQueryHandle, STableCheckInfo 
   SBlockIdx  *compIndex = pQueryHandle->rhelper.pBlkIdx;
   bool order = ASCENDING_TRAVERSE(pQueryHandle->order);
 
+  TSKEY s = TSKEY_INITIAL_VAL, e = TSKEY_INITIAL_VAL;
   if (order) {
     assert(pCheckInfo->lastKey <= pQueryHandle->window.ekey && pQueryHandle->window.skey <= pQueryHandle->window.ekey);
+    s = pQueryHandle->window.skey;
+    e = pQueryHandle->window.ekey;
   } else {
     assert(pCheckInfo->lastKey >= pQueryHandle->window.ekey && pQueryHandle->window.skey >= pQueryHandle->window.ekey);
+    e = pQueryHandle->window.skey;
+    s = pQueryHandle->window.ekey;
   }
-
-  TSKEY s = TSKEY_INITIAL_VAL, e = TSKEY_INITIAL_VAL;
-  s = MIN(pCheckInfo->lastKey, pQueryHandle->window.ekey);
-  e = MAX(pCheckInfo->lastKey, pQueryHandle->window.ekey);
 
   // discard the unqualified data block based on the query time window
   int32_t start = binarySearchForBlock(pCompInfo->blocks, compIndex->numOfBlocks, s, TSDB_ORDER_ASC);

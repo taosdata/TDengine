@@ -59,7 +59,7 @@ endi
 
 sql show mnodes
 print mnode1 $data2_1
-if $data2_1 != master then
+if $data2_1 != leader then
   goto step1
 endi
 
