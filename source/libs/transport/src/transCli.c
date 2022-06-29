@@ -399,7 +399,7 @@ void cliHandleExcept(SCliConn* pConn) {
     STransConnCtx* pCtx = pMsg ? pMsg->ctx : NULL;
 
     STransMsg transMsg = {0};
-    transMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    transMsg.code = TSDB_CODE_RPC_BROKEN_LINK;
     transMsg.msgType = pMsg ? pMsg->msg.msgType + 1 : 0;
     transMsg.info.ahandle = NULL;
 
