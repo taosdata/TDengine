@@ -23,8 +23,8 @@ SSmaMgmt smaMgmt = {
     .smaRef = -1,
 };
 
-typedef enum { TD_QTASK_TMP_F = 0, TD_QTASK_CUR_F} TD_QTASK_FILE_T;
-static const char *tdQTaskInfoFname[] = {"qtaskinfo.t", "qtaskinfo"};
+typedef enum { TD_QTASK_TMP_F = 0, TD_QTASK_CUR_F } TD_QTASK_FILE_T;
+static const char                *tdQTaskInfoFname[] = {"qtaskinfo.t", "qtaskinfo"};
 typedef struct SRSmaQTaskInfoItem SRSmaQTaskInfoItem;
 typedef struct SRSmaQTaskInfoIter SRSmaQTaskInfoIter;
 
@@ -805,9 +805,9 @@ _err:
 
 /**
  * @brief reload ts data from checkpoint
- * 
- * @param pSma 
- * @return int32_t 
+ *
+ * @param pSma
+ * @return int32_t
  */
 static int32_t tdRSmaRestoreTSDataReload(SSma *pSma) {
   // TODO
@@ -869,7 +869,8 @@ static int32_t tdRSmaQTaskInfoItemRestore(SSma *pSma, const SRSmaQTaskInfoItem *
              pItem->type, terrstr(terrno));
     return TSDB_CODE_FAILED;
   }
-  smaDebug("vgId:%d, restore rsma task success for table:%" PRIi64 " level %d", SMA_VID(pSma), pItem->suid, pItem->type);
+  smaDebug("vgId:%d, restore rsma task success for table:%" PRIi64 " level %d", SMA_VID(pSma), pItem->suid,
+           pItem->type);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1181,12 +1182,12 @@ static void tdRSmaPersistTrigger(void *param, void *tmrId) {
   int64_t    refId = rsmaStat->refId;
 
   SRSmaStat *pRSmaStat = (SRSmaStat *)taosAcquireRef(smaMgmt.smaRef, refId);
-  if(!pRSmaStat) {
+  if (!pRSmaStat) {
     smaDebug("rsma persistence task not start since already destroyed");
     return;
   }
 
-  int8_t     tmrStat =
+  int8_t tmrStat =
       atomic_val_compare_exchange_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_ACTIVE, TASK_TRIGGER_STAT_INACTIVE);
   switch (tmrStat) {
     case TASK_TRIGGER_STAT_ACTIVE: {

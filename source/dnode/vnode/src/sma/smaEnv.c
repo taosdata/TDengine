@@ -170,7 +170,6 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
     } else {
       ASSERT(0);
     }
-
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -208,7 +207,8 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
           smaDebug("rsma, persist task finished already");
           break;
         } else {
-          smaDebug("rsma, persist task not finished yet since rsma stat in %" PRIi8, atomic_load_8(RSMA_TRIGGER_STAT(pStat)));
+          smaDebug("rsma, persist task not finished yet since rsma stat in %" PRIi8,
+                   atomic_load_8(RSMA_TRIGGER_STAT(pStat)));
         }
         ++nLoops;
         if (nLoops > 1000) {
@@ -248,7 +248,6 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     if (RSMA_TMR_HANDLE(pStat)) {
       taosTmrCleanUp(RSMA_TMR_HANDLE(pStat));
     }
-
   }
 }
 
