@@ -6490,16 +6490,16 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
       break;
     }
   }
-
+  
+  if (pCtx == NULL || pBlock == NULL) {
+    return false;
+  }
+  
   TSKEY* tsCols = NULL;
   if (pBlock && pBlock->pDataBlock != NULL) {
     SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, 0);
     tsCols = (int64_t*) pColDataInfo->pData;
     assert(tsCols[0] == pBlock->info.window.skey && tsCols[pBlock->info.rows - 1] == pBlock->info.window.ekey);
-  }
-
-  if (pCtx == NULL) {
-    return false;
   }
 
   if (pCtx->startTs == INT64_MIN) {
@@ -6592,7 +6592,6 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
 
     return false;
   }
-
 
   int32_t startPos = binarySearchForKey((char *)tsCols, pBlock->info.rows, pCtx->startTs, pQueryAttr->order.order);
 
