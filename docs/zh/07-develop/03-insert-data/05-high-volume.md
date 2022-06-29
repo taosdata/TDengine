@@ -49,6 +49,9 @@ title: 高效写入
 
 ### SQLWriter 类的实现
 
+```java
+{{#include docs/examples/java/src/main/java/com/taos/example/highvolume/SQLWriter.java:SQLWriter}}
+```
 ### 执行示例程序
 
 可用在本地集成开发环境里直接运行示例程序，注意要提前配置环境变量 TDENGINE_JDBC_URL。若要在远程服务器上执行示例程序，可按照下面步骤操作：
@@ -79,5 +82,5 @@ title: 高效写入
 在 Python 示例程序中采用参数绑定的写入方式。
 
 ```python title="Python 示例程序"
-
+developing 
 ```
