@@ -2492,13 +2492,15 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
         memcpy(pInfo->buf, data, bytes);
         *(TSKEY*)(pInfo->buf + bytes) = cts;
         //handle selectivity
-        STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
-        if (!pInfo->hasResult) {
-          saveTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
-          pInfo->hasResult = true;
-        } else {
-          copyTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+        if (pCtx->subsidiaries.num > 0) {
+          STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
+          if (!pInfo->hasResult) {
+            saveTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+          } else {
+            copyTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+          }
         }
+        pInfo->hasResult = true;
         //DO_UPDATE_TAG_COLUMNS(pCtx, ts);
         pResInfo->numOfRes = 1;
         break;
@@ -2532,13 +2534,15 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
         memcpy(pInfo->buf, data, bytes);
         *(TSKEY*)(pInfo->buf + bytes) = cts;
         //handle selectivity
-        STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
-        if (!pInfo->hasResult) {
-          saveTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
-          pInfo->hasResult = true;
-        } else {
-          copyTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+        if (pCtx->subsidiaries.num > 0) {
+          STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
+          if (!pInfo->hasResult) {
+            saveTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+          } else {
+            copyTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+          }
         }
+        pInfo->hasResult = true;
         //DO_UPDATE_TAG_COLUMNS(pCtx, ts);
         pResInfo->numOfRes = 1;
         break;
@@ -2594,13 +2598,15 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
         memcpy(pInfo->buf, data, bytes);
         *(TSKEY*)(pInfo->buf + bytes) = cts;
         //handle selectivity
-        STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
-        if (!pInfo->hasResult) {
-          saveTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
-          pInfo->hasResult = true;
-        } else {
-          copyTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+        if (pCtx->subsidiaries.num > 0) {
+          STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
+          if (!pInfo->hasResult) {
+            saveTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+          } else {
+            copyTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+          }
         }
+        pInfo->hasResult = true;
         //DO_UPDATE_TAG_COLUMNS(pCtx, ts);
         pResInfo->numOfRes = 1;
       }
@@ -2624,13 +2630,15 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
         memcpy(pInfo->buf, data, bytes);
         *(TSKEY*)(pInfo->buf + bytes) = cts;
         //handle selectivity
-        STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
-        if (!pInfo->hasResult) {
-          saveTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
-          pInfo->hasResult = true;
-        } else {
-          copyTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+        if (pCtx->subsidiaries.num > 0) {
+          STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
+          if (!pInfo->hasResult) {
+            saveTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+          } else {
+            copyTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+          }
         }
+        pInfo->hasResult = true;
         pResInfo->numOfRes = 1;
         //DO_UPDATE_TAG_COLUMNS(pCtx, ts);
       }
@@ -2664,12 +2672,15 @@ static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, S
   memcpy(pOutput->buf, pInput->buf, pOutput->bytes);
   //handle selectivity
   STuplePos* pTuplePos = (STuplePos*)(pOutput->buf + pOutput->bytes + sizeof(TSKEY));
-  if (!pOutput->hasResult) {
-    saveTupleData(pCtx, start, pCtx->pSrcBlock, pTuplePos);
-    pOutput->hasResult = true;
-  } else {
-    copyTupleData(pCtx, start, pCtx->pSrcBlock, pTuplePos);
+  if (pCtx->subsidiaries.num > 0) {
+    if (!pOutput->hasResult) {
+      saveTupleData(pCtx, start, pCtx->pSrcBlock, pTuplePos);
+    } else {
+      copyTupleData(pCtx, start, pCtx->pSrcBlock, pTuplePos);
+    }
   }
+  pOutput->hasResult = true;
+
   return;
 }
 
@@ -3086,7 +3097,9 @@ void doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSData
     pItem->uid = uid;
 
     // save the data of this tuple
-    saveTupleData(pCtx, rowIndex, pSrcBlock, &pItem->tuplePos);
+    if (pCtx->subsidiaries.num > 0) {
+      saveTupleData(pCtx, rowIndex, pSrcBlock, &pItem->tuplePos);
+    }
 
     // allocate the buffer and keep the data of this row into the new allocated buffer
     pEntryInfo->numOfRes++;
@@ -3105,7 +3118,10 @@ void doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSData
       pItem->uid = uid;
 
       // save the data of this tuple by over writing the old data
-      copyTupleData(pCtx, rowIndex, pSrcBlock, &pItem->tuplePos);
+      if (pCtx->subsidiaries.num > 0) {
+        copyTupleData(pCtx, rowIndex, pSrcBlock, &pItem->tuplePos);
+      }
+
       taosheapadjust((void*)pItems, sizeof(STopBotResItem), 0, pEntryInfo->numOfRes - 1, (const void*)&type,
                      topBotResComparFn, NULL, !isTopQuery);
     }
