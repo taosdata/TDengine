@@ -440,6 +440,7 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId) {
   }
 
   ((void**)pi->pData)[0] = pi;
+  uDebug("page_getNewBufPage pageId:%d, offset:%"PRId64, pi->pageId, pi->offset);
   return (void*)(GET_DATA_PAYLOAD(pi));
 }
 
@@ -463,6 +464,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
     lruListMoveToFront(pBuf->lruList, (*pi));
     (*pi)->used = true;
 
+    uDebug("page_getBufPage1 pageId:%d, offset:%"PRId64, (*pi)->pageId, (*pi)->offset);
     return (void*)(GET_DATA_PAYLOAD(*pi));
   } else {  // not in memory
     assert((*pi)->pData == NULL && (*pi)->pn == NULL && (((*pi)->length >= 0 && (*pi)->offset >= 0) || ((*pi)->length == -1 && (*pi)->offset == -1)));
@@ -494,7 +496,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
         return NULL;
       }
     }
-
+    uDebug("page_getBufPage2 pageId:%d, offset:%"PRId64, (*pi)->pageId, (*pi)->offset);
     return (void*)(GET_DATA_PAYLOAD(*pi));
   }
 }
@@ -506,8 +508,10 @@ void releaseBufPage(SDiskbasedBuf* pBuf, void* page) {
 }
 
 void releaseBufPageInfo(SDiskbasedBuf* pBuf, SPageInfo* pi) {
-  assert(pi->pData != NULL && pi->used == true);
+  uDebug("page_releaseBufPageInfo pageId:%d, used:%d, offset:%"PRId64, pi->pageId, pi->used, pi->offset);
 
+  assert(pi->pData != NULL && pi->used == true);
+//  assert(pi->pData != NULL);
   pi->used = false;
   pBuf->statis.releasePages += 1;
 }

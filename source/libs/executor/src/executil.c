@@ -118,7 +118,7 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int
     p->groupId = *(uint64_t*) key;
     p->pos = *(SResultRowPosition*) pData;
     memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
-
+    qDebug("page_groupRes, groupId:%"PRIu64",pageId:%d,offset:%d\n", p->groupId, p->pos.pageId, p->pos.offset);
     taosArrayPush(pGroupResInfo->pRows, &p);
   }
 
@@ -608,6 +608,7 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
     }
   }
 
+  qDebug("page_setSelect num:%d", num);
   if (p != NULL) {
     p->subsidiaries.pCtx = pValCtx;
     p->subsidiaries.num = num;
@@ -664,7 +665,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     } else if (pExpr->pExpr->nodeType == QUERY_NODE_COLUMN || pExpr->pExpr->nodeType == QUERY_NODE_OPERATOR ||
                pExpr->pExpr->nodeType == QUERY_NODE_VALUE) {
       // for simple column, the result buffer needs to hold at least one element.
-      pCtx->resDataInfo.interBufSize = pFunct->resSchema.bytes;
+      pCtx->resDataInfo.interBufSize = pFunct->resSchema.bytes + sizeof(bool); // sizeof(bool) marks if data is null
     }
 
     pCtx->input.numOfInputCols = pFunct->numOfParams;

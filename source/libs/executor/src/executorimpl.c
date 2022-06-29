@@ -275,6 +275,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
   // 1. close current opened time window
   if (pResultRowInfo->cur.pageId != -1 && ((pResult == NULL) || (pResult->pageId != pResultRowInfo->cur.pageId &&
                                                                  pResult->offset != pResultRowInfo->cur.offset))) {
+    qDebug("page_1");
     SResultRowPosition pos = pResultRowInfo->cur;
     SFilePage*         pPage = getBufPage(pResultBuf, pos.pageId);
     releaseBufPage(pResultBuf, pPage);
@@ -282,6 +283,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
 
   // allocate a new buffer page
   if (pResult == NULL) {
+    qDebug("page_2");
     ASSERT(pSup->resultRowSize > 0);
     pResult = getNewResultRow(pResultBuf, groupId, pSup->resultRowSize);
 
@@ -539,7 +541,7 @@ static int32_t doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunct
       if (pCtx[k].fpSet.process == NULL) {
         continue;
       }
-
+      qDebug("page_process");
       int32_t code = pCtx[k].fpSet.process(&pCtx[k]);
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s aggregate function error happens, code: %s", GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
@@ -1415,6 +1417,7 @@ void setExecutionContext(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t
     return;
   }
 
+  qDebug("page_setbuf, groupId:%"PRIu64, groupId);
   doSetTableGroupOutputBuf(pOperator, pAggInfo, numOfOutput, groupId);
 
   // record the current active group id
@@ -1490,10 +1493,12 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprI
                            int32_t numOfExprs) {
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
   int32_t start = pGroupResInfo->index;
+  qDebug("\npage_copytoblock rows:%d", numOfRows);
 
   for (int32_t i = start; i < numOfRows; i += 1) {
     SResKeyPos* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
     SFilePage*  page = getBufPage(pBuf, pPos->pos.pageId);
+    qDebug("page_copytoblock pos pageId:%d, offset:%d", pPos->pos.pageId, pPos->pos.offset);
 
     SResultRow* pRow = (SResultRow*)((char*)page + pPos->pos.offset);
 
@@ -1526,6 +1531,8 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprI
 
       pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowCellOffset);
       if (pCtx[j].fpSet.finalize) {
+        qDebug("\npage_finalize %d", numOfExprs);
+
         int32_t code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
         if (TAOS_FAILED(code)) {
           qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
@@ -1554,9 +1561,9 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprI
 
     releaseBufPage(pBuf, page);
     pBlock->info.rows += pRow->numOfRows;
-    if (pBlock->info.rows >= pBlock->info.capacity) {  // output buffer is full
-      break;
-    }
+//    if (pBlock->info.rows >= pBlock->info.capacity) {  // output buffer is full
+//      break;
+//    }
   }
 
   qDebug("%s result generated, rows:%d, groupId:%" PRIu64, GET_TASKID(pTaskInfo), pBlock->info.rows,
@@ -3417,11 +3424,12 @@ int32_t initAggInfo(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInf
 }
 
 void initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows) {
+  ASSERT(numOfRows != 0);
   pOperator->resultInfo.capacity = numOfRows;
   pOperator->resultInfo.threshold = numOfRows * 0.75;
 
   if (pOperator->resultInfo.threshold == 0) {
-    pOperator->resultInfo.capacity = numOfRows;
+    pOperator->resultInfo.threshold = numOfRows;
   }
 }
 

@@ -38,7 +38,10 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def run(self):
-        tdSql.prepare()
+        # tdSql.prepare()
+        tdSql.execute('drop database if exists db')
+        tdSql.execute('create database db vgroups 1')
+        tdSql.execute('use db')
         print("============== STEP 1 ===== prepare data & validate json string")
         tdSql.error("create table if not exists jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json, tagint int)")
         tdSql.error("create table if not exists jsons1(ts timestamp, data json) tags(tagint int)")
