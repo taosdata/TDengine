@@ -253,18 +253,15 @@ typedef struct STableScanInfo {
   SReadHandle     readHandle;
 
   SFileBlockLoadRecorder readRecorder;
-  int64_t         numOfRows;
   SScanInfo       scanInfo;
   int32_t         scanTimes;
   SNode*          pFilterNode;  // filter info, which is push down by optimizer
-  SqlFunctionCtx* pCtx;         // which belongs to the direct upstream operator operator query context
-  SResultRowInfo* pResultRowInfo;
-  int32_t*        rowEntryInfoOffset;
-  SExprInfo*      pExpr;
+  SqlFunctionCtx* pCtx;         // which belongs to the direct upstream operator operator query context,todo: remove this by using SExprSup
+  int32_t*        rowEntryInfoOffset;  // todo: remove this by using SExprSup
+  SExprInfo*      pExpr;// todo: remove this by using SExprSup
+
   SSDataBlock*    pResBlock;
   SArray*         pColMatchInfo;
-  int32_t         numOfOutput;
-
   SExprSupp       pseudoSup;
   SQueryTableDataCond cond;
   int32_t         scanFlag;     // table scan flag to denote if it is a repeat/reverse/main scan
@@ -275,8 +272,13 @@ typedef struct STableScanInfo {
   int32_t         curTWinIdx;
 
   int32_t         currentGroupId;
-  uint64_t        queryId;
-  uint64_t        taskId;
+  uint64_t        queryId;   // todo remove it
+  uint64_t        taskId;    // todo remove it
+
+  struct {
+    uint64_t uid;
+    int64_t t;
+  } scanStatus;
 } STableScanInfo;
 
 typedef struct STagScanInfo {
@@ -321,31 +323,31 @@ typedef struct SessionWindowSupporter {
 } SessionWindowSupporter;
 
 typedef struct SStreamBlockScanInfo {
+  uint64_t        tableUid;         // queried super table uid
+  SExprInfo*      pPseudoExpr;
+  int32_t         numOfPseudoExpr;
+  int32_t         primaryTsIndex;    // primary time stamp slot id
+  SReadHandle     readHandle;
+  SInterval       interval;     // if the upstream is an interval operator, the interval info is also kept here.
+  SArray*         pColMatchInfo;    //
+  SNode*          pCondition;
+
   SArray*         pBlockLists;      // multiple SSDatablock.
   SSDataBlock*    pRes;             // result SSDataBlock
   SSDataBlock*    pUpdateRes;       // update SSDataBlock
   int32_t         updateResIndex;
   int32_t         blockType;        // current block type
   int32_t         validBlockIndex;  // Is current data has returned?
-  SColumnInfo*    pCols;            // the output column info
   uint64_t        numOfExec;        // execution times
   void*           streamBlockReader;// stream block reader handle
-  SArray*         pColMatchInfo;    //
-  SNode*          pCondition;
+
   int32_t         tsArrayIndex;
   SArray*         tsArray;
   uint64_t        groupId;
   SUpdateInfo*    pUpdateInfo;
 
-  SExprInfo*      pPseudoExpr;
-  int32_t         numOfPseudoExpr;
-
-  int32_t         primaryTsIndex;    // primary time stamp slot id
-  SReadHandle     readHandle;
-  uint64_t        tableUid;         // queried super table uid
   EStreamScanMode scanMode;
   SOperatorInfo* pSnapshotReadOp;
-  SInterval      interval;     // if the upstream is an interval operator, the interval info is also kept here.
   SArray*        childIds;
   SessionWindowSupporter sessionSup;
   bool            assignBlockUid; // assign block uid to groupId, temporarily used for generating rollup SMA.
@@ -683,7 +685,7 @@ int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t 
 void    initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock);
 void    cleanupBasicInfo(SOptrBasicInfo* pInfo);
 int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr);
-void    cleanupExprSup(SExprSupp* pSup);
+void    cleanupExprSupp(SExprSupp* pSup);
 int32_t initAggInfo(SExprSupp *pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
                     const char* pkey);
 void    initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows);
@@ -707,7 +709,7 @@ void    destroyBasicOperatorInfo(void* param, int32_t numOfOutput);
 void    appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 void    setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId);
 
-void    cleanupExecSupp(SExprSupp* pSupp);
+int32_t doGetScanStatus(SOperatorInfo* pOperator, uint64_t* uid, int64_t* ts);
 
 SSDataBlock* loadNextDataBlock(void* param);
 

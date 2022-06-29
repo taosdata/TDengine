@@ -191,16 +191,6 @@ int32_t qAsyncKillTask(qTaskInfo_t qinfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qIsTaskCompleted(qTaskInfo_t qinfo) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qinfo;
-
-  if (pTaskInfo == NULL) {
-    return TSDB_CODE_QRY_INVALID_QHANDLE;
-  }
-
-  return isTaskKilled(pTaskInfo);
-}
-
 void qDestroyTask(qTaskInfo_t qTaskHandle) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qTaskHandle;
   qDebug("%s execTask completed, numOfRows:%" PRId64, GET_TASKID(pTaskInfo), pTaskInfo->pRoot->resultInfo.totalRows);
@@ -233,6 +223,13 @@ int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t le
   }
 
   return decodeOperator(pTaskInfo->pRoot, pInput, len);
+}
+
+
+int32_t qGetStreamScanStatus(qTaskInfo_t tinfo, uint64_t* uid, int64_t* ts) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tinfo;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 
