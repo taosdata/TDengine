@@ -251,9 +251,6 @@ static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) {
 static bool rpcRfp(int32_t code, tmsg_t msgType) {
   if (code == TSDB_CODE_RPC_REDIRECT || code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_NODE_NOT_DEPLOYED ||
       code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_APP_NOT_READY) {
-    if (msgType == TDMT_VND_QUERY || msgType == TDMT_VND_FETCH) {
-      return false;
-    }
     return true;
   } else {
     return false;
@@ -264,7 +261,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
-  rpcInit.label = "DND";
+  rpcInit.label = "DND-C";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = 1024;
@@ -298,7 +295,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   SRpcInit rpcInit = {0};
   strncpy(rpcInit.localFqdn, tsLocalFqdn, strlen(tsLocalFqdn));
   rpcInit.localPort = tsServerPort;
-  rpcInit.label = "DND";
+  rpcInit.label = "DND-S";
   rpcInit.numOfThreads = tsNumOfRpcThreads;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = tsMaxShellConns;
