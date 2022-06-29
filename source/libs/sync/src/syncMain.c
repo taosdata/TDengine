@@ -1923,6 +1923,8 @@ void syncNodeVoteForSelf(SSyncNode* pSyncNode) {
 }
 
 // snapshot --------------
+
+// return if has a snapshot
 bool syncNodeHasSnapshot(SSyncNode* pSyncNode) {
   bool      ret = false;
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
@@ -1935,8 +1937,10 @@ bool syncNodeHasSnapshot(SSyncNode* pSyncNode) {
   return ret;
 }
 
+// return max(logLastIndex, snapshotLastIndex)
+// if no snapshot and log, return -1
 SyncIndex syncNodeGetLastIndex(SSyncNode* pSyncNode) {
-  SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
+  SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
   if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
     pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
   }
@@ -1946,6 +1950,8 @@ SyncIndex syncNodeGetLastIndex(SSyncNode* pSyncNode) {
   return lastIndex;
 }
 
+// return the last term of snapshot and log
+// if error, return SYNC_TERM_INVALID (by syncLogLastTerm)
 SyncTerm syncNodeGetLastTerm(SSyncNode* pSyncNode) {
   SyncTerm lastTerm = 0;
   if (syncNodeHasSnapshot(pSyncNode)) {
@@ -1977,11 +1983,14 @@ int32_t syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, Sy
   return 0;
 }
 
+// return append-entries first try index
 SyncIndex syncNodeSyncStartIndex(SSyncNode* pSyncNode) {
   SyncIndex syncStartIndex = syncNodeGetLastIndex(pSyncNode) + 1;
   return syncStartIndex;
 }
 
+// if index > 0, return index - 1
+// else, return -1
 SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
   SyncIndex preIndex = index - 1;
   if (preIndex < SYNC_INDEX_INVALID) {
@@ -1991,6 +2000,10 @@ SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
   return preIndex;
 }
 
+// if index < 0, return SYNC_TERM_INVALID
+// if index == 0, return 0
+// if index > 0, return preTerm
+// if error, return SYNC_TERM_INVALID
 SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
   if (index < SYNC_INDEX_BEGIN) {
     return SYNC_TERM_INVALID;
