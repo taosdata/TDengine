@@ -180,7 +180,7 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   pMemTable->nDel++;
 
   if (tsdbKeyCmprFn(&lastKey, &pTbData->maxKey) >= 0) {
-    tsdbCacheDeleteLastrow(pTsdb->lruCache, pTbData->uid);
+    tsdbCacheDeleteLastrow(pTsdb->lruCache, pTbData->uid, eKey);
   }
 
   tsdbError("vgId:%d, delete data from table suid:%" PRId64 " uid:%" PRId64 " skey:%" PRId64 " eKey:%" PRId64

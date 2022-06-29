@@ -251,7 +251,8 @@ int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(SLRUCache *pCache);
 int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, tb_uid_t uid, STSRow *row);
 int32_t tsdbCacheGetLastrow(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow);
-int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid);
+int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
+int32_t tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
 
 // structs =======================
 typedef struct {
