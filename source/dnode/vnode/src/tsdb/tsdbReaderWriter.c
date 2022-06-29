@@ -908,7 +908,7 @@ static int32_t tsdbReadSubBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx,
   pBlockData->nRow = pSubBlock->nRow;
   p = *ppBuf1 + sizeof(SBlockDataHdr);
 
-  code = tsdbRecoverBlockDataKey(pBlockData, pSubBlock, *ppBuf1, ppBuf2);
+  code = tsdbRecoverBlockDataKey(pBlockData, pSubBlock, p, ppBuf2);
   if (code) goto _err;
   p = p + pSubBlock->vsize + pSubBlock->ksize + sizeof(TSCKSUM);
 
