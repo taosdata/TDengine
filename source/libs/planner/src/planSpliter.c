@@ -1237,7 +1237,7 @@ static const int32_t splitRuleNum = (sizeof(splitRuleSet) / sizeof(SSplitRule));
 static void dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
   char* pStr = NULL;
   nodesNodeToString((SNode*)pSubplan, false, &pStr, NULL);
-  qDebugL("apply %s rule: %s", pRuleName, pStr);
+  qDebugL("apply split %s rule: %s", pRuleName, pStr);
   taosMemoryFree(pStr);
 }
 

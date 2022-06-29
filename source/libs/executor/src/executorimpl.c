@@ -273,8 +273,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
   }
 
   // 1. close current opened time window
-  if (pResultRowInfo->cur.pageId != -1 && ((pResult == NULL) || (pResult->pageId != pResultRowInfo->cur.pageId &&
-                                                                 pResult->offset != pResultRowInfo->cur.offset))) {
+  if (pResultRowInfo->cur.pageId != -1 && ((pResult == NULL) || (pResult->pageId != pResultRowInfo->cur.pageId))) {
     SResultRowPosition pos = pResultRowInfo->cur;
     SFilePage*         pPage = getBufPage(pResultBuf, pos.pageId);
     releaseBufPage(pResultBuf, pPage);
@@ -1034,7 +1033,7 @@ static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSData
   SqlFunctionCtx* pCtx = pTableScanInfo->pCtx;
   uint32_t        status = BLK_DATA_NOT_LOAD;
 
-  int32_t numOfOutput = pTableScanInfo->numOfOutput;
+  int32_t numOfOutput = 0;//pTableScanInfo->numOfOutput;
   for (int32_t i = 0; i < numOfOutput; ++i) {
     int32_t functionId = pCtx[i].functionId;
     int32_t colId = pTableScanInfo->pExpr[i].base.pParam[0].pCol->colId;
@@ -2822,6 +2821,24 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
   }
 }
 
+int32_t doGetScanStatus(SOperatorInfo* pOperator, uint64_t* uid, int64_t* ts) {
+  int32_t type = pOperator->operatorType;
+  if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    SStreamBlockScanInfo* pScanInfo = pOperator->info;
+    STableScanInfo* pSnapShotScanInfo = pScanInfo->pSnapshotReadOp->info;
+    *uid = pSnapShotScanInfo->scanStatus.uid;
+    *ts = pSnapShotScanInfo->scanStatus.t;
+  } else {
+    if (pOperator->pDownstream[0] == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    } else {
+      doGetScanStatus(pOperator->pDownstream[0], uid, ts);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 // this is a blocking operator
 static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   if (OPTR_IS_OPENED(pOperator)) {
@@ -3544,7 +3561,7 @@ static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
   taosArrayDestroy(pInfo->pPseudoColInfo);
 }
 
-void cleanupExecSupp(SExprSupp* pSupp) {
+void cleanupExprSupp(SExprSupp* pSupp) {
   destroySqlFunctionCtx(pSupp->pCtx, pSupp->numOfExprs);
   destroyExprInfo(pSupp->pExprInfo, pSupp->numOfExprs);
 
@@ -3557,7 +3574,7 @@ static void destroyIndefinitOperatorInfo(void* param, int32_t numOfOutput) {
 
   taosArrayDestroy(pInfo->pPseudoColInfo);
   cleanupAggSup(&pInfo->aggSup);
-  cleanupExecSupp(&pInfo->scalarSup);
+  cleanupExprSupp(&pInfo->scalarSup);
 }
 
 void destroyExchangeOperatorInfo(void* param, int32_t numOfOutput) {
