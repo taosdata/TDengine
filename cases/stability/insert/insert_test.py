@@ -41,6 +41,8 @@ class TestInsert(TDCase):
             if line_stripped.startswith("#"):
                 continue
             pos = line_stripped.find("=")
+            if pos <= 0:
+                continue
             key = line_stripped[0:pos]
             value = line_stripped[pos+1:]
             config_dict[key] = value
