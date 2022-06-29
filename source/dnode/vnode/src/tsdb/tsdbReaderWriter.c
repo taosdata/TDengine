@@ -876,37 +876,37 @@ static int32_t tsdbReadSubBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx,
     goto _err;
   }
 
-  // check
-  p = *ppBuf1;
-  SBlockDataHdr *pHdr = (SBlockDataHdr *)p;
-  ASSERT(pHdr->delimiter == TSDB_FILE_DLMT);
-  ASSERT(pHdr->suid == pBlockIdx->suid);
-  ASSERT(pHdr->uid == pBlockIdx->uid);
-  p += sizeof(*pHdr);
+  // // check
+  // p = *ppBuf1;
+  // SBlockDataHdr *pHdr = (SBlockDataHdr *)p;
+  // ASSERT(pHdr->delimiter == TSDB_FILE_DLMT);
+  // ASSERT(pHdr->suid == pBlockIdx->suid);
+  // ASSERT(pHdr->uid == pBlockIdx->uid);
+  // p += sizeof(*pHdr);
 
-  if (!taosCheckChecksumWhole(p, pSubBlock->vsize + pSubBlock->ksize + sizeof(TSCKSUM))) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _err;
-  }
-  p += (pSubBlock->vsize + pSubBlock->ksize + sizeof(TSCKSUM));
+  // if (!taosCheckChecksumWhole(p, pSubBlock->vsize + pSubBlock->ksize + sizeof(TSCKSUM))) {
+  //   code = TSDB_CODE_FILE_CORRUPTED;
+  //   goto _err;
+  // }
+  // p += (pSubBlock->vsize + pSubBlock->ksize + sizeof(TSCKSUM));
 
-  for (int32_t iBlockCol = 0; iBlockCol < pSubBlock->mBlockCol.nItem; iBlockCol++) {
-    tMapDataGetItemByIdx(&pSubBlock->mBlockCol, iBlockCol, pBlockCol, tGetBlockCol);
+  // for (int32_t iBlockCol = 0; iBlockCol < pSubBlock->mBlockCol.nItem; iBlockCol++) {
+  //   tMapDataGetItemByIdx(&pSubBlock->mBlockCol, iBlockCol, pBlockCol, tGetBlockCol);
 
-    ASSERT(pBlockCol->flag && pBlockCol->flag != HAS_NONE);
+  //   ASSERT(pBlockCol->flag && pBlockCol->flag != HAS_NONE);
 
-    if (pBlockCol->flag == HAS_NULL) continue;
+  //   if (pBlockCol->flag == HAS_NULL) continue;
 
-    if (!taosCheckChecksumWhole(p, pBlockCol->bsize + pBlockCol->csize + sizeof(TSCKSUM))) {
-      code = TSDB_CODE_FILE_CORRUPTED;
-      goto _err;
-    }
-    p = p + pBlockCol->bsize + pBlockCol->csize + sizeof(TSCKSUM);
-  }
+  //   if (!taosCheckChecksumWhole(p, pBlockCol->bsize + pBlockCol->csize + sizeof(TSCKSUM))) {
+  //     code = TSDB_CODE_FILE_CORRUPTED;
+  //     goto _err;
+  //   }
+  //   p = p + pBlockCol->bsize + pBlockCol->csize + sizeof(TSCKSUM);
+  // }
 
   // recover
   pBlockData->nRow = pSubBlock->nRow;
-  p = *ppBuf1 + sizeof(*pHdr);
+  p = *ppBuf1 + sizeof(SBlockDataHdr);
 
   code = tsdbRecoverBlockDataKey(pBlockData, pSubBlock, *ppBuf1, ppBuf2);
   if (code) goto _err;
