@@ -1031,20 +1031,24 @@ static int32_t tColDataUpdateOffset(SColData *pColData) {
 
   ASSERT(pColData->nVal > 0);
   ASSERT(pColData->flag);
+  ASSERT(IS_VAR_DATA_TYPE(pColData->type));
 
-  if (IS_VAR_DATA_TYPE(pColData->type) && (pColData->flag & HAS_VALUE)) {
+  if ((pColData->flag & HAS_VALUE)) {
     code = tsdbRealloc((uint8_t **)&pColData->aOffset, sizeof(int32_t) * pColData->nVal);
     if (code) goto _exit;
 
     int32_t offset = 0;
     for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
-      uint8_t v = GET_BIT2(pColData->pBitMap, iVal);
-      if (v == 0 || v == 1) {
-        pColData->aOffset[iVal] = -1;
-      } else {
-        pColData->aOffset[iVal] = offset;
-        offset += tGetValue(pColData->pData + offset, &value, pColData->type);
+      if (pColData->flag != HAS_VALUE) {
+        uint8_t v = GET_BIT2(pColData->pBitMap, iVal);
+        if (v == 0 || v == 1) {
+          pColData->aOffset[iVal] = -1;
+          continue;
+        }
       }
+
+      pColData->aOffset[iVal] = offset;
+      offset += tGetValue(pColData->pData + offset, &value, pColData->type);
     }
 
     ASSERT(offset == pColData->nData);
