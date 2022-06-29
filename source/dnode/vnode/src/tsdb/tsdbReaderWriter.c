@@ -1220,8 +1220,25 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
   if (!ppBuf1) ppBuf1 = &pBuf1;
   if (!ppBuf2) ppBuf2 = &pBuf2;
 
-  pBlock->minKey = MIN_TSDBKEY(pBlock->minKey, tBlockDataFirstKey(pBlockData));
-  pBlock->maxKey = MAX_TSDBKEY(pBlock->maxKey, tBlockDataLastKey(pBlockData));
+  TSKEY lastKey = TSKEY_MIN;
+  for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
+    TSDBKEY key = TSDBROW_KEY(&tsdbRowFromBlockData(pBlockData, iRow));
+    if (iRow == 0) {
+      pBlock->minKey = MIN_TSDBKEY(pBlock->minKey, key);
+    }
+
+    if (iRow == pBlockData->nRow - 1) {
+      pBlock->maxKey = MAX_TSDBKEY(pBlock->maxKey, key);
+    }
+
+    pBlock->minVersion = TMIN(pBlock->minVersion, key.version);
+    pBlock->maxVersion = TMAX(pBlock->maxVersion, key.version);
+    if (key.ts == lastKey) {
+      pBlock->hasDup = 1;
+    }
+    lastKey = key.ts;
+  }
+  pBlock->nRow += pBlockData->nRow;
 
   pSubBlock->nRow = pBlockData->nRow;
   pSubBlock->cmprAlg = cmprAlg;

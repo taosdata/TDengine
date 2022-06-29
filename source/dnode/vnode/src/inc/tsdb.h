@@ -138,7 +138,6 @@ void    tColDataClear(void *ph);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest);
 int32_t tColDataGetValue(SColData *pColData, int32_t iRow, SColVal *pColVal);
-int32_t tColDataPCmprFn(const void *p1, const void *p2);
 // SBlockData
 #define tBlockDataFirstRow(PBLOCKDATA) tsdbRowFromBlockData(PBLOCKDATA, 0)
 #define tBlockDataLastRow(PBLOCKDATA)  tsdbRowFromBlockData(PBLOCKDATA, (PBLOCKDATA)->nRow - 1)

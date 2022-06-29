@@ -1085,7 +1085,7 @@ _exit:
   return code;
 }
 
-int32_t tColDataPCmprFn(const void *p1, const void *p2) {
+static FORCE_INLINE int32_t tColDataPCmprFn(const void *p1, const void *p2) {
   SColData *pColData1 = *(SColData **)p1;
   SColData *pColData2 = *(SColData **)p2;
 
