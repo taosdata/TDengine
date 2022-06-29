@@ -19,7 +19,31 @@
 #include "tglobal.h"
 
 extern SConfig* tsCfg;
-static int32_t  getSchemaBytes(const SSchema* pSchema) {
+
+static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRetrieveTableRsp** pRsp) {
+  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+  *pRsp = taosMemoryCalloc(1, rspSize);
+  if (NULL == *pRsp) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pRsp)->useconds = 0;
+  (*pRsp)->completed = 1;
+  (*pRsp)->precision = 0;
+  (*pRsp)->compressed = 0;
+  (*pRsp)->compLen = 0;
+  (*pRsp)->numOfRows = htonl(pBlock->info.rows);
+  (*pRsp)->numOfCols = htonl(numOfCols);
+
+  int32_t len = 0;
+  blockEncode(pBlock, (*pRsp)->data, &len, numOfCols, false);
+  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
+
+  blockDataDestroy(pBlock);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t getSchemaBytes(const SSchema* pSchema) {
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BINARY:
       return (pSchema->bytes - VARSTR_HEADER_SIZE);
@@ -89,26 +113,7 @@ static int32_t execDescribe(SNode* pStmt, SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = buildDescResultDataBlock();
   setDescResultIntoDataBlock(pBlock, numOfRows, pDesc->pMeta);
 
-  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
-  *pRsp = taosMemoryCalloc(1, rspSize);
-  if (NULL == *pRsp) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  (*pRsp)->useconds = 0;
-  (*pRsp)->completed = 1;
-  (*pRsp)->precision = 0;
-  (*pRsp)->compressed = 0;
-  (*pRsp)->compLen = 0;
-  (*pRsp)->numOfRows = htonl(numOfRows);
-  (*pRsp)->numOfCols = htonl(DESCRIBE_RESULT_COLS);
-
-  int32_t len = 0;
-  blockEncode(pBlock, (*pRsp)->data, &len, DESCRIBE_RESULT_COLS, false);
-  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
-
-  blockDataDestroy(pBlock);
-  return TSDB_CODE_SUCCESS;
+  return buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
 }
 
 static int32_t execResetQueryCache() { return catalogClearCache(); }
@@ -236,27 +241,7 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
 static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = buildCreateDBResultDataBlock();
   setCreateDBResultIntoDataBlock(pBlock, pStmt->dbName, pStmt->pCfg);
-
-  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
-  *pRsp = taosMemoryCalloc(1, rspSize);
-  if (NULL == *pRsp) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  (*pRsp)->useconds = 0;
-  (*pRsp)->completed = 1;
-  (*pRsp)->precision = 0;
-  (*pRsp)->compressed = 0;
-  (*pRsp)->compLen = 0;
-  (*pRsp)->numOfRows = htonl(1);
-  (*pRsp)->numOfCols = htonl(SHOW_CREATE_DB_RESULT_COLS);
-
-  int32_t len = 0;
-  blockEncode(pBlock, (*pRsp)->data, &len, SHOW_CREATE_DB_RESULT_COLS, false);
-  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
-
-  blockDataDestroy(pBlock);
-  return TSDB_CODE_SUCCESS;
+  return buildRetrieveTableRsp(pBlock, SHOW_CREATE_DB_RESULT_COLS, pRsp);
 }
 
 static SSDataBlock* buildCreateTbResultDataBlock() {
@@ -481,27 +466,7 @@ static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRs
   if (code) {
     return code;
   }
-
-  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
-  *pRsp = taosMemoryCalloc(1, rspSize);
-  if (NULL == *pRsp) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  (*pRsp)->useconds = 0;
-  (*pRsp)->completed = 1;
-  (*pRsp)->precision = 0;
-  (*pRsp)->compressed = 0;
-  (*pRsp)->compLen = 0;
-  (*pRsp)->numOfRows = htonl(1);
-  (*pRsp)->numOfCols = htonl(SHOW_CREATE_TB_RESULT_COLS);
-
-  int32_t len = 0;
-  blockEncode(pBlock, (*pRsp)->data, &len, SHOW_CREATE_TB_RESULT_COLS, false);
-  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
-
-  blockDataDestroy(pBlock);
-  return TSDB_CODE_SUCCESS;
+  return buildRetrieveTableRsp(pBlock, SHOW_CREATE_TB_RESULT_COLS, pRsp);
 }
 
 static int32_t execShowCreateSTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp) {
@@ -579,27 +544,57 @@ static int32_t execShowLocalVariables(SRetrieveTableRsp** pRsp) {
   if (code) {
     return code;
   }
+  return buildRetrieveTableRsp(pBlock, SHOW_LOCAL_VARIABLES_RESULT_COLS, pRsp);
+}
 
-  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
-  *pRsp = taosMemoryCalloc(1, rspSize);
-  if (NULL == *pRsp) {
+static int32_t createSelectResultDataBlock(SNodeList* pProjects, SSDataBlock** pOutput) {
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (NULL == pBlock) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  (*pRsp)->useconds = 0;
-  (*pRsp)->completed = 1;
-  (*pRsp)->precision = 0;
-  (*pRsp)->compressed = 0;
-  (*pRsp)->compLen = 0;
-  (*pRsp)->numOfRows = htonl(pBlock->info.rows);
-  (*pRsp)->numOfCols = htonl(SHOW_LOCAL_VARIABLES_RESULT_COLS);
+  pBlock->pDataBlock = taosArrayInit(LIST_LENGTH(pProjects), sizeof(SColumnInfoData));
 
-  int32_t len = 0;
-  blockEncode(pBlock, (*pRsp)->data, &len, SHOW_LOCAL_VARIABLES_RESULT_COLS, false);
-  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
-
-  blockDataDestroy(pBlock);
+  SNode* pProj = NULL;
+  FOREACH(pProj, pProjects) {
+    SColumnInfoData infoData = {0};
+    infoData.info.type = ((SExprNode*)pProj)->resType.type;
+    infoData.info.bytes = ((SExprNode*)pProj)->resType.bytes;
+    taosArrayPush(pBlock->pDataBlock, &infoData);
+  }
+  *pOutput = pBlock;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t buildSelectResultDataBlock(SNodeList* pProjects, SSDataBlock* pBlock) {
+  int32_t numOfCols = LIST_LENGTH(pProjects);
+  blockDataEnsureCapacity(pBlock, 1);
+
+  int32_t index = 0;
+  SNode*  pProj = NULL;
+  FOREACH(pProj, pProjects) {
+    if (((SValueNode*)pProj)->isNull) {
+      colDataAppend(taosArrayGet(pBlock->pDataBlock, index++), 0, NULL, true);
+    } else {
+      colDataAppend(taosArrayGet(pBlock->pDataBlock, index++), 0, nodesGetValueFromNode((SValueNode*)pProj), false);
+    }
+  }
+
+  pBlock->info.rows = 1;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t execSelectWithoutFrom(SSelectStmt* pSelect, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = createSelectResultDataBlock(pSelect->pProjectionList, &pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildSelectResultDataBlock(pSelect->pProjectionList, pBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, LIST_LENGTH(pSelect->pProjectionList), pRsp);
+  }
+  return code;
 }
 
 int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp) {
@@ -618,6 +613,8 @@ int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp) {
       return execAlterLocal((SAlterLocalStmt*)pStmt);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
       return execShowLocalVariables(pRsp);
+    case QUERY_NODE_SELECT_STMT:
+      return execSelectWithoutFrom((SSelectStmt*)pStmt, pRsp);
     default:
       break;
   }

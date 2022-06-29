@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <executorimpl.h>
 #include <vnode.h>
 #include "filter.h"
 #include "function.h"
@@ -413,6 +414,11 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     pTableScanInfo->readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
     pOperator->cost.totalCost = pTableScanInfo->readRecorder.elapsedTime;
+
+    // todo refactor
+    pTableScanInfo->scanStatus.uid = pBlock->info.uid;
+    pTableScanInfo->scanStatus.t = pBlock->info.window.ekey;
+
     return pBlock;
   }
   return NULL;
@@ -459,7 +465,7 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
   int32_t total = pTableScanInfo->scanInfo.numOfAsc + pTableScanInfo->scanInfo.numOfDesc;
   if (pTableScanInfo->scanTimes < total) {
     if (pTableScanInfo->cond.order == TSDB_ORDER_ASC) {
-      prepareForDescendingScan(pTableScanInfo, pTableScanInfo->pCtx, pTableScanInfo->numOfOutput);
+      prepareForDescendingScan(pTableScanInfo, pTableScanInfo->pCtx, 0);
       tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
       pTableScanInfo->curTWinIdx = 0;
     }
@@ -996,7 +1002,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       SSDataBlock* pSDB = doDataScan(pInfo, pInfo->pPullDataRes, 0, &pInfo->pullDataResIndex);
       if (pSDB != NULL) {
         getUpdateDataBlock(pInfo, true, pSDB, NULL);
-        pSDB->info.type = STREAM_PUSH_DATA;
+        pSDB->info.type = STREAM_PULL_DATA;
         return pSDB;
       }
       pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER;

@@ -363,8 +363,9 @@ char *snapshotSender2SimpleStr(SSyncSnapshotSender *pSender, char *event) {
   uint16_t port;
   syncUtilU642Addr(destId.addr, host, sizeof(host), &port);
 
-  snprintf(s, len, "%s %p laindex:%ld laterm:%lu lcindex:%ld seq:%d ack:%d finish:%d pterm:%lu replica-index:%d %s:%d",
-           event, pSender, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
+  snprintf(s, len,
+           "%s {%p laindex:%ld laterm:%lu lcindex:%ld seq:%d ack:%d finish:%d pterm:%lu replica-index:%d %s:%d}", event,
+           pSender, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
            pSender->snapshot.lastConfigIndex, pSender->seq, pSender->ack, pSender->finish, pSender->privateTerm,
            pSender->replicaIndex, host, port);
 
@@ -507,31 +508,50 @@ void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
   } while (0);
 }
 
-static void snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg) {
+static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg) {
   ASSERT(pMsg->seq == SYNC_SNAPSHOT_SEQ_END);
 
+  int32_t code = 0;
   if (pReceiver->pWriter != NULL) {
-    int32_t code = 0;
+    // write data
     if (pMsg->dataLen > 0) {
       code = pReceiver->pSyncNode->pFsm->FpSnapshotDoWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, pMsg->data,
                                                            pMsg->dataLen);
-      ASSERT(code == 0);
+      if (code != 0) {
+        syncNodeErrorLog(pReceiver->pSyncNode, "snapshot write error");
+        return -1;
+      }
     }
 
+    // reset wal
+    code =
+        pReceiver->pSyncNode->pLogStore->syncLogRestoreFromSnapshot(pReceiver->pSyncNode->pLogStore, pMsg->lastIndex);
+    if (code != 0) {
+      syncNodeErrorLog(pReceiver->pSyncNode, "wal restore from snapshot error");
+      return -1;
+    }
+
+    // update commit index
+    if (pReceiver->snapshot.lastApplyIndex > pReceiver->pSyncNode->commitIndex) {
+      pReceiver->pSyncNode->commitIndex = pReceiver->snapshot.lastApplyIndex;
+    }
+
+    // stop writer
     code = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, true);
-    ASSERT(code == 0);
+    if (code != 0) {
+      syncNodeErrorLog(pReceiver->pSyncNode, "snapshot stop writer true error");
+      ASSERT(0);
+      return -1;
+    }
     pReceiver->pWriter = NULL;
+
+    // update progress
+    pReceiver->ack = SYNC_SNAPSHOT_SEQ_END;
+
+  } else {
+    syncNodeErrorLog(pReceiver->pSyncNode, "snapshot stop writer true error");
+    return -1;
   }
-
-  pReceiver->ack = SYNC_SNAPSHOT_SEQ_END;
-
-  // update commit index
-  if (pReceiver->snapshot.lastApplyIndex > pReceiver->pSyncNode->commitIndex) {
-    pReceiver->pSyncNode->commitIndex = pReceiver->snapshot.lastApplyIndex;
-  }
-
-  // reset wal
-  pReceiver->pSyncNode->pLogStore->syncLogRestoreFromSnapshot(pReceiver->pSyncNode->pLogStore, pMsg->lastIndex);
 
   // event log
   do {
@@ -541,6 +561,8 @@ static void snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnapsho
     syncNodeEventLog(pReceiver->pSyncNode, eventLog);
     taosMemoryFree(eventLog);
   } while (0);
+
+  return 0;
 }
 
 static void snapshotReceiverGotData(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg) {
@@ -629,7 +651,7 @@ char *snapshotReceiver2SimpleStr(SSyncSnapshotReceiver *pReceiver, char *event) 
   uint16_t port;
   syncUtilU642Addr(fromId.addr, host, sizeof(host), &port);
 
-  snprintf(s, len, "%s %p start:%d ack:%d term:%lu pterm:%lu from:%s:%d laindex:%ld laterm:%lu lcindex:%ld", event,
+  snprintf(s, len, "%s {%p start:%d ack:%d term:%lu pterm:%lu from:%s:%d laindex:%ld laterm:%lu lcindex:%ld}", event,
            pReceiver, pReceiver->start, pReceiver->ack, pReceiver->term, pReceiver->privateTerm, host, port,
            pReceiver->snapshot.lastApplyIndex, pReceiver->snapshot.lastApplyTerm, pReceiver->snapshot.lastConfigIndex);
 
@@ -641,6 +663,7 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
   // get receiver
   SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
   bool                   needRsp = false;
+  int32_t                code = 0;
 
   // state, term, seq/ack
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
@@ -652,8 +675,10 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
 
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_END) {
         // end, finish FSM
-        snapshotReceiverFinish(pReceiver, pMsg);
-        snapshotReceiverStop(pReceiver);
+        code = snapshotReceiverFinish(pReceiver, pMsg);
+        if (code == 0) {
+          snapshotReceiverStop(pReceiver);
+        }
         needRsp = true;
 
         // maybe update lastconfig
@@ -682,7 +707,16 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         needRsp = true;
 
       } else {
-        ASSERT(0);
+        // error log
+        do {
+          char logBuf[96];
+          snprintf(logBuf, sizeof(logBuf), "snapshot receiver recv error seq:%d, my ack:%d", pMsg->seq, pReceiver->ack);
+          char *eventLog = snapshotReceiver2SimpleStr(pReceiver, logBuf);
+          syncNodeErrorLog(pSyncNode, eventLog);
+          taosMemoryFree(eventLog);
+        } while (0);
+
+        return -1;
       }
 
       // send ack
@@ -762,9 +796,10 @@ int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
         snapshotReSend(pSender);
 
       } else {
+        // error log
         do {
-          char logBuf[64];
-          snprintf(logBuf, sizeof(logBuf), "error ack, recv ack:%d, my seq:%d", pMsg->ack, pSender->seq);
+          char logBuf[96];
+          snprintf(logBuf, sizeof(logBuf), "snapshot sender recv error ack:%d, my seq:%d", pMsg->ack, pSender->seq);
           char *eventLog = snapshotSender2SimpleStr(pSender, logBuf);
           syncNodeErrorLog(pSyncNode, eventLog);
           taosMemoryFree(eventLog);

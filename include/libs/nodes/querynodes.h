@@ -50,6 +50,7 @@ typedef struct SExprNode {
   char      aliasName[TSDB_COL_NAME_LEN];
   char      userAlias[TSDB_COL_NAME_LEN];
   SArray*   pAssociation;
+  bool      orderAlias;
 } SExprNode;
 
 typedef enum EColumnType { COLUMN_TYPE_COLUMN = 1, COLUMN_TYPE_TAG, COLUMN_TYPE_TBNAME } EColumnType;
@@ -88,6 +89,7 @@ typedef struct SValueNode {
   bool      isDuration;
   bool      translate;
   bool      notReserved;
+  bool      isNull;
   int16_t   placeholderNo;
   union {
     bool     b;

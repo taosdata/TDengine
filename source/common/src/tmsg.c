@@ -621,8 +621,8 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
     if (NULL == pReq->pFuncs) return -1;
   }
   for (int32_t i = 0; i < numOfFuncs; ++i) {
-    char *pFunc = NULL;
-    if (tDecodeCStrAlloc(&decoder, &pFunc) < 0) return -1;
+    char pFunc[TSDB_FUNC_NAME_LEN] = {0};
+    if (tDecodeCStrTo(&decoder, pFunc) < 0) return -1;
     if (taosArrayPush(pReq->pFuncs, pFunc) == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;

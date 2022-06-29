@@ -348,7 +348,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
         SSubmitReq* pCont = (SSubmitReq*)&pHead->body;
 
         if (tqLogScanExec(pTq, &pHandle->execHandle, pCont, &dataRsp, workerId) < 0) {
-          ASSERT(0);
+          /*ASSERT(0);*/
         }
         // TODO batch optimization:
         // TODO continue scan until meeting batch requirement
@@ -358,11 +358,10 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
           if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
             code = -1;
           }
-
+          goto OVER;
         } else {
           fetchVer++;
         }
-        goto OVER;
 
       } else {
         ASSERT(pHandle->fetchMeta);

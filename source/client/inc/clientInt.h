@@ -65,7 +65,7 @@ enum {
 typedef struct SAppInstInfo SAppInstInfo;
 
 typedef struct {
-  char* key;
+  char*   key;
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
@@ -117,6 +117,7 @@ struct SAppInstInfo {
   uint64_t           clusterId;
   void*              pTransporter;
   SAppHbMgr*         pAppHbMgr;
+  char*              instKey;
 };
 
 typedef struct SAppInfo {
@@ -138,7 +139,7 @@ typedef struct STscObj {
   int8_t        connType;
   int32_t       acctId;
   uint32_t      connId;
-  TAOS*         id;         // ref ID returned by taosAddRef
+  int64_t       id;         // ref ID returned by taosAddRef
   TdThreadMutex mutex;      // used to protect the operation on db
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo* pAppInfo;
@@ -182,7 +183,7 @@ typedef struct SRequestSendRecvBody {
   void*              param;
   SDataBuf           requestMsg;
   int64_t            queryJob;  // query job, created according to sql query DAG.
-  struct SQueryPlan* pDag;      // the query dag, generated according to the sql statement.
+  int32_t            subplanNum;
   SReqResultInfo     resInfo;
 } SRequestSendRecvBody;
 
@@ -299,6 +300,8 @@ void*        createRequest(STscObj* pObj, int32_t type);
 void         destroyRequest(SRequestObj* pRequest);
 SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);
+int32_t      removeRequest(int64_t rid);
+void         doDestroyRequest(void *p);
 
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
@@ -333,6 +336,8 @@ int  hbHandleRsp(SClientHbBatchRsp* hbRsp);
 // cluster level
 SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char* key);
 void       appHbMgrCleanup(void);
+void       hbRemoveAppHbMrg(SAppHbMgr **pAppHbMgr);
+void       closeAllRequests(SHashObj *pRequests);
 
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);

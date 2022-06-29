@@ -1663,8 +1663,8 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
   int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
   int32_t rows = pDataBlock->info.rows;
   int32_t len = 0;
-  len += snprintf(dumpBuf + len, size - len, "\n%s |block type %d |child id %d|\n", flag,
-                  (int32_t)pDataBlock->info.type, pDataBlock->info.childId);
+  len += snprintf(dumpBuf + len, size - len, "\n%s |block type %d |child id %d|group id %lu|\n", flag,
+                  (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.groupId);
   for (int32_t j = 0; j < rows; j++) {
     len += snprintf(dumpBuf + len, size - len, "%s |", flag);
     for (int32_t k = 0; k < colNum; k++) {

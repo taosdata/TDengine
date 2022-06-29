@@ -106,7 +106,9 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
 
   STscObj *pObj = taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY);
   if (pObj) {
-    return pObj->id;
+    int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
+    *rid = pObj->id;
+    return (TAOS*)rid;
   }
 
   return NULL;
@@ -118,9 +120,9 @@ void taos_close_internal(void *taos) {
   }
 
   STscObj *pTscObj = (STscObj *)taos;
-  tscDebug("0x%" PRIx64 " try to close connection, numOfReq:%d", *(int64_t *)pTscObj->id, pTscObj->numOfReqs);
+  tscDebug("0x%" PRIx64 " try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
 
-  taosRemoveRef(clientConnRefPool, *(int64_t *)pTscObj->id);
+  taosRemoveRef(clientConnRefPool, pTscObj->id);
 }
 
 void taos_close(TAOS *taos) {
@@ -188,6 +190,17 @@ void taos_free_result(TAOS_RES *res) {
     taosMemoryFree(pRspObj->metaRsp.metaRsp);
     taosMemoryFree(pRspObj);
   }
+}
+
+void taos_kill_query(TAOS *taos) {
+  if (NULL == taos) {
+    return;
+  }
+  int64_t rid = *(int64_t*)taos;
+  
+  STscObj* pTscObj = acquireTscObj(rid);
+  closeAllRequests(pTscObj->pRequests);
+  releaseTscObj(rid);
 }
 
 int taos_field_count(TAOS_RES *res) {
@@ -725,6 +738,8 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
       .schemalessType = pTscObj->schemalessType,
       .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
       .async = true,
+      .svrVer = pTscObj->sVer,
+      .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes)
   };
   return TSDB_CODE_SUCCESS;
 }
@@ -891,6 +906,12 @@ void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress) {
 }
 
 int taos_load_table_info(TAOS *taos, const char *tableNameList) {
+  if (NULL == taos) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return terrno;
+  }
+
+  int64_t rid = *(int64_t*)taos;
   const int32_t MAX_TABLE_NAME_LENGTH = 12 * 1024 * 1024;  // 12MB list
   int32_t       code = 0;
   SRequestObj  *pRequest = NULL;
@@ -908,7 +929,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
+  STscObj *pTscObj = acquireTscObj(rid);
   if (pTscObj == NULL) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return terrno;
@@ -953,7 +974,7 @@ _return:
   taosArrayDestroy(catalogReq.pTableMeta);
   destroyRequest(pRequest);
 
-  releaseTscObj(*(int64_t *)taos);
+  releaseTscObj(rid);
 
   return code;
 }

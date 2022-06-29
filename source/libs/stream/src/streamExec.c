@@ -49,7 +49,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
         SStreamDataBlock* pRetrieveBlock = (SStreamDataBlock*)data;
         ASSERT(taosArrayGetSize(pRetrieveBlock->blocks) == 1);
         assignOneDataBlock(&block, taosArrayGet(pRetrieveBlock->blocks, 0));
-        block.info.type = STREAM_PUSH_OVER;
+        block.info.type = STREAM_PULL_OVER;
         block.info.childId = pTask->selfChildId;
         taosArrayPush(pRes, &block);
       }
