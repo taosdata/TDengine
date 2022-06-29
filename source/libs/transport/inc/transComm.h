@@ -148,6 +148,7 @@ typedef struct {
   char release : 2;
   char secured : 2;
   char spi : 2;
+  char hasEpSet : 2;  // contain epset or not, 0(default): no epset, 1: contain epset
 
   char     user[TSDB_UNI_LEN];
   STraceId traceId;
@@ -377,13 +378,10 @@ typedef struct SDelayQueue {
   uv_loop_t*  loop;
 } SDelayQueue;
 
-int transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
-
+int  transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
 void transDQDestroy(SDelayQueue* queue);
+int  transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 
-int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
-
-// void transPrintEpSet(SEpSet* pEpSet);
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
 /*
  * init global func

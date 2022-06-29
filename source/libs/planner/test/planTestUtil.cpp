@@ -310,6 +310,7 @@ class PlannerTestBaseImpl {
     cxt.sqlLen = stmtEnv_.sql_.length();
     cxt.pMsg = stmtEnv_.msgBuf_.data();
     cxt.msgLen = stmtEnv_.msgBuf_.max_size();
+    cxt.svrVer = "3.0.0.0";
 
     DO_WITH_THROW(qParseSql, &cxt, pQuery);
     if (prepare) {

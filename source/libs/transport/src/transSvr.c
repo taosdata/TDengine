@@ -140,6 +140,7 @@ static void uvHandleRegister(SSvrMsg* msg, SWorkThrd* thrd);
 static void (*transAsyncHandle[])(SSvrMsg* msg, SWorkThrd* thrd) = {uvHandleResp, uvHandleQuit, uvHandleRelease,
                                                                     uvHandleRegister, NULL};
 
+
 static void uvDestroyConn(uv_handle_t* handle);
 
 // server and worker thread
@@ -337,7 +338,7 @@ void uvOnSendCb(uv_write_t* req, int status) {
     if (!transQueueEmpty(&conn->srvMsgs)) {
       SSvrMsg* msg = transQueuePop(&conn->srvMsgs);
       destroySmsg(msg);
-      // send second data, just use for push
+      // send cached data
       if (!transQueueEmpty(&conn->srvMsgs)) {
         msg = (SSvrMsg*)transQueueGet(&conn->srvMsgs, 0);
         if (msg->type == Register && conn->status == ConnAcquire) {
@@ -375,7 +376,6 @@ static void uvOnPipeWriteCb(uv_write_t* req, int status) {
     tError("fail to dispatch conn to work thread");
   }
   uv_close((uv_handle_t*)req->data, uvFreeCb);
-  // taosMemoryFree(req->data);
   taosMemoryFree(req);
 }
 
@@ -389,6 +389,7 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
   pHead->ahandle = (uint64_t)pMsg->info.ahandle;
   pHead->traceId = pMsg->info.traceId;
+  pHead->hasEpSet = pMsg->info.hasEpSet;
 
   if (pConn->status == ConnNormal) {
     pHead->msgType = pConn->inType + 1;
@@ -401,6 +402,7 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
       transUnrefSrvHandle(pConn);
     } else {
       pHead->msgType = pMsg->msgType;
+      // set up resp msg type
       if (pHead->msgType == 0 && transMsgLenFromCont(pMsg->contLen) == sizeof(STransMsgHead))
         pHead->msgType = pConn->inType + 1;
     }
