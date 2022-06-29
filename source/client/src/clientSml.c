@@ -2453,7 +2453,6 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   pTscObj->schemalessType = 1;
   SSmlMsgBuf msg = {ERROR_MSG_BUF_DEFAULT_SIZE, request->msgBuf};
 
-  int    cnt = ceil(((double)numLines) / LINE_BATCH);
   Params params;
   params.request = request;
   tsem_init(&params.sem, 0, 0);
@@ -2490,6 +2489,15 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
     goto end;
   }
 
+  if(protocol == TSDB_SML_JSON_PROTOCOL){
+    numLines = 1;
+  }else if(numLines <= 0){
+    request->code = TSDB_CODE_SML_INVALID_DATA;
+    smlBuildInvalidDataMsg(&msg, "line num is invalid", NULL);
+    goto end;
+  }
+
+  int    cnt = ceil(((double)numLines) / LINE_BATCH);
   for (int i = 0; i < cnt; ++i) {
     SRequestObj* req = (SRequestObj*)createRequest(pTscObj, TSDB_SQL_INSERT);
     if(!req){
