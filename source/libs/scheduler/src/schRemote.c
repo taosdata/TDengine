@@ -448,6 +448,10 @@ int32_t schHandleDropCallback(void *param, const SDataBuf *pMsg, int32_t code) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t schHandleCommitCallback(void *param, const SDataBuf *pMsg, int32_t code) {
+  return schHandleCallback(param, pMsg, TDMT_VND_COMMIT_RSP, code);
+}
+
 int32_t schHandleLinkBrokenCallback(void *param, const SDataBuf *pMsg, int32_t code) {
   SSchCallbackParamHeader *head = (SSchCallbackParamHeader *)param;
   rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT);
@@ -585,6 +589,9 @@ int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
       break;
     case TDMT_VND_QUERY_HEARTBEAT:
       *fp = schHandleHbCallback;
+      break;
+    case TDMT_VND_COMMIT:
+      *fp = schHandleCommitCallback;
       break;
     case TDMT_SCH_LINK_BROKEN:
       *fp = schHandleLinkBrokenCallback;
@@ -1000,7 +1007,8 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_VND_CREATE_TABLE:
     case TDMT_VND_DROP_TABLE:
     case TDMT_VND_ALTER_TABLE:
-    case TDMT_VND_SUBMIT: {
+    case TDMT_VND_SUBMIT:
+    case TDMT_VND_COMMIT: {
       msgSize = pTask->msgLen;
       msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {
