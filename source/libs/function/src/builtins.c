@@ -1379,6 +1379,20 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
   return true;
 }
 
+void static addDbPrecisonParam(SNodeList* pList, uint8_t precision) {
+  SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  pVal->literal = NULL;
+  pVal->isDuration = false;
+  pVal->translate = true;
+  pVal->node.resType.type = TSDB_DATA_TYPE_TINYINT;
+  pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TINYINT].bytes;
+  pVal->node.resType.precision = precision;
+  pVal->datum.i = (int64_t)precision;
+  pVal->typeData = (int64_t)precision;
+
+  nodesListAppend(pList, (SNode*)pVal);
+}
+
 void static addTimezoneParam(SNodeList* pList) {
   char       buf[6] = {0};
   time_t     t = taosTime(NULL);
@@ -1462,6 +1476,10 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
+  //add database precision as param
+  uint8_t dbPrec = pFunc->node.resType.precision;
+  addDbPrecisonParam(pFunc->pParameterList, dbPrec);
+
   pFunc->node.resType =
       (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP};
   return TSDB_CODE_SUCCESS;
@@ -1485,6 +1503,10 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
+
+  //add database precision as param
+  uint8_t dbPrec = pFunc->node.resType.precision;
+  addDbPrecisonParam(pFunc->pParameterList, dbPrec);
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
@@ -1536,6 +1558,36 @@ static int32_t translateGroupKey(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 
   SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
   pFunc->node.resType = ((SExprNode*)pPara)->resType;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateDatabaseFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = TSDB_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateClientVersionFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = TSDB_VERSION_LEN, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateServerVersionFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = TSDB_VERSION_LEN, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateServerStatusFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes, .type = TSDB_DATA_TYPE_INT};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateCurrentUserFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = TSDB_USER_LEN, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateUserFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = TSDB_USER_LEN, .type = TSDB_DATA_TYPE_VARCHAR};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1904,7 +1956,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_first_partial",
     .type = FUNCTION_TYPE_FIRST_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateFirstLastPartial,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -1915,7 +1967,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_first_merge",
     .type = FUNCTION_TYPE_FIRST_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateFirstLastMerge,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -1939,7 +1991,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_last_partial",
     .type = FUNCTION_TYPE_LAST_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateFirstLastPartial,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -1950,7 +2002,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_last_merge",
     .type = FUNCTION_TYPE_LAST_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateFirstLastMerge,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -2545,6 +2597,42 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = groupKeyFinalize,
     .pPartialFunc = "_group_key",
     .pMergeFunc   = "_group_key"
+  },
+  {
+    .name = "database",
+    .type = FUNCTION_TYPE_DATABASE,
+    .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateDatabaseFunc,
+  },
+  {
+    .name = "client_version",
+    .type = FUNCTION_TYPE_CLIENT_VERSION,
+    .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateClientVersionFunc,
+  },
+  {
+    .name = "server_version",
+    .type = FUNCTION_TYPE_SERVER_VERSION,
+    .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateServerVersionFunc,
+  },
+  {
+    .name = "server_status",
+    .type = FUNCTION_TYPE_SERVER_STATUS,
+    .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateServerStatusFunc,
+  },
+  {
+    .name = "current_user",
+    .type = FUNCTION_TYPE_CURRENT_USER,
+    .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateCurrentUserFunc,
+  },
+  {
+    .name = "user",
+    .type = FUNCTION_TYPE_USER,
+    .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateUserFunc,
   },
 };
 // clang-format on

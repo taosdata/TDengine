@@ -199,7 +199,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, "true")
         # test select json tag->'key', value is null
         tdSql.query("select jtag->'tag1' from jsons1_4")
-        tdSql.checkData(0, 0, "null")
+        tdSql.checkData(0, 0, None)
         # test select json tag->'key', value is double
         tdSql.query("select jtag->'tag1' from jsons1_5")
         tdSql.checkData(0, 0, "1.232000000")
@@ -562,7 +562,7 @@ class TDTestCase:
         tdSql.checkRows(3)
         tdSql.query("select round(dataint) from jsons1 where jtag->'tag1'>1")
         tdSql.checkRows(3)
-        
+
         #math function
         tdSql.query("select sin(dataint) from jsons1 where jtag->'tag1'>1;")
         tdSql.checkRows(3)
@@ -606,7 +606,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.query("select twa(dataint) from jsons1 where jtag->'tag1'>1;")
         tdSql.checkRows(1)
-        
+
         # function not ready
         # tdSql.query("select tail(dataint,1) from jsons1 where jtag->'tag1'>1;")
         # tdSql.checkRows(3)
@@ -616,7 +616,7 @@ class TDTestCase:
         # tdSql.checkRows(3)
         # tdSql.query("select irate(dataint) from jsons1 where jtag->'tag1'>1;")
         # tdSql.checkRows(1)
-        
+
         #str function
         tdSql.query("select upper(dataStr) from jsons1 where jtag->'tag1'>1;")
         tdSql.checkRows(3)
@@ -658,7 +658,7 @@ class TDTestCase:
         tdSql.checkRows(3)
         tdSql.query("select ELAPSED(ts,1h) from jsons1 where jtag->'tag1'>1;")
         tdSql.checkRows(1)
-        
+
         #
         # #test TD-12077
         tdSql.execute("insert into jsons1_16 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":-2.111}') values(1591062628000, 2, NULL, '你就会', 'dws')")

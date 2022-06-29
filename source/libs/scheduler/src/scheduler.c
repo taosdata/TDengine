@@ -67,33 +67,53 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJob, SQueryResult *pRes) {
+int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId, SQueryResult *pRes) {
   qDebug("scheduler sync exec job start");
+
+  int32_t code = 0;  
+  SSchJob *pJob = NULL;
+  SCH_ERR_JRET(schInitJob(pReq, &pJob));
+
+  *pJobId = pJob->refId;
   
-  if (NULL == pReq || NULL == pJob || NULL == pRes) {
-    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
-  }
-
-  SCH_RET(schExecJob(pReq, pJob, pRes));
-}
-
-int32_t schedulerAsyncExecJob(SSchedulerReq *pReq, int64_t *pJob) {
-  qDebug("scheduler async exec job start");
-
-  int32_t code = 0;
-  if (NULL == pReq || NULL == pJob) {
-    SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
-  }
-  
-  schAsyncExecJob(pReq, pJob);
+  SCH_ERR_JRET(schExecJobImpl(pReq, pJob, true));
 
 _return:
 
-  if (code != TSDB_CODE_SUCCESS) {
-    pReq->fp(NULL, pReq->cbParam, code);
+  if (code && NULL == pJob) {
+    qDestroyQueryPlan(pReq->pDag);
+  }
+  
+  if (pJob) {
+    schSetJobQueryRes(pJob, pRes);
+    schReleaseJob(pJob->refId);
   }
 
-  SCH_RET(code);
+  return code;
+}
+
+int32_t schedulerAsyncExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
+  qDebug("scheduler async exec job start");
+
+  int32_t code = 0;  
+  SSchJob *pJob = NULL;
+  SCH_ERR_JRET(schInitJob(pReq, &pJob));
+
+  *pJobId = pJob->refId;
+  
+  SCH_ERR_JRET(schExecJobImpl(pReq, pJob, false));
+
+_return:
+
+  if (code && NULL == pJob) {
+    qDestroyQueryPlan(pReq->pDag);
+  }
+  
+  if (pJob) {
+    schReleaseJob(pJob->refId);
+  }
+
+  return code;
 }
 
 int32_t schedulerFetchRows(int64_t job, void **pData) {
@@ -120,7 +140,7 @@ int32_t schedulerFetchRows(int64_t job, void **pData) {
   SCH_RET(code);
 }
 
-void schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* param) {
+void schedulerAsyncFetchRows(int64_t job, schedulerFetchFp fp, void* param) {
   qDebug("scheduler async fetch rows start");
 
   int32_t code = 0;

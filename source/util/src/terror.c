@@ -453,11 +453,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FS_NO_VALID_DISK,             "tfs no valid disk")
 TAOS_DEFINE_ERROR(TSDB_CODE_CTG_INTERNAL_ERROR,           "catalog internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_CTG_INVALID_INPUT,            "invalid catalog input parameters")
 TAOS_DEFINE_ERROR(TSDB_CODE_CTG_NOT_READY,                "catalog is not ready")
-TAOS_DEFINE_ERROR(TSDB_CODE_CTG_MEM_ERROR,                "catalog memory error")
+TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_MEMORY,                "catalog memory error")
 TAOS_DEFINE_ERROR(TSDB_CODE_CTG_SYS_ERROR,                "catalog system error")
 TAOS_DEFINE_ERROR(TSDB_CODE_CTG_DB_DROPPED,               "Database is dropped")
 TAOS_DEFINE_ERROR(TSDB_CODE_CTG_OUT_OF_SERVICE,           "catalog is out of service")
 TAOS_DEFINE_ERROR(TSDB_CODE_CTG_VG_META_MISMATCH,         "table meta and vgroup mismatch")
+TAOS_DEFINE_ERROR(TSDB_CODE_CTG_EXIT,                     "catalog exit")
 
 //scheduler
 TAOS_DEFINE_ERROR(TSDB_CODE_SCH_STATUS_ERROR,             "scheduler status error")

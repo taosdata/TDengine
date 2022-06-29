@@ -73,7 +73,7 @@ static int32_t vnodeSetStandBy(SVnode *pVnode) {
     vInfo("vgId:%d, set standby success", TD_VID(pVnode));
     return 0;
   } else {
-    vError("vgId:%d, failed to set standby since %s", TD_VID(pVnode), terrstr());
+    vError("vgId:%d, failed to set standby after leader transfer since %s", TD_VID(pVnode), terrstr());
     return -1;
   }
 }

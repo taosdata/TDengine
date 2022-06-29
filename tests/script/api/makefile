@@ -12,6 +12,7 @@ all: $(TARGET)
 
 exe:
 	gcc $(CFLAGS) ./batchprepare.c  -o $(ROOT)batchprepare  $(LFLAGS)
+	gcc $(CFLAGS) ./stopquery.c  -o $(ROOT)stopquery $(LFLAGS)
 
 clean:
 	rm $(ROOT)batchprepare

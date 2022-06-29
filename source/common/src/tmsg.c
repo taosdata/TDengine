@@ -621,8 +621,8 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
     if (NULL == pReq->pFuncs) return -1;
   }
   for (int32_t i = 0; i < numOfFuncs; ++i) {
-    char *pFunc = NULL;
-    if (tDecodeCStrAlloc(&decoder, &pFunc) < 0) return -1;
+    char pFunc[TSDB_FUNC_NAME_LEN] = {0};
+    if (tDecodeCStrTo(&decoder, pFunc) < 0) return -1;
     if (taosArrayPush(pReq->pFuncs, pFunc) == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -2300,7 +2300,6 @@ int32_t tDeserializeSServerVerRsp(void *buf, int32_t bufLen, SServerVerRsp *pRsp
   return 0;
 }
 
-
 int32_t tSerializeSQnodeListRsp(void *buf, int32_t bufLen, SQnodeListRsp *pRsp) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -2386,7 +2385,6 @@ int32_t tDeserializeSDnodeListRsp(void *buf, int32_t bufLen, SDnodeListRsp *pRsp
 }
 
 void tFreeSDnodeListRsp(SDnodeListRsp *pRsp) { taosArrayDestroy(pRsp->dnodeList); }
-
 
 int32_t tSerializeSCompactDbReq(void *buf, int32_t bufLen, SCompactDbReq *pReq) {
   SEncoder encoder = {0};
@@ -2909,20 +2907,19 @@ int32_t tDeserializeSShowVariablesReq(void *buf, int32_t bufLen, SShowVariablesR
   return 0;
 }
 
-int32_t tEncodeSVariablesInfo(SEncoder* pEncoder, SVariablesInfo* pInfo) {
+int32_t tEncodeSVariablesInfo(SEncoder *pEncoder, SVariablesInfo *pInfo) {
   if (tEncodeCStr(pEncoder, pInfo->name) < 0) return -1;
   if (tEncodeCStr(pEncoder, pInfo->value) < 0) return -1;
   return 0;
 }
 
-int32_t tDecodeSVariablesInfo(SDecoder* pDecoder, SVariablesInfo* pInfo) {
+int32_t tDecodeSVariablesInfo(SDecoder *pDecoder, SVariablesInfo *pInfo) {
   if (tDecodeCStrTo(pDecoder, pInfo->name) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pInfo->value) < 0) return -1;
   return 0;
 }
 
-
-int32_t tSerializeSShowVariablesRsp(void* buf, int32_t bufLen, SShowVariablesRsp* pRsp) {
+int32_t tSerializeSShowVariablesRsp(void *buf, int32_t bufLen, SShowVariablesRsp *pRsp) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
 
@@ -2930,7 +2927,7 @@ int32_t tSerializeSShowVariablesRsp(void* buf, int32_t bufLen, SShowVariablesRsp
   int32_t varNum = taosArrayGetSize(pRsp->variables);
   if (tEncodeI32(&encoder, varNum) < 0) return -1;
   for (int32_t i = 0; i < varNum; ++i) {
-    SVariablesInfo* pInfo = taosArrayGet(pRsp->variables, i);
+    SVariablesInfo *pInfo = taosArrayGet(pRsp->variables, i);
     if (tEncodeSVariablesInfo(&encoder, pInfo) < 0) return -1;
   }
   tEndEncode(&encoder);
@@ -2940,7 +2937,7 @@ int32_t tSerializeSShowVariablesRsp(void* buf, int32_t bufLen, SShowVariablesRsp
   return tlen;
 }
 
-int32_t tDeserializeSShowVariablesRsp(void* buf, int32_t bufLen, SShowVariablesRsp* pRsp) {
+int32_t tDeserializeSShowVariablesRsp(void *buf, int32_t bufLen, SShowVariablesRsp *pRsp) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
@@ -2962,11 +2959,11 @@ int32_t tDeserializeSShowVariablesRsp(void* buf, int32_t bufLen, SShowVariablesR
   return 0;
 }
 
-void tFreeSShowVariablesRsp(SShowVariablesRsp* pRsp) {
+void tFreeSShowVariablesRsp(SShowVariablesRsp *pRsp) {
   if (NULL == pRsp) {
     return;
   }
-  
+
   taosArrayDestroy(pRsp->variables);
 }
 

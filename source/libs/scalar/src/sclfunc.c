@@ -1192,10 +1192,10 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
 int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(&pInput[0]);
-  int32_t timePrec = GET_PARAM_PRECISON(&pInput[0]);
 
-  int64_t timeUnit, timeVal = 0;
+  int64_t timeUnit, timePrec, timeVal = 0;
   GET_TYPED_DATA(timeUnit, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
 
   int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
                    (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
@@ -1380,10 +1380,12 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
 }
 
 int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t timePrec = GET_PARAM_PRECISON(&pInput[0]);
-  int64_t timeUnit = -1, timeVal[2] = {0};
-  if (inputNum == 3) {
+  int64_t timeUnit = -1, timePrec, timeVal[2] = {0};
+  if (inputNum == 4) {
     GET_TYPED_DATA(timeUnit, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
+    GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[3]), pInput[3].columnData->pData);
+  } else {
+    GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
   }
 
   int32_t numOfRows = 0;
