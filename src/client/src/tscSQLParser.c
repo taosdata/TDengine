@@ -2685,7 +2685,8 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
   return TSDB_CODE_SUCCESS;
 }
 
-void setResultColName(char* name, tSqlExprItem* pItem, int32_t functionId, SStrToken* pToken, bool multiCols) {
+void setResultColName(char* name, bool finalResult, tSqlExprItem* pItem, int32_t functionId, SStrToken* pToken,
+                      bool multiCols) {
   if (pItem->aliasName != NULL) {
     tstrncpy(name, pItem->aliasName, TSDB_COL_NAME_LEN);
   } else {
@@ -2693,7 +2694,7 @@ void setResultColName(char* name, tSqlExprItem* pItem, int32_t functionId, SStrT
     int32_t len = MIN(pToken->n + 1, TSDB_COL_NAME_LEN);
     tstrncpy(uname, pToken->z, len);
 
-    if (tsKeepOriginalColumnName) { // keep the original column name
+    if (finalResult && tsKeepOriginalColumnName) {  // keep the original column name
       tstrncpy(name, uname, TSDB_COL_NAME_LEN);
     } else if (multiCols) {
       if (!TSDB_FUNC_IS_SCALAR(functionId)) {
@@ -2710,7 +2711,7 @@ void setResultColName(char* name, tSqlExprItem* pItem, int32_t functionId, SStrT
 
         tstrncpy(name, tmp, TSDB_COL_NAME_LEN);
       }
-    } else  { // use the user-input result column name
+    } else {  // use the user-input result column name
       len = MIN(pItem->pNode->exprToken.n + 1, TSDB_COL_NAME_LEN);
       tstrncpy(name, pItem->pNode->exprToken.z, len);
     }
@@ -3183,7 +3184,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             for (int32_t j = 0; j < tscGetNumOfColumns(pTableMetaInfo->pTableMeta); ++j) {
               index.columnIndex = j;
               SStrToken t = {.z = pSchema[j].name, .n = (uint32_t)strnlen(pSchema[j].name, TSDB_COL_NAME_LEN)};
-              setResultColName(name, pItem, cvtFunc.originFuncId, &t, true);
+              setResultColName(name, finalResult, pItem, cvtFunc.originFuncId, &t, true);
 
               if (setExprInfoForFunctions(pCmd, pQueryInfo, &pSchema[j], cvtFunc, name, colIndex++, &index, finalResult,
                                           pUdfInfo) != 0) {
@@ -3212,7 +3213,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
 
             bool multiColOutput = taosArrayGetSize(pItem->pNode->Expr.paramList) > 1;
-            setResultColName(name, pItem, cvtFunc.originFuncId, &pParamElem->pNode->columnName, multiColOutput);
+            setResultColName(name, finalResult, pItem, cvtFunc.originFuncId, &pParamElem->pNode->columnName,
+                             multiColOutput);
 
             if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, name, colIndex++, &index, finalResult,
                                         pUdfInfo) != 0) {
@@ -3238,7 +3240,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
             char      name[TSDB_COL_NAME_LEN] = {0};
             SStrToken t = {.z = pSchema[i].name, .n = (uint32_t)strnlen(pSchema[i].name, TSDB_COL_NAME_LEN)};
-            setResultColName(name, pItem, cvtFunc.originFuncId, &t, true);
+            setResultColName(name, finalResult, pItem, cvtFunc.originFuncId, &t, true);
 
             if (setExprInfoForFunctions(pCmd, pQueryInfo, &pSchema[index.columnIndex], cvtFunc, name, colIndex, &index,
                                         finalResult, pUdfInfo) != 0) {
@@ -10950,17 +10952,7 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       *pExpr = calloc(1, sizeof(tExprNode));
       (*pExpr)->nodeType = TSQL_NODE_COL;
       (*pExpr)->pSchema = calloc(1, sizeof(SSchema));
-      if (tsKeepOriginalColumnName &&   // TD-14196, tsKeepOriginalColumnName params makes logic special
-          (pSqlExpr->functionId == TSDB_FUNC_FIRST ||
-           pSqlExpr->functionId == TSDB_FUNC_LAST ||
-           pSqlExpr->functionId == TSDB_FUNC_SPREAD ||
-           pSqlExpr->functionId == TSDB_FUNC_LAST_ROW ||
-           pSqlExpr->functionId == TSDB_FUNC_INTERP)) {
-        tSqlExprItem* pParamElem = taosArrayGet(pSqlExpr->Expr.paramList, 0);
-        strncpy((*pExpr)->pSchema->name, pParamElem->pNode->columnName.z, pParamElem->pNode->columnName.n);
-      }else{
-        strncpy((*pExpr)->pSchema->name, pSqlExpr->exprToken.z, pSqlExpr->exprToken.n);
-      }
+      strncpy((*pExpr)->pSchema->name, pSqlExpr->exprToken.z, pSqlExpr->exprToken.n);
 
       // set the input column data byte and type.
       size_t size = taosArrayGetSize(pQueryInfo->exprList);
