@@ -853,7 +853,7 @@ _end:
 static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader, SArray* pIndexList) {
   int32_t code = 0;
 
-  SMapData blockIdxMap;
+  SMapData blockIdxMap = {0};
   tMapDataReset(&blockIdxMap);
 
   code = tsdbReadBlockIdx(pFileReader, &blockIdxMap, NULL);
@@ -914,7 +914,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, uint32_
   for(int32_t i = 0; i < numOfTables; ++i) {
     SBlockIdx* pBlockIdx = taosArrayGet(pIndexList, i);
 
-    SMapData mapData;
+    SMapData mapData = {0};
     tMapDataReset(&mapData);
     tsdbReadBlock(pReader->pFileReader, pBlockIdx, &mapData, NULL);
 
