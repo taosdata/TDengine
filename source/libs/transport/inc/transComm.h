@@ -105,6 +105,13 @@ typedef SRpcCtxVal   STransCtxVal;
 typedef SRpcInfo     STrans;
 typedef SRpcConnInfo STransHandleInfo;
 
+// ref mgt
+// handle
+typedef struct SExHandle {
+  void*   handle;
+  int64_t refId;
+  void*   pThrd;
+} SExHandle;
 /*convet from fqdn to ip */
 typedef struct SCvtAddr {
   char ip[TSDB_FQDN_LEN];
@@ -113,14 +120,15 @@ typedef struct SCvtAddr {
 } SCvtAddr;
 
 typedef struct {
-  SEpSet  epSet;  // ip list provided by app
-  SEpSet  origEpSet;
-  void*   ahandle;   // handle provided by app
-  tmsg_t  msgType;   // message type
-  int8_t  connType;  // connection type cli/srv
-  int64_t rid;       // refId returned by taosAddRef
+  SEpSet epSet;  // ip list provided by app
+  SEpSet origEpSet;
+  void*  ahandle;   // handle provided by app
+  tmsg_t msgType;   // message type
+  int8_t connType;  // connection type cli/srv
 
-  int8_t     retryCount;
+  int8_t retryCnt;
+  int8_t retryLimit;
+  // bool       setMaxRetry;
   STransCtx  appCtx;  //
   STransMsg* pRsp;    // for synchronous API
   tsem_t*    pSem;    // for synchronous API
@@ -221,7 +229,7 @@ typedef struct {
 
 SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb);
 void        transDestroyAsyncPool(SAsyncPool* pool);
-int         transSendAsync(SAsyncPool* pool, queue* mq);
+int         transAsyncSend(SAsyncPool* pool, queue* mq);
 
 #define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc) \
   do {                                                        \
@@ -238,6 +246,32 @@ int         transSendAsync(SAsyncPool* pool, queue* mq);
         }                                                     \
       }                                                       \
     }                                                         \
+  } while (0)
+
+#define ASYNC_CHECK_HANDLE(exh1, id)                                                                               \
+  do {                                                                                                             \
+    if (id > 0) {                                                                                                  \
+      tTrace("handle step1");                                                                                      \
+      SExHandle* exh2 = transAcquireExHandle(refMgt, id);                                                          \
+      if (exh2 == NULL || id != exh2->refId) {                                                                     \
+        tTrace("handle %p except, may already freed, ignore msg, ref1: %" PRIu64 ", ref2 : %" PRIu64 "", exh1,     \
+               exh2 ? exh2->refId : 0, id);                                                                        \
+        goto _return1;                                                                                             \
+      }                                                                                                            \
+    } else if (id == 0) {                                                                                          \
+      tTrace("handle step2");                                                                                      \
+      SExHandle* exh2 = transAcquireExHandle(refMgt, id);                                                          \
+      if (exh2 == NULL || id == exh2->refId) {                                                                     \
+        tTrace("handle %p except, may already freed, ignore msg, ref1: %" PRIu64 ", ref2 : %" PRIu64 "", exh1, id, \
+               exh2 ? exh2->refId : 0);                                                                            \
+        goto _return1;                                                                                             \
+      } else {                                                                                                     \
+        id = exh1->refId;                                                                                          \
+      }                                                                                                            \
+    } else if (id < 0) {                                                                                           \
+      tTrace("handle step3");                                                                                      \
+      goto _return2;                                                                                               \
+    }                                                                                                              \
   } while (0)
 int  transInitBuffer(SConnBuffer* buf);
 int  transClearBuffer(SConnBuffer* buf);
@@ -349,20 +383,12 @@ void transDQDestroy(SDelayQueue* queue);
 
 int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 
-void transPrintEpSet(SEpSet* pEpSet);
+// void transPrintEpSet(SEpSet* pEpSet);
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
 /*
  * init global func
  */
 void transThreadOnce();
-
-// ref mgt
-// handle
-typedef struct SExHandle {
-  void*   handle;
-  int64_t refId;
-  void*   pThrd;
-} SExHandle;
 
 void       transInitEnv();
 int32_t    transOpenExHandleMgt(int size);

@@ -64,6 +64,7 @@ typedef struct STsdbSnapshotReader STsdbSnapshotReader;
 #define VNODE_TQ_DIR    "tq"
 #define VNODE_WAL_DIR   "wal"
 #define VNODE_TSMA_DIR  "tsma"
+#define VNODE_RSMA_DIR  "rsma"
 #define VNODE_RSMA0_DIR "tsdb"
 #define VNODE_RSMA1_DIR "rsma1"
 #define VNODE_RSMA2_DIR "rsma2"
@@ -76,6 +77,7 @@ void    vnodeFree(void* p);
 
 // meta
 typedef struct SMCtbCursor SMCtbCursor;
+typedef struct SMStbCursor SMStbCursor;
 typedef struct STbUidStore STbUidStore;
 
 int             metaOpen(SVnode* pVnode, SMeta** ppMeta);
@@ -97,6 +99,9 @@ int             metaGetTbNum(SMeta* pMeta);
 SMCtbCursor*    metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid);
 void            metaCloseCtbCursor(SMCtbCursor* pCtbCur);
 tb_uid_t        metaCtbCursorNext(SMCtbCursor* pCtbCur);
+SMStbCursor*    metaOpenStbCursor(SMeta* pMeta, tb_uid_t uid);
+void            metaCloseStbCursor(SMStbCursor* pStbCur);
+tb_uid_t        metaStbCursorNext(SMStbCursor* pStbCur);
 STSma*          metaGetSmaInfoByIndex(SMeta* pMeta, int64_t indexUid);
 STSmaWrapper*   metaGetSmaInfoByTable(SMeta* pMeta, tb_uid_t uid, bool deepCopy);
 SArray*         metaGetSmaIdsByTable(SMeta* pMeta, tb_uid_t uid);
@@ -157,7 +162,8 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool
 
 // sma
 int32_t smaOpen(SVnode* pVnode);
-int32_t smaClose(SSma* pSma);
+int32_t smaCloseEnv(SSma* pSma);
+int32_t smaCloseEx(SSma* pSma);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);

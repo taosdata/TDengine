@@ -337,7 +337,11 @@ int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen) {
 static bool isValidateTag(char* input) {
   if (!input) return false;
   for (size_t i = 0; i < strlen(input); ++i) {
+  #ifdef WINDOWS
+    if (input[i] < 0x20 || input[i] > 0x7E) return false;
+  #else
     if (isprint(input[i]) == 0) return false;
+  #endif
   }
   return true;
 }
@@ -377,6 +381,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, SMs
 
     char* jsonKey = item->string;
     if (!isValidateTag(jsonKey)) {
+      fprintf(stdout,"%s(%d) %s %08" PRId64 "\n", __FILE__, __LINE__,__func__,taosGetSelfPthreadId());fflush(stdout);
       retCode = buildSyntaxErrMsg(pMsgBuf, "json key not validate", jsonKey);
       goto end;
     }

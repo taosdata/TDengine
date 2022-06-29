@@ -257,6 +257,8 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
     return -1;
   }
 
+  taosThreadMutexLock(&(pData->mutex));
+
   code = walReadWithHandle(pWalHandle, index);
   if (code != 0) {
     int32_t     err = terrno;
@@ -281,6 +283,7 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
         terrno = saveErr;
     */
 
+    taosThreadMutexUnlock(&(pData->mutex));
     return code;
   }
 
@@ -301,6 +304,7 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
     terrno = saveErr;
   */
 
+  taosThreadMutexUnlock(&(pData->mutex));
   return code;
 }
 
@@ -364,6 +368,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   pData->pWal = pSyncNode->pWal;
   ASSERT(pData->pWal != NULL);
 
+  taosThreadMutexInit(&(pData->mutex), NULL);
   pData->pWalHandle = walOpenReadHandle(pData->pWal);
   ASSERT(pData->pWalHandle != NULL);
 
@@ -408,9 +413,14 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
 void logStoreDestory(SSyncLogStore* pLogStore) {
   if (pLogStore != NULL) {
     SSyncLogStoreData* pData = pLogStore->data;
+
+    taosThreadMutexLock(&(pData->mutex));
     if (pData->pWalHandle != NULL) {
       walCloseReadHandle(pData->pWalHandle);
+      pData->pWalHandle = NULL;
     }
+    taosThreadMutexUnlock(&(pData->mutex));
+    taosThreadMutexDestroy(&(pData->mutex));
 
     taosMemoryFree(pLogStore->data);
     taosMemoryFree(pLogStore);
@@ -460,6 +470,8 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
   SWal*              pWal = pData->pWal;
 
   if (index >= SYNC_INDEX_BEGIN && index <= logStoreLastIndex(pLogStore)) {
+    taosThreadMutexLock(&(pData->mutex));
+
     // SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
     SWalReadHandle* pWalHandle = pData->pWalHandle;
     ASSERT(pWalHandle != NULL);
@@ -503,6 +515,7 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
         terrno = saveErr;
     */
 
+    taosThreadMutexUnlock(&(pData->mutex));
     return pEntry;
 
   } else {

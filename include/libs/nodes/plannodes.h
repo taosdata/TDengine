@@ -24,6 +24,8 @@ extern "C" {
 #include "querynodes.h"
 #include "tname.h"
 
+#define SLOT_NAME_LEN TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN
+
 typedef struct SLogicNode {
   ENodeType          type;
   SNodeList*         pTargets;  // SColumnNode
@@ -74,8 +76,8 @@ typedef struct SScanLogicNode {
   int16_t       tsColId;
   double        filesFactor;
   SArray*       pSmaIndexes;
-  SNodeList*    pPartTags;
-  bool          partSort;
+  SNodeList*    pGroupTags;
+  bool          groupSort;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -100,6 +102,8 @@ typedef struct SProjectLogicNode {
 typedef struct SIndefRowsFuncLogicNode {
   SLogicNode node;
   SNodeList* pFuncs;
+  bool       isTailFunc;
+  bool       isUniqueFunc;
 } SIndefRowsFuncLogicNode;
 
 typedef struct SInterpFuncLogicNode {
@@ -138,6 +142,7 @@ typedef struct SMergeLogicNode {
   SNodeList* pInputs;
   int32_t    numOfChannels;
   int32_t    srcGroupId;
+  bool       groupSort;
 } SMergeLogicNode;
 
 typedef enum EWindowType { WINDOW_TYPE_INTERVAL = 1, WINDOW_TYPE_SESSION, WINDOW_TYPE_STATE } EWindowType;
@@ -184,6 +189,7 @@ typedef struct SFillLogicNode {
 typedef struct SSortLogicNode {
   SLogicNode node;
   SNodeList* pSortKeys;
+  bool       groupSort;
 } SSortLogicNode;
 
 typedef struct SPartitionLogicNode {
@@ -230,6 +236,7 @@ typedef struct SSlotDescNode {
   bool      reserve;
   bool      output;
   bool      tag;
+  char      name[SLOT_NAME_LEN];
 } SSlotDescNode;
 
 typedef struct SDataBlockDescNode {
@@ -279,7 +286,8 @@ typedef struct STableScanPhysiNode {
   double         ratio;
   int32_t        dataRequired;
   SNodeList*     pDynamicScanFuncs;
-  SNodeList*     pPartitionTags;
+  SNodeList*     pGroupTags;
+  bool           groupSort;
   int64_t        interval;
   int64_t        offset;
   int64_t        sliding;
@@ -353,6 +361,7 @@ typedef struct SMergePhysiNode {
   SNodeList* pTargets;
   int32_t    numOfChannels;
   int32_t    srcGroupId;
+  bool       groupSort;
 } SMergePhysiNode;
 
 typedef struct SWinodwPhysiNode {

@@ -946,7 +946,7 @@ int32_t taosGetFqdn(char *fqdn) {
 #endif  // __APPLE__
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
-    fprintf(stderr,"failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
+    fprintf(stderr, "failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
     return -1;
   }
 
@@ -1073,7 +1073,7 @@ int32_t taosCloseEpoll(TdEpollPtr *ppEpoll) {
  * Set TCP connection timeout per-socket level.
  * ref [https://github.com/libuv/help/issues/54]
  */
-int taosCreateSocketWithTimeOutOpt(uint32_t conn_timeout_sec) {
+int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
 #if defined(WINDOWS)
   SOCKET fd;
 #else
@@ -1083,11 +1083,11 @@ int taosCreateSocketWithTimeOutOpt(uint32_t conn_timeout_sec) {
     return -1;
   }
 #if defined(WINDOWS)
-  if (0 != setsockopt(fd, IPPROTO_TCP, TCP_MAXRT, (char *)&conn_timeout_sec, sizeof(conn_timeout_sec))) {
+  if (0 != setsockopt(fd, IPPROTO_TCP, TCP_MAXRT, (char *)&timeout, sizeof(timeout))) {
     return -1;
   }
 #else  // Linux like systems
-  uint32_t conn_timeout_ms = conn_timeout_sec * 1000;
+  uint32_t conn_timeout_ms = timeout * 1000;
   if (0 != setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
     return -1;
   }

@@ -202,7 +202,7 @@ void transDestroyAsyncPool(SAsyncPool* pool) {
   taosMemoryFree(pool->asyncs);
   taosMemoryFree(pool);
 }
-int transSendAsync(SAsyncPool* pool, queue* q) {
+int transAsyncSend(SAsyncPool* pool, queue* q) {
   int idx = pool->index;
   idx = idx % pool->nAsync;
   // no need mutex here
@@ -455,16 +455,16 @@ void transPrintEpSet(SEpSet* pEpSet) {
     return;
   }
   char buf[512] = {0};
-  int  len = snprintf(buf, sizeof(buf), "epset { ");
+  int  len = snprintf(buf, sizeof(buf), "epset:{");
   for (int i = 0; i < pEpSet->numOfEps; i++) {
     if (i == pEpSet->numOfEps - 1) {
-      len += snprintf(buf + len, sizeof(buf) - len, "%d. %s:%d ", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+      len += snprintf(buf + len, sizeof(buf) - len, "%d. %s:%d", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
     } else {
       len += snprintf(buf + len, sizeof(buf) - len, "%d. %s:%d, ", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
     }
   }
   len += snprintf(buf + len, sizeof(buf) - len, "}");
-  tTrace("%s, inUse: %d", buf, pEpSet->inUse);
+  tTrace("%s, inUse:%d", buf, pEpSet->inUse);
 }
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
   if (a->numOfEps != b->numOfEps || a->inUse != b->inUse) {

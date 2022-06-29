@@ -379,6 +379,11 @@ class TDCom:
         tdLog.info("cfgPath: %s" % cfgPath)
         return cfgPath
 
+    def newcon(self,host='localhost',port=6030,user='root',password='taosdata'):
+        con=taos.connect(host=host, user=user, password=password, port=port)
+        print(con)
+        return con
+
     def newcur(self,host='localhost',port=6030,user='root',password='taosdata'):
         cfgPath = self.getClientCfgPath()
         con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port)
@@ -637,5 +642,13 @@ class TDCom:
                 column_value_str = ", ".join(str(v) for v in column_value_list)
                 insert_sql = f'insert into {dbname}.{tbname} values ({column_value_str});'
                 tsql.execute(insert_sql)
-
+    def getOneRow(self, location, containElm):
+        res_list = list()
+        if 0 <= location < tdSql.queryRows:
+            for row in tdSql.queryResult:
+                if row[location] == containElm:
+                    res_list.append(row)
+            return res_list
+        else:
+            tdLog.exit(f"getOneRow out of range: row_index={location} row_count={self.query_row}")
 tdCom = TDCom()

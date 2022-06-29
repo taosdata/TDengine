@@ -11,12 +11,14 @@
 
 # -*- coding: utf-8 -*-
 
+import imp
 import sys
 import taos
 from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql
 import json
+import os
 
 
 class TDTestCase:
@@ -29,6 +31,9 @@ class TDTestCase:
         return
 
     def init(self, conn, logSql):
+        self.testcasePath = os.path.split(__file__)[0]
+        self.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
@@ -557,6 +562,103 @@ class TDTestCase:
         tdSql.checkRows(3)
         tdSql.query("select round(dataint) from jsons1 where jtag->'tag1'>1")
         tdSql.checkRows(3)
+        
+        #math function
+        tdSql.query("select sin(dataint) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select cos(dataint) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select tan(dataint) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select asin(dataint) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select acos(dataint) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select atan(dataint) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select ceil(dataint) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select floor(dataint) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select round(dataint) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select abs(dataint) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select pow(dataint,5) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select log(dataint,10) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select sqrt(dataint) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select HISTOGRAM(dataint,'user_input','[1, 33, 555, 7777]',1)  from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select csum(dataint) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select mavg(dataint,1) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select statecount(dataint,'GE',10) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select stateduration(dataint,'GE',0) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select sample(dataint,3) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select HYPERLOGLOG(dataint) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(1)
+        tdSql.query("select twa(dataint) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(1)
+        
+        # function not ready
+        # tdSql.query("select tail(dataint,1) from jsons1 where jtag->'tag1'>1;")
+        # tdSql.checkRows(3)
+        # tdSql.query("select unique(dataint) from jsons1 where jtag->'tag1'>1;")
+        # tdSql.checkRows(3)
+        # tdSql.query("select mode(dataint) from jsons1 where jtag->'tag1'>1;")
+        # tdSql.checkRows(3)
+        # tdSql.query("select irate(dataint) from jsons1 where jtag->'tag1'>1;")
+        # tdSql.checkRows(1)
+        
+        #str function
+        tdSql.query("select upper(dataStr) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select ltrim(dataStr) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select lower(dataStr) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select rtrim(dataStr) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select LENGTH(dataStr) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select CHAR_LENGTH(dataStr) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select SUBSTR(dataStr,5) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select CONCAT(dataStr,dataStrBin) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select CONCAT_ws('adad!@!@%$^$%$^$%^a',dataStr,dataStrBin) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select CAST(dataStr as bigint) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+
+        #time function
+        tdSql.query("select now() from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select today() from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select TIMEZONE() from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select TO_ISO8601(ts) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select TO_UNIXTIMESTAMP(datastr) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select TIMETRUNCATE(ts,1u) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select TIMEDIFF(ts,_c0) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select TIMEDIFF(ts,1u) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(3)
+        tdSql.query("select ELAPSED(ts,1h) from jsons1 where jtag->'tag1'>1;")
+        tdSql.checkRows(1)
+        
         #
         # #test TD-12077
         tdSql.execute("insert into jsons1_16 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":-2.111}') values(1591062628000, 2, NULL, '你就会', 'dws')")

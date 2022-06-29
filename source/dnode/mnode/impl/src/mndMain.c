@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "mndAcct.h"
-#include "mndPrivilege.h"
 #include "mndBnode.h"
 #include "mndCluster.h"
 #include "mndConsumer.h"
@@ -27,6 +26,7 @@
 #include "mndMnode.h"
 #include "mndOffset.h"
 #include "mndPerfSchema.h"
+#include "mndPrivilege.h"
 #include "mndProfile.h"
 #include "mndQnode.h"
 #include "mndQuery.h"
@@ -416,7 +416,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
     char          *syncNodeStr = sync2SimpleStr(pMgmt->sync);
     static int64_t mndTick = 0;
     if (++mndTick % 10 == 1) {
-      mTrace("vgId:%d, sync heartbeat msg:%s, %s", syncGetVgId(pMgmt->sync), TMSG_INFO(pMsg->msgType), syncNodeStr);
+      mTrace("vgId:%d, sync trace msg:%s, %s", syncGetVgId(pMgmt->sync), TMSG_INFO(pMsg->msgType), syncNodeStr);
     }
     if (gRaftDetailLog) {
       char logBuf[512] = {0};
@@ -442,7 +442,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       syncPingReplyDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
       SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
-      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
+      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg, NULL);
       syncClientRequestDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
       SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
@@ -491,7 +491,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       syncPingReplyDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
       SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
-      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
+      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg, NULL);
       syncClientRequestDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
       SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);

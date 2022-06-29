@@ -70,9 +70,9 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
 }
 
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
-  SDnodeTrans  *pTrans = &pDnode->trans;
+  SDnodeTrans * pTrans = &pDnode->trans;
   int32_t       code = -1;
-  SRpcMsg      *pMsg = NULL;
+  SRpcMsg *     pMsg = NULL;
   SMgmtWrapper *pWrapper = NULL;
   SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
 
@@ -194,11 +194,11 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-    SArray       *pArray = (*pWrapper->func.getHandlesFp)();
+    SArray *      pArray = (*pWrapper->func.getHandlesFp)();
     if (pArray == NULL) return -1;
 
     for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
-      SMgmtHandle  *pMgmt = taosArrayGet(pArray, i);
+      SMgmtHandle * pMgmt = taosArrayGet(pArray, i);
       SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pMgmt->msgType)];
       if (pMgmt->needCheckVgId) {
         pHandle->needCheckVgId = pMgmt->needCheckVgId;
@@ -248,7 +248,17 @@ static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) {
   }
 }
 
-static bool rpcRfp(int32_t code) { return code == TSDB_CODE_RPC_REDIRECT; }
+static bool rpcRfp(int32_t code, tmsg_t msgType) {
+  if (code == TSDB_CODE_RPC_REDIRECT || code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_NODE_NOT_DEPLOYED ||
+      code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_APP_NOT_READY) {
+    if (msgType == TDMT_VND_QUERY || msgType == TDMT_VND_FETCH) {
+      return false;
+    }
+    return true;
+  } else {
+    return false;
+  }
+}
 
 int32_t dmInitClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;

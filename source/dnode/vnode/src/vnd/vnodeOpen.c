@@ -152,12 +152,13 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   return pVnode;
 
 _err:
+  if (pVnode->pSma) smaCloseEnv(pVnode->pSma);
   if (pVnode->pQuery) vnodeQueryClose(pVnode);
   if (pVnode->pTq) tqClose(pVnode->pTq);
   if (pVnode->pWal) walClose(pVnode->pWal);
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
+  if (pVnode->pSma) smaCloseEx(pVnode->pSma);
   if (pVnode->pMeta) metaClose(pVnode->pMeta);
-  if (pVnode->pSma) smaClose(pVnode->pSma);
 
   tsem_destroy(&(pVnode->canCommit));
   taosMemoryFree(pVnode);
@@ -166,13 +167,14 @@ _err:
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
+    smaCloseEnv(pVnode->pSma);
     vnodeCommit(pVnode);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     walClose(pVnode->pWal);
     tqClose(pVnode->pTq);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
-    smaClose(pVnode->pSma);
+    smaCloseEx(pVnode->pSma);
     metaClose(pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
     // destroy handle

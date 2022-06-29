@@ -2852,7 +2852,7 @@ int32_t tsdbGetAllTableList(SMeta* pMeta, uint64_t uid, SArray* list) {
       break;
     }
 
-    STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, uid = id};
+    STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, uid = id, .groupId = 0};
     taosArrayPush(list, &info);
   }
 
@@ -2873,6 +2873,33 @@ int32_t tsdbGetCtbIdList(SMeta* pMeta, int64_t suid, SArray* list) {
   }
 
   metaCloseCtbCursor(pCur);
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * @brief Get all suids since suid
+ *
+ * @param pMeta
+ * @param suid return all suids in one vnode if suid is 0
+ * @param list
+ * @return int32_t
+ */
+int32_t tsdbGetStbIdList(SMeta* pMeta, int64_t suid, SArray* list) {
+  SMStbCursor* pCur = metaOpenStbCursor(pMeta, suid);
+  if(!pCur) {
+    return TSDB_CODE_FAILED;
+  }
+
+  while (1) {
+    tb_uid_t id = metaStbCursorNext(pCur);
+    if (id == 0) {
+      break;
+    }
+
+    taosArrayPush(list, &id);
+  }
+
+  metaCloseStbCursor(pCur);
   return TSDB_CODE_SUCCESS;
 }
 

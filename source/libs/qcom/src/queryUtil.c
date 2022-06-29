@@ -19,6 +19,7 @@
 #include "tmsg.h"
 #include "trpc.h"
 #include "tsched.h"
+// clang-format off
 #include "cJSON.h"
 
 #define VALIDNUMOFCOLS(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
@@ -147,13 +148,15 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   }
 
   memcpy(pMsg, pInfo->msgInfo.pData, pInfo->msgInfo.len);
-  SRpcMsg rpcMsg = {.msgType = pInfo->msgType,
-                    .pCont = pMsg,
-                    .contLen = pInfo->msgInfo.len,
-                    .info.ahandle = (void*)pInfo,
-                    .info.handle = pInfo->msgInfo.handle,
-                    .info.persistHandle = persistHandle,
-                    .code = 0};
+  SRpcMsg rpcMsg = {
+    .msgType = pInfo->msgType,
+    .pCont = pMsg,
+    .contLen = pInfo->msgInfo.len,
+    .info.ahandle = (void*)pInfo,
+    .info.handle = pInfo->msgInfo.handle,
+    .info.persistHandle = persistHandle, 
+    .code = 0
+  };
   assert(pInfo->fp != NULL);
   TRACE_SET_ROOTID(&rpcMsg.info.traceId, pInfo->requestId);
   rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);
@@ -221,8 +224,9 @@ void destroyQueryExecRes(SQueryExecRes* pRes) {
       qError("invalid exec result for request type %d", pRes->msgType);
   }
 }
+// clang-format on
 
-int32_t dataConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *len) {
+int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t* len) {
   int32_t n = 0;
 
   switch (type) {
@@ -262,7 +266,7 @@ int32_t dataConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
       if (bufSize < 0) {
-//        tscError("invalid buf size");
+        //        tscError("invalid buf size");
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
 
@@ -289,7 +293,7 @@ int32_t dataConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t
       break;
 
     default:
-//      tscError("unsupported type:%d", type);
+      //      tscError("unsupported type:%d", type);
       return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
@@ -332,7 +336,7 @@ char* parseTagDatatoJson(void* p) {
         int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue);
         if (length < 0) {
           qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
-                   pTagVal->pData);
+                 pTagVal->pData);
           taosMemoryFree(tagJsonValue);
           goto end;
         }
@@ -372,7 +376,6 @@ end:
   return string;
 }
 
-
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   if (NULL == pSrc) {
     *pDst = NULL;
@@ -393,37 +396,36 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
     *pDst = NULL;
     return TSDB_CODE_SUCCESS;
   }
-  
+
   *pDst = taosMemoryMalloc(sizeof(*pSrc));
   if (NULL == *pDst) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   memcpy(*pDst, pSrc, sizeof(*pSrc));
   if (pSrc->vgHash) {
-    (*pDst)->vgHash = taosHashInit(taosHashGetSize(pSrc->vgHash), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    (*pDst)->vgHash = taosHashInit(taosHashGetSize(pSrc->vgHash), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true,
+                                   HASH_ENTRY_LOCK);
     if (NULL == (*pDst)->vgHash) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
     SVgroupInfo* vgInfo = NULL;
-    void *pIter = taosHashIterate(pSrc->vgHash, NULL);
+    void*        pIter = taosHashIterate(pSrc->vgHash, NULL);
     while (pIter) {
       vgInfo = pIter;
       int32_t* vgId = taosHashGetKey(pIter, NULL);
-      
+
       if (0 != taosHashPut((*pDst)->vgHash, vgId, sizeof(*vgId), vgInfo, sizeof(*vgInfo))) {
         qError("taosHashPut failed, vgId:%d", vgInfo->vgId);
-        taosHashCancelIterate(pSrc->vgHash, pIter);    
+        taosHashCancelIterate(pSrc->vgHash, pIter);
         taosHashCleanup((*pDst)->vgHash);
         taosMemoryFreeClear(*pDst);
-        return TSDB_CODE_CTG_MEM_ERROR;
+        return TSDB_CODE_OUT_OF_MEMORY;
       }
-      
+
       pIter = taosHashIterate(pSrc->vgHash, pIter);
     }
   }
-  
+
   return TSDB_CODE_SUCCESS;
 }
-
-
