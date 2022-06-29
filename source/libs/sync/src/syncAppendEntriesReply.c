@@ -240,7 +240,10 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
       SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(pMsg->srcId));
       ASSERT(pSender != NULL);
 
-      SSnapshot snapshot;
+      SSnapshot snapshot = {.data = NULL,
+                            .lastApplyIndex = SYNC_INDEX_INVALID,
+                            .lastApplyTerm = 0,
+                            .lastConfigIndex = SYNC_INDEX_INVALID};
       void*     pReader = NULL;
       ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot, NULL, &pReader);
       if (snapshot.lastApplyIndex >= SYNC_INDEX_BEGIN && nextIndex <= snapshot.lastApplyIndex + 1 &&
@@ -249,33 +252,12 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
         ASSERT(pReader != NULL);
         snapshotSenderStart(pSender, snapshot, pReader);
 
-        char* eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender start");
-        syncNodeEventLog(ths, eventLog);
-        taosMemoryFree(eventLog);
-
       } else {
         // no snapshot
         if (pReader != NULL) {
           ths->pFsm->FpSnapshotStopRead(ths->pFsm, pReader);
         }
       }
-
-      /*
-            bool      hasSnapshot = syncNodeHasSnapshot(ths);
-            SSnapshot snapshot;
-            ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
-
-            // start sending snapshot first time
-            // start here, stop by receiver
-            if (hasSnapshot && nextIndex <= snapshot.lastApplyIndex + 1 && !snapshotSenderIsStart(pSender) &&
-                pMsg->privateTerm < pSender->privateTerm) {
-              snapshotSenderStart(pSender);
-
-              char* eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender start");
-              syncNodeEventLog(ths, eventLog);
-              taosMemoryFree(eventLog);
-            }
-      */
 
       SyncIndex sentryIndex = pSender->snapshot.lastApplyIndex + 1;
 
@@ -300,5 +282,5 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
   syncIndexMgrLog2("recv sync-append-entries-reply, after pNextIndex:", ths->pNextIndex);
   syncIndexMgrLog2("recv sync-append-entries-reply, after pMatchIndex:", ths->pMatchIndex);
 
-  return ret;
+  return 0;
 }

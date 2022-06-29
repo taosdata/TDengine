@@ -273,8 +273,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
   }
 
   // 1. close current opened time window
-  if (pResultRowInfo->cur.pageId != -1 && ((pResult == NULL) || (pResult->pageId != pResultRowInfo->cur.pageId &&
-                                                                 pResult->offset != pResultRowInfo->cur.offset))) {
+  if (pResultRowInfo->cur.pageId != -1 && ((pResult == NULL) || (pResult->pageId != pResultRowInfo->cur.pageId))) {
     SResultRowPosition pos = pResultRowInfo->cur;
     SFilePage*         pPage = getBufPage(pResultBuf, pos.pageId);
     releaseBufPage(pResultBuf, pPage);

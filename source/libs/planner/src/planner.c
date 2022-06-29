@@ -85,6 +85,11 @@ int32_t qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstream
   return setSubplanExecutionNode(subplan->pNode, groupId, pSource);
 }
 
+int32_t qClearSubplanExecutionNode(SSubplan* pSubplan, int32_t groupId) {
+  // todo
+  return TSDB_CODE_FAILED;
+}
+
 int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
   if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType && NULL == pSubplan->pNode) {
     SDataInserterNode* insert = (SDataInserterNode*)pSubplan->pDataSink;

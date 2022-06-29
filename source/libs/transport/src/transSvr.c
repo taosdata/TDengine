@@ -983,7 +983,7 @@ void sendQuitToWorkThrd(SWorkThrd* pThrd) {
   SSvrMsg* msg = taosMemoryCalloc(1, sizeof(SSvrMsg));
   msg->type = Quit;
   tDebug("server send quit msg to work thread");
-  transSendAsync(pThrd->asyncPool, &msg->q);
+  transAsyncSend(pThrd->asyncPool, &msg->q);
 }
 
 void transCloseServer(void* arg) {

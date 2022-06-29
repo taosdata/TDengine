@@ -964,7 +964,7 @@ void cliSendQuit(SCliThrd* thrd) {
   // cli can stop gracefully
   SCliMsg* msg = taosMemoryCalloc(1, sizeof(SCliMsg));
   msg->type = Quit;
-  transSendAsync(thrd->asyncPool, &msg->q);
+  transAsyncSend(thrd->asyncPool, &msg->q);
 }
 void cliWalkCb(uv_handle_t* handle, void* arg) {
   if (!uv_is_closing(handle)) {
@@ -1131,7 +1131,7 @@ void transReleaseCliHandle(void* handle) {
   cmsg->msg = tmsg;
   cmsg->type = Release;
 
-  transSendAsync(pThrd->asyncPool, &cmsg->q);
+  transAsyncSend(pThrd->asyncPool, &cmsg->q);
   return;
 }
 
@@ -1164,7 +1164,7 @@ void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
   STraceId* trace = &pReq->info.traceId;
   tGTrace("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", transLabel(pTransInst), pThrd->pid,
           EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
-  ASSERT(transSendAsync(pThrd->asyncPool, &(cliMsg->q)) == 0);
+  ASSERT(transAsyncSend(pThrd->asyncPool, &(cliMsg->q)) == 0);
   return;
 }
 
@@ -1198,7 +1198,7 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransM
   tGTrace("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", transLabel(pTransInst), pThrd->pid,
           EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
 
-  transSendAsync(pThrd->asyncPool, &(cliMsg->q));
+  transAsyncSend(pThrd->asyncPool, &(cliMsg->q));
   tsem_wait(sem);
   tsem_destroy(sem);
   taosMemoryFree(sem);
@@ -1227,7 +1227,7 @@ void transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
     SCliThrd* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[i];
     tDebug("%s update epset at thread:%08" PRId64 "", pTransInst->label, thrd->pid);
 
-    transSendAsync(thrd->asyncPool, &(cliMsg->q));
+    transAsyncSend(thrd->asyncPool, &(cliMsg->q));
   }
 }
 #endif
