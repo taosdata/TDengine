@@ -1026,7 +1026,7 @@ bool cliTryToExtractEpSet(STransMsg* pResp, SEpSet* dst) {
   int32_t bufLen = pResp->contLen - tlen;
   char*   buf = rpcMallocCont(bufLen);
 
-  memcpy(buf, pResp->pCont + tlen, bufLen);
+  memcpy(buf, (char*)pResp->pCont + tlen, bufLen);
 
   pResp->pCont = buf;
   pResp->contLen = bufLen;
