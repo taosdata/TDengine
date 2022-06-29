@@ -203,7 +203,7 @@ if $dnode2Vtatus != offline then
   sleep 2000
   goto wait_dnode3_vgroup_master
 endi
-if $dnode3Vtatus != master then
+if $dnode3Vtatus != leader then
   sleep 2000
   goto wait_dnode3_vgroup_master
 endi
@@ -328,11 +328,11 @@ print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $dat
 $dnode2Vtatus = $data7_2
 $dnode3Vtatus = $data5_2
 
-if $dnode2Vtatus != slave then
+if $dnode2Vtatus != follower then
   sleep 2000
   goto wait_dnode3_vgroup_master_1
 endi
-if $dnode3Vtatus != master then
+if $dnode3Vtatus != leader then
   sleep 2000
   goto wait_dnode3_vgroup_master_1
 endi

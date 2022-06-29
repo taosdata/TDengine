@@ -224,7 +224,7 @@ if $data2_1 != offline then
   sleep 2000
   goto wait_dnode2_master
 endi
-if $data2_2 != master then
+if $data2_2 != leader then
   sleep 2000
   goto wait_dnode2_master
 endi
