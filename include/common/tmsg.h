@@ -2462,22 +2462,37 @@ int32_t tDecodeSMqCMCommitOffsetReq(SDecoder* decoder, SMqCMCommitOffsetReq* pRe
 
 // tqOffset
 enum {
-  TMQ_OFFSET__SNAPSHOT = 1,
-  TMQ_OFFSET__LOG,
+  TMQ_OFFSET__RESET_NONE = -3,
+  TMQ_OFFSET__RESET_EARLIEAST = -2,
+  TMQ_OFFSET__RESET_LATEST = -1,
+  TMQ_OFFSET__LOG = 1,
+  TMQ_OFFSET__SNAPSHOT_DATA = 2,
+  TMQ_OFFSET__SNAPSHOT_META = 3,
 };
 
 typedef struct {
   int8_t type;
   union {
+    // snapshot data
     struct {
       int64_t uid;
       int64_t ts;
     };
+    // log
     struct {
       int64_t version;
     };
   };
-  char subKey[TSDB_SUBSCRIBE_KEY_LEN];
+} STqOffsetVal;
+
+int32_t tEncodeSTqOffsetVal(SEncoder* pEncoder, const STqOffsetVal* pOffsetVal);
+int32_t tDecodeSTqOffsetVal(SDecoder* pDecoder, STqOffsetVal* pOffsetVal);
+int32_t tFormatOffset(char* buf, int32_t maxLen, const STqOffsetVal* pVal);
+bool    tOffsetEqual(const STqOffsetVal* pLeft, const STqOffsetVal* pRight);
+
+typedef struct {
+  STqOffsetVal val;
+  char         subKey[TSDB_SUBSCRIBE_KEY_LEN];
 } STqOffset;
 
 int32_t tEncodeSTqOffset(SEncoder* pEncoder, const STqOffset* pOffset);
@@ -2710,7 +2725,8 @@ typedef struct {
   uint64_t reqId;
   int64_t  consumerId;
   int64_t  timeout;
-  int64_t  currentOffset;
+  // int64_t      currentOffset;
+  STqOffsetVal reqOffset;
 } SMqPollReq;
 
 typedef struct {
@@ -2779,12 +2795,14 @@ static FORCE_INLINE void tDeleteSMqSubTopicEp(SMqSubTopicEp* pSubTopicEp) {
 }
 
 typedef struct {
-  SMqRspHead head;
-  int64_t    reqOffset;
-  int64_t    rspOffset;
-  int16_t    resMsgType;
-  int32_t    metaRspLen;
-  void*      metaRsp;
+  SMqRspHead   head;
+  int64_t      reqOffset;
+  int64_t      rspOffset;
+  STqOffsetVal reqOffsetNew;
+  STqOffsetVal rspOffsetNew;
+  int16_t      resMsgType;
+  int32_t      metaRspLen;
+  void*        metaRsp;
 } SMqMetaRsp;
 
 static FORCE_INLINE int32_t tEncodeSMqMetaRsp(void** buf, const SMqMetaRsp* pRsp) {
@@ -2807,6 +2825,24 @@ static FORCE_INLINE void* tDecodeSMqMetaRsp(const void* buf, SMqMetaRsp* pRsp) {
 }
 
 typedef struct {
+  SMqRspHead   head;
+  STqOffsetVal reqOffset;
+  STqOffsetVal rspOffset;
+  int32_t      skipLogNum;
+  int32_t      blockNum;
+  int8_t       withTbName;
+  int8_t       withSchema;
+  SArray*      blockDataLen;
+  SArray*      blockData;
+  SArray*      blockTbName;
+  SArray*      blockSchema;
+} SMqDataRsp;
+
+int32_t tEncodeSMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pRsp);
+int32_t tDecodeSMqDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
+
+#if 0
+typedef struct {
   SMqRspHead head;
   int64_t    reqOffset;
   int64_t    rspOffset;
@@ -2814,13 +2850,10 @@ typedef struct {
   int32_t    blockNum;
   int8_t     withTbName;
   int8_t     withSchema;
-  int8_t     withTag;
-  SArray*    blockDataLen;    // SArray<int32_t>
-  SArray*    blockData;       // SArray<SRetrieveTableRsp*>
-  SArray*    blockTbName;     // SArray<char*>
-  SArray*    blockSchema;     // SArray<SSchemaWrapper>
-  SArray*    blockTags;       // SArray<kvrow>
-  SArray*    blockTagSchema;  // SArray<kvrow>
+  SArray*    blockDataLen;  // SArray<int32_t>
+  SArray*    blockData;     // SArray<SRetrieveTableRsp*>
+  SArray*    blockTbName;   // SArray<char*>
+  SArray*    blockSchema;   // SArray<SSchemaWrapper>
 } SMqDataBlkRsp;
 
 static FORCE_INLINE int32_t tEncodeSMqDataBlkRsp(void** buf, const SMqDataBlkRsp* pRsp) {
@@ -2832,7 +2865,6 @@ static FORCE_INLINE int32_t tEncodeSMqDataBlkRsp(void** buf, const SMqDataBlkRsp
   if (pRsp->blockNum != 0) {
     tlen += taosEncodeFixedI8(buf, pRsp->withTbName);
     tlen += taosEncodeFixedI8(buf, pRsp->withSchema);
-    tlen += taosEncodeFixedI8(buf, pRsp->withTag);
 
     for (int32_t i = 0; i < pRsp->blockNum; i++) {
       int32_t bLen = *(int32_t*)taosArrayGet(pRsp->blockDataLen, i);
@@ -2862,7 +2894,6 @@ static FORCE_INLINE void* tDecodeSMqDataBlkRsp(const void* buf, SMqDataBlkRsp* p
     pRsp->blockDataLen = taosArrayInit(pRsp->blockNum, sizeof(int32_t));
     buf = taosDecodeFixedI8(buf, &pRsp->withTbName);
     buf = taosDecodeFixedI8(buf, &pRsp->withSchema);
-    buf = taosDecodeFixedI8(buf, &pRsp->withTag);
     if (pRsp->withTbName) {
       pRsp->blockTbName = taosArrayInit(pRsp->blockNum, sizeof(void*));
     }
@@ -2891,6 +2922,7 @@ static FORCE_INLINE void* tDecodeSMqDataBlkRsp(const void* buf, SMqDataBlkRsp* p
   }
   return (void*)buf;
 }
+#endif
 
 typedef struct {
   SMqRspHead head;

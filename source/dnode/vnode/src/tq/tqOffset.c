@@ -92,8 +92,8 @@ STqOffset* tqOffsetRead(STqOffsetStore* pStore, const char* subscribeKey) {
 }
 
 int32_t tqOffsetWrite(STqOffsetStore* pStore, const STqOffset* pOffset) {
-  ASSERT(pOffset->type == TMQ_OFFSET__LOG);
-  ASSERT(pOffset->version >= 0);
+  /*ASSERT(pOffset->val.type == TMQ_OFFSET__LOG);*/
+  /*ASSERT(pOffset->val.version >= 0);*/
   return taosHashPut(pStore->pHash, pOffset->subKey, strlen(pOffset->subKey), pOffset, sizeof(STqOffset));
 }
 

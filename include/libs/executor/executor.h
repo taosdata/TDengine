@@ -36,14 +36,7 @@ typedef struct SReadHandle {
   void*   vnode;
   void*   mnd;
   SMsgCb* pMsgCb;
-//  int8_t  initTsdbReader;
 } SReadHandle;
-
-enum {
-  STREAM_DATA_TYPE_SUBMIT_BLOCK = 1,
-  STREAM_DATA_TYPE_SSDATA_BLOCK = 2,
-  STREAM_DATA_TYPE_FROM_SNAPSHOT = 3,
-};
 
 typedef enum {
   OPTR_EXEC_MODEL_BATCH = 0x1,

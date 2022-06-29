@@ -55,15 +55,6 @@ enum {
   TASK_OUTPUT_STATUS__BLOCKED,
 };
 
-enum {
-  STREAM_INPUT__DATA_SUBMIT = 1,
-  STREAM_INPUT__DATA_BLOCK,
-  STREAM_INPUT__DATA_RETRIEVE,
-  STREAM_INPUT__TRIGGER,
-  STREAM_INPUT__CHECKPOINT,
-  STREAM_INPUT__DROP,
-};
-
 typedef struct {
   int8_t type;
 } SStreamQueueItem;
@@ -154,10 +145,6 @@ typedef struct {
 
 typedef struct {
   int32_t taskId;
-} STaskDispatcherInplace;
-
-typedef struct {
-  int32_t taskId;
   int32_t nodeId;
   SEpSet  epSet;
 } STaskDispatcherFixedEp;
@@ -208,7 +195,6 @@ enum {
 
 enum {
   TASK_DISPATCH__NONE = 1,
-  TASK_DISPATCH__INPLACE,
   TASK_DISPATCH__FIXED,
   TASK_DISPATCH__SHUFFLE,
 };
@@ -260,7 +246,7 @@ struct SStreamTask {
   // exec
   STaskExec exec;
 
-  // TODO: merge sink and dispatch
+  // TODO: unify sink and dispatch
 
   //  local sink
   union {
@@ -269,9 +255,8 @@ struct SStreamTask {
     STaskSinkFetch fetchSink;
   };
 
-  // dispatch
+  // remote dispatcher
   union {
-    STaskDispatcherInplace inplaceDispatcher;
     STaskDispatcherFixedEp fixedEpDispatcher;
     STaskDispatcherShuffle shuffleDispatcher;
   };
