@@ -51,6 +51,44 @@ static void getTableCacheKey(tb_uid_t uid, const char *cacheType, char *key, int
 
 static void deleteTableCacheLastrow(const void *key, size_t keyLen, void *value) { taosMemoryFree(value); }
 
+static int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
+  int32_t code = 0;
+  char    key[32] = {0};
+  int     keyLen = 0;
+
+  getTableCacheKey(uid, "lr", key, &keyLen);
+  LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
+  if (h) {
+    STSRow *pRow = (STSRow *)taosLRUCacheValue(pCache, h);
+    if (pRow->ts <= eKey) {
+      taosLRUCacheRelease(pCache, h, true);
+    } else {
+      taosLRUCacheRelease(pCache, h, false);
+    }
+
+    // void taosLRUCacheErase(SLRUCache * cache, const void *key, size_t keyLen);
+  }
+
+  return code;
+}
+
+static int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
+  int32_t code = 0;
+  char    key[32] = {0};
+  int     keyLen = 0;
+
+  getTableCacheKey(uid, "l", key, &keyLen);
+  LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
+  if (h) {
+    // clear last cache anyway, no matter where eKey ends.
+    taosLRUCacheRelease(pCache, h, true);
+
+    // void taosLRUCacheErase(SLRUCache * cache, const void *key, size_t keyLen);
+  }
+
+  return code;
+}
+
 int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, tb_uid_t uid, STSRow *row) {
   int32_t code = 0;
   STSRow *cacheRow = NULL;
@@ -97,7 +135,7 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row) {
       if (TD_ROW_LEN(row) <= TD_ROW_LEN(cacheRow)) {
         tdRowCpy(cacheRow, row);
       } else {
-        tsdbCacheDeleteLastrow(pCache, uid, TSKEY_MAX);
+        tsdbCacheDeleteLast(pCache, uid, TSKEY_MAX);
         tsdbCacheInsertLastrow(pCache, uid, row);
       }
     }
@@ -1092,7 +1130,7 @@ int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHand
   return code;
 }
 
-int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
+int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
   int32_t code = 0;
   char    key[32] = {0};
   int     keyLen = 0;
