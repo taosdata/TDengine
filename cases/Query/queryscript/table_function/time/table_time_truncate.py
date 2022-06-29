@@ -707,15 +707,24 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select %s from %s where tbname in ('%s') and  %s %s %s order by ts limit 1000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdSql.error(sql2)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,100,1,1,'%s' %sql2 ,1,100,1,1)
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
+                        cur1.execute(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where tbname in ('%s') and %s %s %s order by ts limit 1000)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdSql.error(sql2)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,100,1,1,'%s' %sql2 ,1,100,1,1)
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
+                        cur1.execute(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where tbname in ('%s') and %s %s %s order by ts limit 1000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdSql.error(sql2)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,100,1,1,'%s' %sql2 ,1,100,1,1)
+                        self.time_check(sql1,sql2)
+                        self.np_check(sql1,sql2)
+                        cur1.execute(sql2)
                         sql= sql + sql2
                                    
             except Exception as e:
