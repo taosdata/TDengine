@@ -325,6 +325,23 @@ void syncAppendEntriesLog(const SyncAppendEntries* pMsg);
 void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg);
 
 // ---------------------------------------------
+typedef struct SyncAppendEntriesBatch {
+  uint32_t bytes;
+  int32_t  vgId;
+  uint32_t msgType;
+  SRaftId  srcId;
+  SRaftId  destId;
+  // private data
+  SyncTerm  term;
+  SyncIndex prevLogIndex;
+  SyncTerm  prevLogTerm;
+  SyncIndex commitIndex;
+  SyncTerm  privateTerm;
+  uint32_t  dataLen;
+  char      data[];
+} SyncAppendEntriesBatch;
+
+// ---------------------------------------------
 typedef struct SyncAppendEntriesReply {
   uint32_t bytes;
   int32_t  vgId;
