@@ -1923,6 +1923,8 @@ void syncNodeVoteForSelf(SSyncNode* pSyncNode) {
 }
 
 // snapshot --------------
+
+// return if has a snapshot
 bool syncNodeHasSnapshot(SSyncNode* pSyncNode) {
   bool      ret = false;
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
@@ -1935,21 +1937,10 @@ bool syncNodeHasSnapshot(SSyncNode* pSyncNode) {
   return ret;
 }
 
-#if 0
-bool syncNodeIsIndexInSnapshot(SSyncNode* pSyncNode, SyncIndex index) {
-  ASSERT(syncNodeHasSnapshot(pSyncNode));
-  ASSERT(pSyncNode->pFsm->FpGetSnapshotInfo != NULL);
-  ASSERT(index >= SYNC_INDEX_BEGIN);
-
-  SSnapshot snapshot;
-  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
-  bool b = (index <= snapshot.lastApplyIndex);
-  return b;
-}
-#endif
-
+// return max(logLastIndex, snapshotLastIndex)
+// if no snapshot and log, return -1
 SyncIndex syncNodeGetLastIndex(SSyncNode* pSyncNode) {
-  SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
+  SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
   if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
     pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
   }
@@ -1959,6 +1950,8 @@ SyncIndex syncNodeGetLastIndex(SSyncNode* pSyncNode) {
   return lastIndex;
 }
 
+// return the last term of snapshot and log
+// if error, return SYNC_TERM_INVALID (by syncLogLastTerm)
 SyncTerm syncNodeGetLastTerm(SSyncNode* pSyncNode) {
   SyncTerm lastTerm = 0;
   if (syncNodeHasSnapshot(pSyncNode)) {
@@ -1990,11 +1983,14 @@ int32_t syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, Sy
   return 0;
 }
 
+// return append-entries first try index
 SyncIndex syncNodeSyncStartIndex(SSyncNode* pSyncNode) {
   SyncIndex syncStartIndex = syncNodeGetLastIndex(pSyncNode) + 1;
   return syncStartIndex;
 }
 
+// if index > 0, return index - 1
+// else, return -1
 SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
   SyncIndex preIndex = index - 1;
   if (preIndex < SYNC_INDEX_INVALID) {
@@ -2004,21 +2000,10 @@ SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
   return preIndex;
 }
 
-/*
-SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
-  ASSERT(index >= SYNC_INDEX_BEGIN);
-
-  SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
-  if (index > syncStartIndex) {
-    syncNodeLog3("syncNodeGetPreIndex", pSyncNode);
-    ASSERT(0);
-  }
-
-  SyncIndex preIndex = index - 1;
-  return preIndex;
-}
-*/
-
+// if index < 0, return SYNC_TERM_INVALID
+// if index == 0, return 0
+// if index > 0, return preTerm
+// if error, return SYNC_TERM_INVALID
 SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
   if (index < SYNC_INDEX_BEGIN) {
     return SYNC_TERM_INVALID;
@@ -2055,112 +2040,6 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
 
   return SYNC_TERM_INVALID;
 }
-
-#if 0
-SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
-  ASSERT(index >= SYNC_INDEX_BEGIN);
-
-  SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
-  if (index > syncStartIndex) {
-    syncNodeLog3("syncNodeGetPreTerm", pSyncNode);
-    ASSERT(0);
-  }
-
-  if (index == SYNC_INDEX_BEGIN) {
-    return 0;
-  }
-
-  SyncTerm        preTerm = 0;
-  SyncIndex       preIndex = index - 1;
-  SSyncRaftEntry* pPreEntry = NULL;
-  int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, preIndex, &pPreEntry);
-  if (code == 0) {
-    ASSERT(pPreEntry != NULL);
-    preTerm = pPreEntry->term;
-    taosMemoryFree(pPreEntry);
-    return preTerm;
-  } else {
-    if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
-      SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
-      if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
-        pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
-        if (snapshot.lastApplyIndex == preIndex) {
-          return snapshot.lastApplyTerm;
-        }
-      }
-    }
-  }
-
-  ASSERT(0);
-  return -1;
-}
-#endif
-
-#if 0
-SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
-  ASSERT(index >= SYNC_INDEX_BEGIN);
-
-  SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
-  if (index > syncStartIndex) {
-    syncNodeLog3("syncNodeGetPreTerm", pSyncNode);
-    ASSERT(0);
-  }
-
-  if (index == SYNC_INDEX_BEGIN) {
-    return 0;
-  }
-
-  SyncTerm preTerm = 0;
-  if (syncNodeHasSnapshot(pSyncNode)) {
-    // has snapshot
-    SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
-    if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
-      pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
-    }
-
-    if (index > snapshot.lastApplyIndex + 1) {
-      // should be log preTerm
-      SSyncRaftEntry* pPreEntry = NULL;
-      int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index - 1, &pPreEntry);
-      ASSERT(code == 0);
-      ASSERT(pPreEntry != NULL);
-
-      preTerm = pPreEntry->term;
-      taosMemoryFree(pPreEntry);
-
-    } else if (index == snapshot.lastApplyIndex + 1) {
-      preTerm = snapshot.lastApplyTerm;
-
-    } else {
-      // maybe snapshot change
-      sError("sync get pre term, bad scene. index:%ld", index);
-      logStoreLog2("sync get pre term, bad scene", pSyncNode->pLogStore);
-
-      SSyncRaftEntry* pPreEntry = NULL;
-      int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index - 1, &pPreEntry);
-      ASSERT(code == 0);
-      ASSERT(pPreEntry != NULL);
-
-      preTerm = pPreEntry->term;
-      taosMemoryFree(pPreEntry);
-    }
-
-  } else {
-    // no snapshot
-    ASSERT(index > SYNC_INDEX_BEGIN);
-
-    SSyncRaftEntry* pPreEntry = NULL;
-    int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index - 1, &pPreEntry);
-    ASSERT(code == 0);
-    ASSERT(pPreEntry != NULL);
-
-    preTerm = pPreEntry->term;
-    taosMemoryFree(pPreEntry);
-  }
-
-  return preTerm;
-}
-#endif
 
 // get pre index and term of "index"
 int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex* pPreIndex, SyncTerm* pPreTerm) {
@@ -2351,8 +2230,8 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   ASSERT(pEntry != NULL);
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
-    // ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
-    ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
+    int32_t code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
+    ASSERT(code == 0);
     syncNodeReplicate(ths);
   }
 
@@ -2406,6 +2285,7 @@ int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
 //
 int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncIndex* pRetIndex) {
   int32_t ret = 0;
+  int32_t code = 0;
   syncClientRequestLog2("==syncNodeOnClientRequestCb==", pMsg);
 
   SyncIndex       index = ths->pLogStore->syncLogWriteIndex(ths->pLogStore);
@@ -2414,18 +2294,24 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncI
   ASSERT(pEntry != NULL);
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
-    // ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
-    ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
+    // append entry
+    code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
+    if (code != 0) {
+      // del resp mgr, call FpCommitCb
+      ASSERT(0);
+      return -1;
+    }
 
-    // start replicate right now!
-    syncNodeReplicate(ths);
+    // if mulit replica, start replicate right now
+    if (ths->replicaNum > 1) {
+      syncNodeReplicate(ths);
+    }
 
     // pre commit
     SRpcMsg rpcMsg;
     syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
     if (ths->pFsm != NULL) {
-      // if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_SYNC_NOOP) {
       if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
         SFsmCbMeta cbMeta = {0};
         cbMeta.index = pEntry->index;
@@ -2439,8 +2325,10 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncI
     }
     rpcFreeCont(rpcMsg.pCont);
 
-    // only myself, maybe commit
-    syncMaybeAdvanceCommitIndex(ths);
+    // if only myself, maybe commit right now
+    if (ths->replicaNum == 1) {
+      syncMaybeAdvanceCommitIndex(ths);
+    }
 
   } else {
     // pre commit
@@ -2448,7 +2336,6 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncI
     syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
     if (ths->pFsm != NULL) {
-      // if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_SYNC_NOOP) {
       if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
         SFsmCbMeta cbMeta = {0};
         cbMeta.index = pEntry->index;
