@@ -860,7 +860,9 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
         }
 
         code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
-        ASSERT(code == 0);
+        if (code != 0) {
+          return -1;
+        }
 
         // pre commit
         code = syncNodePreCommit(ths, pAppendEntry);
@@ -971,7 +973,9 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
         ASSERT(pAppendEntry != NULL);
 
         code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
-        ASSERT(code == 0);
+        if (code != 0) {
+          return -1;
+        }
 
         // pre commit
         code = syncNodePreCommit(ths, pAppendEntry);
