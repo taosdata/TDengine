@@ -1631,7 +1631,7 @@ int32_t schExecJobImpl(SSchedulerReq *pReq, SSchJob *pJob, bool sync) {
   SCH_ERR_JRET(schBeginOperation(pJob, SCH_OP_EXEC, sync));
 
   if (EXPLAIN_MODE_STATIC == pReq->pDag->explainInfo.mode) {
-    code = schLaunchStaticExplainJob(pReq, pJob, true);
+    code = schLaunchStaticExplainJob(pReq, pJob, sync);
   } else {
     code = schLaunchJob(pJob);
     if (sync) {
