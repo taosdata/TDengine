@@ -1379,6 +1379,20 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
   return true;
 }
 
+void static addDbPrecisonParam(SNodeList* pList, uint8_t precision) {
+  SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  pVal->literal = NULL;
+  pVal->isDuration = false;
+  pVal->translate = true;
+  pVal->node.resType.type = TSDB_DATA_TYPE_TINYINT;
+  pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TINYINT].bytes;
+  pVal->node.resType.precision = precision;
+  pVal->datum.i = (int64_t)precision;
+  pVal->typeData = (int64_t)precision;
+
+  nodesListAppend(pList, (SNode*)pVal);
+}
+
 void static addTimezoneParam(SNodeList* pList) {
   char       buf[6] = {0};
   time_t     t = taosTime(NULL);
@@ -1461,6 +1475,9 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
       !IS_INTEGER_TYPE(para2Type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
+
+  uint8_t dbPrec = pFunc->node.resType.precision;
+  addDbPrecisonParam(pFunc->pParameterList, dbPrec);
 
   pFunc->node.resType =
       (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP};
