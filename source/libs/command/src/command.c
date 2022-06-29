@@ -36,7 +36,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   (*pRsp)->numOfCols = htonl(numOfCols);
 
   int32_t len = 0;
-  blockCompressEncode(pBlock, (*pRsp)->data, &len, numOfCols, false);
+  blockEncode(pBlock, (*pRsp)->data, &len, numOfCols, false);
   ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
 
   blockDataDestroy(pBlock);
