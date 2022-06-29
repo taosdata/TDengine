@@ -647,15 +647,11 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   if (pRow->type == 0) {
     tTSRowGetVal(pRow->pTSRow, pTSchema, iCol, pColVal);
   } else if (pRow->type == 1) {
-    SColData *pColData = &(SColData){.cid = pTColumn->colId};
-    void     *p = NULL;
+    SColData *pColData;
 
-    p = taosArraySearch(pRow->pBlockData->aColDataP, &pColData, tColDataPCmprFn, TD_EQ);
-    if (p) {
-      pColData = *(SColData **)p;
+    tBlockDataGetColData(pRow->pBlockData, pTColumn->colId, &pColData);
 
-      ASSERT(pColData->type == pTColumn->type);
-
+    if (pColData) {
       tColDataGetValue(pColData, pRow->iRow, pColVal);
     } else {
       *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
@@ -1330,4 +1326,17 @@ int32_t tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest) {
 
 _exit:
   return code;
+}
+
+void tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData) {
+  ASSERT(cid != PRIMARYKEY_TIMESTAMP_COL_ID);
+
+  SColData *pColData = &(SColData){.cid = cid};
+
+  void *p = taosArraySearch(pBlockData->aColDataP, &pColData, tColDataPCmprFn, TD_EQ);
+  if (p == NULL) {
+    *ppColData = NULL;
+  } else {
+    *ppColData = *(SColData **)p;
+  }
 }
