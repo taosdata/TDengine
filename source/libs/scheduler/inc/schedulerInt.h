@@ -353,7 +353,7 @@ void    schFreeJobImpl(void *job);
 int32_t schMakeHbRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx);
 int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask);
 int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchTrans *trans);
-int32_t schHandleHbCallback(void *param, const SDataBuf *pMsg, int32_t code);
+int32_t schHandleHbCallback(void *param, SDataBuf *pMsg, int32_t code);
 void    schFreeRpcCtx(SRpcCtx *pCtx);
 int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp);
 bool    schJobNeedToStop(SSchJob *pJob, int8_t *pStatus);
@@ -383,7 +383,8 @@ char*   schGetOpStr(SCH_OP_TYPE type);
 int32_t schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync);
 int32_t schInitJob(SSchedulerReq *pReq, SSchJob **pSchJob);
 int32_t schSetJobQueryRes(SSchJob* pJob, SQueryResult* pRes);
-int32_t schUpdateTaskCandidateAddr(SSchTask *pTask, SEpSet* pEpSet);
+int32_t schUpdateTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask, SEpSet* pEpSet);
+int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf* pData, int32_t rspCode);
 
 
 #ifdef __cplusplus

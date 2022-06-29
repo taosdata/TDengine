@@ -48,7 +48,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 // @pSource one execution location of this group of datasource subplans
 int32_t qSetSubplanExecutionNode(SSubplan* pSubplan, int32_t groupId, SDownstreamSourceNode* pSource);
 
-int32_t qClearSubplanExecutionNode(SSubplan* pSubplan);
+void qClearSubplanExecutionNode(SSubplan* pSubplan);
 
 // Convert to subplan to string for the scheduler to send to the executor
 int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen);

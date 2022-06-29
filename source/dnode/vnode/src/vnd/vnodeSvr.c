@@ -246,7 +246,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   switch (pMsg->msgType) {
     case TDMT_SCH_FETCH:
       return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg, 0);
-    case TDMT_VND_FETCH_RSP:
+    case TDMT_SCH_FETCH_RSP:
       return qWorkerProcessFetchRsp(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_CANCEL_TASK:
       return qWorkerProcessCancelMsg(pVnode, pVnode->pQuery, pMsg, 0);

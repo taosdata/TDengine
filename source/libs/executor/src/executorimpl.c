@@ -1933,7 +1933,7 @@ typedef struct SFetchRspHandleWrapper {
   int32_t  sourceIndex;
 } SFetchRspHandleWrapper;
 
-int32_t loadRemoteDataCallback(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SFetchRspHandleWrapper* pWrapper = (SFetchRspHandleWrapper*)param;
 
   SExchangeInfo* pExchangeInfo = taosAcquireRef(exchangeObjRefPool, pWrapper->exchangeId);

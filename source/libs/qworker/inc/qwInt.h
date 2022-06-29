@@ -82,6 +82,7 @@ extern SQWDebug gQWDebug;
 typedef struct SQWMsg {
   void          *node;
   int32_t        code;
+  int32_t        msgType;
   char          *msg;
   int32_t        msgLen;
   SRpcHandleInfo connInfo;
@@ -100,6 +101,7 @@ typedef struct SQWHbInfo {
 
 typedef struct SQWPhaseInput {
   int32_t code;
+  int32_t msgType;
 } SQWPhaseInput;
 
 typedef struct SQWPhaseOutput {
@@ -119,6 +121,7 @@ typedef struct SQWTaskCtx {
   int8_t   phase;
   int8_t   taskType;
   int8_t   explain;
+  int32_t  queryType;
 
   bool    queryFetched;
   bool    queryEnd;

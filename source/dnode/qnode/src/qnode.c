@@ -88,7 +88,7 @@ int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg) {
     case TDMT_SCH_FETCH:
       code = qWorkerProcessFetchMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
-    case TDMT_VND_FETCH_RSP:
+    case TDMT_SCH_FETCH_RSP:
       code = qWorkerProcessFetchRsp(pQnode, pQnode->pQuery, pMsg, ts);
       break;
     case TDMT_SCH_CANCEL_TASK:

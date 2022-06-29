@@ -372,7 +372,7 @@ int32_t tmqCommitCb(void* param, const SDataBuf* pMsg, int32_t code) {
   return 0;
 }
 
-int32_t tmqCommitCb2(void* param, const SDataBuf* pBuf, int32_t code) {
+int32_t tmqCommitCb2(void* param, SDataBuf* pBuf, int32_t code) {
   SMqCommitCbParam2*   pParam = (SMqCommitCbParam2*)param;
   SMqCommitCbParamSet* pParamSet = (SMqCommitCbParamSet*)pParam->params;
   // push into array
@@ -862,7 +862,7 @@ void tmqClearUnhandleMsg(tmq_t* tmq) {
   }
 }
 
-int32_t tmqSubscribeCb(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t tmqSubscribeCb(void* param, SDataBuf* pMsg, int32_t code) {
   SMqSubscribeCbParam* pParam = (SMqSubscribeCbParam*)param;
   pParam->rspErr = code;
   /*tmq_t* tmq = pParam->tmq;*/
@@ -1116,7 +1116,7 @@ int32_t tmqGetSkipLogNum(tmq_message_t* tmq_message) {
 }
 #endif
 
-int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   SMqPollCbParam* pParam = (SMqPollCbParam*)param;
   SMqClientVg*    pVg = pParam->pVg;
   SMqClientTopic* pTopic = pParam->pTopic;
@@ -1368,7 +1368,7 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
 }
 #endif
 
-int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t tmqAskEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   SMqAskEpCbParam* pParam = (SMqAskEpCbParam*)param;
   tmq_t*           tmq = pParam->tmq;
   int8_t           async = pParam->async;

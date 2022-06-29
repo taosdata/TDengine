@@ -43,7 +43,7 @@ void qwFreeFetchRsp(void *msg) {
   }
 }
 
-int32_t qwBuildAndSendQueryRsp(SRpcHandleInfo *pConn, int32_t code, STbVerInfo* tbInfo) {
+int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, STbVerInfo* tbInfo) {
   SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(sizeof(SQueryTableRsp));
   pRsp->code = code;
   if (tbInfo) {
@@ -53,7 +53,7 @@ int32_t qwBuildAndSendQueryRsp(SRpcHandleInfo *pConn, int32_t code, STbVerInfo* 
   }
 
   SRpcMsg rpcRsp = {
-      .msgType = TDMT_VND_QUERY_RSP,
+      .msgType = rspType,
       .pCont = pRsp,
       .contLen = sizeof(*pRsp),
       .code = code,
@@ -73,7 +73,7 @@ int32_t qwBuildAndSendExplainRsp(SRpcHandleInfo *pConn, SExplainExecInfo *execIn
   tSerializeSExplainRsp(pRsp, contLen, &rsp);
 
   SRpcMsg rpcRsp = {
-      .msgType = TDMT_VND_EXPLAIN_RSP,
+      .msgType = TDMT_SCH_EXPLAIN_RSP,
       .pCont = pRsp,
       .contLen = contLen,
       .code = 0,
@@ -92,7 +92,7 @@ int32_t qwBuildAndSendHbRsp(SRpcHandleInfo *pConn, SSchedulerHbRsp *pStatus, int
   tSerializeSSchedulerHbRsp(pRsp, contLen, pStatus);
 
   SRpcMsg rpcRsp = {
-      .msgType = TDMT_VND_QUERY_HEARTBEAT_RSP,
+      .msgType = TDMT_SCH_QUERY_HEARTBEAT_RSP,
       .contLen = contLen,
       .pCont = pRsp,
       .code = code,
@@ -112,7 +112,7 @@ int32_t qwBuildAndSendFetchRsp(SRpcHandleInfo *pConn, SRetrieveTableRsp *pRsp, i
   }
 
   SRpcMsg rpcRsp = {
-      .msgType = TDMT_VND_FETCH_RSP,
+      .msgType = TDMT_SCH_FETCH_RSP,
       .pCont = pRsp,
       .contLen = sizeof(*pRsp) + dataLength,
       .code = code,
@@ -129,7 +129,7 @@ int32_t qwBuildAndSendCancelRsp(SRpcHandleInfo *pConn, int32_t code) {
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
-      .msgType = TDMT_VND_CANCEL_TASK_RSP,
+      .msgType = TDMT_SCH_CANCEL_TASK_RSP,
       .pCont = pRsp,
       .contLen = sizeof(*pRsp),
       .code = code,
@@ -145,7 +145,7 @@ int32_t qwBuildAndSendDropRsp(SRpcHandleInfo *pConn, int32_t code) {
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
-      .msgType = TDMT_VND_DROP_TASK_RSP,
+      .msgType = TDMT_SCH_DROP_TASK_RSP,
       .pCont = pRsp,
       .contLen = sizeof(*pRsp),
       .code = code,
@@ -325,9 +325,9 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   uint64_t tId = msg->taskId;
   int64_t  rId = msg->refId;
 
-  SQWMsg qwMsg = {.node = node, .msg = msg->msg + msg->sqlLen, .msgLen = msg->phyLen, .connInfo = pMsg->info};
+  SQWMsg qwMsg = {.node = node, .msg = msg->msg + msg->sqlLen, .msgLen = msg->phyLen, .connInfo = pMsg->info, .msgType = pMsg->msgType};
   char * sql = strndup(msg->msg, msg->sqlLen);
-  QW_SCH_TASK_DLOG("processQuery start, node:%p, handle:%p, sql:%s", node, pMsg->info.handle, sql);
+  QW_SCH_TASK_DLOG("processQuery start, node:%p, type:%s, handle:%p, sql:%s", node, TMSG_INFO(pMsg->msgType), pMsg->info.handle, sql);
 
   QW_ERR_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg, msg->taskType, msg->explain, sql));
   QW_SCH_TASK_DLOG("processQuery end, node:%p", node);

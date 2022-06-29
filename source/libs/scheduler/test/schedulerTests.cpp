@@ -412,7 +412,7 @@ void *schtCreateFetchRspThread(void *param) {
   rsp->completed = 1;
   rsp->numOfRows = 10;
  
-  code = schHandleResponseMsg(pJob, pJob->fetchTask, TDMT_VND_FETCH_RSP, (char *)rsp, sizeof(*rsp), 0);
+  code = schHandleResponseMsg(pJob, pJob->fetchTask, TDMT_SCH_FETCH_RSP, (char *)rsp, sizeof(*rsp), 0);
 
   schReleaseJob(job);
   
@@ -445,7 +445,7 @@ void *schtFetchRspThread(void *aa) {
     dataBuf.pData = rsp;
     dataBuf.len = sizeof(*rsp);
 
-    code = schHandleCallback(param, &dataBuf, TDMT_VND_FETCH_RSP, 0);
+    code = schHandleCallback(param, &dataBuf, TDMT_SCH_FETCH_RSP, 0);
       
     assert(code == 0 || code);
   }
@@ -547,7 +547,7 @@ void* schtRunJobThread(void *aa) {
       dataBuf.pData = &rsp;
       dataBuf.len = sizeof(rsp);
       
-      code = schHandleCallback(param, &dataBuf, TDMT_VND_QUERY_RSP, 0);
+      code = schHandleCallback(param, &dataBuf, TDMT_SCH_QUERY_RSP, 0);
       assert(code == 0 || code);
 
       pIter = taosHashIterate(execTasks, pIter);
@@ -566,7 +566,7 @@ void* schtRunJobThread(void *aa) {
       dataBuf.pData = &rsp;
       dataBuf.len = sizeof(rsp);
       
-      code = schHandleCallback(param, &dataBuf, TDMT_VND_QUERY_RSP, 0);
+      code = schHandleCallback(param, &dataBuf, TDMT_SCH_QUERY_RSP, 0);
       assert(code == 0 || code);
       
       pIter = taosHashIterate(execTasks, pIter);
@@ -677,7 +677,7 @@ TEST(queryTest, normalCase) {
     SSchTask *task = *(SSchTask **)pIter;
 
     SQueryTableRsp rsp = {0};
-    code = schHandleResponseMsg(pJob, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
+    code = schHandleResponseMsg(pJob, task, TDMT_SCH_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
     
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(pJob->execTasks, pIter);
@@ -688,7 +688,7 @@ TEST(queryTest, normalCase) {
     SSchTask *task = *(SSchTask **)pIter;
 
     SQueryTableRsp rsp = {0};
-    code = schHandleResponseMsg(pJob, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
+    code = schHandleResponseMsg(pJob, task, TDMT_SCH_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
     
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(pJob->execTasks, pIter);
@@ -780,7 +780,7 @@ TEST(queryTest, readyFirstCase) {
     SSchTask *task = *(SSchTask **)pIter;
 
     SQueryTableRsp rsp = {0};
-    code = schHandleResponseMsg(pJob, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
+    code = schHandleResponseMsg(pJob, task, TDMT_SCH_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
     
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(pJob->execTasks, pIter);
@@ -791,7 +791,7 @@ TEST(queryTest, readyFirstCase) {
     SSchTask *task = *(SSchTask **)pIter;
 
     SQueryTableRsp rsp = {0};
-    code = schHandleResponseMsg(pJob, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
+    code = schHandleResponseMsg(pJob, task, TDMT_SCH_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
     
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(pJob->execTasks, pIter);
@@ -898,7 +898,7 @@ TEST(queryTest, flowCtrlCase) {
 
       if (task->lastMsgType == TDMT_SCH_QUERY) {
         SQueryTableRsp rsp = {0};
-        code = schHandleResponseMsg(pJob, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
+        code = schHandleResponseMsg(pJob, task, TDMT_SCH_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
         
         ASSERT_EQ(code, 0);
       } else {

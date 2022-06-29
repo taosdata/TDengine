@@ -1307,7 +1307,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
 
   updateTargetEpSet(pSendInfo, pTscObj, pMsg, pEpSet);
 
-  SDataBuf buf = {.len = pMsg->contLen, .pData = NULL, .handle = pMsg->info.handle, .pEpSet = pEpSet};
+  SDataBuf buf = {.msgType = pMsg->msgType, .len = pMsg->contLen, .pData = NULL, .handle = pMsg->info.handle, .pEpSet = pEpSet};
 
   if (pMsg->contLen > 0) {
     buf.pData = taosMemoryCalloc(1, pMsg->contLen);

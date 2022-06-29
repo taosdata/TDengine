@@ -682,9 +682,9 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schUpdateTaskCandidateAddr(SSchTask *pTask, SEpSet* pEpSet) {
+int32_t schUpdateTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask, SEpSet* pEpSet) {
   if (NULL == pTask->candidateAddrs || 1 != taosArrayGetSize(pTask->candidateAddrs)) {
-    SCH_TASK_ELOG("not able to update cndidate addr, addr num %d", (pTask->candidateAddrs ? taosArrayGetSize(pTask->candidateAddrs): 0));
+    SCH_TASK_ELOG("not able to update cndidate addr, addr num %d", (int32_t)(pTask->candidateAddrs ? taosArrayGetSize(pTask->candidateAddrs): 0));
     SCH_ERR_RET(TSDB_CODE_APP_ERROR);
   }
 
@@ -1685,7 +1685,7 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, int32_t rspCode) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SCH_TASK_DLOG("task will be redirected now, status:%d", SCH_GET_TASK_STATUS_STR(pTask));
+  SCH_TASK_DLOG("task will be redirected now, status:%s", SCH_GET_TASK_STATUS_STR(pTask));
   
   schDropTaskOnExecNode(pJob, pTask);
   taosHashClear(pTask->execNodes);
@@ -1735,7 +1735,7 @@ _return:
   SCH_RET(code);  
 }
 
-int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, int32_t msgType, SDataBuf* pData, int32_t rspCode) {
+int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf* pData, int32_t rspCode) {
   int32_t code = 0;
 
   if (SCH_IS_DATA_SRC_QRY_TASK(pTask)) {
@@ -1744,7 +1744,7 @@ int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, int32_t msgType, SData
       SCH_ERR_JRET(rspCode);
     }
 
-    SCH_ERR_JRET(schUpdateTaskCandidateAddr(pTask, pData->pEpSet));
+    SCH_ERR_JRET(schUpdateTaskCandidateAddr(pJob, pTask, pData->pEpSet));
   }
 
   schDoTaskRedirect(pJob, pTask, rspCode);

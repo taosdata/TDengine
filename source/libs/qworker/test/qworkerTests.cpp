@@ -202,7 +202,8 @@ void qwtSendReqToDnode(void* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq)
 void qwtRpcSendResponse(const SRpcMsg *pRsp) {
 
   switch (pRsp->msgType) {
-    case TDMT_VND_QUERY_RSP: {
+    case TDMT_SCH_QUERY_RSP:
+    case TDMT_SCH_MERGE_QUERY_RSP: {
       SQueryTableRsp *rsp = (SQueryTableRsp *)pRsp->pCont;
 
       if (pRsp->code) {
@@ -213,7 +214,7 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
       rpcFreeCont(rsp);
       break;
     }
-    case TDMT_VND_FETCH_RSP: {
+    case TDMT_SCH_FETCH_RSP: {
       SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)pRsp->pCont;
   
       if (0 == pRsp->code && 0 == rsp->completed) {
@@ -229,7 +230,7 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
       
       break;
     }
-    case TDMT_VND_DROP_TASK_RSP: {
+    case TDMT_SCH_DROP_TASK_RSP: {
       STaskDropRsp *rsp = (STaskDropRsp *)pRsp->pCont;
       rpcFreeCont(rsp);
 

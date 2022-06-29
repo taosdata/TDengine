@@ -135,6 +135,7 @@ typedef struct STableMetaOutput {
 } STableMetaOutput;
 
 typedef struct SDataBuf {
+  int32_t  msgType;
   void*    pData;
   uint32_t len;
   void*    handle;
@@ -147,7 +148,7 @@ typedef struct STargetInfo {
   int32_t     vgId;
 } STargetInfo;
 
-typedef int32_t (*__async_send_cb_fn_t)(void* param, const SDataBuf* pMsg, int32_t code);
+typedef int32_t (*__async_send_cb_fn_t)(void* param, SDataBuf* pMsg, int32_t code);
 typedef int32_t (*__async_exec_fn_t)(void* param);
 
 typedef struct SRequestConnInfo {

@@ -86,7 +86,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       return;
     case TDMT_MND_SYSTABLE_RETRIEVE_RSP:
     case TDMT_DND_SYSTABLE_RETRIEVE_RSP:
-    case TDMT_VND_FETCH_RSP:
+    case TDMT_SCH_FETCH_RSP:
       qWorkerProcessFetchRsp(NULL, NULL, pRpc, 0);
       return;
     case TDMT_MND_STATUS_RSP:
