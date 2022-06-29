@@ -123,6 +123,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_VALUE_OUT_OF_RANGE,       "Value out of range")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE,    "Invalid line protocol type")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_PRECISION_TYPE,   "Invalid timestamp precision type")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_RES_TOO_MANY,             "Result set too large to be output")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_TOO_MANY_SML_LINES,       "Too many lines in batch")
 
 // mnode
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MSG_NOT_PROCESSED,        "Message not processed")

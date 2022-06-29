@@ -2912,7 +2912,8 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
 
   tMemBucket * pMemBucket = ppInfo->pMemBucket;
   if (pMemBucket == NULL || pMemBucket->total == 0) {  // check for null
-    assert(ppInfo->numOfElems == 0);
+    if (ppInfo->stage > 0)
+      assert(ppInfo->numOfElems == 0);
     setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
   } else {
     SET_DOUBLE_VAL((double *)pCtx->pOutput, getPercentile(pMemBucket, v));
