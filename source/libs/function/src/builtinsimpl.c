@@ -3148,7 +3148,7 @@ void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
 
 int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
-  STopBotRes*          pRes = GET_ROWCELL_INTERBUF(pEntryInfo);
+  STopBotRes*          pRes = getTopBotOutputInfo(pCtx);
 
   int16_t type = pCtx->input.pData[0]->info.type;
   int32_t slotId = pCtx->pExpr->base.resSchema.slotId;
@@ -5382,8 +5382,6 @@ int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*   pInputCol = pInput->pData[0];
 
-  int32_t bytes = pInputCol->info.bytes;
-
   int32_t startIndex = pInput->startRowIndex;
 
   //escape rest of data blocks to avoid first entry be overwritten.
@@ -5398,7 +5396,11 @@ int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
   }
 
   char* data = colDataGetData(pInputCol, startIndex);
-  memcpy(pInfo->data, data, bytes);
+  if (IS_VAR_DATA_TYPE(pInputCol->info.type)) {
+    memcpy(pInfo->data, data, (pInputCol->info.type == TSDB_DATA_TYPE_JSON) ? getJsonValueLen(data): varDataTLen(data));
+  } else {
+    memcpy(pInfo->data, data, pInputCol->info.bytes);
+  }
   pInfo->hasResult = true;
 
 _group_key_over:

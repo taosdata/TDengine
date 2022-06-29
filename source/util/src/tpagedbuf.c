@@ -193,7 +193,7 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
 
   char* pDataBuf = pg->pData;
   memset(pDataBuf, 0, getAllocPageSize(pBuf->pageSize));
-
+  uDebug("page_flush %p, pageId:%d, offset:%d", pDataBuf, pg->pageId, pg->offset);
   pg->length = size;  // on disk size
   return pDataBuf;
 }
@@ -440,7 +440,7 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId) {
   }
 
   ((void**)pi->pData)[0] = pi;
-  uDebug("page_getNewBufPage pageId:%d, offset:%"PRId64, pi->pageId, pi->offset);
+  uDebug("page_getNewBufPage , pi->pData:%p, pageId:%d, offset:%"PRId64, pi->pData, pi->pageId, pi->offset);
   return (void*)(GET_DATA_PAYLOAD(pi));
 }
 
