@@ -283,7 +283,7 @@ static bool isTableOk(STableKeyInfo* info, SNode *pTagCond, SMeta *metaHandle){
   return result;
 }
 
-int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo* pListInfo) {
+int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, STableListInfo* pListInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   pListInfo->pTableList = taosArrayInit(8, sizeof(STableKeyInfo));
   if(pListInfo->pTableList == NULL) return TSDB_CODE_OUT_OF_MEMORY;
@@ -303,7 +303,7 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
       //code = doFilterTag(pTagIndexCond, &metaArg, res);
       code = TSDB_CODE_INDEX_REBUILDING;
       if (code == TSDB_CODE_INDEX_REBUILDING) {
-        code = vnodeGetAllTableList(metaHandle, tableUid, pListInfo->pTableList);
+        code = vnodeGetAllTableList(pVnode, tableUid, pListInfo->pTableList);
       } else if (code != TSDB_CODE_SUCCESS) {
         qError("failed  to  get tableIds, reason: %s, suid: %" PRIu64 "", tstrerror(code), tableUid);
         taosArrayDestroy(res);
@@ -319,7 +319,7 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
       }
       taosArrayDestroy(res);
     } else {
-      code = vnodeGetAllTableList(metaHandle, tableUid, pListInfo->pTableList);
+      code = vnodeGetAllTableList(pVnode, tableUid, pListInfo->pTableList);
     }
 
     if(pTagCond){
