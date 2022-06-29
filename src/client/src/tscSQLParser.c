@@ -1569,7 +1569,7 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
     }
 
     // field name must be unique
-    if (has(pFieldList, i + 1, pField->name) == true) {
+    if (has(pFieldList, i, pField->name) == true) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       return false;
     }
@@ -1628,7 +1628,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
       return false;
     }
 
-    if (has(pTagsList, i + 1, p->name) == true) {
+    if (has(pTagsList, i, p->name) == true) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       return false;
     }
@@ -1657,8 +1657,8 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
   // field name must be unique
   for (int32_t i = 0; i < numOfTags; ++i) {
     TAOS_FIELD* p = taosArrayGet(pTagsList, i);
-
-    if (has(pFieldList, 0, p->name) == true) {
+    size_t      numOfCols = taosArrayGetSize(pFieldList);
+    if (has(pFieldList, numOfCols, p->name) == true) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       return false;
     }
@@ -1804,9 +1804,8 @@ int32_t validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
 }
 
 /* is contained in pFieldList or not */
-static bool has(SArray* pFieldList, int32_t startIdx, const char* name) {
-  size_t numOfCols = taosArrayGetSize(pFieldList);
-  for (int32_t j = startIdx; j < numOfCols; ++j) {
+static bool has(SArray* pFieldList, int32_t endIdx, const char* name) {
+  for (int32_t j = 0; j < endIdx; ++j) {
     TAOS_FIELD* field = taosArrayGet(pFieldList, j);
     if (strncmp(name, field->name, sizeof(field->name) - 1) == 0) return true;
   }
@@ -7552,7 +7551,9 @@ int32_t validateColumnName(char* name) {
     return validateColumnName(token.z);
   } else if (token.type == TK_ID) {
     stringProcess(name, token.n);
-    return TSDB_CODE_SUCCESS;
+    if (strlen(name) == 0) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
   } else {
     if (isNumber(&token)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;

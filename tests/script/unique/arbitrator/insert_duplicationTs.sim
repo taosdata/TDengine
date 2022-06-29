@@ -1,6 +1,6 @@
 # Test case describe: dnode1 is only mnode, dnode2/dnode3 are only vnode
 # step 1: start dnode1
-# step 2: start dnode2 and dnode3, and all added into cluster (Suppose dnode2 is master-vnode)
+# step 2: start dnode2 and dnode3, and all added into cluster (Suppose dnode2 is leader-vnode)
 # step 3: create db, table, insert data, and Falling disc into file (control only one file, e.g. 1841)
 # step 4: insert old data(now-15d) and new data(now+15d), control data rows  in order to save in cache, not falling disc 
 # step 5: stop dnode2, so date rows falling disc, generate two new files 1840, 1842 in dnode2
@@ -157,7 +157,7 @@ if $dnode3Status != ready then
   goto wait_dnode2_offline
 endi
 
-sleep $sleepTimer   # waitting for move master vnode of dnode2 to dnode3
+sleep $sleepTimer   # waitting for move leader vnode of dnode2 to dnode3
 # check using select
 sql select count(*) from $stb
 print data00 $data00
