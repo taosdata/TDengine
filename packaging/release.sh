@@ -182,14 +182,10 @@ cd "${curr_dir}"
 # 2. cmake executable file
 compile_dir="${top_dir}/debug"
 if [ -d ${compile_dir} ]; then
-  ${csudo}rm -rf ${compile_dir}
+  rm -rf ${compile_dir}
 fi
 
-if [ "$osType" != "Darwin" ]; then
-  ${csudo}mkdir -p ${compile_dir}
-else
-  mkdir -p ${compile_dir}
-fi
+mkdir -p ${compile_dir}
 cd ${compile_dir}
 
 if [[ "$allocator" == "jemalloc" ]]; then
