@@ -14,46 +14,46 @@
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.rest import TDRest
-class TestStrict(TDCase):
+class TestCachelast(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.cfg = self.tdCom.Boundary.DB_PARAM_STRICT_CONFIG
+        self.cfg = self.tdCom.Boundary.DB_PARAM_CACHELAST_CONFIG
         self.tdRest = TDRest(env_setting=self.env_setting)
-    def strict_check(self):
+    def cachelast_check(self):
         """
-        strict check
+        cachelast check
         """
         test_param = self.cfg["create_name"]
+        get_param = self.cfg["query_name"]
         dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.request('show databases')
         #TODO
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
+        self.tdSql.checkEqual(db_field_kv_dict[get_param], self.cfg["default"])
         self.tdRest.request(f'drop database {dbname}')
-        # boundary
-        for param, param_value in self.cfg["boundary"].items():
+        # param_list
+        for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
             self.tdRest.request(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdRest.request('show databases')
             #TODO
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-            self.tdSql.checkEqual(db_field_kv_dict[test_param], param)
+            self.tdSql.checkEqual(db_field_kv_dict[get_param], param_value)
             self.tdRest.request(f'drop database {dbname}')
-        dbname = self.tdCom.get_long_name()
-        self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"]["no_strict"] - 1}')
-        self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"]["strict"] + 1}')
+        self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
+        self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][-1] + 1}')
 
     def run(self) -> bool:
-        self.strict_check()
+        self.cachelast_check()
 
     def cleanup(self):
         pass
 
     def desc(self) -> str:
         case_description = """
-            strict check <jayden>: [TD-14991] : strict check;
+            cachelast check <jayden>: [TD-14991] : cachelast check;
             """
         return case_description
 

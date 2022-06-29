@@ -19,15 +19,18 @@ from taostest.util.get_json import GetJson
 class TestComp(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self._remote: Remote = Remote(self.logger)
+        self.remote: Remote = Remote(self.logger)
         self.cfg = self.tdCom.Boundary.DB_PARAM_COMP_CONFIG
-
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "taosd":
+                self.taosd_setting = env_setting
+                self.fqdn = self.taosd_setting["fqdn"][0]
+                self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "vnode"
     def comp_check(self):
         """
         comp check
         """
         test_param = self.cfg["create_name"]
-        get_data = GetJson(self.logger, self.run_log_dir,self.env_setting)
         dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
@@ -36,8 +39,7 @@ class TestComp(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1, dbname)
-        
-        data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+        data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
         self.tdSql.checkEqual(db_field_kv_dict[test_param], int(data['config'][self.cfg["query_name"]]))
         self.tdSql.execute(f'drop database {dbname}')
         
@@ -49,8 +51,7 @@ class TestComp(TDCase):
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
             self.tdSql.query(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdSql.getOneRow(1, dbname)
-            
-            data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+            data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
             self.tdSql.checkEqual(db_field_kv_dict[test_param], int(data['config'][self.cfg["query_name"]]))
             self.tdSql.execute(f'drop database {dbname}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
