@@ -573,3 +573,5 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
 _err:
   return code;
 }
+
+int32_t tsdbGetNRowsInTbData(STbData *pTbData) { return pTbData->sl.size; }

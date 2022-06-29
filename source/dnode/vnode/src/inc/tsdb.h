@@ -188,6 +188,8 @@ void    *tsdbTbDataIterDestroy(STbDataIter *pIter);
 void     tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter);
 TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter);
 bool     tsdbTbDataIterNext(STbDataIter *pIter);
+// STbData
+int32_t tsdbGetNRowsInTbData(STbData *pTbData);
 // tsdbFile.c ==============================================================================================
 typedef enum { TSDB_HEAD_FILE = 0, TSDB_DATA_FILE, TSDB_LAST_FILE, TSDB_SMA_FILE } EDataFileT;
 void    tsdbDataFileName(STsdb *pTsdb, SDFileSet *pDFileSet, EDataFileT ftype, char fname[]);
