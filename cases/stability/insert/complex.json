@@ -3,6 +3,7 @@
     "cfgdir": "/etc/taos/",
     "host": "HOST",
     "port": PORT,
+    "rest_port": RESTPORT,
     "user": "root",
     "password": "taosdata",
     "thread_count": THREADCOUNT,
@@ -11,7 +12,7 @@
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,
     "interlace_rows": 1000,
-    "num_of_records_per_req": 10000000,
+    "num_of_records_per_req": BATCHSIZE,
     "databases": [
         {
             "dbinfo": {
@@ -28,7 +29,7 @@
                     "auto_create_table": "no",
                     "batch_create_tbl_num": 50000,
                     "data_source": "rand",
-                    "insert_mode": "taosc",
+                    "insert_mode": "INSERTMODE",
                     "insert_rows": INSERTROWS,
                     "interlace_rows": 100000,
                     "insert_interval": 0,
