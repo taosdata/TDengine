@@ -1472,7 +1472,7 @@ void setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuple
   int32_t pageId = pTuplePos->pageId;
   int32_t offset = pTuplePos->offset;
 
-  if (pTuplePos->pageId != -1) {
+  if (pTuplePos->pageId != -1 && pCtx->subsidiaries.num > 0) {
     int32_t numOfCols = pCtx->subsidiaries.num;
     SFilePage* pPage = getBufPage(pCtx->pBuf, pageId);
 
@@ -2419,7 +2419,7 @@ bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
 
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
-  pEnv->calcMemSize = pNode->node.resType.bytes + sizeof(bool); // sizeof(bool) marks if data is null
+  pEnv->calcMemSize = pNode->node.resType.bytes;
   return true;
 }
 

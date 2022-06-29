@@ -67,6 +67,7 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
     rowSize += pCtx[i].resDataInfo.interBufSize;
   }
 
+  rowSize += (numOfOutput * sizeof(bool));    // expand rowSize to mark if col is null for top/bottom result(saveTupleData)
   return rowSize;
 }
 
@@ -668,7 +669,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     } else if (pExpr->pExpr->nodeType == QUERY_NODE_COLUMN || pExpr->pExpr->nodeType == QUERY_NODE_OPERATOR ||
                pExpr->pExpr->nodeType == QUERY_NODE_VALUE) {
       // for simple column, the result buffer needs to hold at least one element.
-      pCtx->resDataInfo.interBufSize = pFunct->resSchema.bytes + sizeof(bool); // sizeof(bool) marks if data is null
+      pCtx->resDataInfo.interBufSize = pFunct->resSchema.bytes;
     }
 
     pCtx->input.numOfInputCols = pFunct->numOfParams;
