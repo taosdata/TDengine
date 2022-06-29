@@ -249,9 +249,9 @@ if [ "$osType" != "Darwin" ]; then
       echo "====do deb package for the ubuntu system===="
       output_dir="${top_dir}/debs"
       if [ -d ${output_dir} ]; then
-        ${csudo}rm -rf ${output_dir}
+        rm -rf ${output_dir}
       fi
-      ${csudo}mkdir -p ${output_dir}
+      mkdir -p ${output_dir}
       cd ${script_dir}/deb
       ${csudo}./makedeb.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
 
@@ -274,9 +274,9 @@ if [ "$osType" != "Darwin" ]; then
       echo "====do rpm package for the centos system===="
       output_dir="${top_dir}/rpms"
       if [ -d ${output_dir} ]; then
-        ${csudo}rm -rf ${output_dir}
+        rm -rf ${output_dir}
       fi
-      ${csudo}mkdir -p ${output_dir}
+      mkdir -p ${output_dir}
       cd ${script_dir}/rpm
       ${csudo}./makerpm.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
 
