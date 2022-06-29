@@ -142,7 +142,7 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
   void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
 
   SEncoder encoder;
-  tEncoderInit(&encoder, abuf, tlen);
+  tEncoderInit(&encoder, abuf, len);
   tEncodeSMqDataRsp(&encoder, pRsp);
   /*tEncodeSMqDataBlkRsp(&abuf, pRsp);*/
 
@@ -332,7 +332,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       if (tqFetchLog(pTq, pHandle, &fetchVer, &pHeadWithCkSum) < 0) {
         // TODO add push mgr
 
-        tqOffsetResetToLog(&dataRsp.rspOffset, fetchVer);
+        tqOffsetResetToLog(&dataRsp.rspOffset, fetchVer - 1);
         if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
           code = -1;
         }

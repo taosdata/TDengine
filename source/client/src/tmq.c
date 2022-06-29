@@ -1124,10 +1124,10 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   pRspWrapper->topicHandle = pTopic;
 
   if (rspType == TMQ_MSG_TYPE__POLL_RSP) {
-    memcpy(&pRspWrapper->dataRsp, pMsg->pData, sizeof(SMqRspHead));
     SDecoder decoder;
     tDecoderInit(&decoder, POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), pMsg->len - sizeof(SMqRspHead));
     tDecodeSMqDataRsp(&decoder, &pRspWrapper->dataRsp);
+    memcpy(&pRspWrapper->dataRsp, pMsg->pData, sizeof(SMqRspHead));
     /*tDecodeSMqDataBlkRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pRspWrapper->dataRsp);*/
   } else {
     ASSERT(rspType == TMQ_MSG_TYPE__POLL_META_RSP);
@@ -1138,7 +1138,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   taosMemoryFree(pMsg->pData);
 
   tscDebug("consumer %ld recv poll: vg %d, req offset %ld, rsp offset %ld, type %d", tmq->consumerId, pVg->vgId,
-           pRspWrapper->dataRsp.reqOffset, pRspWrapper->dataRsp.rspOffset, rspType);
+           pRspWrapper->dataRsp.reqOffset.version, pRspWrapper->dataRsp.rspOffset.version, rspType);
 
   taosWriteQitem(tmq->mqueue, pRspWrapper);
   tsem_post(&tmq->rspSem);
@@ -1203,17 +1203,17 @@ bool tmqUpdateEp2(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
     for (int32_t j = 0; j < vgNumGet; j++) {
       SMqSubVgEp* pVgEp = taosArrayGet(pTopicEp->vgs, j);
       sprintf(vgKey, "%s:%d", topic.topicName, pVgEp->vgId);
-      int64_t* pOffset = taosHashGet(pHash, vgKey, strlen(vgKey));
-      int64_t  offset = tmq->resetOffsetCfg;
+      STqOffsetVal* pOffset = taosHashGet(pHash, vgKey, strlen(vgKey));
+      STqOffsetVal  offsetNew = {.type = tmq->resetOffsetCfg};
       if (pOffset != NULL) {
-        offset = *pOffset;
+        offsetNew = *pOffset;
       }
 
-      tscDebug("consumer %ld(epoch %d) offset of vg %d updated to %ld, vgKey is %s", tmq->consumerId, epoch,
-               pVgEp->vgId, offset, vgKey);
+      /*tscDebug("consumer %ld(epoch %d) offset of vg %d updated to %ld, vgKey is %s", tmq->consumerId, epoch,*/
+      /*pVgEp->vgId, offset, vgKey);*/
       SMqClientVg clientVg = {
           .pollCnt = 0,
-          .currentOffsetNew.type = tmq->resetOffsetCfg,
+          .currentOffsetNew = offsetNew,
           .vgId = pVgEp->vgId,
           .epSet = pVgEp->epSet,
           .vgStatus = TMQ_VG_STATUS__IDLE,
