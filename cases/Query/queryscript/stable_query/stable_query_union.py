@@ -103,14 +103,14 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s " %(self.table,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s " %(self.table_null,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -118,7 +118,7 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from (select * from %s where %s %s %s )" %(self.table,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s " %(self.table_null,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -126,14 +126,14 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s " %(self.table_null,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s " %(self.table,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -158,14 +158,14 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s " %(self.table,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s " %(self.table,qt_where_null,qt_like_match_null,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -173,14 +173,14 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s " %(self.table,qt_where_null,qt_like_match_null,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s " %(self.table,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -218,14 +218,14 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where  %s %s %s " %(self.table,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s order by ts " %(self.table_null,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -233,14 +233,14 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s " %(self.table_null,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s order by ts" %(self.table,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -248,7 +248,7 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s " %(self.table_null,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from (select * from %s where %s %s %s order by ts)" %(self.table,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -265,14 +265,14 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s " %(self.table,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s order by ts desc " %(self.table_null,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -280,14 +280,14 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s" %(self.table_null,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s order by ts desc" %(self.table,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -313,14 +313,14 @@ class TDTestQuery(TDCase):
                         sql2 = "(select * from %s where %s %s %s order by ts)" %(self.table,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s " %(self.table,qt_where_null,qt_like_match_null,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -328,14 +328,14 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s " %(self.table,qt_where_null,qt_like_match_null,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s order by ts " %(self.table,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -358,14 +358,14 @@ class TDTestQuery(TDCase):
                         sql2 = "(select * from %s where %s %s %s order by ts desc)" %(self.table,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s order by ts desc" %(self.table,qt_where_null,qt_like_match_null,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -373,14 +373,14 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s " %(self.table,qt_where_null,qt_like_match_null,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s order by ts desc " %(self.table,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -418,14 +418,14 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where   tbname in ('%s_1') and %s %s %s" %(self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s order by ts limit 10 " %(self.table_null,qt_where,qt_like_match,qt_in_where)                        
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2                         
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -433,14 +433,14 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s " %(self.table_null,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where tbname in ('%s_1') and %s %s %s order by ts limit 10" %(self.table,self.table,qt_where,qt_like_match,qt_in_where)                       
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -448,7 +448,7 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s " %(self.table_null,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from (select * from %s where tbname in ('%s_1') and %s %s %s order by ts limit 100)" %(self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -473,7 +473,7 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where tbname in ('%s_1') and %s %s %s" %(self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s order by ts limit 10" %(self.table,qt_where_null,qt_like_match_null,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -481,7 +481,7 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -489,14 +489,14 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s " %(self.table,qt_where_null,qt_like_match_null,qt_in_where)
                         sql2 += " union all select * from %s where tbname in ('%s_1') and %s %s %s order by ts limit 100" %(self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -534,14 +534,14 @@ class TDTestQuery(TDCase):
                         sql2 = "(select * from %s where tbname in ('%s_1') and %s %s %s limit 10 offset 5) " %(self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s order by ts limit 10 offset 5" %(self.table_null,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -549,14 +549,14 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s order by ts " %(self.table_null,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where tbname in ('%s_1') and  %s %s %s order by ts limit 10 offset 5" %(self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -581,14 +581,14 @@ class TDTestQuery(TDCase):
                         sql2 = "(select * from %s where tbname in ('%s_1') and  %s %s %s order by ts limit 10 offset 5) " %(self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where %s %s %s order by ts limit 10 offset 5" %(self.table,qt_where_null,qt_like_match_null,qt_in_where)                    
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -596,14 +596,14 @@ class TDTestQuery(TDCase):
                         sql2 = "(select * from %s where %s %s %s order by ts limit 10  offset 5)" %(self.table,qt_where_null,qt_like_match_null,qt_in_where)
                         sql2 += " union all select * from %s where tbname in ('%s_1') and  %s %s %s order by ts limit 10  offset 5" %(self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from ( %s )" %sql2 
                         rows = self.tdSql.query(sql1).row_count 
-                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 5,'%s' %sql2 , 1, rows, 1, 5)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows, 1, 2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
