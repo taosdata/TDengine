@@ -168,6 +168,9 @@ static SyncIndex raftLogWriteIndex(struct SSyncLogStore* pLogStore) {
   return lastVer + 1;
 }
 
+// if success, return last term
+// if not log, return 0
+// if error, return SYNC_TERM_INVALID
 static SyncTerm raftLogLastTerm(struct SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -176,15 +179,17 @@ static SyncTerm raftLogLastTerm(struct SSyncLogStore* pLogStore) {
   } else {
     SSyncRaftEntry* pLastEntry;
     int32_t         code = raftLogGetLastEntry(pLogStore, &pLastEntry);
-    ASSERT(code == 0);
-    ASSERT(pLastEntry != NULL);
-
-    SyncTerm lastTerm = pLastEntry->term;
-    taosMemoryFree(pLastEntry);
-    return lastTerm;
+    if (code == 0 && pLastEntry != NULL) {
+      SyncTerm lastTerm = pLastEntry->term;
+      taosMemoryFree(pLastEntry);
+      return lastTerm;
+    } else {
+      return SYNC_TERM_INVALID;
+    }
   }
 
-  return 0;
+  // can not be here!
+  return SYNC_TERM_INVALID;
 }
 
 static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
@@ -218,16 +223,21 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
     ASSERT(0);
   }
 
-  walFsync(pWal, true);
+  // walFsync(pWal, true);
 
-  char eventLog[128];
-  snprintf(eventLog, sizeof(eventLog), "write index:%ld, type:%s,%d, type2:%s,%d", pEntry->index,
-           TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType);
-  syncNodeEventLog(pData->pSyncNode, eventLog);
+  do {
+    char eventLog[128];
+    snprintf(eventLog, sizeof(eventLog), "write index:%ld, type:%s,%d, type2:%s,%d", pEntry->index,
+             TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType);
+    syncNodeEventLog(pData->pSyncNode, eventLog);
+  } while (0);
 
   return code;
 }
 
+// entry found, return 0
+// entry not found, return -1, terrno = TSDB_CODE_WAL_LOG_NOT_EXIST
+// other error, return -1
 static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -238,6 +248,7 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
   // SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
   SWalReadHandle* pWalHandle = pData->pWalHandle;
   if (pWalHandle == NULL) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
 
@@ -309,6 +320,9 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
   return code;
 }
 
+// entry found, return 0
+// entry not found, return -1, terrno = TSDB_CODE_WAL_LOG_NOT_EXIST
+// other error, return -1
 static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** ppLastEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -320,7 +334,8 @@ static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** pp
     return -1;
   } else {
     SyncIndex lastIndex = raftLogLastIndex(pLogStore);
-    int32_t   code = raftLogGetEntry(pLogStore, lastIndex, ppLastEntry);
+    ASSERT(lastIndex >= SYNC_INDEX_BEGIN);
+    int32_t code = raftLogGetEntry(pLogStore, lastIndex, ppLastEntry);
     return code;
   }
 
@@ -356,7 +371,7 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
     ASSERT(0);
   }
 
-  walFsync(pWal, true);
+  // walFsync(pWal, true);
 
   char eventLog[128];
   snprintf(eventLog, sizeof(eventLog), "old write index:%ld, type:%s,%d, type2:%s,%d", pEntry->index,
