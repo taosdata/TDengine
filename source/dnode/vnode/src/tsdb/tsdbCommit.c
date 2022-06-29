@@ -476,7 +476,7 @@ static int32_t tsdbMergeTableData(SCommitter *pCommitter, STbDataIter *pIter, SB
     }
 
   _append_block_row:
-    code = tBlockDataAppendRow(pBlockData, pRow1, NULL);
+    code = tBlockDataAppendRow(pBlockData, pRow2, NULL);
     if (code) goto _err;
 
     if (pRow2->iRow + 1 < pBlockDataMerge->nRow) {

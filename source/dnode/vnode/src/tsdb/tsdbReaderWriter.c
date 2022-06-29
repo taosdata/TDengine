@@ -107,7 +107,7 @@ int32_t tsdbWriteDelData(SDelFWriter *pWriter, SArray *aDelData, uint8_t **ppBuf
   *(SBlockDataHdr *)(*ppBuf) = hdr;
   n += sizeof(hdr);
   for (int32_t iDelData = 0; iDelData < taosArrayGetSize(aDelData); iDelData++) {
-    size += tPutDelData(*ppBuf + n, taosArrayGet(aDelData, iDelData));
+    n += tPutDelData(*ppBuf + n, taosArrayGet(aDelData, iDelData));
   }
   taosCalcChecksumAppend(0, *ppBuf, size);
 
