@@ -21,18 +21,13 @@ title: 高效写入
 
 在 Java 示例程序中采用拼接 SQL 的写入方式。
 
+### 主程序
+
 ```java title="主程序"
 {{#include docs/examples/java/src/main/java/com/taos/example/highvolume/FastWriteExample.java:main}}
 ```
 
-<details>
-<summary>写任务的实现</summary>
-
-```java 
-{{#include docs/examples/java/src/main/java/com/taos/example/highvolume/WriteTask.java:WriteTask}}
-```
-</details>
-
+### 读任务的实现
 <details>
 <summary>读任务的实现</summary>
 
@@ -42,7 +37,42 @@ title: 高效写入
 
 </details>
 
+### 写任务的实现
 
+<details>
+<summary>写任务的实现</summary>
+
+```java 
+{{#include docs/examples/java/src/main/java/com/taos/example/highvolume/WriteTask.java:WriteTask}}
+```
+</details>
+
+### SQLWriter 类的实现
+
+### 执行示例程序
+
+可用在本地集成开发环境里直接运行示例程序，注意要提前配置环境变量 TDENGINE_JDBC_URL。若要在远程服务器上执行示例程序，可按照下面步骤操作：
+1. 打包示例代码。在目录 TDengine/docs/examples/java 下执行：
+   ```
+   mvn package
+   ```
+2. 远程服务器上创建 examples 目录：
+   ```
+   mkdir -p examples/java
+   ```
+3. 复制依赖到服务器指定目录，比如：
+   ```
+   scp -r .\target\lib user@host:~/examples/java
+   scp -r .\target\javaexample-1.0.jar user@host:~/examples/java
+   ```
+4. 配置环境变量，例如：
+   ```
+   export TDENGINE_JDBC_URL="jdbc:TAOS://localhost:6030?user=root&password=taosdata"
+   ```
+5. 用 java 命令启动示例程序
+   ```
+   java -classpath lib/*:javaexample-1.0.jar  com.taos.example.highvolume.FastWriteExample
+   ```
 
 ## Python 示例程序
 

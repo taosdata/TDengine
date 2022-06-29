@@ -12,8 +12,8 @@ import java.util.concurrent.BlockingQueue;
  */
 class MockDataSource implements Iterator {
     private String tbNamePrefix;
-    private int tableCount = 10;
-    private int totalRowsPerTable = 10;
+    private int tableCount = 100;
+    private int totalRowsPerTable = 1000000;
 
     // 100 milliseconds between two neighbouring rows.
     long startMs = System.currentTimeMillis() - totalRowsPerTable * 100;
@@ -28,7 +28,6 @@ class MockDataSource implements Iterator {
 
     public MockDataSource(String tbNamePrefix) {
         this.tbNamePrefix = tbNamePrefix;
-
     }
 
     @Override
@@ -50,8 +49,8 @@ class MockDataSource implements Iterator {
         sb.append(current[currentRow % 5]).append(','); // current
         sb.append(voltage[currentRow % 5]).append(','); // voltage
         sb.append(phase[currentRow % 5]).append(','); // phase
-        sb.append(groupId).append(','); // groupID
-        sb.append(location[currentRow % 5]); // location
+        sb.append(location[currentRow % 5]).append(','); // location
+        sb.append(groupId); // groupID
 
         return sb.toString();
     }
