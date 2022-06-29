@@ -113,10 +113,6 @@ _return:
     schReleaseJob(pJob->refId);
   }
 
-  if (code != TSDB_CODE_SUCCESS) {
-    pReq->fp(NULL, pReq->cbParam, code);
-  }
-
   return code;
 }
 
