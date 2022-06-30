@@ -139,8 +139,6 @@ static void uvHandleResp(SSvrMsg* msg, SWorkThrd* thrd);
 static void uvHandleRegister(SSvrMsg* msg, SWorkThrd* thrd);
 static void (*transAsyncHandle[])(SSvrMsg* msg, SWorkThrd* thrd) = {uvHandleResp, uvHandleQuit, uvHandleRelease,
                                                                     uvHandleRegister, NULL};
-
-
 static void uvDestroyConn(uv_handle_t* handle);
 
 // server and worker thread
@@ -1115,5 +1113,7 @@ _return2:
   tTrace("handle %p failed to register brokenlink", exh);
   rpcFreeCont(msg->pCont);
 }
+
+int transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }
 
 #endif

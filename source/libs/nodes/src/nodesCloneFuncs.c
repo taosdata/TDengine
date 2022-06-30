@@ -582,6 +582,7 @@ static int32_t downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstre
   COPY_OBJECT_FIELD(addr, sizeof(SQueryNodeAddr));
   COPY_SCALAR_FIELD(taskId);
   COPY_SCALAR_FIELD(schedId);
+  COPY_SCALAR_FIELD(execId);
   return TSDB_CODE_SUCCESS;
 }
 
