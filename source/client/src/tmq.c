@@ -54,7 +54,8 @@ struct tmq_conf_t {
   int8_t   autoCommit;
   int8_t   resetOffset;
   int8_t   withTbName;
-  int8_t   useSnapshot;
+  int8_t   spEnable;
+  int32_t  spBatchSize;
   uint16_t port;
   int32_t  autoCommitInterval;
   char*    ip;
@@ -288,16 +289,21 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     }
   }
 
-  if (strcmp(key, "experiment.use.snapshot") == 0) {
+  if (strcmp(key, "experimental.snapshot.enable") == 0) {
     if (strcmp(value, "true") == 0) {
-      conf->useSnapshot = true;
+      conf->spEnable = true;
       return TMQ_CONF_OK;
     } else if (strcmp(value, "false") == 0) {
-      conf->useSnapshot = false;
+      conf->spEnable = false;
       return TMQ_CONF_OK;
     } else {
       return TMQ_CONF_INVALID;
     }
+  }
+
+  if (strcmp(key, "experimental.snapshot.batch.size") == 0) {
+    conf->spBatchSize = atoi(value);
+    return TMQ_CONF_OK;
   }
 
   if (strcmp(key, "td.connect.ip") == 0) {
@@ -378,7 +384,7 @@ int32_t tmqCommitCb(void* param, const SDataBuf* pMsg, int32_t code) {
 }
 #endif
 
-int32_t tmqCommitCb2(void* param, const SDataBuf* pBuf, int32_t code) {
+int32_t tmqCommitCb2(void* param, SDataBuf* pBuf, int32_t code) {
   SMqCommitCbParam2*   pParam = (SMqCommitCbParam2*)param;
   SMqCommitCbParamSet* pParamSet = (SMqCommitCbParamSet*)pParam->params;
   // push into array
@@ -813,7 +819,7 @@ void tmqClearUnhandleMsg(tmq_t* tmq) {
   }
 }
 
-int32_t tmqSubscribeCb(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t tmqSubscribeCb(void* param, SDataBuf* pMsg, int32_t code) {
   SMqSubscribeCbParam* pParam = (SMqSubscribeCbParam*)param;
   pParam->rspErr = code;
   /*tmq_t* tmq = pParam->tmq;*/
@@ -918,7 +924,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   strcpy(pTmq->clientId, conf->clientId);
   strcpy(pTmq->groupId, conf->groupId);
   pTmq->withTbName = conf->withTbName;
-  pTmq->useSnapshot = conf->useSnapshot;
+  pTmq->useSnapshot = conf->spEnable;
   pTmq->autoCommit = conf->autoCommit;
   pTmq->autoCommitInterval = conf->autoCommitInterval;
   pTmq->commitCb = conf->commitCb;
@@ -1067,7 +1073,7 @@ int32_t tmqGetSkipLogNum(tmq_message_t* tmq_message) {
 }
 #endif
 
-int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   SMqPollCbParam* pParam = (SMqPollCbParam*)param;
   SMqClientVg*    pVg = pParam->pVg;
   SMqClientTopic* pTopic = pParam->pTopic;
@@ -1324,7 +1330,7 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
 }
 #endif
 
-int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t tmqAskEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   SMqAskEpCbParam* pParam = (SMqAskEpCbParam*)param;
   tmq_t*           tmq = pParam->tmq;
   int8_t           async = pParam->async;

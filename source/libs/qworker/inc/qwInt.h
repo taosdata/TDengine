@@ -75,6 +75,7 @@ typedef struct SQWDebug {
   bool lockEnable;
   bool statusEnable;
   bool dumpEnable;
+  bool tmp;
 } SQWDebug;
 
 extern SQWDebug gQWDebug;
@@ -82,6 +83,7 @@ extern SQWDebug gQWDebug;
 typedef struct SQWMsg {
   void          *node;
   int32_t        code;
+  int32_t        msgType;
   char          *msg;
   int32_t        msgLen;
   SRpcHandleInfo connInfo;
@@ -100,6 +102,7 @@ typedef struct SQWHbInfo {
 
 typedef struct SQWPhaseInput {
   int32_t code;
+  int32_t msgType;
 } SQWPhaseInput;
 
 typedef struct SQWPhaseOutput {
@@ -119,6 +122,8 @@ typedef struct SQWTaskCtx {
   int8_t   phase;
   int8_t   taskType;
   int8_t   explain;
+  int32_t  queryType;
+  int32_t  execId;
 
   bool    queryFetched;
   bool    queryEnd;
@@ -197,8 +202,8 @@ typedef struct SQWorkerMgmt {
   int32_t    paramIdx;
 } SQWorkerMgmt;
 
-#define QW_FPARAMS_DEF SQWorker *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId
-#define QW_IDS()       sId, qId, tId, rId
+#define QW_FPARAMS_DEF SQWorker *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId
+#define QW_IDS()       sId, qId, tId, rId, eId
 #define QW_FPARAMS()   mgmt, QW_IDS()
 
 #define QW_STAT_INC(_item, _n) atomic_add_fetch_64(&(_item), _n)
@@ -223,15 +228,18 @@ typedef struct SQWorkerMgmt {
 #define QW_TASK_READY(status)                                                                                      \
   (status == JOB_TASK_STATUS_SUCCEED || status == JOB_TASK_STATUS_FAILED || status == JOB_TASK_STATUS_CANCELLED || \
    status == JOB_TASK_STATUS_PARTIAL_SUCCEED)
-#define QW_SET_QTID(id, qId, tId)                      \
-  do {                                                 \
-    *(uint64_t *)(id) = (qId);                         \
-    *(uint64_t *)((char *)(id) + sizeof(qId)) = (tId); \
+#define QW_SET_QTID(id, qId, tId, eId)                              \
+  do {                                                              \
+    *(uint64_t *)(id) = (qId);                                      \
+    *(uint64_t *)((char *)(id) + sizeof(qId)) = (tId);              \
+    *(int32_t *)((char *)(id) + sizeof(qId) + sizeof(tId)) = (eId); \
   } while (0)
-#define QW_GET_QTID(id, qId, tId)                      \
-  do {                                                 \
-    (qId) = *(uint64_t *)(id);                         \
-    (tId) = *(uint64_t *)((char *)(id) + sizeof(qId)); \
+  
+#define QW_GET_QTID(id, qId, tId, eId)                              \
+  do {                                                              \
+    (qId) = *(uint64_t *)(id);                                      \
+    (tId) = *(uint64_t *)((char *)(id) + sizeof(qId));              \
+    (eId) = *(int32_t *)((char *)(id) + sizeof(qId) + sizeof(tId)); \
   } while (0)
 
 #define QW_ERR_RET(c)                 \
@@ -273,22 +281,22 @@ typedef struct SQWorkerMgmt {
 #define QW_SCH_ELOG(param, ...) qError("QW:%p SID:%" PRIx64 " " param, mgmt, sId, __VA_ARGS__)
 #define QW_SCH_DLOG(param, ...) qDebug("QW:%p SID:%" PRIx64 " " param, mgmt, sId, __VA_ARGS__)
 
-#define QW_TASK_ELOG(param, ...) qError("QW:%p QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, mgmt, qId, tId, __VA_ARGS__)
-#define QW_TASK_WLOG(param, ...) qWarn("QW:%p QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, mgmt, qId, tId, __VA_ARGS__)
-#define QW_TASK_DLOG(param, ...) qDebug("QW:%p QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, mgmt, qId, tId, __VA_ARGS__)
+#define QW_TASK_ELOG(param, ...) qError("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId, __VA_ARGS__)
+#define QW_TASK_WLOG(param, ...) qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId, __VA_ARGS__)
+#define QW_TASK_DLOG(param, ...) qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId, __VA_ARGS__)
 #define QW_TASK_DLOGL(param, ...) \
-  qDebugL("QW:%p QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, mgmt, qId, tId, __VA_ARGS__)
+  qDebugL("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId, __VA_ARGS__)
 
-#define QW_TASK_ELOG_E(param) qError("QW:%p QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, mgmt, qId, tId)
-#define QW_TASK_WLOG_E(param) qWarn("QW:%p QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, mgmt, qId, tId)
-#define QW_TASK_DLOG_E(param) qDebug("QW:%p QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, mgmt, qId, tId)
+#define QW_TASK_ELOG_E(param) qError("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId)
+#define QW_TASK_WLOG_E(param) qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId)
+#define QW_TASK_DLOG_E(param) qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, tId, eId)
 
 #define QW_SCH_TASK_ELOG(param, ...) \
-  qError("QW:%p SID:0x%" PRIx64 ",QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, mgmt, sId, qId, tId, __VA_ARGS__)
+  qError("QW:%p SID:0x%" PRIx64 ",QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, mgmt, sId, qId, tId, eId, __VA_ARGS__)
 #define QW_SCH_TASK_WLOG(param, ...) \
-  qWarn("QW:%p SID:0x%" PRIx64 ",QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, mgmt, sId, qId, tId, __VA_ARGS__)
+  qWarn("QW:%p SID:0x%" PRIx64 ",QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, mgmt, sId, qId, tId, eId, __VA_ARGS__)
 #define QW_SCH_TASK_DLOG(param, ...) \
-  qDebug("QW:%p SID:0x%" PRIx64 ",QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, mgmt, sId, qId, tId, __VA_ARGS__)
+  qDebug("QW:%p SID:0x%" PRIx64 ",QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, mgmt, sId, qId, tId, eId, __VA_ARGS__)
 
 #define QW_LOCK_DEBUG(...)     \
   do {                         \
@@ -362,6 +370,8 @@ void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
 
 void qwDbgDumpMgmtInfo(SQWorker *mgmt);
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore);
+int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, SEpSet *pEpSet);
+int32_t qwAddTaskCtx(QW_FPARAMS_DEF);
 
 
 #ifdef __cplusplus

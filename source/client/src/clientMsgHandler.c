@@ -26,7 +26,7 @@ static void setErrno(SRequestObj* pRequest, int32_t code) {
   terrno = code;
 }
 
-int32_t genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   setErrno(pRequest, code);
 
@@ -39,7 +39,7 @@ int32_t genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
-int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pMsg->pData);
@@ -116,7 +116,7 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pRequest) {
   return pMsgSendInfo;
 }
 
-int32_t processCreateDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   // todo rsp with the vnode id list
   SRequestObj* pRequest = param;
   taosMemoryFree(pMsg->pData);
@@ -132,7 +132,7 @@ int32_t processCreateDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
-int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
 
   if (TSDB_CODE_MND_DB_NOT_EXIST == code) {
@@ -211,7 +211,7 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   return 0;
 }
 
-int32_t processCreateSTableRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
   assert(pMsg != NULL && param != NULL);
   SRequestObj* pRequest = param;
 
@@ -229,7 +229,7 @@ int32_t processCreateSTableRsp(void* param, const SDataBuf* pMsg, int32_t code) 
   return code;
 }
 
-int32_t processDropDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
@@ -250,7 +250,7 @@ int32_t processDropDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
-int32_t processAlterStbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
@@ -356,7 +356,7 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t processShowVariablesRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);

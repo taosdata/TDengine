@@ -4309,6 +4309,7 @@ int32_t tSerializeSSchedulerHbRsp(void *buf, int32_t bufLen, SSchedulerHbRsp *pR
       if (tEncodeU64(&encoder, status->queryId) < 0) return -1;
       if (tEncodeU64(&encoder, status->taskId) < 0) return -1;
       if (tEncodeI64(&encoder, status->refId) < 0) return -1;
+      if (tEncodeI32(&encoder, status->execId) < 0) return -1;
       if (tEncodeI8(&encoder, status->status) < 0) return -1;
     }
   } else {
@@ -4339,6 +4340,7 @@ int32_t tDeserializeSSchedulerHbRsp(void *buf, int32_t bufLen, SSchedulerHbRsp *
       if (tDecodeU64(&decoder, &status.queryId) < 0) return -1;
       if (tDecodeU64(&decoder, &status.taskId) < 0) return -1;
       if (tDecodeI64(&decoder, &status.refId) < 0) return -1;
+      if (tDecodeI32(&decoder, &status.execId) < 0) return -1;
       if (tDecodeI8(&decoder, &status.status) < 0) return -1;
       taosArrayPush(pRsp->taskStatus, &status);
     }
@@ -4641,6 +4643,7 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   if (tEncodeI8(&encoder, pReq->triggerType) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->maxDelay) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->watermark) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->igExpired) < 0) return -1;
   if (sqlLen > 0 && tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
   if (astLen > 0 && tEncodeCStr(&encoder, pReq->ast) < 0) return -1;
 
@@ -4668,6 +4671,7 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
   if (tDecodeI8(&decoder, &pReq->triggerType) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->maxDelay) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->watermark) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->igExpired) < 0) return -1;
 
   if (sqlLen > 0) {
     pReq->sql = taosMemoryCalloc(1, sqlLen + 1);
@@ -5502,4 +5506,3 @@ int32_t tDecodeSMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
   }
   return 0;
 }
-
