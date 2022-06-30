@@ -1033,7 +1033,7 @@ static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSData
   SqlFunctionCtx* pCtx = pTableScanInfo->pCtx;
   uint32_t        status = BLK_DATA_NOT_LOAD;
 
-  int32_t numOfOutput = 0;//pTableScanInfo->numOfOutput;
+  int32_t numOfOutput = 0;  // pTableScanInfo->numOfOutput;
   for (int32_t i = 0; i < numOfOutput; ++i) {
     int32_t functionId = pCtx[i].functionId;
     int32_t colId = pTableScanInfo->pExpr[i].base.pParam[0].pCol->colId;
@@ -2821,13 +2821,35 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
   }
 }
 
+int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
+  int32_t type = pOperator->operatorType;
+  if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    SStreamBlockScanInfo* pScanInfo = pOperator->info;
+    STableScanInfo*       pSnapShotScanInfo = pScanInfo->pSnapshotReadOp->info;
+    /**uid = pSnapShotScanInfo->scanStatus.uid;*/
+    /**ts = pSnapShotScanInfo->scanStatus.t;*/
+    if (pSnapShotScanInfo->lastStatus.uid != uid || pSnapShotScanInfo->lastStatus.ts != ts) {
+      // rebuild scan
+      //
+    }
+  } else {
+    if (pOperator->pDownstream[0] == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    } else {
+      doPrepareScan(pOperator->pDownstream[0], uid, ts);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t doGetScanStatus(SOperatorInfo* pOperator, uint64_t* uid, int64_t* ts) {
   int32_t type = pOperator->operatorType;
   if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     SStreamBlockScanInfo* pScanInfo = pOperator->info;
-    STableScanInfo* pSnapShotScanInfo = pScanInfo->pSnapshotReadOp->info;
-    *uid = pSnapShotScanInfo->scanStatus.uid;
-    *ts = pSnapShotScanInfo->scanStatus.t;
+    STableScanInfo*       pSnapShotScanInfo = pScanInfo->pSnapshotReadOp->info;
+    *uid = pSnapShotScanInfo->lastStatus.uid;
+    *ts = pSnapShotScanInfo->lastStatus.ts;
   } else {
     if (pOperator->pDownstream[0] == NULL) {
       return TSDB_CODE_INVALID_PARA;
