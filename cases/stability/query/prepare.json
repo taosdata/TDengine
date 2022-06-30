@@ -3,7 +3,7 @@
     "cfgdir": "/etc/taos/",
     "host": "HOST",
     "port": PORT,
-    "rest_port": REST_PORT,
+    "rest_port": RESTPORT,
     "user": "root",
     "password": "taosdata",
     "thread_count": THREADCOUNT,
