@@ -36,14 +36,7 @@ typedef struct SReadHandle {
   void*   vnode;
   void*   mnd;
   SMsgCb* pMsgCb;
-//  int8_t  initTsdbReader;
 } SReadHandle;
-
-enum {
-  STREAM_DATA_TYPE_SUBMIT_BLOCK = 1,
-  STREAM_DATA_TYPE_SSDATA_BLOCK = 2,
-  STREAM_DATA_TYPE_FROM_SNAPSHOT = 3,
-};
 
 typedef enum {
   OPTR_EXEC_MODEL_BATCH = 0x1,
@@ -140,12 +133,6 @@ int32_t qKillTask(qTaskInfo_t tinfo);
  */
 int32_t qAsyncKillTask(qTaskInfo_t tinfo);
 
-/**
- * return whether query is completed or not
- * @param tinfo
- * @return
- */
-int32_t qIsTaskCompleted(qTaskInfo_t tinfo);
 
 /**
  * destroy query info structure
@@ -175,6 +162,15 @@ int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, int32_t* resNum, SExplainExecInfo
 int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len);
 
 int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t len);
+
+/**
+ * return the scan info, in the form of tuple of two items, including table uid and current timestamp
+ * @param tinfo
+ * @param uid
+ * @param ts
+ * @return
+ */
+int32_t qGetStreamScanStatus(qTaskInfo_t tinfo, uint64_t* uid, int64_t* ts);
 
 #ifdef __cplusplus
 }

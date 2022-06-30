@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
-#include "systable.h"
 #include "mndPrivilege.h"
+#include "systable.h"
 
 #define SHOW_STEP_SIZE 100
 
@@ -307,7 +307,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
 
     int32_t len = 0;
-    blockCompressEncode(pBlock, pStart, &len, pShow->pMeta->numOfColumns, false);
+    blockEncode(pBlock, pStart, &len, pShow->pMeta->numOfColumns, false);
   }
 
   pRsp->numOfRows = htonl(rowsRead);

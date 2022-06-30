@@ -265,7 +265,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
-  rpcInit.label = "DND";
+  rpcInit.label = "DND-C";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = 1024;
@@ -299,7 +299,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   SRpcInit rpcInit = {0};
   strncpy(rpcInit.localFqdn, tsLocalFqdn, strlen(tsLocalFqdn));
   rpcInit.localPort = tsServerPort;
-  rpcInit.label = "DND";
+  rpcInit.label = "DND-S";
   rpcInit.numOfThreads = tsNumOfRpcThreads;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = tsMaxShellConns;

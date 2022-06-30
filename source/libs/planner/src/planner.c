@@ -102,7 +102,6 @@ static void clearSubplanExecutionNode(SPhysiNode* pNode) {
 
 void qClearSubplanExecutionNode(SSubplan* pSubplan) { clearSubplanExecutionNode(pSubplan->pNode); }
 
-
 int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
   if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType && NULL == pSubplan->pNode) {
     SDataInserterNode* insert = (SDataInserterNode*)pSubplan->pDataSink;

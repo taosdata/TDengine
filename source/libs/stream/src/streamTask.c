@@ -86,9 +86,7 @@ int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
     ASSERT(pTask->sinkType == TASK_SINK__NONE);
   }
 
-  if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
-    if (tEncodeI32(pEncoder, pTask->inplaceDispatcher.taskId) < 0) return -1;
-  } else if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
+  if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
     if (tEncodeI32(pEncoder, pTask->fixedEpDispatcher.taskId) < 0) return -1;
     if (tEncodeI32(pEncoder, pTask->fixedEpDispatcher.nodeId) < 0) return -1;
     if (tEncodeSEpSet(pEncoder, &pTask->fixedEpDispatcher.epSet) < 0) return -1;
@@ -147,9 +145,7 @@ int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
     ASSERT(pTask->sinkType == TASK_SINK__NONE);
   }
 
-  if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
-    if (tDecodeI32(pDecoder, &pTask->inplaceDispatcher.taskId) < 0) return -1;
-  } else if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
+  if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
     if (tDecodeI32(pDecoder, &pTask->fixedEpDispatcher.taskId) < 0) return -1;
     if (tDecodeI32(pDecoder, &pTask->fixedEpDispatcher.nodeId) < 0) return -1;
     if (tDecodeSEpSet(pDecoder, &pTask->fixedEpDispatcher.epSet) < 0) return -1;

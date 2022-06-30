@@ -317,8 +317,9 @@ void cliHandleResp(SCliConn* conn) {
 
   if (CONN_NO_PERSIST_BY_APP(conn)) {
     pMsg = transQueuePop(&conn->cliMsgs);
-    pCtx = pMsg->ctx;
-    transMsg.info.ahandle = pCtx->ahandle;
+
+    pCtx = pMsg ? pMsg->ctx : NULL;
+    transMsg.info.ahandle = pCtx ? pCtx->ahandle : NULL;
     tDebug("%s conn %p get ahandle %p, persist: 0", CONN_GET_INST_LABEL(conn), conn, transMsg.info.ahandle);
   } else {
     uint64_t ahandle = (uint64_t)pHead->ahandle;
@@ -464,8 +465,7 @@ void* destroyConnPool(void* pool) {
   SConnList* connList = taosHashIterate((SHashObj*)pool, NULL);
   while (connList != NULL) {
     while (!QUEUE_IS_EMPTY(&connList->conn)) {
-      queue* h = QUEUE_HEAD(&connList->conn);
-      // QUEUE_REMOVE(h);
+      queue*    h = QUEUE_HEAD(&connList->conn);
       SCliConn* c = QUEUE_DATA(h, SCliConn, conn);
       cliDestroyConn(c, true);
     }
@@ -502,6 +502,7 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
 static void allocConnRef(SCliConn* conn, bool update) {
   if (update) {
     transRemoveExHandle(conn->refId);
+    conn->refId = -1;
   }
   SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
   exh->handle = conn;
@@ -601,8 +602,10 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   QUEUE_REMOVE(&conn->conn);
   QUEUE_INIT(&conn->conn);
   transRemoveExHandle(conn->refId);
+  conn->refId = -1;
+
   if (clear) {
-    if (uv_is_active((uv_handle_t*)conn->stream)) {
+    if (!uv_is_closing((uv_handle_t*)conn->stream)) {
       uv_close((uv_handle_t*)conn->stream, cliDestroy);
     } else {
       cliDestroy((uv_handle_t*)conn->stream);
@@ -610,8 +613,14 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   }
 }
 static void cliDestroy(uv_handle_t* handle) {
+  if (uv_handle_get_type(handle) != UV_TCP || handle->data == NULL) {
+    return;
+  }
+
   SCliConn* conn = handle->data;
+  transRemoveExHandle(conn->refId);
   taosMemoryFree(conn->ip);
+  conn->stream->data = NULL;
   taosMemoryFree(conn->stream);
   transCtxCleanup(&conn->ctx);
   transQueueDestroy(&conn->cliMsgs);
@@ -969,7 +978,7 @@ void cliSendQuit(SCliThrd* thrd) {
 }
 void cliWalkCb(uv_handle_t* handle, void* arg) {
   if (!uv_is_closing(handle)) {
-    uv_close(handle, NULL);
+    uv_close(handle, cliDestroy);
   }
 }
 

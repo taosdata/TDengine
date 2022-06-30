@@ -23,7 +23,7 @@ python3 ./test.py -f 1-insert/alter_stable.py
 python3 ./test.py -f 1-insert/alter_table.py
 python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
 python3 ./test.py -f 1-insert/table_comment.py
-python3 ./test.py -f 1-insert/table_param_ttl.py
+#python3 ./test.py -f 1-insert/table_param_ttl.py
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
@@ -116,17 +116,18 @@ python3 ./test.py -f 2-query/function_null.py
 python3 ./test.py -f 2-query/queryQnode.py 
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py 
-python3 ./test.py -f 6-cluster/5dnode2mnode.py 
+python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 5 -M 3 
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
+# python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 5 -M 3 
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py  -N 5 -M 3 
 # python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py  -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py 
 # python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
-python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
+# python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
 
 
 python3 ./test.py -f 7-tmq/basic5.py

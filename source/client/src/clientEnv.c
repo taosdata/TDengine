@@ -40,7 +40,7 @@ volatile int32_t    tscInitRes = 0;
 static int32_t registerRequest(SRequestObj *pRequest) {
   STscObj *pTscObj = acquireTscObj(pRequest->pTscObj->id);
   if (NULL == pTscObj) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;  
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
     return terrno;
   }
 
@@ -132,11 +132,11 @@ void closeAllRequests(SHashObj *pRequests) {
   }
 }
 
-void destroyAppInst(SAppInstInfo* pAppInfo) {
+void destroyAppInst(SAppInstInfo *pAppInfo) {
   tscDebug("destroy app inst mgr %p", pAppInfo);
 
   taosThreadMutexLock(&appInfo.mutex);
-  
+
   hbRemoveAppHbMrg(&pAppInfo->pAppHbMgr);
   taosHashRemove(appInfo.pInstMap, pAppInfo->instKey, strlen(pAppInfo->instKey));
 
@@ -144,10 +144,10 @@ void destroyAppInst(SAppInstInfo* pAppInfo) {
 
   taosMemoryFreeClear(pAppInfo->instKey);
   closeTransporter(pAppInfo);
-  
+
   taosThreadMutexLock(&pAppInfo->qnodeMutex);
   taosArrayDestroy(pAppInfo->pQnodeList);
-  taosThreadMutexUnlock(&pAppInfo->qnodeMutex);  
+  taosThreadMutexUnlock(&pAppInfo->qnodeMutex);
 
   taosMemoryFree(pAppInfo);
 }
@@ -160,7 +160,7 @@ void destroyTscObj(void *pObj) {
   int64_t connNum = atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   closeAllRequests(pTscObj->pRequests);
   schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
-  tscDebug("connObj 0x%" PRIx64 " p:%p destroyed, remain inst totalConn:%" PRId64, pTscObj->id, pTscObj, 
+  tscDebug("connObj 0x%" PRIx64 " p:%p destroyed, remain inst totalConn:%" PRId64, pTscObj->id, pTscObj,
            pTscObj->pAppInfo->numOfConns);
 
   if (0 == connNum) {

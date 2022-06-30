@@ -99,8 +99,8 @@ typedef struct SSchStat {
 typedef struct SSchResInfo {
   SQueryResult*          queryRes;
   void**                 fetchRes;
-  schedulerExecCallback  execFp; 
-  schedulerFetchCallback fetchFp; 
+  schedulerExecFp        execFp; 
+  schedulerFetchFp       fetchFp; 
   void*                  userParam;
 } SSchResInfo;
 
@@ -204,37 +204,38 @@ typedef struct {
 } SSchOpStatus;
 
 typedef struct SSchJob {
-  int64_t          refId;
-  uint64_t         queryId;
-  SSchJobAttr      attr;
-  int32_t          levelNum;
-  int32_t          taskNum;
-  SRequestConnInfo conn;
-  SArray          *nodeList;   // qnode/vnode list, SArray<SQueryNodeLoad>
-  SArray          *levels;    // starting from 0. SArray<SSchLevel>
-  SQueryPlan      *pDag;  
+  int64_t            refId;
+  uint64_t           queryId;
+  SSchJobAttr        attr;
+  int32_t            levelNum;
+  int32_t            taskNum;
+  SRequestConnInfo   conn;
+  SArray            *nodeList;   // qnode/vnode list, SArray<SQueryNodeLoad>
+  SArray            *levels;    // starting from 0. SArray<SSchLevel>
+  SQueryPlan        *pDag;  
 
-  SArray          *dataSrcTasks; // SArray<SQueryTask*>
-  int32_t          levelIdx;
-  SEpSet           dataSrcEps;
-  SHashObj        *taskList;
-  SHashObj        *execTasks; // executing and executed tasks, key:taskid, value:SQueryTask*
-  SHashObj        *flowCtrl;  // key is ep, element is SSchFlowControl
+  SArray            *dataSrcTasks; // SArray<SQueryTask*>
+  int32_t            levelIdx;
+  SEpSet             dataSrcEps;
+  SHashObj          *taskList;
+  SHashObj          *execTasks; // executing and executed tasks, key:taskid, value:SQueryTask*
+  SHashObj          *flowCtrl;  // key is ep, element is SSchFlowControl
 
-  SExplainCtx     *explainCtx;
-  int8_t           status;  
-  SQueryNodeAddr   resNode;
-  tsem_t           rspSem;
-  SSchOpStatus     opStatus;
-  bool            *reqKilled;
-  SSchTask        *fetchTask;
-  int32_t          errCode;
-  SRWLatch         resLock;
-  SQueryExecRes    execRes;
-  void            *resData;         //TODO free it or not
-  int32_t          resNumOfRows;
-  SSchResInfo      userRes;
-  const char      *sql;
+  SExplainCtx       *explainCtx;
+  int8_t             status;  
+  SQueryNodeAddr     resNode;
+  tsem_t             rspSem;
+  SSchOpStatus       opStatus;
+  schedulerChkKillFp chkKillFp;
+  void*              chkKillParam;
+  SSchTask          *fetchTask;
+  int32_t            errCode;
+  SRWLatch           resLock;
+  SQueryExecRes      execRes;
+  void              *resData;         //TODO free it or not
+  int32_t            resNumOfRows;
+  SSchResInfo        userRes;
+  const char        *sql;
   SQueryProfileSummary summary;
 } SSchJob;
 
