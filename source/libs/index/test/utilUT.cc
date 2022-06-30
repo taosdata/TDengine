@@ -8,7 +8,6 @@
 #include "indexCache.h"
 #include "indexComm.h"
 #include "indexFst.h"
-#include "indexFstCountingWriter.h"
 #include "indexFstUtil.h"
 #include "indexInt.h"
 #include "indexTfile.h"
