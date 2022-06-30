@@ -81,16 +81,16 @@ void taos_cleanup(void) {
   taosCloseLog();
 }
 
-static setConfRet taos_set_config_imp(const char *config){
+static setConfRet taos_set_config_imp(const char *config) {
   setConfRet ret = {SET_CONF_RET_SUCC, {0}};
   // TODO: need re-implementation
   return ret;
 }
 
-setConfRet taos_set_config(const char *config){
-// TODO  pthread_mutex_lock(&setConfMutex);
+setConfRet taos_set_config(const char *config) {
+  // TODO  pthread_mutex_lock(&setConfMutex);
   setConfRet ret = taos_set_config_imp(config);
-//  pthread_mutex_unlock(&setConfMutex);
+  //  pthread_mutex_unlock(&setConfMutex);
   return ret;
 }
 
@@ -181,8 +181,6 @@ void taos_free_result(TAOS_RES *res) {
     SMqRspObj *pRsp = (SMqRspObj *)res;
     if (pRsp->rsp.blockData) taosArrayDestroyP(pRsp->rsp.blockData, taosMemoryFree);
     if (pRsp->rsp.blockDataLen) taosArrayDestroy(pRsp->rsp.blockDataLen);
-    if (pRsp->rsp.blockTags) taosArrayDestroy(pRsp->rsp.blockTags);
-    if (pRsp->rsp.blockTagSchema) taosArrayDestroy(pRsp->rsp.blockTagSchema);
     if (pRsp->rsp.withTbName) taosArrayDestroyP(pRsp->rsp.blockTbName, taosMemoryFree);
     if (pRsp->rsp.withSchema) taosArrayDestroyP(pRsp->rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
     pRsp->resInfo.pRspMsg = NULL;

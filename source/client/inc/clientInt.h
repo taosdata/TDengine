@@ -54,10 +54,9 @@ enum {
   RES_TYPE__TMQ_META,
 };
 
-#define SHOW_VARIABLES_RESULT_COLS      2
+#define SHOW_VARIABLES_RESULT_COLS       2
 #define SHOW_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
-
 
 #define TD_RES_QUERY(res)    (*(int8_t*)res == RES_TYPE__QUERY)
 #define TD_RES_TMQ(res)      (*(int8_t*)res == RES_TYPE__TMQ)
@@ -195,7 +194,7 @@ typedef struct {
   int32_t        vgId;
   SSchemaWrapper schema;
   int32_t        resIter;
-  SMqDataBlkRsp  rsp;
+  SMqDataRsp     rsp;
   SReqResultInfo resInfo;
 } SMqRspObj;
 
@@ -239,18 +238,18 @@ typedef struct SSyncQueryParam {
 void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 
-void         doSetOneRowPtr(SReqResultInfo* pResultInfo);
-void         setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
-int32_t      setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4,
-                                   bool freeAfterUse);
-void         setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
-void         doFreeReqResultInfo(SReqResultInfo* pResInfo);
-int32_t      transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);
-void         syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
+void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
+void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
+int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4,
+                              bool freeAfterUse);
+void    setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
+void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
+int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);
+void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
 
 SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen, bool validateOnly);
-TAOS_RES *taosQueryImpl(TAOS *taos, const char *sql, bool validateOnly);
-void      taosAsyncQueryImpl(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param, bool validateOnly);
+TAOS_RES*    taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly);
+void         taosAsyncQueryImpl(TAOS* taos, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly);
 
 static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
   SMqRspObj* msg = (SMqRspObj*)res;

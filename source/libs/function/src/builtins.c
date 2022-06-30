@@ -1701,7 +1701,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "leastsquares",
     .type = FUNCTION_TYPE_LEASTSQUARES,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateLeastSQR,
     .getEnvFunc   = getLeastSQRFuncEnv,
     .initFunc     = leastSQRFunctionSetup,
