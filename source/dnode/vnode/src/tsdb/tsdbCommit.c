@@ -881,10 +881,48 @@ _err:
   return code;
 }
 
-static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
+static int32_t tsdbCommitFileDataEnd(SCommitter *pCommitter) {
+  int32_t code = 0;
+
+  // write blockIdx
+  code = tsdbWriteBlockIdx(pCommitter->pWriter, pCommitter->aBlockIdxN, NULL);
+  if (code) goto _err;
+
+  // update file header
+  code = tsdbUpdateDFileSetHeader(pCommitter->pWriter);
+  if (code) goto _err;
+
+  // upsert SDFileSet
+  code = tsdbFSStateUpsertDFileSet(pCommitter->pTsdb->fs->nState, tsdbDataFWriterGetWSet(pCommitter->pWriter));
+  if (code) goto _err;
+
+  // close and sync
+  code = tsdbDataFWriterClose(&pCommitter->pWriter, 1);
+  if (code) goto _err;
+
+  if (pCommitter->pReader) {
+    code = tsdbDataFReaderClose(&pCommitter->pReader);
+    goto _err;
+  }
+
+_exit:
+  return code;
+
+_err:
+  tsdbError("vgId:%d commit file data end failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+static int32_t tsdbCommitFileData(SCommitter *pCommitter) {
   int32_t    code = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
   SMemTable *pMemTable = pTsdb->imem;
+
+  // commit file data start
+  code = tsdbCommitFileDataStart(pCommitter);
+  if (code) goto _err;
+
+  // commit file data impl
   int32_t    iTbData = 0;
   int32_t    nTbData = taosArrayGetSize(pMemTable->aTbData);
   int32_t    iBlockIdx = 0;
@@ -940,56 +978,6 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
     continue;
   }
 
-  return code;
-
-_err:
-  tsdbError("vgId:%d commit file data impl failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
-static int32_t tsdbCommitFileDataEnd(SCommitter *pCommitter) {
-  int32_t code = 0;
-
-  // write blockIdx
-  code = tsdbWriteBlockIdx(pCommitter->pWriter, pCommitter->aBlockIdxN, NULL);
-  if (code) goto _err;
-
-  // update file header
-  code = tsdbUpdateDFileSetHeader(pCommitter->pWriter);
-  if (code) goto _err;
-
-  // upsert SDFileSet
-  code = tsdbFSStateUpsertDFileSet(pCommitter->pTsdb->fs->nState, tsdbDataFWriterGetWSet(pCommitter->pWriter));
-  if (code) goto _err;
-
-  // close and sync
-  code = tsdbDataFWriterClose(&pCommitter->pWriter, 1);
-  if (code) goto _err;
-
-  if (pCommitter->pReader) {
-    code = tsdbDataFReaderClose(&pCommitter->pReader);
-    goto _err;
-  }
-
-_exit:
-  return code;
-
-_err:
-  tsdbError("vgId:%d commit file data end failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
-static int32_t tsdbCommitFileData(SCommitter *pCommitter) {
-  int32_t code = 0;
-
-  // commit file data start
-  code = tsdbCommitFileDataStart(pCommitter);
-  if (code) goto _err;
-
-  // commit file data impl
-  code = tsdbCommitFileDataImpl(pCommitter);
-  if (code) goto _err;
-
   // commit file data end
   code = tsdbCommitFileDataEnd(pCommitter);
   if (code) goto _err;
@@ -997,7 +985,7 @@ static int32_t tsdbCommitFileData(SCommitter *pCommitter) {
   return code;
 
 _err:
-  tsdbError("vgId:%d commit file data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d commit file data failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 

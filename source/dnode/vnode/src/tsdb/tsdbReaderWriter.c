@@ -1239,14 +1239,7 @@ _err:
 }
 
 int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter) {
-  int32_t    code = 0;
-  int64_t    size = TSDB_FHDR_SIZE;
-  int64_t    n;
-  uint8_t    hdr[TSDB_FHDR_SIZE];
-  SHeadFile *pHeadFile = &pWriter->wSet.fHead;
-  SDataFile *pDataFile = &pWriter->wSet.fData;
-  SLastFile *pLastFile = &pWriter->wSet.fLast;
-  SSmaFile  *pSmaFile = &pWriter->wSet.fSma;
+  int32_t code = 0;
 
   // head ==============
   code = tsdbUpdateDFileHdr(pWriter->pHeadFD, &pWriter->wSet, TSDB_HEAD_FILE);
