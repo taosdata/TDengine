@@ -17,7 +17,6 @@
 #include "dmInt.h"
 #include "systable.h"
 
-
 extern SConfig *tsCfg;
 
 static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
@@ -83,7 +82,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   (*pMgmt->getVnodeLoadsFp)(&vinfo);
   req.pVloads = vinfo.pVloads;
 
-   SMonMloadInfo minfo = {0};
+  SMonMloadInfo minfo = {0};
   (*pMgmt->getMnodeLoadsFp)(&minfo);
   req.mload = minfo.load;
 
@@ -186,10 +185,10 @@ int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return 0;
 }
 
-SSDataBlock* dmBuildVariablesBlock(void) {
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+SSDataBlock *dmBuildVariablesBlock(void) {
+  SSDataBlock         *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   size_t               size = 0;
-  const SSysTableMeta* pMeta = NULL;
+  const SSysTableMeta *pMeta = NULL;
   getInfosDbMeta(&pMeta, &size);
 
   int32_t index = 0;
@@ -215,7 +214,7 @@ SSDataBlock* dmBuildVariablesBlock(void) {
   return pBlock;
 }
 
-int32_t dmAppendVariablesToBlock(SSDataBlock* pBlock, int32_t dnodeId) {
+int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
   int32_t numOfCfg = taosArrayGetSize(tsCfg->array);
   int32_t numOfRows = 0;
   blockDataEnsureCapacity(pBlock, numOfCfg);
@@ -230,8 +229,8 @@ int32_t dmAppendVariablesToBlock(SSDataBlock* pBlock, int32_t dnodeId) {
     STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
     colDataAppend(pColInfo, i, name, false);
-    
-    char value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
+
+    char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t valueLen = 0;
     cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
     varDataSetLen(value, valueLen);
@@ -241,9 +240,8 @@ int32_t dmAppendVariablesToBlock(SSDataBlock* pBlock, int32_t dnodeId) {
     numOfRows++;
   }
 
-
   pBlock->info.rows = numOfRows;
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -267,7 +265,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  SSDataBlock* pBlock = dmBuildVariablesBlock();
+  SSDataBlock *pBlock = dmBuildVariablesBlock();
 
   dmAppendVariablesToBlock(pBlock, pMgmt->pData->dnodeId);
 
@@ -283,14 +281,14 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  char    *pStart = pRsp->data;
+  char *pStart = pRsp->data;
   *(int32_t *)pStart = htonl(numOfCols);
   pStart += sizeof(int32_t);  // number of columns
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SSysTableSchema *pSchema = (SSysTableSchema *)pStart;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, i);
-    
+
     pSchema->bytes = htonl(pColInfo->info.bytes);
     pSchema->colId = htons(pColInfo->info.colId);
     pSchema->type = pColInfo->info.type;
@@ -299,7 +297,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   int32_t len = 0;
-  blockCompressEncode(pBlock, pStart, &len, numOfCols, false);
+  blockEncode(pBlock, pStart, &len, numOfCols, false);
 
   pRsp->numOfRows = htonl(pBlock->info.rows);
   pRsp->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond time precision

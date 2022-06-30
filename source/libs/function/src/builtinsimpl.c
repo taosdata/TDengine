@@ -5525,7 +5525,7 @@ int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
 
   int32_t startIndex = pInput->startRowIndex;
 
-  //escape rest of data blocks to avoid first entry be overwritten.
+  //escape rest of data blocks to avoid first entry to be overwritten.
   if (pInfo->hasResult) {
     goto _group_key_over;
   }

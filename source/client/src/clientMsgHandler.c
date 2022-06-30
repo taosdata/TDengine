@@ -67,17 +67,17 @@ int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
                       dstEpSet.eps[dstEpSet.inUse].fqdn);
   } else if (connectRsp.dnodeNum > 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &connectRsp.epSet)) {
     SEpSet* pOrig = &pTscObj->pAppInfo->mgmtEp.epSet;
-    SEp* pOrigEp = &pOrig->eps[pOrig->inUse];
-    SEp* pNewEp = &connectRsp.epSet.eps[connectRsp.epSet.inUse];
-    tscDebug("mnode epset updated from %d/%d=>%s:%d to %d/%d=>%s:%d in connRsp", 
-        pOrig->inUse, pOrig->numOfEps, pOrigEp->fqdn, pOrigEp->port, 
-        connectRsp.epSet.inUse, connectRsp.epSet.numOfEps, pNewEp->fqdn, pNewEp->port);
+    SEp*    pOrigEp = &pOrig->eps[pOrig->inUse];
+    SEp*    pNewEp = &connectRsp.epSet.eps[connectRsp.epSet.inUse];
+    tscDebug("mnode epset updated from %d/%d=>%s:%d to %d/%d=>%s:%d in connRsp", pOrig->inUse, pOrig->numOfEps,
+             pOrigEp->fqdn, pOrigEp->port, connectRsp.epSet.inUse, connectRsp.epSet.numOfEps, pNewEp->fqdn,
+             pNewEp->port);
     updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &connectRsp.epSet);
   }
 
   for (int32_t i = 0; i < connectRsp.epSet.numOfEps; ++i) {
     tscDebug("0x%" PRIx64 " epSet.fqdn[%d]:%s port:%d, connObj:0x%" PRIx64, pRequest->requestId, i,
-             connectRsp.epSet.eps[i].fqdn, connectRsp.epSet.eps[i].port, *(int64_t*)pTscObj->id);
+             connectRsp.epSet.eps[i].fqdn, connectRsp.epSet.eps[i].port, pTscObj->id);
   }
 
   pTscObj->connId = connectRsp.connId;
@@ -87,11 +87,10 @@ int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
   // update the appInstInfo
   pTscObj->pAppInfo->clusterId = connectRsp.clusterId;
-  atomic_add_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
   pTscObj->connType = connectRsp.connType;
 
-  hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, *(int64_t*)pTscObj->id, connectRsp.clusterId, connectRsp.connType);
+  hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, pTscObj->id, connectRsp.clusterId, connectRsp.connType);
 
   //  pRequest->body.resInfo.pRspMsg = pMsg->pData;
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, connectRsp.clusterId,
@@ -308,13 +307,13 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
   blockDataEnsureCapacity(pBlock, numOfCfg);
 
   for (int32_t i = 0, c = 0; i < numOfCfg; ++i, c = 0) {
-    SVariablesInfo *pInfo = taosArrayGet(pVars, i);
+    SVariablesInfo* pInfo = taosArrayGet(pVars, i);
 
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pInfo->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
-    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
     colDataAppend(pColInfo, i, name, false);
-    
+
     char value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(value, pInfo->value, TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
@@ -324,14 +323,13 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
   pBlock->info.rows = numOfCfg;
 
   *block = pBlock;
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
-
 static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = NULL;
-  int32_t code = buildShowVariablesBlock(pVars, &pBlock);
+  int32_t      code = buildShowVariablesBlock(pVars, &pBlock);
   if (code) {
     return code;
   }
@@ -351,7 +349,7 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   (*pRsp)->numOfCols = htonl(SHOW_VARIABLES_RESULT_COLS);
 
   int32_t len = 0;
-  blockCompressEncode(pBlock, (*pRsp)->data, &len, SHOW_VARIABLES_RESULT_COLS, false);
+  blockEncode(pBlock, (*pRsp)->data, &len, SHOW_VARIABLES_RESULT_COLS, false);
   ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
 
   blockDataDestroy(pBlock);
@@ -363,7 +361,7 @@ int32_t processShowVariablesRsp(void* param, const SDataBuf* pMsg, int32_t code)
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
   } else {
-    SShowVariablesRsp rsp = {0};
+    SShowVariablesRsp  rsp = {0};
     SRetrieveTableRsp* pRes = NULL;
     code = tDeserializeSShowVariablesRsp(pMsg->pData, pMsg->len, &rsp);
     if (TSDB_CODE_SUCCESS == code) {
@@ -372,7 +370,7 @@ int32_t processShowVariablesRsp(void* param, const SDataBuf* pMsg, int32_t code)
     if (TSDB_CODE_SUCCESS == code) {
       code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, false);
     }
-    
+
     tFreeSShowVariablesRsp(&rsp);
   }
 
@@ -383,7 +381,6 @@ int32_t processShowVariablesRsp(void* param, const SDataBuf* pMsg, int32_t code)
   }
   return code;
 }
-
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
   switch (msgType) {

@@ -5357,30 +5357,149 @@ void tFreeSMAlterStbRsp(SMAlterStbRsp *pRsp) {
   }
 }
 
-int32_t tEncodeSTqOffset(SEncoder *pEncoder, const STqOffset *pOffset) {
-  if (tEncodeI8(pEncoder, pOffset->type) < 0) return -1;
-  if (pOffset->type == TMQ_OFFSET__SNAPSHOT) {
-    if (tEncodeI64(pEncoder, pOffset->uid) < 0) return -1;
-    if (tEncodeI64(pEncoder, pOffset->ts) < 0) return -1;
-  } else if (pOffset->type == TMQ_OFFSET__LOG) {
-    if (tEncodeI64(pEncoder, pOffset->version) < 0) return -1;
+int32_t tEncodeSTqOffsetVal(SEncoder *pEncoder, const STqOffsetVal *pOffsetVal) {
+  if (tEncodeI8(pEncoder, pOffsetVal->type) < 0) return -1;
+  if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+    if (tEncodeI64(pEncoder, pOffsetVal->uid) < 0) return -1;
+    if (tEncodeI64(pEncoder, pOffsetVal->ts) < 0) return -1;
+  } else if (pOffsetVal->type == TMQ_OFFSET__LOG) {
+    if (tEncodeI64(pEncoder, pOffsetVal->version) < 0) return -1;
+  } else if (pOffsetVal->type < 0) {
+    // do nothing
   } else {
     ASSERT(0);
   }
+  return 0;
+}
+
+int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
+  if (tDecodeI8(pDecoder, &pOffsetVal->type) < 0) return -1;
+  if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+    if (tDecodeI64(pDecoder, &pOffsetVal->uid) < 0) return -1;
+    if (tDecodeI64(pDecoder, &pOffsetVal->ts) < 0) return -1;
+  } else if (pOffsetVal->type == TMQ_OFFSET__LOG) {
+    if (tDecodeI64(pDecoder, &pOffsetVal->version) < 0) return -1;
+  } else if (pOffsetVal->type < 0) {
+    // do nothing
+  } else {
+    ASSERT(0);
+  }
+  return 0;
+}
+
+#if 1
+int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
+  if (pVal->type == TMQ_OFFSET__RESET_NONE) {
+    snprintf(buf, maxLen, "offset(reset to none)");
+  } else if (pVal->type == TMQ_OFFSET__RESET_EARLIEAST) {
+    snprintf(buf, maxLen, "offset(reset to earlieast)");
+  } else if (pVal->type == TMQ_OFFSET__RESET_LATEST) {
+    snprintf(buf, maxLen, "offset(reset to latest)");
+  } else if (pVal->type == TMQ_OFFSET__LOG) {
+    snprintf(buf, maxLen, "offset(log) ver:%ld", pVal->version);
+  } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+    snprintf(buf, maxLen, "offset(snapshot data) uid:%ld, ts:%ld", pVal->uid, pVal->ts);
+  } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
+    snprintf(buf, maxLen, "offset(snapshot meta) uid:%ld, ts:%ld", pVal->uid, pVal->ts);
+  } else {
+    ASSERT(0);
+  }
+  return 0;
+}
+#endif
+
+bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
+  if (pLeft->type == pRight->type) {
+    if (pLeft->type == TMQ_OFFSET__LOG) {
+      return pLeft->version == pRight->version;
+    } else if (pLeft->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+      return pLeft->uid == pRight->uid && pLeft->ts == pRight->ts;
+    } else if (pLeft->type == TMQ_OFFSET__SNAPSHOT_META) {
+      ASSERT(0);
+      // TODO
+      return pLeft->uid == pRight->uid && pLeft->ts == pRight->ts;
+    }
+  }
+  return false;
+}
+
+int32_t tEncodeSTqOffset(SEncoder *pEncoder, const STqOffset *pOffset) {
+  if (tEncodeSTqOffsetVal(pEncoder, &pOffset->val) < 0) return -1;
   if (tEncodeCStr(pEncoder, pOffset->subKey) < 0) return -1;
   return 0;
 }
 
 int32_t tDecodeSTqOffset(SDecoder *pDecoder, STqOffset *pOffset) {
-  if (tDecodeI8(pDecoder, &pOffset->type) < 0) return -1;
-  if (pOffset->type == TMQ_OFFSET__SNAPSHOT) {
-    if (tDecodeI64(pDecoder, &pOffset->uid) < 0) return -1;
-    if (tDecodeI64(pDecoder, &pOffset->ts) < 0) return -1;
-  } else if (pOffset->type == TMQ_OFFSET__LOG) {
-    if (tDecodeI64(pDecoder, &pOffset->version) < 0) return -1;
-  } else {
-    ASSERT(0);
-  }
+  if (tDecodeSTqOffsetVal(pDecoder, &pOffset->val) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pOffset->subKey) < 0) return -1;
   return 0;
 }
+
+int32_t tEncodeSMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
+  if (tEncodeSTqOffsetVal(pEncoder, &pRsp->reqOffset) < 0) return -1;
+  if (tEncodeSTqOffsetVal(pEncoder, &pRsp->rspOffset) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->skipLogNum) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->blockNum) < 0) return -1;
+  if (pRsp->blockNum != 0) {
+    if (tEncodeI8(pEncoder, pRsp->withTbName) < 0) return -1;
+    if (tEncodeI8(pEncoder, pRsp->withSchema) < 0) return -1;
+
+    for (int32_t i = 0; i < pRsp->blockNum; i++) {
+      int32_t bLen = *(int32_t *)taosArrayGet(pRsp->blockDataLen, i);
+      void   *data = taosArrayGetP(pRsp->blockData, i);
+      if (tEncodeBinary(pEncoder, (const uint8_t *)data, bLen) < 0) return -1;
+      if (pRsp->withSchema) {
+        SSchemaWrapper *pSW = (SSchemaWrapper *)taosArrayGetP(pRsp->blockSchema, i);
+        if (tEncodeSSchemaWrapper(pEncoder, pSW) < 0) return -1;
+      }
+      if (pRsp->withTbName) {
+        char *tbName = (char *)taosArrayGetP(pRsp->blockTbName, i);
+        if (tEncodeCStr(pEncoder, tbName) < 0) return -1;
+      }
+    }
+  }
+  return 0;
+}
+
+int32_t tDecodeSMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
+  if (tDecodeSTqOffsetVal(pDecoder, &pRsp->reqOffset) < 0) return -1;
+  if (tDecodeSTqOffsetVal(pDecoder, &pRsp->rspOffset) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->skipLogNum) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->blockNum) < 0) return -1;
+  if (pRsp->blockNum != 0) {
+    pRsp->blockData = taosArrayInit(pRsp->blockNum, sizeof(void *));
+    pRsp->blockDataLen = taosArrayInit(pRsp->blockNum, sizeof(int32_t));
+    if (tDecodeI8(pDecoder, &pRsp->withTbName) < 0) return -1;
+    if (tDecodeI8(pDecoder, &pRsp->withSchema) < 0) return -1;
+    if (pRsp->withTbName) {
+      pRsp->blockTbName = taosArrayInit(pRsp->blockNum, sizeof(void *));
+    }
+    if (pRsp->withSchema) {
+      pRsp->blockSchema = taosArrayInit(pRsp->blockNum, sizeof(void *));
+    }
+
+    for (int32_t i = 0; i < pRsp->blockNum; i++) {
+      void    *data;
+      uint64_t bLen;
+      if (tDecodeBinaryAlloc(pDecoder, &data, &bLen) < 0) return -1;
+      taosArrayPush(pRsp->blockData, &data);
+      int32_t len = bLen;
+      taosArrayPush(pRsp->blockDataLen, &len);
+
+      if (pRsp->withSchema) {
+        SSchemaWrapper *pSW = (SSchemaWrapper *)taosMemoryCalloc(1, sizeof(SSchemaWrapper));
+        if (pSW == NULL) return -1;
+        if (tDecodeSSchemaWrapper(pDecoder, pSW) < 0) return -1;
+        taosArrayPush(pRsp->blockSchema, &pSW);
+      }
+
+      if (pRsp->withTbName) {
+        char *tbName;
+        if (tDecodeCStrAlloc(pDecoder, &tbName) < 0) return -1;
+        taosArrayPush(pRsp->blockTbName, &tbName);
+      }
+    }
+  }
+  return 0;
+}
+
