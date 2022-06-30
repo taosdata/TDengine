@@ -102,8 +102,11 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, tb_uid_t uid, STSRow *row) {
     if (row->ts >= cacheRow->ts) {
       if (TD_ROW_LEN(row) <= TD_ROW_LEN(cacheRow)) {
         tdRowCpy(cacheRow, row);
+
+        taosLRUCacheRelease(pCache, h, false);
       } else {
-        tsdbCacheDeleteLastrow(pCache, uid, TSKEY_MAX);
+        taosLRUCacheRelease(pCache, h, true);
+        // tsdbCacheDeleteLastrow(pCache, uid, TSKEY_MAX);
         tsdbCacheInsertLastrow(pCache, uid, row);
       }
     }
