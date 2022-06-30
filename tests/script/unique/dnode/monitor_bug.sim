@@ -12,6 +12,9 @@ system sh/cfg.sh -n dnode2 -c wallevel -v 1
 system sh/cfg.sh -n dnode1 -c monitor -v 1
 system sh/cfg.sh -n dnode2 -c monitor -v 0
 
+system sh/cfg.sh -n dnode1 -c balance -v 1
+system sh/cfg.sh -n dnode2 -c balance -v 1
+
 print ========== step1
 system sh/exec.sh -n dnode1 -s start
 sql connect

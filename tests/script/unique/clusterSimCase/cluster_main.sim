@@ -10,17 +10,17 @@
 #taos> show vgroups;
 #    vgId     |   tables    |   status   | onlineVnodes | dnode  |   vstatus   | dnode  |   vstatus   |
 #======================================================================================================
-#           2 |        1024 | ready      |            2 |      3 | master      |      2 | slave       |
-#           3 |        1024 | ready      |            2 |      3 | master      |      2 | slave       |
-#           4 |        1024 | ready      |            2 |      3 | master      |      2 | slave       |
-#           5 |         718 | ready      |            2 |      3 | master      |      2 | slave       |
+#           2 |        1024 | ready      |            2 |      3 | leader      |      2 | follower       |
+#           3 |        1024 | ready      |            2 |      3 | leader      |      2 | follower       |
+#           4 |        1024 | ready      |            2 |      3 | leader      |      2 | follower       |
+#           5 |         718 | ready      |            2 |      3 | leader      |      2 | follower       |
 #Query OK, 4 row(s) in set (0.002749s)
 #
 #taos> show mnodes
 #   -> ;
 #   id   |           end_point            |      role      |       create_time       |
 #=====================================================================================
-#      1 | ubuntu-OptiPlex-7060:7100      | master         | 2020-07-22 06:25:31.677 |
+#      1 | ubuntu-OptiPlex-7060:7100      | leader         | 2020-07-22 06:25:31.677 |
 #Query OK, 1 row(s) in set (0.002126s)
 
 
@@ -136,7 +136,7 @@ if $vg2Dnode3Status != offline then
   sleep 2000
   goto wait_vgroup_chang_0
 endi
-if $vg2Dnode2Status != master then
+if $vg2Dnode2Status != leader then
   sleep 2000
   goto wait_vgroup_chang_0
 endi
@@ -165,11 +165,11 @@ print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $dat
 $vg2Dnode3Status = $data5_2
 $vg2Dnode2Status = $data7_2
 
-if $vg2Dnode3Status != slave then
+if $vg2Dnode3Status != follower then
   sleep 2000
   goto wait_vgroup_chang_1
 endi
-if $vg2Dnode2Status != master then
+if $vg2Dnode2Status != leader then
   sleep 2000
   goto wait_vgroup_chang_1
 endi
@@ -197,7 +197,7 @@ print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $dat
 $vg2Dnode3Status = $data5_2
 $vg2Dnode2Status = $data7_2
 
-if $vg2Dnode3Status != master then
+if $vg2Dnode3Status != leader then
   sleep 2000
   goto wait_vgroup_chang_2
 endi
@@ -230,11 +230,11 @@ print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $dat
 $vg2Dnode3Status = $data5_2
 $vg2Dnode2Status = $data7_2
 
-if $vg2Dnode2Status != slave then
+if $vg2Dnode2Status != follower then
   sleep 2000
   goto wait_vgroup_chang_3
 endi
-if $vg2Dnode3Status != master then
+if $vg2Dnode3Status != leader then
   sleep 2000
   goto wait_vgroup_chang_3
 endi

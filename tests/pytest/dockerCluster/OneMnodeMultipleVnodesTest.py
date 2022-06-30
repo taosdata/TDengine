@@ -11,28 +11,34 @@
 
 # -*- coding: utf-8 -*-
 
-from basic import *
+import sys
+import taos
+from util.log import *
+from util.cases import *
+from util.sql import *
+from util.dnodes import *
+from util.dockerNodes import *
 
 class TDTestCase:
+    
+    updatecfgDict = {'numOfNodes': 3, '1':{'role': 1}, '2':{'role': 2}, '3':{'role': 2}}
+    
+    def init(self, conn, logSql):
+        tdLog.debug("start to execute %s" % __file__)
+        tdSql.init(conn.cursor(), logSql)
 
-    def init(self):
-        # tdLog.debug("start to execute %s" % __file__)
+    def run(self):
+        tdSql.prepare()
+        tdLog.sleep(2)
 
-        self.numOfNodes = 5
-        self.dockerDir = "/data"
-        cluster.init(self.numOfNodes, self.dockerDir)        
-        cluster.prepardBuild()
-        for i in range(self.numOfNodes):
-            if i == 0:
-                cluster.cfg("role", "1", i + 1)
-            else:
-                cluster.cfg("role", "2", i + 1)
-        cluster.run()
+        tdSql.query("show dnodes")
+        tdSql.checkData(0, 5, 'mnode')
+        tdSql.checkData(1, 5, 'vnode')
+        tdSql.checkData(2, 5, 'vnode')
+    
+    def stop(self):
+        tdSql.close()
+        tdLog.success("%s successfully executed" % __file__)
 
-td = TDTestCase()
-td.init()
-
-
-## usage:  python3 OneMnodeMultipleVnodesTest.py 
-
-
+tdCases.addWindows(__file__, TDTestCase())
+tdCases.addLinux(__file__, TDTestCase())

@@ -1225,7 +1225,7 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
 static int32_t mnodeFindSuperTableTagIndex(SSTableObj *pStable, const char *tagName) {
   SSchema *schema = (SSchema *) pStable->schema;
   for (int32_t tag = 0; tag < pStable->numOfTags; tag++) {
-    if (strcasecmp(schema[pStable->numOfColumns + tag].name, tagName) == 0) {
+    if (strcmp(schema[pStable->numOfColumns + tag].name, tagName) == 0) {
       return tag;
     }
   }
@@ -1378,7 +1378,7 @@ static int32_t mnodeModifySuperTableTagName(SMnodeMsg *pMsg, char *oldTagName, c
 static int32_t mnodeFindSuperTableColumnIndex(SSTableObj *pStable, char *colName) {
   SSchema *schema = (SSchema *) pStable->schema;
   for (int32_t col = 0; col < pStable->numOfColumns; col++) {
-    if (strcasecmp(schema[col].name, colName) == 0) {
+    if (strcmp(schema[col].name, colName) == 0) {
       return col;
     }
   }
@@ -2248,7 +2248,7 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
       }
       code = mnodeGetAvailableVgroup(pMsg, &pVgroup, &tid, vgId);
       if (code != TSDB_CODE_SUCCESS) {
-        mError("msg:%p, app:%p table:%s, failed to get available vgroup, reason:%s", pMsg, pMsg->rpcMsg.ahandle,
+        mInfo("msg:%p, app:%p table:%s, failed to get available vgroup, reason:%s", pMsg, pMsg->rpcMsg.ahandle,
                pCreate->tableName, tstrerror(code));
         return code;
       }
@@ -2352,7 +2352,7 @@ static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg) {
 static int32_t mnodeFindNormalTableColumnIndex(SCTableObj *pTable, char *colName) {
   SSchema *schema = (SSchema *) pTable->schema;
   for (int32_t col = 0; col < pTable->numOfColumns; col++) {
-    if (strcasecmp(schema[col].name, colName) == 0) {
+    if (strcmp(schema[col].name, colName) == 0) {
       return col;
     }
   }

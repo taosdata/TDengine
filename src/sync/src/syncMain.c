@@ -68,8 +68,8 @@ char* syncRole[] = {
   "offline",
   "unsynced",
   "syncing",
-  "slave",
-  "master"
+  "follower",
+  "leader"
 };
 
 char *syncStatus[] = {
@@ -871,7 +871,7 @@ static void syncRestartPeer(SSyncPeer *pPeer) {
   int32_t ret = strcmp(pPeer->fqdn, tsNodeFqdn);
   if (pPeer->nodeId == 0 || ret > 0 || (ret == 0 && pPeer->port > tsSyncPort)) {
     sDebug("%s, check peer connection in 1000 ms", pPeer->id);
-    taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
+    taosTmrReset(syncCheckPeerConnection, tsSyncCheckInterval, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
   }
 }
 
@@ -976,7 +976,7 @@ static void syncRecoverFromMaster(SSyncPeer *pPeer) {
   SSyncMsg msg;
   syncBuildSyncReqMsg(&msg, pNode->vgId);
 
-  taosTmrReset(syncNotStarted, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
+  taosTmrReset(syncNotStarted, tsSyncCheckInterval, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
 
   if (taosWriteMsg(pPeer->peerFd, &msg, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
     sError("%s, failed to send sync-req to peer", pPeer->id);
@@ -1149,14 +1149,14 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
 
   uint32_t ip = syncResolvePeerFqdn(pPeer);
   if (!ip) {
-    taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
+    taosTmrReset(syncCheckPeerConnection, tsSyncCheckInterval, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
     return;
   }
 
   SOCKET connFd = taosOpenTcpClientSocket(ip, pPeer->port, 0);
   if (connFd <= 0) {
     sDebug("%s, failed to open tcp socket since %s", pPeer->id, strerror(errno));
-    taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
+    taosTmrReset(syncCheckPeerConnection, tsSyncCheckInterval, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
     return;
   }
 
@@ -1177,7 +1177,7 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
   } else {
     sDebug("%s, failed to setup peer connection to server since %s, try later", pPeer->id, strerror(errno));
     taosCloseSocket(connFd);
-    taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
+    taosTmrReset(syncCheckPeerConnection, tsSyncCheckInterval, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
   }
 }
 

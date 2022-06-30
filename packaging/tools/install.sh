@@ -28,6 +28,10 @@ dataDir="/var/lib/taos"
 logDir="/var/log/taos"
 configDir="/etc/taos"
 installDir="/usr/local/taos"
+adapterName="taosadapter"
+benchmarkName="taosBenchmark"
+dumpName="taosdump"
+demoName="taosdemo"
 
 data_dir=${dataDir}
 log_dir=${logDir}
@@ -101,6 +105,9 @@ elif echo $osinfo | grep -qwi "debian"; then
 elif echo $osinfo | grep -qwi "Kylin"; then
   #  echo "This is Kylin system"
   os_type=1
+elif echo $osinfo | grep -qwi "Red"; then
+  #  echo "This is Red Hat system"
+  os_type=1
 elif echo $osinfo | grep -qwi "centos"; then
   #  echo "This is centos system"
   os_type=2
@@ -170,11 +177,11 @@ function install_main_path() {
   ${csudo}mkdir -p ${install_main_dir}
   ${csudo}mkdir -p ${install_main_dir}/cfg
   ${csudo}mkdir -p ${install_main_dir}/bin
-#  ${csudo}mkdir -p ${install_main_dir}/connector
+  #  ${csudo}mkdir -p ${install_main_dir}/connector
   ${csudo}mkdir -p ${install_main_dir}/driver
   ${csudo}mkdir -p ${install_main_dir}/examples
   ${csudo}mkdir -p ${install_main_dir}/include
-#  ${csudo}mkdir -p ${install_main_dir}/init.d
+  #  ${csudo}mkdir -p ${install_main_dir}/init.d
   if [ "$verMode" == "cluster" ]; then
     ${csudo}mkdir -p ${nginx_dir}
   fi
@@ -188,25 +195,26 @@ function install_bin() {
   # Remove links
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
-  ${csudo}rm -f ${bin_link_dir}/taosadapter || :
-  ${csudo}rm -f ${bin_link_dir}/taosdemo || :
-  ${csudo}rm -f ${bin_link_dir}/taosdump || :
+  ${csudo}rm -f ${bin_link_dir}/${adapterName} || :
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
   ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
-  ${csudo}rm -f ${bin_link_dir}/run_taosd_and_taosadapter.sh || :
+  ${csudo}rm -f ${bin_link_dir}/run_${serverName}_and_${adapterName}.sh || :
+  ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
 
   ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo}chmod 0555 ${install_main_dir}/bin/*
 
   #Make link
   [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} || :
   [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || :
-  [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter || :
-  [ -x ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosdemo || :
-  [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
+  [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -s ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName} || :
+  [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${demoName} || :
+  [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName} || :
+  [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName} || :
+  [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
-  [ -x ${install_main_dir}/bin/run_taosd_and_taosadapter.sh ] && ${csudo}ln -s ${install_main_dir}/bin/run_taosd_and_taosadapter.sh ${bin_link_dir}/run_taosd_and_taosadapter.sh     || :
+  [ -x ${install_main_dir}/bin/run_${serverName}_and_${adapterName}.sh ] && ${csudo}ln -s ${install_main_dir}/bin/run_${serverName}_and_${adapterName}.sh ${bin_link_dir}/run_${serverName}_and_${adapterName}.sh || :
   [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo}ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator || :
 
   if [ "$verMode" == "cluster" ]; then
@@ -463,18 +471,18 @@ function local_fqdn_check() {
   fi
 }
 
-function install_taosadapter_config() {
-  if [ ! -f "${cfg_install_dir}/taosadapter.toml" ]; then
+function install_adapter_config() {
+  if [ ! -f "${cfg_install_dir}/${adapterName}.toml" ]; then
     ${csudo}mkdir -p ${cfg_install_dir}
-    [ -f ${script_dir}/cfg/taosadapter.toml ] && ${csudo}cp ${script_dir}/cfg/taosadapter.toml ${cfg_install_dir}
-    [ -f ${cfg_install_dir}/taosadapter.toml ] && ${csudo}chmod 644 ${cfg_install_dir}/taosadapter.toml
+    [ -f ${script_dir}/cfg/${adapterName}.toml ] && ${csudo}cp ${script_dir}/cfg/${adapterName}.toml ${cfg_install_dir}
+    [ -f ${cfg_install_dir}/${adapterName}.toml ] && ${csudo}chmod 644 ${cfg_install_dir}/${adapterName}.toml
   fi
 
-  [ -f ${script_dir}/cfg/taosadapter.toml ] &&
-    ${csudo}cp -f ${script_dir}/cfg/taosadapter.toml ${cfg_install_dir}/taosadapter.toml.new
+  [ -f ${script_dir}/cfg/${adapterName}.toml ] &&
+    ${csudo}cp -f ${script_dir}/cfg/${adapterName}.toml ${cfg_install_dir}/${adapterName}.toml.new
 
-  [ -f ${cfg_install_dir}/taosadapter.toml ] &&
-    ${csudo}ln -s ${cfg_install_dir}/taosadapter.toml ${install_main_dir}/cfg/taosadapter.toml
+  [ -f ${cfg_install_dir}/${adapterName}.toml ] &&
+    ${csudo}ln -s ${cfg_install_dir}/${adapterName}.toml ${install_main_dir}/cfg/${adapterName}.toml
 
   [ ! -z $1 ] && return 0 || : # only install client
 
@@ -503,7 +511,6 @@ function install_config() {
 
   local_fqdn_check
 
-  # first full-qualified domain name (FQDN) for TDengine cluster system
   echo
   echo -e -n "${GREEN}Enter FQDN:port (like h1.${emailName}:6030) of an existing ${productName} cluster node to join${NC}"
   echo
@@ -546,7 +553,7 @@ function install_data() {
 }
 
 function install_connector() {
-  ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
+  [ -d "${script_dir}/connector/" ] && ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
 }
 
 function install_examples() {
@@ -601,14 +608,14 @@ function install_service_on_sysvinit() {
   sleep 1
 
   if ((${os_type} == 1)); then
-#    ${csudo}cp -f ${script_dir}/init.d/${serverName}.deb ${install_main_dir}/init.d/${serverName}
+    #    ${csudo}cp -f ${script_dir}/init.d/${serverName}.deb ${install_main_dir}/init.d/${serverName}
     ${csudo}cp ${script_dir}/init.d/${serverName}.deb ${service_config_dir}/${serverName} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
-#    ${csudo}cp -f ${script_dir}/init.d/tarbitratord.deb ${install_main_dir}/init.d/tarbitratord
+    #    ${csudo}cp -f ${script_dir}/init.d/tarbitratord.deb ${install_main_dir}/init.d/tarbitratord
     ${csudo}cp ${script_dir}/init.d/tarbitratord.deb ${service_config_dir}/tarbitratord && ${csudo}chmod a+x ${service_config_dir}/tarbitratord
   elif ((${os_type} == 2)); then
-#    ${csudo}cp -f ${script_dir}/init.d/${serverName}.rpm ${install_main_dir}/init.d/${serverName}
+    #    ${csudo}cp -f ${script_dir}/init.d/${serverName}.rpm ${install_main_dir}/init.d/${serverName}
     ${csudo}cp ${script_dir}/init.d/${serverName}.rpm ${service_config_dir}/${serverName} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
-#    ${csudo}cp -f ${script_dir}/init.d/tarbitratord.rpm ${install_main_dir}/init.d/tarbitratord
+    #    ${csudo}cp -f ${script_dir}/init.d/tarbitratord.rpm ${install_main_dir}/init.d/tarbitratord
     ${csudo}cp ${script_dir}/init.d/tarbitratord.rpm ${service_config_dir}/tarbitratord && ${csudo}chmod a+x ${service_config_dir}/tarbitratord
   fi
 
@@ -685,10 +692,10 @@ function install_service_on_systemd() {
   fi
 }
 
-function install_taosadapter_service() {
+function install_adapter_service() {
   if ((${service_mod} == 0)); then
-    [ -f ${script_dir}/cfg/taosadapter.service ] &&
-      ${csudo}cp ${script_dir}/cfg/taosadapter.service \
+    [ -f ${script_dir}/cfg/${adapterName}.service ] &&
+      ${csudo}cp ${script_dir}/cfg/${adapterName}.service \
         ${service_config_dir}/ || :
     ${csudo}systemctl daemon-reload
   fi
@@ -758,7 +765,7 @@ function is_version_compatible() {
   esac
 }
 
-function update_TDengine() {
+function updateProduct() {
   # Check if version compatible
   if ! is_version_compatible; then
     echo -e "${RED}Version incompatible${NC}"
@@ -773,7 +780,7 @@ function update_TDengine() {
   tar -zxf ${tarName}
   install_jemalloc
 
-  echo -e "${GREEN}Start to update TDengine...${NC}"
+  echo -e "${GREEN}Start to update ${productName}...${NC}"
   # Stop the service if running
   if pidof ${serverName} &>/dev/null; then
     if ((${service_mod} == 0)); then
@@ -804,16 +811,18 @@ function update_TDengine() {
   install_log
   install_header
   install_lib
-#  if [ "$pagMode" != "lite" ]; then
-#    install_connector
-#  fi
+
+  if [ "$verMode" == "cluster" ]; then
+      install_connector
+  fi
+
   install_examples
   if [ -z $1 ]; then
     install_bin
     install_service
-    install_taosadapter_service
+    install_adapter_service
     install_config
-    install_taosadapter_config
+    install_adapter_config
 
     openresty_work=false
     if [ "$verMode" == "cluster" ]; then
@@ -831,13 +840,13 @@ function update_TDengine() {
 
     echo
     echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${cfg_install_dir}/${configFile}"
-    echo -e "${GREEN_DARK}To configure Taos Adapter (if has) ${NC}: edit ${cfg_install_dir}/taosadapter.toml"
+    echo -e "${GREEN_DARK}To configure Adapter (if has) ${NC}: edit ${cfg_install_dir}/${adapterName}.toml"
     if ((${service_mod} == 0)); then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
     elif ((${service_mod} == 1)); then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
     else
-      echo -e "${GREEN_DARK}To start Taos Adapter (if has)${NC}: taosadapter &${NC}"
+      echo -e "${GREEN_DARK}To start Adapter (if has)${NC}: ${adapterName} &${NC}"
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ./${serverName}${NC}"
     fi
 
@@ -861,10 +870,10 @@ function update_TDengine() {
     echo -e "\033[44;32;1m${productName} client is updated successfully!${NC}"
   fi
 
-  rm -rf $(tar -tf ${tarName})
+  rm -rf $(tar -tf ${tarName} | grep -v "^\./$")
 }
 
-function install_TDengine() {
+function installProduct() {
   # Start to install
   if [ ! -e ${tarName} ]; then
     echo "File ${tarName} does not exist"
@@ -887,17 +896,17 @@ function install_TDengine() {
   #install_avro lib
   #install_avro lib64
 
-#  if [ "$pagMode" != "lite" ]; then
-#    install_connector
-#  fi
+  if [ "$verMode" == "cluster" ]; then
+      install_connector
+  fi
   install_examples
 
   if [ -z $1 ]; then # install service and client
     # For installing new
     install_bin
     install_service
-    install_taosadapter_service
-    install_taosadapter_config
+    install_adapter_service
+    install_adapter_config
 
     openresty_work=false
     if [ "$verMode" == "cluster" ]; then
@@ -917,13 +926,13 @@ function install_TDengine() {
     # Ask if to start the service
     echo
     echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${cfg_install_dir}/${configFile}"
-    echo -e "${GREEN_DARK}To configure taosadapter (if has) ${NC}: edit ${cfg_install_dir}/taosadapter.toml"
+    echo -e "${GREEN_DARK}To configure ${adapterName} (if has) ${NC}: edit ${cfg_install_dir}/${adapterName}.toml"
     if ((${service_mod} == 0)); then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
     elif ((${service_mod} == 1)); then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
     else
-      echo -e "${GREEN_DARK}To start Taos Adapter (if has)${NC}: taosadapter &${NC}"
+      echo -e "${GREEN_DARK}To start Adapter (if has)${NC}: ${adapterName} &${NC}"
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${serverName}${NC}"
     fi
 
@@ -957,7 +966,7 @@ function install_TDengine() {
   fi
 
   touch ~/.${historyFile}
-  rm -rf $(tar -tf ${tarName})
+  rm -rf $(tar -tf ${tarName} | grep -v "^\./$")
 }
 
 ## ==============================Main program starts from here============================
@@ -966,18 +975,18 @@ if [ "$verType" == "server" ]; then
   # Install server and client
   if [ -x ${bin_dir}/${serverName} ]; then
     update_flag=1
-    update_TDengine
+    updateProduct
   else
-    install_TDengine
+    installProduct
   fi
 elif [ "$verType" == "client" ]; then
   interactiveFqdn=no
   # Only install client
   if [ -x ${bin_dir}/${clientName} ]; then
     update_flag=1
-    update_TDengine client
+    updateProduct client
   else
-    install_TDengine client
+    installProduct client
   fi
 else
   echo "please input correct verType"

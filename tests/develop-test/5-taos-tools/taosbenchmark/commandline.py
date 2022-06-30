@@ -38,8 +38,6 @@ class TDTestCase:
         tdSql.execute("use newtest")
         tdSql.query("select count(*) from newtest.meters")
         tdSql.checkData(0, 0, 20)
-        tdSql.query("select distinct(c0) from newtest.meters")
-        tdSql.checkRows(7)
         tdSql.query("describe meters")
         tdSql.checkRows(8)
         tdSql.checkData(0, 1, "TIMESTAMP")
@@ -67,8 +65,6 @@ class TDTestCase:
         tdSql.checkData(0, 0, 2)
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 20)
-        tdSql.query("select distinct(c0) from test.meters")
-        tdSql.checkRows(7)
 
         cmd = "taosBenchmark -n 3 -t 3 -B 2 -i 1 -G -y -T 1 2>&1 | grep sleep | wc -l"
         sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")

@@ -36,6 +36,25 @@ class TDTestCase:
         tdSql.query("create table db.test2 using db.state2 tags('tt');")
         tdSql.error("create table db.test22 using db.test2 tags('tt');")
 
+        # test case for TS-1289
+        tdSql.execute("create database test")
+        tdSql.execute("use test")
+        tdSql.execute("create table `metrics` (`ts` TIMESTAMP,`value` DOUBLE) TAGS (`labels` JSON)")
+        tdSql.execute('''CREATE TABLE `t_eb22c740776471c56ed97eff4951eb41` USING `metrics` TAGS ('{"__name__":"node_exporter:memory:used:percent","datacenter":"cvte
+            ","hostname":"p-tdengine-s-002","instance":"10.21.46.53:9100","ipaddress":"10.21.46.53","job":"node","product":"Prometheus","productline":"INFRA
+            "}');''')
+
+        tdSql.query("show create table t_eb22c740776471c56ed97eff4951eb41")
+        sql = tdSql.getData(0, 1)
+        tdSql.execute("drop table t_eb22c740776471c56ed97eff4951eb41")
+        tdSql.query("show tables")
+        tdSql.checkRows(0)
+
+        tdSql.execute(sql)
+        tdSql.query("show tables")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 't_eb22c740776471c56ed97eff4951eb41')
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

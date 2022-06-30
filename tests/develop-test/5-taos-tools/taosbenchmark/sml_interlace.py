@@ -38,9 +38,11 @@ class TDTestCase:
         tdSql.query("select count(tbname) from db.stb2")
         tdSql.checkData(0, 0, 8)
         tdSql.query("select count(*) from db.stb1")
-        tdSql.checkData(0, 0, 160)
+        result = tdSql.getData(0, 0)
+        assert result <= 160, "result is %s > expect: 160" % result
         tdSql.query("select count(*) from db.stb2")
-        tdSql.checkData(0, 0, 160)
+        result = tdSql.getData(0, 0)
+        assert result <= 160, "result is %s > expect: 160" % result
 
     def stop(self):
         tdSql.close()

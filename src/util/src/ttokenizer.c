@@ -64,6 +64,7 @@ static SKeyword keywordTable[] = {
     {"LE",           TK_LE},
     {"BITAND",       TK_BITAND},
     {"BITOR",        TK_BITOR},
+    {"BITXOR",       TK_BITXOR},
     {"LSHIFT",       TK_LSHIFT},
     {"RSHIFT",       TK_RSHIFT},
     {"PLUS",         TK_PLUS},
@@ -413,6 +414,10 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       *tokenId = TK_BITNOT;
       return 1;
     }
+    case '^': {
+      *tokenId = TK_BITXOR;
+      return 1;
+    }
     case '?': {
       *tokenId = TK_QUESTION;
       return 1;
@@ -528,6 +533,8 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       for (i = 1; isdigit(z[i]); i++) {
       }
 
+      uint32_t j = i;
+
       /* here is the 1u/1a/2s/3m/9y */
       if ((z[i] == 'b' || z[i] == 'u' || z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' || z[i] == 'n' ||
            z[i] == 'y' || z[i] == 'w' ||
@@ -562,6 +569,15 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
         }
         *tokenId = TK_FLOAT;
       }
+
+      if (*tokenId == TK_INTEGER && z[j] != '\0') {
+        char c = z[j] | 0x20;
+        if (c >= 'a' && c <= 'z') {
+          // ascii
+          *tokenId = TK_ID;
+        }
+      }
+
       return i;
     }
     case '[': {

@@ -43,6 +43,8 @@ extern int64_t  tsArbOnlineTimestamp;
 extern int32_t  tsDnodeId;
 extern int64_t  tsDnodeStartTime;
 extern int8_t   tsDnodeNopLoop;
+extern int32_t  tsTcpConnTimeout;
+extern int32_t  tsSyncCheckInterval;
 
 // common
 extern int      tsRpcTimer;
@@ -192,6 +194,7 @@ extern float    tsReservedTmpDirectorySpace;
 extern float    tsMinimalDataDirGB;
 extern int32_t  tsTotalMemoryMB;
 extern uint32_t tsVersion;
+extern int32_t  tsKeepTimeOffset;
 
 // build info
 extern char version[];

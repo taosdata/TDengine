@@ -32,6 +32,14 @@ system sh/cfg.sh -n dnode5 -c wallevel -v 1
 system sh/cfg.sh -n dnode6 -c wallevel -v 1
 system sh/cfg.sh -n dnode7 -c wallevel -v 1
 
+system sh/cfg.sh -n dnode1 -c balance -v 1
+system sh/cfg.sh -n dnode2 -c balance -v 1
+system sh/cfg.sh -n dnode3 -c balance -v 1
+system sh/cfg.sh -n dnode4 -c balance -v 1
+system sh/cfg.sh -n dnode5 -c balance -v 1
+system sh/cfg.sh -n dnode6 -c balance -v 1
+system sh/cfg.sh -n dnode7 -c balance -v 1
+
 print ============== step1
 print ========= start dnode1
 system sh/exec.sh -n dnode1 -s start
@@ -68,13 +76,13 @@ sql show mnodes
 print mnode1 $data2_1
 print mnode1 $data2_2
 print mnode1 $data2_3
-if $data2_1 != master then
+if $data2_1 != leader then
   goto step1
 endi
-if $data2_2 != slave then
+if $data2_2 != follower then
   goto step1
 endi
-if $data2_3 != slave then
+if $data2_3 != follower then
   goto step1
 endi
 
@@ -240,7 +248,7 @@ print dnode3 ==> $data2_3
 print dnode4 ==> $data2_4
 print dnode5 ==> $data2_5
 
-if $data2_4 != slave then
+if $data2_4 != follower then
   goto show4
 endi
 
@@ -290,7 +298,7 @@ print dnode5 ==> $data2_5
 print dnode6 ==> $data2_6
 print dnode7 ==> $data2_7
 
-if $data2_5 != slave then
+if $data2_5 != follower then
   goto show5
 endi
 
@@ -381,7 +389,7 @@ print dnode5 ==> $data2_5
 print dnode6 ==> $data2_6
 print dnode7 ==> $data2_7
 
-if $data2_6 != slave then
+if $data2_6 != follower then
   goto show7
 endi
 
@@ -451,10 +459,10 @@ print dnode7 ==> $data2_7
 if $data2_1 != offline then
   goto show9
 endi
-if $data2_5 != master then
+if $data2_5 != leader then
   goto show9
 endi
-if $data2_6 != slave then
+if $data2_6 != follower then
   goto show9
 endi
 
@@ -480,13 +488,13 @@ print dnode7 ==> $data2_7
 if $data2_1 != null then
   goto show10
 endi
-if $data2_5 != master then
+if $data2_5 != leader then
   goto show10
 endi
-if $data2_6 != slave then
+if $data2_6 != follower then
   goto show10
 endi
-if $data2_7 != slave then
+if $data2_7 != follower then
   goto show10
 endi
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -31,7 +31,7 @@
 
 /**************** Global variables ****************/
 char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
+                             "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "taos> ";
 char      CONTINUE_PROMPT[] = "   -> ";
 int       prompt_size = 6;
@@ -244,22 +244,41 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   int64_t   st, et;
   wordexp_t full_path;
   char *    sptr = NULL;
+  char *    tmp = NULL;
   char *    cptr = NULL;
   char *    fname = NULL;
   bool      printMode = false;
+  int       match;
 
-  if ((sptr = tstrstr(command, ">>", true)) != NULL) {
-    cptr = tstrstr(command, ";", true);
-    if (cptr != NULL) {
-      *cptr = '\0';
-    }
+  sptr = command;
+  while ((sptr = tstrstr(sptr, ">>", true)) != NULL) {
+    // find the last ">>" if any
+    tmp = sptr;
+    sptr += 2;
+  }
 
-    if (wordexp(sptr + 2, &full_path, 0) != 0) {
-      fprintf(stderr, "ERROR: invalid filename: %s\n", sptr + 2);
-      return;
+  sptr = tmp;
+
+  if (sptr != NULL) {
+    // select ... where col >> n op m ...;
+    match = regex_match(sptr + 2, "^\\s*.{1,}\\s*[\\>|\\<|\\<=|\\>=|=|!=]\\s*.{1,};\\s*$", REG_EXTENDED | REG_ICASE);
+    if (match == 0) {
+      // select col >> n from ...;
+      match = regex_match(sptr + 2, "^\\s*.{1,}\\s{1,}.{1,};\\s*$", REG_EXTENDED | REG_ICASE);
+      if (match == 0) {
+        cptr = tstrstr(command, ";", true);
+        if (cptr != NULL) {
+          *cptr = '\0';
+        }
+
+        if (wordexp(sptr + 2, &full_path, 0) != 0) {
+          fprintf(stderr, "ERROR: invalid filename: %s\n", sptr + 2);
+          return;
+        }
+        *sptr = '\0';
+        fname = full_path.we_wordv[0];
+      }
     }
-    *sptr = '\0';
-    fname = full_path.we_wordv[0];
   }
 
   if ((sptr = tstrstr(command, "\\G", true)) != NULL) {
@@ -282,7 +301,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
   int64_t oresult = atomic_load_64(&result);
 
-  if (regex_match(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
+  if (regex_match(command, "^\\s*use\\s+([a-zA-Z0-9_]+|`.+`)\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
     fprintf(stdout, "Database changed.\n\n");
     fflush(stdout);
 
@@ -422,6 +441,7 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
     return;
   }
 
+  int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -455,7 +475,12 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
       fprintf(fp, "%.5f", GET_FLOAT_VAL(val));
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      fprintf(fp, "%.9f", GET_DOUBLE_VAL(val));
+      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", length, GET_DOUBLE_VAL(val));
+      if (n > MAX(25, length)) {
+        fprintf(fp, "%*.15e", length, GET_DOUBLE_VAL(val));
+      } else {
+        fprintf(fp, "%s", buf);
+      }
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
@@ -539,6 +564,9 @@ static void shellPrintNChar(const char *str, int length, int width) {
     if (bytes <= 0) {
       break;
     }
+    if (pos + bytes > length) {
+      break;
+    }
     int w = 0;
 #ifdef WINDOWS
     w = bytes;
@@ -549,13 +577,9 @@ static void shellPrintNChar(const char *str, int length, int width) {
       w = wcwidth(wc);
     }
 #endif
+    pos += bytes;
     if (w <= 0) {
       continue;
-    }
-
-    pos += bytes;
-    if (pos > length) {
-      break;
     }
 
     if (width <= 0) {
@@ -611,6 +635,7 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
     return;
   }
 
+  int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -644,7 +669,12 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
       printf("%*.5f", width, GET_FLOAT_VAL(val));
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      printf("%*.9f", width, GET_DOUBLE_VAL(val));
+      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", width, GET_DOUBLE_VAL(val));
+      if (n > MAX(25, width)) {
+        printf("%*.15e", width, GET_DOUBLE_VAL(val));
+      } else {
+        printf("%s", buf);
+      }
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
@@ -714,8 +744,13 @@ static int verticalPrintResult(TAOS_RES* tres) {
         putchar('\n');
       }
     } else if (showMore) {
-        printf("[100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.]\n");
-        printf("[You can add limit statement to get more or redirect results to specific file to get all.]\n");
+        printf("\n");
+        printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
+        printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
+        printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
+        printf("\n");
+        printf("         You can use Ctrl+C to stop the underway fetching.\n");
+        printf("\n");
         showMore = 0;
     }
 
@@ -846,8 +881,13 @@ static int horizontalPrintResult(TAOS_RES* tres) {
       }
       putchar('\n');
     } else if (showMore) {
-        printf("[100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.]\n");
-        printf("[You can add limit statement to show more or redirect results to specific file to get all.]\n");
+        printf("\n");
+        printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
+        printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
+        printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
+        printf("\n");
+        printf("         You can use Ctrl+C to stop the underway fetching.\n");
+        printf("\n");
         showMore = 0;
     }
 

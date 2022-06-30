@@ -1484,6 +1484,17 @@ int32_t tsCompare(const void* p1, const void* p2) {
   }
 }
 
+int32_t tsCompareDesc(const void* p1, const void* p2) {
+  TSKEY k = *(TSKEY*)p1;
+  SResPair* pair = (SResPair*)p2;
+
+  if (k == pair->key) {
+    return 0;
+  } else {
+    return k > pair->key? -1:1;
+  }
+}
+
 static void stddev_dst_function(SQLFunctionCtx *pCtx) {
   SStddevdstInfo *pStd = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
@@ -1505,7 +1516,7 @@ static void stddev_dst_function(SQLFunctionCtx *pCtx) {
     SResPair* p = taosArrayGet(resList, 0);
     avg = p->avg;
   } else {  // todo opt performance by using iterator since the timestamp lsit is matched with the output result
-    SResPair* p = bsearch(&pCtx->startTs, resList->pData, len, sizeof(SResPair), tsCompare);
+    SResPair* p = bsearch(&pCtx->startTs, resList->pData, len, sizeof(SResPair), pCtx->order == TSDB_ORDER_DESC ? tsCompareDesc : tsCompare);
     if (p == NULL) {
       return;
     }
@@ -2170,6 +2181,10 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
   
   // set the corresponding tag data for each record
   // todo check malloc failure
+  if (pCtx->tagInfo.numOfTagCols == 0) {
+    return ;
+  }
+
   char **pData = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
   for (int32_t i = 0; i < pCtx->tagInfo.numOfTagCols; ++i) {
     pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
@@ -2545,7 +2560,8 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
 
   tMemBucket * pMemBucket = ppInfo->pMemBucket;
   if (pMemBucket == NULL || pMemBucket->total == 0) {  // check for null
-    assert(ppInfo->numOfElems == 0);
+    if (ppInfo->stage > 0)
+      assert(ppInfo->numOfElems == 0);
     setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
   } else {
     SET_DOUBLE_VAL((double *)pCtx->pOutput, getPercentile(pMemBucket, v));
@@ -2987,12 +3003,24 @@ static void col_project_function(SQLFunctionCtx *pCtx) {
 
   char *pData = GET_INPUT_DATA_LIST(pCtx);
   if (pCtx->order == TSDB_ORDER_ASC) {
+    // ASC
     int32_t numOfRows = (pCtx->param[0].i64 == 1)? 1:pCtx->size;
     memcpy(pCtx->pOutput, pData, (size_t) numOfRows * pCtx->inputBytes);
   } else {
+    // DESC
+    if (pCtx->param[0].i64 == 1) {
+      // only output one row, copy first row to output
+      memcpy(pCtx->pOutput, pData, (size_t)pCtx->inputBytes);
+      return ;
+    }
+
     for(int32_t i = 0; i < pCtx->size; ++i) {
-      memcpy(pCtx->pOutput + (pCtx->size - 1 - i) * pCtx->inputBytes, pData + i * pCtx->inputBytes,
-             pCtx->inputBytes);
+      char* dst = pCtx->pOutput + (pCtx->size - 1 - i) * pCtx->inputBytes;
+      char* src = pData + i * pCtx->inputBytes;
+      if (IS_VAR_DATA_TYPE(pCtx->inputType))
+        varDataCopy(dst, src);
+      else
+        memcpy(dst, src, pCtx->inputBytes);
     }
   }
 }
@@ -4693,6 +4721,10 @@ static void copySampleFuncRes(SQLFunctionCtx *pCtx, int32_t type) {
     *pTimestamp = *(pRes->timeStamps + i);
     pOutput += pCtx->outputBytes;
     pTimestamp++;
+  }
+  
+  if (pCtx->tagInfo.numOfTagCols == 0) {
+    return ;
   }
 
   char **tagOutputs = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);

@@ -21,6 +21,7 @@ tarName="taos.tar.gz"
 
 osType=Linux
 pagMode=full
+verMode=edge
 
 if [ "$osType" != "Darwin" ]; then
   script_dir=$(dirname $(readlink -f "$0"))
@@ -83,18 +84,19 @@ function install_main_path() {
   ${csudo}mkdir -p ${install_main_dir}
   ${csudo}mkdir -p ${install_main_dir}/cfg
   ${csudo}mkdir -p ${install_main_dir}/bin
-  ${csudo}mkdir -p ${install_main_dir}/connector
   ${csudo}mkdir -p ${install_main_dir}/driver
-  ${csudo}mkdir -p ${install_main_dir}/examples
+  if [ $productName == "TDengine" ]; then
+    ${csudo}mkdir -p ${install_main_dir}/examples
+  fi
   ${csudo}mkdir -p ${install_main_dir}/include
+  if [ "$verMode" == "cluster" ]; then
+    ${csudo}mkdir -p ${install_main_dir}/connector
+  fi
 }
 
 function install_bin() {
   # Remove links
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
-  if [ "$osType" != "Darwin" ]; then
-    ${csudo}rm -f ${bin_link_dir}/taosdemo || :
-  fi
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
 
@@ -102,9 +104,6 @@ function install_bin() {
 
   #Make link
   [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} || :
-  if [ "$osType" != "Darwin" ]; then
-    [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo}ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
-  fi
   [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
 }
@@ -255,7 +254,7 @@ function update_TDengine() {
   install_header
   install_lib
   install_jemalloc
-  if [ "$pagMode" != "lite" ]; then
+  if [ "$verMode" == "cluster" ]; then
     install_connector
   fi
   install_examples
@@ -283,7 +282,7 @@ function install_TDengine() {
   install_header
   install_lib
   install_jemalloc
-  if [ "$pagMode" != "lite" ]; then
+  if [ "$verMode" == "cluster" ]; then
     install_connector
   fi
   install_examples
