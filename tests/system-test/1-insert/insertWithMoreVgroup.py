@@ -401,10 +401,6 @@ class TDTestCase:
         tdLog.debug(" LIMIT test_case3 ............ [OK]")
 
 
-        # test qnode
-        self.test_case4()
-        tdLog.debug(" LIMIT test_case3 ............ [OK]")
-
 
         return 
 #

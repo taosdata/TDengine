@@ -420,7 +420,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
         taosHashCancelIterate(pSrc->vgHash, pIter);
         taosHashCleanup((*pDst)->vgHash);
         taosMemoryFreeClear(*pDst);
-        return TSDB_CODE_CTG_MEM_ERROR;
+        return TSDB_CODE_OUT_OF_MEMORY;
       }
 
       pIter = taosHashIterate(pSrc->vgHash, pIter);

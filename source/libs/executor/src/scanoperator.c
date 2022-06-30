@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <executorimpl.h>
 #include <vnode.h>
 #include "filter.h"
 #include "function.h"
@@ -413,6 +414,11 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     pTableScanInfo->readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
     pOperator->cost.totalCost = pTableScanInfo->readRecorder.elapsedTime;
+
+    // todo refactor
+    pTableScanInfo->scanStatus.uid = pBlock->info.uid;
+    pTableScanInfo->scanStatus.t = pBlock->info.window.ekey;
+
     return pBlock;
   }
   return NULL;
@@ -459,7 +465,7 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
   int32_t total = pTableScanInfo->scanInfo.numOfAsc + pTableScanInfo->scanInfo.numOfDesc;
   if (pTableScanInfo->scanTimes < total) {
     if (pTableScanInfo->cond.order == TSDB_ORDER_ASC) {
-      prepareForDescendingScan(pTableScanInfo, pTableScanInfo->pCtx, pTableScanInfo->numOfOutput);
+      prepareForDescendingScan(pTableScanInfo, pTableScanInfo->pCtx, 0);
       tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
       pTableScanInfo->curTWinIdx = 0;
     }
@@ -962,7 +968,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
   // TODO: refactor
-  if (pInfo->blockType == STREAM_DATA_TYPE_SSDATA_BLOCK) {
+  if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
     if (pInfo->validBlockIndex >= total) {
       /*doClearBufferedBlocks(pInfo);*/
       pOperator->status = OP_EXEC_DONE;
@@ -973,7 +979,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     SSDataBlock* pBlock = taosArrayGetP(pInfo->pBlockLists, current);
     blockDataUpdateTsWindow(pBlock, 0);
     if (pBlock->info.type == STREAM_RETRIEVE) {
-      pInfo->blockType = STREAM_DATA_TYPE_SUBMIT_BLOCK;
+      pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
       pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RETRIEVE;
       copyDataBlock(pInfo->pPullDataRes, pBlock);
       pInfo->pullDataResIndex = 0;
@@ -981,7 +987,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       updateInfoAddCloseWindowSBF(pInfo->pUpdateInfo);
     }
     return pBlock;
-  } else if (pInfo->blockType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
+  } else if (pInfo->blockType == STREAM_INPUT__DATA_SUBMIT) {
     if (pInfo->scanMode == STREAM_SCAN_FROM_RES) {
       blockDataDestroy(pInfo->pUpdateRes);
       pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
@@ -996,7 +1002,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       SSDataBlock* pSDB = doDataScan(pInfo, pInfo->pPullDataRes, 0, &pInfo->pullDataResIndex);
       if (pSDB != NULL) {
         getUpdateDataBlock(pInfo, true, pSDB, NULL);
-        pSDB->info.type = STREAM_PUSH_DATA;
+        pSDB->info.type = STREAM_PULL_DATA;
         return pSDB;
       }
       pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER;
@@ -1133,7 +1139,9 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
 
     return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
 
-  } else if (pInfo->blockType == STREAM_DATA_TYPE_FROM_SNAPSHOT) {
+  } else if (pInfo->blockType == STREAM_INPUT__DATA_SCAN) {
+    // check reader last status
+    // if not match, reset status
     SSDataBlock* pResult = doTableScan(pInfo->pSnapshotReadOp);
     return pResult && pResult->info.rows > 0 ? pResult : NULL;
 
@@ -1213,7 +1221,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     pInfo->tableUid = pScanPhyNode->uid;
 
     // set the extract column id to streamHandle
-    tqReadHandleSetColIdList((STqReadHandle*)pHandle->reader, pColIds);
+    tqReadHandleSetColIdList((SStreamReader*)pHandle->reader, pColIds);
     SArray* tableIdList = extractTableIdList(&pTaskInfo->tableqinfoList);
     int32_t code = tqReadHandleSetTbUidList(pHandle->reader, tableIdList);
     if (code != 0) {

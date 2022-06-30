@@ -124,6 +124,8 @@ if $data(5)[3] != 3 then
   return -1
 endi
 
+sql reset query cache
+
 print =============== step4: select data
 sql show d1.tables
 if $rows != 1 then

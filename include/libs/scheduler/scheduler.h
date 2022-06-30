@@ -69,18 +69,20 @@ typedef struct SSchdFetchParam {
   int32_t* code;
 } SSchdFetchParam;
 
-typedef void (*schedulerExecCallback)(SQueryResult* pResult, void* param, int32_t code);
-typedef void (*schedulerFetchCallback)(void* pResult, void* param, int32_t code);
+typedef void (*schedulerExecFp)(SQueryResult* pResult, void* param, int32_t code);
+typedef void (*schedulerFetchFp)(void* pResult, void* param, int32_t code);
+typedef bool (*schedulerChkKillFp)(void* param);
 
 typedef struct SSchedulerReq {
-  bool                 *reqKilled;
   SRequestConnInfo     *pConn;
   SArray               *pNodeList;
   SQueryPlan           *pDag;
   const char           *sql;
   int64_t               startTs;
-  schedulerExecCallback fp;
-  void*                 cbParam;
+  schedulerExecFp       execFp;
+  void*                 execParam;
+  schedulerChkKillFp    chkKillFp;
+  void*                 chkKillParam;
 } SSchedulerReq;
 
 
@@ -110,7 +112,7 @@ int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJob, SQueryResult *pRes)
  */
 int32_t schedulerFetchRows(int64_t job, void **data);
 
-void schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* param);
+void schedulerAsyncFetchRows(int64_t job, schedulerFetchFp fp, void* param);
 
 int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub);
 

@@ -75,7 +75,11 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
     syncNodeFollower2Candidate(pSyncNode);
   }
-  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+
+  if (pSyncNode->state != TAOS_SYNC_STATE_CANDIDATE) {
+    syncNodeErrorLog(pSyncNode, "not candidate, can not elect");
+    return -1;
+  }
 
   // start election
   raftStoreNextTerm(pSyncNode->pRaftStore);

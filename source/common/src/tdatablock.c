@@ -1613,7 +1613,8 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
     size_t       numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
 
     int32_t rows = pDataBlock->info.rows;
-    printf("%s |block type %d |child id %d|group id %zX\n", flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.groupId);
+    printf("%s |block type %d |child id %d|group id %zX\n", flag, (int32_t)pDataBlock->info.type,
+           pDataBlock->info.childId, pDataBlock->info.groupId);
     for (int32_t j = 0; j < rows; j++) {
       printf("%s |", flag);
       for (int32_t k = 0; k < numOfCols; k++) {
@@ -1662,8 +1663,8 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
   int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
   int32_t rows = pDataBlock->info.rows;
   int32_t len = 0;
-  len += snprintf(dumpBuf + len, size - len, "\n%s |block type %d |child id %d|\n", flag,
-                  (int32_t)pDataBlock->info.type, pDataBlock->info.childId);
+  len += snprintf(dumpBuf + len, size - len, "\n%s |block type %d |child id %d|group id %lu|\n", flag,
+                  (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.groupId);
   for (int32_t j = 0; j < rows; j++) {
     len += snprintf(dumpBuf + len, size - len, "%s |", flag);
     for (int32_t k = 0; k < colNum; k++) {
@@ -1902,8 +1903,7 @@ char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId) {
   return rname.childTableName;
 }
 
-void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols,
-                         int8_t needCompress) {
+void blockEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols, int8_t needCompress) {
   // todo extract method
   int32_t* actualLen = (int32_t*)data;
   data += sizeof(int32_t);
@@ -1913,6 +1913,7 @@ void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+
     *((int16_t*)data) = pColInfoData->info.type;
     data += sizeof(int16_t);
 
@@ -1960,7 +1961,7 @@ void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen
   *groupId = pBlock->info.groupId;
 }
 
-const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRows, const char* pData) {
+const char* blockDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRows, const char* pData) {
   const char* pStart = pData;
 
   int32_t dataLen = *(int32_t*)pStart;
