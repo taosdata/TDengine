@@ -16,12 +16,74 @@ import string
 from util.log import *
 from util.cases import *
 from util.sql import *
-
+from util.sqlset import *
+from util import constant
+from util.common import *
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
+        self.setsql = TDSetSql()
+        self.ntbname = 'ntb'
+        self.stbname = 'stb'
+        self.binary_length = 20 # the length of binary for column_dict
+        self.nchar_length = 20  # the length of nchar for column_dict
+        self.column_dict = {
+            'ts'  : 'timestamp',
+            'col1': 'tinyint',
+            'col2': 'smallint',
+            'col3': 'int',
+            'col4': 'bigint',
+            'col5': 'tinyint unsigned',
+            'col6': 'smallint unsigned',
+            'col7': 'int unsigned',
+            'col8': 'bigint unsigned',
+            'col9': 'float',
+            'col10': 'double',
+            'col11': 'bool',
+            'col12': f'binary({self.binary_length})',
+            'col13': f'nchar({self.nchar_length})'
+        }
+        self.tag_dict = {
+            'ts_tag'  : 'timestamp',
+            't1': 'tinyint',
+            't2': 'smallint',
+            't3': 'int',
+            't4': 'bigint',
+            't5': 'tinyint unsigned',
+            't6': 'smallint unsigned',
+            't7': 'int unsigned',
+            't8': 'bigint unsigned',
+            't9': 'float',
+            't10': 'double',
+            't11': 'bool',
+            't12': f'binary({self.binary_length})',
+            't13': f'nchar({self.nchar_length})'
+        }
+        self.tag_list = [
+            f'now,1,2,3,4,5,6,7,8,9.9,10.1,true,"abcd","涛思数据"'
+        ]
+        self.tbnum = 1
+        self.values_list = [
+            f'now,1,2,3,4,5,6,7,8,9.9,10.1,true,"abcd","涛思数据"'
+        ]
+        self.column_add_dict = {
+            'col_time'      : 'timestamp',
+            'col_tinyint'   : 'tinyint',
+            'col_smallint'  : 'smallint',
+            'col_int'       : 'int',
+            'col_bigint'    : 'bigint',
+            'col_untinyint' : 'tinyint unsigned',
+            'col_smallint'  : 'smallint unsigned',
+            'col_int'       : 'int unsigned',
+            'col_bigint'    : 'bigint unsigned',
+            'col_bool'      : 'bool',
+            'col_float'     : 'float',
+            'col_double'    : 'double',
+            'col_binary'    : f'binary({constant.BINARY_LENGTH_MAX})',
+            'col_nchar'     : f'nchar({constant.NCAHR_LENGTH_MAX})'
 
+        }
     def get_long_name(self, length, mode="mixed"):
         """
         generate long name
@@ -133,15 +195,66 @@ class TDTestCase:
         # tdSql.execute(f'create table ntb (ts timestamp,c0 int)')
         tdSql.error(f'alter stable ntb add column c2 ')
         tdSql.execute(f'drop database {dbname}')
-
+    def alter_stable_check(self):
+        tdSql.prepare()
+        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
+        for i in range(self.tbnum):
+            tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags({self.tag_list[i]})')
+            for j in self.values_list:
+                tdSql.execute(f'insert into {self.stbname}_{i} values({j})')
+        for key,values in self.column_add_dict.items():
+            tdSql.execute(f'alter stable {self.stbname} add column {key} {values}')
+            tdSql.query(f'describe {self.stbname}')
+            tdSql.checkRows(len(self.column_dict)+len(self.tag_dict)+1)
+            for i in range(self.tbnum):
+                tdSql.query(f'describe {self.stbname}_{i}')
+                tdSql.checkRows(len(self.column_dict)+len(self.tag_dict)+1)
+                tdSql.query(f'select {key} from {self.stbname}_{i}')
+                tdSql.checkRows(len(self.values_list))
+            tdSql.execute(f'alter stable {self.stbname} drop column {key}')
+            tdSql.query(f'describe {self.stbname}')
+            tdSql.checkRows(len(self.column_dict)+len(self.tag_dict))
+            for i in range(self.tbnum):
+                tdSql.query(f'describe {self.stbname}_{i}')
+                tdSql.checkRows(len(self.column_dict)+len(self.tag_dict))
+            tdSql.error(f'select {key} from {self.stbname} ')
+        for key,values in self.column_dict.items():
+            if 'binary' in values.lower():
+                v = f'binary({self.binary_length+1})'
+                v_error = f'binary({self.binary_length-1})'
+                tdSql.error(f'alter stable {self.stbname} modify column {key} {v_error}')
+                tdSql.execute(f'alter stable {self.stbname} modify column {key} {v}')
+                tdSql.query(f'describe {self.stbname}')
+                result = tdCom.getOneRow(1,'VARCHAR')
+                tdSql.checkEqual(result[0][2],self.binary_length+1)
+                for i in range(self.tbnum):
+                    tdSql.query(f'describe {self.stbname}_{i}')
+                    result = tdCom.getOneRow(1,'VARCHAR')
+                    tdSql.checkEqual(result[0][2],self.binary_length+1)
+            elif 'nchar' in values.lower():
+                v = f'nchar({self.binary_length+1})'
+                v_error = f'nchar({self.binary_length-1})'
+                tdSql.error(f'alter stable {self.stbname} modify column {key} {v_error}')
+                tdSql.execute(f'alter stable {self.stbname} modify column {key} {v}')
+                tdSql.query(f'describe {self.stbname}')
+                result = tdCom.getOneRow(1,'NCHAR')
+                tdSql.checkEqual(result[0][2],self.binary_length+1)
+                for i in range(self.tbnum):
+                    tdSql.query(f'describe {self.stbname}_{i}')
+                    result = tdCom.getOneRow(1,'NCHAR')
+                    tdSql.checkEqual(result[0][2],self.binary_length+1)
+            else:
+                for v in self.column_dict.values():
+                    tdSql.error(f'alter stable {self.stbname} modify column {key} {v}')
+        pass
     def run(self):
 
-        dbname = self.get_long_name(length=10, mode="letters")
-        stbname = self.get_long_name(length=5, mode="letters")
-        tbname = self.get_long_name(length=5, mode="letters")
-        self.alter_stable_column_check(dbname,stbname,tbname)
-        self.alter_stable_tag_check(dbname,stbname,tbname)
-
+        # dbname = self.get_long_name(length=10, mode="letters")
+        # stbname = self.get_long_name(length=5, mode="letters")
+        # tbname = self.get_long_name(length=5, mode="letters")
+        # self.alter_stable_column_check(dbname,stbname,tbname)
+        # self.alter_stable_tag_check(dbname,stbname,tbname)
+        self.alter_stable_check()
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
