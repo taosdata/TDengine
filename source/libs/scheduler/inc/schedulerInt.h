@@ -125,7 +125,7 @@ typedef struct SSchTaskCallbackParam {
   uint64_t                queryId;
   int64_t                 refId;
   uint64_t                taskId;
-  int32_t                 execIdx;
+  int32_t                 execId;
   void                   *pTrans;
 } SSchTaskCallbackParam;
 
@@ -171,7 +171,7 @@ typedef struct SSchTask {
   uint64_t             taskId;         // task id
   SRWLatch             lock;           // task lock
   int32_t              maxExecTimes;   // task may exec times
-  int32_t              execIdx;        // task current execute try index
+  int32_t              execId;        // task current execute try index
   SSchLevel           *level;          // level
   SRWLatch             planLock;       // task update plan lock
   SSubplan            *plan;           // subplan
@@ -243,9 +243,9 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_LOG_TASK_START_TS(_task)                          \
   do {                                                        \
     int64_t us = taosGetTimestampUs();                        \
-    int32_t idx = (_task)->execIdx % SCH_TASK_MAX_EXEC_TIMES; \
+    int32_t idx = (_task)->execId % SCH_TASK_MAX_EXEC_TIMES; \
     (_task)->profile.execUseTime[idx] = us;                    \
-    if (0 == (_task)->execIdx) {                              \
+    if (0 == (_task)->execId) {                              \
       (_task)->profile.startTs = us;                          \
     }                                                         \
   } while (0)  
@@ -253,7 +253,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_LOG_TASK_WAIT_TS(_task)                        \
   do {                                                    \
     int64_t us = taosGetTimestampUs();                    \
-    int32_t idx = (_task)->execIdx % SCH_TASK_MAX_EXEC_TIMES; \
+    int32_t idx = (_task)->execId % SCH_TASK_MAX_EXEC_TIMES; \
     (_task)->profile.waitTime += us - (_task)->profile.execUseTime[idx];    \
   } while (0)  
 
@@ -261,12 +261,12 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_LOG_TASK_END_TS(_task)                        \
   do {                                                    \
     int64_t us = taosGetTimestampUs();                    \
-    int32_t idx = (_task)->execIdx % SCH_TASK_MAX_EXEC_TIMES; \
+    int32_t idx = (_task)->execId % SCH_TASK_MAX_EXEC_TIMES; \
     (_task)->profile.execUseTime[idx] = us - (_task)->profile.execUseTime[idx];    \
     (_task)->profile.endTs = us;                          \
   } while (0)  
 
-#define SCH_TASK_TIMEOUT(_task) ((taosGetTimestampUs() - (_task)->profile.execUseTime[(_task)->execIdx % SCH_TASK_MAX_EXEC_TIMES]) > (_task)->timeoutUsec)
+#define SCH_TASK_TIMEOUT(_task) ((taosGetTimestampUs() - (_task)->profile.execUseTime[(_task)->execId % SCH_TASK_MAX_EXEC_TIMES]) > (_task)->timeoutUsec)
 
 #define SCH_TASK_READY_FOR_LAUNCH(readyNum, task) ((readyNum) >= taosArrayGetSize((task)->children))
 
@@ -274,6 +274,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_UNLOCK_TASK(_task) SCH_UNLOCK(SCH_WRITE, &(_task)->lock)
 
 #define SCH_TASK_ID(_task) ((_task) ? (_task)->taskId : -1)
+#define SCH_TASK_EID(_task) ((_task) ? (_task)->execId : -1)
 #define SCH_SET_TASK_LASTMSG_TYPE(_task, _type) do { if(_task) { atomic_store_32(&(_task)->lastMsgType, _type); } } while (0)
 #define SCH_GET_TASK_LASTMSG_TYPE(_task) ((_task) ? atomic_load_32(&(_task)->lastMsgType) : -1)
 
@@ -318,13 +319,13 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_JOB_DLOG(param, ...) qDebug("QID:0x%" PRIx64 " " param, pJob->queryId, __VA_ARGS__)
 
 #define SCH_TASK_ELOG(param, ...) \
-  qError("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, SCH_TASK_ID(pTask), __VA_ARGS__)
+  qError("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask),__VA_ARGS__)
 #define SCH_TASK_DLOG(param, ...) \
-  qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, SCH_TASK_ID(pTask), __VA_ARGS__)
+  qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask),__VA_ARGS__)
 #define SCH_TASK_DLOGL(param, ...) \
-  qDebugL("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, SCH_TASK_ID(pTask), __VA_ARGS__)
+  qDebugL("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask),__VA_ARGS__)
 #define SCH_TASK_WLOG(param, ...) \
-  qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, SCH_TASK_ID(pTask), __VA_ARGS__)
+  qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask),__VA_ARGS__)
 
 #define SCH_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define SCH_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
@@ -366,7 +367,7 @@ void    schProcessOnDataFetched(SSchJob *job);
 int32_t schGetTaskInJob(SSchJob *pJob, uint64_t taskId, SSchTask **pTask);
 void    schFreeRpcCtxVal(const void *arg);
 int32_t schMakeBrokenLinkVal(SSchJob *pJob, SSchTask *pTask, SRpcBrokenlinkVal *brokenVal, bool isHb);
-int32_t schAppendTaskExecNode(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, int32_t execIdx);
+int32_t schAppendTaskExecNode(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, int32_t execId);
 int32_t schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync);
 int32_t schExecJobImpl(SSchedulerReq *pReq, SSchJob *pJob, bool sync);
 int32_t schUpdateJobStatus(SSchJob *pJob, int8_t newStatus);
@@ -378,7 +379,7 @@ int32_t schExecJob(SSchedulerReq *pReq, int64_t *pJob, SQueryResult *pRes);
 int32_t schAsyncExecJob(SSchedulerReq *pReq, int64_t *pJob);
 int32_t schFetchRows(SSchJob *pJob);
 int32_t schAsyncFetchRows(SSchJob *pJob);
-int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, int32_t execIdx);
+int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, int32_t execId);
 int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId* pEpId, SArray* pStatusList);
 void    schFreeSMsgSendInfo(SMsgSendInfo *msgSendInfo);
 char*   schGetOpStr(SCH_OP_TYPE type);

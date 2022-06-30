@@ -1494,6 +1494,7 @@ typedef struct SSubQueryMsg {
   uint64_t queryId;
   uint64_t taskId;
   int64_t  refId;
+  int32_t  execId;
   int8_t   taskType;
   int8_t   explain;
   uint32_t sqlLen;  // the query sql,
@@ -1513,6 +1514,7 @@ typedef struct {
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
+  int32_t  execId;
 } SQueryContinueReq;
 
 typedef struct {
@@ -1534,6 +1536,7 @@ typedef struct {
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
+  int32_t  execId;
 } SResFetchReq;
 
 typedef struct {
@@ -1545,6 +1548,7 @@ typedef struct {
   uint64_t queryId;
   uint64_t taskId;
   int64_t  refId;
+  int32_t  execId;
   int8_t   status;
 } STaskStatus;
 
@@ -1590,6 +1594,7 @@ typedef struct {
   uint64_t queryId;
   uint64_t taskId;
   int64_t  refId;
+  int32_t  execId;
 } STaskCancelReq;
 
 typedef struct {
@@ -1602,6 +1607,7 @@ typedef struct {
   uint64_t queryId;
   uint64_t taskId;
   int64_t  refId;
+  int32_t  execId;
 } STaskDropReq;
 
 typedef struct {
