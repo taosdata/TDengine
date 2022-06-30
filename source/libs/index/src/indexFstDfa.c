@@ -61,9 +61,10 @@ void dfaBuilderDestroy(FstDfaBuilder *builder) {
     pIter = taosHashIterate(builder->cache, pIter);
   }
   taosHashCleanup(builder->cache);
+  taosMemoryFree(builder);
 }
 
-FstDfa *dfaBuilderBuild(FstDfaBuilder *builder) {
+FstDfa *dfaBuilder(FstDfaBuilder *builder) {
   uint32_t      sz = taosArrayGetSize(builder->dfa->insts);
   FstSparseSet *cur = sparSetCreate(sz);
   FstSparseSet *nxt = sparSetCreate(sz);
