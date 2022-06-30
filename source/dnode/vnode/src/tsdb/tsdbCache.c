@@ -303,99 +303,6 @@ static int32_t getTableDelIdx(SDelFReader *pDelFReader, tb_uid_t suid, tb_uid_t 
 _err:
   return code;
 }
-#if 0
-static int32_t mergeLastRowFileSet(STbDataIter *iter, STbDataIter *iiter, SDFileSet *pFileSet, SArray *pSkyline,
-                                   STsdb *pTsdb, STSRow **ppLastRow) {
-  int32_t code = 0;
-
-  TSDBROW *pMemRow = NULL;
-  TSDBROW *pIMemRow = NULL;
-  TSDBKEY  memKey = TSDBKEY_MIN;
-  TSDBKEY  imemKey = TSDBKEY_MIN;
-
-  if (iter != NULL) {
-    pMemRow = tsdbTbDataIterGet(iter);
-    if (pMemRow) {
-      memKey = tsdbRowKey(pMemRow);
-    }
-  }
-
-  if (iter != NULL) {
-    pIMemRow = tsdbTbDataIterGet(iiter);
-    if (pIMemRow) {
-      imemKey = tsdbRowKey(pIMemRow);
-    }
-  }
-
-  SDataFReader *pDataFReader;
-  code = tsdbDataFReaderOpen(&pDataFReader, pTsdb, pFileSet);
-  if (code) goto _err;
-
-  SMapData blockIdxMap;
-  tMapDataReset(&blockIdxMap);
-  code = tsdbReadBlockIdx(pDataFReader, &blockIdxMap, NULL);
-  if (code) goto _err;
-
-  SBlockIdx blockIdx = {0};
-  tBlockIdxReset(&blockIdx);
-  code = tMapDataSearch(&blockIdxMap, pBlockIdx, tGetBlockIdx, tCmprBlockIdx, &blockIdx);
-  if (code) goto _err;
-
-  SMapData blockMap = {0};
-  tMapDataReset(&blockMap);
-  code = tsdbReadBlock(pDataFReader, &blockIdx, &blockMap, NULL);
-  if (code) goto _err;
-
-  int32_t nBlock = blockMap.nItem;
-  for (int32_t iBlock = nBlock - 1; iBlock >= 0; --iBlock) {
-    SBlock     block = {0};
-    SBlockData blockData = {0};
-
-    tBlockReset(&block);
-    tBlockDataReset(&blockData);
-
-    tMapDataGetItemByIdx(&blockMap, iBlock, &block, tGetBlock);
-
-    code = tsdbReadBlockData(pDataFReader, &blockIdx, &block, &blockData, NULL, NULL);
-    if (code) goto _err;
-
-    int32_t nRow = blockData.nRow;
-    for (int32_t iRow = nRow - 1; iRow >= 0; --iRow) {
-      TSDBROW row = tsdbRowFromBlockData(&blockData, iRow);
-
-      TSDBKEY key = tsdbRowKey(&row);
-      if (pMemRow != NULL && pIMemRow != NULL) {
-        int32_t c = tsdbKeyCmprFn(memKey, imemKey);
-        if (c < 0) {
-        } else if (c > 0) {
-        } else {
-        }
-      } else if (pMemRow != NULL) {
-        pMemRow = tsdbTbDataIterGet(iter);
-
-      } else if (pIMemRow != NULL) {
-      } else {
-        if (!tsdbKeyDeleted(key, pSkyline)) {
-          code = buildTsrowFromTsdbrow(&row, ppLastRow);
-          goto _done;
-        } else {
-          continue;
-        }
-      }
-      // select current row if outside delete area
-      STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1);
-    }
-  }
-
-_done:
-  tsdbDataFReaderClose(&pDataFReader);
-
-  return code;
-
-_err:
-  return code;
-}
-#endif
 
 typedef enum SFSNEXTROWSTATES {
   SFSNEXTROW_FS,
@@ -1101,7 +1008,6 @@ int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUH
   }
 
   *handle = h;
-  // taosLRUCacheRelease(pCache, h, true);
 
   return code;
 }
@@ -1131,7 +1037,6 @@ int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHand
   }
 
   *handle = h;
-  // taosLRUCacheRelease(pCache, h, true);
 
   return code;
 }
