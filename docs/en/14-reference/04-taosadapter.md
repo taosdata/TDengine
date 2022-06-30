@@ -206,8 +206,8 @@ Note: InfluxDB token authorization is not supported at present. Only Basic autho
 You can use any client that supports the http protocol to access the RESTful interface address `http://<fqdn>:6041/<APIEndPoint>` to write data in OpenTSDB compatible format to TDengine.
 
 ```text
-/opentsdb/v1/put/json/:db
-/opentsdb/v1/put/telnet/:db
+/opentsdb/v1/put/json/<db>
+/opentsdb/v1/put/telnet/<db>
 ```
 
 ### collectd
