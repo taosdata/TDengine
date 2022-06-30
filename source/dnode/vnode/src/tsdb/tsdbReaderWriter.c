@@ -849,7 +849,7 @@ int32_t tsdbReadColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBl
   uint8_t *pBuf1 = NULL;
   uint8_t *pBuf2 = NULL;
 
-  ASSERT(nCol == 0 || aColId[0] != PRIMARYKEY_TIMESTAMP_COL_ID);
+  ASSERT(aColId[0] == PRIMARYKEY_TIMESTAMP_COL_ID);
 
   if (!ppBuf1) ppBuf1 = &pBuf1;
   if (!ppBuf2) ppBuf2 = &pBuf2;

@@ -119,8 +119,6 @@ typedef struct SQueryTableDataCond {
   STimeWindow* twindows;
   int64_t      startVersion;
   int64_t      endVersion;
-  int32_t      numOfTables;      // number of tables
-  uint64_t*    uidList;          // table uid list
 } SQueryTableDataCond;
 
 void*   blockDataDestroy(SSDataBlock* pBlock);
