@@ -747,39 +747,36 @@ _end:
 static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader, SArray* pIndexList) {
   int32_t code = 0;
 
-  SMapData blockIdxMap = {0};
-  tMapDataReset(&blockIdxMap);
+  SArray *aBlockIdx = taosArrayInit(0, sizeof(SBlockIdx));
 
-  code = tsdbReadBlockIdx(pFileReader, &blockIdxMap, NULL);
+  code = tsdbReadBlockIdx(pFileReader, aBlockIdx, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     goto _err;
   }
 
-  if (blockIdxMap.nItem == 0) {
+  if (taosArrayGetSize(aBlockIdx) == 0) {
+    taosArrayClear(aBlockIdx);
     return TSDB_CODE_SUCCESS;
   }
 
-  SBlockIdx blockIndex = {0};
-  for (int32_t i = 0; i < blockIdxMap.nItem; ++i) {
-    code = tMapDataGetItemByIdx(&blockIdxMap, i, &blockIndex, tGetBlockIdx);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _err;
-    }
+  SBlockIdx *pBlockIdx;
+  for (int32_t i = 0; i < taosArrayGetSize(aBlockIdx); ++i) {
+    pBlockIdx = (SBlockIdx *)taosArrayGet(aBlockIdx, i);
 
-    if (blockIndex.suid != pReader->suid) {
+    if (pBlockIdx->suid != pReader->suid) {
       continue;
     }
 
     // this block belongs to a table that is not queried.
-    void* p = taosHashGet(pReader->status.pTableMap, &blockIndex.uid, sizeof(uint64_t));
+    void* p = taosHashGet(pReader->status.pTableMap, &pBlockIdx->uid, sizeof(uint64_t));
     if (p == NULL) {
       continue;
     }
 
     if ((ASCENDING_TRAVERSE(pReader->order) &&
-         (blockIndex.minKey > pReader->window.ekey || blockIndex.maxKey < pReader->window.skey)) ||
+         (pBlockIdx->minKey > pReader->window.ekey || pBlockIdx->maxKey < pReader->window.skey)) ||
         (!ASCENDING_TRAVERSE(pReader->order) &&
-         (blockIndex.minKey > pReader->window.skey || blockIndex.maxKey < pReader->window.ekey))) {
+         (pBlockIdx->minKey > pReader->window.skey || pBlockIdx->maxKey < pReader->window.ekey))) {
       continue;
     }
 
@@ -788,15 +785,15 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
       pScanInfo->pBlockList = taosArrayInit(16, sizeof(SBlock));
     }
 
-    pScanInfo->blockIdx = blockIndex;
-    taosArrayPush(pIndexList, &blockIndex);
+    pScanInfo->blockIdx = *pBlockIdx;
+    taosArrayPush(pIndexList, pBlockIdx);
   }
 
-//  tMapDataClear(&blockIdxMap);
+  taosArrayDestroy(aBlockIdx);
   return TSDB_CODE_SUCCESS;
 
 _err:
-  tMapDataClear(&blockIdxMap);
+  taosArrayDestroy(aBlockIdx);
   return code;
 }
 

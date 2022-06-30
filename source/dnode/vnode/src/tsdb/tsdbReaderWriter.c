@@ -519,15 +519,18 @@ _err:
   return code;
 }
 
-int32_t tsdbReadBlockIdx(SDataFReader *pReader, SMapData *mBlockIdx, uint8_t **ppBuf) {
-  int32_t  code = 0;
-  int64_t  offset = pReader->pSet->fHead.offset;
-  int64_t  size = pReader->pSet->fHead.size - offset;
-  int64_t  n;
-  uint32_t delimiter;
+int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx, uint8_t **ppBuf) {
+  int32_t   code = 0;
+  int64_t   offset = pReader->pSet->fHead.offset;
+  int64_t   size = pReader->pSet->fHead.size - offset;
+  uint8_t  *pBuf = NULL;
+  int64_t   n;
+  uint32_t  delimiter;
+  SBlockIdx blockIdx;
+
+  if (!ppBuf) ppBuf = &pBuf;
 
   // alloc
-  if (!ppBuf) ppBuf = &mBlockIdx->pBuf;
   code = tsdbRealloc(ppBuf, size);
   if (code) goto _err;
 
@@ -554,16 +557,27 @@ int32_t tsdbReadBlockIdx(SDataFReader *pReader, SMapData *mBlockIdx, uint8_t **p
   }
 
   // decode
-  n = 0;
-  n += tGetU32(*ppBuf + n, &delimiter);
+  n = tGetU32(*ppBuf + n, &delimiter);
   ASSERT(delimiter == TSDB_FILE_DLMT);
-  n += tGetMapData(*ppBuf + n, mBlockIdx);
+
+  taosArrayClear(aBlockIdx);
+  while (n < size - sizeof(TSCKSUM)) {
+    n += tGetBlockIdx(*ppBuf + n, &blockIdx);
+
+    if (taosArrayPush(aBlockIdx, &blockIdx) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+  }
+
   ASSERT(n + sizeof(TSCKSUM) == size);
 
+  tsdbFree(pBuf);
   return code;
 
 _err:
   tsdbError("vgId:%d read block idx failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  tsdbFree(pBuf);
   return code;
 }
 
@@ -1257,27 +1271,31 @@ _err:
   return code;
 }
 
-int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SMapData *mBlockIdx, uint8_t **ppBuf) {
+int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx, uint8_t **ppBuf) {
   int32_t    code = 0;
-  int64_t    size;
   SHeadFile *pHeadFile = &pWriter->wSet.fHead;
-  int64_t    n;
   uint8_t   *pBuf = NULL;
+  int64_t    size;
+  int64_t    n;
+
+  if (!ppBuf) ppBuf = &pBuf;
 
   // prepare
-  size = 0;
-  size += tPutU32(NULL, TSDB_FILE_DLMT);
-  size = size + tPutMapData(NULL, mBlockIdx) + sizeof(TSCKSUM);
+  size = tPutU32(NULL, TSDB_FILE_DLMT);
+  for (int32_t iBlockIdx = 0; iBlockIdx < taosArrayGetSize(aBlockIdx); iBlockIdx++) {
+    size += tPutBlockIdx(NULL, taosArrayGet(aBlockIdx, iBlockIdx));
+  }
+  size += sizeof(TSCKSUM);
 
   // alloc
-  if (!ppBuf) ppBuf = &pBuf;
   code = tsdbRealloc(ppBuf, size);
   if (code) goto _err;
 
   // build
-  n = 0;
-  n += tPutU32(*ppBuf + n, TSDB_FILE_DLMT);
-  n += tPutMapData(*ppBuf + n, mBlockIdx);
+  n = tPutU32(*ppBuf + n, TSDB_FILE_DLMT);
+  for (int32_t iBlockIdx = 0; iBlockIdx < taosArrayGetSize(aBlockIdx); iBlockIdx++) {
+    n += tPutBlockIdx(*ppBuf + n, taosArrayGet(aBlockIdx, iBlockIdx));
+  }
   taosCalcChecksumAppend(0, *ppBuf, size);
 
   ASSERT(n + sizeof(TSCKSUM) == size);
