@@ -968,8 +968,9 @@ SyncClientRequestBatch* syncClientRequestBatchBuild(SRpcMsg* rpcMsgArr, SRaftMet
   ASSERT(arrSize > 0);
 
   int32_t dataLen = 0;
-  int32_t raftMetaArrayLen = sizeof(SRpcMsg) * arrSize;
-  int32_t rpcArrayLen = sizeof(SRaftMeta) * arrSize;
+  int32_t raftMetaArrayLen = sizeof(SRaftMeta) * arrSize;
+  int32_t rpcArrayLen = sizeof(SRpcMsg) * arrSize;
+  dataLen += (raftMetaArrayLen + rpcArrayLen);
 
   uint32_t                bytes = sizeof(SyncClientRequestBatch) + dataLen;
   SyncClientRequestBatch* pMsg = taosMemoryMalloc(bytes);
@@ -994,6 +995,8 @@ SyncClientRequestBatch* syncClientRequestBatchBuild(SRpcMsg* rpcMsgArr, SRaftMet
 
   return pMsg;
 }
+
+void syncClientRequestBatch2RpcMsg(const SyncClientRequestBatch* pSyncMsg, SRpcMsg* pRpcMsg) {}
 
 // ---- message process SyncRequestVote----
 SyncRequestVote* syncRequestVoteBuild(int32_t vgId) {

@@ -26,6 +26,7 @@ extern "C" {
 
 extern bool gRaftDetailLog;
 
+#define SYNC_MAX_BATCH_SIZE 100
 #define SYNC_INDEX_BEGIN 0
 #define SYNC_INDEX_INVALID -1
 #define SYNC_TERM_INVALID 0xFFFFFFFFFFFFFFFF
@@ -179,6 +180,7 @@ typedef struct SSyncInfo {
   bool        isStandBy;
   bool        snapshotEnable;
   SyncGroupId vgId;
+  int32_t     batchSize;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
   SWal*       pWal;
