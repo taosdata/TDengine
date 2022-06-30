@@ -58,7 +58,6 @@ class TDTestCase:
             if v.lower() != 'timestamp':
                 continue
             else:
-                sleep(1)
                 tdSql.query(f'select * from {tbname} where {k}>=now()')
                 tdSql.checkRows(0)
                 tdSql.query(f'select * from {tbname} where {k}<now()')
