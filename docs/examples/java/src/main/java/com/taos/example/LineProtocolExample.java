@@ -26,7 +26,7 @@ public class LineProtocolExample {
 
     private static void createDatabase(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
-            // the default precision is ms (microsecond), but we use us(microsecond) here.
+            // the default precision is ms (millisecond), but we use us(microsecond) here.
             stmt.execute("CREATE DATABASE IF NOT EXISTS test PRECISION 'us'");
             stmt.execute("USE test");
         }

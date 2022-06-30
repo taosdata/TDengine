@@ -39,6 +39,16 @@ extern "C" {
 #define tqInfo(...)  do { if (tqDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
 #define tqDebug(...) do { if (tqDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
 #define tqTrace(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
+
+#define IS_META_MSG(x) ( \
+     x == TDMT_VND_CREATE_STB     \
+  || x == TDMT_VND_ALTER_STB      \
+  || x == TDMT_VND_DROP_STB       \
+  || x == TDMT_VND_CREATE_TABLE   \
+  || x == TDMT_VND_ALTER_TABLE    \
+  || x == TDMT_VND_DROP_TABLE     \
+  || x == TDMT_VND_DROP_TTL_TABLE \
+)
 // clang-format on
 
 typedef struct STqOffsetStore STqOffsetStore;
@@ -101,12 +111,13 @@ typedef struct {
 typedef struct {
   int8_t subType;
 
-  STqReadHandle* pExecReader[5];
+  SStreamReader* pExecReader[5];
   union {
     STqExecCol execCol;
     STqExecTb  execTb;
     STqExecDb  execDb;
   };
+
 } STqExecHandle;
 
 typedef struct {
@@ -149,9 +160,9 @@ static STqMgmt tqMgmt = {0};
 int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalHead** pHeadWithCkSum);
 
 // tqExec
-int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkRsp* pRsp, int32_t workerId);
-int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataBlkRsp* pRsp, int32_t workerId);
-int32_t tqSendPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataBlkRsp* pRsp);
+int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataRsp* pRsp, int32_t workerId);
+int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, int32_t workerId);
+int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp);
 
 // tqMeta
 int32_t tqMetaOpen(STQ* pTq);

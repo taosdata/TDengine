@@ -19,7 +19,7 @@
 #include "catalogInt.h"
 
 extern SCatalogMgmt gCtgMgmt;
-SCtgDebug gCTGDebug = {.cacheEnable = true};
+SCtgDebug gCTGDebug = {0};
 
 void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
   ASSERT(*(int32_t*)param == 1);
@@ -255,8 +255,8 @@ int32_t ctgdEnableDebug(char *option) {
 }
 
 int32_t ctgdGetStatNum(char *option, void *res) {
-  if (0 == strcasecmp(option, "runtime.qDoneNum")) {
-    *(uint64_t *)res = atomic_load_64(&gCtgMgmt.stat.runtime.qDoneNum);
+  if (0 == strcasecmp(option, "runtime.numOfOpDequeue")) {
+    *(uint64_t *)res = atomic_load_64(&gCtgMgmt.stat.runtime.numOfOpDequeue);
     return TSDB_CODE_SUCCESS;
   }
 

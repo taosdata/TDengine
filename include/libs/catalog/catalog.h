@@ -147,14 +147,6 @@ int32_t catalogInit(SCatalogCfg* cfg);
  */
 int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle);
 
-/**
- * Free a cluster's all catalog info, usually it's not necessary, until the application is closing.
- * no current or future usage should be guaranteed by application
- * @param pCatalog (input, NO more usage)
- * @return error code
- */
-void catalogFreeHandle(SCatalog* pCatalog);
-
 int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId, int32_t* tableNum);
 
 /**

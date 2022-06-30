@@ -18,6 +18,9 @@
 typedef struct SSmaStat SSmaStat;
 
 #define RSMA_TASK_INFO_HASH_SLOT 8
+#define SMA_MGMT_REF_NUM         1024
+
+extern SSmaMgmt smaMgmt;
 
 // declaration of static functions
 
@@ -25,6 +28,7 @@ static int32_t  tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *p
 static SSmaEnv *tdNewSmaEnv(const SSma *pSma, int8_t smaType, const char *path);
 static int32_t  tdInitSmaEnv(SSma *pSma, int8_t smaType, const char *path, SSmaEnv **pEnv);
 static void    *tdFreeTSmaStat(STSmaStat *pStat);
+static void     tdDestroyRSmaStat(void *pRSmaStat);
 
 // implementation
 
@@ -128,6 +132,22 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
     if (smaType == TSDB_SMA_TYPE_ROLLUP) {
       SRSmaStat *pRSmaStat = (SRSmaStat *)(*pSmaStat);
       pRSmaStat->pSma = (SSma *)pSma;
+
+      // init smaMgmt
+      smaMgmt.smaRef = taosOpenRef(SMA_MGMT_REF_NUM, tdDestroyRSmaStat);
+      if (smaMgmt.refId < 0) {
+        smaError("init smaRef failed, num:%d", SMA_MGMT_REF_NUM);
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return TSDB_CODE_FAILED;
+      }
+
+      int64_t refId = taosAddRef(smaMgmt.smaRef, pRSmaStat);
+      if (refId < 0) {
+        smaError("taosAddRef smaRef failed, since:%s", tstrerror(terrno));
+        return TSDB_CODE_FAILED;
+      }
+      pRSmaStat->refId = refId;
+
       // init timer
       RSMA_TMR_HANDLE(pRSmaStat) = taosTmrInit(10000, 100, 10000, "RSMA");
       if (!RSMA_TMR_HANDLE(pRSmaStat)) {
@@ -169,9 +189,10 @@ static void *tdFreeTSmaStat(STSmaStat *pStat) {
   return NULL;
 }
 
-static void tdDestroyRSmaStat(SRSmaStat *pStat) {
-  if (pStat) {
-    smaDebug("vgId:%d destroy rsma stat", SMA_VID(pStat->pSma));
+static void tdDestroyRSmaStat(void *pRSmaStat) {
+  if (pRSmaStat) {
+    SRSmaStat *pStat = (SRSmaStat *)pRSmaStat;
+    smaDebug("vgId:%d %s:%d destroy rsma stat %p", SMA_VID(pStat->pSma), __func__, __LINE__, pRSmaStat);
     // step 1: set persistence task cancelled
     atomic_store_8(RSMA_TRIGGER_STAT(pStat), TASK_TRIGGER_STAT_CANCELLED);
 
@@ -183,9 +204,11 @@ static void tdDestroyRSmaStat(SRSmaStat *pStat) {
     if (atomic_load_8(RSMA_RUNNING_STAT(pStat)) == 1) {
       while (1) {
         if (atomic_load_8(RSMA_TRIGGER_STAT(pStat)) == TASK_TRIGGER_STAT_FINISHED) {
+          smaDebug("rsma, persist task finished already");
           break;
         } else {
-          smaDebug("not destroyed since rsma stat in %" PRIi8, atomic_load_8(RSMA_TRIGGER_STAT(pStat)));
+          smaDebug("rsma, persist task not finished yet since rsma stat in %" PRIi8,
+                   atomic_load_8(RSMA_TRIGGER_STAT(pStat)));
         }
         ++nLoops;
         if (nLoops > 1000) {
@@ -209,7 +232,10 @@ static void tdDestroyRSmaStat(SRSmaStat *pStat) {
     nLoops = 0;
     while (1) {
       if (T_REF_VAL_GET((SSmaStat *)pStat) == 0) {
+        smaDebug("rsma, all fetch task finished already");
         break;
+      } else {
+        smaDebug("rsma, fetch tasks not all finished yet");
       }
       ++nLoops;
       if (nLoops > 1000) {
@@ -225,15 +251,13 @@ static void tdDestroyRSmaStat(SRSmaStat *pStat) {
   }
 }
 
-static void *tdFreeRSmaStat(SRSmaStat *pStat) {
-  tdDestroyRSmaStat(pStat);
-  taosMemoryFreeClear(pStat);
-  return NULL;
-}
-
 void *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
   tdDestroySmaState(pSmaStat, smaType);
-  taosMemoryFreeClear(pSmaStat);
+  if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
+    taosMemoryFreeClear(pSmaStat);
+  }
+  // tref used to free rsma stat
+
   return NULL;
 }
 
@@ -243,17 +267,21 @@ void *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
  * @param pSmaStat
  * @return int32_t
  */
+
 int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
   if (pSmaStat) {
     if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
       tdDestroyTSmaStat(SMA_TSMA_STAT(pSmaStat));
     } else if (smaType == TSDB_SMA_TYPE_ROLLUP) {
-      tdDestroyRSmaStat(SMA_RSMA_STAT(pSmaStat));
+      SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pSmaStat);
+      if (taosRemoveRef(smaMgmt.smaRef, RSMA_REF_ID(pRSmaStat)) < 0) {
+        smaError("remove refId from smaRef failed, refId:0x%" PRIx64, RSMA_REF_ID(pRSmaStat));
+      }
     } else {
       ASSERT(0);
     }
   }
-  return TSDB_CODE_SUCCESS;
+  return 0;
 }
 
 int32_t tdLockSma(SSma *pSma) {

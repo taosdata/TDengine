@@ -46,6 +46,11 @@ struct SSmaEnv {
   SSmaStat      *pStat;
 };
 
+typedef struct {
+  int32_t smaRef;
+  int32_t refId;
+} SSmaMgmt;
+
 #define SMA_ENV_LOCK(env) ((env)->lock)
 #define SMA_ENV_TYPE(env) ((env)->type)
 #define SMA_ENV_STAT(env) ((env)->pStat)
@@ -58,6 +63,7 @@ struct STSmaStat {
 
 struct SRSmaStat {
   SSma     *pSma;
+  int64_t   refId;
   void     *tmrHandle;
   tmr_h     tmrId;
   int32_t   tmrSeconds;
@@ -73,6 +79,7 @@ struct SSmaStat {
   };
   T_REF_DECLARE()
 };
+
 #define SMA_TSMA_STAT(s)     (&(s)->tsmaStat)
 #define SMA_RSMA_STAT(s)     (&(s)->rsmaStat)
 #define RSMA_INFO_HASH(r)    ((r)->rsmaInfoHash)
@@ -80,6 +87,7 @@ struct SSmaStat {
 #define RSMA_TMR_HANDLE(r)   ((r)->tmrHandle)
 #define RSMA_TRIGGER_STAT(r) (&(r)->triggerStat)
 #define RSMA_RUNNING_STAT(r) (&(r)->runningStat)
+#define RSMA_REF_ID(r)       ((r)->refId)
 
 enum {
   TASK_TRIGGER_STAT_INIT = 0,
@@ -192,10 +200,18 @@ typedef struct STFInfo STFInfo;
 typedef struct STFile  STFile;
 
 struct STFInfo {
+  // common fields
   uint32_t magic;
   uint32_t ftype;
   uint32_t fver;
   int64_t  fsize;
+
+  // specific fields
+  union {
+    struct {
+      int64_t applyVer[2];
+    } qTaskInfo;
+  };
 };
 
 struct STFile {
@@ -205,16 +221,16 @@ struct STFile {
   uint8_t   state;
 };
 
-#define TD_FILE_F(tf)            (&((tf)->f))
-#define TD_FILE_PFILE(tf)        ((tf)->pFile)
-#define TD_FILE_OPENED(tf)       (TD_FILE_PFILE(tf) != NULL)
-#define TD_FILE_FULL_NAME(tf)    (TD_FILE_F(tf)->aname)
-#define TD_FILE_REL_NAME(tf)     (TD_FILE_F(tf)->rname)
-#define TD_FILE_OPENED(tf)       (TD_FILE_PFILE(tf) != NULL)
-#define TD_FILE_CLOSED(tf)       (!TD_FILE_OPENED(tf))
-#define TD_FILE_SET_CLOSED(f)    (TD_FILE_PFILE(f) = NULL)
-#define TD_FILE_SET_STATE(tf, s) ((tf)->state = (s))
-#define TD_FILE_DID(tf)          (TD_FILE_F(tf)->did)
+#define TD_TFILE_F(tf)            (&((tf)->f))
+#define TD_TFILE_PFILE(tf)        ((tf)->pFile)
+#define TD_TFILE_OPENED(tf)       (TD_TFILE_PFILE(tf) != NULL)
+#define TD_TFILE_FULL_NAME(tf)    (TD_TFILE_F(tf)->aname)
+#define TD_TFILE_REL_NAME(tf)     (TD_TFILE_F(tf)->rname)
+#define TD_TFILE_OPENED(tf)       (TD_TFILE_PFILE(tf) != NULL)
+#define TD_TFILE_CLOSED(tf)       (!TD_TFILE_OPENED(tf))
+#define TD_TFILE_SET_CLOSED(f)    (TD_TFILE_PFILE(f) = NULL)
+#define TD_TFILE_SET_STATE(tf, s) ((tf)->state = (s))
+#define TD_TFILE_DID(tf)          (TD_TFILE_F(tf)->did)
 
 int32_t tdInitTFile(STFile *pTFile, STfs *pTfs, const char *fname);
 int32_t tdCreateTFile(STFile *pTFile, STfs *pTfs, bool updateHeader, int8_t fType);
@@ -230,7 +246,7 @@ int32_t tdUpdateTFileHeader(STFile *pTFile);
 void    tdUpdateTFileMagic(STFile *pTFile, void *pCksm);
 void    tdCloseTFile(STFile *pTFile);
 
-void tdGetVndFileName(int32_t vid, const char *dname, const char *fname, char *outputName);
+void tdGetVndFileName(int32_t vgId, const char *dname, const char *fname, char *outputName);
 
 #ifdef __cplusplus
 }
