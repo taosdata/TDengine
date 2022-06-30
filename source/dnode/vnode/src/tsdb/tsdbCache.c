@@ -142,7 +142,7 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row) {
       } else {
         taosLRUCacheRelease(pCache, h, true);
         /* tsdbCacheDeleteLast(pCache, uid, TSKEY_MAX); */
-        tsdbCacheInsertLastrow(pCache, uid, row);
+        tsdbCacheInsertLast(pCache, uid, row);
       }
     }
   } else {
