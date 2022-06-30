@@ -535,6 +535,7 @@ class TDCom:
             ts_value = self.genTs()[0]
 
         column_value_list = list()
+        column_value_list.append(ts_value)
         if column_elm_list is None:
             column_value_list = list(map(lambda i: self.gen_random_type_value(i, self.default_varchar_length, self.default_varchar_datatype, self.default_nchar_length, self.default_nchar_datatype), self.full_type_list))
         else:
@@ -551,7 +552,7 @@ class TDCom:
                             column_value_list.append(self.gen_random_type_value(column_elm["type"], "", "", "", ""))
                 else:
                     continue
-        column_value_list = [self.ts_value] + self.column_value_list
+        # column_value_list = [self.ts_value] + self.column_value_list
         return column_value_list
 
     def create_stable(self, tsql, dbname=None, stbname="stb", column_elm_list=None, tag_elm_list=None,
@@ -640,7 +641,16 @@ class TDCom:
         else:
             for num in range(count):
                 column_value_list = self.gen_column_value_list(column_ele_list, f'{start_ts_value}+{num}s')
-                column_value_str = ", ".join(str(v) for v in column_value_list)
+                # column_value_str = ", ".join(str(v) for v in column_value_list)
+                column_value_str = ''
+                idx = 0
+                for column_value in column_value_list:
+                    if isinstance(column_value, str) and idx != 0:
+                        column_value_str += f'"{column_value}", '
+                    else:
+                        column_value_str += f'{column_value}, '
+                        idx += 1
+                column_value_str = column_value_str.rstrip()[:-1]      
                 insert_sql = f'insert into {dbname}.{tbname} values ({column_value_str});'
                 tsql.execute(insert_sql)
     def getOneRow(self, location, containElm):

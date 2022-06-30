@@ -383,6 +383,69 @@ class TMQCom:
         pThread.start()
         return pThread
 
+    def checkFileContent(self, consumerId, queryString):
+        buildPath = tdCom.getBuildPath()
+        cfgPath = tdCom.getClientCfgPath()
+        dstFile = '%s/../log/dstrows_%d.txt'%(cfgPath, consumerId)
+        cmdStr = '%s/build/bin/taos -c %s -s "%s >> %s"'%(buildPath, cfgPath, queryString, dstFile)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+        
+        consumeRowsFile = '%s/../log/consumerid_%d.txt'%(cfgPath, consumerId)
+        tdLog.info("rows file: %s, %s"%(consumeRowsFile, dstFile))
+
+        consumeFile = open(consumeRowsFile, mode='r')
+        queryFile = open(dstFile, mode='r')
+        
+        # skip first line for it is schema
+        queryFile.readline()
+        lines = 0
+        while True:
+            dst = queryFile.readline()
+            src = consumeFile.readline()
+            lines += 1
+            if dst:
+                if dst != src:
+                    tdLog.info("src row: %s"%src)
+                    tdLog.info("dst row: %s"%dst)
+                    tdLog.exit("consumerId %d consume rows[%d] is not match the rows by direct query"%(consumerId, lines))
+            else:
+                break
+        return 
+
+    def getResultFileByTaosShell(self, consumerId, queryString):
+        buildPath = tdCom.getBuildPath()
+        cfgPath = tdCom.getClientCfgPath()
+        dstFile = '%s/../log/dstrows_%d.txt'%(cfgPath, consumerId)
+        cmdStr = '%s/build/bin/taos -c %s -s "%s >> %s"'%(buildPath, cfgPath, queryString, dstFile)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+        return dstFile
+    
+    def checkTmqConsumeFileContent(self, consumerId, dstFile):   
+        cfgPath = tdCom.getClientCfgPath()     
+        consumeRowsFile = '%s/../log/consumerid_%d.txt'%(cfgPath, consumerId)
+        tdLog.info("rows file: %s, %s"%(consumeRowsFile, dstFile))
+
+        consumeFile = open(consumeRowsFile, mode='r')
+        queryFile = open(dstFile, mode='r')
+        
+        # skip first line for it is schema
+        queryFile.readline()
+        lines = 0
+        while True:
+            dst = queryFile.readline()
+            src = consumeFile.readline()
+            lines += 1
+            if dst:
+                if dst != src:
+                    tdLog.info("src row: %s"%src)
+                    tdLog.info("dst row: %s"%dst)
+                    tdLog.exit("consumerId %d consume rows[%d] is not match the rows by direct query"%(consumerId, lines))
+            else:
+                break
+        return 
+
     def close(self):
         self.cursor.close()
 
