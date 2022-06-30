@@ -48,7 +48,6 @@ struct SSmaEnv {
 
 typedef struct {
   int32_t smaRef;
-  int32_t refId;
 } SSmaMgmt;
 
 #define SMA_ENV_LOCK(env) ((env)->lock)
@@ -63,12 +62,12 @@ struct STSmaStat {
 
 struct SRSmaStat {
   SSma     *pSma;
-  int64_t   refId;
-  void     *tmrHandle;
-  tmr_h     tmrId;
-  int32_t   tmrSeconds;
-  int8_t    triggerStat;
-  int8_t    runningStat;
+  int64_t   refId;         // shared by persistence/fetch tasks
+  void     *tmrHandle;     // for persistence task
+  tmr_h     tmrId;         // for persistence task
+  int32_t   tmrSeconds;    // for persistence task
+  int8_t    triggerStat;   // for persistence task
+  int8_t    runningStat;   // for persistence task
   SHashObj *rsmaInfoHash;  // key: stbUid, value: SRSmaInfo;
 };
 
