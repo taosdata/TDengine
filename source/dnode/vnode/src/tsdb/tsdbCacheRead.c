@@ -117,6 +117,7 @@ int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t
 
   SLastrowReader* pr = pReader;
 
+  SLRUCache* lruCache = pr->pVnode->pTsdb->lruCache;
   LRUHandle* h = NULL;
   STSRow*    pRow = NULL;
   size_t     numOfTables = taosArrayGetSize(pr->pTableList);
@@ -128,8 +129,7 @@ int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t
     for (int32_t i = 0; i < numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = taosArrayGet(pr->pTableList, i);
 
-      /* int32_t code = tsdbCacheGetLastrow(pr->pVnode->pTsdb->lruCache, pKeyInfo->uid, pr->pVnode->pTsdb, &pRow); */
-      int32_t code = tsdbCacheGetLastrowH(pr->pVnode->pTsdb->lruCache, pKeyInfo->uid, pr->pVnode->pTsdb, &h);
+      int32_t code = tsdbCacheGetLastrowH(lruCache, pKeyInfo->uid, pr->pVnode->pTsdb, &h);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -138,7 +138,7 @@ int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t
         continue;
       }
 
-      pRow = (STSRow*)taosLRUCacheValue(pr->pVnode->pTsdb->lruCache, h);
+      pRow = (STSRow*)taosLRUCacheValue(lruCache, h);
       if (pRow->ts > lastKey) {
         // Set result row into the same rowIndex repeatly, so we need to check if the internal result row has already
         // appended or not.
@@ -151,14 +151,13 @@ int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t
         lastKey = pRow->ts;
       }
 
-      tsdbCacheRelease(pr->pVnode->pTsdb->lruCache, h);
+      tsdbCacheRelease(lruCache, h);
     }
   } else if (pr->type == LASTROW_RETRIEVE_TYPE_ALL) {
     for (int32_t i = pr->tableIndex; i < numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = taosArrayGet(pr->pTableList, i);
 
-      /* int32_t code = tsdbCacheGetLastrow(pr->pVnode->pTsdb->lruCache, pKeyInfo->uid, pr->pVnode->pTsdb, &pRow); */
-      int32_t code = tsdbCacheGetLastrowH(pr->pVnode->pTsdb->lruCache, pKeyInfo->uid, pr->pVnode->pTsdb, &h);
+      int32_t code = tsdbCacheGetLastrowH(lruCache, pKeyInfo->uid, pr->pVnode->pTsdb, &h);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -168,10 +167,10 @@ int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t
         continue;
       }
 
-      pRow = (STSRow*)taosLRUCacheValue(pr->pVnode->pTsdb->lruCache, h);
+      pRow = (STSRow*)taosLRUCacheValue(lruCache, h);
       saveOneRow(pRow, pResBlock, pr, slotIds);
 
-      tsdbCacheRelease(pr->pVnode->pTsdb->lruCache, h);
+      tsdbCacheRelease(lruCache, h);
 
       pr->tableIndex += 1;
       if (pResBlock->info.rows >= pResBlock->info.capacity) {

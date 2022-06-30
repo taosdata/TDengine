@@ -957,33 +957,6 @@ _err:
   return code;
 }
 
-int32_t tsdbCacheGetLastrow(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
-  int32_t code = 0;
-  char    key[32] = {0};
-  int     keyLen = 0;
-
-  getTableCacheKey(uid, "lr", key, &keyLen);
-  LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
-  if (h) {
-    *ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
-  } else {
-    STSRow *pRow = NULL;
-    code = mergeLastRow(uid, pTsdb, &pRow);
-    // if table's empty or error, return code of -1
-    if (code < 0 || pRow == NULL) {
-      return -1;
-    }
-
-    tsdbCacheInsertLastrow(pCache, uid, pRow);
-    LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
-    *ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
-  }
-
-  // taosLRUCacheRelease(pCache, h, true);
-
-  return code;
-}
-
 int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHandle **handle) {
   int32_t code = 0;
   char    key[32] = {0};
