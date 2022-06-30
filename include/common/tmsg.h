@@ -1629,6 +1629,7 @@ typedef struct {
   int8_t  triggerType;
   int64_t maxDelay;
   int64_t watermark;
+  int8_t  igExpired;
 } SCMCreateStreamReq;
 
 typedef struct {

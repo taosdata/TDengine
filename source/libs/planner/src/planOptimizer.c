@@ -227,8 +227,7 @@ static void scanPathOptSetScanWin(SScanLogicNode* pScan) {
     pScan->slidingUnit = ((SWindowLogicNode*)pParent)->slidingUnit;
     pScan->triggerType = ((SWindowLogicNode*)pParent)->triggerType;
     pScan->watermark = ((SWindowLogicNode*)pParent)->watermark;
-    pScan->tsColId = ((SColumnNode*)((SWindowLogicNode*)pParent)->pTspk)->colId;
-    pScan->filesFactor = ((SWindowLogicNode*)pParent)->filesFactor;
+    pScan->igExpired = ((SWindowLogicNode*)pParent)->igExpired;
   }
 }
 

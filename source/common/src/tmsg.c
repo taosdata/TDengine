@@ -4643,6 +4643,7 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   if (tEncodeI8(&encoder, pReq->triggerType) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->maxDelay) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->watermark) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->igExpired) < 0) return -1;
   if (sqlLen > 0 && tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
   if (astLen > 0 && tEncodeCStr(&encoder, pReq->ast) < 0) return -1;
 
@@ -4670,6 +4671,7 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
   if (tDecodeI8(&decoder, &pReq->triggerType) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->maxDelay) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->watermark) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->igExpired) < 0) return -1;
 
   if (sqlLen > 0) {
     pReq->sql = taosMemoryCalloc(1, sqlLen + 1);
@@ -5504,4 +5506,3 @@ int32_t tDecodeSMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
   }
   return 0;
 }
-

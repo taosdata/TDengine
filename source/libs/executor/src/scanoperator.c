@@ -1213,7 +1213,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
 
     int16_t colId = id->colId;
     taosArrayPush(pColIds, &colId);
-    if (id->colId == pTableScanNode->tsColId) {
+    if (id->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
       pInfo->primaryTsIndex = id->targetSlotId;
     }
   }
