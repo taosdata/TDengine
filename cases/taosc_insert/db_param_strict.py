@@ -25,25 +25,25 @@ class TestStrict(TDCase):
         """
         test_param = self.cfg["create_name"]
         dbname = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname}')
-        self.tdRest.request('show databases')
+        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdSql.query('show databases')
         #TODO
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
         self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
-        self.tdRest.request(f'drop database {dbname}')
+        self.tdSql.execute(f'drop database {dbname}')
         # boundary
         for param, param_value in self.cfg["boundary"].items():
             dbname = self.tdCom.get_long_name()
-            self.tdRest.request(f'create database if not exists {dbname} {test_param} {param_value}')
-            self.tdRest.request('show databases')
+            self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
+            self.tdSql.query('show databases')
             #TODO
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param)
-            self.tdRest.request(f'drop database {dbname}')
+            self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name()
-        self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"]["no_strict"] - 1}')
-        self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"]["strict"] + 1}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"]["no_strict"] - 1}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"]["strict"] + 1}')
 
     def run(self) -> bool:
         self.strict_check()
