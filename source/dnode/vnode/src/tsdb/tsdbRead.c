@@ -849,19 +849,26 @@ static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockI
     goto _error;
   }
 
-
   SColVal cv = {0};
-  for (int32_t i = 0; i < numOfCols; ++i) {
+  int32_t colIndex = 0;
+
+  for (int32_t i = 0; i < numOfCols && colIndex < taosArrayGetSize(pBlockData->aColDataP); ++i) {
     SColumnInfoData* pColData = taosArrayGet(pResBlock->pDataBlock, i);
     if (pColData->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
       for (int32_t j = 0; j < pBlockData->nRow; ++j) {
         colDataAppend(pColData, j, (const char*)&pBlockData->aTSKEY[j], false);
       }
     } else {
-      SColData* pData = (SColData*)taosArrayGetP(pBlockData->aColDataP, pSupInfo->slotIds[i] - 1);
-      for (int32_t j = 0; j < pBlockData->nRow; ++j) {
-        tColDataGetValue(pData, j, &cv);
-        doCopyColVal(pColData, j, i, &cv, pSupInfo);
+      SColData* pData = (SColData*)taosArrayGetP(pBlockData->aColDataP, colIndex);
+
+      if (pData->cid == pColData->info.colId) {
+        for (int32_t j = 0; j < pBlockData->nRow; ++j) {
+          tColDataGetValue(pData, j, &cv);
+          doCopyColVal(pColData, j, i, &cv, pSupInfo);
+        }
+        colIndex += 1;
+      } else {  // the specified column does not exist in file block, fill with null data
+        colDataAppendNNULL(pColData, 0, pBlockData->nRow);
       }
     }
   }
