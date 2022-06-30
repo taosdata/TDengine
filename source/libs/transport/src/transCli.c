@@ -607,9 +607,10 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   if (clear) {
     if (!uv_is_closing((uv_handle_t*)conn->stream)) {
       uv_close((uv_handle_t*)conn->stream, cliDestroy);
-    } else {
-      cliDestroy((uv_handle_t*)conn->stream);
     }
+    //} else {
+    //  cliDestroy((uv_handle_t*)conn->stream);
+    //}
   }
 }
 static void cliDestroy(uv_handle_t* handle) {
