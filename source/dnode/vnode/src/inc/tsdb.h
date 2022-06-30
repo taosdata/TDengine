@@ -394,9 +394,9 @@ typedef struct {
   int64_t  nRow;
   int8_t   cmprAlg;
   int64_t  offset;
-  int64_t  vsize;      // VERSION size
-  int64_t  ksize;      // TSKEY size
-  int64_t  bsize;      // total block size
+  int64_t  szVersion;  // VERSION size
+  int64_t  szTSKEY;    // TSKEY size
+  int64_t  szBlock;    // total block size
   SMapData mBlockCol;  // SMapData<SBlockCol>
 } SSubBlock;
 
