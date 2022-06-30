@@ -1515,7 +1515,10 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 }
 
 int32_t nowFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int64_t ts = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
+  int64_t timePrec;
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[0]), pInput[0].columnData->pData);
+
+  int64_t ts = taosGetTimestamp(timePrec);
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     colDataAppendInt64(pOutput->columnData, i, &ts);
   }
@@ -1524,7 +1527,10 @@ int32_t nowFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 }
 
 int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int64_t ts = taosGetTimestampToday(TSDB_TIME_PRECISION_MILLI);
+  int64_t timePrec;
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[0]), pInput[0].columnData->pData);
+
+  int64_t ts = taosGetTimestampToday(timePrec);
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     colDataAppendInt64(pOutput->columnData, i, &ts);
   }
