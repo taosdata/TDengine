@@ -1,0 +1,13 @@
+[package]
+name = "taos-ws-sys"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+taos-ws = { path = "../taos-ws"}
+taos-error = { path = "../taos-error"}
+
+[build-dependencies]
+cbindgen = "0.24.3"

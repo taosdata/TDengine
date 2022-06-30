@@ -31,6 +31,15 @@ impl Error {
     }
 
     #[inline]
+    pub const fn code(&self) -> Code {
+        self.code
+    }
+    #[inline]
+    pub fn message(&self) -> &str {
+        &self.err
+    }
+
+    #[inline]
     pub fn from_code(code: impl Into<Code>) -> Self {
         Self {
             code: code.into(),

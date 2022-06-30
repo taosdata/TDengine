@@ -3,17 +3,35 @@ use crate::{
     util::{Inlinable, InlinableRead, InlinableWrite},
     BlockExt,
 };
+use bitvec::macros::internal::funty::Numeric;
+use itertools::Itertools;
 use once_cell::unsync::OnceCell;
 
-use core::slice;
+use std::slice;
 use std::{fmt::Debug, mem::size_of, mem::transmute};
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 #[repr(packed(2))] // use packed(2) because it's int16_t in raw block.
 pub struct ColSchema {
-    ty: Ty,
-    len: u32,
+    pub(crate) ty: Ty,
+    pub(crate) len: u32,
+}
+
+impl ColSchema {
+    #[inline]
+    pub(crate) const fn new(ty: Ty, len: u32) -> Self {
+        Self { ty, len }
+    }
+    #[inline]
+    fn as_bytes(&self) -> &[u8] {
+        unsafe { std::mem::transmute::<&Self, &[u8; 6]>(self) }
+    }
+
+    #[inline]
+    fn into_bytes(self) -> [u8; 6] {
+        unsafe { std::mem::transmute::<Self, [u8; 6]>(self) }
+    }
 }
 
 #[test]
@@ -59,7 +77,7 @@ fn test_bin() {
 ///
 /// The length of bitmap is decided by number of rows of this data block, and the length of each column data is
 /// recorded in the first segment, next to the struct header
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RawBlock {
     data: Vec<u8>,
     rows: usize,
@@ -83,6 +101,18 @@ impl Default for RawBlock {
     }
 }
 
+impl Debug for RawBlock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for row in 0..self.nrows() {
+            let line = (0..self.ncols())
+                .map(|col| unsafe { format!("{}", self.get_unchecked(row, col)) })
+                .join(" | ");
+            f.write_fmt(format_args!("{}\n", line))?;
+        }
+
+        Ok(())
+    }
+}
 // impl Drop for RawBlock {
 //     #[inline]
 //     fn drop(&mut self) {
@@ -121,6 +151,442 @@ impl RawBlock {
             cols: Default::default(),
             precision: Precision::Millisecond,
             offsets: Default::default(),
+        }
+    }
+
+    #[inline]
+    pub fn from_v2(
+        bytes: &[u8],
+        fields: &[Field],
+        lengths: &[u32],
+        rows: usize,
+        precision: Precision,
+    ) -> Self {
+        let mut data = Vec::new();
+        // data len place holder
+        // data.extend(0u32.to_le_bytes());
+        // group id, always use 0
+        data.extend(0u64.to_le_bytes());
+        // column schema
+        for field in fields {
+            data.extend(field.to_column_schema().into_bytes())
+        }
+        // lengths placeholder for each columns, use u32.
+        data.extend(std::iter::repeat(0).take(fields.len() * 4));
+        dbg!(&data);
+
+        let lengths_offset = 8 + fields.len() * 6;
+
+        let column_lengths =
+            unsafe { data.as_mut_ptr().offset(8 + fields.len() as isize * 6) as *mut u32 };
+        use bitvec::prelude::*;
+
+        let mut offset = 0;
+        for (i, (field, length)) in fields.into_iter().zip(lengths).enumerate() {
+            match field.ty() {
+                Ty::Null => unreachable!(),
+                Ty::Bool => {
+                    debug_assert_eq!(field.bytes(), *length);
+                    let mut is_null: BitVec<u8> = BitVec::with_capacity(rows);
+                    let slice = &bytes[offset..(offset + rows)];
+                    is_null.extend(slice.iter().map(|b| *b == 0x2));
+                    debug_assert_eq!(is_null.as_raw_slice().len(), (rows + 7) / 8);
+                    data.extend(is_null.as_raw_slice());
+                    data.extend(slice);
+                    offset += rows * *length as usize;
+
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            (slice.len() as u32).to_le_bytes().as_slice().as_ptr(),
+                            data.as_mut_ptr()
+                                .offset(lengths_offset as isize + i as isize * 4),
+                            4,
+                        );
+                    }
+                }
+                Ty::TinyInt => {
+                    dbg!(&data);
+                    debug_assert_eq!(field.bytes(), *length);
+                    let mut is_null: BitVec<u8> = BitVec::with_capacity(rows);
+                    let byte_slice = &bytes[offset..(offset + rows * *length as usize)];
+                    let value_slice = unsafe {
+                        slice::from_raw_parts(
+                            transmute::<*const u8, *const i8>(byte_slice.as_ptr()),
+                            rows,
+                        )
+                    };
+                    is_null.extend(value_slice.iter().map(|b| *b == i8::MIN));
+                    debug_assert_eq!(is_null.as_raw_slice().len(), (rows + 7) / 8);
+                    data.extend(is_null.as_raw_slice());
+                    data.extend(byte_slice);
+                    offset += rows * *length as usize;
+
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            (byte_slice.len() as u32).to_le_bytes().as_slice().as_ptr(),
+                            data.as_mut_ptr()
+                                .offset(lengths_offset as isize + i as isize * 4),
+                            4,
+                        );
+                    }
+                }
+                Ty::SmallInt => {
+                    // dbg!(&data);
+                    debug_assert_eq!(field.bytes(), *length);
+                    let mut is_null: BitVec<u8> = BitVec::with_capacity(rows);
+
+                    let byte_slice = &bytes[offset..(offset + rows * *length as usize)];
+                    let value_slice = unsafe {
+                        slice::from_raw_parts(
+                            transmute::<*const u8, *const i16>(byte_slice.as_ptr()),
+                            rows,
+                        )
+                    };
+                    is_null.extend(value_slice.iter().map(|b| *b == i16::MIN));
+                    debug_assert_eq!(is_null.as_raw_slice().len(), (rows + 7) / 8);
+                    data.extend(is_null.as_raw_slice());
+                    data.extend(byte_slice);
+                    offset += rows * *length as usize;
+
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            (byte_slice.len() as u32).to_le_bytes().as_slice().as_ptr(),
+                            data.as_mut_ptr()
+                                .offset(lengths_offset as isize + i as isize * 4),
+                            4,
+                        );
+                    }
+                }
+                Ty::Int => {
+                    // dbg!(&data);
+                    debug_assert_eq!(field.bytes(), *length);
+                    let mut is_null: BitVec<u8> = BitVec::with_capacity(rows);
+                    let byte_slice = &bytes[offset..(offset + rows * *length as usize)];
+                    let value_slice = unsafe {
+                        slice::from_raw_parts(
+                            transmute::<*const u8, *const i32>(byte_slice.as_ptr()),
+                            rows,
+                        )
+                    };
+                    is_null.extend(value_slice.iter().map(|b| *b == i32::MIN));
+                    debug_assert_eq!(is_null.as_raw_slice().len(), (rows + 7) / 8);
+                    data.extend(is_null.as_raw_slice());
+                    data.extend(byte_slice);
+                    offset += rows * *length as usize;
+
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            (byte_slice.len() as u32).to_le_bytes().as_slice().as_ptr(),
+                            data.as_mut_ptr()
+                                .offset(lengths_offset as isize + i as isize * 4),
+                            4,
+                        );
+                    }
+                }
+                Ty::BigInt => {
+                    debug_assert_eq!(field.bytes(), *length);
+                    let mut is_null: BitVec<u8> = BitVec::with_capacity(rows);
+                    let byte_slice = &bytes[offset..(offset + rows * *length as usize)];
+                    let value_slice = unsafe {
+                        slice::from_raw_parts(
+                            transmute::<*const u8, *const i64>(byte_slice.as_ptr()),
+                            rows,
+                        )
+                    };
+                    is_null.extend(value_slice.iter().map(|b| *b == i64::MIN));
+                    debug_assert_eq!(is_null.as_raw_slice().len(), (rows + 7) / 8);
+                    data.extend(is_null.as_raw_slice());
+                    data.extend(byte_slice);
+                    offset += rows * *length as usize;
+
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            (byte_slice.len() as u32).to_le_bytes().as_slice().as_ptr(),
+                            data.as_mut_ptr()
+                                .offset(lengths_offset as isize + i as isize * 4),
+                            4,
+                        );
+                    }
+                }
+                Ty::Float => {
+                    debug_assert_eq!(field.bytes(), *length);
+                    let mut is_null: BitVec<u8> = BitVec::with_capacity(rows);
+                    let byte_slice = &bytes[offset..(offset + rows * *length as usize)];
+                    let value_slice = unsafe {
+                        slice::from_raw_parts(
+                            transmute::<*const u8, *const f32>(byte_slice.as_ptr()),
+                            rows,
+                        )
+                    };
+                    is_null.extend(value_slice.iter().map(|b| *b == f32::NAN));
+                    debug_assert_eq!(is_null.as_raw_slice().len(), (rows + 7) / 8);
+                    data.extend(is_null.as_raw_slice());
+                    data.extend(byte_slice);
+                    offset += rows * *length as usize;
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            (byte_slice.len() as u32).to_le_bytes().as_slice().as_ptr(),
+                            data.as_mut_ptr()
+                                .offset(lengths_offset as isize + i as isize * 4),
+                            4,
+                        );
+                    }
+                }
+                Ty::Double => {
+                    debug_assert_eq!(field.bytes(), *length);
+                    let mut is_null: BitVec<u8> = BitVec::with_capacity(rows);
+                    let byte_slice = &bytes[offset..(offset + rows * *length as usize)];
+                    let value_slice = unsafe {
+                        slice::from_raw_parts(
+                            transmute::<*const u8, *const f64>(byte_slice.as_ptr()),
+                            rows,
+                        )
+                    };
+                    is_null.extend(value_slice.iter().map(|b| *b == f64::NAN));
+                    debug_assert_eq!(is_null.as_raw_slice().len(), (rows + 7) / 8);
+                    data.extend(is_null.as_raw_slice());
+                    data.extend(byte_slice);
+                    offset += rows * *length as usize;
+
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            (byte_slice.len() as u32).to_le_bytes().as_slice().as_ptr(),
+                            data.as_mut_ptr()
+                                .offset(lengths_offset as isize + i as isize * 4),
+                            4,
+                        );
+                    }
+                }
+                Ty::VarChar => unsafe {
+                    let mut offsets: Vec<i32> = Vec::with_capacity(rows);
+                    let mut slice: Vec<u8> = Vec::new();
+                    let mut row_offset = 0;
+
+                    for i in 0..rows {
+                        let col = bytes
+                            .as_ptr()
+                            .offset(offset as _)
+                            .offset(i as isize * *length as isize);
+                        let len = *transmute::<*const u8, *const u16>(col);
+                        // offset
+                        if len == 1 && *col.offset(2) == 0xFF {
+                            // is null
+                            offsets.push(-1);
+                        } else {
+                            // not null
+                            dbg!(len);
+                            offsets.push(row_offset);
+                            slice.extend(len.to_le_bytes());
+                            dbg!(std::str::from_utf8_unchecked(slice::from_raw_parts(
+                                col.offset(2),
+                                len as usize
+                            )));
+                            slice.extend(slice::from_raw_parts(col.offset(2), len as usize));
+
+                            row_offset += len as i32 + 2;
+                        }
+                    }
+                    dbg!(&offsets);
+                    dbg!(&slice);
+
+                    std::ptr::copy_nonoverlapping(
+                        ((offsets.len() * 4 + slice.len()) as u32)
+                            .to_le_bytes()
+                            .as_slice()
+                            .as_ptr(),
+                        data.as_mut_ptr()
+                            .offset(lengths_offset as isize + i as isize * 4),
+                        4,
+                    );
+
+                    data.extend(slice::from_raw_parts(
+                        offsets.as_ptr() as *const u8,
+                        offsets.len() * 4,
+                    ));
+                    data.extend(slice);
+                    offset += rows * *length as usize;
+                },
+                Ty::Timestamp => {
+                    debug_assert_eq!(field.bytes(), *length);
+                    let mut is_null: BitVec<u8> = BitVec::with_capacity(rows);
+                    let byte_slice = &bytes[offset..(offset + rows * *length as usize)];
+                    let value_slice = unsafe {
+                        slice::from_raw_parts(
+                            transmute::<*const u8, *const i64>(byte_slice.as_ptr()),
+                            rows,
+                        )
+                    };
+                    is_null.extend(value_slice.iter().map(|b| *b == i64::MIN));
+                    debug_assert_eq!(is_null.as_raw_slice().len(), (rows + 7) / 8);
+                    data.extend(is_null.as_raw_slice());
+                    data.extend(byte_slice);
+                    offset += rows * *length as usize;
+
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            (byte_slice.len() as u32).to_le_bytes().as_slice().as_ptr(),
+                            data.as_mut_ptr()
+                                .offset(lengths_offset as isize + i as isize * 4),
+                            4,
+                        );
+                    }
+                }
+                Ty::NChar => unsafe {
+                    let mut offsets: Vec<i32> = Vec::with_capacity(rows);
+                    let mut slice: Vec<u8> = Vec::new();
+                    let mut row_offset = 0;
+                    for i in 0..rows {
+                        let col = bytes
+                            .as_ptr()
+                            .offset(row_offset as _)
+                            .offset(i as isize * *length as isize);
+                        let len = *transmute::<*const u8, *const u16>(col);
+                        // offset
+                        if len == 4
+                            && *col.offset(2) == 0xFF
+                            && *col.offset(4) == 0xFF
+                            && *col.offset(6) == 0xFF
+                            && *col.offset(8) == 0xFF
+                        {
+                            // is null
+                            offsets.push(-1);
+                        } else {
+                            // not null
+                            offsets.push(row_offset);
+                            slice.extend(len.to_le_bytes());
+                            slice.extend(slice::from_raw_parts(col.offset(2), len as usize));
+
+                            row_offset += len as i32 + 2;
+                        }
+                    }
+
+                    std::ptr::copy_nonoverlapping(
+                        ((offsets.len() * 4 + slice.len()) as u32)
+                            .to_le_bytes()
+                            .as_slice()
+                            .as_ptr(),
+                        data.as_mut_ptr()
+                            .offset(lengths_offset as isize + i as isize * 4),
+                        4,
+                    );
+
+                    data.extend(slice::from_raw_parts(
+                        offsets.as_ptr() as *const u8,
+                        offsets.len() * 4,
+                    ));
+                    data.extend(slice);
+                    offset += rows * *length as usize;
+                },
+                Ty::UTinyInt => {
+                    debug_assert_eq!(field.bytes(), *length);
+                    let mut is_null: BitVec<u8> = BitVec::with_capacity(rows);
+                    let slice = &bytes[offset..(offset + rows * *length as usize)];
+                    is_null.extend(slice.iter().map(|b| *b == u8::MAX));
+                    debug_assert_eq!(is_null.as_raw_slice().len(), (rows + 7) / 8);
+                    data.extend(is_null.as_raw_slice());
+                    data.extend(slice);
+                    offset += rows * *length as usize;
+
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            (slice.len() as u32).to_le_bytes().as_slice().as_ptr(),
+                            data.as_mut_ptr()
+                                .offset(lengths_offset as isize + i as isize * 4),
+                            4,
+                        );
+                    }
+                }
+                Ty::USmallInt => {
+                    debug_assert_eq!(field.bytes(), *length);
+                    let mut is_null: BitVec<u8> = BitVec::with_capacity(rows);
+                    let byte_slice = &bytes[offset..(offset + rows * *length as usize)];
+                    let value_slice = unsafe {
+                        slice::from_raw_parts(
+                            transmute::<*const u8, *const u16>(byte_slice.as_ptr()),
+                            rows,
+                        )
+                    };
+                    is_null.extend(value_slice.iter().map(|b| *b == u16::MAX));
+                    debug_assert_eq!(is_null.as_raw_slice().len(), (rows + 7) / 8);
+                    data.extend(is_null.as_raw_slice());
+                    data.extend(byte_slice);
+                    offset += rows * *length as usize;
+
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            (byte_slice.len() as u32).to_le_bytes().as_slice().as_ptr(),
+                            data.as_mut_ptr()
+                                .offset(lengths_offset as isize + i as isize * 4),
+                            4,
+                        );
+                    }
+                }
+                Ty::UInt => {
+                    debug_assert_eq!(field.bytes(), *length);
+                    let mut is_null: BitVec<u8> = BitVec::with_capacity(rows);
+                    let byte_slice = &bytes[offset..(offset + rows * *length as usize)];
+                    let value_slice = unsafe {
+                        slice::from_raw_parts(
+                            transmute::<*const u8, *const u32>(byte_slice.as_ptr()),
+                            rows,
+                        )
+                    };
+                    is_null.extend(value_slice.iter().map(|b| *b == u32::MAX));
+                    debug_assert_eq!(is_null.as_raw_slice().len(), (rows + 7) / 8);
+                    data.extend(is_null.as_raw_slice());
+                    data.extend(byte_slice);
+                    offset += rows * *length as usize;
+
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            (byte_slice.len() as u32).to_le_bytes().as_slice().as_ptr(),
+                            data.as_mut_ptr()
+                                .offset(lengths_offset as isize + i as isize * 4),
+                            4,
+                        );
+                    }
+                }
+                Ty::UBigInt => {
+                    debug_assert_eq!(field.bytes(), *length);
+                    let mut is_null: BitVec<u8> = BitVec::with_capacity(rows);
+                    let byte_slice = &bytes[offset..(offset + rows * *length as usize)];
+                    let value_slice = unsafe {
+                        slice::from_raw_parts(
+                            transmute::<*const u8, *const u64>(byte_slice.as_ptr()),
+                            rows,
+                        )
+                    };
+                    is_null.extend(value_slice.iter().map(|b| *b == u64::MAX));
+                    debug_assert_eq!(is_null.as_raw_slice().len(), (rows + 7) / 8);
+                    data.extend(is_null.as_raw_slice());
+                    data.extend(byte_slice);
+                    offset += rows * *length as usize;
+
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            (byte_slice.len() as u32).to_le_bytes().as_slice().as_ptr(),
+                            data.as_mut_ptr()
+                                .offset(lengths_offset as isize + i as isize * 4),
+                            4,
+                        );
+                    }
+                }
+                Ty::Json => todo!(),
+                Ty::VarBinary => todo!(),
+                Ty::Decimal => todo!(),
+                Ty::Blob => todo!(),
+                Ty::MediumBlob => todo!(),
+            }
+        }
+
+        debug_assert_eq!(fields.len(), lengths.len());
+        let cols = lengths.len();
+        Self {
+            data,
+            rows,
+            cols,
+            precision,
+            offsets: OnceCell::new(),
         }
     }
 
@@ -236,11 +702,13 @@ impl RawBlock {
         self.lengths_offset() + self.cols as isize * 4
     }
 
+    #[inline]
     /// Pointer to specific offset.
     unsafe fn offset(&self, count: isize) -> *const u8 {
         self.as_ptr().offset(count)
     }
 
+    #[inline]
     /// Length of each bitmap block.
     const fn bitmap_len(&self) -> usize {
         (self.rows + 7) / 8
@@ -258,18 +726,19 @@ impl RawBlock {
     fn column_offsets(&self) -> &[(Ty, isize, isize)] {
         // dbg!(self.as_bytes());
         self.offsets.get_or_init(|| {
-            dbg!(self.as_bytes());
+            // dbg!(self.as_bytes());
             let lengths = dbg!(self.lengths());
             let mut data_offset = dbg!(self.data_offset());
             self.schemas()
                 .iter()
                 .enumerate()
                 .map(|(i, col)| {
-                    assert!(data_offset < self.len() as isize);
+                    dbg!(data_offset, self.len());
+                    debug_assert!(data_offset < self.len() as isize);
                     if col.ty.is_var_type() {
                         let o = (col.ty, data_offset, data_offset + 4 * self.rows as isize);
                         data_offset = o.2 + lengths[i] as isize;
-                        o
+                        dbg!(o)
                     } else {
                         let o = dbg!(
                             col.ty,
@@ -279,7 +748,7 @@ impl RawBlock {
                         data_offset = o.2 + lengths[i] as isize;
 
                         //assert!(data_offset < self.len() as isize);
-                        o
+                        dbg!(o)
                     }
                 })
                 .collect()
@@ -454,6 +923,7 @@ impl RawBlock {
                 } else {
                     let ptr = self.offset(o2 + offset as isize);
                     let len: i16 = *(ptr as *mut i16);
+                    dbg!(len);
                     Value::VarChar(
                         std::str::from_utf8_unchecked(slice::from_raw_parts(
                             ptr.offset(2),
@@ -631,4 +1101,110 @@ fn inner_block_with_json() {
 
     let inlined = block.inlined();
     assert!(inlined == bytes);
+}
+
+#[test]
+fn test_from_v2() {
+    let raw = RawBlock::from_v2(
+        &[1],
+        &[Field::new("a", Ty::TinyInt, 1)],
+        &[1],
+        1,
+        Precision::Millisecond,
+    );
+    dbg!(raw.as_bytes());
+    let v = unsafe { raw.get_ref_unchecked(0, 0) };
+    dbg!(v);
+
+    let raw = RawBlock::from_v2(
+        &[1, 0, 0, 0],
+        &[Field::new("a", Ty::Int, 4)],
+        &[4],
+        1,
+        Precision::Millisecond,
+    );
+    dbg!(raw.as_bytes());
+    let v = unsafe { raw.get_ref_unchecked(0, 0) };
+    dbg!(v);
+
+    let raw = RawBlock::from_v2(
+        &[2, 0, b'a', b'b'],
+        &[Field::new("b", Ty::VarChar, 2)],
+        &[4],
+        1,
+        Precision::Millisecond,
+    );
+    dbg!(raw.as_bytes());
+    let v = unsafe { raw.get_ref_unchecked(0, 0) };
+    dbg!(v);
+
+    let raw = RawBlock::from_v2(
+        &[1, 1, 0],
+        &[
+            Field::new("a", Ty::TinyInt, 1),
+            Field::new("b", Ty::SmallInt, 2),
+        ],
+        &[1, 2],
+        1,
+        Precision::Millisecond,
+    );
+    dbg!(raw.len(), raw.as_bytes());
+    let v = unsafe { raw.get_ref_unchecked(0, 0) };
+    dbg!(v);
+    let v = unsafe { raw.get_ref_unchecked(0, 1) };
+    dbg!(v);
+    let raw = RawBlock::from_v2(
+        &[1, 2, 0, b'a', b'b'],
+        &[
+            Field::new("a", Ty::TinyInt, 1),
+            Field::new("b", Ty::VarChar, 2),
+        ],
+        &[1, 4],
+        1,
+        Precision::Millisecond,
+    );
+    dbg!(raw.as_bytes());
+    let v = unsafe { raw.get_ref_unchecked(0, 0) };
+    dbg!(v);
+    let v = unsafe { raw.get_ref_unchecked(0, 1) };
+    dbg!(v);
+}
+
+#[test]
+fn test_from_v2_raw() {
+    let bytes = b"\x10\x86\x1aA \xcc)AB\xc2\x14AZ],A\xa2\x8d$A\x87\xb9%A\xf5~\x0fA\x96\xf7,AY\xee\x17A1|\x15As\x00\x00\x00q\x00\x00\x00s\x00\x00\x00t\x00\x00\x00u\x00\x00\x00t\x00\x00\x00n\x00\x00\x00n\x00\x00\x00n\x00\x00\x00r\x00\x00\x00";
+
+    let block = RawBlock::from_v2(
+        bytes.as_slice(),
+        &[Field::new("a", Ty::Float, 4), Field::new("b", Ty::Int, 4)],
+        &[4, 4],
+        10,
+        Precision::Millisecond,
+    );
+    dbg!(block);
+}
+#[test]
+fn test_from_v2_meters_limit_10() {
+    let bytes = include_bytes!("../../../tests/test.txt");
+
+    let block = RawBlock::from_v2(
+        bytes.as_slice(),
+        &[
+            Field::new("ts", Ty::Timestamp, 8),
+            Field::new("current", Ty::Float, 4),
+            Field::new("voltage", Ty::Int, 4),
+            Field::new("phase", Ty::Float, 4),
+            Field::new("group_id", Ty::Int, 4),
+            Field::new("location", Ty::VarChar, 16),
+        ],
+        &[8, 4, 4, 4, 4, 18],
+        10,
+        Precision::Millisecond,
+    );
+    dbg!(block);
+}
+#[test]
+fn test_null() {
+    let float = unsafe { transmute::<u32, f32>(0x7FF00000) };
+    assert!(float.is_nan());
 }

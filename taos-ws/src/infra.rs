@@ -111,6 +111,7 @@ pub struct WsFetchResp {
 pub enum WsFetchData {
     Fetch(WsFetchResp),
     Block(RawBlock),
+    BlockV2(Vec<u8>),
 }
 
 #[derive(Debug, Deserialize, Clone)]
