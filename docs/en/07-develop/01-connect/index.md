@@ -98,11 +98,7 @@ pip install git+https://github.com/taosdata/taos-connector-python.git
 Just need to add `driver-go` dependency in `go.mod` .
 
 ```go-mod title=go.mod
-module goexample
-
-go 1.17
-
-require github.com/taosdata/driver-go/v2 develop
+{{#include docs/examples/go/go.mod}}
 ```
 
 :::note

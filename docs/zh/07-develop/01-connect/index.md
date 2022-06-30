@@ -99,11 +99,7 @@ pip install git+https://github.com/taosdata/taos-connector-python.git
 编辑 `go.mod` 添加 `driver-go` 依赖即可。
 
 ```go-mod title=go.mod
-module goexample
-
-go 1.17
-
-require github.com/taosdata/driver-go/v2 develop
+{{#include docs/examples/go/go.mod}}
 ```
 
 :::note
