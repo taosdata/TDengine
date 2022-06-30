@@ -41,6 +41,7 @@ static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
 }
 
 static inline void dmSendRedirectRsp(SRpcMsg *pMsg, const SEpSet *pNewEpSet) {
+  pMsg->info.hasEpSet = 1;
   SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info};
   int32_t contLen = tSerializeSEpSet(NULL, 0, pNewEpSet);
 

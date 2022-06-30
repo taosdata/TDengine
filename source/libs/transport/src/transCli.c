@@ -1014,19 +1014,28 @@ void cliCompareAndSwap(int8_t* val, int8_t exp, int8_t newVal) {
 }
 
 bool cliTryToExtractEpSet(STransMsg* pResp, SEpSet* dst) {
-  if (pResp == NULL || pResp->info.hasEpSet == 0) {
+  if ((pResp == NULL || pResp->info.hasEpSet == 0)) {
     return false;
   }
-  tDeserializeSEpSet(pResp->pCont, pResp->contLen, dst);
+  // rebuild resp msg
+  SEpSet epset;
+  if (tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epset) < 0) {
+    return false;
+  }
   int32_t tlen = tSerializeSEpSet(NULL, 0, dst);
 
-  int32_t bufLen = pResp->contLen - tlen;
-  char*   buf = rpcMallocCont(bufLen);
-
-  memcpy(buf, (char*)pResp->pCont + tlen, bufLen);
+  char*   buf = NULL;
+  int32_t len = pResp->contLen - tlen;
+  if (len != 0) {
+    buf = rpcMallocCont(len);
+    memcpy(buf, (char*)pResp->pCont + tlen, len);
+  }
+  rpcFreeCont(pResp->pCont);
 
   pResp->pCont = buf;
-  pResp->contLen = bufLen;
+  pResp->contLen = len;
+
+  *dst = epset;
   return true;
 }
 int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
