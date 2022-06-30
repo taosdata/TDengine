@@ -563,7 +563,7 @@ void build_consumer(SThreadInfo* pInfo) {
   // tmq_conf_set(conf, "auto.offset.reset", "latest");
   //
   if (g_stConfInfo.useSnapshot) {
-    tmq_conf_set(conf, "experiment.use.snapshot", "true");
+    tmq_conf_set(conf, "experimental.snapshot.enable", "true");
   }
 
   pInfo->tmq = tmq_consumer_new(conf, NULL, 0);
@@ -633,6 +633,9 @@ void loop_consume(SThreadInfo* pInfo) {
     }
   }
 
+  uint64_t lastPrintTime = taosGetTimestampMs();
+  uint64_t startTs = taosGetTimestampMs();
+
   int32_t consumeDelay = g_stConfInfo.consumeDelay == -1 ? -1 : (g_stConfInfo.consumeDelay * 1000);
   while (running) {
     TAOS_RES* tmqMsg = tmq_consumer_poll(pInfo->tmq, consumeDelay);
@@ -644,6 +647,13 @@ void loop_consume(SThreadInfo* pInfo) {
       taos_free_result(tmqMsg);
 
       totalMsgs++;
+
+      int64_t currentPrintTime = taosGetTimestampMs();
+      if (currentPrintTime - lastPrintTime > 10 * 1000) {
+        taosFprintfFile(g_fp, "consumer id %d has currently poll total msgs: %" PRId64 "\n", pInfo->consumerId,
+                        totalMsgs);
+        lastPrintTime = currentPrintTime;
+      }
 
       if (0 == once_flag) {
         once_flag = 1;
@@ -674,8 +684,6 @@ void loop_consume(SThreadInfo* pInfo) {
 }
 
 void* consumeThreadFunc(void* param) {
-  int32_t totalMsgs = 0;
-
   SThreadInfo* pInfo = (SThreadInfo*)param;
 
   pInfo->taos = taos_connect(NULL, "root", "taosdata", NULL, 0);
@@ -857,12 +865,27 @@ int main(int32_t argc, char* argv[]) {
                      (void*)(&(g_stConfInfo.stThreads[i])));
   }
 
+  int64_t start = taosGetTimestampUs();
+
   for (int32_t i = 0; i < g_stConfInfo.numOfThread; i++) {
     taosThreadJoin(g_stConfInfo.stThreads[i].thread, NULL);
     taosThreadClear(&g_stConfInfo.stThreads[i].thread);
   }
 
-  // printf("consumer: %d, cosumer1: %d\n", totalMsgs, pInfo->consumeMsgCnt);
+  int64_t end = taosGetTimestampUs();
+
+  int64_t totalMsgs = 0;
+  for (int32_t i = 0; i < g_stConfInfo.numOfThread; i++) {
+    totalMsgs += g_stConfInfo.stThreads[i].consumeMsgCnt;
+  }
+
+  int64_t t = end - start;
+  if (0 == t) t = 1;
+
+  double tInMs = (double)t / 1000000.0;
+  taosFprintfFile(g_fp,
+                  "Spent %.4f seconds to poll msgs: %" PRIu64 " with %d thread(s), throughput: %.2f msgs/second\n\n",
+                  tInMs, totalMsgs, g_stConfInfo.numOfThread, (double)(totalMsgs / tInMs));
 
   taosFprintfFile(g_fp, "==== close tmqlog ====\n");
   taosCloseFile(&g_fp);

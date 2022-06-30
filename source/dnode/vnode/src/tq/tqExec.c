@@ -59,13 +59,19 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp, i
   return 0;
 }
 
-int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, int32_t workerId) {
+int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffsetVal offset, int32_t workerId) {
   ASSERT(pExec->subType == TOPIC_SUB_TYPE__COLUMN);
   qTaskInfo_t task = pExec->execCol.task[workerId];
-  // TODO set uid and ts
-  if (qStreamScanSnapshot(task) < 0) {
+
+  /*if (qStreamScanSnapshot(task) < 0) {*/
+  /*ASSERT(0);*/
+  /*}*/
+
+  if (qStreamPrepareScan(task, offset.uid, offset.ts) < 0) {
     ASSERT(0);
   }
+
+  int32_t rowCnt = 0;
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
@@ -80,13 +86,27 @@ int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, i
     tqAddBlockDataToRsp(pDataBlock, pRsp);
 
     if (pRsp->withTbName) {
-      // TODO
       pRsp->withTbName = 0;
-      /*int64_t uid = 0;*/
-      /*tqAddTbNameToRsp(pTq, uid, pRsp, workerId);*/
+#if 0
+      int64_t uid;
+      int64_t ts;
+      if (qGetStreamScanStatus(task, &uid, &ts) < 0) {
+        ASSERT(0);
+      }
+      tqAddTbNameToRsp(pTq, uid, pRsp, workerId);
+#endif
     }
     pRsp->blockNum++;
+
+    rowCnt += pDataBlock->info.rows;
+    if (rowCnt >= 4096) break;
   }
+  int64_t uid;
+  int64_t ts;
+  if (qGetStreamScanStatus(task, &uid, &ts) < 0) {
+    ASSERT(0);
+  }
+  tqOffsetResetToData(&pRsp->rspOffset, uid, ts);
 
   return 0;
 }

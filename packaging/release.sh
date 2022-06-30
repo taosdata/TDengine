@@ -111,9 +111,9 @@ else
 fi
 
 csudo=""
-if command -v sudo > /dev/null; then
- csudo="sudo "
-fi
+#if command -v sudo > /dev/null; then
+#  csudo="sudo "
+#fi
 
 function is_valid_version() {
   [ -z $1 ] && return 1 || :
@@ -181,7 +181,9 @@ cd "${curr_dir}"
 
 # 2. cmake executable file
 compile_dir="${top_dir}/debug"
-${csudo}rm -rf ${compile_dir}
+if [ -d ${compile_dir} ]; then
+  rm -rf ${compile_dir}
+fi
 
 mkdir -p ${compile_dir}
 cd ${compile_dir}
@@ -258,9 +260,9 @@ if [ "$osType" != "Darwin" ]; then
       if [[ "$pagMode" == "full" ]]; then
         if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
           cd ${top_dir}/tools/taos-tools/packaging/deb
+          taos_tools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-          taos_tools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
           ${csudo}./make-taos-tools-deb.sh ${top_dir} \
             ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
         fi
@@ -283,9 +285,9 @@ if [ "$osType" != "Darwin" ]; then
       if [[ "$pagMode" == "full" ]]; then
         if [ -d ${top_dir}/tools/taos-tools/packaging/rpm ]; then
           cd ${top_dir}/tools/taos-tools/packaging/rpm
+          taos_tools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}' | sed -e 's/-/_/g')
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-          taos_tools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}' | sed -e 's/-/_/g')
           ${csudo}./make-taos-tools-rpm.sh ${top_dir} \
             ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
         fi
@@ -300,7 +302,6 @@ if [ "$osType" != "Darwin" ]; then
 
   ${csudo}./makepkg.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName}
   ${csudo}./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
-  # ${csudo}./makearbi.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
 
 else
   # only make client for Darwin
