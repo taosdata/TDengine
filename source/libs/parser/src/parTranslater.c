@@ -786,6 +786,7 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
   if (TSDB_DATA_TYPE_NULL == pVal->node.resType.type) {
     // TODO 
     //pVal->node.resType = targetDt;
+    pVal->translate = true;
     pVal->isNull = true;
     return DEAL_RES_CONTINUE;
   }  
@@ -5608,8 +5609,8 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  if (DEAL_RES_ERROR ==
-      translateValueImpl(pCxt, pStmt->pVal, schemaToDataType(pTableMeta->tableInfo.precision, pSchema))) {
+  SDataType targetDt = schemaToDataType(pTableMeta->tableInfo.precision, pSchema);
+  if (DEAL_RES_ERROR == translateValueImpl(pCxt, pStmt->pVal, targetDt)) {
     return pCxt->errCode;
   }
 
@@ -5618,7 +5619,8 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
   }
 
   pReq->isNull = (TSDB_DATA_TYPE_NULL == pStmt->pVal->node.resType.type);
-  if (pStmt->pVal->node.resType.type == TSDB_DATA_TYPE_JSON) {
+  if (targetDt.type == TSDB_DATA_TYPE_JSON) {
+    pReq->isNull = 0;
     if (pStmt->pVal->literal &&
         strlen(pStmt->pVal->literal) > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
       return buildSyntaxErrMsg(&pCxt->msgBuf, "json string too long than 4095", pStmt->pVal->literal);
