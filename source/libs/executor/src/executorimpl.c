@@ -4041,6 +4041,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
       } else {
         taosMemoryFree(keyBuf);
         nodesClearList(groupNew);
+        metaReaderClear(&mr);
         return code;
       }
 
@@ -4058,6 +4059,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
             terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
             taosMemoryFree(keyBuf);
             nodesClearList(groupNew);
+            metaReaderClear(&mr);
             return terrno;
           }
           int32_t len = getJsonValueLen(data);
