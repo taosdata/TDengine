@@ -137,9 +137,12 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row) {
     if (row->ts >= cacheRow->ts) {
       if (TD_ROW_LEN(row) <= TD_ROW_LEN(cacheRow)) {
         tdRowCpy(cacheRow, row);
+
+        taosLRUCacheRelease(pCache, h, false);
       } else {
-        tsdbCacheDeleteLast(pCache, uid, TSKEY_MAX);
-        tsdbCacheInsertLastrow(pCache, uid, row);
+        taosLRUCacheRelease(pCache, h, true);
+        /* tsdbCacheDeleteLast(pCache, uid, TSKEY_MAX); */
+        tsdbCacheInsertLast(pCache, uid, row);
       }
     }
   } else {
@@ -178,31 +181,7 @@ static tb_uid_t getTableSuidByUid(tb_uid_t uid, STsdb *pTsdb) {
 
   return suid;
 }
-/*
-static int32_t getMemLastRow(SMemTable *mem, tb_uid_t suid, tb_uid_t uid, STSRow
-**ppRow) { int32_t code = 0;
 
-  if (mem) {
-    STbData *pMem = NULL;
-    STbDataIter* iter;              // mem buffer skip list iterator
-
-    tsdbGetTbDataFromMemTable(mem, suid, uid, &pMem);
-    if (pMem != NULL) {
-      tsdbTbDataIterCreate(pMem, NULL, 1, &iter);
-
-      if (iter != NULL) {
-        TSDBROW *row = tsdbTbDataIterGet(iter);
-
-        tsdbTbDataIterDestroy(iter);
-      }
-    }
-  } else {
-    *ppRow = NULL;
-  }
-
-  return code;
-}
-*/
 static int32_t getTableDelDataFromDelIdx(SDelFReader *pDelReader, SDelIdx *pDelIdx, SArray *aDelData) {
   int32_t code = 0;
 
@@ -300,99 +279,6 @@ static int32_t getTableDelIdx(SDelFReader *pDelFReader, tb_uid_t suid, tb_uid_t 
 _err:
   return code;
 }
-#if 0
-static int32_t mergeLastRowFileSet(STbDataIter *iter, STbDataIter *iiter, SDFileSet *pFileSet, SArray *pSkyline,
-                                   STsdb *pTsdb, STSRow **ppLastRow) {
-  int32_t code = 0;
-
-  TSDBROW *pMemRow = NULL;
-  TSDBROW *pIMemRow = NULL;
-  TSDBKEY  memKey = TSDBKEY_MIN;
-  TSDBKEY  imemKey = TSDBKEY_MIN;
-
-  if (iter != NULL) {
-    pMemRow = tsdbTbDataIterGet(iter);
-    if (pMemRow) {
-      memKey = tsdbRowKey(pMemRow);
-    }
-  }
-
-  if (iter != NULL) {
-    pIMemRow = tsdbTbDataIterGet(iiter);
-    if (pIMemRow) {
-      imemKey = tsdbRowKey(pIMemRow);
-    }
-  }
-
-  SDataFReader *pDataFReader;
-  code = tsdbDataFReaderOpen(&pDataFReader, pTsdb, pFileSet);
-  if (code) goto _err;
-
-  SMapData blockIdxMap;
-  tMapDataReset(&blockIdxMap);
-  code = tsdbReadBlockIdx(pDataFReader, &blockIdxMap, NULL);
-  if (code) goto _err;
-
-  SBlockIdx blockIdx = {0};
-  tBlockIdxReset(&blockIdx);
-  code = tMapDataSearch(&blockIdxMap, pBlockIdx, tGetBlockIdx, tCmprBlockIdx, &blockIdx);
-  if (code) goto _err;
-
-  SMapData blockMap = {0};
-  tMapDataReset(&blockMap);
-  code = tsdbReadBlock(pDataFReader, &blockIdx, &blockMap, NULL);
-  if (code) goto _err;
-
-  int32_t nBlock = blockMap.nItem;
-  for (int32_t iBlock = nBlock - 1; iBlock >= 0; --iBlock) {
-    SBlock     block = {0};
-    SBlockData blockData = {0};
-
-    tBlockReset(&block);
-    tBlockDataReset(&blockData);
-
-    tMapDataGetItemByIdx(&blockMap, iBlock, &block, tGetBlock);
-
-    code = tsdbReadBlockData(pDataFReader, &blockIdx, &block, &blockData, NULL, NULL);
-    if (code) goto _err;
-
-    int32_t nRow = blockData.nRow;
-    for (int32_t iRow = nRow - 1; iRow >= 0; --iRow) {
-      TSDBROW row = tsdbRowFromBlockData(&blockData, iRow);
-
-      TSDBKEY key = tsdbRowKey(&row);
-      if (pMemRow != NULL && pIMemRow != NULL) {
-        int32_t c = tsdbKeyCmprFn(memKey, imemKey);
-        if (c < 0) {
-        } else if (c > 0) {
-        } else {
-        }
-      } else if (pMemRow != NULL) {
-        pMemRow = tsdbTbDataIterGet(iter);
-
-      } else if (pIMemRow != NULL) {
-      } else {
-        if (!tsdbKeyDeleted(key, pSkyline)) {
-          code = buildTsrowFromTsdbrow(&row, ppLastRow);
-          goto _done;
-        } else {
-          continue;
-        }
-      }
-      // select current row if outside delete area
-      STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1);
-    }
-  }
-
-_done:
-  tsdbDataFReaderClose(&pDataFReader);
-
-  return code;
-
-_err:
-  return code;
-}
-#endif
 
 typedef enum SFSNEXTROWSTATES {
   SFSNEXTROW_FS,
@@ -1047,60 +933,6 @@ _err:
   return code;
 }
 
-int32_t tsdbCacheGetLastrow(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
-  int32_t code = 0;
-  char    key[32] = {0};
-  int     keyLen = 0;
-
-  getTableCacheKey(uid, "lr", key, &keyLen);
-  LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
-  if (h) {
-    *ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
-  } else {
-    STSRow *pRow = NULL;
-    code = mergeLastRow(uid, pTsdb, &pRow);
-    // if table's empty or error, return code of -1
-    if (code < 0 || pRow == NULL) {
-      return -1;
-    }
-
-    tsdbCacheInsertLastrow(pCache, uid, pRow);
-    LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
-    *ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
-  }
-
-  // taosLRUCacheRelease(pCache, h, true);
-
-  return code;
-}
-#if 0
-int32_t tsdbCacheGetLast(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
-  int32_t code = 0;
-  char    key[32] = {0};
-  int     keyLen = 0;
-
-  getTableCacheKey(uid, "l", key, &keyLen);
-  LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
-  if (h) {
-    *ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
-  } else {
-    STSRow *pRow = NULL;
-    code = mergeLast(uid, pTsdb, &pRow);
-    // if table's empty or error, return code of -1
-    if (code < 0 || pRow == NULL) {
-      return -1;
-    }
-
-    tsdbCacheInsertLast(pCache, uid, pRow);
-    LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
-    *ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
-  }
-
-  // taosLRUCacheRelease(pCache, h, true);
-
-  return code;
-}
-#endif
 int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHandle **handle) {
   int32_t code = 0;
   char    key[32] = {0};
@@ -1125,7 +957,6 @@ int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUH
   }
 
   *handle = h;
-  // taosLRUCacheRelease(pCache, h, true);
 
   return code;
 }
@@ -1155,7 +986,6 @@ int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHand
   }
 
   *handle = h;
-  // taosLRUCacheRelease(pCache, h, true);
 
   return code;
 }

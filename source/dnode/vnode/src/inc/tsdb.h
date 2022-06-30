@@ -251,6 +251,7 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx, uint8_t **ppBuf);
 // tsdbCache
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(SLRUCache *pCache);
+int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row);
 int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, tb_uid_t uid, STSRow *row);
 
 int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHandle **h);
@@ -394,9 +395,9 @@ typedef struct {
   int64_t  nRow;
   int8_t   cmprAlg;
   int64_t  offset;
-  int64_t  vsize;      // VERSION size
-  int64_t  ksize;      // TSKEY size
-  int64_t  bsize;      // total block size
+  int64_t  szVersion;  // VERSION size
+  int64_t  szTSKEY;    // TSKEY size
+  int64_t  szBlock;    // total block size
   SMapData mBlockCol;  // SMapData<SBlockCol>
 } SSubBlock;
 

@@ -388,9 +388,9 @@ void tBlockReset(SBlock *pBlock) {
     pBlock->aSubBlock[iSubBlock].nRow = 0;
     pBlock->aSubBlock[iSubBlock].cmprAlg = -1;
     pBlock->aSubBlock[iSubBlock].offset = -1;
-    pBlock->aSubBlock[iSubBlock].vsize = -1;
-    pBlock->aSubBlock[iSubBlock].ksize = -1;
-    pBlock->aSubBlock[iSubBlock].bsize = -1;
+    pBlock->aSubBlock[iSubBlock].szVersion = -1;
+    pBlock->aSubBlock[iSubBlock].szTSKEY = -1;
+    pBlock->aSubBlock[iSubBlock].szBlock = -1;
     tMapDataReset(&pBlock->aSubBlock->mBlockCol);
   }
   pBlock->nSubBlock = 0;
@@ -417,9 +417,9 @@ int32_t tBlockCopy(SBlock *pBlockSrc, SBlock *pBlockDest) {
     pBlockDest->aSubBlock[iSubBlock].nRow = pBlockSrc->aSubBlock[iSubBlock].nRow;
     pBlockDest->aSubBlock[iSubBlock].cmprAlg = pBlockSrc->aSubBlock[iSubBlock].cmprAlg;
     pBlockDest->aSubBlock[iSubBlock].offset = pBlockSrc->aSubBlock[iSubBlock].offset;
-    pBlockDest->aSubBlock[iSubBlock].vsize = pBlockSrc->aSubBlock[iSubBlock].vsize;
-    pBlockDest->aSubBlock[iSubBlock].ksize = pBlockSrc->aSubBlock[iSubBlock].ksize;
-    pBlockDest->aSubBlock[iSubBlock].bsize = pBlockSrc->aSubBlock[iSubBlock].bsize;
+    pBlockDest->aSubBlock[iSubBlock].szVersion = pBlockSrc->aSubBlock[iSubBlock].szVersion;
+    pBlockDest->aSubBlock[iSubBlock].szTSKEY = pBlockSrc->aSubBlock[iSubBlock].szTSKEY;
+    pBlockDest->aSubBlock[iSubBlock].szBlock = pBlockSrc->aSubBlock[iSubBlock].szBlock;
     code = tMapDataCopy(&pBlockSrc->aSubBlock[iSubBlock].mBlockCol, &pBlockDest->aSubBlock[iSubBlock].mBlockCol);
     if (code) goto _exit;
   }
@@ -444,9 +444,9 @@ int32_t tPutBlock(uint8_t *p, void *ph) {
     n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].nRow);
     n += tPutI8(p ? p + n : p, pBlock->aSubBlock[iSubBlock].cmprAlg);
     n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].offset);
-    n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].vsize);
-    n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].ksize);
-    n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].bsize);
+    n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].szVersion);
+    n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].szTSKEY);
+    n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].szBlock);
     n += tPutMapData(p ? p + n : p, &pBlock->aSubBlock[iSubBlock].mBlockCol);
   }
 
@@ -469,9 +469,9 @@ int32_t tGetBlock(uint8_t *p, void *ph) {
     n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].nRow);
     n += tGetI8(p + n, &pBlock->aSubBlock[iSubBlock].cmprAlg);
     n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].offset);
-    n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].vsize);
-    n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].ksize);
-    n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].bsize);
+    n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].szVersion);
+    n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].szTSKEY);
+    n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].szBlock);
     n += tGetMapData(p + n, &pBlock->aSubBlock[iSubBlock].mBlockCol);
   }
 
