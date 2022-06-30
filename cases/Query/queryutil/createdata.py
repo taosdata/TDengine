@@ -533,7 +533,7 @@ class TDCreateData():
             for j1 in range(col1):
                 list1.append(self.tdSql.getData(i1,j1))
         
-        #self.tdSql.execute("reset query cache;") #TD=16766
+        self.tdSql.execute("reset query cache;") #TD=16766
         self.sql2 = sql2  
         list2 =[]
         self.tdSql.query(sql2)
@@ -566,7 +566,7 @@ class TDCreateData():
             for j1 in range(col1):
                 list1.append(self.tdSql.getData(i1,j1))
         
-        #self.tdSql.execute("reset query cache;") #TD=16766
+        self.tdSql.execute("reset query cache;") #TD=16766
         self.sql2 = sql2  
         list2 =[]
         self.tdSql.query(sql2)
@@ -601,7 +601,7 @@ class TDCreateData():
                 list1.append(self.tdSql.getData(i1,j1))
             #self.logger.info("=====list1-------list1---=%s" %set(list1))
         
-        #self.tdSql.execute("reset query cache;") #TD=16766
+        self.tdSql.execute("reset query cache;") #TD=16766
         self.sql2 = sql2  
         list2 =[]
         self.tdSql.query(sql2)
@@ -652,7 +652,7 @@ class TDCreateData():
                 list1.append(self.tdSql.getData(i1,j1))
         #self.logger.info("-----list1-------list1---=%s" %list1) 
 
-        #self.tdSql.execute("reset query cache;") #TD=16766
+        self.tdSql.execute("reset query cache;") #TD=16766
         self.sql2 = sql2  
         list2 =[]
         self.tdSql.query(sql2)
