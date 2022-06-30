@@ -154,15 +154,11 @@ static int32_t createSelectRootLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   return createRootLogicNode(pCxt, pSelect, pSelect->precision, (FCreateLogicNode)func, pRoot);
 }
 
-static EScanType getScanType(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SNodeList* pScanPseudoCols,
-                             SNodeList* pScanCols, int8_t tableType) {
+static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols, SNodeList* pScanCols,
+                             int8_t tableType) {
   if (pCxt->pPlanCxt->topicQuery || pCxt->pPlanCxt->streamQuery) {
     return SCAN_TYPE_STREAM;
   }
-
-  // if (pSelect->hasLastRowFunc) {
-  //   return SCAN_TYPE_LAST_ROW;
-  // }
 
   if (NULL == pScanCols) {
     // select count(*) from t
@@ -279,7 +275,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = rewriteExprsForSelect(pScan->pScanPseudoCols, pSelect, SQL_CLAUSE_FROM);
   }
 
-  pScan->scanType = getScanType(pCxt, pSelect, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType);
+  pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType);
 
   if (TSDB_CODE_SUCCESS == code) {
     code = addPrimaryKeyCol(pScan->tableId, &pScan->pScanCols);
