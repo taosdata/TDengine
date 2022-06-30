@@ -1054,7 +1054,8 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
    */
   STransConnCtx* pCtx = pMsg->ctx;
   int32_t        code = pResp->code;
-  if (pTransInst->retry != NULL && pTransInst->retry(code, pResp->msgType - 1)) {
+  bool           retry = (pTransInst->retry != NULL && pTransInst->retry(code, pResp->msgType - 1)) ? true : false;
+  if (retry) {
     pMsg->sent = 0;
     pCtx->retryCnt += 1;
     if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
@@ -1083,11 +1084,13 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
 
   STraceId* trace = &pResp->info.traceId;
 
-  if (cliTryToExtractEpSet(pResp, &pCtx->epSet)) {
+  bool hasEpSet = cliTryToExtractEpSet(pResp, &pCtx->epSet);
+  if (hasEpSet) {
     char tbuf[256] = {0};
     EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
     tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
   }
+
   if (pCtx->pSem != NULL) {
     tGTrace("%s conn %p(sync) handle resp", CONN_GET_INST_LABEL(pConn), pConn);
     if (pCtx->pRsp == NULL) {
@@ -1099,10 +1102,14 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pCtx->pRsp = NULL;
   } else {
     tGTrace("%s conn %p handle resp", CONN_GET_INST_LABEL(pConn), pConn);
-    if (!cliIsEpsetUpdated(code, pCtx)) {
-      pTransInst->cfp(pTransInst->parent, pResp, NULL);
-    } else {
+    if (retry == false && hasEpSet == true) {
       pTransInst->cfp(pTransInst->parent, pResp, &pCtx->epSet);
+    } else {
+      if (!cliIsEpsetUpdated(code, pCtx)) {
+        pTransInst->cfp(pTransInst->parent, pResp, NULL);
+      } else {
+        pTransInst->cfp(pTransInst->parent, pResp, &pCtx->epSet);
+      }
     }
   }
   return 0;
