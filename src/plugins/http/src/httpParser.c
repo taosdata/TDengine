@@ -186,7 +186,7 @@ static int32_t httpOnRequestLine(HttpParser *pParser, char *method, char *target
   if (pContext->decodeMethod != NULL) {
     httpTrace("context:%p, fd:%d, decode method is %s", pContext, pContext->fd, pContext->decodeMethod->module);
   } else {
-    httpError("context:%p, fd:%d, the url is not support, target:%s", pContext, pContext->fd, target);
+    httpError("context:%p, fd:%d, the url is not supported, target:%s", pContext, pContext->fd, target);
     httpOnError(pParser, 0, TSDB_CODE_HTTP_UNSUPPORT_URL);
     return -1;
   }

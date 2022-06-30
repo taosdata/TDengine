@@ -189,8 +189,11 @@ python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanosub
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestInsertTime_step.py
 python3 test.py -f tools/taosdumpTestNanoSupport.py
 
-#
+# tsdb
+python3 ./test.py -f tsdb/insert.py
 # python3 ./test.py -f tsdb/tsdbComp.py
+
+
 
 # update
 python3 ./test.py -f update/allow_update.py
@@ -417,6 +420,7 @@ python3 ./test.py -f insert/flushwhiledrop.py
 python3 ./test.py -f alter/alterColMultiTimes.py
 python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
+python3 ./test.py -f alter/alterBackQuoteCol.py
 
 python3 ./test.py -f query/query.py
 python3 ./test.py -f query/queryDiffColsTagsAndOr.py

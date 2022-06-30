@@ -72,8 +72,8 @@ print =============== step3
 sql create table $stt as select count(*) from $tb interval(1d)
 sql create table $stm as select count(*) from $mt interval(1d)
 
-print sleep 120 seconds
-sleep 120000 
+print sleep 70 seconds
+sleep 70000 
 
 sql select * from $stt
 print select count(*) from $stt ===> $data00 $data01
@@ -151,8 +151,8 @@ print =============== step8
 sql create table $stt as select count(*) from $tb interval(1d)
 sql create table $stm as select count(*) from $mt interval(1d)
 
-print sleep 120 seconds
-sleep 120000 
+print sleep 70 seconds
+sleep 70000 
 
 sql select * from $stt
 sleep 1000

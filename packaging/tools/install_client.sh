@@ -21,6 +21,7 @@ tarName="taos.tar.gz"
 
 osType=Linux
 pagMode=full
+verMode=edge
 
 if [ "$osType" != "Darwin" ]; then
     script_dir=$(dirname $(readlink -f "$0"))
@@ -78,15 +79,19 @@ function kill_client() {
 }
 
 function install_main_path() {
-    #create install main dir and all sub dir
-    ${csudo}rm -rf ${install_main_dir}    || :
-    ${csudo}mkdir -p ${install_main_dir}
-    ${csudo}mkdir -p ${install_main_dir}/cfg
-    ${csudo}mkdir -p ${install_main_dir}/bin
-    ${csudo}mkdir -p ${install_main_dir}/connector
-    ${csudo}mkdir -p ${install_main_dir}/driver
+  #create install main dir and all sub dir
+  ${csudo}rm -rf ${install_main_dir} || :
+  ${csudo}mkdir -p ${install_main_dir}
+  ${csudo}mkdir -p ${install_main_dir}/cfg
+  ${csudo}mkdir -p ${install_main_dir}/bin
+  ${csudo}mkdir -p ${install_main_dir}/driver
+  if [ $productName == "TDengine" ]; then
     ${csudo}mkdir -p ${install_main_dir}/examples
-    ${csudo}mkdir -p ${install_main_dir}/include
+  fi
+  ${csudo}mkdir -p ${install_main_dir}/include
+  if [ "$verMode" == "cluster" ]; then
+    ${csudo}mkdir -p ${install_main_dir}/connector
+  fi
 }
 
 function install_bin() {
@@ -257,8 +262,8 @@ function update_TDengine() {
     install_header
     install_lib
     install_jemalloc
-    if [ "$pagMode" != "lite" ]; then
-      install_connector
+    if [ "$verMode" == "cluster" ]; then
+        install_connector
     fi
     install_examples
     install_bin
@@ -271,31 +276,31 @@ function update_TDengine() {
 }
 
 function install_TDengine() {
-    # Start to install
-    if [ ! -e ${tarName} ]; then
-        echo "File ${tarName} does not exist"
-        exit 1
-    fi
-    tar -zxf ${tarName}
+  # Start to install
+  if [ ! -e ${tarName} ]; then
+    echo "File ${tarName} does not exist"
+    exit 1
+  fi
+  tar -zxf ${tarName}
 
-    echo -e "${GREEN}Start to install ${productName} client...${NC}"
+  echo -e "${GREEN}Start to install ${productName} client...${NC}"
 
-    install_main_path
-    install_log
-    install_header
-    install_lib
-    install_jemalloc
-    if [ "$pagMode" != "lite" ]; then
-      install_connector
-    fi
-    install_examples
-    install_bin
-    install_config
+  install_main_path
+  install_log
+  install_header
+  install_lib
+  install_jemalloc
+  if [ "$verMode" == "cluster" ]; then
+    install_connector
+  fi
+  install_examples
+  install_bin
+  install_config
 
-    echo
-    echo -e "\033[44;32;1m${productName} client is installed successfully!${NC}"
+  echo
+  echo -e "\033[44;32;1m${productName} client is installed successfully!${NC}"
 
-    rm -rf $(tar -tf ${tarName})
+  rm -rf $(tar -tf ${tarName})
 }
 
 

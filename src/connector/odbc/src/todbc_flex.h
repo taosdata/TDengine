@@ -40,6 +40,7 @@ struct map_tsdb_type_s {
 typedef struct conn_val_s              conn_val_t;
 struct conn_val_s {
   char                *dsn;
+  char                *driver;
   char                *uid;
   char                *pwd;
   char                *db;

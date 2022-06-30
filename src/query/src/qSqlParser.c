@@ -33,6 +33,7 @@ SSqlInfo qSqlParse(const char *pStr) {
   sqlInfo.funcs = taosArrayInit(4, sizeof(SStrToken));
 
   int32_t i = 0;
+  bool inWhere = false;
   while (1) {
     SStrToken t0 = {0};
 
@@ -60,13 +61,32 @@ SSqlInfo qSqlParse(const char *pStr) {
         sqlInfo.valid = false;
         goto abort_parse;
       }
-      
+
       case TK_HEX:
       case TK_OCT:
       case TK_BIN:{
         snprintf(sqlInfo.msg, tListLen(sqlInfo.msg), "unsupported token: \"%s\"", t0.z);
         sqlInfo.valid = false;
         goto abort_parse;
+      }
+      case TK_WHERE:{
+        inWhere = true;
+        Parse(pParser, t0.type, t0, &sqlInfo);
+        if (sqlInfo.valid == false) {
+          goto abort_parse;
+        }
+        break;
+      }
+      case TK_NOW:
+      case TK_TODAY: {
+        //for now(),today() function used in select/where clause
+        if (pStr[i] == '(' && pStr[i + 1] == ')') {
+          if (!inWhere) {
+            t0.type = TK_ID;
+          } else {
+            i += 2;
+          }
+        }
       }
       default:
         Parse(pParser, t0.type, t0, &sqlInfo);
@@ -155,9 +175,13 @@ tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optr
     }
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type    = SQL_NODE_VALUE;
-  } else if (optrType == TK_NOW) {
+  } else if (optrType == TK_NOW || optrType == TK_TODAY) {
     // use nanosecond by default TODO set value after getting database precision
-    pSqlExpr->value.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+    if (optrType == TK_NOW) {
+      pSqlExpr->value.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+    } else {
+      pSqlExpr->value.i64 = taosGetTimestampToday() * 1000000000;
+    }
     pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->tokenId = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
     pSqlExpr->type    = SQL_NODE_VALUE;
@@ -176,7 +200,7 @@ tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optr
 
     pSqlExpr->flags  |= 1 << EXPR_FLAG_NS_TIMESTAMP;
     pSqlExpr->flags  |= 1 << EXPR_FLAG_TIMESTAMP_VAR;
-    pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+    pSqlExpr->value.nType = TSDB_DATA_TYPE_TIMESTAMP;
     pSqlExpr->tokenId = TK_TIMESTAMP;
     pSqlExpr->type    = SQL_NODE_VALUE;
   } else if (optrType == TK_AS) {
@@ -184,7 +208,7 @@ tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optr
     if (pToken != NULL) {
       pSqlExpr->dataType = *(TAOS_FIELD *)pToken;
     }
-  
+
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type    = SQL_NODE_DATA_TYPE;
   } else {
@@ -1188,6 +1212,9 @@ void SqlInfoDestroy(SSqlInfo *pInfo) {
   taosArrayDestroy(&pInfo->funcs);
   if (pInfo->type == TSDB_SQL_SELECT) {
     destroyAllSqlNode(pInfo->list);
+  } else if (pInfo->type == TSDB_SQL_DELETE_DATA) {
+    tSqlExprDestroy(pInfo->pDelData->pWhere);
+    tfree(pInfo->pDelData);
   } else if (pInfo->type == TSDB_SQL_CREATE_TABLE) {
     pInfo->pCreateTableInfo = destroyCreateTableSql(pInfo->pCreateTableInfo);
   } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
@@ -1242,6 +1269,11 @@ SArray* appendSelectClause(SArray *pList, void *pSubclause) {
 void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken *pIfNotExists) {
   pInfo->pCreateTableInfo->name = *pTableNameToken;
   pInfo->pCreateTableInfo->existCheck = (pIfNotExists->n != 0);
+}
+
+void setCreatedStreamOpt(SSqlInfo *pInfo, SStrToken *pTo, SStrToken *pSplit) {
+  pInfo->pCreateTableInfo->to = *pTo;
+  pInfo->pCreateTableInfo->split = *pSplit;
 }
 
 void setDCLSqlElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
@@ -1444,4 +1476,16 @@ void setDefaultCreateTopicOption(SCreateDbInfo *pDBInfo) {
 
   pDBInfo->dbType = TSDB_DB_TYPE_TOPIC;
   pDBInfo->partitions = TSDB_DEFAULT_DB_PARTITON_OPTION;
+}
+
+// malloc new SDelData and set with args
+SDelData* tGetDelData(SStrToken* pTableName, SStrToken* existsCheck, tSqlExpr* pWhere) {
+  // malloc
+  SDelData* pDelData = (SDelData *) calloc(1, sizeof(SDelData));
+  // set value
+  pDelData->existsCheck = (existsCheck->n == 1);
+  pDelData->tableName   = *pTableName;
+  pDelData->pWhere      = pWhere;
+
+  return pDelData;
 }

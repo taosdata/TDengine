@@ -1,0 +1,375 @@
+import hudson.model.Result
+import hudson.model.*;
+import jenkins.model.CauseOfInterruption
+node {
+}
+def sync_source() {
+    sh '''
+        hostname
+        date
+        '''
+    sh '''
+        cd ${WKC}
+        [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
+        git reset --hard HEAD~10 >/dev/null
+    '''
+    script {
+        if (env.CHANGE_TARGET == 'master') {
+            sh '''
+                cd ${WKC}
+                git checkout master
+            '''
+        } else if (env.CHANGE_TARGET == '2.0') {
+            sh '''
+                cd ${WKC}
+                git checkout 2.0
+            '''
+        } else if (env.CHANGE_TARGET == '2.4') {
+            sh '''
+                cd ${WKC}
+                git checkout 2.4
+            '''
+        } else {
+            sh '''
+                cd ${WKC}
+                git checkout develop
+            '''
+        }
+    }
+    sh'''
+        cd ${WKC}
+        git remote prune origin
+        [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
+        git pull >/dev/null
+        git fetch origin +refs/pull/${CHANGE_ID}/merge
+        git checkout -qf FETCH_HEAD
+        git clean -dfx
+        git submodule update --init --recursive
+        cd ${WK}
+        git reset --hard HEAD~10
+    '''
+    script {
+        if (env.CHANGE_TARGET == 'master') {
+            sh '''
+                cd ${WK}
+                git checkout master
+            '''
+        } else if (env.CHANGE_TARGET == '2.0') {
+            sh '''
+                cd ${WK}
+                git checkout 2.0
+            '''
+        } else if (env.CHANGE_TARGET == '2.4') {
+            sh '''
+                cd ${WK}
+                git checkout 2.4
+            '''
+        } else {
+            sh '''
+                cd ${WK}
+                git checkout develop
+            '''
+        }
+    }
+    sh '''
+        cd ${WK}
+        git pull >/dev/null
+        export TZ=Asia/Harbin
+        date
+        git clean -dfx
+    '''
+}
+def pre_test() {
+    sync_source()
+    sh '''
+        cd ${WK}
+        mkdir -p debug
+        cd debug
+        go env -w GOPROXY=https://goproxy.cn,direct
+        go env -w GO111MODULE=on
+        cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true > /dev/null
+        make -j8 >/dev/null
+    '''
+    return 1
+}
+def pre_test_mac() {
+    sync_source()
+    sh '''
+        cd ${WK}
+        mkdir -p debug
+        cd debug
+        go env -w GOPROXY=https://goproxy.cn,direct
+        go env -w GO111MODULE=on
+        cmake .. -DBUILD_TOOLS=false > /dev/null
+        make -j8 >/dev/null
+    '''
+    return 1
+}
+pipeline {
+    agent {label " dispatcher "}
+    options { skipDefaultCheckout() }
+    environment{
+        WK = '/var/data/jenkins/workspace/TDinternal'
+        WKC = '/var/data/jenkins/workspace/TDinternal/community'
+        LOGDIR = '/var/data/jenkins/workspace/log'
+    }
+    stages {
+        stage ('pre_build') {
+            steps {
+                sh '''
+                    date
+                    pwd
+                    env
+                    hostname
+                '''
+            }
+        }
+        stage ('Parallel build stage') {
+            //only build pr
+            options { skipDefaultCheckout() }
+            when {
+                allOf {
+                    changeRequest()
+                    not { expression { env.CHANGE_BRANCH =~ /docs\// }}
+                }
+            }
+            parallel {
+                stage ('dispatcher sync source') {
+                    steps {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            sync_source()
+                            script {
+                                sh '''
+                                    echo "dispatcher ready"
+                                    date
+                                '''
+                            }
+                        }
+                    }
+                }
+                stage ('build worker01') {
+                    agent {label " worker01 "}
+                    steps {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test()
+                            script {
+                                sh '''
+                                    echo "worker01 build done"
+                                    date
+                                '''
+                            }
+                        }
+                    }
+                }
+                stage ('build worker02') {
+                    agent {label " worker02 "}
+                    steps {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test()
+                            script {
+                                sh '''
+                                    echo "worker02 build done"
+                                    date
+                                '''
+                            }
+                        }
+                    }
+                }
+                stage ('build worker03') {
+                    agent {label " worker03 "}
+                    steps {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test()
+                            script {
+                                sh '''
+                                    echo "worker03 build done"
+                                    date
+                                '''
+                            }
+                        }
+                    }
+                }
+                stage ('build worker04') {
+                    agent {label " worker04 "}
+                    steps {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test()
+                            script {
+                                sh '''
+                                    echo "worker04 build done"
+                                    date
+                                '''
+                            }
+                        }
+                    }
+                }
+                stage ('build worker05') {
+                    agent {label " worker05 "}
+                    steps {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test()
+                            script {
+                                sh '''
+                                    echo "worker05 build done"
+                                    date
+                                '''
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        stage('run test') {
+            options { skipDefaultCheckout() }
+            when {
+                allOf {
+                    changeRequest()
+                    not { expression { env.CHANGE_BRANCH =~ /docs\// }}
+                }
+            }
+            parallel {
+                stage ('build worker06_arm64') {
+                    agent {label " worker06_arm64 "}
+                    steps {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test()
+                            script {
+                                sh '''
+                                    echo "worker06_arm64 build done"
+                                    date
+                                '''
+                            }
+                        }
+                    }
+                }
+                stage ('build worker07_arm64') {
+                    agent {label " worker07_arm64 "}
+                    steps {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test()
+                            script {
+                                sh '''
+                                    echo "worker07_arm64 build done"
+                                    date
+                                '''
+                            }
+                        }
+                    }
+                }
+                stage ('build Mac_catalina ') {
+                    agent {label " Mac_catalina "}
+                    steps {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test_mac()
+                            script {
+                                sh '''
+                                    echo "Mac_catalina build done"
+                                    date
+                                '''
+                            }
+                        }
+                    }
+                }
+                stage('run cases') {
+                    steps {
+                        sh '''
+                            date
+                            hostname
+                        '''
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            timeout(time: 20, unit: 'MINUTES') {
+                                sh '''
+                                    date
+                                    cd ${WKC}/tests/parallel_test
+                                    time ./run.sh -m m.json -t cases.task -l ${LOGDIR} -b ${BRANCH_NAME}
+                                    date
+                                    hostname
+                                '''
+                            }
+                        }
+                    }
+                }
+            }    
+        }
+    }
+    post {
+        success {
+            emailext (
+                subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' SUCCESS",
+                body: """<!DOCTYPE html>
+                    <html>
+                        <head>
+                            <meta charset="UTF-8">
+                        </head>
+                        <body leftmargin="8" marginwidth="0" topmargin="8" marginheight="4" offset="0">
+                            <table width="95%" cellpadding="0" cellspacing="0" style="font-size: 16pt; font-family: Tahoma, Arial, Helvetica, sans-serif">
+                                <tr>
+                                    <td>
+                                        <br/>
+                                        <b><font color="#0B610B"><font size="6">构建信息</font></font></b>
+                                        <hr size="2" width="100%" align="center" />
+                                     </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <ul>
+                                            <div style="font-size:18px">
+                                                <li>构建名称>>分支：${env.BRANCH_NAME}</li>
+                                                <li>构建结果：<span style="color:green"> Successful </span></li>
+                                                <li>构建编号：${BUILD_NUMBER}</li>
+                                                <li>触发用户：${env.CHANGE_AUTHOR}</li>
+                                                <li>提交信息：${env.CHANGE_TITLE}</li>
+                                                <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
+                                                <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
+                                            </div>
+                                        </ul>
+                                    </td>
+                                </tr>
+                            </table>
+                        </body>
+                    </html>""",
+                to: "${env.CHANGE_AUTHOR_EMAIL}",
+                from: "support@taosdata.com"
+            )
+        }
+        failure {
+            emailext (
+                subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' FAIL",
+                body: """<!DOCTYPE html>
+                    <html>
+                        <head>
+                            <meta charset="UTF-8">
+                        </head>
+                        <body leftmargin="8" marginwidth="0" topmargin="8" marginheight="4" offset="0">
+                            <table width="95%" cellpadding="0" cellspacing="0" style="font-size: 16pt; font-family: Tahoma, Arial, Helvetica, sans-serif">
+                                <tr>
+                                    <td>
+                                        <br/>
+                                        <b><font color="#0B610B"><font size="6">构建信息</font></font></b>
+                                        <hr size="2" width="100%" align="center" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <ul>
+                                            <div style="font-size:18px">
+                                                <li>构建名称>>分支：${env.BRANCH_NAME}</li>
+                                                <li>构建结果：<span style="color:red"> Failure </span></li>
+                                                <li>构建编号：${BUILD_NUMBER}</li>
+                                                <li>触发用户：${env.CHANGE_AUTHOR}</li>
+                                                <li>提交信息：${env.CHANGE_TITLE}</li>
+                                                <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
+                                                <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
+                                            </div>
+                                        </ul>
+                                    </td>
+                                </tr>
+                            </table>
+                        </body>
+                    </html>""",
+                to: "${env.CHANGE_AUTHOR_EMAIL}",
+                from: "support@taosdata.com"
+            )
+        }
+    }
+}

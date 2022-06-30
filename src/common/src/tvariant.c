@@ -93,6 +93,8 @@ void tVariantCreateExt(tVariant *pVar, SStrToken *token, int32_t optrType, bool 
     case TSDB_DATA_TYPE_TIMESTAMP: {
       if (optrType == TK_NOW) {
         pVar->i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+      } else if (optrType == TK_TODAY) {
+        pVar->i64 = taosGetTimestampToday() * 1000000000;
       } else if (optrType == TK_PLUS || optrType == TK_MINUS) {
         char unit = 0;
         ret = parseAbsoluteDuration(token->z, token->n, &pVar->i64, &unit, TSDB_TIME_PRECISION_NANO);
@@ -282,7 +284,7 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
 
   }
 
-  if (IS_NUMERIC_TYPE(pSrc->nType) || (pSrc->nType == TSDB_DATA_TYPE_BOOL)) {
+  if (IS_NUMERIC_TYPE(pSrc->nType) || IS_TIMESTAMP_TYPE(pSrc->nType) || (pSrc->nType == TSDB_DATA_TYPE_BOOL)) {
     pDst->i64 = pSrc->i64;
   } else if (pSrc->nType == TSDB_DATA_TYPE_POINTER_ARRAY) {  // this is only for string array
     size_t num = taosArrayGetSize(pSrc->arr);
@@ -540,7 +542,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
   }
 
   errno = 0;
-  if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType) || (pVariant->nType == TSDB_DATA_TYPE_BOOL)) {
+  if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType) || IS_TIMESTAMP_TYPE(pVariant->nType) || (pVariant->nType == TSDB_DATA_TYPE_BOOL)) {
     *result = pVariant->i64;
   } else if (IS_UNSIGNED_NUMERIC_TYPE(pVariant->nType)) {
     *result = pVariant->u64;

@@ -92,6 +92,9 @@ double getVectorDoubleValue_FLOAT(void *src, int32_t index) {
 double getVectorDoubleValue_DOUBLE(void *src, int32_t index) {
   return (double)*((double *)src + index);
 }
+int64_t getVectorTimestampValue(void *src, int32_t index) {
+  return (int64_t)*((int64_t *)src + index);
+}
 _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType) {
     _arithmetic_getVectorDoubleValue_fn_t p = NULL;
     if(srcType==TSDB_DATA_TYPE_TINYINT) {
@@ -123,6 +126,9 @@ _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType) {
 
 typedef void* (*_arithmetic_getVectorValueAddr_fn_t)(void *src, int32_t index);
 
+void* getVectorValueAddr_BOOL(void *src, int32_t index) {
+  return (void*)((bool *)src + index);
+}
 void* getVectorValueAddr_TINYINT(void *src, int32_t index) {
   return (void*)((int8_t *)src + index);
 }
@@ -156,7 +162,9 @@ void* getVectorValueAddr_DOUBLE(void *src, int32_t index) {
 
 _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
     _arithmetic_getVectorValueAddr_fn_t p = NULL;
-    if(srcType==TSDB_DATA_TYPE_TINYINT) {
+    if (srcType == TSDB_DATA_TYPE_BOOL) {
+        p = getVectorValueAddr_BOOL;
+    }else if(srcType == TSDB_DATA_TYPE_TINYINT) {
         p = getVectorValueAddr_TINYINT;
     }else if(srcType==TSDB_DATA_TYPE_UTINYINT) {
         p = getVectorValueAddr_UTINYINT;
@@ -176,6 +184,8 @@ _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
         p = getVectorValueAddr_FLOAT;
     }else if(srcType==TSDB_DATA_TYPE_DOUBLE) {
         p = getVectorValueAddr_DOUBLE;
+    }else if(srcType==TSDB_DATA_TYPE_TIMESTAMP) {
+        p = getVectorValueAddr_BIGINT;
     }else {
         assert(0);
     }
@@ -185,35 +195,68 @@ _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
 void vectorAdd(void *left, int32_t len1, int32_t _left_type, void *right, int32_t len2, int32_t _right_type, void *out, int32_t _ord) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-  double *output=(double*)out;
-  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
-  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
-  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(_left_type);
-  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(_right_type);
 
-  if ((len1) == (len2)) {
-    for (; i < (len2) && i >= 0; i += step, output += 1) {
-      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {
-        SET_DOUBLE_NULL(output);
-        continue;
+  if (!IS_TIMESTAMP_TYPE(_left_type) && !IS_TIMESTAMP_TYPE(_right_type)) {
+    double *output = (double*)out;
+    _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+    _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+    _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(_left_type);
+    _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(_right_type);
+
+    if ((len1) == (len2)) {
+      for (; i < (len2) && i >= 0; i += step, output += 1) {
+        if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {
+          SET_DOUBLE_NULL(output);
+          continue;
+        }
+        SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) + getVectorDoubleValueFnRight(right,i));
       }
-      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) + getVectorDoubleValueFnRight(right,i));
+    } else if ((len1) == 1) {
+      for (; i >= 0 && i < (len2); i += step, output += 1) {
+        if (isNull(getVectorValueAddrFnLeft(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {
+          SET_DOUBLE_NULL(output);
+          continue;
+        }
+        SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,0) + getVectorDoubleValueFnRight(right,i));
+      }
+    } else if ((len2) == 1) {
+      for (; i >= 0 && i < (len1); i += step, output += 1) {
+        if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {
+          SET_DOUBLE_NULL(output);
+          continue;
+        }
+        SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) + getVectorDoubleValueFnRight(right,0));
+      }
     }
-  } else if ((len1) == 1) {
-    for (; i >= 0 && i < (len2); i += step, output += 1) {
-      if (isNull(getVectorValueAddrFnLeft(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {
-        SET_DOUBLE_NULL(output);
-        continue;
+  } else {
+    int64_t *output = (int64_t *)out;
+    _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+    _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+
+    if ((len1) == (len2)) {
+      for (; i < (len2) && i >= 0; i += step, output += 1) {
+        if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {
+          SET_TIMESTAMP_NULL(output);
+          continue;
+        }
+        SET_TIMESTAMP_VAL(output, getVectorTimestampValue(left,i) + getVectorTimestampValue(right,i));
       }
-      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,0) + getVectorDoubleValueFnRight(right,i));
-    }
-  } else if ((len2) == 1) {
-    for (; i >= 0 && i < (len1); i += step, output += 1) {
-      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {
-        SET_DOUBLE_NULL(output);
-        continue;
+    } else if ((len1) == 1) {
+      for (; i >= 0 && i < (len2); i += step, output += 1) {
+        if (isNull(getVectorValueAddrFnLeft(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {
+          SET_TIMESTAMP_NULL(output);
+          continue;
+        }
+        SET_TIMESTAMP_VAL(output, getVectorTimestampValue(left,0) + getVectorTimestampValue(right,i));
       }
-      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) + getVectorDoubleValueFnRight(right,0));
+    } else if ((len2) == 1) {
+      for (; i >= 0 && i < (len1); i += step, output += 1) {
+        if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {
+          SET_TIMESTAMP_NULL(output);
+          continue;
+        }
+        SET_TIMESTAMP_VAL(output, getVectorTimestampValue(left,i) + getVectorTimestampValue(right,0));
+      }
     }
   }
 }
@@ -221,35 +264,68 @@ void vectorAdd(void *left, int32_t len1, int32_t _left_type, void *right, int32_
 void vectorSub(void *left, int32_t len1, int32_t _left_type, void *right, int32_t len2, int32_t _right_type, void *out, int32_t _ord) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-  double *output=(double*)out;
-  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
-  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
-  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(_left_type);
-  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(_right_type);
 
-  if ((len1) == (len2)) {
-    for (; i < (len2) && i >= 0; i += step, output += 1) {
-      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {
-        SET_DOUBLE_NULL(output);
-        continue;
+  if (!IS_TIMESTAMP_TYPE(_left_type) && !IS_TIMESTAMP_TYPE(_right_type)) {
+    double *output=(double*)out;
+    _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+    _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+    _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(_left_type);
+    _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(_right_type);
+
+    if ((len1) == (len2)) {
+      for (; i < (len2) && i >= 0; i += step, output += 1) {
+        if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {
+          SET_DOUBLE_NULL(output);
+          continue;
+        }
+        SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) - getVectorDoubleValueFnRight(right,i));
       }
-      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) - getVectorDoubleValueFnRight(right,i));
+    } else if ((len1) == 1) {
+      for (; i >= 0 && i < (len2); i += step, output += 1) {
+        if (isNull(getVectorValueAddrFnLeft(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {
+          SET_DOUBLE_NULL(output);
+          continue;
+        }
+        SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,0) - getVectorDoubleValueFnRight(right,i));
+      }
+    } else if ((len2) == 1) {
+      for (; i >= 0 && i < (len1); i += step, output += 1) {
+        if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {
+          SET_DOUBLE_NULL(output);
+          continue;
+        }
+        SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) - getVectorDoubleValueFnRight(right,0));
+      }
     }
-  } else if ((len1) == 1) {
-    for (; i >= 0 && i < (len2); i += step, output += 1) {
-      if (isNull(getVectorValueAddrFnLeft(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {
-        SET_DOUBLE_NULL(output);
-        continue;
+  } else {
+    int64_t *output = (int64_t *)out;
+    _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+    _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+
+    if ((len1) == (len2)) {
+      for (; i < (len2) && i >= 0; i += step, output += 1) {
+        if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {
+          SET_TIMESTAMP_NULL(output);
+          continue;
+        }
+        SET_TIMESTAMP_VAL(output, getVectorTimestampValue(left,i) - getVectorTimestampValue(right,i));
       }
-      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,0) - getVectorDoubleValueFnRight(right,i));
-    }
-  } else if ((len2) == 1) {
-    for (; i >= 0 && i < (len1); i += step, output += 1) {
-      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {
-        SET_DOUBLE_NULL(output);
-        continue;
+    } else if ((len1) == 1) {
+      for (; i >= 0 && i < (len2); i += step, output += 1) {
+        if (isNull(getVectorValueAddrFnLeft(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {
+          SET_TIMESTAMP_NULL(output);
+          continue;
+        }
+        SET_TIMESTAMP_VAL(output, getVectorTimestampValue(left,0) - getVectorTimestampValue(right,i));
       }
-      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) - getVectorDoubleValueFnRight(right,0));
+    } else if ((len2) == 1) {
+      for (; i >= 0 && i < (len1); i += step, output += 1) {
+        if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {
+          SET_TIMESTAMP_NULL(output);
+          continue;
+        }
+        SET_TIMESTAMP_VAL(output, getVectorTimestampValue(left,i) - getVectorTimestampValue(right,0));
+      }
     }
   }
 }
@@ -398,6 +474,271 @@ void vectorRemainder(void *left, int32_t len1, int32_t _left_type, void *right, 
   }
 }
 
+void vectorBitand(void *left, int32_t len1, int32_t _left_type, void *right, int32_t len2, int32_t _right_type, void *out, int32_t _ord) {
+  int32_t i = (_ord == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;
+  int32_t step = (_ord == TSDB_ORDER_ASC) ? 1 : -1;
+  char *output = out;
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+
+  if (len1 == (len2)) {
+    for (; i >= 0 && i < (len2); i += step) {
+      if (isNull(getVectorValueAddrFnLeft(left, i), _left_type) || isNull(getVectorValueAddrFnRight(right, i), _right_type)) {
+        switch (_left_type) {
+        case TSDB_DATA_TYPE_BOOL:
+            *(bool *) output = TSDB_DATA_BOOL_NULL;
+            output += sizeof(bool);
+            break;
+        case TSDB_DATA_TYPE_TINYINT:
+            *(int8_t *) output = TSDB_DATA_TINYINT_NULL;
+            output += sizeof(int8_t);
+            break;
+        case TSDB_DATA_TYPE_SMALLINT:
+            *(int16_t *) output = TSDB_DATA_SMALLINT_NULL;
+            output += sizeof(int16_t);
+            break;
+        case TSDB_DATA_TYPE_INT:
+            *(int32_t *) output = TSDB_DATA_INT_NULL;
+            output += sizeof(int32_t);
+            break;
+        case TSDB_DATA_TYPE_BIGINT:
+            *(int64_t *) output = TSDB_DATA_BIGINT_NULL;
+            output += sizeof(int64_t);
+            break;
+
+        case TSDB_DATA_TYPE_UTINYINT:
+            *(uint8_t *) output = TSDB_DATA_UTINYINT_NULL;
+            output += sizeof(int8_t);
+            break;
+        case TSDB_DATA_TYPE_USMALLINT:
+            *(uint16_t *) output = TSDB_DATA_USMALLINT_NULL;
+            output += sizeof(int16_t);
+            break;
+        case TSDB_DATA_TYPE_UINT:
+            *(uint32_t *) output = TSDB_DATA_UINT_NULL;
+            output += sizeof(int32_t);
+            break;
+        case TSDB_DATA_TYPE_UBIGINT:
+            *(uint64_t *) output = TSDB_DATA_UBIGINT_NULL;
+            output += sizeof(int64_t);
+            break;
+        }
+        continue;
+      }
+
+      switch (_left_type) {
+      case TSDB_DATA_TYPE_BOOL:
+          *(bool *) output = (*((bool *) left + i)) & (*((bool *) right + i));
+          output += sizeof(bool);
+          break;
+      case TSDB_DATA_TYPE_TINYINT:
+          *(int8_t *) output = (*((int8_t *) left + i)) & (*((int8_t *) right + i));
+          output += sizeof(int8_t);
+          break;
+      case TSDB_DATA_TYPE_SMALLINT:
+          *(int16_t *) output = (*((int16_t *) left + i)) & (*((int16_t *) right + i));
+          output += sizeof(int16_t);
+          break;
+      case TSDB_DATA_TYPE_INT:
+          *(int32_t *) output = (*((int32_t *) left + i)) & (*((int32_t *) right + i));
+          output += sizeof(int32_t);
+          break;
+      case TSDB_DATA_TYPE_BIGINT:
+          *(int64_t *) output = (*((int64_t *) left + i)) & (*((int64_t *) right + i));
+          output += sizeof(int64_t);
+          break;
+
+      case TSDB_DATA_TYPE_UTINYINT:
+          *(uint8_t *) output = (*((uint8_t *) left + i)) & (*((uint8_t *) right + i));
+          output += sizeof(int8_t);
+          break;
+      case TSDB_DATA_TYPE_USMALLINT:
+          *(uint16_t *) output = (*((uint16_t *) left + i)) & (*((uint16_t *) right + i));
+          output += sizeof(int16_t);
+          break;
+      case TSDB_DATA_TYPE_UINT:
+          *(uint32_t *) output = (*((uint32_t *) left + i)) & (*((uint32_t *) right + i));
+          output += sizeof(int32_t);
+          break;
+      case TSDB_DATA_TYPE_UBIGINT:
+          *(uint64_t *) output = (*((uint64_t *) left + i)) & (*((uint64_t *) right + i));
+          output += sizeof(int64_t);
+          break;
+      }
+    }
+  } else if (len1 == 1) {
+    for (; i >= 0 && i < (len2); i += step) {
+      if (isNull(getVectorValueAddrFnLeft(left, 0), _left_type) || isNull(getVectorValueAddrFnRight(right, i), _right_type)) {
+        switch (_left_type) {
+        case TSDB_DATA_TYPE_BOOL:
+            *(bool *) output = TSDB_DATA_BOOL_NULL;
+            output += sizeof(bool);
+            break;
+        case TSDB_DATA_TYPE_TINYINT:
+            *(int8_t *) output = TSDB_DATA_TINYINT_NULL;
+            output += sizeof(int8_t);
+            break;
+        case TSDB_DATA_TYPE_SMALLINT:
+            *(int16_t *) output = TSDB_DATA_SMALLINT_NULL;
+            output += sizeof(int16_t);
+            break;
+        case TSDB_DATA_TYPE_INT:
+            *(int32_t *) output = TSDB_DATA_INT_NULL;
+            output += sizeof(int32_t);
+            break;
+        case TSDB_DATA_TYPE_BIGINT:
+            *(int64_t *) output = TSDB_DATA_BIGINT_NULL;
+            output += sizeof(int64_t);
+            break;
+
+        case TSDB_DATA_TYPE_UTINYINT:
+            *(uint8_t *) output = TSDB_DATA_UTINYINT_NULL;
+            output += sizeof(int8_t);
+            break;
+        case TSDB_DATA_TYPE_USMALLINT:
+            *(uint16_t *) output = TSDB_DATA_USMALLINT_NULL;
+            output += sizeof(int16_t);
+            break;
+        case TSDB_DATA_TYPE_UINT:
+            *(uint32_t *) output = TSDB_DATA_UINT_NULL;
+            output += sizeof(int32_t);
+            break;
+        case TSDB_DATA_TYPE_UBIGINT:
+            *(uint64_t *) output = TSDB_DATA_UBIGINT_NULL;
+            output += sizeof(int64_t);
+            break;
+        }
+        continue;
+      }
+
+      switch (_left_type) {
+      case TSDB_DATA_TYPE_BOOL:
+          *(bool *) output = (*(bool *) left) & (*((bool *) right + i));
+          output += sizeof(bool);
+          break;
+      case TSDB_DATA_TYPE_TINYINT:
+          *(int8_t *) output = (*(int8_t *) left) & (*((int8_t *) right + i));
+          output += sizeof(int8_t);
+          break;
+      case TSDB_DATA_TYPE_SMALLINT:
+          *(int16_t *) output = (*(int16_t *) left) & (*((int16_t *) right + i));
+          output += sizeof(int16_t);
+          break;
+      case TSDB_DATA_TYPE_INT:
+          *(int32_t *) output = (*(int32_t *) left) & (*((int32_t *) right + i));
+          output += sizeof(int32_t);
+          break;
+      case TSDB_DATA_TYPE_BIGINT:
+          *(int64_t *) output = (*(int64_t *) left) & (*((int64_t *) right + i));
+          output += sizeof(int64_t);
+          break;
+
+      case TSDB_DATA_TYPE_UTINYINT:
+          *(uint8_t *) output = (*(uint8_t *) left) & (*((uint8_t *) right + i));
+          output += sizeof(int8_t);
+          break;
+      case TSDB_DATA_TYPE_USMALLINT:
+          *(uint16_t *) output = (*(uint16_t *) left) & (*((uint16_t *) right + i));
+          output += sizeof(int16_t);
+          break;
+      case TSDB_DATA_TYPE_UINT:
+          *(uint32_t *) output = (*(uint32_t *) left) & (*((uint32_t *) right + i));
+          output += sizeof(int32_t);
+          break;
+      case TSDB_DATA_TYPE_UBIGINT:
+          *(uint64_t *) output = (*(uint64_t *) left) & (*((uint64_t *) right + i));
+          output += sizeof(int64_t);
+          break;
+      }
+    }
+  } else if ((len2) == 1) {
+    for (; i >= 0 && i < len1; i += step) {
+      if (isNull(getVectorValueAddrFnLeft(left, i), _left_type) || isNull(getVectorValueAddrFnRight(right, 0), _right_type)) {
+        switch (_left_type) {
+        case TSDB_DATA_TYPE_BOOL:
+            *(bool *) output = TSDB_DATA_BOOL_NULL;
+            output += sizeof(bool);
+            break;
+        case TSDB_DATA_TYPE_TINYINT:
+            *(int8_t *) output = TSDB_DATA_TINYINT_NULL;
+            output += sizeof(int8_t);
+            break;
+        case TSDB_DATA_TYPE_SMALLINT:
+            *(int16_t *) output = TSDB_DATA_SMALLINT_NULL;
+            output += sizeof(int16_t);
+            break;
+        case TSDB_DATA_TYPE_INT:
+            *(int32_t *) output = TSDB_DATA_INT_NULL;
+            output += sizeof(int32_t);
+            break;
+        case TSDB_DATA_TYPE_BIGINT:
+            *(int64_t *) output = TSDB_DATA_BIGINT_NULL;
+            output += sizeof(int64_t);
+            break;
+
+        case TSDB_DATA_TYPE_UTINYINT:
+            *(uint8_t *) output = TSDB_DATA_UTINYINT_NULL;
+            output += sizeof(int8_t);
+            break;
+        case TSDB_DATA_TYPE_USMALLINT:
+            *(uint16_t *) output = TSDB_DATA_USMALLINT_NULL;
+            output += sizeof(int16_t);
+            break;
+        case TSDB_DATA_TYPE_UINT:
+            *(uint32_t *) output = TSDB_DATA_UINT_NULL;
+            output += sizeof(int32_t);
+            break;
+        case TSDB_DATA_TYPE_UBIGINT:
+            *(uint64_t *) output = TSDB_DATA_UBIGINT_NULL;
+            output += sizeof(int64_t);
+            break;
+        }
+        continue;
+      }
+
+      switch (_left_type) {
+      case TSDB_DATA_TYPE_BOOL:
+          *(bool *) output = (*((bool *) left + i)) & (*(bool *) right);
+          output += sizeof(bool);
+          break;
+      case TSDB_DATA_TYPE_TINYINT:
+          *(int8_t *) output = (*((int8_t *) left + i)) & (*(int8_t *) right);
+          output += sizeof(int8_t);
+          break;
+      case TSDB_DATA_TYPE_SMALLINT:
+          *(int16_t *) output = (*((int16_t *) left + i)) & (*(int16_t *) right);
+          output += sizeof(int16_t);
+          break;
+      case TSDB_DATA_TYPE_INT:
+          *(int32_t *) output = (*((int32_t *) left + i)) & (*(int32_t *) right);
+          output += sizeof(int32_t);
+          break;
+      case TSDB_DATA_TYPE_BIGINT:
+          *(int64_t *) output = (*((int64_t *) left + i)) & (*(int64_t *) right);
+          output += sizeof(int64_t);
+          break;
+
+      case TSDB_DATA_TYPE_UTINYINT:
+          *(uint8_t *) output = (*((uint8_t *) left + i)) & (*(uint8_t *) right);
+          output += sizeof(int8_t);
+          break;
+      case TSDB_DATA_TYPE_USMALLINT:
+          *(uint16_t *) output = (*((uint16_t *) left + i)) & (*(uint16_t *) right);
+          output += sizeof(int16_t);
+          break;
+      case TSDB_DATA_TYPE_UINT:
+          *(uint32_t *) output = (*((uint32_t *) left + i)) & (*(uint32_t *) right);
+          output += sizeof(int32_t);
+          break;
+      case TSDB_DATA_TYPE_UBIGINT:
+          *(uint64_t *) output = (*((uint64_t *) left + i)) & (*(uint64_t *) right);
+          output += sizeof(int64_t);
+          break;
+      }
+    }
+  }
+}
+
 _arithmetic_operator_fn_t getArithmeticOperatorFn(int32_t arithmeticOptr) {
   switch (arithmeticOptr) {
     case TSDB_BINARY_OP_ADD:
@@ -410,6 +751,8 @@ _arithmetic_operator_fn_t getArithmeticOperatorFn(int32_t arithmeticOptr) {
       return vectorDivide;
     case TSDB_BINARY_OP_REMAINDER:
       return vectorRemainder;
+    case TSDB_BINARY_OP_BITAND:
+      return vectorBitand;
     default:
       assert(0);
       return NULL;

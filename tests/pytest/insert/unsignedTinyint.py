@@ -91,11 +91,6 @@ class TDTestCase:
         tdSql.checkData(0, 1, 2)
         tdLog.info('drop database db')
         tdSql.execute('drop database db')
-        tdLog.info('show databases')
-        tdSql.query('show databases')
-        tdLog.info('tdSql.checkRow(0)')
-        tdSql.checkRows(0)
-
 
     def stop(self):
         tdSql.close()

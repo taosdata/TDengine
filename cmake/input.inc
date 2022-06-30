@@ -53,11 +53,6 @@ IF (${MEM_CHECK} MATCHES "true")
   MESSAGE(STATUS "build with memory check")
 ENDIF ()
 
-IF (${MQTT} MATCHES "false")
-  SET(TD_MQTT FALSE)
-  MESSAGE(STATUS "build without mqtt module")
-ENDIF ()
-
 IF (${RANDOM_FILE_FAIL} MATCHES "true")
   SET(TD_RANDOM_FILE_FAIL TRUE)
   MESSAGE(STATUS "build with random-file-fail enabled")
@@ -96,11 +91,12 @@ IF (${VERBOSE} MATCHES "true")
   SET(TD_BUILD_VERBOSE TRUE)
 ENDIF ()
 
-IF (${TSZ_ENABLED} MATCHES "true")
-  # define add
+# build TSZ by default
+IF ("${TSZ_ENABLED}" MATCHES "false")
+  set(VAR_TSZ "" CACHE INTERNAL "global variant empty" )
+ELSE()
+  # define add 
   MESSAGE(STATUS "build with TSZ enabled")
   ADD_DEFINITIONS(-DTD_TSZ)
   set(VAR_TSZ "TSZ" CACHE INTERNAL "global variant tsz" )
-ELSE()
-  set(VAR_TSZ "" CACHE INTERNAL "global variant empty" )
 ENDIF()

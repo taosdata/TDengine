@@ -257,7 +257,13 @@ static FORCE_INLINE int tsdbAppendDFile(SDFile* pDFile, void* buf, int64_t nbyte
     return -1;
   }
 
-  ASSERT(pDFile->info.size == toffset);
+  //bug fix. To avoid data corruption, 
+  //the end offset of current file should be checked with file size, 
+  //if not equal, known as file corrupted and return error.
+  if (pDFile->info.size != toffset) {
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    return -1;
+  }
 
   if (offset) {
     *offset = toffset;
@@ -288,8 +294,11 @@ static FORCE_INLINE int64_t tsdbReadDFile(SDFile* pDFile, void* buf, int64_t nby
 
 static FORCE_INLINE int tsdbCopyDFile(SDFile* pSrc, SDFile* pDest) {
   if (tfscopy(TSDB_FILE_F(pSrc), TSDB_FILE_F(pDest)) < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    int32_t ret = taosMkdirP(TSDB_FILE_FULL_NAME(pDest), 0);
+    if (ret < 0 || tfscopy(TSDB_FILE_F(pSrc), TSDB_FILE_F(pDest)) < 0) {
+	terrno = TAOS_SYSTEM_ERROR(errno);
+	return -1;
+    }
   }
 
   tsdbSetDFileInfo(pDest, TSDB_FILE_INFO(pSrc));

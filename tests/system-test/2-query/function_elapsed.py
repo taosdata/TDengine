@@ -1497,7 +1497,7 @@ class TDTestCase:
         
         # case TD-12344  
         # session not support stable
-        tdSql.execute('select elapsed(ts,10s) from stable_1  where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000"  session(ts ,10s) group by tbname,ind order by ts asc ')
+        tdSql.error('select elapsed(ts,10s) from stable_1  where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000"  session(ts ,10s) group by tbname,ind order by ts asc ')
 
         tdSql.query('select elapsed(ts,10s) from sub_table1_1  session(ts,1w) ; ')
         tdSql.checkRows(1)

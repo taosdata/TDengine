@@ -205,7 +205,7 @@ void tdigestTest() {
             double res = tdigestQuantile(pTDigest, ratio);
             free(pTDigest);
             useTime[0][i][j][m][p] = ((double)(testGetTimestampUs() - startu))/1000;
-            printf("DMode:%d,Type:%d,Num:%"PRId64",randP:%d,Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], randPers[p], useTime[0][i][j][m][p], res);
+            printf("DMode:%d,Type:%d,Num:%" PRId64 ",randP:%d,Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], randPers[p], useTime[0][i][j][m][p], res);
 
             startu = testGetTimestampUs();
             thistogram_init(&pHisto);
@@ -215,7 +215,7 @@ void tdigestTest() {
             double *res2 = thistogram_end(pHisto, &ratio, 1);
             free(pHisto);
             useTime[1][i][j][m][p] = ((double)(testGetTimestampUs() - startu))/1000;
-            printf("HMode:%d,Type:%d,Num:%"PRId64",randP:%d,Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], randPers[p], useTime[1][i][j][m][p], *res2);
+            printf("HMode:%d,Type:%d,Num:%" PRId64 ",randP:%d,Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], randPers[p], useTime[1][i][j][m][p], *res2);
             
           }
           free(data);
@@ -234,7 +234,7 @@ void tdigestTest() {
             double res = tdigestQuantile(pTDigest, ratio);
             free(pTDigest);                  
             useTime[0][i][j][m][p] = ((double)(testGetTimestampUs() - startu))/1000;
-            printf("DMode:%d,Type:%d,Num:%"PRId64",randL:%d,Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], randLimits[p], useTime[0][i][j][m][p], res);
+            printf("DMode:%d,Type:%d,Num:%" PRId64 ",randL:%d,Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], randLimits[p], useTime[0][i][j][m][p], res);
 
 
             startu = testGetTimestampUs();          
@@ -245,7 +245,7 @@ void tdigestTest() {
             double* res2 = thistogram_end(pHisto, &ratio, 1);
             free(pHisto);                  
             useTime[1][i][j][m][p] = ((double)(testGetTimestampUs() - startu))/1000;
-            printf("HMode:%d,Type:%d,Num:%"PRId64",randL:%d,Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], randLimits[p], useTime[1][i][j][m][p], *res2);
+            printf("HMode:%d,Type:%d,Num:%" PRId64 ",randL:%d,Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], randLimits[p], useTime[1][i][j][m][p], *res2);
           }          
           free(data);
         }
@@ -262,7 +262,7 @@ void tdigestTest() {
           double res = tdigestQuantile(pTDigest, ratio);
           free(pTDigest);
           useTime[0][i][j][m][0] = ((double)(testGetTimestampUs() - startu))/1000;
-          printf("DMode:%d,Type:%d,Num:%"PRId64",Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], useTime[0][i][j][m][0], res);
+          printf("DMode:%d,Type:%d,Num:%" PRId64 ",Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], useTime[0][i][j][m][0], res);
 
 
           startu = testGetTimestampUs();        
@@ -273,7 +273,7 @@ void tdigestTest() {
           double* res2 = thistogram_end(pHisto, &ratio, 1);
           free(pHisto);
           useTime[1][i][j][m][0] = ((double)(testGetTimestampUs() - startu))/1000;
-          printf("HMode:%d,Type:%d,Num:%"PRId64",Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], useTime[1][i][j][m][0], *res2);
+          printf("HMode:%d,Type:%d,Num:%" PRId64 ",Used:%fms\tRES:%f\n", dataMode[i], dataTypes[j], totalNum[m], useTime[1][i][j][m][0], *res2);
 
         }        
         free(data);

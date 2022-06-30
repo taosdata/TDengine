@@ -27,7 +27,7 @@ class TDTestCase:
         self.numberOfTables = 100
         self.numberOfRecords = 1000
 
-    def getBuildPath(self):
+    def getPath(self, tool="taosBenchmark"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -35,32 +35,34 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
+        if (len(paths) == 0):
+            return ""
+        return paths[0]
 
     def run(self):
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
+        binPath = self.getPath()
+        if (binPath == ""):
+            tdLog.exit("taosBenchmark not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
-        binPath = buildPath + "/build/bin/"
-        os.system("%staosBenchmark -N -y -t %d -n %d" %
+            tdLog.info("taosBenchmark found in %s" % binPath)
+        os.system("%s -N -y -t %d -n %d" %
                   (binPath, self.numberOfTables, self.numberOfRecords))
 
         tdSql.query("show databases")
         for i in range(18):
-            print(tdSql.getData(0, i) )
+            print(tdSql.getData(0, i))
         tdSql.checkData(0, 2, self.numberOfTables)
 
         tdSql.execute("use test")
         tdSql.query(
-            "select count(*) from test.d%d" % (self.numberOfTables -1))
+            "select count(*) from test.d%d" % (self.numberOfTables - 1))
         tdSql.checkData(0, 0, self.numberOfRecords)
 
     def stop(self):

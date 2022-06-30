@@ -259,11 +259,6 @@ void taosKillSystem() {
   exit(0);
 }
 
-int taosSystem(const char *cmd) {
-  uError("taosSystem not support");
-  return -1;
-}
-
 int flock(int fd, int option) { return 0; }
 
 LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {

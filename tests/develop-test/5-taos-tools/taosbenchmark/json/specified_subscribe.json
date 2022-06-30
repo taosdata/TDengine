@@ -8,7 +8,7 @@
   "databases": "db",
   "confirm_parameter_prompt": "no",
   "specified_table_query": {
-    "concurrent": 1,
+    "threads": 1,
     "mode": "async",
     "interval": 1000,
     "restart": "no",

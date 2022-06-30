@@ -18,6 +18,7 @@ from util.cases import *
 from util.sql import *
 from util.dnodes import *
 
+
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -25,8 +26,8 @@ class TDTestCase:
 
         self.numberOfTables = 10
         self.numberOfRecords = 10
-    
-    def getBuildPath(self):
+
+    def getPath(self, tool="taosBenchmark"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -34,57 +35,61 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
+        if (len(paths) == 0):
+            return ""
+        return paths[0]
 
     def run(self):
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosdemo not found!")
+        binPath = self.getPath("taosBenchmark")
+        if (binPath == ""):
+            tdLog.exit("taosBenchmark not found!")
         else:
-            tdLog.info("taosdemo found in %s" % buildPath)
-        binPath = buildPath + "/build/bin/"
+            tdLog.info("taosBenchmark found in %s" % binPath)
 
-        os.system("%staosBenchmark -d test002 -y -t %d -n %d -b INT,nchar\\(8\\),binary\\(16\\),binary,nchar -w 8" %
-                  (binPath, self.numberOfTables, self.numberOfRecords))
-        
+        os.system(
+            "%s -d test002 -y -t %d -n %d -b INT,nchar\\(8\\),binary\\(16\\),binary,nchar -w 8" %
+            (binPath, self.numberOfTables, self.numberOfRecords))
+
         tdSql.execute('use test002')
         tdSql.query("select count(*) from meters")
         tdSql.checkData(0, 0, self.numberOfTables * self.numberOfRecords)
 
         tdSql.query("select * from meters")
         tdSql.checkRows(self.numberOfTables * self.numberOfRecords)
-        
-        tdLog.info('insert into d1 values(now,100,"abcd1234","abcdefgh12345678","abcdefgh","abcdefgh")')
-        tdSql.execute('insert into d1 values(now,100,"abcd1234","abcdefgh12345678","abcdefgh","abcdefgh")')
+
+        tdLog.info(
+            'insert into d1 values(now,100,"abcd1234","abcdefgh12345678","abcdefgh","abcdefgh")')
+        tdSql.execute(
+            'insert into d1 values(now,100,"abcd1234","abcdefgh12345678","abcdefgh","abcdefgh")')
         tdSql.query("select * from meters")
         tdSql.checkRows(101)
 
         tdSql.error('insert into d1 values(now,100,"abcd","abcd"')
         tdSql.error('insert into d1 values(now,100,100,100)')
 
-        os.system("%staosBenchmark -d test002 -y -t %d -n %d --data-type INT,nchar\\(8\\),binary\\(16\\),binary,nchar -w 8" %
-                  (binPath, self.numberOfTables, self.numberOfRecords))
+        os.system(
+            "%s -d test002 -y -t %d -n %d --data-type INT,nchar\\(8\\),binary\\(16\\),binary,nchar -w 8" %
+            (binPath, self.numberOfTables, self.numberOfRecords))
 
         tdSql.execute('use test002')
         tdSql.query("select count(*) from meters")
         tdSql.checkData(0, 0, self.numberOfTables * self.numberOfRecords)
 
-
-        os.system("%staosBenchmark -d test002 -y -t %d -n %d -bINT,nchar\\(8\\),binary\\(16\\),binary,nchar -w 8" %
-                  (binPath, self.numberOfTables, self.numberOfRecords))
+        os.system(
+            "%s -d test002 -y -t %d -n %d -bINT,nchar\\(8\\),binary\\(16\\),binary,nchar -w 8" %
+            (binPath, self.numberOfTables, self.numberOfRecords))
 
         tdSql.execute('use test002')
         tdSql.query("select count(*) from meters")
         tdSql.checkData(0, 0, self.numberOfTables * self.numberOfRecords)
 
-
-        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

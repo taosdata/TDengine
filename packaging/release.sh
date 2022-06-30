@@ -4,11 +4,6 @@
 
 set -e
 #set -x
-source ./sed_power.sh
-source ./sed_tq.sh
-source ./sed_pro.sh
-source ./sed_kh.sh
-source ./sed_jh.sh
 
 # release.sh  -v [cluster | edge]
 #             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...]
@@ -16,7 +11,7 @@ source ./sed_jh.sh
 #             -V [stable | beta]
 #             -l [full | lite]
 #             -s [static | dynamic]
-#             -d [taos | power | tq | pro | kh | jh]
+#             -d [taos | ...]
 #             -n [2.0.0.3]
 #             -m [2.0.0.0]
 #             -H [ false | true]
@@ -28,10 +23,10 @@ cpuType=x64     # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
 osType=Linux    # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 pagMode=full    # [full | lite]
 soMode=dynamic  # [static | dynamic]
-dbName=taos     # [taos | power | tq | pro | kh | jh]
+dbName=taos     # [taos | ...]
 allocator=glibc # [glibc | jemalloc]
 verNumber=""
-verNumberComp="1.0.0.0"
+verNumberComp="2.0.0.0"
 httpdBuild=false
 
 while getopts "hv:V:c:o:l:s:d:a:n:m:H:" arg; do
@@ -88,7 +83,7 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:" arg; do
     echo "                  -l [full | lite] "
     echo "                  -a [glibc | jemalloc] "
     echo "                  -s [static | dynamic] "
-    echo "                  -d [taos | power | tq | pro | kh | jh] "
+    echo "                  -d [taos | ...] "
     echo "                  -n [version number] "
     echo "                  -m [compatible version number] "
     echo "                  -H [false | true] "
@@ -105,14 +100,14 @@ echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} 
 
 curr_dir=$(pwd)
 
-if [ "$osType" != "Darwin" ]; then
-  script_dir="$(dirname $(readlink -f $0))"
-  top_dir="$(readlink -f ${script_dir}/..)"
-else
+if [ "$osType" == "Darwin" ]; then
   script_dir=$(dirname $0)
   cd ${script_dir}
   script_dir="$(pwd)"
   top_dir=${script_dir}/..
+else
+  script_dir="$(dirname $(readlink -f $0))"
+  top_dir="$(readlink -f ${script_dir}/..)"
 fi
 
 csudo=""
@@ -182,19 +177,15 @@ else
   gitinfoOfInternal=NULL
 fi
 
-cd ${curr_dir}
+cd "${curr_dir}"
 
 # 2. cmake executable file
 compile_dir="${top_dir}/debug"
 if [ -d ${compile_dir} ]; then
-  ${csudo}rm -rf ${compile_dir}
+  rm -rf ${compile_dir}
 fi
 
-if [ "$osType" != "Darwin" ]; then
-  ${csudo}mkdir -p ${compile_dir}
-else
-  mkdir -p ${compile_dir}
-fi
+mkdir -p ${compile_dir}
 cd ${compile_dir}
 
 if [[ "$allocator" == "jemalloc" ]]; then
@@ -204,6 +195,7 @@ else
 fi
 
 if [[ "$dbName" != "taos" ]]; then
+  source ${enterprise_dir}/packaging/oem/sed_$dbName.sh
   replace_community_$dbName
 fi
 
@@ -229,11 +221,9 @@ if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" =
     # community-version compile
     cmake ../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
   else
-
     if [[ "$dbName" != "taos" ]]; then
       replace_enterprise_$dbName
     fi
-
     cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
   fi
 else
@@ -254,25 +244,25 @@ cd ${curr_dir}
 
 # 3. Call the corresponding script for packaging
 if [ "$osType" != "Darwin" ]; then
-  if [[ "$verMode" != "cluster" ]] && [[ "$cpuType" == "x64" ]] && [[ "$dbName" == "taos" ]]; then
+  if [[ "$verMode" != "cluster" ]] && [[ "$pagMode" == "full" ]] && [[ "$cpuType" == "x64" ]] && [[ "$dbName" == "taos" ]]; then
     ret='0'
     command -v dpkg >/dev/null 2>&1 || { ret='1'; }
     if [ "$ret" -eq 0 ]; then
       echo "====do deb package for the ubuntu system===="
       output_dir="${top_dir}/debs"
       if [ -d ${output_dir} ]; then
-        ${csudo}rm -rf ${output_dir}
+        rm -rf ${output_dir}
       fi
-      ${csudo}mkdir -p ${output_dir}
+      mkdir -p ${output_dir}
       cd ${script_dir}/deb
       ${csudo}./makedeb.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
 
       if [[ "$pagMode" == "full" ]]; then
         if [ -d ${top_dir}/src/kit/taos-tools/packaging/deb ]; then
           cd ${top_dir}/src/kit/taos-tools/packaging/deb
+          taos_tools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-          taos_tools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
           ${csudo}./make-taos-tools-deb.sh ${top_dir} \
             ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
         fi
@@ -286,18 +276,18 @@ if [ "$osType" != "Darwin" ]; then
       echo "====do rpm package for the centos system===="
       output_dir="${top_dir}/rpms"
       if [ -d ${output_dir} ]; then
-        ${csudo}rm -rf ${output_dir}
+        rm -rf ${output_dir}
       fi
-      ${csudo}mkdir -p ${output_dir}
+      mkdir -p ${output_dir}
       cd ${script_dir}/rpm
       ${csudo}./makerpm.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
 
       if [[ "$pagMode" == "full" ]]; then
         if [ -d ${top_dir}/src/kit/taos-tools/packaging/rpm ]; then
           cd ${top_dir}/src/kit/taos-tools/packaging/rpm
+          taos_tools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}' | sed -e 's/-/_/g')
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-          taos_tools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}' | sed -e 's/-/_/g')
           ${csudo}./make-taos-tools-rpm.sh ${top_dir} \
             ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
         fi
@@ -310,11 +300,12 @@ if [ "$osType" != "Darwin" ]; then
   echo "====do tar.gz package for all systems===="
   cd ${script_dir}/tools
 
-  ${csudo}./makepkg.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp}
-  ${csudo}./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+  ${csudo}./makepkg.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName}
+  ${csudo}./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
   ${csudo}./makearbi.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+
 else
   # only make client for Darwin
   cd ${script_dir}/tools
-  ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${dbName}
+  ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
 fi

@@ -46,6 +46,10 @@ do {                                                                   \
       free(yyextra->dsn);                                              \
       yyextra->dsn = strdup(yytext);                                   \
     } break;                                                           \
+    case DRIVER: {                                                     \
+      free(yyextra->driver);                                           \
+      yyextra->driver = strdup(yytext);                                \
+    } break;                                                           \
     case UID: {                                                        \
       free(yyextra->uid);                                              \
       yyextra->uid = strdup(yytext);                                   \
@@ -121,7 +125,7 @@ do {                                                                            
 %option 8bit
 %option case-insensitive
 
-%x DSN UID PWD SERVER DB
+%x DSN DRIVER UID PWD SERVER DB
 %x ENC_CHAR ENC_WCHAR ENC_DB ENC_LOCAL
 %x TSDB_FLOAT TSDB_BIGINT
 %x KEY EQ BRACE1 BRACE2 VAL
@@ -132,6 +136,7 @@ do {                                                                            
           if (state == VAL)     yyterminate();
           FAIL(); }
 [[:space:]]+    { }
+"DRIVER"        { PUSH_STATE(DRIVER); }
 "DSN"           { PUSH_STATE(DSN); }
 "UID"           { PUSH_STATE(UID); }
 "PWD"           { PUSH_STATE(PWD); }
@@ -146,9 +151,9 @@ do {                                                                            
 [[:alnum:]_]+   { PUSH_STATE(KEY); }
 .|\n            { FAIL(); }
 
-<DSN,UID,PWD,SERVER,DB,ENC_CHAR,ENC_WCHAR,ENC_DB,ENC_LOCAL,TSDB_FLOAT,TSDB_BIGINT,KEY>[[:space:]]+   { }
-<DSN,UID,PWD,SERVER,DB,ENC_CHAR,ENC_WCHAR,ENC_DB,ENC_LOCAL,TSDB_FLOAT,TSDB_BIGINT,KEY>[=]            { PUSH_STATE(EQ); }
-<DSN,UID,PWD,SERVER,DB,ENC_CHAR,ENC_WCHAR,ENC_DB,ENC_LOCAL,TSDB_FLOAT,TSDB_BIGINT,KEY>.|\n           { FAIL(); }
+<DSN,DRIVER,UID,PWD,SERVER,DB,ENC_CHAR,ENC_WCHAR,ENC_DB,ENC_LOCAL,TSDB_FLOAT,TSDB_BIGINT,KEY>[[:space:]]+   { }
+<DSN,DRIVER,UID,PWD,SERVER,DB,ENC_CHAR,ENC_WCHAR,ENC_DB,ENC_LOCAL,TSDB_FLOAT,TSDB_BIGINT,KEY>[=]            { PUSH_STATE(EQ); }
+<DSN,DRIVER,UID,PWD,SERVER,DB,ENC_CHAR,ENC_WCHAR,ENC_DB,ENC_LOCAL,TSDB_FLOAT,TSDB_BIGINT,KEY>.|\n           { FAIL(); }
 
 <EQ>[[:space:]]+               { }
 <EQ>[{]                        { CHG_STATE(BRACE1); }
@@ -181,7 +186,7 @@ int todbc_parse_conn_string(const char *conn, conn_val_t *val) {
   yy_scan_string(conn, arg);
   int ret =yylex(arg);
   yylex_destroy(arg);
-  if (ret || !val->dsn) {
+  if (ret || (!val->dsn && !val->driver)) {
     conn_val_reset(val);
   } else {
     if (!val->uid) {
@@ -200,6 +205,9 @@ int todbc_parse_conn_string(const char *conn, conn_val_t *val) {
 void conn_val_reset(conn_val_t *val) {
   if (val->dsn) {
     free(val->dsn); val->dsn = NULL;
+  }
+  if (val->driver) {
+    free(val->driver); val->driver = NULL;
   }
   if (val->uid) {
     free(val->uid); val->uid = NULL;

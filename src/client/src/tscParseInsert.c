@@ -70,6 +70,10 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
 
   if (pToken->type == TK_NOW) {
     useconds = taosGetTimestamp(timePrec);
+  } else if (pToken->type == TK_TODAY) {
+    int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                     (timePrec == TSDB_TIME_PRECISION_MICRO) ? 1000000 : 1000000000;
+    useconds = taosGetTimestampToday() * factor;
   } else if (strncmp(pToken->z, "0", 1) == 0 && pToken->n == 1) {
     // do nothing
   } else if (pToken->type == TK_INTEGER) {
@@ -473,7 +477,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     }
 
     int16_t type = sToken.type;
-    if ((type != TK_NOW && type != TK_INTEGER && type != TK_STRING && type != TK_FLOAT && type != TK_BOOL &&
+    if ((type != TK_NOW && type != TK_TODAY && type != TK_INTEGER && type != TK_STRING && type != TK_FLOAT && type != TK_BOOL &&
          type != TK_NULL && type != TK_HEX && type != TK_OCT && type != TK_BIN) ||
         (sToken.n == 0) || (type == TK_RP)) {
       return tscSQLSyntaxErrMsg(pInsertParam->msg, "invalid data or symbol", sToken.z);
@@ -1064,7 +1068,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
           tfree(tmp);
           return tscSQLSyntaxErrMsg(pInsertParam->msg, "json tag too long", NULL);
         }
-        code = parseJsontoTagData(sToken.z, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId);
+        code = parseJsontoTagData(sToken.z, sToken.n, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId);
         if (code != TSDB_CODE_SUCCESS) {
           tdDestroyKVRowBuilder(&kvRowBuilder);
           tscDestroyBoundColumnInfo(&spd);
@@ -1149,7 +1153,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 
     code = validateTableName(tableToken.z, tableToken.n, &sTblToken, &dbIncluded2);
     if (code != TSDB_CODE_SUCCESS) {
-      return tscInvalidOperationMsg(pInsertParam->msg, "invalid table name", *sqlstr);
+      return tscInvalidOperationMsg(pInsertParam->msg, STR_INVALID_TABLE_NAME, *sqlstr);
     }
 
     int32_t ret = tscSetTableFullName(&pTableMetaInfo->name, &sTblToken, pSql, dbIncluded2);
@@ -1437,7 +1441,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     bool dbIncluded = false;
     // Check if the table name available or not
     if (validateTableName(sToken.z, sToken.n, &sTblToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
-      code = tscInvalidOperationMsg(pInsertParam->msg, "table name invalid", sToken.z);
+      code = tscInvalidOperationMsg(pInsertParam->msg, STR_INVALID_TABLE_NAME, sToken.z);
       goto _clean;
     }
 
@@ -1584,15 +1588,17 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
   int32_t  index = 0;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SStrToken sToken = tStrGetToken(pSql->sqlstr, &index, false);
-  assert(sToken.type == TK_INSERT || sToken.type == TK_IMPORT);
-
   pCmd->count   = 0;
   pCmd->command = TSDB_SQL_INSERT;
   SInsertStatementParam* pInsertParam = &pCmd->insertParam;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoS(pCmd);
   TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT);
+
+  SStrToken sToken = tStrGetToken(pSql->sqlstr, &index, false);
+  if (sToken.type != TK_INSERT && sToken.type != TK_IMPORT) {
+    return tscSQLSyntaxErrMsg(pInsertParam->msg, NULL, sToken.z);
+  }
 
   sToken = tStrGetToken(pSql->sqlstr, &index, false);
   if (sToken.type != TK_INTO) {

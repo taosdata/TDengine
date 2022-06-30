@@ -107,7 +107,7 @@ typedef struct {
       case TSDB_DATA_TYPE_USMALLINT:                 \
         (_v) = (_finalType)GET_UINT16_VAL(_data);    \
         break;                                       \
-      case TSDB_DATA_TYPE_TIMESTAMP:\
+      case TSDB_DATA_TYPE_TIMESTAMP:                 \
       case TSDB_DATA_TYPE_BIGINT:                    \
         (_v) = (_finalType)(GET_INT64_VAL(_data));   \
         break;                                       \
@@ -145,6 +145,7 @@ typedef struct {
       case TSDB_DATA_TYPE_USMALLINT:           \
         *(uint16_t *)(_v) = (uint16_t)(_data); \
         break;                                 \
+      case TSDB_DATA_TYPE_TIMESTAMP:           \
       case TSDB_DATA_TYPE_BIGINT:              \
         *(int64_t *)(_v) = (int64_t)(_data);   \
         break;                                 \
@@ -181,6 +182,7 @@ typedef struct {
       case TSDB_DATA_TYPE_USMALLINT:           \
         snprintf(_output, (int32_t)(_outputBytes), "%d", *(uint16_t *)(_input));     \
         break;                                 \
+      case TSDB_DATA_TYPE_TIMESTAMP:           \
       case TSDB_DATA_TYPE_BIGINT:              \
         snprintf(_output, (int32_t)(_outputBytes), "%" PRId64, *(int64_t *)(_input));     \
         break;                                 \
@@ -205,6 +207,7 @@ typedef struct {
 #define IS_SIGNED_NUMERIC_TYPE(_t)   ((_t) >= TSDB_DATA_TYPE_TINYINT && (_t) <= TSDB_DATA_TYPE_BIGINT)
 #define IS_UNSIGNED_NUMERIC_TYPE(_t) ((_t) >= TSDB_DATA_TYPE_UTINYINT && (_t) <= TSDB_DATA_TYPE_UBIGINT)
 #define IS_FLOAT_TYPE(_t)            ((_t) == TSDB_DATA_TYPE_FLOAT || (_t) == TSDB_DATA_TYPE_DOUBLE)
+#define IS_TIMESTAMP_TYPE(_t)        ((_t) == TSDB_DATA_TYPE_TIMESTAMP)
 
 #define IS_NUMERIC_TYPE(_t) ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)) || (IS_FLOAT_TYPE(_t)))
 
@@ -289,6 +292,7 @@ void* getDataMax(int32_t type);
 int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bool issigned);
 
 #define SET_DOUBLE_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_DOUBLE_NULL)
+#define SET_TIMESTAMP_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_TIMESTAMP_NULL)
 
 #ifdef __cplusplus
 }

@@ -4,7 +4,7 @@
   "confirm_parameter_prompt": "no",
   "databases": "db",
   "query_mode": "rest",
-  "thread_pool_size": 10,
+  "connection_pool_size": 10,
   "response_buffer": 10000,
   "specified_table_query":
   {

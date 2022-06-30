@@ -225,51 +225,6 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   return code;
 }
 
-#ifdef TEST_IMPL
-// wait moment
-int waitMoment(SQInfo* pQInfo){
-  if(pQInfo->sql) {
-    int ms = 0;
-    char* pcnt = strstr(pQInfo->sql, " count(*)");
-    if(pcnt) return 0;
-    
-    char* pos = strstr(pQInfo->sql, " t_");
-    if(pos){
-      pos += 3;
-      ms = atoi(pos);
-      while(*pos >= '0' && *pos <= '9'){
-        pos ++;
-      }
-      char unit_char = *pos;
-      if(unit_char == 'h'){
-        ms *= 3600*1000;
-      } else if(unit_char == 'm'){
-        ms *= 60*1000;
-      } else if(unit_char == 's'){
-        ms *= 1000;
-      }
-    }
-    if(ms == 0) return 0;
-    printf("test wait sleep %dms. sql=%s ...\n", ms, pQInfo->sql);
-    
-    if(ms < 1000) {
-      taosMsleep(ms);
-    } else {
-      int used_ms = 0;
-      while(used_ms < ms) {
-        taosMsleep(1000);
-        used_ms += 1000;
-        if(isQueryKilled(pQInfo)){
-          printf("test check query is canceled, sleep break.%s\n", pQInfo->sql);
-          break;
-        }
-      }
-    }
-  }
-  return 1;
-}
-#endif
-
 bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
   assert(pQInfo && pQInfo->signature == pQInfo);

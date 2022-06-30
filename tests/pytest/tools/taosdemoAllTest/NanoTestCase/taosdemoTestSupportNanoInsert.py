@@ -12,7 +12,8 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import os, time
+import os
+import time
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -24,7 +25,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-    def getBuildPath(self):
+    def getPath(self, tool="taosBenchmark"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -32,28 +33,28 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
+        return paths[0]
 
     def run(self):
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
+        binPath = self.getPath("taosBenchmark")
+        if (binPath == ""):
+            tdLog.exit("taosBenchmark not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
-        binPath = buildPath + "/build/bin/"
+            tdLog.info("taosBenchmark found in %s" % binPath)
 
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql
         # insert data from a special timestamp
         # check stable stb0
 
         os.system(
-            "%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabase.json -y " %
+            "%s -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabase.json -y " %
             binPath)
         tdSql.execute("use nsdb")
         tdSql.query("show stables")
@@ -88,7 +89,7 @@ class TDTestCase:
 
         # check stable stb0
         os.system(
-            "%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseNow.json -y " %
+            "%s -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseNow.json -y " %
             binPath)
 
         tdSql.execute("use nsdb2")
@@ -107,9 +108,8 @@ class TDTestCase:
         # insert by csv files and timetamp is long int , strings  in ts and
         # cols
 
-    
         os.system(
-            "%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabasecsv.json  -y " %
+            "%s -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabasecsv.json  -y " %
             binPath)
         tdSql.execute("use nsdbcsv")
         tdSql.query("show stables")
@@ -133,7 +133,7 @@ class TDTestCase:
         # taosdemo test insert with command and parameter , detals show
         # taosdemo --help
         os.system(
-            "%staosBenchmark  -u root -ptaosdata -P 6030  -a 1  -m pre -n 10 -T 20 -t 60 -o res.txt -y " %
+            "%s  -u root -ptaosdata -P 6030  -a 1  -m pre -n 10 -T 20 -t 60 -o res.txt -y " %
             binPath)
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 600)

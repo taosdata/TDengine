@@ -49,13 +49,13 @@ class TDTestCase:
         tdSql.query('select last(*) from mt0 group by c8')
         tdSql.checkData(0,3,5)
         tdSql.checkData(0,4,20)
-        tdSql.checkData(3,1,92)
-        tdSql.checkData(3,9,'涛思8')
+        tdSql.checkData(3,1,57)
+        tdSql.checkData(3,9,'涛思14')
         tdSql.query('select last(*) from mt0 group by c9')
         tdSql.checkData(0,3,0)
         tdSql.checkData(0,8,'taos38')
-        tdSql.checkData(40,1,83)
-        tdSql.checkData(40,3,40)
+        tdSql.checkData(35,1,83)
+        tdSql.checkData(35,3,40)
         
     def stop(self):
         tdSql.close()

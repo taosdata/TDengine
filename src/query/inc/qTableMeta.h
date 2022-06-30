@@ -50,7 +50,7 @@ typedef struct SGroupbyExpr {
   int16_t tableIndex;
   SArray* columnInfo;  // SArray<SColIndex>, group by columns information
   int16_t numOfGroupCols;  // todo remove it
-  int16_t orderIndex;  // order by column index
+  //int16_t orderIndex; // order by column index, rm useless orderIndex
   int16_t orderType;   // order by type: asc/desc
 } SGroupbyExpr;
 

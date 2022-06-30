@@ -42,7 +42,7 @@ query_sql = [
 "select spread(c1) from test.t1  ;",
 "select stddev(c1) from test.t1;",
 "select sum(c1) from test.meters where t5 >5000 and t5<5100;",
-"select top(c1, 2) from test.meters where t5 >5000 and t5<5100;"
+"select top(c1, 2) from test.meters where t5 >5000 and t5<5100;",
 "select twa(c4) from test.t1 where ts > 1500000001000  and ts < 1500000101000" ,
 "select avg(c4) from test.meters where t5 >5000 and t5<5100;",
 "select bottom(c4, 2) from test.t1 where t5 >5000 and t5<5100;",

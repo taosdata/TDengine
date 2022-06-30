@@ -15,9 +15,9 @@
 
 #include "tdataformat.h"
 #include "tfunctional.h"
-#include "tsdbint.h"
 #include "tskiplist.h"
 #include "tsdbRowMergeBuf.h"
+#include "tsdbint.h"
 
 #define TSDB_DATA_SKIPLIST_LEVEL 5
 #define TSDB_MAX_INSERT_BATCH 512
@@ -49,15 +49,17 @@ static int          tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIte
 static int          tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock);
 static int          tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable);
 static int          tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow row);
+static int32_t      tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmitRspMsg *pRsp, tsem_t** pSem);
 
 static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SMemRow row, TSKEY minKey, TSKEY maxKey,
                                           TSKEY now);
 
-int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp) {
+int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp, tsem_t** ppSem) {
   STsdbRepo *    pRepo = repo;
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk *   pBlock = NULL;
   int32_t        affectedrows = 0, numOfRows = 0;
+  int32_t        ret = TSDB_CODE_SUCCESS;
 
   if (tsdbScanAndConvertSubmitMsg(pRepo, pMsg) < 0) {
     if (terrno != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
@@ -70,8 +72,16 @@ int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pR
   while (true) {
     tsdbGetSubmitMsgNext(&msgIter, &pBlock);
     if (pBlock == NULL) break;
-    if (tsdbInsertDataToTable(pRepo, pBlock, &affectedrows) < 0) {
-      return -1;
+    if (IS_CONTROL_BLOCK(pBlock)) {
+      // COMMAND DATA BLOCK
+      ret = tsdbInsertControlData(pRepo, pBlock, pRsp, ppSem);
+      // all control msg is one SSubmitMsg, so need return
+      return ret; 
+    } else {
+      // INSERT DATA BLOCK
+      if (tsdbInsertDataToTable(pRepo, pBlock, &affectedrows) < 0) {
+        return -1;
+      }
     }
     numOfRows += pBlock->numOfRows;
   }
@@ -82,7 +92,7 @@ int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pR
   }
 
   if (tsdbCheckCommit(pRepo) < 0) return -1;
-  return 0;
+  return ret;
 }
 
 // ---------------- INTERNAL FUNCTIONS ----------------
@@ -290,7 +300,9 @@ int tsdbSyncCommitConfig(STsdbRepo* pRepo) {
   }
 
   if (tsdbLockRepo(pRepo) < 0) return -1;
-  tsdbScheduleCommit(pRepo, COMMIT_CONFIG_REQ);
+  if (tsdbScheduleCommit(pRepo, NULL, COMMIT_CONFIG_REQ) < 0) {
+    tsem_post(&(pRepo->readyToCommit));
+  }
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
   tsem_wait(&(pRepo->readyToCommit));
@@ -305,11 +317,12 @@ int tsdbSyncCommitConfig(STsdbRepo* pRepo) {
   return 0;
 }
 
-int tsdbAsyncCommit(STsdbRepo *pRepo) {
+int tsdbAsyncCommit(STsdbRepo *pRepo, SControlDataInfo* pCtlDataInfo) {
   tsem_wait(&(pRepo->readyToCommit));
 
   ASSERT(pRepo->imem == NULL);
-  if (pRepo->mem == NULL) {
+
+  if (pRepo->mem == NULL && pCtlDataInfo == NULL) {
     tsem_post(&(pRepo->readyToCommit));
     return 0;
   }
@@ -320,9 +333,33 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
 
   if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_START, TSDB_CODE_SUCCESS);
   if (tsdbLockRepo(pRepo) < 0) return -1;
-  pRepo->imem = pRepo->mem;
-  pRepo->mem = NULL;
-  tsdbScheduleCommit(pRepo, COMMIT_REQ);
+  
+  bool post = false;
+  if (pRepo->mem) {
+    // has data in mem
+    pRepo->imem = pRepo->mem;
+    pRepo->mem = NULL;
+    if(pCtlDataInfo == NULL) {
+      if (tsdbScheduleCommit(pRepo, NULL, COMMIT_REQ) < 0)
+        post = true;
+    } else {
+      pCtlDataInfo->memNull = false; 
+      if(tsdbScheduleCommit(pRepo, pCtlDataInfo, COMMIT_BOTH_REQ) < 0)
+        post = true;
+    }
+  } else {
+    // no data in mem
+    if (pCtlDataInfo) {
+      pCtlDataInfo->memNull = true; 
+      if(tsdbScheduleCommit(pRepo, pCtlDataInfo, COMMIT_BOTH_REQ) < 0)
+        post = true;
+    }
+  }
+
+  // need post
+  if(post)
+    tsem_post(&(pRepo->readyToCommit));
+
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
   return 0;
@@ -331,7 +368,7 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
 int tsdbSyncCommit(STsdbRepo *repo) {
   STsdbRepo *pRepo = repo;
 
-  tsdbAsyncCommit(pRepo);
+  tsdbAsyncCommit(pRepo, NULL);
   tsem_wait(&(pRepo->readyToCommit));
   tsem_post(&(pRepo->readyToCommit));
 
@@ -669,6 +706,10 @@ static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
     pBlock->numOfRows = htons(pBlock->numOfRows);
 
     if (pBlock->tid <= 0 || pBlock->tid >= pMeta->maxTables) {
+      if (IS_CONTROL_BLOCK(pBlock)) {
+        // super talbe control block tid == 0
+        continue;
+      }
       tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pRepo), pBlock->uid,
                 pBlock->tid);
       terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
@@ -698,10 +739,13 @@ static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
       }
     }
 
-    tsdbInitSubmitBlkIter(pBlock, &blkIter);
-    while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
-      if (tsdbCheckRowRange(pRepo, pTable, row, minKey, maxKey, now) < 0) {
-        return -1;
+    // check each row time invalid if not control block
+    if (!IS_CONTROL_BLOCK(pBlock)) {
+      tsdbInitSubmitBlkIter(pBlock, &blkIter);
+      while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
+        if (tsdbCheckRowRange(pRepo, pTable, row, minKey, maxKey, now) < 0) {
+          return -1;
+        }
       }
     }
   }
@@ -1077,4 +1121,113 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow r
   pTable->cacheLastConfigVersion = pRepo->cacheLastConfigVersion;
 
   return 0;
+}
+
+// set tid to ptids and return all tables num 
+int32_t tsdbTableGroupInfo(STableGroupInfo* pTableGroup, int32_t * ptids) {
+  int32_t pos = 0;
+  size_t  numOfGroup = taosArrayGetSize(pTableGroup->pGroupList);
+  for (int32_t i = 0; i < numOfGroup; ++i) {
+    SArray* group = taosArrayGetP(pTableGroup->pGroupList, i);
+    size_t  cnt   = taosArrayGetSize(group);
+    for(int32_t j = 0; j < cnt; ++j) {
+      STableKeyInfo* pKeyInfo = (STableKeyInfo*) taosArrayGet(group, j);
+      if (pKeyInfo->pTable != NULL) {
+        if(ptids)
+          ptids[pos] = tsdbTableTid(pKeyInfo->pTable);
+        pos ++;
+      }
+    }
+  }
+  return pos;
+}
+
+// Control Data
+int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmitRspMsg *pRsp, tsem_t** ppSem) {
+  int32_t ret = TSDB_CODE_SUCCESS;
+  SControlData* pCtlData = (SControlData* )pBlock->data;
+
+  // anti-serialize
+  pCtlData->command  = htonl(pCtlData->command);
+  pCtlData->win.skey = htobe64(pCtlData->win.skey);
+  pCtlData->win.ekey = htobe64(pCtlData->win.ekey);
+  pCtlData->tagCondLen = htonl(pCtlData->tagCondLen);
+
+  // get tables after filter tag condition
+  STableGroupInfo tableGroupInfo = {0};
+  tableGroupInfo.sVersion = -1;
+  tableGroupInfo.tVersion = -1;
+  
+  // get del tables tid
+  int32_t tnum;
+  if (pCtlData->command & FLAG_SUPER_TABLE) {
+    // super table
+    ret = tsdbQuerySTableByTagCond(pRepo, pBlock->uid, pCtlData->win.skey, pCtlData->tagCond, pCtlData->tagCondLen, &tableGroupInfo, NULL, 0);
+    if (ret != TSDB_CODE_SUCCESS) {
+      tsdbError(":SDEL vgId:%d failed to get child tables id from stable with tag condition. uid=%" PRIu64, REPO_ID(pRepo), pBlock->uid);
+      if(tableGroupInfo.pGroupList)
+        tsdbDestroyTableGroup(&tableGroupInfo);
+      return ret;
+    }
+
+    tnum = tsdbTableGroupInfo(&tableGroupInfo, NULL);
+    if (tnum == 0) {
+      tsdbWarn(":SDEL vgId:%d super table no child tables after filter by tag. uid=%" PRIu64, REPO_ID(pRepo), pBlock->uid);
+      if(tableGroupInfo.pGroupList)
+        tsdbDestroyTableGroup(&tableGroupInfo);
+      return TSDB_CODE_SUCCESS;
+    }
+  } else {
+    // single table
+    tnum = 1;
+  }
+
+  // if need response (pRsp not null) , malloc ppSem for async wait response
+  if (ppSem && pRsp) {
+    *ppSem = (tsem_t* )tmalloc(sizeof(tsem_t));
+    ret = tsem_init(*ppSem, 0, 0);
+    if(ret != 0) {
+      if(tableGroupInfo.pGroupList)
+        tsdbDestroyTableGroup(&tableGroupInfo);
+      return TAOS_SYSTEM_ERROR(ret);
+    }
+  }
+
+  // server data set 
+  size_t nsize = sizeof(SControlDataInfo) + tnum * sizeof(int32_t);
+  SControlDataInfo* pNew = (SControlDataInfo* )tmalloc(nsize);
+  memset(pNew, 0, nsize);
+  pNew->win     = pCtlData->win;
+  pNew->command = pCtlData->command;
+  pNew->pRsp    = pRsp;
+  if (ppSem)
+     pNew->pSem = *ppSem;
+  
+  // tids
+  pNew->tnum = tnum;
+  // copy tid
+  if (pCtlData->command & FLAG_SUPER_TABLE) {
+    tsdbTableGroupInfo(&tableGroupInfo, pNew->tids);
+  } else {
+    pNew->tids[0] = pBlock->tid;
+  }
+
+  if(pCtlData->command & CMD_DELETE_DATA) {
+    // malloc new to pass commit thread
+    ret = tsdbAsyncCommit(pRepo, pNew);
+  }
+
+  // if async post failed , must set wait event ppSem NULL
+  if(ret != TSDB_CODE_SUCCESS) {
+    if(*ppSem) {
+      tsem_destroy(*ppSem);
+      *ppSem = NULL;
+    }
+    tfree(pNew);
+  }
+  
+  if(tableGroupInfo.pGroupList)
+    tsdbDestroyTableGroup(&tableGroupInfo);
+
+  return ret;
 }

@@ -303,11 +303,11 @@ class TDTestCase:
         tdSql.checkRows(10)
 
         # > for binary type on tag
-        tdSql.query("select * from st where tagcol3 > '表'")
+        tdSql.query("select * from st where tagcol3 < '表'")
         tdSql.checkRows(10)
 
         # >= for binary type on tag
-        tdSql.query("select * from st where tagcol3 >= '表'")
+        tdSql.query("select * from st where tagcol3 <= '表'")
         tdSql.checkRows(10)
 
         # = for binary type on tag

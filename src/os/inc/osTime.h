@@ -77,6 +77,15 @@ static FORCE_INLINE int64_t taosGetTimestamp(int32_t precision) {
   }
 }
 
+//@return timestamp of today at 00:00:00 in seconds
+static FORCE_INLINE int64_t taosGetTimestampToday() {
+  time_t t = time(NULL);
+  struct tm * tm= localtime(&t);
+  tm->tm_hour = 0;
+  tm->tm_min = 0;
+  tm->tm_sec = 0;
+  return (int64_t)mktime(tm);
+}
 
 typedef struct SInterval {
   int32_t tz;            // query client timezone

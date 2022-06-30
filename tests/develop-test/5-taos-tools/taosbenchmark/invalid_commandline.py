@@ -28,34 +28,57 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
+    def getPath(self, tool="taosBenchmark"):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+
+        paths = []
+        for root, dirs, files in os.walk(projPath):
+            if ((tool) in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    paths.append(os.path.join(root, tool))
+                    break
+        if (len(paths) == 0):
+            tdLog.exit("taosBenchmark not found!")
+            return
+        else:
+            tdLog.info("taosBenchmark found in %s" % paths[0])
+            return paths[0]
+
     def run(self):
-        cmd = "taosBenchmark -F abc -P abc -I abc -T abc -i abc -S abc -B abc -r abc -t abc -n abc -l abc -w abc -w 16385 -R abc -O abc -a abc -n 2 -t 2 -r 1 -y"
+        binPath = self.getPath()
+        cmd = "%s -F abc -P abc -I abc -T abc -H abc -i abc -S abc -B abc -r abc -t abc -n abc -l abc -w abc -w 16385 -R abc -O abc -a abc -n 2 -t 2 -r 1 -y" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 4)
 
-        cmd = "taosBenchmark non_exist_opt"
+        cmd = "%s non_exist_opt" %binPath
         tdLog.info("%s" % cmd)
         assert (os.system("%s" % cmd) != 0)
 
-        cmd = "taosBenchmark -f non_exist_file"
+        cmd = "%s -f non_exist_file" %binPath
         tdLog.info("%s" % cmd)
         assert (os.system("%s" % cmd) != 0)
 
-        cmd = "taosBenchmark -h non_exist_host"
+        cmd = "%s -h non_exist_host" %binPath
         tdLog.info("%s" % cmd)
         assert (os.system("%s" % cmd) != 0)
 
-        cmd = "taosBenchmark -p non_exist_pass"
+        cmd = "%s -p non_exist_pass" %binPath
         tdLog.info("%s" % cmd)
         assert (os.system("%s" % cmd) != 0)
 
-        cmd = "taosBenchmark -u non_exist_user"
+        cmd = "%s -u non_exist_user" %binPath
         tdLog.info("%s" % cmd)
         assert (os.system("%s" % cmd) != 0)
 
-        cmd = "taosBenchmark -c non_exist_dir -n 1 -t 1 -o non_exist_path -y"
+        cmd = "%s -c non_exist_dir -n 1 -t 1 -o non_exist_path -y" %binPath
         tdLog.info("%s" % cmd)
         assert (os.system("%s" % cmd) == 0)
 

@@ -13,6 +13,7 @@ osType=$5
 verMode=$6
 verType=$7
 pagMode=$8
+dbName=$9
 
 productName="TDengine"
 clientName="taos"
@@ -62,7 +63,7 @@ else
 fi
 
 header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
-if [ "$verMode" == "cluster" ]; then
+if [ "$dbName" != "taos" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
 else
   cfg_dir="${top_dir}/packaging/cfg"
@@ -126,24 +127,60 @@ if [ "$osType" == "Darwin" ]; then
   sed 's/osType=Linux/osType=Darwin/g' ${install_dir}/install_client.sh >>install_client_temp.sh
   mv install_client_temp.sh ${install_dir}/install_client.sh
 fi
+
+if [ "$verMode" == "cluster" ]; then
+  sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/install_client.sh >>install_client_temp.sh
+  mv install_client_temp.sh ${install_dir}/install_client.sh
+fi
+
 if [ "$pagMode" == "lite" ]; then
   sed 's/pagMode=full/pagMode=lite/g' ${install_dir}/install_client.sh >>install_client_temp.sh
   mv install_client_temp.sh ${install_dir}/install_client.sh
 fi
 chmod a+x ${install_dir}/install_client.sh
 
-# Copy example code
-mkdir -p ${install_dir}/examples
-examples_dir="${top_dir}/tests/examples"
-cp -r ${examples_dir}/c ${install_dir}/examples
-if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-  cp -r ${examples_dir}/JDBC ${install_dir}/examples
-  cp -r ${examples_dir}/matlab ${install_dir}/examples
-  cp -r ${examples_dir}/python ${install_dir}/examples
-  cp -r ${examples_dir}/R ${install_dir}/examples
-  cp -r ${examples_dir}/go ${install_dir}/examples
-  cp -r ${examples_dir}/nodejs ${install_dir}/examples
-  cp -r ${examples_dir}/C# ${install_dir}/examples
+if [[ $productName == "TDengine" ]]; then
+  # Copy example code
+  mkdir -p ${install_dir}/examples
+  examples_dir="${top_dir}/examples"
+  cp -r ${examples_dir}/c ${install_dir}/examples
+  if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
+    cp -r ${examples_dir}/JDBC ${install_dir}/examples
+    cp -r ${examples_dir}/matlab ${install_dir}/examples
+    cp -r ${examples_dir}/python ${install_dir}/examples
+    cp -r ${examples_dir}/R ${install_dir}/examples
+    cp -r ${examples_dir}/go ${install_dir}/examples
+    cp -r ${examples_dir}/nodejs ${install_dir}/examples
+    cp -r ${examples_dir}/C# ${install_dir}/examples
+    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../src/kit/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
+  fi
+
+  if [ "$verMode" == "cluster" ]; then
+      # Copy connector
+      connector_dir="${code_dir}/connector"
+      mkdir -p ${install_dir}/connector
+      if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
+          if [ "$osType" != "Darwin" ]; then
+              cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
+          fi
+          if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
+              cp -r ${connector_dir}/go ${install_dir}/connector
+          else
+              echo "WARNING: go connector not found, please check if want to use it!"
+          fi
+          git clone --depth 1 https://github.com/taosdata/taos-connector-python ${install_dir}/connector/python
+          rm -rf ${install_dir}/connector/python/.git ||:
+#          cp -r ${connector_dir}/python ${install_dir}/connector
+          git clone --depth 1 https://github.com/taosdata/taos-connector-node ${install_dir}/connector/nodejs
+          rm -rf ${install_dir}/connector/nodejs/.git ||:
+
+          git clone --depth 1 https://github.com/taosdata/taos-connector-dotnet ${install_dir}/connector/dotnet
+          rm -rf ${install_dir}/connector/dotnet/.git ||:
+#          cp -r ${connector_dir}/nodejs ${install_dir}/connector
+          git clone --depth 1 https://github.com/taosdata/libtaos-rs ${install_dir}/connector/rust
+          rm -rf ${install_dir}/connector/rust/.git ||:
+      fi
+  fi
 fi
 # Copy driver
 mkdir -p ${install_dir}/driver

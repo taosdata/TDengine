@@ -39,8 +39,8 @@ class TDTestCase:
         return buildPath
 
     def isLuaInstalled(self):
-        if not which('lua'):
-            tdLog.exit("Lua not found!")
+        if not which('lua5.3'):
+            tdLog.log("Lua 5.3 not found!")
             return False
         else:
             return True
@@ -57,12 +57,13 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
 
-        targetPath = buildPath + "/../tests/examples/lua"
+        targetPath = buildPath + "/../examples/lua"
         tdLog.info(targetPath)
         currentPath = os.getcwd()
         os.chdir(targetPath)
         os.system('./build.sh')
-        os.system('lua test.lua')
+        os.system('lua5.3 test.lua')
+        os.chdir(currentPath)
 
     def stop(self):
         tdSql.close()

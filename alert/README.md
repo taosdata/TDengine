@@ -1,6 +1,6 @@
 # Alert
 
-The Alert application reads data from [TDEngine](https://www.taosdata.com/), calculating according to predefined rules to generate alerts, and pushes alerts to downstream applications like [AlertManager](https://github.com/prometheus/alertmanager).
+The Alert application reads data from [TDengine](https://www.taosdata.com/), calculating according to predefined rules to generate alerts, and pushes alerts to downstream applications like [AlertManager](https://github.com/prometheus/alertmanager).
 
 ## Install
 
@@ -22,7 +22,7 @@ $ ./install_driver.sh
 
 Two prerequisites are required to install from source.
 
-1. TDEngine server or client must be installed.
+1. TDengine server or client must be installed.
 2. Latest [Go](https://golang.org) language must be installed.
 
 When these two prerequisites are ready, please follow steps below to build the application:
@@ -61,13 +61,13 @@ The use of each configuration item is:
 
 * **port**: This is the `http` service port which enables other application to manage rules by `restful API`.
 * **database**: rules are stored in a `sqlite` database, this is the path of the database file (if the file does not exist, the alert application creates it automatically).
-* **tdengine**: connection string of `TDEngine` server (please refer the documentation of GO connector for the detailed format of this string), note the database name should be put in the `sql` field of a rule in most cases, thus it should NOT be included in the string.
+* **tdengine**: connection string of `TDengine` server (please refer the documentation of GO connector for the detailed format of this string), note the database name should be put in the `sql` field of a rule in most cases, thus it should NOT be included in the string.
 * **log > level**: log level, could be `production` or `debug`.
 * **log > path**: log output file path.
 * **receivers > alertManager**: the alert application pushes alerts to `AlertManager` at this URL.
 * **receivers > console**: print out alerts to console (stdout) or not.
 
-When the configruation file is ready, the alert application can be started with below command (`alert.cfg` is the path of the configuration file):
+When the configuration file is ready, the alert application can be started with below command (`alert.cfg` is the path of the configuration file):
 
 ```
 $ ./alert -cfg alert.cfg
@@ -75,7 +75,7 @@ $ ./alert -cfg alert.cfg
 
 ## Prepare an alert rule
 
-From technical aspect, an alert could be defined as: query and filter recent data from `TDEngine`, and calculating out a boolean value from these data according to a formula, and trigger an alert if the boolean value last for a certain duration.
+From technical aspect, an alert could be defined as: query and filter recent data from `TDengine`, and calculating out a boolean value from these data according to a formula, and trigger an alert if the boolean value last for a certain duration.
 
 This is a rule example in `json` format:
 
@@ -98,8 +98,8 @@ This is a rule example in `json` format:
 The fields of the rule is explained below:
 
 * **name**: the name of the rule, must be unique.
-* **sql**: this is the `sql` statement used to query data from `TDEngine`, columns of the query result are used in later processing, so please give the column an alias if aggregation functions are used.
-* **expr**: an expression whose result is a boolean value, arithmatic and logical calculations can be included in the expression, and builtin functions (see below) are also supported. Alerts are only triggered when the expression evaluates to `true`.
+* **sql**: this is the `sql` statement used to query data from `TDengine`, columns of the query result are used in later processing, so please give the column an alias if aggregation functions are used.
+* **expr**: an expression whose result is a boolean value, arithmetic and logical calculations can be included in the expression, and builtin functions (see below) are also supported. Alerts are only triggered when the expression evaluates to `true`.
 * **for**: this item is a duration which default value is zero second. when `expr` evaluates to `true` and last at least this duration, an alert is triggered.
 * **period**: the interval for the alert application to check the rule, default is 1 minute.
 * **labels**: a label list, labels are used to generate alert information. note if the `sql` statement includes a `group by` clause, the `group by` columns are inserted into this list automatically.

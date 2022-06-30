@@ -319,6 +319,7 @@ typedef struct {
 
   TAOS_FIELD*    final;
   struct SGlobalMerger *pMerger;
+  int32_t        numOfTables;
 } SSqlRes;
 
 typedef struct {
@@ -330,7 +331,7 @@ typedef struct STscObj {
   void *             signature;
   void *             pTimer;
   char               user[TSDB_USER_LEN];
-  char               pass[TSDB_KEY_LEN];
+  char               pass[TSDB_PASS_LEN];
   char               acctId[TSDB_ACCT_ID_LEN];
   char               db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   char               sversion[TSDB_VERSION_LEN];
@@ -404,6 +405,10 @@ typedef struct SSqlStream {
   bool     isProject;
   int16_t  precision;
   int64_t  num;  // number of computing count
+
+  int32_t dstCols;  // dstTable has number of columns 
+  char*   to;
+  char*   split;
 
   /*
    * keep the number of current result in computing,
@@ -484,6 +489,8 @@ TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, 
                      void *param, TAOS **taos);
 TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, int64_t* res);
 TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param);
+// get taos connection unused session number
+int32_t taos_unused_session(TAOS* taos);
 
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
 
@@ -492,6 +499,7 @@ void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *para
 void tscImportDataFromFile(SSqlObj *pSql);
 struct SGlobalMerger* tscInitResObjForLocalQuery(int32_t numOfRes, int32_t rowLen, uint64_t id);
 bool tscIsUpdateQuery(SSqlObj* pSql);
+bool tscIsDeleteQuery(SSqlObj* pSql);
 char* tscGetSqlStr(SSqlObj* pSql);
 bool tscIsQueryWithLimit(SSqlObj* pSql);
 
