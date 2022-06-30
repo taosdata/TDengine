@@ -44,6 +44,7 @@ void static addDbPrecisonParam(SNodeList** pList, uint8_t precision) {
   pVal->literal = NULL;
   pVal->isDuration = false;
   pVal->translate = true;
+  pVal->notReserved = true;
   pVal->node.resType.type = TSDB_DATA_TYPE_TINYINT;
   pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TINYINT].bytes;
   pVal->node.resType.precision = precision;
@@ -1015,6 +1016,10 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
   if (!IS_NUMERIC_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
+
+  //add database precision as param
+  uint8_t dbPrec = pFunc->node.resType.precision;
+  addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   return TSDB_CODE_SUCCESS;

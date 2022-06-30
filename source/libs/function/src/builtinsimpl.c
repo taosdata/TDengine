@@ -5598,7 +5598,7 @@ int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
 
   SRateInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  double result = doCalcRate(pInfo, 1000);
+  double result = doCalcRate(pInfo, (double)TSDB_TICK_PER_SECOND(pCtx->param[1].param.i));
   colDataAppend(pCol, pBlock->info.rows, (const char*)&result, pResInfo->isNullRes);
 
   return pResInfo->numOfRes;
