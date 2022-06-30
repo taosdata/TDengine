@@ -4312,6 +4312,7 @@ int32_t tSerializeSSchedulerHbRsp(void *buf, int32_t bufLen, SSchedulerHbRsp *pR
       if (tEncodeU64(&encoder, status->queryId) < 0) return -1;
       if (tEncodeU64(&encoder, status->taskId) < 0) return -1;
       if (tEncodeI64(&encoder, status->refId) < 0) return -1;
+      if (tEncodeI32(&encoder, status->execId) < 0) return -1;
       if (tEncodeI8(&encoder, status->status) < 0) return -1;
     }
   } else {
@@ -4342,6 +4343,7 @@ int32_t tDeserializeSSchedulerHbRsp(void *buf, int32_t bufLen, SSchedulerHbRsp *
       if (tDecodeU64(&decoder, &status.queryId) < 0) return -1;
       if (tDecodeU64(&decoder, &status.taskId) < 0) return -1;
       if (tDecodeI64(&decoder, &status.refId) < 0) return -1;
+      if (tDecodeI32(&decoder, &status.execId) < 0) return -1;
       if (tDecodeI8(&decoder, &status.status) < 0) return -1;
       taosArrayPush(pRsp->taskStatus, &status);
     }

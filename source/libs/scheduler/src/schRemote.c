@@ -379,13 +379,13 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   
   SCH_TASK_DLOG("rsp msg received, type:%s, handle:%p, code:%s", TMSG_INFO(msgType), pMsg->handle, tstrerror(rspCode));
 
-  if (pParam->execIdx != pTask->execIdx) {
-    SCH_TASK_DLOG("execIdx %d mis-match current execIdx %d", pParam->execIdx, pTask->execIdx);
+  if (pParam->execId != pTask->execId) {
+    SCH_TASK_DLOG("execId %d mis-match current execId %d", pParam->execId, pTask->execId);
     goto _return;
   }
 
   bool dropExecNode = (msgType == TDMT_SCH_LINK_BROKEN || SCH_NETWORK_ERR(rspCode));
-  SCH_ERR_JRET(schUpdateTaskHandle(pJob, pTask, dropExecNode, pMsg->handle, pParam->execIdx));
+  SCH_ERR_JRET(schUpdateTaskHandle(pJob, pTask, dropExecNode, pMsg->handle, pParam->execId));
 
   int8_t  status = 0;
   if (schJobNeedToStop(pJob, &status)) {
@@ -401,7 +401,7 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
     goto _return;
   }
   
-  SCH_ERR_JRET(schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode));
+  code = schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode);
   pMsg->pData = NULL;
 
 _return:
@@ -458,7 +458,7 @@ int32_t schMakeCallbackParam(SSchJob *pJob, SSchTask *pTask, int32_t msgType, bo
     param->refId = pJob->refId;
     param->taskId = SCH_TASK_ID(pTask);
     param->pTrans = pJob->conn.pTrans;
-    param->execIdx = pTask->execIdx;
+    param->execId = pTask->execId;
     *pParam = param;
 
     return TSDB_CODE_SUCCESS;
@@ -1015,6 +1015,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       pMsg->queryId = htobe64(pJob->queryId);
       pMsg->taskId = htobe64(pTask->taskId);
       pMsg->refId = htobe64(pJob->refId);
+      pMsg->execId = htonl(pTask->execId);
       pMsg->taskType = TASK_TYPE_TEMP;
       pMsg->explain = SCH_IS_EXPLAIN_JOB(pJob);
       pMsg->phyLen = htonl(pTask->msgLen);
@@ -1041,6 +1042,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       pMsg->sId = htobe64(schMgmt.sId);
       pMsg->queryId = htobe64(pJob->queryId);
       pMsg->taskId = htobe64(pTask->taskId);
+      pMsg->execId = htonl(pTask->execId);
 
       break;
     }
@@ -1060,6 +1062,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       pMsg->queryId = htobe64(pJob->queryId);
       pMsg->taskId = htobe64(pTask->taskId);
       pMsg->refId = htobe64(pJob->refId);
+      pMsg->execId = htobe64(pTask->execId);
       break;
     }
     case TDMT_SCH_QUERY_HEARTBEAT: {
@@ -1102,7 +1105,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
                                (rpcCtx.args ? &rpcCtx : NULL)));
 
   if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY) {
-    SCH_ERR_RET(schAppendTaskExecNode(pJob, pTask, addr, pTask->execIdx));
+    SCH_ERR_RET(schAppendTaskExecNode(pJob, pTask, addr, pTask->execId));
   }
 
   return TSDB_CODE_SUCCESS;

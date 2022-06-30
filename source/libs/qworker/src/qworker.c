@@ -168,7 +168,7 @@ int32_t qwGenerateSchHbRsp(SQWorker *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo)
 
     // TODO GET EXECUTOR API TO GET MORE INFO
 
-    QW_GET_QTID(key, status.queryId, status.taskId);
+    QW_GET_QTID(key, status.queryId, status.taskId, status.execId);
     status.status = taskStatus->status;
     status.refId = taskStatus->refId;
 
@@ -493,7 +493,9 @@ int32_t qwPrerocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   QW_ERR_JRET(qwRegisterQueryBrokenLinkArg(QW_FPARAMS(), &qwMsg->connInfo));
 
-  QW_ERR_JRET(qwAddAcquireTaskCtx(QW_FPARAMS(), &ctx));
+  QW_ERR_JRET(qwAddTaskCtx(QW_FPARAMS()));
+
+  QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
   ctx->ctrlConnInfo = qwMsg->connInfo;
 
@@ -561,6 +563,33 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
     qwSaveTbVersionInfo(pTaskInfo, ctx);
     QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL));
   }
+
+
+  if (gQWDebug.tmp) {
+#if 0  
+    SEpSet epSet = {0};
+    epSet.inUse = 1;
+    epSet.numOfEps = 3;
+    strcpy(epSet.eps[0].fqdn, "localhost");
+    epSet.eps[0].port = 7100;
+    strcpy(epSet.eps[1].fqdn, "localhost");
+    epSet.eps[1].port = 7200;
+    strcpy(epSet.eps[2].fqdn, "localhost");
+    epSet.eps[2].port = 7300;
+    
+    qwDbgBuildAndSendRedirectRsp(pMsg->msgType + 1, &pMsg->info, TSDB_CODE_RPC_REDIRECT, &epSet);
+    gQWDebug.tmp = false;
+    return TSDB_CODE_SUCCESS;
+#else
+    if (TDMT_SCH_MERGE_QUERY == qwMsg->msgType) {
+      ctx->phase = QW_PHASE_POST_QUERY;
+      qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_RPC_REDIRECT, NULL);
+      gQWDebug.tmp = false;
+      return TSDB_CODE_SUCCESS;
+    }
+#endif
+  }
+
 
 _return:
 
@@ -733,8 +762,6 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   bool        rsped = false;
   SQWTaskCtx *ctx = NULL;
   bool        locked = false;
-
-  // TODO : TASK ALREADY REMOVED AND A NEW DROP MSG RECEIVED
 
   QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 

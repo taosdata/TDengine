@@ -156,6 +156,41 @@ int32_t qwBuildAndSendDropRsp(SRpcHandleInfo *pConn, int32_t code) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qwBuildAndSendDropMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
+  STaskDropReq *req = (STaskDropReq *)rpcMallocCont(sizeof(STaskDropReq));
+  if (NULL == req) {
+    QW_SCH_TASK_ELOG("rpcMallocCont %d failed", (int32_t)sizeof(STaskDropReq));
+    QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  req->header.vgId = mgmt->nodeId;
+  req->sId = sId;
+  req->queryId = qId;
+  req->taskId = tId;
+  req->refId = rId;
+  req->execId = eId;
+
+  SRpcMsg pNewMsg = {
+      .msgType = TDMT_SCH_DROP_TASK,
+      .pCont = req,
+      .contLen = sizeof(STaskDropReq),
+      .code = 0,
+      .info = *pConn,
+  };
+
+  int32_t code = tmsgPutToQueue(&mgmt->msgCb, FETCH_QUEUE, &pNewMsg);
+  if (TSDB_CODE_SUCCESS != code) {
+    QW_SCH_TASK_ELOG("put drop task msg to queue failed, vgId:%d, code:%s", mgmt->nodeId, tstrerror(code));
+    rpcFreeCont(req);
+    QW_ERR_RET(code);
+  }
+
+  QW_SCH_TASK_DLOG("drop task msg put to queue, vgId:%d", mgmt->nodeId);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   SQueryContinueReq *req = (SQueryContinueReq *)rpcMallocCont(sizeof(SQueryContinueReq));
   if (NULL == req) {
@@ -167,6 +202,7 @@ int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   req->sId = sId;
   req->queryId = qId;
   req->taskId = tId;
+  req->execId = eId;
 
   SRpcMsg pNewMsg = {
       .msgType = TDMT_SCH_QUERY_CONTINUE,
@@ -266,6 +302,7 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg) {
   msg->queryId = be64toh(msg->queryId);
   msg->taskId = be64toh(msg->taskId);
   msg->refId = be64toh(msg->refId);
+  msg->execId = ntohl(msg->execId);
   msg->phyLen = ntohl(msg->phyLen);
   msg->sqlLen = ntohl(msg->sqlLen);
 
@@ -273,6 +310,7 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg) {
   uint64_t qId = msg->queryId;
   uint64_t tId = msg->taskId;
   int64_t  rId = msg->refId;
+  int32_t  eId = msg->execId;
 
   SQWMsg qwMsg = {.msg = msg->msg + msg->sqlLen, .msgLen = msg->phyLen, .connInfo = pMsg->info};
 
@@ -295,6 +333,7 @@ int32_t qWorkerAbortPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg) {
   uint64_t qId = msg->queryId;
   uint64_t tId = msg->taskId;
   int64_t  rId = msg->refId;
+  int32_t  eId = msg->execId;
 
   QW_SCH_TASK_DLOG("Abort prerocessQuery start, handle:%p", pMsg->info.handle);
   qwAbortPrerocessQuery(QW_FPARAMS());
@@ -324,6 +363,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   uint64_t qId = msg->queryId;
   uint64_t tId = msg->taskId;
   int64_t  rId = msg->refId;
+  int32_t  eId = msg->execId;
 
   SQWMsg qwMsg = {.node = node, .msg = msg->msg + msg->sqlLen, .msgLen = msg->phyLen, .connInfo = pMsg->info, .msgType = pMsg->msgType};
   char * sql = strndup(msg->msg, msg->sqlLen);
@@ -356,6 +396,7 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
   uint64_t qId = msg->queryId;
   uint64_t tId = msg->taskId;
   int64_t  rId = 0;
+  int32_t  eId = msg->execId;
 
   SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .connInfo = pMsg->info};
 
@@ -387,11 +428,13 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   msg->sId = be64toh(msg->sId);
   msg->queryId = be64toh(msg->queryId);
   msg->taskId = be64toh(msg->taskId);
+  msg->execId = ntohl(msg->execId);
 
   uint64_t sId = msg->sId;
   uint64_t qId = msg->queryId;
   uint64_t tId = msg->taskId;
   int64_t  rId = 0;
+  int32_t  eId = msg->execId;
 
   SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .connInfo = pMsg->info};
 
@@ -476,11 +519,13 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int6
   msg->queryId = be64toh(msg->queryId);
   msg->taskId = be64toh(msg->taskId);
   msg->refId = be64toh(msg->refId);
+  msg->execId = ntohl(msg->execId);
 
   uint64_t sId = msg->sId;
   uint64_t qId = msg->queryId;
   uint64_t tId = msg->taskId;
   int64_t  rId = msg->refId;
+  int32_t  eId = msg->execId;
 
   SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .code = pMsg->code, .connInfo = pMsg->info};
 
@@ -553,6 +598,7 @@ int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SR
   uint64_t qId = req.queryId;
   uint64_t tId = req.taskId;
   int64_t  rId = 0;
+  int32_t  eId = 0;
 
   SQWMsg qwMsg = {.node = node, .msg = req.msg, .msgLen = req.phyLen, .connInfo = pMsg->info};
   QW_SCH_TASK_DLOG("processDelete start, node:%p, handle:%p, sql:%s", node, pMsg->info.handle, req.sql);

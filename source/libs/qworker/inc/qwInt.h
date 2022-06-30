@@ -75,6 +75,7 @@ typedef struct SQWDebug {
   bool lockEnable;
   bool statusEnable;
   bool dumpEnable;
+  bool tmp;
 } SQWDebug;
 
 extern SQWDebug gQWDebug;
@@ -122,6 +123,7 @@ typedef struct SQWTaskCtx {
   int8_t   taskType;
   int8_t   explain;
   int32_t  queryType;
+  int32_t  execId;
 
   bool    queryFetched;
   bool    queryEnd;
@@ -200,8 +202,8 @@ typedef struct SQWorkerMgmt {
   int32_t    paramIdx;
 } SQWorkerMgmt;
 
-#define QW_FPARAMS_DEF SQWorker *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId
-#define QW_IDS()       sId, qId, tId, rId
+#define QW_FPARAMS_DEF SQWorker *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId
+#define QW_IDS()       sId, qId, tId, rId, eId
 #define QW_FPARAMS()   mgmt, QW_IDS()
 
 #define QW_STAT_INC(_item, _n) atomic_add_fetch_64(&(_item), _n)
@@ -226,15 +228,18 @@ typedef struct SQWorkerMgmt {
 #define QW_TASK_READY(status)                                                                                      \
   (status == JOB_TASK_STATUS_SUCCEED || status == JOB_TASK_STATUS_FAILED || status == JOB_TASK_STATUS_CANCELLED || \
    status == JOB_TASK_STATUS_PARTIAL_SUCCEED)
-#define QW_SET_QTID(id, qId, tId)                      \
-  do {                                                 \
-    *(uint64_t *)(id) = (qId);                         \
-    *(uint64_t *)((char *)(id) + sizeof(qId)) = (tId); \
+#define QW_SET_QTID(id, qId, tId, eId)                              \
+  do {                                                              \
+    *(uint64_t *)(id) = (qId);                                      \
+    *(uint64_t *)((char *)(id) + sizeof(qId)) = (tId);              \
+    *(int32_t *)((char *)(id) + sizeof(qId) + sizeof(tId)) = (eId); \
   } while (0)
-#define QW_GET_QTID(id, qId, tId)                      \
-  do {                                                 \
-    (qId) = *(uint64_t *)(id);                         \
-    (tId) = *(uint64_t *)((char *)(id) + sizeof(qId)); \
+  
+#define QW_GET_QTID(id, qId, tId, eId)                              \
+  do {                                                              \
+    (qId) = *(uint64_t *)(id);                                      \
+    (tId) = *(uint64_t *)((char *)(id) + sizeof(qId));              \
+    (eId) = *(int32_t *)((char *)(id) + sizeof(qId) + sizeof(tId)); \
   } while (0)
 
 #define QW_ERR_RET(c)                 \
@@ -365,6 +370,8 @@ void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
 
 void qwDbgDumpMgmtInfo(SQWorker *mgmt);
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore);
+int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, SEpSet *pEpSet);
+int32_t qwAddTaskCtx(QW_FPARAMS_DEF);
 
 
 #ifdef __cplusplus
