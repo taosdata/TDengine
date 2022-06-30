@@ -160,9 +160,9 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SNod
     return SCAN_TYPE_STREAM;
   }
 
-  if (pSelect->hasLastRowFunc) {
-    return SCAN_TYPE_LAST_ROW;
-  }
+  // if (pSelect->hasLastRowFunc) {
+  //   return SCAN_TYPE_LAST_ROW;
+  // }
 
   if (NULL == pScanCols) {
     // select count(*) from t
@@ -473,6 +473,8 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   if (NULL == pAgg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  pAgg->hasLastRow = pSelect->hasLastRowFunc;
 
   int32_t code = TSDB_CODE_SUCCESS;
 

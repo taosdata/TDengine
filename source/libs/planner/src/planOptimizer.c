@@ -1616,6 +1616,46 @@ static int32_t rewriteUniqueOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   return rewriteUniqueOptimizeImpl(pCxt, pLogicSubplan, pIndef);
 }
 
+static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || !(((SAggLogicNode*)pNode)->hasLastRow) ||
+      NULL != ((SAggLogicNode*)pNode)->pGroupKeys || 1 != LIST_LENGTH(pNode->pChildren) ||
+      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0)) ||
+      NULL != ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->node.pConditions) {
+    return false;
+  }
+
+  SNode* pFunc = NULL;
+  FOREACH(pFunc, ((SAggLogicNode*)pNode)->pAggFuncs) {
+    if (FUNCTION_TYPE_LAST_ROW != ((SFunctionNode*)pFunc)->funcType) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SAggLogicNode* pAgg = (SAggLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, lastRowScanOptMayBeOptimized);
+
+  if (NULL == pAgg) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pAgg->pAggFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    int32_t        len = snprintf(pFunc->functionName, sizeof(pFunc->functionName), "_cache_last_row");
+    pFunc->functionName[len] = '\0';
+    fmGetFuncInfo(pFunc, NULL, 0);
+  }
+  pAgg->hasLastRow = false;
+
+  ((SScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0))->scanType = SCAN_TYPE_LAST_ROW;
+
+  pCxt->optimized = true;
+  return TSDB_CODE_SUCCESS;
+}
+
 // merge projects
 static bool mergeProjectsMayBeOptimized(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren)) {
@@ -1704,7 +1744,8 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "EliminateProject",           .optimizeFunc = eliminateProjOptimize},
   {.pName = "EliminateSetOperator",       .optimizeFunc = eliminateSetOpOptimize},
   {.pName = "RewriteTail",                .optimizeFunc = rewriteTailOptimize},
-  {.pName = "RewriteUnique",              .optimizeFunc = rewriteUniqueOptimize}
+  {.pName = "RewriteUnique",              .optimizeFunc = rewriteUniqueOptimize},
+  {.pName = "LastRowScan",                .optimizeFunc = lastRowScanOptimize}
 };
 // clang-format on
 
