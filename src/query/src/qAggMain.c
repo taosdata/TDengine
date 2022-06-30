@@ -1431,6 +1431,7 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
 #endif
 
         if ((*data < val) ^ isMin) {
+          pCtx->updateIndex = true;
           *data = (int32_t)val;
           for (int32_t i = 0; i < (pCtx)->tagInfo.numOfTagCols; ++i) {
             SQLFunctionCtx *__ctx = pCtx->tagInfo.pTagCtxList[i];
@@ -1490,13 +1491,17 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
     } else if (pCtx->inputType == TSDB_DATA_TYPE_INT) {
       int32_t *pData = p;
       int32_t *retVal = (int32_t*) pOutput;
+      int32_t updateCount = 0;
 
       for (int32_t i = 0; i < pCtx->size; ++i) {
         if (pCtx->hasNull && isNull((const char*)&pData[i], pCtx->inputType)) {
           continue;
         }
 
+        pCtx->updateIndex = false;
+
         if ((*retVal < pData[i]) ^ isMin) {
+          pCtx->updateIndex = true;
           *retVal = pData[i];
           if(tsList) {
             TSKEY k = tsList[i];
@@ -1504,7 +1509,21 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
           }
         }
         *notNullElems += 1;
+
+        if (!pCtx->preAggVals.isSet) {
+          if (pCtx->updateIndex) {
+            if (isMin && pCtx->preAggVals.statis.minIndex != i) {
+              pCtx->preAggVals.statis.minIndex = i;
+            }
+            if (!isMin && pCtx->preAggVals.statis.maxIndex != i) {
+              pCtx->preAggVals.statis.maxIndex = i;
+            }
+            updateCount++;
+          }
+        }
       }
+
+      pCtx->updateIndex = updateCount > 0 ? true : false;
 #if defined(_DEBUG_VIEW)
       qDebug("max value updated:%d", *retVal);
 #endif
