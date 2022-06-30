@@ -419,8 +419,8 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   assert(functionId != TSDB_FUNC_SCALAR_EXPR);
 
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
-      functionId == TSDB_FUNC_MIN_COL_DUMMY || functionId == TSDB_FUNC_MAX_COL_DUMMY || functionId == TSDB_FUNC_DIFF ||
-      functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP)
+      functionId == TSDB_FUNC_COL_DUMMY || functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_PRJ ||
+      functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP)
   {
     *type = (int16_t)dataType;
     *bytes = dataBytes;
@@ -1028,13 +1028,27 @@ int32_t noDataRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   } while (0)
 
 #define LOOPCHECK_N(val, list, ctx, tsdbType, sign, num)          \
+  int32_t updateCount = 0;                                        \
   for (int32_t i = 0; i < ((ctx)->size); ++i) {                   \
     if ((ctx)->hasNull && isNull((char *)&(list)[i], tsdbType)) { \
       continue;                                                   \
     }                                                             \
     TSKEY key = (ctx)->ptsList != NULL? GET_TS_DATA(ctx, i):0;    \
+    (ctx)->updateIndex = false;                                   \
     UPDATE_DATA(ctx, val, (list)[i], num, sign, key);             \
-  }
+    if (!(ctx)->preAggVals.isSet) {                               \
+      if ((ctx)->updateIndex) {                                   \
+        if (sign && (ctx)->preAggVals.statis.minIndex != i) {     \
+          (ctx)->preAggVals.statis.minIndex = i;                  \
+        }                                                         \
+        if (!sign && (ctx)->preAggVals.statis.maxIndex != i) {    \
+          (ctx)->preAggVals.statis.maxIndex = i;                  \
+        }                                                         \
+        updateCount++;                                            \
+      }                                                           \
+    }                                                             \
+  }                                                               \
+  (ctx)->updateIndex = updateCount > 0 ? true : false;            \
 
 #define TYPED_LOOPCHECK_N(type, data, list, ctx, tsdbType, sign, notNullElems) \
   do {                                                                         \
@@ -3608,22 +3622,20 @@ static char *get_data_by_offset(char *src, int16_t inputType, int32_t inputBytes
   return res;
 }
 
-static void min_row_copy_function(SQLFunctionCtx *pCtx) {
-  int16_t index = pCtx->minRowIndex;
-  if (index < 0 || !pCtx->updateIndex) {
+static void row_copy_function(SQLFunctionCtx *pCtx) {
+  int16_t index;
+
+  if (pCtx->minMaxRowType == FUNC_NOT_VAL || !pCtx->updateIndex) {
     return;
   }
 
-  SET_VAL(pCtx, pCtx->size, 1);
+  if (pCtx->minMaxRowType == FUNC_MIN_ROW) {
+    index = pCtx->minRowIndex;
+  } else {
+    index = pCtx->maxRowIndex;
+  }
 
-  char *pData = GET_INPUT_DATA_LIST(pCtx);
-  pData = get_data_by_offset(pData, pCtx->inputType, pCtx->inputBytes, index);
-  assignVal(pCtx->pOutput, pData, pCtx->inputBytes, pCtx->inputType);
-}
-
-static void max_row_copy_function(SQLFunctionCtx *pCtx) {
-  int16_t index = pCtx->maxRowIndex;
-  if (index < 0 || !pCtx->updateIndex) {
+  if (index < 0) {
     return;
   }
 
@@ -6920,24 +6932,12 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                           },
                           {
                               // 53
-                              "min_col_dummy",
-                              TSDB_FUNC_MIN_COL_DUMMY,
-                              TSDB_FUNC_MIN_COL_DUMMY,
+                              "col_dummy",
+                              TSDB_FUNC_COL_DUMMY,
+                              TSDB_FUNC_COL_DUMMY,
                               TSDB_BASE_FUNC_SO,
                               function_setup,
-                              min_row_copy_function,
-                              doFinalizer,
-                              copy_function,
-                              noDataRequired,
-                          },
-                          {
-                              // 54
-                              "max_col_dummy",
-                              TSDB_FUNC_MAX_COL_DUMMY,
-                              TSDB_FUNC_MAX_COL_DUMMY,
-                              TSDB_BASE_FUNC_SO,
-                              function_setup,
-                              max_row_copy_function,
+                              row_copy_function,
                               doFinalizer,
                               copy_function,
                               noDataRequired,
