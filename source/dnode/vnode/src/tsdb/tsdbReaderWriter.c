@@ -794,7 +794,7 @@ static int32_t tsdbReadColDataImpl(SDataFReader *pReader, SBlockIdx *pBlockIdx, 
   SBlockCol  blockCol;
   SBlockCol *pBlockCol = &blockCol;
   SColData  *pColData;
-  for (int32_t iCol = 0; iCol < nCol; iCol++) {
+  for (int32_t iCol = 1; iCol < nCol; iCol++) {
     int16_t cid = aColId[iCol];
 
     if (tMapDataSearch(&pSubBlock->mBlockCol, &(SBlockCol){.cid = cid}, tGetBlockCol, tBlockColCmprFn, pBlockCol) ==
@@ -809,7 +809,8 @@ static int32_t tsdbReadColDataImpl(SDataFReader *pReader, SBlockIdx *pBlockIdx, 
           if (code) goto _err;
         }
       } else {
-        offset = pSubBlock->offset + sizeof(SBlockDataHdr) + pSubBlock->vsize + pSubBlock->ksize + pBlockCol->offset;
+        offset = pSubBlock->offset + sizeof(SBlockDataHdr) + pSubBlock->vsize + pSubBlock->ksize + sizeof(TSCKSUM) +
+                 pBlockCol->offset;
         size = pBlockCol->bsize + pBlockCol->csize + sizeof(TSCKSUM);
 
         code = tsdbRealloc(ppBuf1, size);
