@@ -1407,7 +1407,11 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     }
 
     SSyncQueryParam* pParam = pRequest->body.param;
-
+    if (NULL == pParam) {
+      pParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
+      tsem_init(&pParam->sem, 0, 0);
+    }
+    
     // convert ucs4 to native multi-bytes string
     pResultInfo->convertUcs4 = convertUcs4;
 
