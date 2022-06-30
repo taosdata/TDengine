@@ -195,38 +195,6 @@ class TDTestCase:
         # return filter(None, sqls)
         return list(filter(None, current_sqls)), list(filter(None, err_sqls))
 
-    def __get_type(self, col):
-        if tdSql.cursor.istype(col, "BOOL"):
-            return "BOOL"
-        if tdSql.cursor.istype(col, "INT"):
-            return "INT"
-        if tdSql.cursor.istype(col, "BIGINT"):
-            return "BIGINT"
-        if tdSql.cursor.istype(col, "TINYINT"):
-            return "TINYINT"
-        if tdSql.cursor.istype(col, "SMALLINT"):
-            return "SMALLINT"
-        if tdSql.cursor.istype(col, "FLOAT"):
-            return "FLOAT"
-        if tdSql.cursor.istype(col, "DOUBLE"):
-            return "DOUBLE"
-        if tdSql.cursor.istype(col, "BINARY"):
-            return "BINARY"
-        if tdSql.cursor.istype(col, "NCHAR"):
-            return "NCHAR"
-        if tdSql.cursor.istype(col, "TIMESTAMP"):
-            return "TIMESTAMP"
-        if tdSql.cursor.istype(col, "JSON"):
-            return "JSON"
-        if tdSql.cursor.istype(col, "TINYINT UNSIGNED"):
-            return "TINYINT UNSIGNED"
-        if tdSql.cursor.istype(col, "SMALLINT UNSIGNED"):
-            return "SMALLINT UNSIGNED"
-        if tdSql.cursor.istype(col, "INT UNSIGNED"):
-            return "INT UNSIGNED"
-        if tdSql.cursor.istype(col, "BIGINT UNSIGNED"):
-            return "BIGINT UNSIGNED"
-
     def leastsquares_check(self):
         current_sqls, err_sqls = self.sql_list()
         for i in range(len(err_sqls)):
