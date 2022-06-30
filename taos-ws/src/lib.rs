@@ -111,8 +111,8 @@ impl WsInfo {
     pub(crate) fn to_conn_request(&self) -> WsConnReq {
         match &self.auth {
             WsAuth::Token(token) => WsConnReq {
-                user: None,
-                password: None,
+                user: Some("root".to_string()),
+                password: Some("taosdata".to_string()),
                 db: self.database.as_ref().map(Clone::clone),
             },
             WsAuth::Plain(user, pass) => WsConnReq {
@@ -153,7 +153,7 @@ impl FromDsn for Ws {
     }
 
     fn ping(dsn: &taos_query::Dsn) -> Result<(), Self::Err> {
-        todo!()
+        Ok(())
     }
 }
 
@@ -212,9 +212,8 @@ mod tests {
     use taos_query::FromDsn;
 
     use super::Ws;
-    use tokio::test;
 
-    #[std::prelude::v1::test]
+    #[test]
     fn ws_sync() -> anyhow::Result<()> {
         use taos_query::{Fetchable, Queryable};
         let client = Ws::from_dsn("ws://localhost:6041/")?;
@@ -245,9 +244,10 @@ mod tests {
     }
 
     // !Websocket tests should always use `multi_thread`
-    #[test]
-    // #[tokio::test(flavor = "multi_thread")]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_client() -> anyhow::Result<()> {
+        std::env::set_var("RUST_LOG", "debug");
+        pretty_env_logger::init();
         use futures::TryStreamExt;
         use taos_query::{AsyncFetchable, AsyncQueryable};
 
@@ -266,7 +266,7 @@ mod tests {
         );
         assert_eq!(
             client
-                .exec("insert into ws_abc_a.tb1 values(now, 1)")
+                .exec("insert into ws_abc_a.tb1 values(1655793421375, 1)")
                 .await?,
             1
         );

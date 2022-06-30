@@ -13,7 +13,7 @@ use tokio::time;
 use tokio_tungstenite::tungstenite::Error as WsError;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
-use crate::infra::*;
+use crate::{infra::*, WsInfo};
 
 use std::fmt::Debug;
 use std::result::Result as StdResult;
@@ -117,6 +117,21 @@ pub enum Error {
     WsError(#[from] WsError),
 }
 
+impl Error {
+    pub const fn errno(&self) -> taos_error::Code {
+        match self {
+            Error::TaosError(error) => error.code(),
+            _ => taos_error::Code::Failed,
+        }
+    }
+    pub fn errstr(&self) -> String {
+        match self {
+            Error::TaosError(error) => error.message().to_string(),
+            _ => format!("{}", self),
+        }
+    }
+}
+
 type Result<T> = std::result::Result<T, Error>;
 
 impl Drop for WsAsyncClient {
@@ -135,28 +150,26 @@ impl WsAsyncClient {
     ///
     pub async fn from_dsn(dsn: impl IntoDsn) -> Result<Self> {
         let dsn = dsn.into_dsn()?;
-
-        let conn = if dsn.params.contains_key("token") {
-            WsConnReq::default()
-        } else {
-            WsConnReq::new(
-                dsn.username.unwrap_or_else(|| "root".to_string()),
-                dsn.password.unwrap_or_else(|| "taosdata".to_string()),
-            )
-        };
-
-        let (ws, _) = connect_async("ws://localhost:6041/rest/ws").await?;
+        let info = WsInfo::from_dsn(dsn)?;
+        Self::from_wsinfo(&info).await
+    }
+    pub(crate) async fn from_wsinfo(info: &WsInfo) -> Result<Self> {
+        let (ws, _) = connect_async(dbg!(info.to_query_url())).await?;
         let req_id = 0;
         let (mut sender, mut reader) = ws.split();
 
-        let login = WsSend::Conn { req_id, req: conn };
+        let login = WsSend::Conn {
+            req_id,
+            req: info.to_conn_request(),
+        };
         sender.send(login.to_msg()).await?;
         if let Some(Ok(message)) = reader.next().await {
             match message {
                 Message::Text(text) => {
                     let v: WsRecv = serde_json::from_str(&text).unwrap();
-                    match v.data {
-                        WsRecvData::Conn => (),
+                    let (req_id, data, ok) = v.ok();
+                    match data {
+                        WsRecvData::Conn => ok?,
                         _ => unreachable!(),
                     }
                 }
@@ -206,6 +219,9 @@ impl WsAsyncClient {
 
         // message handler for query/fetch/fetch_block
         tokio::spawn(async move {
+            let mut bytes: Vec<u8> = Vec::new();
+            let mut len_requires = 0usize;
+            let mut full = false;
             loop {
                 tokio::select! {
                     Some(message) = reader.next() => {
@@ -247,16 +263,29 @@ impl WsAsyncClient {
                                     }
                                 }
                                 Message::Binary(block) => {
-                                    dbg!(&block);
+                                    dbg!(block.len(), &block);
                                     let mut slice = block.as_slice();
                                     use taos_query::util::InlinableRead;
                                     let res_id = slice.read_u64().unwrap();
+                                    let len = (&block[8..12]).read_u32().unwrap();
+                                    if block.len() == len as usize + 8 {
+                                        // v3
+                                        if let Some(_) = fetches_sender.read(&res_id, |_, v| {
+                                            log::info!("send data to fetches with id {}", res_id);
+                                            let raw = slice.read_inlinable::<RawBlock>().unwrap();
+                                            v.send(Ok(WsFetchData::Block(raw).clone())).unwrap();
+                                        }) {}
+                                    } else {
+                                        // v2
+                                        log::warn!("the block is in format v2");
+                                        if let Some(_) = fetches_sender.read(&res_id, |_, v| {
+                                            log::info!("send data to fetches with id {}", res_id);
+                                            v.send(Ok(WsFetchData::BlockV2(block[8..].to_vec()))).unwrap();
+                                        }) {}
+                                    }
 
-                                    if let Some(_) = fetches_sender.read(&res_id, |_, v| {
-                                        log::info!("send data to fetches with id {}", res_id);
-                                        let raw = slice.read_inlinable::<RawBlock>().unwrap();
-                                        v.send(Ok(WsFetchData::Block(dbg!(raw)).clone())).unwrap();
-                                    }) {}
+
+
                                 }
                                 Message::Close(_) => {
                                     log::warn!("websocket connection is closed (unexpected?)");
@@ -405,23 +434,44 @@ impl ResultSetRef {
         }
 
         log::info!("receiving block...");
-        if let WsFetchData::Block(mut raw) = self.receiver.as_mut().unwrap().recv()?? {
-            raw.with_rows(fetch_resp.rows)
-                .with_cols(self.fields_count)
-                .with_precision(self.precision);
+        match self.receiver.as_mut().unwrap().recv()?? {
+            WsFetchData::Block(mut raw) => {
+                raw.with_rows(fetch_resp.rows)
+                    .with_cols(self.fields_count)
+                    .with_precision(self.precision);
 
-            for row in 0..raw.nrows() {
-                for col in 0..raw.ncols() {
-                    log::debug!("at ({}, {})", row, col);
-                    let v = unsafe { raw.get_unchecked(row, col) };
-                    println!("({}, {}): {}", row, col, v);
+                for row in 0..raw.nrows() {
+                    for col in 0..raw.ncols() {
+                        log::debug!("at ({}, {})", row, col);
+                        let v = unsafe { raw.get_unchecked(row, col) };
+                        println!("({}, {}): {}", row, col, v);
+                    }
                 }
+                let mut block = Block::from_raw_block(raw);
+                block.with_fields(self.fields.as_ref().unwrap().to_vec());
+                Ok(Some(block))
             }
-            let mut block = Block::from_raw_block(raw);
-            block.with_fields(self.fields.as_ref().unwrap().to_vec());
-            Ok(Some(block))
-        } else {
-            Ok(None)
+            WsFetchData::BlockV2(raw) => {
+                let raw = RawBlock::from_v2(
+                    &raw,
+                    self.fields.as_ref().unwrap(),
+                    dbg!(fetch_resp.lengths.as_ref().unwrap()),
+                    fetch_resp.rows,
+                    self.precision,
+                );
+
+                for row in 0..raw.nrows() {
+                    for col in 0..raw.ncols() {
+                        log::debug!("at ({}, {})", row, col);
+                        let v = unsafe { raw.get_unchecked(row, col) };
+                        println!("({}, {}): {}", row, col, v);
+                    }
+                }
+                let mut block = Block::from_raw_block(raw);
+                block.with_fields(self.fields.as_ref().unwrap().to_vec());
+                Ok(Some(block))
+            }
+            _ => Ok(None),
         }
     }
 }
@@ -493,8 +543,10 @@ impl<'q> AsyncQueryable<'q> for WsAsyncClient {
 async fn test_client() -> anyhow::Result<()> {
     use futures::TryStreamExt;
     std::env::set_var("RUST_LOG", "debug");
-    pretty_env_logger::init();
-    let client = WsAsyncClient::from_dsn("ws://localhost:6041/").await?;
+    let dsn = std::env::var("TDENGINE_ClOUD_DSN").unwrap_or("http://localhost:6041".to_string());
+    // pretty_env_logger::init();
+
+    let client = WsAsyncClient::from_dsn(dsn).await?;
     assert_eq!(client.exec("drop database if exists abc_a").await?, 0);
     assert_eq!(client.exec("create database abc_a").await?, 0);
     assert_eq!(
@@ -504,7 +556,9 @@ async fn test_client() -> anyhow::Result<()> {
         0
     );
     assert_eq!(
-        client.exec("insert into abc_a.tb1 values(1655793421375, 1)").await?,
+        client
+            .exec("insert into abc_a.tb1 values(1655793421375, 1)")
+            .await?,
         1
     );
 
@@ -523,5 +577,29 @@ async fn test_client() -> anyhow::Result<()> {
     dbg!(values);
 
     assert_eq!(client.exec("drop database abc_a").await?, 0);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 10)]
+async fn test_client_cloud() -> anyhow::Result<()> {
+    std::env::set_var("RUST_LOG", "debug");
+    // pretty_env_logger::init();
+    let dsn = std::env::var("TDENGINE_ClOUD_DSN");
+    if dsn.is_err() {
+        println!("Skip test when not in cloud");
+        return Ok(());
+    }
+    let dsn = dsn.unwrap();
+    let client = WsAsyncClient::from_dsn(dsn).await?;
+    let mut rs = client.query("select * from test.meters limit 10").await?;
+
+    let values = rs.to_records();
+    for row in values {
+        use itertools::Itertools;
+        println!(
+            "{}",
+            row.into_iter().map(|value| format!("{value}")).join(" | ")
+        );
+    }
     Ok(())
 }
