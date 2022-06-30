@@ -848,14 +848,10 @@ set_quantifier_opt(A) ::= ALL.                                                  
 
 %type select_list                                                                 { SNodeList* }
 %destructor select_list                                                           { nodesDestroyList($$); }
-select_list(A) ::= NK_STAR.                                                       { A = NULL; }
-select_list(A) ::= select_sublist(B).                                             { A = B; }
+select_list(A) ::= select_item(B).                                                { A = createNodeList(pCxt, B); }
+select_list(A) ::= select_list(B) NK_COMMA select_item(C).                        { A = addNodeToList(pCxt, B, C); }
 
-%type select_sublist                                                              { SNodeList* }
-%destructor select_sublist                                                        { nodesDestroyList($$); }
-select_sublist(A) ::= select_item(B).                                             { A = createNodeList(pCxt, B); }
-select_sublist(A) ::= select_sublist(B) NK_COMMA select_item(C).                  { A = addNodeToList(pCxt, B, C); }
-
+select_item(A) ::= NK_STAR(B).                                                    { A = createColumnNode(pCxt, NULL, &B); }
 select_item(A) ::= common_expression(B).                                          { A = releaseRawExprNode(pCxt, B); }
 select_item(A) ::= common_expression(B) column_alias(C).                          { A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }
 select_item(A) ::= common_expression(B) AS column_alias(C).                       { A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }

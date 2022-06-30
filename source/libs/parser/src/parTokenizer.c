@@ -86,6 +86,7 @@ static SKeyword keywordTable[] = {
     {"EXISTS",         TK_EXISTS},
     {"EXPLAIN",        TK_EXPLAIN},
     {"EVERY",          TK_EVERY},
+    {"FILE",           TK_FILE},
     {"FILL",           TK_FILL},
     {"FIRST",          TK_FIRST},
     {"FLOAT",          TK_FLOAT},

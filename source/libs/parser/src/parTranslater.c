@@ -1984,34 +1984,38 @@ static int32_t createMultiResFuncsFromStar(STranslateContext* pCxt, SFunctionNod
 }
 
 static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (NULL == pSelect->pProjectionList) {  // select * ...
-    return createAllColumns(pCxt, &pSelect->pProjectionList);
-  } else {
-    SNode* pNode = NULL;
-    WHERE_EACH(pNode, pSelect->pProjectionList) {
-      int32_t code = TSDB_CODE_SUCCESS;
-      if (isMultiResFunc(pNode)) {
-        SNodeList* pFuncs = NULL;
-        code = createMultiResFuncsFromStar(pCxt, (SFunctionNode*)pNode, &pFuncs);
-        if (TSDB_CODE_SUCCESS == code) {
-          INSERT_LIST(pSelect->pProjectionList, pFuncs);
-          ERASE_NODE(pSelect->pProjectionList);
-          continue;
-        }
-      } else if (isTableStar(pNode)) {
-        SNodeList* pCols = NULL;
-        code = createTableAllCols(pCxt, (SColumnNode*)pNode, &pCols);
-        if (TSDB_CODE_SUCCESS == code) {
-          INSERT_LIST(pSelect->pProjectionList, pCols);
-          ERASE_NODE(pSelect->pProjectionList);
-          continue;
-        }
+  SNode* pNode = NULL;
+  WHERE_EACH(pNode, pSelect->pProjectionList) {
+    int32_t code = TSDB_CODE_SUCCESS;
+    if (isStar(pNode)) {
+      SNodeList* pCols = NULL;
+      code = createAllColumns(pCxt, &pCols);
+      if (TSDB_CODE_SUCCESS == code) {
+        INSERT_LIST(pSelect->pProjectionList, pCols);
+        ERASE_NODE(pSelect->pProjectionList);
+        continue;
       }
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
+    } else if (isMultiResFunc(pNode)) {
+      SNodeList* pFuncs = NULL;
+      code = createMultiResFuncsFromStar(pCxt, (SFunctionNode*)pNode, &pFuncs);
+      if (TSDB_CODE_SUCCESS == code) {
+        INSERT_LIST(pSelect->pProjectionList, pFuncs);
+        ERASE_NODE(pSelect->pProjectionList);
+        continue;
       }
-      WHERE_NEXT;
+    } else if (isTableStar(pNode)) {
+      SNodeList* pCols = NULL;
+      code = createTableAllCols(pCxt, (SColumnNode*)pNode, &pCols);
+      if (TSDB_CODE_SUCCESS == code) {
+        INSERT_LIST(pSelect->pProjectionList, pCols);
+        ERASE_NODE(pSelect->pProjectionList);
+        continue;
+      }
     }
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    WHERE_NEXT;
   }
   return TSDB_CODE_SUCCESS;
 }
