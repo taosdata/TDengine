@@ -406,16 +406,18 @@ typedef struct SFSNextRowIter {
   int32_t          iFileSet;
   SArray          *aDFileSet;
   SDataFReader    *pDataFReader;
-  SMapData         blockIdxMap;
-  SBlockIdx        blockIdx;
-  SMapData         blockMap;
-  int32_t          nBlock;
-  int32_t          iBlock;
-  SBlock           block;
-  SBlockData       blockData;
-  int32_t          nRow;
-  int32_t          iRow;
-  TSDBROW          row;
+  SArray          *aBlockIdx;
+  // SMapData         blockIdxMap;
+  //  SBlockIdx  blockIdx;
+  SBlockIdx *pBlockIdx;
+  SMapData   blockMap;
+  int32_t    nBlock;
+  int32_t    iBlock;
+  SBlock     block;
+  SBlockData blockData;
+  int32_t    nRow;
+  int32_t    iRow;
+  TSDBROW    row;
 } SFSNextRowIter;
 
 static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
@@ -439,17 +441,29 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
 
       code = tsdbDataFReaderOpen(&state->pDataFReader, state->pTsdb, pFileSet);
       if (code) goto _err;
-      /*
-      tMapDataReset(&state->blockIdxMap);
-      code = tsdbReadBlockIdx(state->pDataFReader, &state->blockIdxMap, NULL);
+
+      // tMapDataReset(&state->blockIdxMap);
+      // code = tsdbReadBlockIdx(state->pDataFReader, &state->blockIdxMap, NULL);
+      if (!state->aBlockIdx) {
+        state->aBlockIdx = taosArrayInit(0, sizeof(SBlockIdx));
+      } else {
+        taosArrayClear(state->aBlockIdx);
+      }
+      code = tsdbReadBlockIdx(state->pDataFReader, state->aBlockIdx, NULL);
       if (code) goto _err;
 
-      tBlockIdxReset(&state->blockIdx);
-      code = tMapDataSearch(&state->blockIdxMap, state->pBlockIdxExp, tGetBlockIdx, tCmprBlockIdx, &state->blockIdx);
+      /* if (state->pBlockIdx) { */
+      /*   tBlockIdxReset(state->blockIdx); */
+      /* } */
+      /* tBlockIdxReset(state->blockIdx); */
+      /* code = tMapDataSearch(&state->blockIdxMap, state->pBlockIdxExp, tGetBlockIdx, tCmprBlockIdx, &state->blockIdx);
+       */
+      state->pBlockIdx = taosArraySearch(state->aBlockIdx, state->pBlockIdxExp, tCmprBlockIdx, TD_EQ);
       if (code) goto _err;
-      */
+
       tMapDataReset(&state->blockMap);
-      code = tsdbReadBlock(state->pDataFReader, &state->blockIdx, &state->blockMap, NULL);
+      code = tsdbReadBlock(state->pDataFReader, state->pBlockIdx, &state->blockMap, NULL);
+      /* code = tsdbReadBlock(state->pDataFReader, &state->blockIdx, &state->blockMap, NULL); */
       if (code) goto _err;
 
       state->nBlock = state->blockMap.nItem;
@@ -463,7 +477,8 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
         tBlockDataReset(&state->blockData);
 
         tMapDataGetItemByIdx(&state->blockMap, state->iBlock, &block, tGetBlock);
-        code = tsdbReadBlockData(state->pDataFReader, &state->blockIdx, &block, &state->blockData, NULL, NULL);
+        /* code = tsdbReadBlockData(state->pDataFReader, &state->blockIdx, &block, &state->blockData, NULL, NULL); */
+        code = tsdbReadBlockData(state->pDataFReader, state->pBlockIdx, &block, &state->blockData, NULL, NULL);
         if (code) goto _err;
 
         state->nRow = state->blockData.nRow;
@@ -480,7 +495,9 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
           state->state = SFSNEXTROW_BLOCKDATA;
           if (--state->iBlock < 0) {
             tsdbDataFReaderClose(&state->pDataFReader);
-
+            if (state->aBlockIdx) {
+              taosArrayDestroy(state->aBlockIdx);
+            }
             state->state = SFSNEXTROW_FILESET;
           }
         }
@@ -493,7 +510,15 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
   }
 
 _err:
+  if (state->pDataFReader) {
+    tsdbDataFReaderClose(&state->pDataFReader);
+  }
+  if (state->aBlockIdx) {
+    taosArrayDestroy(state->aBlockIdx);
+  }
+
   *ppRow = NULL;
+
   return code;
 }
 
