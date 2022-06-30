@@ -1684,7 +1684,7 @@ _return:
   SCH_RET(code);
 }
 
-int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, int32_t rspCode) {
+int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf* pData, int32_t rspCode) {
   int32_t code = 0;
   int8_t  status = 0;
   if (schJobNeedToStop(pJob, &status)) {
@@ -1711,6 +1711,10 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, int32_t rspCode) {
   memset(&pTask->succeedAddr, 0, sizeof(pTask->succeedAddr));
 
   if (SCH_IS_DATA_SRC_QRY_TASK(pTask)) {
+    if (pData) {
+      SCH_ERR_JRET(schUpdateTaskCandidateAddr(pJob, pTask, pData->pEpSet));
+    }
+  
     if (SCH_TASK_NEED_FLOW_CTRL(pJob, pTask)) {
       if (JOB_TASK_STATUS_EXECUTING == SCH_GET_TASK_STATUS(pTask)) {
         SCH_ERR_JRET(schLaunchTasksInFlowCtrlList(pJob, pTask));
@@ -1737,7 +1741,7 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, int32_t rspCode) {
   for (int32_t i = 0; i < childrenNum; ++i) {
     SSchTask* pChild = taosArrayGetP(pTask->children, i);
     SCH_LOCK_TASK(pChild);
-    schDoTaskRedirect(pJob, pChild, rspCode);
+    schDoTaskRedirect(pJob, pChild, NULL, rspCode);
     SCH_UNLOCK_TASK(pChild);
   }
 
@@ -1758,11 +1762,9 @@ int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf* pData, int32
       SCH_TASK_ELOG("no epset updated while got error %s", tstrerror(rspCode));
       SCH_ERR_JRET(rspCode);
     }
-
-    SCH_ERR_JRET(schUpdateTaskCandidateAddr(pJob, pTask, pData->pEpSet));
   }
 
-  SCH_RET(schDoTaskRedirect(pJob, pTask, rspCode));
+  SCH_RET(schDoTaskRedirect(pJob, pTask, pData, rspCode));
 
 _return:
 
