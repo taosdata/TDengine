@@ -614,10 +614,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
   if (pCxt->pPlanCxt->streamQuery) {
     pWindow->triggerType = pCxt->pPlanCxt->triggerType;
     pWindow->watermark = pCxt->pPlanCxt->watermark;
-  }
-
-  if (pCxt->pPlanCxt->rSmaQuery) {
-    /*pWindow->filesFactor = pCxt->pPlanCxt->filesFactor;*/
+    pWindow->igExpired = pCxt->pPlanCxt->igExpired;
   }
 
   if (TSDB_CODE_SUCCESS == code) {

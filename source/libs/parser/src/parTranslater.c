@@ -4208,6 +4208,7 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
     pReq->triggerType = pStmt->pOptions->triggerType;
     pReq->maxDelay = (NULL != pStmt->pOptions->pDelay ? ((SValueNode*)pStmt->pOptions->pDelay)->datum.i : 0);
     pReq->watermark = (NULL != pStmt->pOptions->pWatermark ? ((SValueNode*)pStmt->pOptions->pWatermark)->datum.i : 0);
+    pReq->igExpired = pStmt->pOptions->ignoreExpired;
   }
 
   return code;
@@ -4798,6 +4799,15 @@ static const char* getSysTableName(ENodeType type) {
   return NULL;
 }
 
+static SNode* createStarCol() {
+  SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == pCol) {
+    return NULL;
+  }
+  strcpy(pCol->colName, "*");
+  return (SNode*)pCol;
+}
+
 static int32_t createSimpleSelectStmt(const char* pDb, const char* pTable, SSelectStmt** pStmt) {
   SSelectStmt* pSelect = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
   if (NULL == pSelect) {
@@ -4814,6 +4824,11 @@ static int32_t createSimpleSelectStmt(const char* pDb, const char* pTable, SSele
   strcpy(pRealTable->table.tableName, pTable);
   strcpy(pRealTable->table.tableAlias, pTable);
   pSelect->pFromTable = (SNode*)pRealTable;
+
+  if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pSelect->pProjectionList, createStarCol())) {
+    nodesDestroyNode((SNode*)pSelect);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   *pStmt = pSelect;
 
@@ -4963,6 +4978,7 @@ static int32_t rewriteShowTableDist(STranslateContext* pCxt, SQuery* pQuery) {
   SSelectStmt* pStmt = NULL;
   int32_t      code = createSelectStmtForShowTableDist((SShowTableDistributedStmt*)pQuery->pRoot, &pStmt);
   if (TSDB_CODE_SUCCESS == code) {
+    NODES_DESTORY_LIST(pStmt->pProjectionList);
     code = nodesListMakeStrictAppend(&pStmt->pProjectionList, createBlockDistFunc());
   }
   if (TSDB_CODE_SUCCESS == code) {
