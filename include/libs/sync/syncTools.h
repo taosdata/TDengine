@@ -325,21 +325,48 @@ void syncAppendEntriesLog(const SyncAppendEntries* pMsg);
 void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg);
 
 // ---------------------------------------------
+typedef struct SOffsetAndContLen {
+  int32_t offset;
+  int32_t contLen;
+} SOffsetAndContLen;
+
 typedef struct SyncAppendEntriesBatch {
   uint32_t bytes;
   int32_t  vgId;
   uint32_t msgType;
   SRaftId  srcId;
   SRaftId  destId;
+
   // private data
   SyncTerm  term;
   SyncIndex prevLogIndex;
   SyncTerm  prevLogTerm;
   SyncIndex commitIndex;
   SyncTerm  privateTerm;
+  int32_t   dataCount;
   uint32_t  dataLen;
   char      data[];
 } SyncAppendEntriesBatch;
+
+SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SRpcMsg* rpcMsgArr, int32_t arrSize, int32_t vgId);
+void                    syncAppendEntriesBatchDestroy(SyncAppendEntriesBatch* pMsg);
+void                    syncAppendEntriesBatchSerialize(const SyncAppendEntriesBatch* pMsg, char* buf, uint32_t bufLen);
+void                    syncAppendEntriesBatchDeserialize(const char* buf, uint32_t len, SyncAppendEntriesBatch* pMsg);
+char*                   syncAppendEntriesBatchSerialize2(const SyncAppendEntriesBatch* pMsg, uint32_t* len);
+SyncAppendEntriesBatch* syncAppendEntriesBatchDeserialize2(const char* buf, uint32_t len);
+void                    syncAppendEntriesBatch2RpcMsg(const SyncAppendEntriesBatch* pMsg, SRpcMsg* pRpcMsg);
+void                    syncAppendEntriesBatchFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntriesBatch* pMsg);
+SyncAppendEntriesBatch* syncAppendEntriesBatchFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*                  syncAppendEntriesBatch2Json(const SyncAppendEntriesBatch* pMsg);
+char*                   syncAppendEntriesBatch2Str(const SyncAppendEntriesBatch* pMsg);
+void syncAppendEntriesBatch2RpcMsgArray(SyncAppendEntriesBatch* pSyncMsg, SRpcMsg* rpcMsgArr, int32_t maxArrSize,
+                                        int32_t* pRetArrSize);
+
+// for debug ----------------------
+void syncAppendEntriesBatchPrint(const SyncAppendEntriesBatch* pMsg);
+void syncAppendEntriesBatchPrint2(char* s, const SyncAppendEntriesBatch* pMsg);
+void syncAppendEntriesBatchLog(const SyncAppendEntriesBatch* pMsg);
+void syncAppendEntriesBatchLog2(char* s, const SyncAppendEntriesBatch* pMsg);
 
 // ---------------------------------------------
 typedef struct SyncAppendEntriesReply {
