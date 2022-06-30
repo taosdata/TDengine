@@ -913,7 +913,8 @@ TEST(testCase, smlParseTelnetLine_error_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
+  SSmlHandle *info = smlBuildSmlInfo(pTscObj, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   int32_t ret = 0;
@@ -982,7 +983,8 @@ TEST(testCase, smlParseTelnetLine_json_error_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
+  SSmlHandle *info = smlBuildSmlInfo(pTscObj, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   int32_t ret = 0;
@@ -1069,7 +1071,7 @@ TEST(testCase, smlParseTelnetLine_diff_json_type1_Test) {
       "    },\n"
       "]",
   };
-  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(taos_errno(pRes), 0);
   taos_free_result(pRes);
 }
@@ -1106,7 +1108,7 @@ TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
       "    },\n"
       "]",
   };
-  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  pRes = taos_schemaless_insert(taos, (char **)sql, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(taos_errno(pRes), 0);
   taos_free_result(pRes);
 }
@@ -1257,7 +1259,7 @@ TEST(testCase, sml_16368_Test) {
       "{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833839006, \"type\": \"us\"}, \"value\": {\"value\": 8, \"type\": \"double\"}, \"tags\": {\"t1\": {\"value\": 4, \"type\": \"double\"}, \"t3\": {\"value\": \"t4\", \"type\": \"binary\"}, \"t2\": {\"value\": 5, \"type\": \"double\"}, \"t4\": {\"value\": 5, \"type\": \"double\"}}},\n"
       "{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833939007, \"type\": \"us\"}, \"value\": {\"value\": 9, \"type\": \"double\"}, \"tags\": {\"t1\": 4, \"t3\": {\"value\": \"t4\", \"type\": \"binary\"}, \"t2\": {\"value\": 5, \"type\": \"double\"}, \"t4\": {\"value\": 5, \"type\": \"double\"}}}]"
   };
-  pRes = taos_schemaless_insert(taos, (char**)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_MICRO_SECONDS);
+  pRes = taos_schemaless_insert(taos, (char**)sql, 0, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_MICRO_SECONDS);
   ASSERT_EQ(taos_errno(pRes), 0);
   taos_free_result(pRes);
 }
@@ -1283,5 +1285,5 @@ TEST(testCase, sml_dup_time_Test) {
   pRes = taos_schemaless_insert(taos, (char**)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
   ASSERT_EQ(taos_errno(pRes), 0);
   taos_free_result(pRes);
-}
-*/
+}*/
+
