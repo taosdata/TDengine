@@ -181,31 +181,7 @@ static tb_uid_t getTableSuidByUid(tb_uid_t uid, STsdb *pTsdb) {
 
   return suid;
 }
-/*
-static int32_t getMemLastRow(SMemTable *mem, tb_uid_t suid, tb_uid_t uid, STSRow
-**ppRow) { int32_t code = 0;
 
-  if (mem) {
-    STbData *pMem = NULL;
-    STbDataIter* iter;              // mem buffer skip list iterator
-
-    tsdbGetTbDataFromMemTable(mem, suid, uid, &pMem);
-    if (pMem != NULL) {
-      tsdbTbDataIterCreate(pMem, NULL, 1, &iter);
-
-      if (iter != NULL) {
-        TSDBROW *row = tsdbTbDataIterGet(iter);
-
-        tsdbTbDataIterDestroy(iter);
-      }
-    }
-  } else {
-    *ppRow = NULL;
-  }
-
-  return code;
-}
-*/
 static int32_t getTableDelDataFromDelIdx(SDelFReader *pDelReader, SDelIdx *pDelIdx, SArray *aDelData) {
   int32_t code = 0;
 
