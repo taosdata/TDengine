@@ -439,7 +439,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
 
       code = tsdbDataFReaderOpen(&state->pDataFReader, state->pTsdb, pFileSet);
       if (code) goto _err;
-
+      /*
       tMapDataReset(&state->blockIdxMap);
       code = tsdbReadBlockIdx(state->pDataFReader, &state->blockIdxMap, NULL);
       if (code) goto _err;
@@ -447,7 +447,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
       tBlockIdxReset(&state->blockIdx);
       code = tMapDataSearch(&state->blockIdxMap, state->pBlockIdxExp, tGetBlockIdx, tCmprBlockIdx, &state->blockIdx);
       if (code) goto _err;
-
+      */
       tMapDataReset(&state->blockMap);
       code = tsdbReadBlock(state->pDataFReader, &state->blockIdx, &state->blockMap, NULL);
       if (code) goto _err;
