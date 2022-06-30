@@ -234,12 +234,19 @@ static int32_t translateWduration(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateTimePseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+static int32_t translateNowToday(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
 
   //add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
   addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+
+  pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_TIMESTAMP};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateTimePseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // pseudo column do not need to check parameters
 
   pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_TIMESTAMP};
   return TSDB_CODE_SUCCESS;
@@ -2471,7 +2478,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "now",
     .type = FUNCTION_TYPE_NOW,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
-    .translateFunc = translateTimePseudoColumn,
+    .translateFunc = translateNowToday,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = nowFunction,
@@ -2481,7 +2488,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "today",
     .type = FUNCTION_TYPE_TODAY,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
-    .translateFunc = translateTimePseudoColumn,
+    .translateFunc = translateNowToday,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = todayFunction,
