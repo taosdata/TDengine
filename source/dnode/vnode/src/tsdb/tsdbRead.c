@@ -112,9 +112,9 @@ typedef struct STsdbReadHandle {
   STimeWindow   window;  // the primary query time window that applies to all queries
   //  SColumnDataAgg* statis;  // query level statistics, only one table block statistics info exists at any time
   //  SColumnDataAgg** pstatis;// the ptr array list to return to caller
-  int32_t numOfBlocks;
+  int32_t      numOfBlocks;
   SSDataBlock* pResBlock;
-//  SArray* pColumns;  // column list, SColumnInfoData array list
+  //  SArray* pColumns;  // column list, SColumnInfoData array list
   bool    locateStart;
   int32_t outputCapacity;
   int32_t realNumOfRows;
@@ -221,6 +221,22 @@ int64_t tsdbGetNumOfRowsInMemTable(tsdbReaderT* pHandle) {
     //    }
   }
   return rows;
+}
+
+static SArray* createCheckInfoFromUid(STsdbReadHandle* pTsdbReadHandle, int64_t uid) {
+  SArray* pTableCheckInfo = taosArrayInit(1, sizeof(STableCheckInfo));
+  if (pTableCheckInfo == NULL) {
+    return NULL;
+  }
+  STableCheckInfo info = {
+      .tableId = uid,
+  };
+  info.suid = pTsdbReadHandle->suid;
+
+  taosArrayPush(pTableCheckInfo, &info);
+  tsdbDebug("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pTsdbReadHandle, info.tableId, info.lastKey,
+            pTsdbReadHandle->idStr);
+  return pTableCheckInfo;
 }
 
 static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, SArray* pTableList) {
@@ -428,8 +444,8 @@ static STsdbReadHandle* tsdbQueryTablesImpl(SVnode* pVnode, SQueryTableDataCond*
 
     for (int32_t i = 0; i < pCond->numOfCols; ++i) {
       SColumnInfoData colInfo = {.info = pCond->colList[i], 0};
-      int32_t code = blockDataAppendColInfo(pReadHandle->pResBlock, &colInfo);
-      if (code != TSDB_CODE_SUCCESS){
+      int32_t         code = blockDataAppendColInfo(pReadHandle->pResBlock, &colInfo);
+      if (code != TSDB_CODE_SUCCESS) {
         goto _end;
       }
     }
@@ -494,9 +510,19 @@ static int32_t setCurrentSchema(SVnode* pVnode, STsdbReadHandle* pTsdbReadHandle
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsdbSetTableList(tsdbReaderT reader, SArray* tableList){
+int32_t tsdbSetTableId(tsdbReaderT reader, int64_t uid) {
   STsdbReadHandle* pTsdbReadHandle = reader;
-  if(pTsdbReadHandle->pTableCheckInfo) taosArrayDestroy(pTsdbReadHandle->pTableCheckInfo);
+  if (pTsdbReadHandle->pTableCheckInfo) taosArrayDestroy(pTsdbReadHandle->pTableCheckInfo);
+  pTsdbReadHandle->pTableCheckInfo = createCheckInfoFromUid(pTsdbReadHandle, uid);
+  if (pTsdbReadHandle->pTableCheckInfo == NULL) {
+    return TSDB_CODE_TDB_OUT_OF_MEMORY;
+  }
+  return TDB_CODE_SUCCESS;
+}
+
+int32_t tsdbSetTableList(tsdbReaderT reader, SArray* tableList) {
+  STsdbReadHandle* pTsdbReadHandle = reader;
+  if (pTsdbReadHandle->pTableCheckInfo) taosArrayDestroy(pTsdbReadHandle->pTableCheckInfo);
   pTsdbReadHandle->pTableCheckInfo = createCheckInfoFromTableGroup(pTsdbReadHandle, tableList);
   if (pTsdbReadHandle->pTableCheckInfo == NULL) {
     return TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -505,8 +531,8 @@ int32_t tsdbSetTableList(tsdbReaderT reader, SArray* tableList){
 }
 
 tsdbReaderT tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* tableList, uint64_t qId,
-                            uint64_t taskId) {
-  if(taosArrayGetSize(tableList) == 0){
+                           uint64_t taskId) {
+  if (taosArrayGetSize(tableList) == 0) {
     return NULL;
   }
   STsdbReadHandle* pTsdbReadHandle = tsdbQueryTablesImpl(pVnode, pCond, qId, taskId);
@@ -553,8 +579,7 @@ tsdbReaderT tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* t
   }
 
   tsdbDebug("%p total numOfTable:%" PRIzu " in this query, table %" PRIzu " %s", pTsdbReadHandle,
-            taosArrayGetSize(pTsdbReadHandle->pTableCheckInfo), taosArrayGetSize(tableList),
-            pTsdbReadHandle->idStr);
+            taosArrayGetSize(pTsdbReadHandle->pTableCheckInfo), taosArrayGetSize(tableList), pTsdbReadHandle->idStr);
 
   return (tsdbReaderT)pTsdbReadHandle;
 }
@@ -1073,7 +1098,7 @@ static int32_t getFileIdFromKey(TSKEY key, int32_t daysPerFile, int32_t precisio
   }
 
   int64_t fid = (int64_t)(key / (daysPerFile * tsTickPerMin[precision]));  // set the starting fileId
-  if (fid < 0LL && llabs(fid) > INT32_MAX) {                                // data value overflow for INT32
+  if (fid < 0LL && llabs(fid) > INT32_MAX) {                               // data value overflow for INT32
     fid = INT32_MIN;
   }
 
@@ -2612,7 +2637,7 @@ int32_t tsdbGetFileBlocksDistInfo(tsdbReaderT* queryHandle, STableBlockDistInfo*
     tsdbGetFidKeyRange(pCfg->days, pCfg->precision, pTsdbReadHandle->pFileGroup->fid, &win.skey, &win.ekey);
 
     // current file are not overlapped with query time window, ignore remain files
-    if ((win.skey > pTsdbReadHandle->window.ekey)/* || (!ascTraverse && win.ekey < pTsdbReadHandle->window.ekey)*/) {
+    if ((win.skey > pTsdbReadHandle->window.ekey) /* || (!ascTraverse && win.ekey < pTsdbReadHandle->window.ekey)*/) {
       tsdbUnLockFS(REPO_FS(pTsdbReadHandle->pTsdb));
       tsdbDebug("%p remain files are not qualified for qrange:%" PRId64 "-%" PRId64 ", ignore, %s", pTsdbReadHandle,
                 pTsdbReadHandle->window.skey, pTsdbReadHandle->window.ekey, pTsdbReadHandle->idStr);
@@ -2886,7 +2911,7 @@ int32_t tsdbGetCtbIdList(SMeta* pMeta, int64_t suid, SArray* list) {
  */
 int32_t tsdbGetStbIdList(SMeta* pMeta, int64_t suid, SArray* list) {
   SMStbCursor* pCur = metaOpenStbCursor(pMeta, suid);
-  if(!pCur) {
+  if (!pCur) {
     return TSDB_CODE_FAILED;
   }
 

@@ -228,17 +228,6 @@ static int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq, int8_t su
 
 static int32_t tqInitMetaRsp(SMqMetaRsp* pRsp, const SMqPollReq* pReq) { return 0; }
 
-static FORCE_INLINE void tqOffsetResetToData(STqOffsetVal* pOffsetVal, int64_t uid, int64_t ts) {
-  pOffsetVal->type = TMQ_OFFSET__SNAPSHOT_DATA;
-  pOffsetVal->uid = uid;
-  pOffsetVal->ts = ts;
-}
-
-static FORCE_INLINE void tqOffsetResetToLog(STqOffsetVal* pOffsetVal, int64_t ver) {
-  pOffsetVal->type = TMQ_OFFSET__LOG;
-  pOffsetVal->version = ver;
-}
-
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   SMqPollReq*  pReq = pMsg->pCont;
   int64_t      consumerId = pReq->consumerId;
@@ -394,13 +383,12 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     char formatBuf[50];
     tFormatOffset(formatBuf, 50, &dataRsp.reqOffset);
     tqInfo("retrieve using snapshot req offset %s", formatBuf);
-    if (tqScanSnapshot(pTq, &pHandle->execHandle, &dataRsp, workerId) < 0) {
+    if (tqScanSnapshot(pTq, &pHandle->execHandle, &dataRsp, fetchOffsetNew, workerId) < 0) {
       ASSERT(0);
     }
 
     // 4. send rsp
     if (dataRsp.blockNum != 0) {
-      tqOffsetResetToData(&dataRsp.rspOffset, 0, 0);
       if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
         code = -1;
       }
@@ -655,6 +643,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
             .reader = pHandle->execHandle.pExecReader[i],
             .meta = pTq->pVnode->pMeta,
             .vnode = pTq->pVnode,
+            .tqReader = true,
         };
         pHandle->execHandle.execCol.task[i] = qCreateStreamExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle);
         ASSERT(pHandle->execHandle.execCol.task[i]);
