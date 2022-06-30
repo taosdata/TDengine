@@ -59,6 +59,22 @@ class TDTestCase:
         tdSql.query("select jtag from jsons1_8")
         tdSql.checkData(0, 0, '{" ":90,"1tag$":2,"tag1":null}')
 
+        tdSql.query("select ts,jtag from jsons1 order by ts limit 2,3")
+        tdSql.checkData(0, 0, '2020-06-02 09:17:08.000')
+        tdSql.checkData(0, 1, '{"tag1":5,"tag2":"beijing"}')
+        tdSql.checkData(1, 0, '2020-06-02 09:17:48.000')
+        tdSql.checkData(1, 1, '{"tag1":false,"tag2":"beijing"}')
+        tdSql.checkData(2, 0, '2020-06-02 09:18:48.000')
+        tdSql.checkData(2, 1, '{"tag1":null,"tag2":"shanghai","tag3":"hello"}')
+
+        tdSql.query("select ts,jtag->'tag1' from jsons1 order by ts limit 2,3")
+        tdSql.checkData(0, 0, '2020-06-02 09:17:08.000')
+        tdSql.checkData(0, 1, '5.000000000')
+        tdSql.checkData(1, 0, '2020-06-02 09:17:48.000')
+        tdSql.checkData(1, 1, 'false')
+        tdSql.checkData(2, 0, '2020-06-02 09:18:48.000')
+        tdSql.checkData(2, 1, 'null')
+
         # test empty json string, save as jtag is NULL
         tdSql.execute("insert into jsons1_9  using jsons1 tags('\t') values (1591062328000, 24, NULL, '你就会', '2sdw')")
         tdSql.execute("CREATE TABLE if not exists jsons1_10 using jsons1 tags('')")
@@ -452,10 +468,6 @@ class TDTestCase:
         tdSql.checkData(2, 1, "11.000000000")
         tdSql.checkData(5, 0, 1)
         tdSql.checkData(5, 1, "false")
-        tdSql.checkData(6, 0, 1)
-        tdSql.checkData(6, 1, "null")
-        tdSql.checkData(7, 0, 2)
-        tdSql.checkData(7, 1, None)
 
         tdSql.query("select count(*),jtag->'tag1' from jsons1 group by jtag->'tag1' order by jtag->'tag1' asc")
         tdSql.checkRows(8)
@@ -533,9 +545,10 @@ class TDTestCase:
         tdSql.checkData(0, 0, 10)
         tdSql.query("select avg(dataint) from jsons1 where jtag is not null")
         tdSql.checkData(0, 0, 5.3)
-        # tdSql.query("select twa(dataint) from jsons1 where jtag is not null")
-        # tdSql.checkData(0, 0, 36)
-        # tdSql.error("select irate(dataint) from jsons1 where jtag is not null")
+        tdSql.query("select twa(dataint) from jsons1 where jtag is not null")
+        tdSql.checkData(0, 0, 28.386363636363637)
+        tdSql.query("select irate(dataint) from jsons1 where jtag is not null")
+
         tdSql.query("select sum(dataint) from jsons1 where jtag->'tag1' is not null")
         tdSql.checkData(0, 0, 45)
         tdSql.query("select stddev(dataint) from jsons1 where jtag->'tag1'>1")
@@ -563,9 +576,9 @@ class TDTestCase:
 
         #test calculation function:diff/derivative/spread/ceil/floor/round/
         tdSql.query("select diff(dataint) from jsons1 where jtag->'tag1'>1")
-        # tdSql.checkRows(2)
-        # tdSql.checkData(0, 0, -1)
-        # tdSql.checkData(1, 0, 10)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, -1)
+        tdSql.checkData(1, 0, 10)
         tdSql.query("select derivative(dataint, 10m, 0) from jsons1 where jtag->'tag1'>1")
         tdSql.checkData(0, 0, -2)
         tdSql.query("select spread(dataint) from jsons1 where jtag->'tag1'>1")
@@ -673,12 +686,12 @@ class TDTestCase:
         tdSql.query("select ELAPSED(ts,1h) from jsons1 where jtag->'tag1'>1;")
         tdSql.checkRows(1)
 
-        #
+
         # #test TD-12077
         # tdSql.execute("insert into jsons1_16 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":-2.111}') values(1591062628000, 2, NULL, '你就会', 'dws')")
         # tdSql.query("select jtag->'tag3' from jsons1_16")
         # tdSql.checkData(0, 0, '-2.111000000')
-
+        #
         # # test TD-12452
         # tdSql.execute("ALTER TABLE jsons1_1 SET TAG jtag=NULL")
         # tdSql.query("select jtag from jsons1_1")

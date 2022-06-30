@@ -1437,10 +1437,39 @@ static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
   }
 }
 
+static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, size_t end){
+  int32_t dataOffset = -1;
+  int32_t dataLen = 0;
+  int32_t beigin = start;
+  while(beigin < end){
+    int32_t offset = pColInfoData->varmeta.offset[beigin];
+    if(offset == -1) {
+      beigin++;
+      continue;
+    }
+    if(start != 0) {
+      pColInfoData->varmeta.offset[beigin] = dataLen;
+    }
+    char *data = pColInfoData->pData + offset;
+    if(dataOffset == -1) dataOffset = offset;   // mark the begin of data
+    int32_t type = pColInfoData->info.type;
+    if (type == TSDB_DATA_TYPE_JSON) {
+      dataLen += getJsonValueLen(data);
+    } else {
+      dataLen += varDataTLen(data);
+    }
+    beigin++;
+  }
+  if(dataOffset > 0){
+    memmove(pColInfoData->pData, pColInfoData->pData + dataOffset, dataLen);
+    memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[start], (end - start) * sizeof(int32_t));
+  }
+  return dataLen;
+}
+
 static void colDataTrimFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-    pColInfoData->varmeta.length -= pColInfoData->varmeta.offset[n];
-    memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[n], (total - n) * sizeof(int32_t));
+    pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, n, total);
     memset(&pColInfoData->varmeta.offset[total - n], 0, n);
   } else {
     int32_t bytes = pColInfoData->info.bytes;
@@ -1470,7 +1499,7 @@ int32_t blockDataTrimFirstNRows(SSDataBlock* pBlock, size_t n) {
 
 static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-    pColInfoData->varmeta.length = pColInfoData->varmeta.offset[n] - pColInfoData->varmeta.offset[0];
+    pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, 0, n);
     memset(&pColInfoData->varmeta.offset[n], 0, total - n);
   }
 }
