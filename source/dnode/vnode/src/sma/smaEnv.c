@@ -135,7 +135,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
 
       // init smaMgmt
       smaMgmt.smaRef = taosOpenRef(SMA_MGMT_REF_NUM, tdDestroyRSmaStat);
-      if (smaMgmt.refId < 0) {
+      if (smaMgmt.smaRef < 0) {
         smaError("init smaRef failed, num:%d", SMA_MGMT_REF_NUM);
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         return TSDB_CODE_FAILED;
