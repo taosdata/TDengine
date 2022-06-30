@@ -43,7 +43,8 @@ settings:
             maxtablesPerVnode: 10
             maxVgroupsPerDb: 1
             debugFlag: 135  
-- name: taospy
+
+  - name: taospy
     fqdn: [dnode_1]
     labels: [client]
     spec:
