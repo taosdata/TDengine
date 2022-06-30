@@ -1276,6 +1276,9 @@ int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId* pEpId, SArray* pStatusList) {
   for (int32_t i = 0; i < taskNum; ++i) {
     STaskStatus *taskStatus = taosArrayGet(pStatusList, i);
 
+    qDebug("QID:%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d task status in server: %s", 
+      taskStatus->queryId, taskStatus->taskId, taskStatus->execId, jobTaskStatusStr(taskStatus->status));
+
     SSchJob *pJob = schAcquireJob(taskStatus->refId);
     if (NULL == pJob) {
       qWarn("job not found, refId:0x%" PRIx64 ",QID:0x%" PRIx64 ",TID:0x%" PRIx64, taskStatus->refId,
@@ -1283,8 +1286,6 @@ int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId* pEpId, SArray* pStatusList) {
       // TODO DROP TASK FROM SERVER!!!!
       continue;
     }
-
-    SCH_JOB_DLOG("TID:0x%" PRIx64 "EID:%d task status in server: %s", taskStatus->taskId, taskStatus->execId, jobTaskStatusStr(taskStatus->status));
 
     pTask = NULL;
     schGetTaskInJob(pJob, taskStatus->taskId, &pTask);

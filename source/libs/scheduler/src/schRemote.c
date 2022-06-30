@@ -1062,7 +1062,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       pMsg->queryId = htobe64(pJob->queryId);
       pMsg->taskId = htobe64(pTask->taskId);
       pMsg->refId = htobe64(pJob->refId);
-      pMsg->execId = htobe64(pTask->execId);
+      pMsg->execId = htonl(pTask->execId);
       break;
     }
     case TDMT_SCH_QUERY_HEARTBEAT: {

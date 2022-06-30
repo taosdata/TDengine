@@ -566,20 +566,22 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
 
 
   if (gQWDebug.tmp) {
-#if 0  
-    SEpSet epSet = {0};
-    epSet.inUse = 1;
-    epSet.numOfEps = 3;
-    strcpy(epSet.eps[0].fqdn, "localhost");
-    epSet.eps[0].port = 7100;
-    strcpy(epSet.eps[1].fqdn, "localhost");
-    epSet.eps[1].port = 7200;
-    strcpy(epSet.eps[2].fqdn, "localhost");
-    epSet.eps[2].port = 7300;
-    
-    qwDbgBuildAndSendRedirectRsp(pMsg->msgType + 1, &pMsg->info, TSDB_CODE_RPC_REDIRECT, &epSet);
-    gQWDebug.tmp = false;
-    return TSDB_CODE_SUCCESS;
+#if 1  
+    if (TDMT_SCH_QUERY == qwMsg->msgType) {
+      SEpSet epSet = {0};
+      epSet.inUse = 1;
+      epSet.numOfEps = 3;
+      strcpy(epSet.eps[0].fqdn, "localhost");
+      epSet.eps[0].port = 7100;
+      strcpy(epSet.eps[1].fqdn, "localhost");
+      epSet.eps[1].port = 7200;
+      strcpy(epSet.eps[2].fqdn, "localhost");
+      epSet.eps[2].port = 7300;
+      
+      qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_RPC_REDIRECT, &epSet);
+      gQWDebug.tmp = false;
+      return TSDB_CODE_SUCCESS;
+    }
 #else
     if (TDMT_SCH_MERGE_QUERY == qwMsg->msgType) {
       ctx->phase = QW_PHASE_POST_QUERY;

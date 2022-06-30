@@ -480,11 +480,13 @@ int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
   msg->queryId = be64toh(msg->queryId);
   msg->taskId = be64toh(msg->taskId);
   msg->refId = be64toh(msg->refId);
+  msg->execId = ntohl(msg->execId);
 
   uint64_t sId = msg->sId;
   uint64_t qId = msg->queryId;
   uint64_t tId = msg->taskId;
   int64_t  rId = msg->refId;
+  int32_t  eId = msg->execId;
 
   SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .connInfo = pMsg->info};
 
@@ -598,7 +600,7 @@ int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SR
   uint64_t qId = req.queryId;
   uint64_t tId = req.taskId;
   int64_t  rId = 0;
-  int32_t  eId = 0;
+  int32_t  eId = -1;
 
   SQWMsg qwMsg = {.node = node, .msg = req.msg, .msgLen = req.phyLen, .connInfo = pMsg->info};
   QW_SCH_TASK_DLOG("processDelete start, node:%p, handle:%p, sql:%s", node, pMsg->info.handle, req.sql);
