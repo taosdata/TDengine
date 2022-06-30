@@ -137,8 +137,11 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row) {
     if (row->ts >= cacheRow->ts) {
       if (TD_ROW_LEN(row) <= TD_ROW_LEN(cacheRow)) {
         tdRowCpy(cacheRow, row);
+
+        taosLRUCacheRelease(pCache, h, false);
       } else {
-        tsdbCacheDeleteLast(pCache, uid, TSKEY_MAX);
+        taosLRUCacheRelease(pCache, h, true);
+        /* tsdbCacheDeleteLast(pCache, uid, TSKEY_MAX); */
         tsdbCacheInsertLastrow(pCache, uid, row);
       }
     }
@@ -1073,34 +1076,7 @@ int32_t tsdbCacheGetLastrow(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, STSRo
 
   return code;
 }
-#if 0
-int32_t tsdbCacheGetLast(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
-  int32_t code = 0;
-  char    key[32] = {0};
-  int     keyLen = 0;
 
-  getTableCacheKey(uid, "l", key, &keyLen);
-  LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
-  if (h) {
-    *ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
-  } else {
-    STSRow *pRow = NULL;
-    code = mergeLast(uid, pTsdb, &pRow);
-    // if table's empty or error, return code of -1
-    if (code < 0 || pRow == NULL) {
-      return -1;
-    }
-
-    tsdbCacheInsertLast(pCache, uid, pRow);
-    LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
-    *ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
-  }
-
-  // taosLRUCacheRelease(pCache, h, true);
-
-  return code;
-}
-#endif
 int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHandle **handle) {
   int32_t code = 0;
   char    key[32] = {0};
