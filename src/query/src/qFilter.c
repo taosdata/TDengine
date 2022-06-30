@@ -2868,17 +2868,22 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SDataStatis *pDataStatis, int32_t
   
   for (uint32_t g = 0; g < info->groupNum; ++g) {
     SFilterGroup *group = &info->groups[g];
+    // first is block unint num for a group, following append unitNum blkUnitIdx for this group
     *unitNum = group->unitNum;
     all = 0; 
     empty = 0;
-    
+
+    // save group idx start pointer
+    uint32_t * pGroupIdx = unitIdx;
     for (uint32_t u = 0; u < group->unitNum; ++u) {
       uint32_t uidx = group->unitIdxs[u];
       if (info->blkUnitRes[uidx] == 1) {
+        // blkUnitRes == 1 is always true, so need not compare every time, delete this unit from group
         --(*unitNum);
         all = 1;
         continue;
       } else if (info->blkUnitRes[uidx] == -1) {
+        // blkUnitRes == -1 is alwary false, so in group is alwary false, need delete this group from blkGroupNum
         *unitNum = 0;
         empty = 1;
         break;
@@ -2888,6 +2893,9 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SDataStatis *pDataStatis, int32_t
     }
 
     if (*unitNum == 0) {
+      // if unit num is zero, reset unitIdx to start on this group
+      unitIdx = pGroupIdx;
+
       --info->blkGroupNum;
       assert(empty || all);
       
