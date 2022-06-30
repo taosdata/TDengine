@@ -783,6 +783,12 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
   if (pVal->placeholderNo > 0 || pVal->isNull) {
     return DEAL_RES_CONTINUE;
   }
+  if (TSDB_DATA_TYPE_NULL == pVal->node.resType.type) {
+    // TODO 
+    //pVal->node.resType = targetDt;
+    pVal->isNull = true;
+    return DEAL_RES_CONTINUE;
+  }  
   if (pVal->isDuration) {
     if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit, precision) !=
         TSDB_CODE_SUCCESS) {
@@ -5335,7 +5341,7 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
-    } else if (pVal->node.resType.type != TSDB_DATA_TYPE_NULL) {
+    } else if (pVal->node.resType.type != TSDB_DATA_TYPE_NULL && !pVal->isNull) {
       char*   tmpVal = nodesGetValueFromNode(pVal);
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
       if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
