@@ -2836,12 +2836,10 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
 
     if (pInfo->lastStatus.uid != uid || pInfo->lastStatus.ts != ts) {
       tsdbSetTableId(pInfo->dataReader, uid);
-      SQueryTableDataCond tmpCond = pInfo->cond;
-      tmpCond.twindows[0] = (STimeWindow){
-          .skey = ts,
-          .ekey = INT64_MAX,
-      };
-      tsdbResetReadHandle(pInfo->dataReader, &tmpCond, 0);
+      int64_t oldSkey = pInfo->cond.twindows[0].skey;
+      pInfo->cond.twindows[0].skey = ts;
+      tsdbResetReadHandle(pInfo->dataReader, &pInfo->cond, 0);
+      pInfo->cond.twindows[0].skey = oldSkey;
       pInfo->scanTimes = 0;
       pInfo->curTWinIdx = 0;
     }

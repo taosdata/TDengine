@@ -518,7 +518,6 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
   // if scan table by table
   if (pInfo->scanMode == TABLE_SCAN__TABLE_ORDER) {
-    // check status
     while (1) {
       SSDataBlock* result = doTableScanGroup(pOperator);
       if (result) {
@@ -530,7 +529,6 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
         return NULL;
       }
       STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, pInfo->currentTable);
-      /*pTableInfo->uid */
       tsdbSetTableId(pInfo->dataReader, pTableInfo->uid);
       tsdbResetReadHandle(pInfo->dataReader, &pInfo->cond, 0);
       pInfo->scanTimes = 0;
