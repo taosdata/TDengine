@@ -4283,7 +4283,7 @@ int32_t stateDurationFunction(SqlFunctionCtx* pCtx) {
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
 
   // TODO: process timeUnit for different db precisions
-  int32_t timeUnit = 1000;
+  int32_t timeUnit = 1;
   if (pCtx->numOfParams == 5) {  // TODO: param number incorrect
     timeUnit = pCtx->param[3].param.i;
   }
