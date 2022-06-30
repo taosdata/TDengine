@@ -38,12 +38,6 @@ typedef struct SReadHandle {
   SMsgCb* pMsgCb;
 } SReadHandle;
 
-enum {
-  STREAM_DATA_TYPE_SUBMIT_BLOCK = 1,
-  STREAM_DATA_TYPE_SSDATA_BLOCK = 2,
-  STREAM_DATA_TYPE_FROM_SNAPSHOT = 3,
-};
-
 typedef enum {
   OPTR_EXEC_MODEL_BATCH = 0x1,
   OPTR_EXEC_MODEL_STREAM = 0x2,

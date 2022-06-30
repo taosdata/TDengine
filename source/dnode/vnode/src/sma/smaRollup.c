@@ -325,7 +325,7 @@ int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
     return TSDB_CODE_FAILED;
   }
 
-  STqReadHandle *pReadHandle = tqInitSubmitMsgScanner(pMeta);
+  SStreamReader *pReadHandle = tqInitSubmitMsgScanner(pMeta);
   if (!pReadHandle) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -616,8 +616,8 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
     tdRefSmaStat(pSma, (SSmaStat *)pStat);
 
     SSDataBlock dataBlock = {.info.type = STREAM_GET_ALL};
-    qSetStreamInput(pItem->taskInfo, &dataBlock, STREAM_DATA_TYPE_SSDATA_BLOCK, false);
-    tdFetchAndSubmitRSmaResult(pItem, STREAM_DATA_TYPE_SSDATA_BLOCK);
+    qSetStreamInput(pItem->taskInfo, &dataBlock, STREAM_INPUT__DATA_BLOCK, false);
+    tdFetchAndSubmitRSmaResult(pItem, STREAM_INPUT__DATA_BLOCK);
 
     tdUnRefSmaStat(pSma, (SSmaStat *)pStat);
 
@@ -639,12 +639,12 @@ static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t inputType
   smaDebug("vgId:%d, execute rsma %" PRIi8 " task for qTaskInfo:%p suid:%" PRIu64, SMA_VID(pSma), level,
            pItem->taskInfo, suid);
 
-  if (qSetStreamInput(pItem->taskInfo, pMsg, inputType, true) < 0) {  // STREAM_DATA_TYPE_SUBMIT_BLOCK
+  if (qSetStreamInput(pItem->taskInfo, pMsg, inputType, true) < 0) {  // INPUT__DATA_SUBMIT
     smaError("vgId:%d, rsma % " PRIi8 " qSetStreamInput failed since %s", SMA_VID(pSma), level, tstrerror(terrno));
     return TSDB_CODE_FAILED;
   }
 
-  tdFetchAndSubmitRSmaResult(pItem, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+  tdFetchAndSubmitRSmaResult(pItem, STREAM_INPUT__DATA_SUBMIT);
   atomic_store_8(&pItem->triggerStat, TASK_TRIGGER_STAT_ACTIVE);
 
   SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
@@ -681,7 +681,7 @@ static int32_t tdExecuteRSma(SSma *pSma, const void *pMsg, int32_t inputType, tb
     return TSDB_CODE_SUCCESS;
   }
 
-  if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
+  if (inputType == STREAM_INPUT__DATA_SUBMIT) {
     tdExecuteRSmaImpl(pSma, pMsg, inputType, &pRSmaInfo->items[0], suid, TSDB_RETENTION_L1);
     tdExecuteRSmaImpl(pSma, pMsg, inputType, &pRSmaInfo->items[1], suid, TSDB_RETENTION_L2);
   }
@@ -702,7 +702,7 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t inputType) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
+  if (inputType == STREAM_INPUT__DATA_SUBMIT) {
     STbUidStore uidStore = {0};
     tdFetchSubmitReqSuids(pMsg, &uidStore);
 
