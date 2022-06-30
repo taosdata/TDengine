@@ -216,75 +216,6 @@ _err:
   return code;
 }
 
-static int32_t tsdbCommitDelImpl(SCommitter *pCommitter) {
-  int32_t    code = 0;
-  STsdb     *pTsdb = pCommitter->pTsdb;
-  SMemTable *pMemTable = pTsdb->imem;
-  int32_t    iDelIdx = 0;
-  int32_t    nDelIdx = taosArrayGetSize(pCommitter->aDelIdx);
-  int32_t    iTbData = 0;
-  int32_t    nTbData = taosArrayGetSize(pMemTable->aTbData);
-  STbData   *pTbData;
-  SDelIdx   *pDelIdx;
-
-  ASSERT(nTbData > 0);
-
-  pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
-  pDelIdx = (iDelIdx < nDelIdx) ? (SDelIdx *)taosArrayGet(pCommitter->aDelIdx, iDelIdx) : NULL;
-
-  while (true) {
-    if (pTbData == NULL && pDelIdx == NULL) break;
-
-    if (pTbData && pDelIdx) {
-      int32_t c = tTABLEIDCmprFn(pTbData, pDelIdx);
-
-      if (c == 0) {
-        goto _commit_mem_and_disk_del;
-      } else if (c < 0) {
-        goto _commit_mem_del;
-      } else {
-        goto _commit_disk_del;
-      }
-    } else if (pTbData) {
-      goto _commit_mem_del;
-    } else {
-      goto _commit_disk_del;
-    }
-
-  _commit_mem_del:
-    code = tsdbCommitTableDel(pCommitter, pTbData, NULL);
-    if (code) goto _err;
-
-    iTbData++;
-    pTbData = (iTbData < nTbData) ? (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData) : NULL;
-    continue;
-
-  _commit_disk_del:
-    code = tsdbCommitTableDel(pCommitter, NULL, pDelIdx);
-    if (code) goto _err;
-
-    iDelIdx++;
-    pDelIdx = (iDelIdx < nDelIdx) ? (SDelIdx *)taosArrayGet(pCommitter->aDelIdx, iDelIdx) : NULL;
-    continue;
-
-  _commit_mem_and_disk_del:
-    code = tsdbCommitTableDel(pCommitter, pTbData, pDelIdx);
-    if (code) goto _err;
-
-    iTbData++;
-    pTbData = (iTbData < nTbData) ? (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData) : NULL;
-    iDelIdx++;
-    pDelIdx = (iDelIdx < nDelIdx) ? (SDelIdx *)taosArrayGet(pCommitter->aDelIdx, iDelIdx) : NULL;
-    continue;
-  }
-
-  return code;
-
-_err:
-  tsdbError("vgId:%d commit del impl failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
 static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
   int32_t code = 0;
   STsdb  *pTsdb = pCommitter->pTsdb;
@@ -1104,9 +1035,61 @@ static int32_t tsdbCommitDel(SCommitter *pCommitter) {
   }
 
   // impl
-  code = tsdbCommitDelImpl(pCommitter);
-  if (code) {
-    goto _err;
+  int32_t  iDelIdx = 0;
+  int32_t  nDelIdx = taosArrayGetSize(pCommitter->aDelIdx);
+  int32_t  iTbData = 0;
+  int32_t  nTbData = taosArrayGetSize(pMemTable->aTbData);
+  STbData *pTbData;
+  SDelIdx *pDelIdx;
+
+  ASSERT(nTbData > 0);
+
+  pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
+  pDelIdx = (iDelIdx < nDelIdx) ? (SDelIdx *)taosArrayGet(pCommitter->aDelIdx, iDelIdx) : NULL;
+  while (true) {
+    if (pTbData == NULL && pDelIdx == NULL) break;
+
+    if (pTbData && pDelIdx) {
+      int32_t c = tTABLEIDCmprFn(pTbData, pDelIdx);
+
+      if (c == 0) {
+        goto _commit_mem_and_disk_del;
+      } else if (c < 0) {
+        goto _commit_mem_del;
+      } else {
+        goto _commit_disk_del;
+      }
+    } else if (pTbData) {
+      goto _commit_mem_del;
+    } else {
+      goto _commit_disk_del;
+    }
+
+  _commit_mem_del:
+    code = tsdbCommitTableDel(pCommitter, pTbData, NULL);
+    if (code) goto _err;
+
+    iTbData++;
+    pTbData = (iTbData < nTbData) ? (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData) : NULL;
+    continue;
+
+  _commit_disk_del:
+    code = tsdbCommitTableDel(pCommitter, NULL, pDelIdx);
+    if (code) goto _err;
+
+    iDelIdx++;
+    pDelIdx = (iDelIdx < nDelIdx) ? (SDelIdx *)taosArrayGet(pCommitter->aDelIdx, iDelIdx) : NULL;
+    continue;
+
+  _commit_mem_and_disk_del:
+    code = tsdbCommitTableDel(pCommitter, pTbData, pDelIdx);
+    if (code) goto _err;
+
+    iTbData++;
+    pTbData = (iTbData < nTbData) ? (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData) : NULL;
+    iDelIdx++;
+    pDelIdx = (iDelIdx < nDelIdx) ? (SDelIdx *)taosArrayGet(pCommitter->aDelIdx, iDelIdx) : NULL;
+    continue;
   }
 
   // end
