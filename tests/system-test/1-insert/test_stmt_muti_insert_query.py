@@ -84,21 +84,21 @@ class TDTestCase:
     def test_stmt_insert_multi(self,conn):
         # type: (TaosConnection) -> None
 
-        dbname = "pytest_taos_stmt_multi"
+        dbname = "db_stmt"
         try:
             conn.execute("drop database if exists %s" % dbname)
             conn.execute("create database if not exists %s" % dbname)
             conn.select_db(dbname)
 
             conn.execute(
-                "create table if not exists log(ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
+                "create table if not exists stb1(ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
                 bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
                 ff float, dd double, bb binary(100), nn nchar(100), tt timestamp)",
             )
             # conn.load_table_info("log")
 
             start = datetime.now()
-            stmt = conn.statement("insert into log values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            stmt = conn.statement("insert into stb1 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 
             params = new_multi_binds(16)
             params[0].timestamp((1626861392589, 1626861392590, 1626861392591))
@@ -125,7 +125,7 @@ class TDTestCase:
             assert stmt.affected_rows == 3
             
             #query 1
-            querystmt=conn.statement("select ?,bu from log")
+            querystmt=conn.statement("select ?,bu from stb1")
             queryparam=new_bind_params(1)
             print(type(queryparam))
             queryparam[0].binary("ts")
@@ -135,7 +135,7 @@ class TDTestCase:
             # rows=result.fetch_all()
             # print( querystmt.use_result())
 
-            # result = conn.query("select * from log")
+            # result = conn.query("select * from stb1")
             rows=result.fetch_all()
             # rows=result.fetch_all()
             print(rows)
@@ -144,7 +144,7 @@ class TDTestCase:
             assert rows[2][1] == None
 
             #query 2
-            querystmt1=conn.statement("select * from log where bu < ?")
+            querystmt1=conn.statement("select * from stb1 where bu < ?")
             queryparam1=new_bind_params(1)
             print(type(queryparam1))
             queryparam1[0].int(4)
