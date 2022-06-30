@@ -1348,7 +1348,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
       SColumnInfoData* pSrc = taosArrayGet(px->pDataBlock, i);
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
       // it is a reserved column for scalar function, and no data in this column yet.
-      if (pDst->pData == NULL) {
+      if (pDst->pData == NULL || pSrc->pData == NULL) {
         continue;
       }
 
