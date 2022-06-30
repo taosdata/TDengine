@@ -80,7 +80,7 @@ $topicList = $topicList . '
 $consumerId    = 0
 $totalMsgOfOneTopic = $ctbNum * $rowsPerCtb
 $totalMsgOfStb = $totalMsgOfOneTopic * $topicNum
-$expectmsgcnt  = $totalMsgOfStb
+$expectmsgcnt  = 1000000
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 
 
@@ -168,7 +168,7 @@ $consumerId    = 0
 
 $totalMsgOfOneTopic = $rowsPerCtb
 $totalMsgOfCtb = $totalMsgOfOneTopic * $topicNum
-$expectmsgcnt  = $totalMsgOfCtb
+$expectmsgcnt  = 1000000
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 
 $topicList = ' . topic_ctb_function
@@ -245,7 +245,7 @@ $topicList = $topicList . '
 $consumerId    = 0
 $totalMsgOfOneTopic = $rowsPerCtb
 $totalMsgOfNtb = $totalMsgOfOneTopic * $topicNum
-$expectmsgcnt  = $totalMsgOfNtb
+$expectmsgcnt  = 1000000
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 
 
