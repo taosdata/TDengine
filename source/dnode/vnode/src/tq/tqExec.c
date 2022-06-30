@@ -85,10 +85,12 @@ int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, S
     tqAddBlockDataToRsp(pDataBlock, pRsp);
 
     if (pRsp->withTbName) {
-      // TODO
-      pRsp->withTbName = 0;
-      /*int64_t uid = 0;*/
-      /*tqAddTbNameToRsp(pTq, uid, pRsp, workerId);*/
+      int64_t uid;
+      int64_t ts;
+      if (qGetStreamScanStatus(task, &uid, &ts) < 0) {
+        ASSERT(0);
+      }
+      tqAddTbNameToRsp(pTq, uid, pRsp, workerId);
     }
     pRsp->blockNum++;
 
