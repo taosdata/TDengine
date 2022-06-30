@@ -1,5 +1,7 @@
 #!/bin/bash
 #
+#set -x
+
 version=$1
 versionComp=$2
 branchName=$3
@@ -13,7 +15,7 @@ archiveDir=/nas/TDengine/v$version/community # version’package directory
 allocator=glibc                 # glibc  or  jemalloc
 
 if [ ! -d $archiveDir ]; then
-  mkdir -p $archiveDir
+  mkdir -p $archiveDir || echo -e "failed to create $archiveDir"
 fi
 
 echo "generate commnunity package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
@@ -24,24 +26,28 @@ cd $communityDir
 rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
-./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
 
 # generate lite version in x64
 if [ "$cpuType" == "x64" ]; then
-  ./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -l lite
+  echo "./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true"
+  ./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true
 fi
 
-# generate alert version on x64-linux
-if [ "$cpuType" == "x64" ]; then
-  ./alert/release.sh  -n $version  -V $verType 
-fi
+# need build lite package first. standard need rebuild to include blm3
+echo "./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType"
+./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
+
 
 # mv package to path:/nas/TDengine/version/
-cd $archiveDir
-cp -f $communityDir/release/* ./
-if [ "${cpuType}" == "x64" ]; then
-  cp -f $communityDir/debs/* ./
-  cp -f $communityDir/rpms/* ./
+if [ -d $archiveDir ]; then
+    cd $archiveDir
+    cp -f $communityDir/release/* ./
+    if [ "${cpuType}" == "x64" ]; then
+        cp -f $communityDir/debs/* ./
+        cp -f $communityDir/rpms/* ./
+    fi
+else
+    echo "Cannont found $archiveDir on this machine"
 fi
 
 #echo "build new version branch >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
