@@ -825,6 +825,9 @@ _return:
   qDebug("QID:0x%" PRIx64 " ctg call user callback with rsp %s", pJob->queryId, tstrerror(code));
 
   pJob->jobResCode = code;
+
+  //taosSsleep(2);
+  //qDebug("QID:0x%" PRIx64 " ctg after sleep", pJob->queryId);
   
   taosAsyncExec(ctgCallUserCb, pJob, NULL);
   

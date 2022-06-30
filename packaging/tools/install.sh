@@ -194,7 +194,6 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
   ${csudo}rm -f ${bin_link_dir}/${adapterName} || :
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
-  ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
 
@@ -210,7 +209,6 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
-  [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo}ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator || :
 
   if [ "$verMode" == "cluster" ]; then
     ${csudo}cp -r ${script_dir}/nginxd/* ${nginx_dir} && ${csudo}chmod 0555 ${nginx_dir}/*
@@ -606,28 +604,19 @@ function install_service_on_sysvinit() {
   if ((${os_type} == 1)); then
     #    ${csudo}cp -f ${script_dir}/init.d/${serverName}.deb ${install_main_dir}/init.d/${serverName}
     ${csudo}cp ${script_dir}/init.d/${serverName}.deb ${service_config_dir}/${serverName} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
-    #    ${csudo}cp -f ${script_dir}/init.d/tarbitratord.deb ${install_main_dir}/init.d/tarbitratord
-    ${csudo}cp ${script_dir}/init.d/tarbitratord.deb ${service_config_dir}/tarbitratord && ${csudo}chmod a+x ${service_config_dir}/tarbitratord
   elif ((${os_type} == 2)); then
     #    ${csudo}cp -f ${script_dir}/init.d/${serverName}.rpm ${install_main_dir}/init.d/${serverName}
     ${csudo}cp ${script_dir}/init.d/${serverName}.rpm ${service_config_dir}/${serverName} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
-    #    ${csudo}cp -f ${script_dir}/init.d/tarbitratord.rpm ${install_main_dir}/init.d/tarbitratord
-    ${csudo}cp ${script_dir}/init.d/tarbitratord.rpm ${service_config_dir}/tarbitratord && ${csudo}chmod a+x ${service_config_dir}/tarbitratord
   fi
 
   if ((${initd_mod} == 1)); then
     ${csudo}chkconfig --add ${serverName} || :
     ${csudo}chkconfig --level 2345 ${serverName} on || :
-    ${csudo}chkconfig --add tarbitratord || :
-    ${csudo}chkconfig --level 2345 tarbitratord on || :
   elif ((${initd_mod} == 2)); then
     ${csudo}insserv ${serverName} || :
     ${csudo}insserv -d ${serverName} || :
-    ${csudo}insserv tarbitratord || :
-    ${csudo}insserv -d tarbitratord || :
   elif ((${initd_mod} == 3)); then
     ${csudo}update-rc.d ${serverName} defaults || :
-    ${csudo}update-rc.d tarbitratord defaults || :
   fi
 }
 
@@ -669,9 +658,6 @@ function install_service_on_systemd() {
 
   ${csudo}systemctl enable ${serverName}
 
-  [ -f ${script_dir}/cfg/tarbitratord.service ] &&
-    ${csudo}cp ${script_dir}/cfg/tarbitratord.service \
-      ${service_config_dir}/ || :
   ${csudo}systemctl daemon-reload
 
   if [ "$verMode" == "cluster" ]; then

@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "index.h"
 #include "function.h"
 #include "functionMgt.h"
+#include "index.h"
+#include "os.h"
 #include "tdatablock.h"
 #include "thash.h"
 #include "tmsg.h"
@@ -25,45 +25,41 @@
 #include "executorimpl.h"
 #include "tcompression.h"
 
-void initResultRowInfo(SResultRowInfo *pResultRowInfo) {
-  pResultRowInfo->size       = 0;
+void initResultRowInfo(SResultRowInfo* pResultRowInfo) {
+  pResultRowInfo->size = 0;
   pResultRowInfo->cur.pageId = -1;
 }
 
-void cleanupResultRowInfo(SResultRowInfo *pResultRowInfo) {
+void cleanupResultRowInfo(SResultRowInfo* pResultRowInfo) {
   if (pResultRowInfo == NULL) {
     return;
   }
 
-  for(int32_t i = 0; i < pResultRowInfo->size; ++i) {
-//    if (pResultRowInfo->pResult[i]) {
-//      taosMemoryFreeClear(pResultRowInfo->pResult[i]->key);
-//    }
+  for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
+    //    if (pResultRowInfo->pResult[i]) {
+    //      taosMemoryFreeClear(pResultRowInfo->pResult[i]->key);
+    //    }
   }
 }
 
-void closeAllResultRows(SResultRowInfo *pResultRowInfo) {
-// do nothing
+void closeAllResultRows(SResultRowInfo* pResultRowInfo) {
+  // do nothing
 }
 
-bool isResultRowClosed(SResultRow* pRow) {
-  return (pRow->closed == true);
-}
+bool isResultRowClosed(SResultRow* pRow) { return (pRow->closed == true); }
 
-void closeResultRow(SResultRow* pResultRow) {
-  pResultRow->closed = true;
-}
+void closeResultRow(SResultRow* pResultRow) { pResultRow->closed = true; }
 
 // TODO refactor: use macro
 SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t index, const int32_t* offset) {
   assert(index >= 0 && offset != NULL);
-  return (SResultRowEntryInfo*)((char*) pRow->pEntryInfo + offset[index]);
+  return (SResultRowEntryInfo*)((char*)pRow->pEntryInfo + offset[index]);
 }
 
 size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   int32_t rowSize = (numOfOutput * sizeof(SResultRowEntryInfo)) + sizeof(SResultRow);
 
-  for(int32_t i = 0; i < numOfOutput; ++i) {
+  for (int32_t i = 0; i < numOfOutput; ++i) {
     rowSize += pCtx[i].resDataInfo.interBufSize;
   }
 
@@ -75,31 +71,29 @@ void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   assert(pGroupResInfo != NULL);
 
   taosArrayDestroy(pGroupResInfo->pRows);
-  pGroupResInfo->pRows     = NULL;
-  pGroupResInfo->index     = 0;
+  pGroupResInfo->pRows = NULL;
+  pGroupResInfo->index = 0;
 }
 
 static int32_t resultrowComparAsc(const void* p1, const void* p2) {
-  SResKeyPos* pp1 = *(SResKeyPos**) p1;
-  SResKeyPos* pp2 = *(SResKeyPos**) p2;
+  SResKeyPos* pp1 = *(SResKeyPos**)p1;
+  SResKeyPos* pp2 = *(SResKeyPos**)p2;
 
   if (pp1->groupId == pp2->groupId) {
-    int64_t pts1 = *(int64_t*) pp1->key;
-    int64_t pts2 = *(int64_t*) pp2->key;
+    int64_t pts1 = *(int64_t*)pp1->key;
+    int64_t pts2 = *(int64_t*)pp2->key;
 
     if (pts1 == pts2) {
       return 0;
     } else {
-      return pts1 < pts2? -1:1;
+      return pts1 < pts2 ? -1 : 1;
     }
   } else {
-    return pp1->groupId < pp2->groupId? -1:1;
+    return pp1->groupId < pp2->groupId ? -1 : 1;
   }
 }
 
-static int32_t resultrowComparDesc(const void* p1, const void* p2) {
-  return resultrowComparAsc(p2, p1);
-}
+static int32_t resultrowComparDesc(const void* p1, const void* p2) { return resultrowComparAsc(p2, p1); }
 
 void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order) {
   if (pGroupResInfo->pRows != NULL) {
@@ -111,13 +105,13 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int
   pGroupResInfo->pRows = taosArrayInit(10, POINTER_BYTES);
 
   size_t keyLen = 0;
-  while((pData = taosHashIterate(pHashmap, pData)) != NULL) {
+  while ((pData = taosHashIterate(pHashmap, pData)) != NULL) {
     void* key = taosHashGetKey(pData, &keyLen);
 
     SResKeyPos* p = taosMemoryMalloc(keyLen + sizeof(SResultRowPosition));
 
-    p->groupId = *(uint64_t*) key;
-    p->pos = *(SResultRowPosition*) pData;
+    p->groupId = *(uint64_t*)key;
+    p->pos = *(SResultRowPosition*)pData;
     memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
 #ifdef BUF_PAGE_DEBUG
     qDebug("page_groupRes, groupId:%"PRIu64",pageId:%d,offset:%d\n", p->groupId, p->pos.pageId, p->pos.offset);
@@ -126,7 +120,7 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int
   }
 
   if (order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC) {
-    __compar_fn_t fn = (order == TSDB_ORDER_ASC)? resultrowComparAsc:resultrowComparDesc;
+    __compar_fn_t fn = (order == TSDB_ORDER_ASC) ? resultrowComparAsc : resultrowComparDesc;
     qsort(pGroupResInfo->pRows->pData, taosArrayGetSize(pGroupResInfo->pRows), POINTER_BYTES, fn);
   }
 
@@ -158,7 +152,7 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
     return 0;
   }
 
-  return (int32_t) taosArrayGetSize(pGroupResInfo->pRows);
+  return (int32_t)taosArrayGetSize(pGroupResInfo->pRows);
 }
 
 SArray* createSortInfo(SNodeList* pNodeList) {
@@ -197,12 +191,13 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
   pBlock->info.type = STREAM_INVALID;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    SSlotDescNode*  pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
-//    if (!pDescNode->output) {  // todo disable it temporarily
-//      continue;
-//    }
+    SSlotDescNode* pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
+    /*if (!pDescNode->output) {  // todo disable it temporarily*/
+    /*continue;*/
+    /*}*/
 
-    SColumnInfoData idata = createColumnInfoData(pDescNode->dataType.type, pDescNode->dataType.bytes, pDescNode->slotId);
+    SColumnInfoData idata =
+        createColumnInfoData(pDescNode->dataType.type, pDescNode->dataType.bytes, pDescNode->slotId);
     idata.info.scale = pDescNode->dataType.scale;
     idata.info.precision = pDescNode->dataType.precision;
 
@@ -214,10 +209,10 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
   SMetaReader* mr = (SMetaReader*)pContext;
-  if(nodeType(*pNode) == QUERY_NODE_COLUMN){
+  if (nodeType(*pNode) == QUERY_NODE_COLUMN) {
     SColumnNode* pSColumnNode = *(SColumnNode**)pNode;
 
-    SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
+    SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
     if (NULL == res) {
       return DEAL_RES_ERROR;
     }
@@ -230,8 +225,8 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
     const char* p = metaGetTableTagVal(&mr->me, pSColumnNode->node.resType.type, &tagVal);
     if (p == NULL) {
       res->node.resType.type = TSDB_DATA_TYPE_NULL;
-    }else if (pSColumnNode->node.resType.type == TSDB_DATA_TYPE_JSON) {
-      int32_t len = ((const STag*)p) -> len;
+    } else if (pSColumnNode->node.resType.type == TSDB_DATA_TYPE_JSON) {
+      int32_t len = ((const STag*)p)->len;
       res->datum.p = taosMemoryCalloc(len + 1, 1);
       memcpy(res->datum.p, p, len);
     } else if (IS_VAR_DATA_TYPE(pSColumnNode->node.resType.type)) {
@@ -243,10 +238,10 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
     }
     nodesDestroyNode(*pNode);
     *pNode = (SNode*)res;
-  }else if (nodeType(*pNode) == QUERY_NODE_FUNCTION){
-    SFunctionNode * pFuncNode = *(SFunctionNode**)pNode;
-    if(pFuncNode->funcType == FUNCTION_TYPE_TBNAME){
-      SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
+  } else if (nodeType(*pNode) == QUERY_NODE_FUNCTION) {
+    SFunctionNode* pFuncNode = *(SFunctionNode**)pNode;
+    if (pFuncNode->funcType == FUNCTION_TYPE_TBNAME) {
+      SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
       if (NULL == res) {
         return DEAL_RES_ERROR;
       }
@@ -266,12 +261,12 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static bool isTableOk(STableKeyInfo* info, SNode *pTagCond, SMeta *metaHandle){
-  SMetaReader    mr = {0};
+static bool isTableOk(STableKeyInfo* info, SNode* pTagCond, SMeta* metaHandle) {
+  SMetaReader mr = {0};
   metaReaderInit(&mr, metaHandle, 0);
   metaGetTableEntryByUid(&mr, info->uid);
 
-  SNode *pTagCondTmp = nodesCloneNode(pTagCond);
+  SNode* pTagCondTmp = nodesCloneNode(pTagCond);
 
   nodesRewriteExprPostOrder(&pTagCondTmp, doTranslateTagExpr, &mr);
   metaReaderClear(&mr);
@@ -285,7 +280,7 @@ static bool isTableOk(STableKeyInfo* info, SNode *pTagCond, SMeta *metaHandle){
   }
 
   ASSERT(nodeType(pNew) == QUERY_NODE_VALUE);
-  SValueNode *pValue = (SValueNode *)pNew;
+  SValueNode* pValue = (SValueNode*)pNew;
 
   ASSERT(pValue->node.resType.type == TSDB_DATA_TYPE_BOOL);
   bool result = pValue->datum.b;
@@ -296,12 +291,12 @@ static bool isTableOk(STableKeyInfo* info, SNode *pTagCond, SMeta *metaHandle){
 int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo* pListInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   pListInfo->pTableList = taosArrayInit(8, sizeof(STableKeyInfo));
-  if(pListInfo->pTableList == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (pListInfo->pTableList == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   uint64_t tableUid = pScanNode->uid;
 
   pListInfo->suid = pScanNode->suid;
-  
+
   SNode* pTagCond = (SNode*)pListInfo->pTagCond;
   SNode* pTagIndexCond = (SNode*)pListInfo->pTagIndexCond;
   if (pScanNode->tableType == TSDB_SUPER_TABLE) {
@@ -310,7 +305,7 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
           .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = tsdbGetIvtIdx(metaHandle), .suid = tableUid};
 
       SArray* res = taosArrayInit(8, sizeof(uint64_t));
-      //code = doFilterTag(pTagIndexCond, &metaArg, res);
+      // code = doFilterTag(pTagIndexCond, &metaArg, res);
       code = TSDB_CODE_INDEX_REBUILDING;
       if (code == TSDB_CODE_INDEX_REBUILDING) {
         code = tsdbGetAllTableList(metaHandle, tableUid, pListInfo->pTableList);
@@ -340,7 +335,7 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
 
     if(pTagCond){
       int32_t i = 0;
-      while(i < taosArrayGetSize(pListInfo->pTableList)) {
+      while (i < taosArrayGetSize(pListInfo->pTableList)) {
         STableKeyInfo* info = taosArrayGet(pListInfo->pTableList, i);
         bool isOk = isTableOk(info, pTagCond, metaHandle);
         if(terrno) return terrno;
@@ -351,21 +346,21 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
         i++;
       }
     }
-  }else {  // Create one table group.
+  } else {  // Create one table group.
     STableKeyInfo info = {.lastKey = 0, .uid = tableUid, .groupId = 0};
     taosArrayPush(pListInfo->pTableList, &info);
   }
   pListInfo->pGroupList = taosArrayInit(4, POINTER_BYTES);
-  if(pListInfo->pGroupList == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (pListInfo->pGroupList == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  //put into list as default group, remove it if grouping sorting is required later
+  // put into list as default group, remove it if grouping sorting is required later
   taosArrayPush(pListInfo->pGroupList, &pListInfo->pTableList);
 
   return code;
 }
 
 SArray* extractPartitionColInfo(SNodeList* pNodeList) {
-  if(!pNodeList) {
+  if (!pNodeList) {
     return NULL;
   }
 
@@ -394,7 +389,6 @@ SArray* extractPartitionColInfo(SNodeList* pNodeList) {
   return pList;
 }
 
-
 SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
                             int32_t type) {
   size_t  numOfCols = LIST_LENGTH(pNodeList);
@@ -410,7 +404,7 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
 
     SColMatchInfo c = {0};
     c.output = true;
-    c.colId  = pColNode->colId;
+    c.colId = pColNode->colId;
     c.srcSlotId = pColNode->slotId;
     c.matchType = type;
     c.targetSlotId = pNode->slotId;
@@ -689,8 +683,8 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
-    (*rowEntryInfoOffset)[i] =
-        (int32_t)((*rowEntryInfoOffset)[i - 1] + sizeof(SResultRowEntryInfo) + pFuncCtx[i - 1].resDataInfo.interBufSize);
+    (*rowEntryInfoOffset)[i] = (int32_t)((*rowEntryInfoOffset)[i - 1] + sizeof(SResultRowEntryInfo) +
+                                         pFuncCtx[i - 1].resDataInfo.interBufSize);
   }
 
   setSelectValueColumnInfo(pFuncCtx, numOfOutput);

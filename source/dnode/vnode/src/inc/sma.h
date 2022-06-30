@@ -46,6 +46,10 @@ struct SSmaEnv {
   SSmaStat      *pStat;
 };
 
+typedef struct {
+  int32_t smaRef;
+} SSmaMgmt;
+
 #define SMA_ENV_LOCK(env) ((env)->lock)
 #define SMA_ENV_TYPE(env) ((env)->type)
 #define SMA_ENV_STAT(env) ((env)->pStat)
@@ -58,11 +62,12 @@ struct STSmaStat {
 
 struct SRSmaStat {
   SSma     *pSma;
-  void     *tmrHandle;
-  tmr_h     tmrId;
-  int32_t   tmrSeconds;
-  int8_t    triggerStat;
-  int8_t    runningStat;
+  int64_t   refId;         // shared by persistence/fetch tasks
+  void     *tmrHandle;     // for persistence task
+  tmr_h     tmrId;         // for persistence task
+  int32_t   tmrSeconds;    // for persistence task
+  int8_t    triggerStat;   // for persistence task
+  int8_t    runningStat;   // for persistence task
   SHashObj *rsmaInfoHash;  // key: stbUid, value: SRSmaInfo;
 };
 
@@ -73,6 +78,7 @@ struct SSmaStat {
   };
   T_REF_DECLARE()
 };
+
 #define SMA_TSMA_STAT(s)     (&(s)->tsmaStat)
 #define SMA_RSMA_STAT(s)     (&(s)->rsmaStat)
 #define RSMA_INFO_HASH(r)    ((r)->rsmaInfoHash)
@@ -80,6 +86,7 @@ struct SSmaStat {
 #define RSMA_TMR_HANDLE(r)   ((r)->tmrHandle)
 #define RSMA_TRIGGER_STAT(r) (&(r)->triggerStat)
 #define RSMA_RUNNING_STAT(r) (&(r)->runningStat)
+#define RSMA_REF_ID(r)       ((r)->refId)
 
 enum {
   TASK_TRIGGER_STAT_INIT = 0,
@@ -192,10 +199,18 @@ typedef struct STFInfo STFInfo;
 typedef struct STFile  STFile;
 
 struct STFInfo {
+  // common fields
   uint32_t magic;
   uint32_t ftype;
   uint32_t fver;
   int64_t  fsize;
+
+  // specific fields
+  union {
+    struct {
+      int64_t applyVer[2];
+    } qTaskInfo;
+  };
 };
 
 struct STFile {
@@ -230,7 +245,7 @@ int32_t tdUpdateTFileHeader(STFile *pTFile);
 void    tdUpdateTFileMagic(STFile *pTFile, void *pCksm);
 void    tdCloseTFile(STFile *pTFile);
 
-void tdGetVndFileName(int32_t vid, const char *dname, const char *fname, char *outputName);
+void tdGetVndFileName(int32_t vgId, const char *dname, const char *fname, char *outputName);
 
 #ifdef __cplusplus
 }

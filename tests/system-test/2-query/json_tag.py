@@ -218,7 +218,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, "true")
         # test select json tag->'key', value is null
         tdSql.query("select jtag->'tag1' from jsons1_4")
-        tdSql.checkData(0, 0, "null")
+        tdSql.checkData(0, 0, None)
         # test select json tag->'key', value is double
         tdSql.query("select jtag->'tag1' from jsons1_5")
         tdSql.checkData(0, 0, "1.232000000")

@@ -76,6 +76,22 @@ class TMQCom:
             resultList.append(tdSql.getData(i , 3))
         
         return resultList
+    
+    def selectConsumeMsgResult(self,expectRows,cdbName='cdb'):
+        resultList=[]
+        while 1:
+            tdSql.query("select * from %s.consumeresult"%cdbName)
+            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
+            if tdSql.getRows() == expectRows:
+                break
+            else:
+                time.sleep(5)
+        
+        for i in range(expectRows):
+            tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
+            resultList.append(tdSql.getData(i , 2))
+        
+        return resultList
 
     def startTmqSimProcess(self,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0,alias=0):
         buildPath = tdCom.getBuildPath()

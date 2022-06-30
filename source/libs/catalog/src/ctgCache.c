@@ -1083,7 +1083,7 @@ int32_t ctgMetaRentUpdate(SCtgRentMgmt *mgmt, void *meta, int64_t id, int32_t si
 
   CTG_LOCK(CTG_WRITE, &slot->lock);
   if (NULL == slot->meta) {
-    qError("empty meta slot, id:0x%"PRIx64", slot idx:%d, type:%d", id, widx, mgmt->type);
+    qDebug("empty meta slot, id:0x%"PRIx64", slot idx:%d, type:%d", id, widx, mgmt->type);
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
@@ -1536,8 +1536,6 @@ void ctgClearAllInstance(void) {
 
     pIter = taosHashIterate(gCtgMgmt.pCluster, pIter);
   }
-
-  taosHashClear(gCtgMgmt.pCluster);
 }
 
 void ctgFreeAllInstance(void) {
@@ -1566,27 +1564,27 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
   SCatalog* pCtg = msg->pCtg;
   
   if (NULL == dbInfo->vgHash) {
-    return TSDB_CODE_SUCCESS;
+    goto _return;
   }
   
   if (dbInfo->vgVersion < 0 || taosHashGetSize(dbInfo->vgHash) <= 0) {
     ctgError("invalid db vgInfo, dbFName:%s, vgHash:%p, vgVersion:%d, vgHashSize:%d", 
              dbFName, dbInfo->vgHash, dbInfo->vgVersion, taosHashGetSize(dbInfo->vgHash));
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
   bool newAdded = false;
   SDbVgVersion vgVersion = {.dbId = msg->dbId, .vgVersion = dbInfo->vgVersion, .numOfTable = dbInfo->numOfTable};
 
   SCtgDBCache *dbCache = NULL;
-  CTG_ERR_RET(ctgGetAddDBCache(msg->pCtg, dbFName, msg->dbId, &dbCache));
+  CTG_ERR_JRET(ctgGetAddDBCache(msg->pCtg, dbFName, msg->dbId, &dbCache));
   if (NULL == dbCache) {
     ctgInfo("conflict db update, ignore this update, dbFName:%s, dbId:0x%"PRIx64, dbFName, msg->dbId);
-    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   SCtgVgCache *vgCache = &dbCache->vgCache;
-  CTG_ERR_RET(ctgWLockVgInfo(msg->pCtg, dbCache));
+  CTG_ERR_JRET(ctgWLockVgInfo(msg->pCtg, dbCache));
   
   if (vgCache->vgInfo) {
     SDBVgInfo *vgInfo = vgCache->vgInfo;
@@ -1595,14 +1593,14 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
       ctgDebug("db vgVer is old, dbFName:%s, vgVer:%d, curVer:%d", dbFName, dbInfo->vgVersion, vgInfo->vgVersion);
       ctgWUnlockVgInfo(dbCache);
       
-      return TSDB_CODE_SUCCESS;
+      goto _return;
     }
 
     if (dbInfo->vgVersion == vgInfo->vgVersion && dbInfo->numOfTable == vgInfo->numOfTable) {
       ctgDebug("no new db vgVer or numOfTable, dbFName:%s, vgVer:%d, numOfTable:%d", dbFName, dbInfo->vgVersion, dbInfo->numOfTable);
       ctgWUnlockVgInfo(dbCache);
       
-      return TSDB_CODE_SUCCESS;
+      goto _return;
     }
 
     ctgFreeVgInfo(vgInfo);
