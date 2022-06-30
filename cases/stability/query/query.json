@@ -7,7 +7,7 @@
     "user": "root",
     "password": "taosdata",
     "confirm_parameter_prompt": "no",
-    "databases": "test",
+    "databases": "db",
     "query_times": QUERYTIMES,
     "query_mode": "QUERYMODE",
     "specified_table_query": {
