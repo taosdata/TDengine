@@ -220,6 +220,33 @@ void syncClientRequestLog(const SyncClientRequest* pMsg);
 void syncClientRequestLog2(char* s, const SyncClientRequest* pMsg);
 
 // ---------------------------------------------
+typedef struct SOffsetAndContLen {
+  int32_t offset;
+  int32_t contLen;
+} SOffsetAndContLen;
+
+typedef struct SRaftMeta {
+  uint64_t seqNum;
+  bool     isWeak;
+} SRaftMeta;
+
+// block1:
+// block2: SRaftMeta array
+// block3: rpc msg array (with pCont)
+
+typedef struct SyncClientRequestBatch {
+  uint32_t bytes;
+  int32_t  vgId;
+  uint32_t msgType;  // SyncClientRequestBatch msgType
+  uint32_t dataCount;
+  uint32_t dataLen;  // user RpcMsg.contLen
+  char     data[];   // user RpcMsg.pCont
+} SyncClientRequestBatch;
+
+SyncClientRequestBatch* syncClientRequestBatchBuild(SRpcMsg* rpcMsgArr, SRaftMeta* raftArr, int32_t arrSize,
+                                                    int32_t vgId);
+
+// ---------------------------------------------
 typedef struct SyncClientRequestReply {
   uint32_t bytes;
   int32_t  vgId;
@@ -325,10 +352,14 @@ void syncAppendEntriesLog(const SyncAppendEntries* pMsg);
 void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg);
 
 // ---------------------------------------------
+
+// define ahead
+/*
 typedef struct SOffsetAndContLen {
   int32_t offset;
   int32_t contLen;
 } SOffsetAndContLen;
+*/
 
 typedef struct SyncAppendEntriesBatch {
   uint32_t bytes;

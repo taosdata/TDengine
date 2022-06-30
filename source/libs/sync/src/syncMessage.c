@@ -956,6 +956,45 @@ void syncClientRequestLog2(char* s, const SyncClientRequest* pMsg) {
   }
 }
 
+// ---- message process SyncClientRequestBatch----
+
+// block1:
+// block2: SRaftMeta array
+// block3: rpc msg array (with pCont)
+
+SyncClientRequestBatch* syncClientRequestBatchBuild(SRpcMsg* rpcMsgArr, SRaftMeta* raftArr, int32_t arrSize,
+                                                    int32_t vgId) {
+  ASSERT(rpcMsgArr != NULL);
+  ASSERT(arrSize > 0);
+
+  int32_t dataLen = 0;
+  int32_t raftMetaArrayLen = sizeof(SRpcMsg) * arrSize;
+  int32_t rpcArrayLen = sizeof(SRaftMeta) * arrSize;
+
+  uint32_t                bytes = sizeof(SyncClientRequestBatch) + dataLen;
+  SyncClientRequestBatch* pMsg = taosMemoryMalloc(bytes);
+  memset(pMsg, 0, bytes);
+  pMsg->bytes = bytes;
+  pMsg->vgId = vgId;
+  pMsg->msgType = TDMT_SYNC_CLIENT_REQUEST_BATCH;
+  pMsg->dataCount = arrSize;
+  pMsg->dataLen = dataLen;
+
+  SRaftMeta* raftMetaArr = (SRaftMeta*)(pMsg->data);
+  SRpcMsg*   msgArr = (SRpcMsg*)((char*)(pMsg->data) + raftMetaArrayLen);
+
+  for (int i = 0; i < arrSize; ++i) {
+    // init raftMetaArr
+    raftMetaArr[i].isWeak = raftArr[i].isWeak;
+    raftMetaArr[i].seqNum = raftArr[i].seqNum;
+
+    // init msgArr
+    msgArr[i] = rpcMsgArr[i];
+  }
+
+  return pMsg;
+}
+
 // ---- message process SyncRequestVote----
 SyncRequestVote* syncRequestVoteBuild(int32_t vgId) {
   uint32_t         bytes = sizeof(SyncRequestVote);
