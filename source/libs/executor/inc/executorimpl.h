@@ -250,7 +250,7 @@ typedef struct SSampleExecInfo {
 
 enum {
   TABLE_SCAN__TABLE_ORDER = 1,
-  TABLE_SCAN__BLOCK_ORDER = 1,
+  TABLE_SCAN__BLOCK_ORDER = 2,
 };
 
 typedef struct STableScanInfo {
@@ -285,11 +285,6 @@ typedef struct STableScanInfo {
     uint64_t uid;
     int64_t ts;
   } lastStatus;
-
-  struct {
-    uint64_t uid;
-    int64_t ts;
-  } expStatus;
 
   int8_t scanMode;
 } STableScanInfo;

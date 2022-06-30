@@ -231,8 +231,14 @@ int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t le
   return decodeOperator(pTaskInfo->pRoot, pInput, len);
 }
 
-int32_t qPrepareScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts) {
+int32_t qStreamPrepareScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+
+  if (uid == 0) {
+    STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, 0);
+    uid = pTableInfo->uid;
+    ts = INT64_MIN;
+  }
 
   return doPrepareScan(pTaskInfo->pRoot, uid, ts);
 }

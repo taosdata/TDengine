@@ -519,35 +519,6 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
   // if scan table by table
   if (pInfo->scanMode == TABLE_SCAN__TABLE_ORDER) {
     // check status
-    if (pInfo->lastStatus.uid == pInfo->expStatus.uid && pInfo->lastStatus.ts == pInfo->expStatus.ts) {
-      while (1) {
-        SSDataBlock* result = doTableScanGroup(pOperator);
-        if (result) {
-          return result;
-        }
-        // if no data, switch to next table and continue scan
-        pInfo->currentTable++;
-        if (pInfo->currentTable >= taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList)) {
-          return NULL;
-        }
-        STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, pInfo->currentTable);
-        /*pTableInfo->uid */
-        tsdbSetTableId(pInfo->dataReader, pTableInfo->uid);
-        tsdbResetReadHandle(pInfo->dataReader, &pInfo->cond, 0);
-        pInfo->scanTimes = 0;
-        pInfo->curTWinIdx = 0;
-      }
-    }
-    // reset to exp table and window start from ts
-    tsdbSetTableId(pInfo->dataReader, pInfo->expStatus.uid);
-    SQueryTableDataCond tmpCond = pInfo->cond;
-    tmpCond.twindows[0] = (STimeWindow){
-        .skey = pInfo->expStatus.ts,
-        .ekey = INT64_MAX,
-    };
-    tsdbResetReadHandle(pInfo->dataReader, &tmpCond, 0);
-    pInfo->scanTimes = 0;
-    pInfo->curTWinIdx = 0;
     while (1) {
       SSDataBlock* result = doTableScanGroup(pOperator);
       if (result) {

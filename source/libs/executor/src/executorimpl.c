@@ -2825,18 +2825,36 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
   int32_t type = pOperator->operatorType;
   if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     SStreamBlockScanInfo* pScanInfo = pOperator->info;
-    STableScanInfo*       pSnapShotScanInfo = pScanInfo->pSnapshotReadOp->info;
-    /**uid = pSnapShotScanInfo->scanStatus.uid;*/
-    /**ts = pSnapShotScanInfo->scanStatus.t;*/
-    if (pSnapShotScanInfo->lastStatus.uid != uid || pSnapShotScanInfo->lastStatus.ts != ts) {
-      // rebuild scan
-      //
+    pScanInfo->blockType = STREAM_INPUT__DATA_SCAN;
+
+    STableScanInfo* pInfo = pScanInfo->pSnapshotReadOp->info;
+
+    /*if (pSnapShotScanInfo->dataReader == NULL) {*/
+    /*pSnapShotScanInfo->dataReader = tsdbReaderOpen(pHandle->vnode, &pSTInfo->cond, tableList, 0, 0);*/
+    /*pSnapShotScanInfo->scanMode = TABLE_SCAN__TABLE_ORDER;*/
+    /*}*/
+
+    if (pInfo->lastStatus.uid != uid || pInfo->lastStatus.ts != ts) {
+      tsdbSetTableId(pInfo->dataReader, uid);
+      SQueryTableDataCond tmpCond = pInfo->cond;
+      tmpCond.twindows[0] = (STimeWindow){
+          .skey = ts,
+          .ekey = INT64_MAX,
+      };
+      tsdbResetReadHandle(pInfo->dataReader, &tmpCond, 0);
+      pInfo->scanTimes = 0;
+      pInfo->curTWinIdx = 0;
     }
+
   } else {
-    if (pOperator->pDownstream[0] == NULL) {
-      return TSDB_CODE_INVALID_PARA;
+    if (pOperator->numOfDownstream == 1) {
+      return doPrepareScan(pOperator->pDownstream[0], uid, ts);
+    } else if (pOperator->numOfDownstream == 0) {
+      qError("failed to find stream scan operator to set the input data block");
+      return TSDB_CODE_QRY_APP_ERROR;
     } else {
-      doPrepareScan(pOperator->pDownstream[0], uid, ts);
+      qError("join not supported for stream block scan");
+      return TSDB_CODE_QRY_APP_ERROR;
     }
   }
 

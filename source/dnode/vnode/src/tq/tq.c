@@ -389,7 +389,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
 
     // 4. send rsp
     if (dataRsp.blockNum != 0) {
-      tqOffsetResetToData(&dataRsp.rspOffset, 0, 0);
       if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
         code = -1;
       }

@@ -63,10 +63,11 @@ int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, S
   ASSERT(pExec->subType == TOPIC_SUB_TYPE__COLUMN);
   qTaskInfo_t task = pExec->execCol.task[workerId];
 
-  if (qStreamScanSnapshot(task) < 0) {
-    ASSERT(0);
-  }
-  if (qPrepareScan(task, offset.uid, offset.ts) < 0) {
+  /*if (qStreamScanSnapshot(task) < 0) {*/
+  /*ASSERT(0);*/
+  /*}*/
+
+  if (qStreamPrepareScan(task, offset.uid, offset.ts) < 0) {
     ASSERT(0);
   }
 
@@ -86,7 +87,7 @@ int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, S
 
     if (pRsp->withTbName) {
       pRsp->withTbName = 0;
-#if 1
+#if 0
       int64_t uid;
       int64_t ts;
       if (qGetStreamScanStatus(task, &uid, &ts) < 0) {

@@ -133,6 +133,8 @@ endi
 $totalMsgCons = $totalMsgOfOneTopic + $totalMsgOfStb
 $sumOfRows = $data[0][3] + $data[1][3]
 if $sumOfRows != $totalMsgCons then
+  print actual: $sumOfRows
+  print expect: $totalMsgCons
   return -1
 endi
 
