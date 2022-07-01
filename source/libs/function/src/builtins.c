@@ -1944,7 +1944,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "irate",
     .type = FUNCTION_TYPE_IRATE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
     .translateFunc = translateIrate,
     .getEnvFunc   = getIrateFuncEnv,
     .initFunc     = irateFuncSetup,
@@ -2151,7 +2151,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "stateduration",
     .type = FUNCTION_TYPE_STATE_DURATION,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_WINDOW_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_WINDOW_FUNC,
     .translateFunc = translateStateDuration,
     .getEnvFunc   = getStateFuncEnv,
     .initFunc     = functionSetup,
