@@ -184,17 +184,17 @@ class TDTestCase:
 
             #query: string Functions
 
-            querystmt3=conn.statement("select CHAR_LENGTH(?) from log  ")
-            queryparam3=new_bind_params(1)
-            print(type(queryparam3))
-            queryparam3[0].binary('中文字符')
-            querystmt3.bind_param(queryparam3)
-            querystmt3.execute() 
-            result3=querystmt3.use_result()
-            rows3=result3.fetch_all()
-            print("4",rows3)
-            assert rows3[0][0] == 12, 'fourth case is failed'
-            assert rows3[1][0] == 12, 'fourth case is failed'
+            querystmt9=conn.statement("select CHAR_LENGTH(?) from log  ")
+            queryparam9=new_bind_params(1)
+            print(type(queryparam9))
+            queryparam9[0].binary('中文字符')
+            querystmt9.bind_param(queryparam9)
+            querystmt9.execute() 
+            result9=querystmt9.use_result()
+            rows9=result9.fetch_all()
+            print("9",rows9)
+            assert rows9[0][0] == 12, 'fourth case is failed'
+            assert rows9[1][0] == 12, 'fourth case is failed'
 
             # #query: conversion Functions
 
