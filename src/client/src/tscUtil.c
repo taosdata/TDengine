@@ -116,9 +116,26 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
 
-      *str = '\'';
+      bool squote = false;
+      for (int32_t i = 0; i < bufSize; ++i) {
+        if (((char *)buf)[i] == '\'') {
+          squote = true;
+          break;
+        }
+      }
+
+      if (squote) {
+        *str = '\"';
+      } else {
+        *str = '\'';
+      }
+
       memcpy(str + 1, buf, bufSize);
-      *(str + bufSize + 1) = '\'';
+      if (squote) {
+        *(str + bufSize + 1) = '\"';
+      } else {
+        *(str + bufSize + 1) = '\'';
+      }
       n = bufSize + 2;
       break;
 
@@ -987,7 +1004,7 @@ static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, void* pFilterI
     filterConverNcharColumns(pFilterInfo, pBlock->info.rows, &gotNchar);
     int8_t* p = NULL;
     //bool all = doFilterDataBlock(pFilterInfo, numOfFilterCols, pBlock->info.rows, p);
-    bool all = filterExecute(pFilterInfo, pBlock->info.rows, &p, NULL, 0);
+    bool all = filterExecute(pFilterInfo, pBlock->info.rows, &p, NULL, (int16_t)taosArrayGetSize(pBlock->pDataBlock));
     if (gotNchar) {
       filterFreeNcharColumns(pFilterInfo);
     }
@@ -2972,7 +2989,7 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
         if (sep == NULL) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
-        *dbIncluded = true;
+        if (dbIncluded) *dbIncluded = true;
 
         return tscValidateName(pToken, escapeEnabled, NULL);
       }
@@ -3018,6 +3035,12 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
       }
     }
 
+    if (escapeEnabled && pToken->type == TK_ID) {
+      if (pToken->z[0] == TS_BACKQUOTE_CHAR) {
+        pToken->n = stringProcess(pToken->z, pToken->n);
+        firstPartQuote = true;
+      }
+    }
     int32_t firstPartLen = pToken->n;
 
     pToken->z = sep + 1;
@@ -4137,9 +4160,20 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
 }
 
 int32_t doInitSubState(SSqlObj* pSql, int32_t numOfSubqueries) {
-  assert(pSql->subState.numOfSub == 0 && pSql->pSubs == NULL && pSql->subState.states == NULL);
+  //bug fix. Above doInitSubState level, the loop invocation with the same SSqlObj will be fail.
+  //assert(pSql->subState.numOfSub == 0 && pSql->pSubs == NULL && pSql->subState.states == NULL);  
+  if(pSql->pSubs) {
+    free(pSql->pSubs);
+    pSql->pSubs = NULL;
+  }
+  
+  if(pSql->subState.states) {
+    free(pSql->subState.states);
+    pSql->subState.states = NULL;
+  }
+  
   pSql->subState.numOfSub = numOfSubqueries;
-
+  
   pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
   pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(int8_t));
 
@@ -4165,7 +4199,8 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     tscAddIntoSqlList(pSql);
   }
 
-  if (taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // nest query. do execute it firstly
+  // upstream may be freed before retry
+  if (pQueryInfo->pUpstream && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // nest query. do execute it firstly
     code = doInitSubState(pSql, (int32_t) taosArrayGetSize(pQueryInfo->pUpstream));
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
@@ -4235,6 +4270,10 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     }
 
     return;
+  } else if (hasMoreClauseToTry(pSql)) {
+    if (pthread_mutex_init(&pSql->subState.mutex, NULL) != 0) {
+      goto _error;
+    }
   }
 
   pSql->cmd.active = pQueryInfo;
@@ -5378,7 +5417,7 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
   return p;
 }
 
-int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
+int parseJsontoTagData(char* json, uint32_t jsonLength, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId){
   // set json NULL data
   uint8_t nullTypeVal[CHAR_BYTES + VARSTR_HEADER_SIZE + INT_BYTES] = {0};
   uint32_t jsonNULL = TSDB_DATA_JSON_NULL;
@@ -5389,7 +5428,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
   varDataSetLen(nullTypeVal + CHAR_BYTES, INT_BYTES);
   *(uint32_t*)(varDataVal(nullTypeKey)) = jsonNULL;
   tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, nullTypeKey, false);   // add json null type
-  if (!json || strtrim(json) == 0 || strncasecmp(json, "null", 4) == 0){
+  if (!json || strtrim(json) == 0 || (jsonLength == strlen("null") && strncasecmp(json, "null", 4) == 0)){
     *(uint32_t*)(varDataVal(nullTypeVal + CHAR_BYTES)) = jsonNULL;
     tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, nullTypeVal, true);   // add json null value
     return TSDB_CODE_SUCCESS;

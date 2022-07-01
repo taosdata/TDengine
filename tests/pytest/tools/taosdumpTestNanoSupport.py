@@ -35,7 +35,7 @@ class TDTestCase:
         else:
             return True
 
-    def getBuildPath(self):
+    def getPath(self, tool="taosdump"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -43,13 +43,14 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
+        return paths[0]
 
     def createdb(self, precision="ns"):
         tb_nums = self.numberOfTables
@@ -58,7 +59,7 @@ class TDTestCase:
         def build_db(precision, start_time):
             tdSql.execute("drop database if exists timedb1")
             tdSql.execute(
-                "create database timedb1 days 10 keep 365 blocks 8 precision " +
+                "create database timedb1 days 10 keep 36500 blocks 8 precision " +
                 "\"" +
                 precision +
                 "\"")
@@ -118,12 +119,11 @@ class TDTestCase:
         if not os.path.exists("./taosdumptest/dumptmp3"):
             os.makedirs("./taosdumptest/dumptmp3")
 
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
+        binPath = self.getPath("taosdump")
+        if (binPath == ""):
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % buildPath)
-        binPath = buildPath + "/build/bin/"
+            tdLog.info("taosdump found: %s" % binPath)
 
         # create nano second database
 
@@ -132,40 +132,40 @@ class TDTestCase:
         # dump all data
 
         os.system(
-            "%staosdump --databases timedb1 -o ./taosdumptest/dumptmp1" %
+            "%s -y -g --databases timedb1 -o ./taosdumptest/dumptmp1" %
             binPath)
 
         # dump part data with -S  -E
         os.system(
-            '%staosdump --databases timedb1 -S 1625068810000000000 -E 1625068860000000000  -o ./taosdumptest/dumptmp2 ' %
+            '%s -y -g --databases timedb1 -S 1625068810000000000 -E 1625068860000000000  -o ./taosdumptest/dumptmp2 ' %
             binPath)
         os.system(
-            '%staosdump --databases timedb1 -S 1625068810000000000  -o ./taosdumptest/dumptmp3  ' %
+            '%s -y -g --databases timedb1 -S 1625068810000000000  -o ./taosdumptest/dumptmp3  ' %
             binPath)
 
         tdSql.execute("drop database timedb1")
-        os.system("%staosdump -i ./taosdumptest/dumptmp2" % binPath)
-         # dump data and check for taosdump
+        os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
+        # dump data and check for taosdump
         tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 510)
 
         tdSql.execute("drop database timedb1")
-        os.system("%staosdump -i ./taosdumptest/dumptmp3" % binPath)
-         # dump data and check for taosdump
+        os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
+        # dump data and check for taosdump
         tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 900)
 
         tdSql.execute("drop database timedb1")
-        os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
-         # dump data and check for taosdump
+        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
+        # dump data and check for taosdump
         tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 1000)
 
         # check data
         origin_res = tdSql.getResult("select * from timedb1.st")
         tdSql.execute("drop database timedb1")
-        os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
-         # dump data and check for taosdump
+        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
+        # dump data and check for taosdump
         dump_res = tdSql.getResult("select * from timedb1.st")
         if origin_res == dump_res:
             tdLog.info("test nano second : dump check data pass for all data!")
@@ -177,7 +177,6 @@ class TDTestCase:
 
         os.system("rm -rf ./taosdumptest/")
         tdSql.execute("drop database if exists timedb1")
-        
 
         if not os.path.exists("./taosdumptest/tmp1"):
             os.makedirs("./taosdumptest/dumptmp1")
@@ -190,53 +189,52 @@ class TDTestCase:
         if not os.path.exists("./taosdumptest/dumptmp3"):
             os.makedirs("./taosdumptest/dumptmp3")
 
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
+        binPath = self.getPath()
+        if (binPath == ""):
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % buildPath)
-        binPath = buildPath + "/build/bin/"
+            tdLog.info("taosdump found: %s" % binPath)
 
         self.createdb(precision="us")
 
         os.system(
-            "%staosdump --databases timedb1 -o ./taosdumptest/dumptmp1" %
+            "%s -y -g --databases timedb1 -o ./taosdumptest/dumptmp1" %
             binPath)
 
         os.system(
-            '%staosdump --databases timedb1 -S 1625068810000000 -E 1625068860000000  -o ./taosdumptest/dumptmp2 ' %
+            '%s -y -g --databases timedb1 -S 1625068810000000 -E 1625068860000000  -o ./taosdumptest/dumptmp2 ' %
             binPath)
         os.system(
-            '%staosdump --databases timedb1 -S 1625068810000000  -o ./taosdumptest/dumptmp3  ' %
+            '%s -y -g --databases timedb1 -S 1625068810000000  -o ./taosdumptest/dumptmp3  ' %
             binPath)
 
-        os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
-        os.system("%staosdump -i ./taosdumptest/dumptmp2" % binPath)
-        os.system("%staosdump -i ./taosdumptest/dumptmp3" % binPath)
+        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
+        os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
+        os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
 
         tdSql.execute("drop database timedb1")
-        os.system("%staosdump -i ./taosdumptest/dumptmp2" % binPath)
-         # dump data and check for taosdump
+        os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
+        # dump data and check for taosdump
         tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 510)
 
         tdSql.execute("drop database timedb1")
-        os.system("%staosdump -i ./taosdumptest/dumptmp3" % binPath)
-         # dump data and check for taosdump
+        os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
+        # dump data and check for taosdump
         tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 900)
 
         tdSql.execute("drop database timedb1")
-        os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
-         # dump data and check for taosdump
+        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
+        # dump data and check for taosdump
         tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 1000)
 
         # check data
         origin_res = tdSql.getResult("select * from timedb1.st")
         tdSql.execute("drop database timedb1")
-        os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
-         # dump data and check for taosdump
+        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
+        # dump data and check for taosdump
         dump_res = tdSql.getResult("select * from timedb1.st")
         if origin_res == dump_res:
             tdLog.info("test micro second : dump check data pass for all data!")
@@ -260,56 +258,56 @@ class TDTestCase:
         if not os.path.exists("./taosdumptest/dumptmp3"):
             os.makedirs("./taosdumptest/dumptmp3")
 
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
+        binPath = self.getPath()
+        if (binPath == ""):
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % buildPath)
-        binPath = buildPath + "/build/bin/"
+            tdLog.info("taosdump found: %s" % binPath)
 
         self.createdb(precision="ms")
 
         os.system(
-            "%staosdump --databases timedb1 -o ./taosdumptest/dumptmp1" %
+            "%s -y -g --databases timedb1 -o ./taosdumptest/dumptmp1" %
             binPath)
 
         os.system(
-            '%staosdump --databases timedb1 -S 1625068810000 -E 1625068860000  -o ./taosdumptest/dumptmp2 ' %
+            '%s -y -g --databases timedb1 -S 1625068810000 -E 1625068860000  -o ./taosdumptest/dumptmp2 ' %
             binPath)
         os.system(
-            '%staosdump --databases timedb1 -S 1625068810000  -o ./taosdumptest/dumptmp3  ' %
+            '%s -y -g --databases timedb1 -S 1625068810000  -o ./taosdumptest/dumptmp3  ' %
             binPath)
 
-        os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
-        os.system("%staosdump -i ./taosdumptest/dumptmp2" % binPath)
-        os.system("%staosdump -i ./taosdumptest/dumptmp3" % binPath)
+        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
+        os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
+        os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
 
         tdSql.execute("drop database timedb1")
-        os.system("%staosdump -i ./taosdumptest/dumptmp2" % binPath)
-         # dump data and check for taosdump
+        os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
+        # dump data and check for taosdump
         tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 510)
 
         tdSql.execute("drop database timedb1")
-        os.system("%staosdump -i ./taosdumptest/dumptmp3" % binPath)
-         # dump data and check for taosdump
+        os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
+        # dump data and check for taosdump
         tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 900)
 
         tdSql.execute("drop database timedb1")
-        os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
-         # dump data and check for taosdump
+        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
+        # dump data and check for taosdump
         tdSql.query("select count(*) from timedb1.st")
         tdSql.checkData(0, 0, 1000)
 
         # check data
         origin_res = tdSql.getResult("select * from timedb1.st")
         tdSql.execute("drop database timedb1")
-        os.system("%staosdump -i ./taosdumptest/dumptmp1" % binPath)
-         # dump data and check for taosdump
+        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
+        # dump data and check for taosdump
         dump_res = tdSql.getResult("select * from timedb1.st")
         if origin_res == dump_res:
-            tdLog.info("test million second : dump check data pass for all data!")
+            tdLog.info(
+                "test million second : dump check data pass for all data!")
         else:
             tdLog.info(
                 "test million second : dump check data failed for all data!")

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -31,7 +31,7 @@
 
 /**************** Global variables ****************/
 char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
+                             "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "taos> ";
 char      CONTINUE_PROMPT[] = "   -> ";
 int       prompt_size = 6;
@@ -244,22 +244,41 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   int64_t   st, et;
   wordexp_t full_path;
   char *    sptr = NULL;
+  char *    tmp = NULL;
   char *    cptr = NULL;
   char *    fname = NULL;
   bool      printMode = false;
+  int       match;
 
-  if ((sptr = tstrstr(command, ">>", true)) != NULL) {
-    cptr = tstrstr(command, ";", true);
-    if (cptr != NULL) {
-      *cptr = '\0';
-    }
+  sptr = command;
+  while ((sptr = tstrstr(sptr, ">>", true)) != NULL) {
+    // find the last ">>" if any
+    tmp = sptr;
+    sptr += 2;
+  }
 
-    if (wordexp(sptr + 2, &full_path, 0) != 0) {
-      fprintf(stderr, "ERROR: invalid filename: %s\n", sptr + 2);
-      return;
+  sptr = tmp;
+
+  if (sptr != NULL) {
+    // select ... where col >> n op m ...;
+    match = regex_match(sptr + 2, "^\\s*.{1,}\\s*[\\>|\\<|\\<=|\\>=|=|!=]\\s*.{1,};\\s*$", REG_EXTENDED | REG_ICASE);
+    if (match == 0) {
+      // select col >> n from ...;
+      match = regex_match(sptr + 2, "^\\s*.{1,}\\s{1,}.{1,};\\s*$", REG_EXTENDED | REG_ICASE);
+      if (match == 0) {
+        cptr = tstrstr(command, ";", true);
+        if (cptr != NULL) {
+          *cptr = '\0';
+        }
+
+        if (wordexp(sptr + 2, &full_path, 0) != 0) {
+          fprintf(stderr, "ERROR: invalid filename: %s\n", sptr + 2);
+          return;
+        }
+        *sptr = '\0';
+        fname = full_path.we_wordv[0];
+      }
     }
-    *sptr = '\0';
-    fname = full_path.we_wordv[0];
   }
 
   if ((sptr = tstrstr(command, "\\G", true)) != NULL) {
@@ -282,7 +301,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
   int64_t oresult = atomic_load_64(&result);
 
-  if (regex_match(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
+  if (regex_match(command, "^\\s*use\\s+([a-zA-Z0-9_]+|`.+`)\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
     fprintf(stdout, "Database changed.\n\n");
     fflush(stdout);
 

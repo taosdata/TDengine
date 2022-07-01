@@ -55,15 +55,16 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-c Test Cluster Flag')
             tdLog.printNoPrefix('-g valgrind Test Flag')
             tdLog.printNoPrefix('-r taosd restart test')
-            tdLog.printNoPrefix('-w taos on windows')
+            tdLog.printNoPrefix('-w taos on windows')            
             sys.exit(0)
 
-        if key in ['-r', '--restart']: 
+        if key in ['-r', '--restart']:
             restart = True
 
         if key in ['-f', '--file']:
-            fileName = value
-
+            fileName = os.path.normpath(value)
+            print(fileName)
+        
         if key in ['-d', '--docker']:
             fileName = os.path.normpath(value)            
             docker = True
@@ -90,7 +91,7 @@ if __name__ == "__main__":
             valgrind = 1
 
         if key in ['-s', '--stop']:
-            stop = 1
+            stop = 1        
 
         if key in ['-w', '--windows']:
             windows = 1
@@ -124,13 +125,13 @@ if __name__ == "__main__":
             time.sleep(2)
 
         tdLog.info('stop All dnodes')
-    
+
     if masterIp == "":
         host = '127.0.0.1'
     else:
-        host = masterIp
+        host = masterIp    
 
-    tdLog.info("Procedures for tdengine deployed in %s" % (host))
+    tdLog.info("Procedures for tdengine deployed in %s" % (host)) 
     if docker:        
         tdCases.logSql(logSql)
         tdLog.info("Procedures for testing self-deployment")             
@@ -176,13 +177,40 @@ if __name__ == "__main__":
         tdLog.info("Procedures for testing self-deployment")
         td_clinet = TDSimClient("C:\\TDengine")
         td_clinet.deploy()
-        remote_conn = Connection("root@%s"%host)
-        with remote_conn.cd('/var/lib/jenkins/workspace/TDinternal/community/tests/pytest'):
-            remote_conn.run("python3 ./test.py")
+        if masterIp == "" or masterIp == "localhost":
+            tdDnodes.init(deployPath)
+            tdDnodes.setTestCluster(testCluster)
+            tdDnodes.setValgrind(valgrind)
+            tdDnodes.stopAll()
+            is_test_framework = 0
+            key_word = 'tdCases.addWindows'
+            try:
+                if key_word in open(fileName).read():
+                    is_test_framework = 1
+            except:
+                pass
+            if is_test_framework:
+                moduleName = fileName.replace(".py", "").replace(os.sep, ".")
+                uModule = importlib.import_module(moduleName)
+                try:
+                    ucase = uModule.TDTestCase()
+                    tdDnodes.deploy(1,ucase.updatecfgDict)
+                except :
+                    tdDnodes.deploy(1,{})
+            else:
+                pass
+                tdDnodes.deploy(1,{})
+            tdDnodes.startWin(1)
+        else:
+            remote_conn = Connection("root@%s"%host)
+            with remote_conn.cd('/var/lib/jenkins/workspace/TDinternal/community/tests/pytest'):
+                remote_conn.run("python3 ./test.py")
         conn = taos.connect(
-            host="%s"%(host),
+            host="%s" % (host),
             config=td_clinet.cfgDir)
         tdCases.runOneWindows(conn, fileName)
+        tdCases.logSql(logSql)
+
     else:
         tdDnodes.init(deployPath)
         tdDnodes.setTestCluster(testCluster)
@@ -193,22 +221,20 @@ if __name__ == "__main__":
         try:
             if key_word in open(fileName).read():
                 is_test_framework = 1
-        except:
+        except BaseException:
             pass
         if is_test_framework:
-            moduleName = fileName.replace(".py", "").replace("/", ".")
+            moduleName = fileName.replace(".py", "").replace(os.sep, ".")
             uModule = importlib.import_module(moduleName)
             try:
                 ucase = uModule.TDTestCase()
-                tdDnodes.deploy(1,ucase.updatecfgDict)
-            except :
-                tdDnodes.deploy(1,{})
+                tdDnodes.deploy(1, ucase.updatecfgDict)
+            except BaseException:
+                tdDnodes.deploy(1, {})
         else:
             pass
-            tdDnodes.deploy(1,{})
+            tdDnodes.deploy(1, {})
         tdDnodes.start(1)
-
-
 
         tdCases.logSql(logSql)
 
@@ -226,18 +252,20 @@ if __name__ == "__main__":
             if fileName == "all":
                 tdCases.runAllLinux(conn)
             else:
-                tdCases.runOneWindows(conn, fileName)
+                tdCases.runOneLinux(conn, fileName)
         if restart:
             if fileName == "all":
                 tdLog.info("not need to query ")
-            else:    
+            else:
                 sp = fileName.rsplit(".", 1)
                 if len(sp) == 2 and sp[1] == "py":
                     tdDnodes.stopAll()
                     tdDnodes.start(1)
-                    time.sleep(1)            
-                    conn = taos.connect( host, config=tdDnodes.getSimCfgPath())
-                    tdLog.info("Procedures for tdengine deployed in %s" % (host))
+                    time.sleep(1)
+                    conn = taos.connect(host, config=tdDnodes.getSimCfgPath())
+                    tdLog.info(
+                        "Procedures for tdengine deployed in %s" %
+                        (host))
                     tdLog.info("query test after taosd restart")
                     tdCases.runOneLinux(conn, sp[0] + "_" + "restart.py")
                 else:

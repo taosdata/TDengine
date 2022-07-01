@@ -1213,16 +1213,16 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
   for (int32_t i = 0; i < joinNum; ++i) {
     // reorganize the tid-tag value according to both the vgroup id and tag values
     // sort according to the tag value
-    size_t num = taosArrayGetSize(ctxlist[i].res);
+    int32_t num = (int32_t) taosArrayGetSize(ctxlist[i].res);
 
-    int32_t ret = tidTagsMergeSort(ctxlist[i].res, 0, num - 1, size);
+    int32_t ret = tidTagsMergeSort(ctxlist[i].res, 0, ((int32_t)num) - 1, size);
     if (ret != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
     taosArrayPush(resList, &ctxlist[i].res);
 
-    tscDebug("0x%"PRIx64" tags match complete, result num: %"PRIzu, pParentSql->self, num);
+    tscDebug("0x%"PRIx64" tags match complete, result num: %d", pParentSql->self, num);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1672,7 +1672,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
     if (pRes1->row > 0 && pRes1->numOfRows > 0) {
       tscDebug("0x%"PRIx64" sub:0x%"PRIx64" index:%d numOfRows:%d total:%"PRId64 " (not retrieve)", pParentSql->self,
           pParentSql->pSubs[i]->self, i, pRes1->numOfRows, pRes1->numOfTotal);
-      assert(pRes1->row < pRes1->numOfRows);
+      assert(pRes1->row < pRes1->numOfRows || (pRes1->row == pRes1->numOfRows && pRes1->completed));
     } else {
       if (!stableQuery) {
         pRes1->numOfClauseTotal += pRes1->numOfRows;
@@ -1841,7 +1841,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
 
 
     SSqlRes* pRes1 = &pSql1->res;
-    if (pRes1->row >= pRes1->numOfRows) {
+    if (pRes1->row >= pRes1->numOfRows && !pRes1->completed) {
       subquerySetState(pSql1, &pSql->subState, i, 0);
     }
   }
@@ -1863,7 +1863,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
 
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
     
-    if (pRes1->row >= pRes1->numOfRows) {
+    if (pRes1->row >= pRes1->numOfRows && !pRes1->completed) {
       tscDebug("0x%"PRIx64" subquery:0x%"PRIx64" retrieve data from vnode, subquery:%d, vgroupIndex:%d", pSql->self, pSql1->self,
                pSupporter->subqueryIndex, pTableMetaInfo->vgroupIndex);
 
@@ -3922,7 +3922,9 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
   } else if (pQueryAttr->pExpr2 != NULL) {
     pEx = pQueryAttr->pExpr2;
     num = pQueryAttr->numOfExpr2;
-  } else {
+  }
+
+  if ( num < pQueryAttr->numOfOutput) {
     pEx = pQueryAttr->pExpr1;
     num = pQueryAttr->numOfOutput;
   }

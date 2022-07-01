@@ -338,7 +338,7 @@ public class TSDBJNIConnector {
 
     public void addBatch(long stmt) throws SQLException {
         int code = addBatchImp(stmt, this.taos);
-        if (code != TSDBConstants.JNI_SUCCESS){
+        if (code != TSDBConstants.JNI_SUCCESS) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, stmtErrorMsgImp(stmt, this.taos));
         }
     }
@@ -361,13 +361,24 @@ public class TSDBJNIConnector {
     /*************************************************************************************************/
     // NOTE: schemaless-lines
     public void insertLines(String[] lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException {
-        int code = insertLinesImp(lines, this.taos, protocolType.ordinal(), timestampType.ordinal());
-        if (code != TSDBConstants.JNI_SUCCESS) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to insertLines");
+        long pSql = schemalessInsertImp(lines, this.taos, protocolType.ordinal(), timestampType.ordinal());
+        try {
+            if (pSql == TSDBConstants.JNI_CONNECTION_NULL) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
+            }
+            if (pSql == TSDBConstants.JNI_OUT_OF_MEMORY) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_OUT_OF_MEMORY);
+            }
+
+            int code = this.getErrCode(pSql);
+            if (code != TSDBConstants.JNI_SUCCESS) {
+                String msg = this.getErrMsg(pSql);
+                throw TSDBError.createSQLException(code, msg);
+            }
+        } finally {
+            this.freeResultSetImp(this.taos, pSql);
         }
     }
 
-    private native int insertLinesImp(String[] lines, long conn, int type, int precision);
-
-
+    private native long schemalessInsertImp(String[] lines, long conn, int type, int precision);
 }

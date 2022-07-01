@@ -1,0 +1,31 @@
+Configuring Prometheus is done by editing the Prometheus configuration file prometheus.yml (default location `/etc/prometheus/prometheus.yml`).
+
+### Configuring third-party database addresses
+
+Point the `remote_read url` and `remote_write url` to the domain name or IP address of the server running the taosAdapter service, the REST service port (taosAdapter uses 6041 by default), and the name of the database you want to write to TDengine, and ensure that the corresponding URL form as follows.
+
+- remote_read url : `http://<taosAdapter's host>:<REST service port>/prometheus/v1/remote_read/<database name>`
+- remote_write url : `http://<taosAdapter's host>:<REST service port>/prometheus/v1/remote_write/<database name>`
+
+### Configure Basic authentication
+
+- username: <TDengine's username>
+- password: <TDengine's password>
+
+### Example configuration of remote_write and remote_read related sections in prometheus.yml file
+
+```yaml
+remote_write:
+  - url: "http://localhost:6041/prometheus/v1/remote_write/prometheus_data"
+    basic_auth:
+      username: root
+      password: taosdata
+
+remote_read:
+  - url: "http://localhost:6041/prometheus/v1/remote_read/prometheus_data"
+    basic_auth:
+      username: root
+      password: taosdata
+    remote_timeout: 10s
+    read_recent: true
+```

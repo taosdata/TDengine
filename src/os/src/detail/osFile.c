@@ -179,7 +179,7 @@ int64_t taosFSendFile(FILE *out_file, FILE *in_file, int64_t *offset, int64_t co
       fwrite(buffer, 1, rlen, out_file);
       return (int64_t)(writeLen + rlen);
     } else {
-      fwrite(buffer, 1, _SEND_FILE_STEP_, in_file);
+      fwrite(buffer, 1, _SEND_FILE_STEP_, out_file);
       writeLen += _SEND_FILE_STEP_;
     }
   }
@@ -223,7 +223,7 @@ int64_t taosSendFile(SocketFd dfd, FileFd sfd, int64_t *offset, int64_t count) {
     if (rlen <= 0) {
       return writeLen;
     } else {
-      taosWriteSocket(sfd, buffer, (int32_t)remain);
+      taosWriteSocket(dfd, buffer, (int32_t)remain);
       writeLen += remain;
     }
   }

@@ -11,6 +11,7 @@ python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedBigInt.py
 python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedInt.py
 python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedSmallInt.py
 python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedTinyInt.py
+python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeInspect.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/limit_offset_json.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_json_alltypes.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/auto_create_table_json.py
@@ -22,5 +23,5 @@ python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_interlace.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_telnet_alltypes.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/subscripe_json.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/default_json.py
-python3 ./test.py -f 5-taos-tools/taosbenchmark/invalid_commandline.py 
+python3 ./test.py -f 5-taos-tools/taosbenchmark/invalid_commandline.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/sample_csv_json.py

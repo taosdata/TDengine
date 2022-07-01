@@ -150,6 +150,8 @@
 42,,script,./test.sh -f unique/dnode/monitor_bug.sim 
 42,,script,./test.sh -f unique/arbitrator/sync_replica3_alterTable_drop.sim 
 42,,script,./test.sh -f general/wal/kill.sim 
+41,,docs-examples-test,eval sh -c \"if [ `uname -m` != aarch64 ]; then ./test_csharp.sh; fi\"
+41,,docs-examples-test,./test_c.sh
 41,,script,./test.sh -f unique/dnode/lossdata.sim 
 41,,script,./test.sh -f unique/arbitrator/sync_replica3_dropDb.sim 
 41,,script,./test.sh -f unique/arbitrator/sync_replica2_alterTable_drop.sim 
@@ -174,6 +176,7 @@
 37,,script,./test.sh -f unique/arbitrator/offline_replica2_alterTable_online.sim 
 37,,script,./test.sh -f general/table/delete_reuse1.sim 
 37,,script,./test.sh -f general/db/delete_reuse2.sim 
+36,,docs-examples-test,eval sh -c \"if [ `uname -m` != aarch64 ]; then ./test_rust.sh; fi\"
 36,,script,./test.sh -f unique/stable/replica3_vnode3.sim 
 36,,script,./test.sh -f unique/stable/dnode2_stop.sim 
 36,,script,./test.sh -f unique/arbitrator/sync_replica2_alterTable_add.sim 
@@ -284,6 +287,7 @@
 20,,pytest,python3 test.py -f import_merge/importLastTO.py 
 20,,pytest,python3 test.py -f import_merge/importDataSub.py 
 20,,pytest,python3 test.py -f import_merge/importDataLastSub.py 
+20,,pytest,python3 test.py -f table/create.py 
 19,,script,./test.sh -f unique/stable/dnode2.sim 
 19,,script,./test.sh -f general/db/vnodes.sim 
 19,,pytest,python3 test.py -f tools/taosdumpTest3.py 
@@ -304,6 +308,7 @@
 18,,pytest,python3 test.py -f query/queryTscomputWithNow.py
 18,,pytest,python3 test.py -f query/queryInterval.py
 18,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_telnet_alltypes.py
+18,,docs-examples-test,./test_java.sh
 17,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonStmt-illegalData.py 
 17,,script,./test.sh -f unique/account/user_len.sim 
 17,,script,./test.sh -f general/vector/metrics_mix.sim 
@@ -528,6 +533,7 @@
 10,,script,./test.sh -f unique/stable/replica2_vnode3.sim 
 10,,pytest,python3 testCompress.py 
 10,,pytest,python3 test.py -f client/client.py 
+10,,docs-examples-test,./test_python.sh
 9,,script,./test.sh -f general/parser/alter1.sim 
 9,,script,./test.sh -f general/db/delete.sim 
 9,,pytest,python3 test.py -f tools/taosdemoTestLimitOffset.py
@@ -539,6 +545,7 @@
 9,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeSmallInt.py 
 9,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeFloat.py
 9,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_json_alltypes.py
+9,,docs-examples-test,./test_go.sh
 8,,pytest,python3 test.py -f tools/taosdumpTest.py 
 8,,pytest,python3 test.py -f query/unionAllTest.py 
 8,,pytest,python3 test.py -f query/queryFilterTswithDateUnit.py 
@@ -556,6 +563,8 @@
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_interlace.py
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/subscripe_json.py
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/invalid_commandline.py
+8,,pytest,python3 test.py -f update/update2.py
+7,,docs-examples-test,./test_node.sh
 7,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonSml-otherPara.py 
 7,,pytest,python3 test.py -f tools/taosdumpTest2.py 
 7,,pytest,python3 test.py -f tools/taosdemoTestdatatype.py 
@@ -676,6 +685,7 @@
 5,,develop-test,python3 ./test.py -f 2-query/function_mavg.py
 4,,system-test,python3 test.py -f 4-taosAdapter/TD-12163.py 
 4,,pytest,python3 test.py -f user/pass_len.py 
+4,,pytest,python3 test.py -f client/dropTable.py  
 4,,pytest,python3 test.py -f TimeZone/TestCaseTimeZone.py 
 4,,pytest,python3 test.py -f tag_lite/unsignedBigint.py 
 4,,pytest,python3 test.py -f tag_lite/tinyint.py 
@@ -739,12 +749,19 @@
 4,,pytest,python3 test.py -f alter/alterTabAddTagWithNULL.py 
 4,,pytest,python3 test.py -f alter/alter_debugFlag.py 
 4,,pytest,python3 test.py -f alter/alter_create_exception.py 
+4,,pytest,python3 test.py -f insert/line_insert.py
 3,,pytest,python3 test.py -f tag_lite/binary.py 
-3,,pytest,python3 test.py -f query/filterAllIntTypes.py 
+3,,pytest,python3 test.py -f query/filterAllIntTypes.py
+3,,pytest,python3 test.py -f query/queryLogicOperators.py 
 3,,pytest,python3 ./test.py -f query/queryNcharNull.py
+3,,pytest,python3 test.py -f dbmgmt/dbNameCaseSensitive.py
+3,,pytest,python3 test.py -f insert/schemalessCaseSensitive.py
+3,,pytest,python3 test.py -f table/columnNameCaseSensitive.py
+3,,pytest,python3 test.py -f table/tagNameCaseSensitive.py
+3,,pytest,python3 test.py -f table/tbNameCaseSensitive.py
 3,,develop-test,python3 ./test.py -f 2-query/ts_hidden_column.py 
 3,,develop-test,python3 ./test.py -f 1-insert/uppercase_in_stmt.py
 3,,develop-test,python3 ./test.py -f 2-query/ts_shortcut.py
 3,,develop-test,python3 ./test.py -f 2-query/TD-13414.py
-8,,pytest,python3 test.py -f update/update2.py
-4,,pytest,python3 test.py -f insert/line_insert.py
+3,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestInspect.py 
+1,,docs-examples-test, ./test_R.sh

@@ -1,0 +1,82 @@
+
+### 配置 taosAdapter
+
+配置 taosAdapter 接收 TCollector 数据的方法：
+
+- 在 taosAdapter 配置文件（默认位置 /etc/taos/taosadapter.toml）中使能配置项
+
+```
+...
+[opentsdb_telnet]
+enable = true
+maxTCPConnections = 250
+tcpKeepAlive = false
+dbs = ["opentsdb_telnet", "collectd", "icinga2", "tcollector"]
+ports = [6046, 6047, 6048, 6049]
+user = "root"
+password = "taosdata"
+...
+```
+
+其中 taosAdapter 默认写入的数据库名称为 `tcollector`，也可以修改 taosAdapter 配置文件 dbs 项来指定不同的名称。user 和 password 填写实际 TDengine 配置的值。修改过配置文件 taosAdapter 需重新启动。
+
+- 也可以使用 taosAdapter 命令行参数或设置环境变量启动的方式，使能 taosAdapter 接收 tcollector 数据功能，具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
+
+### 配置 TCollector
+
+使用 TCollector 需下载其[源代码](https://github.com/OpenTSDB/tcollector)。其配置项在其源代码中。注意：TCollector 各个版本区别较大，这里仅以当前 master 分支最新代码 (git commit: 37ae920) 为例。
+
+修改 `collectors/etc/config.py` 和 `tcollector.py` 两个文件中相应内容。将原指向 OpenTSDB 宿主机的地址修改为 taosAdapter 被部署的服务器域名或 IP 地址，修改端口为 taosAdapter 支持 TCollector 使用的相应端口（默认为 6049）。
+
+示例为源代码修改内容的 git diff 输出：
+
+```
+index e7e7a1c..ec3e23c 100644
+--- a/collectors/etc/config.py
++++ b/collectors/etc/config.py
+@@ -59,13 +59,13 @@ def get_defaults():
+         'http_password': False,
+         'reconnectinterval': 0,
+         'http_username': False,
+-        'port': 4242,
++        'port': 6049,
+         'pidfile': '/var/run/tcollector.pid',
+         'http': False,
+         'http_api_path': "api/put",
+         'tags': [],
+         'remove_inactive_collectors': False,
+-        'host': '',
++        'host': '127.0.0.1',
+         'logfile': '/var/log/tcollector.log',
+         'cdir': default_cdir,
+         'ssl': False,
+diff --git a/tcollector.py b/tcollector.py
+index 21f9b23..4c71ba2 100755
+--- a/tcollector.py
++++ b/tcollector.py
+@@ -64,7 +64,7 @@ ALIVE = True
+ # exceptions, something is not right and tcollector will shutdown.
+ # Hopefully some kind of supervising daemon will then restart it.
+ MAX_UNCAUGHT_EXCEPTIONS = 100
+-DEFAULT_PORT = 4242
++DEFAULT_PORT = 6049
+ MAX_REASONABLE_TIMESTAMP = 2209212000  # Good until Tue  3 Jan 14:00:00 GMT 2040
+ # How long to wait for datapoints before assuming
+ # a collector is dead and restarting it
+@@ -943,13 +943,13 @@ def parse_cmdline(argv):
+             'http_password': False,
+             'reconnectinterval': 0,
+             'http_username': False,
+-            'port': 4242,
++            'port': 6049,
+             'pidfile': '/var/run/tcollector.pid',
+             'http': False,
+             'http_api_path': "api/put",
+             'tags': [],
+             'remove_inactive_collectors': False,
+-            'host': '',
++            'host': '127.0.0.1',
+             'logfile': '/var/log/tcollector.log',
+             'cdir': default_cdir,
+             'ssl': False,
+```

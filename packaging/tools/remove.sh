@@ -17,6 +17,9 @@ clientName="taos"
 uninstallScript="rmtaos"
 productName="TDengine"
 adapterName="taosadapter"
+benchmarkName="taosBenchmark"
+dumpName="taosdump"
+demoName="taosdemo"
 
 #install main path
 install_main_dir=${installDir}
@@ -24,6 +27,7 @@ data_link_dir="${installDir}/data"
 log_link_dir="${installDir}/log"
 cfg_link_dir="${installDir}/cfg"
 bin_link_dir="/usr/bin"
+local_bin_link_dir="/usr/local/bin"
 lib_link_dir="/usr/lib"
 lib64_link_dir="/usr/lib64"
 inc_link_dir="/usr/include"
@@ -71,14 +75,19 @@ function clean_bin() {
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
   ${csudo}rm -f ${bin_link_dir}/${adapterName} || :
-  ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
-  ${csudo}rm -f ${bin_link_dir}/taosdemo || :
-  ${csudo}rm -f ${bin_link_dir}/taosdump || :
+  ${csudo}rm -f ${bin_link_dir}/${benchmarkName} || :
+  ${csudo}rm -f ${bin_link_dir}/${demoName} || :
+  ${csudo}rm -f ${bin_link_dir}/${dumpName} || :
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
   ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/run_${serverName}_and_${adapterName}.sh || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
+}
+
+function clean_local_bin() {
+  ${csudo}rm -f ${local_bin_link_dir}/taosBenchmark || :
+  ${csudo}rm -f ${local_bin_link_dir}/taosdemo || :
 }
 
 function clean_lib() {
@@ -146,7 +155,7 @@ function clean_service_on_systemd() {
 function clean_service_on_sysvinit() {
   if pidof ${serverName} &>/dev/null; then
     echo "${productName} ${serverName} is running, stopping it..."
-    ${csudo}service taosd stop || :
+    ${csudo}service ${serverName} stop || :
   fi
 
   if pidof tarbitrator &>/dev/null; then
@@ -201,6 +210,8 @@ function clean_service() {
 clean_service
 # Remove binary file and links
 clean_bin
+# Remove links of local bin
+clean_local_bin
 # Remove header file.
 clean_header
 # Remove lib file
