@@ -329,7 +329,7 @@ void cliHandleResp(SCliConn* conn) {
       tDebug("%s conn %p construct ahandle %p by %s, persist: 1", CONN_GET_INST_LABEL(conn), conn,
              transMsg.info.ahandle, TMSG_INFO(transMsg.msgType));
       if (!CONN_RELEASE_BY_SERVER(conn) && transMsg.info.ahandle == NULL) {
-        transMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+        transMsg.code = TSDB_CODE_RPC_BROKEN_LINK;
         transMsg.info.ahandle = transCtxDumpBrokenlinkVal(&conn->ctx, (int32_t*)&(transMsg.msgType));
         tDebug("%s conn %p construct ahandle %p due brokenlink, persist: 1", CONN_GET_INST_LABEL(conn), conn,
                transMsg.info.ahandle);
@@ -400,7 +400,7 @@ void cliHandleExcept(SCliConn* pConn) {
     STransConnCtx* pCtx = pMsg ? pMsg->ctx : NULL;
 
     STransMsg transMsg = {0};
-    transMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    transMsg.code = pConn->broken ? TSDB_CODE_RPC_BROKEN_LINK : TSDB_CODE_RPC_NETWORK_UNAVAIL;
     transMsg.msgType = pMsg ? pMsg->msg.msgType + 1 : 0;
     transMsg.info.ahandle = NULL;
 
@@ -607,9 +607,10 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   if (clear) {
     if (!uv_is_closing((uv_handle_t*)conn->stream)) {
       uv_close((uv_handle_t*)conn->stream, cliDestroy);
-    } else {
-      cliDestroy((uv_handle_t*)conn->stream);
     }
+    //} else {
+    //  cliDestroy((uv_handle_t*)conn->stream);
+    //}
   }
 }
 static void cliDestroy(uv_handle_t* handle) {
@@ -1023,19 +1024,28 @@ void cliCompareAndSwap(int8_t* val, int8_t exp, int8_t newVal) {
 }
 
 bool cliTryToExtractEpSet(STransMsg* pResp, SEpSet* dst) {
-  if (pResp == NULL || pResp->info.hasEpSet == 0) {
+  if ((pResp == NULL || pResp->info.hasEpSet == 0)) {
     return false;
   }
-  tDeserializeSEpSet(pResp->pCont, pResp->contLen, dst);
+  // rebuild resp msg
+  SEpSet epset;
+  if (tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epset) < 0) {
+    return false;
+  }
   int32_t tlen = tSerializeSEpSet(NULL, 0, dst);
 
-  int32_t bufLen = pResp->contLen - tlen;
-  char*   buf = rpcMallocCont(bufLen);
-
-  memcpy(buf, (char*)pResp->pCont + tlen, bufLen);
+  char*   buf = NULL;
+  int32_t len = pResp->contLen - tlen;
+  if (len != 0) {
+    buf = rpcMallocCont(len);
+    memcpy(buf, (char*)pResp->pCont + tlen, len);
+  }
+  rpcFreeCont(pResp->pCont);
 
   pResp->pCont = buf;
-  pResp->contLen = bufLen;
+  pResp->contLen = len;
+
+  *dst = epset;
   return true;
 }
 int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
@@ -1054,7 +1064,8 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
    */
   STransConnCtx* pCtx = pMsg->ctx;
   int32_t        code = pResp->code;
-  if (pTransInst->retry != NULL && pTransInst->retry(code, pResp->msgType - 1)) {
+  bool           retry = (pTransInst->retry != NULL && pTransInst->retry(code, pResp->msgType - 1)) ? true : false;
+  if (retry) {
     pMsg->sent = 0;
     pCtx->retryCnt += 1;
     if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
@@ -1083,11 +1094,13 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
 
   STraceId* trace = &pResp->info.traceId;
 
-  if (cliTryToExtractEpSet(pResp, &pCtx->epSet)) {
+  bool hasEpSet = cliTryToExtractEpSet(pResp, &pCtx->epSet);
+  if (hasEpSet) {
     char tbuf[256] = {0};
     EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
     tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
   }
+
   if (pCtx->pSem != NULL) {
     tGTrace("%s conn %p(sync) handle resp", CONN_GET_INST_LABEL(pConn), pConn);
     if (pCtx->pRsp == NULL) {
@@ -1099,10 +1112,14 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pCtx->pRsp = NULL;
   } else {
     tGTrace("%s conn %p handle resp", CONN_GET_INST_LABEL(pConn), pConn);
-    if (!cliIsEpsetUpdated(code, pCtx)) {
-      pTransInst->cfp(pTransInst->parent, pResp, NULL);
-    } else {
+    if (retry == false && hasEpSet == true) {
       pTransInst->cfp(pTransInst->parent, pResp, &pCtx->epSet);
+    } else {
+      if (!cliIsEpsetUpdated(code, pCtx)) {
+        pTransInst->cfp(pTransInst->parent, pResp, NULL);
+      } else {
+        pTransInst->cfp(pTransInst->parent, pResp, &pCtx->epSet);
+      }
     }
   }
   return 0;

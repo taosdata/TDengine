@@ -435,7 +435,7 @@ static void dumpToFileForCheck(TdFilePtr pFile, TAOS_ROW row, TAOS_FIELD* fields
                                int32_t precision) {
   for (int32_t i = 0; i < num_fields; i++) {
     if (i > 0) {
-      taosFprintfFile(pFile, "\n");
+      taosFprintfFile(pFile, ",");
     }
     shellDumpFieldToFile(pFile, (const char*)row[i], fields + i, length[i], precision);
   }
@@ -525,15 +525,15 @@ int32_t notifyMainScript(SThreadInfo* pInfo, int32_t cmdId) {
 
 static int32_t g_once_commit_flag = 0;
 static void    tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
-  pError("tmq_commit_cb_print() commit %d\n", code);
+     pError("tmq_commit_cb_print() commit %d\n", code);
 
-  if (0 == g_once_commit_flag) {
-    g_once_commit_flag = 1;
-    notifyMainScript((SThreadInfo*)param, (int32_t)NOTIFY_CMD_START_COMMIT);
+     if (0 == g_once_commit_flag) {
+       g_once_commit_flag = 1;
+       notifyMainScript((SThreadInfo*)param, (int32_t)NOTIFY_CMD_START_COMMIT);
   }
 
-  char tmpString[128];
-  taosFprintfFile(g_fp, "%s tmq_commit_cb_print() be called\n", getCurrentTimeString(tmpString));
+     char tmpString[128];
+     taosFprintfFile(g_fp, "%s tmq_commit_cb_print() be called\n", getCurrentTimeString(tmpString));
 }
 
 void build_consumer(SThreadInfo* pInfo) {
@@ -637,6 +637,10 @@ void loop_consume(SThreadInfo* pInfo) {
     }
   }
 
+  int64_t    lastTotalMsgs = 0;
+  uint64_t   lastPrintTime = taosGetTimestampMs();
+  uint64_t   startTs = taosGetTimestampMs();
+
   int32_t consumeDelay = g_stConfInfo.consumeDelay == -1 ? -1 : (g_stConfInfo.consumeDelay * 1000);
   while (running) {
     TAOS_RES* tmqMsg = tmq_consumer_poll(pInfo->tmq, consumeDelay);
@@ -648,13 +652,22 @@ void loop_consume(SThreadInfo* pInfo) {
       taos_free_result(tmqMsg);
 
       totalMsgs++;
-
+	  
+	  int64_t currentPrintTime = taosGetTimestampMs();
+	  if (currentPrintTime - lastPrintTime > 10 * 1000) {
+		  taosFprintfFile(g_fp,	
+		  	              "consumer id %d has currently poll total msgs: %" PRId64 ", period rate: %.3f msgs/second\n", 
+		  	              pInfo->consumerId, totalMsgs, (totalMsgs - lastTotalMsgs) * 1000.0/(currentPrintTime - lastPrintTime));
+		  lastPrintTime = currentPrintTime;
+		  lastTotalMsgs = totalMsgs;
+	  }
+	  
       if (0 == once_flag) {
         once_flag = 1;
         notifyMainScript(pInfo, NOTIFY_CMD_START_CONSUM);
       }
 
-      if (totalRows >= pInfo->expectMsgCnt) {
+      if ((totalRows >= pInfo->expectMsgCnt) || (totalMsgs >= pInfo->expectMsgCnt)) {
         char tmpString[128];
         taosFprintfFile(g_fp, "%s over than expect rows, so break consume\n", getCurrentTimeString(tmpString));
         break;
@@ -665,7 +678,7 @@ void loop_consume(SThreadInfo* pInfo) {
       break;
     }
   }
-
+  
   if (0 == running) {
     taosFprintfFile(g_fp, "receive stop signal and not continue consume\n");
   }
@@ -678,8 +691,6 @@ void loop_consume(SThreadInfo* pInfo) {
 }
 
 void* consumeThreadFunc(void* param) {
-  int32_t totalMsgs = 0;
-
   SThreadInfo* pInfo = (SThreadInfo*)param;
 
   pInfo->taos = taos_connect(NULL, "root", "taosdata", NULL, 0);
@@ -861,16 +872,30 @@ int main(int32_t argc, char* argv[]) {
                      (void*)(&(g_stConfInfo.stThreads[i])));
   }
 
+  int64_t start = taosGetTimestampUs();
+
   for (int32_t i = 0; i < g_stConfInfo.numOfThread; i++) {
     taosThreadJoin(g_stConfInfo.stThreads[i].thread, NULL);
     taosThreadClear(&g_stConfInfo.stThreads[i].thread);
   }
 
-  // printf("consumer: %d, cosumer1: %d\n", totalMsgs, pInfo->consumeMsgCnt);
+  int64_t end = taosGetTimestampUs();
+
+  int64_t totalMsgs = 0;
+  for (int32_t i = 0; i < g_stConfInfo.numOfThread; i++) {
+    totalMsgs += g_stConfInfo.stThreads[i].consumeMsgCnt;
+  }
+
+  int64_t t = end - start;
+  if (0 == t) t = 1;
+  
+  double tInMs = (double)t / 1000000.0;
+  taosFprintfFile(g_fp,
+				"Spent %.3f seconds to poll msgs: %" PRIu64 " with %d thread(s), throughput: %.3f msgs/second\n\n",
+				tInMs, totalMsgs, g_stConfInfo.numOfThread, (double)(totalMsgs / tInMs));
 
   taosFprintfFile(g_fp, "==== close tmqlog ====\n");
   taosCloseFile(&g_fp);
 
   return 0;
 }
-

@@ -262,7 +262,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t hbAsyncCallBack(void *param, const SDataBuf *pMsg, int32_t code) {
+static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   static int32_t emptyRspNum = 0;
   if (code != 0) {
     taosMemoryFreeClear(param);

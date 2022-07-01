@@ -1212,7 +1212,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
 
     int16_t colId = id->colId;
     taosArrayPush(pColIds, &colId);
-    if (id->colId == pTableScanNode->tsColId) {
+    if (id->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
       pInfo->primaryTsIndex = id->targetSlotId;
     }
   }
@@ -1361,7 +1361,7 @@ static void getDBNameFromCondition(SNode* pCondition, const char* dbName) {
   nodesWalkExpr(pCondition, getDBNameFromConditionWalker, (char*)dbName);
 }
 
-static int32_t loadSysTableCallback(void* param, const SDataBuf* pMsg, int32_t code) {
+static int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SOperatorInfo*     operator=(SOperatorInfo*) param;
   SSysTableScanInfo* pScanResInfo = (SSysTableScanInfo*)operator->info;
   if (TSDB_CODE_SUCCESS == code) {

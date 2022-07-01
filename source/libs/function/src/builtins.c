@@ -39,6 +39,21 @@ static int32_t invaildFuncParaValueErrMsg(char* pErrBuf, int32_t len, const char
   return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_VALUE, "Invalid parameter value : %s", pFuncName);
 }
 
+void static addDbPrecisonParam(SNodeList** pList, uint8_t precision) {
+  SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  pVal->literal = NULL;
+  pVal->isDuration = false;
+  pVal->translate = true;
+  pVal->notReserved = true;
+  pVal->node.resType.type = TSDB_DATA_TYPE_TINYINT;
+  pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TINYINT].bytes;
+  pVal->node.resType.precision = precision;
+  pVal->datum.i = (int64_t)precision;
+  pVal->typeData = (int64_t)precision;
+
+  nodesListMakeAppend(pList, (SNode*)pVal);
+}
+
 // There is only one parameter of numeric type, and the return type is parameter type
 static int32_t translateInOutNum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
@@ -220,8 +235,20 @@ static int32_t translateWduration(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateNowToday(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // pseudo column do not need to check parameters
+
+  //add database precision as param
+  uint8_t dbPrec = pFunc->node.resType.precision;
+  addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+
+  pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_TIMESTAMP};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateTimePseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
+
   pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_TIMESTAMP};
   return TSDB_CODE_SUCCESS;
 }
@@ -990,6 +1017,10 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
+  //add database precision as param
+  uint8_t dbPrec = pFunc->node.resType.precision;
+  addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   return TSDB_CODE_SUCCESS;
 }
@@ -1379,20 +1410,6 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
   return true;
 }
 
-void static addDbPrecisonParam(SNodeList* pList, uint8_t precision) {
-  SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
-  pVal->literal = NULL;
-  pVal->isDuration = false;
-  pVal->translate = true;
-  pVal->node.resType.type = TSDB_DATA_TYPE_TINYINT;
-  pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TINYINT].bytes;
-  pVal->node.resType.precision = precision;
-  pVal->datum.i = (int64_t)precision;
-  pVal->typeData = (int64_t)precision;
-
-  nodesListAppend(pList, (SNode*)pVal);
-}
-
 void static addTimezoneParam(SNodeList* pList) {
   char       buf[6] = {0};
   time_t     t = taosTime(NULL);
@@ -1462,7 +1479,7 @@ static int32_t translateToUnixtimestamp(SFunctionNode* pFunc, char* pErrBuf, int
 
   //add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
-  addDbPrecisonParam(pFunc->pParameterList, dbPrec);
+  addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
@@ -1482,7 +1499,7 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
 
   //add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
-  addDbPrecisonParam(pFunc->pParameterList, dbPrec);
+  addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
 
   pFunc->node.resType =
       (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP};
@@ -1510,7 +1527,7 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 
   //add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
-  addDbPrecisonParam(pFunc->pParameterList, dbPrec);
+  addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
@@ -1936,7 +1953,17 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   },
   {
     .name = "last_row",
-    .type = FUNCTION_TYPE_LAST_ROW,
+    .type = FUNCTION_TYPE_LAST_ROWT,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateFirstLast,
+    .getEnvFunc   = getFirstLastFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = lastRowFunction,
+    .finalizeFunc = lastRowFinalize,
+  },
+  {
+    .name = "_cache_last_row",
+    .type = FUNCTION_TYPE_CACHE_LAST_ROW,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateLastRow,
     .getEnvFunc   = getMinmaxFuncEnv,
@@ -2466,7 +2493,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "now",
     .type = FUNCTION_TYPE_NOW,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
-    .translateFunc = translateTimePseudoColumn,
+    .translateFunc = translateNowToday,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = nowFunction,
@@ -2476,7 +2503,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "today",
     .type = FUNCTION_TYPE_TODAY,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
-    .translateFunc = translateTimePseudoColumn,
+    .translateFunc = translateNowToday,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = todayFunction,

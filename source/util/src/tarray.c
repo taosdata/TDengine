@@ -373,7 +373,7 @@ void taosArraySort(SArray* pArray, __compar_fn_t compar) {
   assert(pArray != NULL);
   assert(compar != NULL);
 
-  qsort(pArray->pData, pArray->size, pArray->elemSize, compar);
+  taosSort(pArray->pData, pArray->size, pArray->elemSize, compar);
 }
 
 void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn, int32_t flags) {
@@ -390,7 +390,7 @@ int32_t taosArraySearchIdx(const SArray* pArray, const void* key, __compar_fn_t 
 
 void taosArraySortString(SArray* pArray, __compar_fn_t comparFn) {
   assert(pArray != NULL);
-  qsort(pArray->pData, pArray->size, pArray->elemSize, comparFn);
+  taosSort(pArray->pData, pArray->size, pArray->elemSize, comparFn);
 }
 
 char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn, int32_t flags) {

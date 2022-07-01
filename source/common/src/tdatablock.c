@@ -892,7 +892,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
         int64_t p0 = taosGetTimestampUs();
 
         __compar_fn_t fn = getKeyComparFunc(pColInfoData->info.type, pOrder->order);
-        qsort(pColInfoData->pData, pDataBlock->info.rows, pColInfoData->info.bytes, fn);
+        taosSort(pColInfoData->pData, pDataBlock->info.rows, pColInfoData->info.bytes, fn);
 
         int64_t p1 = taosGetTimestampUs();
         uDebug("blockDataSort easy cost:%" PRId64 ", rows:%d\n", p1 - p0, pDataBlock->info.rows);
@@ -1218,7 +1218,7 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pDst = taosArrayGet(dst->pDataBlock, i);
     SColumnInfoData* pSrc = taosArrayGet(src->pDataBlock, i);
-    if (pSrc->pData == NULL) {
+    if (pSrc->pData == NULL && (!IS_VAR_DATA_TYPE(pSrc->info.type))) {
       continue;
     }
 

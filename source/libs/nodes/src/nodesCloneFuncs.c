@@ -350,9 +350,9 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   CLONE_NODE_FIELD(pTagIndexCond);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
-  COPY_SCALAR_FIELD(tsColId);
-  COPY_SCALAR_FIELD(filesFactor);
+  COPY_SCALAR_FIELD(igExpired);
   CLONE_NODE_LIST_FIELD(pGroupTags);
+  COPY_SCALAR_FIELD(groupSort);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -421,7 +421,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   CLONE_NODE_FIELD(pStateExpr);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
-  COPY_SCALAR_FIELD(filesFactor);
+  COPY_SCALAR_FIELD(igExpired);
   COPY_SCALAR_FIELD(windowAlgo);
   return TSDB_CODE_SUCCESS;
 }
@@ -511,8 +511,7 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_SCALAR_FIELD(slidingUnit);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
-  COPY_SCALAR_FIELD(tsColId);
-  COPY_SCALAR_FIELD(filesFactor);
+  COPY_SCALAR_FIELD(igExpired);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -532,7 +531,7 @@ static int32_t physiWindowCopy(const SWinodwPhysiNode* pSrc, SWinodwPhysiNode* p
   CLONE_NODE_FIELD(pTsEnd);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
-  COPY_SCALAR_FIELD(filesFactor);
+  COPY_SCALAR_FIELD(igExpired);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -582,6 +581,7 @@ static int32_t downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstre
   COPY_OBJECT_FIELD(addr, sizeof(SQueryNodeAddr));
   COPY_SCALAR_FIELD(taskId);
   COPY_SCALAR_FIELD(schedId);
+  COPY_SCALAR_FIELD(execId);
   return TSDB_CODE_SUCCESS;
 }
 

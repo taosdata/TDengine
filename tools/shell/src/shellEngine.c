@@ -364,7 +364,7 @@ int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
     int32_t *length = taos_fetch_lengths(tres);
     for (int32_t i = 0; i < num_fields; i++) {
       if (i > 0) {
-        taosFprintfFile(pFile, "\n");
+        taosFprintfFile(pFile, ",");
       }
       shellDumpFieldToFile(pFile, (const char *)row[i], fields + i, length[i], precision);
     }
@@ -394,9 +394,9 @@ void shellPrintNChar(const char *str, int32_t length, int32_t width) {
       break;
     }
     int w = 0;
-    if(*(str + pos) == '\t' || *(str + pos) == '\n' || *(str + pos) == '\r'){
+    if (*(str + pos) == '\t' || *(str + pos) == '\n' || *(str + pos) == '\r') {
       w = bytes;
-    }else{
+    } else {
       w = taosWcharWidth(wc);
     }
     pos += bytes;
@@ -513,7 +513,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
 }
 
 bool shellIsLimitQuery(const char *sql) {
-  //todo refactor
+  // todo refactor
   if (taosStrCaseStr(sql, " limit ") != NULL) {
     return true;
   }
@@ -522,14 +522,13 @@ bool shellIsLimitQuery(const char *sql) {
 }
 
 bool shellIsShowQuery(const char *sql) {
-  //todo refactor
+  // todo refactor
   if (taosStrCaseStr(sql, "show ") != NULL) {
     return true;
   }
 
   return false;
 }
-
 
 int32_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
   TAOS_ROW row = taos_fetch_row(tres);
