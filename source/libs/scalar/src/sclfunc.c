@@ -1152,42 +1152,30 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
   char tmp[TSDB_MAX_JSON_TAG_LEN] = {0};
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
-    if (colDataIsNull_s(pInput[0].columnData, i)) {
-      colDataAppendNULL(pOutput->columnData, i);
-      continue;
-    }
-    char *input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[i];
+    SArray* pTagVals = taosArrayInit(8, sizeof(STagVal));
+    STag*   pTag = NULL;
 
-    if(type == TSDB_DATA_TYPE_NCHAR){
-      if (varDataTLen(input) > TSDB_MAX_JSON_TAG_LEN){
-        colDataAppendNULL(pOutput->columnData, i);
-        continue;
-      }
-      int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), tmp);
-      if (len < 0) {
-        colDataAppendNULL(pOutput->columnData, i);
-        continue;
-      }
-      tmp[len] = 0;
+    if (colDataIsNull_s(pInput[0].columnData, i)) {
+      tTagNew(pTagVals, 1, true, &pTag);
     }else{
+      char *input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[i];
       if (varDataLen(input) > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE){
-        colDataAppendNULL(pOutput->columnData, i);
-        continue;
+        taosArrayDestroy(pTagVals);
+        return TSDB_CODE_FAILED;
       }
       memcpy(tmp, varDataVal(input), varDataLen(input));
       tmp[varDataLen(input)] = 0;
+      if(parseJsontoTagData(tmp, pTagVals, &pTag, NULL)){
+        tTagNew(pTagVals, 1, true, &pTag);
+      }
     }
 
-    if(!tjsonValidateJson(tmp)){
-      colDataAppendNULL(pOutput->columnData, i);
-      continue;
-    }
-
-    colDataAppend(pOutput->columnData, i, input, false);
+    colDataAppend(pOutput->columnData, i, (const char*)pTag, false);
+    tTagFree(pTag);
+    taosArrayDestroy(pTagVals);
   }
 
   pOutput->numOfRows = pInput->numOfRows;
-
   return TSDB_CODE_SUCCESS;
 }
 
