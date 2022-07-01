@@ -76,16 +76,19 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pInit->user) {
     memcpy(pRpc->user, pInit->user, strlen(pInit->user));
   }
-  return pRpc;
+  int64_t refId = taosAddRef(transGetInstMgt(), pRpc);
+  return (void*)refId;
 }
 void rpcClose(void* arg) {
   tInfo("start to close rpc");
+  taosRemoveRef(transGetInstMgt(), (int64_t)arg);
+  tInfo("finish to close rpc");
+  return;
+}
+void rpcCloseImpl(void* arg) {
   SRpcInfo* pRpc = (SRpcInfo*)arg;
   (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
   taosMemoryFree(pRpc);
-  tInfo("finish to close rpc");
-
-  return;
 }
 
 void* rpcMallocCont(int32_t contLen) {
@@ -140,10 +143,9 @@ void rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
   transSendRecv(shandle, pEpSet, pMsg, pRsp);
 }
 
-void    rpcSendResponse(const SRpcMsg* pMsg) { transSendResponse(pMsg); }
+void rpcSendResponse(const SRpcMsg* pMsg) { transSendResponse(pMsg); }
 
 int32_t rpcGetConnInfo(void* thandle, SRpcConnInfo* pInfo) { return 0; }
-
 
 void rpcRefHandle(void* handle, int8_t type) {
   assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);

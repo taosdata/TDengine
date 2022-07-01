@@ -501,13 +501,13 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
 }
 static void allocConnRef(SCliConn* conn, bool update) {
   if (update) {
-    transRemoveExHandle(conn->refId);
+    transRemoveExHandle(transGetRefMgt(), conn->refId);
     conn->refId = -1;
   }
   SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
   exh->handle = conn;
   exh->pThrd = conn->hostThrd;
-  exh->refId = transAddExHandle(exh);
+  exh->refId = transAddExHandle(transGetRefMgt(), exh);
   conn->refId = exh->refId;
 }
 static void addConnToPool(void* pool, SCliConn* conn) {
@@ -601,7 +601,7 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   tTrace("%s conn %p remove from conn pool", CONN_GET_INST_LABEL(conn), conn);
   QUEUE_REMOVE(&conn->conn);
   QUEUE_INIT(&conn->conn);
-  transRemoveExHandle(conn->refId);
+  transRemoveExHandle(transGetRefMgt(), conn->refId);
   conn->refId = -1;
 
   if (clear) {
@@ -619,7 +619,7 @@ static void cliDestroy(uv_handle_t* handle) {
   }
 
   SCliConn* conn = handle->data;
-  transRemoveExHandle(conn->refId);
+  transRemoveExHandle(transGetRefMgt(), conn->refId);
   taosMemoryFree(conn->ip);
   conn->stream->data = NULL;
   taosMemoryFree(conn->stream);
@@ -747,7 +747,7 @@ static void cliHandleQuit(SCliMsg* pMsg, SCliThrd* pThrd) {
 }
 static void cliHandleRelease(SCliMsg* pMsg, SCliThrd* pThrd) {
   int64_t    refId = (int64_t)(pMsg->msg.info.handle);
-  SExHandle* exh = transAcquireExHandle(refId);
+  SExHandle* exh = transAcquireExHandle(transGetRefMgt(), refId);
   if (exh == NULL) {
     tDebug("%" PRId64 " already release", refId);
   }
@@ -773,7 +773,7 @@ SCliConn* cliGetConn(SCliMsg* pMsg, SCliThrd* pThrd, bool* ignore) {
   SCliConn* conn = NULL;
   int64_t   refId = (int64_t)(pMsg->msg.info.handle);
   if (refId != 0) {
-    SExHandle* exh = transAcquireExHandle(refId);
+    SExHandle* exh = transAcquireExHandle(transGetRefMgt(), refId);
     if (exh == NULL) {
       *ignore = true;
       destroyCmsg(pMsg);
@@ -781,7 +781,7 @@ SCliConn* cliGetConn(SCliMsg* pMsg, SCliThrd* pThrd, bool* ignore) {
       // assert(0);
     } else {
       conn = exh->handle;
-      transReleaseExHandle(refId);
+      transReleaseExHandle(transGetRefMgt(), refId);
     }
     return conn;
   };
@@ -1154,12 +1154,12 @@ void transUnrefCliHandle(void* handle) {
 }
 SCliThrd* transGetWorkThrdFromHandle(int64_t handle) {
   SCliThrd*  pThrd = NULL;
-  SExHandle* exh = transAcquireExHandle(handle);
+  SExHandle* exh = transAcquireExHandle(transGetRefMgt(), handle);
   if (exh == NULL) {
     return NULL;
   }
   pThrd = exh->pThrd;
-  transReleaseExHandle(handle);
+  transReleaseExHandle(transGetRefMgt(), handle);
   return pThrd;
 }
 SCliThrd* transGetWorkThrd(STrans* trans, int64_t handle) {
@@ -1186,10 +1186,13 @@ void transReleaseCliHandle(void* handle) {
 }
 
 void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
-  STrans*   pTransInst = (STrans*)shandle;
+  STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
+  if (pTransInst == NULL) return;
+
   SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle);
   if (pThrd == NULL) {
     transFreeMsg(pReq->pCont);
+    transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
     return;
   }
 
@@ -1215,14 +1218,18 @@ void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
   tGTrace("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", transLabel(pTransInst), pThrd->pid,
           EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
   ASSERT(transAsyncSend(pThrd->asyncPool, &(cliMsg->q)) == 0);
+  transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
   return;
 }
 
 void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp) {
-  STrans*   pTransInst = (STrans*)shandle;
+  STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
+  if (pTransInst == NULL) return;
+
   SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle);
   if (pThrd == NULL) {
     transFreeMsg(pReq->pCont);
+    transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
     return;
   }
   tsem_t* sem = taosMemoryCalloc(1, sizeof(tsem_t));
@@ -1252,13 +1259,16 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransM
   tsem_wait(sem);
   tsem_destroy(sem);
   taosMemoryFree(sem);
+
+  transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
   return;
 }
 /*
  *
  **/
 void transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
-  STrans* pTransInst = shandle;
+  STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
+  if (pTransInst == NULL) return;
 
   SCvtAddr cvtAddr = {0};
   if (ip != NULL && fqdn != NULL) {
@@ -1279,5 +1289,6 @@ void transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
 
     transAsyncSend(thrd->asyncPool, &(cliMsg->q));
   }
+  transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
 }
 #endif
