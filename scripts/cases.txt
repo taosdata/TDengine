@@ -54,6 +54,7 @@ taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numer
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_csum_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_csum_2.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_diff.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_stddev.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_top_bottom.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_state.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_interval.py --keep --containers
@@ -139,7 +140,6 @@ taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_j
 #taostest --use=common_insert.yaml --group-dir=restful_insert --keep --containers
 #taostest --use=common_insert.yaml --group-dir=schemaless_insert --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_table_only_stable_groupby.py --keep --containers
-#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_stddev.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_table_only_stable_groupby.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_sample.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_hyperloglog.py --keep --containers
