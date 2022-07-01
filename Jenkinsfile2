@@ -130,6 +130,9 @@ def pre_test(){
 def pre_test_win(){
     bat '''
         hostname
+        taskkill /f /t /im python.exe
+        taskkill /f /t /im bash.exe
+        taskkill /f /t /im taosd.exe
         ipconfig
         set
         date /t

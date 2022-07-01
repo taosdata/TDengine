@@ -372,7 +372,7 @@ TEST_F(ParserInitialCTest, createStable) {
     expect.watermark2 = watermark2;
     //    expect.ttl = ttl;
     if (nullptr != pComment) {
-      expect.comment = strdup(pComment);
+      expect.pComment = strdup(pComment);
       expect.commentLen = strlen(pComment);
     }
   };
@@ -443,7 +443,7 @@ TEST_F(ParserInitialCTest, createStable) {
       }
     }
     if (expect.commentLen > 0) {
-      ASSERT_EQ(std::string(req.comment), std::string(expect.comment));
+      ASSERT_EQ(std::string(req.pComment), std::string(expect.pComment));
     }
     if (expect.ast1Len > 0) {
       ASSERT_EQ(std::string(req.pAst1), std::string(expect.pAst1));
