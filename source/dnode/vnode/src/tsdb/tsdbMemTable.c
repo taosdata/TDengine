@@ -552,7 +552,7 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
     pTbData->maxKey = key.ts;
 
     if (pLastRow) {
-      tsdbCacheInsertLastrow(pMemTable->pTsdb->lruCache, pTbData->uid, pLastRow);
+      tsdbCacheInsertLastrow(pMemTable->pTsdb->lruCache, pTbData->uid, pLastRow, true);
     }
   }
   pTbData->minVersion = TMIN(pTbData->minVersion, version);
