@@ -1285,6 +1285,28 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
+#define TIME_UNIT_INVALID 1
+#define TIME_UNIT_TOO_SMALL 2
+
+static int32_t validateTimeUnitParam(uint8_t dbPrec, const SValueNode* pVal) {
+  if (!pVal->isDuration) {
+    return TIME_UNIT_INVALID;
+  }
+
+  if (TSDB_TIME_PRECISION_MILLI == dbPrec && 0 == strcasecmp(pVal->literal, "1u")) {
+    return TIME_UNIT_TOO_SMALL;
+  }
+
+  if (pVal->literal[0] != '1' || (pVal->literal[1] != 'u' && pVal->literal[1] != 'a' &&
+                                  pVal->literal[1] != 's' && pVal->literal[1] != 'm' &&
+                                  pVal->literal[1] != 'h' && pVal->literal[1] != 'd' &&
+                                  pVal->literal[1] != 'w')) {
+    return TIME_UNIT_INVALID;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 /* Following are valid ISO-8601 timezone format:
  * 1 z/Z
  * 2 ±hh:mm
@@ -1527,6 +1549,16 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 
   //add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
+
+  int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode *)nodesListGetNode(pFunc->pParameterList, 2));
+  if (ret == TIME_UNIT_TOO_SMALL) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "TIMEDIFF function time unit parameter should be greater than db precision");
+  } else if (ret == TIME_UNIT_INVALID) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "TIMEDIFF function time unit parameter should be one of the following: [1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+  }
+
   addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
