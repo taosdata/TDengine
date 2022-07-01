@@ -1,0 +1,83 @@
+---
+sidebar_label: Continuous Query
+description: "Continuous query is a query that's executed automatically at a predefined frequency to provide aggregate query capability by time window. It is essentially simplified, time driven, stream computing."
+title: "Continuous Query"
+---
+
+A continuous query is a query that's executed automatically at a predefined frequency to provide aggregate query capability by time window. It is essentially simplified, time driven, stream computing. A continuous query can be performed on a table or STable in TDengine. The results of a continuous query can be pushed to clients or written back to TDengine. Each query is executed on a time window, which moves forward with time. The size of time window and the forward sliding time need to be specified with parameter `INTERVAL` and `SLIDING` respectively.
+
+A continuous query in TDengine is time driven, and can be defined using TAOS SQL directly without any extra operations. With a continuous query, the result can be generated based on a time window to achieve down sampling of the original data. Once a continuous query is defined using TAOS SQL, the query is automatically executed at the end of each time window and the result is pushed back to clients or written to TDengine.
+
+There are some differences between continuous query in TDengine and time window computation in stream computing：
+
+- The computation is performed and the result is returned in real time in stream computing, but the computation in continuous query is only started when a time window closes. For example, if the time window is 1 day, then the result will only be generated at 23:59:59.
+- If a historical data row is written in to a time window for which the computation has already finished, the computation will not be performed again and the result will not be pushed to client applications again. If the results have already been written into TDengine, they will not be updated.
+- In continuous query, if the result is pushed to a client, the client status is not cached on the server side and Exactly-once is not guaranteed by the server. If the client program crashes, a new time window will be generated from the time where the continuous query is restarted. If the result is written into TDengine, the data written into TDengine can be guaranteed as valid and continuous.
+
+## Syntax
+
+```sql
+[CREATE TABLE AS] SELECT select_expr [, select_expr ...]
+    FROM {tb_name_list}
+    [WHERE where_condition]
+    [INTERVAL(interval_val [, interval_offset]) [SLIDING sliding_val]]
+
+```
+
+INTERVAL: The time window for which continuous query is performed
+
+SLIDING: The time step for which the time window moves forward each time
+
+## How to Use
+
+In this section the use case of meters will be used to introduce how to use continuous query. Assume the STable and subtables have been created using the SQL statements below.
+
+```sql
+create table meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupId int);
+create table D1001 using meters tags ("California.SanFrancisco", 2);
+create table D1002 using meters tags ("California.LosAngeles", 2);
+```
+
+The SQL statement below retrieves the average voltage for a one minute time window, with each time window moving forward by 30 seconds.
+
+```sql
+select avg(voltage) from meters interval(1m) sliding(30s);
+```
+
+Whenever the above SQL statement is executed, all the existing data will be computed again. If the computation needs to be performed every 30 seconds automatically to compute on the data in the past one minute, the above SQL statement needs to be revised as below, in which `{startTime}` stands for the beginning timestamp in the latest time window.
+
+```sql
+select avg(voltage) from meters where ts > {startTime} interval(1m) sliding(30s);
+```
+
+An easier way to achieve this is to prepend `create table {tableName} as` before the `select`.
+
+```sql
+create table avg_vol as select avg(voltage) from meters interval(1m) sliding(30s);
+```
+
+A table named as `avg_vol` will be created automatically, then every 30 seconds the `select` statement will be executed automatically on the data in the past 1 minute, i.e. the latest time window, and the result is written into table `avg_vol`. The client program just needs to query from table `avg_vol`. For example:
+
+```sql
+taos> select * from avg_vol;
+            ts           |        avg_voltage_    |
+===================================================
+ 2020-07-29 13:37:30.000 |            222.0000000 |
+ 2020-07-29 13:38:00.000 |            221.3500000 |
+ 2020-07-29 13:38:30.000 |            220.1700000 |
+ 2020-07-29 13:39:00.000 |            223.0800000 |
+```
+
+Please note that the minimum allowed time window is 10 milliseconds, and there is no upper limit.
+
+It's possible to specify the start and end time of a continuous query. If the start time is not specified, the timestamp of the first row will be considered as the start time; if the end time is not specified, the continuous query will be performed indefinitely, otherwise it will be terminated once the end time is reached. For example, the continuous query in the SQL statement below will be started from now and terminated one hour later.
+
+```sql
+create table avg_vol as select avg(voltage) from meters where ts > now and ts <= now + 1h interval(1m) sliding(30s);
+```
+
+`now` in the above SQL statement stands for the time when the continuous query is created, not the time when the computation is actually performed. To avoid the trouble caused by a delay in receiving data as much as possible, the actual computation in a continuous query is started after a little delay. That means, once a time window closes, the computation is not started immediately. Normally, the result are available after a little time, normally within one minute, after the time window closes.
+
+## How to Manage
+
+`show streams` command can be used in the TDengine CLI `taos` to show all the continuous queries in the system, and `kill stream` can be used to terminate a continuous query.

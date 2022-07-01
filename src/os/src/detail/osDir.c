@@ -49,8 +49,37 @@ bool taosDirExist(const char* dirname) {
   return access(dirname, F_OK) == 0;
 }
 
-int taosMkDir(const char *path, mode_t mode) {
-  int code = mkdir(path, 0755);
+int32_t taosMkdirP(const char *dir, int keepLast) {
+  char tmp[256];
+  char *p = NULL;
+  size_t len;
+  size_t i;
+
+  snprintf(tmp, sizeof(tmp),"%s",dir);
+  len = strlen(tmp);
+  if (!keepLast) {
+    for (i = len - 1; i > 0; --i)
+      if (tmp[i] == '/') {
+	tmp[i] = 0;
+	break;
+      }
+  }
+
+  for (p = tmp + 1; *p; p++)
+      if (*p == '/') {
+          *p = 0;
+          if (mkdir(tmp, S_IRWXU) && errno != EEXIST)
+            return -1;
+          *p = '/';
+      }
+  if (mkdir(tmp, S_IRWXU) && errno != EEXIST)
+    return -1;
+
+  return 0;
+}
+
+int32_t taosMkDir(const char *path, mode_t mode) {
+  int code = mkdir(path, mode);
   if (code < 0 && errno == EEXIST) code = 0;
   return code;
 }

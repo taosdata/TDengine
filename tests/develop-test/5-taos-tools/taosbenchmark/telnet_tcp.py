@@ -29,8 +29,31 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
+    def getPath(self, tool="taosBenchmark"):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+
+        paths = []
+        for root, dirs, files in os.walk(projPath):
+            if ((tool) in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    paths.append(os.path.join(root, tool))
+                    break
+        if (len(paths) == 0):
+            tdLog.exit("taosBenchmark not found!")
+            return
+        else:
+            tdLog.info("taosBenchmark found in %s" % paths[0])
+            return paths[0]
+
     def run(self):
-        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/sml_telnet_tcp.json"
+        binPath = self.getPath()
+        cmd = "%s -f ./5-taos-tools/taosbenchmark/json/sml_telnet_tcp.json" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         time.sleep(5)

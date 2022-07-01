@@ -20,7 +20,7 @@ ELSEIF (TD_WINDOWS)
   INSTALL(FILES ${EXECUTABLE_OUTPUT_PATH}/taos.exe DESTINATION .)
 
   IF (TD_MVN_INSTALLED)
-    INSTALL(FILES ${LIBRARY_OUTPUT_PATH}/taos-jdbcdriver-2.0.37-dist.jar DESTINATION connector/jdbc)
+    INSTALL(FILES ${LIBRARY_OUTPUT_PATH}/taos-jdbcdriver-2.0.38-dist.jar DESTINATION connector/jdbc)
   ENDIF ()
 ELSEIF (TD_DARWIN)
   SET(TD_MAKE_INSTALL_SH "${TD_COMMUNITY_DIR}/packaging/tools/make_install.sh")

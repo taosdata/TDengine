@@ -203,6 +203,9 @@ static int do_statement(SQLHSTMT stmt, const char *statement) {
       fprintf(stdout, "\n");
     }
   } while (0);
+  if (r==SQL_SUCCESS || r==SQL_NO_DATA)
+    return SQL_SUCCESS;
+
   return r;
 }
 

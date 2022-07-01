@@ -252,6 +252,12 @@ typedef struct SMiscInfo {
   };
 } SMiscInfo;
 
+typedef struct SDelData {
+  bool      existsCheck;
+  SStrToken tableName;
+  struct tSqlExpr* pWhere;
+} SDelData;
+
 typedef struct SSqlInfo {
   int32_t            type;
   bool               valid;
@@ -262,6 +268,7 @@ typedef struct SSqlInfo {
     SCreateTableSql *pCreateTableInfo;
     SAlterTableInfo *pAlterInfo;
     SMiscInfo       *pMiscInfo;
+    SDelData        *pDelData;
   };
 } SSqlInfo;
 
@@ -363,6 +370,9 @@ void tSetDbName(SStrToken *pCpxName, SStrToken *pDb);
 
 void tSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType);
 void tSetColumnType(TAOS_FIELD *pField, SStrToken *type);
+
+// malloc new SDelData and set with args
+SDelData *tGetDelData(SStrToken *pTableName, SStrToken* existsCheck, tSqlExpr* pWhere);
 
 /**
  *

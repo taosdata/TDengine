@@ -1,0 +1,26 @@
+可以使用 apt-get 工具从官方仓库安装。
+
+**安装包仓库**
+
+```
+wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
+echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
+```
+
+如果安装 Beta 版需要安装包仓库
+
+```
+echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
+```
+
+**使用 apt-get 命令安装**
+
+```
+sudo apt-get update
+apt-cache policy tdengine
+sudo apt-get install tdengine
+```
+
+:::tip
+apt-get 方式只适用于 Debian 或 Ubuntu 系统
+::::

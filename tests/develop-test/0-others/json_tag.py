@@ -530,6 +530,26 @@ class TDTestCase:
         tdSql.checkData(5, 2, 4096)
         tdSql.query("describe jsons1_1")
         tdSql.checkData(5, 2, 4096)
+        
+        #test TD-13918
+        tdSql.execute("drop table  if exists jsons_13918_1")
+        tdSql.execute("drop table  if exists jsons_13918_2")
+        tdSql.execute("drop table  if exists jsons_13918_3")
+        tdSql.execute("drop table  if exists jsons_13918_4")
+        tdSql.execute("drop table  if exists jsons_stb")
+        tdSql.execute("create table jsons_stb (ts timestamp, dataInt int) tags (jtag json)")
+        tdSql.error("create table jsons_13918_1 using jsons_stb tags ('nullx')")
+        tdSql.error("create table jsons_13918_2 using jsons_stb tags (nullx)")
+        tdSql.error("insert into jsons_13918_3 using jsons_stb tags('NULLx') values(1591061628001, 11)")
+        tdSql.error("insert into jsons_13918_4 using jsons_stb tags(NULLx) values(1591061628002, 11)")
+        tdSql.execute("create table jsons_13918_1 using jsons_stb tags ('null')")
+        tdSql.execute("create table jsons_13918_2 using jsons_stb tags (null)")
+        tdSql.execute("insert into jsons_13918_1 values(1591061628003, 11)")
+        tdSql.execute("insert into jsons_13918_2 values(1591061628004, 11)")
+        tdSql.execute("insert into jsons_13918_3 using jsons_stb tags('NULL') values(1591061628005, 11)")
+        tdSql.execute("insert into jsons_13918_4 using jsons_stb tags(\"NULL\") values(1591061628006, 11)")
+        tdSql.query("select * from jsons_stb")
+        tdSql.checkRows(4)
 
     def stop(self):
         tdSql.close()

@@ -16,7 +16,8 @@ class TDTestCase:
 
         tdLog.info('=============== step1')
         tdLog.info('create table tb (ts timestamp, speed smallint unsigned)')
-        tdSql.execute('create table tb (ts timestamp, speed smallint unsigned)')
+        tdSql.execute(
+            'create table tb (ts timestamp, speed smallint unsigned)')
         tdLog.info("insert into tb values (now, NULL)")
         tdSql.execute("insert into tb values (now, NULL)")
         tdLog.info('select * from tb order by ts desc')
@@ -93,10 +94,6 @@ class TDTestCase:
         tdSql.checkData(0, 1, 2)
         tdLog.info('drop database db')
         tdSql.execute('drop database db')
-        tdLog.info('show databases')
-        tdSql.query('show databases')
-        tdLog.info('tdSql.checkRow(0)')
-        tdSql.checkRows(0)
 # convert end
 
     def stop(self):

@@ -1,17 +1,26 @@
+<p>
+<p align="center">
+  <a href="https://tdengine.com" target="_blank">
+  <img
+    src="docs/assets/tdengine.svg"
+    alt="TDengine"
+    width="500"
+  />
+  </a>
+</p>
+<p>
+
 [![Build Status](https://travis-ci.org/taosdata/TDengine.svg?branch=master)](https://travis-ci.org/taosdata/TDengine)
 [![Build status](https://ci.appveyor.com/api/projects/status/kf3pwh2or5afsgl9/branch/master?svg=true)](https://ci.appveyor.com/project/sangshuduo/tdengine-2n8ge/branch/master)
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 [![tdengine](https://snapcraft.io//tdengine/badge.svg)](https://snapcraft.io/tdengine)
 
-[![TDengine](TDenginelogo.png)](https://www.taosdata.com)
-
-简体中文 | [English](./README.md)
-很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
+简体中文 | [English](README.md) | 很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
 
 # TDengine 简介
 
-TDengine 是一款高性能、分布式、支持 SQL 的时序数据库。而且除时序数据库功能外，它还提供缓存、数据订阅、流式计算等功能，最大程度减少研发和运维的复杂度，且核心代码，包括集群功能全部开源（开源协议，AGPL v3.0）。与其他时序数据数据库相比，TDengine 有以下特点：
+TDengine 是一款高性能、分布式、支持 SQL 的时序数据库（Time-Series Database）。而且除时序数据库功能外，它还提供缓存、数据订阅、流式计算等功能，最大程度减少研发和运维的复杂度，且核心代码，包括集群功能全部开源（开源协议，AGPL v3.0）。与其他时序数据数据库相比，TDengine 有以下特点：
 
 - **高性能**：通过创新的存储引擎设计，无论是数据写入还是查询，TDengine 的性能比通用数据库快 10 倍以上，也远超其他时序数据库，而且存储空间也大为节省。
 
@@ -121,12 +130,12 @@ sudo dnf install -y maven
 为了在 CentOS 上构建 [taosTools](https://github.com/taosdata/taos-tools) 需要安装如下依赖软件
 
 ```bash
-sudo yum install zlib-devel xz-devel snappy-devel jansson-devel pkgconfig libatomic libstdc++-static
+sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static
 ```
 
 注意：由于 snappy 缺乏 pkg-config 支持
 （参考 [链接](https://github.com/google/snappy/pull/86)），会导致
- cmake 提示无法发现 libsnappy，实际上工作正常。
+cmake 提示无法发现 libsnappy，实际上工作正常。
 
 ## 获取源码
 
@@ -154,12 +163,23 @@ git submodule update --init --recursive
 
 ### Linux 系统
 
+可以运行代码仓库中的 `build.sh` 脚本编译出 TDengine 和 taosTools（包含 taosBenchmark 和 taosdump）。
+
 ```bash
-mkdir debug && cd debug
-cmake .. && cmake --build .
+./build.sh
 ```
 
-您可以选择使用 jemalloc 作为内存分配器，替代默认的 glibc：
+这个脚本等价于执行如下命令：
+
+```bash
+git submodule update --init --recursive
+mkdir debug
+cd debug
+cmake .. -DBUILD_TOOLS=true
+make
+```
+
+您也可以选择使用 jemalloc 作为内存分配器，替代默认的 glibc：
 
 ```bash
 apt install autoconf
@@ -229,13 +249,17 @@ cmake .. && cmake --build .
 
 # 安装
 
-生成完成后，安装 TDengine（下文给出的指令以 Linux 为例，如果是在 Windows 下，那么对应的指令会是 `nmake install`）：
+## Linux 系统
+
+生成完成后，安装 TDengine：
 
 ```bash
 sudo make install
 ```
 
 用户可以在[文件目录结构](https://www.taosdata.com/cn/documentation/administrator#directories)中了解更多在操作系统中生成的目录或文件。
+从 2.0 版本开始, 从源代码安装也会为 TDengine 配置服务管理。
+用户也可以选择[从安装包中安装](https://www.taosdata.com/en/getting-started/#Install-from-Package)。
 
 安装成功后，在终端中启动 TDengine 服务：
 
@@ -250,6 +274,40 @@ taos
 ```
 
 如果 TDengine Shell 连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印出错误消息。
+
+## Windows 系统
+
+生成完成后，安装 TDengine：
+
+```cmd
+nmake install
+```
+
+## macOS 系统
+
+生成完成后，安装 TDengine：
+
+```bash
+sudo make install
+```
+
+安装成功后，如果想以服务形式启动，先配置 `.plist` 文件，在终端中执行：
+
+```bash
+sudo cp ../packaging/macOS/com.taosdata.tdengine.plist /Library/LaunchDaemons
+```
+
+在终端中启动 TDengine 服务：
+
+```bash
+sudo launchctl load /Library/LaunchDaemons/com.taosdata.tdengine.plist
+```
+
+在终端中停止 TDengine 服务：
+
+```bash
+sudo launchctl unload /Library/LaunchDaemons/com.taosdata.tdengine.plist
+```
 
 ## 快速运行
 
@@ -271,7 +329,7 @@ taos
 
 在 TDengine 终端中，用户可以通过 SQL 命令来创建/删除数据库、表等，并进行插入查询操作。
 
-```bash
+```sql
 CREATE DATABASE demo;
 USE demo;
 CREATE TABLE t (ts TIMESTAMP, speed INT);
@@ -325,8 +383,8 @@ TDengine 的测试框架和所有测试例全部开源。
 
 # 加入技术交流群
 
-TDengine 官方社群「物联网大数据群」对外开放，欢迎您加入讨论。搜索微信号 "tdengine"，加小T为好友，即可入群。
+TDengine 官方社群「物联网大数据群」对外开放，欢迎您加入讨论。搜索微信号 "tdengine"，加小 T 为好友，即可入群。
 
-# [谁在使用TDengine](https://github.com/taosdata/TDengine/issues/2432)
+# [谁在使用 TDengine](https://github.com/taosdata/TDengine/issues/2432)
 
 欢迎所有 TDengine 用户及贡献者在 [这里](https://github.com/taosdata/TDengine/issues/2432) 分享您在当前工作中开发/使用 TDengine 的故事。

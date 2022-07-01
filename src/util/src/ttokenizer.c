@@ -228,7 +228,8 @@ static SKeyword keywordTable[] = {
     {"RANGE",        TK_RANGE},
     {"CONTAINS",     TK_CONTAINS},
     {"TO",           TK_TO},
-    {"SPLIT",        TK_SPLIT}   
+    {"SPLIT",        TK_SPLIT},
+    {"DELETE",       TK_DELETE}
 };
 
 static const char isIdChar[] = {

@@ -40,7 +40,8 @@ class TDSimClient:
             "jnidebugFlag": "135",
             "qdebugFlag": "135",
             "telemetryReporting": "0",
-            }
+        }
+
     def init(self, path):
         self.__init__()
         self.path = path
@@ -72,14 +73,14 @@ class TDSimClient:
         cmd = "rm -rf " + self.logDir
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
-    
-        os.makedirs(self.logDir, exist_ok=True) # like "mkdir -p"
+
+        os.makedirs(self.logDir, exist_ok=True)  # like "mkdir -p"
 
         cmd = "rm -rf " + self.cfgDir
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        os.makedirs(self.cfgDir, exist_ok=True) # like "mkdir -p"
+        os.makedirs(self.cfgDir, exist_ok=True)  # like "mkdir -p"
 
         cmd = "touch " + self.cfgPath
         if os.system(cmd) != 0:
@@ -145,11 +146,11 @@ class TDDnode:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        os.makedirs(self.dataDir, exist_ok=True) # like "mkdir -p"
+        os.makedirs(self.dataDir, exist_ok=True)  # like "mkdir -p"
 
-        os.makedirs(self.logDir, exist_ok=True) # like "mkdir -p"
+        os.makedirs(self.logDir, exist_ok=True)  # like "mkdir -p"
 
-        os.makedirs(self.cfgDir, exist_ok=True) # like "mkdir -p"
+        os.makedirs(self.cfgDir, exist_ok=True)  # like "mkdir -p"
 
         cmd = "touch " + self.cfgPath
         if os.system(cmd) != 0:
@@ -198,7 +199,7 @@ class TDDnode:
             "dnode:%d is deployed and configured by %s" %
             (self.index, self.cfgPath))
 
-    def getBuildPath(self):
+    def getPath(self, tool="taosd"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -206,23 +207,22 @@ class TDDnode:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
+        return paths[0]
 
     def start(self):
-        buildPath = self.getBuildPath()
+        binPath = self.getPath()
 
-        if (buildPath == ""):
+        if (binPath == ""):
             tdLog.exit("taosd not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
-
-        binPath = buildPath + "/build/bin/taosd"
+            tdLog.info("taosd found: %s" % binPath)
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))

@@ -14,7 +14,7 @@ sql connect
 sql show mnodes
 print dnode1 ==> $data2_1
 print dnode2 ==> $data2_2
-if $data2_1 != master then
+if $data2_1 != leader then
   return -1
 endi
 
@@ -33,10 +33,10 @@ show2:
 sql show mnodes
 print dnode1 ==> $data2_1
 print dnode2 ==> $data2_2
-if $data2_1 != master then
+if $data2_1 != leader then
 	goto show2
 endi
-if $data2_2 != slave then
+if $data2_2 != follower then
 	goto show2
 endi
 
@@ -67,10 +67,10 @@ sql show mnodes -x step5
     
 print dnode1 ==> $data2_1
 print dnode2 ==> $data2_2
-if $data2_1 != master then
+if $data2_1 != leader then
 	goto step5
 endi
-if $data2_2 != slave then
+if $data2_2 != follower then
 	goto step5
 endi
 

@@ -801,6 +801,7 @@ expr(A) ::= expr(X) MINUS expr(Y).   {A = tSqlExprCreate(X, Y, TK_MINUS); }
 expr(A) ::= expr(X) STAR  expr(Y).   {A = tSqlExprCreate(X, Y, TK_STAR);  }
 expr(A) ::= expr(X) SLASH expr(Y).   {A = tSqlExprCreate(X, Y, TK_DIVIDE);}
 expr(A) ::= expr(X) REM   expr(Y).   {A = tSqlExprCreate(X, Y, TK_REM);   }
+expr(A) ::= expr(X) BITAND expr(Y).  {A = tSqlExprCreate(X, Y, TK_BITAND);}
 
 // like expression
 expr(A) ::= expr(X) LIKE expr(Y).    {A = tSqlExprCreate(X, Y, TK_LIKE);  }
@@ -983,6 +984,15 @@ cmd ::= ALTER STABLE ids(X) cpxName(F) MODIFY TAG columnlist(A).     {
 cmd ::= KILL CONNECTION INTEGER(Y).   {setKillSql(pInfo, TSDB_SQL_KILL_CONNECTION, &Y);}
 cmd ::= KILL STREAM INTEGER(X) COLON(Z) INTEGER(Y).       {X.n += (Z.n + Y.n); setKillSql(pInfo, TSDB_SQL_KILL_STREAM, &X);}
 cmd ::= KILL QUERY INTEGER(X) COLON(Z) INTEGER(Y).        {X.n += (Z.n + Y.n); setKillSql(pInfo, TSDB_SQL_KILL_QUERY, &X);}
+
+//////////////////////////////////// DEL TRUNCATE TABLE /////////////////////////////////////
+
+//1 DELETE FROM TBNAME/STBNAME WHERE TS AND TAG CONDICTION
+cmd ::= DELETE FROM ifexists(Y) ids(X) cpxName(Z) where_opt(W). {
+  X.n += Z.n; 
+  SDelData * pDelData = tGetDelData(&X, &Y, W);
+  setSqlInfo(pInfo, pDelData, NULL, TSDB_SQL_DELETE_DATA);
+}
 
 %fallback ID ABORT AFTER ASC ATTACH BEFORE BEGIN CASCADE CLUSTER CONFLICT COPY DATABASE DEFERRED
   DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD

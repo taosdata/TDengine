@@ -36,8 +36,6 @@
 83,,script,./test.sh -f general/parser/limit1_tblocks100.sim 
 82,,script,./test.sh -f general/parser/limit1.sim 
 82,,pytest,python3 test.py -f query/last_row_cache.py 
-81,,develop-test,timeout 180 bash 3-connectors/c#/test.sh 
-80,,develop-test,timeout 180 bash 3-connectors/nodejs/test.sh 
 79,,script,./test.sh -f general/db/alter_tables_v4.sim 
 79,,pytest,python3 test.py -f insert/verifyMemToDiskCrash.py 
 78,2,script,./test.sh -f unique/dnode/balance3.sim 
@@ -151,6 +149,7 @@
 48,,script,./test.sh -f general/parser/nestquery.sim 
 48,,script,./test.sh -f general/parser/col_arithmetic_operation.sim 
 48,,pytest,python3 test.py -f query/queryStateWindow.py 
+41,,docs-examples-test,eval sh -c \"if [ `uname -m` != aarch64 ]; then ./test_csharp.sh; fi\"
 47,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonSml-illegalData.py 
 47,,script,./test.sh -f unique/stable/balance_replica1.sim 
 47,,script,./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir.sim 
@@ -172,6 +171,7 @@
 42,,script,./test.sh -f unique/dnode/monitor_bug.sim 
 42,,script,./test.sh -f unique/arbitrator/sync_replica3_alterTable_drop.sim 
 42,,script,./test.sh -f general/wal/kill.sim 
+41,,docs-examples-test,./test_c.sh
 41,,script,./test.sh -f unique/dnode/lossdata.sim 
 41,,script,./test.sh -f unique/arbitrator/sync_replica3_dropDb.sim 
 41,,script,./test.sh -f unique/arbitrator/sync_replica2_alterTable_drop.sim 
@@ -196,6 +196,7 @@
 37,,script,./test.sh -f unique/arbitrator/offline_replica2_alterTable_online.sim 
 37,,script,./test.sh -f general/table/delete_reuse1.sim 
 37,,script,./test.sh -f general/db/delete_reuse2.sim 
+36,,docs-examples-test,eval sh -c \"if [ `uname -m` != aarch64 ]; then ./test_rust.sh; fi\"
 36,,script,./test.sh -f unique/stable/replica3_vnode3.sim 
 36,,script,./test.sh -f unique/stable/dnode2_stop.sim 
 36,,script,./test.sh -f unique/arbitrator/sync_replica2_alterTable_add.sim 
@@ -234,6 +235,7 @@
 30,,script,./test.sh -f unique/account/account_delete.sim 
 30,,script,./test.sh -f general/import/commit.sim 
 30,,script,./test.sh -f general/compute/diff2.sim 
+30,,develop-test,bash 3-connectors/R/test.sh
 29,,system-test,python3 ./test.py -f 0-others/create_col_tag.py 
 29,,script,./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim 
 29,,script,./test.sh -f general/wal/maxtables.sim 
@@ -314,6 +316,7 @@
 20,,pytest,python3 test.py -f import_merge/importLastTO.py 
 20,,pytest,python3 test.py -f import_merge/importDataSub.py 
 20,,pytest,python3 test.py -f import_merge/importDataLastSub.py 
+20,,pytest,python3 test.py -f table/create.py
 19,,script,./test.sh -f unique/stable/dnode2.sim 
 19,,script,./test.sh -f general/db/vnodes.sim 
 19,,pytest,python3 test.py -f tools/taosdumpTest3.py 
@@ -323,6 +326,7 @@
 19,,pytest,python3 test.py -f import_merge/importDataHPO.py 
 19,,pytest,python3 test.py -f import_merge/importCSV.py 
 19,,pytest,python3 test.py -f functions/function_operations.py -r 1 
+18,,docs-examples-test,./test_java.sh
 18,,script,./test.sh -f unique/stable/replica3_dnode6.sim 
 18,,script,./test.sh -f general/vector/table_field.sim 
 18,,script,./test.sh -f general/vector/single.sim 
@@ -551,6 +555,7 @@
 11,,pytest,python3 test.py -f import_merge/importLastHPO.py 
 11,,pytest,python3 test.py -f import_merge/importDataTO.py 
 11,,pytest,python3 test.py -f import_merge/importBlock1Sub.py
+10,,docs-examples-test,./test_python.sh
 10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonStmt-otherPara.py
 10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonStmt.py
 10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-autoCreate.py
@@ -561,6 +566,7 @@
 10,,pytest,python3 testCompress.py 
 10,,pytest,python3 test.py -f client/client.py 
 10,,script,./test.sh -f general/compute/scalar_pow.sim 
+9,,docs-examples-test,./test_go.sh
 9,,script,./test.sh -f general/parser/alter1.sim 
 9,,script,./test.sh -f general/db/delete.sim 
 9,,pytest,python3 test.py -f tools/taosdemoTestLimitOffset.py
@@ -583,6 +589,8 @@
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeTinyInt.py 
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeInt.py 
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeDouble.py 
+8,,pytest,python3 test.py -f update/update2.py
+7,,docs-examples-test,./test_node.sh
 7,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonSml-otherPara.py 
 7,,pytest,python3 test.py -f tools/taosdumpTest2.py 
 7,,pytest,python3 test.py -f tools/taosdemoTestdatatype.py 
@@ -598,6 +606,7 @@
 7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBigInt.py 
 7,,develop-test,python3 ./test.py -f 2-query/function_timetruncate.py
 7,,develop-test,python3 ./test.py -f 2-query/function_timediff.py
+7,,pytest,python3 test.py -f tsdb/delete.py
 6,,system-test,python3 ./test.py -f 2-query/TD-12229.py 
 6,,system-test,python3 ./test.py -f 2-query/TD-11943.py 
 6,,system-test,python3 ./test.py -f 2-query/function_elapsed.py 
@@ -630,6 +639,7 @@
 6,,pytest,python3 test.py -f alter/alterColMultiTimes.py 
 6,,develop-test,python3 ./test.py -f 2-query/ts_2016.py 
 6,,develop-test,python3 ./test.py -f 2-query/escape.py 
+6,,develop-test,python3 ./test.py -f 2-query/TD-14763.py 
 5,,system-test,python3 ./test.py -f 4-taosAdapter/taosAdapter_insert.py 
 5,,system-test,python3 ./test.py -f 2-query/TD-12340-12342.py 
 5,,system-test,python3 ./test.py -f 2-query/TD-12276.py 
@@ -704,6 +714,7 @@
 5,,develop-test,python3 ./test.py -f 2-query/session_two_stage.py 
 5,,develop-test,python3 ./test.py -f 2-query/function_histogram.py
 5,,develop-test,python3 ./test.py -f 0-others/TD-12435.py 
+5,,develop-test,python3 ./test.py -f 0-others/taos_shell.py
 5,,develop-test,python3 ./test.py -f 0-others/json_tag.py 
 5,,develop-test,python3 ./test.py -f 2-query/function_mode.py
 5,,develop-test,python3 ./test.py -f 2-query/function_now.py
@@ -716,6 +727,8 @@
 5,,develop-test,python3 ./test.py -f 2-query/query_window_keywords.py
 5,,develop-test,python3 ./test.py -f 2-query/scalar_triangle.py
 5,,develop-test,python3 ./test.py -f 2-query/scalar_expression.py
+5,,develop-test,python3 ./test.py -f 2-query/scalar_powlog.py
+5,,develop-test,python3 ./test.py -f 2-query/TD-14745.py
 4,,system-test,python3 test.py -f 4-taosAdapter/TD-12163.py
 4,,system-test,python3 ./test.py -f 3-connectors/restful/restful_binddbname.py 
 4,,system-test,python3 ./test.py -f 2-query/TD-12614.py 
@@ -788,18 +801,22 @@
 4,,pytest,python3 test.py -f alter/alterTabAddTagWithNULL.py 
 4,,pytest,python3 test.py -f alter/alter_debugFlag.py 
 4,,pytest,python3 test.py -f alter/alter_create_exception.py 
+4,,pytest,python3 test.py -f insert/line_insert.py
 3,,pytest,python3 test.py -f tag_lite/binary.py 
 3,,pytest,python3 test.py -f query/filterAllIntTypes.py 
 3,,develop-test,python3 ./test.py -f 2-query/ts_hidden_column.py 
 3,,develop-test,python3 ./test.py -f 2-query/ts_shortcut.py
+3,,develop-test,python3 ./test.py -f 2-query/nchar_funcs.py
 3,,develop-test,python3 ./test.py -f 2-query/TD-5902.py
+3,,develop-test,python3 ./test.py -f 2-query/sample_order_desc.py
+3,,develop-test,python3 ./test.py -f 2-query/hll_ts_desc.py
 1,,develop-test,python3 ./test.py -f 2-query/TD-14196.py
 3,,script,./test.sh -f general/compute/scalar_str_concat_len.sim
 3,,develop-test,python3 ./test.py -f 2-query/TD-13414.py
 3,,develop-test,python3 ./test.py -f 2-query/function_tail.py
 2,,develop-test,python3 ./test.py -f 2-query/function_unique.py
 2,,develop-test,python3 ./test.py -f 2-query/function_hll.py
+#1,,docs-examples-test, ./test_R.sh
 1,,develop-test,python3 ./test.py -f 2-query/function_state.py
 1,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/demo.py
-8,,pytest,python3 test.py -f update/update2.py
-4,,pytest,python3 test.py -f insert/line_insert.py
+3,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestInspect.py 

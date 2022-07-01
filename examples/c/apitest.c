@@ -262,32 +262,6 @@ void verify_async(TAOS* taos) {
   usleep(1000000);
 }
 
-void stream_callback(void* param, TAOS_RES* res, TAOS_ROW row) {
-  if (res == NULL || row == NULL) {
-    return;
-  }
-
-  int         num_fields = taos_num_fields(res);
-  TAOS_FIELD* fields = taos_fetch_fields(res);
-
-  printf("got one row from stream_callback\n");
-  char temp[256] = {0};
-  taos_print_row(temp, row, fields, num_fields);
-  puts(temp);
-}
-
-void verify_stream(TAOS* taos) {
-  prepare_data(taos);
-  TAOS_STREAM* strm =
-      taos_open_stream(taos, "select count(*) from meters interval(1m)", stream_callback, 0, NULL, NULL);
-  printf("waiting for stream data\n");
-  usleep(100000);
-  TAOS_RES* result = taos_query(taos, "insert into t0 values(now, 0)(now+5s,1)(now+10s, 2);");
-  taos_free_result(result);
-  usleep(200000000);
-  taos_close_stream(strm);
-}
-
 void verify_schema_less(TAOS* taos) {
   TAOS_RES* result;
   result = taos_query(taos, "drop database if exists test;");
@@ -447,8 +421,6 @@ int main(int argc, char* argv[]) {
   printf("*********** verify subscribe ************\n");
   verify_subscribe(taos);
 
-  printf("************ verify stream  *************\n");
-  // verify_stream(taos);
   printf("done\n");
   taos_close(taos);
   taos_cleanup();

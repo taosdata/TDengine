@@ -276,7 +276,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(3, 1, 1)
 
-        tdSql.execute('create table unique1 (ts timestamp, voltage bigint,num smallint, dbool bool, dtiny tinyint unsigned, dfloat float, ddouble double, dchar nchar(4093), dbinary binary(64), dtime timestamp) tags (jtag json)')
+        tdSql.execute('create table unique1 (ts timestamp, voltage bigint,num smallint, dbool bool, dtiny tinyint unsigned, dfloat float, ddouble double, dchar nchar(64), dbinary binary(64), dtime timestamp) tags (jtag json)')
         tdSql.execute('create table D011 using unique1 tags (\'{"k1":"v1"}\')')
         tdSql.execute('create table D012 using unique1 tags (\'{"k1":"v1","k2":7}\')')
         tdSql.execute('create table D013 using unique1 tags (\'{"k3":"v3"}\')')

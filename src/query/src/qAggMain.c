@@ -345,7 +345,7 @@ static uint64_t hllCountCnt(uint8_t *buckets) {
     z *= 0.5;
   }
   z += m * hllSigma(buckethisto[0]/(double)m);
-  double E = llroundl(HLL_ALPHA_INF*m*m/z);
+  double E = (double)llroundl(HLL_ALPHA_INF*m*m/z);
 
   return (uint64_t) E;
 }
@@ -1856,6 +1856,17 @@ int32_t tsCompare(const void* p1, const void* p2) {
   }
 }
 
+int32_t tsCompareDesc(const void* p1, const void* p2) {
+  TSKEY k = *(TSKEY*)p1;
+  SResPair* pair = (SResPair*)p2;
+
+  if (k == pair->key) {
+    return 0;
+  } else {
+    return k > pair->key? -1:1;
+  }
+}
+
 static void stddev_dst_function(SQLFunctionCtx *pCtx) {
   SStddevdstInfo *pStd = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
@@ -1877,7 +1888,7 @@ static void stddev_dst_function(SQLFunctionCtx *pCtx) {
     SResPair* p = taosArrayGet(resList, 0);
     avg = p->avg;
   } else {  // todo opt performance by using iterator since the timestamp lsit is matched with the output result
-    SResPair* p = bsearch(&pCtx->startTs, resList->pData, len, sizeof(SResPair), tsCompare);
+    SResPair* p = bsearch(&pCtx->startTs, resList->pData, len, sizeof(SResPair), pCtx->order == TSDB_ORDER_DESC ? tsCompareDesc : tsCompare);
     if (p == NULL) {
       return;
     }
@@ -3647,23 +3658,24 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
           continue;
         }
-        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
-          continue;
-        }
 
         if (pDiffInfo->valueAssigned) {
-          *pOutput = (int32_t)(pData[i] - pDiffInfo->i64Prev);  // direct previous may be null
-          *pTimestamp = (tsList != NULL)? tsList[i]:0;
-          pOutput    += 1;
-          pTimestamp += 1;
+          int32_t diff = (int32_t)(pData[i] - pDiffInfo->i64Prev);
+          if (diff >= 0 || !pDiffInfo->ignoreNegative) {
+            *pOutput = (int32_t)(pData[i] - pDiffInfo->i64Prev);  // direct previous may be null
+            *pTimestamp = (tsList != NULL)? tsList[i]:0;
+            pOutput    += 1;
+            pTimestamp += 1;
+            notNullElems++;
+          }
         }
 
         pDiffInfo->i64Prev = pData[i];
         pDiffInfo->valueAssigned = true;
-        notNullElems++;
       }
       break;
     };
+
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t *pData = (int64_t *)data;
       int64_t *pOutput = (int64_t *)pCtx->pOutput;
@@ -3672,23 +3684,24 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
           continue;
         }
-        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
-          continue;
-        }
 
         if (pDiffInfo->valueAssigned) {
-          *pOutput = pData[i] - pDiffInfo->i64Prev;  // direct previous may be null
-          *pTimestamp = (tsList != NULL)? tsList[i]:0;
-          pOutput    += 1;
-          pTimestamp += 1;
+          int64_t diff = pData[i] - pDiffInfo->i64Prev;
+          if (diff >= 0 || !pDiffInfo->ignoreNegative) {
+            *pOutput = pData[i] - pDiffInfo->i64Prev;  // direct previous may be null
+            *pTimestamp = (tsList != NULL)? tsList[i]:0;
+            pOutput    += 1;
+            pTimestamp += 1;
+            notNullElems++;
+          }
         }
 
         pDiffInfo->i64Prev = pData[i];
         pDiffInfo->valueAssigned = true;
-        notNullElems++;
       }
       break;
     }
+
     case TSDB_DATA_TYPE_DOUBLE: {
       double *pData = (double *)data;
       double *pOutput = (double *)pCtx->pOutput;
@@ -3697,23 +3710,24 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
           continue;
         }
-        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
-          continue;
-        }
 
-        if (pDiffInfo->valueAssigned) {  // initial value is not set yet
-          SET_DOUBLE_VAL(pOutput, pData[i] - pDiffInfo->d64Prev);  // direct previous may be null
-          *pTimestamp = (tsList != NULL)? tsList[i]:0;
-          pOutput    += 1;
-          pTimestamp += 1;
+        if (pDiffInfo->valueAssigned) {
+          double diff = pData[i] - pDiffInfo->d64Prev;
+          if (diff >= 0 || !pDiffInfo->ignoreNegative) {
+            SET_DOUBLE_VAL(pOutput, pData[i] - pDiffInfo->d64Prev);  // direct previous may be null
+            *pTimestamp = (tsList != NULL)? tsList[i]:0;
+            pOutput    += 1;
+            pTimestamp += 1;
+            notNullElems++;
+          }
         }
 
         pDiffInfo->d64Prev = pData[i];
         pDiffInfo->valueAssigned = true;
-        notNullElems++;
       }
       break;
     }
+
     case TSDB_DATA_TYPE_FLOAT: {
       float *pData = (float *)data;
       float *pOutput = (float *)pCtx->pOutput;
@@ -3722,23 +3736,24 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
           continue;
         }
-        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
-          continue;
-        }
 
-        if (pDiffInfo->valueAssigned) {  // initial value is not set yet
-          *pOutput = (float)(pData[i] - pDiffInfo->d64Prev);  // direct previous may be null
-          *pTimestamp = (tsList != NULL)? tsList[i]:0;
-          pOutput    += 1;
-          pTimestamp += 1;
+        if (pDiffInfo->valueAssigned) {  
+          float diff = (float)(pData[i] - pDiffInfo->d64Prev);
+          if (diff >= 0 || !pDiffInfo->ignoreNegative) {
+            *pOutput = (float)(pData[i] - pDiffInfo->d64Prev);  
+            *pTimestamp = (tsList != NULL)? tsList[i]:0;
+            pOutput    += 1;
+            pTimestamp += 1;
+            notNullElems++;
+          }
         }
 
         pDiffInfo->d64Prev = pData[i];
         pDiffInfo->valueAssigned = true;
-        notNullElems++;
       }
       break;
     }
+
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t *pData = (int16_t *)data;
       int16_t *pOutput = (int16_t *)pCtx->pOutput;
@@ -3747,20 +3762,20 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
           continue;
         }
-        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
-          continue;
-        }
 
-        if (pDiffInfo->valueAssigned) {  // initial value is not set yet
-          *pOutput = (int16_t)(pData[i] - pDiffInfo->i64Prev);  // direct previous may be null
-          *pTimestamp = (tsList != NULL)? tsList[i]:0;
-          pOutput    += 1;
-          pTimestamp += 1;
+        if (pDiffInfo->valueAssigned) {
+          int16_t diff = (int16_t)(pData[i] - pDiffInfo->i64Prev);
+          if (diff >= 0 || !pDiffInfo->ignoreNegative) {
+            *pOutput = (int16_t)(pData[i] - pDiffInfo->i64Prev);
+            *pTimestamp = (tsList != NULL)? tsList[i]:0;
+            pOutput    += 1;
+            pTimestamp += 1;
+            notNullElems++;
+          }
         }
 
         pDiffInfo->i64Prev = pData[i];
         pDiffInfo->valueAssigned = true;
-        notNullElems++;
       }
       break;
     }
@@ -3773,23 +3788,24 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->hasNull && isNull((char *)&pData[i], pCtx->inputType)) {
           continue;
         }
-        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
-          continue;
-        }
 
-        if (pDiffInfo->valueAssigned) {  // initial value is not set yet
-          *pOutput = (int8_t)(pData[i] - pDiffInfo->i64Prev);  // direct previous may be null
-          *pTimestamp = (tsList != NULL)? tsList[i]:0;
-          pOutput    += 1;
-          pTimestamp += 1;
+        if (pDiffInfo->valueAssigned) {
+          int8_t diff = (int8_t)(pData[i] - pDiffInfo->i64Prev);
+          if (diff >= 0 || !pDiffInfo->ignoreNegative) {
+            *pOutput = (int8_t)(pData[i] - pDiffInfo->i64Prev);
+            *pTimestamp = (tsList != NULL)? tsList[i]:0;
+            pOutput    += 1;
+            pTimestamp += 1;
+            notNullElems++;
+          }
         }
 
         pDiffInfo->i64Prev = pData[i];
         pDiffInfo->valueAssigned = true;
-        notNullElems++;
       }
       break;
     }
+
     default:
       qError("error input type");
   }
@@ -3808,7 +3824,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
       }
     }
-    int32_t forwardStep = (isFirstBlock) ? notNullElems - 1 : notNullElems;
+    int32_t forwardStep = (isFirstBlock) ? notNullElems : notNullElems;
 
     GET_RES_INFO(pCtx)->numOfRes += forwardStep;
   }
@@ -5180,10 +5196,6 @@ static bool elapsedSetup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
   return true;
 }
 
-static int32_t elapsedRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
-  return BLK_DATA_NO_NEEDED;
-}
-
 static void elapsedFunction(SQLFunctionCtx *pCtx) {
   SElapsedInfo *pInfo = getOutputInfo(pCtx);
   if (pCtx->preAggVals.isSet) {
@@ -6504,7 +6516,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               elapsedFunction,
                               elapsedFinalizer,
                               elapsedMerge,
-                              elapsedRequired,
+                              dataBlockRequired,
                           },
                           {
                               //38

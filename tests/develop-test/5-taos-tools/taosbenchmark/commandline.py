@@ -31,8 +31,31 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
+    def getPath(self, tool="taosBenchmark"):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+
+        paths = []
+        for root, dirs, files in os.walk(projPath):
+            if ((tool) in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    paths.append(os.path.join(root, tool))
+                    break
+        if (len(paths) == 0):
+            tdLog.exit("taosBenchmark not found!")
+            return
+        else:
+            tdLog.info("taosBenchmark found in %s" % paths[0])
+            return paths[0]
+
     def run(self):
-        cmd = "taosBenchmark -F 7 -H 9 -n 10 -t 2 -x -y -M -C -d newtest -l 5 -A binary,nchar\(31\) -b tinyint,binary\(23\),bool,nchar -w 29 -E -m $%^*"
+        binPath = self.getPath()
+        cmd = "%s -F 7 -H 9 -n 10 -t 2 -x -y -M -C -d newtest -l 5 -A binary,nchar\(31\) -b tinyint,binary\(23\),bool,nchar -w 29 -E -m $%%^*" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("use newtest")
@@ -58,7 +81,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.execute("drop database if exists newtest")
 
-        cmd = "taosBenchmark -F 7 -n 10 -t 2 -y -M -I stmt"
+        cmd = "%s -F 7 -n 10 -t 2 -y -M -I stmt" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select count(tbname) from test.meters")
@@ -66,55 +89,55 @@ class TDTestCase:
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 20)
 
-        cmd = "taosBenchmark -n 3 -t 3 -B 2 -i 1 -G -y -T 1 2>&1 | grep sleep | wc -l"
+        cmd = "%s -n 3 -t 3 -B 2 -i 1 -G -y -T 1 2>&1 | grep sleep | wc -l" %binPath
         sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         if (int(sleepTimes) != 2):
             tdLog.exit("expected sleep times 2, actual %d" % int(sleepTimes))
 
-        cmd = "taosBenchmark -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -r 1 2>&1 | grep sleep | wc -l"
+        cmd = "%s -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -r 1 2>&1 | grep sleep | wc -l" %binPath
         sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         if (int(sleepTimes) != 3):
             tdLog.exit("expected sleep times 3, actual %d" % int(sleepTimes))
 
-        cmd = "taosBenchmark -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -I sml 2>&1 | grep sleep | wc -l"
+        cmd = "%s -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -I sml 2>&1 | grep sleep | wc -l" %binPath
         sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         if (int(sleepTimes) != 2):
             tdLog.exit("expected sleep times 2, actual %d" % int(sleepTimes))
 
-        cmd = "taosBenchmark -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -r 1 -I sml 2>&1 | grep sleep | wc -l"
+        cmd = "%s -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -r 1 -I sml 2>&1 | grep sleep | wc -l" %binPath
         sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         if (int(sleepTimes) != 3):
             tdLog.exit("expected sleep times 3, actual %d" % int(sleepTimes))
 
-        cmd = "taosBenchmark -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -I stmt 2>&1 | grep sleep | wc -l"
+        cmd = "%s -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -I stmt 2>&1 | grep sleep | wc -l" %binPath
         sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         if (int(sleepTimes) != 2):
             tdLog.exit("expected sleep times 2, actual %d" % int(sleepTimes))
 
-        cmd = "taosBenchmark -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -r 1 -I stmt 2>&1 | grep sleep | wc -l"
+        cmd = "%s -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -r 1 -I stmt 2>&1 | grep sleep | wc -l" %binPath
         sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         if (int(sleepTimes) != 3):
             tdLog.exit("expected sleep times 3, actual %d" % int(sleepTimes))
 
-        cmd = "taosBenchmark -S 17 -n 3 -t 1 -y -x"
+        cmd = "%s -S 17 -n 3 -t 1 -y -x" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select last(ts) from test.meters")
         tdSql.checkData(0, 0 , "2017-07-14 10:40:00.034")
 
-        cmd = "taosBenchmark -N -I taosc -t 11 -n 11 -y -x -E"
+        cmd = "%s -N -I taosc -t 11 -n 11 -y -x -E" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("use test")
@@ -125,7 +148,7 @@ class TDTestCase:
         tdSql.query("select count(*) from `d10`")
         tdSql.checkData(0, 0, 11)
 
-        cmd = "taosBenchmark -N -I rest -t 11 -n 11 -y -x"
+        cmd = "%s -N -I rest -t 11 -n 11 -y -x" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("use test")
@@ -136,7 +159,7 @@ class TDTestCase:
         tdSql.query("select count(*) from d10")
         tdSql.checkData(0, 0, 11)
 
-        cmd = "taosBenchmark -N -I stmt -t 11 -n 11 -y -x"
+        cmd = "%s -N -I stmt -t 11 -n 11 -y -x" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("use test")
@@ -147,134 +170,134 @@ class TDTestCase:
         tdSql.query("select count(*) from d10")
         tdSql.checkData(0, 0, 11)
 
-        cmd = "taosBenchmark -N -I sml -y"
+        cmd = "%s -N -I sml -y" %binPath
         tdLog.info("%s" % cmd)
         assert(os.system("%s" % cmd) !=0 )
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b bool"
+        cmd = "%s -n 1 -t 1 -y -b bool" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "BOOL")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b tinyint"
+        cmd = "%s -n 1 -t 1 -y -b tinyint" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "TINYINT")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b utinyint"
+        cmd = "%s -n 1 -t 1 -y -b utinyint" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "TINYINT UNSIGNED")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b smallint"
+        cmd = "%s -n 1 -t 1 -y -b smallint" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "SMALLINT")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b usmallint"
+        cmd = "%s -n 1 -t 1 -y -b usmallint" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "SMALLINT UNSIGNED")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b int"
+        cmd = "%s -n 1 -t 1 -y -b int" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "INT")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b uint"
+        cmd = "%s -n 1 -t 1 -y -b uint" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "INT UNSIGNED")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b bigint"
+        cmd = "%s -n 1 -t 1 -y -b bigint" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "BIGINT")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b ubigint"
+        cmd = "%s -n 1 -t 1 -y -b ubigint" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "BIGINT UNSIGNED")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b timestamp"
+        cmd = "%s -n 1 -t 1 -y -b timestamp" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "TIMESTAMP")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b float"
+        cmd = "%s -n 1 -t 1 -y -b float" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "FLOAT")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b double"
+        cmd = "%s -n 1 -t 1 -y -b double" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "DOUBLE")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b nchar"
+        cmd = "%s -n 1 -t 1 -y -b nchar" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "NCHAR")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b nchar\(7\)"
+        cmd = "%s -n 1 -t 1 -y -b nchar\(7\)" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "NCHAR")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b binary"
+        cmd = "%s -n 1 -t 1 -y -b binary" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "BINARY")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b binary\(7\)"
+        cmd = "%s -n 1 -t 1 -y -b binary\(7\)" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "BINARY")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -A json\(7\)"
+        cmd = "%s -n 1 -t 1 -y -A json\(7\)" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(4, 1, "JSON")
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -b int,x"
+        cmd = "%s -n 1 -t 1 -y -b int,x" %binPath
         tdLog.info("%s" % cmd)
         assert(os.system("%s" % cmd) != 0)
 
-        cmd = "taosBenchmark -n 1 -t 1 -y -A int,json"
+        cmd = "%s -n 1 -t 1 -y -A int,json" %binPath
         tdLog.info("%s" % cmd)
         assert(os.system("%s" % cmd) != 0)
 

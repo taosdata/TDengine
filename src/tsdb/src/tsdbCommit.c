@@ -17,13 +17,6 @@
 extern int32_t tsTsdbMetaCompactRatio;
 
 #define TSDB_MAX_SUBBLOCKS 8
-static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
-  if (key < 0) {
-    return (int)((key + 1) / tsTickPerDay[precision] / days - 1);
-  } else {
-    return (int)((key / tsTickPerDay[precision] / days));
-  }
-}
 
 typedef struct {
   SRtn         rtn;     // retention snapshot
@@ -43,6 +36,14 @@ typedef struct {
   SArray *     aSubBlk;  // table sub-block array
   SDataCols *  pDataCols;
 } SCommitH;
+
+/*
+ * millisecond by default
+ * for TSDB_TIME_PRECISION_MILLI: 3600000L
+ *     TSDB_TIME_PRECISION_MICRO: 3600000000L
+ *     TSDB_TIME_PRECISION_NANO:  3600000000000L
+ */
+static int64_t tsTickPerHour[] = {3600000L, 3600000000L, 3600000000000L};
 
 #define TSDB_COMMIT_REPO(ch) TSDB_READ_REPO(&(ch->readh))
 #define TSDB_COMMIT_REPO_ID(ch) REPO_ID(TSDB_READ_REPO(&(ch->readh)))
@@ -65,7 +66,7 @@ static int  tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid);
 static int  tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile);
 static int  tsdbCommitTSData(STsdbRepo *pRepo);
 static void tsdbStartCommit(STsdbRepo *pRepo);
-static void tsdbEndCommit(STsdbRepo *pRepo, int eno);
+static void tsdbEndCommit(STsdbRepo *pRepo, int eno, bool end);
 static int  tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
 static int  tsdbCreateCommitIters(SCommitH *pCommith);
 static void tsdbDestroyCommitIters(SCommitH *pCommith);
@@ -92,14 +93,14 @@ static bool tsdbCanAddSubBlock(SCommitH *pCommith, SBlock *pBlock, SMergeInfo *p
 static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIter *pCommitIter, SDataCols *pTarget,
                                       TSKEY maxKey, int maxRows, int8_t update);
 
-void *tsdbCommitData(STsdbRepo *pRepo) {
+void *tsdbCommitData(STsdbRepo *pRepo, bool end) {
   if (pRepo->imem == NULL) {
     return NULL;
   }
   tsdbStartCommit(pRepo);
 
   if (tsShortcutFlag & TSDB_SHORTCUT_RB_TSDB_COMMIT) {
-    tsdbEndCommit(pRepo, terrno);
+    tsdbEndCommit(pRepo, terrno, end);
     return NULL;
   }
 
@@ -115,14 +116,14 @@ void *tsdbCommitData(STsdbRepo *pRepo) {
     goto _err;
   }
 
-  tsdbEndCommit(pRepo, TSDB_CODE_SUCCESS);
+  tsdbEndCommit(pRepo, TSDB_CODE_SUCCESS, end);
   return NULL;
 
 _err:
   ASSERT(terrno != TSDB_CODE_SUCCESS);
   pRepo->code = terrno;
 
-  tsdbEndCommit(pRepo, terrno);
+  tsdbEndCommit(pRepo, terrno, end);
   return NULL;
 }
 
@@ -247,7 +248,8 @@ int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
     pBlkIdx = (SBlockIdx *)taosArrayGet(pIdxA, i);
 
     size = tsdbEncodeSBlockIdx(NULL, pBlkIdx);
-    if (tsdbMakeRoom(ppBuf, tlen + size) < 0) return -1;
+    if (tsdbMakeRoom(ppBuf, tlen + size) < 0)
+      return -1;
 
     void *ptr = POINTER_SHIFT(*ppBuf, tlen);
     tsdbEncodeSBlockIdx(&ptr, pBlkIdx);
@@ -256,7 +258,8 @@ int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
   }
 
   tlen += sizeof(TSCKSUM);
-  if (tsdbMakeRoom(ppBuf, tlen) < 0) return -1;
+  if (tsdbMakeRoom(ppBuf, tlen) < 0) 
+    return -1;
   taosCalcChecksumAppend(0, (uint8_t *)(*ppBuf), tlen);
 
   if (tsdbAppendDFile(pHeadf, *ppBuf, tlen, &offset) < tlen) {
@@ -397,7 +400,7 @@ void tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn) {
   STsdbCfg *pCfg = REPO_CFG(pRepo);
   TSKEY     minKey, midKey, maxKey, now;
 
-  now = taosGetTimestamp(pCfg->precision);
+  now = taosGetTimestamp(pCfg->precision) - tsKeepTimeOffset * tsTickPerHour[pCfg->precision];
   minKey = now - pCfg->keep * tsTickPerDay[pCfg->precision];
   midKey = now - pCfg->keep2 * tsTickPerDay[pCfg->precision];
   maxKey = now - pCfg->keep1 * tsTickPerDay[pCfg->precision];
@@ -695,7 +698,7 @@ static void tsdbStartCommit(STsdbRepo *pRepo) {
   pRepo->code = TSDB_CODE_SUCCESS;
 }
 
-static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
+static void tsdbEndCommit(STsdbRepo *pRepo, int eno, bool end) {
   if (eno != TSDB_CODE_SUCCESS) {
     tsdbEndFSTxnWithError(REPO_FS(pRepo));
   } else {
@@ -704,14 +707,21 @@ static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
 
   tsdbInfo("vgId:%d commit over, %s", REPO_ID(pRepo), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
 
-  if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_OVER, eno);
+  // notify
+  if (end && pRepo->appH.notifyStatus) {
+    pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_OVER, eno);
+  }
 
   SMemTable *pIMem = pRepo->imem;
   (void)tsdbLockRepo(pRepo);
   pRepo->imem = NULL;
   (void)tsdbUnlockRepo(pRepo);
   tsdbUnRefMemTable(pRepo, pIMem);
-  tsem_post(&(pRepo->readyToCommit));
+
+  // release readyToCommit allow next commit
+  if (end) {
+    tsem_post(&(pRepo->readyToCommit));
+  }
 }
 
 #if 0
@@ -1778,4 +1788,29 @@ int tsdbApplyRtn(STsdbRepo *pRepo) {
   }
 
   return 0;
+}
+
+// do control task
+int tsdbCommitControl(STsdbRepo* pRepo, SControlDataInfo* pCtlDataInfo) {
+  int ret = TSDB_CODE_SUCCESS;
+  
+  // do command
+  if(pCtlDataInfo->command & CMD_DELETE_DATA) {
+    // delete data
+    ret = tsdbControlDelete(pRepo, pCtlDataInfo);
+  }
+
+  // notify response thread to response result to client
+  if (pCtlDataInfo->pSem) {
+    tsem_post(pCtlDataInfo->pSem);
+  }
+
+  // deal wal
+  if (pRepo->appH.notifyStatus) 
+    pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_OVER, ret);
+
+  // release commitSep for next commit 
+  tsem_post(&pRepo->readyToCommit);
+  
+  return ret;
 }
