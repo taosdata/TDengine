@@ -386,10 +386,60 @@ class TDTestCase:
         tdSql.error("select unique(c1) from ct1 group by tbname")
 
         # super table
+
+        # super table
+        tdSql.error("select tbname , tail(c1,2) from stb1 group by tbname")
+        tdSql.query("select tail(c1,2) from stb1 partition by tbname")
+        tdSql.checkRows(4)
+
+
+        # bug need fix 
+        # tdSql.query("select tbname , tail(c1,2) from stb1 partition by tbname")
+        # tdSql.checkRows(4)
+
+        # tdSql.query("select tbname , tail(c1,2) from stb1 partition by tbname order by tbname")
+        # tdSql.checkRows(4)
+
+        # tdSql.query(" select tbname , count(c1) from stb1 partition by tbname order by tbname ")
+        # tdSql.checkRows(2)
+        # tdSql.query(" select tbname , max(c1) ,c1 from stb1 partition by tbname order by tbname ")
+        # tdSql.checkRows(2)
+        # tdSql.query(" select tbname ,first(c1) from stb1 partition by tbname order by tbname ")
+        # tdSql.checkRows(2)
+
+        tdSql.query("select tail(c1,2) from stb1 partition by tbname")
+        tdSql.checkRows(4)
+
+
+        # # bug need fix 
+        # tdSql.query(" select tbname , unique(c1) from stb1  where t1 = 0 partition by tbname ")
+        # tdSql.checkRows(2)
+        # tdSql.query(" select tbname , unique(c1) from stb1  where t1 = 0 partition by tbname order by tbname ")
+        # tdSql.checkRows(2)
+        # tdSql.query(" select tbname , unique(c1) from stb1  where c1 = 0 partition by tbname order by tbname ")
+        # tdSql.checkRows(3)
+        # tdSql.query(" select tbname , unique(c1) from stb1  where c1 = 0 partition by tbname ")
+        # tdSql.checkRows(3)
+
+        tdSql.query(" select unique(t1) from stb1  ")
+        tdSql.checkRows(2)
+        tdSql.query(" select unique(t1+c1) from stb1 ")
+        tdSql.checkRows(13)
+        tdSql.query(" select unique(t1+c1) from stb1 partition by tbname ")
+        tdSql.checkRows(13)
+        tdSql.query(" select unique(t1) from stb1 partition by tbname ")
+        tdSql.checkRows(2)
+
+        # nest query 
+        tdSql.query(" select  unique(c1) from (select _rowts , t1 ,c1 , tbname from stb1 ) ")
+        tdSql.checkRows(11)
+        tdSql.checkData(0,0,6)
+        tdSql.checkData(10,0,3)
+        tdSql.query("select  unique(t1) from (select _rowts , t1 , tbname from stb1 )")
+        tdSql.checkRows(2)
+        tdSql.checkData(0,0,4)
+        tdSql.checkData(1,0,1)
         
-
-
-    
     def check_boundary_values(self):
 
         tdSql.execute("drop database if exists bound_test")
