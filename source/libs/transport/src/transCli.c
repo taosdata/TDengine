@@ -47,6 +47,7 @@ typedef struct SCliMsg {
   queue          q;
   STransMsgType  type;
 
+  int64_t  refId;
   uint64_t st;
   int      sent;  //(0: no send, 1: alread sent)
 } SCliMsg;
@@ -606,11 +607,9 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
 
   if (clear) {
     if (!uv_is_closing((uv_handle_t*)conn->stream)) {
+      uv_read_stop(conn->stream);
       uv_close((uv_handle_t*)conn->stream, cliDestroy);
     }
-    //} else {
-    //  cliDestroy((uv_handle_t*)conn->stream);
-    //}
   }
 }
 static void cliDestroy(uv_handle_t* handle) {
@@ -635,7 +634,6 @@ static bool cliHandleNoResp(SCliConn* conn) {
     SCliMsg* pMsg = transQueueGet(&conn->cliMsgs, 0);
     if (REQUEST_NO_RESP(&pMsg->msg)) {
       transQueuePop(&conn->cliMsgs);
-      // taosArrayRemove(msgs, 0);
       destroyCmsg(pMsg);
       res = true;
     }
@@ -979,6 +977,7 @@ void cliSendQuit(SCliThrd* thrd) {
 }
 void cliWalkCb(uv_handle_t* handle, void* arg) {
   if (!uv_is_closing(handle)) {
+    uv_read_stop((uv_stream_t*)handle);
     uv_close(handle, cliDestroy);
   }
 }
@@ -1213,6 +1212,7 @@ void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
   cliMsg->msg = *pReq;
   cliMsg->st = taosGetTimestampUs();
   cliMsg->type = Normal;
+  cliMsg->refId = (int64_t)shandle;
 
   STraceId* trace = &pReq->info.traceId;
   tGTrace("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", transLabel(pTransInst), pThrd->pid,
@@ -1250,6 +1250,7 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransM
   cliMsg->msg = *pReq;
   cliMsg->st = taosGetTimestampUs();
   cliMsg->type = Normal;
+  cliMsg->refId = (int64_t)shandle;
 
   STraceId* trace = &pReq->info.traceId;
   tGTrace("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", transLabel(pTransInst), pThrd->pid,
@@ -1283,6 +1284,7 @@ void transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
     SCliMsg* cliMsg = taosMemoryCalloc(1, sizeof(SCliMsg));
     cliMsg->ctx = pCtx;
     cliMsg->type = Update;
+    cliMsg->refId = (int64_t)shandle;
 
     SCliThrd* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[i];
     tDebug("%s update epset at thread:%08" PRId64 "", pTransInst->label, thrd->pid);

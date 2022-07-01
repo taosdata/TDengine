@@ -57,7 +57,7 @@ typedef struct {
 
   void*         parent;
   void*         tcphandle;  // returned handle from TCP initialization
-  int32_t       refMgt;
+  int64_t       refId;
   TdThreadMutex mutex;
 } SRpcInfo;
 
