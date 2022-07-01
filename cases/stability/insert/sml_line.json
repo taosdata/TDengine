@@ -30,7 +30,7 @@
                     "batch_create_tbl_num": 50000,
                     "data_source": "rand",
                     "insert_mode": "INSERTMODE",
-                    "line_protocol": "lineL",
+                    "line_protocol": "line",
                     "insert_rows": INSERTROWS,
                     "interlace_rows": 100000,
                     "insert_interval": 0,
