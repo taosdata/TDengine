@@ -931,9 +931,9 @@ int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
 
   // sort
   if (isJson) {
-    qsort(pArray->pData, nTag, sizeof(STagVal), tTagValJsonCmprFn);
+    taosSort(pArray->pData, nTag, sizeof(STagVal), tTagValJsonCmprFn);
   } else {
-    qsort(pArray->pData, nTag, sizeof(STagVal), tTagValCmprFn);
+    taosSort(pArray->pData, nTag, sizeof(STagVal), tTagValCmprFn);
   }
 
   // get size

@@ -19,6 +19,10 @@
 #include "tref.h"
 #include "walInt.h"
 
+bool FORCE_INLINE walLogExist(SWal* pWal, int64_t ver) {
+  return !walIsEmpty(pWal) && walGetFirstVer(pWal) <= ver && walGetLastVer(pWal) >= ver;
+}
+
 bool FORCE_INLINE walIsEmpty(SWal* pWal) { return pWal->vers.firstVer == -1; }
 
 int64_t FORCE_INLINE walGetFirstVer(SWal* pWal) { return pWal->vers.firstVer; }
