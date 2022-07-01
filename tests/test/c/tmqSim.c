@@ -36,7 +36,11 @@
 #define MAX_CONSUMER_THREAD_CNT (16)
 #define MAX_VGROUP_CNT          (32)
 
-typedef enum { NOTIFY_CMD_START_CONSUM, NOTIFY_CMD_START_COMMIT, NOTIFY_CMD_ID_BUTT } NOTIFY_CMD_ID;
+typedef enum {
+  NOTIFY_CMD_START_CONSUM,
+  NOTIFY_CMD_START_COMMIT,
+  NOTIFY_CMD_ID_BUTT,
+} NOTIFY_CMD_ID;
 
 typedef struct {
   TdThread thread;
@@ -124,15 +128,13 @@ char* getCurrentTimeString(char* timeString) {
   return timeString;
 }
 
-static void tmqStop(int signum, void *info, void *ctx) { 
+static void tmqStop(int signum, void* info, void* ctx) {
   running = 0;
   char tmpString[128];
-  taosFprintfFile(g_fp, "%s tmqStop() receive stop signal[%d]\n", getCurrentTimeString(tmpString), signum);	
+  taosFprintfFile(g_fp, "%s tmqStop() receive stop signal[%d]\n", getCurrentTimeString(tmpString), signum);
 }
 
-static void tmqSetSignalHandle() {
-  taosSetSignal(SIGINT, tmqStop);
-}
+static void tmqSetSignalHandle() { taosSetSignal(SIGINT, tmqStop); }
 
 void initLogFile() {
   char filename[256];
@@ -433,7 +435,7 @@ static void dumpToFileForCheck(TdFilePtr pFile, TAOS_ROW row, TAOS_FIELD* fields
                                int32_t precision) {
   for (int32_t i = 0; i < num_fields; i++) {
     if (i > 0) {
-      taosFprintfFile(pFile, "\n");
+      taosFprintfFile(pFile, ",");
     }
     shellDumpFieldToFile(pFile, (const char*)row[i], fields + i, length[i], precision);
   }
@@ -463,16 +465,16 @@ static int32_t msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIndex) 
     int32_t     precision = taos_result_precision(msg);
     const char* tbName = tmq_get_table_name(msg);
 
-  #if 0
+#if 0
 	// get schema
 	//============================== stub =================================================//
 	for (int32_t i = 0; i < numOfFields; i++) {
 	  taosFprintfFile(g_fp, "%02d: name: %s, type: %d, len: %d\n", i, fields[i].name, fields[i].type, fields[i].bytes);
 	}
 	//============================== stub =================================================//
-  #endif
+#endif
 
-  dumpToFileForCheck(pInfo->pConsumeRowsFile, row, fields, length, numOfFields, precision);
+    dumpToFileForCheck(pInfo->pConsumeRowsFile, row, fields, length, numOfFields, precision);
 
     taos_print_row(buf, row, fields, numOfFields);
 
@@ -523,15 +525,15 @@ int32_t notifyMainScript(SThreadInfo* pInfo, int32_t cmdId) {
 
 static int32_t g_once_commit_flag = 0;
 static void    tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
-  pError("tmq_commit_cb_print() commit %d\n", code);
+     pError("tmq_commit_cb_print() commit %d\n", code);
 
-  if (0 == g_once_commit_flag) {
-    g_once_commit_flag = 1;
-    notifyMainScript((SThreadInfo*)param, (int32_t)NOTIFY_CMD_START_COMMIT);
+     if (0 == g_once_commit_flag) {
+       g_once_commit_flag = 1;
+       notifyMainScript((SThreadInfo*)param, (int32_t)NOTIFY_CMD_START_COMMIT);
   }
-  
-  char tmpString[128];
-  taosFprintfFile(g_fp, "%s tmq_commit_cb_print() be called\n", getCurrentTimeString(tmpString));
+
+     char tmpString[128];
+     taosFprintfFile(g_fp, "%s tmq_commit_cb_print() be called\n", getCurrentTimeString(tmpString));
 }
 
 void build_consumer(SThreadInfo* pInfo) {
@@ -565,7 +567,7 @@ void build_consumer(SThreadInfo* pInfo) {
   // tmq_conf_set(conf, "auto.offset.reset", "latest");
   //
   if (g_stConfInfo.useSnapshot) {
-    tmq_conf_set(conf, "experiment.use.snapshot", "true");
+    tmq_conf_set(conf, "experimental.snapshot.enable", "true");
   }
 
   pInfo->tmq = tmq_consumer_new(conf, NULL, 0);
@@ -635,6 +637,7 @@ void loop_consume(SThreadInfo* pInfo) {
     }
   }
 
+  int64_t    lastTotalMsgs = 0;
   uint64_t   lastPrintTime = taosGetTimestampMs();
   uint64_t   startTs = taosGetTimestampMs();
 
@@ -653,9 +656,10 @@ void loop_consume(SThreadInfo* pInfo) {
 	  int64_t currentPrintTime = taosGetTimestampMs();
 	  if (currentPrintTime - lastPrintTime > 10 * 1000) {
 		  taosFprintfFile(g_fp,	
-		  	              "consumer id %d has currently poll total msgs: %" PRId64 "\n", 
-		  	              pInfo->consumerId, totalMsgs);
+		  	              "consumer id %d has currently poll total msgs: %" PRId64 ", period rate: %.3f msgs/second\n", 
+		  	              pInfo->consumerId, totalMsgs, (totalMsgs - lastTotalMsgs) * 1000.0/(currentPrintTime - lastPrintTime));
 		  lastPrintTime = currentPrintTime;
+		  lastTotalMsgs = totalMsgs;
 	  }
 	  
       if (0 == once_flag) {
@@ -663,7 +667,7 @@ void loop_consume(SThreadInfo* pInfo) {
         notifyMainScript(pInfo, NOTIFY_CMD_START_CONSUM);
       }
 
-      if (totalRows >= pInfo->expectMsgCnt) {
+      if ((totalRows >= pInfo->expectMsgCnt) || (totalMsgs >= pInfo->expectMsgCnt)) {
         char tmpString[128];
         taosFprintfFile(g_fp, "%s over than expect rows, so break consume\n", getCurrentTimeString(tmpString));
         break;
@@ -692,13 +696,13 @@ void* consumeThreadFunc(void* param) {
   pInfo->taos = taos_connect(NULL, "root", "taosdata", NULL, 0);
   if (pInfo->taos == NULL) {
     taosFprintfFile(g_fp, "taos_connect() fail, can not notify and save consume result to main scripte\n");
-	  return NULL;
+    return NULL;
   }
 
   build_consumer(pInfo);
   build_topic_list(pInfo);
   if ((NULL == pInfo->tmq) || (NULL == pInfo->topicList)) {
-  	taosFprintfFile(g_fp, "create consumer fail! tmq is null or topicList is null\n");
+    taosFprintfFile(g_fp, "create consumer fail! tmq is null or topicList is null\n");
     assert(0);
     return NULL;
   }
@@ -706,7 +710,7 @@ void* consumeThreadFunc(void* param) {
   int32_t err = tmq_subscribe(pInfo->tmq, pInfo->topicList);
   if (err != 0) {
     pError("tmq_subscribe() fail, reason: %s\n", tmq_err2str(err));
-	taosFprintfFile(g_fp, "tmq_subscribe() fail! reason: %s\n", tmq_err2str(err));
+    taosFprintfFile(g_fp, "tmq_subscribe() fail! reason: %s\n", tmq_err2str(err));
     assert(0);
     return NULL;
   }
@@ -727,13 +731,13 @@ void* consumeThreadFunc(void* param) {
   err = tmq_unsubscribe(pInfo->tmq);
   if (err != 0) {
     pError("tmq_unsubscribe() fail, reason: %s\n", tmq_err2str(err));
-	taosFprintfFile(g_fp, "tmq_unsubscribe()! reason: %s\n", tmq_err2str(err));
+    taosFprintfFile(g_fp, "tmq_unsubscribe()! reason: %s\n", tmq_err2str(err));
   }
 
   err = tmq_consumer_close(pInfo->tmq);
   if (err != 0) {
     pError("tmq_consumer_close() fail, reason: %s\n", tmq_err2str(err));
-	taosFprintfFile(g_fp, "tmq_consumer_close()! reason: %s\n", tmq_err2str(err));
+    taosFprintfFile(g_fp, "tmq_consumer_close()! reason: %s\n", tmq_err2str(err));
   }
   pInfo->tmq = NULL;
 
@@ -887,7 +891,7 @@ int main(int32_t argc, char* argv[]) {
   
   double tInMs = (double)t / 1000000.0;
   taosFprintfFile(g_fp,
-				"Spent %.4f seconds to poll msgs: %" PRIu64 " with %d thread(s), throughput: %.2f msgs/second\n\n",
+				"Spent %.3f seconds to poll msgs: %" PRIu64 " with %d thread(s), throughput: %.3f msgs/second\n\n",
 				tInMs, totalMsgs, g_stConfInfo.numOfThread, (double)(totalMsgs / tInMs));
 
   taosFprintfFile(g_fp, "==== close tmqlog ====\n");
@@ -895,4 +899,3 @@ int main(int32_t argc, char* argv[]) {
 
   return 0;
 }
-

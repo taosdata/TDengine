@@ -300,16 +300,14 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
   return pFile;
 }
 
-int64_t taosCloseFile(TdFilePtr *ppFile) {
+int32_t taosCloseFile(TdFilePtr *ppFile) {
+  int32_t code = 0;
   if (ppFile == NULL || *ppFile == NULL) {
     return 0;
   }
 #if FILE_WITH_LOCK
   taosThreadRwlockWrlock(&((*ppFile)->rwlock));
 #endif
-  if (ppFile == NULL || *ppFile == NULL) {
-    return 0;
-  }
   if ((*ppFile)->fp != NULL) {
     fflush((*ppFile)->fp);
     fclose((*ppFile)->fp);
@@ -320,9 +318,10 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
     HANDLE h = (HANDLE)_get_osfhandle((*ppFile)->fd);
     !FlushFileBuffers(h);
 #else
-    fsync((*ppFile)->fd);
+    // warning: never fsync silently in base lib
+    /*fsync((*ppFile)->fd);*/
 #endif
-    close((*ppFile)->fd);
+    code = close((*ppFile)->fd);
     (*ppFile)->fd = -1;
   }
   (*ppFile)->refId = 0;
@@ -332,7 +331,7 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
 #endif
   taosMemoryFree(*ppFile);
   *ppFile = NULL;
-  return 0;
+  return code;
 }
 
 int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
@@ -560,6 +559,8 @@ int32_t taosFsyncFile(TdFilePtr pFile) {
     return 0;
   }
 
+  // this implementation is WRONG
+  // fflush is not a replacement of fsync
   if (pFile->fp != NULL) return fflush(pFile->fp);
   if (pFile->fd >= 0) {
 #ifdef WINDOWS

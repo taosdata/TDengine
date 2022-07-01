@@ -142,10 +142,10 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     return -1;
   }
   // validate offset
-  SWalHead head;
+  SWalCkHead head;
   ASSERT(taosValidFile(pLogTFile));
-  int64_t size = taosReadFile(pLogTFile, &head, sizeof(SWalHead));
-  if (size != sizeof(SWalHead)) {
+  int64_t size = taosReadFile(pLogTFile, &head, sizeof(SWalCkHead));
+  if (size != sizeof(SWalCkHead)) {
     return -1;
   }
   code = walValidHeadCksum(&head);
@@ -261,7 +261,7 @@ int32_t walEndSnapshot(SWal *pWal) {
 }
 
 int walRoll(SWal *pWal) {
-  int code = 0;
+  int32_t code = 0;
   if (pWal->pWriteIdxTFile != NULL) {
     code = taosCloseFile(&pWal->pWriteIdxTFile);
     if (code != 0) {
@@ -321,12 +321,13 @@ static int walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   return 0;
 }
 
-int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLogMeta syncMeta, const void *body,
+int32_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLogMeta syncMeta, const void *body,
                              int32_t bodyLen) {
-  int code = 0;
+  int32_t code = 0;
 
   // no wal
   if (pWal->cfg.level == TAOS_WAL_NOLOG) return 0;
+
   if (bodyLen > TSDB_MAX_WAL_SIZE) {
     terrno = TSDB_CODE_WAL_SIZE_LIMIT;
     return -1;
@@ -356,6 +357,7 @@ int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLog
     terrno = TSDB_CODE_WAL_INVALID_VER;
     return -1;
   }
+
   /*if (!tfValid(pWal->pWriteLogTFile)) return -1;*/
 
   ASSERT(pWal->writeCur >= 0);
@@ -380,7 +382,7 @@ int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLog
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
   pWal->writeHead.cksumBody = walCalcBodyCksum(body, bodyLen);
 
-  if (taosWriteFile(pWal->pWriteLogTFile, &pWal->writeHead, sizeof(SWalHead)) != sizeof(SWalHead)) {
+  if (taosWriteFile(pWal->pWriteLogTFile, &pWal->writeHead, sizeof(SWalCkHead)) != sizeof(SWalCkHead)) {
     // TODO ftruncate
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
@@ -405,19 +407,19 @@ int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLog
   // set status
   if (pWal->vers.firstVer == -1) pWal->vers.firstVer = index;
   pWal->vers.lastVer = index;
-  pWal->totSize += sizeof(SWalHead) + bodyLen;
+  pWal->totSize += sizeof(SWalCkHead) + bodyLen;
   if (walGetCurFileInfo(pWal)->firstVer == -1) {
     walGetCurFileInfo(pWal)->firstVer = index;
   }
   walGetCurFileInfo(pWal)->lastVer = index;
-  walGetCurFileInfo(pWal)->fileSize += sizeof(SWalHead) + bodyLen;
+  walGetCurFileInfo(pWal)->fileSize += sizeof(SWalCkHead) + bodyLen;
 
   taosThreadMutexUnlock(&pWal->mutex);
 
   return 0;
 }
 
-int64_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen) {
+int32_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen) {
   SSyncLogMeta syncMeta = {
       .isWeek = -1,
       .seqNum = UINT64_MAX,
@@ -435,27 +437,3 @@ void walFsync(SWal *pWal, bool forceFsync) {
     }
   }
 }
-
-/*static int walValidateOffset(SWal* pWal, int64_t ver) {*/
-/*int code = 0;*/
-/*SWalHead *pHead = NULL;*/
-/*code = (int)walRead(pWal, &pHead, ver);*/
-/*if(pHead->head.version != ver) {*/
-/*return -1;*/
-/*}*/
-/*return 0;*/
-/*}*/
-
-/*static int64_t walGetOffset(SWal* pWal, int64_t ver) {*/
-/*int code = walSeekVer(pWal, ver);*/
-/*if(code != 0) {*/
-/*return -1;*/
-/*}*/
-
-/*code = walValidateOffset(pWal, ver);*/
-/*if(code != 0) {*/
-/*return -1;*/
-/*}*/
-
-/*return 0;*/
-/*}*/

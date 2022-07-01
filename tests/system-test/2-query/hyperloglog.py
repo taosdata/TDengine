@@ -116,37 +116,6 @@ class TDTestCase:
         # return filter(None, sqls)
         return list(filter(None, sqls))
 
-    def __get_type(self, col):
-        if tdSql.cursor.istype(col, "BOOL"):
-            return "BOOL"
-        if tdSql.cursor.istype(col, "INT"):
-            return "INT"
-        if tdSql.cursor.istype(col, "BIGINT"):
-            return "BIGINT"
-        if tdSql.cursor.istype(col, "TINYINT"):
-            return "TINYINT"
-        if tdSql.cursor.istype(col, "SMALLINT"):
-            return "SMALLINT"
-        if tdSql.cursor.istype(col, "FLOAT"):
-            return "FLOAT"
-        if tdSql.cursor.istype(col, "DOUBLE"):
-            return "DOUBLE"
-        if tdSql.cursor.istype(col, "BINARY"):
-            return "BINARY"
-        if tdSql.cursor.istype(col, "NCHAR"):
-            return "NCHAR"
-        if tdSql.cursor.istype(col, "TIMESTAMP"):
-            return "TIMESTAMP"
-        if tdSql.cursor.istype(col, "JSON"):
-            return "JSON"
-        if tdSql.cursor.istype(col, "TINYINT UNSIGNED"):
-            return "TINYINT UNSIGNED"
-        if tdSql.cursor.istype(col, "SMALLINT UNSIGNED"):
-            return "SMALLINT UNSIGNED"
-        if tdSql.cursor.istype(col, "INT UNSIGNED"):
-            return "INT UNSIGNED"
-        if tdSql.cursor.istype(col, "BIGINT UNSIGNED"):
-            return "BIGINT UNSIGNED"
 
     def hyperloglog_check(self):
         sqls = self.sql_list()
@@ -228,10 +197,10 @@ class TDTestCase:
             tag_sql += f"{k} {v},"
         tdSql.execute(f'create table if not exists {stbname} ({column_sql[:-1]}) tags({tag_sql[:-1]})')
 
-    def __insert_data(self): 
+    def __insert_data(self):
 
         pass
-    
+
     def __hyperloglog_check_distribute(self):
         dbname = "dbtest"
         stbname = "stb"
@@ -286,7 +255,7 @@ class TDTestCase:
             tdSql.query(f"select hyperloglog({k}) from {stbname} group by {k}")
 
         tdSql.execute(f'drop database {dbname}')
-        
+
 
     def __insert_data(self, rows):
         now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)

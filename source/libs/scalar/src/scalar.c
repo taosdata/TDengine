@@ -287,7 +287,7 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList* pParamList, SScalarC
   int32_t code = 0;
   if (NULL == pParamList) {
     if (ctx->pBlockList) {
-      SSDataBlock *pBlock = taosArrayGet(ctx->pBlockList, 0);
+      SSDataBlock *pBlock = taosArrayGetP(ctx->pBlockList, 0);
       *rowNum = pBlock->info.rows;
     } else {
       *rowNum = 1;

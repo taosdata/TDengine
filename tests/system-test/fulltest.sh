@@ -63,7 +63,7 @@ python3 ./test.py -f 2-query/To_unixtimestamp.py
 python3 ./test.py -f 2-query/timetruncate.py
 python3 ./test.py -f 2-query/diff.py
 python3 ./test.py -f 2-query/Timediff.py
-python3 ./test.py -f 2-query/json_tag.py
+#python3 ./test.py -f 2-query/json_tag.py
 
 python3 ./test.py -f 2-query/top.py
 python3 ./test.py -f 2-query/bottom.py
@@ -153,3 +153,4 @@ python3 ./test.py -f 7-tmq/tmqUdf.py
 #python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 5
 python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
 python3 ./test.py -f 7-tmq/tmqShow.py
+python3 ./test.py -f 7-tmq/tmqAlterSchema.py

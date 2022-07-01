@@ -436,15 +436,16 @@ typedef struct {
   int32_t ttl;
   int32_t numOfColumns;
   int32_t numOfTags;
+  int32_t numOfFuncs;
   int32_t commentLen;
   int32_t ast1Len;
   int32_t ast2Len;
   SArray* pColumns;  // array of SField
   SArray* pTags;     // array of SField
-  char*   comment;
+  SArray* pFuncs;
+  char*   pComment;
   char*   pAst1;
   char*   pAst2;
-  SArray* pFuncs;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -1495,6 +1496,7 @@ typedef struct SSubQueryMsg {
   uint64_t queryId;
   uint64_t taskId;
   int64_t  refId;
+  int32_t  execId;
   int8_t   taskType;
   int8_t   explain;
   uint32_t sqlLen;  // the query sql,
@@ -1514,6 +1516,7 @@ typedef struct {
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
+  int32_t  execId;
 } SQueryContinueReq;
 
 typedef struct {
@@ -1535,6 +1538,7 @@ typedef struct {
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
+  int32_t  execId;
 } SResFetchReq;
 
 typedef struct {
@@ -1546,6 +1550,7 @@ typedef struct {
   uint64_t queryId;
   uint64_t taskId;
   int64_t  refId;
+  int32_t  execId;
   int8_t   status;
 } STaskStatus;
 
@@ -1591,6 +1596,7 @@ typedef struct {
   uint64_t queryId;
   uint64_t taskId;
   int64_t  refId;
+  int32_t  execId;
 } STaskCancelReq;
 
 typedef struct {
@@ -1603,6 +1609,7 @@ typedef struct {
   uint64_t queryId;
   uint64_t taskId;
   int64_t  refId;
+  int32_t  execId;
 } STaskDropReq;
 
 typedef struct {
@@ -1623,6 +1630,7 @@ typedef struct {
   int8_t  triggerType;
   int64_t maxDelay;
   int64_t watermark;
+  int8_t  igExpired;
 } SCMCreateStreamReq;
 
 typedef struct {
