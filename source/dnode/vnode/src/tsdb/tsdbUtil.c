@@ -15,57 +15,15 @@
 
 #include "tsdb.h"
 
-#define TSDB_OFFSET_I32 ((uint8_t)0)
-#define TSDB_OFFSET_I16 ((uint8_t)1)
-#define TSDB_OFFSET_I8  ((uint8_t)2)
-
 // SMapData =======================================================================
 void tMapDataReset(SMapData *pMapData) {
-  pMapData->flag = TSDB_OFFSET_I32;
   pMapData->nItem = 0;
   pMapData->nData = 0;
 }
 
 void tMapDataClear(SMapData *pMapData) {
-  if (pMapData->pBuf) {
-    tsdbFree(pMapData->pBuf);
-  } else {
-    tsdbFree(pMapData->pOfst);
-    tsdbFree(pMapData->pData);
-  }
-}
-
-int32_t tMapDataCopy(SMapData *pMapDataSrc, SMapData *pMapDataDest) {
-  int32_t code = 0;
-  int32_t size;
-
-  pMapDataDest->nItem = pMapDataSrc->nItem;
-  pMapDataDest->flag = pMapDataSrc->flag;
-
-  switch (pMapDataDest->flag) {
-    case TSDB_OFFSET_I32:
-      size = sizeof(int32_t) * pMapDataDest->nItem;
-      break;
-    case TSDB_OFFSET_I16:
-      size = sizeof(int16_t) * pMapDataDest->nItem;
-      break;
-    case TSDB_OFFSET_I8:
-      size = sizeof(int8_t) * pMapDataDest->nItem;
-      break;
-    default:
-      ASSERT(0);
-  }
-  code = tsdbRealloc(&pMapDataDest->pOfst, size);
-  if (code) goto _exit;
-  memcpy(pMapDataDest->pOfst, pMapDataSrc->pOfst, size);
-
-  pMapDataDest->nData = pMapDataSrc->nData;
-  code = tsdbRealloc(&pMapDataDest->pData, pMapDataDest->nData);
-  if (code) goto _exit;
-  memcpy(pMapDataDest->pData, pMapDataSrc->pData, pMapDataDest->nData);
-
-_exit:
-  return code;
+  tsdbFree((uint8_t *)pMapData->aOffset);
+  tsdbFree(pMapData->pData);
 }
 
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *)) {
@@ -77,35 +35,19 @@ int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(u
   pMapData->nData += tPutItemFn(NULL, pItem);
 
   // alloc
-  code = tsdbRealloc(&pMapData->pOfst, sizeof(int32_t) * pMapData->nItem);
+  code = tsdbRealloc((uint8_t **)&pMapData->aOffset, sizeof(int32_t) * pMapData->nItem);
   if (code) goto _err;
   code = tsdbRealloc(&pMapData->pData, pMapData->nData);
   if (code) goto _err;
 
   // put
-  ASSERT(pMapData->flag == TSDB_OFFSET_I32);
-  ((int32_t *)pMapData->pOfst)[nItem] = offset;
+  pMapData->aOffset[nItem] = offset;
   tPutItemFn(pMapData->pData + offset, pItem);
 
 _err:
   return code;
 }
 
-static FORCE_INLINE int32_t tMapDataGetOffset(SMapData *pMapData, int32_t idx) {
-  switch (pMapData->flag) {
-    case TSDB_OFFSET_I8:
-      return ((int8_t *)pMapData->pOfst)[idx];
-      break;
-    case TSDB_OFFSET_I16:
-      return ((int16_t *)pMapData->pOfst)[idx];
-      break;
-    case TSDB_OFFSET_I32:
-      return ((int32_t *)pMapData->pOfst)[idx];
-      break;
-    default:
-      ASSERT(0);
-  }
-}
 int32_t tMapDataSearch(SMapData *pMapData, void *pSearchItem, int32_t (*tGetItemFn)(uint8_t *, void *),
                        int32_t (*tItemCmprFn)(const void *, const void *), void *pItem) {
   int32_t code = 0;
@@ -135,58 +77,25 @@ _exit:
   return code;
 }
 
-int32_t tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *)) {
-  int32_t code = 0;
-
-  if (idx < 0 || idx >= pMapData->nItem) {
-    code = TSDB_CODE_NOT_FOUND;
-    goto _exit;
-  }
-
-  tGetItemFn(pMapData->pData + tMapDataGetOffset(pMapData, idx), pItem);
-
-_exit:
-  return code;
+void tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *)) {
+  ASSERT(idx >= 0 && idx < pMapData->nItem);
+  tGetItemFn(pMapData->pData + pMapData->aOffset[idx], pItem);
 }
 
 int32_t tPutMapData(uint8_t *p, SMapData *pMapData) {
   int32_t n = 0;
 
-  ASSERT(pMapData->flag == TSDB_OFFSET_I32);
-
   n += tPutI32v(p ? p + n : p, pMapData->nItem);
   if (pMapData->nItem) {
-    int32_t maxOffset = tMapDataGetOffset(pMapData, pMapData->nItem - 1);
-
-    if (maxOffset <= INT8_MAX) {
-      n += tPutU8(p ? p + n : p, TSDB_OFFSET_I8);
-      if (p) {
-        for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
-          n += tPutI8(p + n, (int8_t)tMapDataGetOffset(pMapData, iItem));
-        }
-      } else {
-        n = n + sizeof(int8_t) * pMapData->nItem;
-      }
-    } else if (maxOffset <= INT16_MAX) {
-      n += tPutU8(p ? p + n : p, TSDB_OFFSET_I16);
-      if (p) {
-        for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
-          n += tPutI16(p + n, (int16_t)tMapDataGetOffset(pMapData, iItem));
-        }
-      } else {
-        n = n + sizeof(int16_t) * pMapData->nItem;
-      }
-    } else {
-      n += tPutU8(p ? p + n : p, TSDB_OFFSET_I32);
-      if (p) {
-        for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
-          n += tPutI32(p + n, tMapDataGetOffset(pMapData, iItem));
-        }
-      } else {
-        n = n + sizeof(int32_t) * pMapData->nItem;
-      }
+    for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
+      n += tPutI32v(p ? p + n : p, pMapData->aOffset[iItem]);
     }
-    n += tPutBinary(p ? p + n : p, pMapData->pData, pMapData->nData);
+
+    n += tPutI32v(p ? p + n : p, pMapData->nData);
+    if (p) {
+      memcpy(p + n, pMapData->pData, pMapData->nData);
+    }
+    n += pMapData->nData;
   }
 
   return n;
@@ -194,26 +103,22 @@ int32_t tPutMapData(uint8_t *p, SMapData *pMapData) {
 
 int32_t tGetMapData(uint8_t *p, SMapData *pMapData) {
   int32_t n = 0;
+  int32_t offset;
+
+  tMapDataReset(pMapData);
 
   n += tGetI32v(p + n, &pMapData->nItem);
   if (pMapData->nItem) {
-    n += tGetU8(p + n, &pMapData->flag);
-    pMapData->pOfst = p + n;
-    switch (pMapData->flag) {
-      case TSDB_OFFSET_I8:
-        n = n + sizeof(int8_t) * pMapData->nItem;
-        break;
-      case TSDB_OFFSET_I16:
-        n = n + sizeof(int16_t) * pMapData->nItem;
-        break;
-      case TSDB_OFFSET_I32:
-        n = n + sizeof(int32_t) * pMapData->nItem;
-        break;
+    if (tsdbRealloc((uint8_t **)&pMapData->aOffset, sizeof(int32_t) * pMapData->nItem)) return -1;
 
-      default:
-        ASSERT(0);
+    for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
+      n += tGetI32v(p + n, &pMapData->aOffset[iItem]);
     }
-    n += tGetBinary(p + n, &pMapData->pData, &pMapData->nData);
+
+    n += tGetI32v(p + n, &pMapData->nData);
+    if (tsdbRealloc(&pMapData->pData, pMapData->nData)) return -1;
+    memcpy(pMapData->pData, p + n, pMapData->nData);
+    n += pMapData->nData;
   }
 
   return n;
@@ -377,55 +282,8 @@ int32_t tCmprBlockIdx(void const *lhs, void const *rhs) {
 
 // SBlock ======================================================
 void tBlockReset(SBlock *pBlock) {
-  pBlock->minKey = TSDBKEY_MAX;
-  pBlock->maxKey = TSDBKEY_MIN;
-  pBlock->minVersion = VERSION_MAX;
-  pBlock->maxVersion = VERSION_MIN;
-  pBlock->nRow = 0;
-  pBlock->last = -1;
-  pBlock->hasDup = 0;
-  for (int8_t iSubBlock = 0; iSubBlock < TSDB_MAX_SUBBLOCKS; iSubBlock++) {
-    pBlock->aSubBlock[iSubBlock].nRow = 0;
-    pBlock->aSubBlock[iSubBlock].cmprAlg = -1;
-    pBlock->aSubBlock[iSubBlock].offset = -1;
-    pBlock->aSubBlock[iSubBlock].szVersion = -1;
-    pBlock->aSubBlock[iSubBlock].szTSKEY = -1;
-    pBlock->aSubBlock[iSubBlock].szBlock = -1;
-    tMapDataReset(&pBlock->aSubBlock->mBlockCol);
-  }
-  pBlock->nSubBlock = 0;
-}
-
-void tBlockClear(SBlock *pBlock) {
-  for (int8_t iSubBlock = 0; iSubBlock < TSDB_MAX_SUBBLOCKS; iSubBlock++) {
-    tMapDataClear(&pBlock->aSubBlock->mBlockCol);
-  }
-}
-
-int32_t tBlockCopy(SBlock *pBlockSrc, SBlock *pBlockDest) {
-  int32_t code = 0;
-
-  pBlockDest->minKey = pBlockSrc->minKey;
-  pBlockDest->maxKey = pBlockSrc->maxKey;
-  pBlockDest->minVersion = pBlockSrc->minVersion;
-  pBlockDest->maxVersion = pBlockSrc->maxVersion;
-  pBlockDest->nRow = pBlockSrc->nRow;
-  pBlockDest->last = pBlockSrc->last;
-  pBlockDest->hasDup = pBlockSrc->hasDup;
-  pBlockDest->nSubBlock = pBlockSrc->nSubBlock;
-  for (int32_t iSubBlock = 0; iSubBlock < pBlockSrc->nSubBlock; iSubBlock++) {
-    pBlockDest->aSubBlock[iSubBlock].nRow = pBlockSrc->aSubBlock[iSubBlock].nRow;
-    pBlockDest->aSubBlock[iSubBlock].cmprAlg = pBlockSrc->aSubBlock[iSubBlock].cmprAlg;
-    pBlockDest->aSubBlock[iSubBlock].offset = pBlockSrc->aSubBlock[iSubBlock].offset;
-    pBlockDest->aSubBlock[iSubBlock].szVersion = pBlockSrc->aSubBlock[iSubBlock].szVersion;
-    pBlockDest->aSubBlock[iSubBlock].szTSKEY = pBlockSrc->aSubBlock[iSubBlock].szTSKEY;
-    pBlockDest->aSubBlock[iSubBlock].szBlock = pBlockSrc->aSubBlock[iSubBlock].szBlock;
-    code = tMapDataCopy(&pBlockSrc->aSubBlock[iSubBlock].mBlockCol, &pBlockDest->aSubBlock[iSubBlock].mBlockCol);
-    if (code) goto _exit;
-  }
-
-_exit:
-  return code;
+  *pBlock =
+      (SBlock){.minKey = TSDBKEY_MAX, .maxKey = TSDBKEY_MIN, .minVersion = VERSION_MAX, .maxVersion = VERSION_MIN};
 }
 
 int32_t tPutBlock(uint8_t *p, void *ph) {
@@ -441,13 +299,15 @@ int32_t tPutBlock(uint8_t *p, void *ph) {
   n += tPutI8(p ? p + n : p, pBlock->hasDup);
   n += tPutI8(p ? p + n : p, pBlock->nSubBlock);
   for (int8_t iSubBlock = 0; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
-    n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].nRow);
+    n += tPutI32v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].nRow);
     n += tPutI8(p ? p + n : p, pBlock->aSubBlock[iSubBlock].cmprAlg);
     n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].offset);
-    n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].szVersion);
-    n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].szTSKEY);
-    n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].szBlock);
-    n += tPutMapData(p ? p + n : p, &pBlock->aSubBlock[iSubBlock].mBlockCol);
+    n += tPutI32v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].szBlockCol);
+    n += tPutI32v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].szVersion);
+    n += tPutI32v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].szTSKEY);
+    n += tPutI32v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].szBlock);
+    n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].sOffset);
+    n += tPutI32v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].nSma);
   }
 
   return n;
@@ -466,20 +326,21 @@ int32_t tGetBlock(uint8_t *p, void *ph) {
   n += tGetI8(p + n, &pBlock->hasDup);
   n += tGetI8(p + n, &pBlock->nSubBlock);
   for (int8_t iSubBlock = 0; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
-    n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].nRow);
+    n += tGetI32v(p + n, &pBlock->aSubBlock[iSubBlock].nRow);
     n += tGetI8(p + n, &pBlock->aSubBlock[iSubBlock].cmprAlg);
     n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].offset);
-    n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].szVersion);
-    n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].szTSKEY);
-    n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].szBlock);
-    n += tGetMapData(p + n, &pBlock->aSubBlock[iSubBlock].mBlockCol);
+    n += tGetI32v(p + n, &pBlock->aSubBlock[iSubBlock].szBlockCol);
+    n += tGetI32v(p + n, &pBlock->aSubBlock[iSubBlock].szVersion);
+    n += tGetI32v(p + n, &pBlock->aSubBlock[iSubBlock].szTSKEY);
+    n += tGetI32v(p + n, &pBlock->aSubBlock[iSubBlock].szBlock);
+    n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].sOffset);
+    n += tGetI32v(p + n, &pBlock->aSubBlock[iSubBlock].nSma);
   }
 
   return n;
 }
 
 int32_t tBlockCmprFn(const void *p1, const void *p2) {
-  int32_t c;
   SBlock *pBlock1 = (SBlock *)p1;
   SBlock *pBlock2 = (SBlock *)p2;
 
@@ -504,14 +365,11 @@ int32_t tPutBlockCol(uint8_t *p, void *ph) {
   n += tPutI8(p ? p + n : p, pBlockCol->flag);
 
   if (pBlockCol->flag != HAS_NULL) {
-    n += tPutI64v(p ? p + n : p, pBlockCol->offset);
-    if (pBlockCol->flag != HAS_VALUE) {
-      n += tPutI64v(p ? p + n : p, pBlockCol->bsize);
-    }
-    n += tPutI64v(p ? p + n : p, pBlockCol->csize);
-    if (IS_VAR_DATA_TYPE(pBlockCol->type)) {
-      n += tPutI64v(p ? p + n : p, pBlockCol->osize);
-    }
+    n += tPutI32v(p ? p + n : p, pBlockCol->offset);
+    n += tPutI32v(p ? p + n : p, pBlockCol->szBitmap);
+    n += tPutI32v(p ? p + n : p, pBlockCol->szOffset);
+    n += tPutI32v(p ? p + n : p, pBlockCol->szValue);
+    n += tPutI32v(p ? p + n : p, pBlockCol->szOrigin);
   }
 
   return n;
@@ -528,18 +386,11 @@ int32_t tGetBlockCol(uint8_t *p, void *ph) {
   ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
 
   if (pBlockCol->flag != HAS_NULL) {
-    n += tGetI64v(p + n, &pBlockCol->offset);
-    if (pBlockCol->flag != HAS_VALUE) {
-      n += tGetI64v(p + n, &pBlockCol->bsize);
-    } else {
-      pBlockCol->bsize = 0;
-    }
-    n += tGetI64v(p + n, &pBlockCol->csize);
-    if (IS_VAR_DATA_TYPE(pBlockCol->type)) {
-      n += tGetI64v(p + n, &pBlockCol->osize);
-    } else {
-      pBlockCol->osize = -1;
-    }
+    n += tGetI32v(p + n, &pBlockCol->offset);
+    n += tGetI32v(p + n, &pBlockCol->szBitmap);
+    n += tGetI32v(p + n, &pBlockCol->szOffset);
+    n += tGetI32v(p + n, &pBlockCol->szValue);
+    n += tGetI32v(p + n, &pBlockCol->szOrigin);
   }
 
   return n;
@@ -942,12 +793,12 @@ int32_t tGetKEYINFO(uint8_t *p, KEYINFO *pKeyInfo) {
 }
 
 // SColData ========================================
-void tColDataReset(SColData *pColData, int16_t cid, int8_t type) {
+void tColDataReset(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn) {
   pColData->cid = cid;
   pColData->type = type;
+  pColData->smaOn = smaOn;
   pColData->nVal = 0;
   pColData->flag = 0;
-  pColData->offsetValid = 0;
   pColData->nData = 0;
 }
 
@@ -977,26 +828,35 @@ int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
   if (pColVal->isNone) {
     pColData->flag |= HAS_NONE;
     SET_BIT2(pColData->pBitMap, pColData->nVal, 0);
-    if (IS_VAR_DATA_TYPE(pColData->type)) pValue = NULL;
   } else if (pColVal->isNull) {
     pColData->flag |= HAS_NULL;
     SET_BIT2(pColData->pBitMap, pColData->nVal, 1);
-    if (IS_VAR_DATA_TYPE(pColData->type)) pValue = NULL;
   } else {
     pColData->flag |= HAS_VALUE;
     SET_BIT2(pColData->pBitMap, pColData->nVal, 2);
     pValue = &pColVal->value;
   }
 
-  if (pValue) {
-    code = tsdbRealloc(&pColData->pData, pColData->nData + tPutValue(NULL, &pColVal->value, pColVal->type));
+  if (IS_VAR_DATA_TYPE(pColData->type)) {
+    // offset
+    code = tsdbRealloc((uint8_t **)&pColData->aOffset, sizeof(int32_t) * (pColData->nVal + 1));
     if (code) goto _exit;
+    pColData->aOffset[pColData->nVal] = pColData->nData;
 
-    pColData->nData += tPutValue(pColData->pData + pColData->nData, &pColVal->value, pColVal->type);
+    // value
+    if ((!pColVal->isNone) && (!pColVal->isNull)) {
+      code = tsdbRealloc(&pColData->pData, pColData->nData + pColVal->value.nData);
+      if (code) goto _exit;
+      memcpy(pColData->pData + pColData->nData, pColVal->value.pData, pColVal->value.nData);
+      pColData->nData += pColVal->value.nData;
+    }
+  } else {
+    code = tsdbRealloc(&pColData->pData, pColData->nData + tPutValue(NULL, pValue, pColVal->type));
+    if (code) goto _exit;
+    pColData->nData += tPutValue(pColData->pData + pColData->nData, pValue, pColVal->type);
   }
 
   pColData->nVal++;
-  pColData->offsetValid = 0;
 
 _exit:
   return code;
@@ -1004,56 +864,32 @@ _exit:
 
 int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
   int32_t code = 0;
+  int32_t size;
 
-  pColDataDest->cid = pColDataDest->cid;
-  pColDataDest->type = pColDataDest->type;
-  pColDataDest->offsetValid = 0;
+  pColDataDest->cid = pColDataSrc->cid;
+  pColDataDest->type = pColDataSrc->type;
+  pColDataDest->smaOn = pColDataSrc->smaOn;
   pColDataDest->nVal = pColDataSrc->nVal;
   pColDataDest->flag = pColDataSrc->flag;
-  if (pColDataSrc->flag != HAS_NONE && pColDataSrc->flag != HAS_NULL && pColDataSrc->flag != HAS_VALUE) {
-    code = tsdbRealloc(&pColDataDest->pBitMap, BIT2_SIZE(pColDataDest->nVal));
+
+  size = BIT2_SIZE(pColDataSrc->nVal);
+  code = tsdbRealloc(&pColDataDest->pBitMap, size);
+  if (code) goto _exit;
+  memcpy(pColDataDest->pBitMap, pColDataSrc->pBitMap, size);
+
+  if (IS_VAR_DATA_TYPE(pColDataDest->type)) {
+    size = sizeof(int32_t) * pColDataSrc->nVal;
+
+    code = tsdbRealloc((uint8_t **)&pColDataDest->aOffset, size);
     if (code) goto _exit;
 
-    memcpy(pColDataDest->pBitMap, pColDataSrc->pBitMap, BIT2_SIZE(pColDataSrc->nVal));
+    memcpy(pColDataDest->aOffset, pColDataSrc->aOffset, size);
   }
-  pColDataDest->nData = pColDataSrc->nData;
+
   code = tsdbRealloc(&pColDataDest->pData, pColDataSrc->nData);
   if (code) goto _exit;
-  memcpy(pColDataDest->pData, pColDataSrc->pData, pColDataSrc->nData);
-
-_exit:
-  return code;
-}
-
-static int32_t tColDataUpdateOffset(SColData *pColData) {
-  int32_t code = 0;
-  SValue  value;
-
-  ASSERT(pColData->nVal > 0);
-  ASSERT(pColData->flag);
-  ASSERT(IS_VAR_DATA_TYPE(pColData->type));
-
-  if ((pColData->flag & HAS_VALUE)) {
-    code = tsdbRealloc((uint8_t **)&pColData->aOffset, sizeof(int32_t) * pColData->nVal);
-    if (code) goto _exit;
-
-    int32_t offset = 0;
-    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
-      if (pColData->flag != HAS_VALUE) {
-        uint8_t v = GET_BIT2(pColData->pBitMap, iVal);
-        if (v == 0 || v == 1) {
-          pColData->aOffset[iVal] = -1;
-          continue;
-        }
-      }
-
-      pColData->aOffset[iVal] = offset;
-      offset += tGetValue(pColData->pData + offset, &value, pColData->type);
-    }
-
-    ASSERT(offset == pColData->nData);
-    pColData->offsetValid = 1;
-  }
+  pColDataDest->nData = pColDataSrc->nData;
+  memcpy(pColDataDest->pData, pColDataSrc->pData, pColDataDest->nData);
 
 _exit:
   return code;
@@ -1085,11 +921,13 @@ int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
   // get value
   SValue value;
   if (IS_VAR_DATA_TYPE(pColData->type)) {
-    if (!pColData->offsetValid) {
-      code = tColDataUpdateOffset(pColData);
-      if (code) goto _exit;
+    if (iVal + 1 < pColData->nVal) {
+      value.nData = pColData->aOffset[iVal + 1] - pColData->aOffset[iVal];
+    } else {
+      value.nData = pColData->nData - pColData->aOffset[iVal];
     }
-    tGetValue(pColData->pData + pColData->aOffset[iVal], &value, pColData->type);
+
+    value.pData = pColData->pData + pColData->aOffset[iVal];
   } else {
     tGetValue(pColData->pData + tDataTypes[pColData->type].bytes * iVal, &value, pColData->type);
   }
@@ -1210,7 +1048,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
       if (code) goto _err;
 
       // append a NONE
-      tColDataReset(pColData, pColVal->cid, pColVal->type);
+      tColDataReset(pColData, pColVal->cid, pColVal->type, 0);
       for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
         code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColVal->cid, pColVal->type));
         if (code) goto _err;
@@ -1240,7 +1078,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
     code = tBlockDataAddColData(pBlockData, iColData, &pColData);
     if (code) goto _err;
 
-    tColDataReset(pColData, pColVal->cid, pColVal->type);
+    tColDataReset(pColData, pColVal->cid, pColVal->type, 0);
     for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
       code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColVal->cid, pColVal->type));
       if (code) goto _err;

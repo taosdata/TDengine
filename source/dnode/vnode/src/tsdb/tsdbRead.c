@@ -807,10 +807,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, uint32_
     for (int32_t j = 0; j < mapData.nItem; ++j) {
       SBlock block = {0};
 
-      int32_t code = tMapDataGetItemByIdx(&mapData, j, &block, tGetBlock);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
+      tMapDataGetItemByIdx(&mapData, j, &block, tGetBlock);
 
       // 1. time range check
       if (block.minKey.ts > pReader->window.ekey || block.maxKey.ts < pReader->window.skey) {

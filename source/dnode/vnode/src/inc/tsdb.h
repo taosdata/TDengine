@@ -119,10 +119,7 @@ int32_t tPutBlockCol(uint8_t *p, void *ph);
 int32_t tGetBlockCol(uint8_t *p, void *ph);
 int32_t tBlockColCmprFn(const void *p1, const void *p2);
 // SBlock
-#define tBlockInit() ((SBlock){0})
 void    tBlockReset(SBlock *pBlock);
-void    tBlockClear(SBlock *pBlock);
-int32_t tBlockCopy(SBlock *pBlockSrc, SBlock *pBlockDest);
 int32_t tPutBlock(uint8_t *p, void *ph);
 int32_t tGetBlock(uint8_t *p, void *ph);
 int32_t tBlockCmprFn(const void *p1, const void *p2);
@@ -134,11 +131,11 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph);
 int32_t tCmprBlockIdx(void const *lhs, void const *rhs);
 // SColdata
 #define tColDataInit() ((SColData){0})
-void    tColDataReset(SColData *pColData, int16_t cid, int8_t type);
+void    tColDataReset(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn);
 void    tColDataClear(void *ph);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
-int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest);
 int32_t tColDataGetValue(SColData *pColData, int32_t iRow, SColVal *pColVal);
+int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest);
 // SBlockData
 #define tBlockDataFirstRow(PBLOCKDATA) tsdbRowFromBlockData(PBLOCKDATA, 0)
 #define tBlockDataLastRow(PBLOCKDATA)  tsdbRowFromBlockData(PBLOCKDATA, (PBLOCKDATA)->nRow - 1)
@@ -166,9 +163,8 @@ void    tsdbFree(uint8_t *pBuf);
 #define tMapDataInit() ((SMapData){0})
 void    tMapDataReset(SMapData *pMapData);
 void    tMapDataClear(SMapData *pMapData);
-int32_t tMapDataCopy(SMapData *pMapDataSrc, SMapData *pMapDataDest);
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *));
-int32_t tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *));
+void    tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *));
 int32_t tMapDataSearch(SMapData *pMapData, void *pSearchItem, int32_t (*tGetItemFn)(uint8_t *, void *),
                        int32_t (*tItemCmprFn)(const void *, const void *), void *pItem);
 int32_t tPutMapData(uint8_t *p, SMapData *pMapData);
@@ -223,7 +219,6 @@ int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx, uint8_t **pp
 int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf, SBlockIdx *pBlockIdx);
 int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_t **ppBuf1, uint8_t **ppBuf2,
                            SBlockIdx *pBlockIdx, SBlock *pBlock, int8_t cmprAlg);
-int32_t tsdbWriteBlockSMA(SDataFWriter *pWriter, SBlockSMA *pBlockSMA, int64_t *rOffset, int64_t *rSize);
 
 SDFileSet *tsdbDataFWriterGetWSet(SDataFWriter *pWriter);
 // SDataFReader
@@ -373,31 +368,32 @@ struct SBlockIdx {
 
 struct SMapData {
   int32_t  nItem;
-  uint8_t  flag;
-  uint8_t *pOfst;
-  uint32_t nData;
+  int32_t *aOffset;
+  int32_t  nData;
   uint8_t *pData;
-  uint8_t *pBuf;
 };
 
 typedef struct {
   int16_t cid;
   int8_t  type;
   int8_t  flag;  // HAS_NONE|HAS_NULL|HAS_VALUE
-  int64_t offset;
-  int64_t bsize;  // bitmap size
-  int64_t csize;  // compressed column value size
-  int64_t osize;  // original column value size (only save for variant data type)
+  int32_t offset;
+  int32_t szBitmap;  // bitmap size
+  int32_t szOffset;  // size of offset, only for variant-length data type
+  int32_t szValue;   // compressed column value size
+  int32_t szOrigin;  // original column value size (only save for variant data type)
 } SBlockCol;
 
 typedef struct {
-  int64_t  nRow;
-  int8_t   cmprAlg;
-  int64_t  offset;
-  int64_t  szVersion;  // VERSION size
-  int64_t  szTSKEY;    // TSKEY size
-  int64_t  szBlock;    // total block size
-  SMapData mBlockCol;  // SMapData<SBlockCol>
+  int32_t nRow;
+  int8_t  cmprAlg;
+  int64_t offset;      // block data offset
+  int32_t szBlockCol;  // SBlockCol size
+  int32_t szVersion;   // VERSION size
+  int32_t szTSKEY;     // TSKEY size
+  int32_t szBlock;     // total block size
+  int64_t sOffset;     // sma offset
+  int32_t nSma;        // sma size
 } SSubBlock;
 
 struct SBlock {
@@ -425,7 +421,7 @@ struct SAggrBlkCol {
 struct SColData {
   int16_t  cid;
   int8_t   type;
-  int8_t   offsetValid;
+  int8_t   smaOn;
   int32_t  nVal;
   uint8_t  flag;
   uint8_t *pBitMap;
