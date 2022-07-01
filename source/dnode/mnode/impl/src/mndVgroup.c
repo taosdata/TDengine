@@ -426,11 +426,15 @@ static int32_t mndCompareDnodeId(int32_t *dnode1Id, int32_t *dnode2Id) { return 
 static int32_t mndCompareDnodeVnodes(SDnodeObj *pDnode1, SDnodeObj *pDnode2) {
   float d1Score = (float)pDnode1->numOfVnodes / pDnode1->numOfSupportVnodes;
   float d2Score = (float)pDnode2->numOfVnodes / pDnode2->numOfSupportVnodes;
+#if 0  
   if (d1Score == d2Score) {
     return pDnode2->id - pDnode1->id;
   } else {
     return d1Score >= d2Score ? 1 : 0;
   }
+#else
+  return d1Score >= d2Score ? 1 : 0;
+#endif
 }
 
 void mndSortVnodeGid(SVgObj *pVgroup) {
