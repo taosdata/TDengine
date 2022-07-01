@@ -720,7 +720,7 @@ static int32_t pushDownCondOptDealAgg(SOptimizeContext* pCxt, SAggLogicNode* pAg
   // TODO: remove it after full implementation of pushing down to child
   if (1 != LIST_LENGTH(pAgg->node.pChildren) ||
       QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) &&
-      QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(nodesListGetNode(pAgg->node.pChildren, 0))) {
+          QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(nodesListGetNode(pAgg->node.pChildren, 0))) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1251,7 +1251,7 @@ static SNode* partTagsCreateWrapperFunc(const char* pFuncName, SNode* pNode) {
   }
 
   strcpy(pFunc->functionName, pFuncName);
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TBNAME != ((SColumnNode*)pNode)->colType) {
     SColumnNode* pCol = (SColumnNode*)pNode;
     partTagsSetAlias(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), pCol->tableAlias, pCol->colName);
   } else {
