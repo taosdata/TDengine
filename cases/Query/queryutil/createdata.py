@@ -552,6 +552,9 @@ class TDCreateData():
         elif str(list1).replace("]","").replace("[","") == str(list2).replace("]","").replace("[",""):
             #result is NAN -NAN
             self.logger.info(("===list_nan===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
+        elif (list1 == None) and (list2 == None):
+            #result is None -None
+            self.logger.info(("===list_none===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         else:
             self.logger.info(("sql1:'%s' result != sql2:'%s' result") %(sql1,sql2))
             self.logger.info(("=====list_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
@@ -687,7 +690,10 @@ class TDCreateData():
         data = self.tdSql.getData(row, col)
                    
         if oper == "EQ":
-            if operator.eq(data,value):  
+            if data == None:
+                self.logger.debug(f"EQ（等于）!!!）elm={data} checkEqual success")                 
+                return True 
+            elif operator.eq(data,value):  
                 self.logger.debug(f"EQ（等于）checkEqual success, elm={data} expect_elm={value}")                 
                 return True 
             else:
@@ -698,7 +704,10 @@ class TDCreateData():
                     return False
         
         elif oper == "NE":
-            if operator.ne(data,value):  
+            if data == None:
+                self.logger.debug(f"NE（不等于!!!）elm={data} checkEqual success")                 
+                return True 
+            elif operator.ne(data,value):  
                 self.logger.debug(f"NE（不等于）checkEqual success, elm={data} expect_elm={value}")                 
                 return True 
             else:
@@ -709,7 +718,10 @@ class TDCreateData():
                     return False
                 
         elif oper == "GT":
-            if operator.gt(data,value):  
+            if data == None:
+                self.logger.debug(f"GT（大于!!!）elm={data} checkEqual success")                 
+                return True 
+            elif operator.gt(data,value):  
                 self.logger.debug(f"GT（大于）checkEqual success, elm={data} expect_elm={value}")                 
                 return True 
             else:
@@ -720,7 +732,10 @@ class TDCreateData():
                     return False
                 
         elif oper == "LT":
-            if operator.lt(data,value):  
+            if data == None:
+                self.logger.debug(f"LT (小于!!!）elm={data} checkEqual success")                 
+                return True 
+            elif operator.lt(data,value):  
                 self.logger.debug(f"LT (小于) checkEqual success, elm={data} expect_elm={value}")                 
                 return True 
             else:
@@ -731,7 +746,10 @@ class TDCreateData():
                     return False
                 
         elif oper == "LE":
-            if operator.le(data,value):  
+            if data == None:
+                self.logger.debug(f"LE（小于等于!!!）elm={data} checkEqual success")                 
+                return True 
+            elif operator.le(data,value):  
                 self.logger.debug(f"LE（小于等于）checkEqual success, elm={data} expect_elm={value}")                 
                 return True 
             else:
@@ -741,8 +759,11 @@ class TDCreateData():
                     self._set_error_msg(f"LE（小于等于）checkEqual error, elm={data} expect_elm={value}")
                     return False
                 
-        elif oper == "GE":                
-            if operator.ge(data,value):  
+        elif oper == "GE":                         
+            if data == None:
+                self.logger.debug(f"GE（大于等于!!!）elm={data} checkEqual success")                 
+                return True 
+            elif operator.ge(data,value):  
                 self.logger.debug(f"GE（大于等于）checkEqual success, elm={data} expect_elm={value}")                 
                 return True 
             else:
@@ -752,6 +773,7 @@ class TDCreateData():
                     self._set_error_msg(f"GE（大于等于）checkEqual error, elm={data} expect_elm={value}")
                     return False
 
+                
     def check_mult_rows_one_col_value(self, sql, row1, row2, col, oper, value, throw=True) -> bool:
         # oper : LT (小于)、GT（大于）、LE（小于等于）、GE（大于等于）、NE（不等于）、EQ（等于）。不区分大小写 val : 数值型
         # 检查多行（row1--row2）某列（col）的值和value比对
@@ -760,7 +782,7 @@ class TDCreateData():
         self.value = value
         
         for i in range(row1, row2):
-            self.logger.info("===row: %d col: %d=====data_d=%f"%(i,col,self.tdSql.getData(i, col)))
+            self.logger.info("===row: %d col: %d=====data_d=%s"%(i,col,self.tdSql.getData(i, col)))
             self.check_one_row_one_col_value(sql, i , col, oper, value)
                                             
 
