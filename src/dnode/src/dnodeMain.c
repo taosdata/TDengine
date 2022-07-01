@@ -173,7 +173,7 @@ int32_t dnodeInitSystem() {
   dnodeInitTmr();
 
   if (dnodeCreateDir(tsLogDir) < 0) {
-   printf("failed to create dir: %s, reason: %s\n", tsLogDir, strerror(errno));
+   printf("failed to initialize dir: %s, reason: %s\n", tsLogDir, strerror(errno));
    return -1;
   }
 
@@ -261,7 +261,7 @@ static int32_t dnodeInitStorage() {
 
   // storage module init
   if (tsDiskCfgNum == 1 && dnodeCreateDir(tsDataDir) < 0) {
-    dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
+    dError("failed to initialize dir: %s, reason: %s", tsDataDir, strerror(errno));
     return -1;
   }
 

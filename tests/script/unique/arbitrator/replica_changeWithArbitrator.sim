@@ -55,6 +55,11 @@ system sh/cfg.sh -n dnode2 -c statusInterval -v 3
 system sh/cfg.sh -n dnode3 -c statusInterval -v 3
 system sh/cfg.sh -n dnode4 -c statusInterval -v 3
 
+system sh/cfg.sh -n dnode1 -c balance -v 1
+system sh/cfg.sh -n dnode2 -c balance -v 1
+system sh/cfg.sh -n dnode3 -c balance -v 1
+system sh/cfg.sh -n dnode4 -c balance -v 1
+
 print ============== step0: start tarbitrator
 system sh/exec_tarbitrator.sh -s start
 
@@ -224,7 +229,7 @@ if $data2_1 != offline then
   sleep 2000
   goto wait_dnode2_master
 endi
-if $data2_2 != master then
+if $data2_2 != leader then
   sleep 2000
   goto wait_dnode2_master
 endi

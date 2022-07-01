@@ -83,26 +83,26 @@ void deltaToUtcInitOnce() {
 
 static int64_t parseFraction(char* str, char** end, int32_t timePrec);
 static int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char delim);
-static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec);
-static int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec);
+static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec, char delim, bool withDST);
 static char* forwardToTimeStringEnd(char* str);
 static bool checkTzPresent(char *str, int32_t len);
-
-static int32_t (*parseLocaltimeFp[]) (char* timestr, int64_t* time, int32_t timePrec) = {
-  parseLocaltime,
-  parseLocaltimeWithDst
-};
 
 int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 
 int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
   /* parse datatime string in with tz */
   if (strnchr(timestr, 'T', len, false) != NULL) {
-    return parseTimeWithTz(timestr, time, timePrec, 'T');
-  } else if (checkTzPresent(timestr, len)) {
-    return parseTimeWithTz(timestr, time, timePrec, 0);
+    if (checkTzPresent(timestr, len)) {
+      return parseTimeWithTz(timestr, time, timePrec, 'T');
+    } else {
+      return parseLocaltime(timestr, time, timePrec, 'T', day_light);
+    }
   } else {
-    return (*parseLocaltimeFp[day_light])(timestr, time, timePrec);
+    if (checkTzPresent(timestr, len)) {
+      return parseTimeWithTz(timestr, time, timePrec, 0);
+    } else {
+      return parseLocaltime(timestr, time, timePrec, 0, day_light);
+    }
   }
 }
 
@@ -316,13 +316,20 @@ int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char del
   return 0;
 }
 
-int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
+int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec, char delim, bool withDST) {
   *time = 0;
   struct tm tm = {0};
+  if (withDST) {
+    tm.tm_isdst = -1;
+  }
 
   char* str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
   if (str == NULL) {
-    return -1;
+    //if parse failed, try "%Y-%m-%d" format
+    str = strptime(timestr, "%Y-%m-%d", &tm);
+    if (str == NULL) {
+      return -1;
+    }
   }
 
 #ifdef _MSC_VER
@@ -331,8 +338,14 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
 #endif
 #endif
 
-  int64_t seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, timezone);
-  
+  int64_t seconds;
+  if (!withDST) {
+    seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, timezone);
+  } else {
+    /* mktime will be affected by TZ, set by using taos_options */
+    seconds = mktime(&tm);
+  }
+
   int64_t fraction = 0;
 
   if (*str == '.') {
@@ -346,34 +359,6 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
                    (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
   *time = factor * seconds + fraction;
 
-  return 0;
-}
-
-int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec) {
-  *time = 0;
-  struct tm tm = {0};
-  tm.tm_isdst = -1;
-
-  char* str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
-  if (str == NULL) {
-    return -1;
-  }
-
-  /* mktime will be affected by TZ, set by using taos_options */
-  int64_t seconds = mktime(&tm);
-  
-  int64_t fraction = 0;
-
-  if (*str == '.') {
-    /* parse the second fraction part */
-    if ((fraction = parseFraction(str + 1, &str, timePrec)) < 0) {
-      return -1;
-    }
-  }
-
-  int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
-                   (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
-  *time = factor * seconds + fraction;
   return 0;
 }
 

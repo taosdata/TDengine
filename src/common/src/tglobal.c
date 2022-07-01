@@ -48,6 +48,8 @@ char     tsEmail[TSDB_FQDN_LEN] = {0};
 int32_t  tsDnodeId = 0;
 int64_t  tsDnodeStartTime = 0;
 int8_t   tsDnodeNopLoop = 0;
+int32_t  tsTcpConnTimeout = 1000; // timeout for tcp client connection in ms.
+int32_t  tsSyncCheckInterval = 1500; // peer sync check interval in ms.
 
 // common
 int32_t tsRpcTimer = 300;
@@ -161,7 +163,7 @@ bool    tsdbForceCompactFile = false;                    // compact TSDB fileset
 int32_t tsdbWalFlushSize = TSDB_DEFAULT_WAL_FLUSH_SIZE;  // MB
 
 // balance
-int8_t  tsEnableBalance = 1;
+int8_t  tsEnableBalance = 0;
 int8_t  tsAlternativeRole = 0;
 int32_t tsBalanceInterval = 300;          // seconds
 int32_t tsOfflineInterval = 3;
@@ -216,6 +218,7 @@ char   tsMnodeBakDir[PATH_MAX] = {0};
 char   tsDataDir[PATH_MAX] = {0};
 char   tsScriptDir[PATH_MAX] = {0};
 char   tsTempDir[PATH_MAX] = "/tmp/";
+int32_t tsKeepTimeOffset = 0;
 
 int32_t tsDiskCfgNum = 0;
 int32_t tsTopicBianryLen = 16000;
@@ -634,6 +637,26 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "tcpConnTimeout";
+  cfg.ptr = &tsTcpConnTimeout;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 1;
+  cfg.maxValue = 10000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_MS;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "syncCheckInterval";
+  cfg.ptr = &tsSyncCheckInterval;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 1;
+  cfg.maxValue = 10000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_MS;
+  taosInitConfigOption(cfg);
+
   cfg.option = "balance";
   cfg.ptr = &tsEnableBalance;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
@@ -660,6 +683,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 1;
   cfg.maxValue = 600;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "keepTimeOffset";
+  cfg.ptr = &tsKeepTimeOffset;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = -23;
+  cfg.maxValue = 23;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

@@ -12,6 +12,9 @@ system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
 
+system sh/cfg.sh -n dnode1 -c balance -v 1
+system sh/cfg.sh -n dnode2 -c balance -v 1
+
 $dbPrefix = br1_db
 $tbPrefix = br1_tb
 $mtPrefix = br1_mt

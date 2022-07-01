@@ -13,7 +13,7 @@
 %right NOT.
 %left EQ NE ISNULL NOTNULL IS LIKE MATCH NMATCH CONTAINS GLOB BETWEEN IN.
 %left GT GE LT LE.
-%left BITAND BITOR LSHIFT RSHIFT.
+%left BITAND BITOR BITXOR LSHIFT RSHIFT.
 %left PLUS MINUS.
 %left DIVIDE TIMES.
 %left STAR SLASH REM.
@@ -786,6 +786,12 @@ expr(A) ::= expr(X) MINUS expr(Y).   {A = tSqlExprCreate(X, Y, TK_MINUS); }
 expr(A) ::= expr(X) STAR  expr(Y).   {A = tSqlExprCreate(X, Y, TK_STAR);  }
 expr(A) ::= expr(X) SLASH expr(Y).   {A = tSqlExprCreate(X, Y, TK_DIVIDE);}
 expr(A) ::= expr(X) REM   expr(Y).   {A = tSqlExprCreate(X, Y, TK_REM);   }
+expr(A) ::= expr(X) BITAND expr(Y).  {A = tSqlExprCreate(X, Y, TK_BITAND);}
+expr(A) ::= expr(X) BITOR expr(Y).   {A = tSqlExprCreate(X, Y, TK_BITOR); }
+expr(A) ::= expr(X) BITXOR expr(Y).  {A = tSqlExprCreate(X, Y, TK_BITXOR);}
+expr(A) ::= BITNOT expr(X).          {A = tSqlExprCreate(X, NULL, TK_BITNOT);}
+expr(A) ::= expr(X) LSHIFT expr(Y).  {A = tSqlExprCreate(X, Y, TK_LSHIFT);}
+expr(A) ::= expr(X) RSHIFT expr(Y).  {A = tSqlExprCreate(X, Y, TK_RSHIFT);}
 
 // like expression
 expr(A) ::= expr(X) LIKE expr(Y).    {A = tSqlExprCreate(X, Y, TK_LIKE);  }

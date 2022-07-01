@@ -19,6 +19,11 @@ system sh/cfg.sh -n dnode2 -c balanceInterval -v 1
 system sh/cfg.sh -n dnode3 -c balanceInterval -v 1
 system sh/cfg.sh -n dnode4 -c balanceInterval -v 1
 
+system sh/cfg.sh -n dnode1 -c balance -v 1
+system sh/cfg.sh -n dnode2 -c balance -v 1
+system sh/cfg.sh -n dnode3 -c balance -v 1
+system sh/cfg.sh -n dnode4 -c balance -v 1
+
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
 sql connect
@@ -55,7 +60,7 @@ sql show mnodes
 print mnode1 $data2_1
 print mnode1 $data2_2
 print mnode1 $data2_3
-if $data2_1 != master then
+if $data2_1 != leader then
   goto step1
 endi
 

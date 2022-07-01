@@ -1,0 +1,384 @@
+---
+toc_max_heading_level: 4
+sidebar_position: 5
+sidebar_label: Rust
+title: TDengine Rust Connector
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+import Preparation from "./_preparation.mdx"
+import RustInsert from "../../07-develop/03-insert-data/_rust_sql.mdx"
+import RustInfluxLine from "../../07-develop/03-insert-data/_rust_line.mdx"
+import RustOpenTSDBTelnet from "../../07-develop/03-insert-data/_rust_opts_telnet.mdx"
+import RustOpenTSDBJson from "../../07-develop/03-insert-data/_rust_opts_json.mdx"
+import RustQuery from "../../07-develop/04-query-data/_rust.mdx"
+
+`libtaos` is the official Rust language connector for TDengine. Rust developers can develop applications to access the TDengine instance data.
+
+`libtaos` provides two ways to establish connections. One is the **Native Connection**, which connects to TDengine instances via the TDengine client driver (taosc). The other is **REST connection**, which connects to TDengine instances via taosAdapter's REST interface.
+
+The source code for `libtaos` is hosted on [GitHub](https://github.com/taosdata/libtaos-rs).
+
+## Supported platforms
+
+The platforms supported by native connections are the same as those supported by the TDengine client driver.
+REST connections are supported on all platforms that can run Rust.
+
+## Version support
+
+Please refer to [version support list](/reference/connector#version-support).
+
+The Rust Connector is still under rapid development and is not guaranteed to be backward compatible before 1.0. We recommend using TDengine version 2.4 or higher to avoid known issues.
+
+## Installation
+
+### Pre-installation
+* Install the Rust development toolchain
+* If using the native connection, please install the TDengine client driver. Please refer to [install client driver](/reference/connector#install-client-driver)
+
+### Adding libtaos dependencies
+
+Add the [libtaos][libtaos] dependency to the [Rust](https://rust-lang.org) project as follows, depending on the connection method selected.
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="native connection">
+
+Add [libtaos][libtaos] to the `Cargo.toml` file.
+
+```toml
+[dependencies]
+# use default feature
+libtaos = "*"
+```
+
+</TabItem>
+<TabItem value="rest" label="REST connection">
+
+Add [libtaos][libtaos] to the `Cargo.toml` file and enable the `rest` feature.
+
+```toml
+[dependencies]
+# use rest feature
+libtaos = { version = "*", features = ["rest"]}
+```
+
+</TabItem>
+</Tabs>
+
+
+### Using connection pools
+
+Please enable the `r2d2` feature in `Cargo.toml`.
+
+```toml
+[dependencies]
+# with taosc
+libtaos = { version = "*", features = ["r2d2"] }
+# or rest
+libtaos = { version = "*", features = ["rest", "r2d2"] }
+```
+
+## Create a connection
+
+The [TaosCfgBuilder] provides the user with an API in the form of a constructor for the subsequent creation of connections or use of connection pools.
+
+```rust
+let cfg: TaosCfg = TaosCfgBuilder::default()
+    .ip("127.0.0.1")
+    .user("root")
+    .pass("taosdata")
+    .db("log") // do not set if not require a default database.
+    .port(6030u16)
+    .build()
+    .expect("TaosCfg builder error");
+}
+```
+
+You can now use this object to create the connection.
+
+```rust
+let conn = cfg.connect()? ;
+```
+
+The connection object can create more than one.
+
+```rust
+let conn = cfg.connect()? ;
+let conn2 = cfg.connect()? ;
+```
+
+You can use connection pools in applications.
+
+```rust
+let pool = r2d2::Pool::builder()
+    .max_size(10000) // max connections
+    .build(cfg)? ;
+
+// ...
+// Use pool to get connection
+let conn = pool.get()? ;
+```
+
+After that, you can perform the following operations on the database.
+
+```rust
+async fn demo() -> Result<(), Error> {
+    // get connection ...
+
+    // create database
+    conn.exec("create database if not exists demo").await?
+    // change database context
+    conn.exec("use demo").await?
+    // create table
+    conn.exec("create table if not exists tb1 (ts timestamp, v int)").await?
+    // insert
+    conn.exec("insert into tb1 values(now, 1)").await?
+    // query
+    let rows = conn.query("select * from tb1").await?
+    for row in rows.rows {
+        println!("{}", row.into_iter().join(","));
+    }
+}
+```
+
+## Usage examples
+
+### Write data
+
+#### SQL Write
+
+<RustInsert />
+
+#### InfluxDB line protocol write
+
+<RustInfluxLine />
+
+#### OpenTSDB Telnet line protocol write
+
+<RustOpenTSDBTelnet />
+
+#### OpenTSDB JSON line protocol write
+
+<RustOpenTSDBJson />
+
+### Query data
+
+<RustQuery />
+
+### More sample programs
+
+| Program Path | Program Description |
+| -------------- | ----------------------------------------------------------------------------- |
+| [demo.rs] | Basic API Usage Examples |
+| [bailongma-rs] | Using TDengine as the Prometheus remote storage API adapter for the storage backend, using the r2d2 connection pool |
+
+## API Reference
+
+### Connection constructor API
+
+The [Builder Pattern](https://doc.rust-lang.org/1.0.0/style/ownership/builders.html) constructor pattern is Rust's solution for handling complex data types or optional configuration types. The [libtaos] implementation uses the connection constructor [TaosCfgBuilder] as the entry point for the TDengine Rust connector. The [TaosCfgBuilder] provides optional configuration of servers, ports, databases, usernames, passwords, etc.
+
+Using the `default()` method, you can construct a [TaosCfg] with default parameters for subsequent connections to the database or establishing connection pools.
+
+```rust
+let cfg = TaosCfgBuilder::default().build()? ;
+```
+
+Using the constructor pattern, the user can set on-demand.
+
+```rust
+let cfg = TaosCfgBuilder::default()
+    .ip("127.0.0.1")
+    .user("root")
+    .pass("taosdata")
+    .db("log")
+    .port(6030u16)
+    .build()? ;
+```
+
+Create TDengine connection using [TaosCfg] object.
+
+```rust
+let conn: Taos = cfg.connect();
+```
+
+### Connection pooling
+
+In complex applications, we recommend enabling connection pools. Connection pool for [libtaos] is implemented using [r2d2].
+
+As follows, a connection pool with default parameters can be generated.
+
+```rust
+let pool = r2d2::Pool::new(cfg)? ;
+```
+
+You can set the same connection pool parameters using the connection pool's constructor.
+
+```rust
+    use std::time::Duration;
+    let pool = r2d2::Pool::builder()
+        .max_size(5000) // max connections
+        .max_lifetime(Some(Duration::from_minutes(100))) // lifetime of each connection
+        .min_idle(Some(1000)) // minimal idle connections
+        .connection_timeout(Duration::from_minutes(2))
+        .build(cfg);
+```
+
+In the application code, use `pool.get()? ` to get a connection object [Taos].
+
+```rust
+let taos = pool.get()? ;
+```
+
+The [Taos] structure is the connection manager in [libtaos] and provides two main APIs.
+
+1. `exec`: Execute some non-query SQL statements, such as `CREATE`, `ALTER`, `INSERT`, etc.
+
+    ```rust
+    taos.exec().await?
+    ```
+
+2. `query`: Execute the query statement and return the [TaosQueryData] object.
+
+    ```rust
+    let q = taos.query("select * from log.logs").await?
+    ```
+
+    The [TaosQueryData] object stores the query result data and basic information about the returned columns (column name, type, length).
+
+    Column information is stored using [ColumnMeta].
+
+    ```rust
+    let cols = &q.column_meta;
+    for col in cols {
+        println!("name: {}, type: {:?} , bytes: {}", col.name, col.type_, col.bytes);
+    }
+    ```
+
+    It fetches data line by line.
+
+    ```rust
+    for (i, row) in q.rows.iter().enumerate() {
+        for (j, cell) in row.iter().enumerate() {
+            println!("cell({}, {}) data: {}", i, j, cell);
+        }
+    }
+    ```
+
+Note that Rust asynchronous functions and an asynchronous runtime are required.
+
+[Taos] provides a few Rust methods that encapsulate SQL to reduce the frequency of `format!` code blocks.
+
+- `.describe(table: &str)`: Executes `DESCRIBE` and returns a Rust data structure.
+- `.create_database(database: &str)`: Executes the `CREATE DATABASE` statement.
+- `.use_database(database: &str)`: Executes the `USE` statement.
+
+In addition, this structure is also the entry point for [Parameter Binding](#Parameter Binding Interface) and [Line Protocol Interface](#Line Protocol Interface). Please refer to the specific API descriptions for usage.
+
+### Bind Interface
+
+Similar to the C interface, Rust provides the bind interface's wrapping. First, create a bind object [Stmt] for a SQL command from the [Taos] object.
+
+```rust
+let mut stmt: Stmt = taos.stmt("insert into ? values(? ,?)") ? ;
+```
+
+The bind object provides a set of interfaces for implementing parameter binding.
+
+##### `.set_tbname(tbname: impl ToCString)`
+
+To bind table names.
+
+##### `.set_tbname_tags(tbname: impl ToCString, tags: impl IntoParams)`
+
+Bind sub-table table names and tag values when the SQL statement uses a super table.
+
+```rust
+let mut stmt = taos.stmt("insert into ? using stb0 tags(?) values(? ,?)") ? ;
+// tags can be created with any supported type, here is an example using JSON
+let v = Field::Json(serde_json::from_str("{\"tag1\":\"one, two, three, four, five, six, seven, eight, nine, ten\"}").unwrap());
+stmt.set_tbname_tags("tb0", [&tag])? ;
+```
+
+##### `.bind(params: impl IntoParams)`
+
+Bind value types. Use the [Field] structure to construct the desired type and bind.
+
+```rust
+let ts = Field::Timestamp(Timestamp::now());
+let value = Field::Float(0.0);
+stmt.bind(vec![ts, value].iter())? ;
+```
+
+##### `.execute()`
+
+Execute SQL.[Stmt] objects can be reused, re-binded, and executed after execution.
+
+```rust
+stmt.execute()? ;
+
+// next bind cycle.
+// stmt.set_tbname()? ;
+//stmt.bind()? ;
+//stmt.execute()? ;
+```
+
+### Line protocol interface
+
+The line protocol interface supports multiple modes and different precision and requires the introduction of constants in the schemaless module to set.
+
+```rust
+use libtaos::*;
+use libtaos::schemaless::*;
+```
+
+- InfluxDB line protocol
+
+    ```rust
+    let lines = [
+        "st,t1=abc,t2=def,t3=anything c1=3i64,c3=L\"pass\",c2=false 1626006833639000000"
+        "st,t1=abc,t2=def,t3=anything c1=3i64,c3=L\"abc\",c4=4f64 1626006833639000000"
+    ];
+    taos.schemaless_insert(&lines, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANOSECONDS)? ;
+    ```
+
+- OpenTSDB Telnet Protocol
+
+    ```rust
+    let lines = ["sys.if.bytes.out 1479496100 1.3E3 host=web01 interface=eth0"];
+    taos.schemaless_insert(&lines, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_SECONDS)? ;
+    ```
+
+- OpenTSDB JSON protocol
+
+    ```rust
+    let lines = [r#"
+        {
+            "metric": "st",
+            "timestamp": 1626006833,
+            "value": 10,
+            "tags": {
+                "t1": true,
+                "t2": false,
+                "t3": 10,
+                "t4": "123_abc_.! @#$%^&*:;,. /? |+-=()[]{}<>"
+            }
+        }"#];
+    taos.schemaless_insert(&lines, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_SECONDS)? ;
+    ```
+
+Please move to the Rust documentation hosting page for other related structure API usage instructions: <https://docs.rs/libtaos>.
+
+[libtaos]: https://github.com/taosdata/libtaos-rs
+[tdengine]: https://github.com/taosdata/TDengine
+[bailongma-rs]: https://github.com/taosdata/bailongma-rs
+[r2d2]: https://crates.io/crates/r2d2
+[demo.rs]: https://github.com/taosdata/libtaos-rs/blob/main/examples/demo.rs
+[TaosCfgBuilder]: https://docs.rs/libtaos/latest/libtaos/struct.TaosCfgBuilder.html
+[TaosCfg]: https://docs.rs/libtaos/latest/libtaos/struct.TaosCfg.html
+[Taos]: https://docs.rs/libtaos/latest/libtaos/struct.Taos.html
+[TaosQueryData]: https://docs.rs/libtaos/latest/libtaos/field/struct.TaosQueryData.html
+[Field]: https://docs.rs/libtaos/latest/libtaos/field/enum.Field.html
+[Stmt]: https://docs.rs/libtaos/latest/libtaos/stmt/struct.Stmt.html

@@ -1484,6 +1484,17 @@ int32_t tsCompare(const void* p1, const void* p2) {
   }
 }
 
+int32_t tsCompareDesc(const void* p1, const void* p2) {
+  TSKEY k = *(TSKEY*)p1;
+  SResPair* pair = (SResPair*)p2;
+
+  if (k == pair->key) {
+    return 0;
+  } else {
+    return k > pair->key? -1:1;
+  }
+}
+
 static void stddev_dst_function(SQLFunctionCtx *pCtx) {
   SStddevdstInfo *pStd = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
@@ -1505,7 +1516,7 @@ static void stddev_dst_function(SQLFunctionCtx *pCtx) {
     SResPair* p = taosArrayGet(resList, 0);
     avg = p->avg;
   } else {  // todo opt performance by using iterator since the timestamp lsit is matched with the output result
-    SResPair* p = bsearch(&pCtx->startTs, resList->pData, len, sizeof(SResPair), tsCompare);
+    SResPair* p = bsearch(&pCtx->startTs, resList->pData, len, sizeof(SResPair), pCtx->order == TSDB_ORDER_DESC ? tsCompareDesc : tsCompare);
     if (p == NULL) {
       return;
     }
@@ -2549,7 +2560,8 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
 
   tMemBucket * pMemBucket = ppInfo->pMemBucket;
   if (pMemBucket == NULL || pMemBucket->total == 0) {  // check for null
-    assert(ppInfo->numOfElems == 0);
+    if (ppInfo->stage > 0)
+      assert(ppInfo->numOfElems == 0);
     setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
   } else {
     SET_DOUBLE_VAL((double *)pCtx->pOutput, getPercentile(pMemBucket, v));
@@ -2996,6 +3008,12 @@ static void col_project_function(SQLFunctionCtx *pCtx) {
     memcpy(pCtx->pOutput, pData, (size_t) numOfRows * pCtx->inputBytes);
   } else {
     // DESC
+    if (pCtx->param[0].i64 == 1) {
+      // only output one row, copy first row to output
+      memcpy(pCtx->pOutput, pData, (size_t)pCtx->inputBytes);
+      return ;
+    }
+
     for(int32_t i = 0; i < pCtx->size; ++i) {
       char* dst = pCtx->pOutput + (pCtx->size - 1 - i) * pCtx->inputBytes;
       char* src = pData + i * pCtx->inputBytes;

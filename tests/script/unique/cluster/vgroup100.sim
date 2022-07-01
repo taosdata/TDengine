@@ -46,13 +46,13 @@ print $dnode1Role
 print $dnode2Role 
 print $dnode3Role 
 
-if $dnode1Role != master then
+if $dnode1Role != leader then
 	goto show2
 endi
-if $dnode2Role != slave then
+if $dnode2Role != follower then
 	goto show2
 endi
-if $dnode3Role != slave then
+if $dnode3Role != follower then
 	goto show2
 endi
 
@@ -109,13 +109,13 @@ sql show mnodes -x show7
 $dnode1Role = $data2_1
 $dnode2Role = $data2_2
 $dnode3Role = $data2_3
-if $dnode1Role != master then
+if $dnode1Role != leader then
 	goto show7
 endi
-if $dnode2Role != slave then
+if $dnode2Role != follower then
 	goto show7
 endi
-if $dnode2Role != slave then
+if $dnode2Role != follower then
 	goto show7
 endi
 
