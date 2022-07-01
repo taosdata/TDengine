@@ -9,7 +9,6 @@ function usage() {
     echo -e "\t -d debug level"
     echo -e "\t -w log folder web server"
     echo -e "\t -s force setup"
-    echo -e "\t -f run last failed cases"
     echo -e "\t -v TDengine version"
     echo -e "\t -n docker network prefix"
     echo -e "\t -o default timeout value"
@@ -17,7 +16,7 @@ function usage() {
     echo -e "\t -h help"
 }
 
-while getopts "m:t:b:l:o:v:d:w:n:esfh" opt; do
+while getopts "m:t:b:l:o:v:d:w:n:esh" opt; do
     case $opt in
         m)
             config_file=$OPTARG
@@ -33,9 +32,6 @@ while getopts "m:t:b:l:o:v:d:w:n:esfh" opt; do
             ;;
         s)
             force_setup=1
-            ;;
-        f)
-            last_failed=1
             ;;
         w)
             web_server=$OPTARG
@@ -67,7 +63,7 @@ while getopts "m:t:b:l:o:v:d:w:n:esfh" opt; do
     esac
 done
 
-if [ -z $t_file ] && [ -z $last_failed ]; then
+if [ -z $t_file ]; then
     usage
     exit 1
 fi
@@ -100,29 +96,8 @@ fi
 
 if [ ! -z "$log_dir" ]; then
     mkdir -p $log_dir
-    rm -rf $log_dir/*
+    # rm -rf $log_dir/*
     export TAOSTEST_LOG_DIR="$log_dir"
-fi
-
-if [ ! -z "$last_failed" ]; then
-    last_log_dir=`ls $log_folder|sort|tail -n2|head -n1`
-    echo "last log dir: [${last_log_dir}]"
-    if [ ! -z "$last_log_dir" ]; then
-        last_log_dir="${log_folder}/${last_log_dir}"
-        if [ -f "$last_log_dir/failed.txt" ]; then
-            case_list_file=${log_dir}/last_failed_cases.txt
-            t_file=$case_list_file
-            cat $last_log_dir/failed.txt | grep -w taostest | sed "s/^.* ret:[0-9]* //" >$case_list_file
-            echo "***** cases to run *****"
-            cat $case_list_file
-        else
-            echo "***** no case to run *****"
-            exit 0
-        fi
-    else
-        echo "***** no case to run *****"
-        exit 0
-    fi
 fi
 
 hosts=()
