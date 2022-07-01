@@ -35,6 +35,8 @@ TEST_F(PlanBasicTest, whereClause) {
   run("SELECT * FROM t1 WHERE c1 > 10");
 
   run("SELECT * FROM t1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59'");
+
+  run("SELECT ts, c1 FROM t1 WHERE ts > NOW AND ts IS NULL AND (c1 > 0 OR c3 < 20)");
 }
 
 TEST_F(PlanBasicTest, func) {
@@ -109,6 +111,14 @@ TEST_F(PlanBasicTest, timeLineFunc) {
   run("SELECT CSUM(c1) FROM t1");
 
   run("SELECT CSUM(c1) FROM st1");
+}
+
+TEST_F(PlanBasicTest, multiResFunc) {
+  useDb("root", "test");
+
+  run("SELECT LAST(*) FROM t1");
+
+  run("SELECT LAST(c1 + 10, c2) FROM st1");
 }
 
 TEST_F(PlanBasicTest, sampleFunc) {

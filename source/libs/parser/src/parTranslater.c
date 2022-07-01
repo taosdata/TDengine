@@ -483,6 +483,35 @@ static SNodeList* getProjectList(const SNode* pNode) {
   return NULL;
 }
 
+static bool isTimeLineQuery(SNode* pStmt) {
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    return ((SSelectStmt*)pStmt)->isTimeLineResult;
+  } else {
+    return false;
+  }
+}
+
+static bool isPrimaryKeyImpl(SNode* pExpr) {
+  if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+    return (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId);
+  } else if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pExpr;
+    if (FUNCTION_TYPE_SELECT_VALUE == pFunc->funcType) {
+      return isPrimaryKeyImpl(nodesListGetNode(pFunc->pParameterList, 0));
+    } else if (FUNCTION_TYPE_WSTARTTS == pFunc->funcType || FUNCTION_TYPE_WENDTS == pFunc->funcType) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool isPrimaryKey(STempTableNode* pTable, SNode* pExpr) {
+  if (!isTimeLineQuery(pTable->pSubquery)) {
+    return false;
+  }
+  return isPrimaryKeyImpl(pExpr);
+}
+
 static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* pColSchema, int32_t tagFlag,
                                   SColumnNode* pCol) {
   strcpy(pCol->dbName, pTable->table.dbName);
@@ -504,7 +533,7 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
   }
 }
 
-static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SColumnNode** pColRef) {
+static void setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SColumnNode** pColRef) {
   SColumnNode* pCol = *pColRef;
 
   // pCol->pProjectRef = (SNode*)pExpr;
@@ -512,13 +541,8 @@ static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SCol
     pExpr->pAssociation = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
   }
   taosArrayPush(pExpr->pAssociation, &pColRef);
-  strcpy(pCol->tableAlias, pTable->tableAlias);
-  if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
-    SColumnNode* pProjCol = (SColumnNode*)pExpr;
-    pCol->tableId = pProjCol->tableId;
-    pCol->colId = pProjCol->colId;
-    pCol->colType = pProjCol->colType;
-  }
+  strcpy(pCol->tableAlias, pTable->table.tableAlias);
+  pCol->colId = isPrimaryKey(pTable, (SNode*)pExpr) ? PRIMARYKEY_TIMESTAMP_COL_ID : 0;
   strcpy(pCol->colName, pExpr->aliasName);
   if ('\0' == pCol->node.aliasName[0]) {
     strcpy(pCol->node.aliasName, pCol->colName);
@@ -540,8 +564,9 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
       nodesListAppend(pList, (SNode*)pCol);
     }
   } else {
-    SNodeList* pProjectList = getProjectList(((STempTableNode*)pTable)->pSubquery);
-    SNode*     pNode;
+    STempTableNode* pTempTable = (STempTableNode*)pTable;
+    SNodeList*      pProjectList = getProjectList(pTempTable->pSubquery);
+    SNode*          pNode;
     FOREACH(pNode, pProjectList) {
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       if (NULL == pCol) {
@@ -549,7 +574,7 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
       }
       nodesListAppend(pList, (SNode*)pCol);
       SListCell* pCell = nodesListGetCell(pList, LIST_LENGTH(pList) - 1);
-      setColumnInfoByExpr(pTable, (SExprNode*)pNode, (SColumnNode**)&pCell->pNode);
+      setColumnInfoByExpr(pTempTable, (SExprNode*)pNode, (SColumnNode**)&pCell->pNode);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -557,35 +582,6 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
 
 static bool isInternalPrimaryKey(const SColumnNode* pCol) {
   return PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId && 0 == strcmp(pCol->colName, PK_TS_COL_INTERNAL_NAME);
-}
-
-static bool isTimeLineQuery(SNode* pStmt) {
-  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
-    return ((SSelectStmt*)pStmt)->isTimeLineResult;
-  } else {
-    return false;
-  }
-}
-
-static bool isPrimaryKeyImpl(STempTableNode* pTable, SNode* pExpr) {
-  if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
-    return (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId);
-  } else if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
-    SFunctionNode* pFunc = (SFunctionNode*)pExpr;
-    if (FUNCTION_TYPE_SELECT_VALUE == pFunc->funcType) {
-      return isPrimaryKeyImpl(pTable, nodesListGetNode(pFunc->pParameterList, 0));
-    } else if (FUNCTION_TYPE_WSTARTTS == pFunc->funcType || FUNCTION_TYPE_WENDTS == pFunc->funcType) {
-      return true;
-    }
-  }
-  return false;
-}
-
-static bool isPrimaryKey(STempTableNode* pTable, SNode* pExpr) {
-  if (!isTimeLineQuery(pTable->pSubquery)) {
-    return false;
-  }
-  return isPrimaryKeyImpl(pTable, pExpr);
 }
 
 static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, const STableNode* pTable,
@@ -608,18 +604,19 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
       }
     }
   } else {
-    SNodeList* pProjectList = getProjectList(((STempTableNode*)pTable)->pSubquery);
-    SNode*     pNode;
+    STempTableNode* pTempTable = (STempTableNode*)pTable;
+    SNodeList*      pProjectList = getProjectList(pTempTable->pSubquery);
+    SNode*          pNode;
     FOREACH(pNode, pProjectList) {
       SExprNode* pExpr = (SExprNode*)pNode;
       if (0 == strcmp(pCol->colName, pExpr->aliasName)) {
         if (*pFound) {
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, pCol->colName);
         }
-        setColumnInfoByExpr(pTable, pExpr, pColRef);
+        setColumnInfoByExpr(pTempTable, pExpr, pColRef);
         *pFound = true;
-      } else if (isPrimaryKey((STempTableNode*)pTable, pNode) && isInternalPrimaryKey(pCol)) {
-        setColumnInfoByExpr(pTable, pExpr, pColRef);
+      } else if (isPrimaryKey(pTempTable, pNode) && isInternalPrimaryKey(pCol)) {
+        setColumnInfoByExpr(pTempTable, pExpr, pColRef);
         *pFound = true;
       }
     }
