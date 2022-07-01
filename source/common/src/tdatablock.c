@@ -1218,7 +1218,7 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pDst = taosArrayGet(dst->pDataBlock, i);
     SColumnInfoData* pSrc = taosArrayGet(src->pDataBlock, i);
-    if (pSrc->pData == NULL) {
+    if (pSrc->pData == NULL && (!IS_VAR_DATA_TYPE(pSrc->info.type))) {
       continue;
     }
 
