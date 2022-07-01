@@ -70,8 +70,6 @@ class TDTestCase:
         tdSql.checkData(27, 1, "SMALLINT UNSIGNED")
         tdSql.checkData(28, 1, "BINARY")
         tdSql.checkData(28, 2, 19)
-        tdSql.query("select count(*) from db.stb where c0 >= 0 and c0 <= 10")
-        tdSql.checkData(0, 0, 160)
         tdSql.query("select count(*) from db.stb where c1 >= 0 and c1 <= 10")
         tdSql.checkData(0, 0, 160)
         tdSql.query("select count(*) from db.stb where c2 >= 0 and c2 <= 10")
