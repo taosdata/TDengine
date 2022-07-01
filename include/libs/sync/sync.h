@@ -121,7 +121,7 @@ typedef struct SSyncFSM {
   int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot, void* pReaderParam, void** ppReader);
   int32_t (*FpGetSnapshotInfo)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
-  int32_t (*FpSnapshotStartRead)(struct SSyncFSM* pFsm, void** ppReader);
+  int32_t (*FpSnapshotStartRead)(struct SSyncFSM* pFsm, void* pReaderParam, void** ppReader);
   int32_t (*FpSnapshotStopRead)(struct SSyncFSM* pFsm, void* pReader);
   int32_t (*FpSnapshotDoRead)(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len);
 

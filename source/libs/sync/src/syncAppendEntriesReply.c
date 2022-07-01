@@ -120,7 +120,7 @@ static void syncNodeStartSnapshot(SSyncNode* ths, SyncIndex beginIndex, SyncInde
 
   void*        pReader = NULL;
   SReaderParam readerParam = {.start = beginIndex, .end = endIndex};
-  ths->pFsm->FpSnapshotStartRead(ths->pFsm, &pReader);
+  ths->pFsm->FpSnapshotStartRead(ths->pFsm, &readerParam, &pReader);
   if (!snapshotSenderIsStart(pSender) && pMsg->privateTerm < pSender->privateTerm) {
     ASSERT(pReader != NULL);
     snapshotSenderStart(pSender, snapshot, pReader);
