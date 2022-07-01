@@ -61,44 +61,22 @@ extern "C" {
     }                                                             \
   }
 
-#define WAL_HEAD_VER     0
+#define WAL_PROTO_VER    0
 #define WAL_NOSUFFIX_LEN 20
 #define WAL_SUFFIX_AT    (WAL_NOSUFFIX_LEN + 1)
 #define WAL_LOG_SUFFIX   "log"
 #define WAL_INDEX_SUFFIX "idx"
 #define WAL_REFRESH_MS   1000
-#define WAL_MAX_SIZE     (TSDB_MAX_WAL_SIZE + sizeof(SWalHead))
+#define WAL_MAX_SIZE     (TSDB_MAX_WAL_SIZE + sizeof(SWalCkHead))
 #define WAL_PATH_LEN     (TSDB_FILENAME_LEN + 12)
 #define WAL_FILE_LEN     (WAL_PATH_LEN + 32)
 #define WAL_MAGIC        0xFAFBFCFDULL
 
-#pragma pack(push, 1)
 typedef enum {
   TAOS_WAL_NOLOG = 0,
   TAOS_WAL_WRITE = 1,
   TAOS_WAL_FSYNC = 2,
 } EWalType;
-
-// used by sync module
-typedef struct {
-  int8_t   isWeek;
-  uint64_t seqNum;
-  uint64_t term;
-} SSyncLogMeta;
-
-typedef struct SWalReadHead {
-  int8_t  headVer;
-  int8_t  reserved;
-  int16_t msgType;
-  int32_t bodyLen;
-  int64_t ingestTs;  // not implemented
-  int64_t version;
-
-  // sync meta
-  SSyncLogMeta syncMeta;
-
-  char body[];
-} SWalReadHead;
 
 typedef struct {
   int32_t  vgId;
@@ -110,13 +88,6 @@ typedef struct {
   EWalType level;  // wal level
 } SWalCfg;
 
-typedef struct {
-  uint64_t     magic;
-  uint32_t     cksumHead;
-  uint32_t     cksumBody;
-  SWalReadHead head;
-} SWalHead;
-
 typedef struct SWalVer {
   int64_t firstVer;
   int64_t verInSnapshotting;
@@ -124,6 +95,35 @@ typedef struct SWalVer {
   int64_t commitVer;
   int64_t lastVer;
 } SWalVer;
+
+#pragma pack(push, 1)
+// used by sync module
+typedef struct {
+  int8_t   isWeek;
+  uint64_t seqNum;
+  uint64_t term;
+} SSyncLogMeta;
+
+typedef struct {
+  int8_t  protoVer;
+  int64_t version;
+  int16_t msgType;
+  int32_t bodyLen;
+  int64_t ingestTs;  // not implemented
+
+  // sync meta
+  SSyncLogMeta syncMeta;
+
+  char body[];
+} SWalCont;
+
+typedef struct {
+  uint64_t magic;
+  uint32_t cksumHead;
+  uint32_t cksumBody;
+  SWalCont head;
+} SWalCkHead;
+#pragma pack(pop)
 
 typedef struct SWal {
   // cfg
@@ -134,7 +134,7 @@ typedef struct SWal {
   TdFilePtr pWriteLogTFile;
   TdFilePtr pWriteIdxTFile;
   int32_t   writeCur;
-  SArray   *fileInfoSet;
+  SArray   *fileInfoSet;  // SArray<SWalFileInfo>
   // status
   int64_t totSize;
   int64_t lastRollSeq;
@@ -146,7 +146,7 @@ typedef struct SWal {
   // path
   char path[WAL_PATH_LEN];
   // reusable write head
-  SWalHead writeHead;
+  SWalCkHead writeHead;
 } SWal;  // WAL HANDLE
 
 typedef struct SWalReadHandle {
@@ -158,11 +158,8 @@ typedef struct SWalReadHandle {
   int64_t       capacity;
   int64_t       status;  // if cursor valid
   TdThreadMutex mutex;
-  SWalHead     *pHead;
+  SWalCkHead   *pHead;
 } SWalReadHandle;
-#pragma pack(pop)
-
-// typedef int32_t (*FWalWrite)(void *ahandle, void *pHead);
 
 // module initialization
 int32_t walInit();
@@ -174,9 +171,9 @@ int32_t walAlter(SWal *, SWalCfg *pCfg);
 void    walClose(SWal *);
 
 // write
-int64_t walWriteWithSyncInfo(SWal *, int64_t index, tmsg_t msgType, SSyncLogMeta syncMeta, const void *body,
+int32_t walWriteWithSyncInfo(SWal *, int64_t index, tmsg_t msgType, SSyncLogMeta syncMeta, const void *body,
                              int32_t bodyLen);
-int64_t walWrite(SWal *, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen);
+int32_t walWrite(SWal *, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen);
 void    walFsync(SWal *, bool force);
 
 // apis for lifecycle management
@@ -196,9 +193,9 @@ int32_t         walReadWithHandle(SWalReadHandle *pRead, int64_t ver);
 
 // only for tq usage
 void    walSetReaderCapacity(SWalReadHandle *pRead, int32_t capacity);
-int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead);
-int32_t walFetchBody(SWalReadHandle *pRead, SWalHead **ppHead);
-int32_t walSkipFetchBody(SWalReadHandle *pRead, const SWalHead *pHead);
+int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalCkHead *pHead);
+int32_t walFetchBody(SWalReadHandle *pRead, SWalCkHead **ppHead);
+int32_t walSkipFetchBody(SWalReadHandle *pRead, const SWalCkHead *pHead);
 
 typedef struct {
   int64_t refId;

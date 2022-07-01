@@ -97,6 +97,10 @@ int32_t tqOffsetWrite(STqOffsetStore* pStore, const STqOffset* pOffset) {
   return taosHashPut(pStore->pHash, pOffset->subKey, strlen(pOffset->subKey), pOffset, sizeof(STqOffset));
 }
 
+int32_t tqOffsetDelete(STqOffsetStore* pStore, const char* subscribeKey) {
+  return taosHashRemove(pStore->pHash, subscribeKey, strlen(subscribeKey));
+}
+
 int32_t tqOffsetSnapshot(STqOffsetStore* pStore) {
   // open file
   // TODO file name should be with a version
