@@ -436,15 +436,16 @@ typedef struct {
   int32_t ttl;
   int32_t numOfColumns;
   int32_t numOfTags;
+  int32_t numOfFuncs;
   int32_t commentLen;
   int32_t ast1Len;
   int32_t ast2Len;
   SArray* pColumns;  // array of SField
   SArray* pTags;     // array of SField
-  char*   comment;
+  SArray* pFuncs;
+  char*   pComment;
   char*   pAst1;
   char*   pAst2;
-  SArray* pFuncs;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
