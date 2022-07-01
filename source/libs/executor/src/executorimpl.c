@@ -2829,21 +2829,28 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
     pScanInfo->blockType = STREAM_INPUT__DATA_SCAN;
 
     STableScanInfo* pInfo = pScanInfo->pSnapshotReadOp->info;
+    if (uid == 0) {
+      pInfo->noTable = 1;
+      return TSDB_CODE_SUCCESS;
+    }
 
     /*if (pSnapShotScanInfo->dataReader == NULL) {*/
     /*pSnapShotScanInfo->dataReader = tsdbReaderOpen(pHandle->vnode, &pSTInfo->cond, tableList, 0, 0);*/
     /*pSnapShotScanInfo->scanMode = TABLE_SCAN__TABLE_ORDER;*/
     /*}*/
 
+    pInfo->noTable = 0;
+
     if (pInfo->lastStatus.uid != uid || pInfo->lastStatus.ts != ts) {
       tsdbSetTableId(pInfo->dataReader, uid);
       int64_t oldSkey = pInfo->cond.twindows[0].skey;
-      pInfo->cond.twindows[0].skey = ts;
+      pInfo->cond.twindows[0].skey = ts + 1;
       tsdbResetReadHandle(pInfo->dataReader, &pInfo->cond, 0);
       pInfo->cond.twindows[0].skey = oldSkey;
       pInfo->scanTimes = 0;
       pInfo->curTWinIdx = 0;
     }
+    return TSDB_CODE_SUCCESS;
 
   } else {
     if (pOperator->numOfDownstream == 1) {
@@ -2856,8 +2863,6 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
       return TSDB_CODE_QRY_APP_ERROR;
     }
   }
-
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t doGetScanStatus(SOperatorInfo* pOperator, uint64_t* uid, int64_t* ts) {

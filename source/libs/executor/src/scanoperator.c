@@ -518,6 +518,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
   // if scan table by table
   if (pInfo->scanMode == TABLE_SCAN__TABLE_ORDER) {
+    if (pInfo->noTable) return NULL;
     while (1) {
       SSDataBlock* result = doTableScanGroup(pOperator);
       if (result) {

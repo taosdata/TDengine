@@ -139,7 +139,7 @@ void* taosArrayGetLast(const SArray* pArray);
  * @param pArray
  * @return
  */
-size_t taosArrayGetSize(const SArray* pArray);
+int32_t taosArrayGetSize(const SArray* pArray);
 
 /**
  * set the size of array

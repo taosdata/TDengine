@@ -63,7 +63,6 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
       continue;
     }
 
-    // TODO: do we need free memory?
     SSDataBlock block = {0};
     assignOneDataBlock(&block, output);
     block.info.childId = pTask->selfChildId;

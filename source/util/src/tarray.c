@@ -206,11 +206,11 @@ void* taosArrayGetP(const SArray* pArray, size_t index) {
 
 void* taosArrayGetLast(const SArray* pArray) { return TARRAY_GET_ELEM(pArray, pArray->size - 1); }
 
-size_t taosArrayGetSize(const SArray* pArray) {
+int32_t taosArrayGetSize(const SArray* pArray) {
   if (pArray == NULL) {
     return 0;
   }
-  return pArray->size;
+  return (int32_t)pArray->size;
 }
 
 void taosArraySetSize(SArray* pArray, size_t size) {
