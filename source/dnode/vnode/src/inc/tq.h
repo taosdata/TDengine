@@ -157,7 +157,7 @@ typedef struct {
 static STqMgmt tqMgmt = {0};
 
 // tqRead
-int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalHead** pHeadWithCkSum);
+int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** pHeadWithCkSum);
 
 // tqExec
 int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataRsp* pRsp, int32_t workerId);
@@ -178,6 +178,7 @@ STqOffsetStore* tqOffsetOpen();
 void            tqOffsetClose(STqOffsetStore*);
 STqOffset*      tqOffsetRead(STqOffsetStore* pStore, const char* subscribeKey);
 int32_t         tqOffsetWrite(STqOffsetStore* pStore, const STqOffset* pOffset);
+int32_t         tqOffsetDelete(STqOffsetStore* pStore, const char* subscribeKey);
 int32_t         tqOffsetSnapshot(STqOffsetStore* pStore);
 
 // tqSink

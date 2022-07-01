@@ -119,7 +119,7 @@ static int32_t vnodeProcessAlterReplicaReq(SVnode *pVnode, SRpcMsg *pMsg) {
 }
 
 void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
-  SVnode * pVnode = pInfo->ahandle;
+  SVnode  *pVnode = pInfo->ahandle;
   int32_t  vgId = pVnode->config.vgId;
   int32_t  code = 0;
   SRpcMsg *pMsg = NULL;
@@ -199,7 +199,7 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
 }
 
 void vnodeApplyMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
-  SVnode * pVnode = pInfo->ahandle;
+  SVnode  *pVnode = pInfo->ahandle;
   int32_t  vgId = pVnode->config.vgId;
   int32_t  code = 0;
   SRpcMsg *pMsg = NULL;
@@ -240,7 +240,7 @@ int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     STraceId *trace = &pMsg->info.traceId;
 
     do {
-      char *         syncNodeStr = sync2SimpleStr(pVnode->sync);
+      char          *syncNodeStr = sync2SimpleStr(pVnode->sync);
       static int64_t vndTick = 0;
       if (++vndTick % 10 == 1) {
         vGTrace("vgId:%d, sync trace msg:%s, %s", syncGetVgId(pVnode->sync), TMSG_INFO(pMsg->msgType), syncNodeStr);
@@ -375,7 +375,7 @@ static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReCon
 }
 
 static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
-  SVnode *  pVnode = pFsm->data;
+  SVnode   *pVnode = pFsm->data;
   SSnapshot snapshot = {0};
   SyncIndex beginIndex = SYNC_INDEX_INVALID;
   char      logBuf[256] = {0};
@@ -409,7 +409,7 @@ static void vnodeSyncRollBackMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta
   syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 }
 
-static int32_t vnodeSnapshotStartRead(struct SSyncFSM *pFsm, void **ppReader) { return 0; }
+static int32_t vnodeSnapshotStartRead(struct SSyncFSM *pFsm, void *pParam, void **ppReader) { return 0; }
 
 static int32_t vnodeSnapshotStopRead(struct SSyncFSM *pFsm, void *pReader) { return 0; }
 
