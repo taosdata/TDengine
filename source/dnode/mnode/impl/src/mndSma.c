@@ -866,6 +866,21 @@ int32_t mndDropSmasByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
     if (pSma->dbUid == pDb->uid) {
       pVgroup = mndAcquireVgroup(pMnode, pSma->dstVgId);
       if (pVgroup == NULL) goto _OVER;
+
+      pVgroup = mndAcquireVgroup(pMnode, pSma->dstVgId);
+      if (pVgroup == NULL) goto _OVER;
+
+      SStreamObj *pStream = mndAcquireStream(pMnode, pSma->name);
+      if (pStream != NULL && pStream->smaId == pSma->uid) {
+        if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
+          mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
+          goto _OVER;
+        }
+        if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
+          goto _OVER;
+        }
+      }
+
       if (mndSetDropSmaVgroupCommitLogs(pMnode, pTrans, pVgroup) != 0) goto _OVER;
       if (mndSetDropSmaVgroupRedoActions(pMnode, pTrans, pDb, pVgroup) != 0) goto _OVER;
       if (mndSetDropSmaCommitLogs(pMnode, pTrans, pSma) != 0) goto _OVER;
