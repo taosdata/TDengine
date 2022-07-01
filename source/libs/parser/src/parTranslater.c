@@ -512,11 +512,9 @@ static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SCol
     pExpr->pAssociation = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
   }
   taosArrayPush(pExpr->pAssociation, &pColRef);
-  if (NULL != pTable) {
-    strcpy(pCol->tableAlias, pTable->tableAlias);
-  } else if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+  strcpy(pCol->tableAlias, pTable->tableAlias);
+  if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
     SColumnNode* pProjCol = (SColumnNode*)pExpr;
-    strcpy(pCol->tableAlias, pProjCol->tableAlias);
     pCol->tableId = pProjCol->tableId;
     pCol->colId = pProjCol->colId;
     pCol->colType = pProjCol->colType;
@@ -788,12 +786,12 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
     return DEAL_RES_CONTINUE;
   }
   if (TSDB_DATA_TYPE_NULL == pVal->node.resType.type) {
-    // TODO 
-    //pVal->node.resType = targetDt;
+    // TODO
+    // pVal->node.resType = targetDt;
     pVal->translate = true;
     pVal->isNull = true;
     return DEAL_RES_CONTINUE;
-  }  
+  }
   if (pVal->isDuration) {
     if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit, precision) !=
         TSDB_CODE_SUCCESS) {
@@ -1634,6 +1632,16 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   }
   if (cxt.existIndefiniteRowsFunc && cxt.existCol) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkWindowFuncCoexist(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (NULL == pSelect->pWindow) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL != pSelect->pWindow && !pSelect->hasAggFuncs) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2583,6 +2591,9 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAggColCoexist(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkWindowFuncCoexist(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkLimit(pCxt, pSelect);

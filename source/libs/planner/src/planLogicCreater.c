@@ -728,6 +728,9 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   SFillNode* pFillNode = (SFillNode*)(((SIntervalWindowNode*)pSelect->pWindow)->pFill);
+  if (FILL_MODE_NONE == pFillNode->mode) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   SFillLogicNode* pFill = (SFillLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_FILL);
   if (NULL == pFill) {
