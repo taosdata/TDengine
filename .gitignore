@@ -1,9 +1,6 @@
 build/
 .ycm_extra_conf.py
 .vscode/
-.idea/
-cmake-build-debug/
-cmake-build-release/
 cscope.out
 .DS_Store
 debug/
@@ -39,7 +36,9 @@ psim/
 pysim/
 *.out
 *DS_Store
-
+# Clion Generated files
+.idea/
+cmake-build-*/
 # Doxygen Generated files
 html/
 /.vs
