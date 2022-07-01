@@ -266,6 +266,8 @@ int vnodeCommit(SVnode *pVnode) {
     ASSERT(0);
     return -1;
   }
+  
+  pVnode->state.committed = info.state.committed;
 
   // apply the commit (TODO)
   vnodeBufPoolReset(pVnode->onCommit);

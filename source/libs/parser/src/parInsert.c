@@ -790,11 +790,11 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
       pColIdx[i].schemaColIdx = pColList->boundColumns[i];
       pColIdx[i].boundIdx = i;
     }
-    qsort(pColIdx, pColList->numOfBound, sizeof(SBoundIdxInfo), schemaIdxCompar);
+    taosSort(pColIdx, pColList->numOfBound, sizeof(SBoundIdxInfo), schemaIdxCompar);
     for (col_id_t i = 0; i < pColList->numOfBound; ++i) {
       pColIdx[i].finalIdx = i;
     }
-    qsort(pColIdx, pColList->numOfBound, sizeof(SBoundIdxInfo), boundIdxCompar);
+    taosSort(pColIdx, pColList->numOfBound, sizeof(SBoundIdxInfo), boundIdxCompar);
   }
 
   if (pColList->numOfCols > pColList->numOfBound) {
@@ -1302,6 +1302,74 @@ static int32_t parseValuesClause(SInsertParseContext* pCxt, STableDataBlocks* da
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t parseCsvFile(SInsertParseContext* pCxt, TdFilePtr fp, STableDataBlocks* pDataBlock, int maxRows,
+                            int32_t* numOfRows) {
+  STableComInfo tinfo = getTableInfo(pDataBlock->pTableMeta);
+  int32_t       extendedRowSize = getExtendedRowSize(pDataBlock);
+  CHECK_CODE(initRowBuilder(&pDataBlock->rowBuilder, pDataBlock->pTableMeta->sversion, &pDataBlock->boundColumnInfo));
+
+  (*numOfRows) = 0;
+  char    tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0};  // used for deleting Escape character: \\, \', \"
+  char*   pLine = NULL;
+  int64_t readLen = 0;
+  while ((readLen = taosGetLineFile(fp, &pLine)) != -1) {
+    if (('\r' == pLine[readLen - 1]) || ('\n' == pLine[readLen - 1])) {
+      pLine[--readLen] = '\0';
+    }
+
+    if (readLen == 0) {
+      continue;
+    }
+
+    if ((*numOfRows) >= maxRows || pDataBlock->size + extendedRowSize >= pDataBlock->nAllocSize) {
+      int32_t tSize;
+      CHECK_CODE(allocateMemIfNeed(pDataBlock, extendedRowSize, &tSize));
+      ASSERT(tSize >= maxRows);
+      maxRows = tSize;
+    }
+
+    strtolower(pLine, pLine);
+    char* pRawSql = pCxt->pSql;
+    pCxt->pSql = pLine;
+    bool gotRow = false;
+    CHECK_CODE(parseOneRow(pCxt, pDataBlock, tinfo.precision, &gotRow, tmpTokenBuf));
+    if (gotRow) {
+      pDataBlock->size += extendedRowSize;  // len;
+      (*numOfRows)++;
+    }
+    pCxt->pSql = pRawSql;
+  }
+
+  if (0 == (*numOfRows) && (!TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT))) {
+    return buildSyntaxErrMsg(&pCxt->msg, "no any data points", NULL);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t parseDataFromFile(SInsertParseContext* pCxt, SToken filePath, STableDataBlocks* dataBuf) {
+  char filePathStr[TSDB_FILENAME_LEN] = {0};
+  strncpy(filePathStr, filePath.z, filePath.n);
+  TdFilePtr fp = taosOpenFile(filePathStr, TD_FILE_READ | TD_FILE_STREAM);
+  if (NULL == fp) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+
+  int32_t maxNumOfRows;
+  CHECK_CODE(allocateMemIfNeed(dataBuf, getExtendedRowSize(dataBuf), &maxNumOfRows));
+
+  int32_t numOfRows = 0;
+  CHECK_CODE(parseCsvFile(pCxt, fp, dataBuf, maxNumOfRows, &numOfRows));
+
+  SSubmitBlk* pBlocks = (SSubmitBlk*)(dataBuf->pData);
+  if (TSDB_CODE_SUCCESS != setBlockInfo(pBlocks, dataBuf, numOfRows)) {
+    return buildInvalidOperationMsg(&pCxt->msg, "too many rows in sql, total number of rows should be less than 32767");
+  }
+
+  dataBuf->numOfTables = 1;
+  pCxt->totalNum += numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
+
 void destroyCreateSubTbReq(SVCreateTbReq* pReq) {
   taosMemoryFreeClear(pReq->name);
   taosMemoryFreeClear(pReq->ctb.pTag);
@@ -1421,7 +1489,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
       if (0 == sToken.n || (TK_NK_STRING != sToken.type && TK_NK_ID != sToken.type)) {
         return buildSyntaxErrMsg(&pCxt->msg, "file path is required following keyword FILE", sToken.z);
       }
-      // todo
+      CHECK_CODE(parseDataFromFile(pCxt, sToken, dataBuf));
       pCxt->pOutput->insertType = TSDB_QUERY_TYPE_FILE_INSERT;
 
       tbNum++;
@@ -2164,11 +2232,11 @@ static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SS
       pColIdx[i].schemaColIdx = pColList->boundColumns[i];
       pColIdx[i].boundIdx = i;
     }
-    qsort(pColIdx, pColList->numOfBound, sizeof(SBoundIdxInfo), schemaIdxCompar);
+    taosSort(pColIdx, pColList->numOfBound, sizeof(SBoundIdxInfo), schemaIdxCompar);
     for (col_id_t i = 0; i < pColList->numOfBound; ++i) {
       pColIdx[i].finalIdx = i;
     }
-    qsort(pColIdx, pColList->numOfBound, sizeof(SBoundIdxInfo), boundIdxCompar);
+    taosSort(pColIdx, pColList->numOfBound, sizeof(SBoundIdxInfo), boundIdxCompar);
   }
 
   if (pColList->numOfCols > pColList->numOfBound) {

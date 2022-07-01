@@ -248,6 +248,11 @@ typedef struct SSampleExecInfo {
   uint32_t        seed;         // random seed value
 } SSampleExecInfo;
 
+enum {
+  TABLE_SCAN__TABLE_ORDER = 1,
+  TABLE_SCAN__BLOCK_ORDER = 2,
+};
+
 typedef struct STableScanInfo {
   void*           dataReader;
   SReadHandle     readHandle;
@@ -272,13 +277,17 @@ typedef struct STableScanInfo {
   int32_t         curTWinIdx;
 
   int32_t         currentGroupId;
+  int32_t         currentTable;
   uint64_t        queryId;   // todo remove it
   uint64_t        taskId;    // todo remove it
 
   struct {
     uint64_t uid;
-    int64_t t;
-  } scanStatus;
+    int64_t ts;
+  } lastStatus;
+
+  int8_t scanMode;
+  int8_t noTable;
 } STableScanInfo;
 
 typedef struct STagScanInfo {
@@ -713,6 +722,7 @@ void    destroyBasicOperatorInfo(void* param, int32_t numOfOutput);
 void    appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 void    setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId);
 
+int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts);
 int32_t doGetScanStatus(SOperatorInfo* pOperator, uint64_t* uid, int64_t* ts);
 
 SSDataBlock* loadNextDataBlock(void* param);

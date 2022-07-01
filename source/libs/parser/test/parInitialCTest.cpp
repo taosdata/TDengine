@@ -372,7 +372,7 @@ TEST_F(ParserInitialCTest, createStable) {
     expect.watermark2 = watermark2;
     //    expect.ttl = ttl;
     if (nullptr != pComment) {
-      expect.comment = strdup(pComment);
+      expect.pComment = strdup(pComment);
       expect.commentLen = strlen(pComment);
     }
   };
@@ -443,7 +443,7 @@ TEST_F(ParserInitialCTest, createStable) {
       }
     }
     if (expect.commentLen > 0) {
-      ASSERT_EQ(std::string(req.comment), std::string(expect.comment));
+      ASSERT_EQ(std::string(req.pComment), std::string(expect.pComment));
     }
     if (expect.ast1Len > 0) {
       ASSERT_EQ(std::string(req.pAst1), std::string(expect.pAst1));
@@ -526,20 +526,22 @@ TEST_F(ParserInitialCTest, createStream) {
     memset(&expect, 0, sizeof(SCMCreateStreamReq));
   };
 
-  auto setCreateStreamReqFunc =
-      [&](const char* pStream, const char* pSrcDb, const char* pSql, const char* pDstStb = nullptr, int8_t igExists = 0,
-          int8_t triggerType = STREAM_TRIGGER_AT_ONCE, int64_t maxDelay = 0, int64_t watermark = 0) {
-        snprintf(expect.name, sizeof(expect.name), "0.%s", pStream);
-        snprintf(expect.sourceDB, sizeof(expect.sourceDB), "0.%s", pSrcDb);
-        if (NULL != pDstStb) {
-          snprintf(expect.targetStbFullName, sizeof(expect.targetStbFullName), "0.test.%s", pDstStb);
-        }
-        expect.igExists = igExists;
-        expect.sql = strdup(pSql);
-        expect.triggerType = triggerType;
-        expect.maxDelay = maxDelay;
-        expect.watermark = watermark;
-      };
+  auto setCreateStreamReqFunc = [&](const char* pStream, const char* pSrcDb, const char* pSql,
+                                    const char* pDstStb = nullptr, int8_t igExists = 0,
+                                    int8_t triggerType = STREAM_TRIGGER_AT_ONCE, int64_t maxDelay = 0,
+                                    int64_t watermark = 0, int8_t igExpired = 0) {
+    snprintf(expect.name, sizeof(expect.name), "0.%s", pStream);
+    snprintf(expect.sourceDB, sizeof(expect.sourceDB), "0.%s", pSrcDb);
+    if (NULL != pDstStb) {
+      snprintf(expect.targetStbFullName, sizeof(expect.targetStbFullName), "0.test.%s", pDstStb);
+    }
+    expect.igExists = igExists;
+    expect.sql = strdup(pSql);
+    expect.triggerType = triggerType;
+    expect.maxDelay = maxDelay;
+    expect.watermark = watermark;
+    expect.igExpired = igExpired;
+  };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
@@ -555,6 +557,7 @@ TEST_F(ParserInitialCTest, createStream) {
     ASSERT_EQ(req.triggerType, expect.triggerType);
     ASSERT_EQ(req.maxDelay, expect.maxDelay);
     ASSERT_EQ(req.watermark, expect.watermark);
+    ASSERT_EQ(req.igExpired, expect.igExpired);
     tFreeSCMCreateStreamReq(&req);
   });
 
@@ -571,9 +574,10 @@ TEST_F(ParserInitialCTest, createStream) {
   clearCreateStreamReq();
 
   setCreateStreamReqFunc(
-      "s1", "test", "create stream if not exists s1 trigger max_delay 20s watermark 10s into st1 as select * from t1",
-      "st1", 1, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_SECOND);
-  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s INTO st1 AS SELECT * FROM t1");
+      "s1", "test",
+      "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired into st1 as select * from t1",
+      "st1", 1, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_SECOND, 1);
+  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED INTO st1 AS SELECT * FROM t1");
   clearCreateStreamReq();
 }
 

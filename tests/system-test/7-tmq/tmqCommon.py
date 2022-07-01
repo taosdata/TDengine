@@ -93,7 +93,7 @@ class TMQCom:
         
         return resultList
 
-    def startTmqSimProcess(self,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0,alias=0):
+    def startTmqSimProcess(self,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0,alias=0,snapshot=0):
         buildPath = tdCom.getBuildPath()
         cfgPath = tdCom.getClientCfgPath()
         if valgrind == 1:
@@ -109,7 +109,7 @@ class TMQCom:
                 os.system(shellCmd)
                 processorName = processorNameNew
             shellCmd = 'mintty -h never ' + processorName + ' -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName) 
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s -e %d "%(pollDelay, dbName, showMsg, showRow, cdbName, snapshot) 
             shellCmd += "> nul 2>&1 &"   
         else:
             processorName = buildPath + '/build/bin/tmq_sim'
@@ -119,7 +119,7 @@ class TMQCom:
                 os.system(shellCmd)
                 processorName = processorNameNew
             shellCmd = 'nohup ' + processorName + ' -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName) 
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s -e %d "%(pollDelay, dbName, showMsg, showRow, cdbName, snapshot) 
             shellCmd += "> /dev/null 2>&1 &"
         tdLog.info(shellCmd)
         os.system(shellCmd) 
@@ -382,6 +382,69 @@ class TMQCom:
         pThread = threading.Thread(target=self.threadFunctionForInsert, kwargs=paraDict)
         pThread.start()
         return pThread
+
+    def checkFileContent(self, consumerId, queryString):
+        buildPath = tdCom.getBuildPath()
+        cfgPath = tdCom.getClientCfgPath()
+        dstFile = '%s/../log/dstrows_%d.txt'%(cfgPath, consumerId)
+        cmdStr = '%s/build/bin/taos -c %s -s "%s >> %s"'%(buildPath, cfgPath, queryString, dstFile)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+        
+        consumeRowsFile = '%s/../log/consumerid_%d.txt'%(cfgPath, consumerId)
+        tdLog.info("rows file: %s, %s"%(consumeRowsFile, dstFile))
+
+        consumeFile = open(consumeRowsFile, mode='r')
+        queryFile = open(dstFile, mode='r')
+        
+        # skip first line for it is schema
+        queryFile.readline()
+        lines = 0
+        while True:
+            dst = queryFile.readline()
+            src = consumeFile.readline()
+            lines += 1
+            if dst:
+                if dst != src:
+                    tdLog.info("src row: %s"%src)
+                    tdLog.info("dst row: %s"%dst)
+                    tdLog.exit("consumerId %d consume rows[%d] is not match the rows by direct query"%(consumerId, lines))
+            else:
+                break
+        return 
+
+    def getResultFileByTaosShell(self, consumerId, queryString):
+        buildPath = tdCom.getBuildPath()
+        cfgPath = tdCom.getClientCfgPath()
+        dstFile = '%s/../log/dstrows_%d.txt'%(cfgPath, consumerId)
+        cmdStr = '%s/build/bin/taos -c %s -s "%s >> %s"'%(buildPath, cfgPath, queryString, dstFile)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+        return dstFile
+    
+    def checkTmqConsumeFileContent(self, consumerId, dstFile):   
+        cfgPath = tdCom.getClientCfgPath()     
+        consumeRowsFile = '%s/../log/consumerid_%d.txt'%(cfgPath, consumerId)
+        tdLog.info("rows file: %s, %s"%(consumeRowsFile, dstFile))
+
+        consumeFile = open(consumeRowsFile, mode='r')
+        queryFile = open(dstFile, mode='r')
+        
+        # skip first line for it is schema
+        queryFile.readline()
+        lines = 0
+        while True:
+            dst = queryFile.readline()
+            src = consumeFile.readline()
+            lines += 1
+            if dst:
+                if dst != src:
+                    tdLog.info("src row: %s"%src)
+                    tdLog.info("dst row: %s"%dst)
+                    tdLog.exit("consumerId %d consume rows[%d] is not match the rows by direct query"%(consumerId, lines))
+            else:
+                break
+        return 
 
     def close(self):
         self.cursor.close()

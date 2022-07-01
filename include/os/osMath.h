@@ -60,6 +60,13 @@ extern "C" {
   })
 #endif
 
+#ifndef __COMPAR_FN_T
+#define __COMPAR_FN_T
+typedef int32_t (*__compar_fn_t)(const void *, const void *);
+#endif
+
+void taosSort(void* arr, int64_t sz, int64_t width, __compar_fn_t compar);
+
 #ifdef __cplusplus
 }
 #endif

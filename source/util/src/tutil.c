@@ -16,6 +16,23 @@
 #define _DEFAULT_SOURCE
 #include "tutil.h"
 
+void *tmemmem(const char *haystack, int32_t hlen, const char *needle, int32_t nlen) {
+  const char *limit;
+
+  if (nlen == 0 || hlen < nlen) {
+    return NULL;
+  }
+
+  limit = haystack + hlen - nlen + 1;
+  while ((haystack = (char *)memchr(haystack, needle[0], limit - haystack)) != NULL) {
+    if (memcmp(haystack, needle, nlen) == 0) {
+      return (void *)haystack;
+    }
+    haystack++;
+  }
+  return NULL;
+}
+
 int32_t strdequote(char *z) {
   if (z == NULL) {
     return 0;

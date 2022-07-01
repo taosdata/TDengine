@@ -341,11 +341,12 @@ typedef struct {
   int32_t  colVer;
   int32_t  smaVer;
   int32_t  nextColId;
-  int64_t  watermark[2];
   int64_t  maxdelay[2];
+  int64_t  watermark[2];
   int32_t  ttl;
   int32_t  numOfColumns;
   int32_t  numOfTags;
+  int32_t  numOfFuncs;
   int32_t  commentLen;
   int32_t  ast1Len;
   int32_t  ast2Len;

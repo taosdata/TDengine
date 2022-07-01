@@ -488,6 +488,7 @@ stream_options(A) ::= stream_options(B) TRIGGER AT_ONCE.                        
 stream_options(A) ::= stream_options(B) TRIGGER WINDOW_CLOSE.                     { ((SStreamOptions*)B)->triggerType = STREAM_TRIGGER_WINDOW_CLOSE; A = B; }
 stream_options(A) ::= stream_options(B) TRIGGER MAX_DELAY duration_literal(C).    { ((SStreamOptions*)B)->triggerType = STREAM_TRIGGER_MAX_DELAY; ((SStreamOptions*)B)->pDelay = releaseRawExprNode(pCxt, C); A = B; }
 stream_options(A) ::= stream_options(B) WATERMARK duration_literal(C).            { ((SStreamOptions*)B)->pWatermark = releaseRawExprNode(pCxt, C); A = B; }
+stream_options(A) ::= stream_options(B) IGNORE EXPIRED.                           { ((SStreamOptions*)B)->ignoreExpired = true; A = B; }
 
 /************************************************ kill connection/query ***********************************************/
 cmd ::= KILL CONNECTION NK_INTEGER(A).                                            { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_CONNECTION_STMT, &A); }
@@ -848,14 +849,10 @@ set_quantifier_opt(A) ::= ALL.                                                  
 
 %type select_list                                                                 { SNodeList* }
 %destructor select_list                                                           { nodesDestroyList($$); }
-select_list(A) ::= NK_STAR.                                                       { A = NULL; }
-select_list(A) ::= select_sublist(B).                                             { A = B; }
+select_list(A) ::= select_item(B).                                                { A = createNodeList(pCxt, B); }
+select_list(A) ::= select_list(B) NK_COMMA select_item(C).                        { A = addNodeToList(pCxt, B, C); }
 
-%type select_sublist                                                              { SNodeList* }
-%destructor select_sublist                                                        { nodesDestroyList($$); }
-select_sublist(A) ::= select_item(B).                                             { A = createNodeList(pCxt, B); }
-select_sublist(A) ::= select_sublist(B) NK_COMMA select_item(C).                  { A = addNodeToList(pCxt, B, C); }
-
+select_item(A) ::= NK_STAR(B).                                                    { A = createColumnNode(pCxt, NULL, &B); }
 select_item(A) ::= common_expression(B).                                          { A = releaseRawExprNode(pCxt, B); }
 select_item(A) ::= common_expression(B) column_alias(C).                          { A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }
 select_item(A) ::= common_expression(B) AS column_alias(C).                       { A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }

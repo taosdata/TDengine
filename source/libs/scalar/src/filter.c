@@ -2065,7 +2065,7 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t
     }
 
     if (colIdxi > 1) {
-      qsort(colIdx, colIdxi, sizeof(uint32_t), getComparFunc(TSDB_DATA_TYPE_USMALLINT, 0));
+      taosSort(colIdx, colIdxi, sizeof(uint32_t), getComparFunc(TSDB_DATA_TYPE_USMALLINT, 0));
     }
 
     for (uint32_t l = 0; l < colIdxi; ++l) {
@@ -2300,7 +2300,7 @@ int32_t filterMergeGroups(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t *gR
     return TSDB_CODE_SUCCESS;
   }
 
-  qsort(gRes, *gResNum, POINTER_BYTES, filterCompareGroupCtx);
+  taosSort(gRes, *gResNum, POINTER_BYTES, filterCompareGroupCtx);
 
   int32_t pEnd = 0, cStart = 0, cEnd = 0;
   uint32_t pColNum = 0, cColNum = 0; 
