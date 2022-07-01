@@ -5,6 +5,7 @@ import time
 import socket
 import os
 import threading
+import math
 
 from util.log import *
 from util.sql import *
@@ -127,10 +128,14 @@ class TDTestCase:
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
         for i in range(ctbNum):
             sql += " %s_%d values "%(stbName,i)
+            batchRows = 0
             for j in range(rowsPerTbl):
                 sql += "(%d, %d, 'tmqrow_%d') "%(startTs + j, j, j)
-                if (j > 0) and ((j%batchNum == 0) or (j == rowsPerTbl - 1)):
+                batchRows += 1
+                # if (j > 0) and ((j%(batchNum-1) == 0) or (j == rowsPerTbl - 1)):
+                if (j > 0) and ((batchRows == batchNum) or (j == rowsPerTbl - 1)):
                     tsql.execute(sql)
+                    batchRows = 0
                     if j < rowsPerTbl - 1:
                         sql = "insert into %s_%d values " %(stbName,i)
                     else:
@@ -171,8 +176,8 @@ class TDTestCase:
                          'dbName':     'db8',    \
                          'vgroups':    4,        \
                          'stbName':    'stb',    \
-                         'ctbNum':     10,       \
-                         'rowsPerTbl': 10000,    \
+                         'ctbNum':     1,       \
+                         'rowsPerTbl': 1000,    \
                          'batchNum':   100,      \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
@@ -189,7 +194,7 @@ class TDTestCase:
         
         tdSql.execute("create topic %s as database %s" %(topicName1, parameterDict['dbName']))
         consumerId   = 0
-        expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] / 2
+        expectrowcnt = math.ceil(parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] / 2)
         topicList    = topicName1
         ifcheckdata  = 0
         ifManualCommit = 0
@@ -217,7 +222,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
         
-        if totalConsumeRows != expectrowcnt:
+        if not (totalConsumeRows >= expectrowcnt):
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
 
@@ -267,7 +272,7 @@ class TDTestCase:
         
         tdSql.execute("create topic %s as database %s" %(topicName1, parameterDict['dbName']))
         consumerId   = 0
-        expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] / 2
+        expectrowcnt = math.ceil(parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] / 2)
         topicList    = topicName1
         ifcheckdata  = 0
         ifManualCommit = 1

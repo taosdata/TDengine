@@ -16,6 +16,7 @@
 #include "builtinsimpl.h"
 #include "cJSON.h"
 #include "function.h"
+#include "query.h"
 #include "querynodes.h"
 #include "taggfunction.h"
 #include "tcompare.h"
@@ -1471,8 +1472,8 @@ void setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuple
   int32_t pageId = pTuplePos->pageId;
   int32_t offset = pTuplePos->offset;
 
-  if (pTuplePos->pageId != -1) {
-    int32_t    numOfCols = taosArrayGetSize(pCtx->pSrcBlock->pDataBlock);
+  if (pTuplePos->pageId != -1 && pCtx->subsidiaries.num > 0) {
+    int32_t    numOfCols = pCtx->subsidiaries.num;
     SFilePage* pPage = getBufPage(pCtx->pBuf, pageId);
 
     bool* nullList = (bool*)((char*)pPage + offset);
@@ -1483,22 +1484,21 @@ void setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuple
       SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
 
       SFunctParam* pFuncParam = &pc->pExpr->base.pParam[0];
-      int32_t      srcSlotId = pFuncParam->pCol->slotId;
       int32_t      dstSlotId = pc->pExpr->base.resSchema.slotId;
 
       int32_t ps = 0;
-      for (int32_t k = 0; k < srcSlotId; ++k) {
-        SColumnInfoData* pSrcCol = taosArrayGet(pCtx->pSrcBlock->pDataBlock, k);
-        ps += pSrcCol->info.bytes;
-      }
 
       SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
-      if (nullList[srcSlotId]) {
+      ASSERT(pc->pExpr->base.resSchema.bytes == pDstCol->info.bytes);
+      if (nullList[j]) {
         colDataAppendNULL(pDstCol, rowIndex);
       } else {
-        colDataAppend(pDstCol, rowIndex, (pStart + ps), false);
+        colDataAppend(pDstCol, rowIndex, pStart, false);
       }
+      pStart += pDstCol->info.bytes;
     }
+
+    releaseBufPage(pCtx->pBuf, pPage);
   }
 }
 
@@ -3194,7 +3194,10 @@ void doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSData
     if (pCtx->subsidiaries.num > 0) {
       saveTupleData(pCtx, rowIndex, pSrcBlock, &pItem->tuplePos);
     }
-
+#ifdef BUF_PAGE_DEBUG
+    qDebug("page_saveTuple i:%d, item:%p,pageId:%d, offset:%d\n", pEntryInfo->numOfRes, pItem, pItem->tuplePos.pageId,
+           pItem->tuplePos.offset);
+#endif
     // allocate the buffer and keep the data of this row into the new allocated buffer
     pEntryInfo->numOfRes++;
     taosheapsort((void*)pItems, sizeof(STopBotResItem), pEntryInfo->numOfRes, (const void*)&type, topBotResComparFn,
@@ -3215,7 +3218,9 @@ void doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSData
       if (pCtx->subsidiaries.num > 0) {
         copyTupleData(pCtx, rowIndex, pSrcBlock, &pItem->tuplePos);
       }
-
+#ifdef BUF_PAGE_DEBUG
+      qDebug("page_copyTuple pageId:%d, offset:%d", pItem->tuplePos.pageId, pItem->tuplePos.offset);
+#endif
       taosheapadjust((void*)pItems, sizeof(STopBotResItem), 0, pEntryInfo->numOfRes - 1, (const void*)&type,
                      topBotResComparFn, NULL, !isTopQuery);
     }
@@ -3225,7 +3230,11 @@ void doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSData
 void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos) {
   SFilePage* pPage = NULL;
 
-  int32_t completeRowSize = pSrcBlock->info.rowSize + (int32_t)taosArrayGetSize(pSrcBlock->pDataBlock) * sizeof(bool);
+  int32_t completeRowSize = pCtx->subsidiaries.num * sizeof(bool);
+  for (int32_t j = 0; j < pCtx->subsidiaries.num; ++j) {
+    SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
+    completeRowSize += pc->pExpr->base.resSchema.bytes;
+  }
 
   if (pCtx->curBufPage == -1) {
     pPage = getNewBufPage(pCtx->pBuf, 0, &pCtx->curBufPage);
@@ -3243,19 +3252,22 @@ void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
   // keep the current row data, extract method
   int32_t offset = 0;
   bool*   nullList = (bool*)((char*)pPage + pPage->num);
-  char*   pStart = (char*)(nullList + sizeof(bool) * (int32_t)taosArrayGetSize(pSrcBlock->pDataBlock));
-  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pSrcBlock->pDataBlock); ++i) {
-    SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, i);
-    bool             isNull = colDataIsNull_s(pCol, rowIndex);
-    if (isNull) {
-      nullList[i] = true;
+  char*   pStart = (char*)(nullList + sizeof(bool) * pCtx->subsidiaries.num);
+  for (int32_t i = 0; i < pCtx->subsidiaries.num; ++i) {
+    SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[i];
+
+    SFunctParam* pFuncParam = &pc->pExpr->base.pParam[0];
+    int32_t      srcSlotId = pFuncParam->pCol->slotId;
+
+    SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, srcSlotId);
+    if ((nullList[i] = colDataIsNull_s(pCol, rowIndex)) == true) {
       offset += pCol->info.bytes;
       continue;
     }
 
     char* p = colDataGetData(pCol, rowIndex);
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-      memcpy(pStart + offset, p, varDataTLen(p));
+      memcpy(pStart + offset, p, (pCol->info.type == TSDB_DATA_TYPE_JSON) ? getJsonValueLen(p) : varDataTLen(p));
     } else {
       memcpy(pStart + offset, p, pCol->info.bytes);
     }
@@ -3273,14 +3285,18 @@ void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
 void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos) {
   SFilePage* pPage = getBufPage(pCtx->pBuf, pPos->pageId);
 
-  int32_t numOfCols = taosArrayGetSize(pSrcBlock->pDataBlock);
+  int32_t numOfCols = pCtx->subsidiaries.num;
 
   bool* nullList = (bool*)((char*)pPage + pPos->offset);
   char* pStart = (char*)(nullList + numOfCols * sizeof(bool));
 
   int32_t offset = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, i);
+    SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[i];
+    SFunctParam*    pFuncParam = &pc->pExpr->base.pParam[0];
+    int32_t         srcSlotId = pFuncParam->pCol->slotId;
+
+    SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, srcSlotId);
     if ((nullList[i] = colDataIsNull_s(pCol, rowIndex)) == true) {
       offset += pCol->info.bytes;
       continue;
@@ -3288,7 +3304,7 @@ void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
 
     char* p = colDataGetData(pCol, rowIndex);
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-      memcpy(pStart + offset, p, varDataTLen(p));
+      memcpy(pStart + offset, p, (pCol->info.type == TSDB_DATA_TYPE_JSON) ? getJsonValueLen(p) : varDataTLen(p));
     } else {
       memcpy(pStart + offset, p, pCol->info.bytes);
     }
@@ -3302,7 +3318,7 @@ void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
 
 int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
-  STopBotRes*          pRes = GET_ROWCELL_INTERBUF(pEntryInfo);
+  STopBotRes*          pRes = getTopBotOutputInfo(pCtx);
 
   int16_t type = pCtx->input.pData[0]->info.type;
   int32_t slotId = pCtx->pExpr->base.resSchema.slotId;
@@ -3319,7 +3335,10 @@ int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     } else {
       colDataAppend(pCol, currentRow, (const char*)&pItem->v.i, false);
     }
-
+#ifdef BUF_PAGE_DEBUG
+    qDebug("page_finalize i:%d,item:%p,pageId:%d, offset:%d\n", i, pItem, pItem->tuplePos.pageId,
+           pItem->tuplePos.offset);
+#endif
     setSelectivityValue(pCtx, pBlock, &pRes->pItems[i].tuplePos, currentRow);
     currentRow += 1;
   }
@@ -5610,8 +5629,6 @@ int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
-  int32_t bytes = pInputCol->info.bytes;
-
   int32_t startIndex = pInput->startRowIndex;
 
   // escape rest of data blocks to avoid first entry to be overwritten.
@@ -5626,7 +5643,12 @@ int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
   }
 
   char* data = colDataGetData(pInputCol, startIndex);
-  memcpy(pInfo->data, data, bytes);
+  if (IS_VAR_DATA_TYPE(pInputCol->info.type)) {
+    memcpy(pInfo->data, data,
+           (pInputCol->info.type == TSDB_DATA_TYPE_JSON) ? getJsonValueLen(data) : varDataTLen(data));
+  } else {
+    memcpy(pInfo->data, data, pInputCol->info.bytes);
+  }
   pInfo->hasResult = true;
 
 _group_key_over:

@@ -3634,8 +3634,8 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   pReq->numOfColumns = LIST_LENGTH(pStmt->pCols);
   pReq->numOfTags = LIST_LENGTH(pStmt->pTags);
   if (pStmt->pOptions->commentNull == false) {
-    pReq->comment = strdup(pStmt->pOptions->comment);
-    if (NULL == pReq->comment) {
+    pReq->pComment = strdup(pStmt->pOptions->comment);
+    if (NULL == pReq->pComment) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     pReq->commentLen = strlen(pStmt->pOptions->comment);
@@ -3643,6 +3643,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
     pReq->commentLen = -1;
   }
   buildRollupFuncs(pStmt->pOptions->pRollupFuncs, &pReq->pFuncs);
+  pReq->numOfFuncs = taosArrayGetSize(pReq->pFuncs);
 
   SName tableName;
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tableName), pReq->name);
