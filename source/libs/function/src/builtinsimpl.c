@@ -80,6 +80,7 @@ typedef struct STopBotRes {
 
 typedef struct SFirstLastRes {
   bool    hasResult;
+  bool    isNull;  //used for last_row function only
   int32_t bytes;
   char    buf[];
 } SFirstLastRes;
@@ -2763,6 +2764,113 @@ int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   }
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
+  int32_t numOfElems = 0;
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SFirstLastRes*       pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+
+  int32_t type = pInputCol->info.type;
+  int32_t bytes = pInputCol->info.bytes;
+  pInfo->bytes = bytes;
+
+  SColumnDataAgg* pColAgg = (pInput->colDataAggIsSet) ? pInput->pColumnDataAgg[0] : NULL;
+
+  TSKEY startKey = getRowPTs(pInput->pPTS, 0);
+  TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
+
+  int32_t blockDataOrder = (startKey <= endKey) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
+
+  if (blockDataOrder == TSDB_ORDER_ASC) {
+    for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
+      char* data = colDataGetData(pInputCol, i);
+      TSKEY cts = getRowPTs(pInput->pPTS, i);
+      if (pResInfo->numOfRes == 0 || *(TSKEY*)(pInfo->buf) < cts) {
+        if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+          pInfo->isNull = true;
+        } else {
+          pInfo->isNull = false;
+          if (IS_VAR_DATA_TYPE(type)) {
+            bytes = varDataTLen(data);
+            pInfo->bytes = bytes;
+          }
+          memcpy(pInfo->buf + sizeof(TSKEY), data, bytes);
+        }
+        *(TSKEY*)(pInfo->buf) = cts;
+        numOfElems++;
+        //handle selectivity
+        if (pCtx->subsidiaries.num > 0) {
+          STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
+          if (!pInfo->hasResult) {
+            saveTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+          } else {
+            copyTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+          }
+        }
+        pInfo->hasResult = true;
+        //DO_UPDATE_TAG_COLUMNS(pCtx, ts);
+        pResInfo->numOfRes = 1;
+      }
+      break;
+    }
+  } else {  // descending order
+    for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+      char* data = colDataGetData(pInputCol, i);
+      TSKEY cts = getRowPTs(pInput->pPTS, i);
+      if (pResInfo->numOfRes == 0 || *(TSKEY*)(pInfo->buf) < cts) {
+        if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+          pInfo->isNull = true;
+        } else {
+          pInfo->isNull = false;
+          if (IS_VAR_DATA_TYPE(type)) {
+            bytes = varDataTLen(data);
+            pInfo->bytes = bytes;
+          }
+          memcpy(pInfo->buf + sizeof(TSKEY), data, bytes);
+        }
+        *(TSKEY*)(pInfo->buf) = cts;
+        numOfElems++;
+        //handle selectivity
+        if (pCtx->subsidiaries.num > 0) {
+          STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
+          if (!pInfo->hasResult) {
+            saveTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+          } else {
+            copyTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+          }
+        }
+        pInfo->hasResult = true;
+        pResInfo->numOfRes = 1;
+        //DO_UPDATE_TAG_COLUMNS(pCtx, ts);
+      }
+      break;
+    }
+  }
+
+  SET_VAL(pResInfo, numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t lastRowFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+
+  SFirstLastRes* pRes = GET_ROWCELL_INTERBUF(pResInfo);
+  colDataAppend(pCol, pBlock->info.rows, pRes->buf + sizeof(TSKEY), pRes->isNull);
+  //handle selectivity
+  STuplePos* pTuplePos = (STuplePos*)(pRes->buf + pRes->bytes + sizeof(TSKEY));
+  setSelectivityValue(pCtx, pBlock, pTuplePos, pBlock->info.rows);
+
+  return pResInfo->numOfRes;
+}
+
 
 bool getDiffFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(SDiffInfo);

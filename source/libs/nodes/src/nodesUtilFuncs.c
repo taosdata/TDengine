@@ -1728,7 +1728,6 @@ static EDealRes classifyConditionImpl(SNode* pNode, void* pContext) {
     } else {
       pCxt->hasOtherCol = true;
     }
-    return *((bool*)pContext) ? DEAL_RES_CONTINUE : DEAL_RES_END;
   }
   return DEAL_RES_CONTINUE;
 }

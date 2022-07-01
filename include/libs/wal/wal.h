@@ -210,6 +210,8 @@ void     walCloseRef(SWalRef *);
 int32_t  walRefVer(SWalRef *, int64_t ver);
 int32_t  walUnrefVer(SWal *);
 
+bool walLogExist(SWal *, int64_t ver);
+
 // lifecycle check
 bool    walIsEmpty(SWal *);
 int64_t walGetFirstVer(SWal *);

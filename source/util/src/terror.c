@@ -614,7 +614,7 @@ static int32_t taosCompareTaosError(const void* a, const void* b) {
 static TdThreadOnce tsErrorInit = PTHREAD_ONCE_INIT;
 
 static void tsSortError(void) {
-  qsort(errors, sizeof(errors) / sizeof(errors[0]), sizeof(errors[0]), taosCompareTaosError);
+  taosSort(errors, sizeof(errors) / sizeof(errors[0]), sizeof(errors[0]), taosCompareTaosError);
 }
 
 const char* tstrerror(int32_t err) {

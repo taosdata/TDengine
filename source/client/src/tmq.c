@@ -1547,7 +1547,7 @@ SMqRspObj* tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper) {
 }
 
 int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
-  /*printf("call poll\n");*/
+  /*tscDebug("call poll");*/
   for (int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
     SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
     for (int j = 0; j < taosArrayGetSize(pTopic->vgs); j++) {
@@ -1609,8 +1609,8 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
       int64_t transporterId = 0;
       /*printf("send poll\n");*/
 
-      char offsetFormatBuf[50];
-      tFormatOffset(offsetFormatBuf, 50, &pVg->currentOffsetNew);
+      char offsetFormatBuf[80];
+      tFormatOffset(offsetFormatBuf, 80, &pVg->currentOffsetNew);
       tscDebug("consumer %ld send poll to %s : vg %d, epoch %d, req offset %s, reqId %lu", tmq->consumerId,
                pTopic->topicName, pVg->vgId, tmq->epoch, offsetFormatBuf, pReq->reqId);
       /*printf("send vg %d %ld\n", pVg->vgId, pVg->currentOffset);*/
@@ -1708,6 +1708,7 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 }
 
 TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
+  /*tscDebug("call poll1");*/
   void*   rspObj;
   int64_t startTime = taosGetTimestampMs();
 
