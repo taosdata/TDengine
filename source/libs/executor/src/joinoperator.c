@@ -90,12 +90,8 @@ void destroyMergeJoinOperator(void* param, int32_t numOfOutput) {
   SJoinOperatorInfo* pJoinOperator = (SJoinOperatorInfo*)param;
 }
 
-SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
+static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) {
   SJoinOperatorInfo* pJoinInfo = pOperator->info;
-
-  SSDataBlock* pRes = pJoinInfo->pRes;
-  blockDataCleanup(pRes);
-  blockDataEnsureCapacity(pRes, 4096);
 
   int32_t nrows = 0;
 
@@ -181,7 +177,26 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
       break;
     }
   }
+}
 
+SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
+  SJoinOperatorInfo* pJoinInfo = pOperator->info;
+
+  SSDataBlock* pRes = pJoinInfo->pRes;
+  blockDataCleanup(pRes);
+  blockDataEnsureCapacity(pRes, 4096);
+  while (true) {
+    int32_t numOfRowsBefore = pRes->info.rows;
+    doMergeJoinImpl(pOperator, pRes);
+    int32_t numOfNewRows = pRes->info.rows - numOfRowsBefore;
+    if (numOfNewRows == 0) {
+      break;
+    }
+    doFilter(pJoinInfo->pOnCondition, pRes);
+    if (pRes->info.rows >= pOperator->resultInfo.threshold) {
+      break;
+    }
+  }
   return (pRes->info.rows > 0) ? pRes : NULL;
 }
 
