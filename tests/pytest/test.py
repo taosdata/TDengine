@@ -150,15 +150,22 @@ if __name__ == "__main__":
                 numOfNodes = ucase.updatecfgDict.get('numOfNodes')                
                 cluster.init(numOfNodes, dataDir)                    
                 cluster.prepardBuild()
-
+                
+                startArbitrator = False
+                arbitratorHost = "tdnode1"
                 for i in range(numOfNodes):
                     if ucase.updatecfgDict.get('%d' % (i + 1)) != None:
                         config = dict (ucase.updatecfgDict.get('%d' % (i + 1)))
                         print(config)
                         for key, value in config.items():
-                            print(key, value, i + 1)
-                            cluster.cfg(key, value, i + 1)                           
+                            if key == "arbitrator":
+                                startArbitrator = True
+                                arbitratorHost = value
+                            cluster.cfg(key, value, i + 1)                      
                 cluster.run()
+                if startArbitrator:
+                    hostname=value.split(":")[0]
+                    cluster.startArbitrator(hostname)
                 conn = cluster.conn
             except Exception as e:
                 print(e.args)

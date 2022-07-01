@@ -78,6 +78,42 @@ uint32_t MurmurHash3_32(const char *key, uint32_t len) {
   return h1;
 }
 
+uint64_t MurmurHash3_64(const void *key, uint32_t len) {
+  const uint64_t m = 0x87c37b91114253d5;
+  const int r = 47;
+  uint32_t seed = 0x12345678;
+  uint64_t h = seed ^ (len * m);
+  const uint8_t *data = (const uint8_t *)key;
+  const uint8_t *end = data + (len-(len&7));
+
+  while(data != end) {
+    uint64_t k = *((uint64_t*)data);
+
+    k *= m;
+    k ^= k >> r;
+    k *= m;
+    h ^= k;
+    h *= m;
+    data += 8;
+  }
+
+  switch(len & 7) {
+    case 7: h ^= (uint64_t)data[6] << 48; /* fall-thru */
+    case 6: h ^= (uint64_t)data[5] << 40; /* fall-thru */
+    case 5: h ^= (uint64_t)data[4] << 32; /* fall-thru */
+    case 4: h ^= (uint64_t)data[3] << 24; /* fall-thru */
+    case 3: h ^= (uint64_t)data[2] << 16; /* fall-thru */
+    case 2: h ^= (uint64_t)data[1] << 8; /* fall-thru */
+    case 1: h ^= (uint64_t)data[0];
+      h *= m; /* fall-thru */
+  };
+
+  h ^= h >> r;
+  h *= m;
+  h ^= h >> r;
+  return h;
+}
+
 uint32_t taosIntHash_32(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint32_t *)key; }
 uint32_t taosIntHash_16(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint16_t *)key; }
 uint32_t taosIntHash_8(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint8_t *)key; }

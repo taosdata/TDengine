@@ -63,6 +63,10 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
 
   SRspRet *pRspRet = NULL;
   if (pWrite != NULL) pRspRet = &pWrite->rspRet;
+  // if wal and forward write , no need response
+  if( qtype == TAOS_QTYPE_WAL || qtype == TAOS_QTYPE_FWD) {
+    pRspRet = NULL;
+  }   
 
   if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) {
     vError("vgId:%d, msg:%s not processed since no handle, qtype:%s hver:%" PRIu64, pVnode->vgId,
@@ -107,7 +111,7 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
     code = walWrite(pVnode->wal, pHead);
   }
   if (code < 0) {
-    if (syncCode > 0) atomic_sub_fetch_32(&pWrite->processedCount, 1);
+    if (syncCode > 0 && pWrite) atomic_sub_fetch_32(&pWrite->processedCount, 1);
     vError("vgId:%d, hver:%" PRIu64 " vver:%" PRIu64 " code:0x%x", pVnode->vgId, pHead->version, pVnode->version, code);
     pHead->version = 0;
     return code;
@@ -118,7 +122,7 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   // write data locally
   code = (*vnodeProcessWriteMsgFp[pHead->msgType])(pVnode, pHead->cont, pRspRet);
   if (code < 0) {
-    if (syncCode > 0) atomic_sub_fetch_32(&pWrite->processedCount, 1);
+    if (syncCode > 0 && pWrite) atomic_sub_fetch_32(&pWrite->processedCount, 1);
     return code;
   }
 
@@ -163,13 +167,15 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
 
   // save insert result into item
   SShellSubmitRspMsg *pRsp = NULL;
+  tsem_t** ppsem = NULL;
   if (pRet) {
     pRet->len = sizeof(SShellSubmitRspMsg);
     pRet->rsp = rpcMallocCont(pRet->len);
     pRsp = pRet->rsp;
+    ppsem = &pRet->psem;
   }
 
-  if (tsdbInsertData(pVnode->tsdb, pCont, pRsp) < 0) {
+  if (tsdbInsertData(pVnode->tsdb, pCont, pRsp, ppsem) < 0) {
     code = terrno;
   } else {
     if (pRsp != NULL) atomic_fetch_add_64(&tsSubmitReqSucNum, 1);

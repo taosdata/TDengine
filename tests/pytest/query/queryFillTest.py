@@ -85,6 +85,23 @@ class TDTestCase:
 
         tdSql.query("select spread(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-23 04:36:40.000' and id = 1 group by loc, id")
         tdSql.checkRows(rows)
+
+        # case for TD-14782
+        tdSql.execute("drop database if exists dd ")
+        tdSql.execute("create database dd keep 36500")
+        tdSql.execute("use dd")
+        tdSql.execute("create stable stable_1(ts timestamp , q_double double ) tags(loc nchar(100))")
+        tdSql.execute("create table stable_1_1 using stable_1 tags('stable_1_1')")
+        tdSql.execute("create table stable_1_2 using stable_1 tags('stable_1_2')")
+        tdSql.execute("insert into stable_1_1 (ts , q_double) values(1630000000000, 1)(1630000010000, 2)(1630000020000, 3)")
+
+        tdSql.query("select STDDEV(q_double) from stable_1 where ts between 1630000001000 and 1630100001000 interval(18d) sliding(4d) Fill(NEXT) order by ts desc")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 1, 0.5)
+        tdSql.checkData(1, 1, 0.5)
+        tdSql.checkData(2, 1, 0.5)
+        tdSql.checkData(3, 1, 0.5)
+        
         
     def stop(self):
         tdSql.close()

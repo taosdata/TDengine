@@ -17,7 +17,6 @@
 #include "os.h"
 #include "mnode.h"
 #include "http.h"
-#include "tmqtt.h"
 #include "monitor.h"
 #include "dnodeModule.h"
 
@@ -60,18 +59,6 @@ static void dnodeAllocModules() {
     dnodeSetModuleStatus(TSDB_MOD_HTTP);
   }
 #endif
-
-#ifdef _MQTT
-  tsModule[TSDB_MOD_MQTT].enable = (tsEnableMqttModule == 1);
-  tsModule[TSDB_MOD_MQTT].name = "mqtt";
-  tsModule[TSDB_MOD_MQTT].initFp = mqttInitSystem;
-  tsModule[TSDB_MOD_MQTT].cleanUpFp = mqttCleanUpSystem;
-  tsModule[TSDB_MOD_MQTT].startFp = mqttStartSystem;
-  tsModule[TSDB_MOD_MQTT].stopFp = mqttStopSystem;
-  if (tsEnableMqttModule) {
-    dnodeSetModuleStatus(TSDB_MOD_MQTT);
-  }
-#endif  
 
   tsModule[TSDB_MOD_MONITOR].enable    = (tsEnableMonitorModule == 1);
   tsModule[TSDB_MOD_MONITOR].name      = "monitor";

@@ -149,7 +149,7 @@ int main(int argc, char* argv[]) {
   int assembleSTables = 0;
 
   int opt;
-  while ((opt = getopt(argc, argv, "s:c:r:f:t:b:p:w:hv")) != -1) {
+  while ((opt = getopt(argc, argv, "s:c:r:f:t:b:p:w:a:hv")) != -1) {
     switch (opt) {
       case 's':
         numSuperTables = atoi(optarg);

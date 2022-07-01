@@ -28,8 +28,31 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
+    def getPath(self, tool="taosBenchmark"):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+
+        paths = []
+        for root, dirs, files in os.walk(projPath):
+            if ((tool) in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    paths.append(os.path.join(root, tool))
+                    break
+        if (len(paths) == 0):
+            tdLog.exit("taosBenchmark not found!")
+            return
+        else:
+            tdLog.info("taosBenchmark found in %s" % paths[0])
+            return paths[0]
+
     def run(self):
-        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/taosc_insert_alltypes.json"
+        binPath = self.getPath()
+        cmd = "%s -f ./5-taos-tools/taosbenchmark/json/taosc_insert_alltypes.json" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select count(*) from db.stb")
@@ -70,8 +93,61 @@ class TDTestCase:
         tdSql.checkData(27, 1, "SMALLINT UNSIGNED")
         tdSql.checkData(28, 1, "BINARY")
         tdSql.checkData(28, 2, 19)
+        tdSql.query("select count(*) from db.stb where c0 >= 0 and c0 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c1 >= 0 and c1 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c2 >= 0 and c2 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c3 >= 0 and c3 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c4 >= 0 and c4 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c5 >= 0 and c5 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c6 >= 0 and c6 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c8 = 'd1' or c8 = 'd2'")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c9 >= 0 and c9 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c10 >= 0 and c10 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c11 >= 0 and c11 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c12 >= 0 and c12 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c13 = 'b1' or c13 = 'b2'")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t0 >= 0 and t0 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t1 >= 0 and t1 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t2 >= 0 and t2 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t3 >= 0 and t3 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t4 >= 0 and t4 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t5 >= 0 and t5 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t6 >= 0 and t6 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t8 = 'd1' or t8 = 'd2'")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t9 >= 0 and t9 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t10 >= 0 and t10 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t11 >= 0 and t11 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t12 >= 0 and t12 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t13 = 'b1' or t13 = 'b2'")
+        tdSql.checkData(0, 0, 160)
 
-        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/sml_insert_alltypes.json"
+
+        cmd = "%s -f ./5-taos-tools/taosbenchmark/json/sml_insert_alltypes.json" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select count(*) from db.stb")
@@ -109,7 +185,7 @@ class TDTestCase:
         tdSql.checkData(25, 1, "NCHAR")
         tdSql.checkData(26, 1, "NCHAR")
 
-        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/rest_insert_alltypes.json"
+        cmd = "%s -f ./5-taos-tools/taosbenchmark/json/rest_insert_alltypes.json" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select count(*) from db.stb")
@@ -151,7 +227,7 @@ class TDTestCase:
         tdSql.checkData(28, 1, "BINARY")
         tdSql.checkData(28, 2, 19)
 
-        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/stmt_insert_alltypes.json"
+        cmd = "%s -f ./5-taos-tools/taosbenchmark/json/stmt_insert_alltypes.json" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select count(*) from db.stb")
@@ -192,6 +268,58 @@ class TDTestCase:
         tdSql.checkData(27, 1, "SMALLINT UNSIGNED")
         tdSql.checkData(28, 1, "BINARY")
         tdSql.checkData(28, 2, 19)
+        tdSql.query("select count(*) from db.stb where c0 >= 0 and c0 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c1 >= 0 and c1 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c2 >= 0 and c2 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c3 >= 0 and c3 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c4 >= 0 and c4 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c5 >= 0 and c5 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c6 >= 0 and c6 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c8 like 'd1%' or c8 like 'd2%'")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c9 >= 0 and c9 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c10 >= 0 and c10 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c11 >= 0 and c11 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c12 >= 0 and c12 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where c13 like 'b1%' or c13 like 'b2%'")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t0 >= 0 and t0 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t1 >= 0 and t1 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t2 >= 0 and t2 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t3 >= 0 and t3 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t4 >= 0 and t4 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t5 >= 0 and t5 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t6 >= 0 and t6 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t8 like 'd1%' or t8 like 'd2%'")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t9 >= 0 and t9 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t10 >= 0 and t10 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t11 >= 0 and t11 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t12 >= 0 and t12 <= 10")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb where t13 like 'b1%' or t13 like 'b2%'")
+        tdSql.checkData(0, 0, 160)
 
 
     def stop(self):

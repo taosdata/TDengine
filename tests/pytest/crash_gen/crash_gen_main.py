@@ -84,10 +84,10 @@ class WorkerThread:
         # self._thread = threading.Thread(target=runThread, args=(self,))
         self._thread = threading.Thread(target=self.run)
         self._stepGate = threading.Event()
-
         # Let us have a DB connection of our own
         if (Config.getConfig().per_thread_db_connection):  # type: ignore
-            # print("connector_type = {}".format(gConfig.connector_type))
+            # print("connector_type = {}".format(Config.getConfig().connector_type))
+            
             tInst = gContainer.defTdeInstance
             if Config.getConfig().connector_type == 'native':                
                 self._dbConn = DbConn.createNative(tInst.getDbTarget()) 
@@ -963,7 +963,7 @@ class StateMechine:
         # did not do this when openning connection, and this is NOT the worker
         # thread, which does this on their own
         dbc.use(dbName)
-        if not dbc.hasTables():  # no tables
+        if not dbc.hasTables(dbName):  # no tables
             Logging.debug("[STT] DB_ONLY found, between {} and {}".format(ts, time.time()))
             return StateDbOnly()
 
@@ -1434,6 +1434,7 @@ class Task():
     # TODO: refactor away, just provide the dbConn
     def execWtSql(self, wt: WorkerThread, sql):  # execute an SQL on the worker thread
         """ Haha """
+        # print("thread %d runing sql is : %s " %(wt._tid , sql) )
         return wt.execSql(sql)
 
     def queryWtSql(self, wt: WorkerThread, sql):  # execute an SQL on the worker thread
@@ -1690,6 +1691,9 @@ class TdSuperTable:
     def getName(self):
         return self._stName
 
+    def getFullTableName(self):
+        return self._dbName + '.' + self._stName
+
     def drop(self, dbc, skipCheck = False):
         dbName = self._dbName
         if self.exists(dbc) : # if myself exists
@@ -1701,7 +1705,7 @@ class TdSuperTable:
 
     def exists(self, dbc):
         dbc.execute("USE " + self._dbName)
-        return dbc.existsSuperTable(self._stName)
+        return dbc.existsSuperTable(self._dbName, self._stName)
 
     # TODO: odd semantic, create() method is usually static?
     def create(self, dbc, cols: TdColumns, tags: TdTags, dropIfExists = False):
@@ -1710,7 +1714,7 @@ class TdSuperTable:
         dbName = self._dbName
         dbc.execute("USE " + dbName)
         fullTableName = dbName + '.' + self._stName       
-        if dbc.existsSuperTable(self._stName):
+        if dbc.existsSuperTable(dbName, self._stName):
             if dropIfExists: 
                 dbc.execute("DROP TAbLE {}".format(fullTableName))
             else: # error
@@ -2491,7 +2495,7 @@ class MainExec:
             action='store',
             default='native',
             type=str,
-            help='Connector type to use: native, rest, or mixed (default: 10)')
+            help='Connector type to use: native, rest, or mixed (default: native)')
         parser.add_argument(
             '-d',
             '--debug',
@@ -2552,7 +2556,7 @@ class MainExec:
             '-r',
             '--record-ops',
             action='store_true',
-            help='Use a pair of always-fsynced fils to record operations performing + performed, for power-off tests (default: false)')
+            help='Use a pair of always-fsynced files to record operations performing + performed, for power-off tests (default: false)')
         parser.add_argument(
             '-s',
             '--max-steps',

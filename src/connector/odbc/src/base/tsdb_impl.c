@@ -190,17 +190,20 @@ static SQLRETURN tsdb_conn_connect(conn_t *conn) {
 
   conn_val_t *val = &conn->val;
   const char *dsn = val->dsn;
+  const char *driver = val->driver;
   const char *uid = val->uid;
   const char *pwd = val->pwd;
   const char *db  = val->db;
   const char *svr = val->server;
 
-  OILE(dsn, "");
+  OILE(dsn || driver, "");
 
   int use_default = 0;
   char server[4096]; server[0] = '\0';
   if (!svr || !svr[0]) {
-    int n = SQLGetPrivateProfileString(dsn, "Server", "", server, sizeof(server)-1, "Odbc.ini");
+    const char *filename = dsn ? "Odbc.ini" : "odbcinst.ini";
+    int n;
+    n = SQLGetPrivateProfileString(dsn, "Server", "", server, sizeof(server)-1, filename);
     if (n<=0) {
       snprintf(server, sizeof(server), DEFAULT_SERVER);
       n = (int)strlen(server);

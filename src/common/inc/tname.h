@@ -54,8 +54,8 @@ typedef struct SSqlExpr {
   int32_t   resBytes;       // length of return value
   int32_t   interBytes;     // inter result buffer size
 
-  int16_t   colType;        // table column type, this should be int32_t, because it is too small for globale merge stage, pQueryAttr->interBytesForGlobal
-  int16_t   colBytes;       // table column bytes
+  int16_t   colType;        // table column type
+  int16_t   colBytes;       // table column bytes,it should be int32_t, because it is too small for globale merge stage, pQueryAttr->interBytesForGlobal
 
   int16_t   numOfParams;    // argument value of each function
   tVariant  param[3];       // parameters are not more than 3
@@ -140,5 +140,8 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type);
 int32_t tNameSetAcctId(SName* dst, const char* acct);
 
 int32_t tNameSetDbName(SName* dst, const char* acct, SStrToken* dbToken);
+
+// define uniform string
+#define STR_INVALID_TABLE_NAME "invalid table name"
 
 #endif  // TDENGINE_NAME_H

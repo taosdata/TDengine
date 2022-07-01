@@ -1212,6 +1212,9 @@ void SqlInfoDestroy(SSqlInfo *pInfo) {
   taosArrayDestroy(&pInfo->funcs);
   if (pInfo->type == TSDB_SQL_SELECT) {
     destroyAllSqlNode(pInfo->list);
+  } else if (pInfo->type == TSDB_SQL_DELETE_DATA) {
+    tSqlExprDestroy(pInfo->pDelData->pWhere);
+    tfree(pInfo->pDelData);
   } else if (pInfo->type == TSDB_SQL_CREATE_TABLE) {
     pInfo->pCreateTableInfo = destroyCreateTableSql(pInfo->pCreateTableInfo);
   } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
@@ -1473,4 +1476,16 @@ void setDefaultCreateTopicOption(SCreateDbInfo *pDBInfo) {
 
   pDBInfo->dbType = TSDB_DB_TYPE_TOPIC;
   pDBInfo->partitions = TSDB_DEFAULT_DB_PARTITON_OPTION;
+}
+
+// malloc new SDelData and set with args
+SDelData* tGetDelData(SStrToken* pTableName, SStrToken* existsCheck, tSqlExpr* pWhere) {
+  // malloc
+  SDelData* pDelData = (SDelData *) calloc(1, sizeof(SDelData));
+  // set value
+  pDelData->existsCheck = (existsCheck->n == 1);
+  pDelData->tableName   = *pTableName;
+  pDelData->pWhere      = pWhere;
+
+  return pDelData;
 }

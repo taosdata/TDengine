@@ -550,10 +550,17 @@ typedef struct SFillOperatorInfo {
   bool         multigroupResult;
 } SFillOperatorInfo;
 
+typedef struct SGroupbyDataInfo {
+  int32_t index;  // index of col in dataBlock
+  int32_t type;
+  int32_t bytes;
+} SGroupbyDataInfo;
+
 typedef struct SGroupbyOperatorInfo {
   SOptrBasicInfo binfo;
-  int32_t        colIndex;
-  char          *prevData;   // previous group by value
+  SArray         *pGroupbyDataInfo;
+  int32_t        totalBytes;
+  char           *prevData;   // previous data buf
 } SGroupbyOperatorInfo;
 
 typedef struct SSWindowOperatorInfo {

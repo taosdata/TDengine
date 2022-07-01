@@ -32,6 +32,7 @@ typedef struct {
   int32_t len;
   void *  rsp;
   void *  qhandle;  // used by query and retrieve msg
+  tsem_t* psem;  // if it is not zero, need wait result with async 
 } SRspRet;
 
 typedef struct {
@@ -57,6 +58,13 @@ typedef struct {
   char     reserveForSync[24];
   SWalHead walHead;
 } SVWriteMsg;
+
+typedef struct {
+  int32_t     startTime;
+  pthread_t * pthread;
+  tsem_t *    psem;
+  void *      param;
+} SWaitThread;
 
 // vnodeStatus
 extern char *vnodeStatus[];
@@ -95,6 +103,13 @@ void    vnodeConfirmForward(void *pVnode, uint64_t version, int32_t code, bool f
 int32_t vnodeWriteToRQueue(void *pVnode, void *pCont, int32_t contLen, int8_t qtype, void *rparam);
 void    vnodeFreeFromRQueue(void *pVnode, SVReadMsg *pRead);
 int32_t vnodeProcessRead(void *pVnode, SVReadMsg *pRead);
+
+// wait thread
+void vnodeAddWait(void* pVnode, pthread_t* pthread, tsem_t* psem, void* param);
+void vnodeRemoveWait(void* pVnode, void* param);
+// get wait thread count
+bool vnodeWaitTooMany(void* vparam);
+tsem_t* vnodeSemWait(void* vparam);
 
 #ifdef __cplusplus
 }

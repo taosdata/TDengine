@@ -30,7 +30,6 @@ static void       tsdbFreeRepo(STsdbRepo *pRepo);
 static void       tsdbStartStream(STsdbRepo *pRepo);
 static void       tsdbStopStream(STsdbRepo *pRepo);
 static int        tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh);
-static int        tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx);
 
 // Function declaration
 int32_t tsdbCreateRepo(int repoid) {
@@ -188,7 +187,7 @@ int tsdbUnlockRepo(STsdbRepo *pRepo) {
 int tsdbCheckWal(STsdbRepo *pRepo, uint32_t walSize) {  // MB
   STsdbCfg *pCfg = &(pRepo->config);
   if ((walSize > tsdbWalFlushSize) && (walSize > (pCfg->totalBlocks / 2 * pCfg->cacheBlockSize))) {
-    if (tsdbAsyncCommit(pRepo) < 0) return -1;
+    if (tsdbAsyncCommit(pRepo, NULL) < 0) return -1;
   }
   return 0;
 }
@@ -202,7 +201,7 @@ int tsdbCheckCommit(STsdbRepo *pRepo) {
   if ((pRepo->mem->extraBuffList != NULL) ||
       ((listNEles(pRepo->mem->bufBlockList) >= pCfg->totalBlocks / 3) && (pBufBlock->remain < TSDB_BUFFER_RESERVE))) {
     // trigger commit
-    if (tsdbAsyncCommit(pRepo) < 0) return -1;
+    if (tsdbAsyncCommit(pRepo, NULL) < 0) return -1;
   }
   return 0;
 }
@@ -214,6 +213,8 @@ STsdbRepoInfo *tsdbGetStatus(STsdbRepo *pRepo) { return NULL; }
 int tsdbGetState(STsdbRepo *repo) { return repo->state; }
 
 int8_t tsdbGetCompactState(STsdbRepo *repo) { return (int8_t)(repo->compactState); }
+
+int8_t tsdbGetDeleteState(STsdbRepo *repo) { return (int8_t)(repo->deleteState); }
 
 void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int64_t *compStorage) {
   ASSERT(repo != NULL);
@@ -574,6 +575,7 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
   pRepo->state = TSDB_STATE_OK;
   pRepo->code = TSDB_CODE_SUCCESS;
   pRepo->compactState = 0;
+  pRepo->deleteState = 0;
   pRepo->config = *pCfg;
   if (pAppH) {
     pRepo->appH = *pAppH;
@@ -811,8 +813,7 @@ out:
   return err;
 }
 
-static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx) {
-  ASSERT(pTable->lastRow == NULL);
+int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx, bool onlyKey) {
   if (tsdbLoadBlockInfo(pReadh, NULL, NULL) < 0) {
     return -1;
   }
@@ -841,17 +842,24 @@ static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, 
   }
 
   TSKEY lastKey = memRowKey(lastRow);
-  
   // during the load data in file, new data would be inserted and last row has been updated
   TSDB_WLOCK_TABLE(pTable);
-  if (pTable->lastRow == NULL) {
-    pTable->lastKey = lastKey;
-    pTable->lastRow = lastRow;
-    TSDB_WUNLOCK_TABLE(pTable);
+
+  pTable->lastKey = lastKey;
+  if (!onlyKey) {
+    // set
+    if (pTable->lastRow) {
+      SMemRow* p = pTable->lastRow;
+      pTable->lastRow = lastRow;
+      taosTZfree(p);
+    } else {
+      pTable->lastRow = lastRow;
+    }
   } else {
-    TSDB_WUNLOCK_TABLE(pTable);
     taosTZfree(lastRow);
   }
+ 
+  TSDB_WUNLOCK_TABLE(pTable);
 
   return 0;
 }
@@ -905,7 +913,7 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
       if (pIdx && lastKey < pIdx->maxKey) {
         pTable->lastKey = pIdx->maxKey;
 
-        if (CACHE_LAST_ROW(pCfg) && tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx) != 0) {
+        if (CACHE_LAST_ROW(pCfg) && tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx, false) != 0) {
           tsdbDestroyReadH(&readh);
           return -1;
         }
@@ -930,7 +938,7 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
   return 0;
 }
 
-int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable) {
+int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable, bool force) {
   SFSIter    fsiter;
   SReadH     readh;
   SDFileSet *pSet;
@@ -939,6 +947,7 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable) {
 
   bool cacheLastRow = CACHE_LAST_ROW(&(pRepo->config));
   bool cacheLastCol = CACHE_LAST_NULL_COLUMN(&(pRepo->config));
+  bool onlyKey = !cacheLastRow;
 
   tsdbDebug("tsdbLoadLastCache for %s, cacheLastRow:%d, cacheLastCol:%d", pTable->name->data, cacheLastRow, cacheLastCol);
 
@@ -948,19 +957,24 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable) {
     taosTZfree(pTable->lastRow);
     pTable->lastRow = NULL;
   }
-  if (!cacheLastCol && pTable->lastCols != NULL) {
+  if ((!cacheLastCol && pTable->lastCols != NULL) || force) {
     tsdbFreeLastColumns(pTable);
   }
 
-  if (!cacheLastRow && !cacheLastCol) {
-    return 0;
+  if (!cacheLastRow && !cacheLastCol && !force) {
+      return 0;
   }
 
   cacheLastRowTableNum = (cacheLastRow && pTable->lastRow  == NULL) ? 1 : 0;
   cacheLastColTableNum = (cacheLastCol && pTable->lastCols == NULL) ? 1 : 0;
 
-  if (cacheLastRowTableNum == 0 && cacheLastColTableNum == 0) {
-    return 0;
+  if(force && cacheLastRowTableNum == 0) {
+    // if force update , must set 1
+    cacheLastRowTableNum = 1;
+  }
+
+  if (cacheLastRowTableNum == 0 && cacheLastColTableNum == 0 && !force) {
+      return 0;
   }
 
   if (tsdbInitReadH(&readh, pRepo) < 0) {
@@ -993,8 +1007,8 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable) {
 
     SBlockIdx *pIdx = readh.pBlkIdx;
 
-    if (pIdx && (cacheLastRowTableNum > 0) && (pTable->lastRow == NULL)) {
-      if (tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx) != 0) {
+    if (pIdx && (cacheLastRowTableNum > 0) && (pTable->lastRow == NULL || force)) {
+      if (tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx, onlyKey) != 0) {
         tsdbUnLockFS(REPO_FS(pRepo));
         tsdbDestroyReadH(&readh);
         return -1;
@@ -1013,6 +1027,13 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable) {
         cacheLastColTableNum -= 1;
       }
     }
+  }
+
+  if ( cacheLastRowTableNum > 0 && readh.pBlkIdx == NULL) {
+    // table no data, so reset lastKey
+    TSDB_WLOCK_TABLE(pTable);
+    pTable->lastKey = TSKEY_INITIAL_VAL;
+    TSDB_WUNLOCK_TABLE(pTable);
   }
 
   tsdbUnLockFS(REPO_FS(pRepo));
@@ -1113,7 +1134,7 @@ UNUSED_FUNC int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg) {
       if (pIdx && cacheLastRowTableNum > 0 && pTable->lastRow == NULL) {                
         pTable->lastKey = pIdx->maxKey;
 
-        if (tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx) != 0) {
+        if (tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx, false) != 0) {
           tsdbDestroyReadH(&readh);
           return -1;
         }

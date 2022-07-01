@@ -86,8 +86,12 @@ extern "C" {
 #define TSDB_FUNC_WSTART          44
 #define TSDB_FUNC_WSTOP           45
 #define TSDB_FUNC_WDURATION       46
+#define TSDB_FUNC_QSTART          47
+#define TSDB_FUNC_QSTOP           48
+#define TSDB_FUNC_QDURATION       49
+#define TSDB_FUNC_HYPERLOGLOG     50
 
-#define TSDB_FUNC_MAX_NUM         47
+#define TSDB_FUNC_MAX_NUM         51
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
@@ -101,7 +105,7 @@ extern "C" {
 #define TSDB_BASE_FUNC_MO TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_OF
 
 #define TSDB_FUNCTIONS_NAME_MAX_LENGTH 16
-#define TSDB_AVG_FUNCTION_INTER_BUFFER_SIZE 50
+#define TSDB_AVG_FUNCTION_INTER_BUFFER_SIZE 128
 
 #define DATA_SET_FLAG ','  // to denote the output area has data, not null value
 #define DATA_SET_FLAG_SIZE sizeof(DATA_SET_FLAG)
@@ -183,7 +187,7 @@ typedef struct SQLFunctionCtx {
   uint32_t     order;     // asc|desc
   int16_t      inputType;
   int32_t      inputBytes;
-  
+
   int16_t      outputType;
   int32_t      outputBytes;   // size of results, determined by function and input column data type
   int32_t      interBufBytes; // internal buffer size
@@ -211,6 +215,8 @@ typedef struct SQLFunctionCtx {
 
   SHashObj     **pUniqueSet;   // for unique function
   SHashObj     **pModeSet;     // for mode function
+  STimeWindow  qWindow;        // for _qstart/_qstop/_qduration column
+  int32_t      allocRows;      // rows allocated for output buffer
 } SQLFunctionCtx;
 
 typedef struct SAggFunctionInfo {
@@ -235,6 +241,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
                           int32_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo);
 int16_t getTimeWindowFunctionID(int16_t colIndex);
 
+bool isTimeWindowFunction(int32_t functionId);
 int32_t isValidFunction(const char* name, int32_t len);
 bool isValidStateOper(char *oper, int32_t len);
 

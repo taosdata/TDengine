@@ -183,13 +183,14 @@ static void    changeQueryHandleForInterpQuery(TsdbQueryHandleT pHandle);
 static void    doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, SBlock* pBlock);
 static int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
 static int32_t tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int maxRowsToRead, STimeWindow* win, STsdbQueryHandle* pQueryHandle);
-static int32_t tsdbCheckInfoCompar(const void* key1, const void* key2);
 static int32_t doGetExternalRow(STsdbQueryHandle* pQueryHandle, int16_t type, SMemRef* pMemRef);
 static void*   doFreeColumnInfoData(SArray* pColumnInfoData);
 static void*   destroyTableCheckInfo(SArray* pTableCheckInfo);
 static bool    tsdbGetExternalRow(TsdbQueryHandleT pHandle);
 static int32_t tsdbQueryTableList(STable* pTable, SArray* pRes, void* filterInfo);
 static STableBlockInfo* moveToNextDataBlockInCurrentFile(STsdbQueryHandle* pQueryHandle);
+static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCheckInfo);
+static SMemRow getSMemRowInTableMem(STableCheckInfo* pCheckInfo, int32_t order, int32_t update, SMemRow* extraRow);
 
 static void tsdbInitDataBlockLoadInfo(SDataBlockLoadInfo* pBlockLoadInfo) {
   pBlockLoadInfo->slot = -1;
@@ -332,8 +333,6 @@ static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STa
                 info.tableId.tid, info.lastKey, pQueryHandle->qId);
     }
   }
-
-  taosArraySort(pTableCheckInfo, tsdbCheckInfoCompar);
 
   size_t gsize = taosArrayGetSize(pTableCheckInfo);
 
@@ -635,11 +634,52 @@ static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle) {
     if (pTable->cacheLastConfigVersion == pRepo->cacheLastConfigVersion) {
       continue;
     }
-    code = tsdbLoadLastCache(pRepo, pTable);
+
+    if (!pCheckInfo->initBuf) {
+      initTableMemIterator(pQueryHandle, pCheckInfo);
+    }
+
+    code = tsdbLoadLastCache(pRepo, pTable, false);
     if (code != 0) {
       tsdbError("%p uid:%" PRId64 ", tid:%d, failed to load last cache since %s", pQueryHandle, pTable->tableId.uid,
                 pTable->tableId.tid, tstrerror(terrno));
       break;
+    }
+
+    STsdbCfg *pCfg = &pQueryHandle->pTsdb->config;
+    bool cacheLastRow = CACHE_LAST_ROW(&(pRepo->config));
+    if (!cacheLastRow) continue;
+
+    SMemRow row = getSMemRowInTableMem(pCheckInfo, pQueryHandle->order, pCfg->update, NULL);
+    if (row == NULL) continue;
+    TSKEY key = memRowKey(row);
+
+    if (!pTable->lastRow) {
+      STSchema *pSchema = tsdbGetTableSchema(pTable);
+      SMemRow   lastRow = taosTMalloc(memRowMaxBytesFromSchema(pSchema));
+      if (lastRow == NULL) {
+        return TSDB_CODE_TDB_OUT_OF_MEMORY;
+      }
+
+      memRowCpy(lastRow, row);
+      pTable->lastRow = lastRow;
+      pTable->lastKey = key;
+    } else {
+      TSKEY lastRowKey = memRowKey(pTable->lastRow);
+      if (key <= lastRowKey) continue;
+
+      if (memRowTLen(pTable->lastRow) < memRowTLen(row)) {
+	SMemRow lastRow = taosTRealloc(pTable->lastRow, memRowTLen(row));
+        if (lastRow == NULL) {
+          taosTZfree(pTable->lastRow);
+          pTable->lastRow = NULL;
+
+          return TSDB_CODE_TDB_OUT_OF_MEMORY;
+        }
+	pTable->lastRow = lastRow;
+      }
+      memRowCpy(pTable->lastRow, row);
+      pTable->lastKey = key;
     }
   }
 
@@ -2898,7 +2938,7 @@ static bool doHasDataInBuffer(STsdbQueryHandle* pQueryHandle) {
   return false;
 }
 
-//todo not unref yet, since it is not support multi-group interpolation query
+//todo not unref yet, since it does not support multi-group interpolation query
 static UNUSED_FUNC void changeQueryHandleForInterpQuery(TsdbQueryHandleT pHandle) {
   // filter the queried time stamp in the first place
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) pHandle;
@@ -3911,17 +3951,6 @@ static int32_t tableGroupComparFn(const void *p1, const void *p2, const void *pa
   return 0;
 }
 
-static int tsdbCheckInfoCompar(const void* key1, const void* key2) {
-  if (((STableCheckInfo*)key1)->tableId.tid < ((STableCheckInfo*)key2)->tableId.tid) {
-    return -1;
-  } else if (((STableCheckInfo*)key1)->tableId.tid > ((STableCheckInfo*)key2)->tableId.tid) {
-    return 1;
-  } else {
-    ASSERT(false);
-    return 0;
-  }
-}
-
 void createTableGroupImpl(SArray* pGroups, SArray* pTableList, size_t numOfTables, TSKEY skey,
                           STableGroupSupporter* pSupp, __ext_compar_fn_t compareFn) {
   STable* pTable = taosArrayGetP(pTableList, 0);
@@ -4661,4 +4690,10 @@ void tsdbAddScanCallback(TsdbQueryHandleT* queryHandle, readover_callback callba
   pQueryHandle->readover_cb = callback;
   pQueryHandle->param       = param;
   return ;
+}
+
+// get table tid
+int32_t tsdbTableTid(void* pTable) {
+  STable *p = (STable *)pTable;
+  return p->tableId.tid;
 }

@@ -31,6 +31,10 @@ extern "C" {
 #define TSQL_TSWIN_STOP     "_wstop"
 #define TSQL_TSWIN_DURATION "_wduration"
 
+#define TSQL_QUERY_START    "_qstart"
+#define TSQL_QUERY_STOP     "_qstop"
+#define TSQL_QUERY_DURATION "_qduration"
+
 #define TSQL_BLOCK_DIST   "_BLOCK_DIST"
 #define TSQL_BLOCK_DIST_L "_block_dist"
 

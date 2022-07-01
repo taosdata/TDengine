@@ -240,6 +240,18 @@ static int32_t tscGetNthFieldResult(TAOS_ROW row, TAOS_FIELD* fields, int *lengt
     case TSDB_DATA_TYPE_BIGINT: 
       sprintf(result, "%"PRId64, *((int64_t *)val)); 
       break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      sprintf(result, "%u", *((uint8_t *)val));
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      sprintf(result, "%u", *((uint16_t *)val));
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      sprintf(result, "%u", *((uint32_t *)val));
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      sprintf(result, "%"PRIu64, *((uint64_t *)val));
+      break;
     case TSDB_DATA_TYPE_FLOAT:
       sprintf(result, "%f", GET_FLOAT_VAL(val)); 
       break;

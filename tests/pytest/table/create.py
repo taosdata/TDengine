@@ -106,9 +106,9 @@ class TDTestCase:
         tdSql.query("select _block_dist() from db.`%s` ; " %self.stb1)
         tdSql.checkRows(0)
 
-        tdSql.query("show create stable db.`%s` ; " %self.stb1)
+        tdSql.query("show create table db.`%s` ; " %self.stb1)
         tdSql.checkData(0, 0, self.stb1)
-        tdSql.checkData(0, 1, "create table `%s` (ts TIMESTAMP,i INT) TAGS (j INT)" %self.stb1)
+        tdSql.checkData(0, 1, "CREATE TABLE `%s` (`ts` TIMESTAMP,`i` INT) TAGS (`j` INT)" %self.stb1)
 
         tdSql.execute("create table db.`table!1` using db.`%s` tags(1)" %self.stb1)
         tdSql.query("describe db.`table!1` ; ")
@@ -221,7 +221,7 @@ class TDTestCase:
 
         tdSql.query("show create stable `%s` ; " %self.stb2)
         tdSql.checkData(0, 0, self.stb2)
-        tdSql.checkData(0, 1, "create table `%s` (ts TIMESTAMP,i INT) TAGS (j INT)" %self.stb2)
+        tdSql.checkData(0, 1, "CREATE TABLE `%s` (`ts` TIMESTAMP,`i` INT) TAGS (`j` INT)" %self.stb2)
 
         tdSql.execute("create table `table!2` using `%s` tags(1)" %self.stb2)
         tdSql.query("describe `table!2` ; ")
@@ -310,7 +310,7 @@ class TDTestCase:
 
         tdSql.query("show create table `%s` ; " %self.regular_table)
         tdSql.checkData(0, 0, self.regular_table)
-        tdSql.checkData(0, 1, "CREATE TABLE `%s` (ts TIMESTAMP,i INT)" %self.regular_table)
+        tdSql.checkData(0, 1, "CREATE TABLE `%s` (`ts` TIMESTAMP,`i` INT)" %self.regular_table)
 
         tdSql.execute("insert into `%s`  values(now, 1)" %self.regular_table)
         tdSql.query("select * from  `%s` ; " %self.regular_table)
@@ -341,7 +341,12 @@ class TDTestCase:
 
         tdSql.error("select * from `%s`" %self.regular_table)
         
-   
+        # TS-1366 
+        tdSql.execute("create table meters(ts timestamp, c1 int) tags(t1 int, t2 tinyint unsigned, t3 smallint unsigned, t4 int unsigned, t5 bigint unsigned, t6 int)")
+        tdSql.execute("create table meter1 using meters tags(1, 2, 3, 4, 5, 6)")
+
+        tdSql.query("show create table meter1")
+        tdSql.checkData(0, 1, "CREATE TABLE `meter1` USING `meters` TAGS (1,2,3,4,5,6)")
 
 
     def stop(self):

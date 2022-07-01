@@ -9,22 +9,4 @@
     "username":"root",
     "workdir":"/var/data/jenkins/workspace",
     "thread":25
-},
-{
-    "host":"192.168.0.212",
-    "username":"root",
-    "workdir":"/var/data/jenkins/workspace",
-    "thread":25
-},
-{
-    "host":"192.168.0.213",
-    "username":"root",
-    "workdir":"/var/data/jenkins/workspace",
-    "thread":25
-},
-{
-    "host":"192.168.0.214",
-    "username":"root",
-    "workdir":"/var/data/jenkins/workspace",
-    "thread":25
 }]

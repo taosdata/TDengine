@@ -142,6 +142,7 @@ static int32_t tsRpcNum = 0;
 #define RPC_CONN_UDPC   1
 #define RPC_CONN_TCPS   2
 #define RPC_CONN_TCPC   3
+#define RPC_CONN_AUTO   4 // need tcp use tcp
 
 void *(*taosInitConn[])(uint32_t ip, uint16_t port, char *label, int threads, void *fp, void *shandle) = {
     taosInitUdpConnection,
@@ -405,7 +406,7 @@ void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64
   // connection type is application specific. 
   // for TDengine, all the query, show commands shall have TCP connection
   char type = pMsg->msgType;
-  if (type == TSDB_MSG_TYPE_QUERY || type == TSDB_MSG_TYPE_CM_RETRIEVE
+  if (type == TSDB_MSG_TYPE_QUERY || type == TSDB_MSG_TYPE_CM_RETRIEVE || type == TSDB_MSG_TYPE_SUBMIT
     || type == TSDB_MSG_TYPE_FETCH || type == TSDB_MSG_TYPE_CM_STABLE_VGROUP
     || type == TSDB_MSG_TYPE_CM_TABLES_META || type == TSDB_MSG_TYPE_CM_TABLE_META
     || type == TSDB_MSG_TYPE_CM_SHOW || type == TSDB_MSG_TYPE_DM_STATUS || type == TSDB_MSG_TYPE_CM_ALTER_TABLE)
@@ -1541,14 +1542,14 @@ static SRpcHead *rpcDecompressRpcMsg(SRpcHead *pHead) {
 }
 
 static int rpcAuthenticateMsg(void *pMsg, int msgLen, void *pAuth, void *pKey) {
-  MD5_CTX context;
+  T_MD5_CTX context;
   int     ret = -1;
 
-  MD5Init(&context);
-  MD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
-  MD5Update(&context, (uint8_t *)pMsg, msgLen);
-  MD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
-  MD5Final(&context);
+  tMD5Init(&context);
+  tMD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
+  tMD5Update(&context, (uint8_t *)pMsg, msgLen);
+  tMD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
+  tMD5Final(&context);
 
   if (memcmp(context.digest, pAuth, sizeof(context.digest)) == 0) ret = 0;
 
@@ -1556,13 +1557,13 @@ static int rpcAuthenticateMsg(void *pMsg, int msgLen, void *pAuth, void *pKey) {
 }
 
 static void rpcBuildAuthHead(void *pMsg, int msgLen, void *pAuth, void *pKey) {
-  MD5_CTX context;
+  T_MD5_CTX context;
 
-  MD5Init(&context);
-  MD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
-  MD5Update(&context, (uint8_t *)pMsg, msgLen);
-  MD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
-  MD5Final(&context);
+  tMD5Init(&context);
+  tMD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
+  tMD5Update(&context, (uint8_t *)pMsg, msgLen);
+  tMD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
+  tMD5Final(&context);
 
   memcpy(pAuth, context.digest, sizeof(context.digest));
 }

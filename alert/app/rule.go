@@ -96,6 +96,7 @@ func (alert *Alert) doRefresh(firing bool, rule *Rule) bool {
 	case (!firing) && (alert.State == AlertStateFiring):
 		alert.State = AlertStateWaiting
 		alert.EndsAt = time.Now()
+		return false
 
 	case firing && (alert.State == AlertStateWaiting):
 		alert.StartsAt = time.Now()

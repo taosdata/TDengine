@@ -29,8 +29,7 @@ class TDTestCase:
         self.numberOfTables = 8
         self.numberOfRecords = 1000000
 
-    def getBuildPath(self):
-        buildPath=""
+    def getPath(self, tool="taosBenchmark"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -38,26 +37,28 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files and "taosBenchmark" in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
+        if (len(paths) == 0):
+            return ""
+        return paths[0]
 
     def insertDataAndAlterTable(self, threadID):
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosd or staosBenchmark not found!")
+        binPath = self.getPath("taosBenchmark")
+        if (binPath == ""):
+            tdLog.exit("taosBenchmark not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
-        binPath = buildPath + "/build/bin/"
+            tdLog.info("taosBenchmark found in %s" % binPath)
 
         if(threadID == 0):
-            print("%staosBenchmark -y -t %d -n %d -b INT,INT,INT,INT" %
-                      (binPath, self.numberOfTables, self.numberOfRecords))
-            os.system("%staosBenchmark -y -t %d -n %d -b INT,INT,INT,INT" %
+            print("%s -y -t %d -n %d -b INT,INT,INT,INT" %
+                  (binPath, self.numberOfTables, self.numberOfRecords))
+            os.system("%s -y -t %d -n %d -b INT,INT,INT,INT" %
                       (binPath, self.numberOfTables, self.numberOfRecords))
         if(threadID == 1):
             time.sleep(2)

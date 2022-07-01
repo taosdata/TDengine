@@ -4,11 +4,16 @@
 # is required to use systemd to manage services at boot
 
 set -e
-# set -x
+#set -x
 
 # -----------------------Variables definition---------------------
-OS=$(cat /etc/*-release | grep "^NAME=" | cut -d= -f2)
-len=$(echo ${#OS})
-len=$((len-2))
-retval=$(echo -ne ${OS:1:${len}} | cut -d" " -f1)
-echo -ne $retval
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo -e "Darwin"
+else
+    OS=$(cat /etc/*-release | grep "^NAME=" | cut -d= -f2)
+    len=$(echo ${#OS})
+    len=$((len-2))
+    retval=$(echo -ne ${OS:1:${len}} | cut -d" " -f1)
+    echo -ne $retval
+fi

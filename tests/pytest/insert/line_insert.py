@@ -32,9 +32,9 @@ class TDTestCase:
 
         tdSql.execute('create stable ste(ts timestamp, f int) tags(t1 bigint)')
 
-        lines = [   "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"\"\"a    pa,\"s   si,t \"\"\",c2=false,c4=4f64 1626006833639000000",
+        lines = [   "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"\\\"\\\"a    pa,\\\"s   si,t \\\"\\\"\",c2=false,c4=4f64 1626006833639000000",
                     "st,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000",
-                    "ste,t2=5f64,t3=L\"ste\" c1=true,c2=4i64,c3=\" i,\"a \"m,\"\"\" 1626056811823316532",
+                    "ste,t2=5f64,t3=L\"ste\" c1=true,c2=4i64,c3=\" i,\\\"a \\\"m,\\\"\\\"\" 1626056811823316532",
                     "stf,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64,c6=7u64 1626006933640000000",
                     "st,t1=4i64,t2=5f64,t3=\"t4\" c1=3i64,c3=L\"passitagain\",c2=true,c4=5f64 1626006833642000000",
                     "ste,t2=5f64,t3=L\"ste2\" c3=\"iamszhou\",c4=false 1626056811843316532",
@@ -147,7 +147,7 @@ class TDTestCase:
         tdSql.query('select tbname from str')
         tdSql.checkRows(3)
 
-        ###Special Character and keyss
+        ###Special Character and keys
         self._conn.schemaless_insert([
                                 "1234,id=3456,abc=4i64,def=3i64 123=3i64,int=2i64,bool=false,into=5f64,column=7u64,!@#$.%^&*()=false 1626006933641",
                                 "int,id=and,123=4i64,smallint=5f64,double=5f64,of=3i64,key=L\"passitagin_stf\",!@#$.%^&*()=false abc=false 1626006933654",
@@ -193,6 +193,15 @@ class TDTestCase:
 
         #tdSql.query('select * from `create`')
         #tdSql.checkRows(1)
+
+        self._conn.schemaless_insert([
+                                "sts,t1=abc,t2=ab\"c,t3=ab\\,c,t4=ab\\=c,t5=ab\\ c c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64,c6=\"abc\" 1626006833640000000",
+                                "sts,t1=abc c1=3i64,c2=false,c3=L\"{\\\"date\\\":\\\"2020-01-01 08:00:00.000\\\",\\\"temperature\\\":20}\",c6=\"ab\\\\c\" 1626006833640000000"
+                                ], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+
+        tdSql.query('select tbname from sts')
+        tdSql.checkRows(2)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

@@ -41,7 +41,6 @@ bool taosGetProcMemory(float *memoryUsedMB) ;
 bool taosGetSysMemory(float *memoryUsedMB);
 void taosPrintOsInfo();
 void taosPrintDiskInfo();
-int  taosSystem(const char * cmd) ;
 void taosKillSystem();
 bool taosGetSystemUid(char *uid);
 char *taosGetCmdlineByPID(int pid);

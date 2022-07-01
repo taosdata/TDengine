@@ -1,0 +1,190 @@
+---
+toc_max_heading_level: 4
+sidebar_position: 7
+sidebar_label: C#
+title: C# Connector
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+import Preparation from "./_preparation.mdx"
+import CSInsert from "../../07-develop/03-insert-data/_cs_sql.mdx"
+import CSInfluxLine from "../../07-develop/03-insert-data/_cs_line.mdx"
+import CSOpenTSDBTelnet from "../../07-develop/03-insert-data/_cs_opts_telnet.mdx"
+import CSOpenTSDBJson from "../../07-develop/03-insert-data/_cs_opts_json.mdx"
+import CSQuery from "../../07-develop/04-query-data/_cs.mdx"
+import CSAsyncQuery from "../../07-develop/04-query-data/_cs_async.mdx"
+
+
+`TDengine.Connector` is a C# language connector provided by TDengine that allows C# developers to develop C# applications that access TDengine cluster data.
+
+The `TDengine.Connector` connector supports connect to TDengine instances via the TDengine client driver (taosc), providing data writing, querying, subscription, schemaless writing, bind interface, etc. The `TDengine.Connector` currently does not provide a REST connection interface. Developers can write their RESTful application by referring to the [REST API](/reference/rest-api/) documentation.
+
+This article describes how to install `TDengine.Connector` in a Linux or Windows environment and connect to TDengine clusters via `TDengine.Connector` to perform basic operations such as data writing and querying.
+
+The source code of `TDengine.Connector` is hosted on [GitHub](https://github.com/taosdata/taos-connector-dotnet).
+
+## Supported Platforms
+
+The supported platforms are the same as those supported by the TDengine client driver.
+
+## Version support
+
+Please refer to [version support list](/reference/connector#version-support)
+
+## Supported features
+
+1. Connection Management
+2. General Query
+3. Continuous Query
+4. Parameter Binding
+5. Subscription
+6. Schemaless
+
+## Installation Steps
+
+### Pre-installation preparation
+
+* Install the [.NET SDK](https://dotnet.microsoft.com/download)
+* [Nuget Client](https://docs.microsoft.com/en-us/nuget/install-nuget-client-tools) (optional installation)
+* Install TDengine client driver, please refer to [Install client driver](/reference/connector/#install-client-driver) for details
+
+### Install via dotnet CLI
+
+<Tabs defaultValue="CLI">
+<TabItem value="CLI" label="Get C# driver using dotnet CLI">
+
+You can reference the `TDengine.Connector` published in Nuget to the current project via the `dotnet` command under the path of the existing .NET project.
+
+```
+dotnet add package TDengine.Connector
+```
+
+</TabItem>
+<TabItem value="source" label="Use source code to get C# driver">
+
+You can download TDengine's source code and directly reference the latest version of the TDengine.Connector library
+
+```
+git clone https://github.com/taosdata/TDengine.git
+cd TDengine/src/connector/C#/src/
+cp -r TDengineDriver/ myProject
+
+cd myProject
+dotnet add TDengineDriver/TDengineDriver.csproj
+```
+</TabItem>
+</Tabs>
+
+## Create a connection
+
+```csharp
+using TDengineDriver;
+
+namespace TDengineExample
+{
+
+    internal class EstablishConnection
+    {
+        static void Main(String[] args)
+        {
+            string host = "localhost";
+            short port = 6030;
+            string username = "root";
+            string password = "taosdata";
+            string dbname = "";
+
+            var conn = TDengine.Connect(host, username, password, dbname, port);
+            if (conn == IntPtr.Zero)
+            {
+                Console.WriteLine("Connect to TDengine failed");
+            }
+            else
+            {
+                Console.WriteLine("Connect to TDengine success");
+            }
+            TDengine.Close(conn);
+            TDengine.Cleanup();
+        }
+    }
+}
+
+```
+
+## Usage examples
+
+### Write data
+
+#### SQL Write
+
+<CSInsert />
+
+#### InfluxDB line protocol write
+
+<CSInfluxLine />
+
+#### OpenTSDB Telnet line protocol write
+
+<CSOpenTSDBTelnet />
+
+#### OpenTSDB JSON line protocol write
+
+<CSOpenTSDBJson />
+
+### Query data
+
+#### Synchronous Query
+
+<CSQuery />
+
+#### Asynchronous query
+
+<CSAsyncQuery />
+
+### More sample programs
+
+|Sample program |Sample program description |
+|--------------------------------------------------------------------------------------------------------------------|------------ --------------------------------|
+| [C#checker](https://github.com/taosdata/TDengine/tree/develop/examples/C%23/C%23checker) | Using TDengine.Connector, you can test C# Driver's synchronous writes and queries |
+| [TDengineTest](https://github.com/taosdata/TDengine/tree/develop/examples/C%23/TDengineTest) | A simple example of writing and querying using TDengine.
+| [insertCn](https://github.com/taosdata/TDengine/tree/develop/examples/C%23/insertCn) | Example of writing and querying Chinese characters using TDengine.
+| [jsonTag](https://github.com/taosdata/TDengine/tree/develop/examples/C%23/jsonTag) | Example of writing and querying JSON tag type data using TDengine.
+| [stmt](https://github.com/taosdata/TDengine/tree/develop/examples/C%23/stmt) | Example of parameter binding using TDengine.
+| [schemaless](https://github.com/taosdata/TDengine/tree/develop/examples/C%23/schemaless) | Example of writing with schemaless implemented using TDengine. |schemaless
+| [benchmark](https://github.com/taosdata/TDengine/tree/develop/examples/C%23/taosdemo) | A simple benchmark implemented using TDengine.
+| [async query](https://github.com/taosdata/taos-connector-dotnet/blob/develop/examples/QueryAsyncSample.cs) | Example of an asynchronous query implemented using TDengine. Example of an asynchronous query
+| [subscribe](https://github.com/taosdata/taos-connector-dotnet/blob/develop/examples/SubscribeSample.cs) | Example of subscribing to data using TDengine. Data example
+
+## Important update records
+
+| TDengine.Connector | Description |
+|--------------------|--------------------------------|
+| 1.0.6 | Fix schemaless bug in 1.0.4 and 1.0.5. |
+| 1.0.5 | Fix Windows sync query Chinese error bug. | 1.0.4 | Fix schemaless bug.
+| 1.0.4 | Add asynchronous query, subscription, and other functions. Fix the binding parameter bug.
+| 1.0.3 | Add parameter binding, schemaless, JSON tag, etc. | new
+| 1.0.2 | Add connection management, synchronous query, error messages, etc.   ## Other
+
+## Other descriptions
+
+### Third-party driver
+
+`Taos` is an ADO.NET connector for TDengine, supporting Linux and Windows platforms. Community contributor `Maikebing@@maikebing contributes the connector`. Please refer to:
+
+* Interface download:<https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos>
+* Usage notes:<https://www.taosdata.com/blog/2020/11/02/1901.html>
+
+## Frequently Asked Questions
+
+1. "Unable to establish connection", "Unable to resolve FQDN"
+
+  Usually, it's caused by an incorrect FQDN configuration. Please refer to this section in the [FAQ](https://docs.tdengine.com/2.4/train-faq/faq/#2-how-to-handle-unable-to-establish-connection) to troubleshoot. 
+
+2. Unhandled exception. System.DllNotFoundException: Unable to load DLL 'taos' or one of its dependencies: The specified module cannot be found.
+
+  This is usually because the program did not find the dependent client driver. The solution is to copy `C:\TDengine\driver\taos.dll` to the `C:\Windows\System32\` directory on Windows, and create the following soft link on Linux `ln -s /usr/local/taos/driver/libtaos.so.x.x .x.x /usr/lib/libtaos.so` will work.
+
+## API Reference
+
+[API Reference](https://docs.taosdata.com/api/connector-csharp/html/860d2ac1-dd52-39c9-e460-0829c4e5a40b.htm)

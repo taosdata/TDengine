@@ -121,7 +121,7 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
   }
 
   if (!tsMnodeShowMetaFp[pShowMsg->type] || !tsMnodeShowRetrieveFp[pShowMsg->type]) {
-    mWarn("show type:%s is not support", mnodeGetShowType(pShowMsg->type));
+    mWarn("show type:%s is not supported", mnodeGetShowType(pShowMsg->type));
     return TSDB_CODE_COM_OPS_NOT_SUPPORT;
   }
 

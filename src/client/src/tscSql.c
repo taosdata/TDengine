@@ -64,7 +64,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   }
   SRpcCorEpSet corMgmtEpSet;
 
-  char secretEncrypt[TSDB_PASS_LEN] = {0};
+  char secretEncrypt[32] = {0};
   int  secretEncryptLen = 0;
   if (auth == NULL) {
     if (!validPassword(pass)) {
@@ -211,7 +211,9 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
       } else {
         printf("taos connect failed, reason: %s.\n\n", tstrerror(terrno));
       }
+      int32_t lastError = terrno;
       taos_free_result(pSql);
+      if (terrno != lastError) terrno = lastError;
       taos_close(pObj);
       return NULL;
     }
@@ -221,6 +223,8 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
 
     return pObj;
   }
+
+  printf("connect failed, reason: %s\n\n", taos_errstr(pSql));
 
   return NULL;
 }
@@ -431,6 +435,13 @@ int taos_affected_rows(TAOS_RES *tres) {
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
   return pSql->res.numOfRows;
+}
+
+int taos_affected_tables(TAOS_RES *tres) {
+  SSqlObj* pSql = (SSqlObj*) tres;
+  if (pSql == NULL || pSql->signature != pSql) return 0;
+
+  return pSql->res.numOfTables;
 }
 
 TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {

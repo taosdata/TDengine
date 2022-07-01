@@ -25,9 +25,9 @@ nohup taosd -c ${taosdConfig} > /dev/null 2>&1 &
 nohup taosadapter -c ${adapterConfig} > /dev/null 2>&1 &
 sleep 10
 
-cd ../../../../
-WKC=`pwd`
-cd ${WKC}/src/connector/jdbc
+cd ../../
+git clone git@github.com:taosdata/taos-connector-jdbc.git --branch main --single-branch --depth 1
+cd taos-connector-jdbc
 
 mvn clean test > jdbc-out.log 2>&1
 tail -n 20 jdbc-out.log

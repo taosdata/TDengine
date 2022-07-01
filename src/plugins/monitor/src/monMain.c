@@ -703,8 +703,8 @@ static int32_t monBuildMnodesTotalSql(char *sql) {
     for (int i = 0; i < num_fields; ++i) {
       if (strcmp(fields[i].name, "role") == 0) {
         int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        if (strncmp((char *)row[i], "master", charLen) == 0 ||
-            strncmp((char *)row[i], "slave", charLen) == 0)  {
+        if (strncmp((char *)row[i], "leader", charLen) == 0 ||
+            strncmp((char *)row[i], "follower", charLen) == 0)  {
           totalMnodesAlive += 1;
         }
       }
@@ -794,8 +794,8 @@ static int32_t monGetVnodesTotalStats(char *ep, int32_t *totalVnodes,
     for (int i = 0; i < num_fields; ++i) {
       if (strcmp(fields[i].name, "status") == 0) {
         int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        if (strncmp((char *)row[i], "master", charLen) == 0 ||
-            strncmp((char *)row[i], "slave", charLen) == 0)  {
+        if (strncmp((char *)row[i], "leader", charLen) == 0 ||
+            strncmp((char *)row[i], "follower", charLen) == 0)  {
           *totalVnodesAlive += 1;
         }
       }

@@ -548,7 +548,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pStatus->numOfCores   = htons(pStatus->numOfCores);
 
   uint32_t _version = htonl(pStatus->version);
-  if (_version != tsVersion >> 8) {
+  if ((_version >> 16) != (tsVersion >> 24)) {
     pDnode = mnodeGetDnodeByEp(pStatus->dnodeEp);
     if (pDnode != NULL && pDnode->status != TAOS_DN_STATUS_READY) {
       pDnode->offlineReason = TAOS_DN_OFF_VERSION_NOT_MATCH;
@@ -1044,7 +1044,7 @@ int32_t mnodeRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pC
   int32_t numOfRows = 0;
 
   char* pWrite;
-  char* moduleName[5] = { "MNODE", "HTTP", "MONITOR", "MQTT", "UNKNOWN" };
+  char* moduleName[4] = { "MNODE", "HTTP", "MONITOR", "UNKNOWN" };
   int32_t cols;
 
   while (numOfRows < rows) {
@@ -1252,7 +1252,10 @@ static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, vo
   char *     pWrite;
   int32_t    cols = 0;
 
-  if (0 == rows) return 0;
+  if (0 == rows) {
+    pShow->pIter = NULL;
+    return 0;
+  }
 
   pDnode = (SDnodeObj *)(pShow->pIter);
   if (pDnode != NULL) {

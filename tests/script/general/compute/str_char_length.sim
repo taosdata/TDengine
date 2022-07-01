@@ -1024,7 +1024,7 @@ if $data60 != @10@ then
 endi
 print execute sql select char_length(c15) from (select * from stb1);
 sql select char_length(c15) from (select * from stb1);
-if $data00 != @0@ then
+if $data00 != @1@ then
   return -1 
 endi
 if $data10 != @NULL@ then
@@ -1033,25 +1033,25 @@ endi
 if $data20 != @NULL@ then
   return -1 
 endi
-if $data30 != @0@ then
+if $data30 != @1@ then
   return -1 
 endi
-if $data40 != @0@ then
+if $data40 != @1@ then
   return -1 
 endi
-if $data50 != @0@ then
+if $data50 != @3@ then
   return -1 
 endi
 if $data60 != @0@ then
   return -1 
 endi
-if $data70 != @0@ then
+if $data70 != @1@ then
   return -1 
 endi
-if $data80 != @0@ then
+if $data80 != @1@ then
   return -1 
 endi
-if $data90 != @0@ then
+if $data90 != @1@ then
   return -1 
 endi
 print execute sql select char_length(cast(a as binary(10))) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null));
