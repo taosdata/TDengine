@@ -167,10 +167,10 @@ endi
 if $data(3)[2] != 3 then
 	return -1
 endi
-if $data(4)[2] != 3 then
+if $data(4)[2] != 4 then
 	return -1
 endi
-if $data(5)[2] != 4 then
+if $data(5)[2] != 3 then
 	return -1
 endi
 

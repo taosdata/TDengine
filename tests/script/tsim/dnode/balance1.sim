@@ -207,10 +207,10 @@ sql drop dnode 3
 sql show dnodes
 print dnode1 openVnodes $data(1)[2]
 print dnode2 openVnodes $data(4)[2]
-if $data(1)[2] != 1 then
+if $data(1)[2] != 2 then
 	return -1
 endi
-if $data(4)[2] != 3 then
+if $data(4)[2] != 2 then
 	return -1
 endi
 
