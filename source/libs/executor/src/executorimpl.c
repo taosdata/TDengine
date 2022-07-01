@@ -274,6 +274,9 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
 
   // 1. close current opened time window
   if (pResultRowInfo->cur.pageId != -1 && ((pResult == NULL) || (pResult->pageId != pResultRowInfo->cur.pageId))) {
+#ifdef BUF_PAGE_DEBUG
+    qDebug("page_1");
+#endif
     SResultRowPosition pos = pResultRowInfo->cur;
     SFilePage*         pPage = getBufPage(pResultBuf, pos.pageId);
     releaseBufPage(pResultBuf, pPage);
@@ -281,6 +284,9 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
 
   // allocate a new buffer page
   if (pResult == NULL) {
+#ifdef BUF_PAGE_DEBUG
+    qDebug("page_2");
+#endif
     ASSERT(pSup->resultRowSize > 0);
     pResult = getNewResultRow(pResultBuf, groupId, pSup->resultRowSize);
 
@@ -538,7 +544,9 @@ static int32_t doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunct
       if (pCtx[k].fpSet.process == NULL) {
         continue;
       }
-
+#ifdef BUF_PAGE_DEBUG
+      qDebug("page_process");
+#endif
       int32_t code = pCtx[k].fpSet.process(&pCtx[k]);
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s aggregate function error happens, code: %s", GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
@@ -1413,7 +1421,9 @@ void setExecutionContext(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t
   if (pAggInfo->groupId != INT32_MIN && pAggInfo->groupId == groupId) {
     return;
   }
-
+#ifdef BUF_PAGE_DEBUG
+  qDebug("page_setbuf, groupId:%"PRIu64, groupId);
+#endif
   doSetTableGroupOutputBuf(pOperator, pAggInfo, numOfOutput, groupId);
 
   // record the current active group id
@@ -1489,11 +1499,15 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprI
                            int32_t numOfExprs) {
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
   int32_t start = pGroupResInfo->index;
-
+#ifdef BUF_PAGE_DEBUG
+  qDebug("\npage_copytoblock rows:%d", numOfRows);
+#endif
   for (int32_t i = start; i < numOfRows; i += 1) {
     SResKeyPos* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
     SFilePage*  page = getBufPage(pBuf, pPos->pos.pageId);
-
+#ifdef BUF_PAGE_DEBUG
+    qDebug("page_copytoblock pos pageId:%d, offset:%d", pPos->pos.pageId, pPos->pos.offset);
+#endif
     SResultRow* pRow = (SResultRow*)((char*)page + pPos->pos.offset);
 
     doUpdateNumOfRows(pRow, numOfExprs, rowCellOffset);
@@ -1525,6 +1539,9 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprI
 
       pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowCellOffset);
       if (pCtx[j].fpSet.finalize) {
+#ifdef BUF_PAGE_DEBUG
+        qDebug("\npage_finalize %d", numOfExprs);
+#endif
         int32_t code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
         if (TAOS_FAILED(code)) {
           qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
@@ -1553,9 +1570,9 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprI
 
     releaseBufPage(pBuf, page);
     pBlock->info.rows += pRow->numOfRows;
-    if (pBlock->info.rows >= pBlock->info.capacity) {  // output buffer is full
-      break;
-    }
+//    if (pBlock->info.rows >= pBlock->info.capacity) {  // output buffer is full
+//      break;
+//    }
   }
 
   qDebug("%s result generated, rows:%d, groupId:%" PRIu64, GET_TASKID(pTaskInfo), pBlock->info.rows,
@@ -2373,8 +2390,7 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
   }
 
   pInfo->pSources = taosArrayInit(numOfSources, sizeof(SDownstreamSourceNode));
-  pInfo->pSourceDataInfo = taosArrayInit(numOfSources, sizeof(SSourceDataInfo));
-  if (pInfo->pSourceDataInfo == NULL || pInfo->pSources == NULL) {
+  if (pInfo->pSources == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -3165,8 +3181,9 @@ static int32_t handleLimitOffset(SOperatorInfo* pOperator, SSDataBlock* pBlock) 
   }
 
   // check for the limitation in each group
-  if (pProjectInfo->limit.limit > 0 && pProjectInfo->curOutput + pRes->info.rows >= pProjectInfo->limit.limit) {
-    pRes->info.rows = (int32_t)(pProjectInfo->limit.limit - pProjectInfo->curOutput);
+  if (pProjectInfo->limit.limit >= 0 && pProjectInfo->curOutput + pRes->info.rows >= pProjectInfo->limit.limit) {
+    int32_t keepRows = (int32_t)(pProjectInfo->limit.limit - pProjectInfo->curOutput);
+    blockDataKeepFirstNRows(pRes, keepRows);
     if (pProjectInfo->slimit.limit > 0 && pProjectInfo->slimit.limit <= pProjectInfo->curGroupOutput) {
       pOperator->status = OP_EXEC_DONE;
     }
@@ -3480,11 +3497,12 @@ int32_t initAggInfo(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInf
 }
 
 void initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows) {
+  ASSERT(numOfRows != 0);
   pOperator->resultInfo.capacity = numOfRows;
   pOperator->resultInfo.threshold = numOfRows * 0.75;
 
   if (pOperator->resultInfo.threshold == 0) {
-    pOperator->resultInfo.capacity = numOfRows;
+    pOperator->resultInfo.threshold = numOfRows;
   }
 }
 
@@ -3984,12 +4002,12 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo, int32_t groupNum) 
         return TSDB_CODE_QRY_APP_ERROR;
       }
       if (p == NULL) {
-        if (taosArrayPush(sortSupport, groupId) != NULL) {
+        if (taosArrayPush(sortSupport, groupId) == NULL) {
           qError("taos push support array error");
           taosArrayDestroy(sortSupport);
           return TSDB_CODE_QRY_APP_ERROR;
         }
-        if (taosArrayPush(pTableListInfo->pGroupList, &tGroup) != NULL) {
+        if (taosArrayPush(pTableListInfo->pGroupList, &tGroup) == NULL) {
           qError("taos push group array error");
           taosArrayDestroy(sortSupport);
           return TSDB_CODE_QRY_APP_ERROR;
@@ -4069,6 +4087,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
       } else {
         taosMemoryFree(keyBuf);
         nodesClearList(groupNew);
+        metaReaderClear(&mr);
         return code;
       }
 
@@ -4081,7 +4100,14 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
       } else {
         isNull[index++] = 0;
         char* data = nodesGetValueFromNode(pValue);
-        if (pValue->node.resType.type == TSDB_DATA_TYPE_JSON) {
+        if (pValue->node.resType.type == TSDB_DATA_TYPE_JSON){
+          if(tTagIsJson(data)){
+            terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
+            taosMemoryFree(keyBuf);
+            nodesClearList(groupNew);
+            metaReaderClear(&mr);
+            return terrno;
+          }
           int32_t len = getJsonValueLen(data);
           memcpy(pStart, data, len);
           pStart += len;
@@ -4140,7 +4166,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type) {
       STableMergeScanPhysiNode* pTableScanNode = (STableMergeScanPhysiNode*)pPhyNode;
       int32_t code = createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId);
-      if (code) {
+      if(code){
+        pTaskInfo->code = code;
         return NULL;
       }
       code = extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
@@ -4167,7 +4194,11 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
             .maxTs = INT64_MIN,
       };
       if (pHandle) {
-        createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId);
+        int32_t code = createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId);
+        if(code){
+          pTaskInfo->code = code;
+          return NULL;
+        }
       }
 
       SOperatorInfo* pOperator =
