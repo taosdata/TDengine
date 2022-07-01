@@ -695,7 +695,11 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
     res->node.resType.scale = output.columnData->info.scale;
     res->node.resType.precision = output.columnData->info.precision;
     int32_t type = output.columnData->info.type;
-    if (IS_VAR_DATA_TYPE(type)) {
+    if (type == TSDB_DATA_TYPE_JSON){
+      int32_t len = getJsonValueLen(output.columnData->pData);
+      res->datum.p = taosMemoryCalloc(len, 1);
+      memcpy(res->datum.p, output.columnData->pData, len);
+    } else if (IS_VAR_DATA_TYPE(type)) {
       res->datum.p = taosMemoryCalloc(res->node.resType.bytes + VARSTR_HEADER_SIZE + 1, 1);
       memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
     } else {

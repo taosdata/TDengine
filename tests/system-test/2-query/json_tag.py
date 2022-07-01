@@ -684,6 +684,19 @@ class TDTestCase:
         tdSql.query("select ELAPSED(ts,1h) from jsons1 where jtag->'tag1'>1;")
         tdSql.checkRows(1)
 
+        # to_json()
+        tdSql.query("select to_json('{\"abc\":123}') from jsons1_1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, '{"abc":123}')
+        tdSql.checkData(1, 0, '{"abc":123}')
+        tdSql.query("select to_json('null') from jsons1_1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 'null')
+        tdSql.checkData(1, 0, 'null')
+        tdSql.query("select to_json('{\"key\"}') from jsons1_1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 'null')
+        tdSql.checkData(1, 0, 'null')
 
         #test TD-12077
         tdSql.execute("insert into jsons1_16 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":-2.111}') values(1591062628000, 2, NULL, '你就会', 'dws')")
