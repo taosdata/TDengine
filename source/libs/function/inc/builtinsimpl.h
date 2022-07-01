@@ -117,6 +117,9 @@ int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t getFirstLastInfoSize(int32_t resBytes);
 
+int32_t lastRowFunction(SqlFunctionCtx *pCtx);
+int32_t lastRowFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
 bool getTopBotFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 bool getTopBotMergeFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 bool topBotFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
