@@ -58,10 +58,6 @@ class TDTestCase:
             tag_sql += f"{k} {v},"
         create_stb_sql = f'create table {stbname} ({column_sql[:-1]}) tags({tag_sql[:-1]})'
         return create_stb_sql
-    def datetime_transition(self,date,precision):
-        if precision == 'ns':
-            today_date = date*1000000000
-        return today_date
         
     def data_check(self,column_dict={},tbname = '',values_list = [],tb_num = 1,tb = 'tb',precision = 'ms'):
         for k,v in column_dict.items():
