@@ -548,13 +548,16 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
     } while (row.pTSRow);
   }
 
-  if (key.ts > pTbData->maxKey) {
-    pTbData->maxKey = key.ts;
+  if (key.ts >= pTbData->maxKey) {
+    if (key.ts > pTbData->maxKey) {
+      pTbData->maxKey = key.ts;
+    }
 
-    if (pLastRow) {
-      tsdbCacheInsertLastrow(pMemTable->pTsdb->lruCache, pTbData->uid, pLastRow, true);
+    if (pLastRow != NULL) {
+      tsdbCacheInsertLastrow(pMemTable->pTsdb->lruCache, pMemTable->pTsdb, pTbData->uid, pLastRow, true);
     }
   }
+
   pTbData->minVersion = TMIN(pTbData->minVersion, version);
   pTbData->maxVersion = TMAX(pTbData->maxVersion, version);
 
