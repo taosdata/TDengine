@@ -285,13 +285,16 @@ static bool isTableOk(STableKeyInfo* info, SNode *pTagCond, SMeta *metaHandle){
 
 int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, STableListInfo* pListInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
+
   pListInfo->pTableList = taosArrayInit(8, sizeof(STableKeyInfo));
-  if(pListInfo->pTableList == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (pListInfo->pTableList == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   uint64_t tableUid = pScanNode->uid;
 
   pListInfo->suid = pScanNode->suid;
-  
+
   SNode* pTagCond = (SNode*)pListInfo->pTagCond;
   SNode* pTagIndexCond = (SNode*)pListInfo->pTagIndexCond;
   if (pScanNode->tableType == TSDB_SUPER_TABLE) {
@@ -300,7 +303,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
           .metaEx = metaHandle, .idx = vnodeGetIdx(metaHandle), .ivtIdx = vnodeGetIvtIdx(metaHandle), .suid = tableUid};
 
       SArray* res = taosArrayInit(8, sizeof(uint64_t));
-      //code = doFilterTag(pTagIndexCond, &metaArg, res);
+      // code = doFilterTag(pTagIndexCond, &metaArg, res);
       code = TSDB_CODE_INDEX_REBUILDING;
       if (code == TSDB_CODE_INDEX_REBUILDING) {
         code = vnodeGetAllTableList(pVnode, tableUid, pListInfo->pTableList);
@@ -322,24 +325,27 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       code = vnodeGetAllTableList(pVnode, tableUid, pListInfo->pTableList);
     }
 
-    if(pTagCond){
+    if (pTagCond) {
       int32_t i = 0;
-      while(i < taosArrayGetSize(pListInfo->pTableList)) {
+      while (i < taosArrayGetSize(pListInfo->pTableList)) {
         STableKeyInfo* info = taosArrayGet(pListInfo->pTableList, i);
-        bool isOk = isTableOk(info, pTagCond, metaHandle);
-        if(!isOk){
+        bool           isOk = isTableOk(info, pTagCond, metaHandle);
+        if (!isOk) {
           taosArrayRemove(pListInfo->pTableList, i);
           continue;
         }
         i++;
       }
     }
-  }else {  // Create one table group.
+  } else {  // Create one table group.
     STableKeyInfo info = {.lastKey = 0, .uid = tableUid, .groupId = 0};
     taosArrayPush(pListInfo->pTableList, &info);
   }
+
   pListInfo->pGroupList = taosArrayInit(4, POINTER_BYTES);
-  if(pListInfo->pGroupList == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if(pListInfo->pGroupList == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   //put into list as default group, remove it if grouping sorting is required later
   taosArrayPush(pListInfo->pGroupList, &pListInfo->pTableList);
