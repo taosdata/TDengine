@@ -4002,12 +4002,12 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo, int32_t groupNum) 
         return TSDB_CODE_QRY_APP_ERROR;
       }
       if (p == NULL) {
-        if (taosArrayPush(sortSupport, groupId) != NULL) {
+        if (taosArrayPush(sortSupport, groupId) == NULL) {
           qError("taos push support array error");
           taosArrayDestroy(sortSupport);
           return TSDB_CODE_QRY_APP_ERROR;
         }
-        if (taosArrayPush(pTableListInfo->pGroupList, &tGroup) != NULL) {
+        if (taosArrayPush(pTableListInfo->pGroupList, &tGroup) == NULL) {
           qError("taos push group array error");
           taosArrayDestroy(sortSupport);
           return TSDB_CODE_QRY_APP_ERROR;
