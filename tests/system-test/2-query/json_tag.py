@@ -650,7 +650,7 @@ class TDTestCase:
         tdSql.checkRows(3)
         tdSql.query("select TO_UNIXTIMESTAMP(datastr) from jsons1 where jtag->'tag1'>1;")
         tdSql.checkRows(3)
-        tdSql.query("select TIMETRUNCATE(ts,1u) from jsons1 where jtag->'tag1'>1;")
+        tdSql.query("select TIMETRUNCATE(ts,1s) from jsons1 where jtag->'tag1'>1;")
         tdSql.checkRows(3)
         tdSql.query("select TIMEDIFF(ts,_c0) from jsons1 where jtag->'tag1'>1;")
         tdSql.checkRows(3)
