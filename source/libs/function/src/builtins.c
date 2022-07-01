@@ -1579,13 +1579,15 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   //add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
 
-  int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode *)nodesListGetNode(pFunc->pParameterList, 2));
-  if (ret == TIME_UNIT_TOO_SMALL) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "TIMEDIFF function time unit parameter should be greater than db precision");
-  } else if (ret == TIME_UNIT_INVALID) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "TIMEDIFF function time unit parameter should be one of the following: [1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+  if (3 == numOfParams) {
+    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode *)nodesListGetNode(pFunc->pParameterList, 2));
+    if (ret == TIME_UNIT_TOO_SMALL) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "TIMEDIFF function time unit parameter should be greater than db precision");
+    } else if (ret == TIME_UNIT_INVALID) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "TIMEDIFF function time unit parameter should be one of the following: [1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+    }
   }
 
   addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
