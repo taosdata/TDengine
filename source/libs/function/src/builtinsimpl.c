@@ -4283,7 +4283,7 @@ int32_t stateDurationFunction(SqlFunctionCtx* pCtx) {
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
 
   // TODO: process timeUnit for different db precisions
-  int32_t timeUnit = 1000;
+  int32_t timeUnit = 1;
   if (pCtx->numOfParams == 5) {  // TODO: param number incorrect
     timeUnit = pCtx->param[3].param.i;
   }
@@ -5508,7 +5508,7 @@ int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
 
   SRateInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  double result = doCalcRate(pInfo, 1000);
+  double result = doCalcRate(pInfo, (double)TSDB_TICK_PER_SECOND(pCtx->param[1].param.i));
   colDataAppend(pCol, pBlock->info.rows, (const char*)&result, pResInfo->isNullRes);
 
   return pResInfo->numOfRes;
@@ -5525,7 +5525,7 @@ int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
 
   int32_t startIndex = pInput->startRowIndex;
 
-  //escape rest of data blocks to avoid first entry be overwritten.
+  //escape rest of data blocks to avoid first entry to be overwritten.
   if (pInfo->hasResult) {
     goto _group_key_over;
   }

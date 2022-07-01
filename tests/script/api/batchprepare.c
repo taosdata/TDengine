@@ -915,7 +915,7 @@ int32_t prepareInsertData(BindData *data) {
   data->colNum = 0;
   data->colTypes = taosMemoryCalloc(30, sizeof(int32_t));
   data->sql = taosMemoryCalloc(1, 1024);
-  data->pBind = taosMemoryCalloc((allRowNum/gCurCase->bindRowNum)*gCurCase->bindColNum, sizeof(TAOS_MULTI_BIND));
+  data->pBind = taosMemoryCalloc((int32_t)(allRowNum/gCurCase->bindRowNum)*gCurCase->bindColNum, sizeof(TAOS_MULTI_BIND));
   data->pTags = taosMemoryCalloc(gCurCase->tblNum*gCurCase->bindTagNum, sizeof(TAOS_MULTI_BIND));
   data->tsData = taosMemoryMalloc(allRowNum * sizeof(int64_t));
   data->boolData = taosMemoryMalloc(allRowNum * sizeof(bool));
@@ -932,7 +932,7 @@ int32_t prepareInsertData(BindData *data) {
   data->binaryData = taosMemoryMalloc(allRowNum * gVarCharSize);
   data->binaryLen = taosMemoryMalloc(allRowNum * sizeof(int32_t));
   if (gCurCase->bindNullNum) {
-    data->isNull = taosMemoryCalloc(allRowNum, sizeof(char));
+    data->isNull = taosMemoryCalloc((int32_t)allRowNum, sizeof(char));
   }
   
   for (int32_t i = 0; i < allRowNum; ++i) {
@@ -950,7 +950,7 @@ int32_t prepareInsertData(BindData *data) {
     data->doubleData[i] = (double)(i+1);
     memset(data->binaryData + gVarCharSize * i, 'a'+i%26, gVarCharLen);
     if (gCurCase->bindNullNum) {
-      data->isNull[i] = i % 2;
+      data->isNull[i] = (char)(i % 2);
     }
     data->binaryLen[i] = gVarCharLen;
   }
@@ -979,7 +979,7 @@ int32_t prepareQueryCondData(BindData *data, int32_t tblIdx) {
   data->colNum = 0;
   data->colTypes = taosMemoryCalloc(30, sizeof(int32_t));
   data->sql = taosMemoryCalloc(1, 1024);
-  data->pBind = taosMemoryCalloc(bindNum*gCurCase->bindColNum, sizeof(TAOS_MULTI_BIND));
+  data->pBind = taosMemoryCalloc((int32_t)bindNum*gCurCase->bindColNum, sizeof(TAOS_MULTI_BIND));
   data->tsData = taosMemoryMalloc(bindNum * sizeof(int64_t));
   data->boolData = taosMemoryMalloc(bindNum * sizeof(bool));
   data->tinyData = taosMemoryMalloc(bindNum * sizeof(int8_t));
@@ -995,7 +995,7 @@ int32_t prepareQueryCondData(BindData *data, int32_t tblIdx) {
   data->binaryData = taosMemoryMalloc(bindNum * gVarCharSize);
   data->binaryLen = taosMemoryMalloc(bindNum * sizeof(int32_t));
   if (gCurCase->bindNullNum) {
-    data->isNull = taosMemoryCalloc(bindNum, sizeof(char));
+    data->isNull = taosMemoryCalloc((int32_t)bindNum, sizeof(char));
   }
   
   for (int32_t i = 0; i < bindNum; ++i) {
@@ -1013,7 +1013,7 @@ int32_t prepareQueryCondData(BindData *data, int32_t tblIdx) {
     data->doubleData[i] = (double)(tblIdx*gCurCase->rowNum + rand() % gCurCase->rowNum);
     memset(data->binaryData + gVarCharSize * i, 'a'+i%26, gVarCharLen);
     if (gCurCase->bindNullNum) {
-      data->isNull[i] = i % 2;
+      data->isNull[i] = (char)(i % 2);
     }
     data->binaryLen[i] = gVarCharLen;
   }
@@ -1036,7 +1036,7 @@ int32_t prepareQueryMiscData(BindData *data, int32_t tblIdx) {
   data->colNum = 0;
   data->colTypes = taosMemoryCalloc(30, sizeof(int32_t));
   data->sql = taosMemoryCalloc(1, 1024);
-  data->pBind = taosMemoryCalloc(bindNum*gCurCase->bindColNum, sizeof(TAOS_MULTI_BIND));
+  data->pBind = taosMemoryCalloc((int32_t)bindNum*gCurCase->bindColNum, sizeof(TAOS_MULTI_BIND));
   data->tsData = taosMemoryMalloc(bindNum * sizeof(int64_t));
   data->boolData = taosMemoryMalloc(bindNum * sizeof(bool));
   data->tinyData = taosMemoryMalloc(bindNum * sizeof(int8_t));
@@ -1052,7 +1052,7 @@ int32_t prepareQueryMiscData(BindData *data, int32_t tblIdx) {
   data->binaryData = taosMemoryMalloc(bindNum * gVarCharSize);
   data->binaryLen = taosMemoryMalloc(bindNum * sizeof(int32_t));
   if (gCurCase->bindNullNum) {
-    data->isNull = taosMemoryCalloc(bindNum, sizeof(char));
+    data->isNull = taosMemoryCalloc((int32_t)bindNum, sizeof(char));
   }
   
   for (int32_t i = 0; i < bindNum; ++i) {
@@ -1070,7 +1070,7 @@ int32_t prepareQueryMiscData(BindData *data, int32_t tblIdx) {
     data->doubleData[i] = (double)(tblIdx*gCurCase->rowNum + rand() % gCurCase->rowNum);
     memset(data->binaryData + gVarCharSize * i, 'a'+i%26, gVarCharLen);
     if (gCurCase->bindNullNum) {
-      data->isNull[i] = i % 2;
+      data->isNull[i] = (char)(i % 2);
     }
     data->binaryLen[i] = gVarCharLen;
   }
@@ -1279,7 +1279,7 @@ void bpCheckQueryResult(TAOS_STMT *stmt, TAOS *taos, char *stmtSql, TAOS_MULTI_B
     }
 
     memcpy(&sql[len], p, (int64_t)s - (int64_t)p);
-    len += (int64_t)s - (int64_t)p;
+    len += (int32_t)((int64_t)s - (int64_t)p);
     
     if (bind[i].is_null && bind[i].is_null[0]) {
       bpAppendValueString(sql, TSDB_DATA_TYPE_NULL, NULL, 0, &len);
@@ -2669,7 +2669,7 @@ int main(int argc, char *argv[])
 {
   TAOS     *taos = NULL;
 
-  srand(time(NULL));
+  srand((unsigned int)time(NULL));
   
   // connect to server
   if (argc < 2) {

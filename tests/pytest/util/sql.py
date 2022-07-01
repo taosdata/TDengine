@@ -96,6 +96,15 @@ class TDSql:
             return self.queryResult
         return self.queryRows
 
+    def is_err_sql(self, sql):
+        err_flag = True
+        try:
+            self.cursor.execute(sql)
+        except BaseException:
+            err_flag = False
+
+        return False if err_flag else True
+
     def getVariable(self, search_attr):
         '''
             get variable of search_attr access "show variables"
@@ -249,7 +258,6 @@ class TDSql:
             raise Exception(repr(e))
         return self.queryResult
 
-
     def executeTimes(self, sql, times):
         for i in range(times):
             try:
@@ -335,6 +343,38 @@ class TDSql:
             return int(times*1000)
         elif precision == "ns":
             return int(times*1000*1000)
+
+    def get_type(self, col):
+        if self.cursor.istype(col, "BOOL"):
+            return "BOOL"
+        if self.cursor.istype(col, "INT"):
+            return "INT"
+        if self.cursor.istype(col, "BIGINT"):
+            return "BIGINT"
+        if self.cursor.istype(col, "TINYINT"):
+            return "TINYINT"
+        if self.cursor.istype(col, "SMALLINT"):
+            return "SMALLINT"
+        if self.cursor.istype(col, "FLOAT"):
+            return "FLOAT"
+        if self.cursor.istype(col, "DOUBLE"):
+            return "DOUBLE"
+        if self.cursor.istype(col, "BINARY"):
+            return "BINARY"
+        if self.cursor.istype(col, "NCHAR"):
+            return "NCHAR"
+        if self.cursor.istype(col, "TIMESTAMP"):
+            return "TIMESTAMP"
+        if self.cursor.istype(col, "JSON"):
+            return "JSON"
+        if self.cursor.istype(col, "TINYINT UNSIGNED"):
+            return "TINYINT UNSIGNED"
+        if self.cursor.istype(col, "SMALLINT UNSIGNED"):
+            return "SMALLINT UNSIGNED"
+        if self.cursor.istype(col, "INT UNSIGNED"):
+            return "INT UNSIGNED"
+        if self.cursor.istype(col, "BIGINT UNSIGNED"):
+            return "BIGINT UNSIGNED"
 
     def taosdStatus(self, state):
         tdLog.sleep(5)
