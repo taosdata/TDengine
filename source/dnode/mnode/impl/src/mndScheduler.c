@@ -562,7 +562,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
     if (pIter == NULL) break;
-    if (!mndVgroupInDb(pVgroup, pTopic->uid)) {
+    if (!mndVgroupInDb(pVgroup, pTopic->dbUid)) {
       sdbRelease(pSdb, pVgroup);
       continue;
     }
