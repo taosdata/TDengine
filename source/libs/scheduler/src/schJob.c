@@ -1495,6 +1495,8 @@ void schFreeJobImpl(void *job) {
   uint64_t queryId = pJob->queryId;
   int64_t  refId = pJob->refId;
 
+  qDebug("QID:0x%" PRIx64 " begin to free sch job, refId:0x%" PRIx64 ", pointer:%p", queryId, refId, pJob);
+
   if (pJob->status == JOB_TASK_STATUS_EXECUTING) {
     schCancelJob(pJob);
   }
@@ -1535,12 +1537,12 @@ void schFreeJobImpl(void *job) {
   taosMemoryFreeClear(pJob->resData);
   taosMemoryFree(pJob);
 
-  qDebug("QID:0x%" PRIx64 " sch job freed, refId:0x%" PRIx64 ", pointer:%p", queryId, refId, pJob);
-
   int32_t jobNum = atomic_sub_fetch_32(&schMgmt.jobNum, 1);
   if (jobNum == 0) {
     schCloseJobRef();
   }
+
+  qDebug("QID:0x%" PRIx64 " sch job freed, refId:0x%" PRIx64 ", pointer:%p", queryId, refId, pJob);
 }
 
 int32_t schLaunchStaticExplainJob(SSchedulerReq *pReq, SSchJob *pJob, bool sync) {

@@ -153,7 +153,13 @@ void destroyAppInst(SAppInstInfo *pAppInfo) {
 }
 
 void destroyTscObj(void *pObj) {
+  if (NULL == pObj) {
+    return;
+  }
+  
   STscObj *pTscObj = pObj;
+  int64_t tscId = pTscObj->id;
+  tscDebug("begin to destroy tscObj %" PRIx64 " p:%p", tscId, pTscObj);
 
   SClientHbKey connKey = {.tscRid = pTscObj->id, .connType = pTscObj->connType};
   hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
@@ -168,6 +174,8 @@ void destroyTscObj(void *pObj) {
   }
   taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFreeClear(pTscObj);
+
+  tscDebug("end to destroy tscObj %" PRIx64 " p:%p", tscId, pTscObj);
 }
 
 void *createTscObj(const char *user, const char *auth, const char *db, int32_t connType, SAppInstInfo *pAppInfo) {
@@ -261,9 +269,14 @@ int32_t releaseRequest(int64_t rid) { return taosReleaseRef(clientReqRefPool, ri
 int32_t removeRequest(int64_t rid) { return taosRemoveRef(clientReqRefPool, rid); }
 
 void doDestroyRequest(void *p) {
-  assert(p != NULL);
+  if (NULL == p) {
+    return;
+  }
+  
   SRequestObj *pRequest = (SRequestObj *)p;
-
+  int64_t reqId = pRequest->self;
+  tscDebug("begin to destroy request %" PRIx64 " p:%p", reqId, pRequest);
+  
   taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
 
   if (pRequest->body.queryJob != 0) {
@@ -285,6 +298,8 @@ void doDestroyRequest(void *p) {
     deregisterRequest(pRequest);
   }
   taosMemoryFreeClear(pRequest);
+
+  tscDebug("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
 }
 
 void destroyRequest(SRequestObj *pRequest) {

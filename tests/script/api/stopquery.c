@@ -156,6 +156,28 @@ void sqCloseQueryCb(void *param, TAOS_RES *pRes, int code) {
   }
 }
 
+void sqKillFetchCb(void *param, TAOS_RES *pRes, int numOfRows) {
+  SSP_CB_PARAM *qParam = (SSP_CB_PARAM *)param;
+  taos_kill_query(qParam->taos);
+
+  *qParam->end = 1;
+}
+
+void sqKillQueryCb(void *param, TAOS_RES *pRes, int code) {
+  SSP_CB_PARAM *qParam = (SSP_CB_PARAM *)param;
+  if (code == 0 && pRes) {
+    if (qParam->fetch) {
+      taos_fetch_rows_a(pRes, sqKillFetchCb, param);
+    } else {
+      taos_kill_query(qParam->taos);
+      *qParam->end = 1;
+    }
+  } else {
+    sqExit("select", taos_errstr(pRes));
+  }
+}
+
+
 int sqSyncStopQuery(bool fetch) {
   CASE_ENTER();  
   for (int32_t i = 0; i < runTimes; ++i) {
@@ -391,6 +413,69 @@ int sqConSyncCloseQuery(bool fetch) {
   CASE_LEAVE();  
 }
 
+int sqSyncKillQuery(bool fetch) {
+  CASE_ENTER();  
+  for (int32_t i = 0; i < runTimes; ++i) {
+    char    sql[1024]  = {0};
+    int32_t code = 0;
+    TAOS   *taos = taos_connect(hostName, "root", "taosdata", NULL, 0);
+    if (taos == NULL) sqExit("taos_connect", taos_errstr(NULL));
+
+    sprintf(sql, "reset query cache");
+    sqExecSQL(taos, sql);
+
+    sprintf(sql, "use %s", dbName);
+    sqExecSQL(taos, sql);
+
+    sprintf(sql, "select * from %s", tbName);
+    TAOS_RES* pRes = taos_query(taos, sql);
+    code = taos_errno(pRes);
+    if (code) {
+      sqExit("taos_query", taos_errstr(pRes));
+    }
+
+    if (fetch) {
+      taos_fetch_row(pRes);
+    }
+
+    taos_kill_query(taos);
+    
+    taos_close(taos);
+  }
+  CASE_LEAVE();  
+}
+
+int sqAsyncKillQuery(bool fetch) {
+  CASE_ENTER();  
+  for (int32_t i = 0; i < runTimes; ++i) {
+    char    sql[1024]  = {0};
+    int32_t code = 0;
+    TAOS   *taos = taos_connect(hostName, "root", "taosdata", NULL, 0);
+    if (taos == NULL) sqExit("taos_connect", taos_errstr(NULL));
+
+    sprintf(sql, "reset query cache");
+    sqExecSQL(taos, sql);
+
+    sprintf(sql, "use %s", dbName);
+    sqExecSQL(taos, sql);
+
+    sprintf(sql, "select * from %s", tbName);
+
+    int32_t qEnd = 0;
+    SSP_CB_PARAM param = {0};
+    param.fetch = fetch;
+    param.end = &qEnd;
+    taos_query_a(taos, sql, sqKillQueryCb, &param);
+    while (0 == qEnd) {
+      usleep(5000);
+    }
+    
+    taos_close(taos);
+  }
+  CASE_LEAVE();  
+}
+
+
 void sqRunAllCase(void) {
 /*
   sqSyncStopQuery(false);
@@ -409,8 +494,14 @@ void sqRunAllCase(void) {
   sqAsyncCloseQuery(true);
 */  
   sqConSyncCloseQuery(false);
+/*  
   sqConSyncCloseQuery(true);
 
+  sqSyncKillQuery(false);
+  sqSyncKillQuery(true);
+  sqAsyncKillQuery(false);
+  sqAsyncKillQuery(true);
+*/
 }
 
 
