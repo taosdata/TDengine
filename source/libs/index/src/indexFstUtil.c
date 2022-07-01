@@ -75,7 +75,6 @@ CompiledAddr unpackDelta(char* data, uint64_t len, uint64_t nodeAddr) {
 }
 
 // fst slice func
-//
 
 FstSlice fstSliceCreate(uint8_t* data, uint64_t len) {
   FstString* str = (FstString*)taosMemoryMalloc(sizeof(FstString));

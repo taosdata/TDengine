@@ -41,13 +41,13 @@ typedef struct IFileCtx {
       TdFilePtr pFile;
       bool      readOnly;
       char      buf[256];
-      int       size;
+      int64_t   size;
 #ifdef USE_MMAP
       char* ptr;
 #endif
     } file;
     struct {
-      int32_t capa;
+      int32_t cap;
       char*   buf;
     } mem;
   };

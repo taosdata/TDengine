@@ -61,7 +61,7 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
   }
   return nRead;
 }
-static int writeCtxGetSize(IFileCtx* ctx) {
+static int idxFileCtxGetSize(IFileCtx* ctx) {
   if (ctx->type == TFile) {
     int64_t file_size = 0;
     taosStatFile(ctx->file.buf, &file_size, NULL);
@@ -90,38 +90,36 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
   if (ctx->type == TFile) {
     // ugly code, refactor later
     ctx->file.readOnly = readOnly;
+    memcpy(ctx->file.buf, path, strlen(path));
     if (readOnly == false) {
       ctx->file.pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
       taosFtruncateFile(ctx->file.pFile, 0);
-      int64_t file_size;
-      taosStatFile(path, &file_size, NULL);
-      ctx->file.size = (int)file_size;
+      taosStatFile(path, &ctx->file.size, NULL);
+      // ctx->file.size = (int)size;
 
     } else {
-      // ctx->file.pFile = open(path, O_RDONLY, S_IRWXU | S_IRWXG | S_IRWXO);
       ctx->file.pFile = taosOpenFile(path, TD_FILE_READ);
 
-      int64_t file_size = 0;
-      taosFStatFile(ctx->file.pFile, &file_size, NULL);
-      ctx->file.size = (int)file_size;
+      int64_t size = 0;
+      taosFStatFile(ctx->file.pFile, &ctx->file.size, NULL);
+      ctx->file.size = (int)size;
 #ifdef USE_MMAP
       ctx->file.ptr = (char*)tfMmapReadOnly(ctx->file.pFile, ctx->file.size);
 #endif
     }
-    memcpy(ctx->file.buf, path, strlen(path));
     if (ctx->file.pFile == NULL) {
       indexError("failed to open file, error %d", errno);
       goto END;
     }
   } else if (ctx->type == TMemory) {
     ctx->mem.buf = taosMemoryCalloc(1, sizeof(char) * capacity);
-    ctx->mem.capa = capacity;
+    ctx->mem.cap = capacity;
   }
   ctx->write = idxFileCtxDoWrite;
   ctx->read = idxFileCtxDoRead;
   ctx->flush = idxFileCtxDoFlush;
   ctx->readFrom = idxFileCtxDoReadFrom;
-  ctx->size = writeCtxGetSize;
+  ctx->size = idxFileCtxGetSize;
 
   ctx->offset = 0;
   ctx->limit = capacity;
