@@ -199,7 +199,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
 
   pStb->pColumns = taosMemoryCalloc(pStb->numOfColumns, sizeof(SSchema));
   pStb->pTags = taosMemoryCalloc(pStb->numOfTags, sizeof(SSchema));
-  pStb->pFuncs = taosMemoryCalloc(pStb->numOfFuncs, TSDB_FUNC_NAME_LEN);
+  pStb->pFuncs = taosArrayInit(pStb->numOfFuncs, TSDB_FUNC_NAME_LEN);
   if (pStb->pColumns == NULL || pStb->pTags == NULL || pStb->pFuncs == NULL) {
     goto _OVER;
   }
@@ -320,6 +320,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
       taosWUnLockLatch(&pOld->lock);
     }
   }
+  pOld->commentLen = pNew->commentLen;
 
   if (pOld->ast1Len < pNew->ast1Len) {
     void *pAst1 = taosMemoryMalloc(pNew->ast1Len + 1);
@@ -625,6 +626,11 @@ static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
       continue;
     }
 
+    if (pVgroup->isTsma) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+
     void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen);
     if (pReq == NULL) {
       sdbCancelFetch(pSdb, pIter);
@@ -659,6 +665,11 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
     if (pVgroup->dbUid != pDb->uid) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+
+    if (pVgroup->isTsma) {
       sdbRelease(pSdb, pVgroup);
       continue;
     }
@@ -1291,6 +1302,11 @@ static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       continue;
     }
 
+    if (pVgroup->isTsma) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+
     void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen);
     if (pReq == NULL) {
       sdbCancelFetch(pSdb, pIter);
@@ -1405,7 +1421,7 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
     pSchema->bytes = pSrcSchema->bytes;
   }
 
-  if (pStb->pFuncs) {
+  if (pStb->numOfFuncs > 0) {
     pRsp->pFuncs = taosArrayDup(pStb->pFuncs);
   }
 
@@ -1677,6 +1693,11 @@ static int32_t mndSetDropStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
       continue;
     }
 
+    if (pVgroup->isTsma) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+
     int32_t contLen = 0;
     void   *pReq = mndBuildVDropStbReq(pMnode, pVgroup, pStb, &contLen);
     if (pReq == NULL) {
@@ -1706,7 +1727,7 @@ static int32_t mndSetDropStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
 
 static int32_t mndDropStb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop stb:%s", pTrans->id, pStb->name);
