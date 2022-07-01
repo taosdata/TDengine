@@ -165,6 +165,7 @@ typedef struct SSyncLogStore {
   bool (*syncLogIsEmpty)(struct SSyncLogStore* pLogStore);
   int32_t (*syncLogEntryCount)(struct SSyncLogStore* pLogStore);
   int32_t (*syncLogRestoreFromSnapshot)(struct SSyncLogStore* pLogStore, SyncIndex index);
+  bool (*syncLogExist)(struct SSyncLogStore* pLogStore, SyncIndex index);
 
   SyncIndex (*syncLogWriteIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogLastIndex)(struct SSyncLogStore* pLogStore);

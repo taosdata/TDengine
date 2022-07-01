@@ -128,38 +128,14 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
     // next index
     SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
 
-    // if pre-entry not exist, create snapshot
-    SyncIndex       preLogIndex = syncNodeGetPreIndex(pSyncNode, nextIndex);
-    SSyncRaftEntry* pPreEntry = NULL;
-    int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, preLogIndex, &pPreEntry);
-    if (code == -1 && terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
-      SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
-      if (pSyncNode->pFsm->FpGetSnapshot != NULL) {
-        void*        pReader = NULL;
-        SReaderParam readerParam = {.start = 0, .end = nextIndex};
-        pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot, &readerParam, &pReader);
-
-        // get sender
-        SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(pSyncNode, pDestId);
-        ASSERT(pSender != NULL);
-
-        if (snapshot.lastApplyIndex >= SYNC_INDEX_BEGIN && nextIndex <= snapshot.lastApplyIndex + 1 &&
-            !snapshotSenderIsStart(pSender)) {
-          // start snapshot
-          snapshotSenderStart(pSender, snapshot, pReader);
-        } else {
-          // no snapshot
-          if (pReader != NULL) {
-            pSyncNode->pFsm->FpSnapshotStopRead(pSyncNode->pFsm, pReader);
-          }
-        }
-      }
-    }
-
     // pre index, pre term
-    preLogIndex = syncNodeGetPreIndex(pSyncNode, nextIndex);
-    SyncTerm preLogTerm = syncNodeGetPreTerm(pSyncNode, nextIndex);
+    SyncIndex preLogIndex = syncNodeGetPreIndex(pSyncNode, nextIndex);
+    SyncTerm  preLogTerm = syncNodeGetPreTerm(pSyncNode, nextIndex);
     if (preLogTerm == SYNC_TERM_INVALID) {
+      SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(pSyncNode, pDestId);
+      ASSERT(pSender != NULL);
+      ASSERT(!snapshotSenderIsStart(pSender));
+
       SyncIndex newNextIndex = syncNodeGetLastIndex(pSyncNode) + 1;
       syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, newNextIndex);
       syncIndexMgrSetIndex(pSyncNode->pMatchIndex, pDestId, SYNC_INDEX_INVALID);

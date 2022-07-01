@@ -58,11 +58,6 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode);
 int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg);
 int32_t syncNodeAppendEntriesBatch(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntriesBatch* pMsg);
 
-typedef struct SReaderParam {
-  SyncIndex start;
-  SyncIndex end;
-} SReaderParam;
-
 #ifdef __cplusplus
 }
 #endif
