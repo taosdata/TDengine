@@ -920,6 +920,10 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
         }
       }
 
+      if (*ppRow) {
+        taosMemoryFreeClear(*ppRow);
+      }
+
       continue;
     }
 
@@ -949,6 +953,10 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
           }
         }
       }
+    }
+
+    if (*ppRow) {
+      taosMemoryFreeClear(*ppRow);
     }
   } while (nilColCount > 0);
 
