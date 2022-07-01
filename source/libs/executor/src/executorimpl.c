@@ -3240,8 +3240,6 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       longjmp(pTaskInfo->env, code);
     }
 
-    doFilter(pProjectInfo->pFilterNode, pBlock);
-
     setInputDataBlock(pOperator, pSup->pCtx, pBlock, order, scanFlag, false);
     blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
 
@@ -3252,6 +3250,10 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     }
 
     int32_t status = handleLimitOffset(pOperator, pBlock);
+
+    // filter shall be applied after apply functions and limit/offset on the result
+    doFilter(pProjectInfo->pFilterNode, pInfo->pRes);
+
     if (status == PROJECT_RETRIEVE_CONTINUE) {
       continue;
     } else if (status == PROJECT_RETRIEVE_DONE) {

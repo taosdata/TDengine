@@ -53,8 +53,10 @@ extern "C" {
 //
 int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode);
 int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode);
+int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode);
 int32_t syncNodeReplicate(SSyncNode* pSyncNode);
 int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg);
+int32_t syncNodeAppendEntriesBatch(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntriesBatch* pMsg);
 
 #ifdef __cplusplus
 }
