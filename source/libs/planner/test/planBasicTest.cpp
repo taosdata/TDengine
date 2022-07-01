@@ -103,6 +103,14 @@ TEST_F(PlanBasicTest, lastRowFunc) {
   run("SELECT LAST_ROW(c1), SUM(c3) FROM t1");
 }
 
+TEST_F(PlanBasicTest, timeLineFunc) {
+  useDb("root", "test");
+
+  run("SELECT CSUM(c1) FROM t1");
+
+  run("SELECT CSUM(c1) FROM st1");
+}
+
 TEST_F(PlanBasicTest, sampleFunc) {
   useDb("root", "test");
 

@@ -542,6 +542,7 @@ static int32_t createIndefRowsFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt
 
   pIdfRowsFunc->isTailFunc = pSelect->hasTailFunc;
   pIdfRowsFunc->isUniqueFunc = pSelect->hasUniqueFunc;
+  pIdfRowsFunc->isTimeLineFunc = pSelect->hasTimeLineFunc;
 
   // indefinite rows functions and _select_values functions
   int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, fmIsVectorFunc, &pIdfRowsFunc->pFuncs);

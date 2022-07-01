@@ -440,6 +440,10 @@ static bool isTimelineFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsTimelineFunc(((SFunctionNode*)pNode)->funcId));
 }
 
+static bool isImplicitTsFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsImplicitTsFunc(((SFunctionNode*)pNode)->funcId));
+}
+
 static bool isScanPseudoColumnFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsScanPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
 }
@@ -557,9 +561,9 @@ static bool isInternalPrimaryKey(const SColumnNode* pCol) {
   return PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId && 0 == strcmp(pCol->colName, PK_TS_COL_INTERNAL_NAME);
 }
 
-static bool isTimeOrderQuery(SNode* pStmt) {
+static bool isTimeLineQuery(SNode* pStmt) {
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
-    return ((SSelectStmt*)pStmt)->isTimeOrderQuery;
+    return ((SSelectStmt*)pStmt)->isTimeLineResult;
   } else {
     return false;
   }
@@ -580,7 +584,7 @@ static bool isPrimaryKeyImpl(STempTableNode* pTable, SNode* pExpr) {
 }
 
 static bool isPrimaryKey(STempTableNode* pTable, SNode* pExpr) {
-  if (!isTimeOrderQuery(pTable->pSubquery)) {
+  if (!isTimeLineQuery(pTable->pSubquery)) {
     return false;
   }
   return isPrimaryKeyImpl(pTable, pExpr);
@@ -1252,6 +1256,7 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
     pSelect->hasTailFunc = pSelect->hasTailFunc ? true : (FUNCTION_TYPE_TAIL == pFunc->funcType);
     pSelect->hasInterpFunc = pSelect->hasInterpFunc ? true : (FUNCTION_TYPE_INTERP == pFunc->funcType);
     pSelect->hasLastRowFunc = pSelect->hasLastRowFunc ? true : (FUNCTION_TYPE_LAST_ROW == pFunc->funcType);
+    pSelect->hasTimeLineFunc = pSelect->hasLastRowFunc ? true : fmIsTimelineFunc(pFunc->funcId);
   }
 }
 
@@ -2130,7 +2135,7 @@ static int32_t translateGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   }
   if (NULL != pSelect->pGroupByList) {
     pCxt->currClause = SQL_CLAUSE_GROUP_BY;
-    pSelect->isTimeOrderQuery = false;
+    pSelect->isTimeLineResult = false;
     return translateExprList(pCxt, pSelect->pGroupByList);
   }
   return TSDB_CODE_SUCCESS;
@@ -2464,9 +2469,9 @@ static int32_t createPrimaryKeyCol(STranslateContext* pCxt, SNode** pPrimaryKey)
   return code;
 }
 
-static EDealRes rewriteTimelineFuncImpl(SNode* pNode, void* pContext) {
+static EDealRes appendTsForImplicitTsFuncImpl(SNode* pNode, void* pContext) {
   STranslateContext* pCxt = pContext;
-  if (isTimelineFunc(pNode)) {
+  if (isImplicitTsFunc(pNode)) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     SNode*         pPrimaryKey = NULL;
     pCxt->errCode = createPrimaryKeyCol(pCxt, &pPrimaryKey);
@@ -2478,8 +2483,8 @@ static EDealRes rewriteTimelineFuncImpl(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t rewriteTimelineFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, rewriteTimelineFuncImpl, pCxt);
+static int32_t appendTsForImplicitTsFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, appendTsForImplicitTsFuncImpl, pCxt);
   return pCxt->errCode;
 }
 
@@ -2579,7 +2584,7 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateInterp(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteTimelineFunc(pCxt, pSelect);
+    code = appendTsForImplicitTsFunc(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceOrderByAlias(pCxt, pSelect->pProjectionList, pSelect->pOrderByList);
