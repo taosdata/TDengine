@@ -428,7 +428,7 @@ typedef struct SIntervalAggOperatorInfo {
   STimeWindowAggSupp twAggSup;
   bool               invertible;
   SArray*            pPrevValues;        //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
-  bool               ignoreCloseWindow;
+  bool               ignoreExpiredData;
 } SIntervalAggOperatorInfo;
 
 typedef struct SStreamFinalIntervalOperatorInfo {
@@ -450,7 +450,7 @@ typedef struct SStreamFinalIntervalOperatorInfo {
   SArray*            pPullWins;          // SPullWindowInfo
   int32_t            pullIndex;
   SSDataBlock*       pPullDataRes;
-  bool               ignoreCloseWindow;
+  bool               ignoreExpiredData;
 } SStreamFinalIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
@@ -588,7 +588,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   SArray*              pChildren;       // cache for children's result; final stream operator
   SPhysiNode*          pPhyNode;           // create new child
   bool                 isFinal;
-  bool                 ignoreCloseWindow;
+  bool                 ignoreExpiredData;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct STimeSliceOperatorInfo {
@@ -632,7 +632,7 @@ typedef struct SStreamStateAggOperatorInfo {
   void*                pDelIterator;
   SArray*              pScanWindow;
   SArray*              pChildren;       // cache for children's result;
-  bool                 ignoreCloseWindow;
+  bool                 ignoreExpiredData;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SSortedMergeOperatorInfo {
