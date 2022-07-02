@@ -106,6 +106,7 @@
 ./test.sh -f tsim/stream/partitionby1.sim
 ./test.sh -f tsim/stream/schedSnode.sim
 ./test.sh -f tsim/stream/windowClose.sim
+./test.sh -f tsim/stream/ignoreExpiredData.sim
 
 # ---- transaction
  ./test.sh -f tsim/trans/lossdata1.sim

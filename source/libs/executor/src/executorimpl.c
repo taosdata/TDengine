@@ -3253,6 +3253,10 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       doSetOperatorCompleted(pOperator);
       break;
     }
+    if (pBlock->info.type == STREAM_RETRIEVE) {
+      // for stream interval
+      return pBlock;
+    }
 
     // the pDataBlock are always the same one, no need to call this again
     int32_t code = getTableScanInfo(pOperator->pDownstream[0], &order, &scanFlag);
