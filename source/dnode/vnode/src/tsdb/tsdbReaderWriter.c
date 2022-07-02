@@ -1139,9 +1139,55 @@ _err:
   return code;
 }
 
-int32_t tsdbReadBlockSMA(SDataFReader *pReader, SBlockSMA *pBlkSMA) {
-  int32_t code = 0;
-  // TODO
+int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnDataAgg, uint8_t **ppBuf) {
+  int32_t   code = 0;
+  TdFilePtr pFD = pReader->pSmaFD;
+  int64_t   offset = pBlock->aSubBlock[0].offset;
+  int64_t   size = pBlock->aSubBlock[0].nSma * sizeof(SColumnDataAgg) + sizeof(TSCKSUM);
+  uint8_t  *pBuf = NULL;
+  int64_t   n;
+
+  ASSERT(tBlockHasSma(pBlock));
+
+  if (!ppBuf) ppBuf = &pBuf;
+  code = tsdbRealloc(ppBuf, size);
+  if (code) goto _err;
+
+  // lseek
+  n = taosLSeekFile(pFD, offset, SEEK_SET);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // read
+  n = taosReadFile(pFD, *ppBuf, size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // check
+  if (!taosCheckChecksumWhole(NULL, size)) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _err;
+  }
+
+  // decode
+  taosArrayClear(aColumnDataAgg);
+  for (int32_t iSma = 0; iSma < pBlock->aSubBlock[0].nSma; iSma++) {
+    if (taosArrayPush(aColumnDataAgg, &((SColumnDataAgg *)(*ppBuf))[iSma]) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+  }
+
+  tsdbFree(pBuf);
+  return code;
+
+_err:
+  tsdbError("vgId:%d read block sma failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  tsdbFree(pBuf);
   return code;
 }
 
@@ -1699,24 +1745,7 @@ _err:
   return code;
 }
 
-static void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
-  SColVal  colVal;
-  SColVal *pColVal = &colVal;
-
-  *pColAgg = (SColumnDataAgg){.colId = pColData->cid};
-  for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
-    tColDataGetValue(pColData, iVal, pColVal);
-
-    if (pColVal->isNone || pColVal->isNull) {
-      pColAgg->numOfNull++;
-    } else {
-      // TODO:
-      ASSERT(0);
-    }
-  }
-}
-
-static int32_t tsdbWriteBlockSMA(TdFilePtr pFD, SBlockData *pBlockData, SSubBlock *pSubBlock, uint8_t **ppBuf) {
+static int32_t tsdbWriteBlockSma(TdFilePtr pFD, SBlockData *pBlockData, SSubBlock *pSubBlock, uint8_t **ppBuf) {
   int32_t   code = 0;
   int64_t   n;
   SColData *pColData;
@@ -1843,7 +1872,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
 
   if (pBlock->nSubBlock > 1 || pBlock->last || pBlock->hasDup) goto _exit;
 
-  code = tsdbWriteBlockSMA(pWriter->pSmaFD, pBlockData, pSubBlock, ppBuf1);
+  code = tsdbWriteBlockSma(pWriter->pSmaFD, pBlockData, pSubBlock, ppBuf1);
   if (code) goto _err;
 
   if (pSubBlock->nSma > 0) {

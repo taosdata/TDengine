@@ -353,6 +353,14 @@ int32_t tBlockCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
+bool tBlockHasSma(SBlock *pBlock) {
+  if (pBlock->nSubBlock > 1) return false;
+  if (pBlock->last) return false;
+  if (pBlock->hasDup) return false;
+
+  return pBlock->aSubBlock[0].nSma > 0;
+}
+
 // SBlockCol ======================================================
 int32_t tPutBlockCol(uint8_t *p, void *ph) {
   int32_t    n = 0;
@@ -769,29 +777,6 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
   return code;
 }
 
-// KEYINFO ======================================================
-int32_t tPutKEYINFO(uint8_t *p, KEYINFO *pKeyInfo) {
-  int32_t n = 0;
-
-  n += tPutTSDBKEY(p ? p + n : p, &pKeyInfo->minKey);
-  n += tPutTSDBKEY(p ? p + n : p, &pKeyInfo->maxKey);
-  n += tPutI64v(p ? p + n : p, pKeyInfo->minVerion);
-  n += tPutI64v(p ? p + n : p, pKeyInfo->maxVersion);
-
-  return n;
-}
-
-int32_t tGetKEYINFO(uint8_t *p, KEYINFO *pKeyInfo) {
-  int32_t n = 0;
-
-  n += tGetTSDBKEY(p + n, &pKeyInfo->minKey);
-  n += tGetTSDBKEY(p + n, &pKeyInfo->maxKey);
-  n += tGetI64v(p + n, &pKeyInfo->minVerion);
-  n += tGetI64v(p + n, &pKeyInfo->maxVersion);
-
-  return n;
-}
-
 // SColData ========================================
 void tColDataReset(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn) {
   pColData->cid = cid;
@@ -1190,5 +1175,65 @@ void tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColD
     *ppColData = NULL;
   } else {
     *ppColData = *(SColData **)p;
+  }
+}
+
+// ALGORITHM ==============================
+void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
+  SColVal  colVal;
+  SColVal *pColVal = &colVal;
+
+  *pColAgg = (SColumnDataAgg){.colId = pColData->cid};
+  for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+    tColDataGetValue(pColData, iVal, pColVal);
+
+    if (pColVal->isNone || pColVal->isNull) {
+      pColAgg->numOfNull++;
+    } else {
+      switch (pColData->type) {
+        case TSDB_DATA_TYPE_NULL:
+          break;
+        case TSDB_DATA_TYPE_BOOL:
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          break;
+        case TSDB_DATA_TYPE_INT:
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          break;
+        case TSDB_DATA_TYPE_FLOAT:
+          break;
+        case TSDB_DATA_TYPE_DOUBLE:
+          break;
+        case TSDB_DATA_TYPE_VARCHAR:
+          break;
+        case TSDB_DATA_TYPE_TIMESTAMP:
+          break;
+        case TSDB_DATA_TYPE_NCHAR:
+          break;
+        case TSDB_DATA_TYPE_UTINYINT:
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          break;
+        case TSDB_DATA_TYPE_JSON:
+          break;
+        case TSDB_DATA_TYPE_VARBINARY:
+          break;
+        case TSDB_DATA_TYPE_DECIMAL:
+          break;
+        case TSDB_DATA_TYPE_BLOB:
+          break;
+        case TSDB_DATA_TYPE_MEDIUMBLOB:
+          break;
+        default:
+          ASSERT(0);
+      }
+    }
   }
 }
