@@ -482,6 +482,7 @@ int32_t shellReadCommand(char *command) {
           #endif
           break;
         case 4:  // EOF or Ctrl+D
+          taosResetTerminalMode();
           printf("\n");
           return -1;
         case 5:  // ctrl E

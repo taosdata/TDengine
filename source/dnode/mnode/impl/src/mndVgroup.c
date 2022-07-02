@@ -1760,3 +1760,5 @@ _OVER:
   taosArrayDestroy(pArray);
   return code;
 }
+
+bool mndVgroupInDb(SVgObj *pVgroup, int64_t dbUid) { return !pVgroup->isTsma && pVgroup->dbUid == dbUid; }

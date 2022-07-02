@@ -362,6 +362,11 @@ typedef struct SOffsetAndContLen {
 } SOffsetAndContLen;
 */
 
+// block1: SOffsetAndContLen
+// block2: SOffsetAndContLen Array
+// block3: SRpcMsg Array
+// block4: SRpcMsg pCont Array
+
 typedef struct SyncAppendEntriesBatch {
   uint32_t bytes;
   int32_t  vgId;

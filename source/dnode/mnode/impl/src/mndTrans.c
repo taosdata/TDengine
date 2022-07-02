@@ -1146,13 +1146,13 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
         } else {
           code = TSDB_CODE_ACTION_IN_PROGRESS;
         }
-      }
-      if (pAction->rawWritten) {
+      } else if (pAction->rawWritten) {
         if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) {
           code = pAction->errCode;
         } else {
           mDebug("trans:%d, %s:%d write successfully", pTrans->id, mndTransStr(pAction->stage), action);
         }
+      } else {
       }
     }
 
