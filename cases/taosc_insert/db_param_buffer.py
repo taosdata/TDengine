@@ -54,6 +54,9 @@ class TestBuffer(TDCase):
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
             data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
             self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config'][self.cfg["vnode_json_key"]])/1024/1024)
+            #! TODO
+            # for i in self.cfg["boundary"]:
+            #     self.tdSql.error(f'alter database {dbname} {test_param} {i}')
             self.tdSql.execute(f'drop database {dbname}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][-1] + 1}')

@@ -17,7 +17,10 @@ from taostest.util.common import TDCom
 class TestNull(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-
+        self.error_name = 'null'
+        self.type = ['timestamp','tinyint','smallint','int','bigint','tinyint unsigned','smallint unsigned','int unsigned','bigint unsigned',\
+                            'float','double','bool','binary(20)','nchar(20)']
+        self.error_coltype = 'null'
     def null_dbname_check(self):
         """
         dbname = "null"
@@ -32,11 +35,16 @@ class TestNull(TDCase):
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
         stbname = "null"
+        
         self.tdSql.error(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
         self.tdSql.error(f'create stable if not exists {dbname}.stb (null timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
         self.tdSql.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, null int)')
         self.tdSql.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 null) tags (tag_ts timestamp, t1 int)')
         self.tdSql.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 null)')
+        for type in self.type:
+            self.tdSql.error(f'create stable if not exists {dbname}.stb (ts timestamp,{self.error_name} {type}) tags(tag_ts timestamp)')
+            self.tdSql.error(f'create stable if not exists {dbname}.stb (ts timestamp,c0 int) tags({self.error_name} {type})')
+        
         self.tdSql.execute(f'drop database if exists {dbname}')
 
     def child_tb_null_check(self):
