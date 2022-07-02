@@ -305,6 +305,7 @@ struct STbData {
   TSKEY        maxKey;
   int64_t      minVersion;
   int64_t      maxVersion;
+  int32_t      maxSkmVer;
   SDelData    *pHead;
   SDelData    *pTail;
   SMemSkipList sl;

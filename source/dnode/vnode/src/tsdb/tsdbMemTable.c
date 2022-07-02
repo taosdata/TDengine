@@ -333,6 +333,7 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   pTbData->maxKey = TSKEY_MIN;
   pTbData->minVersion = VERSION_MAX;
   pTbData->maxVersion = VERSION_MIN;
+  pTbData->maxSkmVer = -1;
   pTbData->pHead = NULL;
   pTbData->pTail = NULL;
   pTbData->sl.seed = taosRand();
@@ -562,6 +563,7 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
 
   pTbData->minVersion = TMIN(pTbData->minVersion, version);
   pTbData->maxVersion = TMAX(pTbData->maxVersion, version);
+  pTbData->maxSkmVer = TMAX(pTbData->maxSkmVer, pMsgIter->sversion);
 
   // SMemTable
   pMemTable->minKey = TMIN(pMemTable->minKey, pTbData->minKey);
