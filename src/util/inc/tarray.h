@@ -36,10 +36,10 @@ typedef struct SArray {
 } SArray;
 
 /**
- *
- * @param size
- * @param elemSize
- * @return
+ * Initializes a heap-allocated array with `size` elements, the size of element is `elemSize`.
+ * @param size      the number of element.
+ * @param elemSize  the size of element.
+ * @return          the pointer points to the array.
  */
 void* taosArrayInit(size_t size, size_t elemSize);
 
