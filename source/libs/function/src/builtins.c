@@ -808,6 +808,12 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   }
 
   // param1 ~ param3
+  if (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type != TSDB_DATA_TYPE_BINARY ||
+      ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_BINARY ||
+      ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type != TSDB_DATA_TYPE_BIGINT) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
   for (int32_t i = 1; i < numOfParams; ++i) {
     SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, i);
     if (QUERY_NODE_VALUE != nodeType(pParamNode)) {
@@ -817,12 +823,11 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     SValueNode* pValue = (SValueNode*)pParamNode;
 
     pValue->notReserved = true;
-  }
 
-  if (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type != TSDB_DATA_TYPE_BINARY ||
-      ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_BINARY ||
-      ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type != TSDB_DATA_TYPE_BIGINT) {
-    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    if (i == 3 && pValue->datum.i != 1 && pValue->datum.i != 0) {
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                               "HISTOGRAM function normalized parameter should be 0/1");
+    }
   }
 
   pFunc->node.resType = (SDataType){.bytes = 512, .type = TSDB_DATA_TYPE_BINARY};
@@ -842,6 +847,12 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
     }
 
     // param1 ~ param3
+    if (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type != TSDB_DATA_TYPE_BINARY ||
+        ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_BINARY ||
+        ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type != TSDB_DATA_TYPE_BIGINT) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
     for (int32_t i = 1; i < numOfParams; ++i) {
       SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, i);
       if (QUERY_NODE_VALUE != nodeType(pParamNode)) {
@@ -851,12 +862,11 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
       SValueNode* pValue = (SValueNode*)pParamNode;
 
       pValue->notReserved = true;
-    }
 
-    if (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type != TSDB_DATA_TYPE_BINARY ||
-        ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_BINARY ||
-        ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type != TSDB_DATA_TYPE_BIGINT) {
-      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+      if (i == 3 && pValue->datum.i != 1 && pValue->datum.i != 0) {
+          return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                                 "HISTOGRAM function normalized parameter should be 0/1");
+      }
     }
 
     pFunc->node.resType =
@@ -1606,7 +1616,7 @@ static int32_t translateToJson(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BINARY].bytes, .type = TSDB_DATA_TYPE_BINARY};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_JSON].bytes, .type = TSDB_DATA_TYPE_JSON};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2683,7 +2693,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_group_key",
     .type = FUNCTION_TYPE_GROUP_KEY,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC,
     .translateFunc = translateGroupKey,
     .getEnvFunc   = getGroupKeyFuncEnv,
     .initFunc     = functionSetup,

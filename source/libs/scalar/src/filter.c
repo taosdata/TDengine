@@ -192,6 +192,9 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_DOUBLE:        
       case TSDB_DATA_TYPE_TIMESTAMP:        
         return 18;
+      case TSDB_DATA_TYPE_JSON:
+        terrno = TSDB_CODE_QRY_JSON_IN_ERROR;
+        return 0;
       default:
         assert(0);
     }
@@ -215,6 +218,9 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_DOUBLE:        
       case TSDB_DATA_TYPE_TIMESTAMP:        
         return 24;
+      case TSDB_DATA_TYPE_JSON:
+        terrno = TSDB_CODE_QRY_JSON_IN_ERROR;
+        return 0;
       default:
         assert(0);
     }
