@@ -65,7 +65,7 @@ enum {
 typedef struct SAppInstInfo SAppInstInfo;
 
 typedef struct {
-  char*   key;
+  char* key;
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
@@ -177,14 +177,14 @@ typedef struct SReqResultInfo {
 } SReqResultInfo;
 
 typedef struct SRequestSendRecvBody {
-  tsem_t             rspSem;  // not used now
-  __taos_async_fn_t  queryFp;
-  __taos_async_fn_t  fetchFp;
-  void*              param;
-  SDataBuf           requestMsg;
-  int64_t            queryJob;  // query job, created according to sql query DAG.
-  int32_t            subplanNum;
-  SReqResultInfo     resInfo;
+  tsem_t            rspSem;  // not used now
+  __taos_async_fn_t queryFp;
+  __taos_async_fn_t fetchFp;
+  void*             param;
+  SDataBuf          requestMsg;
+  int64_t           queryJob;  // query job, created according to sql query DAG.
+  int32_t           subplanNum;
+  SReqResultInfo    resInfo;
 } SRequestSendRecvBody;
 
 typedef struct {
@@ -284,6 +284,7 @@ static FORCE_INLINE SReqResultInfo* tscGetCurResInfo(TAOS_RES* res) {
 extern SAppInfo appInfo;
 extern int32_t  clientReqRefPool;
 extern int32_t  clientConnRefPool;
+extern void*    tscQhandle;
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
 
@@ -301,7 +302,7 @@ void         destroyRequest(SRequestObj* pRequest);
 SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);
 int32_t      removeRequest(int64_t rid);
-void         doDestroyRequest(void *p);
+void         doDestroyRequest(void* p);
 
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
@@ -336,8 +337,8 @@ int  hbHandleRsp(SClientHbBatchRsp* hbRsp);
 // cluster level
 SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char* key);
 void       appHbMgrCleanup(void);
-void       hbRemoveAppHbMrg(SAppHbMgr **pAppHbMgr);
-void       closeAllRequests(SHashObj *pRequests);
+void       hbRemoveAppHbMrg(SAppHbMgr** pAppHbMgr);
+void       closeAllRequests(SHashObj* pRequests);
 
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
@@ -355,6 +356,9 @@ void         doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
 int32_t      removeMeta(STscObj* pTscObj, SArray* tbList);  // todo move to clientImpl.c and become a static function
 int32_t      handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);  // todo move to xxx
 bool         qnodeRequired(SRequestObj* pRequest);
+
+void initTscQhandle();
+void cleanupTscQhandle();
 
 #ifdef __cplusplus
 }
