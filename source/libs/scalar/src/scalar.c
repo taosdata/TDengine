@@ -109,9 +109,8 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
       }
 
       if (IS_VAR_DATA_TYPE(type)) {
-        char* data = colDataGetVarData(out.columnData, 0);
-        len = varDataLen(data);
-        buf = varDataVal(data);
+        buf = colDataGetVarData(out.columnData, 0);
+        len = varDataTLen(data);
       } else {
         len = tDataTypes[type].bytes;
         buf = out.columnData->pData;
@@ -119,8 +118,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
     } else {
       buf = nodesGetValueFromNode(valueNode);
       if (IS_VAR_DATA_TYPE(type)) {
-        len = varDataLen(buf);
-        buf = varDataVal(buf);
+        len = varDataTLen(buf);
       } else {
         len = valueNode->node.resType.bytes;
       }
