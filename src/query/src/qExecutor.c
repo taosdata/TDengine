@@ -6498,8 +6498,8 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
     assert(tsCols[0] == pBlock->info.window.skey && tsCols[pBlock->info.rows - 1] == pBlock->info.window.ekey);
   }
   
-  if (pCtx == NULL || pBlock == NULL) {
-    return false;
+  if (pCtx == NULL) {
+    goto group_finished_exit;
   }
 
   if (pCtx->startTs == INT64_MIN) {
@@ -6593,8 +6593,8 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
     return false;
   }
 
-
-  int32_t startPos = binarySearchForKey((char *)tsCols, pBlock->info.rows, pCtx->startTs, pQueryAttr->order.order);
+  int32_t num = pBlock == NULL ? 0 : pBlock->info.rows;
+  int32_t startPos = binarySearchForKey((char *)tsCols, num, pCtx->startTs, pQueryAttr->order.order);
 
   if (ascQuery && pQueryAttr->fillType != TSDB_FILL_NEXT && pCtx->start.key == INT64_MIN) {
     if (startPos < 0) {
