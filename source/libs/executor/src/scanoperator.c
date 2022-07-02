@@ -1309,9 +1309,9 @@ static void destroySysScanOperator(void* param, int32_t numOfOutput) {
 }
 
 static int32_t getSysTableDbNameColId(const char* pTable) {
-  if (0 == strcmp(TSDB_INS_TABLE_USER_INDEXES, pTable)) {
-    return 1;
-  }
+  // if (0 == strcmp(TSDB_INS_TABLE_USER_INDEXES, pTable)) {
+  //   return 1;
+  // }
   return TSDB_INS_USER_STABLES_DBNAME_COLID;
 }
 
