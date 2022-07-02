@@ -807,6 +807,23 @@ static bool isStateWindow(SStreamBlockScanInfo* pInfo) {
   return pInfo->sessionSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE;
 }
 
+static void setGroupId(SStreamBlockScanInfo* pInfo, SSDataBlock* pBlock, int32_t groupColIndex, int32_t rowIndex) {
+  ASSERT(rowIndex < pBlock->info.rows);
+  switch (pBlock->info.type)
+  {
+  case STREAM_RETRIEVE: {
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, groupColIndex);
+    uint64_t* groupCol = (uint64_t*)pColInfo->pData;
+    pInfo->groupId = groupCol[rowIndex];
+  }
+    break;
+  case STREAM_DELETE_DATA:
+    break;
+  default:
+    break;
+  }
+}
+
 static bool prepareDataScan(SStreamBlockScanInfo* pInfo, SSDataBlock* pSDB, int32_t tsColIndex, int32_t* pRowIndex) {
   STimeWindow win = {
       .skey = INT64_MIN,
@@ -829,6 +846,7 @@ static bool prepareDataScan(SStreamBlockScanInfo* pInfo, SSDataBlock* pSDB, int3
     } else {
       win =
           getActiveTimeWindow(NULL, &dumyInfo, tsCols[(*pRowIndex)], &pInfo->interval, pInfo->interval.precision, NULL);
+      setGroupId(pInfo, pSDB, 2, *pRowIndex);
       (*pRowIndex) += getNumOfRowsInTimeWindow(&pSDB->info, tsCols, (*pRowIndex), win.ekey, binarySearchForKey, NULL,
                                                TSDB_ORDER_ASC);
     }
@@ -1031,10 +1049,12 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       }
       pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER;
     } else {
-      if (isStateWindow(pInfo) && taosArrayGetSize(pInfo->sessionSup.pStreamAggSup->pScanWindow) > 0) {
+      if (isStateWindow(pInfo)) {
         pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER;
         pInfo->updateResIndex = pInfo->pUpdateRes->info.rows;
-        prepareDataScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
+        if (!prepareDataScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex)) {
+          pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+        }
       }
       if (pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER) {
         SSDataBlock* pSDB = doDataScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
