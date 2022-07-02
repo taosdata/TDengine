@@ -14,7 +14,11 @@
  */
 
 #define ALLOW_FORBID_FUNC
+#ifdef _TD_DARWIN_64
+#include <malloc/malloc.h>
+#else
 #include <malloc.h>
+#endif
 #include "os.h"
 
 #if defined(USE_TD_MEMORY) || defined(USE_ADDR2LINE)
@@ -323,6 +327,8 @@ int32_t taosMemorySize(void *ptr) {
 #else
 #ifdef WINDOWS
   return _msize(ptr);
+#elif defined(_TD_DARWIN_64)
+  return malloc_size(ptr);
 #else
   return malloc_usable_size(ptr);
 #endif

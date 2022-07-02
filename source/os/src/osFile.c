@@ -35,6 +35,8 @@
 #include <unistd.h>
 #define LINUX_FILE_NO_TEXT_OPTION 0
 #define O_TEXT                    LINUX_FILE_NO_TEXT_OPTION
+
+#define _SEND_FILE_STEP_ 1000
 #endif
 
 #if defined(WINDOWS)
@@ -612,28 +614,34 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 
 #elif defined(_TD_DARWIN_64)
 
-  int r = 0;
-  if (offset) {
-    r = fseek(in_file, *offset, SEEK_SET);
-    if (r == -1) return -1;
-  }
-  off_t len = size;
-  while (len > 0) {
-    char  buf[1024 * 16];
-    off_t n = sizeof(buf);
-    if (len < n) n = len;
-    size_t m = fread(buf, 1, n, in_file);
-    if (m < n) {
-      int e = ferror(in_file);
-      if (e) return -1;
+  lseek(pFileIn->fd, (int32_t)(*offset), 0);
+  int64_t writeLen = 0;
+  uint8_t buffer[_SEND_FILE_STEP_] = {0};
+
+  for (int64_t len = 0; len < (size - _SEND_FILE_STEP_); len += _SEND_FILE_STEP_) {
+    size_t rlen = read(pFileIn->fd, (void *)buffer, _SEND_FILE_STEP_);
+    if (rlen <= 0) {
+      return writeLen;
+    } else if (rlen < _SEND_FILE_STEP_) {
+      write(pFileOut->fd, (void *)buffer, (uint32_t)rlen);
+      return (int64_t)(writeLen + rlen);
+    } else {
+      write(pFileOut->fd, (void *)buffer, _SEND_FILE_STEP_);
+      writeLen += _SEND_FILE_STEP_;
     }
-    if (m == 0) break;
-    if (m != fwrite(buf, 1, m, out_file)) {
-      return -1;
-    }
-    len -= m;
   }
-  return size - len;
+
+  int64_t remain = size - writeLen;
+  if (remain > 0) {
+    size_t rlen = read(pFileIn->fd, (void *)buffer, (size_t)remain);
+    if (rlen <= 0) {
+      return writeLen;
+    } else {
+      write(pFileOut->fd, (void *)buffer, (uint32_t)remain);
+      writeLen += remain;
+    }
+  }
+  return writeLen;
 
 #else
 

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define ALLOW_FORBID_FUNC
 #define _BSD_SOURCE
 #define _GNU_SOURCE
 #define _XOPEN_SOURCE

@@ -241,7 +241,7 @@ struct SVnode {
   tsem_t     canCommit;
   int64_t    sync;
   int32_t    syncCount;
-  sem_t      syncSem;
+  tsem_t     syncSem;
   SQHandle*  pQuery;
 };
 
