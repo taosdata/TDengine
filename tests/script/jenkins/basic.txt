@@ -71,7 +71,7 @@
 ./test.sh -f tsim/qnode/basic1.sim
 
 # ---- snode
-./test.sh -f tsim/snode/basic1.sim
+# ./test.sh -f tsim/snode/basic1.sim
 
 # ---- bnode
 ./test.sh -f tsim/bnode/basic1.sim
