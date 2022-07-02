@@ -955,6 +955,7 @@ static void tsdbCommitDataEnd(SCommitter *pCommitter) {
   taosArrayDestroy(pCommitter->aBlockIdxN);
   tMapDataClear(&pCommitter->nBlockMap);
   tBlockDataClear(&pCommitter->nBlockData);
+  tTSchemaDestroy(pCommitter->pTSchema);
 }
 
 static int32_t tsdbCommitData(SCommitter *pCommitter) {

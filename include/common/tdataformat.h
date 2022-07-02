@@ -38,13 +38,22 @@ typedef struct STagVal       STagVal;
 typedef struct STag          STag;
 
 // bitmap
-#define N1(n)             ((1 << (n)) - 1)
-#define BIT1_SIZE(n)      (((n)-1) / 8 + 1)
-#define BIT2_SIZE(n)      (((n)-1) / 4 + 1)
-#define SET_BIT1(p, i, v) ((p)[(i) / 8] |= (((uint8_t)(v)) << ((i) % 8)))
-#define GET_BIT1(p, i)    (((p)[(i) / 8] >> ((i) % 8)) & ((uint8_t)1))
-#define SET_BIT2(p, i, v) ((p)[(i) / 4] |= (((uint8_t)(v)) << (((i) % 4) * 2)))
-#define GET_BIT2(p, i)    (((p)[(i) / 4] >> (((i) % 4) * 2)) & ((uint8_t)3))
+#define N1(n)        ((1 << (n)) - 1)
+#define BIT1_SIZE(n) (((n)-1) / 8 + 1)
+#define BIT2_SIZE(n) (((n)-1) / 4 + 1)
+#define SET_BIT1(p, i, v)                            \
+  do {                                               \
+    (p)[(i) / 8] &= N1((i) % 8);                     \
+    (p)[(i) / 8] |= (((uint8_t)(v)) << (((i) % 8))); \
+  } while (0)
+
+#define GET_BIT1(p, i) (((p)[(i) / 8] >> ((i) % 8)) & ((uint8_t)1))
+#define SET_BIT2(p, i, v)                                \
+  do {                                                   \
+    p[(i) / 4] &= N1((i) % 4 * 2);                       \
+    (p)[(i) / 4] |= (((uint8_t)(v)) << (((i) % 4) * 2)); \
+  } while (0)
+#define GET_BIT2(p, i) (((p)[(i) / 4] >> (((i) % 4) * 2)) & ((uint8_t)3))
 
 // STSchema
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
