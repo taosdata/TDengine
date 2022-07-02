@@ -1,35 +1,36 @@
 {
     "filetype": "insert",
     "cfgdir": "/etc/taos/",
-    "host": "trd04",
-    "port": 6030,
+    "host": "HOST",
+    "port": PORT,
+    "rest_port": RESTPORT,
     "user": "root",
     "password": "taosdata",
-    "thread_count": 8,
-    "thread_count_create_tbl": 8,
+    "thread_count": THREADCOUNT,
+    "thread_count_create_tbl": THREADCOUNT_CREATETABLE,
     "result_file": "./insert_res.txt",
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,
     "interlace_rows": 1000,
-    "num_of_records_per_req": 100000,
+    "num_of_records_per_req": BATCHSIZE,
     "databases": [
         {
             "dbinfo": {
                 "name": "db",
                 "drop": "yes",
-                "vgroups": 8
+                "vgroups": VGROUPS
             },
             "super_tables": [
                 {
-                    "name": "STBNAME",
+                    "name": "STABLENAME",
                     "child_table_exists": "no",
-                    "childtable_count": 100,
-                    "childtable_prefix": "STBNAME_",
+                    "childtable_count": CHILDTABLECOUNT,
+                    "childtable_prefix": "STABLENAME_",
                     "auto_create_table": "no",
                     "batch_create_tbl_num": 50000,
                     "data_source": "rand",
-                    "insert_mode": "taosc",
-                    "insert_rows": 10,
+                    "insert_mode": "INSERTMODE",
+                    "insert_rows": INSERTROWS,
                     "interlace_rows": 100000,
                     "insert_interval": 0,
                     "max_sql_len": 10000000,

@@ -9,14 +9,14 @@ function usage() {
     echo -e "\t -d debug level"
     echo -e "\t -w log folder web server"
     echo -e "\t -s force setup"
-    echo -e "\t -f run last failed cases"
     echo -e "\t -v TDengine version"
     echo -e "\t -n docker network prefix"
     echo -e "\t -o default timeout value"
+    echo -e "\t -e enable sub log dir"
     echo -e "\t -h help"
 }
 
-while getopts "m:t:b:l:o:v:d:w:n:sfh" opt; do
+while getopts "m:t:b:l:o:v:d:w:n:esh" opt; do
     case $opt in
         m)
             config_file=$OPTARG
@@ -33,9 +33,6 @@ while getopts "m:t:b:l:o:v:d:w:n:sfh" opt; do
         s)
             force_setup=1
             ;;
-        f)
-            last_failed=1
-            ;;
         w)
             web_server=$OPTARG
             ;;
@@ -51,6 +48,9 @@ while getopts "m:t:b:l:o:v:d:w:n:sfh" opt; do
         v)
             tdengine_version=$OPTARG
             ;;
+        e)
+            sublogdir_enabled=1
+            ;;
         h)
             usage
             exit 0
@@ -63,7 +63,7 @@ while getopts "m:t:b:l:o:v:d:w:n:sfh" opt; do
     esac
 done
 
-if [ -z $t_file ] && [ -z $last_failed ]; then
+if [ -z $t_file ]; then
     usage
     exit 1
 fi
@@ -77,35 +77,27 @@ if [ -z $docker_network_prefix ]; then
 fi
 
 date_tag=`date +%Y%m%d-%H%M%S`
-test_log_dir="${branch}_${date_tag}"
+if [ ! -z "$sublogdir_enabled" ]; then
+    test_log_dir="${branch}_${date_tag}"
+fi
 if [ -z $log_folder ]; then
-    log_dir="log/${test_log_dir}"
+    if [ ! -z "$test_log_dir" ]; then
+        log_dir="log/${test_log_dir}"
+    else
+        log_dir="log"
+    fi
 else
-    log_dir="$log_folder/${test_log_dir}"
+    if [ ! -z "$test_log_dir" ]; then
+        log_dir="$log_folder/${test_log_dir}"
+    else
+        log_dir="$log_folder"
+    fi
 fi
 
-mkdir -p $log_dir
-rm -rf $log_dir/*
-
-if [ ! -z "$last_failed" ]; then
-    last_log_dir=`ls $log_folder|sort|tail -n2|head -n1`
-    echo "last log dir: [${last_log_dir}]"
-    if [ ! -z "$last_log_dir" ]; then
-        last_log_dir="${log_folder}/${last_log_dir}"
-        if [ -f "$last_log_dir/failed.txt" ]; then
-            case_list_file=${log_dir}/last_failed_cases.txt
-            t_file=$case_list_file
-            cat $last_log_dir/failed.txt | grep -w taostest | sed "s/^.* ret:[0-9]* //" >$case_list_file
-            echo "***** cases to run *****"
-            cat $case_list_file
-        else
-            echo "***** no case to run *****"
-            exit 0
-        fi
-    else
-        echo "***** no case to run *****"
-        exit 0
-    fi
+if [ ! -z "$log_dir" ]; then
+    mkdir -p $log_dir
+    # rm -rf $log_dir/*
+    export TAOSTEST_LOG_DIR="$log_dir"
 fi
 
 hosts=()
@@ -162,7 +154,7 @@ function run_thread() {
         runcase_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
     fi
     local count=0
-    local script="TEST_ROOT=${workdirs[index]}/TestNG $TIMEOUT_PREFIX"
+    local script="TEST_ROOT=${workdirs[index]}/TestNG TAOSTEST_LOG_DIR=${log_dir} $TIMEOUT_PREFIX"
 
     # script="echo"
     while [ 1 ]; do
@@ -226,7 +218,7 @@ function run_thread() {
             cmd="$cmd --taostest-pkg $taostest_pkg"
         fi
         # set network
-        cmd="$cmd --source-dir ${workdirs[index]}/TDinternal --docker-network ${docker_network_prefix}_${thread_no}"
+        cmd="$cmd --source-dir ${workdirs[index]}/TDinternal --docker-network ${docker_network_prefix}_${thread_no} --sql_recording"
         local ret=0
         local redo_count=1
         start_time=`date +%s`
@@ -286,8 +278,13 @@ function run_thread() {
             # echo "====================================================="
             echo -e "\e[34m log file: $log_full_path \e[0m"
             if [ ! -z "$web_server" ]; then
-                flock -x $lock_file -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  ${web_server}/$test_log_dir/$log_file\" >>$log_dir/failed.txt"
-                echo "$web_server/$test_log_dir/$log_file"
+                if [ ! -z "$test_log_dir" ]; then
+                    flock -x $lock_file -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  ${web_server}/$test_log_dir/$log_file\" >>$log_dir/failed.txt"
+                    echo "$web_server/$test_log_dir/$log_file"
+                else
+                    flock -x $lock_file -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  ${web_server}/$log_file\" >>$log_dir/failed.txt"
+                    echo "$web_server/$log_file"
+                fi
             else
                 flock -x $lock_file -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  log file: $log_full_path\" >>$log_dir/failed.txt"
             fi

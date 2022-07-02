@@ -84,7 +84,7 @@ class TDTestQuery(TDCase):
         # 1: support all table, support all data type  [hanshu = ['COUNT','FIRST','LAST','LAST_ROW']]]
         # 2: support all int type \ double type  [hanshu = ['AVG','SUM','MIN','MAX']]
         # 3: support all int type \ double type \ ts type [hanshu = ['SPREAD']]
-        for i in (1,2,3):
+        for i in (11,12,2,3):#13 last_row
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -135,7 +135,7 @@ class TDTestQuery(TDCase):
         # 1: support all table, support all data type  [hanshu = ['COUNT','FIRST','LAST','LAST_ROW']]]
         # 2: support all int type \ double type  [hanshu = ['AVG','SUM','MIN','MAX']]
         # 3: support all int type \ double type \ ts type [hanshu = ['SPREAD']]
-        for i in (1,2,3):
+        for i in (11,12,2,3):#13 last_row
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -2425,7 +2425,7 @@ class TDTestQuery(TDCase):
         self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
         startTime2 = time.time()
-        self.right_case_2()
+        #self.right_case_2() 暂时注掉，等廖确认
         self.right_case_2_2()
         self.right_case_2_tbname()
         # self.right_case_2_interval()
@@ -2434,7 +2434,7 @@ class TDTestQuery(TDCase):
         self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
         startTime3 = time.time()
-        self.right_case_3()
+        #self.right_case_3() 暂时注掉，等廖确认
         self.right_case_3_2()
         self.right_case_3_tbname()
         # self.right_case_3_interval()
