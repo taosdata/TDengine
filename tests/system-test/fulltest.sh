@@ -157,3 +157,4 @@ python3 ./test.py -f 7-tmq/tmqShow.py
 python3 ./test.py -f 7-tmq/tmqAlterSchema.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1.py
+python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg.py
