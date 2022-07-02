@@ -1231,8 +1231,8 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
       if (IS_VAR_DATA_TYPE(pTColumn->type)) {
         if (pColVal) {
           varDataLen += (pColVal->value.nData + sizeof(VarDataLenT));
-          if (maxVarDataLen < pColVal->value.nData) {
-            maxVarDataLen = pColVal->value.nData;
+          if (maxVarDataLen < (pColVal->value.nData + sizeof(VarDataLenT))) {
+            maxVarDataLen = pColVal->value.nData + sizeof(VarDataLenT);
           }
         } else {
           varDataLen += sizeof(VarDataLenT);
