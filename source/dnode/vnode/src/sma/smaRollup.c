@@ -23,8 +23,7 @@ SSmaMgmt smaMgmt = {
     .smaRef = -1,
 };
 
-typedef enum { TD_QTASK_TMP_F = 0, TD_QTASK_CUR_F } TD_QTASK_FILE_T;
-static const char                *tdQTaskInfoFname[] = {"qtaskinfo.t", "qtaskinfo"};
+#define TD_QTASKINFO_FNAME_PREFIX "qtaskinfo.ver"
 typedef struct SRSmaQTaskInfoItem SRSmaQTaskInfoItem;
 typedef struct SRSmaQTaskInfoIter SRSmaQTaskInfoIter;
 
@@ -37,7 +36,7 @@ static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t inputType
 static void    tdRSmaFetchTrigger(void *param, void *tmrId);
 static void    tdRSmaPersistTrigger(void *param, void *tmrId);
 static void   *tdRSmaPersistExec(void *param);
-static void    tdRSmaQTaskInfoGetFName(int32_t vid, int8_t ftype, char *outputName);
+static void    tdRSmaQTaskInfoGetFName(int32_t vid, int64_t version, char *outputName);
 
 static int32_t tdRSmaQTaskInfoIterInit(SRSmaQTaskInfoIter *pIter, STFile *pTFile);
 static int32_t tdRSmaQTaskInfoIterNextBlock(SRSmaQTaskInfoIter *pIter, bool *isFinish);
@@ -88,8 +87,8 @@ struct SRSmaQTaskInfoIter {
   int32_t nBufPos;
 };
 
-static void tdRSmaQTaskInfoGetFName(int32_t vgId, int8_t ftype, char *outputName) {
-  tdGetVndFileName(vgId, VNODE_RSMA_DIR, tdQTaskInfoFname[ftype], outputName);
+static void tdRSmaQTaskInfoGetFName(int32_t vgId, int64_t version, char *outputName) {
+  tdGetVndFileName(vgId, VNODE_RSMA_DIR, TD_QTASKINFO_FNAME_PREFIX, version, outputName);
 }
 
 static FORCE_INLINE int32_t tdRSmaQTaskInfoContLen(int32_t lenWithHead) {
@@ -493,7 +492,6 @@ static int32_t tdProcessSubmitReq(STsdb *pTsdb, int64_t version, void *pReq) {
 }
 
 static int32_t tdFetchSubmitReqSuids(SSubmitReq *pMsg, STbUidStore *pStore) {
-  ASSERT(pMsg != NULL);
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk    *pBlock = NULL;
   SSubmitBlkIter blkIter = {0};
@@ -501,19 +499,26 @@ static int32_t tdFetchSubmitReqSuids(SSubmitReq *pMsg, STbUidStore *pStore) {
 
   terrno = TSDB_CODE_SUCCESS;
 
-  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
+  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) {
+    return -1;
+  }
   while (true) {
-    if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
+    if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) {
+      return -1;
+    }
 
     if (!pBlock) break;
     tdUidStorePut(pStore, msgIter.suid, NULL);
   }
 
-  if (terrno != TSDB_CODE_SUCCESS) return -1;
+  if (terrno != TSDB_CODE_SUCCESS) {
+    return -1;
+  }
   return 0;
 }
 
 static void tdDestroySDataBlockArray(SArray *pArray) {
+  // TODO
 #if 0
   for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
     SSDataBlock *pDataBlock = taosArrayGet(pArray, i);
@@ -598,33 +603,54 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
 
   pSma = RSMA_INFO_SMA(pItem->pRsmaInfo);
 
-  // if rsma trigger stat in cancelled or finished, not start fetch task anymore
+  // if rsma trigger stat in paused, cancelled or finished, not start fetch task
   int8_t rsmaTriggerStat = atomic_load_8(RSMA_TRIGGER_STAT(pStat));
-  if (rsmaTriggerStat == TASK_TRIGGER_STAT_CANCELLED || rsmaTriggerStat == TASK_TRIGGER_STAT_FINISHED) {
-    taosReleaseRef(smaMgmt.smaRef, pItem->refId);
-    smaDebug("vgId:%d, not fetch rsma level %" PRIi8 " data for table:%" PRIi64 " since stat is cancelled",
-             SMA_VID(pSma), pItem->level, pItem->pRsmaInfo->suid);
-    return;
+  switch (rsmaTriggerStat) {
+    case TASK_TRIGGER_STAT_PAUSED:
+    case TASK_TRIGGER_STAT_CANCELLED:
+    case TASK_TRIGGER_STAT_FINISHED: {
+      taosReleaseRef(smaMgmt.smaRef, pItem->refId);
+      smaDebug("vgId:%d, not fetch rsma level %" PRIi8 " data for table:%" PRIi64 " since stat is cancelled",
+               SMA_VID(pSma), pItem->level, pItem->pRsmaInfo->suid);
+      return;
+    }
+    default:
+      break;
   }
 
   int8_t fetchTriggerStat =
       atomic_val_compare_exchange_8(&pItem->triggerStat, TASK_TRIGGER_STAT_ACTIVE, TASK_TRIGGER_STAT_INACTIVE);
-  if (fetchTriggerStat == TASK_TRIGGER_STAT_ACTIVE) {
-    smaDebug("vgId:%d, fetch rsma level %" PRIi8 " data for table:%" PRIi64 " since stat is active", SMA_VID(pSma),
-             pItem->level, pItem->pRsmaInfo->suid);
+  switch (fetchTriggerStat) {
+    case TASK_TRIGGER_STAT_ACTIVE: {
+      smaDebug("vgId:%d, fetch rsma level %" PRIi8 " data for table:%" PRIi64 " since stat is active", SMA_VID(pSma),
+               pItem->level, pItem->pRsmaInfo->suid);
 
-    tdRefSmaStat(pSma, (SSmaStat *)pStat);
+      tdRefSmaStat(pSma, (SSmaStat *)pStat);
 
-    SSDataBlock dataBlock = {.info.type = STREAM_GET_ALL};
-    qSetStreamInput(pItem->taskInfo, &dataBlock, STREAM_INPUT__DATA_BLOCK, false);
-    tdFetchAndSubmitRSmaResult(pItem, STREAM_INPUT__DATA_BLOCK);
+      SSDataBlock dataBlock = {.info.type = STREAM_GET_ALL};
+      qSetStreamInput(pItem->taskInfo, &dataBlock, STREAM_INPUT__DATA_BLOCK, false);
+      tdFetchAndSubmitRSmaResult(pItem, STREAM_INPUT__DATA_BLOCK);
 
-    tdUnRefSmaStat(pSma, (SSmaStat *)pStat);
-
-  } else {
-    smaDebug("vgId:%d, not fetch rsma level %" PRIi8 " data for table:%" PRIi64 " since stat is inactive",
-             SMA_VID(pSma), pItem->level, pItem->pRsmaInfo->suid);
+      tdUnRefSmaStat(pSma, (SSmaStat *)pStat);
+    } break;
+    case TASK_TRIGGER_STAT_PAUSED: {
+      smaDebug("vgId:%d, not fetch rsma level %" PRIi8 " data for table:%" PRIi64 " since stat is paused",
+               SMA_VID(pSma), pItem->level, pItem->pRsmaInfo->suid);
+    } break;
+    case TASK_TRIGGER_STAT_INACTIVE: {
+      smaDebug("vgId:%d, not fetch rsma level %" PRIi8 " data for table:%" PRIi64 " since stat is inactive",
+               SMA_VID(pSma), pItem->level, pItem->pRsmaInfo->suid);
+    } break;
+    case TASK_TRIGGER_STAT_INIT: {
+      smaDebug("vgId:%d, not fetch rsma level %" PRIi8 " data for table:%" PRIi64 " since stat is init", SMA_VID(pSma),
+               pItem->level, pItem->pRsmaInfo->suid);
+    } break;
+    default: {
+      smaWarn("vgId:%d, not fetch rsma level %" PRIi8 " data for table:%" PRIi64 " since stat is unknown",
+              SMA_VID(pSma), pItem->level, pItem->pRsmaInfo->suid);
+    } break;
   }
+
 _end:
   taosReleaseRef(smaMgmt.smaRef, pItem->refId);
 }
@@ -780,10 +806,10 @@ _err:
 static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma) {
   SVnode *pVnode = pSma->pVnode;
   STFile  tFile = {0};
-  char    qTaskInfoFName[TSDB_FILENAME_LEN];
+  char    qTaskInfoFName[TSDB_FILENAME_LEN] = {0};
 
-  tdRSmaQTaskInfoGetFName(TD_VID(pVnode), TD_QTASK_TMP_F, qTaskInfoFName);
-  if (tdInitTFile(&tFile, pVnode->pTfs, qTaskInfoFName) < 0) {
+  tdRSmaQTaskInfoGetFName(TD_VID(pVnode), pVnode->state.committed, qTaskInfoFName);
+  if (tdInitTFile(&tFile, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFName) < 0) {
     goto _err;
   }
 
@@ -799,17 +825,20 @@ static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma) {
   if (tdRSmaQTaskInfoIterInit(&fIter, &tFile) < 0) {
     tdRSmaQTaskInfoIterDestroy(&fIter);
     tdCloseTFile(&tFile);
+    tdDestroyTFile(&tFile);
     goto _err;
   }
 
   if (tdRSmaQTaskInfoRestore(pSma, &fIter) < 0) {
     tdRSmaQTaskInfoIterDestroy(&fIter);
     tdCloseTFile(&tFile);
+    tdDestroyTFile(&tFile);
     goto _err;
   }
 
   tdRSmaQTaskInfoIterDestroy(&fIter);
   tdCloseTFile(&tFile);
+  tdDestroyTFile(&tFile);
   return TSDB_CODE_SUCCESS;
 _err:
   smaError("rsma restore, qtaskinfo reload failed since %s", terrstr());
@@ -931,19 +960,21 @@ static int32_t tdRSmaQTaskInfoIterNextBlock(SRSmaQTaskInfoIter *pIter, bool *isF
   }
 
   if (tdSeekTFile(pTFile, pIter->offset, SEEK_SET) < 0) {
-    ASSERT(0);
     return TSDB_CODE_FAILED;
   }
 
   if (tdReadTFile(pTFile, pIter->qBuf, nBytes) != nBytes) {
-    ASSERT(0);
     return TSDB_CODE_FAILED;
   }
 
   int32_t infoLen = 0;
   taosDecodeFixedI32(pIter->qBuf, &infoLen);
   if (infoLen > nBytes) {
-    ASSERT(infoLen > RSMA_QTASKINFO_BUFSIZE);
+    if (infoLen <= RSMA_QTASKINFO_BUFSIZE) {
+      terrno = TSDB_CODE_RSMA_FILE_CORRUPTED;
+      smaError("iterate rsma qtaskinfo file %s failed since %s", TD_TFILE_FULL_NAME(pIter->pTFile), terrstr());
+      return TSDB_CODE_FAILED;
+    }
     pIter->nAlloc = infoLen;
     void *pBuf = taosMemoryRealloc(pIter->pBuf, infoLen);
     if (!pBuf) {
@@ -955,12 +986,10 @@ static int32_t tdRSmaQTaskInfoIterNextBlock(SRSmaQTaskInfoIter *pIter, bool *isF
     nBytes = infoLen;
 
     if (tdSeekTFile(pTFile, pIter->offset, SEEK_SET)) {
-      ASSERT(0);
       return TSDB_CODE_FAILED;
     }
 
     if (tdReadTFile(pTFile, pIter->pBuf, nBytes) != nBytes) {
-      ASSERT(0);
       return TSDB_CODE_FAILED;
     }
   }
@@ -977,7 +1006,6 @@ static int32_t tdRSmaQTaskInfoRestore(SSma *pSma, SRSmaQTaskInfoIter *pIter) {
     // block iter
     bool isFinish = false;
     if (tdRSmaQTaskInfoIterNextBlock(pIter, &isFinish) < 0) {
-      ASSERT(0);
       return TSDB_CODE_FAILED;
     }
     if (isFinish) {
@@ -989,6 +1017,7 @@ static int32_t tdRSmaQTaskInfoRestore(SSma *pSma, SRSmaQTaskInfoIter *pIter) {
     pIter->qBuf = taosDecodeFixedI32(pIter->qBuf, &qTaskInfoLenWithHead);
     if (qTaskInfoLenWithHead < RSMA_QTASKINFO_HEAD_LEN) {
       terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+      smaError("restore rsma qtaskinfo file %s failed since %s", TD_TFILE_FULL_NAME(pIter->pTFile), terrstr());
       return TSDB_CODE_FAILED;
     }
 
@@ -1025,22 +1054,16 @@ static int32_t tdRSmaQTaskInfoRestore(SSma *pSma, SRSmaQTaskInfoIter *pIter) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void *tdRSmaPersistExec(void *param) {
-  setThreadName("rsma-task-persist");
-  SRSmaStat *pRSmaStat = param;
-  SSma      *pSma = pRSmaStat->pSma;
-  STfs      *pTfs = pSma->pVnode->pTfs;
-  int32_t    vid = SMA_VID(pSma);
-  int64_t    toffset = 0;
-  bool       isFileCreated = false;
-
-  if (TASK_TRIGGER_STAT_CANCELLED == atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat))) {
-    goto _end;
-  }
+static int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat) {
+  SSma   *pSma = pRSmaStat->pSma;
+  SVnode *pVnode = pSma->pVnode;
+  int32_t vid = SMA_VID(pSma);
+  int64_t toffset = 0;
+  bool    isFileCreated = false;
 
   void *infoHash = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), NULL);
   if (!infoHash) {
-    goto _end;
+    return TSDB_CODE_SUCCESS;
   }
 
   STFile tFile = {0};
@@ -1074,9 +1097,13 @@ static void *tdRSmaPersistExec(void *param) {
 
       if (!isFileCreated) {
         char qTaskInfoFName[TSDB_FILENAME_LEN];
-        tdRSmaQTaskInfoGetFName(vid, TD_QTASK_TMP_F, qTaskInfoFName);
-        tdInitTFile(&tFile, pTfs, qTaskInfoFName);
-        tdCreateTFile(&tFile, pTfs, true, -1);
+        tdRSmaQTaskInfoGetFName(vid, pSma->pVnode->state.applied, qTaskInfoFName);
+        if (tdInitTFile(&tFile, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFName) < 0) {
+          goto _err;
+        }
+        if (tdCreateTFile(&tFile, true, -1) < 0) {
+          goto _err;
+        }
 
         isFileCreated = true;
       }
@@ -1101,49 +1128,55 @@ static void *tdRSmaPersistExec(void *param) {
 
     infoHash = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), infoHash);
   }
-_normal:
+
   if (isFileCreated) {
     if (tdUpdateTFileHeader(&tFile) < 0) {
       smaError("vgId:%d, rsma, failed to update tfile %s header since %s", vid, TD_TFILE_FULL_NAME(&tFile),
                tstrerror(terrno));
-      tdCloseTFile(&tFile);
-      tdRemoveTFile(&tFile);
       goto _err;
     } else {
       smaDebug("vgId:%d, rsma, succeed to update tfile %s header", vid, TD_TFILE_FULL_NAME(&tFile));
     }
 
     tdCloseTFile(&tFile);
-
-    char newFName[TSDB_FILENAME_LEN];
-    strncpy(newFName, TD_TFILE_FULL_NAME(&tFile), TSDB_FILENAME_LEN);
-    char *pos = strstr(newFName, tdQTaskInfoFname[TD_QTASK_TMP_F]);
-    strncpy(pos, tdQTaskInfoFname[TD_QTASK_TMP_F], TSDB_FILENAME_LEN - POINTER_DISTANCE(pos, newFName));
-    if (taosRenameFile(TD_TFILE_FULL_NAME(&tFile), newFName) != 0) {
-      smaError("vgId:%d, rsma, failed to rename %s to %s", vid, TD_TFILE_FULL_NAME(&tFile), newFName);
-      goto _err;
-    } else {
-      smaDebug("vgId:%d, rsma, succeed to rename %s to %s", vid, TD_TFILE_FULL_NAME(&tFile), newFName);
-    }
+    tdDestroyTFile(&tFile);
   }
-  goto _end;
+  return TSDB_CODE_SUCCESS;
 _err:
   if (isFileCreated) {
     tdRemoveTFile(&tFile);
+    tdDestroyTFile(&tFile);
   }
+  return TSDB_CODE_FAILED;
+}
+
+static void *tdRSmaPersistExec(void *param) {
+  setThreadName("rsma-task-persist");
+  SRSmaStat *pRSmaStat = param;
+  SSma      *pSma = pRSmaStat->pSma;
+
+  int8_t triggerStat = atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat));
+
+  if (TASK_TRIGGER_STAT_CANCELLED == triggerStat || TASK_TRIGGER_STAT_PAUSED == triggerStat) {
+    goto _end;
+  }
+
+  // execution
+  tdRSmaPersistExecImpl(pRSmaStat);
+
 _end:
   if (TASK_TRIGGER_STAT_INACTIVE == atomic_val_compare_exchange_8(RSMA_TRIGGER_STAT(pRSmaStat),
                                                                   TASK_TRIGGER_STAT_INACTIVE,
                                                                   TASK_TRIGGER_STAT_ACTIVE)) {
-    smaDebug("vgId:%d, rsma persist task is active again", vid);
+    smaDebug("vgId:%d, rsma persist task is active again", SMA_VID(pSma));
   } else if (TASK_TRIGGER_STAT_CANCELLED == atomic_val_compare_exchange_8(RSMA_TRIGGER_STAT(pRSmaStat),
                                                                           TASK_TRIGGER_STAT_CANCELLED,
                                                                           TASK_TRIGGER_STAT_FINISHED)) {
-    smaDebug("vgId:%d, rsma persist task is cancelled", vid);
+    smaDebug("vgId:%d, rsma persist task is cancelled", SMA_VID(pSma));
   } else {
-    smaWarn("vgId:%d, rsma persist task in abnormal stat %" PRIi8, vid, atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat)));
-    ASSERT(0);
+    smaWarn("vgId:%d, rsma persist task in stat %" PRIi8, SMA_VID(pSma), atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat)));
   }
+
   atomic_store_8(RSMA_RUNNING_STAT(pRSmaStat), 0);
   taosReleaseRef(smaMgmt.smaRef, pRSmaStat->refId);
   taosThreadExit(NULL);
@@ -1166,8 +1199,8 @@ static void tdRSmaPersistTask(SRSmaStat *pRSmaStat) {
                                                                             TASK_TRIGGER_STAT_FINISHED)) {
       smaDebug("vgId:%d, persist task is cancelled and set finished", SMA_VID(pRSmaStat->pSma));
     } else {
-      smaWarn("vgId:%d, persist task in abnormal stat %" PRIi8, atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat)),
-              SMA_VID(pRSmaStat->pSma));
+      smaWarn("vgId:%d, persist task in abnormal stat %" PRIi8, SMA_VID(pRSmaStat->pSma),
+              atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat)));
       ASSERT(0);
     }
     atomic_store_8(RSMA_RUNNING_STAT(pRSmaStat), 0);
@@ -1215,6 +1248,9 @@ static void tdRSmaPersistTrigger(void *param, void *tmrId) {
     case TASK_TRIGGER_STAT_CANCELLED: {
       atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_FINISHED);
       smaDebug("rsma persistence not start since cancelled and finished");
+    } break;
+    case TASK_TRIGGER_STAT_PAUSED: {
+      smaDebug("rsma persistence not start since paused");
     } break;
     case TASK_TRIGGER_STAT_INACTIVE: {
       smaDebug("rsma persistence not start since inactive");
