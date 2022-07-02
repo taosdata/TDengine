@@ -181,16 +181,34 @@ void tdCloseTFile(STFile *pTFile) {
 
 void tdDestroyTFile(STFile *pTFile) { taosMemoryFreeClear(TD_TFILE_FULL_NAME(pTFile)); }
 
-void tdGetVndFileName(int32_t vgId, const char *dname, const char *fname, int64_t version, char *outputName) {
+void tdGetVndFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t version,
+                      char *outputName) {
   if (version < 0) {
-    snprintf(outputName, TSDB_FILENAME_LEN, "vnode/vnode%d/%s/v%d%s", vgId, dname, vgId, fname);
+    if (pdname) {
+      snprintf(outputName, TSDB_FILENAME_LEN, "%s%svnode%svnode%d%s%s%sv%d%s", pdname, TD_DIRSEP, TD_DIRSEP, vgId,
+               TD_DIRSEP, dname, TD_DIRSEP, vgId, fname);
+    } else {
+      snprintf(outputName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s%sv%d%s", TD_DIRSEP, vgId, TD_DIRSEP, dname, TD_DIRSEP,
+               vgId, fname);
+    }
   } else {
-    snprintf(outputName, TSDB_FILENAME_LEN, "vnode/vnode%d/%s/v%d%s%" PRIi64, vgId, dname, vgId, fname, version);
+    if (pdname) {
+      snprintf(outputName, TSDB_FILENAME_LEN, "%s%svnode%svnode%d%s%s%sv%d%s%" PRIi64, pdname, TD_DIRSEP, TD_DIRSEP,
+               vgId, TD_DIRSEP, dname, TD_DIRSEP, vgId, fname, version);
+    } else {
+      snprintf(outputName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s%sv%d%s%" PRIi64, TD_DIRSEP, vgId, TD_DIRSEP, dname,
+               TD_DIRSEP, vgId, fname, version);
+    }
   }
 }
 
-void tdGetVndDirName(int32_t vgId, const char *dname, char *outputName) {
-  snprintf(outputName, TSDB_FILENAME_LEN, "vnode/vnode%d/%s", vgId, dname);
+void tdGetVndDirName(int32_t vgId, const char *pdname, const char *dname, char *outputName) {
+  if (pdname) {
+    snprintf(outputName, TSDB_FILENAME_LEN, "%s%svnode%svnode%d%s%s", pdname, TD_DIRSEP, TD_DIRSEP, vgId, TD_DIRSEP,
+             dname);
+  } else {
+    snprintf(outputName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s", TD_DIRSEP, vgId, TD_DIRSEP, dname);
+  }
 }
 
 int32_t tdInitTFile(STFile *pTFile, const char *dname, const char *fname) {

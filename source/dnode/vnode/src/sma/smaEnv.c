@@ -132,6 +132,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
     if (smaType == TSDB_SMA_TYPE_ROLLUP) {
       SRSmaStat *pRSmaStat = (SRSmaStat *)(*pSmaStat);
       pRSmaStat->pSma = (SSma *)pSma;
+      atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_INIT);
 
       // init smaMgmt
       smaMgmt.smaRef = taosOpenRef(SMA_MGMT_REF_NUM, tdDestroyRSmaStat);
@@ -192,22 +193,20 @@ static void *tdFreeTSmaStat(STSmaStat *pStat) {
 static void tdDestroyRSmaStat(void *pRSmaStat) {
   if (pRSmaStat) {
     SRSmaStat *pStat = (SRSmaStat *)pRSmaStat;
-    smaDebug("vgId:%d %s:%d destroy rsma stat %p", SMA_VID(pStat->pSma), __func__, __LINE__, pRSmaStat);
-    // step 1: set persistence task cancelled
+    SSma      *pSma = pStat->pSma;
+    smaDebug("vgId:%d, destroy rsma stat %p", SMA_VID(pSma), pRSmaStat);
+    // step 1: set rsma trigger stat cancelled
     atomic_store_8(RSMA_TRIGGER_STAT(pStat), TASK_TRIGGER_STAT_CANCELLED);
 
-    // step 2: stop the persistence timer
-    taosTmrStopA(&RSMA_TMR_ID(pStat));
-
-    // step 3: wait the persistence thread to finish
+    // step 2: wait the persistence thread to finish
     int32_t nLoops = 0;
     if (atomic_load_8(RSMA_RUNNING_STAT(pStat)) == 1) {
       while (1) {
         if (atomic_load_8(RSMA_TRIGGER_STAT(pStat)) == TASK_TRIGGER_STAT_FINISHED) {
-          smaDebug("rsma, persist task finished already");
+          smaDebug("vgId:%d, rsma persist task finished already", SMA_VID(pSma));
           break;
         } else {
-          smaDebug("rsma, persist task not finished yet since rsma stat in %" PRIi8,
+          smaDebug("vgId:%d, rsma persist task not finished yet since rsma stat in %" PRIi8, SMA_VID(pSma),
                    atomic_load_8(RSMA_TRIGGER_STAT(pStat)));
         }
         ++nLoops;
@@ -218,7 +217,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
       }
     }
 
-    // step 4: destroy the rsma info and associated fetch tasks
+    // step 3: destroy the rsma info and associated fetch tasks
     // TODO: use taosHashSetFreeFp when taosHashSetFreeFp is ready.
     void *infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), NULL);
     while (infoHash) {
@@ -232,10 +231,10 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     nLoops = 0;
     while (1) {
       if (T_REF_VAL_GET((SSmaStat *)pStat) == 0) {
-        smaDebug("rsma, all fetch task finished already");
+        smaDebug("vgId:%d, rsma fetch tasks all finished", SMA_VID(pSma));
         break;
       } else {
-        smaDebug("rsma, fetch tasks not all finished yet");
+        smaDebug("vgId:%d, rsma fetch tasks not all finished yet", SMA_VID(pSma));
       }
       ++nLoops;
       if (nLoops > 1000) {

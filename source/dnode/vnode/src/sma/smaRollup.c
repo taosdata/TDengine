@@ -15,7 +15,6 @@
 
 #include "sma.h"
 
-#define RSMA_QTASKINFO_PERSIST_MS 7200000
 #define RSMA_QTASKINFO_BUFSIZE    32768
 #define RSMA_QTASKINFO_HEAD_LEN   (sizeof(int32_t) + sizeof(int8_t) + sizeof(int64_t))  // len + type + suid
 
@@ -88,7 +87,7 @@ struct SRSmaQTaskInfoIter {
 };
 
 static void tdRSmaQTaskInfoGetFName(int32_t vgId, int64_t version, char *outputName) {
-  tdGetVndFileName(vgId, VNODE_RSMA_DIR, TD_QTASKINFO_FNAME_PREFIX, version, outputName);
+  tdGetVndFileName(vgId, NULL, VNODE_RSMA_DIR, TD_QTASKINFO_FNAME_PREFIX, version, outputName);
 }
 
 static FORCE_INLINE int32_t tdRSmaQTaskInfoContLen(int32_t lenWithHead) {
@@ -114,12 +113,14 @@ void *tdFreeRSmaInfo(SRSmaInfo *pInfo) {
     for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
       SRSmaInfoItem *pItem = &pInfo->items[i];
       if (pItem->taskInfo) {
-        smaDebug("vgId:%d, stb %" PRIi64 " stop fetch-timer %p level %d", SMA_VID(pSma), pInfo->suid, pItem->tmrId,
-                 i + 1);
-        taosTmrStopA(&pItem->tmrId);
+        if (pItem->tmrId) {
+          smaDebug("vgId:%d, table %" PRIi64 " stop fetch timer %p level %d", SMA_VID(pSma), pInfo->suid, pItem->tmrId,
+                   i + 1);
+          taosTmrStopA(&pItem->tmrId);
+        }
         tdFreeTaskHandle(&pItem->taskInfo, SMA_VID(pSma), i + 1);
       } else {
-        smaDebug("vgId:%d, stb %" PRIi64 " no need to destroy rsma info level %d since empty taskInfo", SMA_VID(pSma),
+        smaDebug("vgId:%d, table %" PRIi64 " no need to destroy rsma info level %d since empty taskInfo", SMA_VID(pSma),
                  pInfo->suid, i + 1);
       }
     }
@@ -358,13 +359,7 @@ int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
     goto _err;
   }
 
-  smaDebug("vgId:%d, register rsma info succeed for suid:%" PRIi64, SMA_VID(pSma), suid);
-
-  // start the persist timer
-  if (TASK_TRIGGER_STAT_INIT ==
-      atomic_val_compare_exchange_8(RSMA_TRIGGER_STAT(pStat), TASK_TRIGGER_STAT_INIT, TASK_TRIGGER_STAT_ACTIVE)) {
-    taosTmrStart(tdRSmaPersistTrigger, RSMA_QTASKINFO_PERSIST_MS, pStat, RSMA_TMR_HANDLE(pStat));
-  }
+  smaDebug("vgId:%d, register rsma info succeed for table %" PRIi64, SMA_VID(pSma), suid);
 
   return TSDB_CODE_SUCCESS;
 _err:
@@ -1054,7 +1049,7 @@ static int32_t tdRSmaQTaskInfoRestore(SSma *pSma, SRSmaQTaskInfoIter *pIter) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat) {
+int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat) {
   SSma   *pSma = pRSmaStat->pSma;
   SVnode *pVnode = pSma->pVnode;
   int32_t vid = SMA_VID(pSma);
@@ -1238,8 +1233,8 @@ static void tdRSmaPersistTrigger(void *param, void *tmrId) {
         // start persist task
         tdRSmaPersistTask(pRSmaStat);
 
-        taosTmrReset(tdRSmaPersistTrigger, RSMA_QTASKINFO_PERSIST_MS, pRSmaStat, pRSmaStat->tmrHandle,
-                     &pRSmaStat->tmrId);
+        // taosTmrReset(tdRSmaPersistTrigger, 5000, pRSmaStat, pRSmaStat->tmrHandle,
+        //              RSMA_TMR_ID(pRSmaStat));
       } else {
         atomic_store_8(RSMA_RUNNING_STAT(pRSmaStat), 0);
       }
