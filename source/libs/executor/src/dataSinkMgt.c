@@ -35,7 +35,7 @@ int32_t dsDataSinkGetCacheSize(SDataSinkStat *pStat) {
 
 
 int32_t dsCreateDataSinker(const SDataSinkNode *pDataSink, DataSinkHandle* pHandle, void* pParam) {
-  switch (nodeType(pDataSink)) {
+  switch ((int)nodeType(pDataSink)) {
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return createDataDispatcher(&gDataSinkManager, pDataSink, pHandle);
     case QUERY_NODE_PHYSICAL_PLAN_DELETE:
