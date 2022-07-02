@@ -12,11 +12,11 @@ import java.util.concurrent.BlockingQueue;
  */
 class MockDataSource implements Iterator {
     private String tbNamePrefix;
-    private int tableCount = 100;
-    private int totalRowsPerTable = 1000000;
+    private int tableCount = 1000;
+    private long maxRowsPerTable = 1000000000L;
 
     // 100 milliseconds between two neighbouring rows.
-    long startMs = System.currentTimeMillis() - totalRowsPerTable * 100;
+    long startMs = System.currentTimeMillis() - maxRowsPerTable * 100;
     private int currentRow = 0;
     private int currentTbId = -1;
 
@@ -37,7 +37,7 @@ class MockDataSource implements Iterator {
             currentTbId = 0;
             currentRow += 1;
         }
-        return currentRow < totalRowsPerTable;
+        return currentRow < maxRowsPerTable;
     }
 
     @Override
@@ -61,24 +61,27 @@ class ReadTask implements Runnable {
     private final static Logger logger = LoggerFactory.getLogger(ReadTask.class);
     private final int taskId;
     private final List<BlockingQueue<String>> taskQueues;
+    private final int queueCount;
     private boolean active = true;
 
     public ReadTask(int readTaskId, List<BlockingQueue<String>> queues) {
         this.taskId = readTaskId;
         this.taskQueues = queues;
+        this.queueCount = queues.size();
     }
 
     /**
-     * Hash data received to different queues.
-     * Here we use the hashcode of table name for demo.
+     * Assign data received to different queues.
+     * Here we use the suffix number in table name.
      * You are expected to define your own rule in practice.
      *
      * @param line record received
      * @return which queue to use
      */
     public int getQueueId(String line) {
-        String tbName = line.substring(0, line.indexOf(','));
-        return Math.abs(tbName.hashCode()) % taskQueues.size();
+        String tbName = line.substring(0, line.indexOf(',')); // For example: tb1_101
+        String suffixNumber = tbName.split("_")[1];
+        return Integer.parseInt(suffixNumber) % this.queueCount;
     }
 
     @Override
@@ -91,8 +94,8 @@ class ReadTask implements Runnable {
                 int queueId = getQueueId(line);
                 taskQueues.get(queueId).put(line);
             }
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        } catch (Exception e) {
+            logger.error("Read Task Error", e);
         }
     }
 

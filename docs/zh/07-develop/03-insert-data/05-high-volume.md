@@ -23,11 +23,14 @@ title: 高效写入
 
 ### 主程序
 
+主程序负责创建队列，并启动读线程和写线程。
+
 ```java title="主程序"
 {{#include docs/examples/java/src/main/java/com/taos/example/highvolume/FastWriteExample.java:main}}
 ```
 
 ### 读任务的实现
+
 <details>
 <summary>读任务的实现</summary>
 
@@ -48,6 +51,8 @@ title: 高效写入
 </details>
 
 ### SQLWriter 类的实现
+
+SQLWriter 类封装了拼 SQL 和写数据的逻辑。注意，所有的表都没有提前创建，而是写入出错的时候，再以超级表为模板建表，然后重现执行 INSERT 语句。
 
 ```java
 {{#include docs/examples/java/src/main/java/com/taos/example/highvolume/SQLWriter.java:SQLWriter}}
@@ -74,13 +79,12 @@ title: 高效写入
    ```
 5. 用 java 命令启动示例程序
    ```
-   java -classpath lib/*:javaexample-1.0.jar  com.taos.example.highvolume.FastWriteExample
+   java -classpath lib/*:javaexample-1.0.jar  com.taos.example.highvolume.FastWriteExample <read_thread_count>  <white_thread_count>
    ```
 
 ## Python 示例程序
 
-在 Python 示例程序中采用参数绑定的写入方式。
+在 Python 示例程序中采用参数绑定的写入方式。(开发中)
+<!-- ```python title="Python 示例程序"
 
-```python title="Python 示例程序"
-developing 
-```
+``` -->

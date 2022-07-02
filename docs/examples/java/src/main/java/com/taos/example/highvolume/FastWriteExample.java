@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingDeque;
 
 /**
  * Prepare target database.
@@ -57,7 +58,7 @@ class DataBaseMonitor {
 public class FastWriteExample {
     final static Logger logger = LoggerFactory.getLogger(FastWriteExample.class);
 
-    final static int taskQueueCapacity = 1000;
+    final static int taskQueueCapacity = Integer.MAX_VALUE / 100;
     final static List<BlockingQueue<String>> taskQueues = new ArrayList<>();
     final static List<ReadTask> readTasks = new ArrayList<>();
     final static List<WriteTask> writeTasks = new ArrayList<>();
