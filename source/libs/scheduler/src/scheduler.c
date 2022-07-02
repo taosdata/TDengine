@@ -75,6 +75,14 @@ int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
 
   SCH_ERR_RET(schJobStatusEnter(&pJob, JOB_TASK_STATUS_INIT, pReq));
 
+  SSchEvent event = {0};
+  event.event = SCH_EVENT_BEGIN_OP;
+  SSchOpEvent opEvent = {0};
+  opEvent.type = SCH_OP_EXEC;
+  opEvent.begin = true;
+  opEvent.pReq = pReq;
+  schJobHandleEvent(pJob, &event);
+  
   SCH_ERR_RET(schJobStatusEnter(&pJob, JOB_TASK_STATUS_EXEC, pReq));
 
   *pJobId = pJob->refId;

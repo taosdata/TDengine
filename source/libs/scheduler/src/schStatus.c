@@ -41,6 +41,10 @@ SSchStatusFps gSchTaskFps[JOB_TASK_STATUS_MAX] = {
   {JOB_TASK_STATUS_DROP,      schTaskStatusNullEnter, schTaskStatusNullLeave, schTaskStatusNullEvent},
 };
 
+int32_t schSwitchJobStatus(int32_t status, SSchJob* pJob, void* pParam) {
+  schJobStatusEnter(pJob, status, pParam);
+}
+
 
 
 
