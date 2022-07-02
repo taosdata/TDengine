@@ -145,10 +145,12 @@ static SArray* filterQualifiedChildTables(const SStreamBlockScanInfo* pScanInfo,
       continue;
     }
 
+    // TODO handle ntb case
     if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != pScanInfo->tableUid) {
       continue;
     }
-    // TODO handle ntb case
+    /*pScanInfo->pStreamScanOp->pTaskInfo->tableqinfoList.*/
+    // handle multiple partition
 
     taosArrayPush(qa, id);
   }
