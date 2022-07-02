@@ -283,3 +283,20 @@ void schFreeSMsgSendInfo(SMsgSendInfo *msgSendInfo) {
   taosMemoryFree(msgSendInfo);
 }
 
+int32_t schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask) {
+  int32_t s = taosHashGetSize(pTaskList);
+  if (s <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSchTask **task = taosHashGet(pTaskList, &taskId, sizeof(taskId));
+  if (NULL == task || NULL == (*task)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *pTask = *task;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+

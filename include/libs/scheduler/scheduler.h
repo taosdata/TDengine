@@ -74,6 +74,7 @@ typedef void (*schedulerFetchFp)(void* pResult, void* param, int32_t code);
 typedef bool (*schedulerChkKillFp)(void* param);
 
 typedef struct SSchedulerReq {
+  bool                  syncReq;
   SRequestConnInfo     *pConn;
   SArray               *pNodeList;
   SQueryPlan           *pDag;
@@ -83,36 +84,17 @@ typedef struct SSchedulerReq {
   void*                 execParam;
   schedulerChkKillFp    chkKillFp;
   void*                 chkKillParam;
+  SQueryResult*         pQueryRes;
 } SSchedulerReq;
 
 
 int32_t schedulerInit(SSchedulerCfg *cfg);
 
-/**
- * Process the query job, generated according to the query physical plan.
- * This is a synchronized API, and is also thread-safety.
- * @param nodeList  Qnode/Vnode address list, element is SQueryNodeAddr
- * @return
- */
-int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJob, SQueryResult *pRes);
+int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJob);
 
-/**
- * Process the query job, generated according to the query physical plan.
- * This is a asynchronized API, and is also thread-safety.
- * @param pNodeList  Qnode/Vnode address list, element is SQueryNodeAddr
- * @return
- */
-  int32_t schedulerAsyncExecJob(SSchedulerReq *pReq, int64_t *pJob);
-
-/**
- * Fetch query result from the remote query executor
- * @param pJob
- * @param data
- * @return
- */
 int32_t schedulerFetchRows(int64_t job, void **data);
 
-void schedulerAsyncFetchRows(int64_t job, schedulerFetchFp fp, void* param);
+void schedulerFetchRowsA(int64_t job, schedulerFetchFp fp, void* param);
 
 int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub);
 

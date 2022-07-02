@@ -67,49 +67,22 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId, SQueryResult *pRes) {
-  qDebug("scheduler sync exec job start");
+int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
+  qDebug("scheduler %s exec job start", pReq->syncReq ? "SYNC" : "ASYNC");
 
   int32_t code = 0;  
   SSchJob *pJob = NULL;
-  SCH_ERR_JRET(schInitJob(pReq, &pJob));
+
+  SCH_ERR_RET(schJobStatusEnter(&pJob, JOB_TASK_STATUS_INIT, pReq));
+
+  SCH_ERR_RET(schJobStatusEnter(&pJob, JOB_TASK_STATUS_EXEC, pReq));
 
   *pJobId = pJob->refId;
-  
-  SCH_ERR_JRET(schExecJobImpl(pReq, pJob, true));
 
 _return:
-
-  if (code && NULL == pJob) {
-    qDestroyQueryPlan(pReq->pDag);
-  }
   
   if (pJob) {
-    schSetJobQueryRes(pJob, pRes);
-    schReleaseJob(pJob->refId);
-  }
-
-  return code;
-}
-
-int32_t schedulerAsyncExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
-  qDebug("scheduler async exec job start");
-
-  int32_t code = 0;  
-  SSchJob *pJob = NULL;
-  SCH_ERR_JRET(schInitJob(pReq, &pJob));
-
-  *pJobId = pJob->refId;
-  
-  SCH_ERR_JRET(schExecJobImpl(pReq, pJob, false));
-
-_return:
-
-  if (code && NULL == pJob) {
-    qDestroyQueryPlan(pReq->pDag);
-  }
-  
-  if (pJob) {
+    schSetJobQueryRes(pJob, pReq->pQueryRes);
     schReleaseJob(pJob->refId);
   }
 
@@ -133,14 +106,14 @@ int32_t schedulerFetchRows(int64_t job, void **pData) {
   SCH_ERR_RET(schBeginOperation(pJob, SCH_OP_FETCH, true));
 
   pJob->userRes.fetchRes = pData;
-  code = schFetchRows(pJob);
+  code = schJobFetchRows(pJob);
 
   schReleaseJob(job);
 
   SCH_RET(code);
 }
 
-void schedulerAsyncFetchRows(int64_t job, schedulerFetchFp fp, void* param) {
+void schedulerFetchRowsA(int64_t job, schedulerFetchFp fp, void* param) {
   qDebug("scheduler async fetch rows start");
 
   int32_t code = 0;
@@ -159,7 +132,7 @@ void schedulerAsyncFetchRows(int64_t job, schedulerFetchFp fp, void* param) {
   pJob->userRes.fetchFp = fp;
   pJob->userRes.userParam = param;
   
-  SCH_ERR_JRET(schAsyncFetchRows(pJob));
+  SCH_ERR_JRET(schJobFetchRowsA(pJob));
 
 _return:
 
@@ -178,7 +151,7 @@ int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub) {
     SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
-  if (pJob->status < JOB_TASK_STATUS_NOT_START || pJob->levelNum <= 0 || NULL == pJob->levels) {
+  if (pJob->status < JOB_TASK_STATUS_INIT || pJob->levelNum <= 0 || NULL == pJob->levels) {
     qDebug("job not initialized or not executable job, refId:0x%" PRIx64, job);
     SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
   }

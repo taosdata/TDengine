@@ -863,7 +863,7 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
     }
   }
 
-  schedulerAsyncFetchRows(pRequest->body.queryJob, fetchCallback, pRequest);
+  schedulerFetchRowsA(pRequest->body.queryJob, fetchCallback, pRequest);
 }
 
 void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {

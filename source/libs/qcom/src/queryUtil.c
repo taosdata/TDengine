@@ -171,17 +171,17 @@ char* jobTaskStatusStr(int32_t status) {
   switch (status) {
     case JOB_TASK_STATUS_NULL:
       return "NULL";
-    case JOB_TASK_STATUS_NOT_START:
-      return "NOT_START";
-    case JOB_TASK_STATUS_EXECUTING:
+    case JOB_TASK_STATUS_INIT:
+      return "INIT";
+    case JOB_TASK_STATUS_EXEC:
       return "EXECUTING";
-    case JOB_TASK_STATUS_PARTIAL_SUCCEED:
+    case JOB_TASK_STATUS_PART_SUCC:
       return "PARTIAL_SUCCEED";
-    case JOB_TASK_STATUS_SUCCEED:
+    case JOB_TASK_STATUS_SUCC:
       return "SUCCEED";
-    case JOB_TASK_STATUS_FAILED:
+    case JOB_TASK_STATUS_FAIL:
       return "FAILED";
-    case JOB_TASK_STATUS_DROPPING:
+    case JOB_TASK_STATUS_DROP:
       return "DROPPING";
     default:
       break;

@@ -631,17 +631,21 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   SRequestConnInfo conn = {.pTrans = pRequest->pTscObj->pAppInfo->pTransporter,
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self};
-  SSchedulerReq    req = {.pConn = &conn,
-                       .pNodeList = pNodeList,
-                       .pDag = pDag,
-                       .sql = pRequest->sqlstr,
-                       .startTs = pRequest->metric.start,
-                       .execFp = NULL,
-                       .execParam = NULL,
-                       .chkKillFp = chkRequestKilled,
-                       .chkKillParam = (void*)pRequest->self};
+  SSchedulerReq    req = {
+    .syncReq = true,
+    .pConn = &conn,
+    .pNodeList = pNodeList,
+    .pDag = pDag,
+    .sql = pRequest->sqlstr,
+    .startTs = pRequest->metric.start,
+    .execFp = NULL,
+    .execParam = NULL,
+    .chkKillFp = chkRequestKilled,
+    .chkKillParam = (void*)pRequest->self
+    .pQueryRes = &res,
+  };
 
-  int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob, &res);
+  int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
   pRequest->body.resInfo.execRes = res.res;
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -939,16 +943,20 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
 
         SRequestConnInfo conn = {
             .pTrans = pAppInfo->pTransporter, .requestId = pRequest->requestId, .requestObjRefId = pRequest->self};
-        SSchedulerReq req = {.pConn = &conn,
-                             .pNodeList = pNodeList,
-                             .pDag = pDag,
-                             .sql = pRequest->sqlstr,
-                             .startTs = pRequest->metric.start,
-                             .execFp = schedulerExecCb,
-                             .execParam = pRequest,
-                             .chkKillFp = chkRequestKilled,
-                             .chkKillParam = (void*)pRequest->self};
-        code = schedulerAsyncExecJob(&req, &pRequest->body.queryJob);
+        SSchedulerReq req = {
+          .syncReq = false,
+          .pConn = &conn,
+          .pNodeList = pNodeList,
+          .pDag = pDag,
+          .sql = pRequest->sqlstr,
+          .startTs = pRequest->metric.start,
+          .execFp = schedulerExecCb,
+          .execParam = pRequest,
+          .chkKillFp = chkRequestKilled,
+          .chkKillParam = (void*)pRequest->self,
+          .pQueryRes = NULL,
+        };
+        code = schedulerExecJob(&req, &pRequest->body.queryJob);
         taosArrayDestroy(pNodeList);
       } else {
         tscDebug("0x%" PRIx64 " plan not executed, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),

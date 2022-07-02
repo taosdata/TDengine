@@ -507,6 +507,7 @@ void* schtRunJobThread(void *aa) {
     SRequestConnInfo conn = {0};
     conn.pTrans = mockPointer;
     SSchedulerReq req = {0};    
+    req.syncReq = false;
     req.pConn = &conn;
     req.pNodeList = qnodeList;
     req.pDag = &dag;
@@ -514,7 +515,7 @@ void* schtRunJobThread(void *aa) {
     req.execFp = schtQueryCb;
     req.execParam = &queryDone;
     
-    code = schedulerAsyncExecJob(&req, &queryJobRefId);      
+    code = schedulerExecJob(&req, &queryJobRefId);      
     assert(code == 0);
 
     pJob = schAcquireJob(queryJobRefId);
@@ -658,7 +659,7 @@ TEST(queryTest, normalCase) {
 
   SRequestConnInfo conn = {0};
   conn.pTrans = mockPointer;
-  SSchedulerReq req = {0};    
+  SSchedulerReq req = {0};   
   req.pConn = &conn;
   req.pNodeList = qnodeList;
   req.pDag = &dag;
@@ -666,7 +667,7 @@ TEST(queryTest, normalCase) {
   req.execFp = schtQueryCb;
   req.execParam = &queryDone;
     
-  code = schedulerAsyncExecJob(&req, &job);  
+  code = schedulerExecJob(&req, &job);  
   ASSERT_EQ(code, 0);
 
   
@@ -769,7 +770,7 @@ TEST(queryTest, readyFirstCase) {
   req.sql = "select * from tb";
   req.execFp = schtQueryCb;
   req.execParam = &queryDone;
-  code = schedulerAsyncExecJob(&req, &job);
+  code = schedulerExecJob(&req, &job);
   ASSERT_EQ(code, 0);
 
   
@@ -877,7 +878,7 @@ TEST(queryTest, flowCtrlCase) {
   req.execFp = schtQueryCb;
   req.execParam = &queryDone;
 
-  code = schedulerAsyncExecJob(&req, &job);
+  code = schedulerExecJob(&req, &job);
   ASSERT_EQ(code, 0);
 
   
