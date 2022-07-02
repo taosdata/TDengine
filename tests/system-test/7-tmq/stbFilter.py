@@ -20,18 +20,54 @@ class TDTestCase:
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def tmqCase1(self):
-        tdLog.printNoPrefix("======== test case 1: ")
-        paraDict = {'dbName':     'db1',
+    def prepareTestEnv(self):
+        tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
+        paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    4,
+                    'replica':    1,
                     'stbName':    'stb',
                     'colPrefix':  'c',
                     'tagPrefix':  't',
-                    'colSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
+                    'colSchema':   [{'type': 'INT', 'count':2}, {'type': 'binary', 'len':20, 'count':1}],
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
+                    'ctbStartIdx': 0,
+                    'ctbNum':     10,
+                    'rowsPerTbl': 10000,
+                    'batchNum':   100,
+                    'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
+                    'pollDelay':  10,
+                    'showMsg':    1,
+                    'showRow':    1}
+
+        tmqCom.initConsumerTable()
+        tmqCom.create_database(tsql=tdSql, dbName=paraDict["dbName"],dropFlag=paraDict["dropFlag"], vgroups=paraDict['vgroups'],replica=paraDict['replica'])
+        tdLog.info("create stb")
+        tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
+        tdLog.info("create ctb")
+        tmqCom.create_ctable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict['ctbPrefix'], ctbNum=paraDict['ctbNum'])
+        tdLog.info("insert data")
+        tmqCom.insert_data_interlaceByMultiTbl(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],
+                                               ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
+                                               startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
+        return
+
+    def tmqCase1(self):
+        tdLog.printNoPrefix("======== test case 1: ")
+        paraDict = {'dbName':     'dbt',
+                    'dropFlag':   1,
+                    'event':      '',
+                    'vgroups':    4,
+                    'replica':    1,
+                    'stbName':    'stb',
+                    'colPrefix':  'c',
+                    'tagPrefix':  't',
+                    'colSchema':   [{'type': 'INT', 'count':2}, {'type': 'binary', 'len':20, 'count':1}],
+                    'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
+                    'ctbPrefix':  'ctb',
+                    'ctbStartIdx': 0,
                     'ctbNum':     10,
                     'rowsPerTbl': 10000,
                     'batchNum':   100,
@@ -43,13 +79,6 @@ class TDTestCase:
         topicNameList = ['topic1', 'topic2', 'topic3']
         expectRowsList = []
         tmqCom.initConsumerTable()
-        tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=4,replica=1)
-        tdLog.info("create stb")
-        tdCom.create_stable(tdSql, dbname=paraDict["dbName"],stbname=paraDict["stbName"], column_elm_list=paraDict['colSchema'], tag_elm_list=paraDict['tagSchema'])
-        tdLog.info("create ctb")
-        tdCom.create_ctable(tdSql, dbname=paraDict["dbName"],stbname=paraDict["stbName"],tag_elm_list=paraDict['tagSchema'],count=paraDict["ctbNum"], default_ctbname_prefix=paraDict['ctbPrefix'])
-        tdLog.info("insert data")
-        tmqCom.insert_data(tdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])
         
         tdLog.info("create topics from stb with filter")
         queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s where c1 %% 4 == 0" %(paraDict['dbName'], paraDict['stbName'])
@@ -134,16 +163,18 @@ class TDTestCase:
 
     def tmqCase2(self):
         tdLog.printNoPrefix("======== test case 2: ")
-        paraDict = {'dbName':     'db2',
+        paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    4,
+                    'replica':    1,
                     'stbName':    'stb',
                     'colPrefix':  'c',
                     'tagPrefix':  't',
                     'colSchema':   [{'type': 'INT', 'count':2}, {'type': 'binary', 'len':20, 'count':1}],
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
+                    'ctbStartIdx': 0,
                     'ctbNum':     10,
                     'rowsPerTbl': 10000,
                     'batchNum':   100,
@@ -155,13 +186,6 @@ class TDTestCase:
         topicNameList = ['topic1', 'topic2', 'topic3']
         expectRowsList = []
         tmqCom.initConsumerTable()
-        tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=4,replica=1)
-        tdLog.info("create stb")
-        tdCom.create_stable(tdSql, dbname=paraDict["dbName"],stbname=paraDict["stbName"], column_elm_list=paraDict['colSchema'], tag_elm_list=paraDict['tagSchema'])
-        tdLog.info("create ctb")
-        tmqCom.create_ctable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict['ctbPrefix'], ctbNum=paraDict['ctbNum'])
-        tdLog.info("insert data")
-        tmqCom.insert_data_1(tdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])
 
         tdLog.info("create topics from stb with filter")
         # sqlString = "create topic %s as select ts, sin(c1), pow(c2,3) from %s.%s where c2 >= 0" %(topicNameList[0], paraDict['dbName'], paraDict['stbName'])
@@ -247,6 +271,7 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
+        self.prepareTestEnv()
         self.tmqCase1()
         self.tmqCase2()
 

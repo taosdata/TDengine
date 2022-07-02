@@ -26,7 +26,7 @@ class TDTestCase:
         tdSql.init(conn.cursor(), False)
 
     def prepareTestEnv(self):
-        tdLog.printNoPrefix("======== test case 1: ")
+        tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
         paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
                     'event':      '',
