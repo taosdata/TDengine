@@ -934,9 +934,14 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         break;
       }
       case TSDB_DATA_TYPE_TIMESTAMP: {
+        int64_t timeVal;
         if (inputType == TSDB_DATA_TYPE_BINARY || inputType == TSDB_DATA_TYPE_NCHAR) {
-          //convert to 0
-          *(int64_t *)output = 0;
+          int32_t ret = convertStringToTimestamp(inputType, input, TSDB_TIME_PRECISION_MILLI, &timeVal);
+          if (ret != TSDB_CODE_SUCCESS) {
+            *(int64_t *)output = 0;
+          } else {
+            *(int64_t *)output = timeVal;
+          }
         } else {
           GET_TYPED_DATA(*(int64_t *)output, int64_t, inputType, input);
         }
