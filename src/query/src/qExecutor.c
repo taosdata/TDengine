@@ -3338,7 +3338,7 @@ int32_t binarySearchForKey(char *pValue, int num, TSKEY key, int order) {
   int32_t midPos = -1;
   int32_t numOfRows;
 
-  if (num <= 0) {
+  if (num <= 0 || pValue == NULL) {
     return -1;
   }
 
@@ -5097,7 +5097,8 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
     int16_t order = (pQueryAttr->order.order == pRuntimeEnv->pTsBuf->tsOrder) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
     tsBufResetPos(pRuntimeEnv->pTsBuf);
     tsBufSetTraverseOrder(pRuntimeEnv->pTsBuf, order);
-    tsBufNextPos(pTsBuf);
+    bool ret = tsBufNextPos(pTsBuf);
+    UNUSED(ret);
   }
 
   int32_t ps = DEFAULT_PAGE_SIZE;
@@ -6495,6 +6496,10 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
     SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, 0);
     tsCols = (int64_t*) pColDataInfo->pData;
     assert(tsCols[0] == pBlock->info.window.skey && tsCols[pBlock->info.rows - 1] == pBlock->info.window.ekey);
+  }
+  
+  if (pCtx == NULL || pBlock == NULL) {
+    return false;
   }
 
   if (pCtx->startTs == INT64_MIN) {
