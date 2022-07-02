@@ -5303,7 +5303,10 @@ static int32_t createCastFuncForTag(STranslateContext* pCxt, SNode* pNode, SData
   if (NULL == pExpr) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  int32_t code = createCastFunc(pCxt, pExpr, dt, pCast);
+  int32_t code = translateExpr(pCxt, &pExpr);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createCastFunc(pCxt, pExpr, dt, pCast);
+  }
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode(pExpr);
   }
@@ -5314,10 +5317,7 @@ static int32_t createTagVal(STranslateContext* pCxt, uint8_t precision, SSchema*
                             SValueNode** pVal) {
   SNode*  pCast = NULL;
   int32_t code = createCastFuncForTag(pCxt, pNode, schemaToDataType(precision, pSchema), &pCast);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateExpr(pCxt, &pCast);
-  }
-  SNode* pNew = NULL;
+  SNode*  pNew = NULL;
   if (TSDB_CODE_SUCCESS == code) {
     code = scalarCalculateConstants(pCast, &pNew);
   }
