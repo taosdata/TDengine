@@ -162,7 +162,8 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
       }
     }
 
-    SyncAppendEntriesBatch* pMsg = syncAppendEntriesBatchBuild(rpcMsgArr, getCount, pSyncNode->vgId);
+    // SyncAppendEntriesBatch* pMsg = syncAppendEntriesBatchBuild(rpcMsgArr, getCount, pSyncNode->vgId);
+    SyncAppendEntriesBatch* pMsg = NULL;
     ASSERT(pMsg != NULL);
 
     // prepare msg

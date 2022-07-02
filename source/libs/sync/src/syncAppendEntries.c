@@ -694,6 +694,8 @@ static int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   return 0;
 }
 
+static bool syncNodeOnAppendEntriesBatchLogOK(SSyncNode* pSyncNode, SyncAppendEntriesBatch* pMsg) { return true; }
+
 // really pre log match
 // prevLogIndex == -1
 static bool syncNodeOnAppendEntriesLogOK(SSyncNode* pSyncNode, SyncAppendEntries* pMsg) {
@@ -844,8 +846,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
   } while (0);
 
   // calculate logOK here, before will coredump, due to fake match
-  // bool logOK = syncNodeOnAppendEntriesLogOK(ths, pMsg);
-  bool logOK = true;
+  bool logOK = syncNodeOnAppendEntriesBatchLogOK(ths, pMsg);
 
   // not match
   //
@@ -866,8 +867,9 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
 
     if (condition) {
       char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, not match, pre-index:%ld, pre-term:%lu, datalen:%d",
-               pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
+      snprintf(logBuf, sizeof(logBuf),
+               "recv sync-append-entries-batch, not match, pre-index:%ld, pre-term:%lu, datalen:%d", pMsg->prevLogIndex,
+               pMsg->prevLogTerm, pMsg->dataLen);
       syncNodeEventLog(ths, logBuf);
 
       // prepare response msg
@@ -914,7 +916,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
 
       if (hasExtraEntries) {
         // make log same, rollback deleted entries
-        // code = syncNodeMakeLogSame(ths, pMsg);
+        code = syncNodeMakeLogSame2(ths, pMsg);
         ASSERT(code == 0);
       }
 
@@ -926,7 +928,8 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
 
         // append entry batch
         for (int32_t i = 0; i < retArrSize; ++i) {
-          SSyncRaftEntry* pAppendEntry = syncEntryBuild(1234);
+          // SSyncRaftEntry* pAppendEntry = syncEntryBuild4(&rpcMsgArr[i], );
+          SSyncRaftEntry* pAppendEntry;
           code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
           if (code != 0) {
             return -1;

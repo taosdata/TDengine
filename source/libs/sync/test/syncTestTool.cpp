@@ -74,7 +74,7 @@ int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
   return 0;
 }
 
-int32_t SnapshotStartRead(struct SSyncFSM* pFsm, void *pParam, void** ppReader) {
+int32_t SnapshotStartRead(struct SSyncFSM* pFsm, void* pParam, void** ppReader) {
   *ppReader = (void*)0xABCD;
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotStartRead== pFsm:%p, *ppReader:%p", pFsm, *ppReader);

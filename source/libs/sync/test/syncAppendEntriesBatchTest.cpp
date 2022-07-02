@@ -15,6 +15,7 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
+/*
 SRpcMsg *createRpcMsg(int32_t i, int32_t dataLen) {
   SRpcMsg *pRpcMsg = (SRpcMsg *)taosMemoryMalloc(sizeof(SRpcMsg));
   memset(pRpcMsg, 0, sizeof(SRpcMsg));
@@ -67,7 +68,6 @@ void test1() {
   syncAppendEntriesBatchDestroy(pMsg);
 }
 
-/*
 void test2() {
   SyncAppendEntries *pMsg = createMsg();
   uint32_t           len = pMsg->bytes;
@@ -126,9 +126,8 @@ int main() {
   sDebugFlag = DEBUG_DEBUG + DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
   logTest();
 
-  test1();
-
   /*
+   test1();
    test2();
    test3();
    test4();

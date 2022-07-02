@@ -996,7 +996,135 @@ SyncClientRequestBatch* syncClientRequestBatchBuild(SRpcMsg* rpcMsgArr, SRaftMet
   return pMsg;
 }
 
-void syncClientRequestBatch2RpcMsg(const SyncClientRequestBatch* pSyncMsg, SRpcMsg* pRpcMsg) {}
+void syncClientRequestBatch2RpcMsg(const SyncClientRequestBatch* pSyncMsg, SRpcMsg* pRpcMsg) {
+  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
+  pRpcMsg->msgType = pSyncMsg->msgType;
+  pRpcMsg->contLen = pSyncMsg->bytes;
+  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
+  memcpy(pRpcMsg->pCont, pSyncMsg, pRpcMsg->contLen);
+}
+
+void syncClientRequestBatchDestroy(SyncClientRequestBatch* pMsg) {
+  if (pMsg != NULL) {
+    taosMemoryFree(pMsg);
+  }
+}
+
+void syncClientRequestBatchDestroyDeep(SyncClientRequestBatch* pMsg) {
+  if (pMsg != NULL) {
+    int32_t  arrSize = pMsg->dataCount;
+    int32_t  raftMetaArrayLen = sizeof(SRaftMeta) * arrSize;
+    SRpcMsg* msgArr = (SRpcMsg*)((char*)(pMsg->data) + raftMetaArrayLen);
+    for (int i = 0; i < arrSize; ++i) {
+      if (msgArr[i].pCont != NULL) {
+        rpcFreeCont(msgArr[i].pCont);
+      }
+    }
+
+    taosMemoryFree(pMsg);
+  }
+}
+
+SRaftMeta* syncClientRequestBatchMetaArr(const SyncClientRequestBatch* pSyncMsg) {
+  SRaftMeta* raftMetaArr = (SRaftMeta*)(pSyncMsg->data);
+  return raftMetaArr;
+}
+
+SRpcMsg* syncClientRequestBatchRpcMsgArr(const SyncClientRequestBatch* pSyncMsg) {
+  int32_t  arrSize = pSyncMsg->dataCount;
+  int32_t  raftMetaArrayLen = sizeof(SRaftMeta) * arrSize;
+  SRpcMsg* msgArr = (SRpcMsg*)((char*)(pSyncMsg->data) + raftMetaArrayLen);
+  return msgArr;
+}
+
+SyncClientRequestBatch* syncClientRequestBatchFromRpcMsg(const SRpcMsg* pRpcMsg) {
+  SyncClientRequestBatch* pSyncMsg = taosMemoryMalloc(pRpcMsg->contLen);
+  ASSERT(pSyncMsg != NULL);
+  memcpy(pSyncMsg, pRpcMsg->pCont, pRpcMsg->contLen);
+  ASSERT(pRpcMsg->contLen == pSyncMsg->bytes);
+
+  return pSyncMsg;
+}
+
+cJSON* syncClientRequestBatch2Json(const SyncClientRequestBatch* pMsg) {
+  char   u64buf[128] = {0};
+  cJSON* pRoot = cJSON_CreateObject();
+
+  if (pMsg != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+    cJSON_AddNumberToObject(pRoot, "vgId", pMsg->vgId);
+    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+    cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
+    cJSON_AddNumberToObject(pRoot, "dataCount", pMsg->dataCount);
+
+    SRaftMeta* metaArr = syncClientRequestBatchMetaArr(pMsg);
+    SRpcMsg*   msgArr = syncClientRequestBatchRpcMsgArr(pMsg);
+
+    cJSON* pMetaArr = cJSON_CreateArray();
+    cJSON_AddItemToObject(pRoot, "metaArr", pMetaArr);
+    for (int i = 0; i < pMsg->dataCount; ++i) {
+      cJSON* pMeta = cJSON_CreateObject();
+      cJSON_AddNumberToObject(pMeta, "seqNum", metaArr[i].seqNum);
+      cJSON_AddNumberToObject(pMeta, "isWeak", metaArr[i].isWeak);
+      cJSON_AddItemToArray(pMetaArr, pMeta);
+    }
+
+    cJSON* pMsgArr = cJSON_CreateArray();
+    cJSON_AddItemToObject(pRoot, "msgArr", pMsgArr);
+    for (int i = 0; i < pMsg->dataCount; ++i) {
+      cJSON* pRpcMsgJson = syncRpcMsg2Json(&msgArr[i]);
+      cJSON_AddItemToArray(pMsgArr, pRpcMsgJson);
+    }
+
+    char* s;
+    s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+    cJSON_AddStringToObject(pRoot, "data", s);
+    taosMemoryFree(s);
+    s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+    cJSON_AddStringToObject(pRoot, "data2", s);
+    taosMemoryFree(s);
+  }
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SyncClientRequestBatch", pRoot);
+  return pJson;
+}
+
+char* syncClientRequestBatch2Str(const SyncClientRequestBatch* pMsg) {
+  cJSON* pJson = syncClientRequestBatch2Json(pMsg);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+// for debug ----------------------
+void syncClientRequestBatchPrint(const SyncClientRequestBatch* pMsg) {
+  char* serialized = syncClientRequestBatch2Str(pMsg);
+  printf("syncClientRequestBatchPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncClientRequestBatchPrint2(char* s, const SyncClientRequestBatch* pMsg) {
+  char* serialized = syncClientRequestBatch2Str(pMsg);
+  printf("syncClientRequestBatchPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncClientRequestBatchLog(const SyncClientRequestBatch* pMsg) {
+  char* serialized = syncClientRequestBatch2Str(pMsg);
+  sTrace("syncClientRequestBatchLog | len:%lu | %s", strlen(serialized), serialized);
+  taosMemoryFree(serialized);
+}
+
+void syncClientRequestBatchLog2(char* s, const SyncClientRequestBatch* pMsg) {
+  if (gRaftDetailLog) {
+    char* serialized = syncClientRequestBatch2Str(pMsg);
+    sTraceLong("syncClientRequestBatchLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
+}
 
 // ---- message process SyncRequestVote----
 SyncRequestVote* syncRequestVoteBuild(int32_t vgId) {
@@ -1475,6 +1603,7 @@ void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg) {
 // block3: SRpcMsg Array
 // block4: SRpcMsg pCont Array
 
+/*
 SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SRpcMsg* rpcMsgArr, int32_t arrSize, int32_t vgId) {
   ASSERT(rpcMsgArr != NULL);
   ASSERT(arrSize > 0);
@@ -1520,6 +1649,15 @@ SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SRpcMsg* rpcMsgArr, int32_t 
   }
 
   return pMsg;
+}
+*/
+
+// block1: SOffsetAndContLen
+// block2: SOffsetAndContLen Array
+// block3: entry Array
+
+SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SSyncRaftEntry** entryPArr, int32_t arrSize, int32_t vgId) {
+  return NULL;
 }
 
 void syncAppendEntriesBatchDestroy(SyncAppendEntriesBatch* pMsg) {
