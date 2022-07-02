@@ -27,6 +27,10 @@ else
 fi
 }
 
+cd ../../
+WKC=`pwd`
+echo "WKC:${WKC}"
+
 # run example with neuget package
 cd ${WKC}/tests/examples/C#
 
