@@ -21,7 +21,7 @@ thiserror = "1"
 websocket = "0.26.4"
 
 taos-error = { path = "../taos-error" }
-taos-query = { path = "../taos-query" }
+taos-query = { path = "../taos-query", no-default-features = true }
 
 async-trait = { version = "0.1.56", optional = true }
 futures = { version = "0.3", optional = true }
