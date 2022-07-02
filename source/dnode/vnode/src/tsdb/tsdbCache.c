@@ -42,11 +42,19 @@ void tsdbCloseCache(SLRUCache *pCache) {
   }
 }
 
-static void getTableCacheKey(tb_uid_t uid, const char *cacheType, char *key, int *len) {
-  int keyLen = 0;
-
+static void getTableCacheKeyS(tb_uid_t uid, const char *cacheType, char *key, int *len) {
   snprintf(key, 30, "%" PRIi64 "%s", uid, cacheType);
   *len = strlen(key);
+}
+
+static void getTableCacheKey(tb_uid_t uid, int cacheType, char *key, int *len) {
+  if (cacheType == 0) {  // last_row
+    *(uint64_t *)key = (uint64_t)uid;
+  } else {  // last
+    *(uint64_t *)key = ((uint64_t)uid) | 0x8000000000000000;
+  }
+
+  *len = sizeof(uint64_t);
 }
 
 static void deleteTableCacheLastrow(const void *key, size_t keyLen, void *value) { taosMemoryFree(value); }
@@ -56,7 +64,8 @@ static int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKe
   char    key[32] = {0};
   int     keyLen = 0;
 
-  getTableCacheKey(uid, "lr", key, &keyLen);
+  // getTableCacheKey(uid, "lr", key, &keyLen);
+  getTableCacheKey(uid, 0, key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
     STSRow *pRow = (STSRow *)taosLRUCacheValue(pCache, h);
@@ -77,7 +86,8 @@ static int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) 
   char    key[32] = {0};
   int     keyLen = 0;
 
-  getTableCacheKey(uid, "l", key, &keyLen);
+  // getTableCacheKey(uid, "l", key, &keyLen);
+  getTableCacheKey(uid, 1, key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
     // clear last cache anyway, no matter where eKey ends.
@@ -95,7 +105,8 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, ST
   char    key[32] = {0};
   int     keyLen = 0;
 
-  getTableCacheKey(uid, "lr", key, &keyLen);
+  // getTableCacheKey(uid, "lr", key, &keyLen);
+  getTableCacheKey(uid, 0, key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
     cacheRow = (STSRow *)taosLRUCacheValue(pCache, h);
@@ -164,7 +175,8 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row) {
 
   ((void)(row));
 
-  getTableCacheKey(uid, "l", key, &keyLen);
+  // getTableCacheKey(uid, "l", key, &keyLen);
+  getTableCacheKey(uid, 1, key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
     // clear last cache anyway, lazy load when get last lookup
@@ -341,6 +353,8 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
       if (--state->iFileSet >= 0) {
         pFileSet = (SDFileSet *)taosArrayGet(state->aDFileSet, state->iFileSet);
       } else {
+        tBlockDataClear(&state->blockData);
+
         *ppRow = NULL;
         return code;
       }
@@ -407,7 +421,6 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
             if (state->aBlockIdx) {
               taosArrayDestroy(state->aBlockIdx);
             }
-            tBlockDataClear(&state->blockData);
 
             state->state = SFSNEXTROW_FILESET;
           }
@@ -879,6 +892,9 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
         tRowMergerGetRow(&merger, ppRow);
         tRowMergerClear(&merger);
       }
+    } else {
+      *ppRow = NULL;
+      return code;
     }
 
     if (iCol == 0) {
@@ -919,11 +935,11 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
           --nilColCount;
         }
       }
-
+      /*
       if (*ppRow) {
         taosMemoryFreeClear(*ppRow);
       }
-
+      */
       continue;
     }
 
@@ -981,7 +997,8 @@ int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUH
   char    key[32] = {0};
   int     keyLen = 0;
 
-  getTableCacheKey(uid, "lr", key, &keyLen);
+  //  getTableCacheKey(uid, "lr", key, &keyLen);
+  getTableCacheKey(uid, 0, key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
     //*ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
@@ -1014,7 +1031,8 @@ int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHand
   char    key[32] = {0};
   int     keyLen = 0;
 
-  getTableCacheKey(uid, "l", key, &keyLen);
+  // getTableCacheKey(uid, "l", key, &keyLen);
+  getTableCacheKey(uid, 1, key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
     //*ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
@@ -1049,7 +1067,8 @@ int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
   char    key[32] = {0};
   int     keyLen = 0;
 
-  getTableCacheKey(uid, "lr", key, &keyLen);
+  // getTableCacheKey(uid, "lr", key, &keyLen);
+  getTableCacheKey(uid, 0, key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
     STSRow *pRow = (STSRow *)taosLRUCacheValue(pCache, h);
@@ -1062,7 +1081,8 @@ int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
     // void taosLRUCacheErase(SLRUCache * cache, const void *key, size_t keyLen);
   }
 
-  getTableCacheKey(uid, "l", key, &keyLen);
+  // getTableCacheKey(uid, "l", key, &keyLen);
+  getTableCacheKey(uid, 1, key, &keyLen);
   h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
     // clear last cache anyway, no matter where eKey ends.
