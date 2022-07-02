@@ -1868,6 +1868,8 @@ static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
               pCxt->errCode = terrno;
               return DEAL_RES_ERROR;
             }
+            snprintf(((SExprNode*)pExpr)->aliasName, sizeof(((SExprNode*)pExpr)->aliasName), "%s",
+                     ((SExprNode*)*pNode)->aliasName);
             nodesDestroyNode(*pNode);
             *pNode = pExpr;
           }
