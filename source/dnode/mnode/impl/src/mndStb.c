@@ -621,12 +621,7 @@ static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
-    if (pVgroup->dbUid != pDb->uid) {
-      sdbRelease(pSdb, pVgroup);
-      continue;
-    }
-
-    if (pVgroup->isTsma) {
+    if (!mndVgroupInDb(pVgroup, pDb->uid)) {
       sdbRelease(pSdb, pVgroup);
       continue;
     }
@@ -664,12 +659,7 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
-    if (pVgroup->dbUid != pDb->uid) {
-      sdbRelease(pSdb, pVgroup);
-      continue;
-    }
-
-    if (pVgroup->isTsma) {
+    if (!mndVgroupInDb(pVgroup, pDb->uid)) {
       sdbRelease(pSdb, pVgroup);
       continue;
     }
@@ -1297,12 +1287,7 @@ static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
-    if (pVgroup->dbUid != pDb->uid) {
-      sdbRelease(pSdb, pVgroup);
-      continue;
-    }
-
-    if (pVgroup->isTsma) {
+    if (!mndVgroupInDb(pVgroup, pDb->uid)) {
       sdbRelease(pSdb, pVgroup);
       continue;
     }
@@ -1688,12 +1673,7 @@ static int32_t mndSetDropStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
-    if (pVgroup->dbUid != pDb->uid) {
-      sdbRelease(pSdb, pVgroup);
-      continue;
-    }
-
-    if (pVgroup->isTsma) {
+    if (!mndVgroupInDb(pVgroup, pDb->uid)) {
       sdbRelease(pSdb, pVgroup);
       continue;
     }
