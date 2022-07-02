@@ -5942,6 +5942,7 @@ SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
 
       pDataBlock->pDataBlock = taosArrayInit(numOfOutput, sizeof(SColumnInfoData));
       if (pDataBlock->pDataBlock == NULL) {
+        tfree(pDataBlock);
         goto _clean;
       }
 
@@ -8107,10 +8108,12 @@ SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
   }
 
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
-
+  if (pInfo->pRes == NULL) {
+    goto _clean;
+  }
+  
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-
-  if (pInfo->pRes == NULL || pOperator == NULL) {
+  if (pOperator == NULL) {
     goto _clean;
   }
 
