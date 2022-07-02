@@ -12,7 +12,7 @@ namespace Cases
             Console.WriteLine("===================JsonTagTest====================");
             conn = conn = UtilsTools.TDConnection("127.0.0.1", "root", "taosdata", "", 0);
             UtilsTools.ExecuteUpdate(conn, "create database if not exists csharp keep 3650");
-            UtilsTools.ExecuteUpdate(conn, "use xxxx");
+            UtilsTools.ExecuteUpdate(conn, "use csharp");
             JsonTagSample jsonTagSample = new JsonTagSample();
             jsonTagSample.Test(conn);
         }
