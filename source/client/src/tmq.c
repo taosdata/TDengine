@@ -1609,8 +1609,8 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
       int64_t transporterId = 0;
       /*printf("send poll\n");*/
 
-      char offsetFormatBuf[50];
-      tFormatOffset(offsetFormatBuf, 50, &pVg->currentOffsetNew);
+      char offsetFormatBuf[80];
+      tFormatOffset(offsetFormatBuf, 80, &pVg->currentOffsetNew);
       tscDebug("consumer %ld send poll to %s : vg %d, epoch %d, req offset %s, reqId %lu", tmq->consumerId,
                pTopic->topicName, pVg->vgId, tmq->epoch, offsetFormatBuf, pReq->reqId);
       /*printf("send vg %d %ld\n", pVg->vgId, pVg->currentOffset);*/

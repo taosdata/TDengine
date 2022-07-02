@@ -23,7 +23,7 @@
 
 
 int32_t schValidateReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
-  int32_t lastMsgType = SCH_GET_TASK_LASTMSG_TYPE(pTask);
+  int32_t lastMsgType = pTask->lastMsgType;
   int32_t taskStatus = SCH_GET_TASK_STATUS(pTask);
   int32_t reqMsgType = msgType - 1;
   switch (msgType) {
@@ -42,7 +42,7 @@ int32_t schValidateReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgTy
                       TMSG_INFO(msgType));
       }
 
-      SCH_SET_TASK_LASTMSG_TYPE(pTask, -1);
+      //SCH_SET_TASK_LASTMSG_TYPE(pTask, -1);
       return TSDB_CODE_SUCCESS;
     case TDMT_SCH_FETCH_RSP:
       if (lastMsgType != reqMsgType && -1 != lastMsgType) {
@@ -57,7 +57,7 @@ int32_t schValidateReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgTy
         SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
       }
 
-      SCH_SET_TASK_LASTMSG_TYPE(pTask, -1);
+      //SCH_SET_TASK_LASTMSG_TYPE(pTask, -1);
       return TSDB_CODE_SUCCESS;
     case TDMT_VND_CREATE_TABLE_RSP:
     case TDMT_VND_DROP_TABLE_RSP:
@@ -82,7 +82,7 @@ int32_t schValidateReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgTy
     SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
-  SCH_SET_TASK_LASTMSG_TYPE(pTask, -1);
+  //SCH_SET_TASK_LASTMSG_TYPE(pTask, -1);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -396,7 +396,8 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
 
   SCH_ERR_JRET(schValidateReceivedMsgType(pJob, pTask, msgType));
 
-  if (NEED_SCHEDULER_REDIRECT_ERROR(rspCode) || SCH_SUB_TASK_NETWORK_ERR(rspCode, pMsg->len > 0)) {
+  int32_t reqType = IsReq(pMsg) ? pMsg->msgType : (pMsg->msgType - 1);
+  if (SCH_NEED_REDIRECT(reqType, rspCode, pMsg->len)) {
     code = schHandleRedirect(pJob, pTask, (SDataBuf *)pMsg, rspCode);
     goto _return;
   }
@@ -859,6 +860,9 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
          addr->nodeId, epSet->eps[epSet->inUse].fqdn, epSet->eps[epSet->inUse].port, 
          trans->pTrans, trans->pHandle);
 
+  if (pTask) {
+    pTask->lastMsgType = msgType;
+  }
 
   int64_t transporterId = 0;
   code = asyncSendMsgToServerExt(trans->pTrans, epSet, &transporterId, pMsgSendInfo, persistHandle, ctx);
@@ -1102,8 +1106,6 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       break;
   }
 
-  SCH_SET_TASK_LASTMSG_TYPE(pTask, msgType);
-
   SSchTrans trans = {.pTrans = pJob->conn.pTrans, .pHandle = SCH_GET_TASK_HANDLE(pTask)};
   SCH_ERR_JRET(schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, msgSize, persistHandle,
                                (rpcCtx.args ? &rpcCtx : NULL)));
@@ -1116,7 +1118,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 
 _return:
 
-  SCH_SET_TASK_LASTMSG_TYPE(pTask, -1);
+  pTask->lastMsgType = -1;
   schFreeRpcCtx(&rpcCtx);
 
   taosMemoryFreeClear(msg);

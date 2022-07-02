@@ -287,6 +287,7 @@ typedef struct STableScanInfo {
   } lastStatus;
 
   int8_t scanMode;
+  int8_t noTable;
 } STableScanInfo;
 
 typedef struct STagScanInfo {
