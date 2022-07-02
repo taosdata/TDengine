@@ -84,22 +84,22 @@ target_link_libraries (idxUtilUT
   index
 )
 
-target_link_libraries (idxJsonUT
-  os  
-  util
-  common
-  gtest_main
-  index
-)
+#target_link_libraries (idxJsonUT
+#  os  
+#  util
+#  common
+#  gtest_main
+#  index
+#)
 
 add_test(
   NAME idxtest
   COMMAND idxTest
 )
-add_test(
-  NAME idxJsonUT
-  COMMAND idxJsonUT 
-)
+# add_test(
+#   NAME idxJsonUT
+#   COMMAND idxJsonUT 
+# )
 add_test(
   NAME idxUtilUT 
   COMMAND idxUtilUT 
