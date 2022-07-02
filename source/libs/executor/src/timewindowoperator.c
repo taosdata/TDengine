@@ -2852,7 +2852,7 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   pInfo->pStDeleted = taosHashInit(64, hashFn, true, HASH_NO_LOCK);
   pInfo->pDelIterator = NULL;
   pInfo->pDelRes = createOneDataBlock(pResBlock, false);
-  pInfo->pDelRes->info.type = STREAM_DELETE;
+  pInfo->pDelRes->info.type = STREAM_DELETE_RESULT;
   blockDataEnsureCapacity(pInfo->pDelRes, 64);
   pInfo->pChildren = NULL;
   pInfo->isFinal = false;
@@ -3980,7 +3980,7 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->pSeDeleted = taosHashInit(64, hashFn, true, HASH_NO_LOCK);
   pInfo->pDelIterator = NULL;
   pInfo->pDelRes = createOneDataBlock(pResBlock, false);
-  pInfo->pDelRes->info.type = STREAM_DELETE;
+  pInfo->pDelRes->info.type = STREAM_DELETE_RESULT;
   blockDataEnsureCapacity(pInfo->pDelRes, 64);
   pInfo->pChildren = NULL;
   pInfo->ignoreExpiredData = pStateNode->window.igExpired;
