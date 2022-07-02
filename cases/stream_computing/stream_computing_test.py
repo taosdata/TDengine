@@ -42,18 +42,19 @@ class StreamComputingTest(TDCase):
         self.range_count = 5
         self.des_table_suffix = "_output"
         self.stream_suffix = "_stream"
-        # ! TD-16571 histogram
-        # ! TD-16570 last_row(c1)
-        # ! now() timezone() to_iso8601(now)
+        
         # ! apercentile(c6, 50) "avg(c7)" "timetruncate(_wstartts, 1m)" "timediff(1, 0, 1h)" TD-16878 TD-16877 TD-16876 TD-16869
         self.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "leastsquares(c1, 1, 2)", "spread(c1)", 
         "stddev(c2)", "hyperloglog(c11)", "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "count(t8)", "leastsquares(t1, 1, 2)", "spread(t1)", "stddev(t2)"]
         # self.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "leastsquares(c1, 1, 2)", "spread(c1)",
         # "stddev(c2)", "hyperloglog(c11)", "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "count(t8)", "leastsquares(t1, 1, 2)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
         # self.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "leastsquares(c1, 1, 2)", "spread(c1)", ]
-        self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "leastsquares(c1, 1, 2)", "spread(c1)", 
-        "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
-        "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "leastsquares(t1, 1, 2)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
+        # ! TD-16571 histogram
+        # ! TD-16570 last_row(c1)
+        # ! now() timezone() to_iso8601(now)
+        self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)", 
+        "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "timezone()", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
+        "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
         self.udf_function_list = ["min(udf1(c1))", "max(udf1(c2))", "sum(udf1(c3))", "first(udf1(c4))", "last(udf1(c5))", "apercentile(udf1(c6), 50)", "avg(udf1(c7))", "count(udf1(c8))", "leastsquares(udf1(c1), 1, 2)", "spread(udf1(c1))", 
         "stddev(udf1(c2))", "hyperloglog(udf1(c11))", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(udf1(t1))", "max(udf1(t2))", "sum(udf1(t3))",
         "first(udf1(t4))", "last(udf1(t5))", "apercentile(udf1(t6), 50)", "avg(udf1(t7))", "count(udf1(t8))", "leastsquares(udf1(t1), 1, 2)", "spread(udf1(t1))", "stddev(udf1(t2))", "hyperloglog(udf1(t11))"]
@@ -138,91 +139,110 @@ class StreamComputingTest(TDCase):
             self.tdCom.check_stream(f'select {self.tb_filter_des_select_elm} from {self.ctb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.ctb_name} where {self.stb_data_filter_sql};', count-1)
             self.tdCom.check_stream(f'select {self.tb_filter_des_select_elm} from {self.tb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.tb_name} where {self.tb_data_filter_sql};', count-1)
 
-    def downsampling(self):
+    def at_once_interval_order(self, interval, precision=None, vgroups=1, update=False):
         self.case_name = sys._getframe().f_code.co_name
-        self.tdSql.execute('create table if not exists downsampling_stb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool) tags (t1 int, t2 double, t3 varchar(100), t4 bool);')
-        self.tdSql.execute('create table downsampling_ct1 using downsampling_stb tags(10, 10.1, "Beijing", True);')
-        # self.tdSql.execute(f'create table ownsampling_ct2 using downsampling_stb tags(20, 20.2, "TIANJIN", False);')
-        # self.tdSql.execute(f'create table ownsampling_ct3 using downsampling_stb tags(30, 30.3, "HeBei", False);')
-        self.tdSql.execute('create table if not exists downsampling_tb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool);')
-        # ! TD-16571 histogram
-        # ! TD-16570 last_row(c1)
-        # ! now() timezone() to_iso8601(now)
-        function_list = ["min(c1)", "max(c2)", "sum(c1)", "first(c1)", "last(c1)", "apercentile(c1, 50)", "avg(c1)", "count(c1)", "leastsquares(c1, 1, 2)", "spread(c1)", "stddev(c2)", "hyperloglog(c3)", 
-           "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
-        # function_list = ['to_unixtimestamp("1970-01-01T08:00:00+08:00")']
-        # function_list = ["to_iso8601(1)"]
-        # function_list = ["min(c1)", "max(c2)", "sum(c1)", "first(c1)", "last(c1)", "apercentile(c1, 50)", "last_row(c1)", "avg(c1)", "count(c1)", "leastsquares(c1, 1, 2)", "spread(c1)", "stddev(c2)", "hyperloglog(c3)", 
-        #     'histogram(c1, "user_input", "[1, 3, 5, 7]", 0)', "now()", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "timezone()", "today()", "to_iso8601(now)",  'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
-        output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list)))
-        source_select_str = ','.join(self.downsampling_function_list)
+        self.prepare_data(interval=interval, precision=precision, vgroups=vgroups)
         self.tdCom.write_latency(self.case_name)
-        # stb
-        self.tdSql.execute(f'create stream stb_downsampling_stream trigger at_once into output_downsampling_stb as select _wstartts AS start, {source_select_str} from downsampling_stb interval(10m);')
-        # ctb
-        self.tdSql.execute(f'create stream ctb_downsampling_stream trigger at_once into output_downsampling_ctb as select _wstartts AS start, {source_select_str} from downsampling_ct1 interval(10m);')
-        # tb
-        self.tdSql.execute(f'create stream tb_downsampling_stream trigger at_once into output_downsampling_tb as select _wstartts AS start, {source_select_str} from downsampling_tb interval(10m);')
-        for tbname in ["downsampling_ct1", "downsampling_tb"]:
-            self.tdSql.execute(f'insert into {tbname} values (1653547828591, 100, 100.1, "Beijing", True);')
-            self.tdSql.execute(f'insert into {tbname} values (1653547828591+1s, -100, -100.1, "Tianjin", False);')
-            self.tdSql.execute(f'insert into {tbname} values (1653547828591+2s, 50, 50.3, "HeBei", False);')
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstartts AS start, {self.stb_source_select_str}  from {self.stb_name} interval({self.dataDict["interval"]}s)', trigger_mode="at_once")
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstartts AS start, {self.stb_source_select_str}  from {self.ctb_name} interval({self.dataDict["interval"]}s)', trigger_mode="at_once")
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstartts AS start, {self.tb_source_select_str}  from {self.tb_name} interval({self.dataDict["interval"]}s)', trigger_mode="at_once")
+        for i in range(self.range_count):
+            ctb_name = self.tdCom.get_long_name()
+            self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=str(self.date_time+self.dataDict["interval"])+f'+{i*10}s')
+            if update:
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=str(self.date_time+self.dataDict["interval"])+f'+{i*10}s')
+            self.date_time += 1
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=str(self.date_time+self.dataDict["interval"])+f'+{i*10}s')
+            if update:
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=str(self.date_time+self.dataDict["interval"])+f'+{i*10}s')
+            self.date_time += 1
+            self.tdCom.insert_rows(tbname=ctb_name, ts_value=str(self.date_time+self.dataDict["interval"])+f'+{i*10}s')
+            if update:
+                self.tdCom.insert_rows(tbname=ctb_name, ts_value=str(self.date_time+self.dataDict["interval"])+f'+{i*10}s')
+            self.date_time += 1
+            for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+                if tbname != self.tb_name:
+                    self.tdCom.check_query_data(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstartts AS start, {self.stb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)')
+                else:
+                    self.tdCom.check_query_data(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstartts AS start, {self.tb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)')
 
-        self.tdCom.check_stream(f'select start, {output_select_str} from output_downsampling_stb;', f'select _wstartts AS start, {source_select_str} from downsampling_stb interval(10m);', 1)
-        self.tdCom.check_stream(f'select start, {output_select_str} from output_downsampling_ctb;', f'select _wstartts AS start, {source_select_str} from downsampling_ct1 interval(10m);', 1)
-        self.tdCom.check_stream(f'select start, {output_select_str} from output_downsampling_tb;', f'select _wstartts AS start, {source_select_str} from downsampling_tb interval(10m);', 1)
-        
-
-        # self.tdCom.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_downsampling_stb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from downsampling_stb interval(10m);', 1)
-        # self.tdCom.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_downsampling_ctb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from downsampling_ct1 interval(10m);', 1)
-        # self.tdCom.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_downsampling_tb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from downsampling_tb interval(10m);', 1)
-        # self.tdCom.write_latency('sql: select * from output_downsampling_stb;')
-
-        # self.tdCom.check_stream_res('select * from output_downsampling_stb;', 1)
-        # self.check_query_data('select start, `min(c1)`, `max(c2)`, `sum(c1)` from output_downsampling_stb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_stb interval(10m);')
-        count = 1
-        step_count = 1
-        for i in range(1, 10):
-            if i % 2 == 0:
-                step_count += i
-                for j in range(count, step_count):
-                    self.tdSql.execute(f'insert into downsampling_ct1 values (1653547828591+{j}0m, 60, 60.3, "heilongjiang", True);')
-                    self.tdSql.execute(f'insert into downsampling_tb values (1653547828591+{j}1m, 70, 70.3, "heilongjiang", True);')
-                count += i
-                # expectd_res = count - 1
+    def alter_source_table(self, interval, precision=None, vgroups=1):
+        self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data(interval=interval, precision=precision, vgroups=vgroups)
+        self.tdCom.write_latency(self.case_name)
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstartts AS start, {self.stb_source_select_str}  from {self.stb_name} interval({self.dataDict["interval"]}s)', trigger_mode="at_once")
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstartts AS start, {self.stb_source_select_str}  from {self.ctb_name} interval({self.dataDict["interval"]}s)', trigger_mode="at_once")
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstartts AS start, {self.tb_source_select_str}  from {self.tb_name} interval({self.dataDict["interval"]}s)', trigger_mode="at_once")
+        for i in range(self.range_count):
+            ctb_name = self.tdCom.get_long_name()
+            self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=str(self.date_time+self.dataDict["interval"])+f'+{i*10}s')
+            self.date_time += 1
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=str(self.date_time+self.dataDict["interval"])+f'+{i*10}s')
+            self.date_time += 1
+            self.tdCom.insert_rows(tbname=ctb_name, ts_value=str(self.date_time+self.dataDict["interval"])+f'+{i*10}s')
+            self.date_time += 1
+        self.tdSql.execute(f'alter stable {self.stb_name} add column c22 int')
+        self.tdSql.execute(f'alter stable {self.stb_name} add tag t22 binary(5)')
+        self.tdSql.execute(f'alter table {self.ctb_name} set tag t3 = "0"')
+        for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+            if tbname != self.tb_name:
+                self.tdCom.check_query_data(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstartts AS start, {self.stb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)')
             else:
-                step_count += 1
-                for i in range(2):
-                    self.tdSql.execute(f'insert into downsampling_ct1 values (1653547828591+{count}1m, 60, 60.3, "heilongjiang", True);')
-                    self.tdSql.execute(f'insert into downsampling_tb values (1653547828591+{count}1m, 70, 70.3, "heilongjiang", True);')
-                count += 1
-                # expectd_res = count
-            # check result
-            self.tdCom.check_stream(f'select start, {output_select_str} from output_downsampling_stb;', f'select _wstartts AS start, {source_select_str} from downsampling_stb interval(10m);', count)
-            self.tdCom.check_stream(f'select start, {output_select_str} from output_downsampling_ctb;', f'select _wstartts AS start, {source_select_str} from downsampling_ct1 interval(10m);', count)
-            self.tdCom.check_stream(f'select start, {output_select_str} from output_downsampling_tb;', f'select _wstartts AS start, {source_select_str} from downsampling_tb interval(10m);', count)
-            # self.tdCom.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_downsampling_stb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from downsampling_stb interval(10m);', count)
-            # self.tdCom.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_downsampling_ctb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from downsampling_ct1 interval(10m);', count)
-            # self.tdCom.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_downsampling_tb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from downsampling_tb interval(10m);', count)
-        #     self.tdCom.check_stream(f'select {select_elm} from output_data_filter_stb where {filter_sql};', f'select {select_elm} from data_filter_stb where {filter_sql};', count-1)
-        #     self.tdCom.check_stream(f'select {select_elm} from output_data_filter_ctb where {filter_sql};', f'select {select_elm} from data_filter_ct1 where {filter_sql};', count-1)
-        #     self.tdCom.check_stream(f'select {select_elm} from output_data_filter_tb where {filter_sql};', f'select {select_elm} from data_filter_tb where {filter_sql};', count-1)
+                self.tdCom.check_query_data(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstartts AS start, {self.tb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)')
 
 
-        # self.tdSql.execute(f'insert into downsampling_ct1 values (1653547828591+10m, 60, 60.3, "heilongjiang", True);')
-        # self.tdSql.execute(f'insert into downsampling_ct1 values (1653547828591+11m, 70, 70.3, "JiLin", True);')
-        # self.tdCom.write_latency('sql: select * from output_downsampling_stb;')
-        # self.tdCom.check_stream_res('select * from output_downsampling_stb;', 2)
-        # self.check_query_data('select start, `min(c1)`, `max(c2)`, `sum(c1)` from output_downsampling_stb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_stb interval(10m);')
-        # self.tdSql.execute(f'insert into downsampling_ct1 values (1653547828591+21m, 70, 70.3, "JiLin", True);')
-        # self.tdCom.write_latency('sql: select * from output_downsampling_stb;')
-        # self.tdCom.check_stream_res('select * from output_downsampling_stb;', 3)
-        # self.check_query_data('select start, `min(c1)`, `max(c2)`, `sum(c1)` from output_downsampling_stb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_stb interval(10m);')
+    def at_once_state_window(self, state_window, precision=None, vgroups=1):
+        self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data(state_window=state_window, precision=precision, vgroups=vgroups)
+        state_window_col_name = self.dataDict["state_window"]
+        self.tdCom.write_latency(self.case_name)
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstartts AS start, {self.stb_source_select_str}  from {self.stb_name} state_window({state_window_col_name})', trigger_mode="at_once")
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstartts AS start, {self.stb_source_select_str}  from {self.ctb_name} state_window({state_window_col_name})', trigger_mode="at_once")
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstartts AS start, {self.tb_source_select_str}  from {self.tb_name} state_window({state_window_col_name})', trigger_mode="at_once")
+        range_times = self.dataDict['iteration']
+        state_window_max = self.dataDict['state_window_max']
+        for i in range(range_times):
+            state_window_value = random.randint(int((i)*state_window_max/range_times), int((i+1)*state_window_max/range_times))
+            for i in range(2, range_times+3):
+                self.tdSql.execute(f'insert into {self.ctb_name} (ts, {state_window_col_name}) values ({self.date_time}, {state_window_value})')
+                self.tdSql.execute(f'insert into {self.tb_name} (ts, {state_window_col_name}) values ({self.date_time}, {state_window_value})')
+                self.date_time += 1
+                # ! TD-16806
 
+    def at_once_session(self, session, interation, precision=None, vgroups=1):
+        self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data(session=session, interation=interation, precision=precision, vgroups=vgroups)
+        self.tdCom.write_latency(self.case_name)
+        # create stb/ctb/tb stream
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstartts AS start, {self.stb_source_select_str}  from {self.ctb_name} session(ts, {self.dataDict["session"]}s)', trigger_mode="at_once")
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstartts AS start, {self.tb_source_select_str}  from {self.tb_name} session(ts, {self.dataDict["session"]}s)', trigger_mode="at_once")
+        for i in range(self.dataDict['iteration']):
+            ctb_name = self.tdCom.get_long_name()
+            self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
+            if i == 0:
+                window_close_ts = self.cal_watermark_window_close_session_endts(self.date_time, session=session)
+            else:
+                self.date_time = window_close_ts + 1
+                window_close_ts = self.cal_watermark_window_close_session_endts(self.date_time, session=session)
+            for ts_value in [self.date_time, window_close_ts]:
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
+                ts_value += 1
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
+                ts_value += 1
+                self.tdCom.insert_rows(tbname=ctb_name, ts_value=ts_value)
+                ts_value += 1
+            
+            for tbname in [self.ctb_name, self.tb_name]:
+                if tbname != self.tb_name:
+                    self.tdCom.check_query_data(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstartts AS start, {self.stb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s)')
+                else:
+                    self.tdCom.check_query_data(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstartts AS start, {self.tb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s)')
 
     def state_window_function(self):
+        # ! TD-16806 after this bug is fixed, state_window_function will be deleted
         self.case_name = sys._getframe().f_code.co_name
-        self.tdSql.execute('create table if not exists state_window_stb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool) tags (t1 int, t2 double, t3 varchar(100), t4 bool);')
         self.tdSql.execute('create table state_window_ct1 using state_window_stb tags(10, 10.1, "Beijing", True);')
         self.tdSql.execute('create table if not exists state_window_tb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool);')
         
@@ -262,70 +282,23 @@ class StreamComputingTest(TDCase):
             self.tdCom.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_state_window_ctb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from state_window_ct1 state_window(c1);', 4)
             self.tdCom.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_state_window_tb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from state_window_tb state_window(c1);', 4)
 
-    def session_window(self):
-        self.case_name = sys._getframe().f_code.co_name
-        self.tdSql.execute('create table if not exists session_window_stb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool) tags (t1 int, t2 double, t3 varchar(100), t4 bool);')
-        self.tdSql.execute('create table session_window_ct1 using session_window_stb tags(10, 10.1, "Beijing", True);')
-        self.tdSql.execute('create table if not exists session_window_tb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool);')
-        self.tdCom.write_latency(self.case_name)
-        function_list = ["min(c1)", "max(c2)", "sum(c1)", "first(c1)", "last(c1)", "apercentile(c1, 50)"]
-        for test_function in function_list:
-            # # stb
-            # self.tdSql.execute(f'create stream stb_session_window_stream into output_session_window_stb as select min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from session_window_stb session(ts, 10m);')
-            # ctb
-            function_name = test_function.split('(')[0]
-            self.tdSql.execute(f'create stream ctb_session_window_{function_name}_stream trigger at_once into output_session_window_{function_name}_ctb as select ts, {test_function} from session_window_ct1 session(ts, 10m);')
-            # tb
-            self.tdSql.execute(f'create stream tb_session_window_{function_name}_stream trigger at_once into output_session_window_{function_name}_tb as select ts, {test_function} from session_window_tb session(ts, 10m);')
-            for tbname in ["session_window_ct1", "session_window_tb"]:
-                self.tdSql.execute(f'insert into {tbname} values (1653547828591, 100, 100.1, "Beijing", True);')
-                self.tdSql.execute(f'insert into {tbname} values (1653547828591+1s, -100, -100.1, "Tianjin", False);')
-                self.tdSql.execute(f'insert into {tbname} values (1653547828591+2s, 50, 50.3, "HeBei", False);')
-
-            # self.tdCom.check_stream('select `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_session_window_stb;', 'select min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from session_window_stb session(ts, 10m);', 1)
-            self.tdCom.check_stream(f'select ts, `{test_function}` from output_session_window_{function_name}_ctb;', f'select ts, {test_function} from session_window_ct1 session(ts, 10m);', 2)
-            self.tdCom.check_stream(f'select ts, `{test_function}` from output_session_window_{function_name}_tb;', f'select ts, {test_function} from session_window_tb session(ts, 10m);', 2)
-            # self.tdCom.write_latency('sql: select * from output_session_window_stb;')
-
-            # self.tdCom.check_stream_res('select * from output_session_window_stb;', 1)
-            # self.check_query_data('select `min(c1)`, `max(c2)`, `sum(c1)` from output_session_window_stb;', 'select min(c1), max(c2), sum(c1) from session_window_stb session(ts, 10m);')
-            count = 2
-            step_count = 1
-            for i in range(1, 10):
-                if i % 2 == 0:
-                    step_count += i
-                    for j in range(count, step_count):
-                        self.tdSql.execute(f'insert into session_window_ct1 values (1653547828591+{j}0m, 60, 60.3, "heilongjiang", True);')
-                        self.tdSql.execute(f'insert into session_window_tb values (1653547828591+{j}1m, 70, 70.3, "heilongjiang", True);')
-                    count += i
-                    # expectd_res = count - 1
-                else:
-                    step_count += 1
-                    for i in range(2):
-                        self.tdSql.execute(f'insert into session_window_ct1 values (1653547828591+{count}1m, 60, 60.3, "heilongjiang", True);')
-                        self.tdSql.execute(f'insert into session_window_tb values (1653547828591+{count}1m, 70, 70.3, "heilongjiang", True);')
-                    count += 1
-                    # expectd_res = count
-                # check result
-                # self.tdCom.check_stream('select `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_session_window_stb;', 'select min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from session_window_stb session(ts, 10m);', count)
-                self.tdCom.check_stream(f'select ts, `{test_function}` from output_session_window_{function_name}_ctb;', f'select ts, {test_function} from session_window_ct1 session(ts, 10m);', count)
-                self.tdCom.check_stream(f'select ts, `{test_function}` from output_session_window_{function_name}_tb;', f'select ts, {test_function} from session_window_tb session(ts, 10m);', count)
 
     def scalar_function(self):
         # self.prepare_stream_data()
         self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data()
         self.tdSql.execute('create table if not exists scalar_stb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 int);')
         self.tdSql.execute('create table scalar_ct1 using scalar_stb tags(10);')
         # self.tdSql.execute(f'create table scalar_ct2 using scalar_stb tags(-20);')
         # self.tdSql.execute(f'create table scalar_ct3 using scalar_stb tags(0);')
         self.tdSql.execute('create table if not exists scalar_tb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20));')
 
-        self.tdCom.write_latency(self.case_name)
-        math_function_list = ["abs", "acos", "asin", "atan", "ceil", "cos", "floor", "log", "pow", "round", "sin", "sqrt", "tan"]
+        # self.tdCom.write_latency(self.case_name)
+        # ! TD-16980
+        # math_function_list = ["abs", "acos", "asin", "atan", "ceil", "cos", "floor", "log", "pow", "round", "sin", "sqrt", "tan"]
+        math_function_list = ["abs", "acos", "asin", "atan", "ceil", "cos", "floor", "pow", "round", "sin", "tan"]
         # string_function_list = ["lower", "ltrim", "rtrim", "substr", "upper"]
-        # ! TD-16624 commit out
-        # string_function_list = ["char_length", "concat", "concat_ws", "length", "lower", "ltrim", "rtrim", "substr", "upper"]
-        # string_function_list = ["char_length", "concat", "concat_ws", "length", "lower", "ltrim", "rtrim", "substr"]
+        string_function_list = ["char_length", "concat", "concat_ws", "length", "lower", "ltrim", "rtrim", "substr", "upper"]
         for math_function in math_function_list:
             if math_function in ["log", "pow"]:
                 self.tdSql.execute(f'create stream stb_{math_function}_stream trigger at_once into output_{math_function}_stb as select ts, {math_function}(c1, 2), {math_function}(c2, 2), c3 from scalar_stb;')
@@ -338,35 +311,37 @@ class StreamComputingTest(TDCase):
             self.tdCom.check_stream_field_type(f"describe output_{math_function}_stb", math_function)
             self.tdCom.check_stream_field_type(f"describe output_{math_function}_ctb", math_function)
             self.tdCom.check_stream_field_type(f"describe output_{math_function}_tb", math_function)
-        # for string_function in string_function_list:
-        #     if string_function == "concat":
-        #         self.tdSql.execute(f'create stream stb_{string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb;')
-        #         self.tdSql.execute(f'create stream ctb_{string_function}_stream into output_{string_function}_ctb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_ct1;')
-        #         self.tdSql.execute(f'create stream tb_{string_function}_stream into output_{string_function}_tb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_tb;')
-        #     elif string_function == "concat_ws":
-        #         self.tdSql.execute(f'create stream stb_{string_function}_stream into output_{string_function}_stb as select ts, {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb;')
-        #         self.tdSql.execute(f'create stream ctb_{string_function}_stream into output_{string_function}_ctb as select ts, {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_ct1;')
-        #         self.tdSql.execute(f'create stream tb_{string_function}_stream into output_{string_function}_tb as select ts, {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_tb;')
-        #     elif string_function == "substr":
-        #         self.tdSql.execute(f'create stream stb_{string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_stb;')
-        #         self.tdSql.execute(f'create stream ctb_{string_function}_stream into output_{string_function}_ctb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_ct1;')
-        #         self.tdSql.execute(f'create stream tb_{string_function}_stream into output_{string_function}_tb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_tb;')
-        #     else:
-        #         self.tdSql.execute(f'create stream stb_{string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb;')
-        #         self.tdSql.execute(f'create stream ctb_{string_function}_stream into output_{string_function}_ctb as select ts, {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_ct1;')
-        #         self.tdSql.execute(f'create stream tb_{string_function}_stream into output_{string_function}_tb as select ts, {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_tb;')
-        #     self.tdCom.check_stream_field_type(f"describe output_{string_function}_stb", string_function)
-        #     self.tdCom.check_stream_field_type(f"describe output_{string_function}_ctb", string_function)
-        #     self.tdCom.check_stream_field_type(f"describe output_{string_function}_tb", string_function)
+        for string_function in string_function_list:
+            if string_function == "concat":
+                self.tdSql.execute(f'create stream stb_{string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb;')
+                self.tdSql.execute(f'create stream ctb_{string_function}_stream into output_{string_function}_ctb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_ct1;')
+                self.tdSql.execute(f'create stream tb_{string_function}_stream into output_{string_function}_tb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_tb;')
+            elif string_function == "concat_ws":
+                self.tdSql.execute(f'create stream stb_{string_function}_stream into output_{string_function}_stb as select ts, {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb;')
+                self.tdSql.execute(f'create stream ctb_{string_function}_stream into output_{string_function}_ctb as select ts, {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_ct1;')
+                self.tdSql.execute(f'create stream tb_{string_function}_stream into output_{string_function}_tb as select ts, {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_tb;')
+            elif string_function == "substr":
+                self.tdSql.execute(f'create stream stb_{string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_stb;')
+                self.tdSql.execute(f'create stream ctb_{string_function}_stream into output_{string_function}_ctb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_ct1;')
+                self.tdSql.execute(f'create stream tb_{string_function}_stream into output_{string_function}_tb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_tb;')
+            else:
+                self.tdSql.execute(f'create stream stb_{string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb;')
+                self.tdSql.execute(f'create stream ctb_{string_function}_stream into output_{string_function}_ctb as select ts, {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_ct1;')
+                self.tdSql.execute(f'create stream tb_{string_function}_stream into output_{string_function}_tb as select ts, {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_tb;')
+            self.tdCom.check_stream_field_type(f"describe output_{string_function}_stb", string_function)
+            self.tdCom.check_stream_field_type(f"describe output_{string_function}_ctb", string_function)
+            self.tdCom.check_stream_field_type(f"describe output_{string_function}_tb", string_function)
 
-        # for tbname in ["scalar_ct1", "scalar_tb"]:
-        #     self.tdSql.execute(f'insert into {tbname} values ({self.date_time}, 100, 100.1, "beijing", "taos", "Taos");')
-        #     self.tdSql.execute(f'insert into {tbname} values ({self.date_time}+1s, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
-        #     self.tdSql.execute(f'insert into {tbname} values ({self.date_time}+2s, 0, Null, "hebei", "TDengine", Null);')
+        for tbname in ["scalar_ct1", "scalar_tb"]:
+            self.tdSql.execute(f'insert into {tbname} values ({self.date_time}, 100, 100.1, "beijing", "taos", "Taos");')
+            self.tdSql.execute(f'insert into {tbname} values ({self.date_time}+1s, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
+            self.tdSql.execute(f'insert into {tbname} values ({self.date_time}+2s, 0, Null, "hebei", "TDengine", Null);')
 
         count = 1
         step_count = 1
         for i in range(1, 20):
+            print(i)
+            time.sleep(1)
             if i % 2 == 0:
                 step_count += i
                 for j in range(count, step_count):
@@ -381,13 +356,13 @@ class StreamComputingTest(TDCase):
                 count += 1
             for math_function in math_function_list:
                 if math_function == "log" or math_function == "pow":
-                    self.tdCom.check_stream(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_stb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_stb;', count-1)
-                    self.tdCom.check_stream(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_ctb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_ct1;', count-1)
-                    self.tdCom.check_stream(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_tb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_tb;', count-1)
+                    self.tdCom.check_query_data(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_stb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_stb;')
+                    self.tdCom.check_query_data(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_ctb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_ct1;')
+                    self.tdCom.check_query_data(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_tb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_tb;')
                 else:
-                    self.tdCom.check_stream(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_stb;', f'select {math_function}(c1), {math_function}(c2) from scalar_stb;', count-1)
-                    self.tdCom.check_stream(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_ctb;', f'select {math_function}(c1), {math_function}(c2) from scalar_ct1;', count-1)
-                    self.tdCom.check_stream(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_tb;', f'select {math_function}(c1), {math_function}(c2) from scalar_tb;', count-1)
+                    self.tdCom.check_query_data(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_stb;', f'select {math_function}(c1), {math_function}(c2) from scalar_stb;')
+                    self.tdCom.check_query_data(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_ctb;', f'select {math_function}(c1), {math_function}(c2) from scalar_ct1;')
+                    self.tdCom.check_query_data(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_tb;', f'select {math_function}(c1), {math_function}(c2) from scalar_tb;')
             # for string_function in string_function_list:
             #     if string_function == "concat":
             #         self.tdCom.check_stream(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_stb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb;', count-1)
@@ -486,6 +461,7 @@ class StreamComputingTest(TDCase):
 
     def stream_tandem(self):
         self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data()
         self.tdSql.execute('create table if not exists tandem_stb1 (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 int);')
         self.tdSql.execute('create table tandem_ct1 using tandem_stb1 tags(1);')
         self.tdSql.execute('create table if not exists tandem_stb2 (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 int);')
@@ -950,15 +926,17 @@ class StreamComputingTest(TDCase):
                     self.tdSql.query(f'select start, {self.stb_output_select_str} from {tbname}')
                 else:
                     self.tdSql.query(f'select start, {self.tb_output_select_str} from {tbname}')
-
                 self.tdSql.checkEqual(self.tdSql.query_row, init_num)
 
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
             self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts)
             if i == 0:
                 init_num = 2 + i
+                if watermark is not None:
+                    init_num += 1
             else:
                 init_num += 1
+            
             for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
                 if tbname != self.tb_name:
                     self.tdCom.check_stream(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstartts AS start, {self.stb_source_select_str}  from {tbname} interval({self.dataDict["interval"]}s)', init_num, max_delay)
@@ -1123,19 +1101,26 @@ class StreamComputingTest(TDCase):
 
 
     def run(self):
+        # ! TD-16915
+        # self.at_once_interval_order(interval=random.randint(10, 15))
+        # self.alter_source_table(interval=random.randint(10, 15))
+        # ! bug
+        # self.at_once_state_window(state_window="c1")
+        # self.at_once_session(session=random.randint(10, 15), interation=random.randint(10, 15))
         # self.downsampling()
         # self.state_window_function()
         # # # self.session_window()
         # # # # # ! TD-16145
-        # # # self.scalar_function()
+        # self.scalar_function()
         # self.data_filter()
         # self.life_cycle()
         # # # ! TD-16617
-        # # # self.stream_tandem()
+        self.stream_tandem()
         # # self.disorder_data()
         # self.trigger_window_close()
         # self.trigger_max_delay()
-        self.udf_interval_order(interval=10)
+        # ! TD-16844
+        # self.udf_interval_order(interval=10)
         # ! TD-16843
         # self.partitionby_interval_order(interval=10)
         # ! bug
@@ -1145,9 +1130,8 @@ class StreamComputingTest(TDCase):
         # self.window_close_session_order(session=random.randint(10, 15), interation=self.interation)
         # self.watermark_window_close_session_order(session=random.randint(10, 15), watermark=random.randint(20, 30), interation=self.interation)
 
-        # self.max_delay_interval_order(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s", interation=self.interation)
-        # # ! bug
-        # # self.max_delay_interval_order(interval=10, watermark=17, max_delay=f"2s", interation=self.interation)
+        # self.max_delay_interval_order(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s", interation=self.interation, vgroups=10)
+        # self.max_delay_interval_order(interval=10, watermark=17, max_delay=f"2s", interation=10)
         # self.max_delay_session_order(session=random.randint(10, 15), max_delay=f"2s", interation=self.interation)
         # self.watermark_max_delay_session_order(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s", interation=self.interation)
         # self.data_filter()
