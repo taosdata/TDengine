@@ -29,12 +29,6 @@ fi
 
 # run example with neuget package
 cd ${WKC}/tests/examples/C#
-#dotnet run --project C#checker/C#checker.csproj
-#dotnet run --project TDengineTest/TDengineTest.csproj
-#dotnet run --project schemaless/schemaless.csproj
-#dotnet run --project jsonTag/jsonTag.csproj
-#dotnet run --project stmt/stmt.csproj
-#dotnet run --project insertCn/insertCn.csproj
 
 dotnet run --project C#checker/C#checker.csproj
 check $? C#checker.csproj
