@@ -1308,6 +1308,13 @@ static void destroySysScanOperator(void* param, int32_t numOfOutput) {
   taosArrayDestroy(pInfo->scanCols);
 }
 
+static int32_t getSysTableDbNameColId(const char* pTable) {
+  if (0 == strcmp(TSDB_INS_TABLE_USER_INDEXES, pTable)) {
+    return 1;
+  }
+  return TSDB_INS_USER_STABLES_DBNAME_COLID;
+}
+
 EDealRes getDBNameFromConditionWalker(SNode* pNode, void* pContext) {
   int32_t   code = TSDB_CODE_SUCCESS;
   ENodeType nType = nodeType(pNode);
@@ -1329,7 +1336,7 @@ EDealRes getDBNameFromConditionWalker(SNode* pNode, void* pContext) {
       }
 
       SColumnNode* node = (SColumnNode*)pNode;
-      if (TSDB_INS_USER_STABLES_DBNAME_COLID == node->colId) {
+      if (getSysTableDbNameColId(node->tableName) == node->colId) {
         *(int32_t*)pContext = 2;
         return DEAL_RES_CONTINUE;
       }
