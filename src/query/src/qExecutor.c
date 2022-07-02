@@ -6154,7 +6154,7 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
     goto _clean;
   }
 
-  pInfo->seed = rand();
+  pInfo->seed = taosSafeRand();
   setDefaultOutputBuf(pRuntimeEnv, &pInfo->binfo, pInfo->seed, MERGE_STAGE);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
@@ -7778,7 +7778,7 @@ SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
     goto _clean;
   }
 
-  pInfo->seed = rand();
+  pInfo->seed = taosSafeRand();
   setDefaultOutputBuf(pRuntimeEnv, &pInfo->binfo, pInfo->seed, MASTER_SCAN);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
@@ -7985,7 +7985,7 @@ SOperatorInfo* createProjectOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
     return NULL;
   }
 
-  pInfo->seed = rand();
+  pInfo->seed = taosSafeRand();
   pInfo->bufCapacity = pRuntimeEnv->resultInfo.capacity;
 
   SOptrBasicInfo* pBInfo = &pInfo->binfo;
@@ -8171,7 +8171,7 @@ SOperatorInfo* createTimeEveryOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
 
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
 
-  pInfo->seed = rand();
+  pInfo->seed = taosSafeRand();
   pInfo->bufCapacity = pRuntimeEnv->resultInfo.capacity;
   pInfo->groupDone = true;
   pInfo->lastGroupIdx = -1;
