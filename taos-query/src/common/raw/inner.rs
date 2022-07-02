@@ -7,7 +7,7 @@ use bitvec::macros::internal::funty::Numeric;
 use itertools::Itertools;
 use once_cell::unsync::OnceCell;
 
-use std::slice;
+use std::{ffi::c_void, slice};
 use std::{fmt::Debug, mem::size_of, mem::transmute};
 
 #[derive(Debug, Clone, Copy)]
@@ -128,7 +128,7 @@ impl Inlinable for RawBlock {
         let mut bytes = Vec::with_capacity(len - 4);
         bytes.resize(len - 4, 0);
         reader.read_exact(&mut bytes)?;
-        Ok(Self::new(dbg!(bytes)))
+        Ok(Self::new(bytes))
     }
 
     fn write_inlined<W: std::io::Write>(&self, mut wtr: W) -> std::io::Result<usize> {
@@ -724,23 +724,20 @@ impl RawBlock {
     ///   - For non-var-type, it's the is-null bitmap.
     /// 2. Offset to the start position of real column data.
     fn column_offsets(&self) -> &[(Ty, isize, isize)] {
-        // dbg!(self.as_bytes());
         self.offsets.get_or_init(|| {
-            // dbg!(self.as_bytes());
-            let lengths = dbg!(self.lengths());
-            let mut data_offset = dbg!(self.data_offset());
+            let lengths = self.lengths();
+            let mut data_offset = self.data_offset();
             self.schemas()
                 .iter()
                 .enumerate()
                 .map(|(i, col)| {
-                    dbg!(data_offset, self.len());
                     debug_assert!(data_offset < self.len() as isize);
                     if col.ty.is_var_type() {
                         let o = (col.ty, data_offset, data_offset + 4 * self.rows as isize);
                         data_offset = o.2 + lengths[i] as isize;
-                        dbg!(o)
+                        o
                     } else {
-                        let o = dbg!(
+                        let o = (
                             col.ty,
                             data_offset,
                             data_offset + self.bitmap_len() as isize,
@@ -748,7 +745,7 @@ impl RawBlock {
                         data_offset = o.2 + lengths[i] as isize;
 
                         //assert!(data_offset < self.len() as isize);
-                        dbg!(o)
+                        o
                     }
                 })
                 .collect()
@@ -786,6 +783,100 @@ impl RawBlock {
             slice::from_raw_parts(ptr as *mut i32, self.cols)
         }
     }
+
+    #[inline]
+    /// Get one value at `(row, col)` of the block.
+    pub unsafe fn get_raw_value_unchecked(
+        &self,
+        row: usize,
+        col: usize,
+    ) -> (Ty, u32, *const c_void) {
+        let (ty, o1, o2) = self.column_offsets().get_unchecked(col);
+
+        macro_rules! is_null {
+            ($bm:expr, $row:expr) => {{
+                (*$bm.offset($row as isize >> 3) >> (7 - ($row & 7)) as u8) & 0x1 == 1
+            }};
+        }
+
+        macro_rules! _primitive_value {
+            ($ty:ident, $native:ty) => {{
+                let ptr = self.offset(*o1);
+                if is_null!(ptr, row) {
+                    (*ty, size_of::<$native>() as u32, std::ptr::null())
+                } else {
+                    (
+                        *ty,
+                        size_of::<$native>() as u32,
+                        self.offset(o2 + (row * size_of::<$native>()) as isize) as _,
+                    )
+                }
+            }};
+        }
+
+        match ty {
+            Ty::Null => (*ty, ty.fixed_length() as u32, std::ptr::null()),
+            Ty::Bool => _primitive_value!(Bool, bool),
+            Ty::TinyInt => _primitive_value!(TinyInt, i8),
+            Ty::SmallInt => _primitive_value!(SmallInt, i16),
+            Ty::Int => _primitive_value!(Int, i32),
+            Ty::BigInt => _primitive_value!(BigInt, i64),
+            Ty::Float => _primitive_value!(Float, f32),
+            Ty::Double => _primitive_value!(Double, f64),
+            Ty::VarChar => {
+                //
+                let offset =
+                    *transmute::<*const u8, *const i32>(self.offset(o1 + row as isize * 4));
+                if offset < 0 {
+                    (*ty, 0, std::ptr::null())
+                } else {
+                    let ptr = self.offset(o2 + offset as isize);
+                    let len: i16 = *(ptr as *mut i16);
+                    (*ty, len as _, ptr.offset(2) as _)
+                }
+            }
+            Ty::Timestamp => {
+                let ptr = self.offset(*o1);
+                if is_null!(ptr, row) {
+                    (*ty, 8, std::ptr::null())
+                } else {
+                    (
+                        *ty,
+                        8,
+                        (self.offset(o2 + (row * size_of::<i64>()) as isize) as *const i64) as _,
+                    )
+                }
+            }
+            Ty::NChar => {
+                let offset =
+                    *transmute::<*const u8, *const i32>(self.offset(o1 + row as isize * 4));
+                if offset < 0 {
+                    (*ty, 0, std::ptr::null())
+                } else {
+                    let ptr = self.offset(o2 + offset as isize);
+                    let len: i16 = *(ptr as *mut i16);
+                    (*ty, len as _, ptr.offset(2) as _)
+                }
+            }
+            Ty::UTinyInt => _primitive_value!(UTinyInt, u8),
+            Ty::USmallInt => _primitive_value!(USmallInt, u16),
+            Ty::UInt => _primitive_value!(UInt, u32),
+            Ty::UBigInt => _primitive_value!(UBigInt, u64),
+            Ty::Json => {
+                let offset =
+                    *transmute::<*const u8, *const i32>(self.offset(o1 + row as isize * 4));
+                if offset < 0 {
+                    (*ty, 8, std::ptr::null())
+                } else {
+                    let ptr = self.offset(o2 + offset as isize);
+                    let len: i16 = *(ptr as *mut i16);
+                    (*ty, len as _, ptr.offset(2) as _)
+                }
+            }
+            ty => unreachable!("unsupported type: {ty}"),
+        }
+    }
+
     #[inline]
     /// Get one value at `(row, col)` of the block.
     pub unsafe fn get_ref_unchecked(&self, row: usize, col: usize) -> BorrowedValue {
@@ -923,7 +1014,6 @@ impl RawBlock {
                 } else {
                     let ptr = self.offset(o2 + offset as isize);
                     let len: i16 = *(ptr as *mut i16);
-                    dbg!(len);
                     Value::VarChar(
                         std::str::from_utf8_unchecked(slice::from_raw_parts(
                             ptr.offset(2),

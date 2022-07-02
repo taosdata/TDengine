@@ -5,9 +5,18 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+crate-type = ["cdylib", "staticlib", "rlib"]
+
 [dependencies]
-taos-ws = { path = "../taos-ws"}
-taos-error = { path = "../taos-error"}
+anyhow = "1"
+taos-error = { path = "../taos-error" }
+taos-query = { path = "../taos-query" }
+taos-ws = { path = "../taos-ws" }
+
 
 [build-dependencies]
 cbindgen = "0.24.3"
+
+[dev-dependencies]
+pretty_env_logger = "*"

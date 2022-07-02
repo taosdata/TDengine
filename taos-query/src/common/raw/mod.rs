@@ -63,7 +63,7 @@ impl Inlinable for Block {
         let fields = if flags.contains(Fx::HAS_FL) {
             Some(
                 (0..reader.read_u16()?)
-                    .map(|f| reader.read_inlinable::<Field>())
+                    .map(|_| reader.read_inlinable::<Field>())
                     .try_collect()?,
             )
         } else {

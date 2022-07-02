@@ -1,0 +1,131 @@
+
+#include "taos_ws.h"
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+int main() {
+  WS_TAOS *taos = ws_connect_with_dsn("ws://localhost:6041");
+  int32_t code = ws_connect_errno(taos);
+  if (code != 0) {
+    char *errstr = ws_connect_errstr(taos);
+    dprintf(2, "Error [%6x]: %s", code, errstr);
+    ws_close(taos);
+    return 0;
+  }
+
+  WS_RS *rs = ws_query(taos, "show databases");
+  code = ws_query_errno(rs);
+  if (code != 0) {
+    char *errstr = ws_connect_errstr(taos);
+    dprintf(2, "Error [%6x]: %s", code, errstr);
+    ws_free_result(rs);
+    ws_close(taos);
+    return 0;
+  }
+
+  int precision = ws_result_precision(rs);
+  int cols = ws_num_of_fields(rs);
+  struct WS_FIELD *fields = ws_fetch_fields(rs);
+  for (int col = 0; col < cols; col++) {
+    struct WS_FIELD *field = &fields[col];
+    dprintf(2, "column %d: name: %s, length: %d, type: %d\n", col, field->name,
+           field->bytes, field->type);
+  }
+
+  for (int col = 0; col < cols; col++) {
+    if (col == 0) {
+      printf("%s", fields[col].name);
+    } else {
+      printf(",%s", fields[col].name);
+    }
+  }
+  printf("\n");
+
+  while (true) {
+    int rows = 0;
+    void *data = NULL;
+    code = ws_fetch_block(rs, &data, &rows);
+
+    if (rows == 0)
+      break;
+    uint8_t ty;
+    uint32_t len;
+    char tmp[4096];
+
+    for (int row = 0; row < rows; row++) {
+
+      for (int col = 0; col < cols; col++) {
+        if (col != 0)
+          printf(",");
+        const void *value = ws_get_value_in_block(rs, row, col, &ty, &len);
+        if (value == NULL) {
+          printf(" NULL ");
+          continue;
+        }
+        // printf("%d", ty);
+        switch (ty) {
+        case TSDB_DATA_TYPE_NULL:
+          printf(" NULL ");
+          break;
+        case TSDB_DATA_TYPE_BOOL:
+          if (*(bool*)(value)) {
+            printf(" true  ");
+          } else {
+            printf(" false ");
+          }
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+          printf(" %d ", *(int8_t*)value);
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          printf(" %d ", *(int16_t*)value);
+          break;
+        case TSDB_DATA_TYPE_INT:
+          printf(" %d ", *(int32_t*)value);
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          printf(" %ld ", *(int64_t*)value);
+          break;
+        case TSDB_DATA_TYPE_UTINYINT:
+          printf(" %d ", *(uint8_t*)value);
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          printf(" %d ", *(uint16_t*)value);
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          printf(" %d ", *(uint32_t*)value);
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          printf(" %ld ", *(uint64_t*)value);
+          break;
+        case TSDB_DATA_TYPE_FLOAT:
+          printf(" %f ", *(float*)value);
+          break;
+        case TSDB_DATA_TYPE_DOUBLE:
+          printf(" %lf ", *(double*)value);
+          break;
+        case TSDB_DATA_TYPE_TIMESTAMP:
+          printf(" %ld ", *(int64_t*)value);
+          break;
+        case TSDB_DATA_TYPE_VARCHAR:
+          memset(tmp, 0, 4096);
+          memcpy(tmp, value, len);
+          printf("\"%s\"", (char*)tmp);
+          break;
+        case TSDB_DATA_TYPE_JSON:
+          memset(tmp, 0, 4096);
+          memcpy(tmp, value, len);
+          printf("'%s'", (char*)tmp);
+          break;
+        case 10:
+          break;
+        default:
+          printf(" ");
+        }
+        printf("");
+      }
+      printf("\n");
+    }
+  }
+}
