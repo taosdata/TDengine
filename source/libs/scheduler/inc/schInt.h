@@ -55,8 +55,8 @@ typedef enum {
 } SCH_OP_TYPE;
 
 typedef enum {
-  SCH_EVENT_ENTER_API = 1,
-  SCH_EVENT_LEAVE_API,
+  SCH_EVENT_BEGIN_OP = 1,
+  SCH_EVENT_END_OP,
   SCH_EVENT_MSG,
   SCH_EVENT_DROP,
 } SCH_EVENT_TYPE;
@@ -110,6 +110,12 @@ typedef struct SSchResInfo {
   schedulerFetchFp       fetchFp; 
   void*                  userParam;
 } SSchResInfo;
+
+typedef struct SSchOpEvent {
+  SCH_OP_TYPE    type;
+  bool           begin;
+  SSchedulerReq *pReq;
+} SSchOpEvent;
 
 typedef struct SSchEvent {
   SCH_EVENT_TYPE event;
