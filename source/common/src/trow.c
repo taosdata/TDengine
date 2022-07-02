@@ -1238,13 +1238,13 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
           varDataLen += sizeof(VarDataLenT);
           if (pTColumn->type == TSDB_DATA_TYPE_VARCHAR) {
             varDataLen += CHAR_BYTES;
-            if (maxVarDataLen < CHAR_BYTES) {
-              maxVarDataLen = CHAR_BYTES;
+            if (maxVarDataLen < CHAR_BYTES + sizeof(VarDataLenT)) {
+              maxVarDataLen = CHAR_BYTES + sizeof(VarDataLenT);
             }
           } else {
             varDataLen += INT_BYTES;
-            if (maxVarDataLen < INT_BYTES) {
-              maxVarDataLen = INT_BYTES;
+            if (maxVarDataLen < INT_BYTES + sizeof(VarDataLenT)) {
+              maxVarDataLen = INT_BYTES + sizeof(VarDataLenT);
             }
           }
         }
@@ -1263,7 +1263,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
   }
 
   if (maxVarDataLen > 0) {
-    varBuf = taosMemoryMalloc(maxVarDataLen + sizeof(VarDataLenT));
+    varBuf = taosMemoryMalloc(maxVarDataLen);
     if (!varBuf) {
       taosMemoryFreeClear(*ppRow);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
