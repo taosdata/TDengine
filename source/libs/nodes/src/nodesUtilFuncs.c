@@ -1529,17 +1529,18 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, FFuncClassifi
   }
   *pFuncs = NULL;
   nodesWalkSelectStmt(pSelect, clause, collectFuncs, &cxt);
-  if (TSDB_CODE_SUCCESS != cxt.errCode) {
-    nodesDestroyList(cxt.pFuncs);
-    return cxt.errCode;
-  }
-  if (LIST_LENGTH(cxt.pFuncs) > 0) {
-    *pFuncs = cxt.pFuncs;
+  if (TSDB_CODE_SUCCESS == cxt.errCode) {
+    if (LIST_LENGTH(cxt.pFuncs) > 0) {
+      *pFuncs = cxt.pFuncs;
+    } else {
+      nodesDestroyList(cxt.pFuncs);
+    }
   } else {
     nodesDestroyList(cxt.pFuncs);
   }
+  taosHashCleanup(cxt.pAliasName);
 
-  return TSDB_CODE_SUCCESS;
+  return cxt.errCode;
 }
 
 typedef struct SCollectSpecialNodesCxt {
