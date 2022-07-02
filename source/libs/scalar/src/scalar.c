@@ -345,7 +345,7 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx) {
     return -1;
   }
   
-  switch (nodeType(pNode)) {
+  switch ((int)nodeType(pNode)) {
     case QUERY_NODE_VALUE: {
       SValueNode *valueNode = (SValueNode *)pNode;
       return valueNode->node.resType.type;
