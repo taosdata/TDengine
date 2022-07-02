@@ -37,8 +37,8 @@ class TestStrBoundary(TDCase):
             self.tdRest.request(f'create table if not exists {dbname}.tb using {dbname}.stb tags ("{max_length}")')
             self.tdRest.request(f'insert into {dbname}.tb values (now, "{max_length}")')
             self.tdRest.request(f'select t1, c1 from {dbname}.tb')
-            self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), max_length)
-            self.tdSql.checkEqual(str(self.tdSql.query_data[0][1]), max_length)
+            self.tdSql.checkEqual(str(self.tdRest.resp[0][0]), max_length)
+            self.tdSql.checkEqual(str(self.tdRest.resp[0][1]), max_length)
             # ! TD-16722
             # self.tdRest.error(f'create stable if not exists {dbname}.stb_error1 (col_ts timestamp, c1 {data_type}({data_value})) tags (t1 {data_type}({exceed_length}))')
             self.tdRest.error(f'create stable if not exists {dbname}.stb_error2 (col_ts timestamp, c1 {data_type}({exceed_length})) tags (t1 {data_type}({data_value}))')
@@ -48,7 +48,7 @@ class TestStrBoundary(TDCase):
             self.tdRest.request(f'create table if not exists {dbname}.tb2 (ts timestamp, c1 {data_type}({data_value}))')
             self.tdRest.request(f'insert into {dbname}.tb2 values (now, "{max_length}")')
             self.tdRest.request(f'select c1 from {dbname}.tb2 where c1="{max_length}"')
-            self.tdSql.checkEqual(self.tdSql.query_data[0][0], max_length)
+            self.tdSql.checkEqual(self.tdRest.resp[0][0], max_length)
             self.tdRest.error(f'insert into {dbname}.tb3 values (now, "{exceed_length}")')
             self.tdRest.request(f'drop database if exists {dbname}')
 

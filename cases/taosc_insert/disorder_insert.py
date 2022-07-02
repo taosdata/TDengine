@@ -23,7 +23,7 @@ class TestDisorderInsert(TDCase):
         """
         stb_disorder_insert
         """
-        dbname = self.tdCom.get_long_name(length=5, mode="letters")
+        dbname = self.tdCom.get_long_name(5, "letters")
         self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdSql.execute(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
@@ -43,7 +43,7 @@ class TestDisorderInsert(TDCase):
         """
         tb_disorder_insert
         """
-        dbname = self.tdCom.get_long_name(length=5, mode="letters")
+        dbname = self.tdCom.get_long_name(5, "letters")
         self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
         self.tdSql.execute(f'create table {dbname}.tb (ts timestamp, c11 int, c12 float )')
         timestamp = self.tdCom.genTs("ms")[0]

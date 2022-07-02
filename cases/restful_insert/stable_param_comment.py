@@ -12,70 +12,71 @@
 # -*- coding: utf-8 -*-
 from taostest import TDCase, T
 from taostest.util.common import TDCom
-
+from taostest.util.rest import TDRest
 
 class TestComp(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
+        self.tdRest = TDRest(env_setting=self.env_setting)
         self.dbname = 'db'
         self.stbname = 'stb'
         self.comment_length = [0,1024]
     def create_comment_check(self,comment):
-        self.tdSql.execute(f'create database if not exists {self.dbname}')
-        self.tdSql.execute(f'use {self.dbname}')
-        self.tdSql.execute(
+        self.tdRest.request(f'create database if not exists {self.dbname}')
+        self.tdRest.request(f'use {self.dbname}')
+        self.tdRest.request(
             f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment}"')
-        self.tdSql.query("show stables")
-        stb_kv_list = self.tdSql.getOneRow(0, self.stbname)
+        self.tdRest.request("show stables")
+        stb_kv_list = self.tdRest.getOneRow(0, self.stbname)
         self.tdSql.checkEqual(stb_kv_list[0][6], comment)
-        self.tdSql.execute(f'drop database {self.dbname}')
+        self.tdRest.request(f'drop database {self.dbname}')
         
     def create_comment_error(self):
-        comment = self.tdCom.get_long_name(length=max(self.comment_length)+1)
-        self.tdSql.execute(f'create database if not exists {self.dbname}')
-        self.tdSql.execute(f'use {self.dbname}')
-        self.tdSql.error(
+        comment = self.tdCom.get_long_name(length=max(self.comment_length)+1, mode="letters")
+        self.tdRest.request(f'create database if not exists {self.dbname}')
+        self.tdRest.request(f'use {self.dbname}')
+        self.tdRest.error(
             f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment}"')
-        self.tdSql.execute(f'drop database {self.dbname}')
+        self.tdRest.request(f'drop database {self.dbname}')
 
     def alter_comment_check(self,comment):
-        comment_init = self.tdCom.get_long_name(length=min(self.comment_length))
-        self.tdSql.execute(f'drop database  if exists {self.dbname}')
-        self.tdSql.execute(f'create database if not exists {self.dbname}')
-        self.tdSql.execute(f'use {self.dbname}')
-        self.tdSql.execute(
+        comment_init = self.tdCom.get_long_name(length=min(self.comment_length), mode="letters")
+        self.tdRest.request(f'drop database  if exists {self.dbname}')
+        self.tdRest.request(f'create database if not exists {self.dbname}')
+        self.tdRest.request(f'use {self.dbname}')
+        self.tdRest.request(
             f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment_init}"')
-        self.tdSql.execute(f'alter table {self.stbname} comment "{comment}"')
-        self.tdSql.query("show stables")
-        stb_kv_list = self.tdSql.getOneRow(0, self.stbname)
+        self.tdRest.request(f'alter table {self.stbname} comment "{comment}"')
+        self.tdRest.request("show stables")
+        stb_kv_list = self.tdRest.getOneRow(0, self.stbname)
         self.tdSql.checkEqual(stb_kv_list[0][6], comment)
-        self.tdSql.execute(f'drop database {self.dbname}')
+        self.tdRest.request(f'drop database {self.dbname}')
     def alter_comment_error(self):
-        comment_init = self.tdCom.get_long_name(length=min(self.comment_length))
-        self.tdSql.execute(f'drop database  if exists {self.dbname}')
-        self.tdSql.execute(f'create database if not exists {self.dbname}')
-        self.tdSql.execute(f'use {self.dbname}')
-        self.tdSql.execute(
+        comment_init = self.tdCom.get_long_name(length=min(self.comment_length), mode="letters")
+        self.tdRest.request(f'drop database  if exists {self.dbname}')
+        self.tdRest.request(f'create database if not exists {self.dbname}')
+        self.tdRest.request(f'use {self.dbname}')
+        self.tdRest.request(
             f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment_init}"')
-        comment = self.tdCom.get_long_name(length=max(self.comment_length)+1)
-        self.tdSql.error(f'alter table {self.stbname} comment "{comment}"')
+        comment = self.tdCom.get_long_name(length=max(self.comment_length)+1, mode="letters")
+        self.tdRest.error(f'alter table {self.stbname} comment "{comment}"')
     def create_comment_null(self):
-        self.tdSql.execute(f'drop database  if exists {self.dbname}')
-        self.tdSql.execute(f'create database if not exists {self.dbname}')
-        self.tdSql.execute(f'use {self.dbname}')
-        self.tdSql.execute(
+        self.tdRest.request(f'drop database  if exists {self.dbname}')
+        self.tdRest.request(f'create database if not exists {self.dbname}')
+        self.tdRest.request(f'use {self.dbname}')
+        self.tdRest.request(
             f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int)')
-        self.tdSql.query("show stables")
-        stb_kv_list = self.tdSql.getOneRow(0, self.stbname)
+        self.tdRest.request("show stables")
+        stb_kv_list = self.tdRest.getOneRow(0, self.stbname)
         self.tdSql.checkEqual(stb_kv_list[0][6], None)
-        self.tdSql.execute(f'drop database {self.dbname}')
+        self.tdRest.request(f'drop database {self.dbname}')
     def check_comment(self):
         self.create_comment_null()
         for i in self.comment_length:
-            comment = self.tdCom.get_long_name(i)
+            comment = self.tdCom.get_long_name(length=i, mode="letters")
             self.create_comment_check(comment)
         for i in self.comment_length:
-            comment = self.tdCom.get_long_name(i)
+            comment = self.tdCom.get_long_name(length=i, mode="letters")
             self.alter_comment_check(comment)
         self.alter_comment_error()
         self.create_comment_error()
