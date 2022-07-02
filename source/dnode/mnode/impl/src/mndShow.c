@@ -71,7 +71,7 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_FUNCTIONS, len) == 0) {
     type = TSDB_MGMT_TABLE_FUNC;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_INDEXES, len) == 0) {
-    //    type = TSDB_MGMT_TABLE_INDEX;
+    type = TSDB_MGMT_TABLE_INDEX;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STABLES, len) == 0) {
     type = TSDB_MGMT_TABLE_STB;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, len) == 0) {
