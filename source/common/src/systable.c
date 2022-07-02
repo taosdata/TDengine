@@ -108,13 +108,10 @@ static const SSysDbTableSchema userFuncSchema[] = {
 };
 
 static const SSysDbTableSchema userIdxSchema[] = {
-    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "index_database", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "index_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "column_name", .bytes = SYSTABLE_SCH_COL_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "index_type", .bytes = 10, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "index_extensions", .bytes = 256, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 
 static const SSysDbTableSchema userStbsSchema[] = {
