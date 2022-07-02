@@ -1667,7 +1667,7 @@ static int32_t tsdbWriteBlockDataImpl(TdFilePtr pFD, SSubBlock *pSubBlock, SBloc
     pSubBlock->szBlockCol += tPutBlockCol(NULL, taosArrayGet(aBlockCol, iBlockCol));
   }
 
-  code = tsdbRealloc(ppBuf, pSubBlock->szBlock + sizeof(TSCKSUM));
+  code = tsdbRealloc(ppBuf, pSubBlock->szBlockCol + sizeof(TSCKSUM));
   if (code) goto _err;
 
   n = 0;
