@@ -15,8 +15,6 @@
 
 #include "vnd.h"
 
-int32_t gForceCommit = 0;
-
 static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -200,7 +198,7 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   }
 
   // commit if need
-  if ((gForceCommit && (TDMT_VND_SUBMIT == pMsg->msgType)) || vnodeShouldCommit(pVnode)) {
+  if (vnodeShouldCommit(pVnode)) {
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), version);
     // commit current change
     vnodeCommit(pVnode);
