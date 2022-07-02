@@ -325,9 +325,9 @@ class TMQCom:
                 rowsBatched = 0
                 for k in range(batchNum):
                     if (k % 2 == 0):
-                        sql += "(%d, %d, %d, %d, 'binary_%d', 'nchar_%d', now) "%(startTs+ctbDict[i], ctbDict[i],ctbDict[i], ctbDict[i],ctbDict[i],ctbDict[i])
+                        sql += "(%d, %d, %d, %d, 'binary_%d', 'nchar_%d', now) "%(startTs+ctbDict[i], ctbDict[i],ctbDict[i], ctbDict[i],i+ctbStartIdx,k)
                     else:
-                        sql += "(%d, %d, %d, %d, 'binary_%d', 'nchar_%d', now) "%(startTs+ctbDict[i],-ctbDict[i],ctbDict[i],-ctbDict[i],ctbDict[i],ctbDict[i])
+                        sql += "(%d, %d, %d, %d, 'binary_%d', 'nchar_%d', now) "%(startTs+ctbDict[i],-ctbDict[i],ctbDict[i],-ctbDict[i],i+ctbStartIdx,k)
 
                     rowsBatched += 1
                     ctbDict[i] += 1

@@ -24,7 +24,9 @@ extern "C" {
 
 #if defined(_TD_DARWIN_64)
 
-typedef struct tsem_s *tsem_t;
+// typedef struct tsem_s *tsem_t;
+typedef struct bosal_sem_t *tsem_t;
+
 
 int tsem_init(tsem_t *sem, int pshared, unsigned int value);
 int tsem_wait(tsem_t *sem);
@@ -51,11 +53,11 @@ int tsem_timewait(tsem_t *sim, int64_t nanosecs);
 //  #define taosThreadRwlockRdlock(lock) taosThreadMutexLock(lock)
 //  #define taosThreadRwlockUnlock(lock) taosThreadMutexUnlock(lock)
 
-#define TdThreadSpinlock               TdThreadMutex
-#define taosThreadSpinInit(lock, NULL) taosThreadMutexInit(lock, NULL)
-#define taosThreadSpinDestroy(lock)    taosThreadMutexDestroy(lock)
-#define taosThreadSpinLock(lock)       taosThreadMutexLock(lock)
-#define taosThreadSpinUnlock(lock)     taosThreadMutexUnlock(lock)
+// #define TdThreadSpinlock               TdThreadMutex
+// #define taosThreadSpinInit(lock, NULL) taosThreadMutexInit(lock, NULL)
+// #define taosThreadSpinDestroy(lock)    taosThreadMutexDestroy(lock)
+// #define taosThreadSpinLock(lock)       taosThreadMutexLock(lock)
+// #define taosThreadSpinUnlock(lock)     taosThreadMutexUnlock(lock)
 #endif
 
 bool    taosCheckPthreadValid(TdThread thread);

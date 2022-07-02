@@ -118,8 +118,8 @@ python3 ./test.py -f 2-query/queryQnode.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py 
 python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
+#python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
+#python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 5 -M 3 
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
