@@ -157,13 +157,19 @@ static int32_t tdProcessRSmaPostCommitImpl(SSma *pSma) {
   TdDirPtr      pDir = NULL;
   TdDirEntryPtr pDirEntry = NULL;
   char          dir[TSDB_FILENAME_LEN];
-  const char   *pattern = "^v[0-9]+qtaskinfo\\.ver([0-9]+)?$";
+  const char   *pattern = "v[0-9]+qtaskinfo\\.ver([0-9]+)?$";
   regex_t       regex;
+  int           code = 0;
 
-  tdGetVndDirName(TD_VID(pVnode), tfsGetPrimaryPath(pVnode->pTfs), VNODE_RSMA_DIR, dir);
+  tdGetVndDirName(TD_VID(pVnode), tfsGetPrimaryPath(pVnode->pTfs), VNODE_RSMA_DIR, true, dir);
 
   // Resource allocation and init
-  regcomp(&regex, pattern, REG_EXTENDED);
+  if ((code = regcomp(&regex, pattern, REG_EXTENDED)) != 0) {
+    char errbuf[128];
+    regerror(code, &regex, errbuf, sizeof(errbuf));
+    smaWarn("vgId:%d, rsma post commit, regcomp for %s failed since %s", TD_VID(pVnode), dir, errbuf);
+    return TSDB_CODE_FAILED;
+  }
 
   if ((pDir = taosOpenDir(dir)) == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -171,45 +177,48 @@ static int32_t tdProcessRSmaPostCommitImpl(SSma *pSma) {
     return TSDB_CODE_FAILED;
   }
 
+  int32_t    dirLen = strlen(dir);
+  char      *dirEnd = POINTER_SHIFT(dir, dirLen);
   regmatch_t regMatch[2];
   while ((pDirEntry = taosReadDir(pDir)) != NULL) {
     char *entryName = taosGetDirEntryName(pDirEntry);
     if (!entryName) {
       continue;
     }
-    char *fileName = taosDirEntryBaseName(entryName);
-    int   code = regexec(&regex, fileName, 2, regMatch, 0);
+
+    code = regexec(&regex, entryName, 2, regMatch, 0);
 
     if (code == 0) {
       // match
-      smaDebug("vgId:%d, matched = %s, %s", TD_VID(pVnode), (char *)POINTER_SHIFT(fileName, regMatch[0].rm_so),
-               (const char *)POINTER_SHIFT(fileName, regMatch[1].rm_so));
       int64_t version = -1;
-      sscanf((const char *)POINTER_SHIFT(fileName, regMatch[1].rm_so), "%" PRIi64, &version);
+      sscanf((const char *)POINTER_SHIFT(entryName, regMatch[1].rm_so), "%" PRIi64, &version);
       if ((version < committed) && (version > -1)) {
-        if (taosRemoveFile(entryName) != 0) {
+        strncpy(dirEnd, entryName, TSDB_FILENAME_LEN - dirLen);
+        if (taosRemoveFile(dir) != 0) {
           terrno = TAOS_SYSTEM_ERROR(errno);
           smaWarn("vgId:%d, committed version:%" PRIi64 ", failed to remove %s since %s", TD_VID(pVnode), committed,
-                  entryName, terrstr());
+                  dir, terrstr());
         } else {
-          smaDebug("vgId:%d, committed version:%" PRIi64 ", success to remove %s", TD_VID(pVnode), committed,
-                   entryName);
+          smaDebug("vgId:%d, committed version:%" PRIi64 ", success to remove %s", TD_VID(pVnode), committed, dir);
         }
       }
     } else if (code == REG_NOMATCH) {
       // not match
-      smaInfo("vgId:%d, rsma post commit, not match %s", TD_VID(pVnode), fileName);
+      smaTrace("vgId:%d, rsma post commit, not match %s", TD_VID(pVnode), entryName);
       continue;
     } else {
       // has other error
-      terrno = TAOS_SYSTEM_ERROR(code);
-      smaWarn("vgId:%d, rsma post commit, regexec failed since %s", TD_VID(pVnode), terrstr());
+      char errbuf[128];
+      regerror(code, &regex, errbuf, sizeof(errbuf));
+      smaWarn("vgId:%d, rsma post commit, regexec failed since %s", TD_VID(pVnode), errbuf);
 
       taosCloseDir(&pDir);
       regfree(&regex);
       return TSDB_CODE_FAILED;
     }
   }
+
   taosCloseDir(&pDir);
+  regfree(&regex);
   return TSDB_CODE_SUCCESS;
 }

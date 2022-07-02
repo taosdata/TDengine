@@ -15,8 +15,8 @@
 
 #include "sma.h"
 
-#define RSMA_QTASKINFO_BUFSIZE    32768
-#define RSMA_QTASKINFO_HEAD_LEN   (sizeof(int32_t) + sizeof(int8_t) + sizeof(int64_t))  // len + type + suid
+#define RSMA_QTASKINFO_BUFSIZE  32768
+#define RSMA_QTASKINFO_HEAD_LEN (sizeof(int32_t) + sizeof(int8_t) + sizeof(int64_t))  // len + type + suid
 
 SSmaMgmt smaMgmt = {
     .smaRef = -1,
@@ -42,7 +42,7 @@ static int32_t tdRSmaQTaskInfoIterNextBlock(SRSmaQTaskInfoIter *pIter, bool *isF
 static int32_t tdRSmaQTaskInfoRestore(SSma *pSma, SRSmaQTaskInfoIter *pIter);
 static int32_t tdRSmaQTaskInfoItemRestore(SSma *pSma, const SRSmaQTaskInfoItem *infoItem);
 
-static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma);
+static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables);
 static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma);
 static int32_t tdRSmaRestoreTSDataReload(SSma *pSma);
 
@@ -743,7 +743,7 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t inputType) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma) {
+static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
   SVnode *pVnode = pSma->pVnode;
 
   SArray *suidList = taosArrayInit(1, sizeof(tb_uid_t));
@@ -753,7 +753,12 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma) {
     return TSDB_CODE_FAILED;
   }
 
-  int32_t arrSize = taosArrayGetSize(suidList);
+  int64_t arrSize = taosArrayGetSize(suidList);
+
+  if (nTables) {
+    *nTables = arrSize;
+  }
+
   if (arrSize == 0) {
     taosArrayDestroy(suidList);
     smaDebug("vgId:%d, no need to restore rsma env since empty stb id list", TD_VID(pVnode));
@@ -762,9 +767,9 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma) {
 
   SMetaReader mr = {0};
   metaReaderInit(&mr, SMA_META(pSma), 0);
-  for (int32_t i = 0; i < arrSize; ++i) {
+  for (int64_t i = 0; i < arrSize; ++i) {
     tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
-    smaDebug("vgId:%d, rsma restore, suid[%d] is %" PRIi64, TD_VID(pVnode), i, suid);
+    smaDebug("vgId:%d, rsma restore, suid is %" PRIi64, TD_VID(pVnode), suid);
     if (metaGetTableEntryByUid(&mr, suid) < 0) {
       smaError("vgId:%d, rsma restore, failed to get table meta for %" PRIi64 " since %s", TD_VID(pVnode), suid,
                terrstr());
@@ -809,7 +814,13 @@ static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma) {
   }
 
   if (!taosCheckExistFile(TD_TFILE_FULL_NAME(&tFile))) {
-    return TSDB_CODE_SUCCESS;
+    if (pVnode->state.committed) {
+      goto _err;
+    } else {
+      smaDebug("vgId:%d, rsma restore for version %" PRIi64 ", no need as %s not exist", TD_VID(pVnode),
+               pVnode->state.committed, TD_TFILE_FULL_NAME(&tFile));
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
   if (tdOpenTFile(&tFile, TD_FILE_READ) < 0) {
@@ -836,7 +847,8 @@ static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma) {
   tdDestroyTFile(&tFile);
   return TSDB_CODE_SUCCESS;
 _err:
-  smaError("rsma restore, qtaskinfo reload failed since %s", terrstr());
+  smaError("vgId:%d, rsma restore for version %" PRIi64 ", qtaskinfo reload failed since %s", TD_VID(pVnode),
+           pVnode->state.committed, terrstr());
   return TSDB_CODE_FAILED;
 }
 
@@ -855,9 +867,14 @@ _err:
 }
 
 int32_t tdProcessRSmaRestoreImpl(SSma *pSma) {
+  int64_t nTables = 0;
   // step 1: iterate all stables to restore the rsma env
-  if (tdRSmaRestoreQTaskInfoInit(pSma) < 0) {
+  if (tdRSmaRestoreQTaskInfoInit(pSma, &nTables) < 0) {
     goto _err;
+  }
+  if (nTables <= 0) {
+    smaDebug("vgId:%d, no need to restore rsma task since no tables", SMA_VID(pSma));
+    return TSDB_CODE_SUCCESS;
   }
 
   // step 2: retrieve qtaskinfo items from the persistence file(rsma/qtaskinfo) and restore
@@ -872,7 +889,7 @@ int32_t tdProcessRSmaRestoreImpl(SSma *pSma) {
 
   return TSDB_CODE_SUCCESS;
 _err:
-  smaError("failed to restore rsma task since %s", terrstr());
+  smaError("vgId:%d failed to restore rsma task since %s", SMA_VID(pSma), terrstr());
   return TSDB_CODE_FAILED;
 }
 
@@ -1012,7 +1029,8 @@ static int32_t tdRSmaQTaskInfoRestore(SSma *pSma, SRSmaQTaskInfoIter *pIter) {
     pIter->qBuf = taosDecodeFixedI32(pIter->qBuf, &qTaskInfoLenWithHead);
     if (qTaskInfoLenWithHead < RSMA_QTASKINFO_HEAD_LEN) {
       terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-      smaError("restore rsma qtaskinfo file %s failed since %s", TD_TFILE_FULL_NAME(pIter->pTFile), terrstr());
+      smaError("vgId:%d, restore rsma qtaskinfo file %s failed since %s", SMA_VID(pSma),
+               TD_TFILE_FULL_NAME(pIter->pTFile), terrstr());
       return TSDB_CODE_FAILED;
     }
 

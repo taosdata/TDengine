@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-#define SMA_DEBUG_MODE // TODO: remove when release
+#undef SMA_DEBUG_MODE // TODO: remove when release
 
 // smaDebug ================
 // clang-format off
@@ -250,7 +250,7 @@ void    tdCloseTFile(STFile *pTFile);
 void    tdDestroyTFile(STFile *pTFile);
 
 void tdGetVndFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t version, char *outputName);
-void tdGetVndDirName(int32_t vgId,const char *pdname,  const char *dname, char *outputName);
+void tdGetVndDirName(int32_t vgId,const char *pdname,  const char *dname, bool endWithSep, char *outputName);
 
 #ifdef __cplusplus
 }
