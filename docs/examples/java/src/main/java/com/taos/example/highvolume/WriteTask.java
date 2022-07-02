@@ -1,82 +1,60 @@
 package com.taos.example.highvolume;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.HashMap;
-import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingDeque;
 
 // ANCHOR: WriteTask
-class WriteTask {
-    final static int maxBatchSize = 500;
-    //
-    final static int taskQueueCapacity = 1000;
+class WriteTask implements Runnable {
+    private final static Logger logger = LoggerFactory.getLogger(WriteTask.class);
+    private final static int maxBatchSize = 3000;
 
-    private Thread writeThread = new Thread(this::doWriteTask);
+    // the queue from which this writing task get raw data.
+    private final BlockingQueue<String> queue;
 
-    private BlockingQueue<String> queue = new LinkedBlockingDeque<>(taskQueueCapacity);
+    // A flag indicate whether to continue.
+    private boolean active = true;
 
-    /**
-     * Public interface for adding task to task queue.
-     * It will be invoked in read thread.
-     */
-    public void put(String line) throws InterruptedException {
-        queue.put(line);
+    public WriteTask(BlockingQueue<String> taskQueue) {
+        this.queue = taskQueue;
     }
 
-    /**
-     * Start writing thread.
-     */
-    public void start() {
-        writeThread.start();
-    }
 
-    private static Connection getConnection() throws SQLException {
-        String jdbcUrl = "jdbc:TAOS://localhost:6030?user=root&password=taosdata";
-        return DriverManager.getConnection(jdbcUrl);
-    }
-
-    private void doWriteTask() {
-        int count = 0;
+    @Override
+    public void run() {
+        logger.info("started");
+        String line = null; // data getting from the queue just now.
+        SQLWriter writer = new SQLWriter(maxBatchSize);
         try {
-            Connection conn = getConnection();
-            Statement stmt = conn.createStatement();
-            Map<String, String> tbValues = new HashMap<>();
-            while (true) {
-                String line = queue.poll();
+            writer.init();
+            while (active) {
+                line = queue.poll();
                 if (line != null) {
-                    processLine(tbValues, line);
-                    count += 1;
-                    if (count == maxBatchSize) {
-                        // trigger writing when count of buffered records reached maxBachSize
-                        flushValues(stmt, tbValues);
-                        count = 0;
-                    }
-                } else if (count == 0) {
-                    // if queue is empty and no buffered records, sleep a while to avoid high CPU usage.
-                    Thread.sleep(500);
+                    // parse raw data and buffer the data.
+                    writer.processLine(line);
+                } else if (writer.hasBufferedValues()) {
+                    // write data immediately if no more data in the queue
+                    writer.flush();
                 } else {
-                    // if queue is empty and there are buffered records then flush immediately
-                    flushValues(stmt, tbValues);
-                    count = 0;
+                    // sleep a while to avoid high CPU usage if no more data in the queue and no buffered records, .
+                    Thread.sleep(500);
                 }
             }
+            if (writer.hasBufferedValues()) {
+                writer.flush();
+            }
         } catch (Exception e) {
-            // handle exception
+            String msg = String.format("line=%s, bufferedCount=%s", line, writer.getBufferedCount());
+            logger.error(msg, e);
+        } finally {
+            writer.close();
         }
-
     }
 
-    private void processLine(Map<String, String> tbValues, String line) {
-
+    public void stop() {
+        logger.info("stop");
+        this.active = false;
     }
-
-    private void flushValues(Statement stmt, Map<String, String> tbValues) {
-
-    }
-
 }
 // ANCHOR_END: WriteTask
