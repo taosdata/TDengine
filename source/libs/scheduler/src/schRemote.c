@@ -856,7 +856,9 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
          addr->nodeId, epSet->eps[epSet->inUse].fqdn, epSet->eps[epSet->inUse].port, 
          trans->pTrans, trans->pHandle);
 
-  pTask->lastMsgType = msgType;
+  if (pTask) {
+    pTask->lastMsgType = msgType;
+  }
 
   int64_t transporterId = 0;
   code = asyncSendMsgToServerExt(trans->pTrans, epSet, &transporterId, pMsgSendInfo, persistHandle, ctx);
