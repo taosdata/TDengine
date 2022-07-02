@@ -1,3 +1,4 @@
+#####group1
 taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/mode_taosc.cfg 
 taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/mode_stmt.cfg
 taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/mode_rest.cfg
