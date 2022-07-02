@@ -92,8 +92,9 @@ enum {
   TASK_TRIGGER_STAT_INIT = 0,
   TASK_TRIGGER_STAT_ACTIVE = 1,
   TASK_TRIGGER_STAT_INACTIVE = 2,
-  TASK_TRIGGER_STAT_CANCELLED = 3,
-  TASK_TRIGGER_STAT_FINISHED = 4,
+  TASK_TRIGGER_STAT_PAUSED = 3,
+  TASK_TRIGGER_STAT_CANCELLED = 4,
+  TASK_TRIGGER_STAT_FINISHED = 5,
 };
 void  tdDestroySmaEnv(SSmaEnv *pSmaEnv);
 void *tdFreeSmaEnv(SSmaEnv *pSmaEnv);
@@ -214,25 +215,22 @@ struct STFInfo {
 };
 
 struct STFile {
-  STFInfo   info;
-  STfsFile  f;
-  TdFilePtr pFile;
   uint8_t   state;
+  STFInfo   info;
+  char     *fname;
+  TdFilePtr pFile;
 };
 
-#define TD_TFILE_F(tf)            (&((tf)->f))
 #define TD_TFILE_PFILE(tf)        ((tf)->pFile)
 #define TD_TFILE_OPENED(tf)       (TD_TFILE_PFILE(tf) != NULL)
-#define TD_TFILE_FULL_NAME(tf)    (TD_TFILE_F(tf)->aname)
-#define TD_TFILE_REL_NAME(tf)     (TD_TFILE_F(tf)->rname)
+#define TD_TFILE_FULL_NAME(tf)    ((tf)->fname)
 #define TD_TFILE_OPENED(tf)       (TD_TFILE_PFILE(tf) != NULL)
 #define TD_TFILE_CLOSED(tf)       (!TD_TFILE_OPENED(tf))
 #define TD_TFILE_SET_CLOSED(f)    (TD_TFILE_PFILE(f) = NULL)
 #define TD_TFILE_SET_STATE(tf, s) ((tf)->state = (s))
-#define TD_TFILE_DID(tf)          (TD_TFILE_F(tf)->did)
 
-int32_t tdInitTFile(STFile *pTFile, STfs *pTfs, const char *fname);
-int32_t tdCreateTFile(STFile *pTFile, STfs *pTfs, bool updateHeader, int8_t fType);
+int32_t tdInitTFile(STFile *pTFile, const char *dname, const char *fname);
+int32_t tdCreateTFile(STFile *pTFile, bool updateHeader, int8_t fType);
 int32_t tdOpenTFile(STFile *pTFile, int flags);
 int64_t tdReadTFile(STFile *pTFile, void *buf, int64_t nbyte);
 int64_t tdSeekTFile(STFile *pTFile, int64_t offset, int whence);
@@ -244,8 +242,10 @@ int32_t tdLoadTFileHeader(STFile *pTFile, STFInfo *pInfo);
 int32_t tdUpdateTFileHeader(STFile *pTFile);
 void    tdUpdateTFileMagic(STFile *pTFile, void *pCksm);
 void    tdCloseTFile(STFile *pTFile);
+void    tdDestroyTFile(STFile *pTFile);
 
-void tdGetVndFileName(int32_t vgId, const char *dname, const char *fname, char *outputName);
+void tdGetVndFileName(int32_t vgId, const char *dname, const char *fname, int64_t version, char *outputName);
+void tdGetVndDirName(int32_t vgId, const char *dname, char *outputName);
 
 #ifdef __cplusplus
 }

@@ -18,7 +18,8 @@ python3 ./test.py -f 0-others/fsync.py
 python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
 python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
 python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
-# BUG python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
+python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
+python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py 
 python3 ./test.py -f 1-insert/alter_stable.py
 python3 ./test.py -f 1-insert/alter_table.py
 python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
@@ -89,7 +90,7 @@ python3 ./test.py -f 2-query/query_cols_tags_and_or.py
 # python3 ./test.py -f 2-query/nestedQuery_str.py
 
 python3 ./test.py -f 2-query/avg.py
-python3 ./test.py -f 2-query/elapsed.py
+#python3 ./test.py -f 2-query/elapsed.py
 python3 ./test.py -f 2-query/csum.py
 python3 ./test.py -f 2-query/mavg.py
 python3 ./test.py -f 2-query/diff.py
@@ -121,7 +122,7 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 5 -M 3 
-# python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 5 -M 3 
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py  -N 5 -M 3 
 # python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py  -N 5 -M 3
@@ -154,3 +155,5 @@ python3 ./test.py -f 7-tmq/tmqUdf.py
 python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
 python3 ./test.py -f 7-tmq/tmqShow.py
 python3 ./test.py -f 7-tmq/tmqAlterSchema.py
+python3 ./test.py -f 7-tmq/tmqConsFromTsdb.py
+python3 ./test.py -f 7-tmq/tmqConsFromTsdb1.py
