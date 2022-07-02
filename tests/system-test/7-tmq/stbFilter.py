@@ -122,9 +122,9 @@ class TDTestCase:
         tdLog.info("wait the consume result") 
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
-        # if expectRowsList[2] != resultList[0]:
-        #     tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[2], resultList[0]))
-        #     tdLog.exit("2 tmq consume rows error!")
+        if expectRowsList[2] != resultList[0]:
+            tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[2], resultList[0]))
+            tdLog.exit("2 tmq consume rows error!")
 
         time.sleep(10)        
         for i in range(len(topicNameList)):
