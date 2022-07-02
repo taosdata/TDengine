@@ -3253,6 +3253,10 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       doSetOperatorCompleted(pOperator);
       break;
     }
+    if (pBlock->info.type == STREAM_RETRIEVE) {
+      // for stream interval
+      return pBlock;
+    }
 
     // the pDataBlock are always the same one, no need to call this again
     int32_t code = getTableScanInfo(pOperator->pDownstream[0], &order, &scanFlag);
@@ -4097,7 +4101,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
       ASSERT(nodeType(pNew) == QUERY_NODE_VALUE);
       SValueNode* pValue = (SValueNode*)pNew;
 
-      if (pValue->node.resType.type == TSDB_DATA_TYPE_NULL) {
+      if (pValue->node.resType.type == TSDB_DATA_TYPE_NULL || pValue->isNull) {
         isNull[index++] = 1;
         continue;
       } else {

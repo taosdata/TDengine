@@ -132,7 +132,7 @@ static timer_map_t timerMap;
 static uintptr_t getNextTimerId() {
   uintptr_t id;
   do {
-    id = (uintptr_t)atomic_add_fetch_ptr((void **)&nextTimerId, (void*)1);
+    id = (uintptr_t)atomic_add_fetch_ptr((void **)&nextTimerId, 1);
   } while (id == 0);
   return id;
 }

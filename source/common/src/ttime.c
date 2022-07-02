@@ -589,7 +589,7 @@ int32_t convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec
       return TSDB_CODE_FAILED;
     }
     newColData[len] = 0;
-    int32_t ret = taosParseTime(newColData, timeVal, len + 1, (int32_t)timePrec, tsDaylight);
+    int32_t ret = taosParseTime(newColData, timeVal, len, (int32_t)timePrec, tsDaylight);
     if (ret != TSDB_CODE_SUCCESS) {
       taosMemoryFree(newColData);
       return ret;

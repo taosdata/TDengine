@@ -1259,6 +1259,7 @@ int32_t copyDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
 
   dst->info.rows = src->info.rows;
   dst->info.window = src->info.window;
+  dst->info.type = src->info.type;
   return TSDB_CODE_SUCCESS;
 }
 
