@@ -222,6 +222,7 @@ void blockDataCleanup(SSDataBlock* pDataBlock);
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 
 int32_t blockDataTrimFirstNRows(SSDataBlock* pBlock, size_t n);
+int32_t blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
 
 int32_t      assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
 int32_t      copyDataBlock(SSDataBlock* dst, const SSDataBlock* src);

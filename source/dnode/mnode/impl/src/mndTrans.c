@@ -90,7 +90,7 @@ static int32_t mndTransGetActionsSize(SArray *pArray) {
   for (int32_t i = 0; i < actionNum; ++i) {
     STransAction *pAction = taosArrayGet(pArray, i);
     if (pAction->actionType == TRANS_ACTION_RAW) {
-      rawDataLen += (sdbGetRawTotalSize(pAction->pRaw) + sizeof(int32_t));
+      rawDataLen += (sizeof(STransAction) + sdbGetRawTotalSize(pAction->pRaw));
     } else if (pAction->actionType == TRANS_ACTION_MSG) {
       rawDataLen += (sizeof(STransAction) + pAction->contLen);
     } else {
@@ -105,7 +105,7 @@ static int32_t mndTransGetActionsSize(SArray *pArray) {
 static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  int32_t rawDataLen = sizeof(STrans) + TRANS_RESERVE_SIZE;
+  int32_t rawDataLen = sizeof(STrans) + TRANS_RESERVE_SIZE + pTrans->paramLen;
   rawDataLen += mndTransGetActionsSize(pTrans->redoActions);
   rawDataLen += mndTransGetActionsSize(pTrans->undoActions);
   rawDataLen += mndTransGetActionsSize(pTrans->commitActions);
@@ -226,7 +226,8 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
 
 _OVER:
   if (terrno != 0) {
-    mError("trans:%d, failed to encode to raw:%p len:%d since %s", pTrans->id, pRaw, dataPos, terrstr());
+    mError("trans:%d, failed to encode to raw:%p maxlen:%d len:%d since %s", pTrans->id, pRaw, sdbGetRawTotalSize(pRaw),
+           dataPos, terrstr());
     sdbFreeRaw(pRaw);
     return NULL;
   }
@@ -1146,13 +1147,13 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
         } else {
           code = TSDB_CODE_ACTION_IN_PROGRESS;
         }
-      }
-      if (pAction->rawWritten) {
+      } else if (pAction->rawWritten) {
         if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) {
           code = pAction->errCode;
         } else {
           mDebug("trans:%d, %s:%d write successfully", pTrans->id, mndTransStr(pAction->stage), action);
         }
+      } else {
       }
     }
 
