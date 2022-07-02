@@ -1026,7 +1026,7 @@ static int32_t mndTransExecNullMsg(SMnode *pMnode, STrans *pTrans, STransAction 
   pTrans->lastAction = pAction->id;
   pTrans->lastMsgType = pAction->msgType;
   pTrans->lastEpset = pAction->epSet;
-  pTrans->lastErrorNo == 0;
+  pTrans->lastErrorNo = 0;
   return 0;
 }
 
