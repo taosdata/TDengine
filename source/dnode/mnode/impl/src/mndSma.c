@@ -523,6 +523,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.updateTime = streamObj.createTime;
   streamObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
   streamObj.sourceDbUid = pDb->uid;
+  streamObj.targetDbUid = pDb->uid;
   streamObj.version = 1;
   streamObj.sql = pCreate->sql;
   streamObj.smaId = smaObj.uid;
@@ -853,36 +854,26 @@ _OVER:
 }
 
 int32_t mndDropSmasByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
-  SSdb    *pSdb = pMnode->pSdb;
-  SSmaObj *pSma = NULL;
-  void    *pIter = NULL;
-  SVgObj  *pVgroup = NULL;
-  int32_t  code = -1;
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
 
   while (1) {
+    SSmaObj *pSma = NULL;
     pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
     if (pIter == NULL) break;
 
     if (pSma->dbUid == pDb->uid) {
-      pVgroup = mndAcquireVgroup(pMnode, pSma->dstVgId);
-      if (pVgroup == NULL) goto _OVER;
-      if (mndSetDropSmaVgroupCommitLogs(pMnode, pTrans, pVgroup) != 0) goto _OVER;
-      if (mndSetDropSmaVgroupRedoActions(pMnode, pTrans, pDb, pVgroup) != 0) goto _OVER;
-      if (mndSetDropSmaCommitLogs(pMnode, pTrans, pSma) != 0) goto _OVER;
-      mndReleaseVgroup(pMnode, pVgroup);
-      pVgroup = NULL;
+      if (mndSetDropSmaCommitLogs(pMnode, pTrans, pSma) != 0) {
+        sdbRelease(pSdb, pSma);
+        sdbCancelFetch(pSdb, pSma);
+        return -1;
+      }
     }
 
     sdbRelease(pSdb, pSma);
   }
 
-  code = 0;
-
-_OVER:
-  sdbCancelFetch(pSdb, pIter);
-  sdbRelease(pSdb, pSma);
-  mndReleaseVgroup(pMnode, pVgroup);
-  return code;
+  return 0;
 }
 
 static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
