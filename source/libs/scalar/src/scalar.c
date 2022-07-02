@@ -287,7 +287,7 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList* pParamList, SScalarC
   int32_t code = 0;
   if (NULL == pParamList) {
     if (ctx->pBlockList) {
-      SSDataBlock *pBlock = taosArrayGet(ctx->pBlockList, 0);
+      SSDataBlock *pBlock = taosArrayGetP(ctx->pBlockList, 0);
       *rowNum = pBlock->info.rows;
     } else {
       *rowNum = 1;
@@ -551,7 +551,9 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   SScalarParam* pLeft = &params[0];
   SScalarParam* pRight = paramNum > 1 ? &params[1] : NULL;
 
+  terrno = TSDB_CODE_SUCCESS;
   OperatorFn(pLeft, pRight, output, TSDB_ORDER_ASC);
+  code = terrno;
 
 _return:
   for (int32_t i = 0; i < paramNum; ++i) {
@@ -693,7 +695,11 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
     res->node.resType.scale = output.columnData->info.scale;
     res->node.resType.precision = output.columnData->info.precision;
     int32_t type = output.columnData->info.type;
-    if (IS_VAR_DATA_TYPE(type)) {
+    if (type == TSDB_DATA_TYPE_JSON){
+      int32_t len = getJsonValueLen(output.columnData->pData);
+      res->datum.p = taosMemoryCalloc(len, 1);
+      memcpy(res->datum.p, output.columnData->pData, len);
+    } else if (IS_VAR_DATA_TYPE(type)) {
       res->datum.p = taosMemoryCalloc(res->node.resType.bytes + VARSTR_HEADER_SIZE + 1, 1);
       memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
     } else {

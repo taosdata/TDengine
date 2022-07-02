@@ -199,7 +199,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set(conf, "enable.auto.commit", "true");
 
-  tmq_conf_set(conf, "experiment.use.snapshot", "false");
+  tmq_conf_set(conf, "experimental.snapshot.enable", "true");
 
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);

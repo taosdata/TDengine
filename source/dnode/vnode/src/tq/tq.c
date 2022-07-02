@@ -154,10 +154,10 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
   };
   tmsgSendRsp(&rsp);
 
-  char buf1[50];
-  char buf2[50];
-  tFormatOffset(buf1, 50, &pRsp->reqOffset);
-  tFormatOffset(buf2, 50, &pRsp->rspOffset);
+  char buf1[80];
+  char buf2[80];
+  tFormatOffset(buf1, 80, &pRsp->reqOffset);
+  tFormatOffset(buf2, 80, &pRsp->rspOffset);
   tqDebug("vg %d from consumer %ld (epoch %d) send rsp, block num: %d, reqOffset: %s, rspOffset: %s",
           TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2);
 
@@ -228,17 +228,6 @@ static int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq, int8_t su
 
 static int32_t tqInitMetaRsp(SMqMetaRsp* pRsp, const SMqPollReq* pReq) { return 0; }
 
-static FORCE_INLINE void tqOffsetResetToData(STqOffsetVal* pOffsetVal, int64_t uid, int64_t ts) {
-  pOffsetVal->type = TMQ_OFFSET__SNAPSHOT_DATA;
-  pOffsetVal->uid = uid;
-  pOffsetVal->ts = ts;
-}
-
-static FORCE_INLINE void tqOffsetResetToLog(STqOffsetVal* pOffsetVal, int64_t ver) {
-  pOffsetVal->type = TMQ_OFFSET__LOG;
-  pOffsetVal->version = ver;
-}
-
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   SMqPollReq*  pReq = pMsg->pCont;
   int64_t      consumerId = pReq->consumerId;
@@ -249,8 +238,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   STqOffsetVal fetchOffsetNew;
 
   // 1.find handle
-  char buf[50];
-  tFormatOffset(buf, 50, &reqOffset);
+  char buf[80];
+  tFormatOffset(buf, 80, &reqOffset);
   tqDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req offset %s", consumerId, pReq->epoch,
           TD_VID(pTq->pVnode), buf);
 
@@ -282,12 +271,12 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, pReq->subKey);
     if (pOffset != NULL) {
       fetchOffsetNew = pOffset->val;
-      char formatBuf[50];
-      tFormatOffset(formatBuf, 50, &fetchOffsetNew);
+      char formatBuf[80];
+      tFormatOffset(formatBuf, 80, &fetchOffsetNew);
       tqDebug("tmq poll: consumer %ld, offset reset to %s", consumerId, formatBuf);
     } else {
       if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEAST) {
-        if (pReq->useSnapshot) {
+        if (pReq->useSnapshot && pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
           if (!pHandle->fetchMeta) {
             tqOffsetResetToData(&fetchOffsetNew, 0, 0);
           } else {
@@ -313,9 +302,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   tqInitDataRsp(&dataRsp, pReq, pHandle->execHandle.subType);
 
   if (fetchOffsetNew.type == TMQ_OFFSET__LOG) {
-    int64_t   fetchVer = fetchOffsetNew.version + 1;
-    SWalHead* pHeadWithCkSum = taosMemoryMalloc(sizeof(SWalHead) + 2048);
-    if (pHeadWithCkSum == NULL) {
+    int64_t     fetchVer = fetchOffsetNew.version + 1;
+    SWalCkHead* pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
+    if (pCkHead == NULL) {
       return -1;
     }
 
@@ -329,7 +318,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
         break;
       }
 
-      if (tqFetchLog(pTq, pHandle, &fetchVer, &pHeadWithCkSum) < 0) {
+      if (tqFetchLog(pTq, pHandle, &fetchVer, &pCkHead) < 0) {
         // TODO add push mgr
 
         tqOffsetResetToLog(&dataRsp.rspOffset, fetchVer);
@@ -340,7 +329,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
         goto OVER;
       }
 
-      SWalReadHead* pHead = &pHeadWithCkSum->head;
+      SWalCont* pHead = &pCkHead->head;
 
       tqDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d offset %ld msgType %d", consumerId, pReq->epoch,
               TD_VID(pTq->pVnode), fetchVer, pHead->msgType);
@@ -371,7 +360,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
         tqInfo("fetch meta msg, ver: %ld, type: %d", pHead->version, pHead->msgType);
         SMqMetaRsp metaRsp = {0};
         metaRsp.reqOffset = pReq->reqOffset.version;
-        /*tqOffsetResetToLog(&metaR)*/
         metaRsp.rspOffset = fetchVer;
         metaRsp.resMsgType = pHead->msgType;
         metaRsp.metaRspLen = pHead->bodyLen;
@@ -385,25 +373,17 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       }
     }
 
-    taosMemoryFree(pHeadWithCkSum);
+    taosMemoryFree(pCkHead);
   } else if (fetchOffsetNew.type == TMQ_OFFSET__SNAPSHOT_DATA) {
-    // 1. set uid and ts
-    // 2. get data (rebuild reader if needed)
-    // 3. get new uid and ts
-
-    char formatBuf[50];
-    tFormatOffset(formatBuf, 50, &dataRsp.reqOffset);
-    tqInfo("retrieve using snapshot req offset %s", formatBuf);
-    if (tqScanSnapshot(pTq, &pHandle->execHandle, &dataRsp, workerId) < 0) {
+    tqInfo("retrieve using snapshot req offset: uid %ld ts %ld, actual offset: uid %ld ts %ld", dataRsp.reqOffset.uid,
+           dataRsp.reqOffset.ts, fetchOffsetNew.uid, fetchOffsetNew.ts);
+    if (tqScanSnapshot(pTq, &pHandle->execHandle, &dataRsp, fetchOffsetNew, workerId) < 0) {
       ASSERT(0);
     }
 
     // 4. send rsp
-    if (dataRsp.blockNum != 0) {
-      tqOffsetResetToData(&dataRsp.rspOffset, 0, 0);
-      if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
-        code = -1;
-      }
+    if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
+      code = -1;
     }
   } else if (fetchOffsetNew.type == TMQ_OFFSET__SNAPSHOT_META) {
     ASSERT(0);
@@ -543,7 +523,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       break;
     }
 
-    SWalReadHead* pHead = &pHeadWithCkSum->head;
+    SWalCont* pHead = &pHeadWithCkSum->head;
 
     tqDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d offset %ld msgType %d", consumerId, pReq->epoch,
             TD_VID(pTq->pVnode), fetchOffset, pHead->msgType);
@@ -618,6 +598,8 @@ int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen) {
   int32_t code = taosHashRemove(pTq->handles, pReq->subKey, strlen(pReq->subKey));
   ASSERT(code == 0);
 
+  tqOffsetDelete(pTq->pOffsetStore, pReq->subKey);
+
   if (tqMetaDeleteHandle(pTq, pReq->subKey) < 0) {
     ASSERT(0);
   }
@@ -655,6 +637,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
             .reader = pHandle->execHandle.pExecReader[i],
             .meta = pTq->pVnode->pMeta,
             .vnode = pTq->pVnode,
+            .tqReader = true,
         };
         pHandle->execHandle.execCol.task[i] = qCreateStreamExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle);
         ASSERT(pHandle->execHandle.execCol.task[i]);

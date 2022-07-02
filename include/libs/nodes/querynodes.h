@@ -251,7 +251,7 @@ typedef struct SSelectStmt {
   char        stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t     precision;
   bool        isEmptyResult;
-  bool        isTimeOrderQuery;
+  bool        isTimeLineResult;
   bool        hasAggFuncs;
   bool        hasRepeatScanFuncs;
   bool        hasIndefiniteRowsFunc;
@@ -261,6 +261,7 @@ typedef struct SSelectStmt {
   bool        hasTailFunc;
   bool        hasInterpFunc;
   bool        hasLastRowFunc;
+  bool        hasTimeLineFunc;
   bool        groupSort;
 } SSelectStmt;
 

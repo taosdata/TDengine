@@ -1397,9 +1397,9 @@ class TDTestCase:
                 tdSql.error(sql2)
                 tdSql.error(sql3)
 
-        tdSql.error("select elapsed(ts,10s) from (select ts,tbname  from regular_table_1 order by ts  ) where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" interval(1s) fill(prev);")
+        tdSql.query("select elapsed(ts,10s) from (select ts,tbname  from regular_table_1 order by ts  ) where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" interval(1s) fill(prev);")
 
-        tdSql.error("select elapsed(ts,10s) from (select ts ,max(q_int),tbname  from regular_table_1 order by ts  ) where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" interval(1s) fill(prev);")
+        tdSql.query("select elapsed(ts,10s) from (select ts ,max(q_int),tbname  from regular_table_1 order by ts  ) where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" interval(1s) fill(prev);")
 
         # ===============================================inner nest============================================
 
@@ -1486,9 +1486,9 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0,0,9)
 
-        tdSql.error('select elapsed(ts,10s) from  ( select * from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000") session(ts,1w) ; ')
+        tdSql.query('select elapsed(ts,10s) from  ( select * from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000") session(ts,1w) ; ')
 
-        tdSql.error('select elapsed(ts,10s) from  ( select ts ,q_int from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000") session(ts,1w) ; ')
+        tdSql.query('select elapsed(ts,10s) from  ( select ts ,q_int from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000") session(ts,1w) ; ')
     
         tdSql.error('select elapsed(ts,10s) from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000" interval(20s) fill (next) session(ts,1w) ; ')
         

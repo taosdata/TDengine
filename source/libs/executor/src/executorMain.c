@@ -222,7 +222,7 @@ int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len) {
 }
 
 int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t len) {
-  SExecTaskInfo* pTaskInfo = (struct SExecTaskInfo*) tinfo;
+  SExecTaskInfo* pTaskInfo = (struct SExecTaskInfo*)tinfo;
 
   if (pTaskInfo == NULL || pInput == NULL || len == 0) {
     return TSDB_CODE_INVALID_PARA;
@@ -231,11 +231,22 @@ int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t le
   return decodeOperator(pTaskInfo->pRoot, pInput, len);
 }
 
+int32_t qStreamPrepareScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
-int32_t qGetStreamScanStatus(qTaskInfo_t tinfo, uint64_t* uid, int64_t* ts) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tinfo;
+  if (uid == 0) {
+    if (taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList) != 0) {
+      STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, 0);
+      uid = pTableInfo->uid;
+      ts = INT64_MIN;
+    }
+  }
 
-  return TSDB_CODE_SUCCESS;
+  return doPrepareScan(pTaskInfo->pRoot, uid, ts);
 }
 
+int32_t qGetStreamScanStatus(qTaskInfo_t tinfo, uint64_t* uid, int64_t* ts) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
+  return doGetScanStatus(pTaskInfo->pRoot, uid, ts);
+}

@@ -241,7 +241,7 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
 }
 
 
-int32_t ctgHandleMsgCallback(void *param, const SDataBuf *pMsg, int32_t rspCode) {
+int32_t ctgHandleMsgCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   SCtgTaskCallbackParam* cbParam = (SCtgTaskCallbackParam*)param;
   int32_t code = 0;
   

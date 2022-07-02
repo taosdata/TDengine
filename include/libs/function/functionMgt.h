@@ -34,6 +34,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_ELAPSED,
   FUNCTION_TYPE_IRATE,
   FUNCTION_TYPE_LAST_ROW,
+  FUNCTION_TYPE_LAST_ROWT, //TODO: removed
   FUNCTION_TYPE_MAX,
   FUNCTION_TYPE_MIN,
   FUNCTION_TYPE_MODE,
@@ -125,6 +126,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_BLOCK_DIST_INFO,  // block distribution pseudo column function
   FUNCTION_TYPE_TO_COLUMN,
   FUNCTION_TYPE_GROUP_KEY,
+  FUNCTION_TYPE_CACHE_LAST_ROW,
 
   // distributed splitting functions
   FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
@@ -194,6 +196,7 @@ bool fmIsIntervalInterpoFunc(int32_t funcId);
 bool fmIsInterpFunc(int32_t funcId);
 bool fmIsLastRowFunc(int32_t funcId);
 bool fmIsSystemInfoFunc(int32_t funcId);
+bool fmIsImplicitTsFunc(int32_t funcId);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 

@@ -1152,42 +1152,30 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
   char tmp[TSDB_MAX_JSON_TAG_LEN] = {0};
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
-    if (colDataIsNull_s(pInput[0].columnData, i)) {
-      colDataAppendNULL(pOutput->columnData, i);
-      continue;
-    }
-    char *input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[i];
+    SArray* pTagVals = taosArrayInit(8, sizeof(STagVal));
+    STag*   pTag = NULL;
 
-    if(type == TSDB_DATA_TYPE_NCHAR){
-      if (varDataTLen(input) > TSDB_MAX_JSON_TAG_LEN){
-        colDataAppendNULL(pOutput->columnData, i);
-        continue;
-      }
-      int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), tmp);
-      if (len < 0) {
-        colDataAppendNULL(pOutput->columnData, i);
-        continue;
-      }
-      tmp[len] = 0;
+    if (colDataIsNull_s(pInput[0].columnData, i)) {
+      tTagNew(pTagVals, 1, true, &pTag);
     }else{
+      char *input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[i];
       if (varDataLen(input) > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE){
-        colDataAppendNULL(pOutput->columnData, i);
-        continue;
+        taosArrayDestroy(pTagVals);
+        return TSDB_CODE_FAILED;
       }
       memcpy(tmp, varDataVal(input), varDataLen(input));
       tmp[varDataLen(input)] = 0;
+      if(parseJsontoTagData(tmp, pTagVals, &pTag, NULL)){
+        tTagNew(pTagVals, 1, true, &pTag);
+      }
     }
 
-    if(!tjsonValidateJson(tmp)){
-      colDataAppendNULL(pOutput->columnData, i);
-      continue;
-    }
-
-    colDataAppend(pOutput->columnData, i, input, false);
+    colDataAppend(pOutput->columnData, i, (const char*)pTag, false);
+    tTagFree(pTag);
+    taosArrayDestroy(pTagVals);
   }
 
   pOutput->numOfRows = pInput->numOfRows;
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1515,7 +1503,10 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 }
 
 int32_t nowFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int64_t ts = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
+  int64_t timePrec;
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[0]), pInput[0].columnData->pData);
+
+  int64_t ts = taosGetTimestamp(timePrec);
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     colDataAppendInt64(pOutput->columnData, i, &ts);
   }
@@ -1524,7 +1515,10 @@ int32_t nowFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 }
 
 int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int64_t ts = taosGetTimestampToday(TSDB_TIME_PRECISION_MILLI);
+  int64_t timePrec;
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[0]), pInput[0].columnData->pData);
+
+  int64_t ts = taosGetTimestampToday(timePrec);
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     colDataAppendInt64(pOutput->columnData, i, &ts);
   }

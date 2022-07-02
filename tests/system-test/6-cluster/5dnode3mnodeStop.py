@@ -88,7 +88,7 @@ class TDTestCase:
         tdLog.info("Confirm the status of the dnode again")
         tdSql.error("create mnode on dnode 2")
         tdSql.query("show dnodes;")
-        print(tdSql.queryResult)
+        # print(tdSql.queryResult)
         clusterComCheck.checkDnodes(dnodenumbers)
         # restart all taosd
         tdDnodes=cluster.dnodes
@@ -108,18 +108,6 @@ class TDTestCase:
         tdDnodes[0].starttaosd()
         clusterComCheck.checkMnodeStatus(3)
 
-        tdLog.info("Take turns stopping all dnodes ") 
-        # seperate vnode and mnode in different dnodes.
-        # create database and stable
-        stopcount =0 
-        while stopcount <= 2:
-            tdLog.info("first restart loop")
-            for i in range(dnodenumbers):
-                tdDnodes[i].stoptaosd()
-                tdDnodes[i].starttaosd()
-            stopcount+=1
-        clusterComCheck.checkDnodes(dnodenumbers)
-        clusterComCheck.checkMnodeStatus(3)
 
     def run(self): 
         # print(self.master_dnode.cfgDict)

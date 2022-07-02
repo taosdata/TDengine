@@ -52,12 +52,22 @@ IF(${TD_WINDOWS})
         ON
     )
 ELSE ()
-
-    option(
-        BUILD_TEST 
-        "If build unit tests using googletest" 
-        ON
-    )
+    include(CheckCXXCompilerFlag)
+    CHECK_CXX_COMPILER_FLAG("-std=c++13" COMPILER_SUPPORTS_CXX13)
+    IF(${COMPILER_SUPPORTS_CXX13})
+        add_definitions(-DCOMPILER_SUPPORTS_CXX13)
+        option(
+            BUILD_TEST
+            "If build unit tests using googletest"
+            ON
+        )
+    ELSE ()
+        option(
+            BUILD_TEST
+            "If build unit tests using googletest"
+            OFF
+        )
+    ENDIF ()
 ENDIF ()
 
 option(

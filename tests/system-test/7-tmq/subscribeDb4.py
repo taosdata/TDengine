@@ -14,19 +14,24 @@ sys.path.append("./7-tmq")
 from tmqCommon import *
 
 class TDTestCase:
-    paraDict = {'dbName': 'db12',
-                'dropFlag':1,
-                'vgroups': 4,
-                'precision': 'ms',
-                'stbName': 'stb0',
-                'ctbNum': 10,
+    paraDict = {'dbName':     'db12',
+                'dropFlag':   1,
+                'event':      '',
+                'vgroups':    4,
+                'stbName':    'stb0',
+                'colPrefix':  'c',
+                'tagPrefix':  't',
+                'colSchema':   [{'type': 'INT', 'count':2}, {'type': 'binary', 'len':16, 'count':1}, {'type': 'timestamp','count':1}],
+                'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
+                'ctbPrefix':  'ctb',
+                'ctbStartIdx': 0,
+                'ctbNum':     10,
                 'rowsPerTbl': 10000,
-                'batchNum': 10,
-                'startTs': 0, # 1640966400000 ----> 2022-01-01 00:00:00.000
-                'event':'',
-                'columnDict': {'int':2},
-                'tagDict': {'int':1}
-                }
+                'batchNum':   10,
+                'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
+                'pollDelay':  20,
+                'showMsg':    1,
+                'showRow':    1}
 
     cdbName = 'cdb'
     # some parameter to consumer processor
@@ -57,17 +62,18 @@ class TDTestCase:
         
         tmqCom.initConsumerTable(self.cdbName)
 
-        tdCom.create_database(tdSql,self.paraDict["dbName"],self.paraDict["dropFlag"], self.paraDict['precision'])
+        tdCom.create_database(tdSql,self.paraDict["dbName"],self.paraDict["dropFlag"])
 
         self.paraDict["stbName"] = 'stb1'
-        tdCom.create_stable(tdSql,self.paraDict["dbName"],self.paraDict["stbName"],self.paraDict["columnDict"],self.paraDict["tagDict"])
-        tdCom.create_ctables(tdSql,self.paraDict["dbName"],self.paraDict["stbName"],self.paraDict["ctbNum"],self.paraDict["tagDict"])
-        tdCom.insert_data(tdSql,self.paraDict["dbName"],self.paraDict["stbName"],self.paraDict["ctbNum"],self.paraDict["rowsPerTbl"],self.paraDict["batchNum"])
+        tdCom.create_stable(tdSql,dbname=self.paraDict["dbName"],stbname=self.paraDict["stbName"],column_elm_list=self.paraDict["colSchema"],tag_elm_list=self.paraDict["tagSchema"],count=1, default_stbname_prefix=self.paraDict["stbName"])
+        tdCom.create_ctable(tdSql,dbname=self.paraDict["dbName"],stbname=self.paraDict["stbName"],tag_elm_list=self.paraDict['tagSchema'],count=self.paraDict["ctbNum"],default_ctbname_prefix=self.paraDict["ctbPrefix"])
+        tmqCom.insert_data_2(tdSql,self.paraDict["dbName"],self.paraDict["ctbPrefix"],self.paraDict["ctbNum"],self.paraDict["rowsPerTbl"],self.paraDict["batchNum"],self.paraDict["startTs"],self.paraDict["ctbStartIdx"])
 
         self.paraDict["stbName"] = 'stb2'
-        tdCom.create_stable(tdSql,self.paraDict["dbName"],self.paraDict["stbName"],self.paraDict["columnDict"],self.paraDict["tagDict"])
-        tdCom.create_ctables(tdSql,self.paraDict["dbName"],self.paraDict["stbName"],self.paraDict["ctbNum"],self.paraDict["tagDict"])
-        tdCom.insert_data(tdSql,self.paraDict["dbName"],self.paraDict["stbName"],self.paraDict["ctbNum"],self.paraDict["rowsPerTbl"],self.paraDict["batchNum"])
+        self.paraDict["ctbPrefix"] = 'newctb'
+        tdCom.create_stable(tdSql,dbname=self.paraDict["dbName"],stbname=self.paraDict["stbName"],column_elm_list=self.paraDict["colSchema"],tag_elm_list=self.paraDict["tagSchema"],count=1, default_stbname_prefix=self.paraDict["stbName"])
+        tdCom.create_ctable(tdSql,dbname=self.paraDict["dbName"],stbname=self.paraDict["stbName"],tag_elm_list=self.paraDict['tagSchema'],count=self.paraDict["ctbNum"],default_ctbname_prefix=self.paraDict["ctbPrefix"])
+        tmqCom.insert_data_2(tdSql,self.paraDict["dbName"],self.paraDict["ctbPrefix"],self.paraDict["ctbNum"],self.paraDict["rowsPerTbl"],self.paraDict["batchNum"],self.paraDict["startTs"],self.paraDict["ctbStartIdx"])
 
         tdLog.info("create topics from db")
         topicName1 = 'topic_%s'%(self.paraDict['dbName'])        
@@ -97,7 +103,7 @@ class TDTestCase:
             tdLog.info("act consume rows: %d, expect consume rows: between %d and %d"%(totalConsumeRows, self.expectrowcnt/2, self.expectrowcnt))
             tdLog.exit("tmq consume rows error!")
 
-        time.sleep(15)
+        time.sleep(10)
         tdSql.query("drop topic %s"%topicName1)
 
         tdLog.printNoPrefix("======== test case 12 end ...... ")
