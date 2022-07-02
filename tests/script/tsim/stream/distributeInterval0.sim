@@ -83,9 +83,9 @@ sql insert into ts3 values(1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) 
 
 $loop_count = 0
 loop1:
+sleep 300
 sql select * from streamtST1;
 
-sleep 300
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1

@@ -39,12 +39,16 @@ endif()
 target_link_libraries(
     os PUBLIC pthread
 )
-if(NOT TD_WINDOWS)
-    target_link_libraries(
-        os PUBLIC dl m rt
-    )
-else()
+if(TD_WINDOWS)
     target_link_libraries(
         os PUBLIC ws2_32 iconv msvcregex wcwidth winmm
     )
-endif(NOT TD_WINDOWS)
+elseif(TD_DARWIN_64)
+    target_link_libraries(
+        os PUBLIC dl m iconv
+    )
+else()
+    target_link_libraries(
+        os PUBLIC dl m rt
+    )
+endif()

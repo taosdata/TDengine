@@ -17,6 +17,8 @@ import threading as thd
 import multiprocessing as mp
 from numpy.lib.function_base import insert
 import taos
+from util.dnodes import TDDnode
+from util.dnodes import *
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -30,9 +32,9 @@ class TDTestCase:
     #
     # --------------- main frame -------------------
     #
-    clientCfgDict = {'queryproxy': '1','debugFlag': 135}
-    clientCfgDict["queryproxy"] = '2'
-    clientCfgDict["debugFlag"] = 143
+    clientCfgDict = {'queryPolicy': '1','debugFlag': 135}
+    clientCfgDict["queryPolicy"] = '1'
+    clientCfgDict["debugFlag"] = 131
 
     updatecfgDict = {'clientCfg': {}}
     updatecfgDict = {'debugFlag': 143}
@@ -62,7 +64,7 @@ class TDTestCase:
         return buildPath
 
     # init
-    def init(self, conn, logSql):
+    def init(self, conn, logSql=True):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
         # tdSql.prepare()
@@ -292,12 +294,13 @@ class TDTestCase:
         
         tdLog.debug("-----create database and muti-thread create tables test------- ")
 
-    def test_case4(self):
+    def test_case1(self):
         self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 1, 2, 1*10)
         tdSql.execute("use db1;")
         tdSql.query("show dnodes;")
         dnodeId=tdSql.getData(0,0)
         print(dnodeId)
+        tdLog.debug("create qnode on dnode %s"%dnodeId)
         tdSql.execute("create qnode on dnode %s"%dnodeId)
         tdSql.query("select max(c1) from stb10;")
         maxQnode=tdSql.getData(0,0)
@@ -310,6 +313,7 @@ class TDTestCase:
 
         # tdSql.query("show qnodes;")
         # qnodeId=tdSql.getData(0,0)
+        tdLog.debug("drop qnode on dnode %s"%dnodeId)
         tdSql.execute("drop qnode on dnode %s"%dnodeId)
         tdSql.execute("reset query cache")
         tdSql.query("select max(c1) from stb10;")
@@ -323,15 +327,156 @@ class TDTestCase:
         unionallVnode=tdSql.queryResult
         assert unionallQnode == unionallVnode
 
+        queryPolicy=2
+        simClientCfg="%s/taos.cfg"%tdDnodes.getSimCfgPath()
+        cmd='sed -i "s/^queryPolicy.*/queryPolicy 2/g" %s'%simClientCfg
+        os.system(cmd)
+        # tdDnodes.stop(1)
+        # tdDnodes.start(1)
+        tdSql.execute("reset query cache")
+        tdSql.execute('alter local  "queryPolicy" "%d"'%queryPolicy)
+        tdSql.query("show local variables;")
+        for i in range(tdSql.queryRows):
+            if tdSql.queryResult[i][0] == "queryPolicy" :
+                if int(tdSql.queryResult[i][1]) == int(queryPolicy):
+                    tdLog.success('alter queryPolicy to %d successfully'%queryPolicy)
+                else :
+                    tdLog.debug(tdSql.queryResult)
+                    tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy)
+        tdSql.execute("reset query cache")
+
+        tdSql.execute("use db1;")
+        tdSql.query("show dnodes;")
+        dnodeId=tdSql.getData(0,0)
+        tdLog.debug("create qnode on dnode %s"%dnodeId)
+
+        tdSql.execute("create qnode on dnode %s"%dnodeId)
+        tdSql.query("select max(c1) from stb10;")
+        assert maxQnode==tdSql.getData(0,0)
+        tdSql.query("select min(c1) from stb11;")
+        assert minQnode==tdSql.getData(0,0)
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        assert unionQnode==tdSql.queryResult
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        assert unionallQnode==tdSql.queryResult
+
+        # tdSql.query("show qnodes;")
+        # qnodeId=tdSql.getData(0,0)
+        tdLog.debug("drop qnode on dnode %s"%dnodeId)
+        tdSql.execute("drop qnode on dnode %s"%dnodeId)
+        tdSql.execute("reset query cache")
+        tdSql.query("select max(c1) from stb10;")
+        assert maxQnode==tdSql.getData(0,0)
+        tdSql.query("select min(c1) from stb11;")  
+        assert minQnode==tdSql.getData(0,0)   
+        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
 
         # tdSql.execute("create qnode on dnode %s"%dnodeId)
 
+        queryPolicy=3
+        simClientCfg="%s/taos.cfg"%tdDnodes.getSimCfgPath()
+        cmd='sed -i "s/^queryPolicy.*/queryPolicy 2/g" %s'%simClientCfg
+        os.system(cmd)
+        # tdDnodes.stop(1)
+        # tdDnodes.start(1)
+        tdSql.execute("reset query cache")
+        tdSql.execute('alter local  "queryPolicy" "%d"'%queryPolicy)
+        tdSql.query("show local variables;")
+        for i in range(tdSql.queryRows):
+            if tdSql.queryResult[i][0] == "queryPolicy" :
+                if int(tdSql.queryResult[i][1]) == int(queryPolicy):
+                    tdLog.success('alter queryPolicy to %d successfully'%queryPolicy)
+                else :
+                    tdLog.debug(tdSql.queryResult)
+                    tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy)
+        tdSql.execute("reset query cache")
+
+        tdSql.execute("use db1;")
+        tdSql.query("show dnodes;")
+        dnodeId=tdSql.getData(0,0)
+        tdLog.debug("create qnode on dnode %s"%dnodeId)
+
+        tdSql.execute("create qnode on dnode %s"%dnodeId)
+        tdSql.query("select max(c1) from stb10;")
+        assert maxQnode==tdSql.getData(0,0)
+        tdSql.query("select min(c1) from stb11;")
+        assert minQnode==tdSql.getData(0,0)
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        assert unionQnode==tdSql.queryResult
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        assert unionallQnode==tdSql.queryResult
+
+    def test_case2(self):
+        self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 10, 2, 1*10)
+        tdSql.query("show qnodes")
+        if tdSql.queryRows == 1 :
+            tdLog.debug("drop qnode on dnode 1")
+            tdSql.execute("drop qnode on dnode 1")
+        queryPolicy=2
+        simClientCfg="%s/taos.cfg"%tdDnodes.getSimCfgPath()
+        cmd='sed -i "s/^queryPolicy.*/queryPolicy 2/g" %s'%simClientCfg
+        os.system(cmd)
+        # tdDnodes.stop(1)
+        # tdDnodes.start(1)
+        tdSql.execute("reset query cache")
+        tdSql.execute('alter local  "queryPolicy" "%d"'%queryPolicy)
+        tdSql.query("show local variables;")
+        for i in range(tdSql.queryRows):
+            if tdSql.queryResult[i][0] == "queryPolicy" :
+                if int(tdSql.queryResult[i][1]) == int(queryPolicy):
+                    tdLog.success('alter queryPolicy to %d successfully'%queryPolicy)
+                else :
+                    tdLog.debug(tdSql.queryResult)
+                    tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy)
+        tdSql.execute("use db1;")
+        tdSql.error("select max(c1) from stb10;")
+        tdSql.error("select min(c1) from stb11;")     
+        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+
+        tdSql.query("select max(c1) from stb10_0;")
+        tdSql.query("select min(c1) from stb11_0;")
+
+    def test_case3(self):
+
+        tdSql.execute('alter local  "queryPolicy" "3"')
+        tdLog.debug("create qnode on dnode 1")
+        tdSql.execute("create qnode on dnode 1")
+        tdSql.execute("use db1;")
+        tdSql.query("show dnodes;")
+        dnodeId=tdSql.getData(0,0)
+        print(dnodeId)
+
+        tdSql.query("select max(c1) from stb10;")
+        maxQnode=tdSql.getData(0,0)
+        tdSql.query("select min(c1) from stb11;")
+        minQnode=tdSql.getData(0,0)
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        unionQnode=tdSql.queryResult
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        unionallQnode=tdSql.queryResult
+
+        # tdSql.query("show qnodes;")
+        # qnodeId=tdSql.getData(0,0)
+        tdLog.debug("drop qnode on dnode %s"%dnodeId)
+
+        tdSql.execute("drop qnode on dnode %s"%dnodeId)
+        tdSql.execute("reset query cache")
+
+        tdSql.error("select max(c1) from stb10;")
+        tdSql.error("select min(c1) from stb11;")     
+        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+
     # run case   
     def run(self):
-
         # test qnode
-        self.test_case4()
-        tdLog.debug(" LIMIT test_case3 ............ [OK]")
+        self.test_case1()
+        self.test_case2()
+
+        self.test_case3()
+        # tdLog.debug(" LIMIT test_case3 ............ [OK]")
 
 
         return 

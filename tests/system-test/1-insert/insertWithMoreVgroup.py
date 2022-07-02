@@ -355,40 +355,6 @@ class TDTestCase:
 
         return 
 
-    def test_case4(self):
-        self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 1, 2, 1*10)
-        tdSql.execute("use db1;")
-        tdSql.query("show dnodes;")
-        dnodeId=tdSql.getData(0,0)
-        print(dnodeId)
-        tdSql.execute("create qnode on dnode %s"%dnodeId)
-        tdSql.query("select max(c1) from stb10;")
-        maxQnode=tdSql.getData(0,0)
-        tdSql.query("select min(c1) from stb11;")
-        minQnode=tdSql.getData(0,0)
-        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
-        unionQnode=tdSql.queryResult
-        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
-        unionallQnode=tdSql.queryResult
-
-        # tdSql.query("show qnodes;")
-        # qnodeId=tdSql.getData(0,0)
-        tdSql.execute("drop qnode on dnode %s"%dnodeId)
-        tdSql.execute("reset query cache")
-        tdSql.query("select max(c1) from stb10;")
-        tdSql.checkData(0, 0, "%s"%maxQnode)
-        tdSql.query("select min(c1) from stb11;")     
-        tdSql.checkData(0, 0, "%s"%minQnode)
-        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
-        unionVnode=tdSql.queryResult
-        assert unionQnode == unionVnode
-        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
-        unionallVnode=tdSql.queryResult
-        assert unionallQnode == unionallVnode
-
-
-        # tdSql.execute("create qnode on dnode %s"%dnodeId)
-
     # run case   
     def run(self):
 

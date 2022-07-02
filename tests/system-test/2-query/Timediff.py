@@ -3,7 +3,7 @@ from util.sql import *
 from util.cases import *
 
 class TDTestCase:
-    
+
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
@@ -33,7 +33,7 @@ class TDTestCase:
             'insert into ntb values(now,1,1.55,100.555555,today())("2020-1-1 00:00:00",10,11.11,99.999999,now())(today(),3,3.333,333.333333,now())')
         tdSql.execute(
             'insert into stb_1 values(now,1,1.55,100.555555,today())("2020-1-1 00:00:00",10,11.11,99.999999,now())(today(),3,3.333,333.333333,now())')
-        
+
         tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00') from ntb")
         tdSql.checkRows(3)
         tdSql.query("select timediff(1,0,1d) from ntb")
@@ -72,12 +72,12 @@ class TDTestCase:
         tdSql.query("select timediff(1,0,1a) from db.ntb")
         tdSql.checkRows(3)
         tdSql.checkData(0,0,1000)
-        tdSql.query("select timediff(1,0,1u) from ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,1000000)
-        tdSql.query("select timediff(1,0,1u) from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,1000000)
+        tdSql.error("select timediff(1,0,1u) from ntb")
+        #tdSql.checkRows(3)
+        #tdSql.checkData(0,0,1000000)
+        tdSql.error("select timediff(1,0,1u) from db.ntb")
+        #tdSql.checkRows(3)
+        #tdSql.checkData(0,0,1000000)
 
         tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00') from stb")
         tdSql.checkRows(3)
@@ -116,12 +116,12 @@ class TDTestCase:
         tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1a) from db.stb")
         tdSql.checkRows(3)
         tdSql.checkData(0,0,86400000)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1u) from stb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,86400000000)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1u) from db.stb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,86400000000)
+        tdSql.error("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1u) from stb")
+        #tdSql.checkRows(3)
+        #tdSql.checkData(0,0,86400000000)
+        tdSql.error("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1u) from db.stb")
+        #tdSql.checkRows(3)
+        #tdSql.checkData(0,0,86400000000)
 
 
         tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00') from stb_1")
@@ -164,12 +164,12 @@ class TDTestCase:
         tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1a) from db.stb_1")
         tdSql.checkRows(3)
         tdSql.checkData(0,0,43200000)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1u) from stb_1")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,43200000000)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1u) from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,43200000000)
+        tdSql.error("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1u) from stb_1")
+        #tdSql.checkRows(3)
+        #tdSql.checkData(0,0,43200000000)
+        tdSql.error("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1u) from db.stb_1")
+        #tdSql.checkRows(3)
+        #tdSql.checkData(0,0,43200000000)
 
         tdSql.query("select timediff('a','b') from stb")
         tdSql.checkRows(3)

@@ -21,7 +21,7 @@ SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId) {
 
   taosThreadRwlockRdlock(&pMgmt->lock);
   taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
-  if (pVnode == NULL) {
+  if (pVnode == NULL || pVnode->dropped) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
   } else {
     int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
@@ -81,16 +81,18 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
 
   vmReleaseVnode(pMgmt, pVnode);
   while (pVnode->refCount > 0) taosMsleep(10);
+  dTrace("vgId:%d, wait for vnode queue is empty", pVnode->vgId);
+
   while (!taosQueueEmpty(pVnode->pWriteQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pSyncQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pApplyQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pFetchQ)) taosMsleep(10);
+  dTrace("vgId:%d, vnode-fetch queue is empty", pVnode->vgId);
 
   vmFreeQueue(pMgmt, pVnode);
   vnodeClose(pVnode->pImpl);
   pVnode->pImpl = NULL;
-
   dDebug("vgId:%d, vnode is closed", pVnode->vgId);
 
   if (pVnode->dropped) {

@@ -93,6 +93,7 @@
 ./test.sh -f tsim/stream/basic0.sim
 ./test.sh -f tsim/stream/basic1.sim
 ./test.sh -f tsim/stream/basic2.sim
+./test.sh -f tsim/stream/drop_stream.sim
 ./test.sh -f tsim/stream/distributeInterval0.sim
 # ./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
 # ./test.sh -f tsim/stream/distributesession0.sim
@@ -105,6 +106,7 @@
 ./test.sh -f tsim/stream/partitionby1.sim
 ./test.sh -f tsim/stream/schedSnode.sim
 ./test.sh -f tsim/stream/windowClose.sim
+./test.sh -f tsim/stream/ignoreExpiredData.sim
 
 # ---- transaction
  ./test.sh -f tsim/trans/lossdata1.sim
@@ -159,6 +161,7 @@
 #./test.sh -f tsim/mnode/basic1.sim -m
 
 # --- sma
+./test.sh -f tsim/sma/drop_sma.sim
 ./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
 ./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 
