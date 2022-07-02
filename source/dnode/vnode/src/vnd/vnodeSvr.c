@@ -779,6 +779,7 @@ _exit:
   taosArrayDestroy(submitRsp.pArray);
 
   // TODO: the partial success scenario and the error case
+  // => If partial success, extract the success submitted rows and reconstruct a new submit msg, and push to level 1/level 2.
   // TODO: refactor
   if ((terrno == TSDB_CODE_SUCCESS) && (pRsp->code == TSDB_CODE_SUCCESS)) {
     tdProcessRSmaSubmit(pVnode->pSma, pReq, STREAM_INPUT__DATA_SUBMIT);

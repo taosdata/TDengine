@@ -556,7 +556,7 @@ typedef struct {
   int64_t uid;
   int8_t  status;
   // config
-  int8_t  dropPolicy;
+  int8_t  igExpired;
   int8_t  trigger;
   int64_t triggerParam;
   int64_t watermark;

@@ -356,6 +356,7 @@ typedef struct SStreamBlockScanInfo {
   SUpdateInfo*    pUpdateInfo;
 
   EStreamScanMode scanMode;
+  SOperatorInfo* pStreamScanOp;
   SOperatorInfo* pSnapshotReadOp;
   SArray*        childIds;
   SessionWindowSupporter sessionSup;

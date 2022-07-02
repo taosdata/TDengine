@@ -248,7 +248,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->status = 0;
 
   // TODO
-  pObj->dropPolicy = 0;
+  pObj->igExpired = pCreate->igExpired;
   pObj->trigger = pCreate->triggerType;
   pObj->triggerParam = pCreate->maxDelay;
   pObj->watermark = pCreate->watermark;
@@ -301,6 +301,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
       .streamQuery = true,
       .triggerType = pObj->trigger == STREAM_TRIGGER_MAX_DELAY ? STREAM_TRIGGER_WINDOW_CLOSE : pObj->trigger,
       .watermark = pObj->watermark,
+      .igExpired = pObj->igExpired,
   };
 
   // using ast and param to build physical plan

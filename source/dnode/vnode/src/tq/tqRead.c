@@ -120,7 +120,9 @@ bool tqNextDataBlock(SStreamReader* pHandle) {
       return true;
     }
     void* ret = taosHashGet(pHandle->tbIdHash, &pHandle->msgIter.uid, sizeof(int64_t));
+    /*tqDebug("search uid %ld", pHandle->msgIter.uid);*/
     if (ret != NULL) {
+      /*tqDebug("find   uid %ld", pHandle->msgIter.uid);*/
       return true;
     }
   }
