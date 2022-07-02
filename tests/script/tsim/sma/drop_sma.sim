@@ -50,13 +50,6 @@ sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) t
 print --> create sma
 sql create sma index sma_index_name1 on stb function(max(c1),max(c2),min(c1)) interval(6m,10s) sliding(6m);
 
-print --> show indexes
-sql show d1.indexes
-if $rows != 1 then 
-  return -1
-endi
-
-return 
 print --> drop stb
 sql drop table stb; 
 
