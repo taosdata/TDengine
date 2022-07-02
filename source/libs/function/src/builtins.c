@@ -39,6 +39,174 @@ static int32_t invaildFuncParaValueErrMsg(char* pErrBuf, int32_t len, const char
   return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_VALUE, "Invalid parameter value : %s", pFuncName);
 }
 
+#define TIME_UNIT_INVALID 1
+#define TIME_UNIT_TOO_SMALL 2
+
+static int32_t validateTimeUnitParam(uint8_t dbPrec, const SValueNode* pVal) {
+  if (!pVal->isDuration) {
+    return TIME_UNIT_INVALID;
+  }
+
+  if (TSDB_TIME_PRECISION_MILLI == dbPrec && 0 == strcasecmp(pVal->literal, "1u")) {
+    return TIME_UNIT_TOO_SMALL;
+  }
+
+  if (pVal->literal[0] != '1' || (pVal->literal[1] != 'u' && pVal->literal[1] != 'a' &&
+                                  pVal->literal[1] != 's' && pVal->literal[1] != 'm' &&
+                                  pVal->literal[1] != 'h' && pVal->literal[1] != 'd' &&
+                                  pVal->literal[1] != 'w')) {
+    return TIME_UNIT_INVALID;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Following are valid ISO-8601 timezone format:
+ * 1 z/Z
+ * 2 ±hh:mm
+ * 3 ±hhmm
+ * 4 ±hh
+ *
+ */
+
+static bool validateHourRange(int8_t hour) {
+  if (hour < 0 || hour > 12) {
+    return false;
+  }
+
+  return true;
+}
+
+static bool validateMinuteRange(int8_t hour, int8_t minute, char sign) {
+  if (minute == 0 || (minute == 30 && (hour == 3 || hour == 5) && sign == '+')) {
+    return true;
+  }
+
+  return false;
+}
+
+static bool validateTimestampDigits(const SValueNode* pVal) {
+  if (!IS_INTEGER_TYPE(pVal->node.resType.type)) {
+    return false;
+  }
+
+  int64_t tsVal = pVal->datum.i;
+  char    fraction[20] = {0};
+  NUM_TO_STRING(pVal->node.resType.type, &tsVal, sizeof(fraction), fraction);
+  int32_t tsDigits = (int32_t)strlen(fraction);
+
+  if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS) {
+    if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS || tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS ||
+        tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool validateTimezoneFormat(const SValueNode* pVal) {
+  if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
+    return false;
+  }
+
+  char*   tz = varDataVal(pVal->datum.p);
+  int32_t len = varDataLen(pVal->datum.p);
+
+  char   buf[3] = {0};
+  int8_t hour = -1, minute = -1;
+  if (len == 0) {
+    return false;
+  } else if (len == 1 && (tz[0] == 'z' || tz[0] == 'Z')) {
+    return true;
+  } else if ((tz[0] == '+' || tz[0] == '-')) {
+    switch (len) {
+      case 3:
+      case 5: {
+        for (int32_t i = 1; i < len; ++i) {
+          if (!isdigit(tz[i])) {
+            return false;
+          }
+
+          if (i == 2) {
+            memcpy(buf, &tz[i - 1], 2);
+            hour = taosStr2Int8(buf, NULL, 10);
+            if (!validateHourRange(hour)) {
+              return false;
+            }
+          } else if (i == 4) {
+            memcpy(buf, &tz[i - 1], 2);
+            minute = taosStr2Int8(buf, NULL, 10);
+            if (!validateMinuteRange(hour, minute, tz[0])) {
+              return false;
+            }
+          }
+        }
+        break;
+      }
+      case 6: {
+        for (int32_t i = 1; i < len; ++i) {
+          if (i == 3) {
+            if (tz[i] != ':') {
+              return false;
+            }
+            continue;
+          }
+
+          if (!isdigit(tz[i])) {
+            return false;
+          }
+
+          if (i == 2) {
+            memcpy(buf, &tz[i - 1], 2);
+            hour = taosStr2Int8(buf, NULL, 10);
+            if (!validateHourRange(hour)) {
+              return false;
+            }
+          } else if (i == 5) {
+            memcpy(buf, &tz[i - 1], 2);
+            minute = taosStr2Int8(buf, NULL, 10);
+            if (!validateMinuteRange(hour, minute, tz[0])) {
+              return false;
+            }
+          }
+        }
+        break;
+      }
+      default: {
+        return false;
+      }
+    }
+  } else {
+    return false;
+  }
+
+  return true;
+}
+
+void static addTimezoneParam(SNodeList* pList) {
+  char       buf[6] = {0};
+  time_t     t = taosTime(NULL);
+  struct tm* tmInfo = taosLocalTime(&t, NULL);
+  strftime(buf, sizeof(buf), "%z", tmInfo);
+  int32_t len = (int32_t)strlen(buf);
+
+  SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  pVal->literal = strndup(buf, len);
+  pVal->isDuration = false;
+  pVal->translate = true;
+  pVal->node.resType.type = TSDB_DATA_TYPE_BINARY;
+  pVal->node.resType.bytes = len + VARSTR_HEADER_SIZE;
+  pVal->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  pVal->datum.p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE + 1);
+  varDataSetLen(pVal->datum.p, len);
+  strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
+
+  nodesListAppend(pList, (SNode*)pVal);
+}
+
 void static addDbPrecisonParam(SNodeList** pList, uint8_t precision) {
   SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   pVal->literal = NULL;
@@ -525,9 +693,15 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
 
-    if (pValue->datum.i == 0) {
+    uint8_t dbPrec = pFunc->node.resType.precision;
+
+    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode *)nodesListGetNode(pFunc->pParameterList, 1));
+    if (ret == TIME_UNIT_TOO_SMALL) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "ELAPSED function time unit parameter should be greater than db precision");
+    } else if (ret == TIME_UNIT_INVALID) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "ELAPSED function time unit parameter should be one of the following: [1u, 1a, 1s, 1m, 1h, 1d, 1w]");
     }
   }
 
@@ -841,6 +1015,19 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
   if (numOfParams == 4 &&
       ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type != TSDB_DATA_TYPE_BIGINT) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (numOfParams == 4) {
+    uint8_t dbPrec = pFunc->node.resType.precision;
+
+    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode *)nodesListGetNode(pFunc->pParameterList, 3));
+    if (ret == TIME_UNIT_TOO_SMALL) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "STATEDURATION function time unit parameter should be greater than db precision");
+    } else if (ret == TIME_UNIT_INVALID) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "STATEDURATION function time unit parameter should be one of the following: [1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+    }
   }
 
   // set result type
@@ -1284,152 +1471,6 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
-/* Following are valid ISO-8601 timezone format:
- * 1 z/Z
- * 2 ±hh:mm
- * 3 ±hhmm
- * 4 ±hh
- *
- */
-
-static bool validateHourRange(int8_t hour) {
-  if (hour < 0 || hour > 12) {
-    return false;
-  }
-
-  return true;
-}
-
-static bool validateMinuteRange(int8_t hour, int8_t minute, char sign) {
-  if (minute == 0 || (minute == 30 && (hour == 3 || hour == 5) && sign == '+')) {
-    return true;
-  }
-
-  return false;
-}
-
-static bool validateTimestampDigits(const SValueNode* pVal) {
-  if (!IS_INTEGER_TYPE(pVal->node.resType.type)) {
-    return false;
-  }
-
-  int64_t tsVal = pVal->datum.i;
-  char    fraction[20] = {0};
-  NUM_TO_STRING(pVal->node.resType.type, &tsVal, sizeof(fraction), fraction);
-  int32_t tsDigits = (int32_t)strlen(fraction);
-
-  if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS) {
-    if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS || tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS ||
-        tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-static bool validateTimezoneFormat(const SValueNode* pVal) {
-  if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
-    return false;
-  }
-
-  char*   tz = varDataVal(pVal->datum.p);
-  int32_t len = varDataLen(pVal->datum.p);
-
-  char   buf[3] = {0};
-  int8_t hour = -1, minute = -1;
-  if (len == 0) {
-    return false;
-  } else if (len == 1 && (tz[0] == 'z' || tz[0] == 'Z')) {
-    return true;
-  } else if ((tz[0] == '+' || tz[0] == '-')) {
-    switch (len) {
-      case 3:
-      case 5: {
-        for (int32_t i = 1; i < len; ++i) {
-          if (!isdigit(tz[i])) {
-            return false;
-          }
-
-          if (i == 2) {
-            memcpy(buf, &tz[i - 1], 2);
-            hour = taosStr2Int8(buf, NULL, 10);
-            if (!validateHourRange(hour)) {
-              return false;
-            }
-          } else if (i == 4) {
-            memcpy(buf, &tz[i - 1], 2);
-            minute = taosStr2Int8(buf, NULL, 10);
-            if (!validateMinuteRange(hour, minute, tz[0])) {
-              return false;
-            }
-          }
-        }
-        break;
-      }
-      case 6: {
-        for (int32_t i = 1; i < len; ++i) {
-          if (i == 3) {
-            if (tz[i] != ':') {
-              return false;
-            }
-            continue;
-          }
-
-          if (!isdigit(tz[i])) {
-            return false;
-          }
-
-          if (i == 2) {
-            memcpy(buf, &tz[i - 1], 2);
-            hour = taosStr2Int8(buf, NULL, 10);
-            if (!validateHourRange(hour)) {
-              return false;
-            }
-          } else if (i == 5) {
-            memcpy(buf, &tz[i - 1], 2);
-            minute = taosStr2Int8(buf, NULL, 10);
-            if (!validateMinuteRange(hour, minute, tz[0])) {
-              return false;
-            }
-          }
-        }
-        break;
-      }
-      default: {
-        return false;
-      }
-    }
-  } else {
-    return false;
-  }
-
-  return true;
-}
-
-void static addTimezoneParam(SNodeList* pList) {
-  char       buf[6] = {0};
-  time_t     t = taosTime(NULL);
-  struct tm* tmInfo = taosLocalTime(&t, NULL);
-  strftime(buf, sizeof(buf), "%z", tmInfo);
-  int32_t len = (int32_t)strlen(buf);
-
-  SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
-  pVal->literal = strndup(buf, len);
-  pVal->isDuration = false;
-  pVal->translate = true;
-  pVal->node.resType.type = TSDB_DATA_TYPE_BINARY;
-  pVal->node.resType.bytes = len + VARSTR_HEADER_SIZE;
-  pVal->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
-  pVal->datum.p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE + 1);
-  varDataSetLen(pVal->datum.p, len);
-  strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
-
-  nodesListAppend(pList, (SNode*)pVal);
-}
-
 static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (1 != numOfParams && 2 != numOfParams) {
@@ -1498,6 +1539,16 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
 
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
+
+  int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode *)nodesListGetNode(pFunc->pParameterList, 1));
+  if (ret == TIME_UNIT_TOO_SMALL) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "TIMETRUNCATE function time unit parameter should be greater than db precision");
+  } else if (ret == TIME_UNIT_INVALID) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "TIMETRUNCATE function time unit parameter should be one of the following: [1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+  }
+
   addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
 
   pFunc->node.resType =
@@ -1526,6 +1577,18 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
+
+  if (3 == numOfParams) {
+    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode *)nodesListGetNode(pFunc->pParameterList, 2));
+    if (ret == TIME_UNIT_TOO_SMALL) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "TIMEDIFF function time unit parameter should be greater than db precision");
+    } else if (ret == TIME_UNIT_INVALID) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "TIMEDIFF function time unit parameter should be one of the following: [1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+    }
+  }
+
   addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
