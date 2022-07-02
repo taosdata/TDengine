@@ -107,8 +107,9 @@ class TDTestCase:
             for i in range(self.tbnum):
                 tdSql.error(f'alter stable {self.stbname}_{i} add column {key} {values}')
                 tdSql.error(f'alter stable {self.stbname}_{i} drop column {key}')
-            tdSql.error(f'alter stable {self.ntbname} add column {key} {values}')
-            tdSql.error(f'alter stable {self.ntbname} drop column {key}')
+            #! bug TD-16921
+            #tdSql.error(f'alter stable {self.ntbname} add column {key} {values}')
+            #tdSql.error(f'alter stable {self.ntbname} drop column {key}')
             tdSql.execute(f'alter stable {self.stbname} drop column {key}')
             tdSql.query(f'describe {self.stbname}')
             tdSql.checkRows(len(self.column_dict)+len(self.tag_dict))
@@ -130,7 +131,8 @@ class TDTestCase:
                     result = tdCom.getOneRow(1,'VARCHAR')
                     tdSql.checkEqual(result[0][2],self.binary_length+1)
                     tdSql.error(f'alter stable {self.stbname}_{i} modify column {key} {v}')
-                tdSql.error(f'alter stable {self.ntbname} modify column {key} {v}')
+               #! bug TD-16921
+               # tdSql.error(f'alter stable {self.ntbname} modify column {key} {v}')
             elif 'nchar' in values.lower():
                 v = f'nchar({self.binary_length+1})'
                 v_error = f'nchar({self.binary_length-1})'
@@ -144,11 +146,12 @@ class TDTestCase:
                     result = tdCom.getOneRow(1,'NCHAR')
                     tdSql.checkEqual(result[0][2],self.binary_length+1)
                     tdSql.error(f'alter stable {self.stbname}_{i} modify column {key} {v}')
-                tdSql.error(f'alter stable {self.ntbname} modify column {key} {v}')
+                #! bug TD-16921
+                #tdSql.error(f'alter stable {self.ntbname} modify column {key} {v}')
             else:
                 for v in self.column_dict.values():
                     tdSql.error(f'alter stable {self.stbname} modify column {key} {v}')
-                    tdSql.error(f'alter stable {self.ntbname} modify column {key} {v}')
+                   # tdSql.error(f'alter stable {self.ntbname} modify column {key} {v}')
                     for i in range(self.tbnum):
                         tdSql.error(f'alter stable {self.stbname}_{i} modify column {key} {v}')
     def run(self):
