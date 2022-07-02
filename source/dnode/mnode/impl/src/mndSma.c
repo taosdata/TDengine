@@ -1150,10 +1150,8 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     char n1[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(n1, (char *)tNameGetTableName(&smaName));
 
-    SName dbName = {0};
-    tNameFromString(&dbName, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-    char n2[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(n2, (char *)tNameGetTableName(&dbName));
+    char n2[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(n2, (char *)mndGetDbStr(pDb->name));
 
     SName stbName = {0};
     tNameFromString(&stbName, pSma->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
