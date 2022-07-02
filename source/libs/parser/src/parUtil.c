@@ -185,19 +185,21 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG:
       return "The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes";
     case TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC:
-      return "%s function does not supportted in fill query";
+      return "%s function is not supported in fill query";
     case TSDB_CODE_PAR_INVALID_WINDOW_PC:
       return "_WSTARTTS, _WENDTS and _WDURATION can only be used in window query";
     case TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC:
-      return "%s function does not supportted in time window query";
+      return "%s function is not supported in time window query";
     case TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC:
-      return "%s function does not supportted in stream query";
+      return "%s function is not supported in stream query";
     case TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC:
-      return "%s function does not supportted in group query";
+      return "%s function is not supported in group query";
     case TSDB_CODE_PAR_INVALID_TABLE_OPTION:
       return "Invalid option %s";
     case TSDB_CODE_PAR_INVALID_INTERP_CLAUSE:
       return "Invalid usage of RANGE clause, EVERY clause or FILL clause";
+    case TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN:
+      return "No valid function in window query";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
@@ -338,11 +340,11 @@ int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen) {
 static bool isValidateTag(char* input) {
   if (!input) return false;
   for (size_t i = 0; i < strlen(input); ++i) {
-  #ifdef WINDOWS
+#ifdef WINDOWS
     if (input[i] < 0x20 || input[i] > 0x7E) return false;
-  #else
+#else
     if (isprint(input[i]) == 0) return false;
-  #endif
+#endif
   }
   return true;
 }
@@ -382,7 +384,8 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
 
     char* jsonKey = item->string;
     if (!isValidateTag(jsonKey)) {
-      fprintf(stdout,"%s(%d) %s %08" PRId64 "\n", __FILE__, __LINE__,__func__,taosGetSelfPthreadId());fflush(stdout);
+      fprintf(stdout, "%s(%d) %s %08" PRId64 "\n", __FILE__, __LINE__, __func__, taosGetSelfPthreadId());
+      fflush(stdout);
       retCode = buildSyntaxErrMsg(pMsgBuf, "json key not validate", jsonKey);
       goto end;
     }
