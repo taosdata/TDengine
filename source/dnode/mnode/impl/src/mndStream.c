@@ -248,7 +248,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->status = 0;
 
   // TODO
-  pObj->dropPolicy = 0;
+  pObj->igExpired = pCreate->igExpired;
   pObj->trigger = pCreate->triggerType;
   pObj->triggerParam = pCreate->maxDelay;
   pObj->watermark = pCreate->watermark;
@@ -301,6 +301,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
       .streamQuery = true,
       .triggerType = pObj->trigger == STREAM_TRIGGER_MAX_DELAY ? STREAM_TRIGGER_WINDOW_CLOSE : pObj->trigger,
       .watermark = pObj->watermark,
+      .igExpired = pObj->igExpired,
   };
 
   // using ast and param to build physical plan
@@ -673,27 +674,29 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
 int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
 
-  void       *pIter = NULL;
-  SStreamObj *pStream = NULL;
   while (1) {
+    SStreamObj *pStream = NULL;
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
 
     if (pStream->sourceDbUid == pDb->uid || pStream->targetDbUid == pDb->uid) {
       if (pStream->sourceDbUid != pStream->targetDbUid) {
         sdbRelease(pSdb, pStream);
+        sdbCancelFetch(pSdb, pIter);
+        mError("db:%s, failed to drop stream:%s since sourceDbUid:%" PRId64 " not match with targetDbUid:%" PRId64,
+               pDb->name, pStream->name, pStream->sourceDbUid, pStream->targetDbUid);
+        terrno = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
         return -1;
       } else {
         // TODO drop all task on snode
         if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
           sdbRelease(pSdb, pStream);
+          sdbCancelFetch(pSdb, pIter);
           return -1;
         }
       }
-    } else {
-      sdbRelease(pSdb, pStream);
-      continue;
     }
 
 #if 0

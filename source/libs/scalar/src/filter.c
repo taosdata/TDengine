@@ -196,7 +196,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
         terrno = TSDB_CODE_QRY_JSON_IN_ERROR;
         return 0;
       default:
-        assert(0);
+        return 0;
     }
   }
 
@@ -222,7 +222,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
         terrno = TSDB_CODE_QRY_JSON_IN_ERROR;
         return 0;
       default:
-        assert(0);
+        return 0;
     }
   }
 

@@ -229,6 +229,9 @@ int vnodeCommit(SVnode *pVnode) {
     return -1;
   }
 
+  // preCommit
+  // TODO
+  
   // commit each sub-system
   if (metaCommit(pVnode->pMeta) < 0) {
     ASSERT(0);
@@ -268,6 +271,9 @@ int vnodeCommit(SVnode *pVnode) {
   }
   
   pVnode->state.committed = info.state.committed;
+
+  // postCommit
+  smaPostCommit(pVnode->pSma);
 
   // apply the commit (TODO)
   vnodeBufPoolReset(pVnode->onCommit);
