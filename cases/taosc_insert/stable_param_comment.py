@@ -31,7 +31,7 @@ class TestComp(TDCase):
         self.tdSql.execute(f'drop database {self.dbname}')
         
     def create_comment_error(self):
-        comment = self.tdCom.get_long_name(length=max(self.comment_length)+1, mode="letters")
+        comment = self.tdCom.get_long_name(length=max(self.comment_length)+1)
         self.tdSql.execute(f'create database if not exists {self.dbname}')
         self.tdSql.execute(f'use {self.dbname}')
         self.tdSql.error(
@@ -39,7 +39,7 @@ class TestComp(TDCase):
         self.tdSql.execute(f'drop database {self.dbname}')
 
     def alter_comment_check(self,comment):
-        comment_init = self.tdCom.get_long_name(length=min(self.comment_length), mode="letters")
+        comment_init = self.tdCom.get_long_name(length=min(self.comment_length))
         self.tdSql.execute(f'drop database  if exists {self.dbname}')
         self.tdSql.execute(f'create database if not exists {self.dbname}')
         self.tdSql.execute(f'use {self.dbname}')
@@ -51,13 +51,13 @@ class TestComp(TDCase):
         self.tdSql.checkEqual(stb_kv_list[0][6], comment)
         self.tdSql.execute(f'drop database {self.dbname}')
     def alter_comment_error(self):
-        comment_init = self.tdCom.get_long_name(length=min(self.comment_length), mode="letters")
+        comment_init = self.tdCom.get_long_name(length=min(self.comment_length))
         self.tdSql.execute(f'drop database  if exists {self.dbname}')
         self.tdSql.execute(f'create database if not exists {self.dbname}')
         self.tdSql.execute(f'use {self.dbname}')
         self.tdSql.execute(
             f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int) comment "{comment_init}"')
-        comment = self.tdCom.get_long_name(length=max(self.comment_length)+1, mode="letters")
+        comment = self.tdCom.get_long_name(length=max(self.comment_length)+1)
         self.tdSql.error(f'alter table {self.stbname} comment "{comment}"')
     def create_comment_null(self):
         self.tdSql.execute(f'drop database  if exists {self.dbname}')
@@ -72,10 +72,10 @@ class TestComp(TDCase):
     def check_comment(self):
         self.create_comment_null()
         for i in self.comment_length:
-            comment = self.tdCom.get_long_name(length=i, mode="letters")
+            comment = self.tdCom.get_long_name(i)
             self.create_comment_check(comment)
         for i in self.comment_length:
-            comment = self.tdCom.get_long_name(length=i, mode="letters")
+            comment = self.tdCom.get_long_name(i)
             self.alter_comment_check(comment)
         self.alter_comment_error()
         self.create_comment_error()

@@ -24,7 +24,7 @@ class TestTimestamp(TDCase):
         precision = ["ms", "us", "ns"]
         """
         for ts in ["ms", "us", "ns"]:
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
+            dbname = self.tdCom.get_long_name()
             self.tdSql.execute(f'create database if not exists {dbname} precision "{ts}"')
             self.tdSql.query('show databases')
             res = self.tdSql.get_db_field_kv(0, dbname)
@@ -44,7 +44,7 @@ class TestTimestamp(TDCase):
         """
         check hh:mm:ss
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
         self.tdSql.execute(f'create table if not exists {dbname}.ctb using {dbname}.stb tags (now, 1)')
@@ -70,7 +70,7 @@ class TestTimestamp(TDCase):
         human date check
         """
         for ts in ["ms", "us", "ns"]:
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
+            dbname = self.tdCom.get_long_name()
             dbname = dbname + '_' + ts
             timestamp, dt = self.tdCom.genTs(ts, ns_tag=True)
             self.tdSql.execute(f'create database if not exists {dbname} precision "{ts}"')
@@ -116,7 +116,7 @@ class TestTimestamp(TDCase):
         now check
         """
         for ts in ["ms", "us", "ns"]:
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
+            dbname = self.tdCom.get_long_name()
             dbname = dbname + '_' + ts
             self.tdSql.execute(f'create database if not exists {dbname} precision "{ts}"')
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
@@ -147,7 +147,7 @@ class TestTimestamp(TDCase):
         epoch check
         """
         for ts in ["ms", "us", "ns"]:
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
+            dbname = self.tdCom.get_long_name()
             dbname = dbname + '_' + ts
             timestamp = self.tdCom.genTs(ts)[0]
             self.tdSql.execute(f'create database if not exists {dbname} precision "{ts}"')
@@ -177,7 +177,7 @@ class TestTimestamp(TDCase):
         # inconsistent precision
         precision_list = ["ms", "us", "ns"]
         for ts in precision_list:
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
+            dbname = self.tdCom.get_long_name()
             dbname = dbname + '_' + ts
             timestamp = self.tdCom.genTs(ts)[0]
             self.tdSql.execute(f'create database if not exists {dbname} precision "{ts}"')

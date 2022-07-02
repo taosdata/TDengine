@@ -30,8 +30,8 @@ class TestStrBoundary(TDCase):
         for data_type, data_value in self.boundary_dict.items():
             dbname = self.tdCom.get_long_name()
             self.tdSql.execute(f'create database if not exists {dbname}')
-            max_length = self.tdCom.get_long_name(length=data_value)
-            exceed_length = self.tdCom.get_long_name(length=data_value+1)
+            max_length = self.tdCom.get_long_name(data_value)
+            exceed_length = self.tdCom.get_long_name(data_value+1)
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 {data_type}({data_value})) tags (t1 {data_type}({data_value}))')
             self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags ("{max_length}")')
             self.tdSql.execute(f'insert into {dbname}.tb values (now, "{max_length}")')
