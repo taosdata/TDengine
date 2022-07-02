@@ -216,7 +216,7 @@ _err:
 }
 
 int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
-  if (TDMT_VND_QUERY != pMsg->msgType) {
+  if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) {
     return 0;
   }
 
@@ -227,9 +227,10 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
   SReadHandle handle = {.meta = pVnode->pMeta, .config = &pVnode->config, .vnode = pVnode, .pMsgCb = &pVnode->msgCb};
   switch (pMsg->msgType) {
-    case TDMT_VND_QUERY:
+    case TDMT_SCH_QUERY:
+    case TDMT_SCH_MERGE_QUERY:
       return qWorkerProcessQueryMsg(&handle, pVnode->pQuery, pMsg, 0);
-    case TDMT_VND_QUERY_CONTINUE:
+    case TDMT_SCH_QUERY_CONTINUE:
       return qWorkerProcessCQueryMsg(&handle, pVnode->pQuery, pMsg, 0);
     default:
       vError("unknown msg type:%d in query queue", pMsg->msgType);
@@ -243,15 +244,15 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
 
   switch (pMsg->msgType) {
-    case TDMT_VND_FETCH:
+    case TDMT_SCH_FETCH:
       return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg, 0);
-    case TDMT_VND_FETCH_RSP:
+    case TDMT_SCH_FETCH_RSP:
       return qWorkerProcessFetchRsp(pVnode, pVnode->pQuery, pMsg, 0);
-    case TDMT_VND_CANCEL_TASK:
+    case TDMT_SCH_CANCEL_TASK:
       return qWorkerProcessCancelMsg(pVnode, pVnode->pQuery, pMsg, 0);
-    case TDMT_VND_DROP_TASK:
+    case TDMT_SCH_DROP_TASK:
       return qWorkerProcessDropMsg(pVnode, pVnode->pQuery, pMsg, 0);
-    case TDMT_VND_QUERY_HEARTBEAT:
+    case TDMT_SCH_QUERY_HEARTBEAT:
       return qWorkerProcessHbMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_VND_TABLE_META:
       return vnodeGetTableMeta(pVnode, pMsg);
@@ -778,6 +779,7 @@ _exit:
   taosArrayDestroy(submitRsp.pArray);
 
   // TODO: the partial success scenario and the error case
+  // => If partial success, extract the success submitted rows and reconstruct a new submit msg, and push to level 1/level 2.
   // TODO: refactor
   if ((terrno == TSDB_CODE_SUCCESS) && (pRsp->code == TSDB_CODE_SUCCESS)) {
     tdProcessRSmaSubmit(pVnode->pSma, pReq, STREAM_INPUT__DATA_SUBMIT);

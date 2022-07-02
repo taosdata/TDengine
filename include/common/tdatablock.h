@@ -222,6 +222,7 @@ void blockDataCleanup(SSDataBlock* pDataBlock);
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 
 int32_t blockDataTrimFirstNRows(SSDataBlock* pBlock, size_t n);
+int32_t blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
 
 int32_t      assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
 int32_t      copyDataBlock(SSDataBlock* dst, const SSDataBlock* src);
@@ -235,6 +236,7 @@ SColumnInfoData* bdGetColumnInfoData(SSDataBlock* pBlock, int32_t index);
 void blockEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols, int8_t needCompress);
 const char* blockDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRows, const char* pData);
 
+void blockDebugShowDataBlock(SSDataBlock* pBlock, const char* flag);
 void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag);
 // for debug
 char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf);

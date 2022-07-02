@@ -297,7 +297,7 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
   SArray* pTagVals = NULL;
   STag*   pTag = (STag*)pCfg->pTags;
 
-  if (pCfg->pTags && pTag->flags & TD_TAG_JSON) {
+  if (pCfg->pTags && tTagIsJson(pTag)) {
     char* pJson = parseTagDatatoJson(pTag);
     if (pJson) {
       *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s", pJson);

@@ -16,8 +16,12 @@
 #include "cJSON.h"
 #include "os.h"
 #include "taoserror.h"
-#include "tref.h"
+#include "tutil.h"
 #include "walInt.h"
+
+bool FORCE_INLINE walLogExist(SWal* pWal, int64_t ver) {
+  return !walIsEmpty(pWal) && walGetFirstVer(pWal) <= ver && walGetLastVer(pWal) >= ver;
+}
 
 bool FORCE_INLINE walIsEmpty(SWal* pWal) { return pWal->vers.firstVer == -1; }
 
@@ -33,26 +37,9 @@ static FORCE_INLINE int walBuildMetaName(SWal* pWal, int metaVer, char* buf) {
   return sprintf(buf, "%s/meta-ver%d", pWal->path, metaVer);
 }
 
-void* tmemmem(char* haystack, int hlen, char* needle, int nlen) {
-  char* limit;
-
-  if (nlen == 0 || hlen < nlen) {
-    return NULL;
-  }
-
-  limit = haystack + hlen - nlen + 1;
-  while ((haystack = (char*)memchr(haystack, needle[0], limit - haystack)) != NULL) {
-    if (memcmp(haystack, needle, nlen) == 0) {
-      return haystack;
-    }
-    haystack++;
-  }
-  return NULL;
-}
-
 static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
   ASSERT(pWal->fileInfoSet != NULL);
-  int sz = taosArrayGetSize(pWal->fileInfoSet);
+  int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
   ASSERT(sz > 0);
 #if 0
   for (int i = 0; i < sz; i++) {
@@ -97,14 +84,14 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
   char* candidate;
   while ((candidate = tmemmem(haystack, readSize - (haystack - buf), (char*)&magic, sizeof(uint64_t))) != NULL) {
     // read and validate
-    SWalHead* logContent = (SWalHead*)candidate;
+    SWalCkHead* logContent = (SWalCkHead*)candidate;
     if (walValidHeadCksum(logContent) == 0 && walValidBodyCksum(logContent) == 0) {
       found = candidate;
     }
     haystack = candidate + 1;
   }
   if (found == buf) {
-    SWalHead* logContent = (SWalHead*)found;
+    SWalCkHead* logContent = (SWalCkHead*)found;
     if (walValidHeadCksum(logContent) != 0 || walValidBodyCksum(logContent) != 0) {
       // file has to be deleted
       taosMemoryFree(buf);
@@ -114,7 +101,7 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
     }
   }
   taosCloseFile(&pFile);
-  SWalHead* lastEntry = (SWalHead*)found;
+  SWalCkHead* lastEntry = (SWalCkHead*)found;
 
   return lastEntry->head.version;
 }

@@ -113,7 +113,7 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
   if (!pDataBlocks) {
     terrno = TSDB_CODE_TSMA_INVALID_PTR;
     smaWarn("vgId:%d, insert tsma data failed since pDataBlocks is NULL", SMA_VID(pSma));
-    return terrno;
+    return TSDB_CODE_FAILED;
   }
 
   if (taosArrayGetSize(pDataBlocks) <= 0) {
@@ -127,9 +127,9 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
     return TSDB_CODE_FAILED;
   }
 
-  SSmaEnv      *pEnv = SMA_TSMA_ENV(pSma);
-  SSmaStat     *pStat = NULL;
-  STSmaStat    *pItem = NULL;
+  SSmaEnv   *pEnv = SMA_TSMA_ENV(pSma);
+  SSmaStat  *pStat = NULL;
+  STSmaStat *pTsmaStat = NULL;
 
   if (!pEnv || !(pStat = SMA_ENV_STAT(pEnv))) {
     terrno = TSDB_CODE_TSMA_INVALID_STAT;
@@ -137,32 +137,43 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
   }
 
   tdRefSmaStat(pSma, pStat);
-  pItem = &pStat->tsmaStat;
+  pTsmaStat = SMA_TSMA_STAT(pStat);
 
-  ASSERT(pItem);
-
-  if (!pItem->pTSma) {
+  if (!pTsmaStat->pTSma) {
     STSma *pTSma = metaGetSmaInfoByIndex(SMA_META(pSma), indexUid);
     if (!pTSma) {
-      terrno = TSDB_CODE_TSMA_NO_INDEX_IN_META;
-      smaWarn("vgId:%d, tsma insert for smaIndex %" PRIi64 " since %s", SMA_VID(pSma), indexUid, tstrerror(terrno));
-      return TSDB_CODE_FAILED;
+      smaError("vgId:%d, failed to get STSma while tsma insert for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),
+               indexUid, tstrerror(terrno));
+      goto _err;
     }
-    pItem->pTSma = pTSma;
-    pItem->pTSchema = metaGetTbTSchema(SMA_META(pSma), pTSma->dstTbUid, -1);
-    ASSERT(pItem->pTSchema);  // TODO
+    pTsmaStat->pTSma = pTSma;
+    pTsmaStat->pTSchema = metaGetTbTSchema(SMA_META(pSma), pTSma->dstTbUid, -1);
+    if (!pTsmaStat->pTSchema) {
+      smaError("vgId:%d, failed to get STSchema while tsma insert for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),
+               indexUid, tstrerror(terrno));
+      goto _err;
+    }
   }
 
-  ASSERT(pItem->pTSma->indexUid == indexUid);
+  if (pTsmaStat->pTSma->indexUid != indexUid) {
+    terrno = TSDB_CODE_VND_APP_ERROR;
+    smaError("vgId:%d, tsma insert for smaIndex %" PRIi64 "(!=%" PRIi64 ") failed since %s", SMA_VID(pSma), indexUid,
+             pTsmaStat->pTSma->indexUid, tstrerror(terrno));
+    goto _err;
+  }
 
-  SSubmitReq *pSubmitReq = NULL;
+  SSubmitReq *pSubmitReq = tdBlockToSubmit((const SArray *)msg, pTsmaStat->pTSchema, true, pTsmaStat->pTSma->dstTbUid,
+                                           pTsmaStat->pTSma->dstTbName, pTsmaStat->pTSma->dstVgId);
 
-  pSubmitReq = tdBlockToSubmit((const SArray *)msg, pItem->pTSchema, true, pItem->pTSma->dstTbUid,
-                               pItem->pTSma->dstTbName, pItem->pTSma->dstVgId);
+  if (!pSubmitReq) {
+    smaError("vgId:%d, failed to gen submit blk while tsma insert for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),
+             indexUid, tstrerror(terrno));
+    goto _err;
+  }
 
-  ASSERT(pSubmitReq);  // TODO
-
-  ASSERT(!strncasecmp("td.tsma.rst.tb", pItem->pTSma->dstTbName, 14));
+#if 0
+   ASSERT(!strncasecmp("td.tsma.rst.tb", pTsmaStat->pTSma->dstTbName, 14));
+#endif
 
   SRpcMsg submitReqMsg = {
       .msgType = TDMT_VND_SUBMIT,
@@ -170,9 +181,15 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
       .contLen = ntohl(pSubmitReq->length),
   };
 
-  ASSERT(tmsgPutToQueue(&pSma->pVnode->msgCb, WRITE_QUEUE, &submitReqMsg) == 0);
+  if (tmsgPutToQueue(&pSma->pVnode->msgCb, WRITE_QUEUE, &submitReqMsg) < 0) {
+    smaError("vgId:%d, failed to put SubmitReq msg while tsma insert for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),
+             indexUid, tstrerror(terrno));
+    goto _err;
+  }
 
   tdUnRefSmaStat(pSma, pStat);
-
   return TSDB_CODE_SUCCESS;
+_err:
+  tdUnRefSmaStat(pSma, pStat);
+  return TSDB_CODE_FAILED;
 }

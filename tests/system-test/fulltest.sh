@@ -121,7 +121,7 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 5 -M 3 
-# python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 5 -M 3 
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py  -N 5 -M 3 
 # python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py  -N 5 -M 3
@@ -136,6 +136,7 @@ python3 ./test.py -f 7-tmq/subscribeDb0.py
 python3 ./test.py -f 7-tmq/subscribeDb1.py
 python3 ./test.py -f 7-tmq/subscribeDb2.py
 python3 ./test.py -f 7-tmq/subscribeDb3.py
+#python3 ./test.py -f 7-tmq/subscribeDb4.py
 python3 ./test.py -f 7-tmq/subscribeStb.py
 python3 ./test.py -f 7-tmq/subscribeStb0.py
 python3 ./test.py -f 7-tmq/subscribeStb1.py
@@ -152,3 +153,4 @@ python3 ./test.py -f 7-tmq/tmqUdf.py
 #python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 5
 python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
 python3 ./test.py -f 7-tmq/tmqShow.py
+python3 ./test.py -f 7-tmq/tmqAlterSchema.py

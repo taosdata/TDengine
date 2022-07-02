@@ -216,7 +216,8 @@ void destroyQueryExecRes(SQueryExecRes* pRes) {
       tFreeSSubmitRsp((SSubmitRsp*)pRes->res);
       break;
     }
-    case TDMT_VND_QUERY: {
+    case TDMT_SCH_QUERY: 
+    case TDMT_SCH_MERGE_QUERY: {
       taosArrayDestroy((SArray*)pRes->res);
       break;
     }
@@ -304,18 +305,21 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
 
 char* parseTagDatatoJson(void* p) {
   char*  string = NULL;
-  cJSON* json = cJSON_CreateObject();
-  if (json == NULL) {
-    goto end;
-  }
-
   SArray* pTagVals = NULL;
+  cJSON* json = NULL;
   if (tTagToValArray((const STag*)p, &pTagVals) != 0) {
     goto end;
   }
 
   int16_t nCols = taosArrayGetSize(pTagVals);
+  if (nCols == 0) {
+    goto end;
+  }
   char    tagJsonKey[256] = {0};
+  json = cJSON_CreateObject();
+  if (json == NULL) {
+    goto end;
+  }
   for (int j = 0; j < nCols; ++j) {
     STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
     // json key  encode by binary
@@ -373,6 +377,10 @@ char* parseTagDatatoJson(void* p) {
   string = cJSON_PrintUnformatted(json);
 end:
   cJSON_Delete(json);
+  taosArrayDestroy(pTagVals);
+  if(string == NULL){
+    string = strdup(TSDB_DATA_NULL_STR_L);
+  }
   return string;
 }
 

@@ -140,7 +140,6 @@ static void uvHandleRegister(SSvrMsg* msg, SWorkThrd* thrd);
 static void (*transAsyncHandle[])(SSvrMsg* msg, SWorkThrd* thrd) = {uvHandleResp, uvHandleQuit, uvHandleRelease,
                                                                     uvHandleRegister, NULL};
 
-
 static void uvDestroyConn(uv_handle_t* handle);
 
 // server and worker thread
@@ -777,9 +776,10 @@ static void destroyConn(SSvrConn* conn, bool clear) {
     if (!uv_is_closing((uv_handle_t*)conn->pTcp)) {
       tTrace("conn %p to be destroyed", conn);
       uv_close((uv_handle_t*)conn->pTcp, uvDestroyConn);
-    } else {
-      uvDestroyConn((uv_handle_t*)conn->pTcp);
     }
+    //} else {
+    //  uvDestroyConn((uv_handle_t*)conn->pTcp);
+    //}
   }
 }
 static void destroyConnRegArg(SSvrConn* conn) {
@@ -1115,5 +1115,7 @@ _return2:
   tTrace("handle %p failed to register brokenlink", exh);
   rpcFreeCont(msg->pCont);
 }
+
+int transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }
 
 #endif

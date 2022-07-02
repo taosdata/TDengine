@@ -769,7 +769,8 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       code = handleSubmitExecRes(pRequest, pRes->res, pCatalog, &epset);
       break;
     }
-    case TDMT_VND_QUERY: {
+    case TDMT_SCH_QUERY: 
+    case TDMT_SCH_MERGE_QUERY: {
       code = handleQueryExecRes(pRequest, pRes->res, pCatalog, &epset);
       break;
     }
@@ -785,6 +786,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
 void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*)param;
   pRequest->code = code;
+  pRequest->body.resInfo.execRes = pResult->res;
 
   if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type ||
       TDMT_VND_CREATE_TABLE == pRequest->type) {
@@ -795,6 +797,8 @@ void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
       pRequest->body.queryJob = 0;
     }
   }
+
+  taosMemoryFree(pResult);
 
   tscDebug("0x%" PRIx64 " enter scheduler exec cb, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code,
            tstrerror(code), pRequest->requestId);
@@ -1255,10 +1259,10 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
        */
       int32_t elapsed = pRequest->metric.rsp - pRequest->metric.start;
       if (pMsg->code == TSDB_CODE_SUCCESS) {
-        tscDebug("0x%" PRIx64 " message:%s, code:%s rspLen:%d, elapsed:%d ms, reqId:0x%" PRIx64, pRequest->self,
+        tscDebug("0x%" PRIx64 " rsp msg:%s, code:%s rspLen:%d, elapsed:%d ms, reqId:0x%" PRIx64, pRequest->self,
                  TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), pMsg->contLen, elapsed / 1000, pRequest->requestId);
       } else {
-        tscError("0x%" PRIx64 " SQL cmd:%s, code:%s rspLen:%d, elapsed time:%d ms, reqId:0x%" PRIx64, pRequest->self,
+        tscError("0x%" PRIx64 " rsp msg:%s, code:%s rspLen:%d, elapsed time:%d ms, reqId:0x%" PRIx64, pRequest->self,
                  TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), pMsg->contLen, elapsed / 1000, pRequest->requestId);
       }
 
@@ -1268,7 +1272,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
 
   updateTargetEpSet(pSendInfo, pTscObj, pMsg, pEpSet);
 
-  SDataBuf buf = {.len = pMsg->contLen, .pData = NULL, .handle = pMsg->info.handle};
+  SDataBuf buf = {.msgType = pMsg->msgType, .len = pMsg->contLen, .pData = NULL, .handle = pMsg->info.handle, .pEpSet = pEpSet};
 
   if (pMsg->contLen > 0) {
     buf.pData = taosMemoryCalloc(1, pMsg->contLen);
@@ -1407,7 +1411,11 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     }
 
     SSyncQueryParam* pParam = pRequest->body.param;
-
+    if (NULL == pParam) {
+      pParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
+      tsem_init(&pParam->sem, 0, 0);
+    }
+    
     // convert ucs4 to native multi-bytes string
     pResultInfo->convertUcs4 = convertUcs4;
 
