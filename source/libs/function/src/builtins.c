@@ -1446,19 +1446,9 @@ static int32_t translateSubstr(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
 static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // The number of parameters has been limited by the syntax definition
-  // uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
 
   // The function return type has been set during syntax parsing
   uint8_t para2Type = pFunc->node.resType.type;
-  // if (para2Type != TSDB_DATA_TYPE_BIGINT && para2Type != TSDB_DATA_TYPE_UBIGINT &&
-  //     para2Type != TSDB_DATA_TYPE_VARCHAR && para2Type != TSDB_DATA_TYPE_NCHAR &&
-  //     para2Type != TSDB_DATA_TYPE_TIMESTAMP) {
-  //   return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-  // }
-  // if ((para2Type == TSDB_DATA_TYPE_TIMESTAMP && IS_VAR_DATA_TYPE(para1Type)) ||
-  //     (para2Type == TSDB_DATA_TYPE_BINARY && para1Type == TSDB_DATA_TYPE_NCHAR)) {
-  //   return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-  // }
 
   int32_t para2Bytes = pFunc->node.resType.bytes;
   if (IS_VAR_DATA_TYPE(para2Type)) {
@@ -1468,6 +1458,11 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                            "CAST function converted length should be in range [0, 1000]");
   }
+
+  // add database precision as param
+  uint8_t dbPrec = pFunc->node.resType.precision;
+  addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+
   return TSDB_CODE_SUCCESS;
 }
 
