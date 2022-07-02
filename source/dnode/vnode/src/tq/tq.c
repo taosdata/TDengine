@@ -183,13 +183,15 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen) {
   } else {
     ASSERT(0);
   }
-  STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, offset.subKey);
-  if (pOffset == NULL || pOffset->val.version < offset.val.version) {
-    if (tqOffsetWrite(pTq->pOffsetStore, &offset) < 0) {
-      ASSERT(0);
-      return -1;
-    }
+  /*STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, offset.subKey);*/
+  /*if (pOffset != NULL) {*/
+  /*if (pOffset->val.type == TMQ_OFFSET__LOG && pOffset->val.version < offset.val.version) {*/
+  if (tqOffsetWrite(pTq->pOffsetStore, &offset) < 0) {
+    ASSERT(0);
+    return -1;
   }
+  /*}*/
+  /*}*/
 
   return 0;
 }
@@ -375,8 +377,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
 
     taosMemoryFree(pCkHead);
   } else if (fetchOffsetNew.type == TMQ_OFFSET__SNAPSHOT_DATA) {
-    tqInfo("retrieve using snapshot req offset: uid %ld ts %ld, actual offset: uid %ld ts %ld", dataRsp.reqOffset.uid,
-           dataRsp.reqOffset.ts, fetchOffsetNew.uid, fetchOffsetNew.ts);
+    tqInfo("retrieve using snapshot actual offset: uid %ld ts %ld", fetchOffsetNew.uid, fetchOffsetNew.ts);
     if (tqScanSnapshot(pTq, &pHandle->execHandle, &dataRsp, fetchOffsetNew, workerId) < 0) {
       ASSERT(0);
     }

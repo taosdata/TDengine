@@ -1031,10 +1031,12 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       }
       pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER;
     } else {
-      if (isStateWindow(pInfo) && taosArrayGetSize(pInfo->sessionSup.pStreamAggSup->pScanWindow) > 0) {
+      if (isStateWindow(pInfo)) {
         pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER;
         pInfo->updateResIndex = pInfo->pUpdateRes->info.rows;
-        prepareDataScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
+        if (!prepareDataScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex)) {
+          pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+        }
       }
       if (pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER) {
         SSDataBlock* pSDB = doDataScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
@@ -1274,6 +1276,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->sessionSup = (SessionWindowSupporter){.pStreamAggSup = NULL, .gap = -1};
   pInfo->groupId = 0;
   pInfo->pPullDataRes = createPullDataBlock();
+  pInfo->pStreamScanOp = pOperator;
 
   pOperator->name = "StreamBlockScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
