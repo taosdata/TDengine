@@ -1,3 +1,5 @@
+#![feature(local_key_cell_methods)]
+
 use std::{
     ffi::{c_void, CStr, CString},
     fmt::{Debug, Display},
@@ -8,23 +10,27 @@ use std::{
 use taos_error::Code;
 
 use taos_query::{
-    common::{Block, Field},
+    common::{Block, Field, Timestamp},
     common::{Precision, Ty},
     Fetchable,
 };
-use taos_ws::{sync::*, Error, Ws};
+use taos_ws::{sync::*, Ws};
 
 use anyhow::Result;
 
 const EMPTY: &'static CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"\0") };
 
+/// Opaque type definition for websocket connection.
 pub type WS_TAOS = c_void;
 
+/// Opaque type definition for websocket result set.
 pub type WS_RS = c_void;
 
 use std::cell::RefCell;
 thread_local! {
     pub static ERROR: RefCell<Option<Error>> = RefCell::new(None);
+
+    pub static TS: RefCell<[u8; 192]> = RefCell::new([0; 192]);
 }
 
 #[derive(Debug)]
@@ -68,8 +74,8 @@ impl From<Utf8Error> for WsError {
 impl From<Error> for WsError {
     fn from(e: Error) -> Self {
         Self {
-            code: Code::Failed,
-            message: CString::new(format!("{}", e)).unwrap(),
+            code: e.errno(),
+            message: CString::new(e.errstr()).unwrap(),
             source: None,
         }
     }
@@ -84,18 +90,56 @@ impl From<&WsError> for WsError {
     }
 }
 
-impl From<taos_ws::sync::Error> for WsError {
-    fn from(e: taos_ws::sync::Error) -> Self {
+// impl From<taos_ws::sync::Error> for WsError {
+//     fn from(e: taos_ws::sync::Error) -> Self {
+//         Self {
+//             code: Code::Failed,
+//             message: CString::new(format!("{}", e)).unwrap(),
+//             source: None,
+//         }
+//     }
+// }
+
+type WsTaos = Result<WsClient, WsError>;
+
+/// Only useful for developers who use along with TDengine 2.x `TAOS_FIELD` struct.
+/// It means that the struct has the same memory layout with the `TAOS_FIELD` struct
+/// in taos.h of TDengine 2.x
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct WS_FIELD_V2 {
+    pub name: [u8; 65usize],
+    pub r#type: u8,
+    pub bytes: u16,
+}
+
+impl WS_FIELD_V2 {
+    pub fn name(&self) -> &CStr {
+        unsafe { CStr::from_ptr(self.name.as_ptr() as _) }
+    }
+    pub fn r#type(&self) -> Ty {
+        self.r#type.into()
+    }
+
+    pub fn bytes(&self) -> u32 {
+        self.bytes as _
+    }
+}
+
+impl From<&Field> for WS_FIELD_V2 {
+    fn from(field: &Field) -> Self {
+        let f_name = field.name();
+        let mut name = [0; 65usize];
+        unsafe { std::ptr::copy_nonoverlapping(f_name.as_ptr(), name.as_mut_ptr(), f_name.len()) };
         Self {
-            code: Code::Failed,
-            message: CString::new(format!("{}", e)).unwrap(),
-            source: None,
+            name,
+            r#type: field.ty() as u8,
+            bytes: field.bytes() as _,
         }
     }
 }
 
-type WsTaos = Result<WsClient, WsError>;
-
+/// Field struct that has v3-compatible memory layout, which is recommended.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct WS_FIELD {
@@ -144,6 +188,7 @@ struct WsResultSet {
     rs: Result<ResultSet, WsError>,
     block: Option<Block>,
     fields: Vec<WS_FIELD>,
+    fields_v2: Vec<WS_FIELD_V2>,
 }
 
 impl WsResultSet {
@@ -152,6 +197,7 @@ impl WsResultSet {
             rs,
             block: None,
             fields: Vec::new(),
+            fields_v2: Vec::new(),
         }
     }
     fn errno(&self) -> i32 {
@@ -203,6 +249,21 @@ impl WsResultSet {
             Err(_) => std::ptr::null(),
         }
     }
+    fn get_fields_v2(&mut self) -> *const WS_FIELD_V2 {
+        match self.rs.as_ref() {
+            Ok(rs) => {
+                if self.fields_v2.len() == rs.num_of_fields() {
+                    self.fields_v2.as_ptr()
+                } else {
+                    self.fields_v2.clear();
+                    self.fields_v2
+                        .extend(rs.fields().iter().map(WS_FIELD_V2::from));
+                    self.fields_v2.as_ptr()
+                }
+            }
+            Err(_) => std::ptr::null(),
+        }
+    }
 
     unsafe fn fetch_block(&mut self, ptr: *mut *const c_void, rows: *mut i32) -> i32 {
         match self.rs.as_mut() {
@@ -222,7 +283,13 @@ impl WsResultSet {
 
     unsafe fn get_raw_value(&mut self, row: usize, col: usize) -> (Ty, u32, *const c_void) {
         match self.block.as_ref() {
-            Some(block) => block.as_raw_block().get_raw_value_unchecked(row, col),
+            Some(block) => {
+                if row < block.nrows() && col < block.ncols() {
+                    block.as_raw_block().get_raw_value_unchecked(row, col)
+                } else {
+                    (Ty::Null, 0, std::ptr::null())
+                }
+            }
             None => (Ty::Null, 0, std::ptr::null()),
         }
     }
@@ -257,6 +324,7 @@ pub unsafe extern "C" fn ws_connect_errstr(taos: *mut WS_TAOS) -> *const c_char 
 }
 
 #[no_mangle]
+/// Same to taos_close. This should always be called after everything done with the connection.
 pub unsafe extern "C" fn ws_close(taos: *mut WS_TAOS) {
     let _ = Box::from_raw(taos as *mut WsTaos);
 }
@@ -273,19 +341,25 @@ unsafe fn query_with_sql(taos: *mut WS_TAOS, sql: *const c_char) -> Result<Resul
 }
 
 #[no_mangle]
+/// Query with a sql command, returns pointer to result set.
+///
+/// Please always use `ws_query_errno` to check it work and `ws_free_result` to free memory.
 pub unsafe extern "C" fn ws_query(taos: *mut WS_TAOS, sql: *const c_char) -> *mut WS_RS {
     let res = query_with_sql(taos, sql);
     Box::into_raw(Box::new(WsResultSet::new(res))) as _
 }
 
 #[no_mangle]
+/// Always use this to ensure that the query is executed correctly.
 pub unsafe extern "C" fn ws_query_errno(rs: *mut WS_RS) -> i32 {
     match (rs as *mut WsResultSet).as_ref() {
         Some(rs) => rs.errno(),
         None => 0,
     }
 }
+
 #[no_mangle]
+/// Use this method to get a formatted error string when query errno is not 0.
 pub unsafe extern "C" fn ws_query_errstr(rs: *mut WS_RS) -> *const c_char {
     match (rs as *mut WsResultSet).as_ref() {
         Some(rs) => rs.errstr(),
@@ -294,6 +368,7 @@ pub unsafe extern "C" fn ws_query_errstr(rs: *mut WS_RS) -> *const c_char {
 }
 
 #[no_mangle]
+/// Works exactly the same to taos_affected_rows.
 pub unsafe extern "C" fn ws_affected_rows(rs: *const WS_RS) -> i32 {
     match (rs as *mut WsResultSet).as_ref() {
         Some(rs) => rs.affected_rows(),
@@ -302,13 +377,16 @@ pub unsafe extern "C" fn ws_affected_rows(rs: *const WS_RS) -> i32 {
 }
 
 #[no_mangle]
+/// Returns number of fields in current result set.
 pub unsafe extern "C" fn ws_num_of_fields(rs: *const WS_RS) -> i32 {
     match (rs as *mut WsResultSet).as_ref() {
         Some(rs) => rs.num_of_fields(),
         None => 0,
     }
 }
+
 #[no_mangle]
+/// Works like taos_fetch_fields, users should use it along with a `num_of_fields`.
 pub unsafe extern "C" fn ws_fetch_fields(rs: *mut WS_RS) -> *const WS_FIELD {
     match (rs as *mut WsResultSet).as_mut() {
         Some(rs) => rs.get_fields(),
@@ -317,6 +395,15 @@ pub unsafe extern "C" fn ws_fetch_fields(rs: *mut WS_RS) -> *const WS_FIELD {
 }
 
 #[no_mangle]
+/// To fetch v2-compatible fields structs.
+pub unsafe extern "C" fn ws_fetch_fields_v2(rs: *mut WS_RS) -> *const WS_FIELD_V2 {
+    match (rs as *mut WsResultSet).as_mut() {
+        Some(rs) => rs.get_fields_v2(),
+        None => std::ptr::null(),
+    }
+}
+#[no_mangle]
+/// Works like taos_fetch_raw_block, it will always return block with format v3.
 pub unsafe extern "C" fn ws_fetch_block(
     rs: *mut WS_RS,
     ptr: *mut *const c_void,
@@ -331,11 +418,13 @@ pub unsafe extern "C" fn ws_fetch_block(
     }
 }
 #[no_mangle]
+/// Same to taos_free_result. Every websocket result-set object should be freed with this method.
 pub unsafe extern "C" fn ws_free_result(rs: *mut WS_RS) {
     let _ = Box::from_raw(rs as *mut WsResultSet);
 }
 
 #[no_mangle]
+/// Same to taos_result_precision.
 pub unsafe extern "C" fn ws_result_precision(rs: *const WS_RS) -> i32 {
     match (rs as *mut WsResultSet).as_mut() {
         Some(rs) => rs.precision() as i32,
@@ -343,6 +432,22 @@ pub unsafe extern "C" fn ws_result_precision(rs: *const WS_RS) -> i32 {
     }
 }
 
+/// To get value at (row, col) in a block (as a 2-dimension matrix), input row/col index,
+/// it will write the value type in *ty, and data length in *len, return a pointer to the real data.
+///
+/// For type which is var-data (varchar/nchar/json), the `*len` is the bytes length, others is fixed size of that type.
+///
+/// ## Example
+///
+/// ```c
+/// u8 ty = 0;
+/// int len = 0;
+/// void* v = ws_get_value_in_block(rs, 0, 0, &ty, &len);
+/// if (ty == TSDB_DATA_TYPE_TIMESTAMP) {
+///   int64_t* timestamp = (int64_t*)v;
+///   printf("ts: %d\n", *timestamp);
+/// }
+/// ```
 #[no_mangle]
 pub unsafe extern "C" fn ws_get_value_in_block(
     rs: *mut WS_RS,
@@ -366,7 +471,35 @@ pub unsafe extern "C" fn ws_get_value_in_block(
     }
 }
 
+/// Convert timestamp to C string.
+///
+/// This function use a thread-local variable to print, it may works in most cases but not always be thread-safe,
+///  use it only if it work as you expected.
 #[no_mangle]
+pub unsafe extern "C" fn ws_timestamp_to_rfc3339(
+    raw: i64,
+    precision: i32,
+    use_z: bool,
+) -> *const c_char {
+    let precision = Precision::from_u8(precision as u8);
+    // static mut ts: [u8; 192] = [0; 192];
+    TS.with_borrow_mut(|ts| {
+        ts.fill(0);
+        use std::io::Write;
+        ts.as_mut_slice()
+            .write_fmt(format_args!(
+                "{}",
+                Timestamp::new(raw, precision)
+                    .to_datetime_with_tz()
+                    .to_rfc3339_opts(precision.to_seconds_format(), use_z),
+            ))
+            .unwrap();
+        ts.as_ptr() as _
+    })
+}
+
+#[no_mangle]
+/// Unimplemented currently.
 pub unsafe fn ws_print_row(rs: *mut WS_RS, row: i32) {
     todo!()
     // match (rs as *mut WsResultSet).as_mut() {
@@ -400,6 +533,25 @@ mod tests {
             assert!(code != 0);
             let str = ws_connect_errstr(taos);
             dbg!(CStr::from_ptr(str));
+        }
+    }
+
+    #[test]
+    fn query_error() {
+        init();
+        unsafe {
+            let taos = ws_connect_with_dsn(b"ws://localhost:6041\0" as *const u8 as _);
+            let code = ws_connect_errno(taos);
+            assert!(code == 0);
+
+            let sql = b"show databasess\0" as *const u8 as _;
+            let rs = ws_query(taos, sql);
+
+            let code = ws_query_errno(rs);
+            let err = CStr::from_ptr(ws_query_errstr(rs) as _);
+            // Incomplete SQL statement
+            assert!(code != 0);
+            assert!(err.to_str().unwrap() == "Incomplete SQL statement");
         }
     }
     #[test]

@@ -1,5 +1,6 @@
 use std::fmt::{self, Debug, Display};
 
+use chrono::Local;
 use serde::{Deserialize, Serialize};
 
 use super::Precision;
@@ -58,7 +59,10 @@ impl Timestamp {
     }
 
     // todo: support to tz.
-    pub fn to_datetime_with_tz(&self) {}
+    pub fn to_datetime_with_tz(&self) -> chrono::DateTime<Local> {
+        use chrono::TimeZone;
+        Local.from_utc_datetime(&self.to_naive_datetime())
+    }
 }
 
 #[cfg(test)]

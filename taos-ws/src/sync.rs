@@ -72,6 +72,22 @@ pub enum Error {
     RecvFetchError(#[from] std::sync::mpsc::RecvError),
 }
 
+impl Error {
+    pub const fn errno(&self) -> taos_error::Code {
+        match self {
+            Error::TaosError(error) => error.code(),
+            _ => taos_error::Code::Failed,
+        }
+    }
+    pub fn errstr(&self) -> String {
+        match self {
+            Error::TaosError(error) => error.message().to_string(),
+            _ => format!("{}", self),
+        }
+    }
+}
+
+
 type Result<T> = std::result::Result<T, Error>;
 
 impl WsClient {

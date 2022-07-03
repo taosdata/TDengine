@@ -1,14 +1,18 @@
-
 #include "taos_ws.h"
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 int main() {
-  WS_TAOS *taos = ws_connect_with_dsn("ws://localhost:6041");
+  char* dsn = getenv("TAOS_DSN");
+  if (dsn == NULL) {
+    dsn = "ws://localhost:6041";
+  }
+  WS_TAOS *taos = ws_connect_with_dsn(dsn);
   int32_t code = ws_connect_errno(taos);
   if (code != 0) {
-    char *errstr = ws_connect_errstr(taos);
+    const char *errstr = ws_connect_errstr(taos);
     dprintf(2, "Error [%6x]: %s", code, errstr);
     ws_close(taos);
     return 0;
@@ -17,7 +21,7 @@ int main() {
   WS_RS *rs = ws_query(taos, "show databases");
   code = ws_query_errno(rs);
   if (code != 0) {
-    char *errstr = ws_connect_errstr(taos);
+    const char *errstr = ws_connect_errstr(taos);
     dprintf(2, "Error [%6x]: %s", code, errstr);
     ws_free_result(rs);
     ws_close(taos);
@@ -26,9 +30,9 @@ int main() {
 
   int precision = ws_result_precision(rs);
   int cols = ws_num_of_fields(rs);
-  struct WS_FIELD *fields = ws_fetch_fields(rs);
+  const struct WS_FIELD_V2 *fields = ws_fetch_fields_v2(rs);
   for (int col = 0; col < cols; col++) {
-    struct WS_FIELD *field = &fields[col];
+    const struct WS_FIELD_V2 *field = &fields[col];
     dprintf(2, "column %d: name: %s, length: %d, type: %d\n", col, field->name,
            field->bytes, field->type);
   }
@@ -44,7 +48,7 @@ int main() {
 
   while (true) {
     int rows = 0;
-    void *data = NULL;
+    const void *data = NULL;
     code = ws_fetch_block(rs, &data, &rows);
 
     if (rows == 0)
@@ -106,7 +110,8 @@ int main() {
           printf(" %lf ", *(double*)value);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          printf(" %ld ", *(int64_t*)value);
+          const char* ts = ws_timestamp_to_rfc3339(*(int64_t*)value, precision, true);
+          printf("\"%s\"", ts);
           break;
         case TSDB_DATA_TYPE_VARCHAR:
           memset(tmp, 0, 4096);
@@ -123,7 +128,6 @@ int main() {
         default:
           printf(" ");
         }
-        printf("");
       }
       printf("\n");
     }
