@@ -893,7 +893,7 @@ int32_t tdProcessRSmaRestoreImpl(SSma *pSma) {
   }
 
   // step 3: reload ts data from checkpoint
-  if ((committed > 0) && (tdRSmaRestoreTSDataReload(pSma, committed)) < 0) {
+  if (tdRSmaRestoreTSDataReload(pSma, committed) < 0) {
     goto _err;
   }
 
@@ -1083,6 +1083,10 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat) {
   int32_t vid = SMA_VID(pSma);
   int64_t toffset = 0;
   bool    isFileCreated = false;
+
+  if (taosHashGetSize(RSMA_INFO_HASH(pRSmaStat)) <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   void *infoHash = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), NULL);
   if (!infoHash) {

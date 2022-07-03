@@ -219,11 +219,13 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
 
     // step 3: destroy the rsma info and associated fetch tasks
     // TODO: use taosHashSetFreeFp when taosHashSetFreeFp is ready.
-    void *infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), NULL);
-    while (infoHash) {
-      SRSmaInfo *pSmaInfo = *(SRSmaInfo **)infoHash;
-      tdFreeRSmaInfo(pSmaInfo);
-      infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), infoHash);
+    if (taosHashGetSize(RSMA_INFO_HASH(pStat)) > 0) {
+      void *infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), NULL);
+      while (infoHash) {
+        SRSmaInfo *pSmaInfo = *(SRSmaInfo **)infoHash;
+        tdFreeRSmaInfo(pSmaInfo);
+        infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), infoHash);
+      }
     }
     taosHashCleanup(RSMA_INFO_HASH(pStat));
 
@@ -274,7 +276,7 @@ int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
     } else if (smaType == TSDB_SMA_TYPE_ROLLUP) {
       SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pSmaStat);
       if (taosRemoveRef(smaMgmt.smaRef, RSMA_REF_ID(pRSmaStat)) < 0) {
-        smaError("remove refId from smaRef failed, refId:0x%" PRIx64, RSMA_REF_ID(pRSmaStat));
+        smaError("remove refId from rsmaRef:0x%" PRIx64 " failed since %s", RSMA_REF_ID(pRSmaStat), terrstr());
       }
     } else {
       ASSERT(0);
