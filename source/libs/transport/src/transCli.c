@@ -778,7 +778,6 @@ SCliConn* cliGetConn(SCliMsg* pMsg, SCliThrd* pThrd, bool* ignore) {
       *ignore = true;
       destroyCmsg(pMsg);
       return NULL;
-      // assert(0);
     } else {
       conn = exh->handle;
       transReleaseExHandle(refId);
@@ -812,7 +811,6 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
 
   cliMayCvtFqdnToIp(&pCtx->epSet, &pThrd->cvtAddr);
 
-  // transPrintEpSet(&pCtx->epSet);
   bool      ignore = false;
   SCliConn* conn = cliGetConn(pMsg, pThrd, &ignore);
   if (ignore == true) {
