@@ -140,7 +140,7 @@ int64_t tdAppendTFile(STFile *pTFile, void *buf, int64_t nbyte, int64_t *offset)
     return -1;
   }
 
-#if 1
+#if 0
   smaDebug("append to file %s, offset:%" PRIi64 " nbyte:%" PRIi64 " fsize:%" PRIi64, TD_TFILE_FULL_NAME(pTFile),
            toffset, nbyte, toffset + nbyte);
 #endif
@@ -242,35 +242,36 @@ int32_t tdInitTFile(STFile *pTFile, const char *dname, const char *fname) {
 
 int32_t tdCreateTFile(STFile *pTFile, bool updateHeader, int8_t fType) {
   ASSERT(pTFile->info.fsize == 0 && pTFile->info.magic == TD_FILE_INIT_MAGIC);
-
   pTFile->pFile = taosOpenFile(TD_TFILE_FULL_NAME(pTFile), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pTFile->pFile == NULL) {
     if (errno == ENOENT) {
       // Try to create directory recursively
-      if (taosMulMkDir(taosDirName(TD_TFILE_FULL_NAME(pTFile))) != 0) {
+      char *s = strdup(TD_TFILE_FULL_NAME(pTFile));
+      if (taosMulMkDir(taosDirName(s)) != 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        taosMemoryFree(s);
+        return -1;
+      }
+      taosMemoryFree(s);
+      pTFile->pFile = taosOpenFile(TD_TFILE_FULL_NAME(pTFile), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+      if (pTFile->pFile == NULL) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         return -1;
-      } else {
-        pTFile->pFile = taosOpenFile(TD_TFILE_FULL_NAME(pTFile), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-        if (pTFile->pFile == NULL) {
-          terrno = TAOS_SYSTEM_ERROR(errno);
-          return -1;
-        }
       }
     }
+  }
 
-    if (!updateHeader) {
-      return 0;
-    }
+  if (!updateHeader) {
+    return 0;
+  }
 
-    pTFile->info.fsize += TD_FILE_HEAD_SIZE;
-    pTFile->info.fver = 0;
+  pTFile->info.fsize += TD_FILE_HEAD_SIZE;
+  pTFile->info.fver = 0;
 
-    if (tdUpdateTFileHeader(pTFile) < 0) {
-      tdCloseTFile(pTFile);
-      tdRemoveTFile(pTFile);
-      return -1;
-    }
+  if (tdUpdateTFileHeader(pTFile) < 0) {
+    tdCloseTFile(pTFile);
+    tdRemoveTFile(pTFile);
+    return -1;
   }
 
   return 0;

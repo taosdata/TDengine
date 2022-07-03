@@ -163,8 +163,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool
 
 // sma
 int32_t smaOpen(SVnode* pVnode);
-int32_t smaCloseEnv(SSma* pSma);
-int32_t smaCloseEx(SSma* pSma);
+int32_t smaClose(SSma* pSma);
 int32_t smaBegin(SSma* pSma);
 int32_t smaPreCommit(SSma* pSma);
 int32_t smaCommit(SSma* pSma);

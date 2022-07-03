@@ -98,7 +98,6 @@ static int32_t tdProcessRSmaPreCommitImpl(SSma *pSma) {
   SSmaStat  *pStat = SMA_ENV_STAT(pSmaEnv);
   SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pStat);
 
-  smaDebug("vgId:%d, rsma pre commit", SMA_VID(pSma));
 
   // step 1: set persistence task paused
   atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_PAUSED);
@@ -121,6 +120,8 @@ static int32_t tdProcessRSmaPreCommitImpl(SSma *pSma) {
       nLoops = 0;
     }
   }
+
+  smaDebug("vgId:%d, rsma pre commit succeess", SMA_VID(pSma));
 
   return TSDB_CODE_SUCCESS;
 }
