@@ -1029,9 +1029,9 @@ void transUnrefSrvHandle(void* handle) {
 }
 
 void transReleaseSrvHandle(void* handle) {
-  SRpcHandleInfo* info = handle;
-  SExHandle*      exh = info->handle;
-  int64_t         refId = info->refId;
+  SExHandle* exh = handle;
+  int64_t    refId = exh->refId;
+
   ASYNC_CHECK_HANDLE(exh, refId);
 
   SWorkThrd* pThrd = exh->pThrd;
