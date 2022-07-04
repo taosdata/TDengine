@@ -109,7 +109,7 @@ STSma*          metaGetSmaInfoByIndex(SMeta* pMeta, int64_t indexUid);
 STSmaWrapper*   metaGetSmaInfoByTable(SMeta* pMeta, tb_uid_t uid, bool deepCopy);
 SArray*         metaGetSmaIdsByTable(SMeta* pMeta, tb_uid_t uid);
 SArray*         metaGetSmaTbUids(SMeta* pMeta);
-int32_t         metaSnapReaderOpen(SMeta* pMeta, SMetaSnapReader** ppReader, int64_t sver, int64_t ever);
+int32_t         metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapReader** ppReader);
 int32_t         metaSnapReaderClose(SMetaSnapReader* pReader);
 int32_t         metaSnapRead(SMetaSnapReader* pReader, void** ppData, uint32_t* nData);
 void*           metaGetIdx(SMeta* pMeta);
@@ -131,7 +131,7 @@ int32_t     tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitMsgIter* p
 int32_t     tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 STsdbReader tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
                                 void* pMemRef);
-int32_t     tsdbSnapReaderOpen(STsdb* pTsdb, STsdbSnapReader** ppReader, int64_t sver, int64_t ever);
+int32_t     tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapReader** ppReader);
 int32_t     tsdbSnapReaderClose(STsdbSnapReader* pReader);
 int32_t     tsdbSnapRead(STsdbSnapReader* pReader, void** ppData, uint32_t* nData);
 

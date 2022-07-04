@@ -36,7 +36,7 @@ typedef struct STsdbSnapWriter {
   SDelFWriter* pDelFWriter;
 } STsdbSnapWriter;
 
-int32_t tsdbSnapReaderOpen(STsdb* pTsdb, STsdbSnapReader** ppReader, int64_t sver, int64_t ever) {
+int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapReader** ppReader) {
   int32_t          code = 0;
   STsdbSnapReader* pReader = NULL;
 

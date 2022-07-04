@@ -22,7 +22,7 @@ struct SMetaSnapReader {
   int64_t ever;
 };
 
-int32_t metaSnapReaderOpen(SMeta* pMeta, SMetaSnapReader** ppReader, int64_t sver, int64_t ever) {
+int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapReader** ppReader) {
   int32_t          code = 0;
   int32_t          c = 0;
   SMetaSnapReader* pMetaReader = NULL;

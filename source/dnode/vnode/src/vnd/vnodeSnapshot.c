@@ -13,8 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "vnd.h"
 
+// SVSnapReader ========================================================
 struct SVSnapReader {
   SVnode *pVnode;
   int64_t sver;
@@ -29,13 +30,6 @@ struct SVSnapReader {
   int32_t          nData;
 };
 
-struct SVSnapWriter {
-  SVnode *pVnode;
-  int64_t sver;
-  int64_t ever;
-};
-
-// SVSnapReader ========================================================
 int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapReader **ppReader) {
   int32_t       code = 0;
   SVSnapReader *pReader = NULL;
@@ -49,21 +43,17 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapRe
   pReader->sver = sver;
   pReader->ever = ever;
 
-  if (metaSnapReaderOpen(pVnode->pMeta, &pReader->pMetaReader, sver, ever) < 0) {
-    taosMemoryFree(pReader);
-    goto _err;
-  }
+  code = metaSnapReaderOpen(pVnode->pMeta, sver, ever, &pReader->pMetaReader);
+  if (code) goto _err;
 
-  if (tsdbSnapReaderOpen(pVnode->pTsdb, &pReader->pTsdbReader, sver, ever) < 0) {
-    metaSnapReaderClose(pReader->pMetaReader);
-    taosMemoryFree(pReader);
-    goto _err;
-  }
+  code = tsdbSnapReaderOpen(pVnode->pTsdb, sver, ever, &pReader->pTsdbReader);
+  if (code) goto _err;
 
   *ppReader = pReader;
   return code;
 
 _err:
+  vError("vgId:%d vnode snapshot reader open failed since %s", TD_VID(pVnode), tstrerror(code));
   *ppReader = NULL;
   return code;
 }
@@ -72,8 +62,8 @@ int32_t vnodeSnapReaderClose(SVSnapReader *pReader) {
   int32_t code = 0;
 
   vnodeFree(pReader->pData);
-  tsdbSnapReaderClose(pReader->pTsdbReader);
-  metaSnapReaderClose(pReader->pMetaReader);
+  if (pReader->pTsdbReader) tsdbSnapReaderClose(pReader->pTsdbReader);
+  if (pReader->pMetaReader) metaSnapReaderClose(pReader->pMetaReader);
   taosMemoryFree(pReader);
 
   return code;
@@ -93,7 +83,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, const void **ppData, uint32_t *nDat
     } else {
       *ppData = pReader->pData;
       *nData = pReader->nData;
-      return code;
+      goto _exit;
     }
   }
 
@@ -108,15 +98,27 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, const void **ppData, uint32_t *nDat
     } else {
       *ppData = pReader->pData;
       *nData = pReader->nData;
-      return code;
+      goto _exit;
     }
   }
 
   code = TSDB_CODE_VND_READ_END;
+
+_exit:
+  return code;
+
+_err:
+  vError("vgId:% snapshot read failed since %s", TD_VID(pReader->pVnode), tstrerror(code));
   return code;
 }
 
 // SVSnapWriter ========================================================
+struct SVSnapWriter {
+  SVnode *pVnode;
+  int64_t sver;
+  int64_t ever;
+};
+
 int32_t vnodeSnapshotWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {
   int32_t       code = 0;
   SVSnapWriter *pWriter = NULL;
