@@ -2866,7 +2866,7 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
       tsdbSetTableId(pInfo->dataReader, uid);
       int64_t oldSkey = pInfo->cond.twindows[0].skey;
       pInfo->cond.twindows[0].skey = ts + 1;
-      tsdbResetReadHandle(pInfo->dataReader, &pInfo->cond, 0);
+      tsdbReaderReset(pInfo->dataReader, &pInfo->cond, 0);
       pInfo->cond.twindows[0].skey = oldSkey;
       pInfo->scanTimes = 0;
       pInfo->curTWinIdx = 0;

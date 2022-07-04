@@ -440,7 +440,7 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
       }
       pTableScanInfo->curTWinIdx += 1;
       if (pTableScanInfo->curTWinIdx < pTableScanInfo->cond.numOfTWindows) {
-        tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, pTableScanInfo->curTWinIdx);
+        tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond, pTableScanInfo->curTWinIdx);
       }
     }
 
@@ -455,7 +455,7 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
         qDebug("%s qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
       }
       // do prepare for the next round table scan operation
-      tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
+      tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
       pTableScanInfo->curTWinIdx = 0;
     }
   }
@@ -464,7 +464,7 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
   if (pTableScanInfo->scanTimes < total) {
     if (pTableScanInfo->cond.order == TSDB_ORDER_ASC) {
       prepareForDescendingScan(pTableScanInfo, pTableScanInfo->pCtx, 0);
-      tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
+      tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
       pTableScanInfo->curTWinIdx = 0;
     }
 
@@ -482,7 +482,7 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
         }
         pTableScanInfo->curTWinIdx += 1;
         if (pTableScanInfo->curTWinIdx < pTableScanInfo->cond.numOfTWindows) {
-          tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, pTableScanInfo->curTWinIdx);
+          tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond, pTableScanInfo->curTWinIdx);
         }
       }
 
@@ -498,7 +498,7 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
           STimeWindow* pWin = &pTableScanInfo->cond.twindows[i];
           qDebug("%s qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
         }
-        tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
+        tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
         pTableScanInfo->curTWinIdx = 0;
       }
     }
@@ -526,7 +526,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       }
       STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, pInfo->currentTable);
       tsdbSetTableId(pInfo->dataReader, pTableInfo->uid);
-      tsdbResetReadHandle(pInfo->dataReader, &pInfo->cond, 0);
+      tsdbReaderReset(pInfo->dataReader, &pInfo->cond, 0);
       pInfo->scanTimes = 0;
       pInfo->curTWinIdx = 0;
     }
@@ -560,7 +560,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
   SArray* tableList = taosArrayGetP(pTaskInfo->tableqinfoList.pGroupList, pInfo->currentGroupId);
   //  tsdbSetTableList(pInfo->dataReader, tableList);
 
-  tsdbResetReadHandle(pInfo->dataReader, &pInfo->cond, 0);
+  tsdbReaderReset(pInfo->dataReader, &pInfo->cond, 0);
   pInfo->curTWinIdx = 0;
   pInfo->scanTimes = 0;
 
@@ -859,7 +859,7 @@ static bool prepareDataScan(SStreamBlockScanInfo* pInfo, SSDataBlock* pSDB, int3
   STableScanInfo* pTableScanInfo = pInfo->pSnapshotReadOp->info;
   pTableScanInfo->cond.twindows[0] = win;
   pTableScanInfo->curTWinIdx = 0;
-  //  tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
+  //  tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
   // if (!pTableScanInfo->dataReader) {
   //   return false;
   // }
