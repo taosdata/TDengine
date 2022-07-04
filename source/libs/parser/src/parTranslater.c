@@ -3215,13 +3215,30 @@ static bool validRollupFunc(const char* pFunc) {
   return false;
 }
 
-static int32_t checkTableRollupOption(STranslateContext* pCxt, SNodeList* pFuncs) {
+static int32_t checkTableRollupOption(STranslateContext* pCxt, SNodeList* pFuncs, bool createStable,
+                                      SDbCfgInfo* pDbCfg) {
   if (NULL == pFuncs) {
+    if (NULL != pDbCfg->pRetensions) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
+                                     "To create a super table in a database with the retensions parameter configured, "
+                                     "the 'ROLLUP' option must be present");
+    }
     return TSDB_CODE_SUCCESS;
   }
 
-  if (1 != LIST_LENGTH(pFuncs) || !validRollupFunc(((SFunctionNode*)nodesListGetNode(pFuncs, 0))->functionName)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROLLUP_OPTION);
+  if (!createStable || NULL == pDbCfg->pRetensions) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
+                                   "Invalid option rollup: Only supported for create super table in databases "
+                                   "configured with the 'RETENTIONS' option");
+  }
+  if (1 != LIST_LENGTH(pFuncs)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROLLUP_OPTION,
+                                   "Invalid option rollup: only one function is allowed");
+  }
+  const char* pFunc = ((SFunctionNode*)nodesListGetNode(pFuncs, 0))->functionName;
+  if (!validRollupFunc(pFunc)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROLLUP_OPTION,
+                                   "Invalid option rollup: %s function is not supported", pFunc);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -3358,9 +3375,16 @@ static int32_t getTableMaxDelayOption(STranslateContext* pCxt, SValueNode* pVal,
                                         pMaxDelay);
 }
 
-static int32_t checkTableMaxDelayOption(STranslateContext* pCxt, STableOptions* pOptions) {
+static int32_t checkTableMaxDelayOption(STranslateContext* pCxt, STableOptions* pOptions, bool createStable,
+                                        SDbCfgInfo* pDbCfg) {
   if (NULL == pOptions->pMaxDelay) {
     return TSDB_CODE_SUCCESS;
+  }
+
+  if (!createStable || NULL == pDbCfg->pRetensions) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
+                                   "Invalid option maxdelay: Only supported for create super table in databases "
+                                   "configured with the 'RETENTIONS' option");
   }
 
   if (LIST_LENGTH(pOptions->pMaxDelay) > 2) {
@@ -3381,9 +3405,16 @@ static int32_t getTableWatermarkOption(STranslateContext* pCxt, SValueNode* pVal
                                         pMaxDelay);
 }
 
-static int32_t checkTableWatermarkOption(STranslateContext* pCxt, STableOptions* pOptions) {
+static int32_t checkTableWatermarkOption(STranslateContext* pCxt, STableOptions* pOptions, bool createStable,
+                                         SDbCfgInfo* pDbCfg) {
   if (NULL == pOptions->pWatermark) {
     return TSDB_CODE_SUCCESS;
+  }
+
+  if (!createStable || NULL == pDbCfg->pRetensions) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
+                                   "Invalid option watermark: Only supported for create super table in databases "
+                                   "configured with the 'RETENTIONS' option");
   }
 
   if (LIST_LENGTH(pOptions->pWatermark) > 2) {
@@ -3399,13 +3430,20 @@ static int32_t checkTableWatermarkOption(STranslateContext* pCxt, STableOptions*
   return code;
 }
 
-static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
-  int32_t code = checkTableMaxDelayOption(pCxt, pStmt->pOptions);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checkTableWatermarkOption(pCxt, pStmt->pOptions);
+static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt, bool createStable) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SDbCfgInfo dbCfg = {0};
+  if (createStable) {
+    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkTableRollupOption(pCxt, pStmt->pOptions->pRollupFuncs);
+    code = checkTableMaxDelayOption(pCxt, pStmt->pOptions, createStable, &dbCfg);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkTableWatermarkOption(pCxt, pStmt->pOptions, createStable, &dbCfg);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkTableRollupOption(pCxt, pStmt->pOptions->pRollupFuncs, createStable, &dbCfg);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableSmaOption(pCxt, pStmt);
@@ -3684,7 +3722,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
 
 static int32_t translateCreateSuperTable(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
   SMCreateStbReq createReq = {0};
-  int32_t        code = checkCreateTable(pCxt, pStmt);
+  int32_t        code = checkCreateTable(pCxt, pStmt, true);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCreateStbReq(pCxt, pStmt, &createReq);
   }
@@ -4267,7 +4305,7 @@ static void getSourceDatabase(SNode* pStmt, int32_t acctId, char* pDbFName) {
 static int32_t addWstartTsToCreateStreamQuery(SNode* pStmt) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt;
   SNode*       pProj = nodesListGetNode(pSelect->pProjectionList, 0);
-  if (QUERY_NODE_FUNCTION == nodeType(pProj) && FUNCTION_TYPE_WSTARTTS == ((SFunctionNode*)pProj)->funcType) {
+  if (QUERY_NODE_FUNCTION == nodeType(pProj) && 0 == strcmp("_wstartts", ((SFunctionNode*)pProj)->functionName)) {
     return TSDB_CODE_SUCCESS;
   }
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
@@ -5258,7 +5296,7 @@ static int32_t buildCreateTableDataBlock(int32_t acctId, const SCreateTableStmt*
 static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
   SCreateTableStmt* pStmt = (SCreateTableStmt*)pQuery->pRoot;
 
-  int32_t     code = checkCreateTable(pCxt, pStmt);
+  int32_t     code = checkCreateTable(pCxt, pStmt, false);
   SVgroupInfo info = {0};
   if (TSDB_CODE_SUCCESS == code) {
     code = getTableHashVgroup(pCxt, pStmt->dbName, pStmt->tableName, &info);

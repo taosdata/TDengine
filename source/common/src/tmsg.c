@@ -2679,10 +2679,12 @@ int32_t tDeserializeSDbCfgRsp(void *buf, int32_t bufLen, SDbCfgRsp *pRsp) {
   if (tDecodeI8(&decoder, &pRsp->strict) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->cacheLastRow) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->numOfRetensions) < 0) return -1;
-  pRsp->pRetensions = taosArrayInit(pRsp->numOfRetensions, sizeof(SRetention));
-  if (pRsp->pRetensions == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+  if (pRsp->numOfRetensions > 0) {
+    pRsp->pRetensions = taosArrayInit(pRsp->numOfRetensions, sizeof(SRetention));
+    if (pRsp->pRetensions == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
   }
 
   for (int32_t i = 0; i < pRsp->numOfRetensions; ++i) {
