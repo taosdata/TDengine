@@ -986,6 +986,10 @@ static bool unionIsChildSubplan(SLogicNode* pLogicNode, int32_t groupId) {
     return ((SExchangeLogicNode*)pLogicNode)->srcGroupId == groupId;
   }
 
+  if (QUERY_NODE_LOGIC_PLAN_MERGE == nodeType(pLogicNode)) {
+    return ((SMergeLogicNode*)pLogicNode)->srcGroupId == groupId;
+  }
+
   SNode* pChild;
   FOREACH(pChild, pLogicNode->pChildren) {
     bool isChild = unionIsChildSubplan((SLogicNode*)pChild, groupId);

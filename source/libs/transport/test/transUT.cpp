@@ -175,7 +175,7 @@ static void processReleaseHandleCb(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) 
   rpcMsg.code = 0;
   rpcSendResponse(&rpcMsg);
 
-  rpcReleaseHandle(pMsg->info.handle, TAOS_CONN_SERVER);
+  rpcReleaseHandle(&pMsg->info, TAOS_CONN_SERVER);
 }
 static void processRegisterFailure(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   {
