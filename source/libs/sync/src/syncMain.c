@@ -815,7 +815,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
     // create a new raft config file
     SRaftCfgMeta meta;
     meta.isStandBy = pSyncInfo->isStandBy;
-    meta.snapshotEnable = pSyncInfo->snapshotEnable;
+    meta.snapshotEnable = pSyncInfo->snapshotStrategy;
     meta.lastConfigIndex = SYNC_INDEX_INVALID;
     ret = raftCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), meta, pSyncNode->configPath);
     ASSERT(ret == 0);
@@ -1100,7 +1100,9 @@ void syncNodeClose(SSyncNode* pSyncNode) {
 }
 
 // option
-bool syncNodeSnapshotEnable(SSyncNode* pSyncNode) { return pSyncNode->pRaftCfg->snapshotEnable; }
+// bool syncNodeSnapshotEnable(SSyncNode* pSyncNode) { return pSyncNode->pRaftCfg->snapshotEnable; }
+
+ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode) { return pSyncNode->pRaftCfg->snapshotEnable; }
 
 // ping --------------
 int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg) {
