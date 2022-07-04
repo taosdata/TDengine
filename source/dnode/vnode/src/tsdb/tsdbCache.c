@@ -272,8 +272,9 @@ _err:
 static int32_t getTableDelSkyline(STbData *pMem, STbData *pIMem, SDelFReader *pDelReader, SDelIdx *pDelIdx,
                                   SArray *aSkyline) {
   int32_t code = 0;
+  SArray *aDelData = NULL;
 
-  SArray *aDelData = taosArrayInit(32, sizeof(SDelData));
+  aDelData = taosArrayInit(32, sizeof(SDelData));
   code = getTableDelData(pMem, pIMem, pDelReader, pDelIdx, aDelData);
   if (code) goto _err;
 
@@ -283,17 +284,19 @@ static int32_t getTableDelSkyline(STbData *pMem, STbData *pIMem, SDelFReader *pD
     if (code) goto _err;
   }
 
-  taosArrayDestroy(aDelData);
-
+  if (aDelData) {
+    taosArrayDestroy(aDelData);
+  }
 _err:
   return code;
 }
 
 static int32_t getTableDelIdx(SDelFReader *pDelFReader, tb_uid_t suid, tb_uid_t uid, SDelIdx *pDelIdx) {
   int32_t code = 0;
+  SArray *pDelIdxArray = NULL;
 
   // SMapData delIdxMap;
-  SArray *pDelIdxArray = taosArrayInit(32, sizeof(SDelIdx));
+  pDelIdxArray = taosArrayInit(32, sizeof(SDelIdx));
   SDelIdx idx = {.suid = suid, .uid = uid};
 
   // tMapDataReset(&delIdxMap);
@@ -305,6 +308,9 @@ static int32_t getTableDelIdx(SDelFReader *pDelFReader, tb_uid_t suid, tb_uid_t 
   pDelIdx = taosArraySearch(pDelIdxArray, &idx, tCmprDelIdx, TD_EQ);
   if (code) goto _err;
 
+  if (pDelIdxArray) {
+    taosArrayDestroy(pDelIdxArray);
+  }
 _err:
   return code;
 }
@@ -793,6 +799,11 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, STSRow **ppRo
 
   return code;
 _err:
+  for (int i = 0; i < 3; ++i) {
+    if (input[i].nextRowClearFn) {
+      input[i].nextRowClearFn(input[i].iter);
+    }
+  }
   if (pSkyline) {
     taosArrayDestroy(pSkyline);
   }
