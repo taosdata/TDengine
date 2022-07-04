@@ -1245,7 +1245,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     SArray* tableList = taosArrayGetP(pTaskInfo->tableqinfoList.pGroupList, 0);
     if (pHandle->tqReader) {
       pSTInfo->scanMode = TABLE_SCAN__TABLE_ORDER;
-      pSTInfo->dataReader = tsdbReaderOpen(pHandle->vnode, &pSTInfo->cond, tableList, 0, 0);
+      tsdbReaderOpen(pHandle->vnode, &pSTInfo->cond, tableList, &pSTInfo->dataReader, 0);
     }
 
     if (pSTInfo->interval.interval > 0) {

@@ -27,7 +27,6 @@
 #include "tdatablock.h"
 #include "tdb.h"
 #include "tencode.h"
-#include "tref.h"
 #include "tfs.h"
 #include "tglobal.h"
 #include "tjson.h"
@@ -37,6 +36,7 @@
 #include "tlrucache.h"
 #include "tmallocator.h"
 #include "tmsgcb.h"
+#include "tref.h"
 #include "tskiplist.h"
 #include "tstream.h"
 #include "ttime.h"
@@ -156,6 +156,7 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tsdbGetStbIdList(SMeta* pMeta, int64_t suid, SArray* list);
 
 SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
                             const char* stbFullName, int32_t vgId);

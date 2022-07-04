@@ -451,6 +451,10 @@ int32_t schHandleLinkBrokenCallback(void *param, SDataBuf *pMsg, int32_t code) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t schHandleCommitCallback(void *param, SDataBuf *pMsg, int32_t code) {
+  return schHandleCallback(param, pMsg, code);
+}
+
 int32_t schMakeCallbackParam(SSchJob *pJob, SSchTask *pTask, int32_t msgType, bool isHb, SSchTrans *trans,
                              void **pParam) {
   if (!isHb) {

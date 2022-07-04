@@ -3053,6 +3053,15 @@ int32_t buildDataBlockFromBufImpl(STableBlockScanInfo* pBlockScanInfo, int64_t e
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tsdbSetTableId(STsdbReader* pReader, int64_t uid) {
+  // if (pReader->pTableCheckInfo) taosArrayDestroy(pReader->pTableCheckInfo);
+  // pReader->pTableCheckInfo = createCheckInfoFromUid(pReader, uid);
+  // if (pReader->pTableCheckInfo == NULL) {
+  //   return TSDB_CODE_TDB_OUT_OF_MEMORY;
+  // }
+  return TDB_CODE_SUCCESS;
+}
+
 /**
  * @brief Get all suids since suid
  *

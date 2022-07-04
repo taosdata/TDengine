@@ -123,6 +123,7 @@ typedef struct STsdbReader STsdbReader;
 #define LASTROW_RETRIEVE_TYPE_ALL    0x1
 #define LASTROW_RETRIEVE_TYPE_SINGLE 0x2
 
+int32_t tsdbSetTableId(STsdbReader *pReader, int64_t uid);
 int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *pTableList, STsdbReader **ppReader,
                        const char *idstr);
 void    tsdbReaderClose(STsdbReader *pReader);

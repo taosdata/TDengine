@@ -258,7 +258,7 @@ enum {
 };
 
 typedef struct STableScanInfo {
-  void*           dataReader;
+  STsdbReader*    dataReader;
   SReadHandle     readHandle;
 
   SFileBlockLoadRecorder readRecorder;
