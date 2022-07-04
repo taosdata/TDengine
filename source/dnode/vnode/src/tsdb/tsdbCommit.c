@@ -637,7 +637,8 @@ static int32_t tsdbMergeAsSubBlock(SCommitter *pCommitter, STbDataIter *pIter, S
     tsdbTbDataIterNext(pIter);
     pRow = tsdbTbDataIterGet(pIter);
     if (pRow) {
-      int32_t c = tBlockCmprFn(&(SBlock){}, pBlock);
+      TSDBKEY key = TSDBROW_KEY(pRow);
+      int32_t c = tBlockCmprFn(&(SBlock){.minKey = key, .maxKey = key}, pBlock);
 
       if (c == 0) {
         code =

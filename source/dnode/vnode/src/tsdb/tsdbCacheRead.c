@@ -44,7 +44,7 @@ static void saveOneRow(STSRow* pRow, SSDataBlock* pBlock, SLastrowReader* pReade
       tTSRowGetVal(pRow, pReader->pSchema, slotIds[i], &colVal);
 
       if (IS_VAR_DATA_TYPE(colVal.type)) {
-        if (colVal.isNull) {
+        if (colVal.isNull || colVal.isNone) {
           colDataAppendNULL(pColInfoData, numOfRows);
         } else {
           varDataSetLen(pReader->transferBuf[i], colVal.value.nData);
@@ -52,7 +52,7 @@ static void saveOneRow(STSRow* pRow, SSDataBlock* pBlock, SLastrowReader* pReade
           colDataAppend(pColInfoData, numOfRows, pReader->transferBuf[i], false);
         }
       } else {
-        colDataAppend(pColInfoData, numOfRows, (const char*)&colVal.value, colVal.isNull);
+        colDataAppend(pColInfoData, numOfRows, (const char*)&colVal.value, colVal.isNull || colVal.isNone);
       }
     }
   }
@@ -130,6 +130,7 @@ int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t
       STableKeyInfo* pKeyInfo = taosArrayGet(pr->pTableList, i);
 
       int32_t code = tsdbCacheGetLastrowH(lruCache, pKeyInfo->uid, pr->pVnode->pTsdb, &h);
+      // int32_t code = tsdbCacheGetLastH(lruCache, pKeyInfo->uid, pr->pVnode->pTsdb, &h);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -158,6 +159,7 @@ int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t
       STableKeyInfo* pKeyInfo = taosArrayGet(pr->pTableList, i);
 
       int32_t code = tsdbCacheGetLastrowH(lruCache, pKeyInfo->uid, pr->pVnode->pTsdb, &h);
+      // int32_t code = tsdbCacheGetLastH(lruCache, pKeyInfo->uid, pr->pVnode->pTsdb, &h);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
