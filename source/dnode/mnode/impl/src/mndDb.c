@@ -628,7 +628,7 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     terrno = 0;
   }
 
-  if (pAlter->lastRowMem >= 0 && pAlter->lastRowMem != pDb->cfg.lastRowMem) {
+  if (pAlter->lastRowMem > 0 && pAlter->lastRowMem != pDb->cfg.lastRowMem) {
     pDb->cfg.lastRowMem = pAlter->lastRowMem;
     terrno = 0;
   }

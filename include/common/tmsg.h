@@ -1025,7 +1025,7 @@ typedef struct {
   int64_t     clusterId;
   int64_t     rebootTime;
   int64_t     updateTime;
-  int32_t     numOfCores;
+  float       numOfCores;
   int32_t     numOfSupportVnodes;
   int64_t     memTotal;
   int64_t     memAvail;

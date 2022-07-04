@@ -148,7 +148,7 @@ typedef struct {
   int32_t    accessTimes;
   int32_t    numOfVnodes;
   int32_t    numOfSupportVnodes;
-  int32_t    numOfCores;
+  float      numOfCores;
   int64_t    memTotal;
   int64_t    memAvail;
   int64_t    memUsed;

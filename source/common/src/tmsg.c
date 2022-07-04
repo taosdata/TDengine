@@ -947,7 +947,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (tEncodeI64(&encoder, pReq->clusterId) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->rebootTime) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->updateTime) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->numOfCores) < 0) return -1;
+  if (tEncodeFloat(&encoder, pReq->numOfCores) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfSupportVnodes) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->memTotal) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->memAvail) < 0) return -1;
@@ -1010,7 +1010,7 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (tDecodeI64(&decoder, &pReq->clusterId) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->rebootTime) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->updateTime) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->numOfCores) < 0) return -1;
+  if (tDecodeFloat(&decoder, &pReq->numOfCores) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numOfSupportVnodes) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->memTotal) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->memAvail) < 0) return -1;
