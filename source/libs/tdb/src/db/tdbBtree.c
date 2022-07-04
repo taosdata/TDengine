@@ -314,7 +314,7 @@ static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2
 
 static int tdbBtreeOpenImpl(SBTree *pBt) {
   // Try to get the root page of the an existing btree
-
+#if 0
   SPgno  pgno;
   SPage *pPage;
   int    ret;
@@ -339,6 +339,8 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
 
   ASSERT(pgno != 0);
   pBt->root = pgno;
+#endif
+  pBt->root = 0;
 
   return 0;
 }
@@ -1991,6 +1993,7 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
   const void *pTKey;
   int         tkLen;
 
+  tdbError("ttl moveto, pager:%p, ipage:%d", pPager, pBtc->iPage);
   if (pBtc->iPage < 0) {
     // move from a clear cursor
     ret = tdbPagerFetchPage(pPager, &pBt->root, &(pBtc->pPage), tdbBtreeInitPage,

@@ -214,6 +214,7 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
     }
   }
 
+  tdbTrace("tdbttl commit:%p, %d", pPager, pPager->dbOrigSize);
   pPager->dbOrigSize = pPager->dbFileSize;
 
   // release the page
@@ -269,6 +270,7 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
     return -1;
   }
 
+  tdbTrace("tdbttl fetch pager:%p", pPage->pPager);
   // init page if need
   if (!TDB_PAGE_INITIALIZED(pPage)) {
     ret = tdbPagerInitPage(pPager, pPage, initPage, arg, loadPage);
@@ -347,10 +349,12 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
 
     pgno = TDB_PAGE_PGNO(pPage);
 
+    tdbTrace("tdbttl init pager:%p, pgno:%d, loadPage:%d, size:%d", pPager, pgno, loadPage, pPager->dbOrigSize);
     if (loadPage && pgno <= pPager->dbOrigSize) {
       init = 1;
 
       nRead = tdbOsPRead(pPager->fd, pPage->pData, pPage->pageSize, ((i64)pPage->pageSize) * (pgno - 1));
+      tdbTrace("tdbttl pager:%p, pgno:%d, nRead:%ld", pPager, pgno, nRead);
       if (nRead < pPage->pageSize) {
         ASSERT(0);
         return -1;
