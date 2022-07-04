@@ -247,7 +247,6 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->uid = mndGenerateUid(pObj->name, strlen(pObj->name));
   pObj->status = 0;
 
-  // TODO
   pObj->igExpired = pCreate->igExpired;
   pObj->trigger = pCreate->triggerType;
   pObj->triggerParam = pCreate->maxDelay;

@@ -32,6 +32,7 @@ static SyncTerm  raftLogLastTerm(struct SSyncLogStore* pLogStore);
 static int32_t   raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
 static int32_t   raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry);
 static int32_t   raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
+static bool      raftLogExist(struct SSyncLogStore* pLogStore, SyncIndex index);
 
 // private function
 static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** ppLastEntry);
@@ -83,6 +84,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   pLogStore->syncLogGetEntry = raftLogGetEntry;
   pLogStore->syncLogTruncate = raftLogTruncate;
   pLogStore->syncLogWriteIndex = raftLogWriteIndex;
+  pLogStore->syncLogExist = raftLogExist;
 
   return pLogStore;
 }
@@ -166,6 +168,13 @@ static SyncIndex raftLogWriteIndex(struct SSyncLogStore* pLogStore) {
   SWal*              pWal = pData->pWal;
   SyncIndex          lastVer = walGetLastVer(pWal);
   return lastVer + 1;
+}
+
+static bool raftLogExist(struct SSyncLogStore* pLogStore, SyncIndex index) {
+  SSyncLogStoreData* pData = pLogStore->data;
+  SWal*              pWal = pData->pWal;
+  bool               b = walLogExist(pWal, index);
+  return b;
 }
 
 // if success, return last term

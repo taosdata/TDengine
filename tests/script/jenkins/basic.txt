@@ -9,8 +9,8 @@
 
 ## ---- db
 ./test.sh -f tsim/db/alter_option.sim
-./test.sh -f tsim/db/alter_replica_13.sim
-./test.sh -f tsim/db/alter_replica_31.sim
+# ./test.sh -f tsim/db/alter_replica_13.sim
+# ./test.sh -f tsim/db/alter_replica_31.sim
 ./test.sh -f tsim/db/basic1.sim
 ./test.sh -f tsim/db/basic2.sim
 ./test.sh -f tsim/db/basic3.sim
@@ -24,26 +24,26 @@
 ./test.sh -f tsim/db/taosdlog.sim
 
 # ---- dnode
-./test.sh -f tsim/dnode/balance_replica1.sim
-./test.sh -f tsim/dnode/balance_replica3.sim
-./test.sh -f tsim/dnode/balance1.sim
-./test.sh -f tsim/dnode/balance2.sim
-./test.sh -f tsim/dnode/balance3.sim
-./test.sh -f tsim/dnode/balancex.sim
+# ./test.sh -f tsim/dnode/balance_replica1.sim
+# ./test.sh -f tsim/dnode/balance_replica3.sim
+# ./test.sh -f tsim/dnode/balance1.sim
+# ./test.sh -f tsim/dnode/balance2.sim
+# ./test.sh -f tsim/dnode/balance3.sim
+# ./test.sh -f tsim/dnode/balancex.sim
 ./test.sh -f tsim/dnode/create_dnode.sim
 ./test.sh -f tsim/dnode/drop_dnode_has_mnode.sim
-./test.sh -f tsim/dnode/drop_dnode_has_qnode_snode.sim
-./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica1.sim
-./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica3.sim
-./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica1.sim
-./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica3.sim
+# ./test.sh -f tsim/dnode/drop_dnode_has_qnode_snode.sim
+# ./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica1.sim
+# ./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica3.sim
+# ./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica1.sim
+# ./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica3.sim
 ./test.sh -f tsim/dnode/offline_reason.sim
-./test.sh -f tsim/dnode/redistribute_vgroup_replica1.sim
-./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_leader.sim
-./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim
-./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v2.sim
-./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
-./test.sh -f tsim/dnode/vnode_clean.sim
+# ./test.sh -f tsim/dnode/redistribute_vgroup_replica1.sim
+# ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_leader.sim
+# ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim
+# ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v2.sim
+# ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
+# ./test.sh -f tsim/dnode/vnode_clean.sim
 
 # ---- insert
 ./test.sh -f tsim/insert/basic0.sim
@@ -71,7 +71,7 @@
 ./test.sh -f tsim/qnode/basic1.sim
 
 # ---- snode
-./test.sh -f tsim/snode/basic1.sim
+# ./test.sh -f tsim/snode/basic1.sim
 
 # ---- bnode
 ./test.sh -f tsim/bnode/basic1.sim
@@ -104,7 +104,7 @@
 # ./test.sh -f tsim/stream/triggerSession0.sim
 ./test.sh -f tsim/stream/partitionby.sim
 ./test.sh -f tsim/stream/partitionby1.sim
-./test.sh -f tsim/stream/schedSnode.sim
+# ./test.sh -f tsim/stream/schedSnode.sim
 ./test.sh -f tsim/stream/windowClose.sim
 ./test.sh -f tsim/stream/ignoreExpiredData.sim
 
@@ -169,13 +169,13 @@
 ./test.sh -f tsim/valgrind/checkError.sim -v
 
 # --- vnode
-#./test.sh -f tsim/vnode/replica3_basic.sim
-#./test.sh -f tsim/vnode/replica3_repeat.sim
-./test.sh -f tsim/vnode/replica3_vgroup.sim
-#./test.sh -f tsim/vnode/replica3_many.sim
-#./test.sh -f tsim/vnode/replica3_import.sim
-./test.sh -f tsim/vnode/stable_balance_replica1.sim
-./test.sh -f tsim/vnode/stable_dnode2_stop.sim
+# ./test.sh -f tsim/vnode/replica3_basic.sim
+# ./test.sh -f tsim/vnode/replica3_repeat.sim
+# ./test.sh -f tsim/vnode/replica3_vgroup.sim
+# ./test.sh -f tsim/vnode/replica3_many.sim
+# ./test.sh -f tsim/vnode/replica3_import.sim
+# ./test.sh -f tsim/vnode/stable_balance_replica1.sim
+# ./test.sh -f tsim/vnode/stable_dnode2_stop.sim
 ./test.sh -f tsim/vnode/stable_dnode2.sim
 ./test.sh -f tsim/vnode/stable_dnode3.sim
 ./test.sh -f tsim/vnode/stable_replica3_dnode6.sim

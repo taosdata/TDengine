@@ -325,7 +325,7 @@ class TDTestCase:
     def __sma_create_check(self, sma:SMAschema):
         if  self.updatecfgDict["querySmaOptimize"] == 0:
             return False
-        # # TODO: if database is a rollup-db, can not create sma index
+        # TODO: if database is a rollup-db, can not create sma index
         # tdSql.query("select database()")
         # if sma.rollup_db :
         #     return False
@@ -493,8 +493,8 @@ class TDTestCase:
         err_sqls , cur_sqls = self.__drop_sma_sql
         for err_sql in err_sqls:
             self.sma_drop_check(err_sql)
-        # for cur_sql in cur_sqls:
-        #     self.sma_drop_check(cur_sql)
+        for cur_sql in cur_sqls:
+            self.sma_drop_check(cur_sql)
 
     def all_test(self):
         self.test_create_sma()
@@ -605,24 +605,23 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step1:create table in normal database")
         tdSql.prepare()
         self.__create_tb()
-        # self.__insert_data()
+        self.__insert_data()
         self.all_test()
 
         # drop databases, create same name db、stb and sma index
-        # tdSql.prepare()
-        # self.__create_tb()
-        # self.__insert_data()
-        # self.all_test()
-
-
-
-        return
+        tdSql.prepare()
+        self.__create_tb()
+        self.__insert_data()
+        self.all_test()
 
         tdLog.printNoPrefix("==========step2:create table in rollup database")
         tdSql.execute("create database db3 retentions 1s:4m,2s:8m,3s:12m")
         tdSql.execute("use db3")
-        self.__create_tb()
-        self.__insert_data()
+        # self.__create_tb()
+        tdSql.execute(f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) watermark 5s max_delay 1m sma({INT_COL}) ")
+        self.all_test()
+
+        # self.__insert_data()
 
         tdSql.execute("drop database if exists db1 ")
         tdSql.execute("drop database if exists db2 ")

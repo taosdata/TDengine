@@ -457,7 +457,7 @@ void schtFreeQueryJob(int32_t freeThread) {
   int64_t job = queryJobRefId;
   
   if (job && atomic_val_compare_exchange_64(&queryJobRefId, job, 0)) {
-    schedulerFreeJob(job, 0);
+    schedulerFreeJob(&job, 0);
     if (freeThread) {
       if (++freeNum % schtTestPrintNum == 0) {
         printf("FreeNum:%d\n", freeNum);
@@ -724,7 +724,7 @@ TEST(queryTest, normalCase) {
 
   schReleaseJob(job);
 
-  schedulerFreeJob(job, 0);
+  schedulerFreeJob(&job, 0);
 
   schtFreeQueryDag(&dag);
 
@@ -828,7 +828,7 @@ TEST(queryTest, readyFirstCase) {
 
   schReleaseJob(job);
 
-  schedulerFreeJob(job, 0);
+  schedulerFreeJob(&job, 0);
 
   schtFreeQueryDag(&dag);
 
@@ -940,7 +940,7 @@ TEST(queryTest, flowCtrlCase) {
 
   schReleaseJob(job);
 
-  schedulerFreeJob(job, 0);
+  schedulerFreeJob(&job, 0);
 
   schtFreeQueryDag(&dag);
 
@@ -994,7 +994,7 @@ TEST(insertTest, normalCase) {
   ASSERT_EQ(code, 0);
   ASSERT_EQ(res.numOfRows, 20);
 
-  schedulerFreeJob(insertJobRefId, 0);
+  schedulerFreeJob(&insertJobRefId, 0);
 
   schedulerDestroy();  
 }

@@ -110,12 +110,15 @@ typedef struct {
 } SRpcCtx;
 
 int32_t rpcInit();
-void    rpcCleanup();
-void *  rpcOpen(const SRpcInit *pRpc);
-void    rpcClose(void *);
-void *  rpcMallocCont(int32_t contLen);
-void    rpcFreeCont(void *pCont);
-void *  rpcReallocCont(void *ptr, int32_t contLen);
+
+void  rpcCleanup();
+void *rpcOpen(const SRpcInit *pRpc);
+
+void  rpcClose(void *);
+void  rpcCloseImpl(void *);
+void *rpcMallocCont(int32_t contLen);
+void  rpcFreeCont(void *pCont);
+void *rpcReallocCont(void *ptr, int32_t contLen);
 
 // Because taosd supports multi-process mode
 // These functions should not be used on the server side

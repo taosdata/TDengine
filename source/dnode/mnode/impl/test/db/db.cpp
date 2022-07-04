@@ -93,7 +93,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, 0);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_OPS_NOT_SUPPORT);
   }
 
   test.SendShowReq(TSDB_MGMT_TABLE_DB, "user_databases", "");

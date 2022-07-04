@@ -16,7 +16,7 @@
 #define __INDEX_TFILE_H__
 
 #include "indexFst.h"
-#include "indexFstCountingWriter.h"
+#include "indexFstFile.h"
 #include "indexInt.h"
 #include "indexTfile.h"
 #include "indexUtil.h"
@@ -59,7 +59,7 @@ typedef struct TFileCache {
 
 typedef struct TFileWriter {
   FstBuilder* fb;
-  WriterCtx*  ctx;
+  IFileCtx*   ctx;
   TFileHeader header;
   uint32_t    offset;
 } TFileWriter;
@@ -68,7 +68,7 @@ typedef struct TFileWriter {
 typedef struct TFileReader {
   T_REF_DECLARE()
   Fst*        fst;
-  WriterCtx*  ctx;
+  IFileCtx*   ctx;
   TFileHeader header;
   bool        remove;
 } TFileReader;
@@ -103,7 +103,7 @@ void         tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* read
 TFileReader* tfileGetReaderByCol(IndexTFile* tf, uint64_t suid, char* colName);
 
 TFileReader* tfileReaderOpen(char* path, uint64_t suid, int64_t version, const char* colName);
-TFileReader* tfileReaderCreate(WriterCtx* ctx);
+TFileReader* tfileReaderCreate(IFileCtx* ctx);
 void         tfileReaderDestroy(TFileReader* reader);
 int          tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTRslt* tr);
 void         tfileReaderRef(TFileReader* reader);
@@ -111,7 +111,7 @@ void         tfileReaderUnRef(TFileReader* reader);
 
 TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int64_t version, const char* colName, uint8_t type);
 void         tfileWriterClose(TFileWriter* tw);
-TFileWriter* tfileWriterCreate(WriterCtx* ctx, TFileHeader* header);
+TFileWriter* tfileWriterCreate(IFileCtx* ctx, TFileHeader* header);
 void         tfileWriterDestroy(TFileWriter* tw);
 int          tfileWriterPut(TFileWriter* tw, void* data, bool order);
 int          tfileWriterFinish(TFileWriter* tw);
