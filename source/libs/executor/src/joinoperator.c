@@ -53,13 +53,20 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   pOperator->info         = pInfo;
   pOperator->pTaskInfo    = pTaskInfo;
 
-  SNode* pOnCondition = pJoinNode->pOnConditions;
-  if (nodeType(pOnCondition) == QUERY_NODE_OPERATOR) {
-    SOperatorNode* pNode = (SOperatorNode*)pOnCondition;
+  SNode* pMergeCondition = pJoinNode->pMergeCondition;
+  if (nodeType(pMergeCondition) == QUERY_NODE_OPERATOR) {
+    SOperatorNode* pNode = (SOperatorNode*)pMergeCondition;
     setJoinColumnInfo(&pInfo->leftCol, (SColumnNode*)pNode->pLeft);
     setJoinColumnInfo(&pInfo->rightCol, (SColumnNode*)pNode->pRight);
-  } else if (nodeType(pOnCondition) == QUERY_NODE_LOGIC_CONDITION) {
-    extractTimeCondition(pInfo, (SLogicConditionNode*)pOnCondition);
+  } else {
+    ASSERT(false);
+  }
+
+  //TODO: merge these two conditions
+  ASSERT(pJoinNode->pOnConditions);
+  pInfo->pOnConditions = nodesCloneNode(pJoinNode->pOnConditions);
+  if (pJoinNode->node.pConditions != NULL) {
+    pInfo->pOtherConditions = pJoinNode->node.pConditions;
   }
 
   pOperator->fpSet =
@@ -88,6 +95,8 @@ void setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode) {
 
 void destroyMergeJoinOperator(void* param, int32_t numOfOutput) {
   SJoinOperatorInfo* pJoinOperator = (SJoinOperatorInfo*)param;
+  nodesDestroyNode(pJoinOperator->pOnConditions);
+  nodesDestroyNode(pJoinOperator->pOtherConditions);
 }
 
 static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) {
@@ -192,7 +201,8 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
     if (numOfNewRows == 0) {
       break;
     }
-    doFilter(pJoinInfo->pOnCondition, pRes);
+    doFilter(pJoinInfo->pOnConditions, pRes);
+    doFilter(pJoinInfo->pOtherConditions, pRes);
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
       break;
     }

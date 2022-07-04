@@ -540,11 +540,15 @@ static bool pushDownCondOptContainPriKeyEqualCond(SJoinLogicNode* pJoin, SNode* 
     }
     return hasPrimaryKeyEqualCond;
   } else {
-    return pushDownCondOptIsPriKeyEqualCond(pJoin, pCond);
+    bool isPriKeyEqualCond = pushDownCondOptIsPriKeyEqualCond(pJoin, pCond);
+    if (isPriKeyEqualCond) {
+      pJoin->pMergeCondition = nodesCloneNode(pCond);
+    }
+    return isPriKeyEqualCond;
   }
 }
 
-static int32_t pushDownCondOptCheckJoinOnCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
+static int32_t pushDownCondOptExtractJoinMergeCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (NULL == pJoin->pOnConditions) {
     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN);
   }
@@ -560,7 +564,7 @@ static int32_t pushDownCondOptDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* p
   }
 
   if (NULL == pJoin->node.pConditions) {
-    return pushDownCondOptCheckJoinOnCond(pCxt, pJoin);
+    return pushDownCondOptExtractJoinMergeCond(pCxt, pJoin);
   }
 
   SNode*  pOnCond = NULL;
@@ -582,7 +586,7 @@ static int32_t pushDownCondOptDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* p
   if (TSDB_CODE_SUCCESS == code) {
     OPTIMIZE_FLAG_SET_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
     pCxt->optimized = true;
-    code = pushDownCondOptCheckJoinOnCond(pCxt, pJoin);
+    code = pushDownCondOptExtractJoinMergeCond(pCxt, pJoin);
   } else {
     nodesDestroyNode(pOnCond);
     nodesDestroyNode(pLeftChildCond);
