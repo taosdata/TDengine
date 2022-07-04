@@ -262,13 +262,17 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
 #define REQUEST_PERSIS_HANDLE(msg)   ((msg)->info.persistHandle == 1)
 #define REQUEST_RELEASE_HANDLE(cmsg) ((cmsg)->type == Release)
 
+#define EPSET_IS_VALID(epSet)       ((epSet) != NULL && (epSet)->numOfEps != 0)
 #define EPSET_GET_SIZE(epSet)       (epSet)->numOfEps
 #define EPSET_GET_INUSE_IP(epSet)   ((epSet)->eps[(epSet)->inUse].fqdn)
 #define EPSET_GET_INUSE_PORT(epSet) ((epSet)->eps[(epSet)->inUse].port)
-#define EPSET_FORWARD_INUSE(epSet)                               \
-  do {                                                           \
-    (epSet)->inUse = (++((epSet)->inUse)) % ((epSet)->numOfEps); \
+#define EPSET_FORWARD_INUSE(epSet)                                 \
+  do {                                                             \
+    if ((epSet)->numOfEps != 0) {                                  \
+      (epSet)->inUse = (++((epSet)->inUse)) % ((epSet)->numOfEps); \
+    }                                                              \
   } while (0)
+
 #define EPSET_DEBUG_STR(epSet, tbuf)                                                                                   \
   do {                                                                                                                 \
     int len = snprintf(tbuf, sizeof(tbuf), "epset:{");                                                                 \
@@ -512,7 +516,6 @@ static void allocConnRef(SCliConn* conn, bool update) {
 }
 static void addConnToPool(void* pool, SCliConn* conn) {
   if (conn->status == ConnInPool) {
-    // assert(0);
     return;
   }
   SCliThrd* thrd = conn->hostThrd;
@@ -668,7 +671,6 @@ static void cliSendCb(uv_write_t* req, int status) {
 void cliSend(SCliConn* pConn) {
   CONN_HANDLE_BROKEN(pConn);
 
-  // assert(taosArrayGetSize(pConn->cliMsgs) > 0);
   assert(!transQueueEmpty(&pConn->cliMsgs));
 
   SCliMsg* pCliMsg = NULL;
@@ -810,6 +812,11 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
   STrans*        pTransInst = pThrd->pTransInst;
 
   cliMayCvtFqdnToIp(&pCtx->epSet, &pThrd->cvtAddr);
+  if (!EPSET_IS_VALID(&pCtx->epSet)) {
+    destroyCmsg(pMsg);
+    tError("invalid epset");
+    return;
+  }
 
   bool      ignore = false;
   SCliConn* conn = cliGetConn(pMsg, pThrd, &ignore);
@@ -1077,12 +1084,14 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     } else {
       cliCompareAndSwap(&pCtx->retryLimit, TRANS_RETRY_COUNT_LIMIT, TRANS_RETRY_COUNT_LIMIT);
       if (pCtx->retryCnt < pCtx->retryLimit) {
-        addConnToPool(pThrd->pool, pConn);
         if (pResp->contLen == 0) {
           EPSET_FORWARD_INUSE(&pCtx->epSet);
         } else {
-          tDeserializeSEpSet(pResp->pCont, pResp->contLen, &pCtx->epSet);
+          if (tDeserializeSEpSet(pResp->pCont, pResp->contLen, &pCtx->epSet) < 0) {
+            tError("%s conn %p failed to deserialize epset", CONN_GET_INST_LABEL(pConn));
+          }
         }
+        addConnToPool(pThrd->pool, pConn);
         transFreeMsg(pResp->pCont);
         cliSchedMsgToNextNode(pMsg, pThrd);
         return -1;
