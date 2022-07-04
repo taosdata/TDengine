@@ -93,7 +93,7 @@ impl RawStmt {
 
     #[inline]
     pub fn set_tags(&mut self, tags: &[TaosBind]) -> Result<(), Error> {
-        self.ok(unsafe { taos_stmt_set_tags(self.as_ptr(), tags.as_ptr() as _)})
+        self.ok(unsafe { taos_stmt_set_tags(self.as_ptr(), tags.as_ptr() as _) })
     }
 
     #[inline]
@@ -180,7 +180,7 @@ fn test_tbname_tags() -> Result<(), Error> {
     taos.query("use stt1")?;
     taos.query(
         // "create stable if not exists st1(ts timestamp, v int) tags(jt json)"
-        "create stable if not exists st1(ts timestamp, v int) tags(jt int, t1 float)"
+        "create stable if not exists st1(ts timestamp, v int) tags(jt int, t1 float)",
     )?;
 
     let mut stmt = RawStmt::from_raw_taos(&taos);
@@ -188,7 +188,7 @@ fn test_tbname_tags() -> Result<(), Error> {
     stmt.prepare(sql)?;
 
     // let tags = vec![TaosBind::from_json(r#"{"name":"value"}"#)];
-    let tags = vec![TaosBind::from(&0i32),TaosBind::from(&0.0f32)];
+    let tags = vec![TaosBind::from(&0i32), TaosBind::from(&0.0f32)];
     println!("tags: {tags:#?}");
     let tbname = "tb1";
     stmt.set_tbname(tbname)?;
@@ -216,7 +216,6 @@ fn test_tbname_tags() -> Result<(), Error> {
 
     // stmt.add_batch()?;
     // stmt.execute()?;
-
 
     // let res = taos.query("select * from st1")?;
 

@@ -21,18 +21,6 @@ pub mod asyn;
 pub mod stmt;
 pub mod sync; // todo: if use name `async`, rust-analyzer does not recognize the tests.
 
-// #[derive(Error, Debug)]
-// pub enum Error {
-//     #[error("{0}")]
-//     Dsn(#[from] DsnError),
-//     // #[error("{0}")]
-//     // WsUrl(#[from] ParseError),
-//     // #[error("{0}")]
-//     // Ws(#[from] WebSocketError),
-//     #[error("Deserialize error: {0}")]
-//     Deserialize(#[from] DeError),
-// }
-
 #[derive(Debug)]
 pub enum WsAuth {
     Token(String),

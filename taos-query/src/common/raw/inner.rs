@@ -793,9 +793,15 @@ impl RawBlock {
     ) -> (Ty, u32, *const c_void) {
         let (ty, o1, o2) = self.column_offsets().get_unchecked(col);
 
+        const BIT_LOC_SHIFT: isize = 3;
+        const BIT_POS_SHIFT: usize = 7;
+
         macro_rules! is_null {
             ($bm:expr, $row:expr) => {{
-                (*$bm.offset($row as isize >> 3) >> (7 - ($row & 7)) as u8) & 0x1 == 1
+                // Check bit at index: `$row >> 3` with bit position `$row % 8` from a u8 slice bitmap view.
+                // It's a left-to-right bitmap, eg: 0b10000000, means row 0 is null.
+                // Here we use right shift and then compare with 0b1.
+                (*$bm.offset($row as isize >> BIT_LOC_SHIFT) >> (BIT_POS_SHIFT - ($row & BIT_POS_SHIFT)) as u8) & 0x1 == 1
             }};
         }
 

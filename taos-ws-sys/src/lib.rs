@@ -21,9 +21,11 @@ use anyhow::Result;
 const EMPTY: &'static CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"\0") };
 
 /// Opaque type definition for websocket connection.
+#[allow(non_camel_case_types)]
 pub type WS_TAOS = c_void;
 
 /// Opaque type definition for websocket result set.
+#[allow(non_camel_case_types)]
 pub type WS_RS = c_void;
 
 use std::cell::RefCell;
@@ -518,7 +520,8 @@ mod tests {
     use super::*;
 
     fn init() {
-        std::sync::ONCE_INIT.call_once(|| {
+        static ONCE_INIT: std::sync::Once = std::sync::Once::new();
+        ONCE_INIT.call_once(|| {
             pretty_env_logger::init();
             std::env::set_var("RUST_DEBUG", "debug");
         });
