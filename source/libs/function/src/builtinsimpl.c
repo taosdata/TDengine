@@ -962,6 +962,22 @@ int32_t avgInvertFunction(SqlFunctionCtx* pCtx) {
       LIST_AVG_N(pAvgRes->sum.isum, int64_t);
       break;
     }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      LIST_AVG_N(pAvgRes->sum.usum, uint8_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      LIST_AVG_N(pAvgRes->sum.usum, uint16_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      LIST_AVG_N(pAvgRes->sum.usum, uint32_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      LIST_AVG_N(pAvgRes->sum.usum, uint64_t);
+      break;
+    }
     case TSDB_DATA_TYPE_FLOAT: {
       LIST_AVG_N(pAvgRes->sum.dsum, float);
       break;
@@ -987,8 +1003,10 @@ int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SAvgRes*             pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  if (IS_INTEGER_TYPE(type)) {
+  if (IS_SIGNED_NUMERIC_TYPE(type)) {
     pDBuf->sum.isum += pSBuf->sum.isum;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    pDBuf->sum.usum += pSBuf->sum.usum;
   } else {
     pDBuf->sum.dsum += pSBuf->sum.dsum;
   }
