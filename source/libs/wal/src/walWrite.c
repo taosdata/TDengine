@@ -332,21 +332,25 @@ int32_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLog
     terrno = TSDB_CODE_WAL_SIZE_LIMIT;
     return -1;
   }
+  taosThreadMutexLock(&pWal->mutex);
 
   if (index == pWal->vers.lastVer + 1) {
     if (taosArrayGetSize(pWal->fileInfoSet) == 0) {
       pWal->vers.firstVer = index;
       if (walRoll(pWal) < 0) {
+        taosThreadMutexUnlock(&pWal->mutex);
         return -1;
       }
     } else {
       int64_t passed = walGetSeq() - pWal->lastRollSeq;
       if (pWal->cfg.rollPeriod != -1 && pWal->cfg.rollPeriod != 0 && passed > pWal->cfg.rollPeriod) {
         if (walRoll(pWal) < 0) {
+          taosThreadMutexUnlock(&pWal->mutex);
           return -1;
         }
       } else if (pWal->cfg.segSize != -1 && pWal->cfg.segSize != 0 && walGetLastFileSize(pWal) > pWal->cfg.segSize) {
         if (walRoll(pWal) < 0) {
+          taosThreadMutexUnlock(&pWal->mutex);
           return -1;
         }
       }
@@ -355,14 +359,13 @@ int32_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLog
     // reject skip log or rewrite log
     // must truncate explicitly first
     terrno = TSDB_CODE_WAL_INVALID_VER;
+    taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
 
   /*if (!tfValid(pWal->pWriteLogTFile)) return -1;*/
 
   ASSERT(pWal->writeCur >= 0);
-
-  taosThreadMutexLock(&pWal->mutex);
 
   if (pWal->pWriteIdxTFile == NULL || pWal->pWriteLogTFile == NULL) {
     walSetWrite(pWal);

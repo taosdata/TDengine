@@ -97,7 +97,15 @@ TEST_F(PlanSetOpTest, unionSubquery) {
   run("SELECT * FROM (SELECT c1, c2 FROM t1 UNION SELECT c1, c2 FROM t1)");
 }
 
-TEST_F(PlanSetOpTest, bug001) {
+TEST_F(PlanSetOpTest, unionWithSubquery) {
+  useDb("root", "test");
+
+  run("SELECT c1 FROM (SELECT c1 FROM st1) UNION SELECT c2 FROM (SELECT c1 AS c2 FROM st2)");
+
+  run("SELECT c1 FROM (SELECT c1 FROM st1 ORDER BY c2) UNION SELECT c1 FROM (SELECT c1 FROM st2)");
+}
+
+TEST_F(PlanSetOpTest, unionDataTypeConversion) {
   useDb("root", "test");
 
   run("SELECT c2 FROM t1 WHERE c1 IS NOT NULL GROUP BY c2 "
