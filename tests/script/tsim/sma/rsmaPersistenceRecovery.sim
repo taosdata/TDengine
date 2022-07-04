@@ -227,8 +227,8 @@ if $data41 != 40 then
   return -1
 endi
 
-if $data41 != 40 then
-  print retention level 0 file/mem result $data41 != 40
+if $data42 != 40.00000 then
+  print retention level 0 file/mem result $data42 != 40.00000
   return -1
 endi
 
