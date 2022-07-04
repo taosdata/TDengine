@@ -16,21 +16,60 @@
 #include "tsdb.h"
 
 struct STsdbSnapshotReader {
-  STsdb* pTsdb;
-  // TODO
+  STsdb*  pTsdb;
+  int64_t sver;
+  int64_t ever;
+  // for data file
+  SDataFReader* pDataFReader;
+  // for del file
+  SDelFReader* pDelFReader;
 };
 
-int32_t tsdbSnapshotReaderOpen(STsdb* pTsdb, STsdbSnapshotReader** ppReader, int64_t sver, int64_t ever) {
-  // TODO
-  return 0;
-}
+typedef struct STsdbSnapshotWriter {
+  STsdb*  pTsdb;
+  int64_t sver;
+  int64_t ever;
+  // for data file
+  SDataFWriter* pDataFWriter;
+  // for del file
+  SDelFWriter* pDelFWriter;
+} STsdbSnapshotWriter;
 
-int32_t tsdbSnapshotReaderClose(STsdbSnapshotReader* pReader) {
-  // TODO
-  return 0;
+int32_t tsdbSnapshotReaderOpen(STsdb* pTsdb, STsdbSnapshotReader** ppReader, int64_t sver, int64_t ever) {
+  int32_t              code = 0;
+  STsdbSnapshotReader* pReader = NULL;
+
+  // alloc
+  pReader = (STsdbSnapshotReader*)taosMemoryCalloc(1, sizeof(*pReader));
+  if (pReader == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+  pReader->pTsdb = pTsdb;
+  pReader->sver = sver;
+  pReader->ever = ever;
+
+  *ppReader = pReader;
+  return code;
+
+_err:
+  tsdbError("vgId:%d snapshot reader open failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  *ppReader = NULL;
+  return code;
 }
 
 int32_t tsdbSnapshotRead(STsdbSnapshotReader* pReader, void** ppData, uint32_t* nData) {
+  int32_t code = 0;
   // TODO
-  return 0;
+  return code;
+
+_err:
+  tsdbError("vgId:%d snapshot read failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+int32_t tsdbSnapshotReaderClose(STsdbSnapshotReader* pReader) {
+  int32_t code = 0;
+  taosMemoryFree(pReader);
+  return code;
 }

@@ -27,6 +27,13 @@ struct SVSnapshotReader {
   int32_t              nData;
 };
 
+struct SVSnapshotWriter {
+  SVnode *pVnode;
+  int64_t sver;
+  int64_t ever;
+};
+
+// SVSnapshotReader ========================================================
 int32_t vnodeSnapshotReaderOpen(SVnode *pVnode, SVSnapshotReader **ppReader, int64_t sver, int64_t ever) {
   SVSnapshotReader *pReader = NULL;
 
@@ -105,5 +112,45 @@ int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32
   }
 
   code = TSDB_CODE_VND_READ_END;
+  return code;
+}
+
+// SVSnapshotWriter ========================================================
+int32_t vnodeSnapshotWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapshotWriter **ppWriter) {
+  int32_t           code = 0;
+  SVSnapshotWriter *pWriter = NULL;
+
+  // alloc
+  pWriter = (SVSnapshotWriter *)taosMemoryCalloc(1, sizeof(*pWriter));
+  if (pWriter == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+  pWriter->pVnode = pVnode;
+  pWriter->sver = sver;
+  pWriter->ever = ever;
+
+  return code;
+
+_err:
+  return code;
+}
+
+int32_t vnodeSnapshotWrite(SVSnapshotWriter *pWriter, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t vnodeSnapshotWriterClose(SVSnapshotWriter *pWriter, int8_t rollback) {
+  int32_t code = 0;
+
+  if (!rollback) {
+    // apply the change
+  } else {
+    // rollback the change
+  }
+
+  taosMemoryFree(pWriter);
   return code;
 }
