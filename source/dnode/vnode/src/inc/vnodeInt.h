@@ -183,7 +183,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData);
 // STsdbSnapReader ========================================
 int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapReader** ppReader);
 int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader);
-int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData, int64_t* nData);
+int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData);
 // STsdbSnapWriter ========================================
 typedef struct {
   int8_t  streamType;  // sma or other

@@ -87,7 +87,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   }
 
   if (!pReader->tsdbDone) {
-    code = tsdbSnapRead(pReader->pTsdbReader, &pReader->pData, &pReader->nData);
+    code = tsdbSnapRead(pReader->pTsdbReader, &pReader->pData);
     if (code) {
       if (code == TSDB_CODE_VND_READ_END) {
         pReader->tsdbDone = 1;
