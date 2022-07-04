@@ -34,7 +34,7 @@ struct SVSnapWriter {
 };
 
 // SVSnapReader ========================================================
-int32_t vnodeSnapReaderOpen(SVnode *pVnode, SVSnapReader **ppReader, int64_t sver, int64_t ever) {
+int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapReader **ppReader) {
   SVSnapReader *pReader = NULL;
 
   pReader = (SVSnapReader *)taosMemoryCalloc(1, sizeof(*pReader));
