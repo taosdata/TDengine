@@ -99,7 +99,7 @@ int32_t tsdbWriteDelData(SDelFWriter *pWriter, SArray *aDelData, uint8_t **ppBuf
   size += sizeof(TSCKSUM);
 
   // alloc
-  code = tsdbRealloc(ppBuf, size);
+  code = tRealloc(ppBuf, size);
   if (code) goto _err;
 
   // build
@@ -127,12 +127,12 @@ int32_t tsdbWriteDelData(SDelFWriter *pWriter, SArray *aDelData, uint8_t **ppBuf
   pDelIdx->size = size;
   pWriter->fDel.size += size;
 
-  tsdbFree(pBuf);
+  tFree(pBuf);
   return code;
 
 _err:
   tsdbError("vgId:%d failed to write del data since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
-  tsdbFree(pBuf);
+  tFree(pBuf);
   return code;
 }
 
@@ -154,7 +154,7 @@ int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SArray *aDelIdx, uint8_t **ppBuf) 
   size += sizeof(TSCKSUM);
 
   // alloc
-  code = tsdbRealloc(ppBuf, size);
+  code = tRealloc(ppBuf, size);
   if (code) goto _err;
 
   // build
@@ -178,12 +178,12 @@ int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SArray *aDelIdx, uint8_t **ppBuf) 
   pWriter->fDel.offset = pWriter->fDel.size;
   pWriter->fDel.size += size;
 
-  tsdbFree(pBuf);
+  tFree(pBuf);
   return code;
 
 _err:
   tsdbError("vgId:%d write del idx failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
-  tsdbFree(pBuf);
+  tFree(pBuf);
   return code;
 }
 
@@ -253,7 +253,7 @@ int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb
 #if 0
   // load and check hdr if buffer is given
   if (ppBuf) {
-    code = tsdbRealloc(ppBuf, TSDB_FHDR_SIZE);
+    code = tRealloc(ppBuf, TSDB_FHDR_SIZE);
     if (code) {
       goto _err;
     }
@@ -319,7 +319,7 @@ int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData
   }
 
   // alloc
-  code = tsdbRealloc(ppBuf, size);
+  code = tRealloc(ppBuf, size);
   if (code) goto _err;
 
   // read
@@ -351,12 +351,12 @@ int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData
 
   ASSERT(n == size - sizeof(TSCKSUM));
 
-  tsdbFree(pBuf);
+  tFree(pBuf);
   return code;
 
 _err:
   tsdbError("vgId:%d read del data failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
-  tsdbFree(pBuf);
+  tFree(pBuf);
   return code;
 }
 
@@ -378,7 +378,7 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx, uint8_t **ppBuf) {
   }
 
   // alloc
-  code = tsdbRealloc(ppBuf, size);
+  code = tRealloc(ppBuf, size);
   if (code) goto _err;
 
   // read
@@ -534,7 +534,7 @@ int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx, uint8_t **ppB
   if (!ppBuf) ppBuf = &pBuf;
 
   // alloc
-  code = tsdbRealloc(ppBuf, size);
+  code = tRealloc(ppBuf, size);
   if (code) goto _err;
 
   // seek
@@ -576,12 +576,12 @@ int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx, uint8_t **ppB
 
   ASSERT(n + sizeof(TSCKSUM) == size);
 
-  tsdbFree(pBuf);
+  tFree(pBuf);
   return code;
 
 _err:
   tsdbError("vgId:%d read block idx failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
-  tsdbFree(pBuf);
+  tFree(pBuf);
   return code;
 }
 
@@ -597,7 +597,7 @@ int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *mBl
   if (!ppBuf) ppBuf = &pBuf;
 
   // alloc
-  code = tsdbRealloc(ppBuf, size);
+  code = tRealloc(ppBuf, size);
   if (code) goto _err;
 
   // seek
@@ -637,12 +637,12 @@ int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *mBl
   n += tn;
   ASSERT(n + sizeof(TSCKSUM) == size);
 
-  tsdbFree(pBuf);
+  tFree(pBuf);
   return code;
 
 _err:
   tsdbError("vgId:%d read block failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
-  tsdbFree(pBuf);
+  tFree(pBuf);
   return code;
 }
 
@@ -656,9 +656,9 @@ static int32_t tsdbReadBlockDataKey(SBlockData *pBlockData, SSubBlock *pSubBlock
     goto _err;
   }
 
-  code = tsdbRealloc((uint8_t **)&pBlockData->aVersion, sizeof(int64_t) * pSubBlock->nRow);
+  code = tRealloc((uint8_t **)&pBlockData->aVersion, sizeof(int64_t) * pSubBlock->nRow);
   if (code) goto _err;
-  code = tsdbRealloc((uint8_t **)&pBlockData->aTSKEY, sizeof(TSKEY) * pSubBlock->nRow);
+  code = tRealloc((uint8_t **)&pBlockData->aTSKEY, sizeof(TSKEY) * pSubBlock->nRow);
   if (code) goto _err;
 
   if (pSubBlock->cmprAlg == NO_COMPRESSION) {
@@ -673,7 +673,7 @@ static int32_t tsdbReadBlockDataKey(SBlockData *pBlockData, SSubBlock *pSubBlock
   } else {
     size = sizeof(int64_t) * pSubBlock->nRow + COMP_OVERFLOW_BYTES;
     if (pSubBlock->cmprAlg == TWO_STAGE_COMP) {
-      code = tsdbRealloc(ppBuf, size);
+      code = tRealloc(ppBuf, size);
       if (code) goto _err;
     }
 
@@ -720,10 +720,10 @@ static int32_t tsdbReadColDataImpl(SSubBlock *pSubBlock, SBlockCol *pBlockCol, S
     ASSERT(pBlockCol->szBitmap);
 
     size = BIT2_SIZE(pColData->nVal);
-    code = tsdbRealloc(&pColData->pBitMap, size);
+    code = tRealloc(&pColData->pBitMap, size);
     if (code) goto _err;
 
-    code = tsdbRealloc(ppBuf, size + COMP_OVERFLOW_BYTES);
+    code = tRealloc(ppBuf, size + COMP_OVERFLOW_BYTES);
     if (code) goto _err;
 
     n = tsDecompressTinyint(pBuf, pBlockCol->szBitmap, size, pColData->pBitMap, size, TWO_STAGE_COMP, *ppBuf,
@@ -744,10 +744,10 @@ static int32_t tsdbReadColDataImpl(SSubBlock *pSubBlock, SBlockCol *pBlockCol, S
     ASSERT(pBlockCol->szOffset);
 
     size = sizeof(int32_t) * pColData->nVal;
-    code = tsdbRealloc((uint8_t **)&pColData->aOffset, size);
+    code = tRealloc((uint8_t **)&pColData->aOffset, size);
     if (code) goto _err;
 
-    code = tsdbRealloc(ppBuf, size + COMP_OVERFLOW_BYTES);
+    code = tRealloc(ppBuf, size + COMP_OVERFLOW_BYTES);
     if (code) goto _err;
 
     n = tsDecompressInt(pBuf, pBlockCol->szOffset, pColData->nVal, (char *)pColData->aOffset, size, TWO_STAGE_COMP,
@@ -766,14 +766,14 @@ static int32_t tsdbReadColDataImpl(SSubBlock *pSubBlock, SBlockCol *pBlockCol, S
   // VALUE
   pColData->nData = pBlockCol->szOrigin;
 
-  code = tsdbRealloc(&pColData->pData, pColData->nData);
+  code = tRealloc(&pColData->pData, pColData->nData);
   if (code) goto _err;
 
   if (pSubBlock->cmprAlg == NO_COMPRESSION) {
     memcpy(pColData->pData, pBuf, pColData->nData);
   } else {
     if (pSubBlock->cmprAlg == TWO_STAGE_COMP) {
-      code = tsdbRealloc(ppBuf, pColData->nData + COMP_OVERFLOW_BYTES);
+      code = tRealloc(ppBuf, pColData->nData + COMP_OVERFLOW_BYTES);
       if (code) goto _err;
     }
 
@@ -846,7 +846,7 @@ static int32_t tsdbReadSubColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, S
     size = pSubBlock->szBlockCol + sizeof(TSCKSUM) + pSubBlock->szVersion + pSubBlock->szTSKEY + sizeof(TSCKSUM);
   }
 
-  code = tsdbRealloc(ppBuf1, size);
+  code = tRealloc(ppBuf1, size);
   if (code) goto _err;
 
   n = taosLSeekFile(pFD, offset, SEEK_SET);
@@ -906,7 +906,7 @@ static int32_t tsdbReadSubColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, S
                  pSubBlock->szTSKEY + sizeof(TSCKSUM) + pBlockCol->offset;
         size = pBlockCol->szBitmap + pBlockCol->szOffset + pBlockCol->szValue + sizeof(TSCKSUM);
 
-        code = tsdbRealloc(ppBuf1, size);
+        code = tRealloc(ppBuf1, size);
         if (code) goto _err;
 
         // seek
@@ -982,14 +982,14 @@ int32_t tsdbReadColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBl
     tBlockDataClear(pBlockData2);
   }
 
-  tsdbFree(pBuf1);
-  tsdbFree(pBuf2);
+  tFree(pBuf1);
+  tFree(pBuf2);
   return code;
 
 _err:
   tsdbError("vgId:%d tsdb read col data failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
-  tsdbFree(pBuf1);
-  tsdbFree(pBuf2);
+  tFree(pBuf1);
+  tFree(pBuf2);
   return code;
 }
 
@@ -1006,7 +1006,7 @@ static int32_t tsdbReadSubBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx,
   tBlockDataReset(pBlockData);
 
   // realloc
-  code = tsdbRealloc(ppBuf1, pSubBlock->szBlock);
+  code = tRealloc(ppBuf1, pSubBlock->szBlock);
   if (code) goto _err;
 
   // seek
@@ -1128,14 +1128,14 @@ int32_t tsdbReadBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *p
   ASSERT(tsdbKeyCmprFn(&pBlock->minKey, &TSDBROW_KEY(&tBlockDataFirstRow(pBlockData))) == 0);
   ASSERT(tsdbKeyCmprFn(&pBlock->maxKey, &TSDBROW_KEY(&tBlockDataLastRow(pBlockData))) == 0);
 
-  if (pBuf1) tsdbFree(pBuf1);
-  if (pBuf2) tsdbFree(pBuf2);
+  if (pBuf1) tFree(pBuf1);
+  if (pBuf2) tFree(pBuf2);
   return code;
 
 _err:
   tsdbError("vgId:%d tsdb read block data failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
-  if (pBuf1) tsdbFree(pBuf1);
-  if (pBuf2) tsdbFree(pBuf2);
+  if (pBuf1) tFree(pBuf1);
+  if (pBuf2) tFree(pBuf2);
   return code;
 }
 
@@ -1150,7 +1150,7 @@ int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnD
   ASSERT(tBlockHasSma(pBlock));
 
   if (!ppBuf) ppBuf = &pBuf;
-  code = tsdbRealloc(ppBuf, size);
+  code = tRealloc(ppBuf, size);
   if (code) goto _err;
 
   // lseek
@@ -1182,12 +1182,12 @@ int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnD
     }
   }
 
-  tsdbFree(pBuf);
+  tFree(pBuf);
   return code;
 
 _err:
   tsdbError("vgId:%d read block sma failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
-  tsdbFree(pBuf);
+  tFree(pBuf);
   return code;
 }
 
@@ -1440,7 +1440,7 @@ int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx, uint8_t **pp
   size += sizeof(TSCKSUM);
 
   // alloc
-  code = tsdbRealloc(ppBuf, size);
+  code = tRealloc(ppBuf, size);
   if (code) goto _err;
 
   // build
@@ -1464,12 +1464,12 @@ int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx, uint8_t **pp
   pHeadFile->offset = pHeadFile->size;
   pHeadFile->size += size;
 
-  tsdbFree(pBuf);
+  tFree(pBuf);
   return code;
 
 _err:
   tsdbError("vgId:%d write block idx failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
-  tsdbFree(pBuf);
+  tFree(pBuf);
   return code;
 }
 
@@ -1488,7 +1488,7 @@ int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *mBlock, uint8_t **ppBuf,
 
   // alloc
   if (!ppBuf) ppBuf = &pBuf;
-  code = tsdbRealloc(ppBuf, size);
+  code = tRealloc(ppBuf, size);
   if (code) goto _err;
 
   // build
@@ -1512,13 +1512,13 @@ int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *mBlock, uint8_t **ppBuf,
   pBlockIdx->size = size;
   pHeadFile->size += size;
 
-  tsdbFree(pBuf);
+  tFree(pBuf);
   tsdbTrace("vgId:%d write block, offset:%" PRId64 " size:%" PRId64, TD_VID(pWriter->pTsdb->pVnode), pBlockIdx->offset,
             pBlockIdx->size);
   return code;
 
 _err:
-  tsdbFree(pBuf);
+  tFree(pBuf);
   tsdbError("vgId:%d write block failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
@@ -1557,7 +1557,7 @@ static int32_t tsdbWriteBlockDataKey(SSubBlock *pSubBlock, SBlockData *pBlockDat
     pSubBlock->szVersion = sizeof(int64_t) * pSubBlock->nRow;
     pSubBlock->szTSKEY = sizeof(TSKEY) * pSubBlock->nRow;
 
-    code = tsdbRealloc(ppBuf1, *nDataP + pSubBlock->szVersion + pSubBlock->szTSKEY + sizeof(TSCKSUM));
+    code = tRealloc(ppBuf1, *nDataP + pSubBlock->szVersion + pSubBlock->szTSKEY + sizeof(TSCKSUM));
     if (code) goto _err;
 
     // VERSION
@@ -1568,12 +1568,12 @@ static int32_t tsdbWriteBlockDataKey(SSubBlock *pSubBlock, SBlockData *pBlockDat
   } else {
     size = (sizeof(int64_t) + sizeof(TSKEY)) * pSubBlock->nRow + COMP_OVERFLOW_BYTES * 2;
 
-    code = tsdbRealloc(ppBuf1, *nDataP + size + sizeof(TSCKSUM));
+    code = tRealloc(ppBuf1, *nDataP + size + sizeof(TSCKSUM));
     if (code) goto _err;
 
     tsize = sizeof(int64_t) * pSubBlock->nRow + COMP_OVERFLOW_BYTES;
     if (pSubBlock->cmprAlg == TWO_STAGE_COMP) {
-      code = tsdbRealloc(ppBuf2, tsize);
+      code = tRealloc(ppBuf2, tsize);
       if (code) goto _err;
     }
 
@@ -1619,10 +1619,10 @@ static int32_t tsdbWriteColData(SColData *pColData, SBlockCol *pBlockCol, SSubBl
   if (pColData->flag != HAS_VALUE) {
     size = BIT2_SIZE(pColData->nVal) + COMP_OVERFLOW_BYTES;
 
-    code = tsdbRealloc(ppBuf1, *nDataP + n + size);
+    code = tRealloc(ppBuf1, *nDataP + n + size);
     if (code) goto _err;
 
-    code = tsdbRealloc(ppBuf2, size);
+    code = tRealloc(ppBuf2, size);
     if (code) goto _err;
 
     pBlockCol->szBitmap =
@@ -1641,10 +1641,10 @@ static int32_t tsdbWriteColData(SColData *pColData, SBlockCol *pBlockCol, SSubBl
   if (IS_VAR_DATA_TYPE(pColData->type)) {
     size = sizeof(int32_t) * pColData->nVal + COMP_OVERFLOW_BYTES;
 
-    code = tsdbRealloc(ppBuf1, *nDataP + n + size);
+    code = tRealloc(ppBuf1, *nDataP + n + size);
     if (code) goto _err;
 
-    code = tsdbRealloc(ppBuf2, size);
+    code = tRealloc(ppBuf2, size);
     if (code) goto _err;
 
     pBlockCol->szOffset = tsCompressInt((char *)pColData->aOffset, sizeof(int32_t) * pColData->nVal, pColData->nVal,
@@ -1662,18 +1662,18 @@ static int32_t tsdbWriteColData(SColData *pColData, SBlockCol *pBlockCol, SSubBl
   if (pSubBlock->cmprAlg == NO_COMPRESSION) {
     pBlockCol->szValue = pColData->nData;
 
-    code = tsdbRealloc(ppBuf1, *nDataP + n + pBlockCol->szValue + sizeof(TSCKSUM));
+    code = tRealloc(ppBuf1, *nDataP + n + pBlockCol->szValue + sizeof(TSCKSUM));
     if (code) goto _err;
 
     memcpy(*ppBuf1 + *nDataP + n, pColData->pData, pBlockCol->szValue);
   } else {
     size = pColData->nData + COMP_OVERFLOW_BYTES;
 
-    code = tsdbRealloc(ppBuf1, *nDataP + n + size + sizeof(TSCKSUM));
+    code = tRealloc(ppBuf1, *nDataP + n + size + sizeof(TSCKSUM));
     if (code) goto _err;
 
     if (pSubBlock->cmprAlg == TWO_STAGE_COMP) {
-      code = tsdbRealloc(ppBuf2, size);
+      code = tRealloc(ppBuf2, size);
       if (code) goto _err;
     }
 
@@ -1713,7 +1713,7 @@ static int32_t tsdbWriteBlockDataImpl(TdFilePtr pFD, SSubBlock *pSubBlock, SBloc
     pSubBlock->szBlockCol += tPutBlockCol(NULL, taosArrayGet(aBlockCol, iBlockCol));
   }
 
-  code = tsdbRealloc(ppBuf, pSubBlock->szBlockCol + sizeof(TSCKSUM));
+  code = tRealloc(ppBuf, pSubBlock->szBlockCol + sizeof(TSCKSUM));
   if (code) goto _err;
 
   n = 0;
@@ -1762,7 +1762,7 @@ static int32_t tsdbWriteBlockSma(TdFilePtr pFD, SBlockData *pBlockData, SSubBloc
   if (pSubBlock->nSma == 0) goto _exit;
 
   // calc
-  code = tsdbRealloc(ppBuf, sizeof(SColumnDataAgg) * pSubBlock->nSma + sizeof(TSCKSUM));
+  code = tRealloc(ppBuf, sizeof(SColumnDataAgg) * pSubBlock->nSma + sizeof(TSCKSUM));
   if (code) goto _err;
   n = 0;
   for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aColDataP); iColData++) {
@@ -1882,15 +1882,15 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
   }
 
 _exit:
-  tsdbFree(pBuf1);
-  tsdbFree(pBuf2);
+  tFree(pBuf1);
+  tFree(pBuf2);
   taosArrayDestroy(aBlockCol);
   return code;
 
 _err:
   tsdbError("vgId:%d write block data failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
-  tsdbFree(pBuf1);
-  tsdbFree(pBuf2);
+  tFree(pBuf1);
+  tFree(pBuf2);
   taosArrayDestroy(aBlockCol);
   return code;
 }

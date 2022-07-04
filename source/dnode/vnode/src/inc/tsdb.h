@@ -148,9 +148,6 @@ int32_t tCmprDelIdx(void const *lhs, void const *rhs);
 // SDelData
 int32_t tPutDelData(uint8_t *p, void *ph);
 int32_t tGetDelData(uint8_t *p, void *ph);
-// memory
-int32_t tsdbRealloc(uint8_t **ppBuf, int64_t size);
-void    tsdbFree(uint8_t *pBuf);
 // SMapData
 #define tMapDataInit() ((SMapData){0})
 void    tMapDataReset(SMapData *pMapData);

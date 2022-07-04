@@ -22,8 +22,8 @@ void tMapDataReset(SMapData *pMapData) {
 }
 
 void tMapDataClear(SMapData *pMapData) {
-  tsdbFree((uint8_t *)pMapData->aOffset);
-  tsdbFree(pMapData->pData);
+  tFree((uint8_t *)pMapData->aOffset);
+  tFree(pMapData->pData);
 }
 
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *)) {
@@ -35,9 +35,9 @@ int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(u
   pMapData->nData += tPutItemFn(NULL, pItem);
 
   // alloc
-  code = tsdbRealloc((uint8_t **)&pMapData->aOffset, sizeof(int32_t) * pMapData->nItem);
+  code = tRealloc((uint8_t **)&pMapData->aOffset, sizeof(int32_t) * pMapData->nItem);
   if (code) goto _err;
-  code = tsdbRealloc(&pMapData->pData, pMapData->nData);
+  code = tRealloc(&pMapData->pData, pMapData->nData);
   if (code) goto _err;
 
   // put
@@ -109,55 +109,19 @@ int32_t tGetMapData(uint8_t *p, SMapData *pMapData) {
 
   n += tGetI32v(p + n, &pMapData->nItem);
   if (pMapData->nItem) {
-    if (tsdbRealloc((uint8_t **)&pMapData->aOffset, sizeof(int32_t) * pMapData->nItem)) return -1;
+    if (tRealloc((uint8_t **)&pMapData->aOffset, sizeof(int32_t) * pMapData->nItem)) return -1;
 
     for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
       n += tGetI32v(p + n, &pMapData->aOffset[iItem]);
     }
 
     n += tGetI32v(p + n, &pMapData->nData);
-    if (tsdbRealloc(&pMapData->pData, pMapData->nData)) return -1;
+    if (tRealloc(&pMapData->pData, pMapData->nData)) return -1;
     memcpy(pMapData->pData, p + n, pMapData->nData);
     n += pMapData->nData;
   }
 
   return n;
-}
-
-// Memory =======================================================================
-int32_t tsdbRealloc(uint8_t **ppBuf, int64_t size) {
-  int32_t  code = 0;
-  int64_t  bsize = 0;
-  uint8_t *pBuf;
-
-  if (*ppBuf) {
-    bsize = *(int64_t *)((*ppBuf) - sizeof(int64_t));
-  }
-
-  if (bsize >= size) goto _exit;
-
-  if (bsize == 0) bsize = 64;
-  while (bsize < size) {
-    bsize *= 2;
-  }
-
-  pBuf = taosMemoryRealloc(*ppBuf ? (*ppBuf) - sizeof(int64_t) : *ppBuf, bsize + sizeof(int64_t));
-  if (pBuf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
-  }
-
-  *(int64_t *)pBuf = bsize;
-  *ppBuf = pBuf + sizeof(int64_t);
-
-_exit:
-  return code;
-}
-
-void tsdbFree(uint8_t *pBuf) {
-  if (pBuf) {
-    taosMemoryFree(pBuf - sizeof(int64_t));
-  }
 }
 
 // TABLEID =======================================================================
@@ -796,9 +760,9 @@ void tColDataReset(SColData *pColData) {
 void tColDataClear(void *ph) {
   SColData *pColData = (SColData *)ph;
 
-  tsdbFree(pColData->pBitMap);
-  tsdbFree((uint8_t *)pColData->aOffset);
-  tsdbFree(pColData->pData);
+  tFree(pColData->pBitMap);
+  tFree((uint8_t *)pColData->aOffset);
+  tFree(pColData->pData);
 }
 
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
@@ -812,7 +776,7 @@ int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
 
   // realloc bitmap
   size = BIT2_SIZE(pColData->nVal + 1);
-  code = tsdbRealloc(&pColData->pBitMap, size);
+  code = tRealloc(&pColData->pBitMap, size);
   if (code) goto _exit;
 
   // put value
@@ -830,19 +794,19 @@ int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
 
   if (IS_VAR_DATA_TYPE(pColData->type)) {
     // offset
-    code = tsdbRealloc((uint8_t **)&pColData->aOffset, sizeof(int32_t) * (pColData->nVal + 1));
+    code = tRealloc((uint8_t **)&pColData->aOffset, sizeof(int32_t) * (pColData->nVal + 1));
     if (code) goto _exit;
     pColData->aOffset[pColData->nVal] = pColData->nData;
 
     // value
     if ((!pColVal->isNone) && (!pColVal->isNull)) {
-      code = tsdbRealloc(&pColData->pData, pColData->nData + pColVal->value.nData);
+      code = tRealloc(&pColData->pData, pColData->nData + pColVal->value.nData);
       if (code) goto _exit;
       memcpy(pColData->pData + pColData->nData, pColVal->value.pData, pColVal->value.nData);
       pColData->nData += pColVal->value.nData;
     }
   } else {
-    code = tsdbRealloc(&pColData->pData, pColData->nData + tPutValue(NULL, pValue, pColVal->type));
+    code = tRealloc(&pColData->pData, pColData->nData + tPutValue(NULL, pValue, pColVal->type));
     if (code) goto _exit;
     pColData->nData += tPutValue(pColData->pData + pColData->nData, pValue, pColVal->type);
   }
@@ -864,20 +828,20 @@ int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
   pColDataDest->flag = pColDataSrc->flag;
 
   size = BIT2_SIZE(pColDataSrc->nVal);
-  code = tsdbRealloc(&pColDataDest->pBitMap, size);
+  code = tRealloc(&pColDataDest->pBitMap, size);
   if (code) goto _exit;
   memcpy(pColDataDest->pBitMap, pColDataSrc->pBitMap, size);
 
   if (IS_VAR_DATA_TYPE(pColDataDest->type)) {
     size = sizeof(int32_t) * pColDataSrc->nVal;
 
-    code = tsdbRealloc((uint8_t **)&pColDataDest->aOffset, size);
+    code = tRealloc((uint8_t **)&pColDataDest->aOffset, size);
     if (code) goto _exit;
 
     memcpy(pColDataDest->aOffset, pColDataSrc->aOffset, size);
   }
 
-  code = tsdbRealloc(&pColDataDest->pData, pColDataSrc->nData);
+  code = tRealloc(&pColDataDest->pData, pColDataSrc->nData);
   if (code) goto _exit;
   pColDataDest->nData = pColDataSrc->nData;
   memcpy(pColDataDest->pData, pColDataSrc->pData, pColDataDest->nData);
@@ -970,8 +934,8 @@ void tBlockDataReset(SBlockData *pBlockData) {
 }
 
 void tBlockDataClear(SBlockData *pBlockData) {
-  tsdbFree((uint8_t *)pBlockData->aVersion);
-  tsdbFree((uint8_t *)pBlockData->aTSKEY);
+  tFree((uint8_t *)pBlockData->aVersion);
+  tFree((uint8_t *)pBlockData->aTSKEY);
   taosArrayDestroy(pBlockData->aColDataP);
   taosArrayDestroyEx(pBlockData->aColData, tColDataClear);
 }
@@ -1033,9 +997,9 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   int32_t code = 0;
 
   // TSDBKEY
-  code = tsdbRealloc((uint8_t **)&pBlockData->aVersion, sizeof(int64_t) * (pBlockData->nRow + 1));
+  code = tRealloc((uint8_t **)&pBlockData->aVersion, sizeof(int64_t) * (pBlockData->nRow + 1));
   if (code) goto _err;
-  code = tsdbRealloc((uint8_t **)&pBlockData->aTSKEY, sizeof(TSKEY) * (pBlockData->nRow + 1));
+  code = tRealloc((uint8_t **)&pBlockData->aTSKEY, sizeof(TSKEY) * (pBlockData->nRow + 1));
   if (code) goto _err;
   pBlockData->aVersion[pBlockData->nRow] = TSDBROW_VERSION(pRow);
   pBlockData->aTSKEY[pBlockData->nRow] = TSDBROW_TS(pRow);
@@ -1196,9 +1160,9 @@ int32_t tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest) {
 
   pBlockDataDest->nRow = pBlockDataSrc->nRow;
   // TSDBKEY
-  code = tsdbRealloc((uint8_t **)&pBlockDataDest->aVersion, sizeof(int64_t) * pBlockDataSrc->nRow);
+  code = tRealloc((uint8_t **)&pBlockDataDest->aVersion, sizeof(int64_t) * pBlockDataSrc->nRow);
   if (code) goto _exit;
-  code = tsdbRealloc((uint8_t **)&pBlockDataDest->aTSKEY, sizeof(TSKEY) * pBlockDataSrc->nRow);
+  code = tRealloc((uint8_t **)&pBlockDataDest->aTSKEY, sizeof(TSKEY) * pBlockDataSrc->nRow);
   if (code) goto _exit;
   memcpy(pBlockDataDest->aVersion, pBlockDataSrc->aVersion, sizeof(int64_t) * pBlockDataSrc->nRow);
   memcpy(pBlockDataDest->aTSKEY, pBlockDataSrc->aTSKEY, sizeof(TSKEY) * pBlockDataSrc->nRow);
