@@ -13,13 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "indexFstCountingWriter.h"
+#include "indexFstFile.h"
 #include "indexFstUtil.h"
 #include "indexInt.h"
 #include "os.h"
 #include "tutil.h"
 
-static int writeCtxDoWrite(WriterCtx* ctx, uint8_t* buf, int len) {
+static int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) {
   if (ctx->type == TFile) {
     assert(len == taosWriteFile(ctx->file.pFile, buf, len));
   } else {
@@ -28,7 +28,7 @@ static int writeCtxDoWrite(WriterCtx* ctx, uint8_t* buf, int len) {
   ctx->offset += len;
   return len;
 }
-static int writeCtxDoRead(WriterCtx* ctx, uint8_t* buf, int len) {
+static int idxFileCtxDoRead(IFileCtx* ctx, uint8_t* buf, int len) {
   int nRead = 0;
   if (ctx->type == TFile) {
 #ifdef USE_MMAP
@@ -44,7 +44,7 @@ static int writeCtxDoRead(WriterCtx* ctx, uint8_t* buf, int len) {
 
   return nRead;
 }
-static int writeCtxDoReadFrom(WriterCtx* ctx, uint8_t* buf, int len, int32_t offset) {
+static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t offset) {
   int nRead = 0;
   if (ctx->type == TFile) {
     // tfLseek(ctx->file.pFile, offset, 0);
@@ -61,7 +61,7 @@ static int writeCtxDoReadFrom(WriterCtx* ctx, uint8_t* buf, int len, int32_t off
   }
   return nRead;
 }
-static int writeCtxGetSize(WriterCtx* ctx) {
+static int idxFileCtxGetSize(IFileCtx* ctx) {
   if (ctx->type == TFile) {
     int64_t file_size = 0;
     taosStatFile(ctx->file.buf, &file_size, NULL);
@@ -69,7 +69,7 @@ static int writeCtxGetSize(WriterCtx* ctx) {
   }
   return 0;
 }
-static int writeCtxDoFlush(WriterCtx* ctx) {
+static int idxFileCtxDoFlush(IFileCtx* ctx) {
   if (ctx->type == TFile) {
     // taosFsyncFile(ctx->file.pFile);
     taosFsyncFile(ctx->file.pFile);
@@ -80,8 +80,8 @@ static int writeCtxDoFlush(WriterCtx* ctx) {
   return 1;
 }
 
-WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int32_t capacity) {
-  WriterCtx* ctx = taosMemoryCalloc(1, sizeof(WriterCtx));
+IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int32_t capacity) {
+  IFileCtx* ctx = taosMemoryCalloc(1, sizeof(IFileCtx));
   if (ctx == NULL) {
     return NULL;
   }
@@ -90,39 +90,36 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
   if (ctx->type == TFile) {
     // ugly code, refactor later
     ctx->file.readOnly = readOnly;
+    memcpy(ctx->file.buf, path, strlen(path));
     if (readOnly == false) {
-      // ctx->file.pFile = open(path, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
       ctx->file.pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
       taosFtruncateFile(ctx->file.pFile, 0);
-      int64_t file_size;
-      taosStatFile(path, &file_size, NULL);
-      ctx->file.size = (int)file_size;
+      taosStatFile(path, &ctx->file.size, NULL);
+      // ctx->file.size = (int)size;
 
     } else {
-      // ctx->file.pFile = open(path, O_RDONLY, S_IRWXU | S_IRWXG | S_IRWXO);
       ctx->file.pFile = taosOpenFile(path, TD_FILE_READ);
 
-      int64_t file_size = 0;
-      taosFStatFile(ctx->file.pFile, &file_size, NULL);
-      ctx->file.size = (int)file_size;
+      int64_t size = 0;
+      taosFStatFile(ctx->file.pFile, &ctx->file.size, NULL);
+      ctx->file.size = (int)size;
 #ifdef USE_MMAP
       ctx->file.ptr = (char*)tfMmapReadOnly(ctx->file.pFile, ctx->file.size);
 #endif
     }
-    memcpy(ctx->file.buf, path, strlen(path));
     if (ctx->file.pFile == NULL) {
       indexError("failed to open file, error %d", errno);
       goto END;
     }
   } else if (ctx->type == TMemory) {
     ctx->mem.buf = taosMemoryCalloc(1, sizeof(char) * capacity);
-    ctx->mem.capa = capacity;
+    ctx->mem.cap = capacity;
   }
-  ctx->write = writeCtxDoWrite;
-  ctx->read = writeCtxDoRead;
-  ctx->flush = writeCtxDoFlush;
-  ctx->readFrom = writeCtxDoReadFrom;
-  ctx->size = writeCtxGetSize;
+  ctx->write = idxFileCtxDoWrite;
+  ctx->read = idxFileCtxDoRead;
+  ctx->flush = idxFileCtxDoFlush;
+  ctx->readFrom = idxFileCtxDoReadFrom;
+  ctx->size = idxFileCtxGetSize;
 
   ctx->offset = 0;
   ctx->limit = capacity;
@@ -135,7 +132,7 @@ END:
   taosMemoryFree(ctx);
   return NULL;
 }
-void writerCtxDestroy(WriterCtx* ctx, bool remove) {
+void idxFileCtxDestroy(IFileCtx* ctx, bool remove) {
   if (ctx->type == TMemory) {
     taosMemoryFree(ctx->mem.buf);
   } else {
@@ -149,9 +146,6 @@ void writerCtxDestroy(WriterCtx* ctx, bool remove) {
     if (ctx->file.readOnly == false) {
       int64_t file_size = 0;
       taosStatFile(ctx->file.buf, &file_size, NULL);
-      // struct stat fstat;
-      // stat(ctx->file.buf, &fstat);
-      // indexError("write file size: %d", (int)(fstat.st_size));
     }
     if (remove) {
       unlink(ctx->file.buf);
@@ -160,30 +154,29 @@ void writerCtxDestroy(WriterCtx* ctx, bool remove) {
   taosMemoryFree(ctx);
 }
 
-FstCountingWriter* fstCountingWriterCreate(void* wrt) {
-  FstCountingWriter* cw = taosMemoryCalloc(1, sizeof(FstCountingWriter));
+IdxFstFile* idxFileCreate(void* wrt) {
+  IdxFstFile* cw = taosMemoryCalloc(1, sizeof(IdxFstFile));
   if (cw == NULL) {
     return NULL;
   }
 
   cw->wrt = wrt;
-  //(void *)(writerCtxCreate(TFile, readOnly));
   return cw;
 }
-void fstCountingWriterDestroy(FstCountingWriter* cw) {
+void idxFileDestroy(IdxFstFile* cw) {
   // free wrt object: close fd or free mem
-  fstCountingWriterFlush(cw);
-  // writerCtxDestroy((WriterCtx *)(cw->wrt));
+  idxFileFlush(cw);
+  // idxFileCtxDestroy((IFileCtx *)(cw->wrt));
   taosMemoryFree(cw);
 }
 
-int fstCountingWriterWrite(FstCountingWriter* write, uint8_t* buf, uint32_t len) {
+int idxFileWrite(IdxFstFile* write, uint8_t* buf, uint32_t len) {
   if (write == NULL) {
     return 0;
   }
   // update checksum
   // write data to file/socket or mem
-  WriterCtx* ctx = write->wrt;
+  IFileCtx* ctx = write->wrt;
 
   int nWrite = ctx->write(ctx, buf, len);
   assert(nWrite == len);
@@ -192,42 +185,41 @@ int fstCountingWriterWrite(FstCountingWriter* write, uint8_t* buf, uint32_t len)
   write->summer = taosCalcChecksum(write->summer, buf, len);
   return len;
 }
-int fstCountingWriterRead(FstCountingWriter* write, uint8_t* buf, uint32_t len) {
+int idxFileRead(IdxFstFile* write, uint8_t* buf, uint32_t len) {
   if (write == NULL) {
     return 0;
   }
-  WriterCtx* ctx = write->wrt;
-  int        nRead = ctx->read(ctx, buf, len);
+  IFileCtx* ctx = write->wrt;
+  int       nRead = ctx->read(ctx, buf, len);
   // assert(nRead == len);
   return nRead;
 }
 
-uint32_t fstCountingWriterMaskedCheckSum(FstCountingWriter* write) {
+uint32_t idxFileMaskedCheckSum(IdxFstFile* write) {
   // opt
   return write->summer;
 }
 
-int fstCountingWriterFlush(FstCountingWriter* write) {
-  WriterCtx* ctx = write->wrt;
+int idxFileFlush(IdxFstFile* write) {
+  IFileCtx* ctx = write->wrt;
   ctx->flush(ctx);
-  // write->wtr->flush
   return 1;
 }
 
-void fstCountingWriterPackUintIn(FstCountingWriter* writer, uint64_t n, uint8_t nBytes) {
+void idxFilePackUintIn(IdxFstFile* writer, uint64_t n, uint8_t nBytes) {
   assert(1 <= nBytes && nBytes <= 8);
   uint8_t* buf = taosMemoryCalloc(8, sizeof(uint8_t));
   for (uint8_t i = 0; i < nBytes; i++) {
     buf[i] = (uint8_t)n;
     n = n >> 8;
   }
-  fstCountingWriterWrite(writer, buf, nBytes);
+  idxFileWrite(writer, buf, nBytes);
   taosMemoryFree(buf);
   return;
 }
 
-uint8_t fstCountingWriterPackUint(FstCountingWriter* writer, uint64_t n) {
+uint8_t idxFilePackUint(IdxFstFile* writer, uint64_t n) {
   uint8_t nBytes = packSize(n);
-  fstCountingWriterPackUintIn(writer, n, nBytes);
+  idxFilePackUintIn(writer, n, nBytes);
   return nBytes;
 }

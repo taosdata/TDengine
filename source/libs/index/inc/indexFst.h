@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "indexFstAutomation.h"
-#include "indexFstCountingWriter.h"
+#include "indexFstFile.h"
 #include "indexFstNode.h"
 #include "indexFstRegistry.h"
 #include "indexFstUtil.h"
@@ -90,8 +90,8 @@ FstBuilderNode*     fstUnFinishedNodesPopEmpty(FstUnFinishedNodes* nodes);
 uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes* node, FstSlice bs, Output in, Output* out);
 
 typedef struct FstBuilder {
-  FstCountingWriter*  wrt;         // The FST raw data is written directly to `wtr`.
-  FstUnFinishedNodes* unfinished;  // The stack of unfinished nodes
+  IdxFstFile*         wrt;         // The FST raw data is written directly to `wtr`.
+  FstUnFinishedNodes* unfinished;  // The stack of unfinished  nodes
   FstRegistry*        registry;    // A map of finished nodes.
   FstSlice            last;        // The last word added
   CompiledAddr        lastAddr;    // The address of the last compiled node
@@ -125,9 +125,9 @@ FstState fstStateCreateFrom(FstSlice* data, CompiledAddr addr);
 FstState fstStateCreate(State state);
 
 // compile
-void fstStateCompileForOneTransNext(FstCountingWriter* w, CompiledAddr addr, uint8_t inp);
-void fstStateCompileForOneTrans(FstCountingWriter* w, CompiledAddr addr, FstTransition* trn);
-void fstStateCompileForAnyTrans(FstCountingWriter* w, CompiledAddr addr, FstBuilderNode* node);
+void fstStateCompileForOneTransNext(IdxFstFile* w, CompiledAddr addr, uint8_t inp);
+void fstStateCompileForOneTrans(IdxFstFile* w, CompiledAddr addr, FstTransition* trn);
+void fstStateCompileForAnyTrans(IdxFstFile* w, CompiledAddr addr, FstBuilderNode* node);
 
 // set_comm_input
 void fstStateSetCommInput(FstState* state, uint8_t inp);
@@ -282,7 +282,7 @@ FStmSt* stmBuilderIntoStm(FStmBuilder* sb);
 bool fstVerify(Fst* fst);
 
 // refactor this function
-bool fstBuilderNodeCompileTo(FstBuilderNode* b, FstCountingWriter* wrt, CompiledAddr lastAddr, CompiledAddr startAddr);
+bool fstBuilderNodeCompileTo(FstBuilderNode* b, IdxFstFile* wrt, CompiledAddr lastAddr, CompiledAddr startAddr);
 
 typedef struct StreamState {
   FstNode*  node;

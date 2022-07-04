@@ -8,8 +8,8 @@ print =============== create database
 sql create database d0 keep 365000d,365000d,365000d
 sql use d0
 
-print =============== create super table and register rsma
-sql create table if not exists stb (ts timestamp, c1 int) tags (city binary(20),district binary(20)) rollup(min);
+print =============== create super table
+sql create table if not exists stb (ts timestamp, c1 int) tags (city binary(20),district binary(20));
 
 sql show stables
 if $rows != 1 then 
