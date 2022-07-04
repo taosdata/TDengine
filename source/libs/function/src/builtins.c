@@ -1032,6 +1032,8 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
 
+    int8_t binType;
+    char*  binDesc;
     for (int32_t i = 1; i < numOfParams; ++i) {
       SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, i);
       if (QUERY_NODE_VALUE != nodeType(pParamNode)) {
@@ -1041,6 +1043,23 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
       SValueNode* pValue = (SValueNode*)pParamNode;
 
       pValue->notReserved = true;
+
+      if (i == 1) {
+        binType = validateHistogramBinType(varDataVal(pValue->datum.p));
+        if (binType == UNKNOWN_BIN) {
+          return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                                 "HISTOGRAM function binType parameter should be "
+                                 "\"user_input\", \"log_bin\" or \"linear_bin\"");
+        }
+      }
+
+      if (i == 2) {
+        char errMsg[128] = {0};
+        binDesc = varDataVal(pValue->datum.p);
+        if (!validateHistogramBinDesc(binDesc, binType, errMsg, (int32_t)sizeof(errMsg))) {
+          return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, errMsg);
+        }
+      }
 
       if (i == 3 && pValue->datum.i != 1 && pValue->datum.i != 0) {
           return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
