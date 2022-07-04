@@ -55,5 +55,5 @@ check $? insertCn.csproj
 cd ${WKC}/tests/examples/C#/taosdemo
 dotnet build -c Release
 tree | true
-./bin/Release/net6.0/taosdemo -c /etc/taos -y
+./bin/Release/net5.0/taosdemo -c /etc/taos -y
 check $? taosdemo
