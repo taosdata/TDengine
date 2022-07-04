@@ -39,11 +39,11 @@ extern "C" {
 #endif
 
 // vnode
-typedef struct SVnode           SVnode;
-typedef struct STsdbCfg         STsdbCfg;  // todo: remove
-typedef struct SVnodeCfg        SVnodeCfg;
-typedef struct SVSnapshotReader SVSnapshotReader;
-typedef struct SVSnapshotWriter SVSnapshotWriter;
+typedef struct SVnode       SVnode;
+typedef struct STsdbCfg     STsdbCfg;  // todo: remove
+typedef struct SVnodeCfg    SVnodeCfg;
+typedef struct SVSnapReader SVSnapReader;
+typedef struct SVSnapWriter SVSnapWriter;
 
 extern const SVnodeCfg vnodeCfgDefault;
 
@@ -157,14 +157,14 @@ int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, SStreamReader *pHandle);
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
 
-// SVSnapshotReader
-int32_t vnodeSnapshotReaderOpen(SVnode *pVnode, SVSnapshotReader **ppReader, int64_t sver, int64_t ever);
-int32_t vnodeSnapshotReaderClose(SVSnapshotReader *pReader);
-int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32_t *nData);
-// SVSnapshotWriter;
-int32_t vnodeSnapshotWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapshotWriter **ppWriter);
-int32_t vnodeSnapshotWrite(SVSnapshotWriter *pWriter, uint8_t *pData, uint32_t nData);
-int32_t vnodeSnapshotWriterClose(SVSnapshotWriter *pWriter, int8_t rollback);
+// SVSnapReader
+int32_t vnodeSnapReaderOpen(SVnode *pVnode, SVSnapReader **ppReader, int64_t sver, int64_t ever);
+int32_t vnodeSnapReaderClose(SVSnapReader *pReader);
+int32_t vnodeSnapRead(SVSnapReader *pReader, const void **ppData, uint32_t *nData);
+// SVSnapWriter;
+int32_t vnodeSnapshotWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter);
+int32_t vnodeSnapshotWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData);
+int32_t vnodeSnapshotWriterClose(SVSnapWriter *pWriter, int8_t rollback);
 
 // structs
 struct STsdbCfg {

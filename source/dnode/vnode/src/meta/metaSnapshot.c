@@ -15,19 +15,19 @@
 
 #include "meta.h"
 
-struct SMetaSnapshotReader {
+struct SMetaSnapReader {
   SMeta*  pMeta;
   TBC*    pTbc;
   int64_t sver;
   int64_t ever;
 };
 
-int32_t metaSnapshotReaderOpen(SMeta* pMeta, SMetaSnapshotReader** ppReader, int64_t sver, int64_t ever) {
-  int32_t              code = 0;
-  int32_t              c = 0;
-  SMetaSnapshotReader* pMetaReader = NULL;
+int32_t metaSnapReaderOpen(SMeta* pMeta, SMetaSnapReader** ppReader, int64_t sver, int64_t ever) {
+  int32_t          code = 0;
+  int32_t          c = 0;
+  SMetaSnapReader* pMetaReader = NULL;
 
-  pMetaReader = (SMetaSnapshotReader*)taosMemoryCalloc(1, sizeof(*pMetaReader));
+  pMetaReader = (SMetaSnapReader*)taosMemoryCalloc(1, sizeof(*pMetaReader));
   if (pMetaReader == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -53,7 +53,7 @@ _err:
   return code;
 }
 
-int32_t metaSnapshotReaderClose(SMetaSnapshotReader* pReader) {
+int32_t metaSnapReaderClose(SMetaSnapReader* pReader) {
   if (pReader) {
     tdbTbcClose(pReader->pTbc);
     taosMemoryFree(pReader);
@@ -61,7 +61,7 @@ int32_t metaSnapshotReaderClose(SMetaSnapshotReader* pReader) {
   return 0;
 }
 
-int32_t metaSnapshotRead(SMetaSnapshotReader* pReader, void** ppData, uint32_t* nDatap) {
+int32_t metaSnapRead(SMetaSnapReader* pReader, void** ppData, uint32_t* nDatap) {
   const void* pKey = NULL;
   const void* pData = NULL;
   int32_t     nKey = 0;

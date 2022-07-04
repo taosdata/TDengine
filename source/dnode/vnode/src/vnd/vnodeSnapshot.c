@@ -15,29 +15,29 @@
 
 #include "vnodeInt.h"
 
-struct SVSnapshotReader {
-  SVnode              *pVnode;
-  int64_t              sver;
-  int64_t              ever;
-  int8_t               isMetaEnd;
-  int8_t               isTsdbEnd;
-  SMetaSnapshotReader *pMetaReader;
-  STsdbSnapshotReader *pTsdbReader;
-  void                *pData;
-  int32_t              nData;
+struct SVSnapReader {
+  SVnode          *pVnode;
+  int64_t          sver;
+  int64_t          ever;
+  int8_t           isMetaEnd;
+  int8_t           isTsdbEnd;
+  SMetaSnapReader *pMetaReader;
+  STsdbSnapReader *pTsdbReader;
+  void            *pData;
+  int32_t          nData;
 };
 
-struct SVSnapshotWriter {
+struct SVSnapWriter {
   SVnode *pVnode;
   int64_t sver;
   int64_t ever;
 };
 
-// SVSnapshotReader ========================================================
-int32_t vnodeSnapshotReaderOpen(SVnode *pVnode, SVSnapshotReader **ppReader, int64_t sver, int64_t ever) {
-  SVSnapshotReader *pReader = NULL;
+// SVSnapReader ========================================================
+int32_t vnodeSnapReaderOpen(SVnode *pVnode, SVSnapReader **ppReader, int64_t sver, int64_t ever) {
+  SVSnapReader *pReader = NULL;
 
-  pReader = (SVSnapshotReader *)taosMemoryCalloc(1, sizeof(*pReader));
+  pReader = (SVSnapReader *)taosMemoryCalloc(1, sizeof(*pReader));
   if (pReader == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -48,13 +48,13 @@ int32_t vnodeSnapshotReaderOpen(SVnode *pVnode, SVSnapshotReader **ppReader, int
   pReader->isMetaEnd = 0;
   pReader->isTsdbEnd = 0;
 
-  if (metaSnapshotReaderOpen(pVnode->pMeta, &pReader->pMetaReader, sver, ever) < 0) {
+  if (metaSnapReaderOpen(pVnode->pMeta, &pReader->pMetaReader, sver, ever) < 0) {
     taosMemoryFree(pReader);
     goto _err;
   }
 
-  if (tsdbSnapshotReaderOpen(pVnode->pTsdb, &pReader->pTsdbReader, sver, ever) < 0) {
-    metaSnapshotReaderClose(pReader->pMetaReader);
+  if (tsdbSnapReaderOpen(pVnode->pTsdb, &pReader->pTsdbReader, sver, ever) < 0) {
+    metaSnapReaderClose(pReader->pMetaReader);
     taosMemoryFree(pReader);
     goto _err;
   }
@@ -68,21 +68,21 @@ _err:
   return -1;
 }
 
-int32_t vnodeSnapshotReaderClose(SVSnapshotReader *pReader) {
+int32_t vnodeSnapReaderClose(SVSnapReader *pReader) {
   if (pReader) {
     vnodeFree(pReader->pData);
-    tsdbSnapshotReaderClose(pReader->pTsdbReader);
-    metaSnapshotReaderClose(pReader->pMetaReader);
+    tsdbSnapReaderClose(pReader->pTsdbReader);
+    metaSnapReaderClose(pReader->pMetaReader);
     taosMemoryFree(pReader);
   }
   return 0;
 }
 
-int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32_t *nData) {
+int32_t vnodeSnapRead(SVSnapReader *pReader, const void **ppData, uint32_t *nData) {
   int32_t code = 0;
 
   if (!pReader->isMetaEnd) {
-    code = metaSnapshotRead(pReader->pMetaReader, &pReader->pData, &pReader->nData);
+    code = metaSnapRead(pReader->pMetaReader, &pReader->pData, &pReader->nData);
     if (code) {
       if (code == TSDB_CODE_VND_READ_END) {
         pReader->isMetaEnd = 1;
@@ -97,7 +97,7 @@ int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32
   }
 
   if (!pReader->isTsdbEnd) {
-    code = tsdbSnapshotRead(pReader->pTsdbReader, &pReader->pData, &pReader->nData);
+    code = tsdbSnapRead(pReader->pTsdbReader, &pReader->pData, &pReader->nData);
     if (code) {
       if (code == TSDB_CODE_VND_READ_END) {
         pReader->isTsdbEnd = 1;
@@ -115,13 +115,13 @@ int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32
   return code;
 }
 
-// SVSnapshotWriter ========================================================
-int32_t vnodeSnapshotWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapshotWriter **ppWriter) {
-  int32_t           code = 0;
-  SVSnapshotWriter *pWriter = NULL;
+// SVSnapWriter ========================================================
+int32_t vnodeSnapshotWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {
+  int32_t       code = 0;
+  SVSnapWriter *pWriter = NULL;
 
   // alloc
-  pWriter = (SVSnapshotWriter *)taosMemoryCalloc(1, sizeof(*pWriter));
+  pWriter = (SVSnapWriter *)taosMemoryCalloc(1, sizeof(*pWriter));
   if (pWriter == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -136,13 +136,13 @@ _err:
   return code;
 }
 
-int32_t vnodeSnapshotWrite(SVSnapshotWriter *pWriter, uint8_t *pData, uint32_t nData) {
+int32_t vnodeSnapshotWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
   // TODO
   return code;
 }
 
-int32_t vnodeSnapshotWriterClose(SVSnapshotWriter *pWriter, int8_t rollback) {
+int32_t vnodeSnapshotWriterClose(SVSnapWriter *pWriter, int8_t rollback) {
   int32_t code = 0;
 
   if (!rollback) {

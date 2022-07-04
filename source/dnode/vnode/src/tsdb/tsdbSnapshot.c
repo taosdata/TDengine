@@ -15,7 +15,7 @@
 
 #include "tsdb.h"
 
-struct STsdbSnapshotReader {
+struct STsdbSnapReader {
   STsdb*  pTsdb;
   int64_t sver;
   int64_t ever;
@@ -25,22 +25,23 @@ struct STsdbSnapshotReader {
   SDelFReader* pDelFReader;
 };
 
-typedef struct STsdbSnapshotWriter {
+typedef struct STsdbSnapWriter {
   STsdb*  pTsdb;
   int64_t sver;
   int64_t ever;
   // for data file
+  int32_t       iDFileSet;
   SDataFWriter* pDataFWriter;
   // for del file
   SDelFWriter* pDelFWriter;
-} STsdbSnapshotWriter;
+} STsdbSnapWriter;
 
-int32_t tsdbSnapshotReaderOpen(STsdb* pTsdb, STsdbSnapshotReader** ppReader, int64_t sver, int64_t ever) {
-  int32_t              code = 0;
-  STsdbSnapshotReader* pReader = NULL;
+int32_t tsdbSnapReaderOpen(STsdb* pTsdb, STsdbSnapReader** ppReader, int64_t sver, int64_t ever) {
+  int32_t          code = 0;
+  STsdbSnapReader* pReader = NULL;
 
   // alloc
-  pReader = (STsdbSnapshotReader*)taosMemoryCalloc(1, sizeof(*pReader));
+  pReader = (STsdbSnapReader*)taosMemoryCalloc(1, sizeof(*pReader));
   if (pReader == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -58,9 +59,13 @@ _err:
   return code;
 }
 
-int32_t tsdbSnapshotRead(STsdbSnapshotReader* pReader, void** ppData, uint32_t* nData) {
+int32_t tsdbSnapRead(STsdbSnapReader* pReader, void** ppData, uint32_t* nData) {
   int32_t code = 0;
-  // TODO
+
+  // read data file
+
+  // read del file
+
   return code;
 
 _err:
@@ -68,7 +73,7 @@ _err:
   return code;
 }
 
-int32_t tsdbSnapshotReaderClose(STsdbSnapshotReader* pReader) {
+int32_t tsdbSnapReaderClose(STsdbSnapReader* pReader) {
   int32_t code = 0;
   taosMemoryFree(pReader);
   return code;
