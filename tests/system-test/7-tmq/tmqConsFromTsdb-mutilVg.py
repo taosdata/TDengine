@@ -17,7 +17,7 @@ from tmqCommon import *
 
 class TDTestCase:
     def __init__(self):
-        self.vgroups    = 1
+        self.vgroups    = 4
         self.ctbNum     = 10
         self.rowsPerTbl = 10000
         
@@ -65,7 +65,8 @@ class TDTestCase:
         
         tdLog.info("restart taosd to ensure that the data falls into the disk")
         tdDnodes.stop(1)
-        tdDnodes.start(1)
+        # tdDnodes.start(1)
+        tdDnodes.starttaosd(1)
         return
 
     def tmqCase1(self):
@@ -128,7 +129,7 @@ class TDTestCase:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[0], resultList[0]))
             tdLog.exit("%d tmq consume rows error!"%consumerId)
 
-        tmqCom.checkFileContent(consumerId, queryString)     
+        # tmqCom.checkFileContent(consumerId, queryString)     
 
         time.sleep(10)        
         for i in range(len(topicNameList)):

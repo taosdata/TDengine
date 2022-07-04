@@ -1422,7 +1422,7 @@ void setExecutionContext(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t
     return;
   }
 #ifdef BUF_PAGE_DEBUG
-  qDebug("page_setbuf, groupId:%"PRIu64, groupId);
+  qDebug("page_setbuf, groupId:%" PRIu64, groupId);
 #endif
   doSetTableGroupOutputBuf(pOperator, pAggInfo, numOfOutput, groupId);
 
@@ -1570,9 +1570,9 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprI
 
     releaseBufPage(pBuf, page);
     pBlock->info.rows += pRow->numOfRows;
-//    if (pBlock->info.rows >= pBlock->info.capacity) {  // output buffer is full
-//      break;
-//    }
+    //    if (pBlock->info.rows >= pBlock->info.capacity) {  // output buffer is full
+    //      break;
+    //    }
   }
 
   qDebug("%s result generated, rows:%d, groupId:%" PRIu64, GET_TASKID(pTaskInfo), pBlock->info.rows,
@@ -2868,7 +2868,24 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
       pInfo->cond.twindows[0].skey = oldSkey;
       pInfo->scanTimes = 0;
       pInfo->curTWinIdx = 0;
+
+      SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+
+      int32_t tableSz = taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList);
+      bool    found = false;
+      for (int32_t i = 0; i < tableSz; i++) {
+        STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, i);
+        if (pTableInfo->uid == uid) {
+          found = true;
+          pInfo->currentTable = i;
+        }
+      }
+      // TODO after processing drop,
+      ASSERT(found);
+      qDebug("tsdb reader offset seek to uid %ld ts %ld, table cur set to %d , all table num %d", uid, ts,
+             pInfo->currentTable, tableSz);
     }
+
     return TSDB_CODE_SUCCESS;
 
   } else {
@@ -3252,6 +3269,10 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     if (pBlock == NULL) {
       doSetOperatorCompleted(pOperator);
       break;
+    }
+    if (pBlock->info.type == STREAM_RETRIEVE) {
+      // for stream interval
+      return pBlock;
     }
 
     // the pDataBlock are always the same one, no need to call this again
@@ -4097,14 +4118,14 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
       ASSERT(nodeType(pNew) == QUERY_NODE_VALUE);
       SValueNode* pValue = (SValueNode*)pNew;
 
-      if (pValue->node.resType.type == TSDB_DATA_TYPE_NULL) {
+      if (pValue->node.resType.type == TSDB_DATA_TYPE_NULL || pValue->isNull) {
         isNull[index++] = 1;
         continue;
       } else {
         isNull[index++] = 0;
         char* data = nodesGetValueFromNode(pValue);
-        if (pValue->node.resType.type == TSDB_DATA_TYPE_JSON){
-          if(tTagIsJson(data)){
+        if (pValue->node.resType.type == TSDB_DATA_TYPE_JSON) {
+          if (tTagIsJson(data)) {
             terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
             taosMemoryFree(keyBuf);
             nodesClearList(groupNew);
@@ -4169,7 +4190,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type) {
       STableMergeScanPhysiNode* pTableScanNode = (STableMergeScanPhysiNode*)pPhyNode;
       int32_t code = createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId);
-      if(code){
+      if (code) {
         pTaskInfo->code = code;
         return NULL;
       }
@@ -4198,7 +4219,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       };
       if (pHandle) {
         int32_t code = createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId);
-        if(code){
+        if (code) {
           pTaskInfo->code = code;
           return NULL;
         }

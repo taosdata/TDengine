@@ -78,21 +78,29 @@ class TDTestCase:
         password = "taosdata"
         port =6030 
         con=taos.connect(host=host, user=user, password=password, config=cfg ,port=port)
-        print(con)
+        tdLog.debug(con)
         return con
-        
+
+    def stmtExe(self,conn,sql,bindStat):
+            queryStat=conn.statement("%s"%sql)
+            queryStat.bind_param(bindStat)
+            queryStat.execute() 
+            result=queryStat.use_result()
+            rows=result.fetch_all()
+            return rows
+
     def test_stmt_set_tbname_tag(self,conn):
-        dbname = "stmt_set_tbname_tag"
-        
+        dbname = "stmt_tag"
+        stablename = 'log'
         try:
             conn.execute("drop database if exists %s" % dbname)
             conn.execute("create database if not exists %s PRECISION 'us' "  % dbname)
             conn.select_db(dbname)
-            conn.execute("create table if not exists log(ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
+            conn.execute("create table if not exists %s(ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
                 bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
                 ff float, dd double, bb binary(100), nn nchar(100), tt timestamp , vc varchar(100)) tags (t1 timestamp, t2 bool,\
                 t3 tinyint, t4 tinyint, t5 smallint, t6 int, t7 bigint, t8 tinyint unsigned, t9 smallint unsigned, \
-                t10 int unsigned, t11 bigint unsigned, t12 float, t13 double, t14 binary(100), t15 nchar(100), t16 timestamp)")
+                t10 int unsigned, t11 bigint unsigned, t12 float, t13 double, t14 binary(100), t15 nchar(100), t16 timestamp)"%stablename)
             
             stmt = conn.statement("insert into ? using log tags (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) \
                 values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
@@ -139,142 +147,93 @@ class TDTestCase:
             assert stmt.affected_rows == 3
 
             #query all 
-            querystmt1=conn.statement("select * from log where bu < ?")
-            queryparam1=new_bind_params(1)
-            print(type(queryparam1))
-            queryparam1[0].int(10)
-            querystmt1.bind_param(queryparam1)
-            querystmt1.execute() 
-            result1=querystmt1.use_result()
-            rows1=result1.fetch_all()
-            print(rows1[0])
-            print(rows1[1])
-            print(rows1[2])
-            assert str(rows1[0][0]) == "2021-07-21 17:56:32.589111"
-            assert rows1[0][10] == 3
-            assert rows1[1][10] == 4
+            queryparam=new_bind_params(1)
+            queryparam[0].int(10)
+            rows=self.stmtExe(conn,"select * from log where bu < ?",queryparam)
+            tdLog.debug("assert 1st case %s"%rows)
+            assert str(rows[0][0]) == "2021-07-21 17:56:32.589111"
+            assert rows[0][10] == 3 , '1st case is failed'
+            assert rows[1][10] == 4 , '1st case is failed'
 
             #query: Numeric Functions
-            querystmt2=conn.statement("select abs(?) from log where bu < ?")
-            queryparam2=new_bind_params(2)
-            print(type(queryparam2))
-            queryparam2[0].int(5)
-            queryparam2[1].int(5)
-            querystmt2.bind_param(queryparam2)
-            querystmt2.execute() 
-            result2=querystmt2.use_result()
-            rows2=result2.fetch_all()
-            print("2",rows2)
-            assert rows2[0][0] == 5
-            assert rows2[1][0] == 5
+            queryparam=new_bind_params(2)
+            queryparam[0].int(5)
+            queryparam[1].int(5)
+            rows=self.stmtExe(conn,"select abs(?) from log where bu < ?",queryparam)
+            tdLog.debug("assert 2nd case %s"%rows)
+            assert rows[0][0] == 5 , '2nd case is failed'
+            assert rows[1][0] == 5 , '2nd case is failed'
 
 
             #query: Numeric Functions and escapes
+            queryparam=new_bind_params(1)
+            queryparam[0].int(5)
+            rows=self.stmtExe(conn,"select abs(?) from log where  nn= 'a? long string with 中文字符'",queryparam)
+            tdLog.debug("assert 3rd case %s"%rows)
+            assert rows == [] , '3rd case is failed'
 
-            querystmt3=conn.statement("select abs(?) from log where  nn= 'a? long string with 中文字符' ")
-            queryparam3=new_bind_params(1)
-            print(type(queryparam3))
-            queryparam3[0].int(5)
-            querystmt3.bind_param(queryparam3)
-            querystmt3.execute() 
-            result3=querystmt3.use_result()
-            rows3=result3.fetch_all()
-            print("3",rows3)
-            assert rows3 == []
+            #query: string Functions
+            queryparam=new_bind_params(1)
+            queryparam[0].binary('中文字符')
+            rows=self.stmtExe(conn,"select CHAR_LENGTH(?) from log ",queryparam)
+            tdLog.debug("assert 4th case %s"%rows)
+            assert rows[0][0] == 12, '4th case is failed'
+            assert rows[1][0] == 12, '4th case is failed'
 
-            # #query: string Functions
+            queryparam=new_bind_params(1)
+            queryparam[0].binary('123')
+            rows=self.stmtExe(conn,"select CHAR_LENGTH(?) from log ",queryparam)
+            tdLog.debug("assert 4th case %s"%rows)
+            assert rows[0][0] == 3, '4th.1 case is failed'
+            assert rows[1][0] == 3, '4th.1 case is failed'
 
-            # querystmt3=conn.statement("select CHAR_LENGTH(?) from log  ")
-            # queryparam3=new_bind_params(1)
-            # print(type(queryparam3))
-            # queryparam3[0].binary('中文字符')
-            # querystmt3.bind_param(queryparam3)
-            # querystmt3.execute() 
-            # result3=querystmt3.use_result()
-            # rows3=result3.fetch_all()
-            # print("4",rows3)
-            # assert rows3[0][0] == 12, 'fourth case is failed'
-            # assert rows3[1][0] == 12, 'fourth case is failed'
+            #query: conversion Functions
+            queryparam=new_bind_params(1)
+            queryparam[0].binary('1232a')           
+            rows=self.stmtExe(conn,"select cast( ? as bigint) from log",queryparam)
+            tdLog.debug("assert 5th case %s"%rows)
+            assert rows[0][0] == 1232, '5th.1 case is failed'
+            assert rows[1][0] == 1232, '5th.1 case is failed'
 
-            # #query: conversion Functions
+            querystmt4=conn.statement("select cast( ? as binary(10)) from log  ")
+            queryparam=new_bind_params(1)
+            queryparam[0].int(123)
+            rows=self.stmtExe(conn,"select cast( ? as bigint) from log",queryparam)
+            tdLog.debug("assert 6th case %s"%rows)
+            assert rows[0][0] == 123, '6th.1 case is failed'
+            assert rows[1][0] == 123, '6th.1 case is failed'
 
-            # querystmt4=conn.statement("select cast( ? as bigint) from log  ")
-            # queryparam4=new_bind_params(1)
-            # print(type(queryparam4))
-            # queryparam4[0].binary('1232a')
-            # querystmt4.bind_param(queryparam4)
-            # querystmt4.execute() 
-            # result4=querystmt4.use_result()
-            # rows4=result4.fetch_all()
-            # print("5",rows4)
-            # assert rows4[0][0] == 1232
-            # assert rows4[1][0] == 1232
-
-            # querystmt4=conn.statement("select cast( ? as binary(10)) from log  ")
-            # queryparam4=new_bind_params(1)
-            # print(type(queryparam4))
-            # queryparam4[0].int(123)
-            # querystmt4.bind_param(queryparam4)
-            # querystmt4.execute() 
-            # result4=querystmt4.use_result()
-            # rows4=result4.fetch_all()
-            # print("6",rows4)
-            # assert rows4[0][0] == '123'
-            # assert rows4[1][0] == '123'
-
-            # #query: datatime Functions
-
-            # querystmt4=conn.statement(" select timediff('2021-07-21 17:56:32.590111',?,1s)  from log  ")
-            # queryparam4=new_bind_params(1)
-            # print(type(queryparam4))
-            # queryparam4[0].timestamp(1626861392591111)
-            # querystmt4.bind_param(queryparam4)
-            # querystmt4.execute() 
-            # result4=querystmt4.use_result()
-            # rows4=result4.fetch_all()
-            # print("7",rows4)
-            # assert rows4[0][0] == 1, 'seventh case is failed'
-            # assert rows4[1][0] == 1, 'seventh case is failed'
+            #query: datatime Functions
+            queryparam=new_bind_params(1)
+            queryparam[0].timestamp(1626861392591112)
+            rows=self.stmtExe(conn,"select timediff('2021-07-21 17:56:32.590111',?,1a)  from log",queryparam)
+            tdLog.debug("assert 7th case %s"%rows)
+            assert rows[0][0] == 1, '7th case is failed'
+            assert rows[1][0] == 1, '7th case is failed'
             
             #query: aggregate Functions
+            queryparam=new_bind_params(1)
+            queryparam[0].int(123)
+            rows=self.stmtExe(conn,"select count(?)  from log ",queryparam)
+            tdLog.debug("assert 8th case %s"%rows)
+            assert rows[0][0] == 3, ' 8th case is failed'
 
-            querystmt4=conn.statement(" select count(?)  from log  ")
-            queryparam4=new_bind_params(1)
-            print(type(queryparam4))
-            queryparam4[0].int(123)
-            querystmt4.bind_param(queryparam4)
-            querystmt4.execute() 
-            result4=querystmt4.use_result()
-            rows4=result4.fetch_all()
-            print("8",rows4)
-            assert rows4[0][0] == 3, ' 8 case is failed'
-
-            #query: selector Functions 9
-
-            querystmt4=conn.statement("  select bottom(bu,?)  from log group by bu ;  ")
-            queryparam4=new_bind_params(1)
-            print(type(queryparam4))
-            queryparam4[0].int(2)
-            querystmt4.bind_param(queryparam4)
-            querystmt4.execute() 
-            result4=querystmt4.use_result()
-            rows4=result4.fetch_all()
-            print("9",rows4)
-            assert rows4[0][0] == 4, ' 9 case is failed'
-            assert rows4[1][0] == 3, ' 9 case is failed'
+            # #query: selector Functions 9
+            # queryparam=new_bind_params(1)
+            # queryparam[0].int(2)
+            # rows=self.stmtExe(conn,"select bottom(bu,?)  from log group by bu ; ",queryparam)
+            # tdLog.debug("assert 9th case %s"%rows)
+            # assert rows[0][0] == 4, ' 9 case is failed'
+            # assert rows[1][0] == 3, ' 9 case is failed'
 
             # #query: time-series specific Functions 10
 
-            querystmt4=conn.statement("  select twa(?)  from log;  ")
-            queryparam4=new_bind_params(1)
-            print(type(queryparam4))
-            queryparam4[0].int(15)
-            querystmt4.bind_param(queryparam4)
-            querystmt4.execute() 
-            result4=querystmt4.use_result()
-            rows4=result4.fetch_all()
-            print("10",rows4)
-            assert rows4[0][0] == 15, ' 10 case is failed'
+            querystmt=conn.statement("  select twa(?)  from log;  ")
+            queryparam=new_bind_params(1)
+            queryparam[0].int(15)
+            rows=self.stmtExe(conn," select twa(?)  from log; ",queryparam)
+            tdLog.debug("assert 10th case %s"%rows)
+            assert rows[0][0] == 15, ' 10th case is failed'
 
 
             # conn.execute("drop database if exists %s" % dbname)
