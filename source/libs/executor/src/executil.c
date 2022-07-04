@@ -764,16 +764,6 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   pCond->twindows[0] = pTableScanNode->scanRange;
   pCond->suid = pTableScanNode->scan.suid;
 
-#if 1
-  // todo work around a problem, remove it later
-  for (int32_t i = 0; i < pCond->numOfTWindows; ++i) {
-    if ((pCond->order == TSDB_ORDER_ASC && pCond->twindows[i].skey > pCond->twindows[i].ekey) ||
-        (pCond->order == TSDB_ORDER_DESC && pCond->twindows[i].skey < pCond->twindows[i].ekey)) {
-      TSWAP(pCond->twindows[i].skey, pCond->twindows[i].ekey);
-    }
-  }
-#endif
-
   pCond->type = BLOCK_LOAD_OFFSET_ORDER;
   //  pCond->type = pTableScanNode->scanFlag;
 
