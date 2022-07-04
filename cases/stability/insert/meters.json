@@ -27,7 +27,7 @@
                     "childtable_count": CHILDTABLECOUNT,
                     "childtable_prefix": "stb_",
                     "auto_create_table": "no",
-                    "batch_create_tbl_num": 50000,
+                    "batch_create_tbl_num": 1000,
                     "data_source": "rand",
                     "insert_mode": "INSERTMODE",
                     "insert_rows": INSERTROWS,
