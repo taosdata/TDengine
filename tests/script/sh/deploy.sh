@@ -135,7 +135,7 @@ echo "jniDebugFlag           143"                >> $TAOS_CFG
 echo "qDebugFlag             143"                >> $TAOS_CFG
 echo "rpcDebugFlag           143"                >> $TAOS_CFG
 echo "tmrDebugFlag           131"                >> $TAOS_CFG
-echo "uDebugFlag             143"                >> $TAOS_CFG
+echo "uDebugFlag             131"                >> $TAOS_CFG
 echo "sDebugFlag             143"                >> $TAOS_CFG
 echo "wDebugFlag             143"                >> $TAOS_CFG
 echo "numOfLogLines          20000000"           >> $TAOS_CFG
