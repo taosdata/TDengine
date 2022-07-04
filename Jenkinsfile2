@@ -127,6 +127,25 @@ def pre_test(){
     '''
     return 1
 }
+def pre_test_build_mac() {
+    sh '''
+        hostname
+        date
+    '''
+    sh '''
+        cd ${WK}
+        rm -rf debug
+        mkdir debug
+    '''
+    sh '''
+        cd ${WK}/debug
+        cmake ..
+        make -j8
+    '''
+    sh '''
+        date
+    '''
+}
 def pre_test_win(){
     bat '''
         hostname
@@ -330,6 +349,17 @@ pipeline {
                                 pre_test_build_win()
                                 run_win_ctest()
                                 run_win_test()
+                            }
+                        }
+                    }
+                }
+                stage('mac test') {
+                    agent{label " Mac_catalina "}
+                    steps {
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            timeout(time: 20, unit: 'MINUTES'){
+                                pre_test()
+                                pre_test_build_mac()
                             }
                         }
                     }
