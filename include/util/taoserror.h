@@ -627,6 +627,8 @@ int32_t* taosGetErrno();
 
 //index
 #define TSDB_CODE_INDEX_REBUILDING               TAOS_DEF_ERROR_CODE(0, 0x3200)
+#define TSDB_CODE_INDEX_INVALID_FILE             TAOS_DEF_ERROR_CODE(0, 0x3201)
+
 
 //tmq
 #define TSDB_CODE_TMQ_INVALID_MSG                TAOS_DEF_ERROR_CODE(0, 0x4000)

@@ -598,6 +598,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TQ_NO_COMMITTED_OFFSET,         "No committed offset
 
 
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding")
+TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Invalid index file")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
 
