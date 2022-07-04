@@ -6,6 +6,7 @@ if %1 == -n set NODE_NAME=%2
 if %1 == -s set EXEC_OPTON=%2
 if %3 == -n set NODE_NAME=%4
 if %3 == -s set EXEC_OPTON=%4
+if "%5" == "-x" set EXEC_SIGNAL=%6
 
 rem echo NODE_NAME:  %NODE_NAME%
 rem echo NODE:       %EXEC_OPTON%
@@ -39,7 +40,7 @@ rem echo TAOS_LOG:   %TAOS_LOG%
 if %EXEC_OPTON% == start (
   rm -rf %TAOS_LOG%
   echo start %TAOSD% -c %CFG_DIR%
-  start %TAOSD% -c %CFG_DIR%
+  mintty -h never %TAOSD% -c %CFG_DIR%
   set /a check_num=0
 :check_online
   sleep 1
@@ -58,13 +59,25 @@ if %EXEC_OPTON% == stop (
   rem echo wmic process where "name='taosd.exe' and CommandLine like '%%%NODE_NAME%%%'" list INSTANCE
   rem wmic process where "name='taosd.exe' and CommandLine like '%%%NODE_NAME%%%'" call terminate > NUL 2>&1
   
-  for /f "tokens=1 skip=1" %%A in (
-    'wmic process where "name='taosd.exe' and CommandLine like '%%%NODE_NAME%%%'" get processId '
-  ) do (
-    rem echo taskkill /IM %%A 
-    taskkill /IM %%A > NUL 2>&1
+  for /f "tokens=2" %%A in ('wmic process where "name='taosd.exe' and CommandLine like '%%%NODE_NAME%%%'" get processId ^| xargs echo') do (
+    for /f "tokens=1" %%B in ('ps ^| grep %%A') do (
+      if "%EXEC_SIGNAL%" == "SIGKILL" (
+        kill -9 %%B
+      ) else (
+        kill -INT %%B
+        call :check_offline
+      )
+    )
     goto :finish
   ) 
 )
-
 :finish
+goto :eof
+
+:check_offline
+sleep 1
+for /f "tokens=2" %%C in ('wmic process where "name='taosd.exe' and CommandLine like '%%%NODE_NAME%%%'" get processId ^| xargs echo') do (
+  echo check taosd offline
+  goto :check_offline
+)
+goto :eof

@@ -67,6 +67,7 @@ typedef struct SSyncNode {
   char        path[TSDB_FILENAME_LEN];
   char        raftStorePath[TSDB_FILENAME_LEN * 2];
   char        configPath[TSDB_FILENAME_LEN * 2];
+  int32_t     batchSize;
 
   // sync io
   SWal*         pWal;
@@ -170,6 +171,7 @@ void       syncNodeStart(SSyncNode* pSyncNode);
 void       syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
 int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak);
+int32_t    syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_t arrSize);
 
 // option
 bool      syncNodeSnapshotEnable(SSyncNode* pSyncNode);
@@ -221,7 +223,6 @@ void syncNodeVoteForSelf(SSyncNode* pSyncNode);
 
 // snapshot --------------
 bool syncNodeHasSnapshot(SSyncNode* pSyncNode);
-bool syncNodeIsIndexInSnapshot(SSyncNode* pSyncNode, SyncIndex index);
 
 SyncIndex syncNodeGetLastIndex(SSyncNode* pSyncNode);
 SyncTerm  syncNodeGetLastTerm(SSyncNode* pSyncNode);

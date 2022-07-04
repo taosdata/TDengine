@@ -220,6 +220,34 @@ void syncClientRequestLog(const SyncClientRequest* pMsg);
 void syncClientRequestLog2(char* s, const SyncClientRequest* pMsg);
 
 // ---------------------------------------------
+typedef struct SOffsetAndContLen {
+  int32_t offset;
+  int32_t contLen;
+} SOffsetAndContLen;
+
+typedef struct SRaftMeta {
+  uint64_t seqNum;
+  bool     isWeak;
+} SRaftMeta;
+
+// block1:
+// block2: SRaftMeta array
+// block3: rpc msg array (with pCont)
+
+typedef struct SyncClientRequestBatch {
+  uint32_t bytes;
+  int32_t  vgId;
+  uint32_t msgType;  // SyncClientRequestBatch msgType
+  uint32_t dataCount;
+  uint32_t dataLen;  // user RpcMsg.contLen
+  char     data[];   // user RpcMsg.pCont
+} SyncClientRequestBatch;
+
+SyncClientRequestBatch* syncClientRequestBatchBuild(SRpcMsg* rpcMsgArr, SRaftMeta* raftArr, int32_t arrSize,
+                                                    int32_t vgId);
+void                    syncClientRequestBatch2RpcMsg(const SyncClientRequestBatch* pSyncMsg, SRpcMsg* pRpcMsg);
+
+// ---------------------------------------------
 typedef struct SyncClientRequestReply {
   uint32_t bytes;
   int32_t  vgId;
@@ -323,6 +351,59 @@ void syncAppendEntriesPrint(const SyncAppendEntries* pMsg);
 void syncAppendEntriesPrint2(char* s, const SyncAppendEntries* pMsg);
 void syncAppendEntriesLog(const SyncAppendEntries* pMsg);
 void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg);
+
+// ---------------------------------------------
+
+// define ahead
+/*
+typedef struct SOffsetAndContLen {
+  int32_t offset;
+  int32_t contLen;
+} SOffsetAndContLen;
+*/
+
+// block1: SOffsetAndContLen
+// block2: SOffsetAndContLen Array
+// block3: SRpcMsg Array
+// block4: SRpcMsg pCont Array
+
+typedef struct SyncAppendEntriesBatch {
+  uint32_t bytes;
+  int32_t  vgId;
+  uint32_t msgType;
+  SRaftId  srcId;
+  SRaftId  destId;
+
+  // private data
+  SyncTerm  term;
+  SyncIndex prevLogIndex;
+  SyncTerm  prevLogTerm;
+  SyncIndex commitIndex;
+  SyncTerm  privateTerm;
+  int32_t   dataCount;
+  uint32_t  dataLen;
+  char      data[];
+} SyncAppendEntriesBatch;
+
+SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SRpcMsg* rpcMsgArr, int32_t arrSize, int32_t vgId);
+void                    syncAppendEntriesBatchDestroy(SyncAppendEntriesBatch* pMsg);
+void                    syncAppendEntriesBatchSerialize(const SyncAppendEntriesBatch* pMsg, char* buf, uint32_t bufLen);
+void                    syncAppendEntriesBatchDeserialize(const char* buf, uint32_t len, SyncAppendEntriesBatch* pMsg);
+char*                   syncAppendEntriesBatchSerialize2(const SyncAppendEntriesBatch* pMsg, uint32_t* len);
+SyncAppendEntriesBatch* syncAppendEntriesBatchDeserialize2(const char* buf, uint32_t len);
+void                    syncAppendEntriesBatch2RpcMsg(const SyncAppendEntriesBatch* pMsg, SRpcMsg* pRpcMsg);
+void                    syncAppendEntriesBatchFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntriesBatch* pMsg);
+SyncAppendEntriesBatch* syncAppendEntriesBatchFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*                  syncAppendEntriesBatch2Json(const SyncAppendEntriesBatch* pMsg);
+char*                   syncAppendEntriesBatch2Str(const SyncAppendEntriesBatch* pMsg);
+void syncAppendEntriesBatch2RpcMsgArray(SyncAppendEntriesBatch* pSyncMsg, SRpcMsg* rpcMsgArr, int32_t maxArrSize,
+                                        int32_t* pRetArrSize);
+
+// for debug ----------------------
+void syncAppendEntriesBatchPrint(const SyncAppendEntriesBatch* pMsg);
+void syncAppendEntriesBatchPrint2(char* s, const SyncAppendEntriesBatch* pMsg);
+void syncAppendEntriesBatchLog(const SyncAppendEntriesBatch* pMsg);
+void syncAppendEntriesBatchLog2(char* s, const SyncAppendEntriesBatch* pMsg);
 
 // ---------------------------------------------
 typedef struct SyncAppendEntriesReply {
@@ -525,6 +606,7 @@ int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
 int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg);
 int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncIndex* pRetIndex);
+int32_t syncNodeOnClientRequestBatchCb(SSyncNode* ths, SyncClientRequestBatch* pMsg);
 int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg);
 int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg);
 int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg);

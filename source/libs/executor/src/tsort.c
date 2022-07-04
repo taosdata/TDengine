@@ -594,7 +594,10 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
       if (size > sortBufSize) {
         // Perform the in-memory sort and then flush data in the buffer into disk.
         int64_t p = taosGetTimestampUs();
-        blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
+        code = blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
+        if (code != 0) {
+          return code;
+        }
 
         int64_t el = taosGetTimestampUs() - p;
         pHandle->sortElapsed += el;
@@ -609,7 +612,10 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
       // Perform the in-memory sort and then flush data in the buffer into disk.
       int64_t p = taosGetTimestampUs();
 
-      blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
+      int32_t code = blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
+      if (code != 0) {
+        return code;
+      }
 
       int64_t el = taosGetTimestampUs() - p;
       pHandle->sortElapsed += el;

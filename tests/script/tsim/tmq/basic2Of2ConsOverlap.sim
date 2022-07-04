@@ -134,6 +134,8 @@ endi
 $totalMsgCons = $totalMsgOfOneTopic + $totalMsgOfStb
 $sumOfMsgCnt = $data[0][2] + $data[1][2]
 if $sumOfMsgCnt != $totalMsgCons then
+  print total: $totalMsgCons
+  print sum: $sumOfMsgCnt
   return -1
 endi
 

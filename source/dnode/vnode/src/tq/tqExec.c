@@ -15,7 +15,7 @@
 
 #include "tq.h"
 
-static int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataBlkRsp* pRsp) {
+static int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp) {
   int32_t dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
   void*   buf = taosMemoryCalloc(1, dataStrLen);
   if (buf == NULL) return -1;
@@ -29,7 +29,7 @@ static int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataBlkRsp* pRs
 
   // TODO enable compress
   int32_t actualLen = 0;
-  blockCompressEncode(pBlock, pRetrieve->data, &actualLen, taosArrayGetSize(pBlock->pDataBlock), false);
+  blockEncode(pBlock, pRetrieve->data, &actualLen, taosArrayGetSize(pBlock->pDataBlock), false);
   actualLen += sizeof(SRetrieveTableRsp);
   ASSERT(actualLen <= dataStrLen);
   taosArrayPush(pRsp->blockDataLen, &actualLen);
@@ -37,7 +37,7 @@ static int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataBlkRsp* pRs
   return 0;
 }
 
-static int32_t tqAddBlockSchemaToRsp(const STqExecHandle* pExec, int32_t workerId, SMqDataBlkRsp* pRsp) {
+static int32_t tqAddBlockSchemaToRsp(const STqExecHandle* pExec, int32_t workerId, SMqDataRsp* pRsp) {
   SSchemaWrapper* pSW = tCloneSSchemaWrapper(pExec->pExecReader[workerId]->pSchemaWrapper);
   if (pSW == NULL) {
     return -1;
@@ -46,10 +46,9 @@ static int32_t tqAddBlockSchemaToRsp(const STqExecHandle* pExec, int32_t workerI
   return 0;
 }
 
-static int32_t tqAddTbNameToRsp(const STQ* pTq, const STqExecHandle* pExec, SMqDataBlkRsp* pRsp, int32_t workerId) {
+static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp, int32_t workerId) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
-  int64_t uid = pExec->pExecReader[workerId]->msgIter.uid;
   if (metaGetTableEntryByUid(&mr, uid) < 0) {
     ASSERT(0);
     return -1;
@@ -60,13 +59,19 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, const STqExecHandle* pExec, SMqD
   return 0;
 }
 
-int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataBlkRsp* pRsp, int32_t workerId) {
+int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffsetVal offset, int32_t workerId) {
   ASSERT(pExec->subType == TOPIC_SUB_TYPE__COLUMN);
   qTaskInfo_t task = pExec->execCol.task[workerId];
-  if (qStreamScanSnapshot(task) < 0) {
+
+  /*if (qStreamScanSnapshot(task) < 0) {*/
+  /*ASSERT(0);*/
+  /*}*/
+
+  if (qStreamPrepareScan(task, offset.uid, offset.ts) < 0) {
     ASSERT(0);
   }
-  // set version
+
+  int32_t rowCnt = 0;
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
@@ -79,17 +84,38 @@ int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataBlkRsp* pRsp
     ASSERT(taosArrayGetSize(pDataBlock->pDataBlock) != 0);
 
     tqAddBlockDataToRsp(pDataBlock, pRsp);
+
+    if (pRsp->withTbName) {
+      pRsp->withTbName = 0;
+#if 0
+      int64_t uid;
+      int64_t ts;
+      if (qGetStreamScanStatus(task, &uid, &ts) < 0) {
+        ASSERT(0);
+      }
+      tqAddTbNameToRsp(pTq, uid, pRsp, workerId);
+#endif
+    }
     pRsp->blockNum++;
+
+    rowCnt += pDataBlock->info.rows;
+    if (rowCnt >= 4096) break;
   }
+  int64_t uid;
+  int64_t ts;
+  if (qGetStreamScanStatus(task, &uid, &ts) < 0) {
+    ASSERT(0);
+  }
+  tqOffsetResetToData(&pRsp->rspOffset, uid, ts);
 
   return 0;
 }
 
-int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkRsp* pRsp, int32_t workerId) {
+int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataRsp* pRsp, int32_t workerId) {
   if (pExec->subType == TOPIC_SUB_TYPE__COLUMN) {
     qTaskInfo_t task = pExec->execCol.task[workerId];
     ASSERT(task);
-    qSetStreamInput(task, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK, false);
+    qSetStreamInput(task, pReq, STREAM_INPUT__DATA_SUBMIT, false);
     while (1) {
       SSDataBlock* pDataBlock = NULL;
       uint64_t     ts = 0;
@@ -102,13 +128,14 @@ int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkR
 
       tqAddBlockDataToRsp(pDataBlock, pRsp);
       if (pRsp->withTbName) {
-        tqAddTbNameToRsp(pTq, pExec, pRsp, workerId);
+        int64_t uid = pExec->pExecReader[workerId]->msgIter.uid;
+        tqAddTbNameToRsp(pTq, uid, pRsp, workerId);
       }
       pRsp->blockNum++;
     }
   } else if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
     pRsp->withSchema = 1;
-    STqReadHandle* pReader = pExec->pExecReader[workerId];
+    SStreamReader* pReader = pExec->pExecReader[workerId];
     tqReadHandleSetMsg(pReader, pReq, 0);
     while (tqNextDataBlock(pReader)) {
       SSDataBlock block = {0};
@@ -118,14 +145,15 @@ int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkR
       }
       tqAddBlockDataToRsp(&block, pRsp);
       if (pRsp->withTbName) {
-        tqAddTbNameToRsp(pTq, pExec, pRsp, workerId);
+        int64_t uid = pExec->pExecReader[workerId]->msgIter.uid;
+        tqAddTbNameToRsp(pTq, uid, pRsp, workerId);
       }
       tqAddBlockSchemaToRsp(pExec, workerId, pRsp);
       pRsp->blockNum++;
     }
   } else if (pExec->subType == TOPIC_SUB_TYPE__DB) {
     pRsp->withSchema = 1;
-    STqReadHandle* pReader = pExec->pExecReader[workerId];
+    SStreamReader* pReader = pExec->pExecReader[workerId];
     tqReadHandleSetMsg(pReader, pReq, 0);
     while (tqNextDataBlockFilterOut(pReader, pExec->execDb.pFilterOutTbUid)) {
       SSDataBlock block = {0};
@@ -135,7 +163,8 @@ int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkR
       }
       tqAddBlockDataToRsp(&block, pRsp);
       if (pRsp->withTbName) {
-        tqAddTbNameToRsp(pTq, pExec, pRsp, workerId);
+        int64_t uid = pExec->pExecReader[workerId]->msgIter.uid;
+        tqAddTbNameToRsp(pTq, uid, pRsp, workerId);
       }
       tqAddBlockSchemaToRsp(pExec, workerId, pRsp);
       pRsp->blockNum++;

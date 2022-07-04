@@ -148,6 +148,7 @@ typedef struct {
   char release : 2;
   char secured : 2;
   char spi : 2;
+  char hasEpSet : 2;  // contain epset or not, 0(default): no epset, 1: contain epset
 
   char     user[TSDB_UNI_LEN];
   STraceId traceId;
@@ -252,7 +253,7 @@ int         transAsyncSend(SAsyncPool* pool, queue* mq);
   do {                                                                                                             \
     if (id > 0) {                                                                                                  \
       tTrace("handle step1");                                                                                      \
-      SExHandle* exh2 = transAcquireExHandle(refMgt, id);                                                          \
+      SExHandle* exh2 = transAcquireExHandle(id);                                                                  \
       if (exh2 == NULL || id != exh2->refId) {                                                                     \
         tTrace("handle %p except, may already freed, ignore msg, ref1: %" PRIu64 ", ref2 : %" PRIu64 "", exh1,     \
                exh2 ? exh2->refId : 0, id);                                                                        \
@@ -260,7 +261,7 @@ int         transAsyncSend(SAsyncPool* pool, queue* mq);
       }                                                                                                            \
     } else if (id == 0) {                                                                                          \
       tTrace("handle step2");                                                                                      \
-      SExHandle* exh2 = transAcquireExHandle(refMgt, id);                                                          \
+      SExHandle* exh2 = transAcquireExHandle(id);                                                                  \
       if (exh2 == NULL || id == exh2->refId) {                                                                     \
         tTrace("handle %p except, may already freed, ignore msg, ref1: %" PRIu64 ", ref2 : %" PRIu64 "", exh1, id, \
                exh2 ? exh2->refId : 0);                                                                            \
@@ -273,6 +274,7 @@ int         transAsyncSend(SAsyncPool* pool, queue* mq);
       goto _return2;                                                                                               \
     }                                                                                                              \
   } while (0)
+
 int  transInitBuffer(SConnBuffer* buf);
 int  transClearBuffer(SConnBuffer* buf);
 int  transDestroyBuffer(SConnBuffer* buf);
@@ -294,7 +296,6 @@ void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STra
 void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
 void transSendResponse(const STransMsg* msg);
 void transRegisterMsg(const STransMsg* msg);
-int  transGetConnInfo(void* thandle, STransHandleInfo* pInfo);
 void transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
 
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
@@ -377,26 +378,25 @@ typedef struct SDelayQueue {
   uv_loop_t*  loop;
 } SDelayQueue;
 
-int transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
-
+int  transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
 void transDQDestroy(SDelayQueue* queue);
+int  transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 
-int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
-
-// void transPrintEpSet(SEpSet* pEpSet);
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
 /*
  * init global func
  */
 void transThreadOnce();
 
-void       transInitEnv();
+void transInit();
+void transCleanup();
+
 int32_t    transOpenExHandleMgt(int size);
-void       transCloseExHandleMgt(int32_t mgt);
-int64_t    transAddExHandle(int32_t mgt, void* p);
-int32_t    transRemoveExHandle(int32_t mgt, int64_t refId);
-SExHandle* transAcquireExHandle(int32_t mgt, int64_t refId);
-int32_t    transReleaseExHandle(int32_t mgt, int64_t refId);
+void       transCloseExHandleMgt();
+int64_t    transAddExHandle(void* p);
+int32_t    transRemoveExHandle(int64_t refId);
+SExHandle* transAcquireExHandle(int64_t refId);
+int32_t    transReleaseExHandle(int64_t refId);
 void       transDestoryExHandle(void* handle);
 
 #ifdef __cplusplus

@@ -56,8 +56,8 @@ typedef struct SSyncSnapshotSender {
 SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex);
 void                 snapshotSenderDestroy(SSyncSnapshotSender *pSender);
 bool                 snapshotSenderIsStart(SSyncSnapshotSender *pSender);
-void                 snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshot snapshot, void *pReader);
-void                 snapshotSenderStop(SSyncSnapshotSender *pSender);
+int32_t              snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshot snapshot, void *pReader);
+int32_t              snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish);
 int32_t              snapshotSend(SSyncSnapshotSender *pSender);
 int32_t              snapshotReSend(SSyncSnapshotSender *pSender);
 
@@ -80,9 +80,9 @@ typedef struct SSyncSnapshotReceiver {
 
 SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId);
 void                   snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver);
-void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncTerm privateTerm, SyncSnapshotSend *pBeginMsg);
-bool snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver);
-void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver, bool apply);
+int32_t snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncTerm privateTerm, SyncSnapshotSend *pBeginMsg);
+int32_t snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
+bool    snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver);
 
 cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver);
 char  *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver);

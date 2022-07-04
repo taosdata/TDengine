@@ -65,7 +65,7 @@ typedef struct SQueryExecRes {
 } SQueryExecRes;
 
 typedef struct SIndexMeta {
-#ifdef WINDOWS
+#if defined(WINDOWS) || defined(_TD_DARWIN_64)
   size_t avoidCompilationErrors;
 #endif
 
@@ -135,9 +135,11 @@ typedef struct STableMetaOutput {
 } STableMetaOutput;
 
 typedef struct SDataBuf {
+  int32_t  msgType;
   void*    pData;
   uint32_t len;
   void*    handle;
+  SEpSet*  pEpSet;
 } SDataBuf;
 
 typedef struct STargetInfo {
@@ -146,7 +148,7 @@ typedef struct STargetInfo {
   int32_t     vgId;
 } STargetInfo;
 
-typedef int32_t (*__async_send_cb_fn_t)(void* param, const SDataBuf* pMsg, int32_t code);
+typedef int32_t (*__async_send_cb_fn_t)(void* param, SDataBuf* pMsg, int32_t code);
 typedef int32_t (*__async_exec_fn_t)(void* param);
 
 typedef struct SRequestConnInfo {
@@ -234,13 +236,18 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define NEED_CLIENT_HANDLE_ERROR(_code)                                          \
   (NEED_CLIENT_RM_TBLMETA_ERROR(_code) || NEED_CLIENT_REFRESH_VG_ERROR(_code) || \
    NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code))
+#define NEED_REDIRECT_ERROR(_code)                                                      \
+  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL ||     \
+   (_code) == TSDB_CODE_NODE_NOT_DEPLOYED || (_code) == TSDB_CODE_SYN_NOT_LEADER ||     \
+   (_code) == TSDB_CODE_APP_NOT_READY || (_code) == TSDB_CODE_RPC_BROKEN_LINK)
+  
 #define NEED_CLIENT_RM_TBLMETA_REQ(_type)                                                                  \
   ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_VND_CREATE_STB || (_type) == TDMT_VND_DROP_TABLE || \
    (_type) == TDMT_VND_DROP_STB)
 
-#define NEED_SCHEDULER_RETRY_ERROR(_code)                                           \
-  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL || \
-   (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
+#define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                                      \
+  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_NODE_NOT_DEPLOYED ||                 \
+   (_code) == TSDB_CODE_SYN_NOT_LEADER || (_code) == TSDB_CODE_APP_NOT_READY)
 
 #define REQUEST_TOTAL_EXEC_TIMES 2
 
@@ -271,19 +278,19 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define qDebug(...)                                                                     \
   do {                                                                                  \
     if (qDebugFlag & DEBUG_DEBUG) {                                                     \
-      taosPrintLog("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__);                       \
+      taosPrintLog("QRY ", DEBUG_DEBUG, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
     }                                                                                   \
   } while (0)
 #define qTrace(...)                                                                     \
   do {                                                                                  \
     if (qDebugFlag & DEBUG_TRACE) {                                                     \
-      taosPrintLog("QRY ", DEBUG_TRACE, qDebugFlag, __VA_ARGS__);                       \
+      taosPrintLog("QRY ", DEBUG_TRACE, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
     }                                                                                   \
   } while (0)
 #define qDebugL(...)                                                                           \
   do {                                                                                         \
     if (qDebugFlag & DEBUG_DEBUG) {                                                            \
-      taosPrintLongString("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__);                       \
+      taosPrintLongString("QRY ", DEBUG_DEBUG, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
     }                                                                                          \
   } while (0)
 

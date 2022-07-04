@@ -111,7 +111,7 @@ endi
 
 $consumerId    = 0
 $totalMsgOfStb = $ctbNum * $rowsPerCtb
-$expectmsgcnt  = 1
+$expectmsgcnt  = 1000000
 $expectrowcnt  = 100
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 
@@ -129,9 +129,6 @@ if $rows != 1 then
   goto wait_consumer_end_from_stb
 endi
 if $data[0][1] != $consumerId then
-  return -1
-endi
-if $data[0][2] != $expectmsgcnt then
   return -1
 endi
 if $data[0][3] != $expectrowcnt then
@@ -183,7 +180,7 @@ endi
 
 $consumerId    = 0
 $totalMsgOfCtb = $rowsPerCtb
-$expectmsgcnt  = 1
+$expectmsgcnt  = 1000000
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from ctb
@@ -254,7 +251,7 @@ endi
 
 $consumerId    = 0
 $totalMsgOfNtb = $rowsPerCtb
-$expectmsgcnt  = $totalMsgOfNtb
+$expectmsgcnt  = 1000000
 sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from ntb

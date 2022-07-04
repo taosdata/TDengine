@@ -31,6 +31,8 @@ target_sources(
     "src/sma/smaEnv.c"
     "src/sma/smaUtil.c"
     "src/sma/smaOpen.c"
+    "src/sma/smaCommit.c"
+    "src/sma/smaSnapshot.c"
     "src/sma/smaRollup.c"
     "src/sma/smaTimeRange.c"
 

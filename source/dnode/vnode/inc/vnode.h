@@ -116,14 +116,15 @@ int32_t     metaTbCursorNext(SMTbCursor *pTbCur);
 // typedef struct STsdb STsdb;
 typedef struct STsdbReader STsdbReader;
 
-#define BLOCK_LOAD_OFFSET_ORDER          1
-#define BLOCK_LOAD_TABLESEQ_ORDER        2
-#define BLOCK_LOAD_EXTERN_ORDER          3
+#define BLOCK_LOAD_OFFSET_ORDER   1
+#define BLOCK_LOAD_TABLESEQ_ORDER 2
+#define BLOCK_LOAD_EXTERN_ORDER   3
 
-#define LASTROW_RETRIEVE_TYPE_ALL        0x1
-#define LASTROW_RETRIEVE_TYPE_SINGLE     0x2
+#define LASTROW_RETRIEVE_TYPE_ALL    0x1
+#define LASTROW_RETRIEVE_TYPE_SINGLE 0x2
 
-int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTableList, STsdbReader** ppReader, const char* idstr);
+int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *pTableList, STsdbReader **ppReader,
+                       const char *idstr);
 void    tsdbReaderClose(STsdbReader *pReader);
 bool    tsdbNextDataBlock(STsdbReader *pReader);
 void    tsdbRetrieveDataBlockInfo(STsdbReader *pReader, SDataBlockInfo *pDataBlockInfo);
@@ -133,25 +134,26 @@ void    tsdbResetReadHandle(STsdbReader *pReader, SQueryTableDataCond *pCond, in
 int32_t tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 int64_t tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
 
-int32_t tsdbLastRowReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList, int32_t* colId, int32_t numOfCols, void** pReader);
-int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t* slotIds);
-int32_t tsdbLastrowReaderClose(void* pReader);
+int32_t tsdbLastRowReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, int32_t *colId, int32_t numOfCols,
+                              void **pReader);
+int32_t tsdbRetrieveLastRow(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds);
+int32_t tsdbLastrowReaderClose(void *pReader);
 
 // tq
 
-typedef struct STqReadHandle STqReadHandle;
+typedef struct STqReadHandle SStreamReader;
 
-STqReadHandle *tqInitSubmitMsgScanner(SMeta *pMeta);
+SStreamReader *tqInitSubmitMsgScanner(SMeta *pMeta);
 
-void    tqReadHandleSetColIdList(STqReadHandle *pReadHandle, SArray *pColIdList);
-int32_t tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
-int32_t tqReadHandleAddTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
-int32_t tqReadHandleRemoveTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
+void    tqReadHandleSetColIdList(SStreamReader *pReadHandle, SArray *pColIdList);
+int32_t tqReadHandleSetTbUidList(SStreamReader *pHandle, const SArray *tbUidList);
+int32_t tqReadHandleAddTbUidList(SStreamReader *pHandle, const SArray *tbUidList);
+int32_t tqReadHandleRemoveTbUidList(SStreamReader *pHandle, const SArray *tbUidList);
 
-int32_t tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
-bool    tqNextDataBlock(STqReadHandle *pHandle);
-bool    tqNextDataBlockFilterOut(STqReadHandle *pHandle, SHashObj *filterOutUids);
-int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReadHandle *pHandle);
+int32_t tqReadHandleSetMsg(SStreamReader *pHandle, SSubmitReq *pMsg, int64_t ver);
+bool    tqNextDataBlock(SStreamReader *pHandle);
+bool    tqNextDataBlockFilterOut(SStreamReader *pHandle, SHashObj *filterOutUids);
+int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, SStreamReader *pHandle);
 
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);

@@ -13,11 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tdatablock.h"
 #include "commandInt.h"
 #include "plannodes.h"
 #include "query.h"
 #include "tcommon.h"
+#include "tdatablock.h"
 
 int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pRes);
 int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level);
@@ -216,7 +216,7 @@ int32_t qExplainGenerateResChildren(SPhysiNode *pNode, SExplainGroup *group, SNo
   SExplainResNode *pResNode = NULL;
   FOREACH(node, pPhysiChildren) {
     QRY_ERR_RET(qExplainGenerateResNode((SPhysiNode *)node, group, &pResNode));
-    QRY_ERR_RET(nodesListAppend(*pChildren, (SNode*)pResNode));
+    QRY_ERR_RET(nodesListAppend(*pChildren, (SNode *)pResNode));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -232,14 +232,14 @@ int32_t qExplainGenerateResNodeExecInfo(SArray **pExecInfo, SExplainGroup *group
   SExplainRsp *rsp = NULL;
   for (int32_t i = 0; i < group->nodeNum; ++i) {
     rsp = taosArrayGet(group->nodeExecInfo, i);
-/*
-    if (group->physiPlanExecIdx >= rsp->numOfPlans) {
-      qError("physiPlanIdx %d exceed plan num %d", group->physiPlanExecIdx, rsp->numOfPlans);
-      return TSDB_CODE_QRY_APP_ERROR;
-    }
+    /*
+        if (group->physiPlanExecIdx >= rsp->numOfPlans) {
+          qError("physiPlanIdx %d exceed plan num %d", group->physiPlanExecIdx, rsp->numOfPlans);
+          return TSDB_CODE_QRY_APP_ERROR;
+        }
 
-    taosArrayPush(*pExecInfo, rsp->subplanInfo + group->physiPlanExecIdx);
-*/
+        taosArrayPush(*pExecInfo, rsp->subplanInfo + group->physiPlanExecIdx);
+    */
     taosArrayPush(*pExecInfo, rsp->subplanInfo);
   }
 
@@ -426,23 +426,23 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       if (EXPLAIN_MODE_ANALYZE == ctx->mode) {
         EXPLAIN_ROW_NEW(level + 1, "I/O: ");
 
-        int32_t nodeNum = taosArrayGetSize(pResNode->pExecInfo);
+        int32_t                      nodeNum = taosArrayGetSize(pResNode->pExecInfo);
         struct STableScanAnalyzeInfo info = {0};
 
         int32_t maxIndex = 0;
         int32_t totalRows = 0;
-        for(int32_t i = 0; i < nodeNum; ++i) {
+        for (int32_t i = 0; i < nodeNum; ++i) {
           SExplainExecInfo      *execInfo = taosArrayGet(pResNode->pExecInfo, i);
           STableScanAnalyzeInfo *pScanInfo = (STableScanAnalyzeInfo *)execInfo->verboseInfo;
 
-          info.totalBlocks      += pScanInfo->totalBlocks;
-          info.loadBlocks       += pScanInfo->loadBlocks;
-          info.totalRows        += pScanInfo->totalRows;
-          info.skipBlocks       += pScanInfo->skipBlocks;
-          info.filterTime       += pScanInfo->filterTime;
-          info.loadBlockStatis  += pScanInfo->loadBlockStatis;
+          info.totalBlocks += pScanInfo->totalBlocks;
+          info.loadBlocks += pScanInfo->loadBlocks;
+          info.totalRows += pScanInfo->totalRows;
+          info.skipBlocks += pScanInfo->skipBlocks;
+          info.filterTime += pScanInfo->filterTime;
+          info.loadBlockStatis += pScanInfo->loadBlockStatis;
           info.totalCheckedRows += pScanInfo->totalCheckedRows;
-          info.filterOutBlocks  += pScanInfo->filterOutBlocks;
+          info.filterOutBlocks += pScanInfo->filterOutBlocks;
 
           if (pScanInfo->totalRows > totalRows) {
             totalRows = pScanInfo->totalRows;
@@ -468,13 +468,14 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
 
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
 
-        //Rows out: Avg 4166.7 rows x 24 workers. Max 4187 rows (seg7) with 0.220 ms to first row, 1.738 ms to end, start offset by 1.470 ms.
+        // Rows out: Avg 4166.7 rows x 24 workers. Max 4187 rows (seg7) with 0.220 ms to first row, 1.738 ms to end,
+        // start offset by 1.470 ms.
         SExplainExecInfo      *execInfo = taosArrayGet(pResNode->pExecInfo, maxIndex);
         STableScanAnalyzeInfo *p1 = (STableScanAnalyzeInfo *)execInfo->verboseInfo;
 
         EXPLAIN_ROW_NEW(level + 1, " ");
-        EXPLAIN_ROW_APPEND("max_row_task=%d, total_rows:%" PRId64 ", ep:%s (cost=%.3f..%.3f)", maxIndex, p1->totalRows, "tbd",
-                           execInfo->startupCost, execInfo->totalCost);
+        EXPLAIN_ROW_APPEND("max_row_task=%d, total_rows:%" PRId64 ", ep:%s (cost=%.3f..%.3f)", maxIndex, p1->totalRows,
+                           "tbd", execInfo->startupCost, execInfo->totalCost);
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
         EXPLAIN_ROW_END();
 
@@ -752,7 +753,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_NEW(level + 1, "Sort Key: ");
         if (pResNode->pExecInfo) {
           for (int32_t i = 0; i < LIST_LENGTH(pSortNode->pSortKeys); ++i) {
-            SOrderByExprNode *ptn = (SOrderByExprNode*)nodesListGetNode(pSortNode->pSortKeys, i);
+            SOrderByExprNode *ptn = (SOrderByExprNode *)nodesListGetNode(pSortNode->pSortKeys, i);
             EXPLAIN_ROW_APPEND("%s ", nodesGetNameFromColumnNode(ptn->pExpr));
           }
         }
@@ -907,16 +908,16 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         if (pFillNode->pValues) {
-          SNodeListNode *pValues = (SNodeListNode*)pFillNode->pValues;
+          SNodeListNode *pValues = (SNodeListNode *)pFillNode->pValues;
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILL_VALUE_FORMAT);
-          SNode* tNode = NULL;
+          SNode  *tNode = NULL;
           int32_t i = 0;
           FOREACH(tNode, pValues->pNodeList) {
             if (i) {
               EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
             }
-            SValueNode* tValue = (SValueNode*)tNode;
-            char *value = nodesGetStrValueFromNode(tValue);
+            SValueNode *tValue = (SValueNode *)tNode;
+            char       *value = nodesGetStrValueFromNode(tValue);
             EXPLAIN_ROW_APPEND(EXPLAIN_STRING_TYPE_FORMAT, value);
             taosMemoryFree(value);
             ++i;
@@ -926,8 +927,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
 
-        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TIMERANGE_FORMAT, pFillNode->timeRange.skey,
-                        pFillNode->timeRange.ekey);
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TIMERANGE_FORMAT, pFillNode->timeRange.skey, pFillNode->timeRange.ekey);
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
 
@@ -1070,13 +1070,13 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
       EXPLAIN_ROW_END();
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
-      
+
       if (EXPLAIN_MODE_ANALYZE == ctx->mode) {
         // sort key
         EXPLAIN_ROW_NEW(level + 1, "Merge Key: ");
         if (pResNode->pExecInfo) {
           for (int32_t i = 0; i < LIST_LENGTH(pMergeNode->pMergeKeys); ++i) {
-            SOrderByExprNode *ptn = (SOrderByExprNode*)nodesListGetNode(pMergeNode->pMergeKeys, i);
+            SOrderByExprNode *ptn = (SOrderByExprNode *)nodesListGetNode(pMergeNode->pMergeKeys, i);
             EXPLAIN_ROW_APPEND("%s ", nodesGetNameFromColumnNode(ptn->pExpr));
           }
         }
@@ -1115,7 +1115,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
 
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_MERGE_KEYS_FORMAT);
         for (int32_t i = 0; i < LIST_LENGTH(pMergeNode->pMergeKeys); ++i) {
-          SOrderByExprNode *ptn = (SOrderByExprNode*)nodesListGetNode(pMergeNode->pMergeKeys, i);
+          SOrderByExprNode *ptn = (SOrderByExprNode *)nodesListGetNode(pMergeNode->pMergeKeys, i);
           EXPLAIN_ROW_APPEND("%s ", nodesGetNameFromColumnNode(ptn->pExpr));
         }
         EXPLAIN_ROW_END();
@@ -1130,7 +1130,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         }
       }
       break;
-    }    
+    }
     default:
       qError("not supported physical node type %d", pNode->type);
       return TSDB_CODE_QRY_APP_ERROR;
@@ -1190,12 +1190,12 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
     QRY_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
 
-  SSDataBlock *pBlock = createDataBlock();
+  SSDataBlock    *pBlock = createDataBlock();
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, TSDB_EXPLAIN_RESULT_ROW_SIZE, 1);
   blockDataAppendColInfo(pBlock, &infoData);
   blockDataEnsureCapacity(pBlock, rowNum);
 
-  SColumnInfoData* pInfoData = taosArrayGet(pBlock->pDataBlock, 0);
+  SColumnInfoData *pInfoData = taosArrayGet(pBlock->pDataBlock, 0);
 
   char buf[1024] = {0};
   for (int32_t i = 0; i < rowNum; ++i) {
@@ -1219,7 +1219,7 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   rsp->numOfRows = htonl(rowNum);
 
   int32_t len = 0;
-  blockCompressEncode(pBlock, rsp->data, &len, taosArrayGetSize(pBlock->pDataBlock), 0);
+  blockEncode(pBlock, rsp->data, &len, taosArrayGetSize(pBlock->pDataBlock), 0);
   ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
 
   rsp->compLen = htonl(len);

@@ -26,7 +26,7 @@ class ClusterDnodes(TDDnodes):
 class ConfigureyCluster:
     """This will create defined number of dnodes and create a cluster.
        at the same time, it will return TDDnodes list:  dnodes, """
-    hostname= socket.gethostname()
+    hostname = socket.gethostname()
 
     def __init__(self):
         self.dnodes = []      
@@ -86,7 +86,13 @@ class ConfigureyCluster:
             time.sleep(1)
         else:
             tdLog.exit("create cluster with %d dnode but  check dnode not ready within 5s ! "%self.dnodeNums)
-            
 
+    def checkConnectStatus(self,dnodeNo,hostname=hostname):
+        dnodeNo = int(dnodeNo)
+        tdLog.info("check dnode-%d connection"%(dnodeNo+1))
+        hostname = socket.gethostname()
+        port = 6030 + dnodeNo*100
+        connectToDnode = tdCom.newcon(host=hostname,port=port)
+        return connectToDnode
 
 cluster = ConfigureyCluster()

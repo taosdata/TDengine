@@ -55,15 +55,6 @@ enum {
   TASK_OUTPUT_STATUS__BLOCKED,
 };
 
-enum {
-  STREAM_INPUT__DATA_SUBMIT = 1,
-  STREAM_INPUT__DATA_BLOCK,
-  STREAM_INPUT__DATA_RETRIEVE,
-  STREAM_INPUT__TRIGGER,
-  STREAM_INPUT__CHECKPOINT,
-  STREAM_INPUT__DROP,
-};
-
 typedef struct {
   int8_t type;
 } SStreamQueueItem;
@@ -154,10 +145,6 @@ typedef struct {
 
 typedef struct {
   int32_t taskId;
-} STaskDispatcherInplace;
-
-typedef struct {
-  int32_t taskId;
   int32_t nodeId;
   SEpSet  epSet;
 } STaskDispatcherFixedEp;
@@ -208,7 +195,6 @@ enum {
 
 enum {
   TASK_DISPATCH__NONE = 1,
-  TASK_DISPATCH__INPLACE,
   TASK_DISPATCH__FIXED,
   TASK_DISPATCH__SHUFFLE,
 };
@@ -260,7 +246,7 @@ struct SStreamTask {
   // exec
   STaskExec exec;
 
-  // TODO: merge sink and dispatch
+  // TODO: unify sink and dispatch
 
   //  local sink
   union {
@@ -269,9 +255,8 @@ struct SStreamTask {
     STaskSinkFetch fetchSink;
   };
 
-  // dispatch
+  // remote dispatcher
   union {
-    STaskDispatcherInplace inplaceDispatcher;
     STaskDispatcherFixedEp fixedEpDispatcher;
     STaskDispatcherShuffle shuffleDispatcher;
   };
@@ -327,9 +312,8 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
     taosWriteQitem(pTask->inputQueue->queue, pItem);
   }
 
-  if (pItem->type != STREAM_INPUT__TRIGGER && pItem->type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0 &&
-      pTask->triggerStatus == TASK_TRIGGER_STATUS__IN_ACTIVE) {
-    atomic_store_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__ACTIVE);
+  if (pItem->type != STREAM_INPUT__TRIGGER && pItem->type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
+    atomic_val_compare_exchange_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__IN_ACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
   }
 
   // TODO: back pressure

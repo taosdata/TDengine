@@ -87,7 +87,7 @@ typedef struct {
 } STelemMgmt;
 
 typedef struct {
-  sem_t    syncSem;
+  tsem_t    syncSem;
   int64_t  sync;
   bool     standby;
   SReplica replica;

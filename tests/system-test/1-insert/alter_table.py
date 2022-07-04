@@ -126,6 +126,7 @@ class TDTestCase:
             tdSql.execute(f'alter table {self.ntbname} rename column {key} {rename_str}')
             tdSql.query(f'select {rename_str} from {self.ntbname}')
             tdSql.checkRows(1)
+            tdSql.error(f'select {key} from {self.ntbname}')
         
     def alter_check_tb(self):
         tag_tinyint = random.randint(constant.TINYINT_MIN,constant.TINYINT_MAX)
@@ -277,7 +278,11 @@ class TDTestCase:
             else:
                 for v in self.column_dict.values():
                     tdSql.error(f'alter table {self.stbname} modify column {key} {v}')
-
+        for key,values in self.column_dict.items():
+            rename_str = f'{tdCom.getLongName(constant.COL_NAME_LENGTH_MAX,"letters")}'
+            tdSql.error(f'alter table {self.stbname} rename column {key} {rename_str}')
+            for i in range(self.tbnum):
+                tdSql.error(f'alter table {self.stbname}_{i} rename column {key} {rename_str}')
     def run(self):
         self.alter_check_ntb()
         self.alter_check_tb()
