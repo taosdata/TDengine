@@ -75,7 +75,7 @@ class TDTestQuery(TDCase):
         self.tdCreateData.dropandcreateDB_random("%s" % db, 1)  
     
     def right_case_1_groupby(self):
-        print("\n==========================right case 1_groupby==========================\n")
+        self.logger.info("\n==========================right case 1_groupby==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
@@ -88,7 +88,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                 
 
-                print("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
                 sql1 = 'select %s from %s group by tbname;'  % (func,self.table)
@@ -122,10 +122,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num1 = sql.count('where')
-        print("sqlnum1 %d" % num1) 
+        self.logger.info("sqlnum1 %d" % num1) 
 
     def right_case_1_tbname(self):
-        print("\n==========================right case 1_tbname==========================\n")
+        self.logger.info("\n==========================right case 1_tbname==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
@@ -138,7 +138,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                
 
-                print("\n\n\n=======hanshu num = %d======right case_tbname========case1======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case1======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
                 sql1 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
@@ -172,10 +172,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num1 = sql.count('where')
-        print("sqlnum1_tbname %d" % num1)
+        self.logger.info("sqlnum1_tbname %d" % num1)
 
     def right_case_1(self):
-        print("\n==========================right case 1==========================\n")
+        self.logger.info("\n==========================right case 1==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
@@ -188,7 +188,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                
 
-                print("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
                 sql1 = 'select %s from %s;'  % (func,self.table)
@@ -224,10 +224,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num1 = sql.count('where')
-        print("sqlnum1_error %d" % num1) 
+        self.logger.info("sqlnum1_error %d" % num1) 
  
     def right_case_1_interval(self):
-        print("\n==========================right case 1==========================\n")
+        self.logger.info("\n==========================right case 1==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
@@ -240,7 +240,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)               
 
-                print("\n\n\n=======hanshu num = %d======right case_interval========case1======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case_interval========case1======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
                 
@@ -256,7 +256,7 @@ class TDTestQuery(TDCase):
                         
                         for i in (1,2,3,4,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -277,7 +277,7 @@ class TDTestQuery(TDCase):
                             
                         for i in (6,7,8,9,):                     
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -297,7 +297,7 @@ class TDTestQuery(TDCase):
                             
                         for i in (21,22,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             #sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -326,7 +326,7 @@ class TDTestQuery(TDCase):
                                                                                     
                         for i in (11,12,13,14,15,16,17,18,19,20,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -347,10 +347,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num1 = sql.count('where')
-        print("sqlnum1_interval %d" % num1) 
+        self.logger.info("sqlnum1_interval %d" % num1) 
 
     def right_case_1_tbname_interval(self):
-        print("\n==========================right case 1_tbname==========================\n")
+        self.logger.info("\n==========================right case 1_tbname==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
@@ -363,7 +363,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                  
 
-                print("\n\n\n=======hanshu num = %d======right case_tbname_interval========case1======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname_interval========case1======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
                 
@@ -379,7 +379,7 @@ class TDTestQuery(TDCase):
                         
                         for i in (1,2,3,4,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             sql1 = "select %s from %s where tbname in ('%s_1') %s;"  % (func,self.table,self.table,time_window_new)
 
                             sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s %s" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -399,7 +399,7 @@ class TDTestQuery(TDCase):
                             
                         for i in (6,7,8,9,):                      
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             sql1 = "select %s from %s where %s tbname in ('%s_1') %s;"  % (func,self.table,interval_fill_and,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  tbname in ('%s_1')  and %s %s %s %s %s;" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -420,7 +420,7 @@ class TDTestQuery(TDCase):
                         list_interval = random.sample(list_intervals,5) 
                         for i in list_interval:                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             
                             sql2 = "select %s from %s where  tbname in ('%s_1')  and %s %s %s %s %s;" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdSql.error(sql2)
@@ -438,7 +438,7 @@ class TDTestQuery(TDCase):
                         list_interval = random.sample(list_intervals,5) 
                         for i in list_interval:                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
 
                             sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s %s" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdSql.error(sql2)
@@ -458,10 +458,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num1 = sql.count('where')
-        print("sqlnum1_tbname_interval %d" % num1)
+        self.logger.info("sqlnum1_tbname_interval %d" % num1)
                                                        
     def right_case_2_groupby(self):
-        print("\n==========================right case 2_groupby==========================\n")
+        self.logger.info("\n==========================right case 2_groupby==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
@@ -475,7 +475,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                
 
-                print("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
 
                 stable_where = tdWhere.stable_where()
                 sql1 = 'select %s from %s group by tbname;'  % (func,self.table)
@@ -548,10 +548,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num2 = sql.count('where')
-        print("sqlnum2 %d" % num2) 
+        self.logger.info("sqlnum2 %d" % num2) 
         
     def right_case_2_tbname(self):
-        print("\n==========================right case 2_tbname==========================\n")
+        self.logger.info("\n==========================right case 2_tbname==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
@@ -565,7 +565,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                
 
-                print("\n\n\n=======hanshu num = %d======right case_tbname========case2======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case2======\n\n\n" %i)
 
                 stable_where = tdWhere.stable_where()
                 sql1 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
@@ -654,10 +654,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num2 = sql.count('where')
-        print("sqlnum2_tbname %d" % num2) 
+        self.logger.info("sqlnum2_tbname %d" % num2) 
 
     def right_case_2(self):
-        print("\n==========================right case 2==========================\n")
+        self.logger.info("\n==========================right case 2==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
@@ -671,7 +671,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                 
 
-                print("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
 
                 stable_where = tdWhere.stable_where()
                 sql1 = 'select %s from %s;'  % (func,self.table)
@@ -752,10 +752,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num2 = sql.count('where')
-        print("sqlnum2_error %d" % num2) 
+        self.logger.info("sqlnum2_error %d" % num2) 
                         
     def right_case_2_interval(self):
-        print("\n==========================right case 2==========================\n")
+        self.logger.info("\n==========================right case 2==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
@@ -769,7 +769,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                 
 
-                print("\n\n\n=======hanshu num = %d======right case_interval========case2======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case_interval========case2======\n\n\n" %i)
 
                 stable_where = tdWhere.stable_where()
                 
@@ -785,7 +785,7 @@ class TDTestQuery(TDCase):
                         
                         for i in (1,2,3,4,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -818,7 +818,7 @@ class TDTestQuery(TDCase):
                         
                         for i in (6,7,8,9,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -850,7 +850,7 @@ class TDTestQuery(TDCase):
                         
                         for i in (21,22,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             #sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -903,7 +903,7 @@ class TDTestQuery(TDCase):
                                                                             
                         for i in range(11,21):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -964,7 +964,7 @@ class TDTestQuery(TDCase):
                         
                         for i in (1,2,3,4,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s order by ts desc;'  % (func_desc,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -992,7 +992,7 @@ class TDTestQuery(TDCase):
                         
                         for i in (6,7,8,9,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s %s order by ts desc;'  % (func_desc,self.table,interval_fill,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts desc" %(func_desc,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1020,7 +1020,7 @@ class TDTestQuery(TDCase):
                         
                         for i in (21,22,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s order by ts desc;'  % (func_desc,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1067,7 +1067,7 @@ class TDTestQuery(TDCase):
                         list_interval = random.sample(list_intervals,5) 
                         for i in list_interval:                           
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             n = random.randrange(2,101) 
                             func_desc = func_desc.replace("num","%d" %n)
                             sql1 = 'select %s from %s %s order by ts desc;'  % (func_desc,self.table,time_window_new)
@@ -1118,10 +1118,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num2 = sql.count('where')
-        print("sqlnum2_interval %d" % num2) 
+        self.logger.info("sqlnum2_interval %d" % num2) 
         
     def right_case_2_tbname_interval(self):
-        print("\n==========================right case 2_tbname==========================\n")
+        self.logger.info("\n==========================right case 2_tbname==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
@@ -1135,7 +1135,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                 
 
-                print("\n\n\n=======hanshu num = %d======right case_tbname_interval========case2======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname_interval========case2======\n\n\n" %i)
 
                 stable_where = tdWhere.stable_where()
                 
@@ -1151,7 +1151,7 @@ class TDTestQuery(TDCase):
                         
                         for i in (1,2,3,4,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = "select %s from %s where tbname in ('%s_1') %s;"  % (func,self.table,self.table,time_window_new)
 
                             sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s %s order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1182,7 +1182,7 @@ class TDTestQuery(TDCase):
                         
                         for i in (6,7,8,9,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = "select %s from %s where %s tbname in ('%s_1') %s ;"  % (func,self.table,interval_fill_and,self.table,time_window_new)
 
                             sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s %s %s order by ts" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1213,7 +1213,7 @@ class TDTestQuery(TDCase):
                         
                         for i in range(11,23):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = "select %s from %s where tbname in ('%s_1') %s %s ;"  % (func,self.table,self.table,interval_fill_and,time_window_new)
 
                             sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s %s order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1278,7 +1278,7 @@ class TDTestQuery(TDCase):
                         
                         for i in (1,2,3,4,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = "select %s from %s  where tbname in ('%s_1')  %s order by ts desc;"  % (func_desc,self.table,self.table,time_window_new)
 
                             sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s %s order by ts desc"  %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1305,7 +1305,7 @@ class TDTestQuery(TDCase):
                         
                         for i in (6,7,8,9,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = "select %s from %s  where %s tbname in ('%s_1') %s  order by ts desc;"  % (func_desc,self.table,interval_fill_and,self.table,time_window_new)
 
                             sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s %s %s order by ts desc"  %(func_desc,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1334,7 +1334,7 @@ class TDTestQuery(TDCase):
                         list_interval = random.sample(list_intervals,5) 
                         for i in list_interval:                          
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
 
                             sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s %s order by ts desc"  %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdSql.error(sql2)
@@ -1382,10 +1382,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num2 = sql.count('where')
-        print("sqlnum2_tbname_interval %d" % num2)         
+        self.logger.info("sqlnum2_tbname_interval %d" % num2)         
                                
     def right_case_3_groupby(self):
-        print("\n==========================right case 3_groupby==========================\n")
+        self.logger.info("\n==========================right case 3_groupby==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
@@ -1398,7 +1398,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                  
 
-                print("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
                 sql1 = 'select %s from %s group by tbname;'  % (func,self.table)
@@ -1429,11 +1429,11 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        print("sqlnum3 %d" % num3) 
+        self.logger.info("sqlnum3 %d" % num3) 
  
  
     def right_case_3_tbname(self):
-        print("\n==========================right case 3_tbname==========================\n")
+        self.logger.info("\n==========================right case 3_tbname==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
@@ -1446,7 +1446,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                 
 
-                print("\n\n\n=======hanshu num = %d======right case_tbname========case3======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case3======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
                 sql1 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
@@ -1476,10 +1476,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        print("sqlnum3_tbname %d" % num3)         
+        self.logger.info("sqlnum3_tbname %d" % num3)         
 
     def right_case_3(self):
-        print("\n==========================right case 3==========================\n")
+        self.logger.info("\n==========================right case 3==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
@@ -1492,7 +1492,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                  
 
-                print("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
                 sql1 = 'select %s from %s ;'  % (func,self.table)
@@ -1529,11 +1529,11 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        print("sqlnum3_error %d" % num3) 
+        self.logger.info("sqlnum3_error %d" % num3) 
 
                         
     def right_case_3_interval(self):
-        print("\n==========================right case 3==========================\n")
+        self.logger.info("\n==========================right case 3==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
@@ -1546,7 +1546,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)              
 
-                print("\n\n\n=======hanshu num = %d======right case_interval========case3======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case_interval========case3======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
                 
@@ -1562,7 +1562,7 @@ class TDTestQuery(TDCase):
                         
                         for i in (1,2,3,4,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case3=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case3=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts limit 1000" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1582,7 +1582,7 @@ class TDTestQuery(TDCase):
                             
                         for i in (6,7,8,9,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case3=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case3=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts limit 1000" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1602,7 +1602,7 @@ class TDTestQuery(TDCase):
                         
                         for i in (21,22,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case3=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case3=====time num = %d======interval======\n\n\n" %i)
                             #sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts limit 1000" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1632,7 +1632,7 @@ class TDTestQuery(TDCase):
                                                                                 
                         for i in range(11,21):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case3=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case3=====time num = %d======interval======\n\n\n" %i)
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts limit 1000" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdSql.error(sql2)
@@ -1665,11 +1665,11 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        print("sqlnum3_interval %d" % num3) 
+        self.logger.info("sqlnum3_interval %d" % num3) 
  
  
     def right_case_3_tbname_interval(self):
-        print("\n==========================right case 3_tbname==========================\n")
+        self.logger.info("\n==========================right case 3_tbname==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
@@ -1682,7 +1682,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                 
 
-                print("\n\n\n=======hanshu num = %d======right case_tbname_interval========case3======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname_interval========case3======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
                 
@@ -1698,7 +1698,7 @@ class TDTestQuery(TDCase):
                         
                         for i in (1,2,3,4,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case3=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case3=====time num = %d======interval======\n\n\n" %i)
                             sql1 = "select %s from %s where tbname in ('%s_1') %s;"  % (func,self.table,self.table,time_window_new)
 
                             sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s %s order by ts limit 1000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1717,7 +1717,7 @@ class TDTestQuery(TDCase):
                         
                         for i in (6,7,8,9,):                        
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case3=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case3=====time num = %d======interval======\n\n\n" %i)
                             sql1 = "select %s from %s where  %s tbname in ('%s_1') %s;"  % (func,self.table,interval_fill_and,self.table,time_window_new)
 
                             sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s %s %s order by ts limit 1000" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1738,7 +1738,7 @@ class TDTestQuery(TDCase):
                         list_interval = random.sample(list_intervals,5) 
                         for i in list_interval:                           
                             time_window_new = tdWhere.time_window_new(i)
-                            print("\n\n\n====right case========case3=====time num = %d======interval======\n\n\n" %i)
+                            self.logger.info("\n\n\n====right case========case3=====time num = %d======interval======\n\n\n" %i)
                             sql1 = "select %s from %s where tbname in ('%s_1') %s;"  % (func,self.table,self.table,time_window_new)
 
                             sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s %s order by ts limit 1000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1772,7 +1772,7 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        print("sqlnum3_tbname_interval %d" % num3)   
+        self.logger.info("sqlnum3_tbname_interval %d" % num3)   
         
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))   
@@ -1789,7 +1789,7 @@ class TDTestQuery(TDCase):
         # self.right_case_1_interval()
         # self.right_case_1_tbname_interval()
         endTime1 = time.time()       
-        print("total time1 %d s" % (endTime1 - startTime1))
+        self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
         startTime2 = time.time()
         self.right_case_2_groupby()
@@ -1798,7 +1798,7 @@ class TDTestQuery(TDCase):
         # self.right_case_2_interval()
         # self.right_case_2_tbname_interval()
         endTime2 = time.time()       
-        print("total time2 %d s" % (endTime2 - startTime2))
+        self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
         startTime3 = time.time()
         self.right_case_3_groupby()
@@ -1807,10 +1807,10 @@ class TDTestQuery(TDCase):
         # self.right_case_3_interval()
         # self.right_case_3_tbname_interval()
         endTime3 = time.time()
-        print("total time3 %ds" % (endTime3 - startTime3))     
+        self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
 
         endTime = time.time()
         self.rm_sql()
-        print("total time %ds" % (endTime - startTime))
+        self.logger.info("total time %ds" % (endTime - startTime))
 
 

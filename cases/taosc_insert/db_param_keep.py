@@ -16,22 +16,24 @@ import re
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
-from taostest.util.get_json import GetJson
 class TestKeep(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self._remote: Remote = Remote(self.logger)
+        self.remote: Remote = Remote(self.logger)
         self.logical_error_list = ["1439m", "525600001m", "23h", "8760001h", "0d", "365001d"]
         self.common_days_value = "1h"
         self.error_value_list = ['3000, 4000, 5000', '3000, 3500, 4000', '3000, 3100, 3200', '20000, 10000, 30000', '30000, 10000, 20000', '10000, 30000, 20000']
         self.cfg = self.tdCom.Boundary.DB_PARAM_KEEP_CONFIG
-        
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "taosd":
+                self.taosd_setting = env_setting
+                self.fqdn = self.taosd_setting["fqdn"][0]
+                self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
     def keep_check(self):
         """
         keep check
         """
         test_param = self.cfg["create_name"]
-        get_data = GetJson(self.logger, self.run_log_dir, self.env_setting)
 
         dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
@@ -42,7 +44,7 @@ class TestKeep(TDCase):
 
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1, dbname)
-        data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+        data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
         self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
@@ -64,7 +66,7 @@ class TestKeep(TDCase):
                 self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param*60}m,{param*60}m,{param*60}m')
             self.tdSql.query(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-            data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+            data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
             self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
             self.tdSql.execute(f'drop database {dbname}')
         
@@ -83,7 +85,7 @@ class TestKeep(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param], "52560000m,52561440m,52562880m")
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+        data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
         self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
         self.tdSql.execute(f'drop database {dbname}')
         # keep2(default) > keep1 >= keep0 >= days
@@ -94,7 +96,7 @@ class TestKeep(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param], "52560000m,52561440m,52561440m")
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+        data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
         self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
         self.tdSql.execute(f'drop database {dbname}')
         # keep2 = keep1 = keep0 = days
@@ -105,7 +107,7 @@ class TestKeep(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param], "14400m,14400m,14400m")
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+        data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
         self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
         self.tdSql.execute(f'drop database {dbname}')
         # error

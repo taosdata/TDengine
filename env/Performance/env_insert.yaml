@@ -83,4 +83,3 @@ settings:
           custom_process:
             vm85: [taosd,taosadapter]
             vm83: [taosBenchmark]
-

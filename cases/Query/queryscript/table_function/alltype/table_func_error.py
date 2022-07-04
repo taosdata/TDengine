@@ -77,7 +77,7 @@ class TDTestQuery(TDCase):
         self.tdCreateData.dropandcreateDB_random("%s" % db, 1)  
           
     def error_case_1(self):
-        print("\n======================error case 1======================\n")
+        self.logger.info("\n======================error case 1======================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
@@ -95,7 +95,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)               
 
-                print("\n\n\n=======hanshu num = %d======error case========case1======\n\n\n"%i)
+                self.logger.info("\n\n\n=======hanshu num = %d======error case========case1======\n\n\n"%i)
                 
                 stable_where = tdWhere.regular_where()
                 sql1 = 'select %s from %s;'  % (func,self.table)
@@ -143,13 +143,13 @@ class TDTestQuery(TDCase):
             except Exception as e:
                 raise e   
             
-        for i in (4,5,6,):#
+        for i in (4,5,6,):
             func = tdFunction.func_stable_error_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)             
 
-                print("\n\n\n=======hanshu num = %d======error case========case1======\n\n\n"%i)
+                self.logger.info("\n\n\n=======hanshu num = %d======error case========case1======\n\n\n"%i)
                 
                 stable_where = tdWhere.regular_where()
                 sql1 = 'select %s from %s;'  % (func,self.table)
@@ -160,36 +160,11 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where %s %s %s group by tbname" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdSql.error(sql2)
-                        sql= sql + sql2
-
-                        sql2 = "select * from (select %s from %s where %s %s %s group by tbname)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdSql.error(sql2)
-                        sql= sql + sql2
-
                         # CSUM | LEASTSQUARES 可以用在普通表查询，因此特殊处理一下 
                         sql2 = "select %s from (select * from %s) where %s %s %s group by tbname" %(func.replace("CSUM","TWA").replace("LEASTSQUARES","TWA"),self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
                         
-                stable_where = tdWhere.regular_where()
-                sql1 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
-                for i in range(2,len(stable_where[2])+1):
-                    qt_where = list(combinations(stable_where[2],i))
-                    for qt_where in qt_where:
-                        qt_where = str(qt_where).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
-                        qt_like_match = stable_where[3]
-                        qt_in_where = stable_where[4]
-
-                        sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdSql.error(sql2)
-                        sql= sql + sql2
-
-                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdSql.error(sql2)
-                        sql= sql + sql2
-
                         sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and %s %s %s group by tbname" %(func.replace("CSUM","TWA").replace("LEASTSQUARES","TWA"),self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
@@ -200,10 +175,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num1 = sql.count('where')
-        print("sqlnum1 %d" % num1) 
+        self.logger.info("sqlnum1 %d" % num1) 
 
     def error_case_2(self):
-        print("\n======================error case 2======================\n")
+        self.logger.info("\n======================error case 2======================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
@@ -221,7 +196,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)              
                
-                print("\n\n\n=======hanshu num = %d======error case========case2======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======error case========case2======\n\n\n" %i)
 
                 stable_where = tdWhere.regular_where()
                 sql1 = 'select %s from %s;'  % (func,self.table)
@@ -356,7 +331,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)              
                
-                print("\n\n\n=======hanshu num = %d======error case========case2======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======error case========case2======\n\n\n" %i)
 
                 stable_where = tdWhere.regular_where()
                 sql1 = 'select %s from %s;'  % (func,self.table)
@@ -432,10 +407,6 @@ class TDTestQuery(TDCase):
                         sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
-
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts)" %(func.replace("CSUM","TWA").replace("LEASTSQUARES","TWA"),self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdSql.error(sql2)
-                        sql= sql + sql2
                         
                         sql2 = "select * from (select %s from %s where tbname in ('%s_1') and  %s %s %s order by ts)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
@@ -488,10 +459,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num2 = sql.count('where')
-        print("sqlnum2 %d" % num2) 
+        self.logger.info("sqlnum2 %d" % num2) 
         
     def error_case_3(self):
-        print("\n======================error case 3======================\n")
+        self.logger.info("\n======================error case 3======================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
@@ -509,7 +480,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)               
 
-                print("\n\n\n=======hanshu num = %d======error case========case3======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======error case========case3======\n\n\n" %i)
                 
                 stable_where = tdWhere.regular_where()
                 sql1 = 'select %s from %s;'  % (func,self.table)
@@ -563,7 +534,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)              
 
-                print("\n\n\n=======hanshu num = %d======error case========case3======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======error case========case3======\n\n\n" %i)
                 
                 stable_where = tdWhere.regular_where()
                 sql1 = 'select %s from %s;'  % (func,self.table)
@@ -614,10 +585,10 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        print("sqlnum3 %d" % num3) 
+        self.logger.info("sqlnum3 %d" % num3) 
     
     def error_case_4(self):
-        print("\n======================error case 4======================\n")
+        self.logger.info("\n======================error case 4======================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
@@ -635,7 +606,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)              
                
-                print("\n\n\n=======hanshu num = %d======error case========case4======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======error case========case4======\n\n\n" %i)
 
                 stable_where = tdWhere.regular_where()
                 sql1 = 'select %s from %s;'  % (func,self.table)
@@ -673,7 +644,7 @@ class TDTestQuery(TDCase):
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)               
                
-                print("\n\n\n=======hanshu num = %d======error case========case4======\n\n\n" %i)
+                self.logger.info("\n\n\n=======hanshu num = %d======error case========case4======\n\n\n" %i)
 
                 stable_where = tdWhere.regular_where()
                 sql1 = 'select %s from %s;'  % (func,self.table)
@@ -708,7 +679,7 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num4 = sql.count('where')
-        print("sqlnum4 %d" % num4)  
+        self.logger.info("sqlnum4 %d" % num4)  
 
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))      
@@ -721,24 +692,24 @@ class TDTestQuery(TDCase):
         startTime1 = time.time()
         self.error_case_1()
         endTime1 = time.time()       
-        print("total time1 %d s" % (endTime1 - startTime1))
+        self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
         startTime2 = time.time()
         self.error_case_2()
         endTime2 = time.time()       
-        print("total time2 %d s" % (endTime2 - startTime2))
+        self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
         startTime3 = time.time()
         self.error_case_3()
         endTime3 = time.time()
-        print("total time3 %ds" % (endTime3 - startTime3))     
+        self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
         
         startTime3 = time.time()
         self.error_case_4()
         endTime3 = time.time()
-        print("total time3 %ds" % (endTime3 - startTime3))    
+        self.logger.info("total time3 %ds" % (endTime3 - startTime3))    
 
         endTime = time.time()
         self.rm_sql()
-        print("total time %ds" % (endTime - startTime))
+        self.logger.info("total time %ds" % (endTime - startTime))
 

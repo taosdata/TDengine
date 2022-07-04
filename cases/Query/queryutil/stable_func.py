@@ -81,6 +81,22 @@ class TDFunction():
         int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return int_cloumn
     
+    def int_cloumn_1(self):  
+        # support all int type \ double type              
+        hanshu = ['AVG','SUM']   
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return int_cloumn
+    
+    def int_cloumn_2(self):  
+        # support all int type \ double type              
+        hanshu = ['MIN','MAX']   
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return int_cloumn
+    
     def int_ts_cloumn(self):  
         # support all int type \ double type \ ts type        
         hanshu = ['SPREAD']       
@@ -95,6 +111,10 @@ class TDFunction():
             func_stable_all = self.all_column()
         elif i == 2:
             func_stable_all = self.int_cloumn()
+        elif i == 21:
+            func_stable_all = self.int_cloumn_1()
+        elif i == 22:
+            func_stable_all = self.int_cloumn_2()
         elif i == 3:
             func_stable_all = self.int_ts_cloumn()      
 
@@ -112,6 +132,10 @@ class TDFunction():
             func_stable_tbname_all = self.all_column_tbname_3()
         elif i == 2:
             func_stable_tbname_all = self.int_cloumn()
+        elif i == 21:
+            func_stable_tbname_all = self.int_cloumn_1()
+        elif i == 22:
+            func_stable_tbname_all = self.int_cloumn_2()
         elif i == 3:
             func_stable_tbname_all = self.int_ts_cloumn()      
 
@@ -394,8 +418,8 @@ class TDFunction():
             if i == 1:
                 bin_type = 'user_input'                
                 bin_description = {-11111119395555977777}  #9一会转译成，
-                # print(hanshu,column,int_histogram,normalized,bin_description)
-                # print(type(hanshu),type(column),type(int_histogram),type(normalized),type(bin_description))
+                # self.logger.info(hanshu,column,int_histogram,normalized,bin_description)
+                # self.logger.info(type(hanshu),type(column),type(int_histogram),type(normalized),type(bin_description))
                 hanshu_column = [hanshu , column, ',',"'%s'" %bin_type, ',',"'%s'" % bin_description, ',', "%d" %normalized,')']
                 int_histogram = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("{","[").replace("}","]").replace("9",",")
                 
@@ -710,7 +734,7 @@ class TDFunction():
         t = time.time()  
         t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t)) 
         column_select = ['q_ts','ts','_c0','_C0','1600000000000','1600000000000000','1600000000000000000',
-        '%d' %t, '%d * 1000' %t, '%d * 1000000' %t,'t_to_s']    
+        '%d' %t, '%d000' %t, '%d000000' %t,'t_to_s']    
         column_1 = random.sample(column_select,1)
         column = ['(%s,timeutil)'%(column_1)]
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
@@ -729,7 +753,7 @@ class TDFunction():
         #增加指定格式的时间 ts_val
         t = time.time()          
         column_select = ['q_ts','ts','_c0','_C0','1600000000000','1600000000000000','1600000000000000000',
-        '%d' %t, '%d * 1000' %t, '%d * 1000000' %t,'t_to_s'] 
+        '%d' %t, '%d000' %t, '%d000000' %t,'t_to_s'] 
         column_1,column_2 = random.sample(column_select,1),random.sample(column_select,1)
         column = ['(%s,%s,timeutil)'%(column_1,column_2)]
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
@@ -748,7 +772,7 @@ class TDFunction():
         hanshu = ['TIMEDIFF']  
         t = time.time()  
         column_select = ['q_ts','ts','_c0','_C0','1600000000000','1600000000000000','1600000000000000000',
-        '%d' %t, '%d * 1000' %t, '%d * 1000000' %t,'t_to_s']
+        '%d' %t, '%d000' %t, '%d000000' %t,'t_to_s']
         column_1,column_2 = random.sample(column_select,1),random.sample(column_select,1)
         column = ['(%s,%s)'%(column_1,column_2)]
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
@@ -765,7 +789,7 @@ class TDFunction():
         column = ['(ts)','(_c0)','(_C0)','(ts,time_unit)','(_c0,time_unit)','(_C0,time_unit)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
           
-        time_units = ['nums','numm','numh','numd','','numa']      
+        time_units = ['nums','numm','numh','numd','numa']      
         time_unit = str(random.sample(time_units,1)).replace("[","").replace("]","").replace("'","")          
         time_num = random.randint(0, 1000)  
         time_unit = time_unit.replace("num","%d" %time_num)         

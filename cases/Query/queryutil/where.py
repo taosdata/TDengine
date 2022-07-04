@@ -36,7 +36,7 @@ class TDWhere():
     #basic_param
     updatecfgDict={'maxSQLLength':1048576}
     NUM = random.randint(1, 30)
-    print(NUM)   
+    print(NUM) 
 
     def column_tag(self):
         int_column = ['(q_int)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_float)','(q_double)','(q_int_null)','(q_bigint_null)','(q_smallint_null)','(q_tinyint_null)','(q_float_null)','(q_double_null)']
@@ -136,8 +136,9 @@ class TDWhere():
         't_int <= 2147483647 and ' , 't_int >= -2147483647 and ',
         't_bigint between  -9223372036854775807 and 9223372036854775807 and ','t_smallint between -32767 and 32767 and ', 
         't_int between -2147483647 and 2147483647 and ','t_tinyint between -127 and 127  and ',        
-        't_tinyint != 128 and ','t_smallint != 88888 and ','t_int != 8888888888 and ','t_bigint != 9999972036854775807 and ',
+        't_tinyint != 128 and ','t_smallint != 88888 and ','t_int != 8888888888 and ',
         't_bigint is not null and ' , 't_int is not null and ' , 't_smallint is not null and ' , 't_tinyint is not null and ' ,]
+        #not support:TD-16661  't_bigint != 9999972036854775807 and ',
 
         t_fl_do_where = ['t_float >= -3.4E38 and ','t_float <= 3.4E38 and ', 't_double >= -1.7E308 and ','t_double <= 1.7E308 and ', 
         't_float between -3.4E38 and 3.4E38 and ','t_double between -1.7E308 and 1.7E308 and ' ,
@@ -167,7 +168,7 @@ class TDWhere():
         t_tinyint_list = "t_tinyint in (" + str(t_tinyint_list).replace("[","").replace("]","") + ")"
 
         t_in_where = [t_tinyint_list, 't_bool in (0 , 1) ' ,  't_bool in ( true , false) ' ,' (t_bool = true or  t_bool = false)' , '(t_bool = 0 or t_bool = 1)',]
-        t_in_where = ['t_bool in (0 , 1) ' ,  't_bool in ( true , false) ' ,' (t_bool = true or  t_bool = false)' , '(t_bool = 0 or t_bool = 1)',]#TD-16400
+        t_in_where = [ 't_bool in (0 , 1) ' ,  't_bool in ( true , false) ' ,' (t_bool = true or  t_bool = false)' , '(t_bool = 0 or t_bool = 1)',]#TD-16400
         t_in = random.sample(t_in_where,1)
 
         return(t_where,t_like_match,t_in)
