@@ -248,6 +248,11 @@ typedef struct SSampleExecInfo {
   uint32_t        seed;         // random seed value
 } SSampleExecInfo;
 
+enum {
+  TABLE_SCAN__TABLE_ORDER = 1,
+  TABLE_SCAN__BLOCK_ORDER = 2,
+};
+
 typedef struct STableScanInfo {
   void*           dataReader;
   SReadHandle     readHandle;
@@ -272,13 +277,17 @@ typedef struct STableScanInfo {
   int32_t         curTWinIdx;
 
   int32_t         currentGroupId;
+  int32_t         currentTable;
   uint64_t        queryId;   // todo remove it
   uint64_t        taskId;    // todo remove it
 
   struct {
     uint64_t uid;
-    int64_t t;
-  } scanStatus;
+    int64_t ts;
+  } lastStatus;
+
+  int8_t scanMode;
+  int8_t noTable;
 } STableScanInfo;
 
 typedef struct STagScanInfo {
@@ -347,6 +356,7 @@ typedef struct SStreamBlockScanInfo {
   SUpdateInfo*    pUpdateInfo;
 
   EStreamScanMode scanMode;
+  SOperatorInfo* pStreamScanOp;
   SOperatorInfo* pSnapshotReadOp;
   SArray*        childIds;
   SessionWindowSupporter sessionSup;
@@ -418,7 +428,7 @@ typedef struct SIntervalAggOperatorInfo {
   STimeWindowAggSupp twAggSup;
   bool               invertible;
   SArray*            pPrevValues;        //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
-  bool               ignoreCloseWindow;
+  bool               ignoreExpiredData;
 } SIntervalAggOperatorInfo;
 
 typedef struct SStreamFinalIntervalOperatorInfo {
@@ -440,7 +450,7 @@ typedef struct SStreamFinalIntervalOperatorInfo {
   SArray*            pPullWins;          // SPullWindowInfo
   int32_t            pullIndex;
   SSDataBlock*       pPullDataRes;
-  bool               ignoreCloseWindow;
+  bool               ignoreExpiredData;
 } SStreamFinalIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
@@ -578,7 +588,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   SArray*              pChildren;       // cache for children's result; final stream operator
   SPhysiNode*          pPhyNode;           // create new child
   bool                 isFinal;
-  bool                 ignoreCloseWindow;
+  bool                 ignoreExpiredData;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct STimeSliceOperatorInfo {
@@ -622,7 +632,7 @@ typedef struct SStreamStateAggOperatorInfo {
   void*                pDelIterator;
   SArray*              pScanWindow;
   SArray*              pChildren;       // cache for children's result;
-  bool                 ignoreCloseWindow;
+  bool                 ignoreExpiredData;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SSortedMergeOperatorInfo {
@@ -713,6 +723,7 @@ void    destroyBasicOperatorInfo(void* param, int32_t numOfOutput);
 void    appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 void    setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId);
 
+int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts);
 int32_t doGetScanStatus(SOperatorInfo* pOperator, uint64_t* uid, int64_t* ts);
 
 SSDataBlock* loadNextDataBlock(void* param);

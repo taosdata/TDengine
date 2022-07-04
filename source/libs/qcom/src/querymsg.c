@@ -20,7 +20,9 @@
 #include "systable.h"
 
 #pragma GCC diagnostic push
+#ifdef COMPILER_SUPPORTS_CXX13
 #pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
 
 int32_t (*queryBuildMsg[TDMT_MAX])(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void*(*mallocFp)(int32_t)) = {0};
 int32_t (*queryProcessMsgRsp[TDMT_MAX])(void *output, char *msg, int32_t msgSize) = {0};

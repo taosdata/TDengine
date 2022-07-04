@@ -185,7 +185,6 @@ function install_bin() {
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/udfd ] && ${csudo}cp -r ${binary_dir}/build/bin/udfd ${install_main_dir}/bin || :
     ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
-    # ${csudo}cp -r ${binary_dir}/build/bin/tarbitrator ${install_main_dir}/bin || :
 
     ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb ${install_main_dir}/bin || :
     ${csudo}cp -r ${script_dir}/remove.sh ${install_main_dir}/bin || :

@@ -16,24 +16,24 @@
 #define _DEFAULT_SOURCE
 #include "tlrucache.h"
 #include "os.h"
-#include "tdef.h"
 #include "taoserror.h"
-#include "tlog.h"
 #include "tarray.h"
+#include "tdef.h"
+#include "tlog.h"
 
-typedef struct SLRUEntry SLRUEntry;
+typedef struct SLRUEntry      SLRUEntry;
 typedef struct SLRUEntryTable SLRUEntryTable;
 typedef struct SLRUCacheShard SLRUCacheShard;
-typedef struct SShardedCache SShardedCache;
+typedef struct SShardedCache  SShardedCache;
 
 enum {
-  TAOS_LRU_IN_CACHE = (1 << 0),         // Whether this entry is referenced by the hash table.
+  TAOS_LRU_IN_CACHE = (1 << 0),  // Whether this entry is referenced by the hash table.
 
-  TAOS_LRU_IS_HIGH_PRI = (1 << 1),      // Whether this entry is high priority entry.
+  TAOS_LRU_IS_HIGH_PRI = (1 << 1),  // Whether this entry is high priority entry.
 
-  TAOS_LRU_IN_HIGH_PRI_POOL = (1 << 2), // Whether this entry is in high-pri pool.
+  TAOS_LRU_IN_HIGH_PRI_POOL = (1 << 2),  // Whether this entry is in high-pri pool.
 
-  TAOS_LRU_HAS_HIT = (1 << 3),          // Whether this entry has had any lookups (hits).
+  TAOS_LRU_HAS_HIT = (1 << 3),  // Whether this entry has had any lookups (hits).
 };
 
 struct SLRUEntry {
@@ -50,18 +50,39 @@ struct SLRUEntry {
   char                keyData[1];
 };
 
-#define TAOS_LRU_ENTRY_IN_CACHE(h) ((h)->flags & TAOS_LRU_IN_CACHE)
+#define TAOS_LRU_ENTRY_IN_CACHE(h)     ((h)->flags & TAOS_LRU_IN_CACHE)
 #define TAOS_LRU_ENTRY_IN_HIGH_POOL(h) ((h)->flags & TAOS_LRU_IN_HIGH_PRI_POOL)
-#define TAOS_LRU_ENTRY_IS_HIGH_PRI(h) ((h)->flags & TAOS_LRU_IS_HIGH_PRI)
-#define TAOS_LRU_ENTRY_HAS_HIT(h) ((h)->flags & TAOS_LRU_HAS_HIT)
+#define TAOS_LRU_ENTRY_IS_HIGH_PRI(h)  ((h)->flags & TAOS_LRU_IS_HIGH_PRI)
+#define TAOS_LRU_ENTRY_HAS_HIT(h)      ((h)->flags & TAOS_LRU_HAS_HIT)
 
-#define TAOS_LRU_ENTRY_SET_IN_CACHE(h, inCache)  do { if(inCache) {(h)->flags |= TAOS_LRU_IN_CACHE;} else {(h)->flags &= ~TAOS_LRU_IN_CACHE;} } while(0)
-#define TAOS_LRU_ENTRY_SET_IN_HIGH_POOL(h, inHigh)  do { if(inHigh) {(h)->flags |= TAOS_LRU_IN_HIGH_PRI_POOL;} else {(h)->flags &= ~TAOS_LRU_IN_HIGH_PRI_POOL;} } while(0)
-#define TAOS_LRU_ENTRY_SET_PRIORITY(h, priority)  do { if(priority == TAOS_LRU_PRIORITY_HIGH) {(h)->flags |= TAOS_LRU_IS_HIGH_PRI;} else {(h)->flags &= ~TAOS_LRU_IS_HIGH_PRI;} } while(0)
+#define TAOS_LRU_ENTRY_SET_IN_CACHE(h, inCache) \
+  do {                                          \
+    if (inCache) {                              \
+      (h)->flags |= TAOS_LRU_IN_CACHE;          \
+    } else {                                    \
+      (h)->flags &= ~TAOS_LRU_IN_CACHE;         \
+    }                                           \
+  } while (0)
+#define TAOS_LRU_ENTRY_SET_IN_HIGH_POOL(h, inHigh) \
+  do {                                             \
+    if (inHigh) {                                  \
+      (h)->flags |= TAOS_LRU_IN_HIGH_PRI_POOL;     \
+    } else {                                       \
+      (h)->flags &= ~TAOS_LRU_IN_HIGH_PRI_POOL;    \
+    }                                              \
+  } while (0)
+#define TAOS_LRU_ENTRY_SET_PRIORITY(h, priority) \
+  do {                                           \
+    if (priority == TAOS_LRU_PRIORITY_HIGH) {    \
+      (h)->flags |= TAOS_LRU_IS_HIGH_PRI;        \
+    } else {                                     \
+      (h)->flags &= ~TAOS_LRU_IS_HIGH_PRI;       \
+    }                                            \
+  } while (0)
 #define TAOS_LRU_ENTRY_SET_HIT(h) ((h)->flags |= TAOS_LRU_HAS_HIT)
 
 #define TAOS_LRU_ENTRY_HAS_REFS(h) ((h)->refs > 0)
-#define TAOS_LRU_ENTRY_REF(h) (++(h)->refs)
+#define TAOS_LRU_ENTRY_REF(h)      (++(h)->refs)
 
 static bool taosLRUEntryUnref(SLRUEntry *entry) {
   assert(entry->refs > 0);
@@ -90,7 +111,7 @@ struct SLRUEntryTable {
 
 static int taosLRUEntryTableInit(SLRUEntryTable *table, int maxUpperHashBits) {
   table->lengthBits = 4;
-  table->list = taosMemoryCalloc(1 << table->lengthBits, sizeof(SLRUEntry*));
+  table->list = taosMemoryCalloc(1 << table->lengthBits, sizeof(SLRUEntry *));
   if (!table->list) {
     return -1;
   }
@@ -125,7 +146,7 @@ static void taosLRUEntryTableCleanup(SLRUEntryTable *table) {
   taosMemoryFree(table->list);
 }
 
-static SLRUEntry **taosLRUEntryTableFindPtr(SLRUEntryTable * table, const void *key, size_t keyLen, uint32_t hash) {
+static SLRUEntry **taosLRUEntryTableFindPtr(SLRUEntryTable *table, const void *key, size_t keyLen, uint32_t hash) {
   SLRUEntry **entry = &table->list[hash >> (32 - table->lengthBits)];
   while (*entry && ((*entry)->hash != hash || memcmp(key, (*entry)->keyData, keyLen) != 0)) {
     entry = &(*entry)->nextHash;
@@ -134,7 +155,7 @@ static SLRUEntry **taosLRUEntryTableFindPtr(SLRUEntryTable * table, const void *
   return entry;
 }
 
-static void taosLRUEntryTableResize(SLRUEntryTable * table) {
+static void taosLRUEntryTableResize(SLRUEntryTable *table) {
   int lengthBits = table->lengthBits;
   if (lengthBits >= table->maxLengthBits) {
     return;
@@ -144,9 +165,9 @@ static void taosLRUEntryTableResize(SLRUEntryTable * table) {
     return;
   }
 
-  uint32_t oldLength = 1 << lengthBits;
-  int newLengthBits = lengthBits + 1;
-  SLRUEntry **newList = taosMemoryCalloc(1 << newLengthBits, sizeof(SLRUEntry*));
+  uint32_t    oldLength = 1 << lengthBits;
+  int         newLengthBits = lengthBits + 1;
+  SLRUEntry **newList = taosMemoryCalloc(1 << newLengthBits, sizeof(SLRUEntry *));
   if (!newList) {
     return;
   }
@@ -154,8 +175,8 @@ static void taosLRUEntryTableResize(SLRUEntryTable * table) {
   for (uint32_t i = 0; i < oldLength; ++i) {
     SLRUEntry *entry = table->list[i];
     while (entry) {
-      SLRUEntry *next = entry->nextHash;
-      uint32_t hash = entry->hash;
+      SLRUEntry  *next = entry->nextHash;
+      uint32_t    hash = entry->hash;
       SLRUEntry **ptr = &newList[hash >> (32 - newLengthBits)];
       entry->nextHash = *ptr;
       *ptr = entry;
@@ -170,13 +191,13 @@ static void taosLRUEntryTableResize(SLRUEntryTable * table) {
   table->lengthBits = newLengthBits;
 }
 
-static SLRUEntry *taosLRUEntryTableLookup(SLRUEntryTable * table, const void *key, size_t keyLen, uint32_t hash) {
+static SLRUEntry *taosLRUEntryTableLookup(SLRUEntryTable *table, const void *key, size_t keyLen, uint32_t hash) {
   return *taosLRUEntryTableFindPtr(table, key, keyLen, hash);
 }
 
-static SLRUEntry *taosLRUEntryTableInsert(SLRUEntryTable * table, SLRUEntry *entry) {
+static SLRUEntry *taosLRUEntryTableInsert(SLRUEntryTable *table, SLRUEntry *entry) {
   SLRUEntry **ptr = taosLRUEntryTableFindPtr(table, entry->keyData, entry->keyLength, entry->hash);
-  SLRUEntry *old = *ptr;
+  SLRUEntry  *old = *ptr;
   entry->nextHash = (old == NULL) ? NULL : old->nextHash;
   *ptr = entry;
   if (old == NULL) {
@@ -189,9 +210,9 @@ static SLRUEntry *taosLRUEntryTableInsert(SLRUEntryTable * table, SLRUEntry *ent
   return old;
 }
 
-static SLRUEntry *taosLRUEntryTableRemove(SLRUEntryTable * table, const void *key, size_t keyLen, uint32_t hash) {
+static SLRUEntry *taosLRUEntryTableRemove(SLRUEntryTable *table, const void *key, size_t keyLen, uint32_t hash) {
   SLRUEntry **entry = taosLRUEntryTableFindPtr(table, key, keyLen, hash);
-  SLRUEntry *result = *entry;
+  SLRUEntry  *result = *entry;
   if (result) {
     *entry = result->nextHash;
     --table->elems;
@@ -201,17 +222,17 @@ static SLRUEntry *taosLRUEntryTableRemove(SLRUEntryTable * table, const void *ke
 }
 
 struct SLRUCacheShard {
-  size_t          capacity;
-  size_t          highPriPoolUsage;
-  bool            strictCapacity;
-  double          highPriPoolRatio;
-  double          highPriPoolCapacity;
-  SLRUEntry       lru;
-  SLRUEntry      *lruLowPri;
-  SLRUEntryTable  table;
-  size_t          usage; // Memory size for entries residing in the cache.
-  size_t          lruUsage; // Memory size for entries residing only in the LRU list.
-  TdThreadMutex   mutex;
+  size_t         capacity;
+  size_t         highPriPoolUsage;
+  bool           strictCapacity;
+  double         highPriPoolRatio;
+  double         highPriPoolCapacity;
+  SLRUEntry      lru;
+  SLRUEntry     *lruLowPri;
+  SLRUEntryTable table;
+  size_t         usage;     // Memory size for entries residing in the cache.
+  size_t         lruUsage;  // Memory size for entries residing only in the LRU list.
+  TdThreadMutex  mutex;
 };
 
 #define TAOS_LRU_CACHE_SHARD_HASH32(key, len) (MurmurHash3_32((key), (len)))
@@ -231,8 +252,7 @@ static void taosLRUCacheShardLRUInsert(SLRUCacheShard *shard, SLRUEntry *e) {
   assert(e->next == NULL);
   assert(e->prev == NULL);
 
-  if (shard->highPriPoolRatio > 0
-      && (TAOS_LRU_ENTRY_IS_HIGH_PRI(e) || TAOS_LRU_ENTRY_HAS_HIT(e))) {
+  if (shard->highPriPoolRatio > 0 && (TAOS_LRU_ENTRY_IS_HIGH_PRI(e) || TAOS_LRU_ENTRY_HAS_HIT(e))) {
     e->next = &shard->lru;
     e->prev = shard->lru.prev;
 
@@ -248,7 +268,7 @@ static void taosLRUCacheShardLRUInsert(SLRUCacheShard *shard, SLRUEntry *e) {
 
     e->prev->next = e;
     e->next->prev = e;
-    
+
     TAOS_LRU_ENTRY_SET_IN_HIGH_POOL(e, false);
     shard->lruLowPri = e;
   }
@@ -304,13 +324,13 @@ static void taosLRUCacheShardSetCapacity(SLRUCacheShard *shard, size_t capacity)
 
   for (int i = 0; i < taosArrayGetSize(lastReferenceList); ++i) {
     SLRUEntry *entry = taosArrayGetP(lastReferenceList, i);
-    taosLRUEntryFree(entry);    
+    taosLRUEntryFree(entry);
   }
   taosArrayDestroy(lastReferenceList);
 }
 
-static int taosLRUCacheShardInit(SLRUCacheShard *shard, size_t capacity, bool strict,
-				  double highPriPoolRatio, int maxUpperHashBits) {
+static int taosLRUCacheShardInit(SLRUCacheShard *shard, size_t capacity, bool strict, double highPriPoolRatio,
+                                 int maxUpperHashBits) {
   if (taosLRUEntryTableInit(&shard->table, maxUpperHashBits) < 0) {
     return -1;
   }
@@ -341,23 +361,24 @@ static void taosLRUCacheShardCleanup(SLRUCacheShard *shard) {
   taosLRUEntryTableCleanup(&shard->table);
 }
 
-static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *e, LRUHandle **handle, bool freeOnFail) {
+static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *e, LRUHandle **handle,
+                                              bool freeOnFail) {
   LRUStatus status = TAOS_LRU_STATUS_OK;
-  SArray *lastReferenceList = taosArrayInit(16, POINTER_BYTES);
+  SArray   *lastReferenceList = taosArrayInit(16, POINTER_BYTES);
 
   taosThreadMutexLock(&shard->mutex);
 
   taosLRUCacheShardEvictLRU(shard, e->totalCharge, lastReferenceList);
-  
+
   if (shard->usage + e->totalCharge > shard->capacity && (shard->strictCapacity || handle == NULL)) {
     TAOS_LRU_ENTRY_SET_IN_CACHE(e, false);
     if (handle == NULL) {
       taosArrayPush(lastReferenceList, &e);
     } else {
       if (freeOnFail) {
-	taosMemoryFree(e);
+        taosMemoryFree(e);
 
-	*handle = NULL;
+        *handle = NULL;
       }
 
       status = TAOS_LRU_STATUS_INCOMPLETE;
@@ -371,21 +392,21 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
       assert(TAOS_LRU_ENTRY_IN_CACHE(old));
       TAOS_LRU_ENTRY_SET_IN_CACHE(old, false);
       if (!TAOS_LRU_ENTRY_HAS_REFS(e)) {
-	taosLRUCacheShardLRURemove(shard, old);
-	assert(shard->usage >= old->totalCharge);
-	shard->usage -= old->totalCharge;
+        taosLRUCacheShardLRURemove(shard, old);
+        assert(shard->usage >= old->totalCharge);
+        shard->usage -= old->totalCharge;
 
-	taosArrayPush(lastReferenceList, &old);
+        taosArrayPush(lastReferenceList, &old);
       }
     }
     if (handle == NULL) {
       taosLRUCacheShardLRUInsert(shard, e);
     } else {
       if (!TAOS_LRU_ENTRY_HAS_REFS(e)) {
-	TAOS_LRU_ENTRY_REF(e);
+        TAOS_LRU_ENTRY_REF(e);
       }
 
-      *handle = (LRUHandle*) e;
+      *handle = (LRUHandle *)e;
     }
   }
 
@@ -394,7 +415,7 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
   for (int i = 0; i < taosArrayGetSize(lastReferenceList); ++i) {
     SLRUEntry *entry = taosArrayGetP(lastReferenceList, i);
 
-    taosLRUEntryFree(entry);    
+    taosLRUEntryFree(entry);
   }
   taosArrayDestroy(lastReferenceList);
 
@@ -402,8 +423,8 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
 }
 
 static LRUStatus taosLRUCacheShardInsert(SLRUCacheShard *shard, const void *key, size_t keyLen, uint32_t hash,
-				   void *value, size_t charge, _taos_lru_deleter_t deleter,
-				   LRUHandle **handle, LRUPriority priority) {
+                                         void *value, size_t charge, _taos_lru_deleter_t deleter, LRUHandle **handle,
+                                         LRUPriority priority) {
   SLRUEntry *e = taosMemoryCalloc(1, sizeof(SLRUEntry) - 1 + keyLen);
   if (!e) {
     return TAOS_LRU_STATUS_FAIL;
@@ -442,7 +463,7 @@ static LRUHandle *taosLRUCacheShardLookup(SLRUCacheShard *shard, const void *key
 
   taosThreadMutexUnlock(&shard->mutex);
 
-  return (LRUHandle *) e;
+  return (LRUHandle *)e;
 }
 
 static void taosLRUCacheShardErase(SLRUCacheShard *shard, const void *key, size_t keyLen, uint32_t hash) {
@@ -482,7 +503,7 @@ static void taosLRUCacheShardEraseUnrefEntries(SLRUCacheShard *shard) {
     TAOS_LRU_ENTRY_SET_IN_CACHE(old, false);
     assert(shard->usage >= old->totalCharge);
     shard->usage -= old->totalCharge;
-    
+
     taosArrayPush(lastReferenceList, &old);
   }
 
@@ -491,14 +512,14 @@ static void taosLRUCacheShardEraseUnrefEntries(SLRUCacheShard *shard) {
   for (int i = 0; i < taosArrayGetSize(lastReferenceList); ++i) {
     SLRUEntry *entry = taosArrayGetP(lastReferenceList, i);
 
-    taosLRUEntryFree(entry);    
+    taosLRUEntryFree(entry);
   }
 
   taosArrayDestroy(lastReferenceList);
 }
 
 static bool taosLRUCacheShardRef(SLRUCacheShard *shard, LRUHandle *handle) {
-  SLRUEntry *e = (SLRUEntry *) handle;
+  SLRUEntry *e = (SLRUEntry *)handle;
   taosThreadMutexLock(&shard->mutex);
 
   assert(TAOS_LRU_ENTRY_HAS_REFS(e));
@@ -514,8 +535,8 @@ static bool taosLRUCacheShardRelease(SLRUCacheShard *shard, LRUHandle *handle, b
     return false;
   }
 
-  SLRUEntry *e = (SLRUEntry *) handle;
-  bool lastReference = false;
+  SLRUEntry *e = (SLRUEntry *)handle;
+  bool       lastReference = false;
 
   taosThreadMutexLock(&shard->mutex);
 
@@ -537,7 +558,7 @@ static bool taosLRUCacheShardRelease(SLRUCacheShard *shard, LRUHandle *handle, b
     assert(shard->usage >= e->totalCharge);
     shard->usage -= e->totalCharge;
   }
-  
+
   taosThreadMutexUnlock(&shard->mutex);
 
   if (lastReference) {
@@ -549,7 +570,7 @@ static bool taosLRUCacheShardRelease(SLRUCacheShard *shard, LRUHandle *handle, b
 
 static size_t taosLRUCacheShardGetUsage(SLRUCacheShard *shard) {
   size_t usage = 0;
-  
+
   taosThreadMutexLock(&shard->mutex);
   usage = shard->usage;
   taosThreadMutexUnlock(&shard->mutex);
@@ -559,7 +580,7 @@ static size_t taosLRUCacheShardGetUsage(SLRUCacheShard *shard) {
 
 static size_t taosLRUCacheShardGetPinnedUsage(SLRUCacheShard *shard) {
   size_t usage = 0;
-  
+
   taosThreadMutexLock(&shard->mutex);
 
   assert(shard->usage >= shard->lruUsage);
@@ -579,11 +600,11 @@ static void taosLRUCacheShardSetStrictCapacity(SLRUCacheShard *shard, bool stric
 }
 
 struct SShardedCache {
-  uint32_t        shardMask;
-  TdThreadMutex   capacityMutex;
-  size_t          capacity;
-  bool            strictCapacity;
-  uint64_t        lastId; // atomic var for last id
+  uint32_t      shardMask;
+  TdThreadMutex capacityMutex;
+  size_t        capacity;
+  bool          strictCapacity;
+  uint64_t      lastId;  // atomic var for last id
 };
 
 struct SLRUCache {
@@ -593,7 +614,7 @@ struct SLRUCache {
 };
 
 static int getDefaultCacheShardBits(size_t capacity) {
-  int numShardBits = 0;
+  int    numShardBits = 0;
   size_t minShardSize = 512 * 1024;
   size_t numShards = capacity / minShardSize;
   while (numShards >>= 1) {
@@ -621,7 +642,7 @@ SLRUCache *taosLRUCacheInit(size_t capacity, int numShardBits, double highPriPoo
     numShardBits = getDefaultCacheShardBits(capacity);
   }
 
-  int numShards =  1 << numShardBits;
+  int numShards = 1 << numShardBits;
   cache->shards = taosMemoryCalloc(numShards, sizeof(SLRUCacheShard));
   if (!cache->shards) {
     taosMemoryFree(cache);
@@ -629,7 +650,7 @@ SLRUCache *taosLRUCacheInit(size_t capacity, int numShardBits, double highPriPoo
     return NULL;
   }
 
-  bool strictCapacity = 1;
+  bool   strictCapacity = 1;
   size_t perShard = (capacity + (numShards - 1)) / numShards;
   for (int i = 0; i < numShards; ++i) {
     taosLRUCacheShardInit(&cache->shards[i], perShard, strictCapacity, highPriPoolRatio, 32 - numShardBits);
@@ -653,7 +674,7 @@ void taosLRUCacheCleanup(SLRUCache *cache) {
       int numShards = cache->numShards;
       assert(numShards > 0);
       for (int i = 0; i < numShards; ++i) {
-	taosLRUCacheShardCleanup(&cache->shards[i]);
+        taosLRUCacheShardCleanup(&cache->shards[i]);
       }
       taosMemoryFree(cache->shards);
       cache->shards = 0;
@@ -666,11 +687,12 @@ void taosLRUCacheCleanup(SLRUCache *cache) {
 }
 
 LRUStatus taosLRUCacheInsert(SLRUCache *cache, const void *key, size_t keyLen, void *value, size_t charge,
-		       _taos_lru_deleter_t deleter, LRUHandle **handle, LRUPriority priority) {
+                             _taos_lru_deleter_t deleter, LRUHandle **handle, LRUPriority priority) {
   uint32_t hash = TAOS_LRU_CACHE_SHARD_HASH32(key, keyLen);
   uint32_t shardIndex = hash & cache->shardedCache.shardMask;
 
-  return taosLRUCacheShardInsert(&cache->shards[shardIndex], key, keyLen, hash, value, charge, deleter, handle, priority);
+  return taosLRUCacheShardInsert(&cache->shards[shardIndex], key, keyLen, hash, value, charge, deleter, handle,
+                                 priority);
 }
 
 LRUHandle *taosLRUCacheLookup(SLRUCache *cache, const void *key, size_t keyLen) {
@@ -699,7 +721,7 @@ bool taosLRUCacheRef(SLRUCache *cache, LRUHandle *handle) {
     return false;
   }
 
-  uint32_t hash = ((SLRUEntry *) handle)->hash;
+  uint32_t hash = ((SLRUEntry *)handle)->hash;
   uint32_t shardIndex = hash & cache->shardedCache.shardMask;
 
   return taosLRUCacheShardRef(&cache->shards[shardIndex], handle);
@@ -710,15 +732,13 @@ bool taosLRUCacheRelease(SLRUCache *cache, LRUHandle *handle, bool eraseIfLastRe
     return false;
   }
 
-  uint32_t hash = ((SLRUEntry *) handle)->hash;
+  uint32_t hash = ((SLRUEntry *)handle)->hash;
   uint32_t shardIndex = hash & cache->shardedCache.shardMask;
 
   return taosLRUCacheShardRelease(&cache->shards[shardIndex], handle, eraseIfLastRef);
 }
 
-void* taosLRUCacheValue(SLRUCache *cache, LRUHandle *handle) {
-  return ((SLRUEntry*) handle)->value;
-}
+void *taosLRUCacheValue(SLRUCache *cache, LRUHandle *handle) { return ((SLRUEntry *)handle)->value; }
 
 size_t taosLRUCacheGetUsage(SLRUCache *cache) {
   size_t usage = 0;
@@ -742,7 +762,7 @@ size_t taosLRUCacheGetPinnedUsage(SLRUCache *cache) {
 
 void taosLRUCacheSetCapacity(SLRUCache *cache, size_t capacity) {
   uint32_t numShards = cache->numShards;
-  size_t perShard = (capacity + (numShards = 1)) / numShards;
+  size_t   perShard = (capacity + (numShards - 1)) / numShards;
 
   taosThreadMutexLock(&cache->shardedCache.capacityMutex);
 
@@ -751,7 +771,7 @@ void taosLRUCacheSetCapacity(SLRUCache *cache, size_t capacity) {
   }
 
   cache->shardedCache.capacity = capacity;
-  
+
   taosThreadMutexUnlock(&cache->shardedCache.capacityMutex);
 }
 
@@ -777,7 +797,7 @@ void taosLRUCacheSetStrictCapacity(SLRUCache *cache, bool strict) {
   }
 
   cache->shardedCache.strictCapacity = strict;
-  
+
   taosThreadMutexUnlock(&cache->shardedCache.capacityMutex);
 }
 

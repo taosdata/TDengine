@@ -426,7 +426,15 @@ static int32_t mndCompareDnodeId(int32_t *dnode1Id, int32_t *dnode2Id) { return 
 static int32_t mndCompareDnodeVnodes(SDnodeObj *pDnode1, SDnodeObj *pDnode2) {
   float d1Score = (float)pDnode1->numOfVnodes / pDnode1->numOfSupportVnodes;
   float d2Score = (float)pDnode2->numOfVnodes / pDnode2->numOfSupportVnodes;
+#if 0  
+  if (d1Score == d2Score) {
+    return pDnode2->id - pDnode1->id;
+  } else {
+    return d1Score >= d2Score ? 1 : 0;
+  }
+#else
   return d1Score >= d2Score ? 1 : 0;
+#endif
 }
 
 void mndSortVnodeGid(SVgObj *pVgroup) {
@@ -1211,6 +1219,9 @@ _OVER:
 }
 
 static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
+#if 1
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#else
   SMnode    *pMnode = pReq->info.node;
   SDnodeObj *pNew1 = NULL;
   SDnodeObj *pNew2 = NULL;
@@ -1404,6 +1415,7 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
 
   return code;
+#endif  
 }
 
 int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SArray *pArray) {
@@ -1703,6 +1715,9 @@ _OVER:
 }
 
 static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
+#if 1
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#else
   SMnode *pMnode = pReq->info.node;
   int32_t code = -1;
   SArray *pArray = NULL;
@@ -1751,4 +1766,7 @@ _OVER:
 
   taosArrayDestroy(pArray);
   return code;
+#endif 
 }
+
+bool mndVgroupInDb(SVgObj *pVgroup, int64_t dbUid) { return !pVgroup->isTsma && pVgroup->dbUid == dbUid; }

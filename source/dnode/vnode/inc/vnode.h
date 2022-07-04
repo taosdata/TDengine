@@ -116,6 +116,7 @@ typedef void *tsdbReaderT;
 #define BLOCK_LOAD_TABLE_SEQ_ORDER  2
 #define BLOCK_LOAD_TABLE_RR_ORDER   3
 
+int32_t     tsdbSetTableId(tsdbReaderT reader, int64_t uid);
 int32_t     tsdbSetTableList(tsdbReaderT reader, SArray *tableList);
 tsdbReaderT tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *tableList, uint64_t qId,
                            uint64_t taskId);

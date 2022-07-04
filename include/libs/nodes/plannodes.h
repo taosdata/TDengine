@@ -73,8 +73,7 @@ typedef struct SScanLogicNode {
   SNode*        pTagIndexCond;
   int8_t        triggerType;
   int64_t       watermark;
-  int16_t       tsColId;
-  double        filesFactor;
+  int8_t        igExpired;
   SArray*       pSmaIndexes;
   SNodeList*    pGroupTags;
   bool          groupSort;
@@ -105,6 +104,7 @@ typedef struct SIndefRowsFuncLogicNode {
   SNodeList* pFuncs;
   bool       isTailFunc;
   bool       isUniqueFunc;
+  bool       isTimeLineFunc;
 } SIndefRowsFuncLogicNode;
 
 typedef struct SInterpFuncLogicNode {
@@ -175,7 +175,7 @@ typedef struct SWindowLogicNode {
   SNode*           pStateExpr;
   int8_t           triggerType;
   int64_t          watermark;
-  double           filesFactor;
+  int8_t           igExpired;
   EWindowAlgorithm windowAlgo;
 } SWindowLogicNode;
 
@@ -296,8 +296,7 @@ typedef struct STableScanPhysiNode {
   int8_t         slidingUnit;
   int8_t         triggerType;
   int64_t        watermark;
-  int16_t        tsColId;
-  double         filesFactor;
+  int8_t         igExpired;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -347,6 +346,7 @@ typedef struct SDownstreamSourceNode {
   SQueryNodeAddr addr;
   uint64_t       taskId;
   uint64_t       schedId;
+  int32_t        execId;
 } SDownstreamSourceNode;
 
 typedef struct SExchangePhysiNode {
@@ -373,7 +373,7 @@ typedef struct SWinodwPhysiNode {
   SNode*     pTsEnd;  // window end timestamp
   int8_t     triggerType;
   int64_t    watermark;
-  double     filesFactor;
+  int8_t     igExpired;
 } SWinodwPhysiNode;
 
 typedef struct SIntervalPhysiNode {

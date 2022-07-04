@@ -534,8 +534,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->slidingUnit = pScanLogicNode->slidingUnit;
   pTableScan->triggerType = pScanLogicNode->triggerType;
   pTableScan->watermark = pScanLogicNode->watermark;
-  pTableScan->tsColId = pScanLogicNode->tsColId;
-  pTableScan->filesFactor = pScanLogicNode->filesFactor;
+  pTableScan->igExpired = pScanLogicNode->igExpired;
 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);
 }
@@ -1054,7 +1053,7 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
 
   pWindow->triggerType = pWindowLogicNode->triggerType;
   pWindow->watermark = pWindowLogicNode->watermark;
-  pWindow->filesFactor = pWindowLogicNode->filesFactor;
+  pWindow->igExpired = pWindowLogicNode->igExpired;
 
   if (TSDB_CODE_SUCCESS == code) {
     *pPhyNode = (SPhysiNode*)pWindow;
@@ -1555,7 +1554,11 @@ static int32_t createPhysiSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogic
   if (SUBPLAN_TYPE_MODIFY == pLogicSubplan->subplanType) {
     code = buildVnodeModifySubplan(pCxt, pLogicSubplan, pSubplan);
   } else {
-    pSubplan->msgType = TDMT_VND_QUERY;
+    if (SUBPLAN_TYPE_SCAN == pSubplan->subplanType) {
+      pSubplan->msgType = TDMT_SCH_QUERY;
+    } else {
+      pSubplan->msgType = TDMT_SCH_MERGE_QUERY;
+    }
     code = createPhysiNode(pCxt, pLogicSubplan->pNode, pSubplan, &pSubplan->pNode);
     if (TSDB_CODE_SUCCESS == code && !pCxt->pPlanCxt->streamQuery && !pCxt->pPlanCxt->topicQuery) {
       code = createDataDispatcher(pCxt, pSubplan->pNode, &pSubplan->pDataSink);

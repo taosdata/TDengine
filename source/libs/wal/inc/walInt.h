@@ -27,7 +27,7 @@ extern "C" {
 #endif
 
 // meta section begin
-typedef struct WalFileInfo {
+typedef struct {
   int64_t firstVer;
   int64_t lastVer;
   int64_t createTs;
@@ -98,20 +98,20 @@ static inline int walBuildIdxName(SWal* pWal, int64_t fileFirstVer, char* buf) {
   return sprintf(buf, "%s/%020" PRId64 "." WAL_INDEX_SUFFIX, pWal->path, fileFirstVer);
 }
 
-static inline int walValidHeadCksum(SWalHead* pHead) {
-  return taosCheckChecksum((uint8_t*)&pHead->head, sizeof(SWalReadHead), pHead->cksumHead);
+static inline int walValidHeadCksum(SWalCkHead* pHead) {
+  return taosCheckChecksum((uint8_t*)&pHead->head, sizeof(SWalCont), pHead->cksumHead);
 }
 
-static inline int walValidBodyCksum(SWalHead* pHead) {
+static inline int walValidBodyCksum(SWalCkHead* pHead) {
   return taosCheckChecksum((uint8_t*)pHead->head.body, pHead->head.bodyLen, pHead->cksumBody);
 }
 
-static inline int walValidCksum(SWalHead* pHead, void* body, int64_t bodyLen) {
+static inline int walValidCksum(SWalCkHead* pHead, void* body, int64_t bodyLen) {
   return walValidHeadCksum(pHead) && walValidBodyCksum(pHead);
 }
 
-static inline uint32_t walCalcHeadCksum(SWalHead* pHead) {
-  return taosCalcChecksum(0, (uint8_t*)&pHead->head, sizeof(SWalReadHead));
+static inline uint32_t walCalcHeadCksum(SWalCkHead* pHead) {
+  return taosCalcChecksum(0, (uint8_t*)&pHead->head, sizeof(SWalCont));
 }
 
 static inline uint32_t walCalcBodyCksum(const void* body, uint32_t len) {

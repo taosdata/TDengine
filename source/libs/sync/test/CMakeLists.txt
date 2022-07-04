@@ -21,6 +21,7 @@ add_executable(syncEntryCacheTest "")
 add_executable(syncRequestVoteTest "")
 add_executable(syncRequestVoteReplyTest "")
 add_executable(syncAppendEntriesTest "")
+add_executable(syncAppendEntriesBatchTest "")
 add_executable(syncAppendEntriesReplyTest "")
 add_executable(syncClientRequestTest "")
 add_executable(syncTimeoutTest "")
@@ -145,6 +146,10 @@ target_sources(syncRequestVoteReplyTest
 target_sources(syncAppendEntriesTest
     PRIVATE
     "syncAppendEntriesTest.cpp"
+)
+target_sources(syncAppendEntriesBatchTest
+    PRIVATE
+    "syncAppendEntriesBatchTest.cpp"
 )
 target_sources(syncAppendEntriesReplyTest
     PRIVATE
@@ -383,6 +388,11 @@ target_include_directories(syncRequestVoteReplyTest
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncAppendEntriesTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncAppendEntriesBatchTest
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -633,6 +643,10 @@ target_link_libraries(syncRequestVoteReplyTest
     gtest_main
 )
 target_link_libraries(syncAppendEntriesTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncAppendEntriesBatchTest
     sync
     gtest_main
 )
