@@ -62,6 +62,7 @@ typedef struct SMetaSnapReader SMetaSnapReader;
 typedef struct SMetaSnapWriter SMetaSnapWriter;
 typedef struct STsdbSnapReader STsdbSnapReader;
 typedef struct STsdbSnapWriter STsdbSnapWriter;
+typedef struct SSnapDataHdr    SSnapDataHdr;
 
 #define VNODE_META_DIR  "meta"
 #define VNODE_TSDB_DIR  "tsdb"
@@ -177,7 +178,7 @@ void*   tdUidStoreFree(STbUidStore* pStore);
 // SMetaSnapReader ========================================
 int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapReader** ppReader);
 int32_t metaSnapReaderClose(SMetaSnapReader** ppReader);
-int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData, int64_t* nDatap);
+int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData);
 // SMetaSnapWriter ========================================
 // STsdbSnapReader ========================================
 int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapReader** ppReader);
@@ -291,6 +292,12 @@ struct SSma {
 
 // sma
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
+
+struct SSnapDataHdr {
+  int8_t  type;
+  int64_t size;
+  uint8_t data[];
+};
 
 #ifdef __cplusplus
 }

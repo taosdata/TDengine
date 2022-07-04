@@ -27,7 +27,6 @@ struct SVSnapReader {
   int8_t           tsdbDone;
   STsdbSnapReader *pTsdbReader;
   uint8_t         *pData;
-  int64_t          nData;
 };
 
 int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapReader **ppReader) {
@@ -73,7 +72,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   int32_t code = 0;
 
   if (!pReader->metaDone) {
-    code = metaSnapRead(pReader->pMetaReader, &pReader->pData, &pReader->nData);
+    code = metaSnapRead(pReader->pMetaReader, &pReader->pData);
     if (code) {
       if (code == TSDB_CODE_VND_READ_END) {
         pReader->metaDone = 1;
@@ -82,7 +81,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       }
     } else {
       *ppData = pReader->pData;
-      *nData = pReader->nData;
+      *nData = sizeof(SSnapDataHdr) + ((SSnapDataHdr *)pReader->pData)->size;
       goto _exit;
     }
   }
@@ -97,7 +96,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       }
     } else {
       *ppData = pReader->pData;
-      *nData = pReader->nData;
+      *nData = sizeof(SSnapDataHdr) + ((SSnapDataHdr *)pReader->pData)->size;
       goto _exit;
     }
   }

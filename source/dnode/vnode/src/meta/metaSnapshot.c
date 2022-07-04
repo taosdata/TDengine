@@ -65,7 +65,7 @@ int32_t metaSnapReaderClose(SMetaSnapReader** ppReader) {
   return 0;
 }
 
-int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData, int64_t* nDatap) {
+int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
   const void* pKey = NULL;
   const void* pData = NULL;
   int32_t     nKey = 0;
@@ -79,20 +79,22 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData, int64_t* nDatap
     }
 
     if (((STbDbKey*)pData)->version < pReader->sver) {
+      tdbTbcMoveToNext(pReader->pTbc);
       continue;
     }
 
+    tdbTbcMoveToNext(pReader->pTbc);
     break;
   }
 
   // copy the data
-  if (tRealloc(ppData, nData) < 0) {
+  if (tRealloc(ppData, sizeof(SSnapDataHdr) + nData) < 0) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     return code;
   }
-
-  memcpy(*ppData, pData, nData);
-  *nDatap = nData;
+  ((SSnapDataHdr*)(*ppData))->type = 0;  // TODO: use macro
+  ((SSnapDataHdr*)(*ppData))->size = nData;
+  memcpy(((SSnapDataHdr*)(*ppData))->data, pData, nData);
   return code;
 }
 
