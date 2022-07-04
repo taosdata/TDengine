@@ -621,6 +621,21 @@ TEST_F(ParserInitialCTest, createTable) {
   // run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', NOW + 1S)");
 }
 
+TEST_F(ParserInitialCTest, createTableSemanticCheck) {
+  useDb("root", "test");
+
+  string sql = "CREATE TABLE st1(ts TIMESTAMP, ";
+  for (int32_t i = 1; i < 4096; ++i) {
+    if (i > 1) {
+      sql.append(", ");
+    }
+    sql.append("c" + to_string(i) + " INT");
+  }
+  sql.append(") TAGS (t1 int)");
+
+  run(sql, TSDB_CODE_PAR_TOO_MANY_COLUMNS);
+}
+
 TEST_F(ParserInitialCTest, createTopic) {
   useDb("root", "test");
 
