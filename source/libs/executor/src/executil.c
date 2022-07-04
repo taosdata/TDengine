@@ -63,7 +63,8 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
     rowSize += pCtx[i].resDataInfo.interBufSize;
   }
 
-  rowSize += (numOfOutput * sizeof(bool));    // expand rowSize to mark if col is null for top/bottom result(saveTupleData)
+  rowSize +=
+      (numOfOutput * sizeof(bool));  // expand rowSize to mark if col is null for top/bottom result(saveTupleData)
   return rowSize;
 }
 
@@ -114,7 +115,7 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int
     p->pos = *(SResultRowPosition*)pData;
     memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
 #ifdef BUF_PAGE_DEBUG
-    qDebug("page_groupRes, groupId:%"PRIu64",pageId:%d,offset:%d\n", p->groupId, p->pos.pageId, p->pos.offset);
+    qDebug("page_groupRes, groupId:%" PRIu64 ",pageId:%d,offset:%d\n", p->groupId, p->pos.pageId, p->pos.offset);
 #endif
     taosArrayPush(pGroupResInfo->pRows, &p);
   }
@@ -305,8 +306,7 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
           .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = tsdbGetIvtIdx(metaHandle), .suid = tableUid};
 
       SArray* res = taosArrayInit(8, sizeof(uint64_t));
-      // code = doFilterTag(pTagIndexCond, &metaArg, res);
-      code = TSDB_CODE_INDEX_REBUILDING;
+      code = doFilterTag(pTagIndexCond, &metaArg, res);
       if (code == TSDB_CODE_INDEX_REBUILDING) {
         code = tsdbGetAllTableList(metaHandle, tableUid, pListInfo->pTableList);
       } else if (code != TSDB_CODE_SUCCESS) {
@@ -333,13 +333,13 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
       return code;
     }
 
-    if(pTagCond){
+    if (pTagCond) {
       int32_t i = 0;
       while (i < taosArrayGetSize(pListInfo->pTableList)) {
         STableKeyInfo* info = taosArrayGet(pListInfo->pTableList, i);
-        bool isOk = isTableOk(info, pTagCond, metaHandle);
-        if(terrno) return terrno;
-        if(!isOk){
+        bool           isOk = isTableOk(info, pTagCond, metaHandle);
+        if (terrno) return terrno;
+        if (!isOk) {
           taosArrayRemove(pListInfo->pTableList, i);
           continue;
         }

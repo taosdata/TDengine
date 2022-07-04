@@ -743,17 +743,14 @@ int32_t doFilterTag(const SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *re
   }
 
   SFilterInfo *filter = NULL;
-  // todo move to the initialization function
-  // SIF_ERR_RET(filterInitFromNode((SNode *)pFilterNode, &filter, 0));
 
   SArray * output = taosArrayInit(8, sizeof(uint64_t));
   SIFParam param = {.arg = *metaArg, .result = output};
   SIF_ERR_RET(sifCalculate((SNode *)pFilterNode, &param));
 
   taosArrayAddAll(result, param.result);
-  // taosArrayAddAll(result, param.result);
   sifFreeParam(&param);
-  SIF_RET(TSDB_CODE_SUCCESS);
+  return TSDB_CODE_SUCCESS;
 }
 
 SIdxFltStatus idxGetFltStatus(SNode *pFilterNode) {
@@ -761,9 +758,6 @@ SIdxFltStatus idxGetFltStatus(SNode *pFilterNode) {
   if (pFilterNode == NULL) {
     return SFLT_NOT_INDEX;
   }
-  // SFilterInfo *filter = NULL;
-  // todo move to the initialization function
-  // SIF_ERR_RET(filterInitFromNode((SNode *)pFilterNode, &filter, 0));
 
   SIF_ERR_RET(sifGetFltHint((SNode *)pFilterNode, &st));
   return st;
