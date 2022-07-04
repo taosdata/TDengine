@@ -1196,6 +1196,8 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
                    (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
 
+  timeUnit = timeUnit * 1000 / factor;
+
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
       colDataAppendNULL(pOutput->columnData, i);
@@ -1228,7 +1230,6 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
     char buf[20] = {0};
     NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal, sizeof(buf), buf);
     int32_t tsDigits = (int32_t)strlen(buf);
-    timeUnit = timeUnit * 1000 / factor;
 
     switch (timeUnit) {
       case 0: { /* 1u */
@@ -1384,6 +1385,11 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
   }
 
+  int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                   (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
+
+  timeUnit = timeUnit * 1000 / factor;
+
   int32_t numOfRows = 0;
   for (int32_t i = 0; i < inputNum; ++i) {
     if (pInput[i].numOfRows > numOfRows) {
@@ -1463,9 +1469,6 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
         }
       }
     } else {
-      int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
-                       (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
-      timeUnit = timeUnit * 1000 / factor;
       switch(timeUnit) {
         case 0: { /* 1u */
           result = result / 1000;
