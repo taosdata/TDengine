@@ -1503,11 +1503,11 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
       NEXT_TOKEN(pCxt->pSql, sToken);
     }
 
-    if (TK_USING == sToken.type && !existedUsing) {
+    if (TK_USING == sToken.type) {
       CHECK_CODE(parseUsingClause(pCxt, &name, tbFName));
       NEXT_TOKEN(pCxt->pSql, sToken);
       autoCreateTbl = true;
-    } else {
+    } else if (!existedUsing) {
       CHECK_CODE(getTableMeta(pCxt, &name, dbFName));
     }
 

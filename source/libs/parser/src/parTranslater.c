@@ -121,8 +121,8 @@ static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STa
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pName->dbname,
-                pName->tname);
+    parserError("0x%" PRIx64 " catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pCxt->pParseCxt->requestId,
+                tstrerror(code), pName->dbname, pName->tname);
   }
   return code;
 }
@@ -150,8 +150,8 @@ static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCf
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("catalogRefreshGetTableCfg error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pName->dbname,
-                pName->tname);
+    parserError("0x%" PRIx64 " catalogRefreshGetTableCfg error, code:%s, dbName:%s, tbName:%s",
+                pCxt->pParseCxt->requestId, tstrerror(code), pName->dbname, pName->tname);
   }
   return code;
 }
@@ -173,8 +173,8 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
     code = catalogRefreshGetTableMeta(pParCxt->pCatalog, &conn, &name, pMeta, false);
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("catalogRefreshGetTableMeta error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pDbName,
-                pTableName);
+    parserError("0x%" PRIx64 " catalogRefreshGetTableMeta error, code:%s, dbName:%s, tbName:%s",
+                pCxt->pParseCxt->requestId, tstrerror(code), pDbName, pTableName);
   }
   return code;
 }
@@ -196,7 +196,8 @@ static int32_t getDBVgInfoImpl(STranslateContext* pCxt, const SName* pName, SArr
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("catalogGetDBVgInfo error, code:%s, dbFName:%s", tstrerror(code), fullDbName);
+    parserError("0x%" PRIx64 " catalogGetDBVgInfo error, code:%s, dbFName:%s", pCxt->pParseCxt->requestId,
+                tstrerror(code), fullDbName);
   }
   return code;
 }
@@ -227,8 +228,8 @@ static int32_t getTableHashVgroupImpl(STranslateContext* pCxt, const SName* pNam
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("catalogGetTableHashVgroup error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pName->dbname,
-                pName->tname);
+    parserError("0x%" PRIx64 " catalogGetTableHashVgroup error, code:%s, dbName:%s, tbName:%s",
+                pCxt->pParseCxt->requestId, tstrerror(code), pName->dbname, pName->tname);
   }
   return code;
 }
@@ -251,7 +252,8 @@ static int32_t getDBVgVersion(STranslateContext* pCxt, const char* pDbFName, int
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("catalogGetDBVgVersion error, code:%s, dbFName:%s", tstrerror(code), pDbFName);
+    parserError("0x%" PRIx64 " catalogGetDBVgVersion error, code:%s, dbFName:%s", pCxt->pParseCxt->requestId,
+                tstrerror(code), pDbFName);
   }
   return code;
 }
@@ -276,7 +278,8 @@ static int32_t getDBCfg(STranslateContext* pCxt, const char* pDbName, SDbCfgInfo
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("catalogGetDBCfg error, code:%s, dbFName:%s", tstrerror(code), dbFname);
+    parserError("0x%" PRIx64 " catalogGetDBCfg error, code:%s, dbFName:%s", pCxt->pParseCxt->requestId, tstrerror(code),
+                dbFname);
   }
   return code;
 }
@@ -303,6 +306,10 @@ static int32_t getUdfInfo(STranslateContext* pCxt, SFunctionNode* pFunc) {
     pFunc->udfBufSize = funcInfo.bufSize;
     tFreeSFuncInfo(&funcInfo);
   }
+  if (TSDB_CODE_SUCCESS != code) {
+    parserError("0x%" PRIx64 " catalogGetUdfInfo error, code:%s, funcName:%s", pCxt->pParseCxt->requestId,
+                tstrerror(code), pFunc->functionName);
+  }
   return code;
 }
 
@@ -323,7 +330,8 @@ static int32_t getTableIndex(STranslateContext* pCxt, const SName* pName, SArray
     code = catalogGetTableIndex(pParCxt->pCatalog, &conn, pName, pIndexes);
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("getTableIndex error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pName->dbname, pName->tname);
+    parserError("0x%" PRIx64 " getTableIndex error, code:%s, dbName:%s, tbName:%s", pCxt->pParseCxt->requestId,
+                tstrerror(code), pName->dbname, pName->tname);
   }
   return code;
 }
@@ -341,7 +349,7 @@ static int32_t getDnodeList(STranslateContext* pCxt, SArray** pDnodes) {
     code = catalogGetDnodeList(pParCxt->pCatalog, &conn, pDnodes);
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("getDnodeList error, code:%s", tstrerror(code));
+    parserError("0x%" PRIx64 " getDnodeList error, code:%s", pCxt->pParseCxt->requestId, tstrerror(code));
   }
   return code;
 }
@@ -707,7 +715,7 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
 }
 
 static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
-  if (isSelectStmt(pCxt->pCurrStmt) && NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) {
+  if (NULL == pCxt->pCurrStmt || isSelectStmt(pCxt->pCurrStmt) && NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
   }
 
@@ -3790,24 +3798,45 @@ static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pS
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
                                    "Set tag value only available for child table");
   }
+
+  if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS && -1 != pStmt->pOptions->ttl) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+
+  if (pStmt->dataType.type == TSDB_DATA_TYPE_JSON && pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
+  }
+
+  if (pStmt->dataType.type == TSDB_DATA_TYPE_JSON && pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COL_JSON);
+  }
+
+  STableMeta* pTableMeta = NULL;
+  int32_t     code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
+  if (getNumOfTags(pTableMeta) == 1 && pTagsSchema->type == TSDB_DATA_TYPE_JSON &&
+      (pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG || pStmt->alterType == TSDB_ALTER_TABLE_DROP_TAG ||
+       pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_TAG_BYTES)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
+  }
+
   if (TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType ||
       TSDB_ALTER_TABLE_UPDATE_TAG_BYTES == pStmt->alterType) {
-    STableMeta* pTableMeta = NULL;
-    int32_t     code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta);
-    if (TSDB_CODE_SUCCESS == code) {
-      if (TSDB_SUPER_TABLE != pTableMeta->tableType) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Table is not super table");
-      }
-
-      SSchema* pSchema = getColSchema(pTableMeta, pStmt->colName);
-      if (NULL == pSchema) {
-        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pStmt->colName);
-      } else if (!IS_VAR_DATA_TYPE(pSchema->type) || pSchema->type != pStmt->dataType.type ||
-                 pSchema->bytes >= calcTypeBytes(pStmt->dataType)) {
-        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_MODIFY_COL);
-      }
+    if (TSDB_SUPER_TABLE != pTableMeta->tableType) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Table is not super table");
     }
-    return code;
+
+    SSchema* pSchema = getColSchema(pTableMeta, pStmt->colName);
+    if (NULL == pSchema) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pStmt->colName);
+    } else if (!IS_VAR_DATA_TYPE(pSchema->type) || pSchema->type != pStmt->dataType.type ||
+               pSchema->bytes >= calcTypeBytes(pStmt->dataType)) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_MODIFY_COL);
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -5259,44 +5288,10 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, S
   }
 }
 
-// static int32_t createValueFromFunction(STranslateContext* pCxt, SFunctionNode* pFunc, SValueNode** pVal) {
-//   int32_t code = getFuncInfo(pCxt, pFunc);
-//   if (TSDB_CODE_SUCCESS == code) {
-//     code = scalarCalculateConstants((SNode*)pFunc, (SNode**)pVal);
-//   }
-//   return code;
-// }
-
 static SDataType schemaToDataType(uint8_t precision, SSchema* pSchema) {
   SDataType dt = {.type = pSchema->type, .bytes = pSchema->bytes, .precision = precision, .scale = 0};
   return dt;
 }
-
-// static int32_t createValueFromExpr(STranslateContext* pCxt, SNode* pNode, SValueNode** pVal) {
-//   SNode* pExpr = nodesCloneNode(pNode);
-//   if (NULL == pExpr) {
-//     return TSDB_CODE_OUT_OF_MEMORY;
-//   }
-
-//   SNode*  pNew = NULL;
-//   int32_t code = translateExpr(pCxt, &pExpr);
-//   if (TSDB_CODE_SUCCESS == code) {
-//     code = scalarCalculateConstants(pExpr, &pNew);
-//   }
-//   if (TSDB_CODE_SUCCESS == code) {
-//     pExpr = pNew;
-//     if (QUERY_NODE_VALUE != nodeType(pExpr)) {
-//       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)pExpr)->aliasName);
-//     }
-//   }
-
-//   if (TSDB_CODE_SUCCESS == code) {
-//     *pVal = pExpr;
-//   } else {
-//     nodesDestroyNode(pExpr);
-//   }
-//   return code;
-// }
 
 static int32_t createCastFuncForTag(STranslateContext* pCxt, SNode* pNode, SDataType dt, SNode** pCast) {
   SNode* pExpr = nodesCloneNode(pNode);
@@ -5313,10 +5308,9 @@ static int32_t createCastFuncForTag(STranslateContext* pCxt, SNode* pNode, SData
   return code;
 }
 
-static int32_t createTagVal(STranslateContext* pCxt, uint8_t precision, SSchema* pSchema, SNode* pNode,
-                            SValueNode** pVal) {
+static int32_t createTagValFromExpr(STranslateContext* pCxt, SDataType targetDt, SNode* pNode, SValueNode** pVal) {
   SNode*  pCast = NULL;
-  int32_t code = createCastFuncForTag(pCxt, pNode, schemaToDataType(precision, pSchema), &pCast);
+  int32_t code = createCastFuncForTag(pCxt, pNode, targetDt, &pCast);
   SNode*  pNew = NULL;
   if (TSDB_CODE_SUCCESS == code) {
     code = scalarCalculateConstants(pCast, &pNew);
@@ -5334,6 +5328,23 @@ static int32_t createTagVal(STranslateContext* pCxt, uint8_t precision, SSchema*
     nodesDestroyNode(pCast);
   }
   return code;
+}
+
+static int32_t createTagValFromVal(STranslateContext* pCxt, SDataType targetDt, SNode* pNode, SValueNode** pVal) {
+  *pVal = (SValueNode*)nodesCloneNode(pNode);
+  if (NULL == *pVal) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return DEAL_RES_ERROR == translateValueImpl(pCxt, *pVal, targetDt) ? pCxt->errCode : TSDB_CODE_SUCCESS;
+}
+
+static int32_t createTagVal(STranslateContext* pCxt, uint8_t precision, SSchema* pSchema, SNode* pNode,
+                            SValueNode** pVal) {
+  if (QUERY_NODE_VALUE == nodeType(pNode)) {
+    return createTagValFromVal(pCxt, schemaToDataType(precision, pSchema), pNode, pVal);
+  } else {
+    return createTagValFromExpr(pCxt, schemaToDataType(precision, pSchema), pNode, pVal);
+  }
 }
 
 static int32_t buildJsonTagVal(STranslateContext* pCxt, SSchema* pTagSchema, SValueNode* pVal, SArray* pTagArray,
@@ -5962,15 +5973,6 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
   }
 
   if (TSDB_SUPER_TABLE == pTableMeta->tableType) {
-    SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
-    if (getNumOfTags(pTableMeta) == 1 && pTagsSchema->type == TSDB_DATA_TYPE_JSON &&
-        (pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG || pStmt->alterType == TSDB_ALTER_TABLE_DROP_TAG ||
-         pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_TAG_BYTES)) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
-    }
-    if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS && -1 != pStmt->pOptions->ttl) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
-    }
     return TSDB_CODE_SUCCESS;
   } else if (TSDB_CHILD_TABLE != pTableMeta->tableType && TSDB_NORMAL_TABLE != pTableMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
@@ -5992,10 +5994,6 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
 
 static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
   SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
-
-  if (pStmt->dataType.type == TSDB_DATA_TYPE_JSON && pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
-  }
 
   if (pStmt->dataType.type == TSDB_DATA_TYPE_JSON && pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COL_JSON);
