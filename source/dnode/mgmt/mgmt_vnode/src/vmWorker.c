@@ -107,13 +107,7 @@ static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOf
     const STraceId *trace = &pMsg->info.traceId;
     dGTrace("vgId:%d, msg:%p get from vnode-sync queue", pVnode->vgId, pMsg);
 
-    int32_t code = vnodeProcessSyncReq(pVnode->pImpl, pMsg, NULL);
-    if (code != 0) {
-      if (terrno != 0) code = terrno;
-      dGError("vgId:%d, msg:%p failed to sync since %s", pVnode->vgId, pMsg, terrstr());
-      vmSendRsp(pMsg, code);
-    }
-
+    int32_t code = vnodeProcessSyncReq(pVnode->pImpl, pMsg, NULL);  // no response here
     dGTrace("vgId:%d, msg:%p is freed, code:0x%x", pVnode->vgId, pMsg, code);
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
@@ -152,8 +146,8 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) {
-    dGError("vgId:%d, msg:%p failed to put into vnode queue since %s, type:%s", pHead->vgId, pMsg, terrstr(),
-            TMSG_INFO(pMsg->msgType));
+    dGError("vgId:%d, msg:%p failed to put into vnode queue since %s, msgtype:%s qtype:%d", pHead->vgId, pMsg,
+            terrstr(), TMSG_INFO(pMsg->msgType), qtype);
     return terrno != 0 ? terrno : -1;
   }
 

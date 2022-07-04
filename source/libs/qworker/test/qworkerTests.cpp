@@ -122,7 +122,7 @@ void qwtBuildQueryReqMsg(SRpcMsg *queryRpc) {
   qwtqueryMsg.taskId = htobe64(1);
   qwtqueryMsg.phyLen = htonl(100);
   qwtqueryMsg.sqlLen = 0;
-  queryRpc->msgType = TDMT_VND_QUERY;
+  queryRpc->msgType = TDMT_SCH_QUERY;
   queryRpc->pCont = &qwtqueryMsg;
   queryRpc->contLen = sizeof(SSubQueryMsg) + 100;
 }
@@ -131,7 +131,7 @@ void qwtBuildFetchReqMsg(SResFetchReq *fetchMsg, SRpcMsg *fetchRpc) {
   fetchMsg->sId = htobe64(1);
   fetchMsg->queryId = htobe64(atomic_load_64(&qwtTestQueryId));
   fetchMsg->taskId = htobe64(1);
-  fetchRpc->msgType = TDMT_VND_FETCH;
+  fetchRpc->msgType = TDMT_SCH_FETCH;
   fetchRpc->pCont = fetchMsg;
   fetchRpc->contLen = sizeof(SResFetchReq);
 }
@@ -140,7 +140,7 @@ void qwtBuildDropReqMsg(STaskDropReq *dropMsg, SRpcMsg *dropRpc) {
   dropMsg->sId = htobe64(1);
   dropMsg->queryId = htobe64(atomic_load_64(&qwtTestQueryId));
   dropMsg->taskId = htobe64(1);
-  dropRpc->msgType = TDMT_VND_DROP_TASK;
+  dropRpc->msgType = TDMT_SCH_DROP_TASK;
   dropRpc->pCont = dropMsg;
   dropRpc->contLen = sizeof(STaskDropReq);
 }
@@ -202,7 +202,8 @@ void qwtSendReqToDnode(void* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq)
 void qwtRpcSendResponse(const SRpcMsg *pRsp) {
 
   switch (pRsp->msgType) {
-    case TDMT_VND_QUERY_RSP: {
+    case TDMT_SCH_QUERY_RSP:
+    case TDMT_SCH_MERGE_QUERY_RSP: {
       SQueryTableRsp *rsp = (SQueryTableRsp *)pRsp->pCont;
 
       if (pRsp->code) {
@@ -213,7 +214,7 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
       rpcFreeCont(rsp);
       break;
     }
-    case TDMT_VND_FETCH_RSP: {
+    case TDMT_SCH_FETCH_RSP: {
       SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)pRsp->pCont;
   
       if (0 == pRsp->code && 0 == rsp->completed) {
@@ -229,7 +230,7 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
       
       break;
     }
-    case TDMT_VND_DROP_TASK_RSP: {
+    case TDMT_SCH_DROP_TASK_RSP: {
       STaskDropRsp *rsp = (STaskDropRsp *)pRsp->pCont;
       rpcFreeCont(rsp);
 
@@ -756,9 +757,9 @@ void *queryQueueThread(void *param) {
       }
     }
     
-    if (TDMT_VND_QUERY == queryRpc->msgType) {
+    if (TDMT_SCH_QUERY == queryRpc->msgType) {
       qWorkerProcessQueryMsg(mockPointer, mgmt, queryRpc, 0);
-    } else if (TDMT_VND_QUERY_CONTINUE == queryRpc->msgType) {
+    } else if (TDMT_SCH_QUERY_CONTINUE == queryRpc->msgType) {
       qWorkerProcessCQueryMsg(mockPointer, mgmt, queryRpc, 0);
     } else {
       printf("unknown msg in query queue, type:%d\n", queryRpc->msgType);
@@ -813,13 +814,13 @@ void *fetchQueueThread(void *param) {
     }
 
     switch (fetchRpc->msgType) {
-      case TDMT_VND_FETCH:
+      case TDMT_SCH_FETCH:
         qWorkerProcessFetchMsg(mockPointer, mgmt, fetchRpc, 0);
         break;
-      case TDMT_VND_CANCEL_TASK:
+      case TDMT_SCH_CANCEL_TASK:
         qWorkerProcessCancelMsg(mockPointer, mgmt, fetchRpc, 0);
         break;
-      case TDMT_VND_DROP_TASK:
+      case TDMT_SCH_DROP_TASK:
         qWorkerProcessDropMsg(mockPointer, mgmt, fetchRpc, 0);
         break;
       default:

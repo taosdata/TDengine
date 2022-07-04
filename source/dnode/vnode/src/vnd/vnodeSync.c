@@ -73,7 +73,7 @@ static int32_t vnodeSetStandBy(SVnode *pVnode) {
     vInfo("vgId:%d, set standby success", TD_VID(pVnode));
     return 0;
   } else {
-    vError("vgId:%d, failed to set standby since %s", TD_VID(pVnode), terrstr());
+    vError("vgId:%d, failed to set standby after leader transfer since %s", TD_VID(pVnode), terrstr());
     return -1;
   }
 }
@@ -178,7 +178,7 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
       for (int32_t i = 0; i < newEpSet.numOfEps; ++i) {
         vGTrace("vgId:%d, msg:%p redirect:%d ep:%s:%u", vgId, pMsg, i, newEpSet.eps[i].fqdn, newEpSet.eps[i].port);
       }
-
+      pMsg->info.hasEpSet = 1;
       SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info};
       tmsgSendRedirectRsp(&rsp, &newEpSet);
     } else {
@@ -243,7 +243,7 @@ int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       char          *syncNodeStr = sync2SimpleStr(pVnode->sync);
       static int64_t vndTick = 0;
       if (++vndTick % 10 == 1) {
-        vGTrace("vgId:%d, sync heartbeat msg:%s, %s", syncGetVgId(pVnode->sync), TMSG_INFO(pMsg->msgType), syncNodeStr);
+        vGTrace("vgId:%d, sync trace msg:%s, %s", syncGetVgId(pVnode->sync), TMSG_INFO(pMsg->msgType), syncNodeStr);
       }
       if (gRaftDetailLog) {
         char logBuf[512] = {0};
@@ -409,7 +409,7 @@ static void vnodeSyncRollBackMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta
   syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 }
 
-static int32_t vnodeSnapshotStartRead(struct SSyncFSM *pFsm, void **ppReader) { return 0; }
+static int32_t vnodeSnapshotStartRead(struct SSyncFSM *pFsm, void *pParam, void **ppReader) { return 0; }
 
 static int32_t vnodeSnapshotStopRead(struct SSyncFSM *pFsm, void *pReader) { return 0; }
 

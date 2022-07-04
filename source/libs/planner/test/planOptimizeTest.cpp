@@ -20,7 +20,7 @@ using namespace std;
 
 class PlanOptimizeTest : public PlannerTestBase {};
 
-TEST_F(PlanOptimizeTest, optimizeScanData) {
+TEST_F(PlanOptimizeTest, scanPath) {
   useDb("root", "test");
 
   run("SELECT COUNT(*) FROM t1");
@@ -32,7 +32,7 @@ TEST_F(PlanOptimizeTest, optimizeScanData) {
   run("SELECT PERCENTILE(c1, 40), COUNT(*) FROM t1");
 }
 
-TEST_F(PlanOptimizeTest, ConditionPushDown) {
+TEST_F(PlanOptimizeTest, pushDownCondition) {
   useDb("root", "test");
 
   run("SELECT ts, c1 FROM st1 WHERE tag1 > 4");
@@ -42,9 +42,11 @@ TEST_F(PlanOptimizeTest, ConditionPushDown) {
   run("SELECT ts, c1 FROM st1 WHERE tag1 > 4 AND tag2 = 'hello'");
 
   run("SELECT ts, c1 FROM st1 WHERE tag1 > 4 AND tag2 = 'hello' AND c1 > 10");
+
+  run("SELECT ts, c1 FROM (SELECT * FROM st1) WHERE tag1 > 4");
 }
 
-TEST_F(PlanOptimizeTest, orderByPrimaryKey) {
+TEST_F(PlanOptimizeTest, sortPrimaryKey) {
   useDb("root", "test");
 
   run("SELECT c1 FROM t1 ORDER BY ts");

@@ -119,6 +119,9 @@ int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t getFirstLastInfoSize(int32_t resBytes);
 
+int32_t lastRowFunction(SqlFunctionCtx *pCtx);
+int32_t lastRowFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
 bool getTopBotFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 bool getTopBotMergeFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 bool topBotFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
@@ -192,6 +195,11 @@ int32_t tailFunction(SqlFunctionCtx* pCtx);
 bool getUniqueFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool uniqueFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t uniqueFunction(SqlFunctionCtx *pCtx);
+
+bool getModeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool modeFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t modeFunction(SqlFunctionCtx *pCtx);
+int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getTwaFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool twaFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);

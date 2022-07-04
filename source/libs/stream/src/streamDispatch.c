@@ -108,7 +108,7 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
   pRetrieve->ekey = htobe64(pBlock->info.window.ekey);
 
   int32_t actualLen = 0;
-  blockCompressEncode(pBlock, pRetrieve->data, &actualLen, numOfCols, false);
+  blockEncode(pBlock, pRetrieve->data, &actualLen, numOfCols, false);
 
   SStreamRetrieveReq req = {
       .streamId = pTask->streamId,
@@ -181,7 +181,7 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   pRetrieve->numOfCols = htonl(numOfCols);
 
   int32_t actualLen = 0;
-  blockCompressEncode(pBlock, pRetrieve->data, &actualLen, numOfCols, false);
+  blockEncode(pBlock, pRetrieve->data, &actualLen, numOfCols, false);
   actualLen += sizeof(SRetrieveTableRsp);
   ASSERT(actualLen <= dataStrLen);
   taosArrayPush(pReq->dataLen, &actualLen);

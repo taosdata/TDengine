@@ -44,13 +44,13 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
 
     tdLog.info ("taos cmd: %s" % taosCmd)
 
-    child = taosExpect.spawn(taosCmd, timeout=10)
+    child = taosExpect.spawn(taosCmd, timeout=20)
     #output = child.readline()
     #print (output.decode())
     if len(expectString) != 0:
-        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=10)
+        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=20)
     else:
-        i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=10)
+        i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=20)
 
     if platform.system().lower() == 'windows':
         retResult = child.before
@@ -62,7 +62,7 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
         print ('taos login success! Here can run sql, taos> ')
         if len(sqlString) != 0:
             child.sendline (sqlString)
-            w = child.expect(["Query OK", taosExpect.TIMEOUT, taosExpect.EOF], timeout=1)
+            w = child.expect(["Query OK", taosExpect.TIMEOUT, taosExpect.EOF], timeout=10)
             if w == 0:
                 return "TAOS_OK"
             else:

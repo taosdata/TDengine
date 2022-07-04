@@ -12,11 +12,11 @@ class TDTestCase:
 
         self.rowNum = 10
         self.ts = 1537146000000  # 2018-9-17 09:00:00.000
-        
+
     def run(self):
         tdSql.prepare()
 
-        intData = []        
+        intData = []
         floatData = []
 
         tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
@@ -27,18 +27,18 @@ class TDTestCase:
         for i in range(self.rowNum):
             tdSql.execute("insert into ntb values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
                         % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
-            intData.append(i + 1)            
+            intData.append(i + 1)
             floatData.append(i + 0.1)
         for i in range(self.rowNum):
             tdSql.execute("insert into stb_1 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
                         % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
-            intData.append(i + 1)            
-            floatData.append(i + 0.1)  
+            intData.append(i + 1)
+            floatData.append(i + 0.1)
 
         tdSql.query("select timetruncate(1,1d) from ntb")
         tdSql.checkRows(10)
-        tdSql.query("select timetruncate(1,1u) from ntb")
-        tdSql.checkRows(10)
+        tdSql.error("select timetruncate(1,1u) from ntb")
+        #tdSql.checkRows(10)
         tdSql.query("select timetruncate(1,1a) from ntb")
         tdSql.checkRows(10)
         tdSql.query("select timetruncate(1,1m) from ntb")
@@ -97,8 +97,8 @@ class TDTestCase:
 
         tdSql.query("select timetruncate(1,1d) from stb")
         tdSql.checkRows(10)
-        tdSql.query("select timetruncate(1,1u) from stb")
-        tdSql.checkRows(10)
+        tdSql.error("select timetruncate(1,1u) from stb")
+        #tdSql.checkRows(10)
         tdSql.query("select timetruncate(1,1a) from stb")
         tdSql.checkRows(10)
         tdSql.query("select timetruncate(1,1m) from stb")
@@ -156,8 +156,8 @@ class TDTestCase:
 
         tdSql.query("select timetruncate(1,1d) from stb_1")
         tdSql.checkRows(10)
-        tdSql.query("select timetruncate(1,1u) from stb_1")
-        tdSql.checkRows(10)
+        tdSql.error("select timetruncate(1,1u) from stb_1")
+        #tdSql.checkRows(10)
         tdSql.query("select timetruncate(1,1a) from stb_1")
         tdSql.checkRows(10)
         tdSql.query("select timetruncate(1,1m) from stb_1")

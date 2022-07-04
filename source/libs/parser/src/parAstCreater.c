@@ -717,7 +717,7 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
   select->pProjectionList = pProjectionList;
   select->pFromTable = pTable;
   sprintf(select->stmtName, "%p", select);
-  select->isTimeOrderQuery = true;
+  select->isTimeLineResult = true;
   return (SNode*)select;
 }
 

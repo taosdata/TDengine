@@ -17,7 +17,7 @@
 
 FstSparseSet *sparSetCreate(int32_t sz) {
   FstSparseSet *ss = taosMemoryCalloc(1, sizeof(FstSparseSet));
-  if (ss = NULL) {
+  if (ss == NULL) {
     return NULL;
   }
 

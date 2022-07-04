@@ -196,13 +196,13 @@ int32_t taosUcs4len(TdUcs4 *ucs4) {
 }
 
 //dst buffer size should be at least 2*len + 1
-int32_t taosHexEncode(const char *src, char *dst, int32_t len) {
+int32_t taosHexEncode(const unsigned char *src, char *dst, int32_t len) {
   if (!dst) {
     return -1;
   }
 
   for (int32_t i = 0; i < len; ++i) {
-    sprintf(dst + i * 2, "%02x", src[i] & 0xff);
+    sprintf(dst + i * 2, "%02x", src[i]);
   }
 
   return 0;
@@ -213,10 +213,10 @@ int32_t taosHexDecode(const char *src, char *dst, int32_t len) {
     return -1;
   }
 
-  uint16_t hn, ln, out;
+  uint8_t hn, ln, out;
   for (int i = 0, j = 0; i < len * 2; i += 2, ++j ) {
-    hn = src[i] > '9' ? src[i] - 'A' + 10 : src[i] - '0';
-    ln = src[i + 1] > '9' ? src[i + 1] - 'A' + 10 : src[i + 1] - '0';
+    hn = src[i] > '9' ? src[i] - 'a' + 10 : src[i] - '0';
+    ln = src[i + 1] > '9' ? src[i + 1] - 'a' + 10 : src[i + 1] - '0';
 
     out = (hn << 4) | ln;
     memcpy(dst + j, &out, 1);

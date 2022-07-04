@@ -20,12 +20,12 @@ if "%1" == "full" (
                 call :GetTimeSeconds !time!
                 set time1=!_timeTemp!
                 echo Start at !time!
-                call %%i ARG1 > result_!a!.txt 2>error_!a!.txt
+                call %%i ARG1 > result_!a!.txt 2>error_!a!.txt || set errorlevel=8
                 if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && set /a exitNum=8 && echo %%i >>failed.txt ) else ( call :colorEcho 0a "Success" &echo. )
             )
         )
     )
-    exit !exitNum!
+    exit /b !exitNum!
 )
 echo Windows Taosd Test
 for /F "usebackq tokens=*" %%i in (simpletest.bat) do (
@@ -36,8 +36,8 @@ for /F "usebackq tokens=*" %%i in (simpletest.bat) do (
         call :GetTimeSeconds !timeNow!
         set time1=!_timeTemp!
         echo Start at !timeNow!
-        call %%i ARG1 > result_!a!.txt 2>error_!a!.txt
-        if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && echo result: && cat result_!a!.txt && echo error: && cat error_!a!.txt && exit 8 ) else ( call :colorEcho 0a "Success" &echo. ) 
+        call %%i ARG1 > result_!a!.txt 2>error_!a!.txt || set errorlevel=8
+        if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && echo result: && cat result_!a!.txt && echo error: && cat error_!a!.txt && exit /b 8 ) else ( call :colorEcho 0a "Success" &echo. ) 
     )
 )
 @REM echo Linux Taosd Test
@@ -52,7 +52,7 @@ for /F "usebackq tokens=*" %%i in (simpletest.bat) do (
 @REM         if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && echo result: && cat result_!a!.txt && echo error: && cat error_!a!.txt && exit 8 ) else ( call :colorEcho 0a "Success" &echo. ) 
 @REM     )
 @REM )
-exit
+exit /b
 
 :colorEcho
 set timeNow=%time%

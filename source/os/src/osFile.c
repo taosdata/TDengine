@@ -35,6 +35,8 @@
 #include <unistd.h>
 #define LINUX_FILE_NO_TEXT_OPTION 0
 #define O_TEXT                    LINUX_FILE_NO_TEXT_OPTION
+
+#define _SEND_FILE_STEP_ 1000
 #endif
 
 #if defined(WINDOWS)
@@ -300,16 +302,14 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
   return pFile;
 }
 
-int64_t taosCloseFile(TdFilePtr *ppFile) {
+int32_t taosCloseFile(TdFilePtr *ppFile) {
+  int32_t code = 0;
   if (ppFile == NULL || *ppFile == NULL) {
     return 0;
   }
 #if FILE_WITH_LOCK
   taosThreadRwlockWrlock(&((*ppFile)->rwlock));
 #endif
-  if (ppFile == NULL || *ppFile == NULL) {
-    return 0;
-  }
   if ((*ppFile)->fp != NULL) {
     fflush((*ppFile)->fp);
     fclose((*ppFile)->fp);
@@ -320,9 +320,10 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
     HANDLE h = (HANDLE)_get_osfhandle((*ppFile)->fd);
     !FlushFileBuffers(h);
 #else
-    fsync((*ppFile)->fd);
+    // warning: never fsync silently in base lib
+    /*fsync((*ppFile)->fd);*/
 #endif
-    close((*ppFile)->fd);
+    code = close((*ppFile)->fd);
     (*ppFile)->fd = -1;
   }
   (*ppFile)->refId = 0;
@@ -332,7 +333,7 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
 #endif
   taosMemoryFree(*ppFile);
   *ppFile = NULL;
-  return 0;
+  return code;
 }
 
 int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
@@ -560,6 +561,8 @@ int32_t taosFsyncFile(TdFilePtr pFile) {
     return 0;
   }
 
+  // this implementation is WRONG
+  // fflush is not a replacement of fsync
   if (pFile->fp != NULL) return fflush(pFile->fp);
   if (pFile->fd >= 0) {
 #ifdef WINDOWS
@@ -611,28 +614,34 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 
 #elif defined(_TD_DARWIN_64)
 
-  int r = 0;
-  if (offset) {
-    r = fseek(in_file, *offset, SEEK_SET);
-    if (r == -1) return -1;
-  }
-  off_t len = size;
-  while (len > 0) {
-    char  buf[1024 * 16];
-    off_t n = sizeof(buf);
-    if (len < n) n = len;
-    size_t m = fread(buf, 1, n, in_file);
-    if (m < n) {
-      int e = ferror(in_file);
-      if (e) return -1;
+  lseek(pFileIn->fd, (int32_t)(*offset), 0);
+  int64_t writeLen = 0;
+  uint8_t buffer[_SEND_FILE_STEP_] = {0};
+
+  for (int64_t len = 0; len < (size - _SEND_FILE_STEP_); len += _SEND_FILE_STEP_) {
+    size_t rlen = read(pFileIn->fd, (void *)buffer, _SEND_FILE_STEP_);
+    if (rlen <= 0) {
+      return writeLen;
+    } else if (rlen < _SEND_FILE_STEP_) {
+      write(pFileOut->fd, (void *)buffer, (uint32_t)rlen);
+      return (int64_t)(writeLen + rlen);
+    } else {
+      write(pFileOut->fd, (void *)buffer, _SEND_FILE_STEP_);
+      writeLen += _SEND_FILE_STEP_;
     }
-    if (m == 0) break;
-    if (m != fwrite(buf, 1, m, out_file)) {
-      return -1;
-    }
-    len -= m;
   }
-  return size - len;
+
+  int64_t remain = size - writeLen;
+  if (remain > 0) {
+    size_t rlen = read(pFileIn->fd, (void *)buffer, (size_t)remain);
+    if (rlen <= 0) {
+      return writeLen;
+    } else {
+      write(pFileOut->fd, (void *)buffer, (uint32_t)remain);
+      writeLen += remain;
+    }
+  }
+  return writeLen;
 
 #else
 

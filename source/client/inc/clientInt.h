@@ -54,10 +54,9 @@ enum {
   RES_TYPE__TMQ_META,
 };
 
-#define SHOW_VARIABLES_RESULT_COLS      2
+#define SHOW_VARIABLES_RESULT_COLS       2
 #define SHOW_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
-
 
 #define TD_RES_QUERY(res)    (*(int8_t*)res == RES_TYPE__QUERY)
 #define TD_RES_TMQ(res)      (*(int8_t*)res == RES_TYPE__TMQ)
@@ -66,7 +65,7 @@ enum {
 typedef struct SAppInstInfo SAppInstInfo;
 
 typedef struct {
-  char* key;
+  char*   key;
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
@@ -118,6 +117,7 @@ struct SAppInstInfo {
   uint64_t           clusterId;
   void*              pTransporter;
   SAppHbMgr*         pAppHbMgr;
+  char*              instKey;
 };
 
 typedef struct SAppInfo {
@@ -139,7 +139,7 @@ typedef struct STscObj {
   int8_t        connType;
   int32_t       acctId;
   uint32_t      connId;
-  TAOS*         id;         // ref ID returned by taosAddRef
+  int64_t       id;         // ref ID returned by taosAddRef
   TdThreadMutex mutex;      // used to protect the operation on db
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo* pAppInfo;
@@ -183,7 +183,7 @@ typedef struct SRequestSendRecvBody {
   void*              param;
   SDataBuf           requestMsg;
   int64_t            queryJob;  // query job, created according to sql query DAG.
-  struct SQueryPlan* pDag;      // the query dag, generated according to the sql statement.
+  int32_t            subplanNum;
   SReqResultInfo     resInfo;
 } SRequestSendRecvBody;
 
@@ -194,7 +194,7 @@ typedef struct {
   int32_t        vgId;
   SSchemaWrapper schema;
   int32_t        resIter;
-  SMqDataBlkRsp  rsp;
+  SMqDataRsp     rsp;
   SReqResultInfo resInfo;
 } SMqRspObj;
 
@@ -238,18 +238,18 @@ typedef struct SSyncQueryParam {
 void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 
-void         doSetOneRowPtr(SReqResultInfo* pResultInfo);
-void         setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
-int32_t      setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4,
-                                   bool freeAfterUse);
-void         setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
-void         doFreeReqResultInfo(SReqResultInfo* pResInfo);
-int32_t      transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);
-void         syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
+void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
+void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
+int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4,
+                              bool freeAfterUse);
+void    setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
+void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
+int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);
+void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
 
 SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen, bool validateOnly);
-TAOS_RES *taosQueryImpl(TAOS *taos, const char *sql, bool validateOnly);
-void      taosAsyncQueryImpl(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param, bool validateOnly);
+TAOS_RES*    taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly);
+void         taosAsyncQueryImpl(TAOS* taos, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly);
 
 static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
   SMqRspObj* msg = (SMqRspObj*)res;
@@ -300,6 +300,8 @@ void*        createRequest(STscObj* pObj, int32_t type);
 void         destroyRequest(SRequestObj* pRequest);
 SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);
+int32_t      removeRequest(int64_t rid);
+void         doDestroyRequest(void *p);
 
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
@@ -334,6 +336,8 @@ int  hbHandleRsp(SClientHbBatchRsp* hbRsp);
 // cluster level
 SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char* key);
 void       appHbMgrCleanup(void);
+void       hbRemoveAppHbMrg(SAppHbMgr **pAppHbMgr);
+void       closeAllRequests(SHashObj *pRequests);
 
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);

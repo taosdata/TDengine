@@ -18,6 +18,7 @@
 #include "querynodes.h"
 #include "taos.h"
 #include "taoserror.h"
+#include "tdatablock.h"
 
 #define COPY_SCALAR_FIELD(fldname)     \
   do {                                 \
@@ -100,6 +101,7 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_OBJECT_FIELD(resType, sizeof(SDataType));
   COPY_CHAR_ARRAY_FIELD(aliasName);
   COPY_CHAR_ARRAY_FIELD(userAlias);
+  COPY_SCALAR_FIELD(orderAlias);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -163,7 +165,15 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
       memcpy(pDst->datum.p, pSrc->datum.p, len);
       break;
     }
-    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_JSON:{
+      int32_t len = getJsonValueLen(pSrc->datum.p);
+      pDst->datum.p = taosMemoryCalloc(1, len);
+      if (NULL == pDst->datum.p) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      memcpy(pDst->datum.p, pSrc->datum.p, len);
+      break;
+    }
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB:
@@ -349,9 +359,9 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   CLONE_NODE_FIELD(pTagIndexCond);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
-  COPY_SCALAR_FIELD(tsColId);
-  COPY_SCALAR_FIELD(filesFactor);
+  COPY_SCALAR_FIELD(igExpired);
   CLONE_NODE_LIST_FIELD(pGroupTags);
+  COPY_SCALAR_FIELD(groupSort);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -420,7 +430,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   CLONE_NODE_FIELD(pStateExpr);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
-  COPY_SCALAR_FIELD(filesFactor);
+  COPY_SCALAR_FIELD(igExpired);
   COPY_SCALAR_FIELD(windowAlgo);
   return TSDB_CODE_SUCCESS;
 }
@@ -510,8 +520,7 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_SCALAR_FIELD(slidingUnit);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
-  COPY_SCALAR_FIELD(tsColId);
-  COPY_SCALAR_FIELD(filesFactor);
+  COPY_SCALAR_FIELD(igExpired);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -531,7 +540,7 @@ static int32_t physiWindowCopy(const SWinodwPhysiNode* pSrc, SWinodwPhysiNode* p
   CLONE_NODE_FIELD(pTsEnd);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
-  COPY_SCALAR_FIELD(filesFactor);
+  COPY_SCALAR_FIELD(igExpired);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -581,6 +590,7 @@ static int32_t downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstre
   COPY_OBJECT_FIELD(addr, sizeof(SQueryNodeAddr));
   COPY_SCALAR_FIELD(taskId);
   COPY_SCALAR_FIELD(schedId);
+  COPY_SCALAR_FIELD(execId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -599,7 +609,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_CHAR_ARRAY_FIELD(stmtName);
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(isEmptyResult);
-  COPY_SCALAR_FIELD(isTimeOrderQuery);
+  COPY_SCALAR_FIELD(isTimeLineResult);
   COPY_SCALAR_FIELD(hasAggFuncs);
   COPY_SCALAR_FIELD(hasRepeatScanFuncs);
   return TSDB_CODE_SUCCESS;

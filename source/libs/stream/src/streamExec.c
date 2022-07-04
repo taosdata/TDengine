@@ -17,21 +17,20 @@
 
 static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) {
   void* exec = pTask->exec.executor;
-  bool  hasData = false;
 
   // set input
   SStreamQueueItem* pItem = (SStreamQueueItem*)data;
   if (pItem->type == STREAM_INPUT__TRIGGER) {
     SStreamTrigger* pTrigger = (SStreamTrigger*)data;
-    qSetMultiStreamInput(exec, pTrigger->pBlock, 1, STREAM_DATA_TYPE_SSDATA_BLOCK, false);
+    qSetMultiStreamInput(exec, pTrigger->pBlock, 1, STREAM_INPUT__DATA_BLOCK, false);
   } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     ASSERT(pTask->isDataScan);
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)data;
-    qSetStreamInput(exec, pSubmit->data, STREAM_DATA_TYPE_SUBMIT_BLOCK, false);
+    qSetStreamInput(exec, pSubmit->data, STREAM_INPUT__DATA_SUBMIT, false);
   } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)data;
     SArray*           blocks = pBlock->blocks;
-    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK, false);
+    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__DATA_BLOCK, false);
   } else if (pItem->type == STREAM_INPUT__DROP) {
     // TODO exec drop
     return 0;
@@ -46,19 +45,16 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
     }
     if (output == NULL) {
       if (pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
-        //SSDataBlock block = {0};
-        //block.info.type = STREAM_PUSH_EMPTY;
-        //block.info.childId = pTask->selfChildId;
+        SSDataBlock       block = {0};
         SStreamDataBlock* pRetrieveBlock = (SStreamDataBlock*)data;
         ASSERT(taosArrayGetSize(pRetrieveBlock->blocks) == 1);
-        SSDataBlock* pBlock = createOneDataBlock(taosArrayGet(pRetrieveBlock->blocks, 0), true);
-        pBlock->info.type = STREAM_PUSH_EMPTY;
-        pBlock->info.childId = pTask->selfChildId;
-        taosArrayPush(pRes, pBlock);
+        assignOneDataBlock(&block, taosArrayGet(pRetrieveBlock->blocks, 0));
+        block.info.type = STREAM_PULL_OVER;
+        block.info.childId = pTask->selfChildId;
+        taosArrayPush(pRes, &block);
       }
       break;
     }
-    hasData = true;
 
     if (output->info.type == STREAM_RETRIEVE) {
       if (streamBroadcastToChildren(pTask, output) < 0) {
@@ -67,14 +63,10 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
       continue;
     }
 
-    // TODO: do we need free memory?
     SSDataBlock block = {0};
     assignOneDataBlock(&block, output);
     block.info.childId = pTask->selfChildId;
     taosArrayPush(pRes, &block);
-    /*SSDataBlock* outputCopy = createOneDataBlock(output, true);*/
-    /*outputCopy->info.childId = pTask->selfChildId;*/
-    /*taosArrayPush(pRes, outputCopy);*/
   }
   return 0;
 }
@@ -163,4 +155,3 @@ FAIL:
   atomic_store_8(&pTask->execStatus, TASK_EXEC_STATUS__IDLE);
   return -1;
 }
-

@@ -25,37 +25,36 @@
 #define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)     \
   do {                                               \
     assert(sizeof(_uid) == sizeof(uint64_t));        \
-    *(uint64_t *)(_k) = (_uid);                      \
+    *(uint64_t*)(_k) = (_uid);                       \
     memcpy((_k) + sizeof(uint64_t), (_ori), (_len)); \
   } while (0)
 
-#define SET_RES_EXT_WINDOW_KEY(_k, _ori, _len, _uid, _buf)             \
-  do {                                                                 \
-    assert(sizeof(_uid) == sizeof(uint64_t));                          \
-    *(void **)(_k) = (_buf);                                             \
-    *(uint64_t *)((_k) + POINTER_BYTES) = (_uid);                      \
-    memcpy((_k) + POINTER_BYTES + sizeof(uint64_t), (_ori), (_len));   \
+#define SET_RES_EXT_WINDOW_KEY(_k, _ori, _len, _uid, _buf)           \
+  do {                                                               \
+    assert(sizeof(_uid) == sizeof(uint64_t));                        \
+    *(void**)(_k) = (_buf);                                          \
+    *(uint64_t*)((_k) + POINTER_BYTES) = (_uid);                     \
+    memcpy((_k) + POINTER_BYTES + sizeof(uint64_t), (_ori), (_len)); \
   } while (0)
 
-
-#define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
+#define GET_RES_WINDOW_KEY_LEN(_l)     ((_l) + sizeof(uint64_t))
 #define GET_RES_EXT_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t) + POINTER_BYTES)
 
-#define GET_TASKID(_t)  (((SExecTaskInfo*)(_t))->id.str)
+#define GET_TASKID(_t) (((SExecTaskInfo*)(_t))->id.str)
 
 typedef struct SGroupResInfo {
   int32_t index;
-  SArray* pRows;      // SArray<SResKeyPos>
+  SArray* pRows;  // SArray<SResKeyPos>
 } SGroupResInfo;
 
 typedef struct SResultRow {
-  int32_t       pageId;      // pageId & rowId is the position of current result in disk-based output buffer
-  int32_t       offset:29;   // row index in buffer page
-  bool          startInterp; // the time window start timestamp has done the interpolation already.
-  bool          endInterp;   // the time window end timestamp has done the interpolation already.
-  bool          closed;      // this result status: closed or opened
-  uint32_t      numOfRows;   // number of rows of current time window
-  STimeWindow   win;
+  int32_t                    pageId;  // pageId & rowId is the position of current result in disk-based output buffer
+  int32_t                    offset : 29;  // row index in buffer page
+  bool                       startInterp;  // the time window start timestamp has done the interpolation already.
+  bool                       endInterp;    // the time window end timestamp has done the interpolation already.
+  bool                       closed;       // this result status: closed or opened
+  uint32_t                   numOfRows;    // number of rows of current time window
+  STimeWindow                win;
   struct SResultRowEntryInfo pEntryInfo[];  // For each result column, there is a resultInfo
 } SResultRow;
 
@@ -66,57 +65,58 @@ typedef struct SResultRowPosition {
 
 typedef struct SResKeyPos {
   SResultRowPosition pos;
-  uint64_t  groupId;
-  char      key[];
+  uint64_t           groupId;
+  char               key[];
 } SResKeyPos;
 
 typedef struct SResultRowInfo {
-  int32_t      size;       // number of result set
+  int32_t            size;  // number of result set
   SResultRowPosition cur;
-  SList*       openWindow;
+  SList*             openWindow;
 } SResultRowInfo;
 
 struct SqlFunctionCtx;
 
-size_t  getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
-void    initResultRowInfo(SResultRowInfo* pResultRowInfo);
-void    cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
+size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
+void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
+void   cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
 
-void    closeAllResultRows(SResultRowInfo* pResultRowInfo);
+void closeAllResultRows(SResultRowInfo* pResultRowInfo);
 
-void    initResultRow(SResultRow *pResultRow);
-void    closeResultRow(SResultRow* pResultRow);
-bool    isResultRowClosed(SResultRow* pResultRow);
+void initResultRow(SResultRow* pResultRow);
+void closeResultRow(SResultRow* pResultRow);
+bool isResultRowClosed(SResultRow* pResultRow);
 
 struct SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t index, const int32_t* offset);
 
-static FORCE_INLINE SResultRow *getResultRowByPos(SDiskbasedBuf* pBuf, SResultRowPosition* pos) {
-  SFilePage*  bufPage = (SFilePage*) getBufPage(pBuf, pos->pageId);
+static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRowPosition* pos) {
+  SFilePage*  bufPage = (SFilePage*)getBufPage(pBuf, pos->pageId);
   SResultRow* pRow = (SResultRow*)((char*)bufPage + pos->offset);
   return pRow;
 }
 
-void    initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order);
-void    initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
+void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order);
+void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
 
-void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
-bool    hasDataInGroupInfo(SGroupResInfo* pGroupResInfo);
+void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
+bool hasDataInGroupInfo(SGroupResInfo* pGroupResInfo);
 
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 
 SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode);
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
-int32_t getTableList(void* metaHandle, void* vnode, SScanPhysiNode* pScanNode, STableListInfo* pListInfo);
-SArray* createSortInfo(SNodeList* pNodeList);
-SArray* extractPartitionColInfo(SNodeList* pNodeList);
-SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols, int32_t type);
+int32_t  getTableList(void* metaHandle, void* vnode, SScanPhysiNode* pScanNode, STableListInfo* pListInfo);
+SArray*  createSortInfo(SNodeList* pNodeList);
+SArray*  extractPartitionColInfo(SNodeList* pNodeList);
+SArray*  extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
+                             int32_t type);
 
 SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs);
 
 SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset);
-void    relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols, bool outputEveryColumn);
-void    initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow);
+void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols, bool outputEveryColumn);
+void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow);
 
 SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode);
 SColumn   extractColumnFromColumnNode(SColumnNode* pColNode);

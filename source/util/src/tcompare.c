@@ -56,11 +56,11 @@ int32_t setChkNotInBytes8(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareChkInString(const void *pLeft, const void *pRight) {
-  return NULL != taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;
+  return NULL != taosHashGet((SHashObj *)pRight, pLeft, varDataTLen(pLeft)) ? 1 : 0;
 }
 
 int32_t compareChkNotInString(const void *pLeft, const void *pRight) {
-  return NULL == taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;
+  return NULL == taosHashGet((SHashObj *)pRight, pLeft, varDataTLen(pLeft)) ? 1 : 0;
 }
 
 int32_t compareInt8Val(const void *pLeft, const void *pRight) {

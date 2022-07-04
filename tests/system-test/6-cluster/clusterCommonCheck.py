@@ -33,12 +33,13 @@ from util.common import *
 #     INSERT_DATA     = 3
 
 class ClusterComCheck:
-    def init(self, conn, logSql):
+    def init(self, conn, logSql=False):
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def checkDnodes(self,dnodeNumbers):
         count=0
+        # print(tdSql)
         while count < 5:
             tdSql.query("show dnodes")
             # tdLog.debug(tdSql.queryResult)
@@ -71,25 +72,28 @@ class ClusterComCheck:
             tdLog.debug(tdSql.queryResult)
             tdLog.exit("we find %d databases but expect %d in clusters! " %(tdSql.queryRows,dbNumbers))
 
-    def checkDb(self,dbNumbers,dbindex):
+    def checkDb(self,dbNumbers,restartNumber,dbNameIndex):
         count=0
+        alldbNumbers=(dbNumbers*restartNumber)+2
         while count < 5:           
             query_status=0
-            for i in range(dbNumbers):
-                for j in range(dbNumbers):
+            for j in range(dbNumbers):
+                for i in range(alldbNumbers):
                     tdSql.query("show databases;")
-                    if "%s%d"%(dbindex,j) == tdSql.queryResult[i+2][0] :                    
-                        if tdSql.queryResult[i+2][19] == "ready":
+                    if "%s_%d"%(dbNameIndex,j) == tdSql.queryResult[i][0] :   
+                        if tdSql.queryResult[i][19] == "ready":
                             query_status+=1
+                            tdLog.debug("check %s_%d that status is ready "%(dbNameIndex,j))      
                         else:
                             continue
-                    # print(query_status)
+            # print(query_status)
             count+=1
             if query_status == dbNumbers:
                 tdLog.success("we find cluster with %d dnode and check all databases  are ready within 5s! " %dbNumbers)
                 return True
         else:
             tdLog.debug(tdSql.queryResult)
+            tdLog.debug("query status is %d"%query_status)
             tdLog.exit("database is not ready within 5s")
 
     def checkData(self,dbname,stbname,stableCount,CtableCount,rowsPerSTable,):

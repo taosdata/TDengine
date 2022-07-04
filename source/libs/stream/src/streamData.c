@@ -30,7 +30,7 @@ int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock
     /*int32_t            len = *(int32_t*)taosArrayGet(pReq->dataLen, i);*/
     SRetrieveTableRsp* pRetrieve = taosArrayGetP(pReq->data, i);
     SSDataBlock*       pDataBlock = taosArrayGet(pArray, i);
-    blockCompressDecode(pDataBlock, htonl(pRetrieve->numOfCols), htonl(pRetrieve->numOfRows), pRetrieve->data);
+    blockDecode(pDataBlock, htonl(pRetrieve->numOfCols), htonl(pRetrieve->numOfRows), pRetrieve->data);
     // TODO: refactor
     pDataBlock->info.window.skey = be64toh(pRetrieve->skey);
     pDataBlock->info.window.ekey = be64toh(pRetrieve->ekey);
@@ -50,7 +50,7 @@ int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock
   taosArraySetSize(pArray, 1);
   SRetrieveTableRsp* pRetrieve = pReq->pRetrieve;
   SSDataBlock*       pDataBlock = taosArrayGet(pArray, 0);
-  blockCompressDecode(pDataBlock, htonl(pRetrieve->numOfCols), htonl(pRetrieve->numOfRows), pRetrieve->data);
+  blockDecode(pDataBlock, htonl(pRetrieve->numOfCols), htonl(pRetrieve->numOfRows), pRetrieve->data);
   // TODO: refactor
   pDataBlock->info.window.skey = be64toh(pRetrieve->skey);
   pDataBlock->info.window.ekey = be64toh(pRetrieve->ekey);
@@ -87,4 +87,13 @@ SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit) {
   streamDataSubmitRefInc(pSubmit);
   memcpy(pSubmitClone, pSubmit, sizeof(SStreamDataSubmit));
   return pSubmitClone;
+}
+
+void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) {
+  int32_t ref = atomic_sub_fetch_32(pDataSubmit->dataRef, 1);
+  ASSERT(ref >= 0);
+  if (ref == 0) {
+    taosMemoryFree(pDataSubmit->data);
+    taosMemoryFree(pDataSubmit->dataRef);
+  }
 }

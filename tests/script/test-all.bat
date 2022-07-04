@@ -62,7 +62,5 @@ goto :eof
 
 :CheckSkipCase
 set skipCase=false
-if "%*" == "./test.sh -f tsim/query/scalarFunction.sim" ( set skipCase=true )
-if "%*" == "./test.sh -f tsim/stream/distributeInterval0.sim" ( set skipCase=true )
-if "%*" == "./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim" ( set skipCase=true )
+@REM if "%*" == "./test.sh -f tsim/query/scalarFunction.sim" ( set skipCase=true )
 :goto eof

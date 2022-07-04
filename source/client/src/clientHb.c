@@ -66,25 +66,31 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
     if (rsp->vgVersion < 0) {
       code = catalogRemoveDB(pCatalog, rsp->db, rsp->uid);
     } else {
-      SDBVgInfo vgInfo = {0};
-      vgInfo.vgVersion = rsp->vgVersion;
-      vgInfo.hashMethod = rsp->hashMethod;
-      vgInfo.vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-      if (NULL == vgInfo.vgHash) {
+      SDBVgInfo *vgInfo = taosMemoryCalloc(1, sizeof(SDBVgInfo));
+      if (NULL == vgInfo) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      
+      vgInfo->vgVersion = rsp->vgVersion;
+      vgInfo->hashMethod = rsp->hashMethod;
+      vgInfo->vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+      if (NULL == vgInfo->vgHash) {
+        taosMemoryFree(vgInfo);
         tscError("hash init[%d] failed", rsp->vgNum);
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
       }
 
       for (int32_t j = 0; j < rsp->vgNum; ++j) {
         SVgroupInfo *pInfo = taosArrayGet(rsp->pVgroupInfos, j);
-        if (taosHashPut(vgInfo.vgHash, &pInfo->vgId, sizeof(int32_t), pInfo, sizeof(SVgroupInfo)) != 0) {
+        if (taosHashPut(vgInfo->vgHash, &pInfo->vgId, sizeof(int32_t), pInfo, sizeof(SVgroupInfo)) != 0) {
           tscError("hash push failed, errno:%d", errno);
-          taosHashCleanup(vgInfo.vgHash);
+          taosHashCleanup(vgInfo->vgHash);
+          taosMemoryFree(vgInfo);
           return TSDB_CODE_TSC_OUT_OF_MEMORY;
         }
       }
 
-      catalogUpdateDBVgInfo(pCatalog, rsp->db, rsp->uid, &vgInfo);
+      catalogUpdateDBVgInfo(pCatalog, rsp->db, rsp->uid, vgInfo);
     }
 
     if (code) {
@@ -256,7 +262,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t hbAsyncCallBack(void *param, const SDataBuf *pMsg, int32_t code) {
+static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   static int32_t emptyRspNum = 0;
   if (code != 0) {
     taosMemoryFreeClear(param);
@@ -269,8 +275,11 @@ static int32_t hbAsyncCallBack(void *param, const SDataBuf *pMsg, int32_t code) 
 
   int32_t rspNum = taosArrayGetSize(pRsp.rsps);
 
+  taosThreadMutexLock(&appInfo.mutex);
+
   SAppInstInfo **pInst = taosHashGet(appInfo.pInstMap, key, strlen(key));
   if (pInst == NULL || NULL == *pInst) {
+    taosThreadMutexUnlock(&appInfo.mutex);
     tscError("cluster not exist, key:%s", key);
     taosMemoryFreeClear(param);
     tFreeClientHbBatchRsp(&pRsp);
@@ -293,6 +302,8 @@ static int32_t hbAsyncCallBack(void *param, const SDataBuf *pMsg, int32_t code) 
       break;
     }
   }
+
+  taosThreadMutexUnlock(&appInfo.mutex);
 
   tFreeClientHbBatchRsp(&pRsp);
 
@@ -320,7 +331,7 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
     desc.reqRid = pRequest->self;
     desc.stableQuery = pRequest->stableQuery;
     taosGetFqdn(desc.fqdn);
-    desc.subPlanNum = pRequest->body.pDag ? pRequest->body.pDag->numOfSubplans : 0;
+    desc.subPlanNum = pRequest->body.subplanNum;
 
     if (desc.subPlanNum) {
       desc.subDesc = taosArrayInit(desc.subPlanNum, sizeof(SQuerySubDesc));
@@ -790,22 +801,40 @@ SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
   return pAppHbMgr;
 }
 
+void hbFreeAppHbMgr(SAppHbMgr *pTarget) {
+  void *pIter = taosHashIterate(pTarget->activeInfo, NULL);
+  while (pIter != NULL) {
+    SClientHbReq *pOneReq = pIter;
+    tFreeClientHbReq(pOneReq);
+    pIter = taosHashIterate(pTarget->activeInfo, pIter);
+  }
+  taosHashCleanup(pTarget->activeInfo);
+  pTarget->activeInfo = NULL;
+  
+  taosMemoryFree(pTarget->key);
+  taosMemoryFree(pTarget);
+}
+
+void hbRemoveAppHbMrg(SAppHbMgr **pAppHbMgr) {
+  taosThreadMutexLock(&clientHbMgr.lock);
+  int32_t mgrSize = taosArrayGetSize(clientHbMgr.appHbMgrs);
+  for (int32_t i = 0; i < mgrSize; ++i) {
+    SAppHbMgr *pItem = taosArrayGetP(clientHbMgr.appHbMgrs, i);
+    if (pItem == *pAppHbMgr) {
+      hbFreeAppHbMgr(*pAppHbMgr);
+      *pAppHbMgr = NULL;
+      taosArrayRemove(clientHbMgr.appHbMgrs, i);
+      break;
+    }
+  }
+  taosThreadMutexUnlock(&clientHbMgr.lock);
+}
+
 void appHbMgrCleanup(void) {
   int sz = taosArrayGetSize(clientHbMgr.appHbMgrs);
   for (int i = 0; i < sz; i++) {
     SAppHbMgr *pTarget = taosArrayGetP(clientHbMgr.appHbMgrs, i);
-
-    void *pIter = taosHashIterate(pTarget->activeInfo, NULL);
-    while (pIter != NULL) {
-      SClientHbReq *pOneReq = pIter;
-      tFreeClientHbReq(pOneReq);
-      pIter = taosHashIterate(pTarget->activeInfo, pIter);
-    }
-    taosHashCleanup(pTarget->activeInfo);
-    pTarget->activeInfo = NULL;
-
-    taosMemoryFree(pTarget->key);
-    taosMemoryFree(pTarget);
+    hbFreeAppHbMgr(pTarget);
   }
 }
 

@@ -168,7 +168,7 @@ int32_t qwGenerateSchHbRsp(SQWorker *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo)
 
     // TODO GET EXECUTOR API TO GET MORE INFO
 
-    QW_GET_QTID(key, status.queryId, status.taskId);
+    QW_GET_QTID(key, status.queryId, status.taskId, status.execId);
     status.status = taskStatus->status;
     status.refId = taskStatus->refId;
 
@@ -406,17 +406,10 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
   }
 
   if (QW_PHASE_POST_QUERY == phase) {
-#if 0    
-    if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_READY)) {
-      readyConnection = &ctx->connInfo;
-      QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_READY);
-    }
-#else
     connInfo = ctx->ctrlConnInfo;
     rspConnection = &connInfo;
 
     QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_READY);
-#endif
   }
 
   if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
@@ -447,8 +440,8 @@ _return:
   }
 
   if (rspConnection) {
-    qwBuildAndSendQueryRsp(rspConnection, code, ctx ? &ctx->tbInfo : NULL);
-    QW_TASK_DLOG("ready msg rsped, handle:%p, code:%x - %s", rspConnection->handle, code, tstrerror(code));
+    qwBuildAndSendQueryRsp(input->msgType + 1, rspConnection, code, ctx ? &ctx->tbInfo : NULL);
+    QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", rspConnection->handle, code, tstrerror(code));
   }
 
   if (ctx) {
@@ -489,7 +482,9 @@ int32_t qwPrerocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   QW_ERR_JRET(qwRegisterQueryBrokenLinkArg(QW_FPARAMS(), &qwMsg->connInfo));
 
-  QW_ERR_JRET(qwAddAcquireTaskCtx(QW_FPARAMS(), &ctx));
+  QW_ERR_JRET(qwAddTaskCtx(QW_FPARAMS()));
+
+  QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
   ctx->ctrlConnInfo = qwMsg->connInfo;
 
@@ -519,8 +514,9 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
 
   QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
 
-  atomic_store_8(&ctx->taskType, taskType);
-  atomic_store_8(&ctx->explain, explain);
+  ctx->taskType = taskType;
+  ctx->explain = explain;
+  ctx->queryType = qwMsg->msgType;
 
   QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);
 
@@ -560,6 +556,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
 _return:
 
   input.code = code;
+  input.msgType = qwMsg->msgType;
   code = qwHandlePostPhaseEvents(QW_FPARAMS(), QW_PHASE_POST_QUERY, &input, NULL);
 
   // if (!queryRsped) {
@@ -727,8 +724,6 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   bool        rsped = false;
   SQWTaskCtx *ctx = NULL;
   bool        locked = false;
-
-  // TODO : TASK ALREADY REMOVED AND A NEW DROP MSG RECEIVED
 
   QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 

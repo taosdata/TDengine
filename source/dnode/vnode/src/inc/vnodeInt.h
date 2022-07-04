@@ -27,6 +27,7 @@
 #include "tdatablock.h"
 #include "tdb.h"
 #include "tencode.h"
+#include "tref.h"
 #include "tfs.h"
 #include "tglobal.h"
 #include "tjson.h"
@@ -65,6 +66,7 @@ typedef struct STsdbSnapshotReader STsdbSnapshotReader;
 #define VNODE_TQ_DIR    "tq"
 #define VNODE_WAL_DIR   "wal"
 #define VNODE_TSMA_DIR  "tsma"
+#define VNODE_RSMA_DIR  "rsma"
 #define VNODE_RSMA0_DIR "tsdb"
 #define VNODE_RSMA1_DIR "rsma1"
 #define VNODE_RSMA2_DIR "rsma2"
@@ -161,8 +163,10 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool
 // sma
 int32_t smaOpen(SVnode* pVnode);
 int32_t smaClose(SSma* pSma);
-int32_t smaCloseEnv(SSma* pSma);
-int32_t smaCloseEx(SSma* pSma);
+int32_t smaBegin(SSma* pSma);
+int32_t smaPreCommit(SSma* pSma);
+int32_t smaCommit(SSma* pSma);
+int32_t smaPostCommit(SSma* pSma);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
@@ -236,7 +240,7 @@ struct SVnode {
   tsem_t     canCommit;
   int64_t    sync;
   int32_t    syncCount;
-  sem_t      syncSem;
+  tsem_t     syncSem;
   SQHandle*  pQuery;
 };
 

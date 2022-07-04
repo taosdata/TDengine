@@ -214,7 +214,16 @@ int32_t raftCfgCreateFile(SSyncCfg *pCfg, SRaftCfgMeta meta, const char *path) {
   ASSERT(pCfg != NULL);
 
   TdFilePtr pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE);
-  ASSERT(pFile != NULL);
+  if (pFile == NULL) {
+    int32_t     err = terrno;
+    const char *errStr = tstrerror(err);
+    int32_t     sysErr = errno;
+    const char *sysErrStr = strerror(errno);
+    sError("create raft cfg file error, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", err, err, errStr, sysErr, sysErrStr);
+    ASSERT(0);
+
+    return -1;
+  }
 
   SRaftCfg raftCfg;
   raftCfg.cfg = *pCfg;
