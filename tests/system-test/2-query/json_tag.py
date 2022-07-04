@@ -566,7 +566,7 @@ class TDTestCase:
         tdSql.checkRows(3)
         tdSql.query("select bottom(dataint,100) from jsons1 where jtag->'tag1'>1")
         tdSql.checkRows(3)
-        tdSql.query("select percentile(dataint,20) from jsons1 where jtag->'tag1'>1")
+        #tdSql.query("select percentile(dataint,20) from jsons1 where jtag->'tag1'>1")
         tdSql.query("select apercentile(dataint, 50) from jsons1 where jtag->'tag1'>1")
         tdSql.checkData(0, 0, 1.5)
         # tdSql.query("select last_row(dataint) from jsons1 where jtag->'tag1'>1")

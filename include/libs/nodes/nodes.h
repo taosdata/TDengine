@@ -22,8 +22,8 @@ extern "C" {
 
 #include "tdef.h"
 
-#define nodeType(nodeptr)          (((const SNode*)(nodeptr))->type)
-#define setNodeType(nodeptr, type) (((SNode*)(nodeptr))->type = (type))
+#define nodeType(nodeptr)              (((const SNode*)(nodeptr))->type)
+#define setNodeType(nodeptr, nodetype) (((SNode*)(nodeptr))->type = (nodetype))
 
 #define LIST_LENGTH(l) (NULL != (l) ? (l)->length : 0)
 
@@ -118,6 +118,7 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_TABLE_STMT,
   QUERY_NODE_DROP_SUPER_TABLE_STMT,
   QUERY_NODE_ALTER_TABLE_STMT,
+  QUERY_NODE_ALTER_SUPER_TABLE_STMT,
   QUERY_NODE_CREATE_USER_STMT,
   QUERY_NODE_ALTER_USER_STMT,
   QUERY_NODE_DROP_USER_STMT,

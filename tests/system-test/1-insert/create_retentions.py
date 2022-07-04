@@ -1,6 +1,6 @@
 import datetime
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 from util.log import *
 from util.sql import *
@@ -36,36 +36,20 @@ NOW = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
 
 @dataclass
 class DataSet:
-    ts_data         : List[int]     = None
-    int_data        : List[int]     = None
-    bint_data       : List[int]     = None
-    sint_data       : List[int]     = None
-    tint_data       : List[int]     = None
-    int_un_data     : List[int]     = None
-    bint_un_data    : List[int]     = None
-    sint_un_data    : List[int]     = None
-    tint_un_data    : List[int]     = None
-    float_data      : List[float]   = None
-    double_data     : List[float]   = None
-    bool_data       : List[int]     = None
-    binary_data     : List[str]     = None
-    nchar_data      : List[str]     = None
-
-    def __post_init__(self):
-        self.ts_data        = []
-        self.int_data       = []
-        self.bint_data      = []
-        self.sint_data      = []
-        self.tint_data      = []
-        self.int_un_data    = []
-        self.bint_un_data   = []
-        self.sint_un_data   = []
-        self.tint_un_data   = []
-        self.float_data     = []
-        self.double_data    = []
-        self.bool_data      = []
-        self.binary_data    = []
-        self.nchar_data     = []
+    ts_data     : List[int]     = field(default_factory=list)
+    int_data    : List[int]     = field(default_factory=list)
+    bint_data   : List[int]     = field(default_factory=list)
+    sint_data   : List[int]     = field(default_factory=list)
+    tint_data   : List[int]     = field(default_factory=list)
+    int_un_data : List[int]     = field(default_factory=list)
+    bint_un_data: List[int]     = field(default_factory=list)
+    sint_un_data: List[int]     = field(default_factory=list)
+    tint_un_data: List[int]     = field(default_factory=list)
+    float_data  : List[float]   = field(default_factory=list)
+    double_data : List[float]   = field(default_factory=list)
+    bool_data   : List[int]     = field(default_factory=list)
+    binary_data : List[str]     = field(default_factory=list)
+    nchar_data  : List[str]     = field(default_factory=list)
 
 
 class TDTestCase:
@@ -107,15 +91,15 @@ class TDTestCase:
             f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(count) watermark  1min",
             f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) max_delay -1s",
             f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) watermark -1m",
-            # f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) watermark 1m ",
-            # f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) max_delay 1m ",
+            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) watermark 1m ",
+            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) max_delay 1m ",
             f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} binary(16)) tags (tag1 int) rollup(avg) watermark 1s",
-            f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} nchar(16)) tags (tag1 int) rollup(avg) max_delay 1m",
-            # f"create table ntb_1 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} nchar(16)) rollup(avg) watermark 1s max_delay 1s",
-            # f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} nchar(16)) tags (tag1 int) " ,
-            # f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) " ,
-            # f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int) " ,
-            # f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} nchar(16)) " ,
+            f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int, {NCHAR_COL} nchar(16)) tags (tag1 int) rollup(avg) max_delay 1m",
+            # f"create table ntb_1 ({PRIMARY_COL} timestamp, {INT_COL} int, {NCHAR_COL} nchar(16)) rollup(avg) watermark 1s max_delay 1s",
+            f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int, {NCHAR_COL} nchar(16)) tags (tag1 int) " ,
+            f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) " ,
+            f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int) " ,
+            f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} nchar(16)) " ,
 
             # watermark, max_delay: [0, 900000], [ms, s, m, ?]
             f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) max_delay 1u",
@@ -136,8 +120,9 @@ class TDTestCase:
             f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) watermark 5s max_delay 1m",
             f"create stable stb3 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(max) watermark 5s max_delay 1m",
             f"create stable stb4 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(sum) watermark 5s max_delay 1m",
-            # f"create stable stb5 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(last) watermark 5s max_delay 1m",
-            # f"create stable stb6 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) watermark 5s max_delay 1m",
+            f"create stable stb5 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(last) watermark 5s max_delay 1m",
+            f"create stable stb6 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) watermark 5s max_delay 1m",
+            f"create stable stb7 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) watermark 5s max_delay 1m sma({INT_COL})",
         ]
 
     def test_create_stb(self):
@@ -150,7 +135,7 @@ class TDTestCase:
         # assert "rollup" in tdSql.description
         tdSql.checkRows(len(self.create_stable_sql_current))
 
-        # tdSql.execute("use db")  # because db is a noraml database, not a rollup database, should not be able to create a rollup database
+        tdSql.execute("use db")  # because db is a noraml database, not a rollup database, should not be able to create a rollup stable
         # tdSql.error(f"create stable nor_db_rollup_stb ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) watermark 5s max_delay 1m")
 
 
@@ -210,20 +195,6 @@ class TDTestCase:
             data_set.binary_data.append(f'binary{(rows - i)}')
             data_set.nchar_data.append(f'nchar_测试_{(rows - i)}')
 
-            # neg_data_set.ts_data.append(-1 * i)
-            # neg_data_set.int_data.append(-i)
-            # neg_data_set.bint_data.append(-11111 * i)
-            # neg_data_set.sint_data.append(-111 * i % 32767)
-            # neg_data_set.tint_data.append(-11 * i % 127)
-            # neg_data_set.int_un_data.append(-i)
-            # neg_data_set.bint_un_data.append(-11111 * i)
-            # neg_data_set.sint_un_data.append(-111 * i % 32767)
-            # neg_data_set.tint_un_data.append(-11 * i % 127)
-            # neg_data_set.float_data.append(-1.11 * i)
-            # neg_data_set.double_data.append(-1100.0011 * i)
-            # neg_data_set.binary_data.append(f'binary{i}')
-            # neg_data_set.nchar_data.append(f'nchar_测试_{i}')
-
         return data_set
 
     def __insert_data(self):
@@ -279,9 +250,14 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:create table in rollup database")
         tdSql.execute("create database db3 retentions 1s:4m,2s:8m,3s:12m")
+
+        tdSql.execute("drop database if exists db1 ")
+        tdSql.execute("drop database if exists db2 ")
+
         tdSql.execute("use db3")
-        self.__create_tb()
-        self.__insert_data()
+        # self.__create_tb()
+        # self.__insert_data()
+        self.all_test()
 
         tdSql.execute("drop database if exists db1 ")
         tdSql.execute("drop database if exists db2 ")

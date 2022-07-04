@@ -80,13 +80,15 @@ void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
 bool snapshotSenderIsStart(SSyncSnapshotSender *pSender) { return pSender->start; }
 
 // begin send snapshot by snapshot, pReader
-int32_t snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshot snapshot, void *pReader) {
+int32_t snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshotParam snapshotParam, SSnapshot snapshot,
+                            void *pReader) {
   ASSERT(!snapshotSenderIsStart(pSender));
 
-  // init snapshot and reader
+  // init snapshot, parm, reader
   ASSERT(pSender->pReader == NULL);
   pSender->pReader = pReader;
   pSender->snapshot = snapshot;
+  pSender->snapshotParam = snapshotParam;
 
   // init current block
   if (pSender->pCurrentBlock != NULL) {
@@ -162,6 +164,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshot snapshot, vo
   pMsg->srcId = pSender->pSyncNode->myRaftId;
   pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
   pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
+  pMsg->beginIndex = pSender->snapshotParam.start;
   pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
   pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
   pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
@@ -439,10 +442,13 @@ static void snapshotReceiverDoStart(SSyncSnapshotReceiver *pReceiver, SyncTerm p
   pReceiver->snapshot.lastApplyIndex = pBeginMsg->lastIndex;
   pReceiver->snapshot.lastApplyTerm = pBeginMsg->lastTerm;
   pReceiver->snapshot.lastConfigIndex = pBeginMsg->lastConfigIndex;
+  pReceiver->snapshotParam.start = pBeginMsg->beginIndex;
+  pReceiver->snapshotParam.end = pBeginMsg->lastIndex;
 
   // write data
   ASSERT(pReceiver->pWriter == NULL);
-  int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStartWrite(pReceiver->pSyncNode->pFsm, &(pReceiver->pWriter));
+  int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStartWrite(pReceiver->pSyncNode->pFsm,
+                                                                 &(pReceiver->snapshotParam), &(pReceiver->pWriter));
   ASSERT(ret == 0);
 
   // event log

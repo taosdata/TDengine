@@ -915,9 +915,9 @@ static int32_t tdRSmaQTaskInfoItemRestore(SSma *pSma, const SRSmaQTaskInfoItem *
     return TSDB_CODE_SUCCESS;
   }
 
-  if (pItem->type == 1) {
+  if (pItem->type == TSDB_RETENTION_L1) {
     qTaskInfo = pRSmaInfo->items[0].taskInfo;
-  } else if (pItem->type == 2) {
+  } else if (pItem->type == TSDB_RETENTION_L2) {
     qTaskInfo = pRSmaInfo->items[1].taskInfo;
   } else {
     ASSERT(0);
@@ -1233,7 +1233,6 @@ static void tdRSmaPersistTask(SRSmaStat *pRSmaStat) {
     } else {
       smaWarn("vgId:%d, persist task in abnormal stat %" PRIi8, SMA_VID(pRSmaStat->pSma),
               atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat)));
-      ASSERT(0);
     }
     atomic_store_8(RSMA_RUNNING_STAT(pRSmaStat), 0);
     taosReleaseRef(smaMgmt.smaRef, pRSmaStat->refId);
