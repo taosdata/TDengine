@@ -637,7 +637,7 @@ static int32_t monBuildMasterUptimeSql(char *sql) {
     for (int i = 0; i < num_fields; ++i) {
       if (strcmp(fields[i].name, "role") == 0) {
         int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        if (strncmp((char *)row[i], "master", charLen) == 0) {
+        if (strncmp((char *)row[i], "leader", charLen) == 0) {
           if (strcmp(fields[i + 1].name, "role_time") == 0) {
             int64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
             //master uptime in seconds
@@ -957,7 +957,7 @@ static int32_t monBuildDnodeVnodesSql(char *sql) {
     for (int i = 0; i < num_fields; ++i) {
       if (strcmp(fields[i].name, "status") == 0) {
         int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        if (strncmp((char *)row[i], "master", charLen) == 0)  {
+        if (strncmp((char *)row[i], "leader", charLen) == 0)  {
           masterNum += 1;
         }
       }
@@ -992,7 +992,7 @@ static int32_t monBuildDnodeMnodeSql(char *sql) {
         }
       } else if (strcmp(fields[i].name, "role") == 0) {
         charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        if (strncmp((char *)row[i], "master", charLen) == 0)  {
+        if (strncmp((char *)row[i], "leader", charLen) == 0)  {
           if (has_mnode_row) {
             monHasMnodeMaster = true;
           }
