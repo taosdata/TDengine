@@ -54,11 +54,6 @@ typedef enum {
   TAOS_SYNC_STATE_ERROR = 103,
 } ESyncState;
 
-typedef enum {
-  TAOS_SYNC_FSM_CB_SUCCESS = 0,
-  TAOS_SYNC_FSM_CB_OTHER_ERROR = 1,
-} ESyncFsmCbCode;
-
 typedef struct SNodeInfo {
   uint16_t nodePort;
   char     nodeFqdn[TSDB_FQDN_LEN];
