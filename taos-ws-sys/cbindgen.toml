@@ -1,0 +1,50 @@
+language = "C"
+header = """
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef TDENGINE_TAOS_WS_H
+#define TDENGINE_TAOS_WS_H
+
+/**
+ * Data type definitions.
+ */
+#define TSDB_DATA_TYPE_NULL       0   // 1 bytes
+#define TSDB_DATA_TYPE_BOOL       1   // 1 bytes
+#define TSDB_DATA_TYPE_TINYINT    2   // 1 byte
+#define TSDB_DATA_TYPE_SMALLINT   3   // 2 bytes
+#define TSDB_DATA_TYPE_INT        4   // 4 bytes
+#define TSDB_DATA_TYPE_BIGINT     5   // 8 bytes
+#define TSDB_DATA_TYPE_FLOAT      6   // 4 bytes
+#define TSDB_DATA_TYPE_DOUBLE     7   // 8 bytes
+#define TSDB_DATA_TYPE_VARCHAR    8   // string, alias for varchar
+#define TSDB_DATA_TYPE_TIMESTAMP  9   // 8 bytes
+#define TSDB_DATA_TYPE_NCHAR      10  // unicode string
+#define TSDB_DATA_TYPE_UTINYINT   11  // 1 byte
+#define TSDB_DATA_TYPE_USMALLINT  12  // 2 bytes
+#define TSDB_DATA_TYPE_UINT       13  // 4 bytes
+#define TSDB_DATA_TYPE_UBIGINT    14  // 8 bytes
+#define TSDB_DATA_TYPE_JSON       15  // json string
+#define TSDB_DATA_TYPE_VARBINARY  16  // binary
+#define TSDB_DATA_TYPE_DECIMAL    17  // decimal
+#define TSDB_DATA_TYPE_BLOB       18  // binary
+#define TSDB_DATA_TYPE_MEDIUMBLOB 19
+#define TSDB_DATA_TYPE_BINARY     TSDB_DATA_TYPE_VARCHAR  // string
+#define TSDB_DATA_TYPE_MAX        20
+"""
+
+trailer = """
+#endif
+"""

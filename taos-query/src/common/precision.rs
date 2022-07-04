@@ -63,6 +63,14 @@ impl Precision {
             _ => panic!("precision integer only allow 0/1/2"),
         }
     }
+
+    pub const fn to_seconds_format(self) -> chrono::SecondsFormat {
+        match self {
+            Precision::Millisecond => chrono::SecondsFormat::Millis,
+            Precision::Microsecond => chrono::SecondsFormat::Micros,
+            Precision::Nanosecond => chrono::SecondsFormat::Nanos,
+        }
+    }
 }
 
 macro_rules! _impl_from {

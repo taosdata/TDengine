@@ -46,6 +46,7 @@ pub struct WsResArgs {
 #[serde(tag = "action", content = "args")]
 #[serde(rename_all = "snake_case")]
 pub enum WsSend {
+    Pong(Vec<u8>),
     Conn {
         req_id: ReqId,
         #[serde(flatten)]
@@ -172,7 +173,7 @@ pub(crate) trait ToMessage: Serialize {
     fn to_owned_message(&self) -> OwnedMessage {
         OwnedMessage::Text(serde_json::to_string(self).unwrap())
     }
-
+    #[cfg(feature = "async")]
     fn to_msg(&self) -> tokio_tungstenite::tungstenite::Message {
         tokio_tungstenite::tungstenite::Message::Text(serde_json::to_string(self).unwrap())
     }
@@ -199,174 +200,7 @@ mod tests {
     }
 
     #[test]
-    fn thread() -> anyhow::Result<()> {
-        use std::thread;
-        use websocket::Message;
-
-        let mut ws = ClientBuilder::new("ws://localhost:6041/rest/ws")?;
-
-        let client = ws.connect_insecure()?;
-
-        let (mut receiver, mut sender) = client.split().unwrap();
-        let login = WsSend::Conn {
-            req_id: 1,
-            req: WsConnReq::new("root", "taosdata"),
-        };
-        sender.send_message(&login.to_message()).unwrap();
-
-        let recv = receiver.recv_message()?;
-
-        // connect
-        let _ = match recv {
-            websocket::OwnedMessage::Text(text) => {
-                let v: WsRecv = serde_json::from_str(&text).unwrap();
-                match v.data {
-                    WsRecvData::Conn => (),
-                    _ => unreachable!(),
-                }
-            }
-            _ => unreachable!(),
-        };
-
-        let sender = Arc::new(Mutex::new(sender));
-
-        let tx2recv = sender.clone();
-
-        let data = Arc::new(Mutex::new(
-            HashMap::<ReqId, oneshot::Sender<WsQueryResp>>::new(),
-        ));
-
-        let fetches = Arc::new(Mutex::new(HashMap::<
-            ResId,
-            std::sync::mpsc::Sender<WsFetchData>,
-        >::new()));
-
-        let data_sender = data.clone();
-        let fetches_sender = fetches.clone();
-        // message handler for query/fetch/fetch_block
-        thread::spawn(move || {
-            for message in receiver.incoming_messages() {
-                if let Ok(message) = message {
-                    match message {
-                        websocket::OwnedMessage::Text(text) => {
-                            let v: WsRecv = serde_json::from_str(&text).unwrap();
-                            match v.data {
-                                WsRecvData::Conn => todo!(),
-                                WsRecvData::Query(query) => {
-                                    if let Some(sender) =
-                                        data_sender.lock().unwrap().remove(&v.req_id)
-                                    {
-                                        sender.send(query).unwrap();
-                                    }
-                                }
-                                WsRecvData::Fetch(fetch) => {
-                                    if let Some(sender) =
-                                        fetches_sender.lock().unwrap().get(&fetch.id)
-                                    {
-                                        sender.send(WsFetchData::Fetch(fetch)).unwrap();
-                                    }
-                                }
-                                // Block type is for binary.
-                                WsRecvData::Block(_) => unreachable!(),
-                            }
-                        }
-                        websocket::OwnedMessage::Binary(block) => {
-                            let mut slice = block.as_slice();
-                            use taos_query::util::InlinableRead;
-                            let res_id = slice.read_u64().unwrap();
-                            if let Some(sender) = fetches_sender.lock().unwrap().remove(&res_id) {
-                                let raw = slice.read_inlinable::<RawBlock>().unwrap();
-                                sender.send(WsFetchData::Block(raw)).unwrap();
-                            }
-                        }
-                        websocket::OwnedMessage::Close(_) => todo!(),
-                        websocket::OwnedMessage::Ping(bytes) => {
-                            let mut writer = tx2recv.lock().unwrap();
-                            writer.send_message(&Message::pong(bytes)).unwrap()
-                        }
-                        websocket::OwnedMessage::Pong(_) => {
-                            // do nothing
-                        }
-                    }
-                } else {
-                    let err = message.unwrap_err();
-                    dbg!(err);
-                }
-            }
-        });
-
-        // create a query request
-        let sql = "show databases".to_string();
-        let (tx, rx) = oneshot::channel();
-
-        println!("show databases");
-
-        let req_id = 1;
-        let query = WsSend::Query { req_id, sql };
-
-        {
-            // prepare for receiving.
-            data.lock().unwrap().insert(req_id, tx);
-            sender.lock().unwrap().send_message(&query.to_message())?;
-            // unlock mutex
-        }
-
-        let query_resp = rx.recv().unwrap();
-        let id = query_resp.id;
-
-        let res_args = WsResArgs { req_id, id };
-
-        let fetch = WsSend::Fetch(res_args);
-
-        let (tx, rx) = std::sync::mpsc::channel();
-        {
-            // prepare for receiving.
-            fetches.lock().unwrap().insert(req_id, tx);
-            sender.lock().unwrap().send_message(&fetch.to_message())?;
-            // unlock mutex when out of scope.
-        }
-
-        let fetch_resp = if let WsFetchData::Fetch(fetch) = rx.recv().unwrap() {
-            fetch
-        } else {
-            unreachable!()
-        };
-
-        let fetch_block = WsSend::FetchBlock(res_args);
-
-        {
-            // prepare for receiving.
-            sender
-                .lock()
-                .unwrap()
-                .send_message(&fetch_block.to_message())?;
-            // unlock mutex when out of scope.
-        }
-
-        if let Ok(WsFetchData::Block(mut raw)) = rx.recv() {
-            raw.with_rows(fetch_resp.rows)
-                .with_cols(query_resp.fields_count)
-                .with_precision(query_resp.precision);
-            dbg!(&raw);
-
-            for row in 0..raw.nrows() {
-                for col in 0..raw.ncols() {
-                    let v = unsafe { raw.get_unchecked(row, col) };
-                    println!("({}, {}): {}", row, col, v);
-                }
-            }
-        }
-
-        let close = WsSend::Close(res_args);
-        {
-            sender.lock().unwrap().send_message(&close.to_message())?;
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_connect_sequential() -> Result<(), Error> {
+    fn test_connect_sequential() -> anyhow::Result<()> {
         let mut ws = ClientBuilder::new("ws://localhost:6041/rest/ws")?;
 
         let mut client = ws.connect_insecure()?;

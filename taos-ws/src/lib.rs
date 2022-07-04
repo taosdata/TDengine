@@ -1,33 +1,25 @@
 use std::{fmt::Debug, sync::Once};
 
+#[cfg(feature = "async")]
 use futures::FutureExt;
 use infra::WsConnReq;
 use once_cell::sync::{Lazy, OnceCell};
 
+#[cfg(feature = "async")]
 use asyn::WsAsyncClient;
 use sync::WsClient;
 use thiserror::Error;
-use websocket::{client::ParseError, WebSocketError};
+// use websocket::{client::ParseError, WebSocketError};
 
 use taos_query::{AsyncQueryable, DeError, Dsn, DsnError, FromDsn, IntoDsn, Queryable};
 
 pub mod infra;
 
+#[cfg(feature = "async")]
 pub mod asyn;
+#[cfg(feature = "stmt")]
 pub mod stmt;
 pub mod sync; // todo: if use name `async`, rust-analyzer does not recognize the tests.
-
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error("{0}")]
-    Dsn(#[from] DsnError),
-    #[error("{0}")]
-    WsUrl(#[from] ParseError),
-    #[error("{0}")]
-    Ws(#[from] WebSocketError),
-    #[error("Deserialize error: {0}")]
-    Deserialize(#[from] DeError),
-}
 
 #[derive(Debug)]
 pub enum WsAuth {
@@ -127,6 +119,7 @@ impl WsInfo {
 #[derive(Debug)]
 pub struct Ws {
     dsn: Dsn,
+    #[cfg(feature = "async")]
     async_client: OnceCell<WsAsyncClient>,
     sync_client: OnceCell<WsClient>,
 }
@@ -135,7 +128,7 @@ unsafe impl Send for Ws {}
 unsafe impl Sync for Ws {}
 
 impl FromDsn for Ws {
-    type Err = Error;
+    type Err = DsnError;
 
     fn hygienize(
         dsn: taos_query::Dsn,
@@ -147,6 +140,7 @@ impl FromDsn for Ws {
         let dsn = dsn.into_dsn()?;
         Ok(Self {
             dsn,
+            #[cfg(feature = "async")]
             async_client: OnceCell::new(),
             sync_client: OnceCell::new(),
         })
@@ -185,6 +179,7 @@ impl<'q> Queryable<'q> for Ws {
     }
 }
 
+#[cfg(feature = "async")]
 #[async_trait::async_trait]
 impl<'q> AsyncQueryable<'q> for Ws {
     type Error = asyn::Error;
@@ -243,6 +238,7 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(feature = "async")]
     // !Websocket tests should always use `multi_thread`
     #[tokio::test(flavor = "multi_thread")]
     async fn test_client() -> anyhow::Result<()> {

@@ -2,7 +2,7 @@
 //!
 #![cfg_attr(nightly, feature(const_slice_from_raw_parts))]
 #![cfg_attr(nightly, feature(const_slice_index))]
-
+#[cfg(feature = "async")]
 use futures::stream::TryStreamExt;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
@@ -20,7 +20,7 @@ mod iter;
 pub mod util;
 
 pub use iter::*;
-
+#[cfg(feature = "async")]
 use async_trait::async_trait;
 use common::*;
 use helpers::*;
@@ -135,16 +135,19 @@ pub trait BlockExt: Debug + Sized {
         self.deserialize_into().collect()
     }
 
+    #[cfg(feature = "async")]
     /// Rows as [futures::stream::Stream].
     fn rows_stream(&self) -> futures::stream::Iter<RowsIter<'_, Self>> {
         futures::stream::iter(Self::iter_rows(self))
     }
 
+    #[cfg(feature = "async")]
     /// Owned version to rows stream.
     fn into_rows_stream(self) -> futures::stream::Iter<IntoRowsIter<Self>> {
         futures::stream::iter(Self::into_iter_rows(self))
     }
 
+    #[cfg(feature = "async")]
     /// Rows stream to deserialized record.
     fn deserialize_stream<'b, T>(&'b self) -> futures::stream::Iter<DeserializeIter<'b, Self, T>>
     where
@@ -299,6 +302,7 @@ where
     }
 }
 
+#[cfg(feature = "async")]
 pub trait AsyncFetchable
 where
     Self: Sized + Send,
@@ -356,6 +360,8 @@ where
     }
 }
 
+
+#[cfg(feature = "async")]
 /// The synchronous query trait for TDengine connection.
 #[async_trait]
 pub trait AsyncQueryable<'q>: Send + Sync
