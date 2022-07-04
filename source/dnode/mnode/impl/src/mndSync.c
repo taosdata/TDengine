@@ -178,7 +178,7 @@ int32_t mndInitSync(SMnode *pMnode) {
   syncInfo.pWal = pMnode->pWal;
   syncInfo.pFsm = mndSyncMakeFsm(pMnode);
   syncInfo.isStandBy = pMgmt->standby;
-  syncInfo.snapshotEnable = true;
+  syncInfo.snapshotStrategy = SYNC_STRATEGY_STANDARD_SNAPSHOT;
 
   mInfo("start to open mnode sync, standby:%d", pMgmt->standby);
   if (pMgmt->standby || pMgmt->replica.id > 0) {

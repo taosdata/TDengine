@@ -815,7 +815,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
     // create a new raft config file
     SRaftCfgMeta meta;
     meta.isStandBy = pSyncInfo->isStandBy;
-    meta.snapshotEnable = pSyncInfo->snapshotEnable;
+    meta.snapshotEnable = pSyncInfo->snapshotStrategy;
     meta.lastConfigIndex = SYNC_INDEX_INVALID;
     ret = raftCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), meta, pSyncNode->configPath);
     ASSERT(ret == 0);

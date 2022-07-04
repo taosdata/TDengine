@@ -31,6 +31,12 @@ extern bool gRaftDetailLog;
 #define SYNC_INDEX_INVALID -1
 #define SYNC_TERM_INVALID 0xFFFFFFFFFFFFFFFF
 
+typedef enum {
+  SYNC_STRATEGY_NO_SNAPSHOT = 0,
+  SYNC_STRATEGY_STANDARD_SNAPSHOT = 1,
+  SYNC_STRATEGY_WAL_FIRST = 2,
+} ESyncStrategy;
+
 typedef uint64_t SyncNodeId;
 typedef int32_t  SyncGroupId;
 typedef int64_t  SyncIndex;
@@ -183,15 +189,15 @@ typedef struct SSyncLogStore {
 } SSyncLogStore;
 
 typedef struct SSyncInfo {
-  bool        isStandBy;
-  bool        snapshotEnable;
-  SyncGroupId vgId;
-  int32_t     batchSize;
-  SSyncCfg    syncCfg;
-  char        path[TSDB_FILENAME_LEN];
-  SWal*       pWal;
-  SSyncFSM*   pFsm;
-  SMsgCb*     msgcb;
+  bool          isStandBy;
+  ESyncStrategy snapshotStrategy;
+  SyncGroupId   vgId;
+  int32_t       batchSize;
+  SSyncCfg      syncCfg;
+  char          path[TSDB_FILENAME_LEN];
+  SWal*         pWal;
+  SSyncFSM*     pFsm;
+  SMsgCb*       msgcb;
   int32_t (*FpSendMsg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
   int32_t (*FpEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 } SSyncInfo;

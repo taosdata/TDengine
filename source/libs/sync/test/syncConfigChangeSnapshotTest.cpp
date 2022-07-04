@@ -198,7 +198,7 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s_sync_replica%d_index%d", path, replicaNum, myIndex);
   syncInfo.pWal = pWal;
   syncInfo.isStandBy = isStandBy;
-  syncInfo.snapshotEnable = true;
+  syncInfo.snapshotStrategy = SYNC_STRATEGY_STANDARD_SNAPSHOT;
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
 

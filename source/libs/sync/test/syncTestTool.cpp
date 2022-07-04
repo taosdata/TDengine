@@ -203,7 +203,7 @@ SWal* createWal(char* path, int32_t vgId) {
 }
 
 int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* pWal, char* path, bool isStandBy,
-                       bool enableSnapshot) {
+                       ESyncStrategy enableSnapshot) {
   SSyncInfo syncInfo;
   syncInfo.vgId = vgId;
   syncInfo.msgcb = &gSyncIO->msgcb;
@@ -213,7 +213,7 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s_sync_replica%d_index%d", path, replicaNum, myIndex);
   syncInfo.pWal = pWal;
   syncInfo.isStandBy = isStandBy;
-  syncInfo.snapshotEnable = enableSnapshot;
+  syncInfo.snapshotStrategy = enableSnapshot;
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
 
@@ -316,7 +316,7 @@ int main(int argc, char** argv) {
 
   int32_t replicaNum = atoi(argv[1]);
   int32_t myIndex = atoi(argv[2]);
-  bool    enableSnapshot = atoi(argv[3]);
+  ESyncStrategy    enableSnapshot = (ESyncStrategy)atoi(argv[3]);
   int32_t lastApplyIndex = atoi(argv[4]);
   int32_t lastApplyTerm = atoi(argv[5]);
   int32_t writeRecordNum = atoi(argv[6]);
