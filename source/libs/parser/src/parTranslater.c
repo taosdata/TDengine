@@ -784,12 +784,144 @@ static int32_t parseBoolFromValueNode(STranslateContext* pCxt, SValueNode* pVal)
   }
 }
 
-static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SDataType targetDt) {
-  uint8_t precision = getPrecisionFromCurrStmt(pCxt->pCurrStmt, targetDt.precision);
-  pVal->node.resType.precision = precision;
+static EDealRes translateDurationValue(STranslateContext* pCxt, SValueNode* pVal) {
+  if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit,
+                          pVal->node.resType.precision) != TSDB_CODE_SUCCESS) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+  }
+  *(int64_t*)&pVal->typeData = pVal->datum.i;
+  return DEAL_RES_CONTINUE;
+}
+
+static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, SDataType targetDt, bool strict) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  switch (targetDt.type) {
+    case TSDB_DATA_TYPE_BOOL:
+      if (TSDB_CODE_SUCCESS != parseBoolFromValueNode(pCxt, pVal)) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
+      *(bool*)&pVal->typeData = pVal->datum.b;
+      break;
+    case TSDB_DATA_TYPE_TINYINT: {
+      code = toInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.i);
+      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_TINYINT(pVal->datum.i))) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
+      *(int8_t*)&pVal->typeData = pVal->datum.i;
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      code = toInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.i);
+      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_SMALLINT(pVal->datum.i))) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
+      *(int16_t*)&pVal->typeData = pVal->datum.i;
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      code = toInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.i);
+      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_INT(pVal->datum.i))) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
+      *(int32_t*)&pVal->typeData = pVal->datum.i;
+      break;
+    }
+    case TSDB_DATA_TYPE_BIGINT: {
+      code = toInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.i);
+      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_BIGINT(pVal->datum.i))) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
+      *(int64_t*)&pVal->typeData = pVal->datum.i;
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      code = toUInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.u);
+      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_UTINYINT(pVal->datum.i))) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
+      *(uint8_t*)&pVal->typeData = pVal->datum.u;
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      code = toUInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.u);
+      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_USMALLINT(pVal->datum.i))) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
+      *(uint16_t*)&pVal->typeData = pVal->datum.u;
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      code = toUInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.u);
+      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_UINT(pVal->datum.i))) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
+      *(uint32_t*)&pVal->typeData = pVal->datum.u;
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      code = toUInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.u);
+      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_UBIGINT(pVal->datum.i))) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
+      *(uint64_t*)&pVal->typeData = pVal->datum.u;
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      pVal->datum.d = taosStr2Double(pVal->literal, NULL);
+      *(float*)&pVal->typeData = pVal->datum.d;
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      pVal->datum.d = taosStr2Double(pVal->literal, NULL);
+      *(double*)&pVal->typeData = pVal->datum.d;
+      break;
+    }
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY: {
+      pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + 1);
+      if (NULL == pVal->datum.p) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
+      }
+      int32_t len = TMIN(targetDt.bytes - VARSTR_HEADER_SIZE, pVal->node.resType.bytes);
+      varDataSetLen(pVal->datum.p, len);
+      strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
+      break;
+    }
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      if (TSDB_CODE_SUCCESS != parseTimeFromValueNode(pCxt, pVal)) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
+      *(int64_t*)&pVal->typeData = pVal->datum.i;
+      break;
+    }
+    case TSDB_DATA_TYPE_NCHAR: {
+      pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + 1);
+      if (NULL == pVal->datum.p) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
+      }
+
+      int32_t len = 0;
+      if (!taosMbsToUcs4(pVal->literal, strlen(pVal->literal), (TdUcs4*)varDataVal(pVal->datum.p),
+                         targetDt.bytes - VARSTR_HEADER_SIZE, &len)) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
+      varDataSetLen(pVal->datum.p, len);
+      break;
+    }
+    case TSDB_DATA_TYPE_DECIMAL:
+    case TSDB_DATA_TYPE_BLOB:
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+    default:
+      break;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SDataType targetDt, bool strict) {
   if (pVal->placeholderNo > 0 || pVal->isNull) {
     return DEAL_RES_CONTINUE;
   }
+
   if (TSDB_DATA_TYPE_NULL == pVal->node.resType.type) {
     // TODO
     // pVal->node.resType = targetDt;
@@ -797,114 +929,18 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
     pVal->isNull = true;
     return DEAL_RES_CONTINUE;
   }
-  if (pVal->isDuration) {
-    if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit, precision) !=
-        TSDB_CODE_SUCCESS) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
-    }
-    *(int64_t*)&pVal->typeData = pVal->datum.i;
-  } else {
-    switch (targetDt.type) {
-      case TSDB_DATA_TYPE_NULL:
-        break;
-      case TSDB_DATA_TYPE_BOOL:
-        if (TSDB_CODE_SUCCESS != parseBoolFromValueNode(pCxt, pVal)) {
-          return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
-        }
-        *(bool*)&pVal->typeData = pVal->datum.b;
-        break;
-      case TSDB_DATA_TYPE_TINYINT: {
-        pVal->datum.i = taosStr2Int64(pVal->literal, NULL, 10);
-        *(int8_t*)&pVal->typeData = pVal->datum.i;
-        break;
-      }
-      case TSDB_DATA_TYPE_SMALLINT: {
-        pVal->datum.i = taosStr2Int64(pVal->literal, NULL, 10);
-        *(int16_t*)&pVal->typeData = pVal->datum.i;
-        break;
-      }
-      case TSDB_DATA_TYPE_INT: {
-        pVal->datum.i = taosStr2Int64(pVal->literal, NULL, 10);
-        *(int32_t*)&pVal->typeData = pVal->datum.i;
-        break;
-      }
-      case TSDB_DATA_TYPE_BIGINT: {
-        pVal->datum.i = taosStr2Int64(pVal->literal, NULL, 10);
-        *(int64_t*)&pVal->typeData = pVal->datum.i;
-        break;
-      }
-      case TSDB_DATA_TYPE_UTINYINT: {
-        pVal->datum.u = taosStr2UInt64(pVal->literal, NULL, 10);
-        *(uint8_t*)&pVal->typeData = pVal->datum.u;
-        break;
-      }
-      case TSDB_DATA_TYPE_USMALLINT: {
-        pVal->datum.u = taosStr2UInt64(pVal->literal, NULL, 10);
-        *(uint16_t*)&pVal->typeData = pVal->datum.u;
-        break;
-      }
-      case TSDB_DATA_TYPE_UINT: {
-        pVal->datum.u = taosStr2UInt64(pVal->literal, NULL, 10);
-        *(uint32_t*)&pVal->typeData = pVal->datum.u;
-        break;
-      }
-      case TSDB_DATA_TYPE_UBIGINT: {
-        pVal->datum.u = taosStr2UInt64(pVal->literal, NULL, 10);
-        *(uint64_t*)&pVal->typeData = pVal->datum.u;
-        break;
-      }
-      case TSDB_DATA_TYPE_FLOAT: {
-        pVal->datum.d = taosStr2Double(pVal->literal, NULL);
-        *(float*)&pVal->typeData = pVal->datum.d;
-        break;
-      }
-      case TSDB_DATA_TYPE_DOUBLE: {
-        pVal->datum.d = taosStr2Double(pVal->literal, NULL);
-        *(double*)&pVal->typeData = pVal->datum.d;
-        break;
-      }
-      case TSDB_DATA_TYPE_VARCHAR:
-      case TSDB_DATA_TYPE_VARBINARY: {
-        pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + 1);
-        if (NULL == pVal->datum.p) {
-          return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
-        }
-        int32_t len = TMIN(targetDt.bytes - VARSTR_HEADER_SIZE, pVal->node.resType.bytes);
-        varDataSetLen(pVal->datum.p, len);
-        strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
-        break;
-      }
-      case TSDB_DATA_TYPE_TIMESTAMP: {
-        if (TSDB_CODE_SUCCESS != parseTimeFromValueNode(pCxt, pVal)) {
-          return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
-        }
-        *(int64_t*)&pVal->typeData = pVal->datum.i;
-        break;
-      }
-      case TSDB_DATA_TYPE_NCHAR: {
-        pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + 1);
-        if (NULL == pVal->datum.p) {
-          return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
-        }
 
-        int32_t len = 0;
-        if (!taosMbsToUcs4(pVal->literal, strlen(pVal->literal), (TdUcs4*)varDataVal(pVal->datum.p),
-                           targetDt.bytes - VARSTR_HEADER_SIZE, &len)) {
-          return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
-        }
-        varDataSetLen(pVal->datum.p, len);
-        break;
-      }
-      case TSDB_DATA_TYPE_DECIMAL:
-      case TSDB_DATA_TYPE_BLOB:
-        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
-      default:
-        break;
-    }
+  pVal->node.resType.precision = getPrecisionFromCurrStmt(pCxt->pCurrStmt, targetDt.precision);
+
+  EDealRes res = DEAL_RES_CONTINUE;
+  if (pVal->isDuration) {
+    res = translateDurationValue(pCxt, pVal);
+  } else {
+    res = translateNormalValue(pCxt, pVal, targetDt, strict);
   }
   pVal->node.resType = targetDt;
   pVal->translate = true;
-  return DEAL_RES_CONTINUE;
+  return res;
 }
 
 static int32_t calcTypeBytes(SDataType dt) {
@@ -920,7 +956,7 @@ static int32_t calcTypeBytes(SDataType dt) {
 static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
   SDataType dt = pVal->node.resType;
   dt.bytes = calcTypeBytes(dt);
-  return translateValueImpl(pCxt, pVal, dt);
+  return translateValueImpl(pCxt, pVal, dt, false);
 }
 
 static bool isMultiResFunc(SNode* pNode) {
@@ -4305,7 +4341,8 @@ static void getSourceDatabase(SNode* pStmt, int32_t acctId, char* pDbFName) {
 static int32_t addWstartTsToCreateStreamQuery(SNode* pStmt) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt;
   SNode*       pProj = nodesListGetNode(pSelect->pProjectionList, 0);
-  if (QUERY_NODE_FUNCTION == nodeType(pProj) && 0 == strcmp("_wstartts", ((SFunctionNode*)pProj)->functionName)) {
+  if (NULL == pSelect->pWindow ||
+      (QUERY_NODE_FUNCTION == nodeType(pProj) && 0 == strcmp("_wstartts", ((SFunctionNode*)pProj)->functionName))) {
     return TSDB_CODE_SUCCESS;
   }
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
@@ -5400,7 +5437,7 @@ static int32_t createTagValFromVal(STranslateContext* pCxt, SDataType targetDt, 
   if (NULL == *pVal) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  return DEAL_RES_ERROR == translateValueImpl(pCxt, *pVal, targetDt) ? pCxt->errCode : TSDB_CODE_SUCCESS;
+  return DEAL_RES_ERROR == translateValueImpl(pCxt, *pVal, targetDt, true) ? pCxt->errCode : TSDB_CODE_SUCCESS;
 }
 
 static int32_t createTagVal(STranslateContext* pCxt, uint8_t precision, SSchema* pSchema, SNode* pNode,
@@ -5784,7 +5821,7 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
   }
 
   SDataType targetDt = schemaToDataType(pTableMeta->tableInfo.precision, pSchema);
-  if (DEAL_RES_ERROR == translateValueImpl(pCxt, pStmt->pVal, targetDt)) {
+  if (DEAL_RES_ERROR == translateValueImpl(pCxt, pStmt->pVal, targetDt, true)) {
     return pCxt->errCode;
   }
 
