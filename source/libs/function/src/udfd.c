@@ -110,7 +110,7 @@ static void    udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf);
 static int32_t udfdConnectToMnode();
 static int32_t udfdLoadUdf(char *udfName, SUdf *udf);
-static bool    udfdRpcRfp(int32_t code);
+static bool    udfdRpcRfp(int32_t code, tmsg_t msgType);
 static int     initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet);
 static int32_t udfdOpenClientRpc();
 static int32_t udfdCloseClientRpc();
@@ -546,9 +546,12 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
   }
   return 0;
 }
-static bool udfdRpcRfp(int32_t code) {
+static bool udfdRpcRfp(int32_t code, tmsg_t msgType) {
   if (code == TSDB_CODE_RPC_REDIRECT || code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_NODE_NOT_DEPLOYED ||
-      code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_APP_NOT_READY) {
+      code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_APP_NOT_READY || code == TSDB_CODE_RPC_BROKEN_LINK) {
+    if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH) {
+      return false;
+    } 
     return true;
   } else {
     return false;

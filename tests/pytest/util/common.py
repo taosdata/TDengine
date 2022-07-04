@@ -17,6 +17,7 @@ import string
 import requests
 import time
 import socket
+import json
 from .boundary import DataBoundary
 import taos
 from util.log import *
@@ -25,7 +26,7 @@ from util.cases import *
 from util.dnodes import *
 from util.common import *
 
-class TDCom: 
+class TDCom:
     def __init__(self):
         self.sml_type = None
         self.env_setting = None
@@ -206,12 +207,12 @@ class TDCom:
         """
             generate long name
             mode could be numbers/letters/letters_mixed/mixed
-        """    
-        if mode == "numbers": 
+        """
+        if mode == "numbers":
             chars = ''.join(random.choice(string.digits) for i in range(len))
-        elif mode == "letters": 
+        elif mode == "letters":
             chars = ''.join(random.choice(string.ascii_letters.lower()) for i in range(len))
-        elif mode == "letters_mixed": 
+        elif mode == "letters_mixed":
             chars = ''.join(random.choice(string.ascii_letters.upper() + string.ascii_letters.lower()) for i in range(len))
         else:
             chars = ''.join(random.choice(string.ascii_letters.lower() + string.digits) for i in range(len))
@@ -276,7 +277,7 @@ class TDCom:
         vgroups replica precision strict wal fsync comp cachelast single_stable buffer pagesize pages minrows maxrows duration keep retentions
         '''
         sqlString = f'create database if not exists {dbName} '
-        
+
         dbParams = ""
         if len(kwargs) > 0:
             for param, value in kwargs.items():
@@ -306,7 +307,7 @@ class TDCom:
     #     return
 
     # def create_ctables(self,tsql, dbName,stbName,ctbNum,tagDict):
-    #     tsql.execute("use %s" %dbName)        
+    #     tsql.execute("use %s" %dbName)
     #     tagsValues = ''
     #     for i in range(tagDict['int']):
     #         if i > 0:
@@ -323,7 +324,7 @@ class TDCom:
     #             sql = pre_create
     #     if sql != pre_create:
     #         tsql.execute(sql)
-        
+
     #     tdLog.debug("complete to create %d child tables in %s.%s" %(ctbNum, dbName, stbName))
     #     return
 
@@ -352,7 +353,7 @@ class TDCom:
     #         tsql.execute(sql)
     #     tdLog.debug("insert data ............ [OK]")
     #     return
-        
+
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -367,7 +368,7 @@ class TDCom:
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
-        return buildPath        
+        return buildPath
 
     def getClientCfgPath(self):
         buildPath = self.getBuildPath()
@@ -378,6 +379,11 @@ class TDCom:
         cfgPath = buildPath + "/../sim/psim/cfg"
         tdLog.info("cfgPath: %s" % cfgPath)
         return cfgPath
+
+    def newcon(self,host='localhost',port=6030,user='root',password='taosdata'):
+        con=taos.connect(host=host, user=user, password=password, port=port)
+        print(con)
+        return con
 
     def newcur(self,host='localhost',port=6030,user='root',password='taosdata'):
         cfgPath = self.getClientCfgPath()
@@ -393,7 +399,7 @@ class TDCom:
         return newTdSql
 
     ################################################################################################################
-    # port from the common.py of new test frame 
+    # port from the common.py of new test frame
     ################################################################################################################
     def gen_default_tag_str(self):
         default_tag_str = ""
@@ -522,13 +528,14 @@ class TDCom:
                             tag_value_list.append(self.gen_random_type_value(tag_elm["type"], "", "", "", ""))
                 else:
                     continue
-        return tag_value_list        
+        return tag_value_list
 
-    def gen_column_value_list(self, column_elm_list, ts_value=None):        
+    def gen_column_value_list(self, column_elm_list, ts_value=None):
         if ts_value is None:
             ts_value = self.genTs()[0]
 
         column_value_list = list()
+        column_value_list.append(ts_value)
         if column_elm_list is None:
             column_value_list = list(map(lambda i: self.gen_random_type_value(i, self.default_varchar_length, self.default_varchar_datatype, self.default_nchar_length, self.default_nchar_datatype), self.full_type_list))
         else:
@@ -545,11 +552,11 @@ class TDCom:
                             column_value_list.append(self.gen_random_type_value(column_elm["type"], "", "", "", ""))
                 else:
                     continue
-        column_value_list = [self.ts_value] + self.column_value_list
+        # column_value_list = [self.ts_value] + self.column_value_list
         return column_value_list
 
     def create_stable(self, tsql, dbname=None, stbname="stb", column_elm_list=None, tag_elm_list=None,
-                     count=1, default_stbname_prefix="stb", **kwargs):        
+                     count=1, default_stbname_prefix="stb", **kwargs):
         colname_prefix = 'c'
         tagname_prefix = 't'
         stbname_index_start_num = 1
@@ -584,20 +591,20 @@ class TDCom:
                 tag_value_str += f'"{tag_value}", '
             else:
                 tag_value_str += f'{tag_value}, '
-        tag_value_str = tag_value_str.rstrip()[:-1] 
-            
+        tag_value_str = tag_value_str.rstrip()[:-1]
+
         if int(count) <= 1:
             create_ctable_sql = f'create table {dbname}.{default_ctbname_prefix}{ctbname_index_start_num}  using {dbname}.{stbname} tags ({tag_value_str}) {ctb_params};'
             tsql.execute(create_ctable_sql)
         else:
             for _ in range(count):
                 create_ctable_sql = f'create table {dbname}.{default_ctbname_prefix}{ctbname_index_start_num} using {dbname}.{stbname} tags ({tag_value_str}) {ctb_params};'
-                ctbname_index_start_num += 1                
+                ctbname_index_start_num += 1
                 tdLog.info("create ctb sql: %s"%create_ctable_sql)
                 tsql.execute(create_ctable_sql)
-    
+
     def create_table(self, tsql, dbname=None, tbname="ntb", column_elm_list=None, count=1, **kwargs):
-        tbname_index_start_num = 1 
+        tbname_index_start_num = 1
         tbname_prefix="ntb"
 
         tb_params = ""
@@ -627,15 +634,50 @@ class TDCom:
                 column_value_str += f'"{column_value}", '
             else:
                 column_value_str += f'{column_value}, '
-        column_value_str = column_value_str.rstrip()[:-1] 
+        column_value_str = column_value_str.rstrip()[:-1]
         if int(count) <= 1:
             insert_sql = f'insert into {self.tb_name} values ({column_value_str});'
             tsql.execute(insert_sql)
         else:
             for num in range(count):
                 column_value_list = self.gen_column_value_list(column_ele_list, f'{start_ts_value}+{num}s')
-                column_value_str = ", ".join(str(v) for v in column_value_list)
+                # column_value_str = ", ".join(str(v) for v in column_value_list)
+                column_value_str = ''
+                idx = 0
+                for column_value in column_value_list:
+                    if isinstance(column_value, str) and idx != 0:
+                        column_value_str += f'"{column_value}", '
+                    else:
+                        column_value_str += f'{column_value}, '
+                        idx += 1
+                column_value_str = column_value_str.rstrip()[:-1]      
                 insert_sql = f'insert into {dbname}.{tbname} values ({column_value_str});'
                 tsql.execute(insert_sql)
+    def getOneRow(self, location, containElm):
+        res_list = list()
+        if 0 <= location < tdSql.queryRows:
+            for row in tdSql.queryResult:
+                if row[location] == containElm:
+                    res_list.append(row)
+            return res_list
+        else:
+            tdLog.exit(f"getOneRow out of range: row_index={location} row_count={self.query_row}")
+            
+    def killProcessor(self, processorName):        
+        if (platform.system().lower() == 'windows'):
+            os.system("TASKKILL /F /IM %s.exe"%processorName)
+        else:
+            os.system('pkill %s'%processorName)        
+
+
+def is_json(msg):
+    if isinstance(msg, str):
+        try:
+            json.loads(msg)
+            return True
+        except:
+            return False
+    else:
+        return False
 
 tdCom = TDCom()

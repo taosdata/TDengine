@@ -101,7 +101,7 @@ cJSON *syncCfg2Json(SSyncCfg *pSyncCfg) {
 
 char *syncCfg2Str(SSyncCfg *pSyncCfg) {
   cJSON *pJson = syncCfg2Json(pSyncCfg);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -109,7 +109,7 @@ char *syncCfg2Str(SSyncCfg *pSyncCfg) {
 char *syncCfg2SimpleStr(SSyncCfg *pSyncCfg) {
   if (pSyncCfg != NULL) {
     int32_t len = 512;
-    char   *s = taosMemoryMalloc(len);
+    char *  s = taosMemoryMalloc(len);
     memset(s, 0, len);
 
     snprintf(s, len, "{replica-num:%d, my-index:%d, ", pSyncCfg->replicaNum, pSyncCfg->myIndex);
@@ -205,7 +205,7 @@ cJSON *raftCfg2Json(SRaftCfg *pRaftCfg) {
 
 char *raftCfg2Str(SRaftCfg *pRaftCfg) {
   cJSON *pJson = raftCfg2Json(pRaftCfg);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -214,7 +214,16 @@ int32_t raftCfgCreateFile(SSyncCfg *pCfg, SRaftCfgMeta meta, const char *path) {
   ASSERT(pCfg != NULL);
 
   TdFilePtr pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE);
-  ASSERT(pFile != NULL);
+  if (pFile == NULL) {
+    int32_t     err = terrno;
+    const char *errStr = tstrerror(err);
+    int32_t     sysErr = errno;
+    const char *sysErrStr = strerror(errno);
+    sError("create raft cfg file error, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", err, err, errStr, sysErr, sysErrStr);
+    ASSERT(0);
+
+    return -1;
+  }
 
   SRaftCfg raftCfg;
   raftCfg.cfg = *pCfg;
@@ -271,7 +280,7 @@ int32_t raftCfgFromJson(const cJSON *pRoot, SRaftCfg *pRaftCfg) {
     (pRaftCfg->configIndexArr)[i] = atoll(pIndex->valuestring);
   }
 
-  cJSON  *pJsonSyncCfg = cJSON_GetObjectItem(pJson, "SSyncCfg");
+  cJSON * pJsonSyncCfg = cJSON_GetObjectItem(pJson, "SSyncCfg");
   int32_t code = syncCfgFromJson(pJsonSyncCfg, &(pRaftCfg->cfg));
   ASSERT(code == 0);
 

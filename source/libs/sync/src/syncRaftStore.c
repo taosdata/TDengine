@@ -216,7 +216,7 @@ cJSON *raftStore2Json(SRaftStore *pRaftStore) {
 
 char *raftStore2Str(SRaftStore *pRaftStore) {
   cJSON *pJson = raftStore2Json(pRaftStore);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }

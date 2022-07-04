@@ -11,14 +11,17 @@ if not "%2" == "" (
 )
 for /F "usebackq tokens=*" %%i in (!caseFile!) do (
     set line=%%i
-    if "!line:~,9!" == "./test.sh" (
-        set /a a+=1
-        echo !a! Processing %%i
-        call :GetTimeSeconds !time!
-        set time1=!_timeTemp!
-        echo Start at !time!
-        call !line:./test.sh=wtest.bat! > result_!a!.txt 2>error_!a!.txt
-        if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && set /a exitNum=8 && echo %%i >>failed.txt ) else ( call :colorEcho 0a "Success" &echo. )
+    call :CheckSkipCase %%i
+    if !skipCase! == false (
+        if "!line:~,9!" == "./test.sh" (
+            set /a a+=1
+            echo !a! Processing %%i
+            call :GetTimeSeconds !time!
+            set time1=!_timeTemp!
+            echo Start at !time!
+            call !line:./test.sh=wtest.bat! > result_!a!.txt 2>error_!a!.txt || set /a errorlevel=8
+            if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && set /a exitNum=8 && echo %%i >>failed.txt ) else ( call :colorEcho 0a "Success" &echo. )
+        )
     )
 )
 exit !exitNum!
@@ -56,3 +59,8 @@ for %%a in (%tt%) do (
 )
 set /a _timeTemp=(%hh%*60+%mm%)*60+%ss%
 goto :eof
+
+:CheckSkipCase
+set skipCase=false
+@REM if "%*" == "./test.sh -f tsim/query/scalarFunction.sim" ( set skipCase=true )
+:goto eof

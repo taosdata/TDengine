@@ -752,7 +752,7 @@ int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, 
 
   taosArrayAddAll(result, param.result);
   sifFreeParam(&param);
-  SIF_RET(TSDB_CODE_SUCCESS);
+  return TSDB_CODE_SUCCESS;
 }
 
 SIdxFltStatus idxGetFltStatus(SNode *pFilterNode) {

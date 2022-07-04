@@ -325,6 +325,72 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
   return pCtbIdxKey->uid;
 }
 
+struct SMStbCursor {
+  SMeta   *pMeta;
+  TBC     *pCur;
+  tb_uid_t suid;
+  void    *pKey;
+  void    *pVal;
+  int      kLen;
+  int      vLen;
+};
+
+SMStbCursor *metaOpenStbCursor(SMeta *pMeta, tb_uid_t suid) {
+  SMStbCursor *pStbCur = NULL;
+  int          ret = 0;
+  int          c = 0;
+
+  pStbCur = (SMStbCursor *)taosMemoryCalloc(1, sizeof(*pStbCur));
+  if (pStbCur == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pStbCur->pMeta = pMeta;
+  pStbCur->suid = suid;
+  metaRLock(pMeta);
+
+  ret = tdbTbcOpen(pMeta->pSuidIdx, &pStbCur->pCur, NULL);
+  if (ret < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    metaULock(pMeta);
+    taosMemoryFree(pStbCur);
+    return NULL;
+  }
+
+  // move to the suid
+  tdbTbcMoveTo(pStbCur->pCur, &suid, sizeof(suid), &c);
+  if (c > 0) {
+    tdbTbcMoveToNext(pStbCur->pCur);
+  }
+
+  return pStbCur;
+}
+
+void metaCloseStbCursor(SMStbCursor *pStbCur) {
+  if (pStbCur) {
+    if (pStbCur->pMeta) metaULock(pStbCur->pMeta);
+    if (pStbCur->pCur) {
+      tdbTbcClose(pStbCur->pCur);
+
+      tdbFree(pStbCur->pKey);
+      tdbFree(pStbCur->pVal);
+    }
+
+    taosMemoryFree(pStbCur);
+  }
+}
+
+tb_uid_t metaStbCursorNext(SMStbCursor *pStbCur) {
+  int ret;
+
+  ret = tdbTbcNext(pStbCur->pCur, &pStbCur->pKey, &pStbCur->kLen, &pStbCur->pVal, &pStbCur->vLen);
+  if (ret < 0) {
+    return 0;
+  }
+  return *(tb_uid_t*)pStbCur->pKey;
+}
+
 STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
   // SMetaReader     mr = {0};
   STSchema *      pTSchema = NULL;

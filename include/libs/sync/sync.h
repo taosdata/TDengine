@@ -26,9 +26,10 @@ extern "C" {
 
 extern bool gRaftDetailLog;
 
-#define SYNC_INDEX_BEGIN   0
+#define SYNC_MAX_BATCH_SIZE 100
+#define SYNC_INDEX_BEGIN 0
 #define SYNC_INDEX_INVALID -1
-#define SYNC_TERM_INVALID  0xFFFFFFFFFFFFFFFF
+#define SYNC_TERM_INVALID 0xFFFFFFFFFFFFFFFF
 
 typedef uint64_t SyncNodeId;
 typedef int32_t  SyncGroupId;
@@ -120,7 +121,7 @@ typedef struct SSyncFSM {
   int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot, void* pReaderParam, void** ppReader);
   int32_t (*FpGetSnapshotInfo)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
-  int32_t (*FpSnapshotStartRead)(struct SSyncFSM* pFsm, void** ppReader);
+  int32_t (*FpSnapshotStartRead)(struct SSyncFSM* pFsm, void* pReaderParam, void** ppReader);
   int32_t (*FpSnapshotStopRead)(struct SSyncFSM* pFsm, void* pReader);
   int32_t (*FpSnapshotDoRead)(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len);
 
@@ -164,6 +165,7 @@ typedef struct SSyncLogStore {
   bool (*syncLogIsEmpty)(struct SSyncLogStore* pLogStore);
   int32_t (*syncLogEntryCount)(struct SSyncLogStore* pLogStore);
   int32_t (*syncLogRestoreFromSnapshot)(struct SSyncLogStore* pLogStore, SyncIndex index);
+  bool (*syncLogExist)(struct SSyncLogStore* pLogStore, SyncIndex index);
 
   SyncIndex (*syncLogWriteIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogLastIndex)(struct SSyncLogStore* pLogStore);
@@ -179,6 +181,7 @@ typedef struct SSyncInfo {
   bool        isStandBy;
   bool        snapshotEnable;
   SyncGroupId vgId;
+  int32_t     batchSize;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
   SWal*       pWal;
@@ -202,6 +205,7 @@ SyncGroupId syncGetVgId(int64_t rid);
 void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
 int32_t     syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak);
+// int32_t     syncProposeBatch(int64_t rid, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_t arrSize);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);

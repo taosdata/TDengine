@@ -13,6 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef _TD_DARWIN_64
+#include <pwd.h>
+#endif
+
 #include "shellInt.h"
 
 #define SHELL_HOST     "The auth string to use when connecting to the server."
@@ -339,8 +343,8 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shell.info.clientVersion =
       "Welcome to the TDengine shell from %s, Client Version:%s\n"
       "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\n\n";
-  shell.info.promptHeader = "taos> ";
-  shell.info.promptContinue = "   -> ";
+  shell.info.promptHeader = TAOS_CONSOLE_PROMPT_HEADER;
+  shell.info.promptContinue = TAOS_CONSOLE_PROMPT_CONTINUE;
   shell.info.promptSize = 6;
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion), "version: %s", version);
 

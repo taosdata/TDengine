@@ -51,6 +51,7 @@ enum DumpModule {
 
 DumpModule g_dumpModule = DUMP_MODULE_NOTHING;
 int32_t    g_skipSql = 0;
+int32_t    g_limitSql = 0;
 int32_t    g_logLevel = 131;
 
 void setDumpModule(const char* pModule) {
@@ -76,28 +77,33 @@ void setDumpModule(const char* pModule) {
 }
 
 void setSkipSqlNum(const char* pNum) { g_skipSql = stoi(pNum); }
-
+void setLimitSqlNum(const char* pNum) { g_limitSql = stoi(pNum); }
 void setLogLevel(const char* pLogLevel) { g_logLevel = stoi(pLogLevel); }
 
 int32_t getLogLevel() { return g_logLevel; }
 
 class PlannerTestBaseImpl {
  public:
-  PlannerTestBaseImpl() : sqlNo_(0) {}
+  PlannerTestBaseImpl() : sqlNo_(0), sqlNum_(0) {}
 
   void useDb(const string& user, const string& db) {
     caseEnv_.acctId_ = 0;
     caseEnv_.user_ = user;
     caseEnv_.db_ = db;
-    caseEnv_.nsql_ = g_skipSql;
+    caseEnv_.numOfSkipSql_ = g_skipSql;
+    caseEnv_.numOfLimitSql_ = g_limitSql;
   }
 
   void run(const string& sql) {
     ++sqlNo_;
-    if (caseEnv_.nsql_ > 0) {
-      --(caseEnv_.nsql_);
+    if (caseEnv_.numOfSkipSql_ > 0) {
+      --(caseEnv_.numOfSkipSql_);
       return;
     }
+    if (caseEnv_.numOfLimitSql_ > 0 && caseEnv_.numOfLimitSql_ == sqlNum_) {
+      return;
+    }
+    ++sqlNum_;
 
     reset();
     try {
@@ -134,7 +140,7 @@ class PlannerTestBaseImpl {
   }
 
   void prepare(const string& sql) {
-    if (caseEnv_.nsql_ > 0) {
+    if (caseEnv_.numOfSkipSql_ > 0) {
       return;
     }
 
@@ -148,7 +154,7 @@ class PlannerTestBaseImpl {
   }
 
   void bindParams(TAOS_MULTI_BIND* pParams, int32_t colIdx) {
-    if (caseEnv_.nsql_ > 0) {
+    if (caseEnv_.numOfSkipSql_ > 0) {
       return;
     }
 
@@ -161,8 +167,8 @@ class PlannerTestBaseImpl {
   }
 
   void exec() {
-    if (caseEnv_.nsql_ > 0) {
-      --(caseEnv_.nsql_);
+    if (caseEnv_.numOfSkipSql_ > 0) {
+      --(caseEnv_.numOfSkipSql_);
       return;
     }
 
@@ -197,9 +203,10 @@ class PlannerTestBaseImpl {
     int32_t acctId_;
     string  user_;
     string  db_;
-    int32_t nsql_;
+    int32_t numOfSkipSql_;
+    int32_t numOfLimitSql_;
 
-    caseEnv() : nsql_(0) {}
+    caseEnv() : numOfSkipSql_(0) {}
   };
 
   struct stmtEnv {
@@ -303,6 +310,7 @@ class PlannerTestBaseImpl {
     cxt.sqlLen = stmtEnv_.sql_.length();
     cxt.pMsg = stmtEnv_.msgBuf_.data();
     cxt.msgLen = stmtEnv_.msgBuf_.max_size();
+    cxt.svrVer = "3.0.0.0";
 
     DO_WITH_THROW(qParseSql, &cxt, pQuery);
     if (prepare) {
@@ -401,6 +409,7 @@ class PlannerTestBaseImpl {
   stmtEnv stmtEnv_;
   stmtRes res_;
   int32_t sqlNo_;
+  int32_t sqlNum_;
 };
 
 PlannerTestBase::PlannerTestBase() : impl_(new PlannerTestBaseImpl()) {}

@@ -29,9 +29,12 @@ extern "C" {
 #include "wal.h"
 
 typedef struct SSyncLogStoreData {
-  SSyncNode*      pSyncNode;
-  SWal*           pWal;
+  SSyncNode* pSyncNode;
+  SWal*      pWal;
+
+  TdThreadMutex   mutex;
   SWalReadHandle* pWalHandle;
+
   // SyncIndex       beginIndex;  // valid begin index, default 0, may be set beginIndex > 0
 } SSyncLogStoreData;
 

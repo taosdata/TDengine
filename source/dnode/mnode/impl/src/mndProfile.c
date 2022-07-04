@@ -254,6 +254,10 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
               terrstr());
       goto _OVER;
     }
+
+    if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb) != 0) {
+      goto _OVER;
+    }
   }
 
   pConn = mndCreateConn(pMnode, pReq->info.conn.user, connReq.connType, pReq->info.conn.clientIp,

@@ -6,22 +6,26 @@ if "%1" == "full" (
     echo Windows Taosd Full Test
     set /a exitNum=0
     del /Q /F failed.txt
-    set caseFile="fulltest.bat"
+    set caseFile="fulltest.sh"
     if not "%2" == "" (
         set caseFile="%2"
     )
     for /F "usebackq tokens=*" %%i in (!caseFile!) do (
-        for /f "tokens=1* delims= " %%a in ("%%i") do if not "%%a" == "@REM" (
-            set /a a+=1
-            echo !a! Processing %%i
-            call :GetTimeSeconds !time!
-            set time1=!_timeTemp!
-            echo Start at !time!
-            call %%i ARG1 > result_!a!.txt 2>error_!a!.txt
-            if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && set /a exitNum=8 && echo %%i >>failed.txt ) else ( call :colorEcho 0a "Success" &echo. )
+        call :CheckSkipCase %%i
+        if !skipCase! == false (
+            set line=%%i
+            if "!line:~,7!" == "python3" (
+                set /a a+=1
+                echo !a! Processing %%i
+                call :GetTimeSeconds !time!
+                set time1=!_timeTemp!
+                echo Start at !time!
+                call %%i ARG1 > result_!a!.txt 2>error_!a!.txt || set errorlevel=8
+                if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && set /a exitNum=8 && echo %%i >>failed.txt ) else ( call :colorEcho 0a "Success" &echo. )
+            )
         )
     )
-    exit !exitNum!
+    exit /b !exitNum!
 )
 echo Windows Taosd Test
 for /F "usebackq tokens=*" %%i in (simpletest.bat) do (
@@ -32,8 +36,8 @@ for /F "usebackq tokens=*" %%i in (simpletest.bat) do (
         call :GetTimeSeconds !timeNow!
         set time1=!_timeTemp!
         echo Start at !timeNow!
-        call %%i ARG1 > result_!a!.txt 2>error_!a!.txt
-        if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && echo result: && cat result_!a!.txt && echo error: && cat error_!a!.txt && exit 8 ) else ( call :colorEcho 0a "Success" &echo. ) 
+        call %%i ARG1 > result_!a!.txt 2>error_!a!.txt || set errorlevel=8
+        if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && echo result: && cat result_!a!.txt && echo error: && cat error_!a!.txt && exit /b 8 ) else ( call :colorEcho 0a "Success" &echo. ) 
     )
 )
 @REM echo Linux Taosd Test
@@ -48,7 +52,7 @@ for /F "usebackq tokens=*" %%i in (simpletest.bat) do (
 @REM         if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && echo result: && cat result_!a!.txt && echo error: && cat error_!a!.txt && exit 8 ) else ( call :colorEcho 0a "Success" &echo. ) 
 @REM     )
 @REM )
-exit
+exit /b
 
 :colorEcho
 set timeNow=%time%
@@ -83,3 +87,8 @@ for %%a in (%tt%) do (
 )
 set /a _timeTemp=(%hh%*60+%mm%)*60+%ss%
 goto :eof
+
+:CheckSkipCase
+set skipCase=false
+if "%*" == "python3 ./test.py -f 1-insert/insertWithMoreVgroup.py" ( set skipCase=true )
+:goto eof

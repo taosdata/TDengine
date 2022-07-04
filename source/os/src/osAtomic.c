@@ -487,7 +487,7 @@ int64_t atomic_add_fetch_64(int64_t volatile* ptr, int64_t val) {
 #endif
 }
 
-void* atomic_add_fetch_ptr(void* ptr, void* val) {
+void* atomic_add_fetch_ptr(void* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_add_fetch_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
@@ -587,11 +587,13 @@ int64_t atomic_sub_fetch_64(int64_t volatile* ptr, int64_t val) {
 #endif
 }
 
-void* atomic_sub_fetch_ptr(void* ptr, void* val) {
+void* atomic_sub_fetch_ptr(void* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_sub_fetch_ptr(ptr, val);
 #elif defined(_TD_NINGSI_60)
   return __sync_sub_and_fetch((ptr), (val));
+#elif defined(_TD_DARWIN_64)
+  return __atomic_sub_fetch((void**)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #else
   return __atomic_sub_fetch((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
@@ -642,6 +644,8 @@ void* atomic_fetch_sub_ptr(void* ptr, void* val) {
   return interlocked_fetch_sub_ptr(ptr, val);
 #elif defined(_TD_NINGSI_60)
   return __sync_fetch_and_sub((ptr), (val));
+#elif defined(_TD_DARWIN_64)
+  return __atomic_fetch_sub((void**)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #else
   return __atomic_fetch_sub((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
@@ -692,6 +696,8 @@ void* atomic_and_fetch_ptr(void* ptr, void* val) {
   return interlocked_and_fetch_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
   return __sync_and_and_fetch((ptr), (val));
+#elif defined(_TD_DARWIN_64)
+  return (void*)__atomic_and_fetch((size_t*)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #else
   return __atomic_and_fetch((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
@@ -742,6 +748,8 @@ void* atomic_fetch_and_ptr(void* ptr, void* val) {
   return interlocked_fetch_and_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
   return __sync_fetch_and_and((ptr), (val));
+#elif defined(_TD_DARWIN_64)
+  return (void*)__atomic_fetch_and((size_t*)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #else
   return __atomic_fetch_and((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
@@ -792,6 +800,8 @@ void* atomic_or_fetch_ptr(void* ptr, void* val) {
   return interlocked_or_fetch_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
   return __sync_or_and_fetch((ptr), (val));
+#elif defined(_TD_DARWIN_64)
+  return (void*)__atomic_or_fetch((size_t*)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #else
   return __atomic_or_fetch((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
@@ -842,6 +852,8 @@ void* atomic_fetch_or_ptr(void* ptr, void* val) {
   return interlocked_fetch_or_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
   return __sync_fetch_and_or((ptr), (val));
+#elif defined(_TD_DARWIN_64)
+  return (void*)__atomic_fetch_or((size_t*)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #else
   return __atomic_fetch_or((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
@@ -892,6 +904,8 @@ void* atomic_xor_fetch_ptr(void* ptr, void* val) {
   return interlocked_xor_fetch_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
   return __sync_xor_and_fetch((ptr), (val));
+#elif defined(_TD_DARWIN_64)
+  return (void*)__atomic_xor_fetch((size_t*)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #else
   return __atomic_xor_fetch((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
@@ -942,6 +956,8 @@ void* atomic_fetch_xor_ptr(void* ptr, void* val) {
   return interlocked_fetch_xor_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
   return __sync_fetch_and_xor((ptr), (val));
+#elif defined(_TD_DARWIN_64)
+  return (void*)__atomic_fetch_xor((size_t*)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #else
   return __atomic_fetch_xor((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif

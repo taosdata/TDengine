@@ -76,8 +76,24 @@ class TMQCom:
             resultList.append(tdSql.getData(i , 3))
         
         return resultList
+    
+    def selectConsumeMsgResult(self,expectRows,cdbName='cdb'):
+        resultList=[]
+        while 1:
+            tdSql.query("select * from %s.consumeresult"%cdbName)
+            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
+            if tdSql.getRows() == expectRows:
+                break
+            else:
+                time.sleep(5)
+        
+        for i in range(expectRows):
+            tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
+            resultList.append(tdSql.getData(i , 2))
+        
+        return resultList
 
-    def startTmqSimProcess(self,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0,alias=0):
+    def startTmqSimProcess(self,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0,alias=0,snapshot=0):
         buildPath = tdCom.getBuildPath()
         cfgPath = tdCom.getClientCfgPath()
         if valgrind == 1:
@@ -93,7 +109,7 @@ class TMQCom:
                 os.system(shellCmd)
                 processorName = processorNameNew
             shellCmd = 'mintty -h never ' + processorName + ' -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName) 
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s -e %d "%(pollDelay, dbName, showMsg, showRow, cdbName, snapshot) 
             shellCmd += "> nul 2>&1 &"   
         else:
             processorName = buildPath + '/build/bin/tmq_sim'
@@ -103,7 +119,7 @@ class TMQCom:
                 os.system(shellCmd)
                 processorName = processorNameNew
             shellCmd = 'nohup ' + processorName + ' -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName) 
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s -e %d "%(pollDelay, dbName, showMsg, showRow, cdbName, snapshot) 
             shellCmd += "> /dev/null 2>&1 &"
         tdLog.info(shellCmd)
         os.system(shellCmd) 
@@ -154,31 +170,42 @@ class TMQCom:
         tdLog.debug("complete to create database %s"%(dbName))
         return
 
+    # self.create_stable() and self.create_ctable() and self.insert_data_interlaceByMultiTbl() : The three functions are matched
+    # schema: (ts timestamp, c1 int, c2 bigint, c3 double, c4 binary(32), c5 nchar(32), c6 timestamp) tags (t1 int, t2 bigint, t3 double, t4 binary(32), t5 nchar(32))
     def create_stable(self,tsql, dbName,stbName):
-        tsql.execute("create table if not exists %s.%s (ts timestamp, c1 int, c2 int, c3 binary(16)) tags(t1 int, t2 binary(32))"%(dbName, stbName))
+        schemaString = "(ts timestamp, c1 int, c2 bigint, c3 double, c4 binary(32), c5 nchar(32), c6 timestamp) tags (t1 int, t2 bigint, t3 double, t4 binary(32), t5 nchar(32))"
+        tsql.execute("create table if not exists %s.%s %s"%(dbName, stbName, schemaString))
         tdLog.debug("complete to create %s.%s" %(dbName, stbName))
         return
 
-    def create_ctable(self,tsql=None, dbName='dbx',stbName='stb',ctbPrefix='ctb',ctbNum=1):
-        tsql.execute("use %s" %dbName)
+    def create_ctable(self,tsql=None, dbName='dbx',stbName='stb',ctbPrefix='ctb',ctbNum=1,ctbStartIdx=0):
+        # tsql.execute("use %s" %dbName)
         pre_create = "create table"
         sql = pre_create
         #tdLog.debug("doing create one  stable %s and %d  child table in %s  ..." %(stbname, count ,dbname))
+        batchNum = 10
+        tblBatched  = 0
         for i in range(ctbNum):
-            tagValue = 'beijing'
+            tagBinaryValue = 'beijing'
             if (i % 2 == 0):
-                tagValue = 'shanghai'
+                tagBinaryValue = 'shanghai'
+            elif (i % 3 == 0):
+                tagBinaryValue = 'changsha'
             
-            sql += " %s%d using %s tags(%d, '%s')"%(ctbPrefix,i,stbName,i+1, tagValue)
-            if (i > 0) and (i%100 == 0):
+            sql += " %s.%s%d using %s.%s tags(%d, %d, %d, '%s', '%s')"%(dbName,ctbPrefix,i+ctbStartIdx,dbName,stbName,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx,tagBinaryValue,tagBinaryValue)
+            tblBatched += 1
+            if (i == ctbNum-1 ) or (tblBatched == batchNum):
                 tsql.execute(sql)
+                tblBatched = 0
                 sql = pre_create
+
         if sql != pre_create:
             tsql.execute(sql)
         
-        tdLog.debug("complete to create %d child tables in %s.%s" %(ctbNum, dbName, stbName))
-        return
+        tdLog.debug("complete to create %d child tables by %s.%s" %(ctbNum, dbName, stbName))
+        return    
 
+    # schema: (ts timestamp, c1 int, c2 binary(16))
     def insert_data(self,tsql,dbName,stbName,ctbNum,rowsPerTbl,batchNum,startTs=None):
         tdLog.debug("start to insert data ............")
         tsql.execute("use %s" %dbName)
@@ -190,11 +217,14 @@ class TMQCom:
             startTs = int(round(t * 1000))
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
         for i in range(ctbNum):
+            rowsBatched = 0
             sql += " %s%d values "%(stbName,i)
             for j in range(rowsPerTbl):
                 sql += "(%d, %d, 'tmqrow_%d') "%(startTs + j, j, j)
-                if (j > 0) and ((j%batchNum == 0) or (j == rowsPerTbl - 1)):
+                rowsBatched += 1
+                if ((rowsBatched == batchNum) or (j == rowsPerTbl - 1)):
                     tsql.execute(sql)
+                    rowsBatched = 0
                     if j < rowsPerTbl - 1:
                         sql = "insert into %s%d values " %(stbName,i)
                     else:
@@ -206,6 +236,7 @@ class TMQCom:
         tdLog.debug("insert data ............ [OK]")
         return        
 
+    # schema: (ts timestamp, c1 int, c2 int, c3 binary(16))
     def insert_data_1(self,tsql,dbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs):
         tdLog.debug("start to insert data ............")
         tsql.execute("use %s" %dbName)
@@ -216,14 +247,17 @@ class TMQCom:
         startTs = int(round(t * 1000))
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
         for i in range(ctbNum):
+            rowsBatched = 0
             sql += " %s%d values "%(ctbPrefix,i)
             for j in range(rowsPerTbl):
                 if (j % 2 == 0):
                     sql += "(%d, %d, %d, 'tmqrow_%d') "%(startTs + j, j, j, j)
                 else:
                     sql += "(%d, %d, %d, 'tmqrow_%d') "%(startTs + j, j, -j, j)
-                if (j > 0) and ((j%batchNum == 0) or (j == rowsPerTbl - 1)):
+                rowsBatched += 1
+                if ((rowsBatched == batchNum) or (j == rowsPerTbl - 1)):
                     tsql.execute(sql)
+                    rowsBatched = 0
                     if j < rowsPerTbl - 1:
                         sql = "insert into %s%d values " %(ctbPrefix,i)
                     else:
@@ -235,7 +269,8 @@ class TMQCom:
         tdLog.debug("insert data ............ [OK]")
         return
 
-    def insert_data_2(self,tsql,dbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs):
+    # schema: (ts timestamp, c1 int, c2 int, c3 binary(16), c4 timestamp)
+    def insert_data_2(self,tsql,dbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs,ctbStartIdx=0):
         tdLog.debug("start to insert data ............")
         tsql.execute("use %s" %dbName)
         pre_insert = "insert into "
@@ -245,16 +280,19 @@ class TMQCom:
         startTs = int(round(t * 1000))
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
         for i in range(ctbNum):
-            sql += " %s%d values "%(ctbPrefix,i)
+            rowsBatched = 0
+            sql += " %s%d values "%(ctbPrefix,i+ctbStartIdx)
             for j in range(rowsPerTbl):
                 if (j % 2 == 0):
                     sql += "(%d, %d, %d, 'tmqrow_%d', now) "%(startTs + j, j, j, j)
                 else:
                     sql += "(%d, %d, %d, 'tmqrow_%d', now) "%(startTs + j, j, -j, j)
-                if (j > 0) and ((j%batchNum == 0) or (j == rowsPerTbl - 1)):
+                rowsBatched += 1
+                if (rowsBatched == batchNum) or (j == rowsPerTbl - 1):
                     tsql.execute(sql)
+                    rowsBatched = 0
                     if j < rowsPerTbl - 1:
-                        sql = "insert into %s%d values " %(ctbPrefix,i)
+                        sql = "insert into %s%d values " %(ctbPrefix,i+ctbStartIdx)
                     else:
                         sql = "insert into "
         #end sql
@@ -264,7 +302,8 @@ class TMQCom:
         tdLog.debug("insert data ............ [OK]")
         return
 
-    def insert_data_interlaceByMultiTbl(self,tsql,dbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs=0):
+    # schema: (ts timestamp, c1 int, c2 bigint, c3 double, c4 binary(32), c5 nchar(32), c6 timestamp) tags (t1 int, t2 bigint, t3 double, t4 binary(32), t5 nchar(32))
+    def insert_data_interlaceByMultiTbl(self,tsql,dbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs=0,ctbStartIdx=0):
         tdLog.debug("start to insert data ............")
         tsql.execute("use %s" %dbName)
         pre_insert = "insert into "
@@ -279,15 +318,22 @@ class TMQCom:
             ctbDict[i] = 0
 
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
-        rowsOfCtb = 0        
+        rowsOfCtb = 0
         while rowsOfCtb < rowsPerTbl:
             for i in range(ctbNum):
-                sql += " %s.%s_%d values "%(dbName,ctbPrefix,i)
+                sql += " %s.%s%d values "%(dbName,ctbPrefix,i+ctbStartIdx)
+                rowsBatched = 0
                 for k in range(batchNum):
-                    sql += "(%d, %d, 'tmqrow_%d') "%(startTs + ctbDict[i], ctbDict[i], ctbDict[i])
+                    if (k % 2 == 0):
+                        sql += "(%d, %d, %d, %d, 'binary_%d', 'nchar_%d', now) "%(startTs+ctbDict[i], ctbDict[i],ctbDict[i], ctbDict[i],i+ctbStartIdx,k)
+                    else:
+                        sql += "(%d, %d, %d, %d, 'binary_%d', 'nchar_%d', now) "%(startTs+ctbDict[i],-ctbDict[i],ctbDict[i],-ctbDict[i],i+ctbStartIdx,k)
+
+                    rowsBatched += 1
                     ctbDict[i] += 1
-                    if (0 == ctbDict[i]%batchNum) or (ctbDict[i] == rowsPerTbl):
+                    if (rowsBatched == batchNum) or (ctbDict[i] == rowsPerTbl):
                         tsql.execute(sql)
+                        rowsBatched = 0
                         sql = "insert into "
                         break
             rowsOfCtb = ctbDict[0]
@@ -295,7 +341,18 @@ class TMQCom:
         tdLog.debug("insert data ............ [OK]")
         return
 
-    def insert_data_with_autoCreateTbl(self,tsql,dbName,stbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs=0):
+    def threadFunctionForInsertByInterlace(self, **paraDict):
+        # create new connector for new tdSql instance in my thread
+        newTdSql = tdCom.newTdSql()
+        self.insert_data_interlaceByMultiTbl(newTdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"],paraDict["ctbStartIdx"])
+        return
+
+    def asyncInsertDataByInterlace(self, paraDict):
+        pThread = threading.Thread(target=self.threadFunctionForInsertByInterlace, kwargs=paraDict)
+        pThread.start()
+        return pThread
+
+    def insert_data_with_autoCreateTbl(self,tsql,dbName,stbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs=0,ctbStartIdx=0):
         tdLog.debug("start to insert data wiht auto create child table ............")
         tsql.execute("use %s" %dbName)
         pre_insert = "insert into "
@@ -306,17 +363,17 @@ class TMQCom:
             startTs = int(round(t * 1000))
 
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
-        rowsOfSql = 0        
+        rowsBatched = 0        
         for i in range(ctbNum):
-            sql += " %s.%s_%d using %s.%s tags (%d) values "%(dbName,ctbPrefix,i,dbName,stbName,i)
+            sql += " %s.%s_%d using %s.%s tags (%d) values "%(dbName,ctbPrefix,i+ctbStartIdx,dbName,stbName,i)
             for j in range(rowsPerTbl):
                 sql += "(%d, %d, 'tmqrow_%d') "%(startTs + j, j, j)
-                rowsOfSql += 1
-                if (j > 0) and ((rowsOfSql == batchNum) or (j == rowsPerTbl - 1)):
+                rowsBatched += 1
+                if ((rowsBatched == batchNum) or (j == rowsPerTbl - 1)):
                     tsql.execute(sql)
-                    rowsOfSql = 0
+                    rowsBatched = 0
                     if j < rowsPerTbl - 1:
-                        sql = "insert into %s.%s_%d using %s.%s tags (%d) values " %(dbName,ctbPrefix,i,dbName,stbName,i)
+                        sql = "insert into %s.%s_%d using %s.%s tags (%d) values " %(dbName,ctbPrefix,i+ctbStartIdx,dbName,stbName,i)
                     else:
                         sql = "insert into "
         #end sql
@@ -354,13 +411,79 @@ class TMQCom:
     def threadFunctionForInsert(self, **paraDict):
         # create new connector for new tdSql instance in my thread
         newTdSql = tdCom.newTdSql()
-        self.insert_data_2(newTdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])
+        if 'ctbStartIdx' in paraDict.keys():
+            self.insert_data_2(newTdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"],paraDict["ctbStartIdx"])
+        else:
+            self.insert_data_2(newTdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])
         return
 
     def asyncInsertData(self, paraDict):
         pThread = threading.Thread(target=self.threadFunctionForInsert, kwargs=paraDict)
         pThread.start()
         return pThread
+
+    def checkFileContent(self, consumerId, queryString):
+        buildPath = tdCom.getBuildPath()
+        cfgPath = tdCom.getClientCfgPath()
+        dstFile = '%s/../log/dstrows_%d.txt'%(cfgPath, consumerId)
+        cmdStr = '%s/build/bin/taos -c %s -s "%s >> %s"'%(buildPath, cfgPath, queryString, dstFile)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+        
+        consumeRowsFile = '%s/../log/consumerid_%d.txt'%(cfgPath, consumerId)
+        tdLog.info("rows file: %s, %s"%(consumeRowsFile, dstFile))
+
+        consumeFile = open(consumeRowsFile, mode='r')
+        queryFile = open(dstFile, mode='r')
+        
+        # skip first line for it is schema
+        queryFile.readline()
+        lines = 0
+        while True:
+            dst = queryFile.readline()
+            src = consumeFile.readline()
+            lines += 1
+            if dst:
+                if dst != src:
+                    tdLog.info("src row: %s"%src)
+                    tdLog.info("dst row: %s"%dst)
+                    tdLog.exit("consumerId %d consume rows[%d] is not match the rows by direct query"%(consumerId, lines))
+            else:
+                break
+        return 
+
+    def getResultFileByTaosShell(self, consumerId, queryString):
+        buildPath = tdCom.getBuildPath()
+        cfgPath = tdCom.getClientCfgPath()
+        dstFile = '%s/../log/dstrows_%d.txt'%(cfgPath, consumerId)
+        cmdStr = '%s/build/bin/taos -c %s -s "%s >> %s"'%(buildPath, cfgPath, queryString, dstFile)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+        return dstFile
+    
+    def checkTmqConsumeFileContent(self, consumerId, dstFile):   
+        cfgPath = tdCom.getClientCfgPath()     
+        consumeRowsFile = '%s/../log/consumerid_%d.txt'%(cfgPath, consumerId)
+        tdLog.info("rows file: %s, %s"%(consumeRowsFile, dstFile))
+
+        consumeFile = open(consumeRowsFile, mode='r')
+        queryFile = open(dstFile, mode='r')
+        
+        # skip first line for it is schema
+        queryFile.readline()
+        lines = 0
+        while True:
+            dst = queryFile.readline()
+            src = consumeFile.readline()
+            lines += 1
+            if dst:
+                if dst != src:
+                    tdLog.info("src row: %s"%src)
+                    tdLog.info("dst row: %s"%dst)
+                    tdLog.exit("consumerId %d consume rows[%d] is not match the rows by direct query"%(consumerId, lines))
+            else:
+                break
+        return 
 
     def close(self):
         self.cursor.close()

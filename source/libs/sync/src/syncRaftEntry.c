@@ -180,3 +180,247 @@ void syncEntryLog2(char* s, const SSyncRaftEntry* pObj) {
   sTrace("syncEntryLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
   taosMemoryFree(serialized);
 }
+
+//-----------------------------------
+SRaftEntryCache* raftCacheCreate(SSyncNode* pSyncNode, int32_t maxCount) {
+  SRaftEntryCache* pCache = taosMemoryMalloc(sizeof(SRaftEntryCache));
+  if (pCache == NULL) {
+    sError("vgId:%d raft cache create error", pSyncNode->vgId);
+    return NULL;
+  }
+
+  pCache->pEntryHash =
+      taosHashInit(sizeof(SyncIndex), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (pCache->pEntryHash == NULL) {
+    sError("vgId:%d raft cache create hash error", pSyncNode->vgId);
+    return NULL;
+  }
+
+  taosThreadMutexInit(&(pCache->mutex), NULL);
+  pCache->maxCount = maxCount;
+  pCache->currentCount = 0;
+  pCache->pSyncNode = pSyncNode;
+
+  return pCache;
+}
+
+void raftCacheDestroy(SRaftEntryCache* pCache) {
+  if (pCache != NULL) {
+    taosThreadMutexLock(&(pCache->mutex));
+    taosHashCleanup(pCache->pEntryHash);
+    taosThreadMutexUnlock(&(pCache->mutex));
+    taosThreadMutexDestroy(&(pCache->mutex));
+    taosMemoryFree(pCache);
+  }
+}
+
+// success, return 1
+// max count, return 0
+// error, return -1
+int32_t raftCachePutEntry(struct SRaftEntryCache* pCache, SSyncRaftEntry* pEntry) {
+  taosThreadMutexLock(&(pCache->mutex));
+
+  if (pCache->currentCount >= pCache->maxCount) {
+    taosThreadMutexUnlock(&(pCache->mutex));
+    return 0;
+  }
+
+  taosHashPut(pCache->pEntryHash, &(pEntry->index), sizeof(pEntry->index), pEntry, pEntry->bytes);
+  ++(pCache->currentCount);
+
+  do {
+    char eventLog[128];
+    snprintf(eventLog, sizeof(eventLog), "raft cache add, type:%s,%d, type2:%s,%d, index:%ld, bytes:%d",
+             TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType,
+             pEntry->index, pEntry->bytes);
+    syncNodeEventLog(pCache->pSyncNode, eventLog);
+  } while (0);
+
+  taosThreadMutexUnlock(&(pCache->mutex));
+  return 1;
+}
+
+// success, return 0
+// error, return -1
+// not exist, return -1, terrno = TSDB_CODE_WAL_LOG_NOT_EXIST
+int32_t raftCacheGetEntry(struct SRaftEntryCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry) {
+  if (ppEntry == NULL) {
+    return -1;
+  }
+  *ppEntry = NULL;
+
+  taosThreadMutexLock(&(pCache->mutex));
+  void* pTmp = taosHashGet(pCache->pEntryHash, &index, sizeof(index));
+  if (pTmp != NULL) {
+    SSyncRaftEntry* pEntry = pTmp;
+    *ppEntry = taosMemoryMalloc(pEntry->bytes);
+    memcpy(*ppEntry, pTmp, pEntry->bytes);
+
+    do {
+      char eventLog[128];
+      snprintf(eventLog, sizeof(eventLog), "raft cache get, type:%s,%d, type2:%s,%d, index:%ld",
+               TMSG_INFO((*ppEntry)->msgType), (*ppEntry)->msgType, TMSG_INFO((*ppEntry)->originalRpcType),
+               (*ppEntry)->originalRpcType, (*ppEntry)->index);
+      syncNodeEventLog(pCache->pSyncNode, eventLog);
+    } while (0);
+
+    taosThreadMutexUnlock(&(pCache->mutex));
+    return 0;
+  }
+
+  taosThreadMutexUnlock(&(pCache->mutex));
+  terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
+  return -1;
+}
+
+// success, return 0
+// error, return -1
+// not exist, return -1, terrno = TSDB_CODE_WAL_LOG_NOT_EXIST
+int32_t raftCacheGetEntryP(struct SRaftEntryCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry) {
+  if (ppEntry == NULL) {
+    return -1;
+  }
+  *ppEntry = NULL;
+
+  taosThreadMutexLock(&(pCache->mutex));
+  void* pTmp = taosHashGet(pCache->pEntryHash, &index, sizeof(index));
+  if (pTmp != NULL) {
+    SSyncRaftEntry* pEntry = pTmp;
+    *ppEntry = pEntry;
+
+    do {
+      char eventLog[128];
+      snprintf(eventLog, sizeof(eventLog), "raft cache get, type:%s,%d, type2:%s,%d, index:%ld",
+               TMSG_INFO((*ppEntry)->msgType), (*ppEntry)->msgType, TMSG_INFO((*ppEntry)->originalRpcType),
+               (*ppEntry)->originalRpcType, (*ppEntry)->index);
+      syncNodeEventLog(pCache->pSyncNode, eventLog);
+    } while (0);
+
+    taosThreadMutexUnlock(&(pCache->mutex));
+    return 0;
+  }
+
+  taosThreadMutexUnlock(&(pCache->mutex));
+  terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
+  return -1;
+}
+
+int32_t raftCacheDelEntry(struct SRaftEntryCache* pCache, SyncIndex index) {
+  taosThreadMutexLock(&(pCache->mutex));
+  taosHashRemove(pCache->pEntryHash, &index, sizeof(index));
+  --(pCache->currentCount);
+  taosThreadMutexUnlock(&(pCache->mutex));
+  return 0;
+}
+
+int32_t raftCacheGetAndDel(struct SRaftEntryCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry) {
+  if (ppEntry == NULL) {
+    return -1;
+  }
+  *ppEntry = NULL;
+
+  taosThreadMutexLock(&(pCache->mutex));
+  void* pTmp = taosHashGet(pCache->pEntryHash, &index, sizeof(index));
+  if (pTmp != NULL) {
+    SSyncRaftEntry* pEntry = pTmp;
+    *ppEntry = taosMemoryMalloc(pEntry->bytes);
+    memcpy(*ppEntry, pTmp, pEntry->bytes);
+
+    do {
+      char eventLog[128];
+      snprintf(eventLog, sizeof(eventLog), "raft cache get-and-del, type:%s,%d, type2:%s,%d, index:%ld",
+               TMSG_INFO((*ppEntry)->msgType), (*ppEntry)->msgType, TMSG_INFO((*ppEntry)->originalRpcType),
+               (*ppEntry)->originalRpcType, (*ppEntry)->index);
+      syncNodeEventLog(pCache->pSyncNode, eventLog);
+    } while (0);
+
+    taosHashRemove(pCache->pEntryHash, &index, sizeof(index));
+    --(pCache->currentCount);
+
+    taosThreadMutexUnlock(&(pCache->mutex));
+    return 0;
+  }
+
+  taosThreadMutexUnlock(&(pCache->mutex));
+  terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
+  return -1;
+}
+
+int32_t raftCacheClear(struct SRaftEntryCache* pCache) {
+  taosThreadMutexLock(&(pCache->mutex));
+  taosHashClear(pCache->pEntryHash);
+  pCache->currentCount = 0;
+  taosThreadMutexUnlock(&(pCache->mutex));
+  return 0;
+}
+
+//-----------------------------------
+cJSON* raftCache2Json(SRaftEntryCache* pCache) {
+  char   u64buf[128] = {0};
+  cJSON* pRoot = cJSON_CreateObject();
+
+  if (pCache != NULL) {
+    taosThreadMutexLock(&(pCache->mutex));
+
+    snprintf(u64buf, sizeof(u64buf), "%p", pCache->pSyncNode);
+    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
+    cJSON_AddNumberToObject(pRoot, "currentCount", pCache->currentCount);
+    cJSON_AddNumberToObject(pRoot, "maxCount", pCache->maxCount);
+    cJSON* pEntries = cJSON_CreateArray();
+    cJSON_AddItemToObject(pRoot, "entries", pEntries);
+
+    SSyncRaftEntry* pIter = (SSyncRaftEntry*)taosHashIterate(pCache->pEntryHash, NULL);
+    if (pIter != NULL) {
+      SSyncRaftEntry* pEntry = (SSyncRaftEntry*)pIter;
+      cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
+    }
+    while (pIter) {
+      pIter = taosHashIterate(pCache->pEntryHash, pIter);
+      if (pIter != NULL) {
+        SSyncRaftEntry* pEntry = (SSyncRaftEntry*)pIter;
+        cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
+      }
+    }
+
+    taosThreadMutexUnlock(&(pCache->mutex));
+  }
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SRaftEntryCache", pRoot);
+  return pJson;
+}
+
+char* raftCache2Str(SRaftEntryCache* pCache) {
+  cJSON* pJson = raftCache2Json(pCache);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+void raftCachePrint(SRaftEntryCache* pCache) {
+  char* serialized = raftCache2Str(pCache);
+  printf("raftCachePrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void raftCachePrint2(char* s, SRaftEntryCache* pCache) {
+  char* serialized = raftCache2Str(pCache);
+  printf("raftCachePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void raftCacheLog(SRaftEntryCache* pCache) {
+  char* serialized = raftCache2Str(pCache);
+  sTrace("raftCacheLog | len:%lu | %s", strlen(serialized), serialized);
+  taosMemoryFree(serialized);
+}
+
+void raftCacheLog2(char* s, SRaftEntryCache* pCache) {
+  if (gRaftDetailLog) {
+    char* serialized = raftCache2Str(pCache);
+    sTraceLong("raftCacheLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
+}

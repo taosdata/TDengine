@@ -156,8 +156,8 @@ _err:
   if (pVnode->pTq) tqClose(pVnode->pTq);
   if (pVnode->pWal) walClose(pVnode->pWal);
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
-  if (pVnode->pMeta) metaClose(pVnode->pMeta);
   if (pVnode->pSma) smaClose(pVnode->pSma);
+  if (pVnode->pMeta) metaClose(pVnode->pMeta);
 
   tsem_destroy(&(pVnode->canCommit));
   taosMemoryFree(pVnode);

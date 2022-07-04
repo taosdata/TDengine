@@ -37,7 +37,7 @@ static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFreeClear(pInfo->keyBuf);
   taosArrayDestroy(pInfo->pGroupCols);
   taosArrayDestroy(pInfo->pGroupColVals);
-  cleanupExecSupp(&pInfo->scalarSup);
+  cleanupExprSupp(&pInfo->scalarSup);
 }
 
 static int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char** keyBuf, const SArray* pGroupColList) {
@@ -141,6 +141,10 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
       pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
       if (pkey->type == TSDB_DATA_TYPE_JSON) {
+        if(tTagIsJson(val)){
+          terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
+          return;
+        }
         int32_t dataLen = getJsonValueLen(val);
         memcpy(pkey->pData, val, dataLen);
       } else if (IS_VAR_DATA_TYPE(pkey->type)) {
@@ -227,11 +231,15 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   int32_t     len = 0;
   STimeWindow w = TSWINDOW_INITIALIZER;
 
+  terrno = TSDB_CODE_SUCCESS;
   int32_t num = 0;
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (!pInfo->isInit) {
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
+      if (terrno != TSDB_CODE_SUCCESS) {  // group by json error
+        longjmp(pTaskInfo->env, terrno);
+      }
       pInfo->isInit = true;
       num++;
       continue;
@@ -247,6 +255,9 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     if (j == 0) {
       num++;
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
+      if (terrno != TSDB_CODE_SUCCESS) {  // group by json error
+        longjmp(pTaskInfo->env, terrno);
+      }
       continue;
     }
 
@@ -661,7 +672,11 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
       }
     }
 
+    terrno = TSDB_CODE_SUCCESS;
     doHashPartition(pOperator, pBlock);
+    if (terrno != TSDB_CODE_SUCCESS) {  // group by json error
+      longjmp(pTaskInfo->env, terrno);
+    }
   }
 
   SArray* groupArray = taosArrayInit(taosHashGetSize(pInfo->pGroupSet), sizeof(SDataGroupInfo));
@@ -701,7 +716,7 @@ static void destroyPartitionOperatorInfo(void* param, int32_t numOfOutput) {
   taosHashCleanup(pInfo->pGroupSet);
   taosMemoryFree(pInfo->columnOffset);
 
-  cleanupExecSupp(&pInfo->scalarSup);
+  cleanupExprSupp(&pInfo->scalarSup);
 }
 
 SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNode* pPartNode, SExecTaskInfo* pTaskInfo) {

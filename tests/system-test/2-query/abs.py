@@ -23,7 +23,6 @@ class TDTestCase:
         self.time_step = 1000
 
     def insert_datas_and_check_abs(self ,tbnums , rownums , time_step ):
-    
         tdLog.info(" prepare datas for auto check abs function ")
 
         tdSql.execute(" create database test ")
@@ -36,7 +35,7 @@ class TDTestCase:
 
             ts = self.ts
             for row in range(rownums):
-                ts += time_step*row
+                ts = self.ts + time_step*row
                 c1 = random.randint(0,10000)
                 c2 = random.randint(0,100000)
                 c3 = random.randint(0,125)
@@ -538,24 +537,40 @@ class TDTestCase:
         # tdSql.query(" select sum(c1) from stb1 where t1+10 >1; ")  #　taosd crash
         tdSql.query("select c1 ,t1 from stb1 where t1 =0 ")
         tdSql.checkRows(13)
-        # tdSql.query("select t1 from stb1 where t1 >0 ")
-        # tdSql.checkRows(3)
+        tdSql.query("select t1 from stb1 where t1 >0 ")
+        tdSql.checkRows(3)
+        tdSql.query("select t1 from stb1 where t1 =3 ")
+        tdSql.checkRows(1)
         # tdSql.query("select sum(t1) from (select c1 ,t1 from stb1)")
         # tdSql.checkData(0,0,61)
         # tdSql.query("select distinct(c1) ,t1 from stb1")
         # tdSql.checkRows(20)
-        # tdSql.query("select max(t2) , t1 ,c1, t2 from stb1")
-        # tdSql.checkData(0,3,33333)
+        tdSql.query("select max(t2) , t1 ,c1, t2 from stb1")
+        tdSql.checkData(0,3,33333)
 
         # tag filter with abs function
-        # tdSql.query("select t1 from stb1 where abs(t1)=1")
-        # tdSql.checkRows(1)
+        tdSql.query("select t1 from stb1 where abs(t1)=1")
+        tdSql.checkRows(1)
         tdSql.query("select t1 from stb1 where abs(c1+t1)=1")
         tdSql.checkRows(1)
-        # tdSql.query("select t1 from stb1 where abs(t1+c1)=1")
-        # tdSql.checkRows(1)
+        tdSql.checkData(0,0,0)
+
         tdSql.query(
             "select abs(c1+t1)*t1 from stb1 where abs(c1)/floor(abs(ceil(t1))) ==1")
+
+    def support_super_table_test(self):
+        tdSql.execute(" use testdb ")
+        self.check_result_auto( " select c1 from stb1 order by ts " , "select abs(c1) from stb1 order by ts" )
+        self.check_result_auto( " select c1 from stb1 order by tbname " , "select abs(c1) from stb1 order by tbname" )
+        self.check_result_auto( " select c1 from stb1 where c1 > 0 order by tbname  " , "select abs(c1) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto( " select c1 from stb1 where c1 > 0 order by tbname  " , "select abs(c1) from stb1 where c1 > 0 order by tbname" )
+
+        self.check_result_auto( " select t1,c1 from stb1 order by ts " , "select t1, abs(c1) from stb1 order by ts" )
+        self.check_result_auto( " select t2,c1 from stb1 order by tbname " , "select t2 ,abs(c1) from stb1 order by tbname" )
+        self.check_result_auto( " select t3,c1 from stb1 where c1 > 0 order by tbname  " , "select t3 ,abs(c1) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto( " select t4,c1 from stb1 where c1 > 0 order by tbname  " , "select t4 , abs(c1) from stb1 where c1 > 0 order by tbname" )
+        pass
+
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
@@ -592,6 +607,10 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step7: check result of query ============")
 
         self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step)
+
+        tdLog.printNoPrefix("==========step8: check abs result of  stable query ============")
+
+        self.support_super_table_test()
 
     def stop(self):
         tdSql.close()

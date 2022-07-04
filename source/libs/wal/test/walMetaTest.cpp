@@ -148,7 +148,7 @@ TEST_F(WalCleanEnv, createNew) {
   walRollFileInfo(pWal);
   ASSERT(pWal->fileInfoSet != NULL);
   ASSERT_EQ(pWal->fileInfoSet->size, 1);
-  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGetLast(pWal->fileInfoSet);
+  SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet);
   ASSERT_EQ(pInfo->firstVer, 0);
   ASSERT_EQ(pInfo->lastVer, -1);
   ASSERT_EQ(pInfo->closeTs, -1);

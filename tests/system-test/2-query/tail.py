@@ -92,8 +92,6 @@ class TDTestCase:
             "select tail(c1,1) , min(c1) from t1",
             "select tail(c1,1) , spread(c1) from t1",
             "select tail(c1,1) , diff(c1) from t1",
-            "select tail(c1,1) , abs(c1) from t1",
-            "select tail(c1,1) , c1 from t1",
             "select tail from stb1 partition by tbname",
             "select tail(123--123)==1 from stb1 partition by tbname",
             "select tail(123,123) from stb1 partition by tbname",
@@ -115,10 +113,7 @@ class TDTestCase:
             "select tail(c1,1) , avg(c1) from stb1 partition by tbname",
             "select tail(c1,1) , min(c1) from stb1 partition by tbname",
             "select tail(c1,1) , spread(c1) from stb1 partition by tbname",
-            "select tail(c1,1) , diff(c1) from stb1 partition by tbname",
-            "select tail(c1,1) , abs(c1) from stb1 partition by tbname",
-            "select tail(c1,1) , c1 from stb1 partition by tbname"
-          
+            "select tail(c1,1) , diff(c1) from stb1 partition by tbname",          
         ]
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
@@ -188,8 +183,8 @@ class TDTestCase:
 
     def check_tail_table(self , tbname , col_name , tail_rows , offset):
         tail_sql = f"select tail({col_name} , {tail_rows} , {offset}) from {tbname}"
-        equal_sql = f"select {col_name} from (select ts , {col_name} from {tbname} order by ts desc limit {tail_rows} offset {offset}) order by ts"
-        #equal_sql = f"select {col_name} from {tbname} order by ts desc limit {tail_rows} offset {offset}"
+        #equal_sql = f"select {col_name} from (select ts , {col_name} from {tbname} order by ts desc limit {tail_rows} offset {offset}) order by ts"
+        equal_sql = f"select {col_name} from {tbname} order by ts desc limit {tail_rows} offset {offset}"
         tdSql.query(tail_sql)
         tail_result = tdSql.queryResult
 
@@ -266,17 +261,17 @@ class TDTestCase:
         tdSql.query("select tail(c1,10,10) from ct1")
         tdSql.checkRows(3)
 
-        tdSql.error("select tail(c1,10,10),tbname from ct1")
-        tdSql.error("select tail(c1,10,10),t1 from ct1")
+        tdSql.query("select tail(c1,10,10),tbname from ct1")
+        tdSql.query("select tail(c1,10,10),t1 from ct1")
 
         # tail with common col 
-        tdSql.error("select tail(c1,10,10) ,ts  from ct1")
-        tdSql.error("select tail(c1,10,10) ,c1  from ct1")
+        tdSql.query("select tail(c1,10,10) ,ts  from ct1")
+        tdSql.query("select tail(c1,10,10) ,c1  from ct1")
 
         # tail with scalar function 
-        tdSql.error("select tail(c1,10,10) ,abs(c1)  from ct1")
+        tdSql.query("select tail(c1,10,10) ,abs(c1)  from ct1")
         tdSql.error("select tail(c1,10,10) , tail(c2,10,10) from ct1")
-        tdSql.error("select tail(c1,10,10) , abs(c2)+2 from ct1")
+        tdSql.query("select tail(c1,10,10) , abs(c2)+2 from ct1")
   
         # bug need fix for scalar value or compute again
         # tdSql.error(" select tail(c1,10,10) , 123 from ct1")
@@ -404,7 +399,7 @@ class TDTestCase:
                 f"insert into sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         
-        tdSql.query("select tail(c2,2) from sub1_bound")
+        tdSql.query("select tail(c2,2) from sub1_bound order by 1 desc")
         tdSql.checkRows(2)
         tdSql.checkData(0,0,9223372036854775803)
 

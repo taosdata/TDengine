@@ -156,6 +156,10 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* pSyncNode, SyncRequestVote* pM
   SyncTerm  myLastTerm = syncNodeGetLastTerm(pSyncNode);
   SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
 
+  if (myLastTerm == SYNC_TERM_INVALID) {
+    return false;
+  }
+
   if (pMsg->lastLogTerm > myLastTerm) {
     return true;
   }

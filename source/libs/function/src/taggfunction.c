@@ -1887,10 +1887,10 @@ static void top_bottom_func_finalizer(SqlFunctionCtx *pCtx) {
   // user specify the order of output by sort the result according to timestamp
   if (pCtx->param[1].param.i == PRIMARYKEY_TIMESTAMP_COL_ID) {
     __compar_fn_t comparator = (pCtx->param[2].param.i == TSDB_ORDER_ASC) ? resAscComparFn : resDescComparFn;
-    qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
+    taosSort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
   } else /*if (pCtx->param[1].param.i > PRIMARYKEY_TIMESTAMP_COL_ID)*/ {
     __compar_fn_t comparator = (pCtx->param[2].param.i == TSDB_ORDER_ASC) ? resDataAscComparFn : resDataDescComparFn;
-    qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
+    taosSort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
   }
   
   GET_TRUE_DATA_TYPE();

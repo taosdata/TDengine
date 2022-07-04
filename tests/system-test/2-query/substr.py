@@ -31,7 +31,7 @@ class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(),False)
 
     def __substr_condition(self):  # sourcery skip: extract-method
         substr_condition = []

@@ -43,6 +43,7 @@ class PlannerTestBase : public testing::Test {
 
 extern void    setDumpModule(const char* pModule);
 extern void    setSkipSqlNum(const char* pNum);
+extern void    setLimitSqlNum(const char* pNum);
 extern void    setLogLevel(const char* pLogLevel);
 extern int32_t getLogLevel();
 

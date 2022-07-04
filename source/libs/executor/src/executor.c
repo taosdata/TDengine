@@ -44,12 +44,12 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     // prevent setting a different type of block
     pInfo->blockType = type;
 
-    if (type == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
+    if (type == STREAM_INPUT__DATA_SUBMIT) {
       if (tqReadHandleSetMsg(pInfo->streamBlockReader, input, 0) < 0) {
         qError("submit msg messed up when initing stream block, %s" PRIx64, id);
         return TSDB_CODE_QRY_APP_ERROR;
       }
-    } else if (type == STREAM_DATA_TYPE_SSDATA_BLOCK) {
+    } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
 
@@ -60,9 +60,9 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         taosArrayAddAll(p->pDataBlock, pDataBlock->pDataBlock);
         taosArrayPush(pInfo->pBlockLists, &p);
       }
-    } else if (type == STREAM_DATA_TYPE_FROM_SNAPSHOT) {
+    } else if (type == STREAM_INPUT__DATA_SCAN) {
       // do nothing
-      ASSERT(pInfo->blockType == STREAM_DATA_TYPE_FROM_SNAPSHOT);
+      ASSERT(pInfo->blockType == STREAM_INPUT__DATA_SCAN);
     } else {
       ASSERT(0);
     }
@@ -76,7 +76,7 @@ int32_t qStreamScanSnapshot(qTaskInfo_t tinfo) {
     return TSDB_CODE_QRY_APP_ERROR;
   }
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  return doSetStreamBlock(pTaskInfo->pRoot, NULL, 0, STREAM_DATA_TYPE_FROM_SNAPSHOT, 0, NULL);
+  return doSetStreamBlock(pTaskInfo->pRoot, NULL, 0, STREAM_INPUT__DATA_SCAN, 0, NULL);
 }
 
 int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type, bool assignUid) {
@@ -145,10 +145,12 @@ static SArray* filterQualifiedChildTables(const SStreamBlockScanInfo* pScanInfo,
       continue;
     }
 
+    // TODO handle ntb case
     if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != pScanInfo->tableUid) {
       continue;
     }
-    // TODO handle ntb case
+    /*pScanInfo->pStreamScanOp->pTaskInfo->tableqinfoList.*/
+    // handle multiple partition
 
     taosArrayPush(qa, id);
   }

@@ -191,16 +191,6 @@ int32_t qAsyncKillTask(qTaskInfo_t qinfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qIsTaskCompleted(qTaskInfo_t qinfo) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qinfo;
-
-  if (pTaskInfo == NULL) {
-    return TSDB_CODE_QRY_INVALID_QHANDLE;
-  }
-
-  return isTaskKilled(pTaskInfo);
-}
-
 void qDestroyTask(qTaskInfo_t qTaskHandle) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qTaskHandle;
   qDebug("%s execTask completed, numOfRows:%" PRId64, GET_TASKID(pTaskInfo), pTaskInfo->pRoot->resultInfo.totalRows);
@@ -222,11 +212,17 @@ int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  return encodeOperator(pTaskInfo->pRoot, pOutput, len);
+  int32_t nOptrWithVal = 0;
+  int32_t code = encodeOperator(pTaskInfo->pRoot, pOutput, len, &nOptrWithVal);
+  if ((code == TSDB_CODE_SUCCESS) && (nOptrWithVal = 0)) {
+    taosMemoryFreeClear(*pOutput);
+    *len = 0;
+  }
+  return code;
 }
 
 int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t len) {
-  SExecTaskInfo* pTaskInfo = (struct SExecTaskInfo*) tinfo;
+  SExecTaskInfo* pTaskInfo = (struct SExecTaskInfo*)tinfo;
 
   if (pTaskInfo == NULL || pInput == NULL || len == 0) {
     return TSDB_CODE_INVALID_PARA;
@@ -235,4 +231,22 @@ int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t le
   return decodeOperator(pTaskInfo->pRoot, pInput, len);
 }
 
+int32_t qStreamPrepareScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
+  if (uid == 0) {
+    if (taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList) != 0) {
+      STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, 0);
+      uid = pTableInfo->uid;
+      ts = INT64_MIN;
+    }
+  }
+
+  return doPrepareScan(pTaskInfo->pRoot, uid, ts);
+}
+
+int32_t qGetStreamScanStatus(qTaskInfo_t tinfo, uint64_t* uid, int64_t* ts) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+
+  return doGetScanStatus(pTaskInfo->pRoot, uid, ts);
+}

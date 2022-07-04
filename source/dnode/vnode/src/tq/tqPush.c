@@ -15,16 +15,17 @@
 
 #include "tq.h"
 
+#if 0
 void tqTmrRspFunc(void* param, void* tmrId) {
   STqHandle* pHandle = (STqHandle*)param;
   atomic_store_8(&pHandle->pushHandle.tmrStopped, 1);
 }
 
-static int32_t tqLoopExecFromQueue(STQ* pTq, STqHandle* pHandle, SStreamDataSubmit** ppSubmit, SMqDataBlkRsp* pRsp) {
+static int32_t tqLoopExecFromQueue(STQ* pTq, STqHandle* pHandle, SStreamDataSubmit** ppSubmit, SMqDataRsp* pRsp) {
   SStreamDataSubmit* pSubmit = *ppSubmit;
   while (pSubmit != NULL) {
     ASSERT(pSubmit->ver == pHandle->pushHandle.processedVer + 1);
-    if (tqDataExec(pTq, &pHandle->execHandle, pSubmit->data, pRsp, 0) < 0) {
+    if (tqLogScanExec(pTq, &pHandle->execHandle, pSubmit->data, pRsp, 0) < 0) {
       /*ASSERT(0);*/
     }
     // update processed
@@ -43,7 +44,7 @@ static int32_t tqLoopExecFromQueue(STQ* pTq, STqHandle* pHandle, SStreamDataSubm
 }
 
 int32_t tqExecFromInputQ(STQ* pTq, STqHandle* pHandle) {
-  SMqDataBlkRsp rsp = {0};
+  SMqDataRsp rsp = {0};
   // 1. guard and set status executing
   int8_t execStatus = atomic_val_compare_exchange_8(&pHandle->pushHandle.execStatus, TASK_EXEC_STATUS__IDLE,
                                                     TASK_EXEC_STATUS__EXECUTING);
@@ -175,13 +176,13 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 
     taosWLockLatch(&pHandle->pushHandle.lock);
 
-    SMqDataBlkRsp rsp = {0};
+    SMqDataRsp rsp = {0};
     rsp.reqOffset = pHandle->pushHandle.reqOffset;
     rsp.blockData = taosArrayInit(0, sizeof(void*));
     rsp.blockDataLen = taosArrayInit(0, sizeof(int32_t));
 
     if (msgType == TDMT_VND_SUBMIT) {
-      tqDataExec(pTq, &pHandle->execHandle, pReq, &rsp, workerId);
+      tqLogScanExec(pTq, &pHandle->execHandle, pReq, &rsp, workerId);
     } else {
       // TODO
       ASSERT(0);
@@ -233,6 +234,7 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 
   return 0;
 }
+#endif
 
 int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
   if (msgType == TDMT_VND_SUBMIT) {

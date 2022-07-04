@@ -63,6 +63,8 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
     rowSize += pCtx[i].resDataInfo.interBufSize;
   }
 
+  rowSize +=
+      (numOfOutput * sizeof(bool));  // expand rowSize to mark if col is null for top/bottom result(saveTupleData)
   return rowSize;
 }
 
@@ -112,13 +114,15 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int
     p->groupId = *(uint64_t*)key;
     p->pos = *(SResultRowPosition*)pData;
     memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
-
+#ifdef BUF_PAGE_DEBUG
+    qDebug("page_groupRes, groupId:%" PRIu64 ",pageId:%d,offset:%d\n", p->groupId, p->pos.pageId, p->pos.offset);
+#endif
     taosArrayPush(pGroupResInfo->pRows, &p);
   }
 
   if (order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC) {
     __compar_fn_t fn = (order == TSDB_ORDER_ASC) ? resultrowComparAsc : resultrowComparDesc;
-    qsort(pGroupResInfo->pRows->pData, taosArrayGetSize(pGroupResInfo->pRows), POINTER_BYTES, fn);
+    taosSort(pGroupResInfo->pRows->pData, taosArrayGetSize(pGroupResInfo->pRows), POINTER_BYTES, fn);
   }
 
   pGroupResInfo->index = 0;
@@ -153,7 +157,12 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
 }
 
 SArray* createSortInfo(SNodeList* pNodeList) {
-  size_t  numOfCols = LIST_LENGTH(pNodeList);
+  size_t numOfCols = 0;
+  if (pNodeList != NULL) {
+    numOfCols = LIST_LENGTH(pNodeList);
+  } else {
+    numOfCols = 0;
+  }
   SArray* pList = taosArrayInit(numOfCols, sizeof(SBlockOrderInfo));
   if (pList == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -184,9 +193,9 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SSlotDescNode* pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
-    //    if (!pDescNode->output) {  // todo disable it temporarily
-    //      continue;
-    //    }
+    /*if (!pDescNode->output) {  // todo disable it temporarily*/
+    /*continue;*/
+    /*}*/
 
     SColumnInfoData idata =
         createColumnInfoData(pDescNode->dataType.type, pDescNode->dataType.bytes, pDescNode->slotId);
@@ -266,6 +275,7 @@ static bool isTableOk(STableKeyInfo* info, SNode* pTagCond, SMeta* metaHandle) {
   SNode*  pNew = NULL;
   int32_t code = scalarCalculateConstants(pTagCondTmp, &pNew);
   if (TSDB_CODE_SUCCESS != code) {
+    terrno = code;
     nodesDestroyNode(pTagCondTmp);
     return false;
   }
@@ -321,11 +331,18 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
       code = tsdbGetAllTableList(metaHandle, tableUid, pListInfo->pTableList);
     }
 
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("failed  to  get tableIds, reason: %s, suid: %" PRIu64 "", tstrerror(code), tableUid);
+      terrno = code;
+      return code;
+    }
+
     if (pTagCond) {
       int32_t i = 0;
       while (i < taosArrayGetSize(pListInfo->pTableList)) {
         STableKeyInfo* info = taosArrayGet(pListInfo->pTableList, i);
         bool           isOk = isTableOk(info, pTagCond, metaHandle);
+        if (terrno) return terrno;
         if (!isOk) {
           taosArrayRemove(pListInfo->pTableList, i);
           continue;
@@ -333,7 +350,7 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
         i++;
       }
     }
-  }else {  // Create one table group.
+  } else {  // Create one table group.
     STableKeyInfo info = {.lastKey = 0, .uid = tableUid, .groupId = 0};
     taosArrayPush(pListInfo->pTableList, &info);
   }
@@ -584,13 +601,16 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
   }
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
-    if (strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
+    if (strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "_select_value") == 0 ||
+        strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "_group_key") == 0) {
       pValCtx[num++] = &pCtx[i];
     } else if (fmIsSelectFunc(pCtx[i].functionId)) {
       p = &pCtx[i];
     }
   }
-
+#ifdef BUF_PAGE_DEBUG
+  qDebug("page_setSelect num:%d", num);
+#endif
   if (p != NULL) {
     p->subsidiaries.pCtx = pValCtx;
     p->subsidiaries.num = num;

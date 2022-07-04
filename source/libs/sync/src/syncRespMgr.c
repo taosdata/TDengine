@@ -32,11 +32,13 @@ SSyncRespMgr *syncRespMgrCreate(void *data, int64_t ttl) {
 }
 
 void syncRespMgrDestroy(SSyncRespMgr *pObj) {
-  taosThreadMutexLock(&(pObj->mutex));
-  taosHashCleanup(pObj->pRespHash);
-  taosThreadMutexUnlock(&(pObj->mutex));
-  taosThreadMutexDestroy(&(pObj->mutex));
-  taosMemoryFree(pObj);
+  if (pObj != NULL) {
+    taosThreadMutexLock(&(pObj->mutex));
+    taosHashCleanup(pObj->pRespHash);
+    taosThreadMutexUnlock(&(pObj->mutex));
+    taosThreadMutexDestroy(&(pObj->mutex));
+    taosMemoryFree(pObj);
+  }
 }
 
 int64_t syncRespMgrAdd(SSyncRespMgr *pObj, SRespStub *pStub) {

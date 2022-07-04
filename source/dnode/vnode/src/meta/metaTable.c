@@ -23,6 +23,7 @@ static int metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateTtlIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME);
+static int metaUpdateSuidIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
 static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type);
 
@@ -138,6 +139,10 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   me.name = pReq->name;
   me.stbEntry.schemaRow = pReq->schemaRow;
   me.stbEntry.schemaTag = pReq->schemaTag;
+  if (pReq->rollup) {
+    TABLE_SET_ROLLUP(me.flags);
+    me.stbEntry.rsmaParam = pReq->rsmaParam;
+  }
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
 
@@ -209,6 +214,7 @@ _drop_super_table:
               &pMeta->txn);
   tdbTbDelete(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &pMeta->txn);
   tdbTbDelete(pMeta->pUidIdx, &pReq->suid, sizeof(tb_uid_t), &pMeta->txn);
+  tdbTbDelete(pMeta->pSuidIdx, &pReq->suid, sizeof(tb_uid_t), &pMeta->txn);
 
   metaULock(pMeta);
 
@@ -435,11 +441,13 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
   tdbTbDelete(pMeta->pUidIdx, &uid, sizeof(uid), &pMeta->txn);
   if (e.type != TSDB_SUPER_TABLE) metaDeleteTtlIdx(pMeta, &e);
 
+
   if (e.type == TSDB_CHILD_TABLE) {
     tdbTbDelete(pMeta->pCtbIdx, &(SCtbIdxKey){.suid = e.ctbEntry.suid, .uid = uid}, sizeof(SCtbIdxKey), &pMeta->txn);
   } else if (e.type == TSDB_NORMAL_TABLE) {
     // drop schema.db (todo)
   } else if (e.type == TSDB_SUPER_TABLE) {
+    tdbTbDelete(pMeta->pSuidIdx, &e.uid, sizeof(tb_uid_t), &pMeta->txn);
     // drop schema.db (todo)
   }
 
@@ -910,6 +918,10 @@ static int metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME) {
   return tdbTbInsert(pMeta->pUidIdx, &pME->uid, sizeof(tb_uid_t), &pME->version, sizeof(int64_t), &pMeta->txn);
 }
 
+static int metaUpdateSuidIdx(SMeta *pMeta, const SMetaEntry *pME) {
+  return tdbTbInsert(pMeta->pSuidIdx, &pME->uid, sizeof(tb_uid_t), NULL, 0, &pMeta->txn);
+}
+
 static int metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME) {
   return tdbTbInsert(pMeta->pNameIdx, pME->name, strlen(pME->name) + 1, &pME->uid, sizeof(tb_uid_t), &pMeta->txn);
 }
@@ -1080,6 +1092,10 @@ static int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME) {
   } else {
     // update schema.db
     if (metaSaveToSkmDb(pMeta, pME) < 0) goto _err;
+
+    if (pME->type == TSDB_SUPER_TABLE) {
+      if (metaUpdateSuidIdx(pMeta, pME) < 0) goto _err;
+    }    
   }
 
   if (pME->type != TSDB_SUPER_TABLE) {

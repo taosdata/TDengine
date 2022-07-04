@@ -558,7 +558,11 @@ _OVER:
 
 static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   SShowVariablesRsp rsp = {0};
-  int32_t       code = -1;
+  int32_t           code = -1;
+
+  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_SHOW_VARIBALES) != 0) {
+    goto _OVER;
+  }
 
   rsp.variables = taosArrayInit(4, sizeof(SVariablesInfo));
   if (NULL == rsp.variables) {
@@ -752,6 +756,11 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
              numOfVnodes);
       goto _OVER;
     }
+  }
+
+  if (numOfVnodes > 0) {
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    goto _OVER;
   }
 
   code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes);

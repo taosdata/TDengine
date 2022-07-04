@@ -34,7 +34,7 @@ typedef struct SWinRes {
 
 typedef struct SPullWindowInfo {
   STimeWindow window;
-  uint64_t groupId;
+  uint64_t    groupId;
 } SPullWindowInfo;
 
 static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator);
@@ -695,11 +695,11 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
 }
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag) {
-  if (pBlock == NULL){
+  if (pBlock == NULL) {
     qDebug("======printDataBlock Block is Null");
     return;
   }
-  char *pBuf = NULL;
+  char* pBuf = NULL;
   qDebug("%s", dumpBlockData(pBlock, flag, &pBuf));
   taosMemoryFree(pBuf);
 }
@@ -813,6 +813,13 @@ static void removeResults(SArray* pWins, SArray* pUpdated) {
   }
 }
 
+bool isOverdue(TSKEY ts, STimeWindowAggSupp* pSup) {
+  ASSERT(pSup->maxTs == INT64_MIN || pSup->maxTs > 0);
+  return pSup->maxTs != INT64_MIN && ts < pSup->maxTs - pSup->waterMark;
+}
+
+bool isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup) { return isOverdue(pWin->ekey, pSup); }
+
 static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResultRowInfo, SSDataBlock* pBlock,
                             int32_t scanFlag, SArray* pUpdated) {
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)pOperatorInfo->info;
@@ -830,15 +837,15 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
 
   STimeWindow win = getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, ts, &pInfo->interval,
                                         pInfo->interval.precision, &pInfo->win);
+  int32_t     ret = TSDB_CODE_SUCCESS;
+  if (!pInfo->ignoreExpiredData || !isCloseWindow(&win, &pInfo->twAggSup)) {
+    ret = setTimeWindowOutputBuf(pResultRowInfo, &win, (scanFlag == MAIN_SCAN), &pResult, tableGroupId, pSup->pCtx,
+                                 numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
+    if (ret != TSDB_CODE_SUCCESS || pResult == NULL) {
+      longjmp(pTaskInfo->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
+    }
 
-  int32_t ret = setTimeWindowOutputBuf(pResultRowInfo, &win, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
-                                       pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
-  if (ret != TSDB_CODE_SUCCESS || pResult == NULL) {
-    longjmp(pTaskInfo->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
-  if (pInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
-    if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE) {
+    if (pInfo->execModel == OPTR_EXEC_MODEL_STREAM && pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE) {
       saveResultRow(pResult, tableGroupId, pUpdated);
     }
   }
@@ -864,9 +871,11 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
     doWindowBorderInterpolation(pInfo, pBlock, pResult, &win, startPos, forwardRows, pSup);
   }
 
-  updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &win, true);
-  doApplyFunctions(pTaskInfo, pSup->pCtx, &win, &pInfo->twAggSup.timeWindowData, startPos, forwardRows, tsCols,
-                   pBlock->info.rows, numOfOutput, pInfo->order);
+  if (!pInfo->ignoreExpiredData || !isCloseWindow(&win, &pInfo->twAggSup)) {
+    updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &win, true);
+    doApplyFunctions(pTaskInfo, pSup->pCtx, &win, &pInfo->twAggSup.timeWindowData, startPos, forwardRows, tsCols,
+                     pBlock->info.rows, numOfOutput, pInfo->order);
+  }
 
   doCloseWindow(pResultRowInfo, pInfo, pResult);
 
@@ -877,6 +886,12 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
     if (startPos < 0) {
       break;
     }
+    if (pInfo->ignoreExpiredData && isCloseWindow(&nextWin, &pInfo->twAggSup)) {
+      ekey = ascScan ? nextWin.ekey : nextWin.skey;
+      forwardRows =
+          getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL, pInfo->order);
+      continue;
+    }
 
     // null data, failed to allocate more memory buffer
     int32_t code = setTimeWindowOutputBuf(pResultRowInfo, &nextWin, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
@@ -885,10 +900,8 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
       longjmp(pTaskInfo->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
-    if (pInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
-      if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE) {
-        saveResultRow(pResult, tableGroupId, pUpdated);
-      }
+    if (pInfo->execModel == OPTR_EXEC_MODEL_STREAM && pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE) {
+      saveResultRow(pResult, tableGroupId, pUpdated);
     }
 
     ekey = ascScan ? nextWin.ekey : nextWin.skey;
@@ -968,6 +981,11 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
     }
 
     getTableScanInfo(pOperator, &pInfo->order, &scanFlag);
+
+    if (pInfo->scalarSupp.pExprInfo != NULL) {
+      SExprSupp* pExprSup = &pInfo->scalarSupp;
+      projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL);
+    }
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pSup->pCtx, pBlock, pInfo->order, scanFlag, true);
@@ -1228,6 +1246,9 @@ void doClearWindowImpl(SResultRowPosition* p1, SDiskbasedBuf* pResultBuf, SExprS
       pCtx[i].fpSet.init(&pCtx[i], pResInfo);
     }
   }
+  SFilePage* bufPage = getBufPage(pResultBuf, p1->pageId);
+  setBufPageDirty(bufPage, true);
+  releaseBufPage(pResultBuf, bufPage);
 }
 
 bool doClearWindow(SAggSupporter* pAggSup, SExprSupp* pSup, char* pData, int16_t bytes, uint64_t groupId,
@@ -1249,10 +1270,10 @@ static void doClearWindows(SAggSupporter* pAggSup, SExprSupp* pSup1, SInterval* 
   TSKEY*           tsCols = (TSKEY*)pTsCol->pData;
   uint64_t*        pGpDatas = NULL;
   if (pBlock->info.type == STREAM_RETRIEVE) {
-      SColumnInfoData* pGpCol = taosArrayGet(pBlock->pDataBlock, 2);
-      pGpDatas = (uint64_t*)pGpCol->pData;
+    SColumnInfoData* pGpCol = taosArrayGet(pBlock->pDataBlock, 2);
+    pGpDatas = (uint64_t*)pGpCol->pData;
   }
-  int32_t          step = 0;
+  int32_t step = 0;
   for (int32_t i = 0; i < pBlock->info.rows; i += step) {
     SResultRowInfo dumyInfo;
     dumyInfo.cur.pageId = -1;
@@ -1286,13 +1307,8 @@ static int32_t getAllIntervalWindow(SHashObj* pHashMap, SArray* resWins) {
   return TSDB_CODE_SUCCESS;
 }
 
-bool isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup) {
-  ASSERT(pSup->maxTs == INT64_MIN || pSup->maxTs > 0);
-  return pSup->maxTs != INT64_MIN && pWin->ekey < pSup->maxTs - pSup->waterMark;
-}
-
-static int32_t closeIntervalWindow(SHashObj* pHashMap, STimeWindowAggSupp* pSup,
-    SInterval* pInterval, SHashObj* pPullDataMap, SArray* closeWins) {
+static int32_t closeIntervalWindow(SHashObj* pHashMap, STimeWindowAggSupp* pSup, SInterval* pInterval,
+                                   SHashObj* pPullDataMap, SArray* closeWins) {
   void*  pIte = NULL;
   size_t keyLen = 0;
   while ((pIte = taosHashIterate(pHashMap, pIte)) != NULL) {
@@ -1303,15 +1319,18 @@ static int32_t closeIntervalWindow(SHashObj* pHashMap, STimeWindowAggSupp* pSup,
     SResultRowInfo dumyInfo;
     dumyInfo.cur.pageId = -1;
     STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, ts, pInterval, pInterval->precision, NULL);
-    SWinRes winRe = {.ts = win.skey, .groupId = groupId,};
+    SWinRes     winRe = {
+            .ts = win.skey,
+            .groupId = groupId,
+    };
     void* chIds = taosHashGet(pPullDataMap, &winRe, sizeof(SWinRes));
     if (isCloseWindow(&win, pSup)) {
       if (chIds && pPullDataMap) {
-        SArray* chAy = *(SArray**) chIds;
+        SArray* chAy = *(SArray**)chIds;
         int32_t size = taosArrayGetSize(chAy);
-        qInfo("======window %ld wait child size:%d", win.skey ,size);
+        qInfo("======window %ld wait child size:%d", win.skey, size);
         for (int32_t i = 0; i < size; i++) {
-          qInfo("======window %ld wait chid id:%d", win.skey ,*(int32_t*)taosArrayGet(chAy, i));
+          qInfo("======window %ld wait chid id:%d", win.skey, *(int32_t*)taosArrayGet(chAy, i));
         }
         continue;
       } else if (pPullDataMap) {
@@ -1335,7 +1354,7 @@ static int32_t closeIntervalWindow(SHashObj* pHashMap, STimeWindowAggSupp* pSup,
 static void closeChildIntervalWindow(SArray* pChildren, TSKEY maxTs) {
   int32_t size = taosArrayGetSize(pChildren);
   for (int32_t i = 0; i < size; i++) {
-    SOperatorInfo* pChildOp = taosArrayGetP(pChildren, i);
+    SOperatorInfo*                    pChildOp = taosArrayGetP(pChildren, i);
     SStreamFinalIntervalOperatorInfo* pChInfo = pChildOp->info;
     ASSERT(pChInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE);
     pChInfo->twAggSup.maxTs = TMAX(pChInfo->twAggSup.maxTs, maxTs);
@@ -1381,6 +1400,11 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       continue;
     }
 
+    if (pInfo->scalarSupp.pExprInfo != NULL) {
+      SExprSupp* pExprSup = &pInfo->scalarSupp;
+      projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL);
+    }
+
     // The timewindow that overlaps the timestamps of the input pBlock need to be recalculated and return to the
     // caller. Note that all the time window are not close till now.
     // the pDataBlock are always the same one, no need to call this again
@@ -1400,7 +1424,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
 
   pOperator->status = OP_RES_TO_RETURN;
-
+  printDataBlock(pInfo->binfo.pRes, "single interval");
   return pInfo->binfo.pRes->info.rows == 0 ? NULL : pInfo->binfo.pRes;
 }
 
@@ -1420,7 +1444,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param, int32_t numOfOutput) {
   SStreamFinalIntervalOperatorInfo* pInfo = (SStreamFinalIntervalOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
-  //it should be empty.
+  // it should be empty.
   taosHashCleanup(pInfo->pPullDataMap);
   taosArrayDestroy(pInfo->pPullWins);
   blockDataDestroy(pInfo->pPullDataRes);
@@ -1498,7 +1522,8 @@ void increaseTs(SqlFunctionCtx* pCtx) {
 
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          STimeWindowAggSupp* pTwAggSupp, SExecTaskInfo* pTaskInfo, bool isStream) {
+                                          STimeWindowAggSupp* pTwAggSupp, SIntervalPhysiNode* pPhyNode,
+                                          SExecTaskInfo* pTaskInfo, bool isStream) {
   SIntervalAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SIntervalAggOperatorInfo));
   SOperatorInfo*            pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -1510,6 +1535,16 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
   pInfo->interval = *pInterval;
   pInfo->execModel = pTaskInfo->execModel;
   pInfo->twAggSup = *pTwAggSupp;
+  pInfo->ignoreExpiredData = pPhyNode->window.igExpired;
+
+  if (pPhyNode->window.pExprs != NULL) {
+    int32_t    numOfScalar = 0;
+    SExprInfo* pScalarExprInfo = createExprInfo(pPhyNode->window.pExprs, NULL, &numOfScalar);
+    int32_t    code = initExprSupp(&pInfo->scalarSupp, pScalarExprInfo, numOfScalar);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
+  }
 
   pInfo->primaryTsIndex = primaryTsSlotId;
 
@@ -2216,10 +2251,10 @@ bool isDeletedWindow(STimeWindow* pWin, uint64_t groupId, SAggSupporter* pSup) {
   return p1 == NULL;
 }
 
-int32_t getNexWindowPos(SInterval* pInterval, SDataBlockInfo* pBlockInfo, TSKEY* tsCols,
-    int32_t startPos, TSKEY eKey, STimeWindow* pNextWin) {
-  int32_t forwardRows = getNumOfRowsInTimeWindow(pBlockInfo, tsCols, startPos,
-      eKey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
+int32_t getNexWindowPos(SInterval* pInterval, SDataBlockInfo* pBlockInfo, TSKEY* tsCols, int32_t startPos, TSKEY eKey,
+                        STimeWindow* pNextWin) {
+  int32_t forwardRows =
+      getNumOfRowsInTimeWindow(pBlockInfo, tsCols, startPos, eKey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
   int32_t prevEndPos = forwardRows - 1 + startPos;
   return getNextQualifiedWindow(pInterval, pNextWin, pBlockInfo, tsCols, prevEndPos, TSDB_ORDER_ASC);
 }
@@ -2256,9 +2291,20 @@ static void doHashInterval(SOperatorInfo* pOperatorInfo, SSDataBlock* pSDataBloc
   STimeWindow nextWin = getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, ts, &pInfo->interval,
                                             pInfo->interval.precision, NULL);
   while (1) {
-    if (IS_FINAL_OP(pInfo) && isCloseWindow(&nextWin, &pInfo->twAggSup) && pInfo->pChildren) {
-      bool ignore = true;
-      SWinRes winRes = {.ts = nextWin.skey, .groupId = tableGroupId,};
+    bool isClosed = isCloseWindow(&nextWin, &pInfo->twAggSup);
+    if (pInfo->ignoreExpiredData && isClosed) {
+      startPos = getNexWindowPos(&pInfo->interval, &pSDataBlock->info, tsCols, startPos, nextWin.ekey, &nextWin);
+      if (startPos < 0) {
+        break;
+      }
+      continue;
+    }
+    if (IS_FINAL_OP(pInfo) && isClosed && pInfo->pChildren) {
+      bool    ignore = true;
+      SWinRes winRes = {
+          .ts = nextWin.skey,
+          .groupId = tableGroupId,
+      };
       void* chIds = taosHashGet(pInfo->pPullDataMap, &winRes, sizeof(SWinRes));
       if (isDeletedWindow(&nextWin, tableGroupId, &pInfo->aggSup) && !chIds) {
         SPullWindowInfo pull = {.window = nextWin, .groupId = tableGroupId};
@@ -2269,18 +2315,18 @@ static void doHashInterval(SOperatorInfo* pOperatorInfo, SSDataBlock* pSDataBloc
         int32_t index = -1;
         SArray* chArray = NULL;
         if (chIds) {
-          chArray = *(void**) chIds;
+          chArray = *(void**)chIds;
           int32_t chId = getChildIndex(pSDataBlock);
           index = taosArraySearchIdx(chArray, &chId, compareInt32Val, TD_EQ);
         }
-        if (index != -1 && pSDataBlock->info.type == STREAM_PUSH_DATA) {
+        if (index != -1 && pSDataBlock->info.type == STREAM_PULL_DATA) {
           taosArrayRemove(chArray, index);
           if (taosArrayGetSize(chArray) == 0) {
             // pull data is over
             taosHashRemove(pInfo->pPullDataMap, &winRes, sizeof(SWinRes));
           }
         }
-        if ( index == -1 || pSDataBlock->info.type == STREAM_PUSH_DATA) {
+        if (index == -1 || pSDataBlock->info.type == STREAM_PULL_DATA) {
           ignore = false;
         }
       }
@@ -2365,17 +2411,17 @@ static void doBuildPullDataBlock(SArray* array, int32_t* pIndex, SSDataBlock* pB
   if (size - (*pIndex) == 0) {
     return;
   }
-  blockDataEnsureCapacity(pBlock, size - (*pIndex) );
+  blockDataEnsureCapacity(pBlock, size - (*pIndex));
   ASSERT(3 <= taosArrayGetSize(pBlock->pDataBlock));
   for (; (*pIndex) < size; (*pIndex)++) {
-    SPullWindowInfo* pWin = taosArrayGet(array, (*pIndex) );
-    SColumnInfoData* pStartTs = (SColumnInfoData*) taosArrayGet(pBlock->pDataBlock, 0);
+    SPullWindowInfo* pWin = taosArrayGet(array, (*pIndex));
+    SColumnInfoData* pStartTs = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, 0);
     colDataAppend(pStartTs, pBlock->info.rows, (const char*)&pWin->window.skey, false);
 
-    SColumnInfoData* pEndTs = (SColumnInfoData*) taosArrayGet(pBlock->pDataBlock, 1);
+    SColumnInfoData* pEndTs = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, 1);
     colDataAppend(pEndTs, pBlock->info.rows, (const char*)&pWin->window.ekey, false);
 
-    SColumnInfoData* pGroupId = (SColumnInfoData*) taosArrayGet(pBlock->pDataBlock, 2);
+    SColumnInfoData* pGroupId = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, 2);
     colDataAppend(pGroupId, pBlock->info.rows, (const char*)&pWin->groupId, false);
     pBlock->info.rows++;
   }
@@ -2386,17 +2432,17 @@ static void doBuildPullDataBlock(SArray* array, int32_t* pIndex, SSDataBlock* pB
   blockDataUpdateTsWindow(pBlock, 0);
 }
 
-void processPushEmpty(SSDataBlock* pBlock, SHashObj* pMap) {
+void processPullOver(SSDataBlock* pBlock, SHashObj* pMap) {
   SColumnInfoData* pStartCol = taosArrayGet(pBlock->pDataBlock, 0);
-  TSKEY* tsData = (TSKEY*)pStartCol->pData;
+  TSKEY*           tsData = (TSKEY*)pStartCol->pData;
   SColumnInfoData* pGroupCol = taosArrayGet(pBlock->pDataBlock, 2);
-  uint64_t* groupIdData = (uint64_t*)pGroupCol->pData;
-  int32_t chId = getChildIndex(pBlock);
+  uint64_t*        groupIdData = (uint64_t*)pGroupCol->pData;
+  int32_t          chId = getChildIndex(pBlock);
   for (int32_t i = 0; i < pBlock->info.rows; i++) {
     SWinRes winRes = {.ts = tsData[i], .groupId = groupIdData[i]};
-    void* chIds = taosHashGet(pMap, &winRes, sizeof(SWinRes));
+    void*   chIds = taosHashGet(pMap, &winRes, sizeof(SWinRes));
     if (chIds) {
-      SArray* chArray = *(SArray**) chIds;
+      SArray* chArray = *(SArray**)chIds;
       int32_t index = taosArraySearchIdx(chArray, &chId, compareInt32Val, TD_EQ);
       if (index != -1) {
         taosArrayRemove(chArray, index);
@@ -2464,17 +2510,18 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     printDataBlock(pBlock, IS_FINAL_OP(pInfo) ? "interval Final recv" : "interval  Semi recv");
     maxTs = TMAX(maxTs, pBlock->info.window.ekey);
 
-    if (pBlock->info.type == STREAM_NORMAL || pBlock->info.type == STREAM_PUSH_DATA || pBlock->info.type == STREAM_INVALID) {
+    if (pBlock->info.type == STREAM_NORMAL || pBlock->info.type == STREAM_PULL_DATA ||
+        pBlock->info.type == STREAM_INVALID) {
       pInfo->binfo.pRes->info.type = pBlock->info.type;
     } else if (pBlock->info.type == STREAM_CLEAR) {
       SArray* pUpWins = taosArrayInit(8, sizeof(STimeWindow));
       doClearWindows(&pInfo->aggSup, pSup, &pInfo->interval, pInfo->primaryTsIndex, pOperator->exprSupp.numOfExprs,
                      pBlock, pUpWins);
       if (IS_FINAL_OP(pInfo)) {
-        int32_t                   childIndex = getChildIndex(pBlock);
-        SOperatorInfo*            pChildOp = taosArrayGetP(pInfo->pChildren, childIndex);
-        SIntervalAggOperatorInfo* pChildInfo = pChildOp->info;
-        SExprSupp*                pChildSup = &pChildOp->exprSupp;
+        int32_t                           childIndex = getChildIndex(pBlock);
+        SOperatorInfo*                    pChildOp = taosArrayGetP(pInfo->pChildren, childIndex);
+        SStreamFinalIntervalOperatorInfo* pChildInfo = pChildOp->info;
+        SExprSupp*                        pChildSup = &pChildOp->exprSupp;
 
         doClearWindows(&pChildInfo->aggSup, pChildSup, &pChildInfo->interval, pChildInfo->primaryTsIndex,
                        pChildSup->numOfExprs, pBlock, NULL);
@@ -2493,16 +2540,15 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       continue;
     } else if (pBlock->info.type == STREAM_RETRIEVE && !IS_FINAL_OP(pInfo)) {
       SArray* pUpWins = taosArrayInit(8, sizeof(STimeWindow));
-      doClearWindows(&pInfo->aggSup, pSup, &pInfo->interval, 0, pOperator->exprSupp.numOfExprs,
-          pBlock, pUpWins);
+      doClearWindows(&pInfo->aggSup, pSup, &pInfo->interval, 0, pOperator->exprSupp.numOfExprs, pBlock, pUpWins);
       removeResults(pUpWins, pUpdated);
       taosArrayDestroy(pUpWins);
       if (taosArrayGetSize(pUpdated) > 0) {
         break;
       }
       continue;
-    } else if (pBlock->info.type == STREAM_PUSH_EMPTY && IS_FINAL_OP(pInfo)) {
-      processPushEmpty(pBlock, pInfo->pPullDataMap);
+    } else if (pBlock->info.type == STREAM_PULL_OVER && IS_FINAL_OP(pInfo)) {
+      processPullOver(pBlock, pInfo->pPullDataMap);
       continue;
     }
 
@@ -2532,8 +2578,8 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
 
   pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, maxTs);
   if (IS_FINAL_OP(pInfo)) {
-    closeIntervalWindow(pInfo->aggSup.pResultRowHashTable, &pInfo->twAggSup,
-        &pInfo->interval, pInfo->pPullDataMap, pUpdated);
+    closeIntervalWindow(pInfo->aggSup.pResultRowHashTable, &pInfo->twAggSup, &pInfo->interval, pInfo->pPullDataMap,
+                        pUpdated);
     closeChildIntervalWindow(pInfo->pChildren, pInfo->twAggSup.maxTs);
   }
 
@@ -2664,6 +2710,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pPullDataMap = taosHashInit(64, hashFn, false, HASH_NO_LOCK);
   pInfo->pPullDataRes = createPullDataBlock();
+  pInfo->ignoreExpiredData = pIntervalPhyNode->window.igExpired;
 
   pOperator->operatorType = pPhyNode->type;
   pOperator->blocking = true;
@@ -2805,11 +2852,12 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   pInfo->pStDeleted = taosHashInit(64, hashFn, true, HASH_NO_LOCK);
   pInfo->pDelIterator = NULL;
   pInfo->pDelRes = createOneDataBlock(pResBlock, false);
-  pInfo->pDelRes->info.type = STREAM_DELETE;
+  pInfo->pDelRes->info.type = STREAM_DELETE_RESULT;
   blockDataEnsureCapacity(pInfo->pDelRes, 64);
   pInfo->pChildren = NULL;
   pInfo->isFinal = false;
   pInfo->pPhyNode = pPhyNode;
+  pInfo->ignoreExpiredData = pSessionNode->window.igExpired;
 
   pOperator->name = "StreamSessionWindowAggOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION;
@@ -2987,6 +3035,9 @@ static int32_t doOneWindowAggImpl(int32_t tsColId, SOptrBasicInfo* pBinfo, SStre
   updateTimeWindowInfo(pTimeWindowData, &pCurWin->win, false);
   doApplyFunctions(pTaskInfo, pSup->pCtx, &pCurWin->win, pTimeWindowData, startIndex, winRows, tsCols,
                    pSDataBlock->info.rows, numOutput, TSDB_ORDER_ASC);
+  SFilePage* bufPage = getBufPage(pAggSup->pResultBuf, pCurWin->pos.pageId);
+  setBufPageDirty(bufPage, true);
+  releaseBufPage(pAggSup->pResultBuf, bufPage);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3043,7 +3094,13 @@ void compactTimeWindow(SStreamSessionAggOperatorInfo* pInfo, int32_t startIndex,
       pWinInfo->isOutput = false;
     }
     taosArrayRemove(pInfo->streamAggSup.pCurWins, i);
+    SFilePage* tmpPage = getBufPage(pInfo->streamAggSup.pResultBuf, pWinInfo->pos.pageId);
+    releaseBufPage(pInfo->streamAggSup.pResultBuf, tmpPage);
   }
+  SFilePage* bufPage = getBufPage(pInfo->streamAggSup.pResultBuf, pCurWin->pos.pageId);
+  ASSERT(num > 0);
+  setBufPageDirty(bufPage, true);
+  releaseBufPage(pInfo->streamAggSup.pResultBuf, bufPage);
 }
 
 static void doStreamSessionAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBlock, SHashObj* pStUpdated,
@@ -3063,22 +3120,23 @@ static void doStreamSessionAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSData
   SResultRow* pResult = NULL;
   int32_t     winRows = 0;
 
-  if (pSDataBlock->pDataBlock != NULL) {
-    SColumnInfoData* pStartTsCol = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
-    startTsCols = (int64_t*)pStartTsCol->pData;
-    SColumnInfoData* pEndTsCol = NULL;
-    if (hasEndTs) {
-      pEndTsCol = taosArrayGet(pSDataBlock->pDataBlock, pInfo->endTsIndex);
-    } else {
-      pEndTsCol = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
-    }
-    endTsCols = (int64_t*)pEndTsCol->pData;
+  ASSERT(pSDataBlock->pDataBlock);
+  SColumnInfoData* pStartTsCol = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
+  startTsCols = (int64_t*)pStartTsCol->pData;
+  SColumnInfoData* pEndTsCol = NULL;
+  if (hasEndTs) {
+    pEndTsCol = taosArrayGet(pSDataBlock->pDataBlock, pInfo->endTsIndex);
   } else {
-    return;
+    pEndTsCol = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
   }
+  endTsCols = (int64_t*)pEndTsCol->pData;
 
   SStreamAggSupporter* pAggSup = &pInfo->streamAggSup;
   for (int32_t i = 0; i < pSDataBlock->info.rows;) {
+    if (pInfo->ignoreExpiredData && isOverdue(endTsCols[i], &pInfo->twAggSup)) {
+      i++;
+      continue;
+    }
     int32_t            winIndex = 0;
     SResultWindowInfo* pCurWin = getSessionTimeWindow(pAggSup, startTsCols[i], endTsCols[i], groupId, gap, &winIndex);
     winRows =
@@ -3116,6 +3174,10 @@ static void doClearSessionWindows(SStreamAggSupporter* pAggSup, SExprSupp* pSup,
         getSessionTimeWindow(pAggSup, tsCols[i], INT64_MIN, pBlock->info.groupId, gap, &winIndex);
     step = updateSessionWindowInfo(pCurWin, tsCols, NULL, pBlock->info.rows, i, gap, NULL);
     ASSERT(isInWindow(pCurWin, tsCols[i], gap));
+    if (pCurWin->pos.pageId == -1) {
+      // window has been closed.
+      continue;
+    }
     doClearWindowImpl(&pCurWin->pos, pAggSup->pResultBuf, pSup, numOfOutput);
     if (result) {
       taosArrayPush(result, pCurWin);
@@ -3185,17 +3247,24 @@ static void rebuildTimeWindow(SStreamSessionAggOperatorInfo* pInfo, SArray* pWin
         index = 0;
       }
       for (int32_t k = index; k < chWinSize; k++) {
-        SResultWindowInfo* pcw = taosArrayGet(pChWins, k);
-        if (pParentWin->win.skey <= pcw->win.skey && pcw->win.ekey <= pParentWin->win.ekey) {
+        SResultWindowInfo* pChWin = taosArrayGet(pChWins, k);
+        if (pParentWin->win.skey <= pChWin->win.skey && pChWin->win.ekey <= pParentWin->win.ekey) {
           SResultRow* pChResult = NULL;
-          setWindowOutputBuf(pcw, &pChResult, pChild->exprSupp.pCtx, groupId, numOfOutput,
+          setWindowOutputBuf(pChWin, &pChResult, pChild->exprSupp.pCtx, groupId, numOfOutput,
                              pChild->exprSupp.rowEntryInfoOffset, &pChInfo->streamAggSup, pTaskInfo);
           compactFunctions(pSup->pCtx, pChild->exprSupp.pCtx, numOfOutput, pTaskInfo);
+          SFilePage* bufPage = getBufPage(pChInfo->streamAggSup.pResultBuf, pChWin->pos.pageId);
+          releaseBufPage(pChInfo->streamAggSup.pResultBuf, bufPage);
           continue;
+        } else if (!pChWin->isClosed) {
+          break;
         }
-        break;
       }
     }
+    SFilePage* bufPage = getBufPage(pInfo->streamAggSup.pResultBuf, pParentWin->pos.pageId);
+    ASSERT(size > 0);
+    setBufPageDirty(bufPage, true);
+    releaseBufPage(pInfo->streamAggSup.pResultBuf, bufPage);
   }
 }
 
@@ -3203,7 +3272,8 @@ typedef SResultWindowInfo* (*__get_win_info_)(void*);
 SResultWindowInfo* getResWinForSession(void* pData) { return (SResultWindowInfo*)pData; }
 SResultWindowInfo* getResWinForState(void* pData) { return &((SStateWindowInfo*)pData)->winInfo; }
 
-int32_t closeSessionWindow(SHashObj* pHashMap, STimeWindowAggSupp* pTwSup, SArray* pClosed, __get_win_info_ fn) {
+int32_t closeSessionWindow(SHashObj* pHashMap, STimeWindowAggSupp* pTwSup,
+    SArray* pClosed, __get_win_info_ fn, bool delete) {
   // Todo(liuyao) save window to tdb
   void** pIte = NULL;
   size_t keyLen = 0;
@@ -3214,12 +3284,20 @@ int32_t closeSessionWindow(SHashObj* pHashMap, STimeWindowAggSupp* pTwSup, SArra
     for (int32_t i = 0; i < size; i++) {
       void*              pWin = taosArrayGet(pWins, i);
       SResultWindowInfo* pSeWin = fn(pWin);
-      if (pSeWin->win.ekey < pTwSup->maxTs - pTwSup->waterMark) {
+      if (isCloseWindow(&pSeWin->win, pTwSup)) {
         if (!pSeWin->isClosed) {
           pSeWin->isClosed = true;
-          if (pTwSup->calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
+          if (pTwSup->calTrigger == STREAM_TRIGGER_WINDOW_CLOSE && pClosed) {
             int32_t code = saveResult(pSeWin->win.skey, pSeWin->pos.pageId, pSeWin->pos.offset, *pGroupId, pClosed);
+            if (code != TSDB_CODE_SUCCESS) {
+              return code;
+            }
             pSeWin->isOutput = true;
+          }
+          if (delete) {
+            taosArrayRemove(pWins, i);
+            i--;
+            size = taosArrayGetSize(pWins);
           }
         }
         continue;
@@ -3228,6 +3306,16 @@ int32_t closeSessionWindow(SHashObj* pHashMap, STimeWindowAggSupp* pTwSup, SArra
     }
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static void closeChildSessionWindow(SArray* pChildren, TSKEY maxTs, bool delete) {
+  int32_t size = taosArrayGetSize(pChildren);
+  for (int32_t i = 0; i < size; i++) {
+    SOperatorInfo*                 pChildOp = taosArrayGetP(pChildren, i);
+    SStreamSessionAggOperatorInfo* pChInfo = pChildOp->info;
+    pChInfo->twAggSup.maxTs = TMAX(pChInfo->twAggSup.maxTs, maxTs);
+    closeSessionWindow(pChInfo->streamAggSup.pResultRows, &pChInfo->twAggSup, NULL, getResWinForSession, delete);
+  }
 }
 
 int32_t getAllSessionWindow(SHashObj* pHashMap, SArray* pClosed, __get_win_info_ fn) {
@@ -3257,14 +3345,14 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
   } else if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildDeleteDataBlock(pInfo->pStDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
     if (pInfo->pDelRes->info.rows > 0) {
-      printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo)? "Final  Session" : "Single Session");
+      printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "Final  Session" : "Single Session");
       return pInfo->pDelRes;
     }
     doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
     if (pBInfo->pRes->info.rows == 0 || !hasDataInGroupInfo(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
     }
-    printDataBlock(pBInfo->pRes, IS_FINAL_OP(pInfo)? "Final  Session" : "Single Session");
+    printDataBlock(pBInfo->pRes, IS_FINAL_OP(pInfo) ? "Final  Session" : "Single Session");
     return pBInfo->pRes->info.rows == 0 ? NULL : pBInfo->pRes;
   }
 
@@ -3277,6 +3365,7 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
     if (pBlock == NULL) {
       break;
     }
+    printDataBlock(pBlock, IS_FINAL_OP(pInfo) ? "Final  Session Recv" : "Single Session Recv");
 
     if (pBlock->info.type == STREAM_CLEAR) {
       SArray* pWins = taosArrayInit(16, sizeof(SResultWindowInfo));
@@ -3323,7 +3412,9 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
   // restore the value
   pOperator->status = OP_RES_TO_RETURN;
 
-  closeSessionWindow(pInfo->streamAggSup.pResultRows, &pInfo->twAggSup, pUpdated, getResWinForSession);
+  closeSessionWindow(pInfo->streamAggSup.pResultRows, &pInfo->twAggSup, pUpdated,
+      getResWinForSession, pInfo->ignoreExpiredData);
+  closeChildSessionWindow(pInfo->pChildren, pInfo->twAggSup.maxTs, pInfo->ignoreExpiredData);
   copyUpdateResult(pStUpdated, pUpdated);
   taosHashCleanup(pStUpdated);
 
@@ -3332,11 +3423,11 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
   doBuildDeleteDataBlock(pInfo->pStDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
   if (pInfo->pDelRes->info.rows > 0) {
-    printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo)? "Final  Session" : "Single Session");
+    printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "Final  Session" : "Single Session");
     return pInfo->pDelRes;
   }
   doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
-  printDataBlock(pBInfo->pRes, IS_FINAL_OP(pInfo)? "Final  Session" : "Single Session");
+  printDataBlock(pBInfo->pRes, IS_FINAL_OP(pInfo) ? "Final  Session" : "Single Session");
   return pBInfo->pRes->info.rows == 0 ? NULL : pBInfo->pRes;
 }
 
@@ -3375,10 +3466,11 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
   } else if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildDeleteDataBlock(pInfo->pStDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
     if (pInfo->pDelRes->info.rows > 0) {
+      printDataBlock(pInfo->pDelRes, "Semi  Session");
       return pInfo->pDelRes;
     }
     doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
-    if (pInfo->binfo.pRes->info.rows == 0) {
+    if (pBInfo->pRes->info.rows == 0) {
       pOperator->status = OP_EXEC_DONE;
       if (pInfo->pUpdateRes->info.rows == 0) {
         // semi interval operator clear disk buffer
@@ -3387,9 +3479,11 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
       }
       // process the rest of the data
       pOperator->status = OP_OPENED;
+      printDataBlock(pInfo->pUpdateRes, "Semi  Session");
       return pInfo->pUpdateRes;
     }
-    return pInfo->binfo.pRes;
+    printDataBlock(pBInfo->pRes, "Semi  Session");
+    return pBInfo->pRes;
   }
 
   _hash_fn_t     hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
@@ -3433,21 +3527,24 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
   finalizeUpdatedResult(pOperator->exprSupp.numOfExprs, pInfo->streamAggSup.pResultBuf, pUpdated,
                         pSup->rowEntryInfoOffset);
   initMultiResInfoFromArrayList(&pInfo->groupResInfo, pUpdated);
-  blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
+  blockDataEnsureCapacity(pBInfo->pRes, pOperator->resultInfo.capacity);
   doBuildDeleteDataBlock(pInfo->pStDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
   if (pInfo->pDelRes->info.rows > 0) {
+    printDataBlock(pInfo->pDelRes, "Semi  Session");
     return pInfo->pDelRes;
   }
-  doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
-  if (pInfo->binfo.pRes->info.rows == 0) {
+  doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
+  if (pBInfo->pRes->info.rows == 0) {
     pOperator->status = OP_EXEC_DONE;
     if (pInfo->pUpdateRes->info.rows == 0) {
       return NULL;
     }
     // process the rest of the data
     pOperator->status = OP_OPENED;
+    printDataBlock(pInfo->pUpdateRes, "Semi  Session");
     return pInfo->pUpdateRes;
   }
+  printDataBlock(pBInfo->pRes, "Semi  Session");
   return pBInfo->pRes->info.rows == 0 ? NULL : pBInfo->pRes;
 }
 
@@ -3725,6 +3822,10 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   SStreamAggSupporter* pAggSup = &pInfo->streamAggSup;
   SColumnInfoData*     pKeyColInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->stateCol.slotId);
   for (int32_t i = 0; i < pSDataBlock->info.rows; i += winRows) {
+    if (pInfo->ignoreExpiredData && isOverdue(tsCols[i], &pInfo->twAggSup)) {
+      i++;
+      continue;
+    }
     char*             pKeyData = colDataGetData(pKeyColInfo, i);
     int32_t           winIndex = 0;
     bool              allEqual = true;
@@ -3765,12 +3866,14 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildDeleteDataBlock(pInfo->pSeDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
     if (pInfo->pDelRes->info.rows > 0) {
+      printDataBlock(pInfo->pDelRes, "single state");
       return pInfo->pDelRes;
     }
     doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
     if (pBInfo->pRes->info.rows == 0 || !hasDataInGroupInfo(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
     }
+    printDataBlock(pBInfo->pRes, "single state");
     return pBInfo->pRes->info.rows == 0 ? NULL : pBInfo->pRes;
   }
 
@@ -3783,6 +3886,7 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
     if (pBlock == NULL) {
       break;
     }
+    printDataBlock(pBlock, "single state recv");
 
     if (pBlock->info.type == STREAM_CLEAR) {
       doClearStateWindows(&pInfo->streamAggSup, pBlock, pInfo->primaryTsIndex, &pInfo->stateCol, pInfo->stateCol.slotId,
@@ -3801,7 +3905,9 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
   // restore the value
   pOperator->status = OP_RES_TO_RETURN;
 
-  closeSessionWindow(pInfo->streamAggSup.pResultRows, &pInfo->twAggSup, pUpdated, getResWinForState);
+  closeSessionWindow(pInfo->streamAggSup.pResultRows, &pInfo->twAggSup, pUpdated,
+      getResWinForState, pInfo->ignoreExpiredData);
+  closeChildSessionWindow(pInfo->pChildren, pInfo->twAggSup.maxTs, pInfo->ignoreExpiredData);
   copyUpdateResult(pSeUpdated, pUpdated);
   taosHashCleanup(pSeUpdated);
 
@@ -3811,9 +3917,11 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
   doBuildDeleteDataBlock(pInfo->pSeDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
   if (pInfo->pDelRes->info.rows > 0) {
+    printDataBlock(pInfo->pDelRes, "single state");
     return pInfo->pDelRes;
   }
   doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
+  printDataBlock(pBInfo->pRes, "single state");
   return pBInfo->pRes->info.rows == 0 ? NULL : pBInfo->pRes;
 }
 
@@ -3872,9 +3980,10 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->pSeDeleted = taosHashInit(64, hashFn, true, HASH_NO_LOCK);
   pInfo->pDelIterator = NULL;
   pInfo->pDelRes = createOneDataBlock(pResBlock, false);
-  pInfo->pDelRes->info.type = STREAM_DELETE;
+  pInfo->pDelRes->info.type = STREAM_DELETE_RESULT;
   blockDataEnsureCapacity(pInfo->pDelRes, 64);
   pInfo->pChildren = NULL;
+  pInfo->ignoreExpiredData = pStateNode->window.igExpired;
 
   pOperator->name = "StreamStateAggOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE;
@@ -4130,16 +4239,16 @@ _error:
 // merge interval operator
 typedef struct SMergeIntervalAggOperatorInfo {
   SIntervalAggOperatorInfo intervalAggOperatorInfo;
-  SList*       groupIntervals;
-  SListIter   groupIntervalsIter;
-  bool         hasGroupId;
-  uint64_t     groupId;
-  SSDataBlock* prefetchedBlock;
-  bool         inputBlocksFinished;
+  SList*                   groupIntervals;
+  SListIter                groupIntervalsIter;
+  bool                     hasGroupId;
+  uint64_t                 groupId;
+  SSDataBlock*             prefetchedBlock;
+  bool                     inputBlocksFinished;
 } SMergeIntervalAggOperatorInfo;
 
 typedef struct SGroupTimeWindow {
-  uint64_t groupId;
+  uint64_t    groupId;
   STimeWindow window;
 } SGroupTimeWindow;
 
@@ -4149,7 +4258,8 @@ void destroyMergeIntervalOperatorInfo(void* param, int32_t numOfOutput) {
   destroyIntervalOperatorInfo(&miaInfo->intervalAggOperatorInfo, numOfOutput);
 }
 
-static int32_t finalizeWindowResult(SOperatorInfo* pOperatorInfo, uint64_t tableGroupId, STimeWindow* win, SSDataBlock* pResultBlock) {
+static int32_t finalizeWindowResult(SOperatorInfo* pOperatorInfo, uint64_t tableGroupId, STimeWindow* win,
+                                    SSDataBlock* pResultBlock) {
   SMergeIntervalAggOperatorInfo* miaInfo = pOperatorInfo->info;
   SIntervalAggOperatorInfo*      iaInfo = &miaInfo->intervalAggOperatorInfo;
   SExecTaskInfo*                 pTaskInfo = pOperatorInfo->pTaskInfo;
@@ -4182,7 +4292,7 @@ static int32_t outputPrevIntervalResult(SOperatorInfo* pOperatorInfo, uint64_t t
   SListNode* listNode = NULL;
   while ((listNode = tdListNext(&iter)) != NULL) {
     SGroupTimeWindow* prevGrpWin = (SGroupTimeWindow*)listNode->data;
-    if (prevGrpWin->groupId != tableGroupId ) {
+    if (prevGrpWin->groupId != tableGroupId) {
       continue;
     }
     STimeWindow* prevWin = &prevGrpWin->window;

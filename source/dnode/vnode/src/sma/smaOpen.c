@@ -18,6 +18,7 @@
 
 static int32_t smaEvalDays(SRetention *r, int8_t precision);
 static int32_t smaSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int type);
+static int32_t rsmaRestore(SSma *pSma);
 
 #define SMA_SET_KEEP_CFG(l)                                                                       \
   do {                                                                                            \
@@ -100,6 +101,9 @@ int32_t smaOpen(SVnode *pVnode) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
+  pVnode->pSma = pSma;
+
   pSma->pVnode = pVnode;
   taosThreadMutexInit(&pSma->mutex, NULL);
   pSma->locked = false;
@@ -117,23 +121,28 @@ int32_t smaOpen(SVnode *pVnode) {
         ASSERT(0);
       }
     }
+
+    // restore the rsma
+#if 1
+    if (rsmaRestore(pSma) < 0) {
+      goto _err;
+    }
+#endif
   }
 
-  pVnode->pSma = pSma;
   return 0;
 _err:
-  taosMemoryFreeClear(pSma);
   return -1;
 }
 
 int32_t smaClose(SSma *pSma) {
   if (pSma) {
     taosThreadMutexDestroy(&pSma->mutex);
+    SMA_TSMA_ENV(pSma) = tdFreeSmaEnv(SMA_TSMA_ENV(pSma));
+    SMA_RSMA_ENV(pSma) = tdFreeSmaEnv(SMA_RSMA_ENV(pSma));
     if SMA_RSMA_TSDB0 (pSma) tsdbClose(&SMA_RSMA_TSDB0(pSma));
     if SMA_RSMA_TSDB1 (pSma) tsdbClose(&SMA_RSMA_TSDB1(pSma));
     if SMA_RSMA_TSDB2 (pSma) tsdbClose(&SMA_RSMA_TSDB2(pSma));
-    // SMA_TSMA_ENV(pSma) = tdFreeSmaEnv(SMA_TSMA_ENV(pSma));
-    // SMA_RSMA_ENV(pSma) = tdFreeSmaEnv(SMA_RSMA_ENV(pSma));
     taosMemoryFreeClear(pSma);
   }
   return 0;
@@ -141,13 +150,12 @@ int32_t smaClose(SSma *pSma) {
 
 /**
  * @brief rsma env restore
- * 
- * @param pSma 
- * @return int32_t 
+ *
+ * @param pSma
+ * @return int32_t
  */
-int32_t smaRestore(SSma *pSma) {
-  if (!pSma) return 0;
-  // iterate all stables to restore the rsma env
-  
-  return TSDB_CODE_SUCCESS;
+static int32_t rsmaRestore(SSma *pSma) {
+  ASSERT(VND_IS_RSMA(pSma->pVnode));
+
+  return tdProcessRSmaRestoreImpl(pSma);
 }

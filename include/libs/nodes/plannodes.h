@@ -24,6 +24,8 @@ extern "C" {
 #include "querynodes.h"
 #include "tname.h"
 
+#define SLOT_NAME_LEN TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN
+
 typedef struct SLogicNode {
   ENodeType          type;
   SNodeList*         pTargets;  // SColumnNode
@@ -71,11 +73,10 @@ typedef struct SScanLogicNode {
   SNode*        pTagIndexCond;
   int8_t        triggerType;
   int64_t       watermark;
-  int16_t       tsColId;
-  double        filesFactor;
+  int8_t        igExpired;
   SArray*       pSmaIndexes;
-  SNodeList*    pPartTags;
-  bool          partSort;
+  SNodeList*    pGroupTags;
+  bool          groupSort;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -89,6 +90,7 @@ typedef struct SAggLogicNode {
   SLogicNode node;
   SNodeList* pGroupKeys;
   SNodeList* pAggFuncs;
+  bool       hasLastRow;
 } SAggLogicNode;
 
 typedef struct SProjectLogicNode {
@@ -100,6 +102,9 @@ typedef struct SProjectLogicNode {
 typedef struct SIndefRowsFuncLogicNode {
   SLogicNode node;
   SNodeList* pFuncs;
+  bool       isTailFunc;
+  bool       isUniqueFunc;
+  bool       isTimeLineFunc;
 } SIndefRowsFuncLogicNode;
 
 typedef struct SInterpFuncLogicNode {
@@ -138,6 +143,7 @@ typedef struct SMergeLogicNode {
   SNodeList* pInputs;
   int32_t    numOfChannels;
   int32_t    srcGroupId;
+  bool       groupSort;
 } SMergeLogicNode;
 
 typedef enum EWindowType { WINDOW_TYPE_INTERVAL = 1, WINDOW_TYPE_SESSION, WINDOW_TYPE_STATE } EWindowType;
@@ -169,7 +175,7 @@ typedef struct SWindowLogicNode {
   SNode*           pStateExpr;
   int8_t           triggerType;
   int64_t          watermark;
-  double           filesFactor;
+  int8_t           igExpired;
   EWindowAlgorithm windowAlgo;
 } SWindowLogicNode;
 
@@ -184,6 +190,7 @@ typedef struct SFillLogicNode {
 typedef struct SSortLogicNode {
   SLogicNode node;
   SNodeList* pSortKeys;
+  bool       groupSort;
 } SSortLogicNode;
 
 typedef struct SPartitionLogicNode {
@@ -230,6 +237,7 @@ typedef struct SSlotDescNode {
   bool      reserve;
   bool      output;
   bool      tag;
+  char      name[SLOT_NAME_LEN];
 } SSlotDescNode;
 
 typedef struct SDataBlockDescNode {
@@ -279,7 +287,8 @@ typedef struct STableScanPhysiNode {
   double         ratio;
   int32_t        dataRequired;
   SNodeList*     pDynamicScanFuncs;
-  SNodeList*     pPartitionTags;
+  SNodeList*     pGroupTags;
+  bool           groupSort;
   int64_t        interval;
   int64_t        offset;
   int64_t        sliding;
@@ -287,8 +296,7 @@ typedef struct STableScanPhysiNode {
   int8_t         slidingUnit;
   int8_t         triggerType;
   int64_t        watermark;
-  int16_t        tsColId;
-  double         filesFactor;
+  int8_t         igExpired;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -338,6 +346,7 @@ typedef struct SDownstreamSourceNode {
   SQueryNodeAddr addr;
   uint64_t       taskId;
   uint64_t       schedId;
+  int32_t        execId;
 } SDownstreamSourceNode;
 
 typedef struct SExchangePhysiNode {
@@ -353,6 +362,7 @@ typedef struct SMergePhysiNode {
   SNodeList* pTargets;
   int32_t    numOfChannels;
   int32_t    srcGroupId;
+  bool       groupSort;
 } SMergePhysiNode;
 
 typedef struct SWinodwPhysiNode {
@@ -363,7 +373,7 @@ typedef struct SWinodwPhysiNode {
   SNode*     pTsEnd;  // window end timestamp
   int8_t     triggerType;
   int64_t    watermark;
-  double     filesFactor;
+  int8_t     igExpired;
 } SWinodwPhysiNode;
 
 typedef struct SIntervalPhysiNode {

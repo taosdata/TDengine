@@ -505,7 +505,19 @@ class TDTestCase:
         tdSql.checkData(0,2,math.sqrt(32767.000000000))
         tdSql.checkData(0,3,math.sqrt(63.500000000))
       
-    
+    def support_super_table_test(self):
+        tdSql.execute(" use db ")
+        self.check_result_auto_sqrt( " select c5 from stb1 order by ts " , "select sqrt(c5) from stb1 order by ts" )
+        self.check_result_auto_sqrt( " select c5 from stb1 order by tbname " , "select sqrt(c5) from stb1 order by tbname" )
+        self.check_result_auto_sqrt( " select c5 from stb1 where c1 > 0 order by tbname  " , "select sqrt(c5) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_sqrt( " select c5 from stb1 where c1 > 0 order by tbname  " , "select sqrt(c5) from stb1 where c1 > 0 order by tbname" )
+
+        self.check_result_auto_sqrt( " select t1,c5 from stb1 order by ts " , "select sqrt(t1), sqrt(c5) from stb1 order by ts" )
+        self.check_result_auto_sqrt( " select t1,c5 from stb1 order by tbname " , "select sqrt(t1) ,sqrt(c5) from stb1 order by tbname" )
+        self.check_result_auto_sqrt( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select sqrt(t1) ,sqrt(c5) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_sqrt( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select sqrt(t1) , sqrt(c5) from stb1 where c1 > 0 order by tbname" )
+        pass
+
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
@@ -540,6 +552,10 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step8: sqrt filter query ============") 
 
         self.abs_func_filter()
+
+        tdLog.printNoPrefix("==========step9: check sqrt result of  stable query ============")
+
+        self.support_super_table_test()            
 
         
 

@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
-#include "systable.h"
 #include "mndPrivilege.h"
+#include "systable.h"
 
 #define SHOW_STEP_SIZE 100
 
@@ -71,7 +71,7 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_FUNCTIONS, len) == 0) {
     type = TSDB_MGMT_TABLE_FUNC;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_INDEXES, len) == 0) {
-    //    type = TSDB_MGMT_TABLE_INDEX;
+    type = TSDB_MGMT_TABLE_INDEX;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STABLES, len) == 0) {
     type = TSDB_MGMT_TABLE_STB;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, len) == 0) {
@@ -231,8 +231,14 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   }
 
   mDebug("show:0x%" PRIx64 ", start retrieve data, type:%d", pShow->id, pShow->type);
-
-  // if (mndCheckShowPrivilege(pMnode, pReq->info.conn.user, pShow->type) != 0) return -1;
+  if (retrieveReq.user[0] != 0) {
+    memcpy(pReq->info.conn.user, retrieveReq.user, TSDB_USER_LEN);
+  } else {
+    memcpy(pReq->info.conn.user, TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER) + 1);
+  }
+  if (mndCheckShowPrivilege(pMnode, pReq->info.conn.user, pShow->type, retrieveReq.db) != 0) {
+    return -1;
+  }
 
   int32_t      numOfCols = pShow->pMeta->numOfColumns;
   SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
@@ -301,7 +307,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
 
     int32_t len = 0;
-    blockCompressEncode(pBlock, pStart, &len, pShow->pMeta->numOfColumns, false);
+    blockEncode(pBlock, pStart, &len, pShow->pMeta->numOfColumns, false);
   }
 
   pRsp->numOfRows = htonl(rowsRead);

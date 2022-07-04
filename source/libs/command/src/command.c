@@ -18,7 +18,31 @@
 #include "tdatablock.h"
 #include "tglobal.h"
 
-extern SConfig *tsCfg;
+extern SConfig* tsCfg;
+
+static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRetrieveTableRsp** pRsp) {
+  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+  *pRsp = taosMemoryCalloc(1, rspSize);
+  if (NULL == *pRsp) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pRsp)->useconds = 0;
+  (*pRsp)->completed = 1;
+  (*pRsp)->precision = 0;
+  (*pRsp)->compressed = 0;
+  (*pRsp)->compLen = 0;
+  (*pRsp)->numOfRows = htonl(pBlock->info.rows);
+  (*pRsp)->numOfCols = htonl(numOfCols);
+
+  int32_t len = 0;
+  blockEncode(pBlock, (*pRsp)->data, &len, numOfCols, false);
+  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
+
+  blockDataDestroy(pBlock);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t getSchemaBytes(const SSchema* pSchema) {
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BINARY:
@@ -89,33 +113,13 @@ static int32_t execDescribe(SNode* pStmt, SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = buildDescResultDataBlock();
   setDescResultIntoDataBlock(pBlock, numOfRows, pDesc->pMeta);
 
-  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
-  *pRsp = taosMemoryCalloc(1, rspSize);
-  if (NULL == *pRsp) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  (*pRsp)->useconds = 0;
-  (*pRsp)->completed = 1;
-  (*pRsp)->precision = 0;
-  (*pRsp)->compressed = 0;
-  (*pRsp)->compLen = 0;
-  (*pRsp)->numOfRows = htonl(numOfRows);
-  (*pRsp)->numOfCols = htonl(DESCRIBE_RESULT_COLS);
-
-  int32_t len = 0;
-  blockCompressEncode(pBlock, (*pRsp)->data, &len, DESCRIBE_RESULT_COLS, false);
-  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
-
-  blockDataDestroy(pBlock);
-  return TSDB_CODE_SUCCESS;
+  return buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
 }
 
 static int32_t execResetQueryCache() { return catalogClearCache(); }
 
-
 static SSDataBlock* buildCreateDBResultDataBlock() {
-  SSDataBlock* pBlock = createDataBlock();
+  SSDataBlock*    pBlock = createDataBlock();
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_COLS, 1);
   blockDataAppendColInfo(pBlock, &infoData);
 
@@ -149,14 +153,14 @@ int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
   return v;
 }
 
-char *buildRetension(SArray *pRetension) {
+char* buildRetension(SArray* pRetension) {
   size_t size = taosArrayGetSize(pRetension);
   if (size == 0) {
     return NULL;
   }
 
-  char       *p1 = taosMemoryCalloc(1, 100);
-  SRetention *p = taosArrayGet(pRetension, 0);
+  char*       p1 = taosMemoryCalloc(1, 100);
+  SRetention* p = taosArrayGet(pRetension, 0);
 
   int32_t len = 0;
 
@@ -185,8 +189,7 @@ char *buildRetension(SArray *pRetension) {
   return p1;
 }
 
-
-static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char *dbFName, SDbCfgInfo* pCfg) {
+static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, SDbCfgInfo* pCfg) {
   blockDataEnsureCapacity(pBlock, 1);
   pBlock->info.rows = 1;
 
@@ -198,7 +201,7 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char *dbFName, S
   SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
   char             buf2[SHOW_CREATE_DB_RESULT_FIELD2_LEN] = {0};
   int32_t          len = 0;
-  char *prec = NULL;
+  char*            prec = NULL;
   switch (pCfg->precision) {
     case TSDB_TIME_PRECISION_MILLI:
       prec = TSDB_TIME_PRECISION_MILLI_STR;
@@ -214,15 +217,16 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char *dbFName, S
       break;
   }
 
-  char *retentions = buildRetension(pCfg->pRetensions);
-  
-  len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE DATABASE `%s` BUFFER %d CACHELAST %d COMP %d DURATION %dm "
-                    "FSYNC %d MAXROWS %d MINROWS %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
-                    "STRICT %d WAL %d VGROUPS %d SINGLE_STABLE %d",
-                    dbFName, pCfg->buffer, pCfg->cacheLastRow, pCfg->compression, pCfg->daysPerFile,
-                    pCfg->fsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2,
-                    pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->strict, pCfg->walLevel, pCfg->numOfVgroups,
-                    1 == pCfg->numOfStables);
+  char* retentions = buildRetension(pCfg->pRetensions);
+
+  len += sprintf(buf2 + VARSTR_HEADER_SIZE,
+                 "CREATE DATABASE `%s` BUFFER %d CACHELAST %d COMP %d DURATION %dm "
+                 "FSYNC %d MAXROWS %d MINROWS %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
+                 "STRICT %d WAL %d VGROUPS %d SINGLE_STABLE %d",
+                 dbFName, pCfg->buffer, pCfg->cacheLastRow, pCfg->compression, pCfg->daysPerFile, pCfg->fsyncPeriod,
+                 pCfg->maxRows, pCfg->minRows, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2, pCfg->pages,
+                 pCfg->pageSize, prec, pCfg->replications, pCfg->strict, pCfg->walLevel, pCfg->numOfVgroups,
+                 1 == pCfg->numOfStables);
 
   if (retentions) {
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, " RETENTIONS %s", retentions);
@@ -230,35 +234,14 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char *dbFName, S
   }
 
   (varDataLen(buf2)) = len;
-  
+
   colDataAppend(pCol2, 0, buf2, false);
 }
-
 
 static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = buildCreateDBResultDataBlock();
   setCreateDBResultIntoDataBlock(pBlock, pStmt->dbName, pStmt->pCfg);
-
-  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
-  *pRsp = taosMemoryCalloc(1, rspSize);
-  if (NULL == *pRsp) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  (*pRsp)->useconds = 0;
-  (*pRsp)->completed = 1;
-  (*pRsp)->precision = 0;
-  (*pRsp)->compressed = 0;
-  (*pRsp)->compLen = 0;
-  (*pRsp)->numOfRows = htonl(1);
-  (*pRsp)->numOfCols = htonl(SHOW_CREATE_DB_RESULT_COLS);
-
-  int32_t len = 0;
-  blockCompressEncode(pBlock, (*pRsp)->data, &len, SHOW_CREATE_DB_RESULT_COLS, false);
-  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
-
-  blockDataDestroy(pBlock);
-  return TSDB_CODE_SUCCESS;
+  return buildRetrieveTableRsp(pBlock, SHOW_CREATE_DB_RESULT_COLS, pRsp);
 }
 
 static SSDataBlock* buildCreateTbResultDataBlock() {
@@ -276,14 +259,14 @@ static SSDataBlock* buildCreateTbResultDataBlock() {
 void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
-    char type[32];
+    char     type[32];
     sprintf(type, "%s", tDataTypes[pSchema->type].name);
     if (TSDB_DATA_TYPE_VARCHAR == pSchema->type) {
       sprintf(type + strlen(type), "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
     } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
-      sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE));    
+      sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
-    
+
     *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
   }
 }
@@ -291,18 +274,17 @@ void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
 void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
-    char type[32];
+    char     type[32];
     sprintf(type, "%s", tDataTypes[pSchema->type].name);
     if (TSDB_DATA_TYPE_VARCHAR == pSchema->type) {
       sprintf(type + strlen(type), "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
     } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
-      sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE));    
+      sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
 
     *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
   }
 }
-
 
 void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
@@ -311,13 +293,12 @@ void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
   }
 }
 
-
 int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
-  SArray *pTagVals = NULL;
-  STag *pTag = (STag*)pCfg->pTags;
-  
-  if (pCfg->pTags && pTag->flags & TD_TAG_JSON) {
-    char *pJson = parseTagDatatoJson(pTag);
+  SArray* pTagVals = NULL;
+  STag*   pTag = (STag*)pCfg->pTags;
+
+  if (pCfg->pTags && tTagIsJson(pTag)) {
+    char* pJson = parseTagDatatoJson(pTag);
     if (pJson) {
       *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s", pJson);
       taosMemoryFree(pJson);
@@ -325,8 +306,8 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
 
     return TSDB_CODE_SUCCESS;
   }
-  
-  int32_t code = tTagToValArray((const STag *)pCfg->pTags, &pTagVals);
+
+  int32_t code = tTagToValArray((const STag*)pCfg->pTags, &pTagVals);
   if (code) {
     return code;
   }
@@ -339,20 +320,20 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
     if (i > 0) {
       *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", ");
     }
-    
+
     if (j >= valueNum) {
       *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "NULL");
       continue;
     }
-    
-    STagVal *pTagVal = (STagVal *)taosArrayGet(pTagVals, j);
+
+    STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
     if (pSchema->colId > pTagVal->cid) {
       qError("tag value and column mismatch, schemaId:%d, valId:%d", pSchema->colId, pTagVal->cid);
       taosArrayDestroy(pTagVals);
       return TSDB_CODE_APP_ERROR;
     } else if (pSchema->colId == pTagVal->cid) {
-      char     type = pTagVal->type;
-      int32_t  tlen = 0;
+      char    type = pTagVal->type;
+      int32_t tlen = 0;
 
       if (IS_VAR_DATA_TYPE(type)) {
         dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, pTagVal->pData, pTagVal->nData, &tlen);
@@ -364,7 +345,6 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
     } else {
       *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "NULL");
     }
-    
 
     /*
     if (type == TSDB_DATA_TYPE_BINARY) {
@@ -372,7 +352,7 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
         if (num) {
           *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", ");
         }
-        
+
         memcpy(buf + VARSTR_HEADER_SIZE + *len, pTagVal->pData, pTagVal->nData);
         *len += pTagVal->nData;
       }
@@ -397,7 +377,7 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
 
   taosArrayDestroy(pTagVals);
 
-  return TSDB_CODE_SUCCESS;  
+  return TSDB_CODE_SUCCESS;
 }
 
 void appendTableOptions(char* buf, int32_t* len, STableCfg* pCfg) {
@@ -426,7 +406,7 @@ void appendTableOptions(char* buf, int32_t* len, STableCfg* pCfg) {
     *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " ROLLUP(");
     for (int32_t i = 0; i < funcNum; ++i) {
       char* pFunc = taosArrayGet(pCfg->pFuncs, i);
-      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s%s", ((i > 0) ? ", " : ""), pFunc);      
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s%s", ((i > 0) ? ", " : ""), pFunc);
     }
     *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ")");
   }
@@ -436,7 +416,7 @@ void appendTableOptions(char* buf, int32_t* len, STableCfg* pCfg) {
   }
 }
 
-static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, char *tbName, STableCfg* pCfg) {
+static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, char* tbName, STableCfg* pCfg) {
   int32_t code = 0;
   blockDataEnsureCapacity(pBlock, 1);
   pBlock->info.rows = 1;
@@ -454,7 +434,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, char *tbName,
     len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE STABLE `%s` (", tbName);
     appendColumnFields(buf2, &len, pCfg);
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ") TAGS (");
-    appendTagFields(buf2, &len, pCfg);    
+    appendTagFields(buf2, &len, pCfg);
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ")");
     appendTableOptions(buf2, &len, pCfg);
   } else if (TSDB_CHILD_TABLE == pCfg->tableType) {
@@ -474,40 +454,19 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, char *tbName,
   }
 
   varDataLen(buf2) = len;
-  
+
   colDataAppend(pCol2, 0, buf2, false);
 
   return TSDB_CODE_SUCCESS;
 }
 
-
 static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = buildCreateTbResultDataBlock();
-  int32_t code = setCreateTBResultIntoDataBlock(pBlock, pStmt->tableName, pStmt->pCfg);
+  int32_t      code = setCreateTBResultIntoDataBlock(pBlock, pStmt->tableName, pStmt->pCfg);
   if (code) {
     return code;
   }
-
-  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
-  *pRsp = taosMemoryCalloc(1, rspSize);
-  if (NULL == *pRsp) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  (*pRsp)->useconds = 0;
-  (*pRsp)->completed = 1;
-  (*pRsp)->precision = 0;
-  (*pRsp)->compressed = 0;
-  (*pRsp)->compLen = 0;
-  (*pRsp)->numOfRows = htonl(1);
-  (*pRsp)->numOfCols = htonl(SHOW_CREATE_TB_RESULT_COLS);
-
-  int32_t len = 0;
-  blockCompressEncode(pBlock, (*pRsp)->data, &len, SHOW_CREATE_TB_RESULT_COLS, false);
-  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
-
-  blockDataDestroy(pBlock);
-  return TSDB_CODE_SUCCESS;
+  return buildRetrieveTableRsp(pBlock, SHOW_CREATE_TB_RESULT_COLS, pRsp);
 }
 
 static int32_t execShowCreateSTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp) {
@@ -516,17 +475,17 @@ static int32_t execShowCreateSTable(SShowCreateTableStmt* pStmt, SRetrieveTableR
     terrno = TSDB_CODE_TSC_NOT_STABLE_ERROR;
     return terrno;
   }
-  
+
   return execShowCreateTable(pStmt, pRsp);
 }
 
-static int32_t execAlterLocal(SAlterLocalStmt* pStmt) { 
+static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
   if (cfgSetItem(tsCfg, pStmt->config, pStmt->value, CFG_STYPE_ALTER_CMD)) {
-    return terrno; 
+    return terrno;
   }
 
   if (taosSetCfg(tsCfg, pStmt->config)) {
-    return terrno; 
+    return terrno;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -551,21 +510,20 @@ static SSDataBlock* buildLocalVariablesResultDataBlock() {
   return pBlock;
 }
 
-
 int32_t setLocalVariablesResultIntoDataBlock(SSDataBlock* pBlock) {
   int32_t numOfCfg = taosArrayGetSize(tsCfg->array);
   int32_t numOfRows = 0;
   blockDataEnsureCapacity(pBlock, numOfCfg);
 
   for (int32_t i = 0, c = 0; i < numOfCfg; ++i, c = 0) {
-    SConfigItem *pItem = taosArrayGet(tsCfg->array, i);
+    SConfigItem* pItem = taosArrayGet(tsCfg->array, i);
 
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
-    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
     colDataAppend(pColInfo, i, name, false);
-    
-    char value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
+
+    char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t valueLen = 0;
     cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
     varDataSetLen(value, valueLen);
@@ -575,40 +533,68 @@ int32_t setLocalVariablesResultIntoDataBlock(SSDataBlock* pBlock) {
     numOfRows++;
   }
 
-
   pBlock->info.rows = numOfRows;
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
-
 static int32_t execShowLocalVariables(SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = buildLocalVariablesResultDataBlock();
-  int32_t code = setLocalVariablesResultIntoDataBlock(pBlock);
+  int32_t      code = setLocalVariablesResultIntoDataBlock(pBlock);
   if (code) {
     return code;
   }
+  return buildRetrieveTableRsp(pBlock, SHOW_LOCAL_VARIABLES_RESULT_COLS, pRsp);
+}
 
-  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
-  *pRsp = taosMemoryCalloc(1, rspSize);
-  if (NULL == *pRsp) {
+static int32_t createSelectResultDataBlock(SNodeList* pProjects, SSDataBlock** pOutput) {
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (NULL == pBlock) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  (*pRsp)->useconds = 0;
-  (*pRsp)->completed = 1;
-  (*pRsp)->precision = 0;
-  (*pRsp)->compressed = 0;
-  (*pRsp)->compLen = 0;
-  (*pRsp)->numOfRows = htonl(pBlock->info.rows);
-  (*pRsp)->numOfCols = htonl(SHOW_LOCAL_VARIABLES_RESULT_COLS);
+  pBlock->pDataBlock = taosArrayInit(LIST_LENGTH(pProjects), sizeof(SColumnInfoData));
 
-  int32_t len = 0;
-  blockCompressEncode(pBlock, (*pRsp)->data, &len, SHOW_LOCAL_VARIABLES_RESULT_COLS, false);
-  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
-
-  blockDataDestroy(pBlock);
+  SNode* pProj = NULL;
+  FOREACH(pProj, pProjects) {
+    SColumnInfoData infoData = {0};
+    infoData.info.type = ((SExprNode*)pProj)->resType.type;
+    infoData.info.bytes = ((SExprNode*)pProj)->resType.bytes;
+    taosArrayPush(pBlock->pDataBlock, &infoData);
+  }
+  *pOutput = pBlock;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t buildSelectResultDataBlock(SNodeList* pProjects, SSDataBlock* pBlock) {
+  int32_t numOfCols = LIST_LENGTH(pProjects);
+  blockDataEnsureCapacity(pBlock, 1);
+
+  int32_t index = 0;
+  SNode*  pProj = NULL;
+  FOREACH(pProj, pProjects) {
+    if (((SValueNode*)pProj)->isNull) {
+      colDataAppend(taosArrayGet(pBlock->pDataBlock, index++), 0, NULL, true);
+    } else {
+      colDataAppend(taosArrayGet(pBlock->pDataBlock, index++), 0, nodesGetValueFromNode((SValueNode*)pProj), false);
+    }
+  }
+
+  pBlock->info.rows = 1;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t execSelectWithoutFrom(SSelectStmt* pSelect, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = createSelectResultDataBlock(pSelect->pProjectionList, &pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildSelectResultDataBlock(pSelect->pProjectionList, pBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, LIST_LENGTH(pSelect->pProjectionList), pRsp);
+  }
+  return code;
 }
 
 int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp) {
@@ -627,6 +613,8 @@ int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp) {
       return execAlterLocal((SAlterLocalStmt*)pStmt);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
       return execShowLocalVariables(pRsp);
+    case QUERY_NODE_SELECT_STMT:
+      return execSelectWithoutFrom((SSelectStmt*)pStmt, pRsp);
     default:
       break;
   }

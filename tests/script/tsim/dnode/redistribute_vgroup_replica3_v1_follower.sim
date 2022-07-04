@@ -65,7 +65,7 @@ sql_error redistribute vgroup 3 dnode 6 dnode 3 dnode 4
 # vgroup not exist
 sql_error redistribute vgroup 3 dnode 5 dnode 3 dnode 4 
 # un changed
-sql_error redistribute vgroup 2 dnode 2 dnode 3 dnode 4
+# sql_error redistribute vgroup 2 dnode 2 dnode 3 dnode 4
 # no enought vnodes
 sql_error redistribute vgroup 2 dnode 1 dnode 3 dnode 4 
 # offline vnodes
@@ -175,8 +175,6 @@ sql show d1.tables
 if $rows != 1 then
   return -1
 endi
-
-return
 
 print =============== step32: 
 print redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 

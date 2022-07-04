@@ -17,9 +17,11 @@ add_executable(syncVotesRespondTest "")
 add_executable(syncIndexMgrTest "")
 add_executable(syncLogStoreTest "")
 add_executable(syncEntryTest "")
+add_executable(syncEntryCacheTest "")
 add_executable(syncRequestVoteTest "")
 add_executable(syncRequestVoteReplyTest "")
 add_executable(syncAppendEntriesTest "")
+add_executable(syncAppendEntriesBatchTest "")
 add_executable(syncAppendEntriesReplyTest "")
 add_executable(syncClientRequestTest "")
 add_executable(syncTimeoutTest "")
@@ -129,6 +131,10 @@ target_sources(syncEntryTest
     PRIVATE
     "syncEntryTest.cpp"
 )
+target_sources(syncEntryCacheTest
+    PRIVATE
+    "syncEntryCacheTest.cpp"
+)
 target_sources(syncRequestVoteTest
     PRIVATE
     "syncRequestVoteTest.cpp"
@@ -140,6 +146,10 @@ target_sources(syncRequestVoteReplyTest
 target_sources(syncAppendEntriesTest
     PRIVATE
     "syncAppendEntriesTest.cpp"
+)
+target_sources(syncAppendEntriesBatchTest
+    PRIVATE
+    "syncAppendEntriesBatchTest.cpp"
 )
 target_sources(syncAppendEntriesReplyTest
     PRIVATE
@@ -362,6 +372,11 @@ target_include_directories(syncEntryTest
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncEntryCacheTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 target_include_directories(syncRequestVoteTest
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
@@ -373,6 +388,11 @@ target_include_directories(syncRequestVoteReplyTest
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncAppendEntriesTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncAppendEntriesBatchTest
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -610,6 +630,10 @@ target_link_libraries(syncEntryTest
     sync
     gtest_main
 )
+target_link_libraries(syncEntryCacheTest
+    sync
+    gtest_main
+)
 target_link_libraries(syncRequestVoteTest
     sync
     gtest_main
@@ -619,6 +643,10 @@ target_link_libraries(syncRequestVoteReplyTest
     gtest_main
 )
 target_link_libraries(syncAppendEntriesTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncAppendEntriesBatchTest
     sync
     gtest_main
 )

@@ -116,6 +116,7 @@ typedef void *tsdbReaderT;
 #define BLOCK_LOAD_TABLE_SEQ_ORDER  2
 #define BLOCK_LOAD_TABLE_RR_ORDER   3
 
+int32_t     tsdbSetTableId(tsdbReaderT reader, int64_t uid);
 int32_t     tsdbSetTableList(tsdbReaderT reader, SArray *tableList);
 tsdbReaderT tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *tableList, uint64_t qId,
                            uint64_t taskId);
@@ -125,6 +126,7 @@ int32_t     tsdbGetFileBlocksDistInfo(tsdbReaderT *pReader, STableBlockDistInfo 
 bool        isTsdbCacheLastRow(tsdbReaderT *pReader);
 int32_t     tsdbGetAllTableList(SMeta *pMeta, uint64_t uid, SArray *list);
 int32_t     tsdbGetCtbIdList(SMeta *pMeta, int64_t suid, SArray *list);
+int32_t     tsdbGetStbIdList(SMeta *pMeta, int64_t suid, SArray *list);
 void       *tsdbGetIdx(SMeta *pMeta);
 void       *tsdbGetIvtIdx(SMeta *pMeta);
 int64_t     tsdbGetNumOfRowsInMemTable(tsdbReaderT *pHandle);
@@ -138,19 +140,19 @@ void    tsdbCleanupReadHandle(tsdbReaderT queryHandle);
 
 // tq
 
-typedef struct STqReadHandle STqReadHandle;
+typedef struct STqReadHandle SStreamReader;
 
-STqReadHandle *tqInitSubmitMsgScanner(SMeta *pMeta);
+SStreamReader *tqInitSubmitMsgScanner(SMeta *pMeta);
 
-void    tqReadHandleSetColIdList(STqReadHandle *pReadHandle, SArray *pColIdList);
-int32_t tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
-int32_t tqReadHandleAddTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
-int32_t tqReadHandleRemoveTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
+void    tqReadHandleSetColIdList(SStreamReader *pReadHandle, SArray *pColIdList);
+int32_t tqReadHandleSetTbUidList(SStreamReader *pHandle, const SArray *tbUidList);
+int32_t tqReadHandleAddTbUidList(SStreamReader *pHandle, const SArray *tbUidList);
+int32_t tqReadHandleRemoveTbUidList(SStreamReader *pHandle, const SArray *tbUidList);
 
-int32_t tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
-bool    tqNextDataBlock(STqReadHandle *pHandle);
-bool    tqNextDataBlockFilterOut(STqReadHandle *pHandle, SHashObj *filterOutUids);
-int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReadHandle *pHandle);
+int32_t tqReadHandleSetMsg(SStreamReader *pHandle, SSubmitReq *pMsg, int64_t ver);
+bool    tqNextDataBlock(SStreamReader *pHandle);
+bool    tqNextDataBlockFilterOut(SStreamReader *pHandle, SHashObj *filterOutUids);
+int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, SStreamReader *pHandle);
 
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
@@ -198,15 +200,20 @@ typedef struct {
   uint64_t groupId;
 } STableKeyInfo;
 
+#define TABLE_ROLLUP_ON       ((int8_t)0x1)
+#define TABLE_IS_ROLLUP(FLG)  (((FLG) & (TABLE_ROLLUP_ON)) != 0)
+#define TABLE_SET_ROLLUP(FLG) ((FLG) |= TABLE_ROLLUP_ON)
 struct SMetaEntry {
   int64_t  version;
   int8_t   type;
+  int8_t   flags;  // TODO: need refactor?
   tb_uid_t uid;
   char    *name;
   union {
     struct {
       SSchemaWrapper schemaRow;
       SSchemaWrapper schemaTag;
+      SRSmaParam     rsmaParam;
     } stbEntry;
     struct {
       int64_t  ctime;

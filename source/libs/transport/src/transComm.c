@@ -16,7 +16,9 @@
 
 #include "transComm.h"
 
-// static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
+static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
+
+static int32_t refMgt;
 
 int transAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey) {
   T_MD5_CTX context;
@@ -202,7 +204,7 @@ void transDestroyAsyncPool(SAsyncPool* pool) {
   taosMemoryFree(pool->asyncs);
   taosMemoryFree(pool);
 }
-int transSendAsync(SAsyncPool* pool, queue* q) {
+int transAsyncSend(SAsyncPool* pool, queue* q) {
   int idx = pool->index;
   idx = idx % pool->nAsync;
   // no need mutex here
@@ -478,35 +480,47 @@ bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
   return true;
 }
 
-void transInitEnv() {
-  //
+static void transInitEnv() {
+  refMgt = transOpenExHandleMgt(50000);
   uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1");
+}
+static void transDestroyEnv() {
+  // close ref
+  transCloseExHandleMgt(refMgt);
+}
+void transInit() {
+  // init env
+  taosThreadOnce(&transModuleInit, transInitEnv);
+}
+void transCleanup() {
+  // clean env
+  transDestroyEnv();
 }
 int32_t transOpenExHandleMgt(int size) {
   // added into once later
   return taosOpenRef(size, transDestoryExHandle);
 }
-void transCloseExHandleMgt(int32_t mgt) {
+void transCloseExHandleMgt() {
   // close ref
-  taosCloseRef(mgt);
+  taosCloseRef(refMgt);
 }
-int64_t transAddExHandle(int32_t mgt, void* p) {
+int64_t transAddExHandle(void* p) {
   // acquire extern handle
-  return taosAddRef(mgt, p);
+  return taosAddRef(refMgt, p);
 }
-int32_t transRemoveExHandle(int32_t mgt, int64_t refId) {
+int32_t transRemoveExHandle(int64_t refId) {
   // acquire extern handle
-  return taosRemoveRef(mgt, refId);
+  return taosRemoveRef(refMgt, refId);
 }
 
-SExHandle* transAcquireExHandle(int32_t mgt, int64_t refId) {
+SExHandle* transAcquireExHandle(int64_t refId) {
   // acquire extern handle
-  return (SExHandle*)taosAcquireRef(mgt, refId);
+  return (SExHandle*)taosAcquireRef(refMgt, refId);
 }
 
-int32_t transReleaseExHandle(int32_t mgt, int64_t refId) {
+int32_t transReleaseExHandle(int64_t refId) {
   // release extern handle
-  return taosReleaseRef(mgt, refId);
+  return taosReleaseRef(refMgt, refId);
 }
 void transDestoryExHandle(void* handle) {
   if (handle == NULL) {

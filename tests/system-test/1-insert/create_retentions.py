@@ -21,9 +21,9 @@ SINT_UN_COL = "c_sint_un"
 BINT_UN_COL = "c_bint_un"
 INT_UN_COL  = "c_int_un"
 
-BINARY_COL  = "c8"
-NCHAR_COL   = "c9"
-TS_COL      = "c10"
+BINARY_COL  = "c_binary"
+NCHAR_COL   = "c_nchar"
+TS_COL      = "c_ts"
 
 NUM_COL     = [ INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, ]
 CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
@@ -51,12 +51,28 @@ class DataSet:
     binary_data     : List[str]     = None
     nchar_data      : List[str]     = None
 
+    def __post_init__(self):
+        self.ts_data        = []
+        self.int_data       = []
+        self.bint_data      = []
+        self.sint_data      = []
+        self.tint_data      = []
+        self.int_un_data    = []
+        self.bint_un_data   = []
+        self.sint_un_data   = []
+        self.tint_un_data   = []
+        self.float_data     = []
+        self.double_data    = []
+        self.bool_data      = []
+        self.binary_data    = []
+        self.nchar_data     = []
+
 
 class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        tdSql.init(conn.cursor(), False)
 
     @property
     def create_databases_sql_err(self):
@@ -87,28 +103,28 @@ class TDTestCase:
     @property
     def create_stable_sql_err(self):
         return [
-            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(ceil) watermark 1s maxdelay 1m",
+            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(ceil) watermark 1s max_delay 1m",
             f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(count) watermark  1min",
-            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) maxdelay -1s",
+            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) max_delay -1s",
             f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) watermark -1m",
-            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) watermark 1m ",
-            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) maxdelay 1m ",
+            # f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) watermark 1m ",
+            # f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) max_delay 1m ",
             f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} binary(16)) tags (tag1 int) rollup(avg) watermark 1s",
-            f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} nchar(16)) tags (tag1 int) rollup(avg) maxdelay 1m",
-            # f"create table ntb_1 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} nchar(16)) rollup(avg) watermark 1s maxdelay 1s",
+            f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} nchar(16)) tags (tag1 int) rollup(avg) max_delay 1m",
+            # f"create table ntb_1 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} nchar(16)) rollup(avg) watermark 1s max_delay 1s",
             # f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} nchar(16)) tags (tag1 int) " ,
             # f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) " ,
             # f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int) " ,
             # f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} nchar(16)) " ,
 
-            # watermark, maxdelay: [0, 900000], [ms, s, m, ?]
-            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) maxdelay 1u",
+            # watermark, max_delay: [0, 900000], [ms, s, m, ?]
+            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) max_delay 1u",
             f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) watermark 1b",
             f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) watermark 900001ms",
-            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) maxdelay 16m",
-            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) maxdelay 901s",
-            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) maxdelay 1h",
-            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) maxdelay 0.2h",
+            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) max_delay 16m",
+            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) max_delay 901s",
+            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) max_delay 1h",
+            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) max_delay 0.2h",
             f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) watermark 0.002d",
 
         ]
@@ -117,11 +133,11 @@ class TDTestCase:
     def create_stable_sql_current(self):
         return [
             f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(avg)",
-            f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) watermark 5s maxdelay 1m",
-            f"create stable stb3 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(max) watermark 5s maxdelay 1m",
-            f"create stable stb4 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(sum) watermark 5s maxdelay 1m",
-            # f"create stable stb5 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(last) watermark 5s maxdelay 1m",
-            # f"create stable stb6 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) watermark 5s maxdelay 1m",
+            f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) watermark 5s max_delay 1m",
+            f"create stable stb3 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(max) watermark 5s max_delay 1m",
+            f"create stable stb4 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(sum) watermark 5s max_delay 1m",
+            # f"create stable stb5 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(last) watermark 5s max_delay 1m",
+            # f"create stable stb6 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) watermark 5s max_delay 1m",
         ]
 
     def test_create_stb(self):
@@ -135,7 +151,7 @@ class TDTestCase:
         tdSql.checkRows(len(self.create_stable_sql_current))
 
         # tdSql.execute("use db")  # because db is a noraml database, not a rollup database, should not be able to create a rollup database
-        # tdSql.error(f"create stable nor_db_rollup_stb ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) file_factor 5.0")
+        # tdSql.error(f"create stable nor_db_rollup_stb ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) watermark 5s max_delay 1m")
 
 
     def test_create_databases(self):
@@ -177,21 +193,6 @@ class TDTestCase:
 
     def __data_set(self, rows):
         data_set = DataSet()
-        # neg_data_set = DataSet()
-        data_set.ts_data = []
-        data_set.int_data = []
-        data_set.bint_data = []
-        data_set.sint_data = []
-        data_set.tint_data = []
-        data_set.int_un_data = []
-        data_set.bint_un_data = []
-        data_set.sint_un_data = []
-        data_set.tint_un_data = []
-        data_set.float_data = []
-        data_set.double_data = []
-        data_set.bool_data = []
-        data_set.binary_data = []
-        data_set.nchar_data = []
 
         for i in range(rows):
             data_set.ts_data.append(NOW + 1 * (rows - i))
@@ -226,6 +227,7 @@ class TDTestCase:
         return data_set
 
     def __insert_data(self):
+        tdLog.printNoPrefix("==========step: start inser data into tables now.....")
         data = self.__data_set(rows=self.rows)
 
         # now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
@@ -264,10 +266,10 @@ class TDTestCase:
 
     def run(self):
         self.rows = 10
-
+        tdSql.prepare()
 
         tdLog.printNoPrefix("==========step0:all check")
-        # self.all_test()
+        self.all_test()
 
         tdLog.printNoPrefix("==========step1:create table in normal database")
         tdSql.prepare()

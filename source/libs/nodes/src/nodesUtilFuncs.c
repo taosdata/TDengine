@@ -20,6 +20,7 @@
 #include "taos.h"
 #include "taoserror.h"
 #include "thash.h"
+#include "tdatablock.h"
 
 static SNode* makeNode(ENodeType type, size_t size) {
   SNode* p = taosMemoryCalloc(1, size);
@@ -288,6 +289,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SMergePhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
       return makeNode(type, sizeof(SSortPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT:
+      return makeNode(type, sizeof(SGroupSortPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
       return makeNode(type, sizeof(SIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
@@ -709,7 +712,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pTagCond);
       nodesDestroyNode(pLogicNode->pTagIndexCond);
       taosArrayDestroy(pLogicNode->pSmaIndexes);
-      nodesDestroyList(pLogicNode->pPartTags);
+      nodesDestroyList(pLogicNode->pGroupTags);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
@@ -813,7 +816,7 @@ void nodesDestroyNode(SNode* pNode) {
       STableScanPhysiNode* pPhyNode = (STableScanPhysiNode*)pNode;
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       nodesDestroyList(pPhyNode->pDynamicScanFuncs);
-      nodesDestroyList(pPhyNode->pPartitionTags);
+      nodesDestroyList(pPhyNode->pGroupTags);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
@@ -850,7 +853,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pTargets);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_SORT: {
+    case QUERY_NODE_PHYSICAL_PLAN_SORT:
+    case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT: {
       SSortPhysiNode* pPhyNode = (SSortPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);
@@ -1497,7 +1501,8 @@ typedef struct SCollectFuncsCxt {
 
 static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   SCollectFuncsCxt* pCxt = (SCollectFuncsCxt*)pContext;
-  if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId)) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId) &&
+      !(((SExprNode*)pNode)->orderAlias)) {
     pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, nodesCloneNode(pNode));
     return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
   }
@@ -1671,6 +1676,10 @@ void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
       pVal->pz[pVal->nLen + VARSTR_HEADER_SIZE] = 0;
       break;
     case TSDB_DATA_TYPE_JSON:
+      pVal->nLen = getJsonValueLen(pNode->datum.p);
+      pVal->pz = taosMemoryMalloc(pVal->nLen);
+      memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
+      break;
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
       // todo
@@ -1724,7 +1733,6 @@ static EDealRes classifyConditionImpl(SNode* pNode, void* pContext) {
     } else {
       pCxt->hasOtherCol = true;
     }
-    return *((bool*)pContext) ? DEAL_RES_CONTINUE : DEAL_RES_END;
   }
   return DEAL_RES_CONTINUE;
 }

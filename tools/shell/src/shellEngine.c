@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define ALLOW_FORBID_FUNC
 #define _BSD_SOURCE
 #define _GNU_SOURCE
 #define _XOPEN_SOURCE
@@ -364,7 +365,7 @@ int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
     int32_t *length = taos_fetch_lengths(tres);
     for (int32_t i = 0; i < num_fields; i++) {
       if (i > 0) {
-        taosFprintfFile(pFile, "\n");
+        taosFprintfFile(pFile, ",");
       }
       shellDumpFieldToFile(pFile, (const char *)row[i], fields + i, length[i], precision);
     }
@@ -394,9 +395,9 @@ void shellPrintNChar(const char *str, int32_t length, int32_t width) {
       break;
     }
     int w = 0;
-    if(*(str + pos) == '\t' || *(str + pos) == '\n' || *(str + pos) == '\r'){
+    if (*(str + pos) == '\t' || *(str + pos) == '\n' || *(str + pos) == '\r') {
       w = bytes;
-    }else{
+    } else {
       w = taosWcharWidth(wc);
     }
     pos += bytes;
@@ -513,7 +514,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
 }
 
 bool shellIsLimitQuery(const char *sql) {
-  //todo refactor
+  // todo refactor
   if (taosStrCaseStr(sql, " limit ") != NULL) {
     return true;
   }
@@ -522,14 +523,13 @@ bool shellIsLimitQuery(const char *sql) {
 }
 
 bool shellIsShowQuery(const char *sql) {
-  //todo refactor
+  // todo refactor
   if (taosStrCaseStr(sql, "show ") != NULL) {
     return true;
   }
 
   return false;
 }
-
 
 int32_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
   TAOS_ROW row = taos_fetch_row(tres);
@@ -859,9 +859,7 @@ void shellGetGrantInfo() {
 
   int32_t code = taos_errno(tres);
   if (code != TSDB_CODE_SUCCESS) {
-    if (code == TSDB_CODE_OPS_NOT_SUPPORT) {
-      fprintf(stdout, "Server is Community Edition, %s\n\n", sinfo);
-    } else {
+    if (code != TSDB_CODE_OPS_NOT_SUPPORT && code != TSDB_CODE_MND_NO_RIGHTS) {
       fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\n\n", code, taos_errstr(tres));
     }
     return;

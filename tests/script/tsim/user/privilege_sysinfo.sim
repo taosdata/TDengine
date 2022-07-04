@@ -8,6 +8,7 @@ sql create user sysinfo0 pass 'taosdata'
 sql create user sysinfo1 pass 'taosdata'
 sql alter user sysinfo0 sysinfo 0
 sql alter user sysinfo1 sysinfo 1
+sql create database db
 
 print user sysinfo0 login
 sql close
@@ -39,6 +40,24 @@ sql_error kill connection 1
 sql_error kill query 1
 
 print =============== check db
-sql_error create database db
+sql_error create database d1
+sql_error drop database db
+sql_error use db
+sql_error alter database db replica 1;
+sql_error show db.vgroups
+sql_error show db.stables
+sql_error show db.tables
+
+print =============== check show
+sql_error show users
+sql_error show cluster
+sql_error show dnodes
+sql_error show mnodes
+sql_error show snodes
+sql_error show qnodes
+sql_error show bnodes
+sql_error show grants
+sql_error show dnode 1 variables;
+sql show variables;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
