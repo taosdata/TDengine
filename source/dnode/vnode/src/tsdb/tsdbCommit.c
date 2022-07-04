@@ -401,6 +401,9 @@ static int32_t tsdbMergeTableData(SCommitter *pCommitter, STbDataIter *pIter, SB
   code = tsdbReadBlockData(pCommitter->pReader, pBlockIdx, pBlockMerge, pBlockDataMerge, NULL, NULL);
   if (code) goto _err;
 
+  code = tBlockDataSetSchema(pBlockData, pCommitter->skmTable.pTSchema);
+  if (code) goto _err;
+
   // loop to merge
   pRow1 = tsdbTbDataIterGet(pIter);
   *pRow2 = tsdbRowFromBlockData(pBlockDataMerge, 0);
@@ -410,7 +413,7 @@ static int32_t tsdbMergeTableData(SCommitter *pCommitter, STbDataIter *pIter, SB
   if (code) goto _err;
 
   tBlockReset(pBlock);
-  tBlockDataReset(pBlockData);
+  tBlockDataClearData(pBlockData);
   while (true) {
     if (pRow1 == NULL && pRow2 == NULL) {
       if (pBlockData->nRow == 0) {
@@ -477,7 +480,7 @@ static int32_t tsdbMergeTableData(SCommitter *pCommitter, STbDataIter *pIter, SB
     if (code) goto _err;
 
     tBlockReset(pBlock);
-    tBlockDataReset(pBlockData);
+    tBlockDataClearData(pBlockData);
   }
 
   return code;
@@ -496,8 +499,11 @@ static int32_t tsdbCommitTableMemData(SCommitter *pCommitter, STbDataIter *pIter
   int64_t     suid = pIter->pTbData->suid;
   int64_t     uid = pIter->pTbData->uid;
 
+  code = tBlockDataSetSchema(pBlockData, pCommitter->skmTable.pTSchema);
+  if (code) goto _err;
+
   tBlockReset(pBlock);
-  tBlockDataReset(pBlockData);
+  tBlockDataClearData(pBlockData);
   pRow = tsdbTbDataIterGet(pIter);
   ASSERT(pRow && tsdbKeyCmprFn(&TSDBROW_KEY(pRow), &toKey) < 0);
   while (true) {
@@ -529,7 +535,7 @@ static int32_t tsdbCommitTableMemData(SCommitter *pCommitter, STbDataIter *pIter
     if (code) goto _err;
 
     tBlockReset(pBlock);
-    tBlockDataReset(pBlockData);
+    tBlockDataClearData(pBlockData);
   }
 
   return code;
@@ -599,6 +605,7 @@ static int32_t tsdbGetOvlpNRow(STbDataIter *pIter, SBlock *pBlock) {
     c = tBlockCmprFn(&(SBlock){.maxKey = key, .minKey = key}, pBlock);
     if (c == 0) {
       nRow++;
+      tsdbTbDataIterNext(pIter);
     } else if (c > 0) {
       break;
     } else {
@@ -616,7 +623,9 @@ static int32_t tsdbMergeAsSubBlock(SCommitter *pCommitter, STbDataIter *pIter, S
   SBlock      block;
   TSDBROW    *pRow;
 
-  tBlockDataReset(pBlockData);
+  code = tBlockDataSetSchema(pBlockData, pCommitter->skmTable.pTSchema);
+  if (code) goto _err;
+
   pRow = tsdbTbDataIterGet(pIter);
   code = tsdbCommitterUpdateRowSchema(pCommitter, pBlockIdx->suid, pBlockIdx->uid, TSDBROW_SVERSION(pRow));
   if (code) goto _err;
@@ -700,6 +709,11 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData, SBl
     tMapDataGetItemByIdx(&pCommitter->oBlockMap, iBlock, pBlock, tGetBlock);
   } else {
     pBlock = NULL;
+  }
+
+  if (pRow) {
+    code = tsdbCommitterUpdateTableSchema(pCommitter, pTbData->suid, pTbData->uid, pTbData->maxSkmVer);
+    if (code) goto _err;
   }
 
   // merge ===========

@@ -370,6 +370,7 @@ int32_t tPutBlockCol(uint8_t *p, void *ph) {
 
   n += tPutI16v(p ? p + n : p, pBlockCol->cid);
   n += tPutI8(p ? p + n : p, pBlockCol->type);
+  n += tPutI8(p ? p + n : p, pBlockCol->smaOn);
   n += tPutI8(p ? p + n : p, pBlockCol->flag);
 
   if (pBlockCol->flag != HAS_NULL) {
@@ -389,6 +390,7 @@ int32_t tGetBlockCol(uint8_t *p, void *ph) {
 
   n += tGetI16v(p + n, &pBlockCol->cid);
   n += tGetI8(p + n, &pBlockCol->type);
+  n += tGetI8(p + n, &pBlockCol->smaOn);
   n += tGetI8(p + n, &pBlockCol->flag);
 
   ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
@@ -778,10 +780,14 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
 }
 
 // SColData ========================================
-void tColDataReset(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn) {
+void tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn) {
   pColData->cid = cid;
   pColData->type = type;
   pColData->smaOn = smaOn;
+  tColDataReset(pColData);
+}
+
+void tColDataReset(SColData *pColData) {
   pColData->nVal = 0;
   pColData->flag = 0;
   pColData->nData = 0;
@@ -970,6 +976,33 @@ void tBlockDataClear(SBlockData *pBlockData) {
   taosArrayDestroyEx(pBlockData->aColData, tColDataClear);
 }
 
+int32_t tBlockDataSetSchema(SBlockData *pBlockData, STSchema *pTSchema) {
+  int32_t   code = 0;
+  SColData *pColData;
+  STColumn *pTColumn;
+
+  tBlockDataReset(pBlockData);
+  for (int32_t iColumn = 1; iColumn < pTSchema->numOfCols; iColumn++) {
+    pTColumn = &pTSchema->columns[iColumn];
+
+    code = tBlockDataAddColData(pBlockData, iColumn - 1, &pColData);
+    if (code) goto _exit;
+
+    tColDataInit(pColData, pTColumn->colId, pTColumn->type, (pTColumn->flags & COL_SMA_ON) != 0);
+  }
+
+_exit:
+  return code;
+}
+
+void tBlockDataClearData(SBlockData *pBlockData) {
+  pBlockData->nRow = 0;
+  for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aColDataP); iColData++) {
+    SColData *pColData = (SColData *)taosArrayGetP(pBlockData->aColDataP, iColData);
+    tColDataReset(pColData);
+  }
+}
+
 int32_t tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData) {
   int32_t   code = 0;
   SColData *pColData = NULL;
@@ -1009,71 +1042,40 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
 
   // OTHER
   int32_t   iColData = 0;
-  SRowIter *pIter = &((SRowIter){0});
+  int32_t   nColData = taosArrayGetSize(pBlockData->aColDataP);
+  SRowIter  iter = {0};
+  SRowIter *pIter = &iter;
   SColData *pColData;
   SColVal  *pColVal;
 
+  ASSERT(nColData > 0);
+
   tRowIterInit(pIter, pRow, pTSchema);
+  pColData = (SColData *)taosArrayGetP(pBlockData->aColDataP, iColData);
   pColVal = tRowIterNext(pIter);
-  pColData = (iColData < taosArrayGetSize(pBlockData->aColDataP))
-                 ? (SColData *)taosArrayGetP(pBlockData->aColDataP, iColData)
-                 : NULL;
-
-  while (pColVal && pColData) {
-    if (pColVal->cid == pColData->cid) {
-      code = tColDataAppendValue(pColData, pColVal);
-      if (code) goto _err;
-
-      pColVal = tRowIterNext(pIter);
-    } else if (pColVal->cid > pColData->cid) {
-      code = tColDataAppendValue(pColData, &(COL_VAL_NONE(pColData->cid, pColData->type)));
-      if (code) goto _err;
-    } else {
-      code = tBlockDataAddColData(pBlockData, iColData, &pColData);
-      if (code) goto _err;
-
-      // append a NONE
-      tColDataReset(pColData, pColVal->cid, pColVal->type, 0);
-      for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
-        code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColVal->cid, pColVal->type));
-        if (code) goto _err;
-      }
-
-      code = tColDataAppendValue(pColData, pColVal);
-      if (code) goto _err;
-
-      pColVal = tRowIterNext(pIter);
-    }
-
-    pColData = ((++iColData) < taosArrayGetSize(pBlockData->aColDataP))
-                   ? (SColData *)taosArrayGetP(pBlockData->aColDataP, iColData)
-                   : NULL;
-  }
 
   while (pColData) {
-    code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid, pColData->type));
-    if (code) goto _err;
+    if (pColVal) {
+      if (pColData->cid == pColVal->cid) {
+        code = tColDataAppendValue(pColData, pColVal);
+        if (code) goto _err;
 
-    pColData = ((++iColData) < taosArrayGetSize(pBlockData->aColDataP))
-                   ? (SColData *)taosArrayGetP(pBlockData->aColDataP, iColData)
-                   : NULL;
-  }
+        pColVal = tRowIterNext(pIter);
+        pColData = ((++iColData) < nColData) ? (SColData *)taosArrayGetP(pBlockData->aColDataP, iColData) : NULL;
+      } else if (pColData->cid < pColVal->cid) {
+        code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid, pColData->type));
+        if (code) goto _err;
 
-  while (pColVal) {
-    code = tBlockDataAddColData(pBlockData, iColData, &pColData);
-    if (code) goto _err;
-
-    tColDataReset(pColData, pColVal->cid, pColVal->type, 0);
-    for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
-      code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColVal->cid, pColVal->type));
+        pColData = ((++iColData) < nColData) ? (SColData *)taosArrayGetP(pBlockData->aColDataP, iColData) : NULL;
+      } else {
+        pColVal = tRowIterNext(pIter);
+      }
+    } else {
+      code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid, pColData->type));
       if (code) goto _err;
+
+      pColData = ((++iColData) < nColData) ? (SColData *)taosArrayGetP(pBlockData->aColDataP, iColData) : NULL;
     }
-
-    code = tColDataAppendValue(pColData, pColVal);
-    if (code) goto _err;
-
-    iColData++;
-    pColVal = tRowIterNext(pIter);
   }
 
   pBlockData->nRow++;
@@ -1086,7 +1088,57 @@ _err:
 int32_t tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData) {
   int32_t code = 0;
 
+  // set target
+  int32_t   iColData1 = 0;
+  int32_t   nColData1 = taosArrayGetSize(pBlockData1->aColDataP);
+  int32_t   iColData2 = 0;
+  int32_t   nColData2 = taosArrayGetSize(pBlockData2->aColDataP);
+  SColData *pColData1;
+  SColData *pColData2;
+  SColData *pColData;
+
   tBlockDataReset(pBlockData);
+  while (iColData1 < nColData1 && iColData2 < nColData2) {
+    pColData1 = (SColData *)taosArrayGetP(pBlockData1->aColDataP, iColData1);
+    pColData2 = (SColData *)taosArrayGetP(pBlockData2->aColDataP, iColData2);
+
+    if (pColData1->cid == pColData2->cid) {
+      code = tBlockDataAddColData(pBlockData, taosArrayGetSize(pBlockData->aColDataP), &pColData);
+      if (code) goto _exit;
+      tColDataInit(pColData, pColData2->cid, pColData2->type, pColData2->smaOn);
+
+      iColData1++;
+      iColData2++;
+    } else if (pColData1->cid < pColData2->cid) {
+      code = tBlockDataAddColData(pBlockData, taosArrayGetSize(pBlockData->aColDataP), &pColData);
+      if (code) goto _exit;
+      tColDataInit(pColData, pColData1->cid, pColData1->type, pColData1->smaOn);
+
+      iColData1++;
+    } else {
+      code = tBlockDataAddColData(pBlockData, taosArrayGetSize(pBlockData->aColDataP), &pColData);
+      if (code) goto _exit;
+      tColDataInit(pColData, pColData2->cid, pColData2->type, pColData2->smaOn);
+
+      iColData2++;
+    }
+  }
+
+  while (iColData1 < nColData1) {
+    code = tBlockDataAddColData(pBlockData, taosArrayGetSize(pBlockData->aColDataP), &pColData);
+    if (code) goto _exit;
+    tColDataInit(pColData, pColData1->cid, pColData1->type, pColData1->smaOn);
+
+    iColData1++;
+  }
+
+  while (iColData2 < nColData2) {
+    code = tBlockDataAddColData(pBlockData, taosArrayGetSize(pBlockData->aColDataP), &pColData);
+    if (code) goto _exit;
+    tColDataInit(pColData, pColData2->cid, pColData2->type, pColData2->smaOn);
+
+    iColData2++;
+  }
 
   // loop to merge
   int32_t iRow1 = 0;

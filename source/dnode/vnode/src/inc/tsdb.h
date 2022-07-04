@@ -115,14 +115,13 @@ int32_t tGetBlock(uint8_t *p, void *ph);
 int32_t tBlockCmprFn(const void *p1, const void *p2);
 bool    tBlockHasSma(SBlock *pBlock);
 // SBlockIdx
-// #define tBlockIdxInit(SUID, UID) ((SBlockIdx){.suid = (SUID), .uid = (UID), .info = tKEYINFOInit()})
 void    tBlockIdxReset(SBlockIdx *pBlockIdx);
 int32_t tPutBlockIdx(uint8_t *p, void *ph);
 int32_t tGetBlockIdx(uint8_t *p, void *ph);
 int32_t tCmprBlockIdx(void const *lhs, void const *rhs);
 // SColdata
-#define tColDataInit() ((SColData){0})
-void    tColDataReset(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn);
+void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn);
+void    tColDataReset(SColData *pColData);
 void    tColDataClear(void *ph);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 int32_t tColDataGetValue(SColData *pColData, int32_t iRow, SColVal *pColVal);
@@ -134,6 +133,8 @@ int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest);
 #define tBlockDataLastKey(PBLOCKDATA)  TSDBROW_KEY(&tBlockDataLastRow(PBLOCKDATA))
 int32_t tBlockDataInit(SBlockData *pBlockData);
 void    tBlockDataReset(SBlockData *pBlockData);
+int32_t tBlockDataSetSchema(SBlockData *pBlockData, STSchema *pTSchema);
+void    tBlockDataClearData(SBlockData *pBlockData);
 void    tBlockDataClear(SBlockData *pBlockData);
 int32_t tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
 int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
@@ -362,6 +363,7 @@ struct SMapData {
 typedef struct {
   int16_t cid;
   int8_t  type;
+  int8_t  smaOn;
   int8_t  flag;  // HAS_NONE|HAS_NULL|HAS_VALUE
   int32_t offset;
   int32_t szBitmap;  // bitmap size

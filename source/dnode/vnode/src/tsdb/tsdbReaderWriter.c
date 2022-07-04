@@ -895,7 +895,7 @@ static int32_t tsdbReadSubColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, S
       code = tBlockDataAddColData(pBlockData, taosArrayGetSize(pBlockData->aColDataP), &pColData);
       if (code) goto _err;
 
-      tColDataReset(pColData, pBlockCol->cid, pBlockCol->type, 0);
+      tColDataInit(pColData, pBlockCol->cid, pBlockCol->type, pBlockCol->smaOn);
       if (pBlockCol->flag == HAS_NULL) {
         for (int32_t iRow = 0; iRow < pSubBlock->nRow; iRow++) {
           code = tColDataAppendValue(pColData, &COL_VAL_NULL(pBlockCol->cid, pBlockCol->type));
@@ -1052,7 +1052,7 @@ static int32_t tsdbReadSubBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx,
     code = tBlockDataAddColData(pBlockData, iBlockCol, &pColData);
     if (code) goto _err;
 
-    tColDataReset(pColData, pBlockCol->cid, pBlockCol->type, 0);
+    tColDataInit(pColData, pBlockCol->cid, pBlockCol->type, pBlockCol->smaOn);
     if (pBlockCol->flag == HAS_NULL) {
       for (int32_t iRow = 0; iRow < pSubBlock->nRow; iRow++) {
         code = tColDataAppendValue(pColData, &COL_VAL_NULL(pBlockCol->cid, pBlockCol->type));
@@ -1839,6 +1839,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
 
     pBlockCol->cid = pColData->cid;
     pBlockCol->type = pColData->type;
+    pBlockCol->smaOn = pColData->smaOn;
     pBlockCol->flag = pColData->flag;
 
     if (pColData->flag != HAS_NULL) {
