@@ -93,6 +93,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.buffer, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.pageSize, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.pages, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.lastRowMem, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysPerFile, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep0, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep1, _OVER)
@@ -165,6 +166,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.buffer, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.pageSize, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.pages, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.lastRowMem, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysPerFile, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep0, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep1, _OVER)
@@ -230,8 +232,9 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfgVersion = pNew->cfgVersion;
   pOld->vgVersion = pNew->vgVersion;
   pOld->cfg.buffer = pNew->cfg.buffer;
-  pOld->cfg.pages = pNew->cfg.pages;
   pOld->cfg.pageSize = pNew->cfg.pageSize;
+  pOld->cfg.pages = pNew->cfg.pages;
+  pOld->cfg.lastRowMem = pNew->cfg.lastRowMem;
   pOld->cfg.daysPerFile = pNew->cfg.daysPerFile;
   pOld->cfg.daysToKeep0 = pNew->cfg.daysToKeep0;
   pOld->cfg.daysToKeep1 = pNew->cfg.daysToKeep1;
@@ -288,6 +291,7 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->buffer < TSDB_MIN_BUFFER_PER_VNODE || pCfg->buffer > TSDB_MAX_BUFFER_PER_VNODE) return -1;
   if (pCfg->pageSize < TSDB_MIN_PAGESIZE_PER_VNODE || pCfg->pageSize > TSDB_MAX_PAGESIZE_PER_VNODE) return -1;
   if (pCfg->pages < TSDB_MIN_PAGES_PER_VNODE || pCfg->pages > TSDB_MAX_PAGES_PER_VNODE) return -1;
+  if (pCfg->lastRowMem < TSDB_MIN_DB_LAST_ROW_MEM || pCfg->lastRowMem > TSDB_MAX_DB_LAST_ROW_MEM) return -1;
   if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return -1;
   if (pCfg->daysToKeep0 < TSDB_MIN_KEEP || pCfg->daysToKeep0 > TSDB_MAX_KEEP) return -1;
   if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > TSDB_MAX_KEEP) return -1;
@@ -336,6 +340,7 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->replications < 0) pCfg->replications = TSDB_DEFAULT_DB_REPLICA;
   if (pCfg->strict < 0) pCfg->strict = TSDB_DEFAULT_DB_STRICT;
   if (pCfg->cacheLastRow < 0) pCfg->cacheLastRow = TSDB_DEFAULT_CACHE_LAST_ROW;
+  if (pCfg->lastRowMem <= 0) pCfg->lastRowMem = TSDB_DEFAULT_LAST_ROW_MEM;
   if (pCfg->numOfRetensions < 0) pCfg->numOfRetensions = 0;
   if (pCfg->schemaless < 0) pCfg->schemaless = TSDB_DB_SCHEMALESS_OFF;
 }
@@ -434,6 +439,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .buffer = pCreate->buffer,
       .pageSize = pCreate->pageSize,
       .pages = pCreate->pages,
+      .lastRowMem = pCreate->lastRowMem,
       .daysPerFile = pCreate->daysPerFile,
       .daysToKeep0 = pCreate->daysToKeep0,
       .daysToKeep1 = pCreate->daysToKeep1,
@@ -475,7 +481,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq);
   if (pTrans == NULL) goto _OVER;
-
+  // mndTransSetSerial(pTrans);
   mDebug("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
 
   mndTransSetDbName(pTrans, dbObj.name, NULL);
@@ -619,6 +625,11 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
 
   if (pAlter->cacheLastRow >= 0 && pAlter->cacheLastRow != pDb->cfg.cacheLastRow) {
     pDb->cfg.cacheLastRow = pAlter->cacheLastRow;
+    terrno = 0;
+  }
+
+  if (pAlter->lastRowMem >= 0 && pAlter->lastRowMem != pDb->cfg.lastRowMem) {
+    pDb->cfg.lastRowMem = pAlter->lastRowMem;
     terrno = 0;
   }
 
