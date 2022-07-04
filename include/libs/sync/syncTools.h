@@ -404,8 +404,6 @@ void                    syncAppendEntriesBatchFromRpcMsg(const SRpcMsg* pRpcMsg,
 SyncAppendEntriesBatch* syncAppendEntriesBatchFromRpcMsg2(const SRpcMsg* pRpcMsg);
 cJSON*                  syncAppendEntriesBatch2Json(const SyncAppendEntriesBatch* pMsg);
 char*                   syncAppendEntriesBatch2Str(const SyncAppendEntriesBatch* pMsg);
-void syncAppendEntriesBatch2RpcMsgArray(SyncAppendEntriesBatch* pSyncMsg, SRpcMsg* rpcMsgArr, int32_t maxArrSize,
-                                        int32_t* pRetArrSize);
 
 // for debug ----------------------
 void syncAppendEntriesBatchPrint(const SyncAppendEntriesBatch* pMsg);

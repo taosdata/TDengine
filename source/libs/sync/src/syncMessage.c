@@ -1807,33 +1807,6 @@ char* syncAppendEntriesBatch2Str(const SyncAppendEntriesBatch* pMsg) {
   return serialized;
 }
 
-void syncAppendEntriesBatch2RpcMsgArray(SyncAppendEntriesBatch* pSyncMsg, SRpcMsg* rpcMsgArr, int32_t maxArrSize,
-                                        int32_t* pRetArrSize) {
-  if (pRetArrSize != NULL) {
-    *pRetArrSize = pSyncMsg->dataCount;
-  }
-
-  int32_t arrSize = pSyncMsg->dataCount;
-  if (arrSize > maxArrSize) {
-    arrSize = maxArrSize;
-  }
-
-  int32_t metaArrayLen = sizeof(SOffsetAndContLen) * pSyncMsg->dataCount;  // <offset, contLen>
-  int32_t rpcArrayLen = sizeof(SRpcMsg) * pSyncMsg->dataCount;             // SRpcMsg
-  int32_t contArrayLen = pSyncMsg->dataLen - metaArrayLen - rpcArrayLen;
-
-  SOffsetAndContLen* metaArr = (SOffsetAndContLen*)(pSyncMsg->data);
-  SRpcMsg*           msgArr = (SRpcMsg*)(pSyncMsg->data + metaArrayLen);
-  void*              pData = pSyncMsg->data + metaArrayLen + rpcArrayLen;
-
-  for (int i = 0; i < arrSize; ++i) {
-    rpcMsgArr[i] = msgArr[i];
-    rpcMsgArr[i].pCont = rpcMallocCont(msgArr[i].contLen);
-    void* pRpcCont = pSyncMsg->data + metaArr[i].offset;
-    memcpy(rpcMsgArr[i].pCont, pRpcCont, rpcMsgArr[i].contLen);
-  }
-}
-
 // for debug ----------------------
 void syncAppendEntriesBatchPrint(const SyncAppendEntriesBatch* pMsg) {
   char* serialized = syncAppendEntriesBatch2Str(pMsg);
