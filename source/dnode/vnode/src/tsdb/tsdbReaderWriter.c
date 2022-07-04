@@ -367,7 +367,7 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx, uint8_t **ppBuf) {
   int64_t  size = pReader->fDel.size - offset;
   uint32_t delimiter;
   uint8_t *pBuf = NULL;
-  SDelIdx *pDelIdx = &(SDelIdx){};
+  SDelIdx *pDelIdx = &(SDelIdx){0};
 
   if (!ppBuf) ppBuf = &pBuf;
 

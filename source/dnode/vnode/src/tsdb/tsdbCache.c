@@ -139,7 +139,11 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, ST
       } else {
         taosLRUCacheRelease(pCache, h, true);
         // tsdbCacheDeleteLastrow(pCache, uid, TSKEY_MAX);
-
+        if (dup) {
+          cacheRow = tdRowDup(row);
+        } else {
+          cacheRow = row;
+        }
         _taos_lru_deleter_t deleter = deleteTableCacheLastrow;
         LRUStatus status = taosLRUCacheInsert(pCache, key, keyLen, cacheRow, TD_ROW_LEN(cacheRow), deleter, NULL,
                                               TAOS_LRU_PRIORITY_LOW);
