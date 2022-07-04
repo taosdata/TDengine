@@ -663,7 +663,7 @@ static int idxGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   return ret;
 END:
   if (tw != NULL) {
-    writerCtxDestroy(tw->ctx, true);
+    idxFileCtxDestroy(tw->ctx, true);
     taosMemoryFree(tw);
   }
   return -1;

@@ -75,7 +75,6 @@ CompiledAddr unpackDelta(char* data, uint64_t len, uint64_t nodeAddr) {
 }
 
 // fst slice func
-//
 
 FstSlice fstSliceCreate(uint8_t* data, uint64_t len) {
   FstString* str = (FstString*)taosMemoryMalloc(sizeof(FstString));
@@ -164,16 +163,3 @@ int fstSliceCompare(FstSlice* a, FstSlice* b) {
     return 0;
   }
 }
-
-// FstStack* fstStackCreate(size_t elemSize, StackFreeElem freeFn) {
-//  FstStack *s = taosMemoryCalloc(1, sizeof(FstStack));
-//  if (s == NULL) { return NULL; }
-//  s->
-//  s->freeFn
-//
-//}
-// void  *fstStackPush(FstStack *s, void *elem);
-// void  *fstStackTop(FstStack *s);
-// size_t fstStackLen(FstStack *s);
-// void  *fstStackGetAt(FstStack *s, size_t i);
-// void   fstStackDestory(FstStack *);

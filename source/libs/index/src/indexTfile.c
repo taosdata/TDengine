@@ -16,7 +16,7 @@
 #include "index.h"
 #include "indexComm.h"
 #include "indexFst.h"
-#include "indexFstCountingWriter.h"
+#include "indexFstFile.h"
 #include "indexUtil.h"
 #include "taosdef.h"
 #include "taoserror.h"
@@ -103,7 +103,7 @@ TFileCache* tfileCacheCreate(const char* path) {
   for (size_t i = 0; i < taosArrayGetSize(files); i++) {
     char* file = taosArrayGetP(files, i);
 
-    WriterCtx* wc = writerCtxCreate(TFile, file, true, 1024 * 1024 * 64);
+    IFileCtx* wc = idxFileCtxCreate(TFile, file, true, 1024 * 1024 * 64);
     if (wc == NULL) {
       indexError("failed to open index:%s", file);
       goto End;
@@ -175,7 +175,7 @@ void tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader) {
   tfileReaderRef(reader);
   return;
 }
-TFileReader* tfileReaderCreate(WriterCtx* ctx) {
+TFileReader* tfileReaderCreate(IFileCtx* ctx) {
   TFileReader* reader = taosMemoryCalloc(1, sizeof(TFileReader));
   if (reader == NULL) {
     return NULL;
@@ -216,7 +216,7 @@ void tfileReaderDestroy(TFileReader* reader) {
   } else {
     indexInfo("%s is not removed", reader->ctx->file.buf);
   }
-  writerCtxDestroy(reader->ctx, reader->remove);
+  idxFileCtxDestroy(reader->ctx, reader->remove);
 
   taosMemoryFree(reader);
 }
@@ -490,7 +490,7 @@ TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int64_t version, const c
   char fullname[256] = {0};
   tfileGenFileFullName(fullname, path, suid, colName, version);
   // indexInfo("open write file name %s", fullname);
-  WriterCtx* wcx = writerCtxCreate(TFile, fullname, false, 1024 * 1024 * 64);
+  IFileCtx* wcx = idxFileCtxCreate(TFile, fullname, false, 1024 * 1024 * 64);
   if (wcx == NULL) {
     return NULL;
   }
@@ -507,18 +507,18 @@ TFileReader* tfileReaderOpen(char* path, uint64_t suid, int64_t version, const c
   char fullname[256] = {0};
   tfileGenFileFullName(fullname, path, suid, colName, version);
 
-  WriterCtx* wc = writerCtxCreate(TFile, fullname, true, 1024 * 1024 * 1024);
+  IFileCtx* wc = idxFileCtxCreate(TFile, fullname, true, 1024 * 1024 * 1024);
   if (wc == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     indexError("failed to open readonly file: %s, reason: %s", fullname, terrstr());
     return NULL;
   }
-  indexTrace("open read file name:%s, file size: %d", wc->file.buf, wc->file.size);
+  indexTrace("open read file name:%s, file size: %" PRId64 "", wc->file.buf, wc->file.size);
 
   TFileReader* reader = tfileReaderCreate(wc);
   return reader;
 }
-TFileWriter* tfileWriterCreate(WriterCtx* ctx, TFileHeader* header) {
+TFileWriter* tfileWriterCreate(IFileCtx* ctx, TFileHeader* header) {
   TFileWriter* tw = taosMemoryCalloc(1, sizeof(TFileWriter));
   if (tw == NULL) {
     indexError("index: %" PRIu64 " failed to alloc TFilerWriter", header->suid);
@@ -609,14 +609,14 @@ void tfileWriterClose(TFileWriter* tw) {
   if (tw == NULL) {
     return;
   }
-  writerCtxDestroy(tw->ctx, false);
+  idxFileCtxDestroy(tw->ctx, false);
   taosMemoryFree(tw);
 }
 void tfileWriterDestroy(TFileWriter* tw) {
   if (tw == NULL) {
     return;
   }
-  writerCtxDestroy(tw->ctx, false);
+  idxFileCtxDestroy(tw->ctx, false);
   taosMemoryFree(tw);
 }
 
@@ -892,8 +892,8 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
   return 0;
 }
 static int tfileReaderLoadFst(TFileReader* reader) {
-  WriterCtx* ctx = reader->ctx;
-  int        size = ctx->size(ctx);
+  IFileCtx* ctx = reader->ctx;
+  int       size = ctx->size(ctx);
 
   // current load fst into memory, refactor it later
   int   fstSize = size - reader->header.fstOffset - sizeof(tfileMagicNumber);
@@ -905,8 +905,9 @@ static int tfileReaderLoadFst(TFileReader* reader) {
   int64_t ts = taosGetTimestampUs();
   int32_t nread = ctx->readFrom(ctx, buf, fstSize, reader->header.fstOffset);
   int64_t cost = taosGetTimestampUs() - ts;
-  indexInfo("nread = %d, and fst offset=%d, fst size: %d, filename: %s, file size: %d, time cost: %" PRId64 "us", nread,
-            reader->header.fstOffset, fstSize, ctx->file.buf, ctx->file.size, cost);
+  indexInfo("nread = %d, and fst offset=%d, fst size: %d, filename: %s, file size: %" PRId64 ", time cost: %" PRId64
+            "us",
+            nread, reader->header.fstOffset, fstSize, ctx->file.buf, ctx->file.size, cost);
   // we assuse fst size less than FST_MAX_SIZE
   assert(nread > 0 && nread <= fstSize);
 
@@ -919,7 +920,7 @@ static int tfileReaderLoadFst(TFileReader* reader) {
 }
 static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* result) {
   // TODO(yihao): opt later
-  WriterCtx* ctx = reader->ctx;
+  IFileCtx* ctx = reader->ctx;
   // add block cache
   char    block[4096] = {0};
   int32_t nread = ctx->readFrom(ctx, block, sizeof(block), offset);
@@ -952,7 +953,7 @@ static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* 
 }
 static int tfileReaderVerify(TFileReader* reader) {
   // just validate header and Footer, file corrupted also shuild be verified later
-  WriterCtx* ctx = reader->ctx;
+  IFileCtx* ctx = reader->ctx;
 
   uint64_t tMagicNumber = 0;
 

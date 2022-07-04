@@ -20,12 +20,12 @@
 extern "C" {
 #endif
 
-#include "indexFstCountingWriter.h"
+#include "indexFstFile.h"
 #include "indexFstUtil.h"
 #include "indexInt.h"
 
-#define FST_BUILDER_NODE_IS_FINAL(bn) (bn->isFinal)
-#define FST_BUILDER_NODE_TRANS_ISEMPTY(bn) (taosArrayGetSize(bn->trans) == 0)
+#define FST_BUILDER_NODE_IS_FINAL(bn)           (bn->isFinal)
+#define FST_BUILDER_NODE_TRANS_ISEMPTY(bn)      (taosArrayGetSize(bn->trans) == 0)
 #define FST_BUILDER_NODE_FINALOUTPUT_ISZERO(bn) (bn->finalOutput == 0)
 
 typedef struct FstTransition {
@@ -46,7 +46,7 @@ FstBuilderNode* fstBuilderNodeClone(FstBuilderNode* src);
 
 void fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src);
 
-// bool fstBuilderNodeCompileTo(FstBuilderNode *b, FstCountingWriter *wrt,
+// bool fstBuilderNodeCompileTo(FstBuilderNode *b, IdxFile' *wrt,
 // CompiledAddr lastAddr, CompiledAddr startAddr);
 bool fstBuilderNodeEqual(FstBuilderNode* n1, FstBuilderNode* n2);
 
