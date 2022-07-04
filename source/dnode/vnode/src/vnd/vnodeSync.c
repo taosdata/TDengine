@@ -258,7 +258,7 @@ int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
     // ToDo: ugly! use function pointer
     // use different strategy
-    if (syncNodeSnapshotEnable(pSyncNode)) {
+    if (syncNodeStrategy(pSyncNode) == SYNC_STRATEGY_NO_SNAPSHOT) {
       if (pRpcMsg->msgType == TDMT_SYNC_TIMEOUT) {
         SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pRpcMsg);
         ASSERT(pSyncMsg != NULL);

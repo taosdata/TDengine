@@ -643,7 +643,8 @@ typedef int32_t (*FpOnSnapshotSendCb)(SSyncNode* ths, SyncSnapshotSend* pMsg);
 typedef int32_t (*FpOnSnapshotRspCb)(SSyncNode* ths, SyncSnapshotRsp* pMsg);
 
 // option ----------------------------------
-bool syncNodeSnapshotEnable(SSyncNode* pSyncNode);
+bool          syncNodeSnapshotEnable(SSyncNode* pSyncNode);
+ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
 
 // ---------------------------------------------
 

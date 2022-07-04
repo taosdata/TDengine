@@ -427,7 +427,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   } while (0);
 
   // ToDo: ugly! use function pointer
-  if (syncNodeSnapshotEnable(pSyncNode)) {
+  if (syncNodeStrategy(pSyncNode) == SYNC_STRATEGY_STANDARD_SNAPSHOT) {
     if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
       SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
       code = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
