@@ -196,7 +196,7 @@ int32_t taosUcs4len(TdUcs4 *ucs4) {
 }
 
 //dst buffer size should be at least 2*len + 1
-int32_t taosHexEncode(const char *src, char *dst, int32_t len) {
+int32_t taosHexEncode(const unsigned char *src, char *dst, int32_t len) {
   if (!dst) {
     return -1;
   }

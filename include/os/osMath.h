@@ -20,6 +20,12 @@
 extern "C" {
 #endif
 
+// If the error is in a third-party library, place this header file under the third-party library header file.
+// When you want to use this feature, you should find or add the same function in the following sectio
+#ifndef ALLOW_FORBID_FUNC
+#define qsort  QSORT_FUNC_TAOS_FORBID
+#endif
+
 #define TPOW2(x) ((x) * (x))
 #define TABS(x) ((x) > 0 ? (x) : -(x))
 

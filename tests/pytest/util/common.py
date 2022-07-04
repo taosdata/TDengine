@@ -662,6 +662,12 @@ class TDCom:
             return res_list
         else:
             tdLog.exit(f"getOneRow out of range: row_index={location} row_count={self.query_row}")
+            
+    def killProcessor(self, processorName):        
+        if (platform.system().lower() == 'windows'):
+            os.system("TASKKILL /F /IM %s.exe"%processorName)
+        else:
+            os.system('pkill %s'%processorName)        
 
 
 def is_json(msg):

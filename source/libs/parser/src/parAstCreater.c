@@ -717,7 +717,7 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
   select->pProjectionList = pProjectionList;
   select->pFromTable = pTable;
   sprintf(select->stmtName, "%p", select);
-  select->isTimeOrderQuery = true;
+  select->isTimeLineResult = true;
   return (SNode*)select;
 }
 
@@ -1125,6 +1125,11 @@ SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pTagName);
   pStmt->pVal = (SValueNode*)pVal;
   return createAlterTableStmtFinalize(pRealTable, pStmt);
+}
+
+SNode* setAlterSuperTableType(SNode* pStmt) {
+  setNodeType(pStmt, QUERY_NODE_ALTER_SUPER_TABLE_STMT);
+  return pStmt;
 }
 
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
