@@ -73,36 +73,29 @@ int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
   int32_t code = 0;  
   SSchJob *pJob = NULL;
 
-  SCH_ERR_RET(schJobStatusEnter(&pJob, JOB_TASK_STATUS_INIT, pReq));
+  *pJobId = 0;
 
-  SSchEvent event = {0};
-  event.event = SCH_EVENT_BEGIN_OP;
-  SSchOpEvent opEvent = {0};
-  opEvent.type = SCH_OP_EXEC;
-  opEvent.begin = true;
-  opEvent.pReq = pReq;
-  schJobHandleEvent(pJob, &event);
+  SCH_ERR_RET(schSwitchJobStatus(&pJob, JOB_TASK_STATUS_INIT, pReq));
+
+  SCH_ERR_RET(schHandleOpBeginEvent(pJob, SCH_OP_EXEC, pReq));
   
-  SCH_ERR_RET(schJobStatusEnter(&pJob, JOB_TASK_STATUS_EXEC, pReq));
+  SCH_ERR_RET(schSwitchJobStatus(&pJob, JOB_TASK_STATUS_EXEC, pReq));
+
+  SCH_ERR_RET(schHandleOpEndEvent(pJob, SCH_OP_EXEC, pReq));
 
   *pJobId = pJob->refId;
 
 _return:
   
-  if (pJob) {
-    schSetJobQueryRes(pJob, pReq->pQueryRes);
-    schReleaseJob(pJob->refId);
-  }
+  schDumpJobExecRes(pJob, pReq->pQueryRes);
+
+  schReleaseJob(pJob->refId);
 
   return code;
 }
 
-int32_t schedulerFetchRows(int64_t job, void **pData) {
-  qDebug("scheduler sync fetch rows start");
-
-  if (NULL == pData) {
-    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
-  }
+int32_t schedulerFetchRows(int64_t job, SSchedulerReq *pReq) {
+  qDebug("scheduler %s fetch rows start", pReq->syncReq ? "SYNC" : "ASYNC");
 
   int32_t  code = 0;
   SSchJob *pJob = schAcquireJob(job);
@@ -110,6 +103,10 @@ int32_t schedulerFetchRows(int64_t job, void **pData) {
     qError("acquire job from jobRef list failed, may be dropped, jobId:0x%" PRIx64, job);
     SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
   }
+
+  SCH_ERR_RET(schHandleOpBeginEvent(pJob, SCH_OP_FETCH, pReq));
+
+
 
   SCH_ERR_RET(schBeginOperation(pJob, SCH_OP_FETCH, true));
 

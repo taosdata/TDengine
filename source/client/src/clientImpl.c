@@ -757,7 +757,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   }
 
   SEpSet         epset = getEpSet_s(&pAppInfo->mgmtEp);
-  SQueryExecRes* pRes = &pRequest->body.resInfo.execRes;
+  SExecResult* pRes = &pRequest->body.resInfo.execRes;
 
   switch (pRes->msgType) {
     case TDMT_VND_ALTER_TABLE:
@@ -1366,6 +1366,10 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
     }
 
     SReqResultInfo* pResInfo = &pRequest->body.resInfo;
+    SSchedulerReq req = {
+      .syncReq = true,
+      .  
+    };
     pRequest->code = schedulerFetchRows(pRequest->body.queryJob, (void**)&pResInfo->pData);
     if (pRequest->code != TSDB_CODE_SUCCESS) {
       pResultInfo->numOfRows = 0;

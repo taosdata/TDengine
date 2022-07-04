@@ -60,10 +60,6 @@ typedef struct STableComInfo {
   int32_t  rowSize;       // row size of the schema
 } STableComInfo;
 
-typedef struct SQueryExecRes {
-  int32_t msgType;
-  void*   res;
-} SQueryExecRes;
 
 typedef struct SIndexMeta {
 #ifdef WINDOWS
@@ -211,7 +207,7 @@ char*   jobTaskStatusStr(int32_t status);
 
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
 
-void    destroyQueryExecRes(SQueryExecRes* pRes);
+void    destroyQueryExecRes(SExecResult* pRes);
 int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t* len);
 char*   parseTagDatatoJson(void* p);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);

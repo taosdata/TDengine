@@ -200,7 +200,7 @@ SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* nam
   return s;
 }
 
-void destroyQueryExecRes(SQueryExecRes* pRes) {
+void destroyQueryExecRes(SExecResult* pRes) {
   if (NULL == pRes || NULL == pRes->res) {
     return;
   }

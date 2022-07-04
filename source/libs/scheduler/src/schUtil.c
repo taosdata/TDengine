@@ -21,6 +21,20 @@
 #include "tref.h"
 #include "trpc.h"
 
+FORCE_INLINE SSchJob *schAcquireJob(int64_t refId) { 
+  qDebug("sch acquire jobId:0x%"PRIx64, refId); 
+  return (SSchJob *)taosAcquireRef(schMgmt.jobRef, refId); 
+}
+
+FORCE_INLINE int32_t schReleaseJob(int64_t refId) { 
+  if (0 == refId) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  qDebug("sch release jobId:0x%"PRIx64, refId); 
+  return taosReleaseRef(schMgmt.jobRef, refId); 
+}
+
 char* schGetOpStr(SCH_OP_TYPE type) {
   switch (type) {
     case SCH_OP_NULL:

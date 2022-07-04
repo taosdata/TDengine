@@ -260,7 +260,7 @@ typedef struct SSchJob {
   SSchTask          *fetchTask;
   int32_t            errCode;
   SRWLatch           resLock;
-  SQueryExecRes      execRes;
+  SExecResult        execRes;
   void              *resData;         //TODO free it or not
   int32_t            resNumOfRows;
   SSchResInfo        userRes;
@@ -415,7 +415,7 @@ char*   schGetOpStr(SCH_OP_TYPE type);
 int32_t schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync);
 int32_t schInitJob(SSchJob **pJob, SSchedulerReq *pReq);
 int32_t schExecJob(SSchJob *pJob, SSchedulerReq *pReq);
-int32_t schSetJobQueryRes(SSchJob* pJob, SQueryResult* pRes);
+int32_t schDumpJobExecRes(SSchJob* pJob, SQueryResult* pRes);
 int32_t schUpdateTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask, SEpSet* pEpSet);
 int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf* pData, int32_t rspCode);
 

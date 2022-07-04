@@ -53,11 +53,12 @@ typedef struct SQueryProfileSummary {
   uint64_t resultSize;   // generated result size in Kb.
 } SQueryProfileSummary;
 
-typedef struct SQueryResult {
+typedef struct SExecResult {
   int32_t         code;
   uint64_t        numOfRows;
-  SQueryExecRes   res;
-} SQueryResult;
+  int32_t         msgType;
+  void*           res;
+} SExecResult;
 
 typedef struct STaskInfo {
   SQueryNodeAddr addr;
@@ -85,6 +86,7 @@ typedef struct SSchedulerReq {
   schedulerChkKillFp    chkKillFp;
   void*                 chkKillParam;
   SQueryResult*         pQueryRes;
+  char**                pFetchRes;
 } SSchedulerReq;
 
 

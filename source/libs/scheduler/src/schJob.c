@@ -21,11 +21,6 @@
 #include "tref.h"
 #include "trpc.h"
 
-FORCE_INLINE SSchJob *schAcquireJob(int64_t refId) { qDebug("sch acquire jobId:0x%"PRIx64, refId); return (SSchJob *)taosAcquireRef(schMgmt.jobRef, refId); }
-
-FORCE_INLINE int32_t schReleaseJob(int64_t refId) { qDebug("sch release jobId:0x%"PRIx64, refId); return taosReleaseRef(schMgmt.jobRef, refId); }
-
-
 void schUpdateJobErrCode(SSchJob *pJob, int32_t errCode) {
   if (TSDB_CODE_SUCCESS == errCode) {
     return;
@@ -365,7 +360,7 @@ _return:
 }
 
 
-int32_t schSetJobQueryRes(SSchJob* pJob, SQueryResult* pRes) {
+int32_t schDumpJobExecRes(SSchJob* pJob, SQueryResult* pRes) {
   pRes->code = atomic_load_32(&pJob->errCode);
   pRes->numOfRows = pJob->resNumOfRows;
   pRes->res = pJob->execRes;
@@ -374,7 +369,7 @@ int32_t schSetJobQueryRes(SSchJob* pJob, SQueryResult* pRes) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schSetJobFetchRes(SSchJob* pJob, void** pData) {
+int32_t schDumpJobFetchRes(SSchJob* pJob, void** pData) {
   int32_t code = 0;
   if (pJob->resData && ((SRetrieveTableRsp *)pJob->resData)->completed) {
     SCH_ERR_RET(schUpdateJobStatus(pJob, JOB_TASK_STATUS_SUCC));
@@ -407,14 +402,14 @@ int32_t schSetJobFetchRes(SSchJob* pJob, void** pData) {
 int32_t schNotifyUserExecRes(SSchJob* pJob) {
   SQueryResult* pRes = taosMemoryCalloc(1, sizeof(SQueryResult));
   if (pRes) {
-    schSetJobQueryRes(pJob, pRes);
+    schDumpJobExecRes(pJob, pRes);
   }
 
   schEndOperation(pJob);
 
   SCH_JOB_DLOG("sch start to invoke exec cb, code: %s", tstrerror(pJob->errCode));
   (*pJob->userRes.execFp)(pRes, pJob->userRes.userParam, atomic_load_32(&pJob->errCode));
-  SCH_JOB_DLOG("sch end from query cb, code: %s", tstrerror(pJob->errCode));
+  SCH_JOB_DLOG("sch end from exec cb, code: %s", tstrerror(pJob->errCode));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -422,7 +417,7 @@ int32_t schNotifyUserExecRes(SSchJob* pJob) {
 int32_t schNotifyUserFetchRes(SSchJob* pJob) {
   void* pRes = NULL;
   
-  schSetJobFetchRes(pJob, &pRes);
+  schDumpJobFetchRes(pJob, &pRes);
 
   schEndOperation(pJob);
 
@@ -473,7 +468,8 @@ int32_t schProcessOnJobFailureImpl(SSchJob *pJob, int32_t status, int32_t errCod
 
 // Note: no more task error processing, handled in function internal
 int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode) {
-  SCH_RET(schProcessOnJobFailureImpl(pJob, JOB_TASK_STATUS_FAIL, errCode));
+  schProcessOnJobFailureImpl(pJob, JOB_TASK_STATUS_FAIL, errCode);
+  return TSDB_CODE_SUCCESS;
 }
 
 // Note: no more error processing, handled in function internal
@@ -663,7 +659,7 @@ int32_t schJobFetchRows(SSchJob *pJob) {
     tsem_wait(&pJob->rspSem);
   }
 
-  SCH_ERR_JRET(schSetJobFetchRes(pJob, pJob->userRes.fetchRes));
+  SCH_ERR_JRET(schDumpJobFetchRes(pJob, pJob->userRes.fetchRes));
 
 _return:
 
@@ -850,27 +846,7 @@ _return:
   SCH_RET(code);
 }
 
-
-int32_t schJobStatusEnter(SSchJob** job, int32_t status, void* param) {
-  SCH_ERR_RET(schUpdateJobStatus(*job, status));
-
-  switch (status) {
-    case JOB_TASK_STATUS_INIT:
-      SCH_RET(schInitJob(job, param));
-    case JOB_TASK_STATUS_EXEC:
-      SCH_RET(schExecJob(job, param));
-    case JOB_TASK_STATUS_PART_SUCC:
-    default: {
-      SSchJob* pJob = *job;
-      SCH_JOB_ELOG("enter unknown job status %d", status);
-      SCH_RET(TSDB_CODE_SCH_STATUS_ERROR);
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t schJobHandleEvent(SSchJob* pJob, SSchEvent* pEvent) {
+int32_t schHandleJobEvent(SSchJob* pJob, SSchEvent* pEvent) {
   switch (pEvent->event) {
     case SCH_EVENT_BEGIN_OP:
       schProcessOnOpBegin(pJob, pEvent);

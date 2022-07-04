@@ -41,8 +41,34 @@ SSchStatusFps gSchTaskFps[JOB_TASK_STATUS_MAX] = {
   {JOB_TASK_STATUS_DROP,      schTaskStatusNullEnter, schTaskStatusNullLeave, schTaskStatusNullEvent},
 };
 
-int32_t schSwitchJobStatus(int32_t status, SSchJob* pJob, void* pParam) {
-  schJobStatusEnter(pJob, status, pParam);
+int32_t schSwitchJobStatus(SSchJob** job, int32_t status, void* param) {
+  SCH_ERR_RET(schUpdateJobStatus(*job, status));
+
+  switch (status) {
+    case JOB_TASK_STATUS_INIT:
+      SCH_RET(schInitJob(job, param));
+    case JOB_TASK_STATUS_EXEC:
+      SCH_RET(schExecJob(job, param));
+    case JOB_TASK_STATUS_PART_SUCC:
+    default: {
+      SSchJob* pJob = *job;
+      SCH_JOB_ELOG("enter unknown job status %d", status);
+      SCH_RET(TSDB_CODE_SCH_STATUS_ERROR);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t schHandleOpBeginEvent(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq) {
+  SSchEvent event = {0};
+  event.event = SCH_EVENT_BEGIN_OP;
+  SSchOpEvent opEvent = {0};
+  opEvent.type = type;
+  opEvent.begin = true;
+  opEvent.pReq = pReq;
+
+  SCH_ERR_RET(schHandleJobEvent(pJob, &event));
 }
 
 
