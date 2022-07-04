@@ -16,6 +16,7 @@ import taos
 from util.log import *
 from util.cases import *
 from util.sql import *
+from util.dnodes import *
 import numpy as np
 
 
@@ -156,7 +157,25 @@ class TDTestCase:
         tdSql.error("select diff(col) from st group by dev")        
 
         tdSql.error("select diff(col) from st group by col")
-        
+
+        # TS-1612
+        os.system("tar -zxf %s/functions/data.tar.gz" % os.getcwd())
+        tdSql.execute("create database radb")
+        tdSql.execute("use radb")
+        tdSql.execute("CREATE TABLE `vehicle_automode` (`time` TIMESTAMP,`auto_ctl_odom` INT) TAGS (`mac_address` BINARY(30))")
+        tdSql.execute("CREATE TABLE `va_00545a230327` USING `vehicle_automode` TAGS ('00545a230327')")
+        tdSql.execute("insert into va_00545a230327 file 'data/va_00545a230327.csv' ")
+        tdSql.query("select * from vehicle_automode")
+        rows = tdSql.queryRows
+        tdSql.query("select diff(auto_ctl_odom,1) as aco from radb.vehicle_automode GROUP BY tbname")
+        tdSql.checkRows(rows - 1)
+        os.system("rm -rf data")
+
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+        tdSql.query("select diff(auto_ctl_odom,1) as aco from radb.vehicle_automode GROUP BY tbname")
+        tdSql.checkRows(rows - 1)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

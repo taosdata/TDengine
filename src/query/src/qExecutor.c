@@ -1588,6 +1588,8 @@ static bool initGroupbyInfo(const SSDataBlock *pSDataBlock, const SGroupbyExpr *
     return true;
   }
   pInfo->pGroupbyDataInfo = taosArrayInit(pGroupbyExpr->numOfGroupCols, sizeof(SGroupbyDataInfo));
+  // head put key length (int32_t type)
+  pInfo->totalBytes = sizeof(int32_t);
 
   for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols; ++k) {
     SColIndex* pColIndex = taosArrayGet(pGroupbyExpr->columnInfo, k);
@@ -1624,7 +1626,8 @@ static void buildGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorI
     *buf = NULL;
     return;
   }
-  *buf  = p;
+  *buf = p;
+  p += sizeof(int32_t); 
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pGroupbyDataInfo); i++) {
     SGroupbyDataInfo *pDataInfo = taosArrayGet(pInfo->pGroupbyDataInfo, i);
 
@@ -1646,26 +1649,22 @@ static void buildGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorI
     memcpy(p, MULTI_KEY_DELIM, strlen(MULTI_KEY_DELIM));
     p += strlen(MULTI_KEY_DELIM);
   }
+
+  // calc keyLen and save
+  int32_t keyLen = (p - *buf) - sizeof(int32_t);
+  *(int32_t *)(*buf) = keyLen;
 }
 
 static bool isGroupbyKeyEqual(void *a, void *b, void *ext) {
-  SGroupbyOperatorInfo *pInfo = (SGroupbyOperatorInfo *)ext;
-  if (memcmp(a, b, pInfo->totalBytes) == 0) {
-    return true;
+  int32_t len1 = *(int32_t *)a;
+  int32_t len2 = *(int32_t *)b;
+  if (len1 != len2) {
+    return false;
   }
-  int32_t offset = 0;
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pGroupbyDataInfo); i++) {
-    SGroupbyDataInfo *pDataInfo = taosArrayGet(pInfo->pGroupbyDataInfo, i);
+  char *a1 = (char *)a + sizeof(int32_t);
+  char *b1 = (char *)b + sizeof(int32_t);
 
-    char *k1 = (char *)a + offset;
-    char *k2 = (char *)b + offset;
-    if (getComparFunc(pDataInfo->type, 0)(k1, k2) != 0) {
-       return false;
-    }
-    offset += pDataInfo->bytes;
-    offset += (int32_t)strlen(MULTI_KEY_DELIM);
-  }
-  return true;
+  return memcmp(a1, b1, len1) == 0;
 }
 
 static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pInfo, SSDataBlock *pSDataBlock) {
@@ -1708,12 +1707,15 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
       setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, pInfo);
     }
 
-    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, pInfo->prevData, type, pInfo->totalBytes, item->groupIndex);
+    char *preKey = pInfo->prevData + sizeof(int32_t);
+    int32_t keyLen = *(int32_t *)pInfo->prevData;
+    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, preKey, type, keyLen, item->groupIndex);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
       longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
     }
 
-    doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, j - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
+    int32_t offset = QUERY_IS_ASC_QUERY(pQueryAttr) ? j - num : j - 1;
+    doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, offset, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
 
     num = 1;
 
@@ -1729,11 +1731,14 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
       if (pQueryAttr->stableQuery && pQueryAttr->stabledev && (pRuntimeEnv->prevResult != NULL)) {
         setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, pInfo);
       }
-      int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, pInfo->prevData, type, pInfo->totalBytes, item->groupIndex);
+      char *preKey = pInfo->prevData + sizeof(int32_t);
+      int32_t keyLen = *(int32_t *)pInfo->prevData;
+      int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, preKey, type, keyLen, item->groupIndex);
       if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
       }
-      doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, pSDataBlock->info.rows - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
+      int32_t offset = QUERY_IS_ASC_QUERY(pQueryAttr) ? pSDataBlock->info.rows - num : pSDataBlock->info.rows - 1;
+      doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, offset, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
     }
   }
 
@@ -4310,14 +4315,15 @@ void setParamForStableStddevByColData(SQueryRuntimeEnv* pRuntimeEnv, SQLFunction
     // find colid in dataBlock
     int32_t bytes, offset = 0;
     char*   val = NULL;
+    char* prevData = pInfo->prevData + sizeof(int32_t); // head is key length (int32_t type)
     for (int32_t idx = 0; idx < taosArrayGetSize(pInfo->pGroupbyDataInfo); idx++) {
       SGroupbyDataInfo *pDataInfo = taosArrayGet(pInfo->pGroupbyDataInfo, idx);
       if (pDataInfo->index == pExpr1->colInfo.colId) {
         bytes = pDataInfo->bytes;
-        val   = pInfo->prevData + offset;
+        val   = prevData + offset;
         break;
       }
-      offset += pDataInfo->bytes;
+      offset += pDataInfo->bytes + strlen(MULTI_KEY_DELIM); // multi value split by MULTI_KEY_DELIM
     }
     if (val == NULL) { continue; }
 

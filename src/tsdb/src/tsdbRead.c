@@ -986,7 +986,7 @@ static SMemRow getSMemRowInTableMem(STableCheckInfo* pCheckInfo, int32_t order, 
       return rmem;
     } else {
       pCheckInfo->chosen = CHECKINFO_CHOSEN_BOTH;
-      extraRow = rimem;
+      *extraRow = rimem;
       return rmem;
     }
   } else {
@@ -1298,7 +1298,7 @@ static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, int6
             range.from = i;
           }
         }
-        range.to = 0;
+        range.to = sblock;
         taosArrayPush(pArray, &range);
         range.from = -1;
         break;
@@ -1314,7 +1314,7 @@ static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, int6
       if(range.from == -1) {
         range.from = i;
       } else {
-        if(range.to + 1 != i) {
+        if(range.to - 1 != i) {
           // add the previous
           taosArrayPush(pArray, &range);
           range.from = i;
@@ -1359,15 +1359,16 @@ static void shrinkBlocksByQuery(STsdbQueryHandle *pQueryHandle, STableCheckInfo 
   SBlockIdx  *compIndex = pQueryHandle->rhelper.pBlkIdx;
   bool order = ASCENDING_TRAVERSE(pQueryHandle->order);
 
+  TSKEY s = TSKEY_INITIAL_VAL, e = TSKEY_INITIAL_VAL;
   if (order) {
     assert(pCheckInfo->lastKey <= pQueryHandle->window.ekey && pQueryHandle->window.skey <= pQueryHandle->window.ekey);
+    s = pQueryHandle->window.skey;
+    e = pQueryHandle->window.ekey;
   } else {
     assert(pCheckInfo->lastKey >= pQueryHandle->window.ekey && pQueryHandle->window.skey >= pQueryHandle->window.ekey);
+    e = pQueryHandle->window.skey;
+    s = pQueryHandle->window.ekey;
   }
-
-  TSKEY s = TSKEY_INITIAL_VAL, e = TSKEY_INITIAL_VAL;
-  s = MIN(pCheckInfo->lastKey, pQueryHandle->window.ekey);
-  e = MAX(pCheckInfo->lastKey, pQueryHandle->window.ekey);
 
   // discard the unqualified data block based on the query time window
   int32_t start = binarySearchForBlock(pCompInfo->blocks, compIndex->numOfBlocks, s, TSDB_ORDER_ASC);
@@ -1653,7 +1654,9 @@ static int32_t loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SBlock* pBlock,
 
   if (asc) {
     // query ended in/started from current block
-    if (pQueryHandle->window.ekey < pBlock->keyLast || pCheckInfo->lastKey > pBlock->keyFirst) {
+    if ((pQueryHandle->window.ekey < pBlock->keyLast || pCheckInfo->lastKey > pBlock->keyFirst )
+         && pCheckInfo->lastKey <= pBlock->keyLast) {
+      // if mem lastKey > block lastKey , should deal with handleDatamergeIfNeed
       if ((code = doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo, cur->slot)) != TSDB_CODE_SUCCESS) {
         *exists = false;
         return code;
@@ -1669,10 +1672,9 @@ static int32_t loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SBlock* pBlock,
         cur->pos = 0;
       }
 
-      assert(pCheckInfo->lastKey <= pBlock->keyLast);
       doMergeTwoLevelData(pQueryHandle, pCheckInfo, pBlock);
     } else {  // the whole block is loaded in to buffer
-      cur->pos = asc? 0:(pBlock->numOfRows - 1);
+      cur->pos = 0;
       code = handleDataMergeIfNeeded(pQueryHandle, pBlock, pCheckInfo);
     }
   } else {  //desc order, query ended in current block
@@ -1692,7 +1694,7 @@ static int32_t loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SBlock* pBlock,
       assert(pCheckInfo->lastKey >= pBlock->keyFirst);
       doMergeTwoLevelData(pQueryHandle, pCheckInfo, pBlock);
     } else {
-      cur->pos = asc? 0:(pBlock->numOfRows-1);
+      cur->pos = pBlock->numOfRows - 1;
       code = handleDataMergeIfNeeded(pQueryHandle, pBlock, pCheckInfo);
     }
   }

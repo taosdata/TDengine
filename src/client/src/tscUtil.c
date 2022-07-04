@@ -3068,6 +3068,12 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
       }
     }
 
+    if (escapeEnabled && pToken->type == TK_ID) {
+      if (pToken->z[0] == TS_BACKQUOTE_CHAR) {
+        pToken->n = stringProcess(pToken->z, pToken->n);
+        firstPartQuote = true;
+      }
+    }
     int32_t firstPartLen = pToken->n;
 
     pToken->z = sep + 1;
@@ -4236,7 +4242,8 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     tscAddIntoSqlList(pSql);
   }
 
-  if (taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // nest query. do execute it firstly
+  // upstream may be freed before retry
+  if (pQueryInfo->pUpstream && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // nest query. do execute it firstly
     code = doInitSubState(pSql, (int32_t) taosArrayGetSize(pQueryInfo->pUpstream));
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;

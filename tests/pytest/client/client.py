@@ -15,6 +15,7 @@ import sys
 from util.log import *
 from util.cases import *
 from util.sql import *
+import os
 
 from datetime import timedelta
 
@@ -49,7 +50,7 @@ class TDTestCase:
 
         ret = tdSql.query('show mnodes')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 2, "master")
+        tdSql.checkData(0, 2, "leader")
 
         role_time = tdSql.getData(0, 3)
         create_time = tdSql.getData(0, 4)
@@ -72,7 +73,15 @@ class TDTestCase:
         ret = tdSql.query('show vnodes "{}"'.format(dnodeEndpoint))
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 2)
-        tdSql.checkData(0, 1, "master")
+        tdSql.checkData(0, 1, "leader")
+        
+        cmd = "taos -h 127.0.0.1 -s 'show databases'"        
+        r = os.popen(cmd)
+        text = r.read()
+        r.close
+
+        if 'Unable to establish connection' in text:
+            tdLog.exit("%s failed: command 'taos -h 127.0.0.1' Unable to establish connection" % __file__)
 
     def stop(self):
         tdSql.close()

@@ -1,20 +1,4 @@
 #!/bin/bash
-#
-# Modified from original source: Elastic Search
-# https://github.com/elasticsearch/elasticsearch
-# Thank you to the Elastic Search authors
-#
-# chkconfig: 2345 99 01
-#
-### BEGIN INIT INFO
-# Provides:          TDengine
-# Required-Start:    $local_fs $network $syslog
-# Required-Stop:     $local_fs $network $syslog
-# Default-Start:     2 3 4 5
-# Default-Stop:      0 1 6
-# Short-Description: Starts TDengine taosd
-# Description:       Starts TDengine taosd, a time-series database engine
-### END INIT INFO
 
 set -e
 

@@ -88,6 +88,23 @@ class TDTestCase:
         tdSql.query("select count(*) from tb group by c1")
         tdSql.checkRows(0)
         
+        # TS-1619
+        tdSql.execute("create database test")
+        tdSql.execute("use test")
+        tdSql.execute("create table stb(ts timestamp, c1 int, c2 nchar(30)) tags(t1 int)")
+        for i in range(3):
+            tdSql.execute("create table t%d using stb tags(%d)" % (i, i))
+            sql = "insert into t%d values " % i
+            for j in range(16):
+                if j % 4 == 0:
+                    s = '00'
+                else:
+                    s = str (j % 4 * 15)
+                sql += "(%d, %d, '2022-06-01 0%d:%s')" % (self.ts + j, i, int( j / 4 ), s)
+            tdSql.execute(sql)
+
+        tdSql.query("select c2, sum(c1) from stb group by c2")
+        tdSql.checkRows(16)
         
     def stop(self):
         tdSql.close()
