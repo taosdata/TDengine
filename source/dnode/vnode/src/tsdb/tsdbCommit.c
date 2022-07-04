@@ -327,10 +327,8 @@ static int32_t tsdbCommitterUpdateTableSchema(SCommitter *pCommitter, int64_t su
   pCommitter->skmTable.suid = suid;
   pCommitter->skmTable.uid = uid;
   tTSchemaDestroy(pCommitter->skmTable.pTSchema);
-  pCommitter->skmTable.pTSchema = metaGetTbTSchema(pCommitter->pTsdb->pVnode->pMeta, uid, sver);
-  if (pCommitter->skmTable.pTSchema == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-  }
+  code = metaGetTbTSchemaEx(pCommitter->pTsdb->pVnode->pMeta, suid, uid, sver, &pCommitter->skmTable.pTSchema);
+  if (code) goto _exit;
 
 _exit:
   return code;
@@ -352,9 +350,9 @@ static int32_t tsdbCommitterUpdateRowSchema(SCommitter *pCommitter, int64_t suid
   pCommitter->skmRow.suid = suid;
   pCommitter->skmRow.uid = uid;
   tTSchemaDestroy(pCommitter->skmRow.pTSchema);
-  pCommitter->skmRow.pTSchema = metaGetTbTSchema(pCommitter->pTsdb->pVnode->pMeta, uid, sver);
-  if (pCommitter->skmRow.pTSchema == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+  code = metaGetTbTSchemaEx(pCommitter->pTsdb->pVnode->pMeta, suid, uid, sver, &pCommitter->skmRow.pTSchema);
+  if (code) {
+    goto _exit;
   }
 
 _exit:
