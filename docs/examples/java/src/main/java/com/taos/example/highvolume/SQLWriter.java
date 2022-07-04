@@ -17,7 +17,7 @@ import java.util.Map;
  * <p>
  * The main interfaces are two methods:
  * <ol>
- *     <li>{@link SQLWriter#processLine}, which receive raw data from WriteTask and group raw data by table names.</li>
+ *     <li>{@link SQLWriter#processLine}, which receive raw lines from WriteTask and group them by table names.</li>
  *     <li>{@link  SQLWriter#flush}, which assemble INSERT statement and execute it.</li>
  * </ol>
  * <p>

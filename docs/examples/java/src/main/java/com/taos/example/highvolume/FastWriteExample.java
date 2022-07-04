@@ -58,7 +58,7 @@ class DataBaseMonitor {
 public class FastWriteExample {
     final static Logger logger = LoggerFactory.getLogger(FastWriteExample.class);
 
-    final static int taskQueueCapacity = Integer.MAX_VALUE / 100;
+    final static int taskQueueCapacity = 10000000;
     final static List<BlockingQueue<String>> taskQueues = new ArrayList<>();
     final static List<ReadTask> readTasks = new ArrayList<>();
     final static List<WriteTask> writeTasks = new ArrayList<>();
@@ -73,8 +73,12 @@ public class FastWriteExample {
 
     public static void main(String[] args) throws InterruptedException, SQLException {
         int readTaskCount = args.length > 0 ? Integer.parseInt(args[0]) : 1;
-        int writeTaskCount = args.length > 1 ? Integer.parseInt(args[1]) : 1;
-        logger.info("readTaskCount={}, writeTaskCount={}", readTaskCount, writeTaskCount);
+        int writeTaskCount = args.length > 1 ? Integer.parseInt(args[1]) : 3;
+        int tableCount = args.length > 2 ? Integer.parseInt(args[2]) : 1000;
+        int maxBatchSize = args.length > 3 ? Integer.parseInt(args[3]) : 3000;
+
+        logger.info("readTaskCount={}, writeTaskCount={} tableCount={} maxBatchSize={}",
+                readTaskCount, writeTaskCount, tableCount, maxBatchSize);
 
         databaseMonitor.init().prepareDatabase();
 
@@ -82,15 +86,16 @@ public class FastWriteExample {
         for (int i = 0; i < writeTaskCount; ++i) {
             BlockingQueue<String> queue = new ArrayBlockingQueue<>(taskQueueCapacity);
             taskQueues.add(queue);
-            WriteTask task = new WriteTask(queue);
+            WriteTask task = new WriteTask(queue, maxBatchSize);
             Thread t = new Thread(task);
             t.setName("WriteThread-" + i);
             t.start();
         }
 
         // create reading tasks and start reading threads
+        int tableCountPerTask = tableCount / readTaskCount;
         for (int i = 0; i < readTaskCount; ++i) {
-            ReadTask task = new ReadTask(i, taskQueues);
+            ReadTask task = new ReadTask(i, taskQueues, tableCountPerTask);
             Thread t = new Thread(task);
             t.setName("ReadThread-" + i);
             t.start();
@@ -102,7 +107,7 @@ public class FastWriteExample {
         while (true) {
             Thread.sleep(10000);
             long count = databaseMonitor.count();
-            logger.info("total_count={} speed={}", count, (count - lastCount) / 10);
+            logger.info("count={} speed={}", count, (count - lastCount) / 10);
             lastCount = count;
         }
     }
