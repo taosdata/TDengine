@@ -24,8 +24,8 @@ from taostest.performance.result_reduction import Perf_Base_func
 class StreamComputingPerfTest(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", 
-            "avg(c7)", "count(c8)", "spread(c1)", "stddev(c2)", "hyperloglog(c9)", "timetruncate(now, 1a)", "now"]
+        self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", 
+            "avg(c7)", "count(c8)", "spread(c1)", "stddev(c2)", "hyperloglog(c9)", "now"]
         self.output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list)))
         self.source_select_str = ','.join(self.downsampling_function_list)
         self.stb_name = "stb"
@@ -56,7 +56,6 @@ class StreamComputingPerfTest(TDCase):
 
         test_root = os.environ['TEST_ROOT']
         cfg = read_yaml(test_root + "/cases/Performance/stream_computing/insert.yaml")
-        print(cfg)
         jfile = InsertFile()
         Insert_file = Perf_Base_func(self.logger, self.run_log_dir)
         for cases in cfg:
@@ -140,7 +139,7 @@ class StreamComputingPerfTest(TDCase):
             f.write(
                 "-------- \tinsert\t" + str(cases) + ":\tinsert result--------\n")
             f.close()
-            # timestamp_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+            timestamp_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
             # # run taosBenchmark
             if "stream_info" in cfg[cases][json_file]:
                 pass
@@ -160,12 +159,24 @@ class StreamComputingPerfTest(TDCase):
             taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
             result_filename = Insert_file.threads_run_taosBenchmark(taosBenchmark_iplist, json_data, file_name,taosBenchmark_env_setting)
             timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-            # # get insert result
-            # # Insert_file.full_create_tb_result(result_filename)
-            # Insert_file.taosBenchmark_insert_summary_result(result_filename)
-            # Insert_file.taosBenchmark_id_insert_result(result_filename)
+            # get insert result
+            # Insert_file.full_create_tb_result(result_filename)
+            Insert_file.taosBenchmark_insert_summary_result(result_filename, version="3.0")
+            Insert_file.taosBenchmark_id_insert_result(result_filename)
 
-            # # get node_info and process_info
-            # env_setting = self.get_component_by_name("prometheus")
-            # Insert_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
-            # Insert_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
+            # get node_info and process_info
+            env_setting = self.get_component_by_name("prometheus")
+            Insert_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
+            Insert_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
+            f = open(result_file_name, 'a')
+            f.write(f'--------{cases}---- \select max(cast(c10 as bigint))  from {db["name"]}.stb;\t--------\n')
+            self.tdSql.query(f'select max(cast(c10 as bigint))  from {db["name"]}.stb;')
+            f.write(str(self.tdSql.query_data[0][0]))
+            f.write(f'\n\n')
+
+            f.write(f'--------{cases}---- \select cast(last(`now`) as bigint) from {db["name"]}.{cases}{self.des_table_suffix}_streamtb;\t--------\n')
+            self.tdSql.query(f'select cast(last(`now`) as bigint) from {db["name"]}.{cases}{self.des_table_suffix}_streamtb;')
+            f.write(str(self.tdSql.query_data[0][0]))
+            f.write(f'\n\n')
+            f.close()
+            
