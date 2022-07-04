@@ -166,9 +166,9 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb-1ctb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb-1ctb-funcNFilter.py
-#python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb-funcNFilter.py
+python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
-#python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
+python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
 
