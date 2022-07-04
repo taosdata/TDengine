@@ -163,8 +163,8 @@ int32_t vnodeSnapReaderClose(SVSnapReader *pReader);
 int32_t vnodeSnapRead(SVSnapReader *pReader, const void **ppData, uint32_t *nData);
 // SVSnapWriter;
 int32_t vnodeSnapshotWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter);
-int32_t vnodeSnapshotWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData);
 int32_t vnodeSnapshotWriterClose(SVSnapWriter *pWriter, int8_t rollback);
+int32_t vnodeSnapshotWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData);
 
 // structs
 struct STsdbCfg {
