@@ -160,7 +160,6 @@ class StreamComputingPerfTest(TDCase):
             taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
             result_filename = Insert_file.threads_run_taosBenchmark(taosBenchmark_iplist, json_data, file_name,taosBenchmark_env_setting)
             timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-
             # # get insert result
             # # Insert_file.full_create_tb_result(result_filename)
             # Insert_file.taosBenchmark_insert_summary_result(result_filename)
