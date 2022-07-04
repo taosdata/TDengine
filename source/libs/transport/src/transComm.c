@@ -480,10 +480,6 @@ bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
   }
   return true;
 }
-static int32_t transGetRefMgt() {
-  //
-  return refMgt;
-}
 
 static void transInitEnv() {
   refMgt = transOpenRefMgt(50000, transDestoryExHandle);
@@ -517,11 +513,11 @@ void transCloseRefMgt(int32_t mgt) {
 }
 int64_t transAddExHandle(int32_t refMgt, void* p) {
   // acquire extern handle
-  return taosAddRef(transGetRefMgt(), p);
+  return taosAddRef(refMgt, p);
 }
 int32_t transRemoveExHandle(int32_t refMgt, int64_t refId) {
   // acquire extern handle
-  return taosRemoveRef(transGetRefMgt(), refId);
+  return taosRemoveRef(refMgt, refId);
 }
 
 void* transAcquireExHandle(int32_t refMgt, int64_t refId) {
@@ -531,7 +527,7 @@ void* transAcquireExHandle(int32_t refMgt, int64_t refId) {
 
 int32_t transReleaseExHandle(int32_t refMgt, int64_t refId) {
   // release extern handle
-  return taosReleaseRef(transGetRefMgt(), refId);
+  return taosReleaseRef(refMgt, refId);
 }
 void transDestoryExHandle(void* handle) {
   if (handle == NULL) {
