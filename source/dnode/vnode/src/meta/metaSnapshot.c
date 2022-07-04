@@ -15,53 +15,57 @@
 
 #include "meta.h"
 
+// SMetaSnapReader ========================================
 struct SMetaSnapReader {
   SMeta*  pMeta;
-  TBC*    pTbc;
   int64_t sver;
   int64_t ever;
+  TBC*    pTbc;
 };
 
 int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapReader** ppReader) {
   int32_t          code = 0;
   int32_t          c = 0;
-  SMetaSnapReader* pMetaReader = NULL;
+  SMetaSnapReader* pMetaSnapReader = NULL;
 
-  pMetaReader = (SMetaSnapReader*)taosMemoryCalloc(1, sizeof(*pMetaReader));
-  if (pMetaReader == NULL) {
+  // alloc
+  pMetaSnapReader = (SMetaSnapReader*)taosMemoryCalloc(1, sizeof(*pMetaSnapReader));
+  if (pMetaSnapReader == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-  pMetaReader->pMeta = pMeta;
-  pMetaReader->sver = sver;
-  pMetaReader->ever = ever;
-  code = tdbTbcOpen(pMeta->pTbDb, &pMetaReader->pTbc, NULL);
+  pMetaSnapReader->pMeta = pMeta;
+  pMetaSnapReader->sver = sver;
+  pMetaSnapReader->ever = ever;
+
+  // impl
+  code = tdbTbcOpen(pMeta->pTbDb, &pMetaSnapReader->pTbc, NULL);
   if (code) {
     goto _err;
   }
 
-  code = tdbTbcMoveTo(pMetaReader->pTbc, &(STbDbKey){.version = sver, .uid = INT64_MIN}, sizeof(STbDbKey), &c);
+  code = tdbTbcMoveTo(pMetaSnapReader->pTbc, &(STbDbKey){.version = sver, .uid = INT64_MIN}, sizeof(STbDbKey), &c);
   if (code) {
     goto _err;
   }
 
-  *ppReader = pMetaReader;
+  *ppReader = pMetaSnapReader;
   return code;
 
 _err:
+  metaError("vgId:%d meta snap reader open failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
   *ppReader = NULL;
   return code;
 }
 
-int32_t metaSnapReaderClose(SMetaSnapReader* pReader) {
-  if (pReader) {
-    tdbTbcClose(pReader->pTbc);
-    taosMemoryFree(pReader);
-  }
+int32_t metaSnapReaderClose(SMetaSnapReader** ppReader) {
+  tdbTbcClose((*ppReader)->pTbc);
+  taosMemoryFree(*ppReader);
+  *ppReader = NULL;
   return 0;
 }
 
-int32_t metaSnapRead(SMetaSnapReader* pReader, void** ppData, uint32_t* nDatap) {
+int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData, int64_t* nDatap) {
   const void* pKey = NULL;
   const void* pData = NULL;
   int32_t     nKey = 0;
@@ -82,7 +86,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, void** ppData, uint32_t* nDatap) 
   }
 
   // copy the data
-  if (vnodeRealloc(ppData, nData) < 0) {
+  if (tRealloc(ppData, nData) < 0) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     return code;
   }
@@ -91,3 +95,5 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, void** ppData, uint32_t* nDatap) 
   *nDatap = nData;
   return code;
 }
+
+// SMetaSnapWriter ========================================

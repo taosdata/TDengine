@@ -59,7 +59,9 @@ typedef struct SVBufPool       SVBufPool;
 typedef struct SQWorker        SQHandle;
 typedef struct STsdbKeepCfg    STsdbKeepCfg;
 typedef struct SMetaSnapReader SMetaSnapReader;
+typedef struct SMetaSnapWriter SMetaSnapWriter;
 typedef struct STsdbSnapReader STsdbSnapReader;
+typedef struct STsdbSnapWriter STsdbSnapWriter;
 
 #define VNODE_META_DIR  "meta"
 #define VNODE_TSDB_DIR  "tsdb"
@@ -72,10 +74,8 @@ typedef struct STsdbSnapReader STsdbSnapReader;
 #define VNODE_RSMA2_DIR "rsma2"
 
 // vnd.h
-void*   vnodeBufPoolMalloc(SVBufPool* pPool, int size);
-void    vnodeBufPoolFree(SVBufPool* pPool, void* p);
-int32_t vnodeRealloc(void** pp, int32_t size);
-void    vnodeFree(void* p);
+void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
+void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
 
 // meta
 typedef struct SMCtbCursor SMCtbCursor;
@@ -109,9 +109,6 @@ STSma*          metaGetSmaInfoByIndex(SMeta* pMeta, int64_t indexUid);
 STSmaWrapper*   metaGetSmaInfoByTable(SMeta* pMeta, tb_uid_t uid, bool deepCopy);
 SArray*         metaGetSmaIdsByTable(SMeta* pMeta, tb_uid_t uid);
 SArray*         metaGetSmaTbUids(SMeta* pMeta);
-int32_t         metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapReader** ppReader);
-int32_t         metaSnapReaderClose(SMetaSnapReader* pReader);
-int32_t         metaSnapRead(SMetaSnapReader* pReader, void** ppData, uint32_t* nData);
 void*           metaGetIdx(SMeta* pMeta);
 void*           metaGetIvtIdx(SMeta* pMeta);
 int             metaTtlSmaller(SMeta* pMeta, uint64_t time, SArray* uidList);
@@ -131,9 +128,6 @@ int32_t     tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitMsgIter* p
 int32_t     tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 STsdbReader tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
                                 void* pMemRef);
-int32_t     tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapReader** ppReader);
-int32_t     tsdbSnapReaderClose(STsdbSnapReader* pReader);
-int32_t     tsdbSnapRead(STsdbSnapReader* pReader, void** ppData, uint32_t* nData);
 
 // tq
 int     tqInit();
@@ -180,6 +174,16 @@ int32_t tdUpdateTbUidList(SSma* pSma, STbUidStore* pUidStore);
 void    tdUidStoreDestory(STbUidStore* pStore);
 void*   tdUidStoreFree(STbUidStore* pStore);
 
+// SMetaSnapReader ========================================
+int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapReader** ppReader);
+int32_t metaSnapReaderClose(SMetaSnapReader** ppReader);
+int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData, int64_t* nDatap);
+// SMetaSnapWriter ========================================
+// STsdbSnapReader ========================================
+int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapReader** ppReader);
+int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader);
+int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData, int64_t* nData);
+// STsdbSnapWriter ========================================
 typedef struct {
   int8_t  streamType;  // sma or other
   int8_t  dstType;

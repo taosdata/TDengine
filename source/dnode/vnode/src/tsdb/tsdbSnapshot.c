@@ -15,6 +15,7 @@
 
 #include "tsdb.h"
 
+// STsdbSnapReader ========================================
 struct STsdbSnapReader {
   STsdb*  pTsdb;
   int64_t sver;
@@ -59,7 +60,7 @@ _err:
   return code;
 }
 
-int32_t tsdbSnapRead(STsdbSnapReader* pReader, void** ppData, uint32_t* nData) {
+int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData, int64_t* nData) {
   int32_t code = 0;
 
   // read data file
@@ -73,8 +74,8 @@ _err:
   return code;
 }
 
-int32_t tsdbSnapReaderClose(STsdbSnapReader* pReader) {
+int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
   int32_t code = 0;
-  taosMemoryFree(pReader);
+  taosMemoryFree(ppReader);
   return code;
 }
