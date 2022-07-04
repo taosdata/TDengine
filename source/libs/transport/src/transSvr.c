@@ -400,10 +400,11 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
       destroyConnRegArg(pConn);
       transUnrefSrvHandle(pConn);
     } else {
-      pHead->msgType = pMsg->msgType;
-      // set up resp msg type
-      if (pHead->msgType == 0 && transMsgLenFromCont(pMsg->contLen) == sizeof(STransMsgHead))
+      if (pMsg->msgType == 0) {
         pHead->msgType = pConn->inType + 1;
+      } else {
+        pHead->msgType = pMsg->msgType + 1;
+      }
     }
   }
 
