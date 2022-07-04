@@ -483,9 +483,10 @@ typedef struct SyncSnapshotSend {
   SRaftId  destId;
 
   SyncTerm  term;
-  SyncIndex lastIndex;  // lastIndex of snapshot
-  SyncTerm  lastTerm;   // lastTerm of snapshot
-  SyncIndex lastConfigIndex;
+  SyncIndex beginIndex;       // snapshot.beginIndex
+  SyncIndex lastIndex;        // snapshot.lastIndex
+  SyncTerm  lastTerm;         // snapshot.lastTerm
+  SyncIndex lastConfigIndex;  // snapshot.lastConfigIndex
   SSyncCfg  lastConfig;
   SyncTerm  privateTerm;
   int32_t   seq;

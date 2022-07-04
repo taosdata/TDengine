@@ -2254,6 +2254,9 @@ cJSON* syncSnapshotSend2Json(const SyncSnapshotSend* pMsg) {
     snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->privateTerm);
     cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
 
+    snprintf(u64buf, sizeof(u64buf), "%ld", pMsg->beginIndex);
+    cJSON_AddStringToObject(pRoot, "beginIndex", u64buf);
+
     snprintf(u64buf, sizeof(u64buf), "%ld", pMsg->lastIndex);
     cJSON_AddStringToObject(pRoot, "lastIndex", u64buf);
 

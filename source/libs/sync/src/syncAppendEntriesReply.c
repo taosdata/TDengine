@@ -118,12 +118,12 @@ static void syncNodeStartSnapshot(SSyncNode* ths, SyncIndex beginIndex, SyncInde
   SSnapshot snapshot = {
       .data = NULL, .lastApplyIndex = endIndex, .lastApplyTerm = lastApplyTerm, .lastConfigIndex = SYNC_INDEX_INVALID};
 
-  void*        pReader = NULL;
-  SReaderParam readerParam = {.start = beginIndex, .end = endIndex};
+  void*          pReader = NULL;
+  SSnapshotParam readerParam = {.start = beginIndex, .end = endIndex};
   ths->pFsm->FpSnapshotStartRead(ths->pFsm, &readerParam, &pReader);
   if (!snapshotSenderIsStart(pSender) && pMsg->privateTerm < pSender->privateTerm) {
     ASSERT(pReader != NULL);
-    snapshotSenderStart(pSender, snapshot, pReader);
+    snapshotSenderStart(pSender, readerParam, snapshot, pReader);
 
   } else {
     if (pReader != NULL) {
@@ -300,7 +300,8 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
           !snapshotSenderIsStart(pSender) && pMsg->privateTerm < pSender->privateTerm) {
         // has snapshot
         ASSERT(pReader != NULL);
-        snapshotSenderStart(pSender, snapshot, pReader);
+        SSnapshotParam readerParam = {.start = 0, .end = snapshot.lastApplyIndex};
+        snapshotSenderStart(pSender, readerParam, snapshot, pReader);
 
       } else {
         // no snapshot

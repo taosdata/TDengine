@@ -96,6 +96,11 @@ typedef struct SReConfigCbMeta {
 
 } SReConfigCbMeta;
 
+typedef struct SSnapshotParam {
+  SyncIndex start;
+  SyncIndex end;
+} SSnapshotParam;
+
 typedef struct SSnapshot {
   void*     data;
   SyncIndex lastApplyIndex;
@@ -125,7 +130,7 @@ typedef struct SSyncFSM {
   int32_t (*FpSnapshotStopRead)(struct SSyncFSM* pFsm, void* pReader);
   int32_t (*FpSnapshotDoRead)(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len);
 
-  int32_t (*FpSnapshotStartWrite)(struct SSyncFSM* pFsm, void** ppWriter);
+  int32_t (*FpSnapshotStartWrite)(struct SSyncFSM* pFsm, void* pWriterParam, void** ppWriter);
   int32_t (*FpSnapshotStopWrite)(struct SSyncFSM* pFsm, void* pWriter, bool isApply);
   int32_t (*FpSnapshotDoWrite)(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_t len);
 

@@ -134,7 +134,7 @@ int32_t mndSnapshotDoRead(struct SSyncFSM *pFsm, void *pReader, void **ppBuf, in
   return sdbDoRead(pMnode->pSdb, pReader, ppBuf, len);
 }
 
-int32_t mndSnapshotStartWrite(struct SSyncFSM *pFsm, void **ppWriter) {
+int32_t mndSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void **ppWriter) {
   mInfo("start to apply snapshot to sdb");
   SMnode *pMnode = pFsm->data;
   return sdbStartWrite(pMnode->pSdb, (SSdbIter **)ppWriter);
