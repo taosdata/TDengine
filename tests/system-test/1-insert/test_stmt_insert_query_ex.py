@@ -82,7 +82,7 @@ class TDTestCase:
         return con
         
     def test_stmt_set_tbname_tag(self,conn):
-        dbname = "stmt_set_tbname_tag"
+        dbname = "stmt_tag"
         
         try:
             conn.execute("drop database if exists %s" % dbname)
@@ -184,43 +184,43 @@ class TDTestCase:
 
             #query: string Functions
 
-            querystmt3=conn.statement("select CHAR_LENGTH(?) from log  ")
-            queryparam3=new_bind_params(1)
-            print(type(queryparam3))
-            queryparam3[0].binary('中文字符')
-            querystmt3.bind_param(queryparam3)
-            querystmt3.execute() 
-            result3=querystmt3.use_result()
-            rows3=result3.fetch_all()
-            print("4",rows3)
-            assert rows3[0][0] == 12, 'fourth case is failed'
-            assert rows3[1][0] == 12, 'fourth case is failed'
+            querystmt9=conn.statement("select CHAR_LENGTH(?) from log  ")
+            queryparam9=new_bind_params(1)
+            print(type(queryparam9))
+            queryparam9[0].binary('中文字符')
+            querystmt9.bind_param(queryparam9)
+            querystmt9.execute() 
+            result9=querystmt9.use_result()
+            rows9=result9.fetch_all()
+            print("9",rows9)
+            assert rows9[0][0] == 12, 'fourth case is failed'
+            assert rows9[1][0] == 12, 'fourth case is failed'
 
-            # #query: conversion Functions
+            #query: conversion Functions
 
-            # querystmt4=conn.statement("select cast( ? as bigint) from log  ")
-            # queryparam4=new_bind_params(1)
-            # print(type(queryparam4))
-            # queryparam4[0].binary('1232a')
-            # querystmt4.bind_param(queryparam4)
-            # querystmt4.execute() 
-            # result4=querystmt4.use_result()
-            # rows4=result4.fetch_all()
-            # print("5",rows4)
-            # assert rows4[0][0] == 1232
-            # assert rows4[1][0] == 1232
+            querystmt4=conn.statement("select cast( ? as bigint) from log  ")
+            queryparam4=new_bind_params(1)
+            print(type(queryparam4))
+            queryparam4[0].binary('1232a')
+            querystmt4.bind_param(queryparam4)
+            querystmt4.execute() 
+            result4=querystmt4.use_result()
+            rows4=result4.fetch_all()
+            print("5",rows4)
+            assert rows4[0][0] == 1232
+            assert rows4[1][0] == 1232
 
-            # querystmt4=conn.statement("select cast( ? as binary(10)) from log  ")
-            # queryparam4=new_bind_params(1)
-            # print(type(queryparam4))
-            # queryparam4[0].int(123)
-            # querystmt4.bind_param(queryparam4)
-            # querystmt4.execute() 
-            # result4=querystmt4.use_result()
-            # rows4=result4.fetch_all()
-            # print("6",rows4)
-            # assert rows4[0][0] == '123'
-            # assert rows4[1][0] == '123'
+            querystmt4=conn.statement("select cast( ? as binary(10)) from log  ")
+            queryparam4=new_bind_params(1)
+            print(type(queryparam4))
+            queryparam4[0].int(123)
+            querystmt4.bind_param(queryparam4)
+            querystmt4.execute() 
+            result4=querystmt4.use_result()
+            rows4=result4.fetch_all()
+            print("6",rows4)
+            assert rows4[0][0] == '123'
+            assert rows4[1][0] == '123'
 
             # #query: datatime Functions
 

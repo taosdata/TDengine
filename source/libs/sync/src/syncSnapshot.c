@@ -80,13 +80,15 @@ void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
 bool snapshotSenderIsStart(SSyncSnapshotSender *pSender) { return pSender->start; }
 
 // begin send snapshot by snapshot, pReader
-void snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshot snapshot, void *pReader) {
+int32_t snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshotParam snapshotParam, SSnapshot snapshot,
+                            void *pReader) {
   ASSERT(!snapshotSenderIsStart(pSender));
 
-  // init snapshot and reader
+  // init snapshot, parm, reader
   ASSERT(pSender->pReader == NULL);
   pSender->pReader = pReader;
   pSender->snapshot = snapshot;
+  pSender->snapshotParam = snapshotParam;
 
   // init current block
   if (pSender->pCurrentBlock != NULL) {
@@ -162,6 +164,7 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshot snapshot, void 
   pMsg->srcId = pSender->pSyncNode->myRaftId;
   pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
   pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
+  pMsg->beginIndex = pSender->snapshotParam.start;
   pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
   pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
   pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
@@ -181,9 +184,11 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshot snapshot, void 
     syncNodeEventLog(pSender->pSyncNode, eventLog);
     taosMemoryFree(eventLog);
   } while (0);
+
+  return 0;
 }
 
-void snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
+int32_t snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
   // close reader
   if (pSender->pReader != NULL) {
     int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStopRead(pSender->pSyncNode->pFsm, pSender->pReader);
@@ -208,6 +213,8 @@ void snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
     syncNodeEventLog(pSender->pSyncNode, eventLog);
     taosMemoryFree(eventLog);
   } while (0);
+
+  return 0;
 }
 
 // when sender receive ack, call this function to send msg from seq
@@ -435,10 +442,13 @@ static void snapshotReceiverDoStart(SSyncSnapshotReceiver *pReceiver, SyncTerm p
   pReceiver->snapshot.lastApplyIndex = pBeginMsg->lastIndex;
   pReceiver->snapshot.lastApplyTerm = pBeginMsg->lastTerm;
   pReceiver->snapshot.lastConfigIndex = pBeginMsg->lastConfigIndex;
+  pReceiver->snapshotParam.start = pBeginMsg->beginIndex;
+  pReceiver->snapshotParam.end = pBeginMsg->lastIndex;
 
   // write data
   ASSERT(pReceiver->pWriter == NULL);
-  int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStartWrite(pReceiver->pSyncNode->pFsm, &(pReceiver->pWriter));
+  int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStartWrite(pReceiver->pSyncNode->pFsm,
+                                                                 &(pReceiver->snapshotParam), &(pReceiver->pWriter));
   ASSERT(ret == 0);
 
   // event log
@@ -471,7 +481,7 @@ static void snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver) {
 
 // if receiver receive msg from seq = SYNC_SNAPSHOT_SEQ_BEGIN, start receiver
 // if already start, force close, start again
-void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncTerm privateTerm, SyncSnapshotSend *pBeginMsg) {
+int32_t snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncTerm privateTerm, SyncSnapshotSend *pBeginMsg) {
   if (!snapshotReceiverIsStart(pReceiver)) {
     // first start
     snapshotReceiverDoStart(pReceiver, privateTerm, pBeginMsg);
@@ -486,9 +496,11 @@ void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncTerm privateTer
     // start again
     snapshotReceiverDoStart(pReceiver, privateTerm, pBeginMsg);
   }
+
+  return 0;
 }
 
-void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
+int32_t snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
   if (pReceiver->pWriter != NULL) {
     int32_t ret =
         pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, false);
@@ -506,6 +518,8 @@ void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
     syncNodeEventLog(pReceiver->pSyncNode, eventLog);
     taosMemoryFree(eventLog);
   } while (0);
+
+  return 0;
 }
 
 static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg) {

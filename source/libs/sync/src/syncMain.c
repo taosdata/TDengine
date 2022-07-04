@@ -50,7 +50,6 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths);
 // process message ----
 int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
-int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncIndex* pRetIndex);
 
 // life cycle
 static void syncFreeNode(void* param);
@@ -627,6 +626,94 @@ int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
   return ret;
 }
 
+int32_t syncProposeBatch(int64_t rid, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_t arrSize) {
+  if (arrSize < 0) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
+  }
+
+  int32_t    ret = 0;
+  SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
+  }
+  ASSERT(rid == pSyncNode->rid);
+  ret = syncNodeProposeBatch(pSyncNode, pMsgArr, pIsWeakArr, arrSize);
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return ret;
+}
+
+static bool syncNodeBatchOK(SRpcMsg* pMsgArr, int32_t arrSize) {
+  for (int32_t i = 0; i < arrSize; ++i) {
+    if (pMsgArr[i].msgType == TDMT_SYNC_CONFIG_CHANGE) {
+      return false;
+    }
+
+    if (pMsgArr[i].msgType == TDMT_SYNC_CONFIG_CHANGE_FINISH) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+int32_t syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_t arrSize) {
+  if (!syncNodeBatchOK(pMsgArr, arrSize)) {
+    syncNodeErrorLog(pSyncNode, "sync propose batch error");
+    terrno = TSDB_CODE_SYN_BATCH_ERROR;
+    return -1;
+  }
+
+  if (arrSize > SYNC_MAX_BATCH_SIZE) {
+    syncNodeErrorLog(pSyncNode, "sync propose match batch error");
+    terrno = TSDB_CODE_SYN_BATCH_ERROR;
+    return -1;
+  }
+
+  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+    syncNodeErrorLog(pSyncNode, "sync propose not leader");
+    terrno = TSDB_CODE_SYN_NOT_LEADER;
+    return -1;
+  }
+
+  if (pSyncNode->changing) {
+    syncNodeErrorLog(pSyncNode, "sync propose not ready");
+    terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
+    return -1;
+  }
+
+  SRaftMeta raftArr[SYNC_MAX_BATCH_SIZE];
+  for (int i = 0; i < arrSize; ++i) {
+    SRespStub stub;
+    stub.createTime = taosGetTimestampMs();
+    stub.rpcMsg = pMsgArr[i];
+    uint64_t seqNum = syncRespMgrAdd(pSyncNode->pSyncRespMgr, &stub);
+
+    raftArr[i].isWeak = pIsWeakArr[i];
+    raftArr[i].seqNum = seqNum;
+  }
+
+  SyncClientRequestBatch* pSyncMsg = syncClientRequestBatchBuild(pMsgArr, raftArr, arrSize, pSyncNode->vgId);
+  ASSERT(pSyncMsg != NULL);
+
+  SRpcMsg rpcMsg;
+  syncClientRequestBatch2RpcMsg(pSyncMsg, &rpcMsg);
+  taosMemoryFree(pSyncMsg);  // only free msg body, do not free rpc msg content
+
+  if (pSyncNode->FpEqMsg != NULL && (*pSyncNode->FpEqMsg)(pSyncNode->msgcb, &rpcMsg) == 0) {
+    // enqueue msg ok
+
+  } else {
+    sError("enqueue msg error, FpEqMsg is NULL");
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
+  }
+
+  return 0;
+}
+
 int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
   int32_t ret = 0;
 
@@ -728,7 +815,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
     // create a new raft config file
     SRaftCfgMeta meta;
     meta.isStandBy = pSyncInfo->isStandBy;
-    meta.snapshotEnable = pSyncInfo->snapshotEnable;
+    meta.snapshotEnable = pSyncInfo->snapshotStrategy;
     meta.lastConfigIndex = SYNC_INDEX_INVALID;
     ret = raftCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), meta, pSyncNode->configPath);
     ASSERT(ret == 0);
@@ -1013,7 +1100,9 @@ void syncNodeClose(SSyncNode* pSyncNode) {
 }
 
 // option
-bool syncNodeSnapshotEnable(SSyncNode* pSyncNode) { return pSyncNode->pRaftCfg->snapshotEnable; }
+// bool syncNodeSnapshotEnable(SSyncNode* pSyncNode) { return pSyncNode->pRaftCfg->snapshotEnable; }
+
+ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode) { return pSyncNode->pRaftCfg->snapshotEnable; }
 
 // ping --------------
 int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg) {
@@ -2360,6 +2449,49 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncI
 
   syncEntryDestory(pEntry);
   return ret;
+}
+
+int32_t syncNodeOnClientRequestBatchCb(SSyncNode* ths, SyncClientRequestBatch* pMsg) {
+  int32_t code = 0;
+
+  if (ths->state != TAOS_SYNC_STATE_LEADER) {
+    // call FpCommitCb, delete resp mgr
+    return -1;
+  }
+
+  SyncIndex index = ths->pLogStore->syncLogWriteIndex(ths->pLogStore);
+  SyncTerm  term = ths->pRaftStore->currentTerm;
+
+  int32_t    raftMetaArrayLen = sizeof(SRaftMeta) * pMsg->dataCount;
+  int32_t    rpcArrayLen = sizeof(SRpcMsg) * pMsg->dataCount;
+  SRaftMeta* raftMetaArr = (SRaftMeta*)(pMsg->data);
+  SRpcMsg*   msgArr = (SRpcMsg*)((char*)(pMsg->data) + raftMetaArrayLen);
+  for (int32_t i = 0; i < pMsg->dataCount; ++i) {
+    SSyncRaftEntry* pEntry = syncEntryBuild(msgArr[i].contLen);
+    ASSERT(pEntry != NULL);
+
+    pEntry->originalRpcType = msgArr[i].msgType;
+    pEntry->seqNum = raftMetaArr[i].seqNum;
+    pEntry->isWeak = raftMetaArr[i].isWeak;
+    pEntry->term = term;
+    pEntry->index = index;
+    memcpy(pEntry->data, msgArr[i].pCont, msgArr[i].contLen);
+    ASSERT(msgArr[i].contLen == pEntry->dataLen);
+
+    code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
+    if (code != 0) {
+      // del resp mgr, call FpCommitCb
+      ASSERT(0);
+      return -1;
+    }
+  }
+
+  // fsync once
+  SSyncLogStoreData* pData = ths->pLogStore->data;
+  SWal*              pWal = pData->pWal;
+  walFsync(pWal, true);
+
+  return 0;
 }
 
 static void syncFreeNode(void* param) {

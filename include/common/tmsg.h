@@ -436,15 +436,16 @@ typedef struct {
   int32_t ttl;
   int32_t numOfColumns;
   int32_t numOfTags;
+  int32_t numOfFuncs;
   int32_t commentLen;
   int32_t ast1Len;
   int32_t ast2Len;
   SArray* pColumns;  // array of SField
   SArray* pTags;     // array of SField
-  char*   comment;
+  SArray* pFuncs;
+  char*   pComment;
   char*   pAst1;
   char*   pAst2;
-  SArray* pFuncs;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -707,6 +708,7 @@ typedef struct {
   int32_t buffer;        // MB
   int32_t pageSize;
   int32_t pages;
+  int32_t lastRowMem;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -735,6 +737,7 @@ typedef struct {
   int32_t buffer;
   int32_t pageSize;
   int32_t pages;
+  int32_t lastRowMem;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -1022,8 +1025,10 @@ typedef struct {
   int64_t     clusterId;
   int64_t     rebootTime;
   int64_t     updateTime;
-  int32_t     numOfCores;
+  float       numOfCores;
   int32_t     numOfSupportVnodes;
+  int64_t     memTotal;
+  int64_t     memAvail;
   char        dnodeEp[TSDB_EP_LEN];
   SMnodeLoad  mload;
   SQnodeLoad  qload;
@@ -1078,6 +1083,7 @@ typedef struct {
   int32_t  buffer;
   int32_t  pageSize;
   int32_t  pages;
+  int32_t  lastRowMem;
   int32_t  daysPerFile;
   int32_t  daysToKeep0;
   int32_t  daysToKeep1;
@@ -1130,6 +1136,7 @@ typedef struct {
   int32_t  buffer;
   int32_t  pageSize;
   int32_t  pages;
+  int32_t  lastRowMem;
   int32_t  daysPerFile;
   int32_t  daysToKeep0;
   int32_t  daysToKeep1;

@@ -295,7 +295,7 @@ void sortRemoveDataBlockDupRowsRaw(STableDataBlocks* dataBuf) {
     char* pBlockData = pBlocks->data;
 
     // todo. qsort is unstable, if timestamp is same, should get the last one
-    qsort(pBlockData, pBlocks->numOfRows, dataBuf->rowSize, rowDataCompar);
+    taosSort(pBlockData, pBlocks->numOfRows, dataBuf->rowSize, rowDataCompar);
 
     int32_t i = 0;
     int32_t j = 1;
@@ -365,7 +365,7 @@ int sortRemoveDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* pBlkKey
     pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
 
     // todo. qsort is unstable, if timestamp is same, should get the last one
-    qsort(pBlkKeyTuple, nRows, sizeof(SBlockKeyTuple), rowDataComparStable);
+    taosSort(pBlkKeyTuple, nRows, sizeof(SBlockKeyTuple), rowDataComparStable);
 
     pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
     int32_t i = 0;

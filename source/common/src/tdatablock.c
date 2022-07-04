@@ -716,7 +716,12 @@ int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
 
     void* left1 = colDataGetData(pColInfoData, left);
     void* right1 = colDataGetData(pColInfoData, right);
-
+    if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+      if (tTagIsJson(left1) || tTagIsJson(right1)) {
+        terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
+        return 0;
+      }
+    }
     __compar_fn_t fn = getKeyComparFunc(pColInfoData->info.type, pOrder->order);
 
     int ret = fn(left1, right1);
@@ -892,7 +897,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
         int64_t p0 = taosGetTimestampUs();
 
         __compar_fn_t fn = getKeyComparFunc(pColInfoData->info.type, pOrder->order);
-        qsort(pColInfoData->pData, pDataBlock->info.rows, pColInfoData->info.bytes, fn);
+        taosSort(pColInfoData->pData, pDataBlock->info.rows, pColInfoData->info.bytes, fn);
 
         int64_t p1 = taosGetTimestampUs();
         uDebug("blockDataSort easy cost:%" PRId64 ", rows:%d\n", p1 - p0, pDataBlock->info.rows);
@@ -918,7 +923,9 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
     pInfo->pColData = taosArrayGet(pDataBlock->pDataBlock, pInfo->slotId);
   }
 
+  terrno = 0;
   taosqsort(index, rows, sizeof(int32_t), &helper, dataBlockCompar);
+  if (terrno) return terrno;
 
   int64_t p1 = taosGetTimestampUs();
 
@@ -1218,7 +1225,7 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pDst = taosArrayGet(dst->pDataBlock, i);
     SColumnInfoData* pSrc = taosArrayGet(src->pDataBlock, i);
-    if (pSrc->pData == NULL) {
+    if (pSrc->pData == NULL && (!IS_VAR_DATA_TYPE(pSrc->info.type))) {
       continue;
     }
 
@@ -1253,6 +1260,7 @@ int32_t copyDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
 
   dst->info.rows = src->info.rows;
   dst->info.window = src->info.window;
+  dst->info.type = src->info.type;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1431,9 +1439,39 @@ static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
   }
 }
 
+static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, size_t end) {
+  int32_t dataOffset = -1;
+  int32_t dataLen = 0;
+  int32_t beigin = start;
+  while (beigin < end) {
+    int32_t offset = pColInfoData->varmeta.offset[beigin];
+    if (offset == -1) {
+      beigin++;
+      continue;
+    }
+    if (start != 0) {
+      pColInfoData->varmeta.offset[beigin] = dataLen;
+    }
+    char* data = pColInfoData->pData + offset;
+    if (dataOffset == -1) dataOffset = offset;  // mark the begin of data
+    int32_t type = pColInfoData->info.type;
+    if (type == TSDB_DATA_TYPE_JSON) {
+      dataLen += getJsonValueLen(data);
+    } else {
+      dataLen += varDataTLen(data);
+    }
+    beigin++;
+  }
+  if (dataOffset > 0) {
+    memmove(pColInfoData->pData, pColInfoData->pData + dataOffset, dataLen);
+    memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[start], (end - start) * sizeof(int32_t));
+  }
+  return dataLen;
+}
+
 static void colDataTrimFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-    memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[n], (total - n) * sizeof(int32_t));
+    pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, n, total);
     memset(&pColInfoData->varmeta.offset[total - n], 0, n);
   } else {
     int32_t bytes = pColInfoData->info.bytes;
@@ -1457,6 +1495,33 @@ int32_t blockDataTrimFirstNRows(SSDataBlock* pBlock, size_t n) {
     }
 
     pBlock->info.rows -= n;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
+  if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+    pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, 0, n);
+    memset(&pColInfoData->varmeta.offset[n], 0, total - n);
+  }
+}
+
+int32_t blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n) {
+  if (n == 0) {
+    blockDataCleanup(pBlock);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pBlock->info.rows <= n) {
+    return TSDB_CODE_SUCCESS;
+  } else {
+    size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+      colDataKeepFirstNRows(pColInfoData, n, pBlock->info.rows);
+    }
+
+    pBlock->info.rows = n;
   }
   return TSDB_CODE_SUCCESS;
 }

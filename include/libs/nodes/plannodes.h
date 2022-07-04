@@ -105,6 +105,7 @@ typedef struct SIndefRowsFuncLogicNode {
   SNodeList* pFuncs;
   bool       isTailFunc;
   bool       isUniqueFunc;
+  bool       isTimeLineFunc;
 } SIndefRowsFuncLogicNode;
 
 typedef struct SInterpFuncLogicNode {
@@ -320,6 +321,7 @@ typedef struct SInterpFuncPhysiNode {
   SNodeList*  pFuncs;
   STimeWindow timeRange;
   int64_t     interval;
+  int8_t      intervalUnit;
   EFillMode   fillMode;
   SNode*      pFillValues;  // SNodeListNode
   SNode*      pTimeSeries;  // SColumnNode

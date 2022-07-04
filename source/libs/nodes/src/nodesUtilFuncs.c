@@ -19,6 +19,7 @@
 #include "querynodes.h"
 #include "taos.h"
 #include "taoserror.h"
+#include "tdatablock.h"
 #include "thash.h"
 
 static SNode* makeNode(ENodeType type, size_t size) {
@@ -1530,13 +1531,18 @@ typedef struct SCollectFuncsCxt {
   int32_t         errCode;
   FFuncClassifier classifier;
   SNodeList*      pFuncs;
+  SHashObj*       pAliasName;
 } SCollectFuncsCxt;
 
 static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   SCollectFuncsCxt* pCxt = (SCollectFuncsCxt*)pContext;
   if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId) &&
       !(((SExprNode*)pNode)->orderAlias)) {
-    pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, nodesCloneNode(pNode));
+    SExprNode* pExpr = (SExprNode*)pNode;
+    if (NULL == taosHashGet(pCxt->pAliasName, pExpr->aliasName, strlen(pExpr->aliasName))) {
+      pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, nodesCloneNode(pNode));
+      taosHashPut(pCxt->pAliasName, pExpr->aliasName, strlen(pExpr->aliasName), &pExpr, POINTER_BYTES);
+    }
     return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
   }
   return DEAL_RES_CONTINUE;
@@ -1548,23 +1554,27 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, FFuncClassifi
   }
 
   SCollectFuncsCxt cxt = {
-      .errCode = TSDB_CODE_SUCCESS, .classifier = classifier, .pFuncs = (NULL == *pFuncs ? nodesMakeList() : *pFuncs)};
+      .errCode = TSDB_CODE_SUCCESS,
+      .classifier = classifier,
+      .pFuncs = (NULL == *pFuncs ? nodesMakeList() : *pFuncs),
+      .pAliasName = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, false)};
   if (NULL == cxt.pFuncs) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   *pFuncs = NULL;
   nodesWalkSelectStmt(pSelect, clause, collectFuncs, &cxt);
-  if (TSDB_CODE_SUCCESS != cxt.errCode) {
-    nodesDestroyList(cxt.pFuncs);
-    return cxt.errCode;
-  }
-  if (LIST_LENGTH(cxt.pFuncs) > 0) {
-    *pFuncs = cxt.pFuncs;
+  if (TSDB_CODE_SUCCESS == cxt.errCode) {
+    if (LIST_LENGTH(cxt.pFuncs) > 0) {
+      *pFuncs = cxt.pFuncs;
+    } else {
+      nodesDestroyList(cxt.pFuncs);
+    }
   } else {
     nodesDestroyList(cxt.pFuncs);
   }
+  taosHashCleanup(cxt.pAliasName);
 
-  return TSDB_CODE_SUCCESS;
+  return cxt.errCode;
 }
 
 typedef struct SCollectSpecialNodesCxt {
@@ -1709,6 +1719,10 @@ void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
       pVal->pz[pVal->nLen + VARSTR_HEADER_SIZE] = 0;
       break;
     case TSDB_DATA_TYPE_JSON:
+      pVal->nLen = getJsonValueLen(pNode->datum.p);
+      pVal->pz = taosMemoryMalloc(pVal->nLen);
+      memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
+      break;
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
       // todo

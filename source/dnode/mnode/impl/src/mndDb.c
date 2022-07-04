@@ -21,6 +21,7 @@
 #include "mndShow.h"
 #include "mndSma.h"
 #include "mndStb.h"
+#include "mndStream.h"
 #include "mndSubscribe.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
@@ -92,6 +93,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.buffer, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.pageSize, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.pages, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.lastRowMem, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysPerFile, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep0, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep1, _OVER)
@@ -164,6 +166,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.buffer, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.pageSize, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.pages, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.lastRowMem, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysPerFile, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep0, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep1, _OVER)
@@ -229,8 +232,9 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfgVersion = pNew->cfgVersion;
   pOld->vgVersion = pNew->vgVersion;
   pOld->cfg.buffer = pNew->cfg.buffer;
-  pOld->cfg.pages = pNew->cfg.pages;
   pOld->cfg.pageSize = pNew->cfg.pageSize;
+  pOld->cfg.pages = pNew->cfg.pages;
+  pOld->cfg.lastRowMem = pNew->cfg.lastRowMem;
   pOld->cfg.daysPerFile = pNew->cfg.daysPerFile;
   pOld->cfg.daysToKeep0 = pNew->cfg.daysToKeep0;
   pOld->cfg.daysToKeep1 = pNew->cfg.daysToKeep1;
@@ -287,6 +291,7 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->buffer < TSDB_MIN_BUFFER_PER_VNODE || pCfg->buffer > TSDB_MAX_BUFFER_PER_VNODE) return -1;
   if (pCfg->pageSize < TSDB_MIN_PAGESIZE_PER_VNODE || pCfg->pageSize > TSDB_MAX_PAGESIZE_PER_VNODE) return -1;
   if (pCfg->pages < TSDB_MIN_PAGES_PER_VNODE || pCfg->pages > TSDB_MAX_PAGES_PER_VNODE) return -1;
+  if (pCfg->lastRowMem < TSDB_MIN_DB_LAST_ROW_MEM || pCfg->lastRowMem > TSDB_MAX_DB_LAST_ROW_MEM) return -1;
   if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return -1;
   if (pCfg->daysToKeep0 < TSDB_MIN_KEEP || pCfg->daysToKeep0 > TSDB_MAX_KEEP) return -1;
   if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > TSDB_MAX_KEEP) return -1;
@@ -335,6 +340,7 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->replications < 0) pCfg->replications = TSDB_DEFAULT_DB_REPLICA;
   if (pCfg->strict < 0) pCfg->strict = TSDB_DEFAULT_DB_STRICT;
   if (pCfg->cacheLastRow < 0) pCfg->cacheLastRow = TSDB_DEFAULT_CACHE_LAST_ROW;
+  if (pCfg->lastRowMem <= 0) pCfg->lastRowMem = TSDB_DEFAULT_LAST_ROW_MEM;
   if (pCfg->numOfRetensions < 0) pCfg->numOfRetensions = 0;
   if (pCfg->schemaless < 0) pCfg->schemaless = TSDB_DB_SCHEMALESS_OFF;
 }
@@ -433,6 +439,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .buffer = pCreate->buffer,
       .pageSize = pCreate->pageSize,
       .pages = pCreate->pages,
+      .lastRowMem = pCreate->lastRowMem,
       .daysPerFile = pCreate->daysPerFile,
       .daysToKeep0 = pCreate->daysToKeep0,
       .daysToKeep1 = pCreate->daysToKeep1,
@@ -474,7 +481,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq);
   if (pTrans == NULL) goto _OVER;
-
+  // mndTransSetSerial(pTrans);
   mDebug("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
 
   mndTransSetDbName(pTrans, dbObj.name, NULL);
@@ -548,18 +555,33 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   terrno = TSDB_CODE_MND_DB_OPTION_UNCHANGED;
 
   if (pAlter->buffer > 0 && pAlter->buffer != pDb->cfg.buffer) {
+#if 1
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return terrno;
+#else
     pDb->cfg.buffer = pAlter->buffer;
     terrno = 0;
+#endif
   }
 
   if (pAlter->pages > 0 && pAlter->pages != pDb->cfg.pages) {
+#if 1
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return terrno;
+#else
     pDb->cfg.pages = pAlter->pages;
     terrno = 0;
+#endif
   }
 
   if (pAlter->pageSize > 0 && pAlter->pageSize != pDb->cfg.pageSize) {
+#if 1
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return terrno;
+#else
     pDb->cfg.pageSize = pAlter->pageSize;
     terrno = 0;
+#endif
   }
 
   if (pAlter->daysPerFile > 0 && pAlter->daysPerFile != pDb->cfg.daysPerFile) {
@@ -593,8 +615,12 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   }
 
   if (pAlter->strict >= 0 && pAlter->strict != pDb->cfg.strict) {
+#if 1
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+#else
     pDb->cfg.strict = pAlter->strict;
     terrno = 0;
+#endif
   }
 
   if (pAlter->cacheLastRow >= 0 && pAlter->cacheLastRow != pDb->cfg.cacheLastRow) {
@@ -602,10 +628,19 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     terrno = 0;
   }
 
+  if (pAlter->lastRowMem > 0 && pAlter->lastRowMem != pDb->cfg.lastRowMem) {
+    pDb->cfg.lastRowMem = pAlter->lastRowMem;
+    terrno = 0;
+  }
+
   if (pAlter->replications > 0 && pAlter->replications != pDb->cfg.replications) {
+#if 1
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+#else
     pDb->cfg.replications = pAlter->replications;
     pDb->vgVersion++;
     terrno = 0;
+#endif
   }
 
   return terrno;
@@ -645,7 +680,7 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    if (pVgroup->dbUid == pNew->uid) {
+    if (mndVgroupInDb(pVgroup, pNew->uid)) {
       if (mndBuildAlterVgroupAction(pMnode, pTrans, pNew, pVgroup, pArray) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pVgroup);
@@ -927,6 +962,7 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   if (mndDropOffsetByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndDropSubByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndDropTopicByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
+  if (mndDropStreamByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndDropSmasByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto _OVER;
 
@@ -947,7 +983,6 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   mndTransSetRpcRsp(pTrans, pRsp, rspLen);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-
   code = 0;
 
 _OVER:
@@ -1006,7 +1041,7 @@ static int32_t mndGetDBTableNum(SDbObj *pDb, SMnode *pMnode) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    if (pVgroup->dbUid == pDb->uid) {
+    if (mndVgroupInDb(pVgroup, pDb->uid)) {
       numOfTables += pVgroup->numOfTables / TSDB_TABLE_NUM_UNIT;
       vindex++;
     }

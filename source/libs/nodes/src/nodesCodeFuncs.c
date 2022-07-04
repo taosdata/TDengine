@@ -20,6 +20,7 @@
 #include "querynodes.h"
 #include "taoserror.h"
 #include "tjson.h"
+#include "tdatablock.h"
 
 static int32_t nodeToJson(const void* pObj, SJson* pJson);
 static int32_t jsonToNode(const SJson* pJson, void* pObj);
@@ -2640,7 +2641,18 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
     case TSDB_DATA_TYPE_VARBINARY:
       code = tjsonAddStringToObject(pJson, jkValueDatum, varDataVal(pNode->datum.p));
       break;
-    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_JSON:{
+      int32_t len = getJsonValueLen(pNode->datum.p);
+      char* buf = taosMemoryCalloc( len * 2 + 1, sizeof(char));
+      code = taosHexEncode(pNode->datum.p, buf, len);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosMemoryFree(buf);
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
+      code = tjsonAddStringToObject(pJson, jkValueDatum, buf);
+      taosMemoryFree(buf);
+      break;
+    }
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
       // todo
@@ -2763,7 +2775,30 @@ static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
       }
       break;
     }
-    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_JSON:{
+      pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes);
+      if (NULL == pNode->datum.p) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        break;
+      }
+      char* buf = taosMemoryCalloc(1, pNode->node.resType.bytes * 2 + 1);
+      if (NULL == buf) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        break;
+      }
+      code = tjsonGetStringValue(pJson, jkValueDatum, buf);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosMemoryFree(buf);
+        break;
+      }
+      code = taosHexDecode(buf, pNode->datum.p, pNode->node.resType.bytes);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosMemoryFree(buf);
+        break;
+      }
+      taosMemoryFree(buf);
+      break;
+    }
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
       // todo

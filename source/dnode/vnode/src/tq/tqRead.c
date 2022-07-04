@@ -15,13 +15,13 @@
 
 #include "tq.h"
 
-int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalHead** ppHeadWithCkSum) {
+int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** ppCkHead) {
   int32_t code = 0;
   taosThreadMutexLock(&pHandle->pWalReader->mutex);
   int64_t offset = *fetchOffset;
 
   while (1) {
-    if (walFetchHead(pHandle->pWalReader, offset, *ppHeadWithCkSum) < 0) {
+    if (walFetchHead(pHandle->pWalReader, offset, *ppCkHead) < 0) {
       tqDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", pHandle->consumerId,
               pHandle->epoch, TD_VID(pTq->pVnode), offset);
       *fetchOffset = offset - 1;
@@ -29,8 +29,8 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalHead*
       goto END;
     }
 
-    if ((*ppHeadWithCkSum)->head.msgType == TDMT_VND_SUBMIT) {
-      code = walFetchBody(pHandle->pWalReader, ppHeadWithCkSum);
+    if ((*ppCkHead)->head.msgType == TDMT_VND_SUBMIT) {
+      code = walFetchBody(pHandle->pWalReader, ppCkHead);
 
       if (code < 0) {
         ASSERT(0);
@@ -43,9 +43,9 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalHead*
       goto END;
     } else {
       if (pHandle->fetchMeta) {
-        SWalReadHead* pHead = &((*ppHeadWithCkSum)->head);
+        SWalCont* pHead = &((*ppCkHead)->head);
         if (IS_META_MSG(pHead->msgType)) {
-          code = walFetchBody(pHandle->pWalReader, ppHeadWithCkSum);
+          code = walFetchBody(pHandle->pWalReader, ppCkHead);
 
           if (code < 0) {
             ASSERT(0);
@@ -58,7 +58,7 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalHead*
           goto END;
         }
       }
-      code = walSkipFetchBody(pHandle->pWalReader, *ppHeadWithCkSum);
+      code = walSkipFetchBody(pHandle->pWalReader, *ppCkHead);
       if (code < 0) {
         ASSERT(0);
         *fetchOffset = offset;
@@ -120,7 +120,9 @@ bool tqNextDataBlock(SStreamReader* pHandle) {
       return true;
     }
     void* ret = taosHashGet(pHandle->tbIdHash, &pHandle->msgIter.uid, sizeof(int64_t));
+    /*tqDebug("search uid %ld", pHandle->msgIter.uid);*/
     if (ret != NULL) {
+      /*tqDebug("find   uid %ld", pHandle->msgIter.uid);*/
       return true;
     }
   }

@@ -96,8 +96,8 @@ typedef void* queue[2];
 #define QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
 
 #define TRANS_RETRY_COUNT_LIMIT 100  // retry count limit
-#define TRANS_RETRY_INTERVAL    15   // ms retry interval
-#define TRANS_CONN_TIMEOUT      3    // connect timeout
+#define TRANS_RETRY_INTERVAL 15      // ms retry interval
+#define TRANS_CONN_TIMEOUT 3         // connect timeout
 
 typedef SRpcMsg      STransMsg;
 typedef SRpcCtx      STransCtx;
@@ -180,18 +180,18 @@ typedef enum { Normal, Quit, Release, Register, Update } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
-#define RPC_RESERVE_SIZE                (sizeof(STranConnCtx))
+#define RPC_RESERVE_SIZE (sizeof(STranConnCtx))
 
 #define rpcIsReq(type) (type & 1U)
 
 #define TRANS_RESERVE_SIZE (sizeof(STranConnCtx))
 
-#define TRANS_MSG_OVERHEAD           (sizeof(STransMsgHead))
-#define transHeadFromCont(cont)      ((STransMsgHead*)((char*)cont - sizeof(STransMsgHead)))
-#define transContFromHead(msg)       (msg + sizeof(STransMsgHead))
+#define TRANS_MSG_OVERHEAD (sizeof(STransMsgHead))
+#define transHeadFromCont(cont) ((STransMsgHead*)((char*)cont - sizeof(STransMsgHead)))
+#define transContFromHead(msg) (msg + sizeof(STransMsgHead))
 #define transMsgLenFromCont(contLen) (contLen + sizeof(STransMsgHead))
-#define transContLenFromMsg(msgLen)  (msgLen - sizeof(STransMsgHead));
-#define transIsReq(type)             (type & 1U)
+#define transContLenFromMsg(msgLen) (msgLen - sizeof(STransMsgHead));
+#define transIsReq(type) (type & 1U)
 
 #define transLabel(trans) ((STrans*)trans)->label
 
@@ -253,7 +253,7 @@ int         transAsyncSend(SAsyncPool* pool, queue* mq);
   do {                                                                                                             \
     if (id > 0) {                                                                                                  \
       tTrace("handle step1");                                                                                      \
-      SExHandle* exh2 = transAcquireExHandle(id);                                                                  \
+      SExHandle* exh2 = transAcquireExHandle(transGetRefMgt(), id);                                                \
       if (exh2 == NULL || id != exh2->refId) {                                                                     \
         tTrace("handle %p except, may already freed, ignore msg, ref1: %" PRIu64 ", ref2 : %" PRIu64 "", exh1,     \
                exh2 ? exh2->refId : 0, id);                                                                        \
@@ -261,7 +261,7 @@ int         transAsyncSend(SAsyncPool* pool, queue* mq);
       }                                                                                                            \
     } else if (id == 0) {                                                                                          \
       tTrace("handle step2");                                                                                      \
-      SExHandle* exh2 = transAcquireExHandle(id);                                                                  \
+      SExHandle* exh2 = transAcquireExHandle(transGetRefMgt(), id);                                                \
       if (exh2 == NULL || id == exh2->refId) {                                                                     \
         tTrace("handle %p except, may already freed, ignore msg, ref1: %" PRIu64 ", ref2 : %" PRIu64 "", exh1, id, \
                exh2 ? exh2->refId : 0);                                                                            \
@@ -391,13 +391,16 @@ void transThreadOnce();
 void transInit();
 void transCleanup();
 
-int32_t    transOpenExHandleMgt(int size);
-void       transCloseExHandleMgt();
-int64_t    transAddExHandle(void* p);
-int32_t    transRemoveExHandle(int64_t refId);
-SExHandle* transAcquireExHandle(int64_t refId);
-int32_t    transReleaseExHandle(int64_t refId);
-void       transDestoryExHandle(void* handle);
+int32_t transOpenRefMgt(int size, void (*func)(void*));
+void    transCloseRefMgt(int32_t refMgt);
+int64_t transAddExHandle(int32_t refMgt, void* p);
+int32_t transRemoveExHandle(int32_t refMgt, int64_t refId);
+void*   transAcquireExHandle(int32_t refMgt, int64_t refId);
+int32_t transReleaseExHandle(int32_t refMgt, int64_t refId);
+void    transDestoryExHandle(void* handle);
+
+int32_t transGetRefMgt();
+int32_t transGetInstMgt();
 
 #ifdef __cplusplus
 }

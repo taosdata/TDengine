@@ -235,9 +235,11 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
   if (uid == 0) {
-    STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, 0);
-    uid = pTableInfo->uid;
-    ts = INT64_MIN;
+    if (taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList) != 0) {
+      STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, 0);
+      uid = pTableInfo->uid;
+      ts = INT64_MIN;
+    }
   }
 
   return doPrepareScan(pTaskInfo->pRoot, uid, ts);
