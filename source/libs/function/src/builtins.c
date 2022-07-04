@@ -996,7 +996,7 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     }
 
     if (i == 2) {
-      char errMsg[64] = {0};
+      char errMsg[128] = {0};
       binDesc = varDataVal(pValue->datum.p);
       if (!validateHistogramBinDesc(binDesc, binType, errMsg, (int32_t)sizeof(errMsg))) {
         return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, errMsg);
