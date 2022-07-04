@@ -245,7 +245,7 @@ static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) {
     SRpcMsg msg = {.code = type, .info = *pHandle};
     dmPutToProcPQueue(&pWrapper->proc, &msg, DND_FUNC_RELEASE);
   } else {
-    rpcReleaseHandle(pHandle->handle, type);
+    rpcReleaseHandle(pHandle, type);
   }
 }
 
