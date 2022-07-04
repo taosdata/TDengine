@@ -669,6 +669,11 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
     return TSDB_CODE_SUCCESS;
   }
 
+  if (SCH_IS_DATA_SRC_QRY_TASK(pTask)) {
+    SCH_TASK_ELOG("no execNode specifed for data src task, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
+    SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+  }
+
   SCH_ERR_RET(schSetAddrsFromNodeList(pJob, pTask));
 
   /*
