@@ -7,10 +7,11 @@ function usage() {
     echo -e "\t -b branch"
     echo -e "\t -l log dir"
     echo -e "\t -o default timeout value"
+    echo -e "\t -w log web server"
     echo -e "\t -h help"
 }
 
-while getopts "m:t:b:l:o:h" opt; do
+while getopts "m:t:b:l:o:w:h" opt; do
     case $opt in
         m)
             config_file=$OPTARG
@@ -26,6 +27,9 @@ while getopts "m:t:b:l:o:h" opt; do
             ;;
         o)
             timeout_param="-o $OPTARG"
+            ;;
+        w)
+            web_server=$OPTARG
             ;;
         h)
             usage
@@ -59,10 +63,11 @@ if [ ! -f $t_file ]; then
     exit 1
 fi
 date_tag=`date +%Y%m%d-%H%M%S`
+test_log_dir=${branch}_${date_tag}
 if [ -z $log_dir ]; then
-    log_dir="log/${branch}_${date_tag}"
+    log_dir="log/${test_log_dir}"
 else
-    log_dir="$log_dir/${branch}_${date_tag}"
+    log_dir="$log_dir/${test_log_dir}"
 fi
 
 hosts=()
@@ -134,14 +139,14 @@ function build_src() {
     echo "$cmd"
     ${cmd}
     if [ $? -ne 0 ]; then
-        flock -x $lock_file -c "echo \"${hosts[index]} TDengine build failed\" >>$log_dir/failed.log"
+        flock -x $lock_file -c "echo \"${hosts[index]} TDengine build failed\" >>${failed_case_file}"
         return
     fi
     script=". ~/.bashrc;cd ${workdirs[index]}/taos-tools;git submodule update --init --recursive;mkdir -p build;cd build;cmake ..;make -j4"
     cmd="${ssh_script} sh -c \"$script\""
     ${cmd}
     if [ $? -ne 0 ]; then
-        flock -x $lock_file -c "echo \"${hosts[index]} taos-tools build failed\" >>$log_dir/failed.log"
+        flock -x $lock_file -c "echo \"${hosts[index]} taos-tools build failed\" >>${failed_case_file}"
         return
     fi
     script="cp -rf ${workdirs[index]}/taos-tools/build/build/bin/* ${workdirs[index]}/TDinternal/debug/build/bin/;cp -rf ${workdirs[index]}/taos-tools/build/build/lib/* ${workdirs[index]}/TDinternal/debug/build/lib/;cp -rf ${workdirs[index]}/taos-tools/build/build/lib64/* ${workdirs[index]}/TDinternal/debug/build/lib/;cp -rf ${workdirs[index]}/TDinternal/debug/build/bin/taosBenchmark ${workdirs[index]}/TDinternal/debug/build/bin/taosdemo"
@@ -191,6 +196,10 @@ function run_thread() {
         local exec_dir=`echo "$line"|cut -d, -f3`
         local case_cmd=`echo "$line"|cut -d, -f4`
         local case_file=""
+        echo "$case_cmd"|grep -q "\.sh"
+        if [ $? -eq 0 ]; then
+            case_file=`echo "$case_cmd"|grep -o ".*\.sh"|awk '{print $NF}'`
+        fi
         echo "$case_cmd"|grep -q "^python3"
         if [ $? -eq 0 ]; then
             case_file=`echo "$case_cmd"|grep -o ".*\.py"|awk '{print $NF}'`
@@ -215,44 +224,54 @@ function run_thread() {
         # echo "$thread_no $count $cmd"
         local ret=0
         local redo_count=1
+        local case_log_file=$log_dir/${case_file}.txt
         start_time=`date +%s`
+        local case_index=`flock -x $lock_file -c "sh -c \"echo \\\$(( \\\$( cat $index_file ) + 1 )) | tee $index_file\""`
+        case_index=`printf "%5d" $case_index`
+        local case_info=`echo "$line"|cut -d, -f 3,4`
         while [ ${redo_count} -lt 6 ]; do
-            if [ -f $log_dir/$case_file.log ]; then
-                cp $log_dir/$case_file.log $log_dir/$case_file.${redo_count}.redolog
+            if [ -f $case_log_file ]; then
+                cp $case_log_file $log_dir/$case_file.${redo_count}.redotxt
             fi
-            echo "${hosts[index]}-${thread_no} order:${count}, redo:${redo_count} task:${line}" >$log_dir/$case_file.log
-            echo -e "\e[33m >>>>> \e[0m ${case_cmd}"
-            date >>$log_dir/$case_file.log
-            # $cmd 2>&1 | tee -a $log_dir/$case_file.log
+            echo "${hosts[index]}-${thread_no} order:${count}, redo:${redo_count} task:${line}" >$case_log_file
+            local current_time=`date "+%Y-%m-%d %H:%M:%S"`
+            echo -e "$case_index \e[33m START >>>>> \e[0m ${case_info} \e[33m[$current_time]\e[0m"
+            echo "$current_time" >>$case_log_file
+            local real_start_time=`date +%s`
+            # $cmd 2>&1 | tee -a $case_log_file
             # ret=${PIPESTATUS[0]}
-            $cmd >>$log_dir/$case_file.log 2>&1
+            $cmd >>$case_log_file 2>&1
             ret=$?
-            echo "${hosts[index]} `date` ret:${ret}" >>$log_dir/$case_file.log
+            local real_end_time=`date +%s`
+            local time_elapsed=$(( real_end_time - real_start_time ))
+            echo "execute time: ${time_elapsed}s" >>$case_log_file
+            current_time=`date "+%Y-%m-%d %H:%M:%S"`
+            echo "${hosts[index]} $current_time exit code:${ret}" >>$case_log_file
             if [ $ret -eq 0 ]; then
                 break
             fi
             redo=0
-            grep -q "wait too long for taosd start" $log_dir/$case_file.log
+            grep -q "wait too long for taosd start" $case_log_file
             if [ $? -eq 0 ]; then
                 redo=1
             fi
-            grep -q "kex_exchange_identification: Connection closed by remote host" $log_dir/$case_file.log
+            grep -q "kex_exchange_identification: Connection closed by remote host" $case_log_file
             if [ $? -eq 0 ]; then
                 redo=1
             fi
-            grep -q "ssh_exchange_identification: Connection closed by remote host" $log_dir/$case_file.log
+            grep -q "ssh_exchange_identification: Connection closed by remote host" $case_log_file
             if [ $? -eq 0 ]; then
                 redo=1
             fi
-            grep -q "kex_exchange_identification: read: Connection reset by peer" $log_dir/$case_file.log
+            grep -q "kex_exchange_identification: read: Connection reset by peer" $case_log_file
             if [ $? -eq 0 ]; then
                 redo=1
             fi
-            grep -q "Database not ready" $log_dir/$case_file.log
+            grep -q "Database not ready" $case_log_file
             if [ $? -eq 0 ]; then
                 redo=1
             fi
-            grep -q "Unable to establish connection" $log_dir/$case_file.log
+            grep -q "Unable to establish connection" $case_log_file
             if [ $? -eq 0 ]; then
                 redo=1
             fi
@@ -265,11 +284,18 @@ function run_thread() {
             redo_count=$(( redo_count + 1 ))
         done
         end_time=`date +%s`
-        echo >>$log_dir/$case_file.log
-        echo "${hosts[index]} execute time: $(( end_time - start_time ))s" >>$log_dir/$case_file.log
+        echo >>$case_log_file
+        total_time=$(( end_time - start_time ))
+        echo "${hosts[index]} total time: ${total_time}s" >>$case_log_file
         # echo "$thread_no ${line} DONE"
-        if [ $ret -ne 0 ]; then
-            flock -x $lock_file -c "echo \"${hosts[index]} ret:${ret} ${line}\" >>$log_dir/failed.log"
+        if [ $ret -eq 0 ]; then
+            echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[32m success\e[0m"
+        else
+            if [ ! -z ${web_server} ]; then
+                flock -x $lock_file -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  ${web_server}/$test_log_dir/${case_file}.txt\" >>${failed_case_file}"
+            else
+                flock -x $lock_file -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  log file: ${case_log_file}\" >>${failed_case_file}"
+            fi
             mkdir -p $log_dir/${case_file}.coredump
             local remote_coredump_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/coredump"
             local scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
@@ -278,14 +304,16 @@ function run_thread() {
             fi
             cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
             $cmd # 2>/dev/null
-            local case_info=`echo "$line"|cut -d, -f 3,4`
             local corefile=`ls $log_dir/${case_file}.coredump/`
-            corefile=`find $log_dir/${case_file}.coredump/ -name "core.*"`
-            echo -e "$case_info \e[31m failed\e[0m"
+            corefile=`find $log_dir/${case_file}.coredump/ -name "core*"`
+            echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[31m failed\e[0m"
             echo "=========================log============================"
-            cat $log_dir/$case_file.log
+            cat $case_log_file
             echo "====================================================="
-            echo -e "\e[34m log file: $log_dir/$case_file.log \e[0m"
+            echo -e "\e[34m log file: $case_log_file \e[0m"
+            if [ ! -z "${web_server}" ]; then
+                echo "${web_server}/$test_log_dir/${case_file}.txt"
+            fi
             if [ ! -z "$corefile" ]; then
                 echo -e "\e[34m corefiles: $corefile \e[0m"
                 local build_dir=$log_dir/build_${hosts[index]}
@@ -320,6 +348,10 @@ mkdir -p $log_dir
 rm -rf $log_dir/*
 task_file=$log_dir/$$.task
 lock_file=$log_dir/$$.lock
+index_file=$log_dir/case_index.txt
+stat_file=$log_dir/stat.txt
+failed_case_file=$log_dir/failed.txt
+echo "0" >$index_file
 
 i=0
 while [ $i -lt ${#hosts[*]} ]; do
@@ -328,10 +360,6 @@ while [ $i -lt ${#hosts[*]} ]; do
     i=$(( i + 1 ))
 done
 wait
-# if [ -f "$log_dir/failed.log" ]; then
-#     cat $log_dir/failed.log
-#     exit 1
-# fi
 
 i=0
 j=0
@@ -357,15 +385,45 @@ rm -f $lock_file
 rm -f $task_file
 
 # docker ps -a|grep -v CONTAINER|awk '{print $1}'|xargs docker rm -f
+echo "====================================================================="
+echo "log dir: $log_dir"
+total_cases=`cat $index_file`
+failed_cases=0
+if [ -f $failed_case_file ]; then
+    if [ ! -z "$web_server" ]; then
+        failed_cases=`grep -v "$web_server" $failed_case_file|wc -l`
+    else
+        failed_cases=`grep -v "log file:" $failed_case_file|wc -l`
+    fi
+fi
+success_cases=$(( total_cases - failed_cases ))
+echo "Total Cases: $total_cases" >$stat_file
+echo "Successful:  $success_cases" >>$stat_file
+echo "Failed:      $failed_cases" >>$stat_file
+cat $stat_file
+
 RET=0
 i=1
-if [ -f "$log_dir/failed.log" ]; then
+if [ -f "${failed_case_file}" ]; then
     echo "====================================================="
     while read line; do
+        if [ ! -z "${web_server}" ]; then
+            echo "$line"|grep -q "${web_server}"
+            if [ $? -eq 0 ]; then
+                echo "    $line"
+                continue
+            fi
+        else
+            echo "$line"|grep -q "log file:"
+            if [ $? -eq 0 ]; then
+                echo "    $line"
+                continue
+            fi
+        fi
         line=`echo "$line"|cut -d, -f 3,4`
         echo -e "$i. $line \e[31m failed\e[0m" >&2
         i=$(( i + 1 ))
-    done <$log_dir/failed.log
+    done <${failed_case_file}
     RET=1
 fi
 

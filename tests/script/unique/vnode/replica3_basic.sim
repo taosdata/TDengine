@@ -44,13 +44,13 @@ sql show mnodes
 print mnode1 $data2_1
 print mnode1 $data2_2
 print mnode1 $data2_3
-if $data2_1 != master then
+if $data2_1 != leader then
   goto step1
 endi
-if $data2_2 != slave then
+if $data2_2 != follower then
   goto step1
 endi
-if $data2_3 != slave then
+if $data2_3 != follower then
   goto step1
 endi
 

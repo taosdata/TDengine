@@ -1028,7 +1028,7 @@ static int32_t applyDataPointsWithSqlInsert(TAOS* taos, TAOS_SML_DATA_POINT* poi
 
         if (info->numBatches >= MAX_SML_SQL_INSERT_BATCHES) {
           tscError("SML:0x%"PRIx64" Apply points failed. exceeds max sql insert batches", info->id);
-          code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+          code = TSDB_CODE_TSC_TOO_MANY_SML_LINES;
           goto cleanup;
         }
 
@@ -1047,7 +1047,7 @@ static int32_t applyDataPointsWithSqlInsert(TAOS* taos, TAOS_SML_DATA_POINT* poi
   tscDebug("SML:0x%"PRIx64" sql: %s" , info->id, batch->sql);
   if (info->numBatches >= MAX_SML_SQL_INSERT_BATCHES) {
     tscError("SML:0x%"PRIx64" Apply points failed. exceeds max sql insert batches", info->id);
-    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    code = TSDB_CODE_TSC_TOO_MANY_SML_LINES;
     goto cleanup;
   }
   bool batchesExecuted[MAX_SML_SQL_INSERT_BATCHES] = {false};
