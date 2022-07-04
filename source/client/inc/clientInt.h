@@ -338,7 +338,8 @@ int  hbHandleRsp(SClientHbBatchRsp* hbRsp);
 SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char* key);
 void       appHbMgrCleanup(void);
 void       hbRemoveAppHbMrg(SAppHbMgr** pAppHbMgr);
-void       closeAllRequests(SHashObj* pRequests);
+void       destroyAllRequests(SHashObj* pRequests);
+void       stopAllRequests(SHashObj* pRequests);
 
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);

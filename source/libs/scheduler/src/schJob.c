@@ -184,9 +184,7 @@ FORCE_INLINE bool schJobNeedToStop(SSchJob *pJob, int8_t *pStatus) {
   }
 
   if ((*pJob->chkKillFp)(pJob->chkKillParam)) {
-    schUpdateJobStatus(pJob, JOB_TASK_STATUS_DROPPING);
     schUpdateJobErrCode(pJob, TSDB_CODE_TSC_QUERY_KILLED);
-
     return true;
   }  
 
@@ -811,14 +809,6 @@ int32_t schMoveTaskToExecList(SSchJob *pJob, SSchTask *pTask, bool *moved) {
 */
 
 int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bool *needRetry) {
-  int8_t status = 0;
-
-  if (schJobNeedToStop(pJob, &status)) {
-    *needRetry = false;
-    SCH_TASK_DLOG("task no more retry cause of job status, job status:%s", jobTaskStatusStr(status));
-    return TSDB_CODE_SUCCESS;
-  }
-
   if (TSDB_CODE_SCH_TIMEOUT_ERROR == errCode) {
     pTask->maxExecTimes++;
     if (pTask->timeoutUsec < SCH_MAX_TASK_TIMEOUT_USEC) {
@@ -835,7 +825,7 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
     return TSDB_CODE_SUCCESS;
   }
 
-  if (!NEED_SCHEDULER_RETRY_ERROR(errCode)) {
+  if (!SCH_NEED_RETRY(pTask->lastMsgType, errCode)) {
     *needRetry = false;
     SCH_TASK_DLOG("task no more retry cause of errCode, errCode:%x - %s", errCode, tstrerror(errCode));
     return TSDB_CODE_SUCCESS;
@@ -1277,7 +1267,7 @@ int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId* pEpId, SArray* pStatusList) {
   for (int32_t i = 0; i < taskNum; ++i) {
     STaskStatus *taskStatus = taosArrayGet(pStatusList, i);
 
-    qDebug("QID:%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d task status in server: %s", 
+    qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d task status in server: %s", 
       taskStatus->queryId, taskStatus->taskId, taskStatus->execId, jobTaskStatusStr(taskStatus->status));
 
     SSchJob *pJob = schAcquireJob(taskStatus->refId);
@@ -1689,11 +1679,6 @@ _return:
 
 int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf* pData, int32_t rspCode) {
   int32_t code = 0;
-  int8_t  status = 0;
-  if (schJobNeedToStop(pJob, &status)) {
-    SCH_TASK_ELOG("redirect will no continue cause of job status %s", jobTaskStatusStr(status));
-    SCH_RET(atomic_load_32(&pJob->errCode));
-  }
   
   if ((pTask->execId + 1) >= pTask->maxExecTimes) {
     SCH_TASK_DLOG("task no more retry since reach max try times, execId:%d", pTask->execId);

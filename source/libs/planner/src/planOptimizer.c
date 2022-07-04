@@ -476,10 +476,16 @@ static int32_t pushDownCondOptPushCondToScan(SOptimizeContext* pCxt, SScanLogicN
   return pushDownCondOptAppendCond(&pScan->node.pConditions, pCond);
 }
 
+static int32_t pushDownCondOptPushCondToProject(SOptimizeContext* pCxt, SProjectLogicNode* pProject, SNode** pCond) {
+  return pushDownCondOptAppendCond(&pProject->node.pConditions, pCond);
+}
+
 static int32_t pushDownCondOptPushCondToChild(SOptimizeContext* pCxt, SLogicNode* pChild, SNode** pCond) {
   switch (nodeType(pChild)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return pushDownCondOptPushCondToScan(pCxt, (SScanLogicNode*)pChild, pCond);
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      return pushDownCondOptPushCondToProject(pCxt, (SProjectLogicNode*)pChild, pCond);
     default:
       break;
   }
@@ -588,7 +594,7 @@ static int32_t pushDownCondOptDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* p
 
 typedef struct SPartAggCondContext {
   SAggLogicNode* pAgg;
-  bool hasAggFunc;
+  bool           hasAggFunc;
 } SPartAggCondContext;
 
 static EDealRes partAggCondHasAggFuncImpl(SNode* pNode, void* pContext) {
@@ -613,11 +619,11 @@ static int32_t partitionAggCondHasAggFunc(SAggLogicNode* pAgg, SNode* pCond) {
 
 static int32_t partitionAggCondConj(SAggLogicNode* pAgg, SNode** ppAggFuncCond, SNode** ppGroupKeyCond) {
   SLogicConditionNode* pLogicCond = (SLogicConditionNode*)pAgg->node.pConditions;
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t              code = TSDB_CODE_SUCCESS;
 
   SNodeList* pAggFuncConds = NULL;
   SNodeList* pGroupKeyConds = NULL;
-  SNode* pCond = NULL;
+  SNode*     pCond = NULL;
   FOREACH(pCond, pLogicCond->pParameterList) {
     if (partitionAggCondHasAggFunc(pAgg, pCond)) {
       code = nodesListMakeAppend(&pAggFuncConds, nodesCloneNode(pCond));
@@ -671,14 +677,14 @@ static int32_t pushCondToAggCond(SOptimizeContext* pCxt, SAggLogicNode* pAgg, SN
   return TSDB_CODE_SUCCESS;
 }
 
-typedef struct SRewriteAggGroupKeyCondContext{
-  SAggLogicNode *pAgg;
-  int32_t errCode;
+typedef struct SRewriteAggGroupKeyCondContext {
+  SAggLogicNode* pAgg;
+  int32_t        errCode;
 } SRewriteAggGroupKeyCondContext;
 
 static EDealRes rewriteAggGroupKeyCondForPushDownImpl(SNode** pNode, void* pContext) {
   SRewriteAggGroupKeyCondContext* pCxt = pContext;
-  SAggLogicNode* pAgg = pCxt->pAgg;
+  SAggLogicNode*                  pAgg = pCxt->pAgg;
   if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
     SNode* pGroupKey = NULL;
     FOREACH(pGroupKey, pAgg->pGroupKeys) {
@@ -711,14 +717,15 @@ static int32_t pushDownCondOptDealAgg(SOptimizeContext* pCxt, SAggLogicNode* pAg
       OPTIMIZE_FLAG_TEST_MASK(pAgg->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
   }
-  //TODO: remove it after full implementation of pushing down to child
+  // TODO: remove it after full implementation of pushing down to child
   if (1 != LIST_LENGTH(pAgg->node.pChildren) ||
-      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pAgg->node.pChildren, 0))) {
+      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) &&
+      QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(nodesListGetNode(pAgg->node.pChildren, 0))) {
     return TSDB_CODE_SUCCESS;
   }
-  
-  SNode* pAggFuncCond = NULL;
-  SNode* pGroupKeyCond = NULL;
+
+  SNode*  pAggFuncCond = NULL;
+  SNode*  pGroupKeyCond = NULL;
   int32_t code = partitionAggCond(pAgg, &pAggFuncCond, &pGroupKeyCond);
   if (TSDB_CODE_SUCCESS == code && NULL != pAggFuncCond) {
     code = pushCondToAggCond(pCxt, pAgg, &pAggFuncCond);
@@ -1455,9 +1462,17 @@ static int32_t rewriteTailOptCreateSort(SIndefRowsFuncLogicNode* pIndef, SLogicN
   TSWAP(pSort->node.pChildren, pIndef->node.pChildren);
   pSort->node.precision = pIndef->node.precision;
 
+  SFunctionNode* pTail = NULL;
+  SNode*         pFunc = NULL;
+  FOREACH(pFunc, pIndef->pFuncs) {
+    if (FUNCTION_TYPE_TAIL == ((SFunctionNode*)pFunc)->funcType) {
+      pTail = (SFunctionNode*)pFunc;
+      break;
+    }
+  }
+
   // tail(expr, [limit, offset,] _rowts)
-  SFunctionNode* pTail = (SFunctionNode*)nodesListGetNode(pIndef->pFuncs, 0);
-  int32_t        rowtsIndex = LIST_LENGTH(pTail->pParameterList) - 1;
+  int32_t rowtsIndex = LIST_LENGTH(pTail->pParameterList) - 1;
 
   int32_t code = nodesListMakeStrictAppend(
       &pSort->pSortKeys, rewriteTailOptCreateOrderByExpr(nodesListGetNode(pTail->pParameterList, rowtsIndex)));
@@ -1477,12 +1492,12 @@ static int32_t rewriteTailOptCreateSort(SIndefRowsFuncLogicNode* pIndef, SLogicN
   return code;
 }
 
-static SNode* rewriteTailOptCreateProjectExpr(SFunctionNode* pTail) {
-  SNode* pExpr = nodesCloneNode(nodesListGetNode(pTail->pParameterList, 0));
+static SNode* rewriteTailOptCreateProjectExpr(SFunctionNode* pFunc) {
+  SNode* pExpr = nodesCloneNode(nodesListGetNode(pFunc->pParameterList, 0));
   if (NULL == pExpr) {
     return NULL;
   }
-  strcpy(((SExprNode*)pExpr)->aliasName, pTail->node.aliasName);
+  strcpy(((SExprNode*)pExpr)->aliasName, pFunc->node.aliasName);
   return pExpr;
 }
 
@@ -1495,12 +1510,22 @@ static int32_t rewriteTailOptCreateProject(SIndefRowsFuncLogicNode* pIndef, SLog
   TSWAP(pProject->node.pTargets, pIndef->node.pTargets);
   pProject->node.precision = pIndef->node.precision;
 
-  // tail(expr, [limit, offset,] _rowts)
-  SFunctionNode* pTail = (SFunctionNode*)nodesListGetNode(pIndef->pFuncs, 0);
-  int32_t        limitIndex = LIST_LENGTH(pTail->pParameterList) > 2 ? 1 : -1;
-  int32_t        offsetIndex = LIST_LENGTH(pTail->pParameterList) > 3 ? 2 : -1;
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SFunctionNode* pTail = NULL;
+  SNode*         pFunc = NULL;
+  FOREACH(pFunc, pIndef->pFuncs) {
+    code = nodesListMakeStrictAppend(&pProject->pProjections, rewriteTailOptCreateProjectExpr((SFunctionNode*)pFunc));
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+    if (FUNCTION_TYPE_TAIL == ((SFunctionNode*)pFunc)->funcType) {
+      pTail = (SFunctionNode*)pFunc;
+    }
+  }
 
-  int32_t code = nodesListMakeStrictAppend(&pProject->pProjections, rewriteTailOptCreateProjectExpr(pTail));
+  // tail(expr, [limit, offset,] _rowts)
+  int32_t limitIndex = LIST_LENGTH(pTail->pParameterList) > 2 ? 1 : -1;
+  int32_t offsetIndex = LIST_LENGTH(pTail->pParameterList) > 3 ? 2 : -1;
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteTailOptCreateLimit(limitIndex < 0 ? NULL : nodesListGetNode(pTail->pParameterList, limitIndex),
                                      offsetIndex < 0 ? NULL : nodesListGetNode(pTail->pParameterList, offsetIndex),
@@ -1855,7 +1880,7 @@ static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
 }
 
 static int32_t mergeProjectsOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SLogicNode* pSelfNode) {
-  SLogicNode*              pChild = (SLogicNode*)nodesListGetNode(pSelfNode->pChildren, 0);
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pSelfNode->pChildren, 0);
 
   SMergeProjectionsContext cxt = {.pChildProj = (SProjectLogicNode*)pChild, .errCode = TSDB_CODE_SUCCESS};
   nodesRewriteExprs(((SProjectLogicNode*)pSelfNode)->pProjections, mergeProjectionsExpr, &cxt);

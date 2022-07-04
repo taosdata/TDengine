@@ -225,10 +225,11 @@ int32_t mndAddShuffleSinkTasksToStream(SMnode* pMnode, SStreamObj* pStream) {
     SVgObj* pVgroup;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
     if (pIter == NULL) break;
-    if (strcmp(pVgroup->dbName, pStream->targetDb) != 0) {
+    if (!mndVgroupInDb(pVgroup, pStream->targetDbUid)) {
       sdbRelease(pSdb, pVgroup);
       continue;
     }
+
     SStreamTask* pTask = tNewSStreamTask(pStream->uid);
     if (pTask == NULL) {
       sdbRelease(pSdb, pVgroup);
@@ -420,10 +421,11 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
       SVgObj* pVgroup;
       pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
       if (pIter == NULL) break;
-      if (pVgroup->dbUid != pStream->sourceDbUid) {
+      if (!mndVgroupInDb(pVgroup, pStream->sourceDbUid)) {
         sdbRelease(pSdb, pVgroup);
         continue;
       }
+
       SStreamTask* pTask = tNewSStreamTask(pStream->uid);
       if (pInnerTask == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -483,10 +485,11 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
       SVgObj* pVgroup;
       pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
       if (pIter == NULL) break;
-      if (pVgroup->dbUid != pStream->sourceDbUid) {
+      if (!mndVgroupInDb(pVgroup, pStream->sourceDbUid)) {
         sdbRelease(pSdb, pVgroup);
         continue;
       }
+
       SStreamTask* pTask = tNewSStreamTask(pStream->uid);
       if (pTask == NULL) {
         sdbRelease(pSdb, pVgroup);
@@ -559,7 +562,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
     if (pIter == NULL) break;
-    if (pVgroup->dbUid != pTopic->dbUid) {
+    if (!mndVgroupInDb(pVgroup, pTopic->dbUid)) {
       sdbRelease(pSdb, pVgroup);
       continue;
     }

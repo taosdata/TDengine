@@ -116,6 +116,73 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
   return ret;
 }
 
+int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+    return -1;
+  }
+
+  int32_t ret = 0;
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    SRaftId* pDestId = &(pSyncNode->peersId[i]);
+
+    // next index
+    SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
+
+    // pre index, pre term
+    SyncIndex preLogIndex = syncNodeGetPreIndex(pSyncNode, nextIndex);
+    SyncTerm  preLogTerm = syncNodeGetPreTerm(pSyncNode, nextIndex);
+    if (preLogTerm == SYNC_TERM_INVALID) {
+      SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(pSyncNode, pDestId);
+      ASSERT(pSender != NULL);
+      ASSERT(!snapshotSenderIsStart(pSender));
+
+      SyncIndex newNextIndex = syncNodeGetLastIndex(pSyncNode) + 1;
+      syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, newNextIndex);
+      syncIndexMgrSetIndex(pSyncNode->pMatchIndex, pDestId, SYNC_INDEX_INVALID);
+      sError("vgId:%d sync get pre term error, nextIndex:%ld, update next-index:%ld, match-index:%d, raftid:%ld",
+             pSyncNode->vgId, nextIndex, newNextIndex, SYNC_INDEX_INVALID, pDestId->addr);
+
+      return -1;
+    }
+
+    SRpcMsg rpcMsgArr[SYNC_MAX_BATCH_SIZE];
+    memset(rpcMsgArr, 0, sizeof(rpcMsgArr));
+
+    int32_t getCount = 0;
+    for (int32_t i = 0; i < pSyncNode->batchSize; ++i) {
+      SSyncRaftEntry* pEntry;
+      int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, nextIndex, &pEntry);
+      if (code == 0) {
+        ASSERT(pEntry != NULL);
+        // get rpc msg [i] from entry
+        syncEntryDestory(pEntry);
+        getCount++;
+      } else {
+        break;
+      }
+    }
+
+    SyncAppendEntriesBatch* pMsg = syncAppendEntriesBatchBuild(rpcMsgArr, getCount, pSyncNode->vgId);
+    ASSERT(pMsg != NULL);
+
+    // prepare msg
+    pMsg->srcId = pSyncNode->myRaftId;
+    pMsg->destId = *pDestId;
+    pMsg->term = pSyncNode->pRaftStore->currentTerm;
+    pMsg->prevLogIndex = preLogIndex;
+    pMsg->prevLogTerm = preLogTerm;
+    pMsg->commitIndex = pSyncNode->commitIndex;
+    pMsg->privateTerm = 0;
+    pMsg->dataCount = getCount;
+
+    // send msg
+    syncNodeAppendEntriesBatch(pSyncNode, pDestId, pMsg);
+    syncAppendEntriesBatchDestroy(pMsg);
+  }
+
+  return 0;
+}
+
 int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
 
@@ -234,4 +301,24 @@ int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, c
   syncAppendEntries2RpcMsg(pMsg, &rpcMsg);
   syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
   return ret;
+}
+
+int32_t syncNodeAppendEntriesBatch(SSyncNode* pSyncNode, const SRaftId* destRaftId,
+                                   const SyncAppendEntriesBatch* pMsg) {
+  do {
+    char     host[128];
+    uint16_t port;
+    syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
+    sDebug(
+        "vgId:%d, send sync-append-entries-batch to %s:%d, {term:%lu, pre-index:%ld, pre-term:%lu, pterm:%lu, "
+        "commit:%ld, "
+        "datalen:%d, dataCount:%d}",
+        pSyncNode->vgId, host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm,
+        pMsg->commitIndex, pMsg->dataLen, pMsg->dataCount);
+  } while (0);
+
+  SRpcMsg rpcMsg;
+  syncAppendEntriesBatch2RpcMsg(pMsg, &rpcMsg);
+  syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
+  return 0;
 }

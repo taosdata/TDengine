@@ -646,9 +646,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   pRequest->body.resInfo.execRes = res.res;
 
   if (code != TSDB_CODE_SUCCESS) {
-    if (pRequest->body.queryJob != 0) {
-      schedulerFreeJob(pRequest->body.queryJob, 0);
-    }
+    schedulerFreeJob(&pRequest->body.queryJob, 0);
 
     pRequest->code = code;
     terrno = code;
@@ -659,9 +657,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
       TDMT_VND_CREATE_TABLE == pRequest->type) {
     pRequest->body.resInfo.numOfRows = res.numOfRows;
 
-    if (pRequest->body.queryJob != 0) {
-      schedulerFreeJob(pRequest->body.queryJob, 0);
-    }
+    schedulerFreeJob(&pRequest->body.queryJob, 0);
   }
 
   pRequest->code = res.code;
@@ -787,16 +783,16 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
 void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*)param;
   pRequest->code = code;
+  pRequest->body.resInfo.execRes = pResult->res;
 
   if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type ||
       TDMT_VND_CREATE_TABLE == pRequest->type) {
     pRequest->body.resInfo.numOfRows = pResult->numOfRows;
 
-    if (pRequest->body.queryJob != 0) {
-      schedulerFreeJob(pRequest->body.queryJob, 0);
-      pRequest->body.queryJob = 0;
-    }
+    schedulerFreeJob(&pRequest->body.queryJob, 0);
   }
+
+  taosMemoryFree(pResult);
 
   tscDebug("0x%" PRIx64 " enter scheduler exec cb, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code,
            tstrerror(code), pRequest->requestId);

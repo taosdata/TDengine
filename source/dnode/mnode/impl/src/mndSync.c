@@ -117,7 +117,7 @@ void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbM
   }
 }
 
-int32_t mndSnapshotStartRead(struct SSyncFSM *pFsm, void **ppReader) {
+int32_t mndSnapshotStartRead(struct SSyncFSM *pFsm, void *pParam, void **ppReader) {
   mDebug("start to read snapshot from sdb");
   SMnode *pMnode = pFsm->data;
   return sdbStartRead(pMnode->pSdb, (SSdbIter **)ppReader, NULL, NULL, NULL);

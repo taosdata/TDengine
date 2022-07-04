@@ -18,6 +18,7 @@
 #include "querynodes.h"
 #include "taos.h"
 #include "taoserror.h"
+#include "tdatablock.h"
 
 #define COPY_SCALAR_FIELD(fldname)     \
   do {                                 \
@@ -164,7 +165,15 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
       memcpy(pDst->datum.p, pSrc->datum.p, len);
       break;
     }
-    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_JSON:{
+      int32_t len = getJsonValueLen(pSrc->datum.p);
+      pDst->datum.p = taosMemoryCalloc(1, len);
+      if (NULL == pDst->datum.p) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      memcpy(pDst->datum.p, pSrc->datum.p, len);
+      break;
+    }
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB:
@@ -600,7 +609,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_CHAR_ARRAY_FIELD(stmtName);
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(isEmptyResult);
-  COPY_SCALAR_FIELD(isTimeOrderQuery);
+  COPY_SCALAR_FIELD(isTimeLineResult);
   COPY_SCALAR_FIELD(hasAggFuncs);
   COPY_SCALAR_FIELD(hasRepeatScanFuncs);
   return TSDB_CODE_SUCCESS;

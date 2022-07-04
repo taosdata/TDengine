@@ -133,12 +133,31 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   return pDnodeConn;
 }
 
-void closeAllRequests(SHashObj *pRequests) {
+void destroyAllRequests(SHashObj *pRequests) {
   void *pIter = taosHashIterate(pRequests, NULL);
   while (pIter != NULL) {
     int64_t *rid = pIter;
 
-    removeRequest(*rid);
+    SRequestObj *pRequest = acquireRequest(*rid);
+    if (pRequest) {
+      destroyRequest(pRequest);
+      releaseRequest(*rid);
+    }
+
+    pIter = taosHashIterate(pRequests, pIter);
+  }
+}
+
+void stopAllRequests(SHashObj *pRequests) {
+  void *pIter = taosHashIterate(pRequests, NULL);
+  while (pIter != NULL) {
+    int64_t *rid = pIter;
+
+    SRequestObj *pRequest = acquireRequest(*rid);
+    if (pRequest) {
+      taos_stop_query(pRequest);
+      releaseRequest(*rid);
+    }
 
     pIter = taosHashIterate(pRequests, pIter);
   }
@@ -171,12 +190,12 @@ void destroyTscObj(void *pObj) {
 
   STscObj *pTscObj = pObj;
   int64_t  tscId = pTscObj->id;
-  tscDebug("begin to destroy tscObj %" PRIx64 " p:%p", tscId, pTscObj);
+  tscTrace("begin to destroy tscObj %" PRIx64 " p:%p", tscId, pTscObj);
 
   SClientHbKey connKey = {.tscRid = pTscObj->id, .connType = pTscObj->connType};
   hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
   int64_t connNum = atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
-  closeAllRequests(pTscObj->pRequests);
+  destroyAllRequests(pTscObj->pRequests);
   schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
   tscDebug("connObj 0x%" PRIx64 " p:%p destroyed, remain inst totalConn:%" PRId64, pTscObj->id, pTscObj,
            pTscObj->pAppInfo->numOfConns);
@@ -185,9 +204,9 @@ void destroyTscObj(void *pObj) {
     destroyAppInst(pTscObj->pAppInfo);
   }
   taosThreadMutexDestroy(&pTscObj->mutex);
-  taosMemoryFreeClear(pTscObj);
+  taosMemoryFree(pTscObj);
 
-  tscDebug("end to destroy tscObj %" PRIx64 " p:%p", tscId, pTscObj);
+  tscTrace("end to destroy tscObj %" PRIx64 " p:%p", tscId, pTscObj);
 }
 
 void *createTscObj(const char *user, const char *auth, const char *db, int32_t connType, SAppInstInfo *pAppInfo) {
@@ -286,14 +305,13 @@ void doDestroyRequest(void *p) {
   }
 
   SRequestObj *pRequest = (SRequestObj *)p;
-  int64_t      reqId = pRequest->self;
-  tscDebug("begin to destroy request %" PRIx64 " p:%p", reqId, pRequest);
+
+  int64_t reqId = pRequest->self;
+  tscTrace("begin to destroy request %" PRIx64 " p:%p", reqId, pRequest);
 
   taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
 
-  if (pRequest->body.queryJob != 0) {
-    schedulerFreeJob(pRequest->body.queryJob, 0);
-  }
+  schedulerFreeJob(&pRequest->body.queryJob, 0);
 
   taosMemoryFreeClear(pRequest->msgBuf);
   taosMemoryFreeClear(pRequest->sqlstr);
@@ -309,15 +327,17 @@ void doDestroyRequest(void *p) {
   if (pRequest->self) {
     deregisterRequest(pRequest);
   }
-  taosMemoryFreeClear(pRequest);
+  taosMemoryFree(pRequest);
 
-  tscDebug("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
+  tscTrace("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
 }
 
 void destroyRequest(SRequestObj *pRequest) {
   if (pRequest == NULL) {
     return;
   }
+
+  taos_stop_query(pRequest);
 
   removeRequest(pRequest->self);
 }

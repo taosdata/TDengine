@@ -194,10 +194,10 @@ void taos_kill_query(TAOS *taos) {
   if (NULL == taos) {
     return;
   }
-  int64_t rid = *(int64_t *)taos;
 
+  int64_t  rid = *(int64_t *)taos;
   STscObj *pTscObj = acquireTscObj(rid);
-  closeAllRequests(pTscObj->pRequests);
+  stopAllRequests(pTscObj->pRequests);
   releaseTscObj(rid);
 }
 
@@ -478,9 +478,7 @@ void taos_stop_query(TAOS_RES *res) {
     return;
   }
 
-  if (pRequest->body.queryJob) {
-    schedulerFreeJob(pRequest->body.queryJob, TSDB_CODE_TSC_QUERY_KILLED);
-  }
+  schedulerFreeJob(&pRequest->body.queryJob, TSDB_CODE_TSC_QUERY_KILLED);
 
   tscDebug("request %" PRIx64 " killed", pRequest->requestId);
 }
