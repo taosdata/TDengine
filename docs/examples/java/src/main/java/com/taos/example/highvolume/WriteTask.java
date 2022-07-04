@@ -8,7 +8,7 @@ import java.util.concurrent.BlockingQueue;
 // ANCHOR: WriteTask
 class WriteTask implements Runnable {
     private final static Logger logger = LoggerFactory.getLogger(WriteTask.class);
-    private final static int maxBatchSize = 3000;
+    private final int maxBatchSize;
 
     // the queue from which this writing task get raw data.
     private final BlockingQueue<String> queue;
@@ -16,10 +16,10 @@ class WriteTask implements Runnable {
     // A flag indicate whether to continue.
     private boolean active = true;
 
-    public WriteTask(BlockingQueue<String> taskQueue) {
+    public WriteTask(BlockingQueue<String> taskQueue, int maxBatchSize) {
         this.queue = taskQueue;
+        this.maxBatchSize = maxBatchSize;
     }
-
 
     @Override
     public void run() {
@@ -38,7 +38,7 @@ class WriteTask implements Runnable {
                     writer.flush();
                 } else {
                     // sleep a while to avoid high CPU usage if no more data in the queue and no buffered records, .
-                    Thread.sleep(500);
+                    Thread.sleep(100);
                 }
             }
             if (writer.hasBufferedValues()) {

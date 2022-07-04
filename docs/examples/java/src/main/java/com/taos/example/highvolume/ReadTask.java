@@ -12,7 +12,7 @@ import java.util.concurrent.BlockingQueue;
  */
 class MockDataSource implements Iterator {
     private String tbNamePrefix;
-    private int tableCount = 1000;
+    private int tableCount;
     private long maxRowsPerTable = 1000000000L;
 
     // 100 milliseconds between two neighbouring rows.
@@ -26,8 +26,9 @@ class MockDataSource implements Iterator {
     int[] voltage = {119, 116, 111, 113, 118};
     float[] phase = {0.32f, 0.34f, 0.33f, 0.329f, 0.141f};
 
-    public MockDataSource(String tbNamePrefix) {
+    public MockDataSource(String tbNamePrefix, int tableCount) {
         this.tbNamePrefix = tbNamePrefix;
+        this.tableCount = tableCount;
     }
 
     @Override
@@ -62,12 +63,14 @@ class ReadTask implements Runnable {
     private final int taskId;
     private final List<BlockingQueue<String>> taskQueues;
     private final int queueCount;
+    private final int tableCount;
     private boolean active = true;
 
-    public ReadTask(int readTaskId, List<BlockingQueue<String>> queues) {
+    public ReadTask(int readTaskId, List<BlockingQueue<String>> queues, int tableCount) {
         this.taskId = readTaskId;
         this.taskQueues = queues;
         this.queueCount = queues.size();
+        this.tableCount = tableCount;
     }
 
     /**
@@ -87,7 +90,7 @@ class ReadTask implements Runnable {
     @Override
     public void run() {
         logger.info("started");
-        Iterator<String> it = new MockDataSource("tb" + this.taskId);
+        Iterator<String> it = new MockDataSource("tb" + this.taskId, tableCount);
         try {
             while (it.hasNext() && active) {
                 String line = it.next();
