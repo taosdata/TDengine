@@ -246,7 +246,6 @@ python3 ./test.py -f 2-query/distribute_agg_stddev.py  -Q 2
 python3 ./test.py -f 2-query/twa.py  -Q 2
 python3 ./test.py -f 2-query/irate.py  -Q 2
 python3 ./test.py -f 2-query/function_null.py  -Q 2
-python3 ./test.py -f 2-query/queryQnode.py   -Q 2
 
 #------------querPolicy  3-----------
 
@@ -308,7 +307,7 @@ python3 ./test.py -f 2-query/arctan.py -Q  3
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q  3
 # python3 ./test.py -f 2-query/nestedQuery.py -Q  3
 # python3 ./test.py -f 2-query/nestedQuery_str.py -Q  3
-python3 ./test.py -f 2-query/avg.py -Q  3
+# python3 ./test.py -f 2-query/avg.py -Q  3
 python3 ./test.py -f 2-query/elapsed.py -Q  3
 python3 ./test.py -f 2-query/csum.py -Q  3
 python3 ./test.py -f 2-query/mavg.py -Q  3
@@ -332,5 +331,4 @@ python3 ./test.py -f 2-query/distribute_agg_stddev.py -Q  3
 python3 ./test.py -f 2-query/twa.py -Q  3
 python3 ./test.py -f 2-query/irate.py -Q  3
 python3 ./test.py -f 2-query/function_null.py -Q  3
-python3 ./test.py -f 2-query/queryQnode.py  -Q  3
 
