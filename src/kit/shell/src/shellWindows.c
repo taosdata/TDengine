@@ -64,8 +64,8 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "Packet numbers used for net test, default is 100.");
   printf("%s%s\n", indent, "-R");
   printf("%s%s%s\n", indent, indent, "Connect and interact with TDengine use restful.");
-  printf("%s%s\n", indent, "-t");
-  printf("%s%s%s\n", indent, indent, "The token to use when connecting TDengine's cloud services.");
+  printf("%s%s\n", indent, "-E");
+  printf("%s%s%s\n", indent, indent, "The DSN to use when connecting TDengine's cloud services.");
   printf("%s%s\n", indent, "-S");
   printf("%s%s%s\n", indent, indent, "Packet type used for net test, default is TCP.");
   printf("%s%s\n", indent, "-V");
@@ -80,15 +80,8 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for host
     if (strcmp(argv[i], "-h") == 0) {
       if (i < argc - 1) {
-        char* arg = argv[++i];
-          char* tmp = strstr(arg, ":");
-          if (tmp == NULL) {
-              arguments->host = arg;
-          } else if ((tmp + 1) != NULL) {
-              arguments->port  = atoi(tmp + 1);
-              tmp[0] = '\0';
-              arguments->host = arg;
-          }
+          arguments->cloud = false;
+          arguments->host = argv[++i];
       } else {
         fprintf(stderr, "option -h requires an argument\n");
         exit(EXIT_FAILURE);
@@ -119,6 +112,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for management port
     else if (strcmp(argv[i], "-P") == 0) {
       if (i < argc - 1) {
+        arguments->cloud = false;
         arguments->port = atoi(argv[++i]);
       } else {
         fprintf(stderr, "option -P requires an argument\n");
@@ -142,6 +136,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       }
     } else if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
+        arguments->cloud = false;
         char *tmp = argv[++i];
         if (strlen(tmp) >= TSDB_FILENAME_LEN) {
           fprintf(stderr, "config file path: %s overflow max len %d\n", tmp, TSDB_FILENAME_LEN - 1);
@@ -225,14 +220,15 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     }
 
     else if (strcmp(argv[i], "-R") == 0) {
+        arguments->cloud = false;
         arguments->restful = true;
     }
 
-    else if (strcmp(argv[i], "-t") == 0) {
+    else if (strcmp(argv[i], "-E") == 0) {
         if (i < argc - 1) {
-            arguments->token = argv[++i];
+            arguments->cloudDsn = argv[++i];
         } else {
-            fprintf(stderr, "options -t requires an argument\n");
+            fprintf(stderr, "options -E requires an argument\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -250,6 +246,22 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       printHelp();
       exit(EXIT_FAILURE);
     }
+  }
+  if (args.cloudDsn == NULL) {
+      if (args.cloud) {
+          args.cloudDsn = getenv("TDENGINE_CLOUD_DSN");
+          if (args.cloudDsn[strlen(args.cloudDsn) - 1] == '\"') {
+              args.cloudDsn[strlen(args.cloudDsn) - 1] = '\0';
+          }
+          if (args.cloudDsn[0] == '\"') {
+              args.cloudDsn += 1;
+          }
+          if (args.cloudDsn == NULL) {
+              args.cloud = false;
+          }
+      }
+  } else {
+      args.cloud = true;
   }
 }
 
@@ -363,21 +375,23 @@ void get_history_path(char *history) {
 
 void exitShell() { exit(EXIT_SUCCESS); }
 
-int tcpConnect() {
+int tcpConnect(char* host, int iport) {
     int iResult;
     WSADATA wsaData;
     struct addrinfo *aResult = NULL,
             *ptr = NULL,
             hints;
-    if (args.port == 0) {
+    if (iport == 0) {
+        iport = 6041;
         args.port = 6041;
     }
-    if (NULL == args.host) {
+    if (NULL == host) {
+        host = "localhost";
         args.host = "localhost";
     }
     char port[10] = {0};
 
-    sprintf_s(port, 10, "%d", args.port);
+    sprintf_s(port, 10, "%d", iport);
 
     iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
     if (iResult != 0) {
@@ -388,7 +402,7 @@ int tcpConnect() {
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
-    iResult = getaddrinfo(args.host, port, &hints, &aResult);
+    iResult = getaddrinfo(host, port, &hints, &aResult);
     if ( iResult != 0 ) {
         printf("getaddrinfo failed with error: %d\n", iResult);
         WSACleanup();

@@ -1,13 +1,22 @@
+<p>
+<p align="center">
+  <a href="https://tdengine.com" target="_blank">
+  <img
+    src="docs/assets/tdengine.svg"
+    alt="TDengine"
+    width="500"
+  />
+  </a>
+</p>
+<p>
+
 [![Build Status](https://cloud.drone.io/api/badges/taosdata/TDengine/status.svg?ref=refs/heads/master)](https://cloud.drone.io/taosdata/TDengine)
 [![Build status](https://ci.appveyor.com/api/projects/status/kf3pwh2or5afsgl9/branch/master?svg=true)](https://ci.appveyor.com/project/sangshuduo/tdengine-2n8ge/branch/master)
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 [![tdengine](https://snapcraft.io//tdengine/badge.svg)](https://snapcraft.io/tdengine)
 
-[![TDengine](TDenginelogo.png)](https://www.taosdata.com)
-
-English | [简体中文](./README-CN.md)
-We are hiring, check [here](https://www.taosdata.com/en/careers/)
+English | [简体中文](README-CN.md) | We are hiring, check [here](https://tdengine.com/careers)
 
 # What is TDengine？
 

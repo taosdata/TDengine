@@ -5,7 +5,7 @@ set -e
 pgrep taosd || taosd >> /dev/null 2>&1 &
 pgrep taosadapter || taosadapter >> /dev/null 2>&1 &
 
-cd ../../docs-examples/R
+cd ../../docs/examples/R
 
 git clone -b main --depth 1 git@github.com:taosdata/taos-connector-jdbc.git
 cd taos-connector-jdbc

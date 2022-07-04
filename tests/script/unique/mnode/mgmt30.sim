@@ -19,7 +19,7 @@ sql show mnodes
 print dnode1 ==> $data2_1
 print dnode2 ==> $data2_2
 print dnode3 ==> $data3_3
-if $data2_1 != master then
+if $data2_1 != leader then
   return -1
 endi
 if $data3_2 != null then
@@ -53,13 +53,13 @@ print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
 
-if $dnode1Role != master then
+if $dnode1Role != leader then
   goto step2
 endi
-if $dnode2Role != slave then
+if $dnode2Role != follower then
   goto step2
 endi
-if $dnode3Role != slave then
+if $dnode3Role != follower then
   goto step2
 endi
 
