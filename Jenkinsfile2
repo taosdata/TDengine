@@ -354,7 +354,7 @@ pipeline {
                     }
                 }
                 stage('mac test') {
-                    agent{label " Mac_catalina "}a
+                    agent{label " Mac_catalina "}
                     steps {
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                             timeout(time: 20, unit: 'MINUTES'){
