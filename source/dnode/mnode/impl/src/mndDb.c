@@ -549,18 +549,33 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   terrno = TSDB_CODE_MND_DB_OPTION_UNCHANGED;
 
   if (pAlter->buffer > 0 && pAlter->buffer != pDb->cfg.buffer) {
+#if 1
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return terrno;
+#else
     pDb->cfg.buffer = pAlter->buffer;
     terrno = 0;
+#endif
   }
 
   if (pAlter->pages > 0 && pAlter->pages != pDb->cfg.pages) {
+#if 1
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return terrno;
+#else
     pDb->cfg.pages = pAlter->pages;
     terrno = 0;
+#endif
   }
 
   if (pAlter->pageSize > 0 && pAlter->pageSize != pDb->cfg.pageSize) {
+#if 1
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return terrno;
+#else
     pDb->cfg.pageSize = pAlter->pageSize;
     terrno = 0;
+#endif
   }
 
   if (pAlter->daysPerFile > 0 && pAlter->daysPerFile != pDb->cfg.daysPerFile) {
@@ -594,8 +609,12 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   }
 
   if (pAlter->strict >= 0 && pAlter->strict != pDb->cfg.strict) {
+#if 1
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+#else
     pDb->cfg.strict = pAlter->strict;
     terrno = 0;
+#endif
   }
 
   if (pAlter->cacheLastRow >= 0 && pAlter->cacheLastRow != pDb->cfg.cacheLastRow) {
@@ -604,9 +623,13 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   }
 
   if (pAlter->replications > 0 && pAlter->replications != pDb->cfg.replications) {
+#if 1
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+#else
     pDb->cfg.replications = pAlter->replications;
     pDb->vgVersion++;
     terrno = 0;
+#endif
   }
 
   return terrno;

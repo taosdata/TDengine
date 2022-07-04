@@ -116,8 +116,8 @@ python3 ./test.py -f 2-query/irate.py
 python3 ./test.py -f 2-query/function_null.py
 python3 ./test.py -f 2-query/queryQnode.py 
 
-python3 ./test.py -f 6-cluster/5dnode1mnode.py 
-python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3
+#python3 ./test.py -f 6-cluster/5dnode1mnode.py 
+#python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3
 #python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
 #python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 5 -M 3
@@ -157,3 +157,4 @@ python3 ./test.py -f 7-tmq/tmqShow.py
 python3 ./test.py -f 7-tmq/tmqAlterSchema.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1.py
+python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg.py

@@ -50,6 +50,21 @@ sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) t
 print --> create sma
 sql create sma index sma_index_name1 on stb function(max(c1),max(c2),min(c1)) interval(6m,10s) sliding(6m);
 
+print --> show sma
+sql show indexes from stb from d1;
+if $rows != 1 then 
+  return -1
+endi
+if $data[0][0] != sma_index_name1 then 
+  return -1
+endi
+if $data[0][1] != d1 then 
+  return -1
+endi
+if $data[0][2] != stb then 
+  return -1
+endi
+
 print --> drop stb
 sql drop table stb; 
 
@@ -60,6 +75,21 @@ sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) t
 
 print --> create sma
 sql create sma index sma_index_name1 on stb function(max(c1),max(c2),min(c1)) interval(6m,10s) sliding(6m);
+
+print --> show sma
+sql show indexes from stb from d1;
+if $rows != 1 then 
+  return -1
+endi
+if $data[0][0] != sma_index_name1 then 
+  return -1
+endi
+if $data[0][1] != d1 then 
+  return -1
+endi
+if $data[0][2] != stb then 
+  return -1
+endi
 
 print --> drop stb
 sql drop table stb; 
