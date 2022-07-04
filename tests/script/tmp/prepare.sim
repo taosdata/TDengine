@@ -30,10 +30,10 @@ endw
 
 return 
 
-create database db vgroups 1024 buffer 3;
-use db;
-create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned);
-create table ct1 using stb tags(1000);
-create table ct2 using stb tags(1000) ;
-show db.tables;
-insert into ct1 values(now+0s, 10, 2.0, 3.0);
+sql create database db vgroups 1024 buffer 3;
+sql use db;
+sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned);
+sql create table ct1 using stb tags(1000);
+sql create table ct2 using stb tags(1000) ;
+sql show db.tables;
+sql insert into ct1 values(now+0s, 10, 2.0, 3.0);
