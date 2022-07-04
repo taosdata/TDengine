@@ -163,3 +163,5 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg.py
+python3 ./test.py -f 7-tmq/tmqConsFromTsdb-1ctb.py
+python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb.py
