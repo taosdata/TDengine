@@ -8,73 +8,73 @@ settings:
         firstEP: dnode_1:6030
       dnodes:
         - endpoint: dnode_1:6030
-          config_dir: /data/run/dnode1/config
+          config_dir: /data/run/dnode/config
           config: # will write into taos.cfg
-            dataDir: /data/run/dnode1/data
-            logDir: /data/run/dnode1/log
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
             supportVnodes: 1024
             debugFlag: 131
         - endpoint: dnode_2:6030
           config_dir: /data/run/dnode2/config
           config: # will write into taos.cfg
-            dataDir: /data/run/dnode1/data
-            logDir: /data/run/dnode1/log
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
             supportVnodes: 1024
             debugFlag: 131
         - endpoint: dnode_3:6030
-          config_dir: /data/run/dnode3/config
+          config_dir: /data/run/dnode/config
           config: # will write into taos.cfg
-            dataDir: /data/run/dnode1/data
-            logDir: /data/run/dnode1/log
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
             supportVnodes: 1024
             debugFlag: 131
         - endpoint: dnode_4:6030
-          config_dir: /data/run/dnode3/config
+          config_dir: /data/run/dnode/config
           config: # will write into taos.cfg
-            dataDir: /data/run/dnode1/data
-            logDir: /data/run/dnode1/log
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
             supportVnodes: 1024
             debugFlag: 131
         - endpoint: dnode_5:6030
-          config_dir: /data/run/dnode3/config
+          config_dir: /data/run/dnode/config
           config: # will write into taos.cfg
-            dataDir: /data/run/dnode1/data
-            logDir: /data/run/dnode1/log
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
             supportVnodes: 1024
             debugFlag: 131
         - endpoint: dnode_6:6030
-          config_dir: /data/run/dnode3/config
+          config_dir: /data/run/dnode/config
           config: # will write into taos.cfg
-            dataDir: /data/run/dnode1/data
-            logDir: /data/run/dnode1/log
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
             supportVnodes: 1024
             debugFlag: 131
         - endpoint: dnode_7:6030
-          config_dir: /data/run/dnode3/config
+          config_dir: /data/run/dnode/config
           config: # will write into taos.cfg
-            dataDir: /data/run/dnode1/data
-            logDir: /data/run/dnode1/log
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
             supportVnodes: 1024
             debugFlag: 131
         - endpoint: dnode_8:6030
-          config_dir: /data/run/dnode3/config
+          config_dir: /data/run/dnode/config
           config: # will write into taos.cfg
-            dataDir: /data/run/dnode1/data
-            logDir: /data/run/dnode1/log
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
             supportVnodes: 1024
             debugFlag: 131
         - endpoint: dnode_9:6030
-          config_dir: /data/run/dnode3/config
+          config_dir: /data/run/dnode/config
           config: # will write into taos.cfg
-            dataDir: /data/run/dnode1/data
-            logDir: /data/run/dnode1/log
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
             supportVnodes: 1024
             debugFlag: 131
         - endpoint: dnode_10:6030
-          config_dir: /data/run/dnode3/config
+          config_dir: /data/run/dnode/config
           config: # will write into taos.cfg
-            dataDir: /data/run/dnode1/data
-            logDir: /data/run/dnode1/log
+            dataDir: /data/run/dnode/data
+            logDir: /data/run/dnode/log
             supportVnodes: 1024
             debugFlag: 131
 
@@ -86,5 +86,5 @@ settings:
       client_version: 3.0.0.100
       config:
         firstEP: dnode_1:6030
-        logDir: /data/run/dnode1/log
+        logDir: /data/run/dnode/log
         debugFlag: 135
