@@ -23,6 +23,7 @@ class TestVgroups(TDCase):
         self.taosd = TaosD(self._remote)
         self.tdRest = TDRest(env_setting=self.env_setting)
         self.cfg = self.tdCom.Boundary.DB_PARAM_VGROUPS_CONFIG
+        self.buffer_min = self.tdCom.Boundary.DB_PARAM_BUFFER_CONFIG["boundary"][0]
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
         self.fqdn = self.taosd_setting["fqdn"][0]
         self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
@@ -46,27 +47,26 @@ class TestVgroups(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
         self.tdRest.request(f'drop database {dbname}')
         # boundary
-        # ! 4096 bug TD-15451
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
-            self.tdRest.request(f'create database if not exists {dbname} {test_param} {param_value}')
+            self.tdRest.request(f'create database if not exists {dbname} {test_param} {param_value}  buffer {self.buffer_min}')
             self.tdRest.request('show databases')
             #TODO
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
             if param_value == self.cfg["boundary"][-1]:
-                self.tdRest.error(f'create database if not exists {dbname}_error {test_param} 1')
+                self.tdRest.error(f'create database if not exists {dbname}_error {test_param} 1 buffer {self.buffer_min}')
             self.tdRest.request(f'drop database {dbname}')
-        self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
-        self.tdRest.error(f'create database if not exists {dbname} vgroups {self.cfg["boundary"][-1] + 1}')
+        self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1} buffer {self.buffer_min}')
+        self.tdRest.error(f'create database if not exists {dbname} vgroups {self.cfg["boundary"][-1] + 1} buffer {self.buffer_min}')
         # check logic
         dbname1 = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname1} vgroups  {int(self.cfg["boundary"][-1]/4)}')
+        self.tdRest.request(f'create database if not exists {dbname1} vgroups  {int(self.cfg["boundary"][-1]/4)} buffer {self.buffer_min}')
         self.tdRest.request(f'show {dbname1}.vgroups')
         self.tdSql.checkEqual(self.tdSql.query_row, int(self.cfg["boundary"][-1]/4))
         self.tdSql.checkEqual(self.get_vnode_count(), int(self.cfg["boundary"][-1]/4))
         dbname2 = self.tdCom.get_long_name()
-        self.tdRest.request(f'create database if not exists {dbname2} vgroups {int(self.cfg["boundary"][-1]/4) + 1}')
+        self.tdRest.request(f'create database if not exists {dbname2} vgroups {int(self.cfg["boundary"][-1]/4) + 1} buffer {self.buffer_min}')
         self.tdRest.request(f'show {dbname2}.vgroups')
         self.tdSql.checkEqual(self.tdSql.query_row, int(self.cfg["boundary"][-1]/4) + 1)
         self.tdSql.checkEqual(self.get_vnode_count(), int(self.cfg["boundary"][-1]/4)*2 + 1)

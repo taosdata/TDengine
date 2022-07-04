@@ -49,8 +49,7 @@ class TestAlterInsert(TDCase):
         self.tdSql.checkEqual(self.tdRest.resp[0], (1, 1, None, None, 3, 3))
 
         # set tag
-        # ! TD-16410
-        # self.tdRest.request(f'alter stable {dbname}.tb set tag t3 = "11111"')
+        self.tdRest.error(f'alter stable {dbname}.tb set tag t3 = "11111"')
         self.tdRest.request(f'alter table {dbname}.tb set tag t3 = "11111"')
         self.tdRest.request(f'alter table {dbname}.tb set tag t4 = "11111"')
         # ! TD-16211
@@ -63,8 +62,7 @@ class TestAlterInsert(TDCase):
         # modify tag length
         self.tdRest.request(f'alter stable {dbname}.stb modify tag t3 binary(6)')
         self.tdRest.request(f'alter table {dbname}.stb modify tag t4 nchar(6)')
-        # ! TD-16410
-        # self.tdRest.request(f'alter stable {dbname}.tb set tag t3 = "111111"')
+        self.tdRest.error(f'alter stable {dbname}.tb set tag t3 = "111111"')
         self.tdRest.request(f'alter table {dbname}.tb set tag t3 = "111111"')
         self.tdRest.request(f'alter table {dbname}.tb set tag t4 = "111111"')
         # ! TD-16211
