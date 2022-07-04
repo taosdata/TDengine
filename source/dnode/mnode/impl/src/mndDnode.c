@@ -758,6 +758,11 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     }
   }
 
+  if (numOfVnodes > 0) {
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    goto _OVER;
+  }
+
   code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 

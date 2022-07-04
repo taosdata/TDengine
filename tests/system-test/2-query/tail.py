@@ -92,8 +92,6 @@ class TDTestCase:
             "select tail(c1,1) , min(c1) from t1",
             "select tail(c1,1) , spread(c1) from t1",
             "select tail(c1,1) , diff(c1) from t1",
-            "select tail(c1,1) , abs(c1) from t1",
-            "select tail(c1,1) , c1 from t1",
             "select tail from stb1 partition by tbname",
             "select tail(123--123)==1 from stb1 partition by tbname",
             "select tail(123,123) from stb1 partition by tbname",
@@ -115,10 +113,7 @@ class TDTestCase:
             "select tail(c1,1) , avg(c1) from stb1 partition by tbname",
             "select tail(c1,1) , min(c1) from stb1 partition by tbname",
             "select tail(c1,1) , spread(c1) from stb1 partition by tbname",
-            "select tail(c1,1) , diff(c1) from stb1 partition by tbname",
-            "select tail(c1,1) , abs(c1) from stb1 partition by tbname",
-            "select tail(c1,1) , c1 from stb1 partition by tbname"
-          
+            "select tail(c1,1) , diff(c1) from stb1 partition by tbname",          
         ]
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
@@ -266,17 +261,17 @@ class TDTestCase:
         tdSql.query("select tail(c1,10,10) from ct1")
         tdSql.checkRows(3)
 
-        tdSql.error("select tail(c1,10,10),tbname from ct1")
-        tdSql.error("select tail(c1,10,10),t1 from ct1")
+        tdSql.query("select tail(c1,10,10),tbname from ct1")
+        tdSql.query("select tail(c1,10,10),t1 from ct1")
 
         # tail with common col 
-        tdSql.error("select tail(c1,10,10) ,ts  from ct1")
-        tdSql.error("select tail(c1,10,10) ,c1  from ct1")
+        tdSql.query("select tail(c1,10,10) ,ts  from ct1")
+        tdSql.query("select tail(c1,10,10) ,c1  from ct1")
 
         # tail with scalar function 
-        tdSql.error("select tail(c1,10,10) ,abs(c1)  from ct1")
+        tdSql.query("select tail(c1,10,10) ,abs(c1)  from ct1")
         tdSql.error("select tail(c1,10,10) , tail(c2,10,10) from ct1")
-        tdSql.error("select tail(c1,10,10) , abs(c2)+2 from ct1")
+        tdSql.query("select tail(c1,10,10) , abs(c2)+2 from ct1")
   
         # bug need fix for scalar value or compute again
         # tdSql.error(" select tail(c1,10,10) , 123 from ct1")

@@ -109,9 +109,8 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
       }
 
       if (IS_VAR_DATA_TYPE(type)) {
-        char* data = colDataGetVarData(out.columnData, 0);
-        len = varDataLen(data);
-        buf = varDataVal(data);
+        buf = colDataGetVarData(out.columnData, 0);
+        len = varDataTLen(data);
       } else {
         len = tDataTypes[type].bytes;
         buf = out.columnData->pData;
@@ -119,8 +118,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
     } else {
       buf = nodesGetValueFromNode(valueNode);
       if (IS_VAR_DATA_TYPE(type)) {
-        len = varDataLen(buf);
-        buf = varDataVal(buf);
+        len = varDataTLen(buf);
       } else {
         len = valueNode->node.resType.bytes;
       }
@@ -194,7 +192,7 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 
       param->numOfRows = 1;
       param->columnData = sclCreateColumnInfoData(&valueNode->node.resType, 1);
-      if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type) {
+      if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type || valueNode->isNull) {
         colDataAppendNULL(param->columnData, 0);
       } else {
         colDataAppend(param->columnData, 0, nodesGetValueFromNode(valueNode), false);
@@ -287,7 +285,7 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList* pParamList, SScalarC
   int32_t code = 0;
   if (NULL == pParamList) {
     if (ctx->pBlockList) {
-      SSDataBlock *pBlock = taosArrayGet(ctx->pBlockList, 0);
+      SSDataBlock *pBlock = taosArrayGetP(ctx->pBlockList, 0);
       *rowNum = pBlock->info.rows;
     } else {
       *rowNum = 1;
@@ -345,7 +343,7 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx) {
     return -1;
   }
   
-  switch (nodeType(pNode)) {
+  switch ((int)nodeType(pNode)) {
     case QUERY_NODE_VALUE: {
       SValueNode *valueNode = (SValueNode *)pNode;
       return valueNode->node.resType.type;
@@ -538,6 +536,14 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   int32_t rowNum = 0;
   int32_t code = 0;
 
+  // json not support in in operator
+  if(nodeType(node->pLeft) == QUERY_NODE_VALUE){
+    SValueNode *valueNode = (SValueNode *)node->pLeft;
+    if(valueNode->node.resType.type == TSDB_DATA_TYPE_JSON && (node->opType == OP_TYPE_IN || node->opType == OP_TYPE_NOT_IN)){
+      SCL_RET(TSDB_CODE_QRY_JSON_IN_ERROR);
+    }
+  }
+
   SCL_ERR_RET(sclInitOperatorParams(&params, node, ctx, &rowNum));
   output->columnData = sclCreateColumnInfoData(&node->node.resType, rowNum);
   if (output->columnData == NULL) {
@@ -551,7 +557,9 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   SScalarParam* pLeft = &params[0];
   SScalarParam* pRight = paramNum > 1 ? &params[1] : NULL;
 
+  terrno = TSDB_CODE_SUCCESS;
   OperatorFn(pLeft, pRight, output, TSDB_ORDER_ASC);
+  code = terrno;
 
 _return:
   for (int32_t i = 0; i < paramNum; ++i) {
@@ -693,7 +701,11 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
     res->node.resType.scale = output.columnData->info.scale;
     res->node.resType.precision = output.columnData->info.precision;
     int32_t type = output.columnData->info.type;
-    if (IS_VAR_DATA_TYPE(type)) {
+    if (type == TSDB_DATA_TYPE_JSON){
+      int32_t len = getJsonValueLen(output.columnData->pData);
+      res->datum.p = taosMemoryCalloc(len, 1);
+      memcpy(res->datum.p, output.columnData->pData, len);
+    } else if (IS_VAR_DATA_TYPE(type)) {
       res->datum.p = taosMemoryCalloc(res->node.resType.bytes + VARSTR_HEADER_SIZE + 1, 1);
       memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
     } else {
@@ -771,7 +783,12 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
   res->translate = true;
 
   if (colDataIsNull_s(output.columnData, 0)) {
-    res->node.resType.type = TSDB_DATA_TYPE_NULL;
+    if(node->node.resType.type != TSDB_DATA_TYPE_JSON){
+      res->node.resType.type = TSDB_DATA_TYPE_NULL;
+    }else{
+      res->node.resType = node->node.resType;
+      res->isNull = true;
+    }
   } else {
     res->node.resType = node->node.resType;
     int32_t type = output.columnData->info.type;

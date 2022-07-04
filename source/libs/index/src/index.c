@@ -39,7 +39,7 @@
 #define INDEX_DATA_BIGINT_NULL    0x8000000000000000LL
 #define INDEX_DATA_TIMESTAMP_NULL TSDB_DATA_BIGINT_NULL
 
-#define INDEX_DATA_FLOAT_NULL    0x7FF00000           // it is an NAN
+#define INDEX_DATA_FLOAT_NULL    0x7FF00000            // it is an NAN
 #define INDEX_DATA_DOUBLE_NULL   0x7FFFFF0000000000LL  // an NAN
 #define INDEX_DATA_NCHAR_NULL    0xFFFFFFFF
 #define INDEX_DATA_BINARY_NULL   0xFF
@@ -614,7 +614,7 @@ static int idxGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   return ret;
 END:
   if (tw != NULL) {
-    writerCtxDestroy(tw->ctx, true);
+    idxFileCtxDestroy(tw->ctx, true);
     taosMemoryFree(tw);
   }
   return -1;
