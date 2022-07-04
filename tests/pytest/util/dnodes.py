@@ -133,8 +133,8 @@ class TDDnode:
             "qDebugFlag": "143",
             "rpcDebugFlag": "143",
             "tmrDebugFlag": "131",
-            "uDebugFlag": "143",
-            "sDebugFlag": "135",
+            "uDebugFlag": "131",
+            "sDebugFlag": "143",
             "wDebugFlag": "143",
             "qdebugFlag": "143",
             "numOfLogLines": "100000000",
@@ -287,6 +287,88 @@ class TDDnode:
                 return ""
         return paths[0]
 
+    def starttaosd(self):
+        binPath = self.getPath()
+
+        if (binPath == ""):
+            tdLog.exit("taosd not found!")
+        else:
+            tdLog.info("taosd found: %s" % binPath)
+
+        if self.deployed == 0:
+            tdLog.exit("dnode:%d is not deployed" % (self.index))
+
+        if self.valgrind == 0:
+            if platform.system().lower() == 'windows':
+                cmd = "mintty -h never -w hide %s -c %s" % (
+                    binPath, self.cfgDir)
+            else:
+                cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
+                    binPath, self.cfgDir)
+        else:
+            valgrindCmdline = "valgrind --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
+
+            if platform.system().lower() == 'windows':
+                cmd = "mintty -h never -w hide %s %s -c %s" % (
+                    valgrindCmdline, binPath, self.cfgDir)
+            else:
+                cmd = "nohup %s %s -c %s 2>&1 & " % (
+                    valgrindCmdline, binPath, self.cfgDir)
+
+            print(cmd)
+
+        if (not self.remoteIP == ""):
+            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].deployed=1\ntdDnodes.dnodes[%d].logDir=\"%%s/sim/dnode%%d/log\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.dnodes[%d].cfgDir=\"%%s/sim/dnode%%d/cfg\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.start(%d)"%(self.index-1,self.index-1,self.index-1,self.index,self.index-1,self.index-1,self.index,self.index))
+            self.running = 1
+        else:
+            if os.system(cmd) != 0:
+                tdLog.exit(cmd)
+            self.running = 1
+            print("dnode:%d is running with %s " % (self.index, cmd))
+            tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
+            if self.valgrind == 0:
+                time.sleep(0.1)
+                key1 = 'from offline to online'
+                bkey1 = bytes(key1, encoding="utf8")
+                key2= 'TDengine initialized successfully'
+                bkey2 = bytes(key2, encoding="utf8")
+                logFile = self.logDir + "/taosdlog.0"
+                i = 0
+                # while not os.path.exists(logFile):
+                #     sleep(0.1)
+                #     i += 1
+                #     if i > 10:
+                #         break
+                # tailCmdStr = 'tail -f '
+                # if platform.system().lower() == 'windows':
+                #     tailCmdStr = 'tail -n +0 -f '
+                # popen = subprocess.Popen(
+                #     tailCmdStr + logFile,
+                #     stdout=subprocess.PIPE,
+                #     stderr=subprocess.PIPE,
+                #     shell=True)
+                # pid = popen.pid
+                # # print('Popen.pid:' + str(pid))
+                # timeout = time.time() + 60 * 2
+                # while True:
+                #     line = popen.stdout.readline().strip()
+                #     print(line)
+                #     if bkey1 in line:
+                #         popen.kill()
+                #         break
+                #     elif bkey2 in line:
+                #         popen.kill()
+                #         break                        
+                #     if time.time() > timeout:
+                #         print(time.time(),timeout)
+                #         tdLog.exit('wait too long for taosd start')
+                tdLog.debug("the dnode:%d has been started." % (self.index))
+            else:
+                tdLog.debug(
+                    "wait 10 seconds for the dnode:%d to start." %
+                    (self.index))
+                time.sleep(10)
+
     def start(self):
         binPath = self.getPath()
 
@@ -423,6 +505,37 @@ class TDDnode:
             self.running = 0
             tdLog.debug("dnode:%d is stopped by kill -INT" % (self.index))
 
+
+    def stoptaosd(self):
+        if (not self.remoteIP == ""):
+            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].running=1\ntdDnodes.dnodes[%d].stop()"%(self.index-1,self.index-1))
+            tdLog.info("stop dnode%d"%self.index)
+            return
+        if self.valgrind == 0:
+            toBeKilled = "taosd"
+        else:
+            toBeKilled = "valgrind.bin"
+
+        if self.running != 0:
+            if platform.system().lower() == 'windows':
+                os.system("wmic process where \"name='taosd.exe' and CommandLine like '%%dnode%d%%'\" get processId | xargs echo | awk '{print $2}' | xargs taskkill -f -pid"%self.index)
+            else:
+                psCmd = "ps -ef|grep -w %s| grep dnode%d|grep -v grep | awk '{print $2}'" % (toBeKilled,self.index)
+                processID = subprocess.check_output(
+                    psCmd, shell=True).decode("utf-8")
+
+                while(processID):
+                    killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+                    os.system(killCmd)
+                    time.sleep(1)
+                    processID = subprocess.check_output(
+                        psCmd, shell=True).decode("utf-8")
+                if self.valgrind:
+                    time.sleep(2)
+
+            self.running = 0
+            tdLog.debug("dnode:%d is stopped by kill -INT" % (self.index))
+
     def forcestop(self):
         if (not self.remoteIP == ""):
             self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].running=1\ntdDnodes.dnodes[%d].forcestop()"%(self.index-1,self.index-1))
@@ -534,6 +647,15 @@ class TDDnodes:
     def cfg(self, index, option, value):
         self.check(index)
         self.dnodes[index - 1].cfg(option, value)
+
+    def starttaosd(self, index):
+        self.check(index)
+        self.dnodes[index - 1].starttaosd()
+
+    def stoptaosd(self, index):
+        self.check(index)
+        self.dnodes[index - 1].stoptaosd()
+        
 
     def start(self, index):
         self.check(index)

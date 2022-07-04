@@ -62,39 +62,63 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
     SCH_ERR_RET(TSDB_CODE_QRY_SYS_ERROR);
   }
 
-  qInfo("scheduler %" PRIx64 " initizlized, maxJob:%u", schMgmt.sId, schMgmt.cfg.maxJobNum);
+  qInfo("scheduler 0x%" PRIx64 " initizlized, maxJob:%u", schMgmt.sId, schMgmt.cfg.maxJobNum);
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schedulerExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql,
-                         int64_t startTs, SQueryResult *pRes) {
-  if (NULL == pTrans || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == pRes) {
-    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId, SQueryResult *pRes) {
+  qDebug("scheduler sync exec job start");
+
+  int32_t code = 0;  
+  SSchJob *pJob = NULL;
+  SCH_ERR_JRET(schInitJob(pReq, &pJob));
+
+  *pJobId = pJob->refId;
+  
+  SCH_ERR_JRET(schExecJobImpl(pReq, pJob, true));
+
+_return:
+
+  if (code && NULL == pJob) {
+    qDestroyQueryPlan(pReq->pDag);
+  }
+  
+  if (pJob) {
+    schSetJobQueryRes(pJob, pRes);
+    schReleaseJob(pJob->refId);
   }
 
-  SSchResInfo resInfo = {.queryRes = pRes};
-  SCH_RET(schExecJob(pTrans, pNodeList, pDag, pJob, sql, startTs, &resInfo));
+  return code;
 }
 
-int32_t schedulerAsyncExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql,
-                         int64_t startTs, schedulerExecCallback fp, void* param) {
-  int32_t code = 0;
-  if (NULL == pTrans || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == fp) {
-    code = TSDB_CODE_QRY_INVALID_INPUT;
-  } else {
-    SSchResInfo resInfo = {.execFp = fp, .userParam = param};
-    code = schAsyncExecJob(pTrans, pNodeList, pDag, pJob, sql, startTs, &resInfo);
-  }
+int32_t schedulerAsyncExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
+  qDebug("scheduler async exec job start");
 
-  if (code != TSDB_CODE_SUCCESS) {
-    fp(NULL, param, code);
+  int32_t code = 0;  
+  SSchJob *pJob = NULL;
+  SCH_ERR_JRET(schInitJob(pReq, &pJob));
+
+  *pJobId = pJob->refId;
+  
+  SCH_ERR_JRET(schExecJobImpl(pReq, pJob, false));
+
+_return:
+
+  if (code && NULL == pJob) {
+    qDestroyQueryPlan(pReq->pDag);
+  }
+  
+  if (pJob) {
+    schReleaseJob(pJob->refId);
   }
 
   return code;
 }
 
 int32_t schedulerFetchRows(int64_t job, void **pData) {
+  qDebug("scheduler sync fetch rows start");
+
   if (NULL == pData) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -106,7 +130,8 @@ int32_t schedulerFetchRows(int64_t job, void **pData) {
     SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
-  pJob->attr.syncSchedule = true;
+  SCH_ERR_RET(schBeginOperation(pJob, SCH_OP_FETCH, true));
+
   pJob->userRes.fetchRes = pData;
   code = schFetchRows(pJob);
 
@@ -115,25 +140,33 @@ int32_t schedulerFetchRows(int64_t job, void **pData) {
   SCH_RET(code);
 }
 
-void schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* param) {
+void schedulerAsyncFetchRows(int64_t job, schedulerFetchFp fp, void* param) {
+  qDebug("scheduler async fetch rows start");
+
+  int32_t code = 0;
   if (NULL == fp || NULL == param) {
-    fp(NULL, param, TSDB_CODE_QRY_INVALID_INPUT);
-    return;
+    SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
   SSchJob *pJob = schAcquireJob(job);
   if (NULL == pJob) {
-    qError("acquire job from jobRef list failed, may be dropped, jobId:0x%" PRIx64, job);
-    fp(NULL, param, TSDB_CODE_SCH_STATUS_ERROR);
-    return;
+    qError("acquire sch job from job list failed, may be dropped, jobId:0x%" PRIx64, job);
+    SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
-  pJob->attr.syncSchedule = false;
+  SCH_ERR_JRET(schBeginOperation(pJob, SCH_OP_FETCH, false));
+  
   pJob->userRes.fetchFp = fp;
   pJob->userRes.userParam = param;
   
-  /*code = */schAsyncFetchRows(pJob);
+  SCH_ERR_JRET(schAsyncFetchRows(pJob));
 
+_return:
+
+  if (code) {
+    fp(NULL, param, code);
+  }
+  
   schReleaseJob(job);
 }
 
@@ -141,12 +174,12 @@ int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub) {
   int32_t  code = 0;
   SSchJob *pJob = schAcquireJob(job);
   if (NULL == pJob) {
-    qDebug("acquire job from jobRef list failed, may not started or dropped, refId:%" PRIx64, job);
+    qDebug("acquire job from jobRef list failed, may not started or dropped, refId:0x%" PRIx64, job);
     SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
   if (pJob->status < JOB_TASK_STATUS_NOT_START || pJob->levelNum <= 0 || NULL == pJob->levels) {
-    qDebug("job not initialized or not executable job, refId:%" PRIx64, job);
+    qDebug("job not initialized or not executable job, refId:0x%" PRIx64, job);
     SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
@@ -155,7 +188,9 @@ int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub) {
 
     for (int32_t m = 0; m < pLevel->taskNum; ++m) {
       SSchTask     *pTask = taosArrayGet(pLevel->subTasks, m);
-      SQuerySubDesc subDesc = {.tid = pTask->taskId, .status = pTask->status};
+      SQuerySubDesc subDesc = {0};
+      subDesc.tid = pTask->taskId;
+      strcpy(subDesc.status, jobTaskStatusStr(pTask->status));
 
       taosArrayPush(pSub, &subDesc);
     }
@@ -190,21 +225,23 @@ void schedulerStopQueryHb(void *pTrans) {
   schCleanClusterHb(pTrans);
 }
 
-void schedulerFreeJob(int64_t job) {
+void schedulerFreeJob(int64_t job, int32_t errCode) {
   SSchJob *pJob = schAcquireJob(job);
   if (NULL == pJob) {
     qError("acquire job from jobRef list failed, may be dropped, jobId:0x%" PRIx64, job);
     return;
   }
 
-  if (atomic_load_8(&pJob->userFetch) > 0) {
-    schProcessOnJobDropped(pJob, TSDB_CODE_QRY_JOB_FREED);
+  int32_t code = schProcessOnJobDropped(pJob, errCode);
+  if (TSDB_CODE_SCH_JOB_IS_DROPPING == code) {
+    SCH_JOB_DLOG("sch job is already dropping, refId:0x%" PRIx64, job);
+    return;
   }
 
-  SCH_JOB_DLOG("start to remove job from jobRef list, refId:%" PRIx64, job);
+  SCH_JOB_DLOG("start to remove job from jobRef list, refId:0x%" PRIx64, job);
 
   if (taosRemoveRef(schMgmt.jobRef, job)) {
-    SCH_JOB_ELOG("remove job from job list failed, refId:%" PRIx64, job);
+    SCH_JOB_ELOG("remove job from job list failed, refId:0x%" PRIx64, job);
   }
 
   schReleaseJob(job);

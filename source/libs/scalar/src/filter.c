@@ -192,8 +192,11 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_DOUBLE:        
       case TSDB_DATA_TYPE_TIMESTAMP:        
         return 18;
+      case TSDB_DATA_TYPE_JSON:
+        terrno = TSDB_CODE_QRY_JSON_IN_ERROR;
+        return 0;
       default:
-        assert(0);
+        return 0;
     }
   }
 
@@ -215,8 +218,11 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_DOUBLE:        
       case TSDB_DATA_TYPE_TIMESTAMP:        
         return 24;
+      case TSDB_DATA_TYPE_JSON:
+        terrno = TSDB_CODE_QRY_JSON_IN_ERROR;
+        return 0;
       default:
-        assert(0);
+        return 0;
     }
   }
 
@@ -1476,6 +1482,11 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
       for (uint32_t i = 0; i < info->fields[FLD_TYPE_VALUE].num; ++i) {
         SFilterField *field = &info->fields[FLD_TYPE_VALUE].fields[i];
         if (field->desc) {
+          if (QUERY_NODE_VALUE != nodeType(field->desc)) {
+            qDebug("VAL%d => [type:not value node][val:NIL]", i); //TODO
+            continue;
+          }
+
           SValueNode *var = (SValueNode *)field->desc;
           SDataType *dType = &var->node.resType;
           if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {
@@ -2054,7 +2065,7 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t
     }
 
     if (colIdxi > 1) {
-      qsort(colIdx, colIdxi, sizeof(uint32_t), getComparFunc(TSDB_DATA_TYPE_USMALLINT, 0));
+      taosSort(colIdx, colIdxi, sizeof(uint32_t), getComparFunc(TSDB_DATA_TYPE_USMALLINT, 0));
     }
 
     for (uint32_t l = 0; l < colIdxi; ++l) {
@@ -2289,7 +2300,7 @@ int32_t filterMergeGroups(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t *gR
     return TSDB_CODE_SUCCESS;
   }
 
-  qsort(gRes, *gResNum, POINTER_BYTES, filterCompareGroupCtx);
+  taosSort(gRes, *gResNum, POINTER_BYTES, filterCompareGroupCtx);
 
   int32_t pEnd = 0, cStart = 0, cEnd = 0;
   uint32_t pColNum = 0, cColNum = 0; 
@@ -3816,7 +3827,7 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnData
     SScalarParam output = {0};
 
     SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
-    output.columnData = createColumnInfoData(&type, pSrc->info.rows);
+    output.columnData = sclCreateColumnInfoData(&type, pSrc->info.rows);
 
     SArray *pList = taosArrayInit(1, POINTER_BYTES);
     taosArrayPush(pList, &pSrc);

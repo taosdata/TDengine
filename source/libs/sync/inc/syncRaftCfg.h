@@ -27,7 +27,9 @@ extern "C" {
 #include "syncInt.h"
 #include "taosdef.h"
 
-#define CONFIG_FILE_LEN 1024
+#define CONFIG_FILE_LEN 2048
+
+#define MAX_CONFIG_INDEX_COUNT 512
 
 typedef struct SRaftCfg {
   SSyncCfg  cfg;
@@ -36,14 +38,20 @@ typedef struct SRaftCfg {
   int8_t    isStandBy;
   int8_t    snapshotEnable;
   SyncIndex lastConfigIndex;
+
+  SyncIndex configIndexArr[MAX_CONFIG_INDEX_COUNT];
+  int32_t   configIndexCount;
+
 } SRaftCfg;
 
 SRaftCfg *raftCfgOpen(const char *path);
 int32_t   raftCfgClose(SRaftCfg *pRaftCfg);
 int32_t   raftCfgPersist(SRaftCfg *pRaftCfg);
+int32_t   raftCfgAddConfigIndex(SRaftCfg *pRaftCfg, SyncIndex configIndex);
 
 cJSON * syncCfg2Json(SSyncCfg *pSyncCfg);
 char *  syncCfg2Str(SSyncCfg *pSyncCfg);
+char *  syncCfg2SimpleStr(SSyncCfg *pSyncCfg);
 int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg);
 int32_t syncCfgFromStr(const char *s, SSyncCfg *pSyncCfg);
 
@@ -65,6 +73,7 @@ void syncCfgPrint(SSyncCfg *pCfg);
 void syncCfgPrint2(char *s, SSyncCfg *pCfg);
 void syncCfgLog(SSyncCfg *pCfg);
 void syncCfgLog2(char *s, SSyncCfg *pCfg);
+void syncCfgLog3(char *s, SSyncCfg *pCfg);
 
 void raftCfgPrint(SRaftCfg *pCfg);
 void raftCfgPrint2(char *s, SRaftCfg *pCfg);

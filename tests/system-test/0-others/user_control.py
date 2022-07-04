@@ -246,20 +246,26 @@ class TDTestCase:
             user = self.root_user
         with taos_connect(user=user.name, passwd=user.passwd) as use:
             time.sleep(2)
-            use.query("use db")
-            use.query("show tables")
             if check_priv == PRIVILEGES_ALL:
+                use.query("use db")
+                use.query("show tables")
                 use.query("select * from ct1")
                 use.query("insert into t1 (ts) values (now())")
             elif check_priv == PRIVILEGES_READ:
+                use.query("use db")
+                use.query("show tables")
                 use.query("select * from ct1")
                 use.error("insert into t1 (ts) values (now())")
             elif check_priv == PRIVILEGES_WRITE:
+                use.query("use db")
+                use.query("show tables")
                 use.error("select * from ct1")
                 use.query("insert into t1 (ts) values (now())")
             elif check_priv is None:
-                use.error("select * from ct1")
-                use.error("insert into t1 (ts) values (now())")
+                use.error("use db")
+                use.error("show tables")
+                use.error("select * from db.ct1")
+                use.error("insert into db.t1 (ts) values (now())")
 
     def __change_user_priv(self, user: User, pre_priv, invoke=False):
         if user.priv == pre_priv and invoke :
@@ -610,7 +616,7 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step0: init, user list only has root account")
         tdSql.query("show users")
         tdSql.checkData(0, 0, "root")
-        tdSql.checkData(0, 1, "super")
+        tdSql.checkData(0, 1, "1")
 
         # root用户权限
         # 创建用户测试
@@ -676,7 +682,7 @@ class TDTestCase:
         tdSql.query("show users")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "root")
-        tdSql.checkData(0, 1, "super")
+        tdSql.checkData(0, 1, "1")
 
         tdDnodes.stop(1)
         tdDnodes.start(1)
@@ -690,7 +696,7 @@ class TDTestCase:
         tdSql.query("show users")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "root")
-        tdSql.checkData(0, 1, "super")
+        tdSql.checkData(0, 1, "1")
 
 
     def stop(self):

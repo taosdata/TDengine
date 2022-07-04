@@ -35,7 +35,6 @@ typedef struct SVnodeMgmt {
   SWWorkerPool   syncPool;
   SWWorkerPool   writePool;
   SWWorkerPool   applyPool;
-  SWWorkerPool   mergePool;
   SSingleWorker  mgmtWorker;
   SSingleWorker  monitorWorker;
   SHashObj      *hash;
@@ -63,7 +62,6 @@ typedef struct {
   STaosQueue *pApplyQ;
   STaosQueue *pQueryQ;
   STaosQueue *pFetchQ;
-  STaosQueue *pMergeQ;
 } SVnodeObj;
 
 typedef struct {

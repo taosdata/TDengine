@@ -55,16 +55,22 @@ int32_t maxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 bool getAvgFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool avgFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t avgFunction(SqlFunctionCtx* pCtx);
+int32_t avgFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t avgInvertFunction(SqlFunctionCtx* pCtx);
 int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
+int32_t getAvgInfoSize();
 
 bool getStddevFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool stddevFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t stddevFunction(SqlFunctionCtx* pCtx);
+int32_t stddevFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t stddevPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t stddevInvertFunction(SqlFunctionCtx* pCtx);
 int32_t stddevCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
+int32_t getStddevInfoSize();
 
 bool getLeastSQRFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool leastSQRFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
@@ -91,19 +97,42 @@ bool getDiffFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool diffFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResInfo);
 int32_t diffFunction(SqlFunctionCtx *pCtx);
 
+bool getDerivativeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool derivativeFuncSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResInfo);
+int32_t derivativeFunction(SqlFunctionCtx *pCtx);
+
+bool getIrateFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool irateFuncSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResInfo);
+int32_t irateFunction(SqlFunctionCtx *pCtx);
+int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
 bool getFirstLastFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t firstFunction(SqlFunctionCtx *pCtx);
+int32_t firstFunctionMerge(SqlFunctionCtx *pCtx);
 int32_t lastFunction(SqlFunctionCtx *pCtx);
+int32_t lastFunctionMerge(SqlFunctionCtx *pCtx);
 int32_t firstLastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
+int32_t getFirstLastInfoSize(int32_t resBytes);
+
+int32_t lastRowFunction(SqlFunctionCtx *pCtx);
+int32_t lastRowFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getTopBotFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
+bool getTopBotMergeFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
+bool topBotFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t topFunction(SqlFunctionCtx *pCtx);
+int32_t topFunctionMerge(SqlFunctionCtx *pCtx);
 int32_t bottomFunction(SqlFunctionCtx *pCtx);
+int32_t bottomFunctionMerge(SqlFunctionCtx *pCtx);
 int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t topBotPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t topBotMergeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t topCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t bottomCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
+int32_t getTopBotInfoSize(int64_t numOfItems);
 
 bool getSpreadFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool spreadFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
@@ -155,6 +184,7 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx);
 bool getSampleFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool sampleFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t sampleFunction(SqlFunctionCtx* pCtx);
+int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getTailFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool tailFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
@@ -164,14 +194,25 @@ bool getUniqueFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool uniqueFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t uniqueFunction(SqlFunctionCtx *pCtx);
 
+bool getModeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool modeFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t modeFunction(SqlFunctionCtx *pCtx);
+int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
 bool getTwaFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool twaFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t twaFunction(SqlFunctionCtx *pCtx);
 int32_t twaFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock);
 
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+
+bool blockDistSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t blockDistFunction(SqlFunctionCtx *pCtx);
 int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+bool getGroupKeyFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t groupKeyFunction(SqlFunctionCtx* pCtx);
+int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 #ifdef __cplusplus
 }

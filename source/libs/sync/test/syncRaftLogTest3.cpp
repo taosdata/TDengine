@@ -54,7 +54,7 @@ void init() {
   pSyncNode->pWal = pWal;
 
   pSyncNode->pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
-  pSyncNode->pFsm->FpGetSnapshot = GetSnapshotCb;
+  pSyncNode->pFsm->FpGetSnapshotInfo = GetSnapshotCb;
 }
 
 void cleanup() {
@@ -80,7 +80,7 @@ void test1() {
 
   bool      hasSnapshot = syncNodeHasSnapshot(pSyncNode);
   SSnapshot snapshot;
-  pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
 
   SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
   SyncTerm  lastTerm = syncNodeGetLastTerm(pSyncNode);
@@ -146,7 +146,7 @@ void test2() {
 
   bool      hasSnapshot = syncNodeHasSnapshot(pSyncNode);
   SSnapshot snapshot;
-  pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
 
   SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
   SyncTerm  lastTerm = syncNodeGetLastTerm(pSyncNode);
@@ -203,7 +203,7 @@ void test3() {
 
   bool      hasSnapshot = syncNodeHasSnapshot(pSyncNode);
   SSnapshot snapshot;
-  pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
 
   SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
   SyncTerm  lastTerm = syncNodeGetLastTerm(pSyncNode);
@@ -268,7 +268,7 @@ void test4() {
 
   bool      hasSnapshot = syncNodeHasSnapshot(pSyncNode);
   SSnapshot snapshot;
-  pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
 
   SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
   SyncTerm  lastTerm = syncNodeGetLastTerm(pSyncNode);
@@ -312,7 +312,8 @@ void test5() {
   pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest5 ----- ", pLogStore);
 
-  pSyncNode->pLogStore->syncLogSetBeginIndex(pSyncNode->pLogStore, 6);
+  // pSyncNode->pLogStore->syncLogSetBeginIndex(pSyncNode->pLogStore, 6);
+  pLogStore->syncLogRestoreFromSnapshot(pSyncNode->pLogStore, 5);
   for (int i = 6; i <= 10; ++i) {
     int32_t         dataLen = 10;
     SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
@@ -335,7 +336,7 @@ void test5() {
 
   bool      hasSnapshot = syncNodeHasSnapshot(pSyncNode);
   SSnapshot snapshot;
-  pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
 
   SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
   SyncTerm  lastTerm = syncNodeGetLastTerm(pSyncNode);
@@ -372,6 +373,7 @@ void test5() {
 int main(int argc, char** argv) {
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_INFO + DEBUG_SCREEN + DEBUG_FILE;
+  gRaftDetailLog = true;
 
   if (argc == 2) {
     gAssert = atoi(argv[1]);

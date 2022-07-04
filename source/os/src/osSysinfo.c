@@ -945,3 +945,19 @@ SysNameInfo taosGetSysNameInfo() {
   return info;
 #endif
 }
+
+
+bool taosCheckCurrentInDll() {
+#ifdef WINDOWS
+  MEMORY_BASIC_INFORMATION mbi;
+  char path[PATH_MAX] = {0};
+  GetModuleFileName(((VirtualQuery(taosCheckCurrentInDll,&mbi,sizeof(mbi)) != 0) ? (HMODULE)mbi.AllocationBase : NULL), path, PATH_MAX);
+  int strLastIndex = strlen(path);
+  if ((path[strLastIndex-3] == 'd' || path[strLastIndex-3] == 'D') && (path[strLastIndex-2] == 'l' || path[strLastIndex-2] == 'L') && (path[strLastIndex-1] == 'l' || path[strLastIndex-1] == 'L')) {
+    return true;
+  }
+  return false;
+#else
+  return false;
+#endif
+}

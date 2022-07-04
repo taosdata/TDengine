@@ -21,13 +21,13 @@ typedef struct SScaleOutContext {
 } SScaleOutContext;
 
 static SLogicSubplan* singleCloneSubLogicPlan(SScaleOutContext* pCxt, SLogicSubplan* pSrc, int32_t level) {
-  SLogicSubplan* pDst = nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
+  SLogicSubplan* pDst = (SLogicSubplan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
   if (NULL == pDst) {
     return NULL;
   }
-  pDst->pNode = nodesCloneNode(pSrc->pNode);
+  pDst->pNode = (SLogicNode*)nodesCloneNode((SNode*)pSrc->pNode);
   if (NULL == pDst->pNode) {
-    nodesDestroyNode(pDst);
+    nodesDestroyNode((SNode*)pDst);
     return NULL;
   }
   pDst->subplanType = pSrc->subplanType;
@@ -73,7 +73,7 @@ static int32_t scaleOutByVgroups(SScaleOutContext* pCxt, SLogicSubplan* pSubplan
     }
     code = setScanVgroup(pNewSubplan->pNode, pSubplan->pVgroupList->vgroups + i);
     if (TSDB_CODE_SUCCESS == code) {
-      code = nodesListStrictAppend(pGroup, pNewSubplan);
+      code = nodesListStrictAppend(pGroup, (SNode*)pNewSubplan);
     }
     if (TSDB_CODE_SUCCESS != code) {
       break;
@@ -95,7 +95,7 @@ static int32_t scaleOutForModify(SScaleOutContext* pCxt, SLogicSubplan* pSubplan
       }
       ((SVnodeModifyLogicNode*)pNewSubplan->pNode)->pVgDataBlocks =
           (SVgDataBlocks*)taosArrayGetP(pNode->pDataBlocks, i);
-      if (TSDB_CODE_SUCCESS != nodesListStrictAppend(pGroup, pNewSubplan)) {
+      if (TSDB_CODE_SUCCESS != nodesListStrictAppend(pGroup, (SNode*)pNewSubplan)) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
     }
@@ -104,7 +104,7 @@ static int32_t scaleOutForModify(SScaleOutContext* pCxt, SLogicSubplan* pSubplan
 }
 
 static int32_t scaleOutForMerge(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
-  return nodesListStrictAppend(pGroup, singleCloneSubLogicPlan(pCxt, pSubplan, level));
+  return nodesListStrictAppend(pGroup, (SNode*)singleCloneSubLogicPlan(pCxt, pSubplan, level));
 }
 
 static int32_t scaleOutForScan(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
@@ -115,7 +115,45 @@ static int32_t scaleOutForScan(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, 
   }
 }
 
-static int32_t pushHierarchicalPlan(SNodeList* pParentsGroup, SNodeList* pCurrentGroup) {
+static int32_t scaleOutForCompute(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < pSubplan->numOfComputeNodes; ++i) {
+    SLogicSubplan* pNewSubplan = singleCloneSubLogicPlan(pCxt, pSubplan, level);
+    if (NULL == pNewSubplan) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    code = nodesListStrictAppend(pGroup, (SNode*)pNewSubplan);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+  return code;
+}
+
+static int32_t pushHierarchicalPlanForCompute(SNodeList* pParentsGroup, SNodeList* pCurrentGroup) {
+  SNode*  pChild = NULL;
+  SNode*  pParent = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  FORBOTH(pChild, pCurrentGroup, pParent, pParentsGroup) {
+    code = nodesListMakeAppend(&(((SLogicSubplan*)pParent)->pChildren), pChild);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeAppend(&(((SLogicSubplan*)pChild)->pParents), pParent);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+  return code;
+}
+
+static bool isComputeGroup(SNodeList* pGroup) {
+  if (0 == LIST_LENGTH(pGroup)) {
+    return false;
+  }
+  return SUBPLAN_TYPE_COMPUTE == ((SLogicSubplan*)nodesListGetNode(pGroup, 0))->subplanType;
+}
+
+static int32_t pushHierarchicalPlanForNormal(SNodeList* pParentsGroup, SNodeList* pCurrentGroup) {
   int32_t code = TSDB_CODE_SUCCESS;
   bool    topLevel = (0 == LIST_LENGTH(pParentsGroup));
   SNode*  pChild = NULL;
@@ -138,6 +176,13 @@ static int32_t pushHierarchicalPlan(SNodeList* pParentsGroup, SNodeList* pCurren
   return code;
 }
 
+static int32_t pushHierarchicalPlan(SNodeList* pParentsGroup, SNodeList* pCurrentGroup) {
+  if (isComputeGroup(pParentsGroup)) {
+    return pushHierarchicalPlanForCompute(pParentsGroup, pCurrentGroup);
+  }
+  return pushHierarchicalPlanForNormal(pParentsGroup, pCurrentGroup);
+}
+
 static int32_t doScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pParentsGroup) {
   SNodeList* pCurrentGroup = nodesMakeList();
   if (NULL == pCurrentGroup) {
@@ -154,6 +199,9 @@ static int32_t doScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32
       break;
     case SUBPLAN_TYPE_MODIFY:
       code = scaleOutForModify(pCxt, pSubplan, level, pCurrentGroup);
+      break;
+    case SUBPLAN_TYPE_COMPUTE:
+      code = scaleOutForCompute(pCxt, pSubplan, level, pCurrentGroup);
       break;
     default:
       break;
@@ -189,7 +237,7 @@ static SQueryLogicPlan* makeQueryLogicPlan() {
   }
   pLogicPlan->pTopSubplans = nodesMakeList();
   if (NULL == pLogicPlan->pTopSubplans) {
-    nodesDestroyNode(pLogicPlan);
+    nodesDestroyNode((SNode*)pLogicPlan);
     return NULL;
   }
   return pLogicPlan;
@@ -206,7 +254,7 @@ int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQue
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicPlan = pPlan;
   } else {
-    nodesDestroyNode(pPlan);
+    nodesDestroyNode((SNode*)pPlan);
   }
 
   return code;

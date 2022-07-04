@@ -36,9 +36,9 @@ void cleanup() { walCleanUp(); }
 
 void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   SyncIndex beginIndex = SYNC_INDEX_INVALID;
-  if (pFsm->FpGetSnapshot != NULL) {
+  if (pFsm->FpGetSnapshotInfo != NULL) {
     SSnapshot snapshot;
-    pFsm->FpGetSnapshot(pFsm, &snapshot);
+    pFsm->FpGetSnapshotInfo(pFsm, &snapshot);
     beginIndex = snapshot.lastApplyIndex;
   }
 
@@ -77,7 +77,7 @@ int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
   return 0;
 }
 
-int32_t SnapshotStartRead(struct SSyncFSM* pFsm, void** ppReader) {
+int32_t SnapshotStartRead(struct SSyncFSM* pFsm, void* pParam, void** ppReader) {
   *ppReader = (void*)0xABCD;
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotStartRead== pFsm:%p, *ppReader:%p", pFsm, *ppReader);
@@ -114,7 +114,7 @@ int32_t SnapshotDoRead(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32
   return 0;
 }
 
-int32_t SnapshotStartWrite(struct SSyncFSM* pFsm, void** ppWriter) {
+int32_t SnapshotStartWrite(struct SSyncFSM* pFsm, void *pParam, void** ppWriter) {
   *ppWriter = (void*)0xCDEF;
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotStartWrite== pFsm:%p, *ppWriter:%p", pFsm, *ppWriter);
@@ -147,8 +147,8 @@ int32_t SnapshotDoWrite(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_
 void RestoreFinishCb(struct SSyncFSM* pFsm) { sTrace("==callback== ==RestoreFinishCb=="); }
 
 void ReConfigCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMeta) {
-  sTrace("==callback== ==ReConfigCb== flag:0x%lX, isDrop:%d, index:%ld, code:%d, currentTerm:%lu, term:%lu",
-         cbMeta.flag, cbMeta.isDrop, cbMeta.index, cbMeta.code, cbMeta.currentTerm, cbMeta.term);
+  sTrace("==callback== ==ReConfigCb== flag:0x%lX, index:%ld, code:%d, currentTerm:%lu, term:%lu", cbMeta.flag,
+         cbMeta.index, cbMeta.code, cbMeta.currentTerm, cbMeta.term);
 }
 
 SSyncFSM* createFsm() {
@@ -159,7 +159,7 @@ SSyncFSM* createFsm() {
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
 
-  pFsm->FpGetSnapshot = GetSnapshotCb;
+  pFsm->FpGetSnapshotInfo = GetSnapshotCb;
   pFsm->FpRestoreFinishCb = RestoreFinishCb;
   pFsm->FpSnapshotStartRead = SnapshotStartRead;
   pFsm->FpSnapshotStopRead = SnapshotStopRead;
@@ -198,7 +198,7 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s_sync_replica%d_index%d", path, replicaNum, myIndex);
   syncInfo.pWal = pWal;
   syncInfo.isStandBy = isStandBy;
-  syncInfo.snapshotEnable = true;
+  syncInfo.snapshotStrategy = SYNC_STRATEGY_STANDARD_SNAPSHOT;
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
 
@@ -338,7 +338,7 @@ int main(int argc, char** argv) {
     if (alreadySend < writeRecordNum) {
       SRpcMsg* pRpcMsg = createRpcMsg(alreadySend, writeRecordNum, myIndex);
       int32_t  ret = syncPropose(rid, pRpcMsg, false);
-      if (ret == TAOS_SYNC_PROPOSE_NOT_LEADER) {
+      if (ret == -1 && terrno == TSDB_CODE_SYN_NOT_LEADER) {
         sTrace("%s value%d write not leader", s, alreadySend);
       } else {
         assert(ret == 0);

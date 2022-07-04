@@ -28,8 +28,6 @@ struct SSDataBlock;
 
 typedef struct SFillColInfo {
   SExprInfo *pExpr;
-//  SResSchema schema;
-//  int16_t    functionId;      // sql function id
   int16_t    flag;            // column flag: TAG COLUMN|NORMAL COLUMN
   int16_t    tagIndex;        // index of current tag in SFillTagColInfo array list
   SVariant   fillVal;

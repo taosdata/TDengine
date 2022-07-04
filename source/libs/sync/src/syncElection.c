@@ -32,7 +32,7 @@
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 //
 int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {
-  assert(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
 
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
@@ -44,7 +44,7 @@ int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {
     pMsg->lastLogTerm = pSyncNode->pLogStore->getLastTerm(pSyncNode->pLogStore);
 
     ret = syncNodeRequestVote(pSyncNode, &pSyncNode->peersId[i], pMsg);
-    assert(ret == 0);
+    ASSERT(ret == 0);
     syncRequestVoteDestroy(pMsg);
   }
   return ret;
@@ -75,7 +75,11 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
     syncNodeFollower2Candidate(pSyncNode);
   }
-  assert(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+
+  if (pSyncNode->state != TAOS_SYNC_STATE_CANDIDATE) {
+    syncNodeErrorLog(pSyncNode, "not candidate, can not elect");
+    return -1;
+  }
 
   // start election
   raftStoreNextTerm(pSyncNode->pRaftStore);
@@ -86,7 +90,7 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   syncNodeVoteForSelf(pSyncNode);
   if (voteGrantedMajority(pSyncNode->pVotesGranted)) {
     // only myself, to leader
-    assert(!pSyncNode->pVotesGranted->toLeader);
+    ASSERT(!pSyncNode->pVotesGranted->toLeader);
     syncNodeCandidate2Leader(pSyncNode);
     pSyncNode->pVotesGranted->toLeader = true;
     return ret;
@@ -98,15 +102,22 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
     ret = syncNodeRequestVotePeers(pSyncNode);
   }
 
-  assert(ret == 0);
+  ASSERT(ret == 0);
   syncNodeResetElectTimer(pSyncNode);
 
   return ret;
 }
 
 int32_t syncNodeRequestVote(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncRequestVote* pMsg) {
-  sTrace("syncNodeRequestVote pSyncNode:%p ", pSyncNode);
   int32_t ret = 0;
+
+  do {
+    char     host[128];
+    uint16_t port;
+    syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
+    sDebug("vgId:%d, send sync-request-vote to %s:%d, {term:%lu, last-index:%ld, last-term:%lu}", pSyncNode->vgId, host,
+           port, pMsg->term, pMsg->lastLogTerm, pMsg->lastLogIndex);
+  } while (0);
 
   SRpcMsg rpcMsg;
   syncRequestVote2RpcMsg(pMsg, &rpcMsg);

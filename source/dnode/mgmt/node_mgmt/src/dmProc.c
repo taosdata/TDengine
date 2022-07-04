@@ -87,8 +87,8 @@ static SProcQueue *dmInitProcQueue(SProc *proc, char *ptr, int32_t size) {
 static void dmCleanupProcQueue(SProcQueue *queue) {}
 
 static inline int32_t dmPushToProcQueue(SProc *proc, SProcQueue *queue, SRpcMsg *pMsg, EProcFuncType ftype) {
-  const void   *pHead = pMsg;
-  const void   *pBody = pMsg->pCont;
+  const void *  pHead = pMsg;
+  const void *  pBody = pMsg->pCont;
   const int16_t rawHeadLen = sizeof(SRpcMsg);
   const int32_t rawBodyLen = pMsg->contLen;
   const int16_t headLen = CEIL8(rawHeadLen);
@@ -257,7 +257,7 @@ int32_t dmInitProc(struct SMgmtWrapper *pWrapper) {
   proc->wrapper = pWrapper;
   proc->name = pWrapper->name;
 
-  SShm   *shm = &proc->shm;
+  SShm *  shm = &proc->shm;
   int32_t cstart = 0;
   int32_t csize = CEIL8(shm->size / 2);
   int32_t pstart = csize;
@@ -281,13 +281,13 @@ int32_t dmInitProc(struct SMgmtWrapper *pWrapper) {
 }
 
 static void *dmConsumChildQueue(void *param) {
-  SProc        *proc = param;
+  SProc *       proc = param;
   SMgmtWrapper *pWrapper = proc->wrapper;
-  SProcQueue   *queue = proc->cqueue;
+  SProcQueue *  queue = proc->cqueue;
   int32_t       numOfMsgs = 0;
   int32_t       code = 0;
   EProcFuncType ftype = DND_FUNC_REQ;
-  SRpcMsg      *pMsg = NULL;
+  SRpcMsg *     pMsg = NULL;
 
   dDebug("node:%s, start to consume from cqueue", proc->name);
   do {
@@ -324,13 +324,13 @@ static void *dmConsumChildQueue(void *param) {
 }
 
 static void *dmConsumParentQueue(void *param) {
-  SProc        *proc = param;
+  SProc *       proc = param;
   SMgmtWrapper *pWrapper = proc->wrapper;
-  SProcQueue   *queue = proc->pqueue;
+  SProcQueue *  queue = proc->pqueue;
   int32_t       numOfMsgs = 0;
   int32_t       code = 0;
   EProcFuncType ftype = DND_FUNC_REQ;
-  SRpcMsg      *pMsg = NULL;
+  SRpcMsg *     pMsg = NULL;
 
   dDebug("node:%s, start to consume from pqueue", proc->name);
   do {
@@ -353,7 +353,7 @@ static void *dmConsumParentQueue(void *param) {
       rpcRegisterBrokenLinkArg(pMsg);
     } else if (ftype == DND_FUNC_RELEASE) {
       dmRemoveProcRpcHandle(proc, pMsg->info.handle);
-      rpcReleaseHandle(pMsg->info.handle, (int8_t)pMsg->code);
+      rpcReleaseHandle(&pMsg->info, TAOS_CONN_SERVER);
     } else {
       dError("node:%s, invalid ftype:%d from pqueue", proc->name, ftype);
       rpcFreeCont(pMsg->pCont);

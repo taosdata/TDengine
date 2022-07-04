@@ -21,6 +21,7 @@
 #define UP    3
 #define DOWN  4
 #define PSIZE shell.info.promptSize
+#define SHELL_INPUT_MAX_COMMAND_SIZE 10000
 
 typedef struct {
   char    *buffer;
@@ -227,6 +228,7 @@ void shellPrintChar(char c, int32_t times) {
 }
 
 void shellPositionCursor(int32_t step, int32_t direction) {
+#ifndef WINDOWS
   if (step > 0) {
     if (direction == LEFT) {
       fprintf(stdout, "\033[%dD", step);
@@ -239,6 +241,7 @@ void shellPositionCursor(int32_t step, int32_t direction) {
     }
     fflush(stdout);
   }
+#endif
 }
 
 void shellUpdateBuffer(SShellCmd *cmd) {
@@ -330,10 +333,14 @@ void shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos) {
   int32_t command_x = ecmd_pos / ws_col;
   shellPositionCursor(cursor_y, LEFT);
   shellPositionCursor(command_x - cursor_x, DOWN);
+#ifndef WINDOWS
   fprintf(stdout, "\033[2K");
+#endif
   for (int32_t i = 0; i < command_x; i++) {
     shellPositionCursor(1, UP);
+  #ifndef WINDOWS
     fprintf(stdout, "\033[2K");
+  #endif
   }
   fflush(stdout);
 }
@@ -394,6 +401,42 @@ void shellShowOnScreen(SShellCmd *cmd) {
   fflush(stdout);
 }
 
+char taosGetConsoleChar() {
+#ifdef WINDOWS
+  static void *console = NULL;
+  if (console == NULL) {
+    console = GetStdHandle(STD_INPUT_HANDLE);
+  }
+  static TdWchar buf[SHELL_INPUT_MAX_COMMAND_SIZE];
+  static char mbStr[5];
+  static unsigned long bufLen = 0;
+  static uint16_t bufIndex = 0, mbStrIndex = 0, mbStrLen = 0;
+  while (bufLen == 0) {
+    ReadConsoleW(console, buf, SHELL_INPUT_MAX_COMMAND_SIZE, &bufLen, NULL);
+    if (bufLen > 0 && buf[0] == 0) bufLen = 0;
+    bufIndex = 0;
+  }
+  if (mbStrLen == 0){
+    if (buf[bufIndex] == '\r') {
+      bufIndex++;
+    }
+    mbStrLen = WideCharToMultiByte(CP_UTF8, 0, &buf[bufIndex], 1, mbStr, sizeof(mbStr), NULL, NULL);
+    mbStrIndex = 0;
+    bufIndex++;
+  }
+  mbStrIndex++;
+  if (mbStrIndex == mbStrLen) {
+    mbStrLen = 0;
+    if (bufIndex == bufLen) {
+      bufLen = 0;
+    }
+  }
+  return mbStr[mbStrIndex-1];
+#else
+  return (char)getchar();  // getchar() return an 'int32_t' value
+#endif
+}
+
 int32_t shellReadCommand(char *command) {
   SShellHistory *pHistory = &shell.history;
   SShellCmd      cmd = {0};
@@ -407,7 +450,7 @@ int32_t shellReadCommand(char *command) {
   // Read input.
   char c;
   while (1) {
-    c = (char)getchar();  // getchar() return an 'int32_t' value
+    c = taosGetConsoleChar();
 
     if (c == EOF) {
       return c;
@@ -417,13 +460,15 @@ int32_t shellReadCommand(char *command) {
       int32_t count = shellCountPrefixOnes(c);
       utf8_array[0] = c;
       for (int32_t k = 1; k < count; k++) {
-        c = (char)getchar();
+        c = taosGetConsoleChar();
         utf8_array[k] = c;
       }
       shellInsertChar(&cmd, utf8_array, count);
     } else if (c < '\033') {
       // Ctrl keys.  TODO: Implement ctrl combinations
       switch (c) {
+        case 0:
+          break;
         case 1:  // ctrl A
           shellPositionCursorHome(&cmd);
           break;
@@ -437,6 +482,7 @@ int32_t shellReadCommand(char *command) {
           #endif
           break;
         case 4:  // EOF or Ctrl+D
+          taosResetTerminalMode();
           printf("\n");
           return -1;
         case 5:  // ctrl E
@@ -472,10 +518,10 @@ int32_t shellReadCommand(char *command) {
           break;
       }
     } else if (c == '\033') {
-      c = (char)getchar();
+      c = taosGetConsoleChar();
       switch (c) {
         case '[':
-          c = (char)getchar();
+          c = taosGetConsoleChar();
           switch (c) {
             case 'A':  // Up arrow
               if (hist_counter != pHistory->hstart) {
@@ -502,35 +548,35 @@ int32_t shellReadCommand(char *command) {
               shellMoveCursorLeft(&cmd);
               break;
             case '1':
-              if ((c = (char)getchar()) == '~') {
+              if ((c = taosGetConsoleChar()) == '~') {
                 // Home key
                 shellPositionCursorHome(&cmd);
               }
               break;
             case '2':
-              if ((c = (char)getchar()) == '~') {
+              if ((c = taosGetConsoleChar()) == '~') {
                 // Insert key
               }
               break;
             case '3':
-              if ((c = (char)getchar()) == '~') {
+              if ((c = taosGetConsoleChar()) == '~') {
                 // Delete key
                 shellDeleteChar(&cmd);
               }
               break;
             case '4':
-              if ((c = (char)getchar()) == '~') {
+              if ((c = taosGetConsoleChar()) == '~') {
                 // End key
                 shellPositionCursorEnd(&cmd);
               }
               break;
             case '5':
-              if ((c = (char)getchar()) == '~') {
+              if ((c = taosGetConsoleChar()) == '~') {
                 // Page up key
               }
               break;
             case '6':
-              if ((c = (char)getchar()) == '~') {
+              if ((c = taosGetConsoleChar()) == '~') {
                 // Page down key
               }
               break;

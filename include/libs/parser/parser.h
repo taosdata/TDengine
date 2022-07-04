@@ -35,6 +35,7 @@ typedef struct SStmtCallback {
 
 typedef struct SParseContext {
   uint64_t         requestId;
+  int64_t          requestRid;
   int32_t          acctId;
   const char*      db;
   bool             topicQuery;
@@ -50,6 +51,8 @@ typedef struct SParseContext {
   bool             isSuperUser;
   bool             async;
   int8_t           schemalessType;
+  const char*      svrVer;
+  bool             nodeOffline;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
@@ -64,6 +67,7 @@ void qDestroyQuery(SQuery* pQueryNode);
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
 int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid);
+void    qCleanupKeywordsTable();
 
 int32_t     qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash);
 int32_t     qResetStmtDataBlock(void* block, bool keepBuf);

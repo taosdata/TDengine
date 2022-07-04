@@ -14,7 +14,6 @@
  */
 
 #include "parTestUtil.h"
-#include "ttime.h"
 
 using namespace std;
 
@@ -46,7 +45,7 @@ TEST_F(ParserInitialCTest, createBnode) {
  *     BUFFER value
  *   | CACHELAST value
  *   | COMP {0 | 1 | 2}
- *   | DAYS value
+ *   | DURATION value
  *   | FSYNC value
  *   | MAXROWS value
  *   | MINROWS value
@@ -67,8 +66,12 @@ TEST_F(ParserInitialCTest, createDatabase) {
 
   SCreateDbReq expect = {0};
 
-  auto setCreateDbReqFunc = [&](const char* pDbname, int8_t igExists = 0) {
+  auto clearCreateDbReq = [&]() {
+    tFreeSCreateDbReq(&expect);
     memset(&expect, 0, sizeof(SCreateDbReq));
+  };
+
+  auto setCreateDbReqFunc = [&](const char* pDbname, int8_t igExists = 0) {
     int32_t len = snprintf(expect.db, sizeof(expect.db), "0.%s", pDbname);
     expect.db[len] = '\0';
     expect.ignoreExist = igExists;
@@ -151,7 +154,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
     ASSERT_EQ(req.replications, expect.replications);
     ASSERT_EQ(req.strict, expect.strict);
     ASSERT_EQ(req.cacheLastRow, expect.cacheLastRow);
-    ASSERT_EQ(req.schemaless, expect.schemaless);
+    // ASSERT_EQ(req.schemaless, expect.schemaless);
     ASSERT_EQ(req.ignoreExist, expect.ignoreExist);
     ASSERT_EQ(req.numOfRetensions, expect.numOfRetensions);
     if (expect.numOfRetensions > 0) {
@@ -166,10 +169,12 @@ TEST_F(ParserInitialCTest, createDatabase) {
         ASSERT_EQ(pReten->keepUnit, pExpectReten->keepUnit);
       }
     }
+    tFreeSCreateDbReq(&req);
   });
 
   setCreateDbReqFunc("wxy_db");
   run("CREATE DATABASE wxy_db");
+  clearCreateDbReq();
 
   setCreateDbReqFunc("wxy_db", 1);
   setDbBufferFunc(64);
@@ -196,7 +201,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "BUFFER 64 "
       "CACHELAST 2 "
       "COMP 1 "
-      "DAYS 100 "
+      "DURATION 100 "
       "FSYNC 100 "
       "MAXROWS 1000 "
       "MINROWS 100 "
@@ -211,13 +216,15 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "VGROUPS 100 "
       "SINGLE_STABLE 1 "
       "SCHEMALESS 1");
+  clearCreateDbReq();
 
   setCreateDbReqFunc("wxy_db", 1);
   setDbDaysFunc(100);
   setDbKeepFunc(1440, 300 * 60, 400 * 1440);
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
-      "DAYS 100m "
+      "DURATION 100m "
       "KEEP 1440m,300h,400d ");
+  clearCreateDbReq();
 }
 
 TEST_F(ParserInitialCTest, createDatabaseSemanticCheck) {
@@ -234,9 +241,47 @@ TEST_F(ParserInitialCTest, createDatabaseSemanticCheck) {
 TEST_F(ParserInitialCTest, createDnode) {
   useDb("root", "test");
 
-  run("CREATE DNODE abc1 PORT 7000");
+  SCreateDnodeReq expect = {0};
 
-  run("CREATE DNODE 1.1.1.1 PORT 9000");
+  auto clearCreateDnodeReq = [&]() { memset(&expect, 0, sizeof(SCreateDnodeReq)); };
+
+  auto setCreateDnodeReqFunc = [&](const char* pFqdn, int32_t port = tsServerPort) {
+    strcpy(expect.fqdn, pFqdn);
+    expect.port = port;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_DNODE_STMT);
+    SCreateDnodeReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSCreateDnodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(std::string(req.fqdn), std::string(expect.fqdn));
+    ASSERT_EQ(req.port, expect.port);
+  });
+
+  setCreateDnodeReqFunc("abc1", 7030);
+  run("CREATE DNODE 'abc1' PORT 7030");
+  clearCreateDnodeReq();
+
+  setCreateDnodeReqFunc("1.1.1.1", 8030);
+  run("CREATE DNODE 1.1.1.1 PORT 8030");
+  clearCreateDnodeReq();
+
+  setCreateDnodeReqFunc("host1", 9030);
+  run("CREATE DNODE host1 PORT 9030");
+  clearCreateDnodeReq();
+
+  setCreateDnodeReqFunc("abc2", 7040);
+  run("CREATE DNODE 'abc2:7040'");
+  clearCreateDnodeReq();
+
+  setCreateDnodeReqFunc("1.1.1.2");
+  run("CREATE DNODE 1.1.1.2");
+  clearCreateDnodeReq();
+
+  setCreateDnodeReqFunc("host2");
+  run("CREATE DNODE host2");
+  clearCreateDnodeReq();
 }
 
 // CREATE [AGGREGATE] FUNCTION [IF NOT EXISTS] func_name AS library_path OUTPUTTYPE type_name [BUFSIZE value]
@@ -309,18 +354,26 @@ TEST_F(ParserInitialCTest, createStable) {
 
   SMCreateStbReq expect = {0};
 
-  auto setCreateStbReqFunc = [&](const char* pTbname, int8_t igExists = 0,
-                                 float   xFilesFactor = TSDB_DEFAULT_ROLLUP_FILE_FACTOR,
-                                 int32_t ttl = TSDB_DEFAULT_TABLE_TTL, const char* pComment = nullptr) {
+  auto clearCreateStbReq = [&]() {
+    tFreeSMCreateStbReq(&expect);
     memset(&expect, 0, sizeof(SMCreateStbReq));
+  };
+
+  auto setCreateStbReqFunc = [&](const char* pTbname, int8_t igExists = 0, int64_t delay1 = -1, int64_t delay2 = -1,
+                                 int64_t watermark1 = TSDB_DEFAULT_ROLLUP_WATERMARK,
+                                 int64_t watermark2 = TSDB_DEFAULT_ROLLUP_WATERMARK,
+                                 int32_t ttl = TSDB_DEFAULT_TABLE_TTL, const char* pComment = nullptr) {
     int32_t len = snprintf(expect.name, sizeof(expect.name), "0.test.%s", pTbname);
     expect.name[len] = '\0';
     expect.igExists = igExists;
-    expect.xFilesFactor = xFilesFactor;
-    expect.ttl = ttl;
+    expect.delay1 = delay1;
+    expect.delay2 = delay2;
+    expect.watermark1 = watermark1;
+    expect.watermark2 = watermark2;
+    //    expect.ttl = ttl;
     if (nullptr != pComment) {
-      expect.comment = strdup(pComment);
-      expect.commentLen = strlen(pComment) + 1;
+      expect.pComment = strdup(pComment);
+      expect.commentLen = strlen(pComment);
     }
   };
 
@@ -354,12 +407,14 @@ TEST_F(ParserInitialCTest, createStable) {
 
     ASSERT_EQ(std::string(req.name), std::string(expect.name));
     ASSERT_EQ(req.igExists, expect.igExists);
-    ASSERT_EQ(req.xFilesFactor, expect.xFilesFactor);
-    ASSERT_EQ(req.delay, expect.delay);
+    ASSERT_EQ(req.delay1, expect.delay1);
+    ASSERT_EQ(req.delay2, expect.delay2);
+    ASSERT_EQ(req.watermark1, expect.watermark1);
+    ASSERT_EQ(req.watermark2, expect.watermark2);
     ASSERT_EQ(req.ttl, expect.ttl);
     ASSERT_EQ(req.numOfColumns, expect.numOfColumns);
     ASSERT_EQ(req.numOfTags, expect.numOfTags);
-    ASSERT_EQ(req.commentLen, expect.commentLen);
+    //    ASSERT_EQ(req.commentLen, expect.commentLen);
     ASSERT_EQ(req.ast1Len, expect.ast1Len);
     ASSERT_EQ(req.ast2Len, expect.ast2Len);
 
@@ -388,7 +443,7 @@ TEST_F(ParserInitialCTest, createStable) {
       }
     }
     if (expect.commentLen > 0) {
-      ASSERT_EQ(std::string(req.comment), std::string(expect.comment));
+      ASSERT_EQ(std::string(req.pComment), std::string(expect.pComment));
     }
     if (expect.ast1Len > 0) {
       ASSERT_EQ(std::string(req.pAst1), std::string(expect.pAst1));
@@ -396,6 +451,7 @@ TEST_F(ParserInitialCTest, createStable) {
     if (expect.ast2Len > 0) {
       ASSERT_EQ(std::string(req.pAst2), std::string(expect.pAst2));
     }
+    tFreeSMCreateStbReq(&req);
   });
 
   setCreateStbReqFunc("t1");
@@ -403,8 +459,10 @@ TEST_F(ParserInitialCTest, createStable) {
   addFieldToCreateStbReqFunc(true, "c1", TSDB_DATA_TYPE_INT);
   addFieldToCreateStbReqFunc(false, "id", TSDB_DATA_TYPE_INT);
   run("CREATE STABLE t1(ts TIMESTAMP, c1 INT) TAGS(id INT)");
+  clearCreateStbReq();
 
-  setCreateStbReqFunc("t1", 1, 0.1, 100, "test create table");
+  setCreateStbReqFunc("t1", 1, 100 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_MINUTE, 10,
+                      1 * MILLISECOND_PER_MINUTE, 100, "test create table");
   addFieldToCreateStbReqFunc(true, "ts", TSDB_DATA_TYPE_TIMESTAMP, 0, 0);
   addFieldToCreateStbReqFunc(true, "c1", TSDB_DATA_TYPE_INT);
   addFieldToCreateStbReqFunc(true, "c2", TSDB_DATA_TYPE_UINT);
@@ -442,26 +500,91 @@ TEST_F(ParserInitialCTest, createStable) {
       "TAGS (a1 TIMESTAMP, a2 INT, a3 INT UNSIGNED, a4 BIGINT, a5 BIGINT UNSIGNED, a6 FLOAT, a7 DOUBLE, "
       "a8 BINARY(20), a9 SMALLINT, a10 SMALLINT UNSIGNED COMMENT 'test column comment', a11 TINYINT, "
       "a12 TINYINT UNSIGNED, a13 BOOL, a14 NCHAR(30), a15 VARCHAR(50)) "
-      "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN) FILE_FACTOR 0.1");
+      "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN) MAX_DELAY 100s,10m WATERMARK 10a,1m");
+  clearCreateStbReq();
 }
 
 TEST_F(ParserInitialCTest, createStableSemanticCheck) {
   useDb("root", "test");
 
-  run("CREATE STABLE stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(CEIL) FILE_FACTOR 0.1",
-      TSDB_CODE_PAR_INVALID_ROLLUP_OPTION, PARSER_STAGE_TRANSLATE);
+  run("CREATE STABLE stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(CEIL)", TSDB_CODE_PAR_INVALID_ROLLUP_OPTION);
+
+  run("CREATE STABLE stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(MAX) MAX_DELAY 0s WATERMARK 1m",
+      TSDB_CODE_PAR_INVALID_RANGE_OPTION);
+
+  run("CREATE STABLE stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(MAX) MAX_DELAY 10s WATERMARK 18m",
+      TSDB_CODE_PAR_INVALID_RANGE_OPTION);
 }
 
 TEST_F(ParserInitialCTest, createStream) {
   useDb("root", "test");
 
+  SCMCreateStreamReq expect = {0};
+
+  auto clearCreateStreamReq = [&]() {
+    tFreeSCMCreateStreamReq(&expect);
+    memset(&expect, 0, sizeof(SCMCreateStreamReq));
+  };
+
+  auto setCreateStreamReqFunc = [&](const char* pStream, const char* pSrcDb, const char* pSql,
+                                    const char* pDstStb = nullptr, int8_t igExists = 0,
+                                    int8_t triggerType = STREAM_TRIGGER_AT_ONCE, int64_t maxDelay = 0,
+                                    int64_t watermark = 0, int8_t igExpired = 0) {
+    snprintf(expect.name, sizeof(expect.name), "0.%s", pStream);
+    snprintf(expect.sourceDB, sizeof(expect.sourceDB), "0.%s", pSrcDb);
+    if (NULL != pDstStb) {
+      snprintf(expect.targetStbFullName, sizeof(expect.targetStbFullName), "0.test.%s", pDstStb);
+    }
+    expect.igExists = igExists;
+    expect.sql = strdup(pSql);
+    expect.triggerType = triggerType;
+    expect.maxDelay = maxDelay;
+    expect.watermark = watermark;
+    expect.igExpired = igExpired;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+    SCMCreateStreamReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS ==
+                tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(std::string(req.name), std::string(expect.name));
+    ASSERT_EQ(std::string(req.sourceDB), std::string(expect.sourceDB));
+    ASSERT_EQ(std::string(req.targetStbFullName), std::string(expect.targetStbFullName));
+    ASSERT_EQ(req.igExists, expect.igExists);
+    ASSERT_EQ(std::string(req.sql), std::string(expect.sql));
+    ASSERT_EQ(req.triggerType, expect.triggerType);
+    ASSERT_EQ(req.maxDelay, expect.maxDelay);
+    ASSERT_EQ(req.watermark, expect.watermark);
+    ASSERT_EQ(req.igExpired, expect.igExpired);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  setCreateStreamReqFunc("s1", "test", "create stream s1 as select * from t1");
   run("CREATE STREAM s1 AS SELECT * FROM t1");
+  clearCreateStreamReq();
 
+  setCreateStreamReqFunc("s1", "test", "create stream if not exists s1 as select * from t1", nullptr, 1);
   run("CREATE STREAM IF NOT EXISTS s1 AS SELECT * FROM t1");
+  clearCreateStreamReq();
 
+  setCreateStreamReqFunc("s1", "test", "create stream s1 into st1 as select * from t1", "st1");
   run("CREATE STREAM s1 INTO st1 AS SELECT * FROM t1");
+  clearCreateStreamReq();
 
-  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER WINDOW_CLOSE WATERMARK 10s INTO st1 AS SELECT * FROM t1");
+  setCreateStreamReqFunc(
+      "s1", "test",
+      "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired into st1 as select * from t1",
+      "st1", 1, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_SECOND, 1);
+  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED INTO st1 AS SELECT * FROM t1");
+  clearCreateStreamReq();
+}
+
+TEST_F(ParserInitialCTest, createStreamSemanticCheck) {
+  useDb("root", "test");
+
+  run("CREATE STREAM s1 AS SELECT PERCENTILE(c1, 30) FROM t1", TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC);
 }
 
 TEST_F(ParserInitialCTest, createTable) {
@@ -482,14 +605,16 @@ TEST_F(ParserInitialCTest, createTable) {
       "TAGS (a1 TIMESTAMP, a2 INT, a3 INT UNSIGNED, a4 BIGINT, a5 BIGINT UNSIGNED, a6 FLOAT, a7 DOUBLE, a8 BINARY(20), "
       "a9 SMALLINT, a10 SMALLINT UNSIGNED COMMENT 'test column comment', a11 TINYINT, a12 TINYINT UNSIGNED, a13 BOOL, "
       "a14 NCHAR(30), a15 VARCHAR(50)) "
-      "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN) FILE_FACTOR 0.1");
+      "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN)");
 
-  run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy')");
+  run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', NOW)");
 
   run("CREATE TABLE "
       "IF NOT EXISTS test.t1 USING test.st1 (tag1, tag2) TAGS(1, 'abc') "
       "IF NOT EXISTS test.t2 USING test.st1 (tag1, tag2) TAGS(2, 'abc') "
       "IF NOT EXISTS test.t3 USING test.st1 (tag1, tag2) TAGS(3, 'abc') ");
+
+  // run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', NOW + 1S)");
 }
 
 TEST_F(ParserInitialCTest, createTopic) {
@@ -497,12 +622,14 @@ TEST_F(ParserInitialCTest, createTopic) {
 
   SCMCreateTopicReq expect = {0};
 
+  auto clearCreateTopicReq = [&]() { memset(&expect, 0, sizeof(SCMCreateTopicReq)); };
+
   auto setCreateTopicReqFunc = [&](const char* pTopicName, int8_t igExists, const char* pSql, const char* pAst,
-                                   const char* pDbName = nullptr, const char* pTbname = nullptr) {
-    memset(&expect, 0, sizeof(SMCreateStbReq));
+                                   const char* pDbName = nullptr, const char* pTbname = nullptr, int8_t withMeta = 0) {
     snprintf(expect.name, sizeof(expect.name), "0.%s", pTopicName);
     expect.igExists = igExists;
     expect.sql = (char*)pSql;
+    expect.withMeta = withMeta;
     if (nullptr != pTbname) {
       expect.subType = TOPIC_SUB_TYPE__TABLE;
       snprintf(expect.subStbName, sizeof(expect.subStbName), "0.%s.%s", pDbName, pTbname);
@@ -525,6 +652,7 @@ TEST_F(ParserInitialCTest, createTopic) {
     ASSERT_EQ(req.igExists, expect.igExists);
     ASSERT_EQ(req.subType, expect.subType);
     ASSERT_EQ(std::string(req.sql), std::string(expect.sql));
+    ASSERT_EQ(req.withMeta, expect.withMeta);
     switch (expect.subType) {
       case TOPIC_SUB_TYPE__DB:
         ASSERT_EQ(std::string(req.subDbName), std::string(expect.subDbName));
@@ -538,25 +666,70 @@ TEST_F(ParserInitialCTest, createTopic) {
       default:
         ASSERT_TRUE(false);
     }
+    tFreeSCMCreateTopicReq(&req);
   });
 
   setCreateTopicReqFunc("tp1", 0, "create topic tp1 as select * from t1", "ast");
   run("CREATE TOPIC tp1 AS SELECT * FROM t1");
+  clearCreateTopicReq();
 
   setCreateTopicReqFunc("tp1", 1, "create topic if not exists tp1 as select ts, ceil(c1) from t1", "ast");
   run("CREATE TOPIC IF NOT EXISTS tp1 AS SELECT ts, CEIL(c1) FROM t1");
+  clearCreateTopicReq();
 
   setCreateTopicReqFunc("tp1", 0, "create topic tp1 as database test", nullptr, "test");
   run("CREATE TOPIC tp1 AS DATABASE test");
+  clearCreateTopicReq();
+
+  setCreateTopicReqFunc("tp1", 0, "create topic tp1 with meta as database test", nullptr, "test", nullptr, 1);
+  run("CREATE TOPIC tp1 WITH META AS DATABASE test");
+  clearCreateTopicReq();
 
   setCreateTopicReqFunc("tp1", 1, "create topic if not exists tp1 as stable st1", nullptr, "test", "st1");
   run("CREATE TOPIC IF NOT EXISTS tp1 AS STABLE st1");
+  clearCreateTopicReq();
+
+  setCreateTopicReqFunc("tp1", 1, "create topic if not exists tp1 with meta as stable st1", nullptr, "test", "st1", 1);
+  run("CREATE TOPIC IF NOT EXISTS tp1 WITH META AS STABLE st1");
+  clearCreateTopicReq();
 }
 
 TEST_F(ParserInitialCTest, createUser) {
   useDb("root", "test");
 
+  SCreateUserReq expect = {0};
+
+  auto clearCreateUserReq = [&]() { memset(&expect, 0, sizeof(SCreateUserReq)); };
+
+  auto setCreateUserReq = [&](const char* pUser, const char* pPass, int8_t sysInfo = 1) {
+    strcpy(expect.user, pUser);
+    strcpy(expect.pass, pPass);
+    expect.createType = 0;
+    expect.superUser = 0;
+    expect.sysInfo = sysInfo;
+    expect.enable = 1;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_USER_STMT);
+    SCreateUserReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSCreateUserReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(req.createType, expect.createType);
+    ASSERT_EQ(req.superUser, expect.superUser);
+    ASSERT_EQ(req.sysInfo, expect.sysInfo);
+    ASSERT_EQ(req.enable, expect.enable);
+    ASSERT_EQ(std::string(req.user), std::string(expect.user));
+    ASSERT_EQ(std::string(req.pass), std::string(expect.pass));
+  });
+
+  setCreateUserReq("wxy", "123456");
   run("CREATE USER wxy PASS '123456'");
+  clearCreateUserReq();
+
+  setCreateUserReq("wxy1", "a123456", 1);
+  run("CREATE USER wxy1 PASS 'a123456' SYSINFO 1");
+  clearCreateUserReq();
 }
 
 }  // namespace ParserTest

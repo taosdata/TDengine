@@ -23,7 +23,7 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
 
   void *pIter = NULL;
   while (1) {
-    taosHashIterate(pWal->pRefHash, pIter);
+    pIter = taosHashIterate(pWal->pRefHash, pIter);
     if (pIter == NULL) break;
     SWalRef *pRef = (SWalRef *)pIter;
     if (pRef->ver != -1) {
@@ -41,6 +41,9 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
       SWalFileInfo *pFileInfo = taosArrayGet(pWal->fileInfoSet, i);
       char          fnameStr[WAL_FILE_LEN];
       walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
+      taosRemoveFile(fnameStr);
+
+      walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
       taosRemoveFile(fnameStr);
     }
   }
@@ -64,7 +67,10 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
 int32_t walCommit(SWal *pWal, int64_t ver) {
   ASSERT(pWal->vers.commitVer >= pWal->vers.snapshotVer);
   ASSERT(pWal->vers.commitVer <= pWal->vers.lastVer);
-  if (ver < pWal->vers.commitVer || ver > pWal->vers.lastVer) {
+  if (ver < pWal->vers.commitVer) {
+    return 0;
+  }
+  if (ver > pWal->vers.lastVer) {
     terrno = TSDB_CODE_WAL_INVALID_VER;
     return -1;
   }
@@ -102,7 +108,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   }
 
   walBuildIdxName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
-  TdFilePtr pIdxTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ);
+  TdFilePtr pIdxTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
 
   if (pIdxTFile == NULL) {
     taosThreadMutexUnlock(&pWal->mutex);
@@ -123,7 +129,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   ASSERT(entry.ver == ver);
 
   walBuildLogName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
-  TdFilePtr pLogTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ);
+  TdFilePtr pLogTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
   if (pLogTFile == NULL) {
     // TODO
     taosThreadMutexUnlock(&pWal->mutex);
@@ -136,34 +142,50 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     return -1;
   }
   // validate offset
-  SWalHead head;
+  SWalCkHead head;
   ASSERT(taosValidFile(pLogTFile));
-  int size = taosReadFile(pLogTFile, &head, sizeof(SWalHead));
-  if (size != sizeof(SWalHead)) {
+  int64_t size = taosReadFile(pLogTFile, &head, sizeof(SWalCkHead));
+  if (size != sizeof(SWalCkHead)) {
     return -1;
   }
   code = walValidHeadCksum(&head);
 
   ASSERT(code == 0);
   if (code != 0) {
+    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    ASSERT(0);
     return -1;
   }
   if (head.head.version != ver) {
-    // TODO
+    ASSERT(0);
+    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
+
   // truncate old files
   code = taosFtruncateFile(pLogTFile, entry.offset);
   if (code < 0) {
+    ASSERT(0);
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   code = taosFtruncateFile(pIdxTFile, idxOff);
   if (code < 0) {
+    ASSERT(0);
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   pWal->vers.lastVer = ver - 1;
+  if (pWal->vers.lastVer < pWal->vers.firstVer) {
+    ASSERT(pWal->vers.lastVer == pWal->vers.firstVer - 1);
+    pWal->vers.firstVer = -1;
+  }
   ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->lastVer = ver - 1;
   ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->fileSize = entry.offset;
+  if (((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->lastVer < ver - 1) {
+    ASSERT(((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->fileSize == 0);
+    ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->firstVer = -1;
+  }
   taosCloseFile(&pIdxTFile);
   taosCloseFile(&pLogTFile);
 
@@ -239,7 +261,7 @@ int32_t walEndSnapshot(SWal *pWal) {
 }
 
 int walRoll(SWal *pWal) {
-  int code = 0;
+  int32_t code = 0;
   if (pWal->pWriteIdxTFile != NULL) {
     code = taosCloseFile(&pWal->pWriteIdxTFile);
     if (code != 0) {
@@ -288,9 +310,9 @@ int walRoll(SWal *pWal) {
 
 static int walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   SWalIdxEntry entry = {.ver = ver, .offset = offset};
-  /*int64_t      idxOffset = taosLSeekFile(pWal->pWriteIdxTFile, 0, SEEK_CUR);*/
-  /*wDebug("write index: ver: %ld, offset: %ld, at %ld", ver, offset, idxOffset);*/
-  int size = taosWriteFile(pWal->pWriteIdxTFile, &entry, sizeof(SWalIdxEntry));
+  int64_t      idxOffset = taosLSeekFile(pWal->pWriteIdxTFile, 0, SEEK_END);
+  wDebug("write index: ver: %ld, offset: %ld, at %ld", ver, offset, idxOffset);
+  int64_t size = taosWriteFile(pWal->pWriteIdxTFile, &entry, sizeof(SWalIdxEntry));
   if (size != sizeof(SWalIdxEntry)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     // TODO truncate
@@ -299,12 +321,13 @@ static int walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   return 0;
 }
 
-int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLogMeta syncMeta, const void *body,
+int32_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLogMeta syncMeta, const void *body,
                              int32_t bodyLen) {
-  int code = 0;
+  int32_t code = 0;
 
   // no wal
   if (pWal->cfg.level == TAOS_WAL_NOLOG) return 0;
+
   if (bodyLen > TSDB_MAX_WAL_SIZE) {
     terrno = TSDB_CODE_WAL_SIZE_LIMIT;
     return -1;
@@ -334,6 +357,7 @@ int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLog
     terrno = TSDB_CODE_WAL_INVALID_VER;
     return -1;
   }
+
   /*if (!tfValid(pWal->pWriteLogTFile)) return -1;*/
 
   ASSERT(pWal->writeCur >= 0);
@@ -358,7 +382,7 @@ int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLog
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
   pWal->writeHead.cksumBody = walCalcBodyCksum(body, bodyLen);
 
-  if (taosWriteFile(pWal->pWriteLogTFile, &pWal->writeHead, sizeof(SWalHead)) != sizeof(SWalHead)) {
+  if (taosWriteFile(pWal->pWriteLogTFile, &pWal->writeHead, sizeof(SWalCkHead)) != sizeof(SWalCkHead)) {
     // TODO ftruncate
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
@@ -381,17 +405,21 @@ int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLog
   }
 
   // set status
+  if (pWal->vers.firstVer == -1) pWal->vers.firstVer = index;
   pWal->vers.lastVer = index;
-  pWal->totSize += sizeof(SWalHead) + bodyLen;
+  pWal->totSize += sizeof(SWalCkHead) + bodyLen;
+  if (walGetCurFileInfo(pWal)->firstVer == -1) {
+    walGetCurFileInfo(pWal)->firstVer = index;
+  }
   walGetCurFileInfo(pWal)->lastVer = index;
-  walGetCurFileInfo(pWal)->fileSize += sizeof(SWalHead) + bodyLen;
+  walGetCurFileInfo(pWal)->fileSize += sizeof(SWalCkHead) + bodyLen;
 
   taosThreadMutexUnlock(&pWal->mutex);
 
   return 0;
 }
 
-int64_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen) {
+int32_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen) {
   SSyncLogMeta syncMeta = {
       .isWeek = -1,
       .seqNum = UINT64_MAX,
@@ -409,27 +437,3 @@ void walFsync(SWal *pWal, bool forceFsync) {
     }
   }
 }
-
-/*static int walValidateOffset(SWal* pWal, int64_t ver) {*/
-/*int code = 0;*/
-/*SWalHead *pHead = NULL;*/
-/*code = (int)walRead(pWal, &pHead, ver);*/
-/*if(pHead->head.version != ver) {*/
-/*return -1;*/
-/*}*/
-/*return 0;*/
-/*}*/
-
-/*static int64_t walGetOffset(SWal* pWal, int64_t ver) {*/
-/*int code = walSeekVer(pWal, ver);*/
-/*if(code != 0) {*/
-/*return -1;*/
-/*}*/
-
-/*code = walValidateOffset(pWal, ver);*/
-/*if(code != 0) {*/
-/*return -1;*/
-/*}*/
-
-/*return 0;*/
-/*}*/

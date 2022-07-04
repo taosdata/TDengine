@@ -15,12 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDb.h"
-#include "mndAuth.h"
 #include "mndDnode.h"
 #include "mndOffset.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSma.h"
 #include "mndStb.h"
+#include "mndStream.h"
 #include "mndSubscribe.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
@@ -183,12 +184,12 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
     pDb->cfg.pRetensions = taosArrayInit(pDb->cfg.numOfRetensions, sizeof(SRetention));
     if (pDb->cfg.pRetensions == NULL) goto _OVER;
     for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
-      SRetention retension = {0};
-      SDB_GET_INT64(pRaw, dataPos, &retension.freq, _OVER)
-      SDB_GET_INT64(pRaw, dataPos, &retension.keep, _OVER)
-      SDB_GET_INT8(pRaw, dataPos, &retension.freqUnit, _OVER)
-      SDB_GET_INT8(pRaw, dataPos, &retension.keepUnit, _OVER)
-      if (taosArrayPush(pDb->cfg.pRetensions, &retension) == NULL) {
+      SRetention retention = {0};
+      SDB_GET_INT64(pRaw, dataPos, &retention.freq, _OVER)
+      SDB_GET_INT64(pRaw, dataPos, &retention.keep, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &retention.freqUnit, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &retention.keepUnit, _OVER)
+      if (taosArrayPush(pDb->cfg.pRetensions, &retention) == NULL) {
         goto _OVER;
       }
     }
@@ -472,12 +473,12 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   }
 
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
 
-  mndTransSetDbName(pTrans, dbObj.name);
+  mndTransSetDbName(pTrans, dbObj.name, NULL);
   if (mndSetCreateDbRedoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
@@ -506,6 +507,9 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   }
 
   mDebug("db:%s, start to create, vgroups:%d", createReq.db, createReq.numOfVgroups);
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL) != 0) {
+    goto _OVER;
+  }
 
   pDb = mndAcquireDb(pMnode, createReq.db);
   if (pDb != NULL) {
@@ -521,12 +525,8 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
+  pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
   if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckCreateDbAuth(pUser) != 0) {
     goto _OVER;
   }
 
@@ -549,18 +549,33 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   terrno = TSDB_CODE_MND_DB_OPTION_UNCHANGED;
 
   if (pAlter->buffer > 0 && pAlter->buffer != pDb->cfg.buffer) {
+#if 1
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return terrno;
+#else
     pDb->cfg.buffer = pAlter->buffer;
     terrno = 0;
+#endif
   }
 
   if (pAlter->pages > 0 && pAlter->pages != pDb->cfg.pages) {
+#if 1
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return terrno;
+#else
     pDb->cfg.pages = pAlter->pages;
     terrno = 0;
+#endif
   }
 
   if (pAlter->pageSize > 0 && pAlter->pageSize != pDb->cfg.pageSize) {
+#if 1
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return terrno;
+#else
     pDb->cfg.pageSize = pAlter->pageSize;
     terrno = 0;
+#endif
   }
 
   if (pAlter->daysPerFile > 0 && pAlter->daysPerFile != pDb->cfg.daysPerFile) {
@@ -594,8 +609,12 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   }
 
   if (pAlter->strict >= 0 && pAlter->strict != pDb->cfg.strict) {
+#if 1
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+#else
     pDb->cfg.strict = pAlter->strict;
     terrno = 0;
+#endif
   }
 
   if (pAlter->cacheLastRow >= 0 && pAlter->cacheLastRow != pDb->cfg.cacheLastRow) {
@@ -604,9 +623,13 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   }
 
   if (pAlter->replications > 0 && pAlter->replications != pDb->cfg.replications) {
+#if 1
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+#else
     pDb->cfg.replications = pAlter->replications;
     pDb->vgVersion++;
     terrno = 0;
+#endif
   }
 
   return terrno;
@@ -646,7 +669,7 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    if (pVgroup->dbUid == pNew->uid) {
+    if (mndVgroupInDb(pVgroup, pNew->uid)) {
       if (mndBuildAlterVgroupAction(pMnode, pTrans, pNew, pVgroup, pArray) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pVgroup);
@@ -668,7 +691,7 @@ static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *p
   mDebug("trans:%d, used to alter db:%s", pTrans->id, pOld->name);
 
   int32_t code = -1;
-  mndTransSetDbName(pTrans, pOld->name);
+  mndTransSetDbName(pTrans, pOld->name, NULL);
   if (mndSetAlterDbRedoLogs(pMnode, pTrans, pOld, pNew) != 0) goto _OVER;
   if (mndSetAlterDbCommitLogs(pMnode, pTrans, pOld, pNew) != 0) goto _OVER;
   if (mndSetAlterDbRedoActions(pMnode, pTrans, pOld, pNew) != 0) goto _OVER;
@@ -684,7 +707,6 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   int32_t     code = -1;
   SDbObj     *pDb = NULL;
-  SUserObj   *pUser = NULL;
   SAlterDbReq alterReq = {0};
   SDbObj      dbObj = {0};
 
@@ -701,12 +723,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckAlterDropCompactDbAuth(pUser, pDb) != 0) {
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -733,7 +750,6 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pUser);
   taosArrayDestroy(dbObj.cfg.pRetensions);
 
   return code;
@@ -928,13 +944,15 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop db:%s", pTrans->id, pDb->name);
-  mndTransSetDbName(pTrans, pDb->name);
+  mndTransSetDbName(pTrans, pDb->name, NULL);
 
   if (mndSetDropDbRedoLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndDropOffsetByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndDropSubByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndDropTopicByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
+  if (mndDropStreamByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
+  if (mndDropSmasByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto _OVER;
 
   SUserObj *pUser = mndAcquireUser(pMnode, pDb->createUser);
@@ -954,7 +972,6 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   mndTransSetRpcRsp(pTrans, pRsp, rspLen);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-
   code = 0;
 
 _OVER:
@@ -966,7 +983,6 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   int32_t    code = -1;
   SDbObj    *pDb = NULL;
-  SUserObj  *pUser = NULL;
   SDropDbReq dropReq = {0};
 
   if (tDeserializeSDropDbReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
@@ -987,12 +1003,7 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
     }
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckAlterDropCompactDbAuth(pUser, pDb) != 0) {
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -1005,8 +1016,6 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pUser);
-
   return code;
 }
 
@@ -1021,7 +1030,7 @@ static int32_t mndGetDBTableNum(SDbObj *pDb, SMnode *pMnode) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    if (pVgroup->dbUid == pDb->uid) {
+    if (mndVgroupInDb(pVgroup, pDb->uid)) {
       numOfTables += pVgroup->numOfTables / TSDB_TABLE_NUM_UNIT;
       vindex++;
     }
@@ -1102,7 +1111,6 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
   SMnode   *pMnode = pReq->info.node;
   int32_t   code = -1;
   SDbObj   *pDb = NULL;
-  SUserObj *pUser = NULL;
   SUseDbReq usedbReq = {0};
   SUseDbRsp usedbRsp = {0};
 
@@ -1142,12 +1150,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
 
       mError("db:%s, failed to process use db req since %s", usedbReq.db, terrstr());
     } else {
-      pUser = mndAcquireUser(pMnode, pReq->conn.user);
-      if (pUser == NULL) {
-        goto _OVER;
-      }
-
-      if (mndCheckUseDbAuth(pUser, pDb) != 0) {
+      if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb) != 0) {
         goto _OVER;
       }
 
@@ -1178,7 +1181,6 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pUser);
   tFreeSUsedbRsp(&usedbRsp);
 
   return code;
@@ -1259,7 +1261,6 @@ static int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   int32_t       code = -1;
   SDbObj       *pDb = NULL;
-  SUserObj     *pUser = NULL;
   SCompactDbReq compactReq = {0};
 
   if (tDeserializeSCompactDbReq(pReq->pCont, pReq->contLen, &compactReq) != 0) {
@@ -1274,12 +1275,7 @@ static int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckAlterDropCompactDbAuth(pUser, pDb) != 0) {
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_COMPACT_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -1291,8 +1287,6 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pUser);
-
   return code;
 }
 
@@ -1366,7 +1360,7 @@ char *buildRetension(SArray *pRetension) {
 }
 
 static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, int32_t rows, int64_t numOfTables,
-                           bool sysDb) {
+                           bool sysDb, ESdbStatus objStatus, bool sysinfo) {
   int32_t cols = 0;
 
   int32_t     bytes = pShow->pMeta->pSchemas[cols].bytes;
@@ -1379,10 +1373,12 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
   }
 
   char *status = "ready";
-  char  statusB[24] = {0};
+  if (objStatus == SDB_STATUS_CREATING) status = "creating";
+  if (objStatus == SDB_STATUS_DROPPING) status = "dropping";
+  char statusB[24] = {0};
   STR_WITH_SIZE_TO_VARSTR(statusB, status, strlen(status));
 
-  if (sysDb) {
+  if (sysDb || !sysinfo) {
     for (int32_t i = 0; i < pShow->numOfColumns; ++i) {
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, i);
       if (i == 0) {
@@ -1418,11 +1414,13 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)strict, false);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.daysPerFile, false);
-
     char    tmp[128] = {0};
     int32_t len = 0;
+    len = sprintf(&tmp[VARSTR_HEADER_SIZE], "%dm", pDb->cfg.daysPerFile);
+    varDataSetLen(tmp, len);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)tmp, false);
+
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
       len = sprintf(&tmp[VARSTR_HEADER_SIZE], "%dm,%dm,%dm", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2,
                     pDb->cfg.daysToKeep0);
@@ -1503,8 +1501,8 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)statusB, false);
 
-//    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-//    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.schemaless, false);
+    //    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    //    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.schemaless, false);
 
     char *p = buildRetension(pDb->cfg.pRetensions);
 
@@ -1548,43 +1546,51 @@ static bool mndGetTablesOfDbFp(SMnode *pMnode, void *pObj, void *p1, void *p2, v
 }
 
 static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
-  SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
-  int32_t numOfRows = 0;
-  SDbObj *pDb = NULL;
+  SMnode    *pMnode = pReq->info.node;
+  SSdb      *pSdb = pMnode->pSdb;
+  int32_t    numOfRows = 0;
+  SDbObj    *pDb = NULL;
+  ESdbStatus objStatus = 0;
+
+  SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
+  if (pUser == NULL) return 0;
+  bool sysinfo = pUser->sysInfo;
 
   // Append the information_schema database into the result.
   if (!pShow->sysDbRsp) {
     SDbObj infoschemaDb = {0};
     setInformationSchemaDbCfg(&infoschemaDb);
-    dumpDbInfoData(pBlock, &infoschemaDb, pShow, numOfRows, 14, true);
+    dumpDbInfoData(pBlock, &infoschemaDb, pShow, numOfRows, 14, true, 0, 1);
 
     numOfRows += 1;
 
     SDbObj perfschemaDb = {0};
     setPerfSchemaDbCfg(&perfschemaDb);
-    dumpDbInfoData(pBlock, &perfschemaDb, pShow, numOfRows, 3, true);
+    dumpDbInfoData(pBlock, &perfschemaDb, pShow, numOfRows, 3, true, 0, 1);
 
     numOfRows += 1;
     pShow->sysDbRsp = true;
   }
 
   while (numOfRows < rowsCapacity) {
-    pShow->pIter = sdbFetch(pSdb, SDB_DB, pShow->pIter, (void **)&pDb);
+    pShow->pIter = sdbFetchAll(pSdb, SDB_DB, pShow->pIter, (void **)&pDb, &objStatus);
     if (pShow->pIter == NULL) {
       break;
     }
 
-    int32_t numOfTables = 0;
-    sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, NULL, NULL);
+    if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb) == 0) {
+      int32_t numOfTables = 0;
+      sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, NULL, NULL);
 
-    dumpDbInfoData(pBlock, pDb, pShow, numOfRows, numOfTables, false);
-    numOfRows++;
+      dumpDbInfoData(pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus, sysinfo);
+      numOfRows++;
+    }
+
     sdbRelease(pSdb, pDb);
   }
 
   pShow->numOfRows += numOfRows;
-
+  mndReleaseUser(pMnode, pUser);
   return numOfRows;
 }
 

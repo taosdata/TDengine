@@ -44,6 +44,7 @@ endi
 sql create function n02 as '/tmp/normal' outputtype bool;
 sql show functions;
 if $rows != 1 then
+  print expect 1, actual $rows
   return -1
 endi
 

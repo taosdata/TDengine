@@ -68,6 +68,7 @@ typedef struct {
 } SysNameInfo;
 
 SysNameInfo taosGetSysNameInfo();
+bool taosCheckCurrentInDll();
 
 #ifdef __cplusplus
 }

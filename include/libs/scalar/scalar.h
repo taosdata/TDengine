@@ -25,6 +25,8 @@ extern "C" {
 
 typedef struct SFilterInfo SFilterInfo;
 
+int32_t scalarGetOperatorResultType(SDataType left, SDataType right, EOperatorType op, SDataType* pRes);
+
 /*
 pNode will be freed in API;
 *pRes need to freed in caller

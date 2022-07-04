@@ -32,6 +32,15 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
+#if 0
+  pRes = taos_query(pConn, "create database if not exists abc2 vgroups 20");
+  if (taos_errno(pRes) != 0) {
+    printf("error in create db, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+#endif
+
   pRes = taos_query(pConn, "use abc1");
   if (taos_errno(pRes) != 0) {
     printf("error in use db, reason:%s\n", taos_errstr(pRes));
@@ -59,6 +68,14 @@ int32_t init_env() {
     return -1;
   }
   taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table if not exists tu3 using st1 tags(3)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create child table tu3, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
   return 0;
 }
 
@@ -82,7 +99,9 @@ int32_t create_stream() {
   /*const char* sql = "select sum(k) from tu1 interval(10m)";*/
   /*pRes = tmq_create_stream(pConn, "stream1", "out1", sql);*/
   pRes = taos_query(
-      pConn, "create stream stream1 trigger at_once into outstb as select _wstartts, sum(k) from st1 interval(10m)");
+      pConn,
+      "create stream stream1 trigger max_delay 10s into outstb as select _wstartts, sum(k) from st1 partition "
+      "by tbname session(ts, 10s) ");
   if (taos_errno(pRes) != 0) {
     printf("failed to create stream stream1, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -99,11 +118,4 @@ int main(int argc, char* argv[]) {
     code = init_env();
   }
   create_stream();
-#if 0
-  tmq_t*      tmq = build_consumer();
-  tmq_list_t* topic_list = build_topic_list();
-  /*perf_loop(tmq, topic_list);*/
-  /*basic_consume_loop(tmq, topic_list);*/
-  sync_consume_loop(tmq, topic_list);
-#endif
 }

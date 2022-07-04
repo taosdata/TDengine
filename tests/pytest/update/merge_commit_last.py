@@ -34,7 +34,7 @@ class TDTestCase:
     def run(self):              
         tdSql.prepare()
 
-        tdSql.execute("create database udb update 1 days 30")   
+        tdSql.execute("create database udb update 1 duration 30")   
         tdSql.execute("use udb")
 
         print("==============step 1: UPDATE THE LAST RECORD REPEATEDLY")                     

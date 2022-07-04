@@ -15,6 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
+#include "systable.h"
+
+extern SConfig *tsCfg;
 
 static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
   if (pMgmt->pData->dnodeId == 0 || pMgmt->pData->clusterId == 0) {
@@ -79,7 +82,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   (*pMgmt->getVnodeLoadsFp)(&vinfo);
   req.pVloads = vinfo.pVloads;
 
-   SMonMloadInfo minfo = {0};
+  SMonMloadInfo minfo = {0};
   (*pMgmt->getMnodeLoadsFp)(&minfo);
   req.mload = minfo.load;
 
@@ -119,8 +122,15 @@ int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  dError("config req is received, but not supported yet");
-  return TSDB_CODE_OPS_NOT_SUPPORT;
+  SDCfgDnodeReq cfgReq = {0};
+  if (tDeserializeSDCfgDnodeReq(pMsg->pCont, pMsg->contLen, &cfgReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  dInfo("start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
+  taosCfgDynamicOptions(cfgReq.config, cfgReq.value);
+  return 0;
 }
 
 static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
@@ -175,6 +185,131 @@ int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return 0;
 }
 
+SSDataBlock *dmBuildVariablesBlock(void) {
+  SSDataBlock         *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  size_t               size = 0;
+  const SSysTableMeta *pMeta = NULL;
+  getInfosDbMeta(&pMeta, &size);
+
+  int32_t index = 0;
+  for (int32_t i = 0; i < size; ++i) {
+    if (strcmp(pMeta[i].name, TSDB_INS_TABLE_DNODE_VARIABLES) == 0) {
+      index = i;
+      break;
+    }
+  }
+
+  pBlock->pDataBlock = taosArrayInit(pMeta[index].colNum, sizeof(SColumnInfoData));
+
+  for (int32_t i = 0; i < pMeta[index].colNum; ++i) {
+    SColumnInfoData colInfoData = {0};
+    colInfoData.info.colId = i + 1;
+    colInfoData.info.type = pMeta[index].schema[i].type;
+    colInfoData.info.bytes = pMeta[index].schema[i].bytes;
+    taosArrayPush(pBlock->pDataBlock, &colInfoData);
+  }
+
+  pBlock->info.hasVarCol = true;
+
+  return pBlock;
+}
+
+int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
+  int32_t numOfCfg = taosArrayGetSize(tsCfg->array);
+  int32_t numOfRows = 0;
+  blockDataEnsureCapacity(pBlock, numOfCfg);
+
+  for (int32_t i = 0, c = 0; i < numOfCfg; ++i, c = 0) {
+    SConfigItem *pItem = taosArrayGet(tsCfg->array, i);
+
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    colDataAppend(pColInfo, i, (const char *)&dnodeId, false);
+
+    char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    colDataAppend(pColInfo, i, name, false);
+
+    char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
+    int32_t valueLen = 0;
+    cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
+    varDataSetLen(value, valueLen);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    colDataAppend(pColInfo, i, value, false);
+
+    numOfRows++;
+  }
+
+  pBlock->info.rows = numOfRows;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t size = 0;
+  int32_t rowsRead = 0;
+
+  SRetrieveTableReq retrieveReq = {0};
+  if (tDeserializeSRetrieveTableReq(pMsg->pCont, pMsg->contLen, &retrieveReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  if (strcmp(retrieveReq.user, TSDB_DEFAULT_USER) != 0) {
+    terrno = TSDB_CODE_MND_NO_RIGHTS;
+    return -1;
+  }
+
+  if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_DNODE_VARIABLES)) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  SSDataBlock *pBlock = dmBuildVariablesBlock();
+
+  dmAppendVariablesToBlock(pBlock, pMgmt->pData->dnodeId);
+
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * numOfCols +
+         blockDataGetSize(pBlock) + blockDataGetSerialMetaSize(numOfCols);
+
+  SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    dError("failed to retrieve data since %s", terrstr());
+    blockDataDestroy(pBlock);
+    return -1;
+  }
+
+  char *pStart = pRsp->data;
+  *(int32_t *)pStart = htonl(numOfCols);
+  pStart += sizeof(int32_t);  // number of columns
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SSysTableSchema *pSchema = (SSysTableSchema *)pStart;
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, i);
+
+    pSchema->bytes = htonl(pColInfo->info.bytes);
+    pSchema->colId = htons(pColInfo->info.colId);
+    pSchema->type = pColInfo->info.type;
+
+    pStart += sizeof(SSysTableSchema);
+  }
+
+  int32_t len = 0;
+  blockEncode(pBlock, pStart, &len, numOfCols, false);
+
+  pRsp->numOfRows = htonl(pBlock->info.rows);
+  pRsp->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond time precision
+  pRsp->completed = 1;
+  pMsg->info.rsp = pRsp;
+  pMsg->info.rspLen = size;
+  dDebug("dnode variables retrieve completed");
+
+  blockDataDestroy(pBlock);
+  return TSDB_CODE_SUCCESS;
+}
+
 SArray *dmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(16, sizeof(SMgmtHandle));
@@ -191,6 +326,7 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_BNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CONFIG_DNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT_RSP, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;

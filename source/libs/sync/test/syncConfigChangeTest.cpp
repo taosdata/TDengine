@@ -35,9 +35,9 @@ void cleanup() { walCleanUp(); }
 
 void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   SyncIndex beginIndex = SYNC_INDEX_INVALID;
-  if (pFsm->FpGetSnapshot != NULL) {
+  if (pFsm->FpGetSnapshotInfo != NULL) {
     SSnapshot snapshot;
-    pFsm->FpGetSnapshot(pFsm, &snapshot);
+    pFsm->FpGetSnapshotInfo(pFsm, &snapshot);
     beginIndex = snapshot.lastApplyIndex;
   }
 
@@ -78,8 +78,8 @@ int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
 void RestoreFinishCb(struct SSyncFSM* pFsm) { sTrace("==callback== ==RestoreFinishCb=="); }
 
 void ReConfigCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMeta) {
-  sTrace("==callback== ==ReConfigCb== flag:0x%lX, isDrop:%d, index:%ld, code:%d, currentTerm:%lu, term:%lu",
-         cbMeta.flag, cbMeta.isDrop, cbMeta.index, cbMeta.code, cbMeta.currentTerm, cbMeta.term);
+  sTrace("==callback== ==ReConfigCb== flag:0x%lX, index:%ld, code:%d, currentTerm:%lu, term:%lu", cbMeta.flag,
+         cbMeta.index, cbMeta.code, cbMeta.currentTerm, cbMeta.term);
 }
 
 SSyncFSM* createFsm() {
@@ -90,7 +90,7 @@ SSyncFSM* createFsm() {
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
 
-  pFsm->FpGetSnapshot = GetSnapshotCb;
+  pFsm->FpGetSnapshotInfo = GetSnapshotCb;
   pFsm->FpRestoreFinishCb = RestoreFinishCb;
 
   pFsm->FpReConfigCb = ReConfigCb;
@@ -251,7 +251,7 @@ int main(int argc, char** argv) {
     if (alreadySend < writeRecordNum) {
       SRpcMsg* pRpcMsg = createRpcMsg(alreadySend, writeRecordNum, myIndex);
       int32_t  ret = syncPropose(rid, pRpcMsg, false);
-      if (ret == TAOS_SYNC_PROPOSE_NOT_LEADER) {
+      if (ret == -1 && terrno == TSDB_CODE_SYN_NOT_LEADER) {
         sTrace("%s value%d write not leader", s, alreadySend);
       } else {
         assert(ret == 0);

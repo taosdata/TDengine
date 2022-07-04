@@ -116,17 +116,20 @@ typedef void *tsdbReaderT;
 #define BLOCK_LOAD_TABLE_SEQ_ORDER  2
 #define BLOCK_LOAD_TABLE_RR_ORDER   3
 
-tsdbReaderT *tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *tableInfoGroup, uint64_t qId,
-                            uint64_t taskId);
-tsdbReaderT  tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *groupList, uint64_t qId,
-                                void *pMemRef);
-int32_t      tsdbGetFileBlocksDistInfo(tsdbReaderT *pReader, STableBlockDistInfo *pTableBlockInfo);
-bool         isTsdbCacheLastRow(tsdbReaderT *pReader);
-int32_t      tsdbGetAllTableList(SMeta *pMeta, uint64_t uid, SArray *list);
-int32_t      tsdbGetCtbIdList(SMeta *pMeta, int64_t suid, SArray *list);
-void        *tsdbGetIdx(SMeta *pMeta);
-void        *tsdbGetIvtIdx(SMeta *pMeta);
-int64_t      tsdbGetNumOfRowsInMemTable(tsdbReaderT *pHandle);
+int32_t     tsdbSetTableId(tsdbReaderT reader, int64_t uid);
+int32_t     tsdbSetTableList(tsdbReaderT reader, SArray *tableList);
+tsdbReaderT tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *tableList, uint64_t qId,
+                           uint64_t taskId);
+tsdbReaderT tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *groupList, uint64_t qId,
+                               void *pMemRef);
+int32_t     tsdbGetFileBlocksDistInfo(tsdbReaderT *pReader, STableBlockDistInfo *pTableBlockInfo);
+bool        isTsdbCacheLastRow(tsdbReaderT *pReader);
+int32_t     tsdbGetAllTableList(SMeta *pMeta, uint64_t uid, SArray *list);
+int32_t     tsdbGetCtbIdList(SMeta *pMeta, int64_t suid, SArray *list);
+int32_t     tsdbGetStbIdList(SMeta *pMeta, int64_t suid, SArray *list);
+void       *tsdbGetIdx(SMeta *pMeta);
+void       *tsdbGetIvtIdx(SMeta *pMeta);
+int64_t     tsdbGetNumOfRowsInMemTable(tsdbReaderT *pHandle);
 
 bool    tsdbNextDataBlock(tsdbReaderT pTsdbReadHandle);
 void    tsdbRetrieveDataBlockInfo(tsdbReaderT *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
@@ -137,20 +140,19 @@ void    tsdbCleanupReadHandle(tsdbReaderT queryHandle);
 
 // tq
 
-typedef struct STqReadHandle STqReadHandle;
+typedef struct STqReadHandle SStreamReader;
 
-STqReadHandle *tqInitSubmitMsgScanner(SMeta *pMeta);
+SStreamReader *tqInitSubmitMsgScanner(SMeta *pMeta);
 
-void    tqReadHandleSetColIdList(STqReadHandle *pReadHandle, SArray *pColIdList);
-int32_t tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
-int32_t tqReadHandleAddTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
-int32_t tqReadHandleRemoveTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
+void    tqReadHandleSetColIdList(SStreamReader *pReadHandle, SArray *pColIdList);
+int32_t tqReadHandleSetTbUidList(SStreamReader *pHandle, const SArray *tbUidList);
+int32_t tqReadHandleAddTbUidList(SStreamReader *pHandle, const SArray *tbUidList);
+int32_t tqReadHandleRemoveTbUidList(SStreamReader *pHandle, const SArray *tbUidList);
 
-int32_t tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
-bool    tqNextDataBlock(STqReadHandle *pHandle);
-bool    tqNextDataBlockFilterOut(STqReadHandle *pHandle, SHashObj *filterOutUids);
-int32_t tqRetrieveDataBlock(SArray **ppCols, STqReadHandle *pHandle, uint64_t *pGroupId, uint64_t *pUid,
-                            int32_t *pNumOfRows, int16_t *pNumOfCols);
+int32_t tqReadHandleSetMsg(SStreamReader *pHandle, SSubmitReq *pMsg, int64_t ver);
+bool    tqNextDataBlock(SStreamReader *pHandle);
+bool    tqNextDataBlockFilterOut(SStreamReader *pHandle, SHashObj *filterOutUids);
+int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, SStreamReader *pHandle);
 
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
@@ -195,27 +197,37 @@ struct SVnodeCfg {
 typedef struct {
   TSKEY    lastKey;
   uint64_t uid;
+  uint64_t groupId;
 } STableKeyInfo;
 
+#define TABLE_ROLLUP_ON       ((int8_t)0x1)
+#define TABLE_IS_ROLLUP(FLG)  (((FLG) & (TABLE_ROLLUP_ON)) != 0)
+#define TABLE_SET_ROLLUP(FLG) ((FLG) |= TABLE_ROLLUP_ON)
 struct SMetaEntry {
   int64_t  version;
   int8_t   type;
+  int8_t   flags;  // TODO: need refactor?
   tb_uid_t uid;
   char    *name;
   union {
     struct {
       SSchemaWrapper schemaRow;
       SSchemaWrapper schemaTag;
+      SRSmaParam     rsmaParam;
     } stbEntry;
     struct {
       int64_t  ctime;
       int32_t  ttlDays;
+      int32_t  commentLen;
+      char    *comment;
       tb_uid_t suid;
       uint8_t *pTags;
     } ctbEntry;
     struct {
       int64_t        ctime;
       int32_t        ttlDays;
+      int32_t        commentLen;
+      char          *comment;
       int32_t        ncid;  // next column id
       SSchemaWrapper schemaRow;
     } ntbEntry;

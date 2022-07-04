@@ -11,8 +11,8 @@ typedef struct SUdfInit{
 } SUdfInit;
 
 
-#define TSDB_DATA_INT_NULL              0x80000000L
-#define TSDB_DATA_BIGINT_NULL           0x8000000000000000L
+#define TSDB_DATA_INT_NULL              0x80000000LL
+#define TSDB_DATA_BIGINT_NULL           0x8000000000000000LL
 
 void abs_max(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* interBuf, char* tsOutput,
                         int* numOfOutput, short otype, short obytes, SUdfInit* buf) {

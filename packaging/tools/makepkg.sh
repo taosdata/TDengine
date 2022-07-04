@@ -85,16 +85,14 @@ else
       ${build_dir}/bin/${clientName} \
       ${taostools_bin_files} \
       ${build_dir}/bin/taosadapter \
-      ${build_dir}/bin/tarbitrator\
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
-      ${script_dir}/run_taosd_and_taosadapter.sh \
       ${script_dir}/startPre.sh \
       ${script_dir}/taosd-dump-cfg.gdb"
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
-header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h"
+header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/libs/function/taosudf.h"
 
 if [ "$dbName" != "taos" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
@@ -107,8 +105,6 @@ nginx_dir="${top_dir}/../enterprise/src/plugins/web"
 
 init_file_deb=${script_dir}/../deb/taosd
 init_file_rpm=${script_dir}/../rpm/taosd
-init_file_tarbitrator_deb=${script_dir}/../deb/tarbitratord
-init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 
 # make directories.
 mkdir -p ${install_dir}
@@ -127,10 +123,6 @@ if [ -f "${cfg_dir}/${serverName}.service" ]; then
   cp ${cfg_dir}/${serverName}.service ${install_dir}/cfg || :
 fi
 
-if [ -f "${top_dir}/packaging/cfg/tarbitratord.service" ]; then
-  cp ${top_dir}/packaging/cfg/tarbitratord.service ${install_dir}/cfg || :
-fi
-
 if [ -f "${top_dir}/packaging/cfg/nginxd.service" ]; then
   cp ${top_dir}/packaging/cfg/nginxd.service ${install_dir}/cfg || :
 fi
@@ -138,8 +130,6 @@ fi
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/${serverName}.deb
 mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${serverName}.rpm
-mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
-mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
 
 if [ $adapterName != "taosadapter" ]; then
   mv ${install_dir}/cfg/taosadapter.toml ${install_dir}/cfg/$adapterName.toml
@@ -152,7 +142,6 @@ if [ $adapterName != "taosadapter" ]; then
   sed -i "s/taosadapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
 
   mv ${install_dir}/bin/taosadapter ${install_dir}/bin/${adapterName}
-  mv ${install_dir}/bin/run_taosd_and_taosadapter.sh ${install_dir}/bin/run_${serverName}_and_${adapterName}.sh
   mv ${install_dir}/bin/taosd-dump-cfg.gdb ${install_dir}/bin/${serverName}-dump-cfg.gdb
 fi
 

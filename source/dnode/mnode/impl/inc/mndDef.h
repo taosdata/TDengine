@@ -124,7 +124,8 @@ typedef struct {
   int32_t        lastErrorNo;
   tmsg_t         lastMsgType;
   SEpSet         lastEpset;
-  char           dbname[TSDB_DB_FNAME_LEN];
+  char           dbname1[TSDB_DB_FNAME_LEN];
+  char           dbname2[TSDB_DB_FNAME_LEN];
   int32_t        startFunc;
   int32_t        stopFunc;
   int32_t        paramLen;
@@ -226,6 +227,9 @@ typedef struct {
   int64_t   createdTime;
   int64_t   updateTime;
   int8_t    superUser;
+  int8_t    sysInfo;
+  int8_t    enable;
+  int8_t    reserve;
   int32_t   acctId;
   int32_t   authVersion;
   SHashObj* readDbs;
@@ -335,15 +339,18 @@ typedef struct {
   int64_t  dbUid;
   int32_t  tagVer;
   int32_t  colVer;
+  int32_t  smaVer;
   int32_t  nextColId;
-  float    xFilesFactor;
-  int32_t  delay;
+  int64_t  maxdelay[2];
+  int64_t  watermark[2];
   int32_t  ttl;
   int32_t  numOfColumns;
   int32_t  numOfTags;
+  int32_t  numOfFuncs;
   int32_t  commentLen;
   int32_t  ast1Len;
   int32_t  ast2Len;
+  SArray*  pFuncs;
   SSchema* pColumns;
   SSchema* pTags;
   char*    comment;
@@ -415,7 +422,8 @@ typedef struct {
   int64_t        uid;
   int64_t        dbUid;
   int32_t        version;
-  int8_t         subType;  // column, db or stable
+  int8_t         subType;   // column, db or stable
+  int8_t         withMeta;  // TODO
   SRWLatch       lock;
   int32_t        sqlLen;
   int32_t        astLen;
@@ -482,6 +490,7 @@ typedef struct {
   int64_t   dbUid;
   int32_t   vgNum;
   int8_t    subType;
+  int8_t    withMeta;
   int64_t   stbUid;
   SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
   SArray*   unassignedVgs;  // SArray<SMqVgEp*>
@@ -535,27 +544,36 @@ typedef struct {
 } SMqRebOutputObj;
 
 typedef struct {
-  char           name[TSDB_STREAM_FNAME_LEN];
-  char           sourceDb[TSDB_DB_FNAME_LEN];
-  char           targetDb[TSDB_DB_FNAME_LEN];
-  char           targetSTbName[TSDB_TABLE_FNAME_LEN];
-  int64_t        targetStbUid;
-  int64_t        createTime;
-  int64_t        updateTime;
-  int64_t        uid;
-  int64_t        dbUid;
-  int32_t        version;
-  int32_t        vgNum;
-  SRWLatch       lock;
-  int8_t         status;
-  int8_t         createdBy;      // STREAM_CREATED_BY__USER or SMA
-  int32_t        fixedSinkVgId;  // 0 for shuffle
-  SVgObj         fixedSinkVg;
-  int64_t        smaId;  // 0 for unused
-  int8_t         trigger;
-  int32_t        triggerParam;
-  int64_t        waterMark;
+  char name[TSDB_STREAM_FNAME_LEN];
+  // ctl
+  SRWLatch lock;
+  // create info
+  int64_t createTime;
+  int64_t updateTime;
+  int32_t version;
+  int64_t smaId;  // 0 for unused
+  // info
+  int64_t uid;
+  int8_t  status;
+  // config
+  int8_t  igExpired;
+  int8_t  trigger;
+  int64_t triggerParam;
+  int64_t watermark;
+  // source and target
+  int64_t sourceDbUid;
+  int64_t targetDbUid;
+  char    sourceDb[TSDB_DB_FNAME_LEN];
+  char    targetDb[TSDB_DB_FNAME_LEN];
+  char    targetSTbName[TSDB_TABLE_FNAME_LEN];
+  int64_t targetStbUid;
+  int32_t fixedSinkVgId;  // 0 for shuffle
+  // fixedSinkVg is not applicable for encode and decode
+  SVgObj fixedSinkVg;
+
+  // transformation
   char*          sql;
+  char*          ast;
   char*          physicalPlan;
   SArray*        tasks;  // SArray<SArray<SStreamTask>>
   SSchemaWrapper outputSchema;

@@ -21,6 +21,18 @@
 #include "tref.h"
 #include "trpc.h"
 
+char* schGetOpStr(SCH_OP_TYPE type) {
+  switch (type) {
+    case SCH_OP_NULL:
+      return "NULL";
+    case SCH_OP_EXEC:
+      return "EXEC";
+    case SCH_OP_FETCH:
+      return "FETCH";
+    default:
+      return "UNKNOWN";
+  }
+}
 
 void schCleanClusterHb(void* pTrans) {
   SCH_LOCK(SCH_WRITE, &schMgmt.hbLock);
@@ -67,7 +79,7 @@ int32_t schAddHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *epId,
   int32_t     code = 0;
   SSchHbTrans hb = {0};
 
-  hb.trans.pTrans = pJob->pTrans;
+  hb.trans.pTrans = pJob->conn.pTrans;
   hb.taskNum = 1;
 
   SCH_ERR_RET(schMakeHbRpcCtx(pJob, pTask, &hb.rpcCtx));
@@ -188,7 +200,7 @@ int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchTrans *trans) {
   SCH_UNLOCK(SCH_WRITE, &hb->lock);
   SCH_UNLOCK(SCH_READ, &schMgmt.hbLock);
 
-  qDebug("hb connection updated, sId:%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, pTrans:%p, pHandle:%p", schMgmt.sId,
+  qDebug("hb connection updated, sId:0x%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, pTrans:%p, pHandle:%p", schMgmt.sId,
          epId->nodeId, epId->ep.fqdn, epId->ep.port, trans->pTrans, trans->pHandle);
 
   return TSDB_CODE_SUCCESS;
@@ -260,5 +272,14 @@ void schFreeRpcCtx(SRpcCtx *pCtx) {
   if (pCtx->freeFunc) {
     (*pCtx->freeFunc)(pCtx->brokenVal.val);
   }
+}
+
+void schFreeSMsgSendInfo(SMsgSendInfo *msgSendInfo) {
+  if (NULL == msgSendInfo) {
+    return;
+  }
+
+  taosMemoryFree(msgSendInfo->param);
+  taosMemoryFree(msgSendInfo);
 }
 

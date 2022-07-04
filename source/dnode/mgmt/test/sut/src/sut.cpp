@@ -102,6 +102,7 @@ int32_t Testbase::SendShowReq(int8_t showType, const char* tb, const char* db) {
   ASSERT(pRsp->pCont != nullptr);
 
   if (pRsp->contLen == 0) return -1;
+  if (pRsp->code != 0) return -1;
 
   showRsp = (SRetrieveMetaTableRsp*)pRsp->pCont;
   showRsp->handle = htobe64(showRsp->handle);  // show Id

@@ -60,7 +60,7 @@ class TDTestCase:
         def build_db(precision, start_time):
             tdSql.execute("drop database if exists timedb1")
             tdSql.execute(
-                "create database timedb1 days 10 keep 365 blocks 8 precision "+"\""+precision+"\"")
+                "create database timedb1 duration 10 keep 36500 blocks 8 precision "+"\""+precision+"\"")
 
             tdSql.execute("use timedb1")
             tdSql.execute(

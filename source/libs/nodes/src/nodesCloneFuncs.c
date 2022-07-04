@@ -18,6 +18,7 @@
 #include "querynodes.h"
 #include "taos.h"
 #include "taoserror.h"
+#include "tdatablock.h"
 
 #define COPY_SCALAR_FIELD(fldname)     \
   do {                                 \
@@ -40,6 +41,9 @@
       break;                                   \
     }                                          \
     (pDst)->fldname = strdup((pSrc)->fldname); \
+    if (NULL == (pDst)->fldname) {             \
+      return TSDB_CODE_OUT_OF_MEMORY;          \
+    }                                          \
   } while (0)
 
 #define CLONE_NODE_FIELD(fldname)                      \
@@ -49,9 +53,19 @@
     }                                                  \
     (pDst)->fldname = nodesCloneNode((pSrc)->fldname); \
     if (NULL == (pDst)->fldname) {                     \
-      nodesDestroyNode((SNode*)(pDst));                \
-      return NULL;                                     \
+      return TSDB_CODE_OUT_OF_MEMORY;                  \
     }                                                  \
+  } while (0)
+
+#define CLONE_NODE_FIELD_EX(fldname, nodePtrType)                           \
+  do {                                                                      \
+    if (NULL == (pSrc)->fldname) {                                          \
+      break;                                                                \
+    }                                                                       \
+    (pDst)->fldname = (nodePtrType)nodesCloneNode((SNode*)(pSrc)->fldname); \
+    if (NULL == (pDst)->fldname) {                                          \
+      return TSDB_CODE_OUT_OF_MEMORY;                                       \
+    }                                                                       \
   } while (0)
 
 #define CLONE_NODE_LIST_FIELD(fldname)                 \
@@ -61,8 +75,7 @@
     }                                                  \
     (pDst)->fldname = nodesCloneList((pSrc)->fldname); \
     if (NULL == (pDst)->fldname) {                     \
-      nodesDestroyNode((SNode*)(pDst));                \
-      return NULL;                                     \
+      return TSDB_CODE_OUT_OF_MEMORY;                  \
     }                                                  \
   } while (0)
 
@@ -73,26 +86,26 @@
     }                                             \
     (pDst)->fldname = cloneFunc((pSrc)->fldname); \
     if (NULL == (pDst)->fldname) {                \
-      nodesDestroyNode((SNode*)(pDst));           \
-      return NULL;                                \
+      return TSDB_CODE_OUT_OF_MEMORY;             \
     }                                             \
   } while (0)
 
-#define COPY_BASE_OBJECT_FIELD(fldname, copyFunc)                   \
-  do {                                                              \
-    if (NULL == copyFunc(&((pSrc)->fldname), &((pDst)->fldname))) { \
-      return NULL;                                                  \
-    }                                                               \
+#define COPY_BASE_OBJECT_FIELD(fldname, copyFunc)                                \
+  do {                                                                           \
+    if (TSDB_CODE_SUCCESS != copyFunc(&((pSrc)->fldname), &((pDst)->fldname))) { \
+      return TSDB_CODE_OUT_OF_MEMORY;                                            \
+    }                                                                            \
   } while (0)
 
-static SNode* exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
+static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_OBJECT_FIELD(resType, sizeof(SDataType));
   COPY_CHAR_ARRAY_FIELD(aliasName);
   COPY_CHAR_ARRAY_FIELD(userAlias);
-  return (SNode*)pDst;
+  COPY_SCALAR_FIELD(orderAlias);
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
+static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_SCALAR_FIELD(tableId);
   COPY_SCALAR_FIELD(tableType);
@@ -105,10 +118,10 @@ static SNode* columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(colName);
   COPY_SCALAR_FIELD(dataBlockId);
   COPY_SCALAR_FIELD(slotId);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
+static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_CHAR_POINT_FIELD(literal);
   COPY_SCALAR_FIELD(isDuration);
@@ -118,7 +131,7 @@ static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
   COPY_SCALAR_FIELD(typeData);
   COPY_SCALAR_FIELD(unit);
   if (!pSrc->translate) {
-    return (SNode*)pDst;
+    return TSDB_CODE_SUCCESS;
   }
   switch (pSrc->node.resType.type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -147,55 +160,62 @@ static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
       int32_t len = varDataTLen(pSrc->datum.p) + 1;
       pDst->datum.p = taosMemoryCalloc(1, len);
       if (NULL == pDst->datum.p) {
-        nodesDestroyNode(pDst);
-        return NULL;
+        return TSDB_CODE_OUT_OF_MEMORY;
       }
       memcpy(pDst->datum.p, pSrc->datum.p, len);
       break;
     }
-    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_JSON:{
+      int32_t len = getJsonValueLen(pSrc->datum.p);
+      pDst->datum.p = taosMemoryCalloc(1, len);
+      if (NULL == pDst->datum.p) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      memcpy(pDst->datum.p, pSrc->datum.p, len);
+      break;
+    }
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB:
     default:
       break;
   }
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* operatorNodeCopy(const SOperatorNode* pSrc, SOperatorNode* pDst) {
+static int32_t operatorNodeCopy(const SOperatorNode* pSrc, SOperatorNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_SCALAR_FIELD(opType);
   CLONE_NODE_FIELD(pLeft);
   CLONE_NODE_FIELD(pRight);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* logicConditionNodeCopy(const SLogicConditionNode* pSrc, SLogicConditionNode* pDst) {
+static int32_t logicConditionNodeCopy(const SLogicConditionNode* pSrc, SLogicConditionNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_SCALAR_FIELD(condType);
   CLONE_NODE_LIST_FIELD(pParameterList);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) {
+static int32_t functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_CHAR_ARRAY_FIELD(functionName);
   COPY_SCALAR_FIELD(funcId);
   COPY_SCALAR_FIELD(funcType);
   CLONE_NODE_LIST_FIELD(pParameterList);
   COPY_SCALAR_FIELD(udfBufSize);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* tableNodeCopy(const STableNode* pSrc, STableNode* pDst) {
+static int32_t tableNodeCopy(const STableNode* pSrc, STableNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_CHAR_ARRAY_FIELD(dbName);
   COPY_CHAR_ARRAY_FIELD(tableName);
   COPY_CHAR_ARRAY_FIELD(tableAlias);
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(singleTable);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
 static STableMeta* tableMetaClone(const STableMeta* pSrc) {
@@ -218,101 +238,103 @@ static SVgroupsInfo* vgroupsInfoClone(const SVgroupsInfo* pSrc) {
   return pDst;
 }
 
-static SNode* realTableNodeCopy(const SRealTableNode* pSrc, SRealTableNode* pDst) {
+static int32_t realTableNodeCopy(const SRealTableNode* pSrc, SRealTableNode* pDst) {
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
   CLONE_OBJECT_FIELD(pMeta, tableMetaClone);
   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
   COPY_CHAR_ARRAY_FIELD(qualDbName);
   COPY_SCALAR_FIELD(ratio);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* tempTableNodeCopy(const STempTableNode* pSrc, STempTableNode* pDst) {
+static int32_t tempTableNodeCopy(const STempTableNode* pSrc, STempTableNode* pDst) {
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
   CLONE_NODE_FIELD(pSubquery);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* joinTableNodeCopy(const SJoinTableNode* pSrc, SJoinTableNode* pDst) {
+static int32_t joinTableNodeCopy(const SJoinTableNode* pSrc, SJoinTableNode* pDst) {
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
   COPY_SCALAR_FIELD(joinType);
   CLONE_NODE_FIELD(pLeft);
   CLONE_NODE_FIELD(pRight);
   CLONE_NODE_FIELD(pOnCond);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* targetNodeCopy(const STargetNode* pSrc, STargetNode* pDst) {
+static int32_t targetNodeCopy(const STargetNode* pSrc, STargetNode* pDst) {
   COPY_SCALAR_FIELD(dataBlockId);
   COPY_SCALAR_FIELD(slotId);
   CLONE_NODE_FIELD(pExpr);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* groupingSetNodeCopy(const SGroupingSetNode* pSrc, SGroupingSetNode* pDst) {
+static int32_t groupingSetNodeCopy(const SGroupingSetNode* pSrc, SGroupingSetNode* pDst) {
   COPY_SCALAR_FIELD(groupingSetType);
   CLONE_NODE_LIST_FIELD(pParameterList);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* orderByExprNodeCopy(const SOrderByExprNode* pSrc, SOrderByExprNode* pDst) {
+static int32_t orderByExprNodeCopy(const SOrderByExprNode* pSrc, SOrderByExprNode* pDst) {
   CLONE_NODE_FIELD(pExpr);
   COPY_SCALAR_FIELD(order);
   COPY_SCALAR_FIELD(nullOrder);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* limitNodeCopy(const SLimitNode* pSrc, SLimitNode* pDst) {
+static int32_t limitNodeCopy(const SLimitNode* pSrc, SLimitNode* pDst) {
   COPY_SCALAR_FIELD(limit);
   COPY_SCALAR_FIELD(offset);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* stateWindowNodeCopy(const SStateWindowNode* pSrc, SStateWindowNode* pDst) {
+static int32_t stateWindowNodeCopy(const SStateWindowNode* pSrc, SStateWindowNode* pDst) {
   CLONE_NODE_FIELD(pCol);
   CLONE_NODE_FIELD(pExpr);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* sessionWindowNodeCopy(const SSessionWindowNode* pSrc, SSessionWindowNode* pDst) {
-  CLONE_NODE_FIELD(pCol);
-  CLONE_NODE_FIELD(pGap);
-  return (SNode*)pDst;
+static int32_t sessionWindowNodeCopy(const SSessionWindowNode* pSrc, SSessionWindowNode* pDst) {
+  CLONE_NODE_FIELD_EX(pCol, SColumnNode*);
+  CLONE_NODE_FIELD_EX(pGap, SValueNode*);
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* intervalWindowNodeCopy(const SIntervalWindowNode* pSrc, SIntervalWindowNode* pDst) {
+static int32_t intervalWindowNodeCopy(const SIntervalWindowNode* pSrc, SIntervalWindowNode* pDst) {
   CLONE_NODE_FIELD(pCol);
   CLONE_NODE_FIELD(pInterval);
   CLONE_NODE_FIELD(pOffset);
   CLONE_NODE_FIELD(pSliding);
   CLONE_NODE_FIELD(pFill);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* nodeListNodeCopy(const SNodeListNode* pSrc, SNodeListNode* pDst) {
+static int32_t nodeListNodeCopy(const SNodeListNode* pSrc, SNodeListNode* pDst) {
   COPY_OBJECT_FIELD(dataType, sizeof(SDataType));
   CLONE_NODE_LIST_FIELD(pNodeList);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* fillNodeCopy(const SFillNode* pSrc, SFillNode* pDst) {
+static int32_t fillNodeCopy(const SFillNode* pSrc, SFillNode* pDst) {
   COPY_SCALAR_FIELD(mode);
   CLONE_NODE_FIELD(pValues);
   CLONE_NODE_FIELD(pWStartTs);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
+static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pTargets);
   CLONE_NODE_FIELD(pConditions);
   CLONE_NODE_LIST_FIELD(pChildren);
   COPY_SCALAR_FIELD(optimizedFlag);
   COPY_SCALAR_FIELD(precision);
-  return (SNode*)pDst;
+  CLONE_NODE_FIELD(pLimit);
+  CLONE_NODE_FIELD(pSlimit);
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
+static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pScanCols);
   CLONE_NODE_LIST_FIELD(pScanPseudoCols);
@@ -334,40 +356,38 @@ static SNode* logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
   CLONE_NODE_FIELD(pTagCond);
+  CLONE_NODE_FIELD(pTagIndexCond);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
-  COPY_SCALAR_FIELD(tsColId);
-  COPY_SCALAR_FIELD(filesFactor);
-  return (SNode*)pDst;
+  COPY_SCALAR_FIELD(igExpired);
+  CLONE_NODE_LIST_FIELD(pGroupTags);
+  COPY_SCALAR_FIELD(groupSort);
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
+static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(joinType);
   CLONE_NODE_FIELD(pOnConditions);
   COPY_SCALAR_FIELD(isSingleTableJoin);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* logicAggCopy(const SAggLogicNode* pSrc, SAggLogicNode* pDst) {
+static int32_t logicAggCopy(const SAggLogicNode* pSrc, SAggLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pGroupKeys);
   CLONE_NODE_LIST_FIELD(pAggFuncs);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* logicProjectCopy(const SProjectLogicNode* pSrc, SProjectLogicNode* pDst) {
+static int32_t logicProjectCopy(const SProjectLogicNode* pSrc, SProjectLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pProjections);
   COPY_CHAR_ARRAY_FIELD(stmtName);
-  COPY_SCALAR_FIELD(limit);
-  COPY_SCALAR_FIELD(offset);
-  COPY_SCALAR_FIELD(slimit);
-  COPY_SCALAR_FIELD(soffset);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* logicVnodeModifCopy(const SVnodeModifyLogicNode* pSrc, SVnodeModifyLogicNode* pDst) {
+static int32_t logicVnodeModifCopy(const SVnodeModifyLogicNode* pSrc, SVnodeModifyLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(modifyType);
   COPY_SCALAR_FIELD(msgType);
@@ -376,25 +396,26 @@ static SNode* logicVnodeModifCopy(const SVnodeModifyLogicNode* pSrc, SVnodeModif
   COPY_SCALAR_FIELD(tableType);
   COPY_CHAR_ARRAY_FIELD(tableFName);
   COPY_OBJECT_FIELD(deleteTimeRange, sizeof(STimeWindow));
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicNode* pDst) {
+static int32_t logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(srcGroupId);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* logicMergeCopy(const SMergeLogicNode* pSrc, SMergeLogicNode* pDst) {
+static int32_t logicMergeCopy(const SMergeLogicNode* pSrc, SMergeLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pMergeKeys);
   CLONE_NODE_LIST_FIELD(pInputs);
   COPY_SCALAR_FIELD(numOfChannels);
   COPY_SCALAR_FIELD(srcGroupId);
-  return (SNode*)pDst;
+  COPY_SCALAR_FIELD(groupSort);
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pDst) {
+static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(winType);
   CLONE_NODE_LIST_FIELD(pFuncs);
@@ -405,58 +426,71 @@ static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pD
   COPY_SCALAR_FIELD(slidingUnit);
   COPY_SCALAR_FIELD(sessionGap);
   CLONE_NODE_FIELD(pTspk);
+  CLONE_NODE_FIELD(pTsEnd);
   CLONE_NODE_FIELD(pStateExpr);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
-  COPY_SCALAR_FIELD(filesFactor);
-  COPY_SCALAR_FIELD(intervalAlgo);
-  return (SNode*)pDst;
+  COPY_SCALAR_FIELD(igExpired);
+  COPY_SCALAR_FIELD(windowAlgo);
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* logicFillCopy(const SFillLogicNode* pSrc, SFillLogicNode* pDst) {
+static int32_t logicFillCopy(const SFillLogicNode* pSrc, SFillLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(mode);
   CLONE_NODE_FIELD(pWStartTs);
   CLONE_NODE_FIELD(pValues);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* logicSortCopy(const SSortLogicNode* pSrc, SSortLogicNode* pDst) {
+static int32_t logicSortCopy(const SSortLogicNode* pSrc, SSortLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pSortKeys);
-  return (SNode*)pDst;
+  COPY_SCALAR_FIELD(groupSort);
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* logicPartitionCopy(const SPartitionLogicNode* pSrc, SPartitionLogicNode* pDst) {
+static int32_t logicPartitionCopy(const SPartitionLogicNode* pSrc, SPartitionLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pPartitionKeys);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* logicIndefRowsFuncCopy(const SIndefRowsFuncLogicNode* pSrc, SIndefRowsFuncLogicNode* pDst) {
+static int32_t logicIndefRowsFuncCopy(const SIndefRowsFuncLogicNode* pSrc, SIndefRowsFuncLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
-  CLONE_NODE_LIST_FIELD(pVectorFuncs);
-  return (SNode*)pDst;
+  CLONE_NODE_LIST_FIELD(pFuncs);
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst) {
+static int32_t logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFuncLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_LIST_FIELD(pFuncs);
+  COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  COPY_SCALAR_FIELD(interval);
+  COPY_SCALAR_FIELD(fillMode);
+  CLONE_NODE_FIELD(pFillValues);
+  CLONE_NODE_FIELD(pTimeSeries);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst) {
   COPY_OBJECT_FIELD(id, sizeof(SSubplanId));
-  CLONE_NODE_FIELD(pNode);
+  CLONE_NODE_FIELD_EX(pNode, SLogicNode*);
   COPY_SCALAR_FIELD(subplanType);
   COPY_SCALAR_FIELD(level);
   COPY_SCALAR_FIELD(splitFlag);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* physiNodeCopy(const SPhysiNode* pSrc, SPhysiNode* pDst) {
-  CLONE_NODE_FIELD(pOutputDataBlockDesc);
+static int32_t physiNodeCopy(const SPhysiNode* pSrc, SPhysiNode* pDst) {
+  CLONE_NODE_FIELD_EX(pOutputDataBlockDesc, SDataBlockDescNode*);
   CLONE_NODE_FIELD(pConditions);
   CLONE_NODE_LIST_FIELD(pChildren);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* physiScanCopy(const SScanPhysiNode* pSrc, SScanPhysiNode* pDst) {
+static int32_t physiScanCopy(const SScanPhysiNode* pSrc, SScanPhysiNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
   CLONE_NODE_LIST_FIELD(pScanCols);
   CLONE_NODE_LIST_FIELD(pScanPseudoCols);
@@ -464,21 +498,21 @@ static SNode* physiScanCopy(const SScanPhysiNode* pSrc, SScanPhysiNode* pDst) {
   COPY_SCALAR_FIELD(suid);
   COPY_SCALAR_FIELD(tableType);
   COPY_OBJECT_FIELD(tableName, sizeof(SName));
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* physiTagScanCopy(const STagScanPhysiNode* pSrc, STagScanPhysiNode* pDst) {
+static int32_t physiTagScanCopy(const STagScanPhysiNode* pSrc, STagScanPhysiNode* pDst) {
   return physiScanCopy(pSrc, pDst);
 }
 
-static SNode* physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhysiNode* pDst) {
+static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhysiNode* pDst) {
   COPY_BASE_OBJECT_FIELD(scan, physiScanCopy);
   COPY_OBJECT_FIELD(scanSeq[0], sizeof(uint8_t) * 2);
   COPY_OBJECT_FIELD(scanRange, sizeof(STimeWindow));
   COPY_SCALAR_FIELD(ratio);
   COPY_SCALAR_FIELD(dataRequired);
   CLONE_NODE_LIST_FIELD(pDynamicScanFuncs);
-  CLONE_NODE_LIST_FIELD(pPartitionKeys);
+  CLONE_NODE_LIST_FIELD(pGroupTags);
   COPY_SCALAR_FIELD(interval);
   COPY_SCALAR_FIELD(offset);
   COPY_SCALAR_FIELD(sliding);
@@ -486,66 +520,81 @@ static SNode* physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhys
   COPY_SCALAR_FIELD(slidingUnit);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
-  COPY_SCALAR_FIELD(tsColId);
-  COPY_SCALAR_FIELD(filesFactor);
-  return (SNode*)pDst;
+  COPY_SCALAR_FIELD(igExpired);
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* physiSysTableScanCopy(const SSystemTableScanPhysiNode* pSrc, SSystemTableScanPhysiNode* pDst) {
+static int32_t physiSysTableScanCopy(const SSystemTableScanPhysiNode* pSrc, SSystemTableScanPhysiNode* pDst) {
   COPY_BASE_OBJECT_FIELD(scan, physiScanCopy);
   COPY_OBJECT_FIELD(mgmtEpSet, sizeof(SEpSet));
   COPY_SCALAR_FIELD(showRewrite);
   COPY_SCALAR_FIELD(accountId);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* physiWindowCopy(const SWinodwPhysiNode* pSrc, SWinodwPhysiNode* pDst) {
+static int32_t physiWindowCopy(const SWinodwPhysiNode* pSrc, SWinodwPhysiNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
   CLONE_NODE_LIST_FIELD(pExprs);
   CLONE_NODE_LIST_FIELD(pFuncs);
   CLONE_NODE_FIELD(pTspk);
+  CLONE_NODE_FIELD(pTsEnd);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
-  COPY_SCALAR_FIELD(filesFactor);
-  return (SNode*)pDst;
+  COPY_SCALAR_FIELD(igExpired);
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* physiIntervalCopy(const SIntervalPhysiNode* pSrc, SIntervalPhysiNode* pDst) {
+static int32_t physiIntervalCopy(const SIntervalPhysiNode* pSrc, SIntervalPhysiNode* pDst) {
   COPY_BASE_OBJECT_FIELD(window, physiWindowCopy);
   COPY_SCALAR_FIELD(interval);
   COPY_SCALAR_FIELD(offset);
   COPY_SCALAR_FIELD(sliding);
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* dataBlockDescCopy(const SDataBlockDescNode* pSrc, SDataBlockDescNode* pDst) {
+static int32_t physiSessionCopy(const SSessionWinodwPhysiNode* pSrc, SSessionWinodwPhysiNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(window, physiWindowCopy);
+  COPY_SCALAR_FIELD(gap);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t physiPartitionCopy(const SPartitionPhysiNode* pSrc, SPartitionPhysiNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
+  CLONE_NODE_LIST_FIELD(pExprs);
+  CLONE_NODE_LIST_FIELD(pPartitionKeys);
+  CLONE_NODE_LIST_FIELD(pTargets);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t dataBlockDescCopy(const SDataBlockDescNode* pSrc, SDataBlockDescNode* pDst) {
   COPY_SCALAR_FIELD(dataBlockId);
   CLONE_NODE_LIST_FIELD(pSlots);
   COPY_SCALAR_FIELD(totalRowSize);
   COPY_SCALAR_FIELD(outputRowSize);
   COPY_SCALAR_FIELD(precision);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* slotDescCopy(const SSlotDescNode* pSrc, SSlotDescNode* pDst) {
+static int32_t slotDescCopy(const SSlotDescNode* pSrc, SSlotDescNode* pDst) {
   COPY_SCALAR_FIELD(slotId);
   COPY_OBJECT_FIELD(dataType, sizeof(SDataType));
   COPY_SCALAR_FIELD(reserve);
   COPY_SCALAR_FIELD(output);
   COPY_SCALAR_FIELD(tag);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstreamSourceNode* pDst) {
+static int32_t downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstreamSourceNode* pDst) {
   COPY_OBJECT_FIELD(addr, sizeof(SQueryNodeAddr));
   COPY_SCALAR_FIELD(taskId);
   COPY_SCALAR_FIELD(schedId);
-  return (SNode*)pDst;
+  COPY_SCALAR_FIELD(execId);
+  return TSDB_CODE_SUCCESS;
 }
 
-static SNode* selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
+static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_SCALAR_FIELD(isDistinct);
   CLONE_NODE_LIST_FIELD(pProjectionList);
   CLONE_NODE_FIELD(pFromTable);
@@ -555,117 +604,174 @@ static SNode* selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   CLONE_NODE_LIST_FIELD(pGroupByList);
   CLONE_NODE_FIELD(pHaving);
   CLONE_NODE_LIST_FIELD(pOrderByList);
-  CLONE_NODE_FIELD(pLimit);
-  CLONE_NODE_FIELD(pLimit);
+  CLONE_NODE_FIELD_EX(pLimit, SLimitNode*);
+  CLONE_NODE_FIELD_EX(pLimit, SLimitNode*);
   COPY_CHAR_ARRAY_FIELD(stmtName);
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(isEmptyResult);
-  COPY_SCALAR_FIELD(isTimeOrderQuery);
+  COPY_SCALAR_FIELD(isTimeLineResult);
   COPY_SCALAR_FIELD(hasAggFuncs);
   COPY_SCALAR_FIELD(hasRepeatScanFuncs);
-  return (SNode*)pDst;
+  return TSDB_CODE_SUCCESS;
 }
 
-SNodeptr nodesCloneNode(const SNodeptr pNode) {
+SNode* nodesCloneNode(const SNode* pNode) {
   if (NULL == pNode) {
     return NULL;
   }
+
   SNode* pDst = nodesMakeNode(nodeType(pNode));
   if (NULL == pDst) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+
+  int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN:
-      return columnNodeCopy((const SColumnNode*)pNode, (SColumnNode*)pDst);
+      code = columnNodeCopy((const SColumnNode*)pNode, (SColumnNode*)pDst);
+      break;
     case QUERY_NODE_VALUE:
-      return valueNodeCopy((const SValueNode*)pNode, (SValueNode*)pDst);
+      code = valueNodeCopy((const SValueNode*)pNode, (SValueNode*)pDst);
+      break;
     case QUERY_NODE_OPERATOR:
-      return operatorNodeCopy((const SOperatorNode*)pNode, (SOperatorNode*)pDst);
+      code = operatorNodeCopy((const SOperatorNode*)pNode, (SOperatorNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_CONDITION:
-      return logicConditionNodeCopy((const SLogicConditionNode*)pNode, (SLogicConditionNode*)pDst);
+      code = logicConditionNodeCopy((const SLogicConditionNode*)pNode, (SLogicConditionNode*)pDst);
+      break;
     case QUERY_NODE_FUNCTION:
-      return functionNodeCopy((const SFunctionNode*)pNode, (SFunctionNode*)pDst);
+      code = functionNodeCopy((const SFunctionNode*)pNode, (SFunctionNode*)pDst);
+      break;
     case QUERY_NODE_REAL_TABLE:
-      return realTableNodeCopy((const SRealTableNode*)pNode, (SRealTableNode*)pDst);
+      code = realTableNodeCopy((const SRealTableNode*)pNode, (SRealTableNode*)pDst);
+      break;
     case QUERY_NODE_TEMP_TABLE:
-      return tempTableNodeCopy((const STempTableNode*)pNode, (STempTableNode*)pDst);
+      code = tempTableNodeCopy((const STempTableNode*)pNode, (STempTableNode*)pDst);
+      break;
     case QUERY_NODE_JOIN_TABLE:
-      return joinTableNodeCopy((const SJoinTableNode*)pNode, (SJoinTableNode*)pDst);
+      code = joinTableNodeCopy((const SJoinTableNode*)pNode, (SJoinTableNode*)pDst);
+      break;
     case QUERY_NODE_GROUPING_SET:
-      return groupingSetNodeCopy((const SGroupingSetNode*)pNode, (SGroupingSetNode*)pDst);
+      code = groupingSetNodeCopy((const SGroupingSetNode*)pNode, (SGroupingSetNode*)pDst);
+      break;
     case QUERY_NODE_ORDER_BY_EXPR:
-      return orderByExprNodeCopy((const SOrderByExprNode*)pNode, (SOrderByExprNode*)pDst);
+      code = orderByExprNodeCopy((const SOrderByExprNode*)pNode, (SOrderByExprNode*)pDst);
+      break;
     case QUERY_NODE_LIMIT:
-      return limitNodeCopy((const SLimitNode*)pNode, (SLimitNode*)pDst);
+      code = limitNodeCopy((const SLimitNode*)pNode, (SLimitNode*)pDst);
+      break;
     case QUERY_NODE_STATE_WINDOW:
-      return stateWindowNodeCopy((const SStateWindowNode*)pNode, (SStateWindowNode*)pDst);
+      code = stateWindowNodeCopy((const SStateWindowNode*)pNode, (SStateWindowNode*)pDst);
+      break;
     case QUERY_NODE_SESSION_WINDOW:
-      return sessionWindowNodeCopy((const SSessionWindowNode*)pNode, (SSessionWindowNode*)pDst);
+      code = sessionWindowNodeCopy((const SSessionWindowNode*)pNode, (SSessionWindowNode*)pDst);
+      break;
     case QUERY_NODE_INTERVAL_WINDOW:
-      return intervalWindowNodeCopy((const SIntervalWindowNode*)pNode, (SIntervalWindowNode*)pDst);
+      code = intervalWindowNodeCopy((const SIntervalWindowNode*)pNode, (SIntervalWindowNode*)pDst);
+      break;
     case QUERY_NODE_NODE_LIST:
-      return nodeListNodeCopy((const SNodeListNode*)pNode, (SNodeListNode*)pDst);
+      code = nodeListNodeCopy((const SNodeListNode*)pNode, (SNodeListNode*)pDst);
+      break;
     case QUERY_NODE_FILL:
-      return fillNodeCopy((const SFillNode*)pNode, (SFillNode*)pDst);
+      code = fillNodeCopy((const SFillNode*)pNode, (SFillNode*)pDst);
+      break;
     case QUERY_NODE_TARGET:
-      return targetNodeCopy((const STargetNode*)pNode, (STargetNode*)pDst);
+      code = targetNodeCopy((const STargetNode*)pNode, (STargetNode*)pDst);
+      break;
     case QUERY_NODE_DATABLOCK_DESC:
-      return dataBlockDescCopy((const SDataBlockDescNode*)pNode, (SDataBlockDescNode*)pDst);
+      code = dataBlockDescCopy((const SDataBlockDescNode*)pNode, (SDataBlockDescNode*)pDst);
+      break;
     case QUERY_NODE_SLOT_DESC:
-      return slotDescCopy((const SSlotDescNode*)pNode, (SSlotDescNode*)pDst);
+      code = slotDescCopy((const SSlotDescNode*)pNode, (SSlotDescNode*)pDst);
+      break;
     case QUERY_NODE_DOWNSTREAM_SOURCE:
-      return downstreamSourceCopy((const SDownstreamSourceNode*)pNode, (SDownstreamSourceNode*)pDst);
+      code = downstreamSourceCopy((const SDownstreamSourceNode*)pNode, (SDownstreamSourceNode*)pDst);
+      break;
     case QUERY_NODE_LEFT_VALUE:
-      return pDst;
+      code = TSDB_CODE_SUCCESS;
+      break;
     case QUERY_NODE_SELECT_STMT:
-      return selectStmtCopy((const SSelectStmt*)pNode, (SSelectStmt*)pDst);
+      code = selectStmtCopy((const SSelectStmt*)pNode, (SSelectStmt*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_SCAN:
-      return logicScanCopy((const SScanLogicNode*)pNode, (SScanLogicNode*)pDst);
+      code = logicScanCopy((const SScanLogicNode*)pNode, (SScanLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_JOIN:
-      return logicJoinCopy((const SJoinLogicNode*)pNode, (SJoinLogicNode*)pDst);
+      code = logicJoinCopy((const SJoinLogicNode*)pNode, (SJoinLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_AGG:
-      return logicAggCopy((const SAggLogicNode*)pNode, (SAggLogicNode*)pDst);
+      code = logicAggCopy((const SAggLogicNode*)pNode, (SAggLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
-      return logicProjectCopy((const SProjectLogicNode*)pNode, (SProjectLogicNode*)pDst);
+      code = logicProjectCopy((const SProjectLogicNode*)pNode, (SProjectLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY:
-      return logicVnodeModifCopy((const SVnodeModifyLogicNode*)pNode, (SVnodeModifyLogicNode*)pDst);
+      code = logicVnodeModifCopy((const SVnodeModifyLogicNode*)pNode, (SVnodeModifyLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
-      return logicExchangeCopy((const SExchangeLogicNode*)pNode, (SExchangeLogicNode*)pDst);
+      code = logicExchangeCopy((const SExchangeLogicNode*)pNode, (SExchangeLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_MERGE:
-      return logicMergeCopy((const SMergeLogicNode*)pNode, (SMergeLogicNode*)pDst);
+      code = logicMergeCopy((const SMergeLogicNode*)pNode, (SMergeLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
-      return logicWindowCopy((const SWindowLogicNode*)pNode, (SWindowLogicNode*)pDst);
+      code = logicWindowCopy((const SWindowLogicNode*)pNode, (SWindowLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_FILL:
-      return logicFillCopy((const SFillLogicNode*)pNode, (SFillLogicNode*)pDst);
+      code = logicFillCopy((const SFillLogicNode*)pNode, (SFillLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_SORT:
-      return logicSortCopy((const SSortLogicNode*)pNode, (SSortLogicNode*)pDst);
+      code = logicSortCopy((const SSortLogicNode*)pNode, (SSortLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
-      return logicPartitionCopy((const SPartitionLogicNode*)pNode, (SPartitionLogicNode*)pDst);
+      code = logicPartitionCopy((const SPartitionLogicNode*)pNode, (SPartitionLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
-      return logicIndefRowsFuncCopy((const SIndefRowsFuncLogicNode*)pNode, (SIndefRowsFuncLogicNode*)pDst);
+      code = logicIndefRowsFuncCopy((const SIndefRowsFuncLogicNode*)pNode, (SIndefRowsFuncLogicNode*)pDst);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      code = logicInterpFuncCopy((const SInterpFuncLogicNode*)pNode, (SInterpFuncLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_SUBPLAN:
-      return logicSubplanCopy((const SLogicSubplan*)pNode, (SLogicSubplan*)pDst);
+      code = logicSubplanCopy((const SLogicSubplan*)pNode, (SLogicSubplan*)pDst);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
-      return physiTagScanCopy((const STagScanPhysiNode*)pNode, (STagScanPhysiNode*)pDst);
+      code = physiTagScanCopy((const STagScanPhysiNode*)pNode, (STagScanPhysiNode*)pDst);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
-      return physiTableScanCopy((const STableScanPhysiNode*)pNode, (STableScanPhysiNode*)pDst);
+      code = physiTableScanCopy((const STableScanPhysiNode*)pNode, (STableScanPhysiNode*)pDst);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
-      return physiSysTableScanCopy((const SSystemTableScanPhysiNode*)pNode, (SSystemTableScanPhysiNode*)pDst);
+      code = physiSysTableScanCopy((const SSystemTableScanPhysiNode*)pNode, (SSystemTableScanPhysiNode*)pDst);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
-      return physiIntervalCopy((const SIntervalPhysiNode*)pNode, (SIntervalPhysiNode*)pDst);
+      code = physiIntervalCopy((const SIntervalPhysiNode*)pNode, (SIntervalPhysiNode*)pDst);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
+      code = physiSessionCopy((const SSessionWinodwPhysiNode*)pNode, (SSessionWinodwPhysiNode*)pDst);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+      code = physiPartitionCopy((const SPartitionPhysiNode*)pNode, (SPartitionPhysiNode*)pDst);
+      break;
     default:
       break;
   }
-  nodesDestroyNode(pDst);
-  nodesError("nodesCloneNode unknown node = %s", nodesNodeName(nodeType(pNode)));
-  return NULL;
+
+  if (TSDB_CODE_SUCCESS != code) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    nodesDestroyNode(pDst);
+    nodesError("nodesCloneNode failed node = %s", nodesNodeName(nodeType(pNode)));
+    return NULL;
+  }
+  return pDst;
 }
 
 SNodeList* nodesCloneList(const SNodeList* pList) {
@@ -673,19 +779,15 @@ SNodeList* nodesCloneList(const SNodeList* pList) {
     return NULL;
   }
 
-  SNodeList* pDst = nodesMakeList();
-  if (NULL == pDst) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-  SNode* pNode;
+  SNodeList* pDst = NULL;
+  SNode*     pNode;
   FOREACH(pNode, pList) {
-    SNode* pNewNode = nodesCloneNode(pNode);
-    if (NULL == pNewNode) {
+    int32_t code = nodesListMakeStrictAppend(&pDst, nodesCloneNode(pNode));
+    if (TSDB_CODE_SUCCESS != code) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       nodesDestroyList(pDst);
       return NULL;
     }
-    nodesListAppend(pDst, pNewNode);
   }
   return pDst;
 }

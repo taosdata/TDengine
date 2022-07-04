@@ -49,12 +49,12 @@ extern const int32_t TYPE_BYTES[16];
 #define TSDB_DATA_BOOL_NULL      0x02
 #define TSDB_DATA_TINYINT_NULL   0x80
 #define TSDB_DATA_SMALLINT_NULL  0x8000
-#define TSDB_DATA_INT_NULL       0x80000000L
-#define TSDB_DATA_BIGINT_NULL    0x8000000000000000L
+#define TSDB_DATA_INT_NULL       0x80000000LL
+#define TSDB_DATA_BIGINT_NULL    0x8000000000000000LL
 #define TSDB_DATA_TIMESTAMP_NULL TSDB_DATA_BIGINT_NULL
 
 #define TSDB_DATA_FLOAT_NULL  0x7FF00000           // it is an NAN
-#define TSDB_DATA_DOUBLE_NULL 0x7FFFFF0000000000L  // an NAN
+#define TSDB_DATA_DOUBLE_NULL 0x7FFFFF0000000000LL  // an NAN
 #define TSDB_DATA_NCHAR_NULL  0xFFFFFFFF
 #define TSDB_DATA_BINARY_NULL 0xFF
 
@@ -108,8 +108,8 @@ extern const int32_t TYPE_BYTES[16];
 #define TSDB_INS_USER_STABLES_DBNAME_COLID 2
 
 #define TSDB_TICK_PER_SECOND(precision)                      \
-  ((int64_t)((precision) == TSDB_TIME_PRECISION_MILLI ? 1e3L \
-                                                      : ((precision) == TSDB_TIME_PRECISION_MICRO ? 1e6L : 1e9L)))
+  ((int64_t)((precision) == TSDB_TIME_PRECISION_MILLI ? 1000LL \
+                                                      : ((precision) == TSDB_TIME_PRECISION_MICRO ? 1000000LL : 1000000000LL)))
 
 #define T_MEMBER_SIZE(type, member) sizeof(((type *)0)->member)
 #define T_APPEND_MEMBER(dst, ptr, type, member)                                     \
@@ -134,7 +134,7 @@ typedef enum EOperatorType {
   OP_TYPE_MINUS,
   OP_TYPE_ASSIGN,
 
-  // bit operator
+  // bitwise operator
   OP_TYPE_BIT_AND,
   OP_TYPE_BIT_OR,
 
@@ -210,7 +210,7 @@ typedef enum ELogicConditionType {
 #define TSDB_TYPE_STR_MAX_LEN    32
 #define TSDB_TABLE_FNAME_LEN     (TSDB_DB_FNAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_TOPIC_FNAME_LEN     (TSDB_ACCT_ID_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
-#define TSDB_STREAM_FNAME_LEN    TSDB_TABLE_FNAME_LEN
+#define TSDB_STREAM_FNAME_LEN    (TSDB_ACCT_ID_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_SUBSCRIBE_KEY_LEN   (TSDB_CGROUP_LEN + TSDB_TOPIC_FNAME_LEN + 2)
 #define TSDB_PARTITION_KEY_LEN   (TSDB_SUBSCRIBE_KEY_LEN + 20)
 #define TSDB_COL_NAME_LEN        65
@@ -221,6 +221,8 @@ typedef enum ELogicConditionType {
 
 #define TSDB_APP_NAME_LEN   TSDB_UNI_LEN
 #define TSDB_TB_COMMENT_LEN 1025
+
+#define TSDB_QUERY_ID_LEN 26
 
 /**
  *  In some scenarios uint16_t (0~65535) is used to store the row len.
@@ -241,6 +243,7 @@ typedef enum ELogicConditionType {
 #define TSDB_USET_PASSWORD_LEN 129
 #define TSDB_VERSION_LEN       12
 #define TSDB_LABEL_LEN         8
+#define TSDB_JOB_STATUS_LEN    32
 
 #define TSDB_CLUSTER_ID_LEN     40
 #define TSDB_FQDN_LEN           128
@@ -284,7 +287,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MULTI_TABLEMETA_MAX_NUM 100000  // maximum batch size allowed to load table meta
 
 #define TSDB_MIN_VNODES_PER_DB          1
-#define TSDB_MAX_VNODES_PER_DB          4096
+#define TSDB_MAX_VNODES_PER_DB          1024
 #define TSDB_DEFAULT_VN_PER_DB          2
 #define TSDB_MIN_BUFFER_PER_VNODE       3      // unit MB
 #define TSDB_MAX_BUFFER_PER_VNODE       16384  // unit MB
@@ -341,11 +344,13 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_SCHEMALESS_OFF          0
 #define TSDB_DEFAULT_DB_SCHEMALESS      TSDB_DB_SCHEMALESS_OFF
 
-#define TSDB_MIN_ROLLUP_FILE_FACTOR     0
-#define TSDB_MAX_ROLLUP_FILE_FACTOR     10
-#define TSDB_DEFAULT_ROLLUP_FILE_FACTOR 0.1
-#define TSDB_MIN_TABLE_TTL              0
-#define TSDB_DEFAULT_TABLE_TTL          0
+#define TSDB_MIN_ROLLUP_MAX_DELAY     1  // unit millisecond
+#define TSDB_MAX_ROLLUP_MAX_DELAY     (15 * 60 * 1000)
+#define TSDB_MIN_ROLLUP_WATERMARK     0  // unit millisecond
+#define TSDB_MAX_ROLLUP_WATERMARK     (15 * 60 * 1000)
+#define TSDB_DEFAULT_ROLLUP_WATERMARK 5000
+#define TSDB_MIN_TABLE_TTL            0
+#define TSDB_DEFAULT_TABLE_TTL        0
 
 #define TSDB_MIN_EXPLAIN_RATIO     0
 #define TSDB_MAX_EXPLAIN_RATIO     1
@@ -438,8 +443,8 @@ enum {
 #define VNODE_HANDLE   -3
 #define BNODE_HANDLE   -4
 
-#define TSDB_CONFIG_OPTION_LEN 16
-#define TSDB_CONIIG_VALUE_LEN  48
+#define TSDB_CONFIG_OPTION_LEN 32
+#define TSDB_CONFIG_VALUE_LEN  64
 #define TSDB_CONFIG_NUMBER     8
 
 #define QUERY_ID_SIZE      20

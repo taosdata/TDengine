@@ -23,10 +23,6 @@ extern "C" {
 #include "planner.h"
 #include "taoserror.h"
 
-#define QUERY_POLICY_VNODE  1
-#define QUERY_POLICY_HYBRID 2
-#define QUERY_POLICY_QNODE  3
-
 #define planFatal(param, ...)  qFatal("PLAN: " param, __VA_ARGS__)
 #define planError(param, ...)  qError("PLAN: " param, __VA_ARGS__)
 #define planWarn(param, ...)   qWarn("PLAN: " param, __VA_ARGS__)

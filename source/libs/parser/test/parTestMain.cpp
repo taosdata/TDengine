@@ -45,6 +45,7 @@ class ParserEnv : public testing::Environment {
     destroyMetaDataEnv();
     taosCleanupKeywordsTable();
     fmFuncMgtDestroy();
+    taosCloseLog();
   }
 
   ParserEnv() {}

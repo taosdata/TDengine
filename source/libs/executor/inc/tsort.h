@@ -50,6 +50,7 @@ typedef struct SMsortComparParam {
   void        **pSources;
   int32_t       numOfSources;
   SArray       *orderInfo;   // SArray<SBlockOrderInfo>
+  bool          cmpGroupId;
 } SMsortComparParam;
 
 typedef struct SSortHandle SSortHandle;
@@ -63,7 +64,7 @@ typedef int32_t (*_sort_merge_compar_fn_t)(const void* p1, const void* p2, void*
  * @param type
  * @return
  */
-SSortHandle* tsortCreateSortHandle(SArray* pOrderInfo, SArray* pIndexMap, int32_t type, int32_t pageSize, int32_t numOfPages, SSDataBlock* pBlock, const char* idstr);
+SSortHandle* tsortCreateSortHandle(SArray* pOrderInfo, int32_t type, int32_t pageSize, int32_t numOfPages, SSDataBlock* pBlock, const char* idstr);
 
 /**
  *
@@ -98,6 +99,11 @@ int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetc
  * @return
  */
 int32_t tsortSetComparFp(SSortHandle* pHandle, _sort_merge_compar_fn_t fp);
+
+/**
+ *
+ */
+int32_t tsortSetCompareGroupId(SSortHandle* pHandle, bool compareGroupId);
 
 /**
  *
@@ -136,6 +142,7 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colId);
  * @return
  */
 uint64_t tsortGetGroupId(STupleHandle* pVHandle);
+
 /**
  *
  * @param pSortHandle
@@ -150,6 +157,13 @@ SSDataBlock* tsortGetSortedDataBlock(const SSortHandle* pSortHandle);
  * @return
  */
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle);
+
+/**
+ * get proper sort buffer pages according to the row size
+ * @param rowSize
+ * @return
+ */
+int32_t getProperSortPageSize(size_t rowSize);
 
 #ifdef __cplusplus
 }

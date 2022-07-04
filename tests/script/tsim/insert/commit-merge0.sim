@@ -5,7 +5,7 @@ sleep 50
 sql connect
 
 print =============== create database
-sql create database db  days 300 keep 365000d,365000d,365000d
+sql create database db  duration 300 keep 365000d,365000d,365000d
 sql show databases
 if $rows != 3 then
   return -1

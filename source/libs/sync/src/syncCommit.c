@@ -50,14 +50,16 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
 
   // advance commit index to sanpshot first
   SSnapshot snapshot;
-  pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
   if (snapshot.lastApplyIndex > 0 && snapshot.lastApplyIndex > pSyncNode->commitIndex) {
     SyncIndex commitBegin = pSyncNode->commitIndex;
     SyncIndex commitEnd = snapshot.lastApplyIndex;
     pSyncNode->commitIndex = snapshot.lastApplyIndex;
 
-    sDebug("vgId:%d sync event commit by snapshot from index:%ld to index:%ld, %s", pSyncNode->vgId,
-          pSyncNode->commitIndex, snapshot.lastApplyIndex, syncUtilState2String(pSyncNode->state));
+    char eventLog[128];
+    snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%ld to index:%ld", pSyncNode->commitIndex,
+             snapshot.lastApplyIndex);
+    syncNodeEventLog(pSyncNode, eventLog);
   }
 
   // update commit index
@@ -73,7 +75,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     if (agree) {
       // term
       SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
-      assert(pEntry != NULL);
+      ASSERT(pEntry != NULL);
 
       // cannot commit, even if quorum agree. need check term!
       if (pEntry->term == pSyncNode->pRaftStore->currentTerm) {
@@ -100,6 +102,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     }
   }
 
+  // maybe execute fsm
   if (newCommitIndex > pSyncNode->commitIndex) {
     SyncIndex beginIndex = pSyncNode->commitIndex + 1;
     SyncIndex endIndex = newCommitIndex;

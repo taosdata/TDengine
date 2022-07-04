@@ -60,4 +60,6 @@ TEST_F(PlanIntervalTest, stable) {
   run("SELECT COUNT(*) FROM st1 INTERVAL(10s)");
 
   run("SELECT _WSTARTTS, COUNT(*) FROM st1 INTERVAL(10s)");
+
+  run("SELECT _WSTARTTS, COUNT(*) FROM st1 PARTITION BY TBNAME INTERVAL(10s)");
 }

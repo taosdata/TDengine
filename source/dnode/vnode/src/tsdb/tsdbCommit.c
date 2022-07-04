@@ -110,6 +110,8 @@ int32_t tsdbBegin(STsdb *pTsdb) {
 }
 
 int32_t tsdbCommit(STsdb *pTsdb) {
+  if (!pTsdb) return 0;
+
   int32_t    code = 0;
   SCommitH   commith = {0};
   SDFileSet *pSet = NULL;
@@ -493,7 +495,9 @@ static int32_t tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
       break;
     }
 
-    if (pIter && pIter->pTable && (!pIdx || (pIter->pTable->suid <= pIdx->suid || pIter->pTable->uid <= pIdx->uid))) {
+    if (pIter && pIter->pTable &&
+        (!pIdx || ((pIter->pTable->suid < pIdx->suid) ||
+                   ((pIter->pTable->suid == pIdx->suid) && (pIter->pTable->uid <= pIdx->uid))))) {
       if (tsdbCommitToTable(pCommith, mIter) < 0) {
         tsdbCloseCommitFile(pCommith, true);
         // revert the file change
@@ -501,7 +505,7 @@ static int32_t tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
         return -1;
       }
 
-      if (pIdx && (pIter->pTable->uid == pIdx->uid)) {
+      if (pIdx && ((pIter->pTable->uid == pIdx->uid) && (pIter->pTable->suid == pIdx->suid))) {
         ++fIter;
       }
       ++mIter;
@@ -516,6 +520,8 @@ static int32_t tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
         return -1;
       }
       ++fIter;
+    } else {
+      ASSERT(0);
     }
   }
 

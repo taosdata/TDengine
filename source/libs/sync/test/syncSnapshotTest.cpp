@@ -35,9 +35,9 @@ const char *pWalDir = "./syncSnapshotTest_wal";
 
 void CommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   SyncIndex beginIndex = SYNC_INDEX_INVALID;
-  if (pFsm->FpGetSnapshot != NULL) {
+  if (pFsm->FpGetSnapshotInfo != NULL) {
     SSnapshot snapshot;
-    pFsm->FpGetSnapshot(pFsm, &snapshot);
+    pFsm->FpGetSnapshotInfo(pFsm, &snapshot);
     beginIndex = snapshot.lastApplyIndex;
   }
 
@@ -79,7 +79,7 @@ void initFsm() {
   pFsm->FpCommitCb = CommitCb;
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
-  pFsm->FpGetSnapshot = GetSnapshotCb;
+  pFsm->FpGetSnapshotInfo = GetSnapshotCb;
 }
 
 SSyncNode *syncNodeInit() {

@@ -61,6 +61,11 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
     return -1;
   }
 
+  ret = tdbPagerRestore(pPager, pTb->pBt);
+  if (ret < 0) {
+    return -1;
+  }
+
   *ppTb = pTb;
   return 0;
 }
@@ -130,6 +135,10 @@ int tdbTbcDelete(TBC *pTbc) { return tdbBtcDelete(&pTbc->btc); }
 
 int tdbTbcNext(TBC *pTbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
   return tdbBtreeNext(&pTbc->btc, ppKey, kLen, ppVal, vLen);
+}
+
+int tdbTbcPrev(TBC *pTbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
+  return tdbBtreePrev(&pTbc->btc, ppKey, kLen, ppVal, vLen);
 }
 
 int tdbTbcUpsert(TBC *pTbc, const void *pKey, int nKey, const void *pData, int nData, int insert) {

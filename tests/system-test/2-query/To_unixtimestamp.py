@@ -12,7 +12,37 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
+        # name of normal table
+        self.ntbname = 'ntb'    
+        # name of stable
+        self.stbname = 'stb'    
+        # structure of column
+        self.column_dict = {    
+            'ts':'timestamp',
+            'c1':'int',
+            'c2':'float',
+            'c3':'binary(20)',
+            'c4':'nchar(20)'
+        }
+        # structure of tag
+        self.tag_dict = {       
+            't0':'int'
+        }
+        # number of child tables
+        self.tbnum = 2       
+        # values of tag,the number of values should equal to tbnum
+        self.tag_values = [     
+            f'10',
+            f'100'
+        ]
+        # values of rows, structure should be same as column
+        self.values_list = [
+            f'now,10,99.99,"2020-1-1 00:00:00"',
+            f'today(),100,11.111,22.222222'
 
+        ]
+        self.error_param = [1,'now()']
+    
     def run(self):  # sourcery skip: extract-duplicate-method
         tdSql.prepare()
         tdLog.printNoPrefix("==========step1:create tables==========")

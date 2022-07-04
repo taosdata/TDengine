@@ -41,6 +41,7 @@ extern "C" {
 #define TSDB_INS_TABLE_VGROUPS                "vgroups"
 #define TSDB_INS_TABLE_VNODES                 "vnodes"
 #define TSDB_INS_TABLE_CONFIGS                "configs"
+#define TSDB_INS_TABLE_DNODE_VARIABLES        "dnode_variables"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS          "smas"
@@ -52,6 +53,7 @@ extern "C" {
 #define TSDB_PERFS_TABLE_OFFSETS       "offsets"
 #define TSDB_PERFS_TABLE_TRANS         "trans"
 #define TSDB_PERFS_TABLE_STREAMS       "streams"
+#define TSDB_PERFS_TABLE_APPS          "apps"
 
 typedef struct SSysDbTableSchema {
   const char*   name;

@@ -326,9 +326,12 @@ int32_t stmtCleanSQLInfo(STscStmt* pStmt) {
 int32_t stmtRebuildDataBlock(STscStmt* pStmt, STableDataBlocks* pDataBlock, STableDataBlocks** newBlock, uint64_t uid) {
   SEpSet      ep = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
   SVgroupInfo vgInfo = {0};
+  SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter, 
+                           .requestId = pStmt->exec.pRequest->requestId,
+                           .requestObjRefId = pStmt->exec.pRequest->self,
+                           .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
 
-  STMT_ERR_RET(catalogGetTableHashVgroup(pStmt->pCatalog, pStmt->taos->pAppInfo->pTransporter, &ep, &pStmt->bInfo.sname,
-                                         &vgInfo));
+  STMT_ERR_RET(catalogGetTableHashVgroup(pStmt->pCatalog, &conn, &pStmt->bInfo.sname, &vgInfo));
   STMT_ERR_RET(
       taosHashPut(pStmt->exec.pVgHash, (const char*)&vgInfo.vgId, sizeof(vgInfo.vgId), (char*)&vgInfo, sizeof(vgInfo)));
 
@@ -389,9 +392,12 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
   }
 
   STableMeta* pTableMeta = NULL;
-  SEpSet      ep = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
+  SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter, 
+                           .requestId = pStmt->exec.pRequest->requestId,
+                           .requestObjRefId = pStmt->exec.pRequest->self,
+                           .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
   int32_t     code =
-      catalogGetTableMeta(pStmt->pCatalog, pStmt->taos->pAppInfo->pTransporter, &ep, &pStmt->bInfo.sname, &pTableMeta);
+      catalogGetTableMeta(pStmt->pCatalog, &conn, &pStmt->bInfo.sname, &pTableMeta);
   if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
     STMT_ERR_RET(stmtCleanBindInfo(pStmt));
 
@@ -472,7 +478,7 @@ int32_t stmtResetStmt(STscStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-TAOS_STMT* stmtInit(TAOS* taos) {
+TAOS_STMT* stmtInit(STscObj* taos) {
   STscObj*  pObj = (STscObj*)taos;
   STscStmt* pStmt = NULL;
 

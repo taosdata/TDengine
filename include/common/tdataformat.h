@@ -70,13 +70,15 @@ int32_t tGetTSRow(uint8_t *p, STSRow2 *pRow);
 // STag
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
 void    tTagFree(STag *pTag);
+bool    tTagIsJson(const void *pTag);
+bool    tTagIsJsonNull(void *tagVal);
 bool    tTagGet(const STag *pTag, STagVal *pTagVal);
 char   *tTagValToData(const STagVal *pTagVal, bool isJson);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
 void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove
-void    debugCheckTags(STag *pTag);                               // TODO: remove
+int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, void* pMsgBuf);
 
 // STRUCT =================
 struct STColumn {

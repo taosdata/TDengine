@@ -43,8 +43,16 @@ print ===> $data20 $data21 $data22 $data23 $data24 $data25
 if $data00 != 1 then
   return -1
 endi
-if $data01 != localhost:7100 then
-  return -1
+system_content printf %OS%
+if $system_content == Windows_NT then
+  system_content printf %COMPUTERNAME%:7100
+  if $data01 != $system_content then
+    return -1
+  endi
+else
+  if $data01 != localhost:7100 then
+    return -1
+  endi
 endi
 if $data04 != ready then
   goto check_dnode_ready_1
@@ -63,7 +71,7 @@ print ============= create database with all options
 #  | PAGESIZE value     [1~16384, default: 4]
 #  | CACHELAST value    [0, 1, 2, 3, default: 0]
 #  | COMP               [0 | 1 | 2, default: 2]
-#  | DAYS value         [60m ~ min(3650d,keep), default: 10d, unit may be minut/hour/day]
+#  | DURATION value         [60m ~ min(3650d,keep), default: 10d, unit may be minut/hour/day]
 #  | FSYNC value        [0 ~ 180000 ms, default: 3000]
 #  | MAXROWS value      [200~10000, default: 4096]
 #  | MINROWS value      [10~1000, default: 100]
@@ -79,7 +87,7 @@ print ============= create database with all options
 #$data2_db  : vgroups
 #$data3_db  : ntables
 #$data4_db  : replica
-#$data6_db  : days
+#$data6_db  : duration
 #$data7_db  : keep
 #$data10_db : minrows
 #$data11_db : maxrows
@@ -113,7 +121,7 @@ endi
 if $data5_db != no_strict then  # strict
   return -1
 endi
-if $data6_db != 14400 then  # days
+if $data6_db != 14400m then  # duration
   return -1
 endi
 if $data7_db != 5256000m,5256000m,5256000m then # keep
@@ -234,9 +242,9 @@ sql drop database db
 sql_error create database db COMP 3
 sql_error create database db COMP -1
 
-#print ====> DAYS value [60m ~ min(3650d,keep), default: 10d, unit may be minut/hour/day]
+#print ====> DURATION value [60m ~ min(3650d,keep), default: 10d, unit may be minut/hour/day]
 #print ====> KEEP value [max(1d ~ 365000d), default: 1d, unit may be minut/hour/day]
-#sql create database db DAYS 60m KEEP 60m
+#sql create database db DURATION 60m KEEP 60m
 #sql show databases
 #print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
 #if $data6_db != 60 then
@@ -246,7 +254,7 @@ sql_error create database db COMP -1
 #  return -1
 #endi
 #sql drop database db
-#sql create database db DAYS 60m KEEP 1d
+#sql create database db DURATION 60m KEEP 1d
 #sql show databases
 #print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
 #if $data6_db != 60 then
@@ -255,7 +263,7 @@ sql_error create database db COMP -1
 #if $data7_db != 1440,1440,1440 then
 #  return -1
 #endi
-#sql create database db DAYS 3650d KEEP 365000d
+#sql create database db DURATION 3650d KEEP 365000d
 #sql show databases
 #print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
 #if $data6_db != 5256000 then
@@ -265,10 +273,10 @@ sql_error create database db COMP -1
 #  return -1
 #endi
 #sql drop database db
-#sql_error create database db DAYS -59m
-#sql_error create database db DAYS 59m
-#sql_error create database db DAYS 5256001m
-#sql_error create database db DAYS 3651d
+#sql_error create database db DURATION -59m
+#sql_error create database db DURATION 59m
+#sql_error create database db DURATION 5256001m
+#sql_error create database db DURATION 3651d
 #sql_error create database db KEEP -59m
 #sql_error create database db KEEP 14399m
 #sql_error create database db KEEP 525600001m

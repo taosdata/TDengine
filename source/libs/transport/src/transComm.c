@@ -16,7 +16,9 @@
 
 #include "transComm.h"
 
-// static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
+static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
+
+static int32_t refMgt;
 
 int transAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey) {
   T_MD5_CTX context;
@@ -202,7 +204,7 @@ void transDestroyAsyncPool(SAsyncPool* pool) {
   taosMemoryFree(pool->asyncs);
   taosMemoryFree(pool);
 }
-int transSendAsync(SAsyncPool* pool, queue* q) {
+int transAsyncSend(SAsyncPool* pool, queue* q) {
   int idx = pool->index;
   idx = idx % pool->nAsync;
   // no need mutex here
@@ -376,17 +378,18 @@ static void transDQTimeout(uv_timer_t* timer) {
   SDelayQueue* queue = timer->data;
   tTrace("timer %p timeout", timer);
   uint64_t timeout = 0;
+  int64_t  current = taosGetTimestampMs();
   do {
     HeapNode* minNode = heapMin(queue->heap);
     if (minNode == NULL) break;
     SDelayTask* task = container_of(minNode, SDelayTask, node);
-    if (task->execTime <= taosGetTimestampMs()) {
+    if (task->execTime <= current) {
       heapRemove(queue->heap, minNode);
       task->func(task->arg);
       taosMemoryFree(task);
       timeout = 0;
     } else {
-      timeout = task->execTime - taosGetTimestampMs();
+      timeout = task->execTime - current;
       break;
     }
   } while (1);
@@ -442,7 +445,7 @@ int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_
     }
   }
 
-  tTrace("timer %p put task into queue, timeoutMs: %" PRIu64 "", queue->timer, timeoutMs);
+  tTrace("timer %p put task into delay queue, timeoutMs: %" PRIu64 "", queue->timer, timeoutMs);
   heapInsert(queue->heap, &task->node);
   uv_timer_start(queue->timer, transDQTimeout, timeoutMs, 0);
   return 0;
@@ -453,11 +456,17 @@ void transPrintEpSet(SEpSet* pEpSet) {
     tTrace("NULL epset");
     return;
   }
-  tTrace("epset begin  inUse: %d", pEpSet->inUse);
+  char buf[512] = {0};
+  int  len = snprintf(buf, sizeof(buf), "epset:{");
   for (int i = 0; i < pEpSet->numOfEps; i++) {
-    tTrace("ip: %s, port: %d", pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+    if (i == pEpSet->numOfEps - 1) {
+      len += snprintf(buf + len, sizeof(buf) - len, "%d. %s:%d", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+    } else {
+      len += snprintf(buf + len, sizeof(buf) - len, "%d. %s:%d, ", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+    }
   }
-  tTrace("epset end");
+  len += snprintf(buf + len, sizeof(buf) - len, "}");
+  tTrace("%s, inUse:%d", buf, pEpSet->inUse);
 }
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
   if (a->numOfEps != b->numOfEps || a->inUse != b->inUse) {
@@ -470,36 +479,53 @@ bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
   }
   return true;
 }
-
-void transInitEnv() {
+static int32_t transGetRefMgt() {
   //
+  return refMgt;
+}
+
+static void transInitEnv() {
+  refMgt = transOpenExHandleMgt(50000);
   uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1");
+}
+static void transDestroyEnv() {
+  // close ref
+  transCloseExHandleMgt();
+}
+
+void transInit() {
+  // init env
+  taosThreadOnce(&transModuleInit, transInitEnv);
+}
+void transCleanup() {
+  // clean env
+  transDestroyEnv();
 }
 int32_t transOpenExHandleMgt(int size) {
   // added into once later
   return taosOpenRef(size, transDestoryExHandle);
 }
-void transCloseExHandleMgt(int32_t mgt) {
+void transCloseExHandleMgt() {
   // close ref
-  taosCloseRef(mgt);
+  taosCloseRef(transGetRefMgt());
 }
-int64_t transAddExHandle(int32_t mgt, void* p) {
+int64_t transAddExHandle(void* p) {
   // acquire extern handle
-  return taosAddRef(mgt, p);
+  return taosAddRef(transGetRefMgt(), p);
 }
-int32_t transRemoveExHandle(int32_t mgt, int64_t refId) {
+int32_t transRemoveExHandle(int64_t refId) {
   // acquire extern handle
-  return taosRemoveRef(mgt, refId);
+  return taosRemoveRef(transGetRefMgt(), refId);
 }
 
-SExHandle* transAcquireExHandle(int32_t mgt, int64_t refId) {
+SExHandle* transAcquireExHandle(int64_t refId) {
   // acquire extern handle
-  return (SExHandle*)taosAcquireRef(mgt, refId);
+  return (SExHandle*)taosAcquireRef(transGetRefMgt(), refId);
 }
 
-int32_t transReleaseExHandle(int32_t mgt, int64_t refId) {
+int32_t transReleaseExHandle(int64_t refId) {
   // release extern handle
-  return taosReleaseRef(mgt, refId);
+  return taosReleaseRef(transGetRefMgt(), refId);
 }
 void transDestoryExHandle(void* handle) {
   if (handle == NULL) {

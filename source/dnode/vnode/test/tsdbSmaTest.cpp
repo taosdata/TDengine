@@ -121,7 +121,7 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
 
   // decode
   STSmaWrapper dstTSmaWrapper = {0};
-  void        *result = tDecodeTSmaWrapper(pSW, &dstTSmaWrapper);
+  void        *result = tDecodeTSmaWrapper(pSW, &dstTSmaWrapper, false);
   EXPECT_NE(result, nullptr);
 
   EXPECT_EQ(tSmaWrapper.number, dstTSmaWrapper.number);
@@ -435,7 +435,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
     SSDataBlock *pDataBlock = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
     EXPECT_NE(pDataBlock, nullptr);
     pDataBlock->pBlockAgg = NULL;
-    pDataBlock->info.numOfCols = tSmaNumOfCols;
+    taosArrayGetSize(pDataBlock->pDataBlock) = tSmaNumOfCols;
     pDataBlock->info.rows = tSmaNumOfRows;
     pDataBlock->info.groupId = tSmaGroupId + g;
 

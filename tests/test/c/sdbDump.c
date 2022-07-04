@@ -114,8 +114,10 @@ void dumpStb(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "tagVer", pObj->tagVer);
     tjsonAddIntegerToObject(item, "colVer", pObj->colVer);
     tjsonAddIntegerToObject(item, "nextColId", pObj->nextColId);
-    tjsonAddIntegerToObject(item, "xFilesFactor", pObj->xFilesFactor * 10000);
-    tjsonAddIntegerToObject(item, "delay", pObj->delay);
+    tjsonAddIntegerToObject(item, "watermark1", pObj->watermark[0]);
+    tjsonAddIntegerToObject(item, "watermark2", pObj->watermark[1]);
+    tjsonAddIntegerToObject(item, "maxdelay1", pObj->maxdelay[0]);
+    tjsonAddIntegerToObject(item, "maxdelay2", pObj->maxdelay[1]);
     tjsonAddIntegerToObject(item, "ttl", pObj->ttl);
     tjsonAddIntegerToObject(item, "numOfColumns", pObj->numOfColumns);
     tjsonAddIntegerToObject(item, "numOfTags", pObj->numOfTags);
@@ -283,7 +285,8 @@ void dumpTrans(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "conflict", pObj->conflict);
     tjsonAddIntegerToObject(item, "exec", pObj->exec);
     tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime));
-    tjsonAddStringToObject(item, "dbname", pObj->dbname);
+    tjsonAddStringToObject(item, "dbname1", pObj->dbname1);
+    tjsonAddStringToObject(item, "dbname2", pObj->dbname2);
     tjsonAddIntegerToObject(item, "commitLogNum", taosArrayGetSize(pObj->commitActions));
     tjsonAddIntegerToObject(item, "redoActionNum", taosArrayGetSize(pObj->redoActions));
     tjsonAddIntegerToObject(item, "undoActionNum", taosArrayGetSize(pObj->undoActions));
@@ -294,8 +297,9 @@ void dumpTrans(SSdb *pSdb, SJson *json) {
 
 void dumpHeader(SSdb *pSdb, SJson *json) {
   tjsonAddIntegerToObject(json, "sver", 1);
-  tjsonAddStringToObject(json, "curVer", i642str(pSdb->curVer));
-  tjsonAddStringToObject(json, "curTerm", i642str(pSdb->curTerm));
+  tjsonAddStringToObject(json, "applyIndex", i642str(pSdb->applyIndex));
+  tjsonAddStringToObject(json, "applyTerm", i642str(pSdb->applyTerm));
+  tjsonAddStringToObject(json, "applyConfig", i642str(pSdb->applyConfig));
 
   SJson *maxIdsJson = tjsonCreateObject();
   tjsonAddItemToObject(json, "maxIds", maxIdsJson);

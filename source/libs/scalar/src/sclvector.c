@@ -23,6 +23,7 @@
 #include "sclvector.h"
 #include "tcompare.h"
 #include "tdatablock.h"
+#include "tdataformat.h"
 #include "ttypes.h"
 #include "ttime.h"
 
@@ -159,6 +160,9 @@ int64_t getVectorBigintValue_JSON(void *src, int32_t index){
     return 0;
   } else if(*data == TSDB_DATA_TYPE_NCHAR) {   // json inner type can not be BINARY
     convertNcharToDouble(data+CHAR_BYTES, &out);
+  } else if(tTagIsJson(data)){
+    terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
+    return 0;
   } else {
     convertNumberToNumber(data+CHAR_BYTES, &out, *data, TSDB_DATA_TYPE_DOUBLE);
   }
@@ -415,6 +419,9 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
       else if(*data == TSDB_DATA_TYPE_NCHAR) {
         data += CHAR_BYTES;
         convertType = TSDB_DATA_TYPE_NCHAR;
+      } else if(tTagIsJson(data)){
+        terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
+        return terrno;
       } else {
         convertNumberToNumber(data+CHAR_BYTES, colDataGetNumData(pOut->columnData, i), *data, outType);
         continue;
@@ -460,14 +467,17 @@ double getVectorDoubleValue_JSON(void *src, int32_t index){
     return out;
   } else if(*data == TSDB_DATA_TYPE_NCHAR) {   // json inner type can not be BINARY
     convertNcharToDouble(data+CHAR_BYTES, &out);
-  } else {
+  } else if(tTagIsJson(data)){
+    terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
+    return 0;
+  } else{
     convertNumberToNumber(data+CHAR_BYTES, &out, *data, TSDB_DATA_TYPE_DOUBLE);
   }
   return out;
 }
 
 void* ncharTobinary(void *buf){            // todo need to remove , if tobinary is nchar
-  int32_t inputLen = varDataLen(buf);
+  int32_t inputLen = varDataTLen(buf);
 
   void* t = taosMemoryCalloc(1, inputLen);
   int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t));
@@ -492,10 +502,18 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
   }
 
   if(typeLeft == TSDB_DATA_TYPE_JSON){
+    if(tTagIsJson(*pLeftData)){
+      terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
+      return false;
+    }
     typeLeft = **pLeftData;
     (*pLeftData) ++;
   }
   if(typeRight == TSDB_DATA_TYPE_JSON){
+    if(tTagIsJson(*pLeftData)){
+      terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
+      return false;
+    }
     typeRight = **pRightData;
     (*pRightData) ++;
   }
@@ -505,6 +523,16 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
       return false;
     }
   }
+
+  // if types can not comparable
+  if((IS_NUMERIC_TYPE(typeLeft) && !IS_NUMERIC_TYPE(typeRight)) ||
+     (IS_NUMERIC_TYPE(typeRight) && !IS_NUMERIC_TYPE(typeLeft)) ||
+     (IS_VAR_DATA_TYPE(typeLeft) && !IS_VAR_DATA_TYPE(typeRight)) ||
+     (IS_VAR_DATA_TYPE(typeRight) && !IS_VAR_DATA_TYPE(typeLeft)) ||
+     ((typeLeft == TSDB_DATA_TYPE_BOOL) && (typeRight != TSDB_DATA_TYPE_BOOL)) ||
+     ((typeRight == TSDB_DATA_TYPE_BOOL) && (typeLeft != TSDB_DATA_TYPE_BOOL)))
+    return false;
+
 
   if(typeLeft == TSDB_DATA_TYPE_NULL || typeRight == TSDB_DATA_TYPE_NULL){
     *isNull = true;
@@ -519,24 +547,28 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
 
   *fp = filterGetCompFunc(type, optr);
 
-  if(IS_NUMERIC_TYPE(type) || IS_FLOAT_TYPE(type)){
+  if(IS_NUMERIC_TYPE(type)){
     if(typeLeft == TSDB_DATA_TYPE_NCHAR) {
-      convertNcharToDouble(*pLeftData, pLeftOut);
-      *pLeftData = pLeftOut;
+      ASSERT(0);
+//      convertNcharToDouble(*pLeftData, pLeftOut);
+//      *pLeftData = pLeftOut;
     } else if(typeLeft == TSDB_DATA_TYPE_BINARY) {
-      convertBinaryToDouble(*pLeftData, pLeftOut);
-      *pLeftData = pLeftOut;
+      ASSERT(0);
+//      convertBinaryToDouble(*pLeftData, pLeftOut);
+//      *pLeftData = pLeftOut;
     } else if(typeLeft != type) {
       convertNumberToNumber(*pLeftData, pLeftOut, typeLeft, type);
       *pLeftData = pLeftOut;
     }
 
     if(typeRight == TSDB_DATA_TYPE_NCHAR) {
-      convertNcharToDouble(*pRightData, pRightOut);
-      *pRightData = pRightOut;
+      ASSERT(0);
+//      convertNcharToDouble(*pRightData, pRightOut);
+//      *pRightData = pRightOut;
     } else if(typeRight == TSDB_DATA_TYPE_BINARY) {
-      convertBinaryToDouble(*pRightData, pRightOut);
-      *pRightData = pRightOut;
+      ASSERT(0);
+//      convertBinaryToDouble(*pRightData, pRightOut);
+//      *pRightData = pRightOut;
     } else if(typeRight != type) {
       convertNumberToNumber(*pRightData, pRightOut, typeRight, type);
       *pRightData = pRightOut;
@@ -837,7 +869,7 @@ int32_t vectorConvertScalarParam(SScalarParam *input, SScalarParam *output, int3
   SDataType t = {.type = type, .bytes = tDataTypes[type].bytes};
   output->numOfRows = input->numOfRows;
 
-  output->columnData = createColumnInfoData(&t, input->numOfRows);
+  output->columnData = sclCreateColumnInfoData(&t, input->numOfRows);
   if (output->columnData == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -908,7 +940,7 @@ static int32_t doConvertHelper(SScalarParam* pDest, int32_t* convert, const SSca
     pDest->numOfRows = pParam->numOfRows;
 
     SDataType t = {.type = type, .bytes = tDataTypes[type].bytes};
-    pDest->columnData = createColumnInfoData(&t, pParam->numOfRows);
+    pDest->columnData = sclCreateColumnInfoData(&t, pParam->numOfRows);
     if (pDest->columnData == NULL) {
       sclError("malloc %d failed", (int32_t)(pParam->numOfRows * sizeof(double)));
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -1561,7 +1593,11 @@ void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, 
 void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord, int32_t optr) {
   int32_t       i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
   int32_t       step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
+
   __compar_fn_t fp = filterGetCompFunc(GET_PARAM_TYPE(pLeft), optr);
+  if(terrno != TSDB_CODE_SUCCESS){
+    return;
+  }
 
   pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
 
@@ -1693,6 +1729,14 @@ void vectorIsTrue(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut,
 
 STagVal getJsonValue(char *json, char *key, bool *isExist) {
   STagVal val = {.pKey = key};
+  if (tTagIsJson((const STag *)json) == false){
+    terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
+    if(isExist){
+      *isExist = false;
+    }
+    return val;
+  }
+
   bool find = tTagGet(((const STag *)json), &val);  // json value is null and not exist is different
   if(isExist){
     *isExist = find;

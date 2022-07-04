@@ -175,7 +175,13 @@ void *taosbsearch(const void *key, const void *base, int32_t nmemb, int32_t size
 
     c = compar(key, p);
     if (c == 0) {
-      break;
+      if (flags == TD_GT){
+        lidx = midx + 1;
+      } else if(flags == TD_LT){
+        ridx = midx - 1;
+      }else{
+        break;
+      }
     } else if (c < 0) {
       ridx = midx - 1;
     } else {
@@ -189,6 +195,10 @@ void *taosbsearch(const void *key, const void *base, int32_t nmemb, int32_t size
     return (c <= 0) ? p : (midx + 1 < nmemb ? p + size : NULL);
   } else if (flags == TD_LE) {
     return (c >= 0) ? p : (midx > 0 ? p - size : NULL);
+  } else if (flags == TD_GT) {
+    return (c < 0) ? p : (midx + 1 < nmemb ? p + size : NULL);
+  } else if (flags == TD_LT) {
+    return (c > 0) ? p : (midx > 0 ? p - size : NULL);
   } else {
     ASSERT(0);
   }

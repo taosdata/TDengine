@@ -743,7 +743,7 @@ cmp_end:
 }
 
 void taosSetAllDebugFlag(int32_t flag) {
-  if (!(flag & DEBUG_TRACE || flag & DEBUG_DEBUG || flag & DEBUG_DUMP)) return;
+  if (flag <= 0) return;
 
   dDebugFlag = flag;
   vDebugFlag = flag;

@@ -206,7 +206,7 @@ SScript *simParseScript(char *fileName) {
 
     for (int32_t i = 0; i < cmdlen; ++i) {
       if (buffer[i] == '\r' || buffer[i] == '\n') {
-        buffer[i] = ' ';
+        buffer[i] = '\0';
       }
     }
 

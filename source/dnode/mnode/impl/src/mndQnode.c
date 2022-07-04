@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndQnode.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndDnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
@@ -271,7 +271,6 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
   int32_t          code = -1;
   SQnodeObj       *pObj = NULL;
   SDnodeObj       *pDnode = NULL;
-  SUserObj        *pUser = NULL;
   SMCreateQnodeReq createReq = {0};
 
   if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
@@ -280,6 +279,9 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
   }
 
   mDebug("qnode:%d, start to create", createReq.dnodeId);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_QNODE) != 0) {
+    goto _OVER;
+  }
 
   pObj = mndAcquireQnode(pMnode, createReq.dnodeId);
   if (pObj != NULL) {
@@ -295,16 +297,6 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
-
-  if (mndCheckNodeAuth(pUser) != 0) {
-    goto _OVER;
-  }
-
   code = mndCreateQnode(pMnode, pReq, pDnode, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -315,7 +307,6 @@ _OVER:
 
   mndReleaseQnode(pMnode, pObj);
   mndReleaseDnode(pMnode, pDnode);
-  mndReleaseUser(pMnode, pUser);
   return code;
 }
 
@@ -362,6 +353,14 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
   return 0;
 }
 
+int32_t mndSetDropQnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SQnodeObj *pObj) {
+  if (pObj == NULL) return 0;
+  if (mndSetDropQnodeRedoLogs(pTrans, pObj) != 0) return -1;
+  if (mndSetDropQnodeCommitLogs(pTrans, pObj) != 0) return -1;
+  if (mndSetDropQnodeRedoActions(pTrans, pObj->pDnode, pObj) != 0) return -1;
+  return 0;
+}
+
 static int32_t mndDropQnode(SMnode *pMnode, SRpcMsg *pReq, SQnodeObj *pObj) {
   int32_t code = -1;
 
@@ -369,9 +368,7 @@ static int32_t mndDropQnode(SMnode *pMnode, SRpcMsg *pReq, SQnodeObj *pObj) {
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop qnode:%d", pTrans->id, pObj->id);
-  if (mndSetDropQnodeRedoLogs(pTrans, pObj) != 0) goto _OVER;
-  if (mndSetDropQnodeCommitLogs(pTrans, pObj) != 0) goto _OVER;
-  if (mndSetDropQnodeRedoActions(pTrans, pObj->pDnode, pObj) != 0) goto _OVER;
+  if (mndSetDropQnodeInfoToTrans(pMnode, pTrans, pObj) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
@@ -384,7 +381,6 @@ _OVER:
 static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
-  SUserObj      *pUser = NULL;
   SQnodeObj     *pObj = NULL;
   SMDropQnodeReq dropReq = {0};
 
@@ -394,6 +390,9 @@ static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
   }
 
   mDebug("qnode:%d, start to drop", dropReq.dnodeId);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_QNODE) != 0) {
+    goto _OVER;
+  }
 
   if (dropReq.dnodeId <= 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -402,16 +401,6 @@ static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
 
   pObj = mndAcquireQnode(pMnode, dropReq.dnodeId);
   if (pObj == NULL) {
-    goto _OVER;
-  }
-
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
-
-  if (mndCheckNodeAuth(pUser) != 0) {
     goto _OVER;
   }
 
@@ -424,24 +413,22 @@ _OVER:
   }
 
   mndReleaseQnode(pMnode, pObj);
-  mndReleaseUser(pMnode, pUser);
-
   return code;
 }
 
-int32_t mndCreateQnodeList(SMnode       *pMnode, SArray** pList, int32_t limit) {
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
-  SQnodeObj    *pObj = NULL;
-  int32_t       numOfRows = 0;
+int32_t mndCreateQnodeList(SMnode *pMnode, SArray **pList, int32_t limit) {
+  SSdb      *pSdb = pMnode->pSdb;
+  void      *pIter = NULL;
+  SQnodeObj *pObj = NULL;
+  int32_t    numOfRows = 0;
 
-  SArray* qnodeList = taosArrayInit(5, sizeof(SQueryNodeLoad));
+  SArray *qnodeList = taosArrayInit(5, sizeof(SQueryNodeLoad));
   if (NULL == qnodeList) {
     mError("failed to alloc epSet while process qnode list req");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
-  
+
   while (1) {
     pIter = sdbFetch(pSdb, SDB_QNODE, pIter, (void **)&pObj);
     if (pIter == NULL) break;
@@ -467,7 +454,6 @@ int32_t mndCreateQnodeList(SMnode       *pMnode, SArray** pList, int32_t limit) 
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 static int32_t mndProcessQnodeListReq(SRpcMsg *pReq) {
   int32_t       code = -1;

@@ -28,12 +28,12 @@ const SVnodeCfg vnodeCfgDefault = {
                 .update = 1,
                 .compression = 2,
                 .slLevel = 5,
-                .days = 10,
+                .days = 14400,
                 .minRows = 100,
                 .maxRows = 4096,
-                .keep2 = 3650,
-                .keep0 = 3650,
-                .keep1 = 3650},
+                .keep2 = 5256000,
+                .keep0 = 5256000,
+                .keep1 = 5256000},
     .walCfg =
         {.vgId = -1, .fsyncPeriod = 0, .retentionPeriod = 0, .rollPeriod = 0, .segSize = 0, .level = TAOS_WAL_WRITE},
     .hashBegin = 0,
@@ -218,13 +218,10 @@ int vnodeValidateTableHash(SVnode *pVnode, char *tableFName) {
       break;
   }
 
-    // TODO OPEN THIS !!!!!!!
-#if 0
-  if (hashValue < pVnodeOptions->hashBegin || hashValue > pVnodeOptions->hashEnd) {
+  if (hashValue < pVnode->config.hashBegin || hashValue > pVnode->config.hashEnd) {
     terrno = TSDB_CODE_VND_HASH_MISMATCH;
     return TSDB_CODE_VND_HASH_MISMATCH;
   }
-#endif
 
   return 0;
 }

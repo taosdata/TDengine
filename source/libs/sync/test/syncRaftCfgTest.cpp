@@ -27,6 +27,14 @@ SRaftCfg* createRaftCfg() {
   }
   pCfg->isStandBy = taosGetTimestampSec() % 100;
 
+  pCfg->configIndexCount = 5;
+  for (int i = 0; i < MAX_CONFIG_INDEX_COUNT; ++i) {
+    (pCfg->configIndexArr)[i] = -1;
+  }
+  for (int i = 0; i < pCfg->configIndexCount; ++i) {
+    (pCfg->configIndexArr)[i] = i * 100;
+  }
+
   return pCfg;
 }
 
@@ -47,6 +55,8 @@ SSyncCfg* createSyncCfg() {
 void test1() {
   SSyncCfg* pCfg = createSyncCfg();
   syncCfgLog2((char*)__FUNCTION__, pCfg);
+  syncCfgLog3((char*)__FUNCTION__, pCfg);
+
   taosMemoryFree(pCfg);
 }
 
@@ -100,6 +110,15 @@ void test5() {
   pCfg->isStandBy += 2;
   pCfg->snapshotEnable += 3;
   pCfg->lastConfigIndex += 1000;
+
+  pCfg->configIndexCount = 5;
+  for (int i = 0; i < MAX_CONFIG_INDEX_COUNT; ++i) {
+    (pCfg->configIndexArr)[i] = -1;
+  }
+  for (int i = 0; i < pCfg->configIndexCount; ++i) {
+    (pCfg->configIndexArr)[i] = i * 100;
+  }
+
   raftCfgPersist(pCfg);
 
   printf("%s update json file: %s myIndex->%d \n", (char*)__FUNCTION__, "./test3_raft_cfg.json", pCfg->cfg.myIndex);

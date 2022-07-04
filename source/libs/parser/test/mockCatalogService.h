@@ -50,6 +50,10 @@ struct MockTableMeta {
 class MockCatalogServiceImpl;
 class MockCatalogService {
  public:
+  static void destoryCatalogReq(SCatalogReq* pReq);
+  static void destoryMetaRes(void* p);
+  static void destoryMetaData(SMetaData* pData);
+
   MockCatalogService();
   ~MockCatalogService();
   ITableBuilder& createTableBuilder(const std::string& db, const std::string& tbname, int8_t tableType,
@@ -58,6 +62,7 @@ class MockCatalogService {
   void showTables() const;
   void createFunction(const std::string& func, int8_t funcType, int8_t outputType, int32_t outputLen, int32_t bufSize);
   void createSmaIndex(const SMCreateSmaReq* pReq);
+  void createDnode(int32_t dnodeId, const std::string& host, int16_t port);
 
   int32_t catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta) const;
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const;
@@ -65,6 +70,7 @@ class MockCatalogService {
   int32_t catalogGetDBVgInfo(const char* pDbFName, SArray** pVgList) const;
   int32_t catalogGetUdfInfo(const std::string& funcName, SFuncInfo* pInfo) const;
   int32_t catalogGetTableIndex(const SName* pTableName, SArray** pIndexes) const;
+  int32_t catalogGetDnodeList(SArray** pDnodes) const;
   int32_t catalogGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) const;
 
  private:

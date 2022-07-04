@@ -123,10 +123,12 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     dError("node:%s, failed to create since %s", pWrapper->name, terrstr());
   } else {
     dInfo("node:%s, has been created", pWrapper->name);
-    (void)dmOpenNode(pWrapper);
-    (void)dmStartNode(pWrapper);
-    pWrapper->required = true;
+    code = dmOpenNode(pWrapper);
+    if (code == 0) {
+      code = dmStartNode(pWrapper);
+    }
     pWrapper->deployed = true;
+    pWrapper->required = true;
     pWrapper->proc.ptype = pDnode->ptype;
   }
 

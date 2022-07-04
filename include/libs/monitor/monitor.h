@@ -109,6 +109,9 @@ typedef struct {
   char    version[MON_VER_LEN];
   float   master_uptime;     // day
   int32_t monitor_interval;  // sec
+  int32_t dbs_total;
+  int32_t stbs_total;
+  int64_t tbs_total;
   int32_t vgroups_total;
   int32_t vgroups_alive;
   int32_t vnodes_total;
@@ -136,6 +139,15 @@ typedef struct {
 } SMonVgroupInfo;
 
 typedef struct {
+  char stb_name[TSDB_TABLE_NAME_LEN];
+  char database_name[TSDB_DB_NAME_LEN];
+} SMonStbDesc;
+
+typedef struct {
+  SArray *stbs;  // array of SMonStbDesc
+} SMonStbInfo;
+
+typedef struct {
   int32_t expire_time;
   int64_t timeseries_used;
   int64_t timeseries_total;
@@ -144,6 +156,7 @@ typedef struct {
 typedef struct {
   SMonClusterInfo cluster;
   SMonVgroupInfo  vgroup;
+  SMonStbInfo     stb;
   SMonGrantInfo   grant;
   SMonSysInfo     sys;
   SMonLogs        log;

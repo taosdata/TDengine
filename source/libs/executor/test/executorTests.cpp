@@ -62,18 +62,11 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator) {
   }
 
   if (pInfo->pBlock == NULL) {
-    pInfo->pBlock = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
+    pInfo->pBlock = createDataBlock();
 
-    pInfo->pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
-
-    SColumnInfoData colInfo = {0};
-    colInfo.info.type = TSDB_DATA_TYPE_INT;
-    colInfo.info.bytes = sizeof(int32_t);
-    colInfo.info.colId = 1;
-    colInfo.pData = static_cast<char*>(taosMemoryCalloc(pInfo->numOfRowsPerPage, sizeof(int32_t)));
-    colInfo.nullbitmap = static_cast<char*>(taosMemoryCalloc(1, (pInfo->numOfRowsPerPage + 7) / 8));
-
-    taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo);
+    SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+    blockDataAppendColInfo(pInfo->pBlock, &colInfo);
+    blockDataEnsureCapacity(pInfo->pBlock, pInfo->numOfRowsPerPage);
 
     //    SColumnInfoData colInfo1 = {0};
     //    colInfo1.info.type = TSDB_DATA_TYPE_BINARY;
@@ -115,7 +108,6 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator) {
   }
 
   pBlock->info.rows = pInfo->numOfRowsPerPage;
-  pBlock->info.numOfCols = 1;
 
   pInfo->current += 1;
   return pBlock;
@@ -128,28 +120,15 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
   }
 
   if (pInfo->pBlock == NULL) {
-    pInfo->pBlock = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
+    pInfo->pBlock = createDataBlock();
 
-    pInfo->pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
+    SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
+    blockDataAppendColInfo(pInfo->pBlock, &colInfo);
 
-    SColumnInfoData colInfo = {0};
-    colInfo.info.type = TSDB_DATA_TYPE_TIMESTAMP;
-    colInfo.info.bytes = sizeof(int64_t);
-    colInfo.info.colId = 1;
-    colInfo.pData = static_cast<char*>(taosMemoryCalloc(pInfo->numOfRowsPerPage, sizeof(int64_t)));
-    //    colInfo.nullbitmap = static_cast<char*>(taosMemoryCalloc(1, (pInfo->numOfRowsPerPage + 7) / 8));
+    SColumnInfoData colInfo1 = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 2);
+    blockDataAppendColInfo(pInfo->pBlock, &colInfo1);
 
-    taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo);
-
-    SColumnInfoData colInfo1 = {0};
-    colInfo1.info.type = TSDB_DATA_TYPE_INT;
-    colInfo1.info.bytes = 4;
-    colInfo1.info.colId = 2;
-
-    colInfo1.pData = static_cast<char*>(taosMemoryCalloc(pInfo->numOfRowsPerPage, sizeof(int32_t)));
-    colInfo1.nullbitmap = static_cast<char*>(taosMemoryCalloc(1, (pInfo->numOfRowsPerPage + 7) / 8));
-
-    taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo1);
+    blockDataEnsureCapacity(pInfo->pBlock, pInfo->numOfRowsPerPage);
   } else {
     blockDataCleanup(pInfo->pBlock);
   }
@@ -185,7 +164,6 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
   }
 
   pBlock->info.rows = pInfo->numOfRowsPerPage;
-  pBlock->info.numOfCols = 1;
 
   pInfo->current += 1;
 
@@ -945,7 +923,7 @@ TEST(testCase, build_executor_tree_Test) {
   int32_t          code = qStringToSubplan(msg, &plan);
   ASSERT_EQ(code, 0);
 
-  code = qCreateExecTask(&handle, 2, 1, plan, (void**)&pTaskInfo, &sinkHandle, OPTR_EXEC_MODEL_BATCH);
+  code = qCreateExecTask(&handle, 2, 1, plan, (void**)&pTaskInfo, &sinkHandle, NULL, OPTR_EXEC_MODEL_BATCH);
   ASSERT_EQ(code, 0);
 }
 #if 0

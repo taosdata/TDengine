@@ -57,11 +57,15 @@ void tNameAssign(SName* dst, const SName* src);
 
 int32_t tNameSetDbName(SName* dst, int32_t acctId, const char* dbName, size_t nameLen);
 
+int32_t tNameAddTbName(SName* dst, const char* tbName, size_t nameLen);
+
 int32_t tNameFromString(SName* dst, const char* str, uint32_t type);
 
 int32_t tNameSetAcctId(SName* dst, int32_t acctId);
 
 bool tNameDBNameEqual(SName* left, SName* right);
+
+bool tNameTbNameEqual(SName* left, SName* right);
 
 typedef struct {
   // input

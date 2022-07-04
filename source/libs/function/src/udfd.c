@@ -12,6 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+// clang-format off
 #include "uv.h"
 #include "os.h"
 #include "fnLog.h"
@@ -25,6 +27,7 @@
 #include "tglobal.h"
 #include "tmsg.h"
 #include "trpc.h"
+// clang-foramt on
 
 typedef struct SUdfdContext {
   uv_loop_t * loop;
@@ -103,12 +106,12 @@ typedef struct SUdfdRpcSendRecvInfo {
   uv_sem_t           resultSem;
 } SUdfdRpcSendRecvInfo;
 
-static void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
+static void    udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf);
 static int32_t udfdConnectToMnode();
 static int32_t udfdLoadUdf(char *udfName, SUdf *udf);
-static bool udfdRpcRfp(int32_t code);
-static int initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet);
+static bool    udfdRpcRfp(int32_t code, tmsg_t msgType);
+static int     initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet);
 static int32_t udfdOpenClientRpc();
 static int32_t udfdCloseClientRpc();
 
@@ -126,19 +129,19 @@ static void udfdUvHandleError(SUdfdUvConn *conn) { uv_close((uv_handle_t *)conn-
 static void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf);
 static void udfdOnNewConnection(uv_stream_t *server, int status);
 
-static void udfdIntrSignalHandler(uv_signal_t *handle, int signum);
+static void    udfdIntrSignalHandler(uv_signal_t *handle, int signum);
 static int32_t removeListeningPipe();
 
-static void udfdPrintVersion();
+static void    udfdPrintVersion();
 static int32_t udfdParseArgs(int32_t argc, char *argv[]);
 static int32_t udfdInitLog();
 
-static void udfdCtrlAllocBufCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf);
-static void udfdCtrlReadCb(uv_stream_t *q, ssize_t nread, const uv_buf_t *buf);
+static void    udfdCtrlAllocBufCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf);
+static void    udfdCtrlReadCb(uv_stream_t *q, ssize_t nread, const uv_buf_t *buf);
 static int32_t udfdUvInit();
-static void udfdCloseWalkCb(uv_handle_t *handle, void *arg);
+static void    udfdCloseWalkCb(uv_handle_t *handle, void *arg);
 static int32_t udfdRun();
-static void udfdConnectMnodeThreadFunc(void* args);
+static void    udfdConnectMnodeThreadFunc(void *args);
 
 void udfdProcessRequest(uv_work_t *req) {
   SUvUdfWork *uvUdf = (SUvUdfWork *)(req->data);
@@ -401,11 +404,11 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     udf->bufSize = pFuncInfo->bufSize;
 
     char path[PATH_MAX] = {0};
-  #ifdef WINDOWS
+#ifdef WINDOWS
     snprintf(path, sizeof(path), "%s%s.dll", TD_TMP_DIR_PATH, pFuncInfo->name);
-  #else
+#else
     snprintf(path, sizeof(path), "%s/lib%s.so", TD_TMP_DIR_PATH, pFuncInfo->name);
-  #endif
+#endif
     TdFilePtr file =
         taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
     if (file == NULL) {
@@ -468,8 +471,8 @@ int32_t udfdConnectToMnode() {
   char pass[TSDB_PASSWORD_LEN + 1] = {0};
   taosEncryptPass_c((uint8_t *)(TSDB_DEFAULT_PASS), strlen(TSDB_DEFAULT_PASS), pass);
   tstrncpy(connReq.passwd, pass, sizeof(connReq.passwd));
-  connReq.pid = htonl(taosGetPId());
-  connReq.startTime = htobe64(taosGetTimestampMs());
+  connReq.pid = taosGetPId();
+  connReq.startTime = taosGetTimestampMs();
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connReq);
   void *  pReq = rpcMallocCont(contLen);
@@ -543,8 +546,12 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
   }
   return 0;
 }
-static bool udfdRpcRfp(int32_t code) {
-  if (code == TSDB_CODE_RPC_REDIRECT) {
+static bool udfdRpcRfp(int32_t code, tmsg_t msgType) {
+  if (code == TSDB_CODE_RPC_REDIRECT || code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_NODE_NOT_DEPLOYED ||
+      code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_APP_NOT_READY || code == TSDB_CODE_RPC_BROKEN_LINK) {
+    if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH) {
+      return false;
+    } 
     return true;
   } else {
     return false;
@@ -613,7 +620,9 @@ int32_t udfdOpenClientRpc() {
 }
 
 int32_t udfdCloseClientRpc() {
+  fnInfo("udfd begin closing rpc");
   rpcClose(global.clientRpc);
+  fnInfo("udfd finish closing rpc");
   return 0;
 }
 
@@ -650,8 +659,7 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       buf->base = ctx->inputBuf;
       buf->len = ctx->inputCap;
     } else {
-      fnError("udfd can not allocate enough memory")
-      buf->base = NULL;
+      fnError("udfd can not allocate enough memory") buf->base = NULL;
       buf->len = 0;
     }
   } else {
@@ -662,8 +670,7 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       buf->base = ctx->inputBuf + ctx->inputLen;
       buf->len = ctx->inputCap - ctx->inputLen;
     } else {
-      fnError("udfd can not allocate enough memory")
-      buf->base = NULL;
+      fnError("udfd can not allocate enough memory") buf->base = NULL;
       buf->len = 0;
     }
   }
@@ -879,7 +886,7 @@ static int32_t udfdRun() {
   return 0;
 }
 
-void udfdConnectMnodeThreadFunc(void* args) {
+void udfdConnectMnodeThreadFunc(void *args) {
   int32_t retryMnodeTimes = 0;
   int32_t code = 0;
   while (retryMnodeTimes++ <= TSDB_MAX_REPLICA) {
@@ -939,7 +946,6 @@ int main(int argc, char *argv[]) {
   udfdRun();
 
   removeListeningPipe();
-  uv_thread_join(&mnodeConnectThread);
   udfdCloseClientRpc();
 
   return 0;

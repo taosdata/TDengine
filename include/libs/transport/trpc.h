@@ -23,6 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include "taosdef.h"
 #include "tmsg.h"
+#include "ttrace.h"
 
 #define TAOS_CONN_SERVER 0
 #define TAOS_CONN_CLIENT 1
@@ -33,20 +34,19 @@ extern int32_t tsRpcHeadSize;
 typedef struct {
   uint32_t clientIp;
   uint16_t clientPort;
-  union {
-    char    user[TSDB_USER_LEN];
-    int64_t applyIndex;
-  };
+  int64_t  applyIndex;
+  char     user[TSDB_USER_LEN];
 } SRpcConnInfo;
 
 typedef struct SRpcHandleInfo {
   // rpc info
-  void *  handle;         // rpc handle returned to app
-  int64_t refId;          // refid, used by server
-  int32_t noResp;         // has response or not(default 0, 0: resp, 1: no resp);
-  int32_t persistHandle;  // persist handle or not
+  void *   handle;         // rpc handle returned to app
+  int64_t  refId;          // refid, used by server
+  int32_t  noResp;         // has response or not(default 0, 0: resp, 1: no resp);
+  int32_t  persistHandle;  // persist handle or not
+  STraceId traceId;
+  int8_t   hasEpSet;
 
-  SRpcConnInfo connInfo;
   // app info
   void *ahandle;  // app handle set by client
   void *wrapper;  // wrapper handle
@@ -55,6 +55,9 @@ typedef struct SRpcHandleInfo {
   // resp info
   void *  rsp;
   int32_t rspLen;
+
+  // conn info
+  SRpcConnInfo conn;
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
@@ -63,11 +66,10 @@ typedef struct SRpcMsg {
   int32_t        contLen;
   int32_t        code;
   SRpcHandleInfo info;
-  SRpcConnInfo   conn;
 } SRpcMsg;
 
 typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *rf);
-typedef bool (*RpcRfp)(int32_t code);
+typedef bool (*RpcRfp)(int32_t code, tmsg_t msgType);
 
 typedef struct SRpcInit {
   char     localFqdn[TSDB_FQDN_LEN];
@@ -121,7 +123,7 @@ void *  rpcReallocCont(void *ptr, int32_t contLen);
 void rpcSendRequest(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
 void rpcSendResponse(const SRpcMsg *pMsg);
 void rpcRegisterBrokenLinkArg(SRpcMsg *msg);
-void rpcReleaseHandle(void *handle, int8_t type);  // just release client conn to rpc instance, no close sock
+void rpcReleaseHandle(void *handle, int8_t type);  // just release conn to rpc instance, no close sock
 
 // These functions will not be called in the child process
 void    rpcSendRedirectRsp(void *pConn, const SEpSet *pEpSet);

@@ -37,6 +37,8 @@ extern "C" {
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
 // clang-format on
 
+#define SDB_WRITE_DELTA 20
+
 #define SDB_GET_VAL(pData, dataPos, val, pos, func, type) \
   {                                                       \
     if (func(pRaw, dataPos, val) != 0) {                  \
@@ -169,11 +171,12 @@ typedef struct SSdb {
   SWal          *pWal;
   char          *currDir;
   char          *tmpDir;
-  int64_t        lastCommitVer;
-  int64_t        lastCommitTerm;
-  int64_t        curVer;
-  int64_t        curTerm;
-  int64_t        curConfig;
+  int64_t        commitIndex;
+  int64_t        commitTerm;
+  int64_t        commitConfig;
+  int64_t        applyIndex;
+  int64_t        applyTerm;
+  int64_t        applyConfig;
   int64_t        tableVer[SDB_MAX];
   int64_t        maxId[SDB_MAX];
   EKeyType       keyTypes[SDB_MAX];
@@ -257,7 +260,7 @@ int32_t sdbReadFile(SSdb *pSdb);
  * @param pSdb The sdb object.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t sdbWriteFile(SSdb *pSdb);
+int32_t sdbWriteFile(SSdb *pSdb, int32_t delta);
 
 /**
  * @brief Parse and write raw data to sdb, then free the pRaw object
@@ -361,14 +364,8 @@ int64_t sdbGetTableVer(SSdb *pSdb, ESdbType type);
  * @param index The update value of the apply index.
  * @return int32_t The current index of sdb
  */
-void    sdbSetApplyIndex(SSdb *pSdb, int64_t index);
-void    sdbSetApplyTerm(SSdb *pSdb, int64_t term);
-void    sdbSetCurConfig(SSdb *pSdb, int64_t config);
-int64_t sdbGetApplyIndex(SSdb *pSdb);
-int64_t sdbGetApplyTerm(SSdb *pSdb);
-int64_t sdbGetCommitIndex(SSdb *pSdb);
-int64_t sdbGetCommitTerm(SSdb *pSdb);
-int64_t sdbGetCurConfig(SSdb *pSdb);
+void sdbSetApplyInfo(SSdb *pSdb, int64_t index, int64_t term, int64_t config);
+void sdbGetCommitInfo(SSdb *pSdb, int64_t *index, int64_t *term, int64_t *config);
 
 SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen);
 void     sdbFreeRaw(SSdbRaw *pRaw);
@@ -391,7 +388,7 @@ SSdbRow *sdbAllocRow(int32_t objSize);
 void    *sdbGetRowObj(SSdbRow *pRow);
 void     sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc);
 
-int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter);
+int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *term, int64_t *config);
 int32_t sdbStopRead(SSdb *pSdb, SSdbIter *pIter);
 int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len);
 

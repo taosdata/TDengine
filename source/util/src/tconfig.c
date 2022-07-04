@@ -503,6 +503,38 @@ const char *cfgDtypeStr(ECfgDataType type) {
   }
 }
 
+void cfgDumpItemValue(SConfigItem *pItem, char* buf, int32_t bufSize, int32_t* pLen) {
+  int32_t len = 0;
+  switch (pItem->dtype) {
+    case CFG_DTYPE_BOOL:
+      len = snprintf(buf, bufSize, "%u", pItem->bval);
+      break;
+    case CFG_DTYPE_INT32:
+      len = snprintf(buf, bufSize, "%d", pItem->i32);
+      break;
+    case CFG_DTYPE_INT64:
+      len = snprintf(buf, bufSize, "%" PRId64, pItem->i64);
+      break;
+    case CFG_DTYPE_FLOAT:
+      len = snprintf(buf, bufSize, "%f", pItem->fval);
+      break;
+    case CFG_DTYPE_STRING:
+    case CFG_DTYPE_DIR:
+    case CFG_DTYPE_LOCALE:
+    case CFG_DTYPE_CHARSET:
+    case CFG_DTYPE_TIMEZONE:
+    case CFG_DTYPE_NONE:
+      len = snprintf(buf, bufSize, "%s", pItem->str);
+      break;
+  }
+
+  if (len > bufSize) {
+    len = bufSize;
+  }
+
+  *pLen = len;
+}
+
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
   if (dump) {
     printf("                     global config");

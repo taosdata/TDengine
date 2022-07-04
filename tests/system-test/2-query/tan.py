@@ -476,6 +476,20 @@ class TDTestCase:
             tdSql.execute('insert into tb3 values (now()+{}s, {}, {})'.format(i,PI*(5+i)/2 ,PI*(5+i)/2))
 
         self.check_result_auto_tan("select num1,num2 from tb3;" , "select tan(num1),tan(num2) from tb3")
+
+    def support_super_table_test(self):
+        tdSql.execute(" use db ")
+        self.check_result_auto_tan( " select c5 from stb1 order by ts " , "select tan(c5) from stb1 order by ts" )
+        self.check_result_auto_tan( " select c5 from stb1 order by tbname " , "select tan(c5) from stb1 order by tbname" )
+        self.check_result_auto_tan( " select c5 from stb1 where c1 > 0 order by tbname  " , "select tan(c5) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_tan( " select c5 from stb1 where c1 > 0 order by tbname  " , "select tan(c5) from stb1 where c1 > 0 order by tbname" )
+
+        self.check_result_auto_tan( " select t1,c5 from stb1 order by ts " , "select tan(t1), tan(c5) from stb1 order by ts" )
+        self.check_result_auto_tan( " select t1,c5 from stb1 order by tbname " , "select tan(t1) ,tan(c5) from stb1 order by tbname" )
+        self.check_result_auto_tan( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select tan(t1) ,tan(c5) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_tan( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select tan(t1) , tan(c5) from stb1 where c1 > 0 order by tbname" )
+        pass
+    
     
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
@@ -508,6 +522,10 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step7: tan filter query ============") 
 
         self.abs_func_filter()
+
+        tdLog.printNoPrefix("==========step8: check tan result of  stable query ============")
+
+        self.support_super_table_test()
 
 
     def stop(self):

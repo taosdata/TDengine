@@ -772,12 +772,12 @@ void ctgTestSetRspDbVgroupsAndMultiSuperMeta() {
 void *ctgTestGetDbVgroupThread(void *param) {
   struct SCatalog *pCtg = (struct SCatalog *)param;
   int32_t          code = 0;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SArray          *vgList = NULL;
   int32_t          n = 0;
 
   while (!ctgTestStop) {
-    code = catalogGetDBVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, &vgList);
+    code = catalogGetDBVgInfo(pCtg, mockPointer, ctgTestDbname, &vgList);
     if (code) {
       assert(0);
     }
@@ -895,9 +895,9 @@ void *ctgTestSetCtableMetaThread(void *param) {
     output = (STableMetaOutput *)taosMemoryMalloc(sizeof(STableMetaOutput));
     ctgTestBuildCTableMetaOutput(output);
 
-    SCtgUpdateTblMsg *msg = (SCtgUpdateTblMsg *)taosMemoryMalloc(sizeof(SCtgUpdateTblMsg));
+    SCtgUpdateTbMetaMsg *msg = (SCtgUpdateTbMetaMsg *)taosMemoryMalloc(sizeof(SCtgUpdateTbMetaMsg));
     msg->pCtg = pCtg;
-    msg->output = output;
+    msg->pMeta = output;
     operation.data = msg;
 
     code = ctgOpUpdateTbMeta(&operation);
@@ -921,7 +921,7 @@ void *ctgTestSetCtableMetaThread(void *param) {
 
 TEST(tableMeta, normalTable) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo      vgInfo = {0};
 
   ctgTestInitLogFile();
@@ -942,7 +942,7 @@ TEST(tableMeta, normalTable) {
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
-  code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
+  code = catalogGetTableHashVgroup(pCtg, mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
   ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
@@ -954,7 +954,7 @@ TEST(tableMeta, normalTable) {
   ctgTestSetRspTableMeta();
 
   STableMeta *tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 8);
   ASSERT_EQ(tableMeta->tableType, TSDB_NORMAL_TABLE);
@@ -977,7 +977,7 @@ TEST(tableMeta, normalTable) {
 
   
   tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 8);
   ASSERT_EQ(tableMeta->tableType, TSDB_NORMAL_TABLE);
@@ -989,7 +989,7 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   SDbVgVersion       *dbs = NULL;
-  SSTableMetaVersion *stb = NULL;
+  SSTableVersion *stb = NULL;
   uint32_t            dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
   int32_t             i = 0;
   while (i < 5) {
@@ -1029,7 +1029,7 @@ TEST(tableMeta, normalTable) {
 
 TEST(tableMeta, childTableCase) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo      vgInfo = {0};
 
   ctgTestInitLogFile();
@@ -1050,7 +1050,7 @@ TEST(tableMeta, childTableCase) {
   strcpy(n.tname, ctgTestCTablename);
 
   STableMeta *tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 9);
   ASSERT_EQ(tableMeta->tableType, TSDB_CHILD_TABLE);
@@ -1072,7 +1072,7 @@ TEST(tableMeta, childTableCase) {
 
 
   tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 9);
   ASSERT_EQ(tableMeta->tableType, TSDB_CHILD_TABLE);
@@ -1086,7 +1086,7 @@ TEST(tableMeta, childTableCase) {
   taosMemoryFreeClear(tableMeta);
 
   strcpy(n.tname, ctgTestSTablename);
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 0);
   ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);
@@ -1098,7 +1098,7 @@ TEST(tableMeta, childTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   SDbVgVersion       *dbs = NULL;
-  SSTableMetaVersion *stb = NULL;
+  SSTableVersion *stb = NULL;
   uint32_t            dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
   int32_t             i = 0;
   while (i < 5) {
@@ -1138,7 +1138,7 @@ TEST(tableMeta, childTableCase) {
 
 TEST(tableMeta, superTableCase) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo      vgInfo = {0};
 
   ctgTestSetRspDbVgroupsAndSuperMeta();
@@ -1157,7 +1157,7 @@ TEST(tableMeta, superTableCase) {
   strcpy(n.tname, ctgTestSTablename);
 
   STableMeta *tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 0);
   ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);
@@ -1186,7 +1186,7 @@ TEST(tableMeta, superTableCase) {
 
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestCTablename);
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 9);
   ASSERT_EQ(tableMeta->tableType, TSDB_CHILD_TABLE);
@@ -1208,7 +1208,7 @@ TEST(tableMeta, superTableCase) {
 
 
   tableMeta = NULL;
-  code = catalogRefreshGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta, 0);
+  code = catalogRefreshGetTableMeta(pCtg, mockPointer, &n, &tableMeta, 0);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 9);
   ASSERT_EQ(tableMeta->tableType, TSDB_CHILD_TABLE);
@@ -1220,7 +1220,7 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   SDbVgVersion       *dbs = NULL;
-  SSTableMetaVersion *stb = NULL;
+  SSTableVersion *stb = NULL;
   uint32_t            dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
   int32_t             i = 0;
   while (i < 5) {
@@ -1261,7 +1261,7 @@ TEST(tableMeta, superTableCase) {
 
 TEST(tableMeta, rmStbMeta) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo      vgInfo = {0};
 
   ctgTestInitLogFile();
@@ -1282,7 +1282,7 @@ TEST(tableMeta, rmStbMeta) {
   strcpy(n.tname, ctgTestSTablename);
 
   STableMeta *tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 0);
   ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);
@@ -1331,7 +1331,7 @@ TEST(tableMeta, rmStbMeta) {
 
 TEST(tableMeta, updateStbMeta) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo      vgInfo = {0};
 
   ctgTestInitLogFile();
@@ -1352,7 +1352,7 @@ TEST(tableMeta, updateStbMeta) {
   strcpy(n.tname, ctgTestSTablename);
 
   STableMeta *tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 0);
   ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);
@@ -1386,7 +1386,7 @@ TEST(tableMeta, updateStbMeta) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n != 3) {
       taosMsleep(50);
     } else {
@@ -1400,7 +1400,7 @@ TEST(tableMeta, updateStbMeta) {
   ASSERT_EQ(ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM), 1);
   ASSERT_EQ(ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM), 1);
 
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 0);
   ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);
@@ -1421,7 +1421,7 @@ TEST(tableMeta, updateStbMeta) {
 
 TEST(refreshGetMeta, normal2normal) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo      vgInfo = {0};
   SArray          *vgList = NULL;
 
@@ -1449,14 +1449,14 @@ TEST(refreshGetMeta, normal2normal) {
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
-  code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
+  code = catalogGetTableHashVgroup(pCtg, mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
   ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1464,7 +1464,7 @@ TEST(refreshGetMeta, normal2normal) {
   }
 
   STableMeta *tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 8);
   ASSERT_EQ(tableMeta->tableType, TSDB_NORMAL_TABLE);
@@ -1481,7 +1481,7 @@ TEST(refreshGetMeta, normal2normal) {
     taosMsleep(50);
   }
 
-  code = catalogRefreshGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta, 0);
+  code = catalogRefreshGetTableMeta(pCtg, mockPointer, &n, &tableMeta, 0);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 8);
   ASSERT_EQ(tableMeta->tableType, TSDB_NORMAL_TABLE);
@@ -1500,7 +1500,7 @@ TEST(refreshGetMeta, normal2normal) {
 
 TEST(refreshGetMeta, normal2notexist) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo      vgInfo = {0};
   SArray          *vgList = NULL;
 
@@ -1528,14 +1528,14 @@ TEST(refreshGetMeta, normal2notexist) {
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
-  code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
+  code = catalogGetTableHashVgroup(pCtg, mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
   ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1543,7 +1543,7 @@ TEST(refreshGetMeta, normal2notexist) {
   }
 
   STableMeta *tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 8);
   ASSERT_EQ(tableMeta->tableType, TSDB_NORMAL_TABLE);
@@ -1560,7 +1560,7 @@ TEST(refreshGetMeta, normal2notexist) {
     taosMsleep(50);
   }
 
-  code = catalogRefreshGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta, 0);
+  code = catalogRefreshGetTableMeta(pCtg, mockPointer, &n, &tableMeta, 0);
   ASSERT_EQ(code, CTG_ERR_CODE_TABLE_NOT_EXIST);
   ASSERT_TRUE(tableMeta == NULL);
 
@@ -1571,7 +1571,7 @@ TEST(refreshGetMeta, normal2notexist) {
 
 TEST(refreshGetMeta, normal2child) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo      vgInfo = {0};
   SArray          *vgList = NULL;
 
@@ -1602,14 +1602,14 @@ TEST(refreshGetMeta, normal2child) {
   ctgTestCurrentCTableName = ctgTestTablename;
   ctgTestCurrentSTableName = ctgTestSTablename;
 
-  code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
+  code = catalogGetTableHashVgroup(pCtg, mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
   ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1617,7 +1617,7 @@ TEST(refreshGetMeta, normal2child) {
   }
 
   STableMeta *tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 8);
   ASSERT_EQ(tableMeta->tableType, TSDB_NORMAL_TABLE);
@@ -1634,7 +1634,7 @@ TEST(refreshGetMeta, normal2child) {
     taosMsleep(50);
   }
 
-  code = catalogRefreshGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta, 0);
+  code = catalogRefreshGetTableMeta(pCtg, mockPointer, &n, &tableMeta, 0);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 9);
   ASSERT_EQ(tableMeta->tableType, TSDB_CHILD_TABLE);
@@ -1654,7 +1654,7 @@ TEST(refreshGetMeta, normal2child) {
 
 TEST(refreshGetMeta, stable2child) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo      vgInfo = {0};
   SArray          *vgList = NULL;
 
@@ -1686,14 +1686,14 @@ TEST(refreshGetMeta, stable2child) {
   ctgTestCurrentSTableName = ctgTestTablename;
   ctgTestCurrentCTableName = ctgTestTablename;
 
-  code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
+  code = catalogGetTableHashVgroup(pCtg, mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
   ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1701,7 +1701,7 @@ TEST(refreshGetMeta, stable2child) {
   }
 
   STableMeta *tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 0);
   ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);
@@ -1720,7 +1720,7 @@ TEST(refreshGetMeta, stable2child) {
   }
 
   ctgTestCurrentSTableName = ctgTestSTablename;
-  code = catalogRefreshGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta, 0);
+  code = catalogRefreshGetTableMeta(pCtg, mockPointer, &n, &tableMeta, 0);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 9);
   ASSERT_EQ(tableMeta->tableType, TSDB_CHILD_TABLE);
@@ -1740,7 +1740,7 @@ TEST(refreshGetMeta, stable2child) {
 
 TEST(refreshGetMeta, stable2stable) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo      vgInfo = {0};
   SArray          *vgList = NULL;
 
@@ -1771,14 +1771,14 @@ TEST(refreshGetMeta, stable2stable) {
   strcpy(n.tname, ctgTestTablename);
   ctgTestCurrentSTableName = ctgTestTablename;
 
-  code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
+  code = catalogGetTableHashVgroup(pCtg, mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
   ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1786,7 +1786,7 @@ TEST(refreshGetMeta, stable2stable) {
   }
 
   STableMeta *tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 0);
   ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);
@@ -1804,7 +1804,7 @@ TEST(refreshGetMeta, stable2stable) {
     taosMsleep(50);
   }
 
-  code = catalogRefreshGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta, 0);
+  code = catalogRefreshGetTableMeta(pCtg, mockPointer, &n, &tableMeta, 0);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 0);
   ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);
@@ -1827,7 +1827,7 @@ TEST(refreshGetMeta, stable2stable) {
 
 TEST(refreshGetMeta, child2stable) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo      vgInfo = {0};
   SArray          *vgList = NULL;
 
@@ -1859,14 +1859,14 @@ TEST(refreshGetMeta, child2stable) {
   ctgTestCurrentCTableName = ctgTestTablename;
   ctgTestCurrentSTableName = ctgTestSTablename;
 
-  code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
+  code = catalogGetTableHashVgroup(pCtg, mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
   ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1874,7 +1874,7 @@ TEST(refreshGetMeta, child2stable) {
   }
 
   STableMeta *tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 9);
   ASSERT_EQ(tableMeta->tableType, TSDB_CHILD_TABLE);
@@ -1891,7 +1891,7 @@ TEST(refreshGetMeta, child2stable) {
   }
 
   ctgTestCurrentSTableName = ctgTestTablename;
-  code = catalogRefreshGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta, 0);
+  code = catalogRefreshGetTableMeta(pCtg, mockPointer, &n, &tableMeta, 0);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 0);
   ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);
@@ -1914,7 +1914,7 @@ TEST(refreshGetMeta, child2stable) {
 
 TEST(tableDistVgroup, normalTable) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo     *vgInfo = NULL;
   SArray          *vgList = NULL;
 
@@ -1942,7 +1942,7 @@ TEST(tableDistVgroup, normalTable) {
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
-  code = catalogGetTableDistVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
+  code = catalogGetTableDistVgInfo(pCtg, mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
@@ -1955,7 +1955,7 @@ TEST(tableDistVgroup, normalTable) {
 
 TEST(tableDistVgroup, childTableCase) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo     *vgInfo = NULL;
   SArray          *vgList = NULL;
 
@@ -1984,7 +1984,7 @@ TEST(tableDistVgroup, childTableCase) {
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestCTablename);
 
-  code = catalogGetTableDistVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
+  code = catalogGetTableDistVgInfo(pCtg, mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
@@ -1997,7 +1997,7 @@ TEST(tableDistVgroup, childTableCase) {
 
 TEST(tableDistVgroup, superTableCase) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo     *vgInfo = NULL;
   SArray          *vgList = NULL;
 
@@ -2027,7 +2027,7 @@ TEST(tableDistVgroup, superTableCase) {
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestSTablename);
 
-  code = catalogGetTableDistVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
+  code = catalogGetTableDistVgInfo(pCtg, mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 10);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
@@ -2046,7 +2046,7 @@ TEST(tableDistVgroup, superTableCase) {
 
 TEST(dbVgroup, getSetDbVgroupCase) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo      vgInfo = {0};
   SVgroupInfo     *pvgInfo = NULL;
   SDBVgInfo       *dbVgroup = NULL;
@@ -2077,25 +2077,25 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
-  code = catalogGetDBVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, &vgList);
+  code = catalogGetDBVgInfo(pCtg, mockPointer, ctgTestDbname, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), ctgTestVgNum);
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n > 0) {
       break;
     }
     taosMsleep(50);
   }
 
-  code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
+  code = catalogGetTableHashVgroup(pCtg, mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
   ASSERT_EQ(vgInfo.epSet.numOfEps, 3);
 
-  code = catalogGetTableDistVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
+  code = catalogGetTableDistVgInfo(pCtg, mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   pvgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
@@ -2109,7 +2109,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n != 3) {
       taosMsleep(50);
     } else {
@@ -2118,12 +2118,12 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   }
 
 
-  code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
+  code = catalogGetTableHashVgroup(pCtg, mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 7);
   ASSERT_EQ(vgInfo.epSet.numOfEps, 2);
 
-  code = catalogGetTableDistVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
+  code = catalogGetTableDistVgInfo(pCtg, mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   pvgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
@@ -2137,7 +2137,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
 
 TEST(multiThread, getSetRmSameDbVgroup) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo      vgInfo = {0};
   SVgroupInfo     *pvgInfo = NULL;
   SDBVgInfo    dbVgroup = {0};
@@ -2189,7 +2189,7 @@ TEST(multiThread, getSetRmSameDbVgroup) {
 
 TEST(multiThread, getSetRmDiffDbVgroup) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo      vgInfo = {0};
   SVgroupInfo     *pvgInfo = NULL;
   SDBVgInfo    dbVgroup = {0};
@@ -2241,7 +2241,7 @@ TEST(multiThread, getSetRmDiffDbVgroup) {
 
 TEST(multiThread, ctableMeta) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo      vgInfo = {0};
   SVgroupInfo     *pvgInfo = NULL;
   SDBVgInfo    dbVgroup = {0};
@@ -2292,14 +2292,14 @@ TEST(multiThread, ctableMeta) {
 
 TEST(rentTest, allRent) {
   struct SCatalog *pCtg = NULL;
-  void            *mockPointer = (void *)0x1;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
   SVgroupInfo      vgInfo = {0};
   SVgroupInfo     *pvgInfo = NULL;
   SDBVgInfo    dbVgroup = {0};
   SArray          *vgList = NULL;
   ctgTestStop = false;
   SDbVgVersion       *dbs = NULL;
-  SSTableMetaVersion *stable = NULL;
+  SSTableVersion *stable = NULL;
   uint32_t            num = 0;
 
   ctgTestInitLogFile();
@@ -2321,7 +2321,7 @@ TEST(rentTest, allRent) {
     sprintf(n.tname, "%s_%d", ctgTestSTablename, i);
 
     STableMeta *tableMeta = NULL;
-    code = catalogGetSTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+    code = catalogGetSTableMeta(pCtg, mockPointer, &n, &tableMeta);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(tableMeta->vgId, 0);
     ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);

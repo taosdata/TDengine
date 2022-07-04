@@ -4,6 +4,11 @@ system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
 system sh/deploy.sh -n dnode5 -i 5
+system sh/cfg.sh -n dnode1 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode2 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode3 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode4 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode5 -c transPullupInterval -v 1
 system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
@@ -48,28 +53,9 @@ endi
 if $data(4)[4] != ready then
   goto step1
 endi
-#if $data(5)[4] != ready then
-#  goto step1
-#endi
 
 print =============== step2: create db
 sql create database d1 vgroups 1 replica 3
-
-# Invalid vgroup
-sql_error redistribute vgroup 3 dnode 5 dnode 3 dnode 4 
-# un changed
-sql_error redistribute vgroup 2 dnode 2 dnode 3 dnode 4
-# no enought vnodes
-sql_error redistribute vgroup 2 dnode 1 dnode 3 dnode 4 
-# offline vnodes
-sql_error redistribute vgroup 2 dnode 5 dnode 3 dnode 4 
-# Invalid replica
-sql_error redistribute vgroup 2 dnode 5 
-sql_error redistribute vgroup 2 dnode 5 dnode 3 
-sql_error redistribute vgroup 2 dnode 2 dnode 3 
-sql_error redistribute vgroup 2 dnode 2 dnode 2 
-sql_error redistribute vgroup 3 dnode 2 dnode 2 
-sql_error redistribute vgroup 2 dnode 2 dnode 2 dnode 3 
 
 system sh/exec.sh -n dnode5 -s start
 $x = 0
@@ -105,7 +91,7 @@ if $data(5)[4] != ready then
   goto step2
 endi
 
-print =============== step31: move follower
+print =============== step3: create database
 $leaderExist = 0
 $leaderVnode = 0
 $follower1 = 0
@@ -126,9 +112,9 @@ if $rows != 1 then
 endi
 if $data(2)[4] == leader then
   $leaderExist = 1
-  $leaderVnode = 4
-  $follower1 = 2
-  $follower2 = 3
+  $leaderVnode = 2
+  $follower1 = 3
+  $follower2 = 4
 endi
 if $data(2)[6] == leader then
   $leaderExist = 1
@@ -138,9 +124,9 @@ if $data(2)[6] == leader then
 endi
 if $data(2)[8] == leader then
   $leaderExist = 1
-  $leaderVnode = 2
-  $follower1 = 3
-  $follower2 = 4
+  $leaderVnode = 4
+  $follower1 = 2
+  $follower2 = 3
 endi
 if  $leaderExist != 1 then
   goto step3
@@ -158,42 +144,115 @@ if $rows != 1 then
   return -1
 endi
 
-print =============== step32: move follower2
+print =============== step40: move leader
+print redistribute vgroup 2 dnode $follower1 dnode $follower2 dnode 5 
+sql redistribute vgroup 2 dnode $follower1 dnode $follower2 dnode 5 
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step41: 
 print redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
 sql redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
 sql show d1.tables
 if $rows != 1 then
   return -1
 endi
 
-print =============== step33: move follower1
+print =============== step42: 
+print redistribute vgroup 2 dnode $follower1 dnode 5 dnode $leaderVnode
+sql redistribute vgroup 2 dnode $follower1 dnode 5 dnode $leaderVnode
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step43:
+print redistribute vgroup 2 dnode $follower1 dnode $follower2 dnode $leaderVnode
+sql redistribute vgroup 2 dnode $follower1 dnode $follower2 dnode $leaderVnode
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step44:
+print redistribute vgroup 2 dnode $follower2 dnode 5 dnode $follower1
+sql redistribute vgroup 2 dnode $follower2 dnode 5 dnode $follower1
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step45:
+print redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
+sql redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step46: 
 print redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
 sql redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
 sql show d1.tables
 if $rows != 1 then
   return -1
 endi
 
-print =============== step34: move follower2
+print =============== step47: 
+print redistribute vgroup 2 dnode $follower1 dnode 5 dnode $follower2
+sql redistribute vgroup 2 dnode $follower1 dnode 5 dnode $follower2
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step48: 
 print redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
 sql redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
 sql show d1.tables
 if $rows != 1 then
   return -1
 endi
 
-print =============== step35: move follower1
-print redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower1
-sql redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower1
+print =============== step49: 
+print redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
+sql redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
 sql show d1.tables
 if $rows != 1 then
   return -1
 endi
-
-print =============== step4: move leader
-
-
-
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT

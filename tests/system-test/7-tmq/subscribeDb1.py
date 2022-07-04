@@ -72,10 +72,10 @@ class TDTestCase:
             if tdSql.getRows() == expectRows:
                 break
             else:
-                time.sleep(5)        
-
+                time.sleep(5)
+        
         for i in range(expectRows):
-            tdLog.info ("ts: %s, consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 0), tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
+            tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
             resultList.append(tdSql.getData(i , 3))
         
         return resultList
@@ -85,7 +85,7 @@ class TDTestCase:
             logFile = cfgPath + '/../log/valgrind-tmq.log'
             shellCmd = 'nohup valgrind --log-file=' + logFile
             shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
-
+        
         if (platform.system().lower() == 'windows'):
             shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
             shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName) 
@@ -97,7 +97,7 @@ class TDTestCase:
         tdLog.info(shellCmd)
         os.system(shellCmd)
 
-    def create_tables(self,tsql, dbName,vgroups,stbName,ctbNum,rowsPerTbl):
+    def create_tables(self,tsql, dbName,vgroups,stbName,ctbNum):
         tsql.execute("create database if not exists %s vgroups %d"%(dbName, vgroups))        
         tsql.execute("use %s" %dbName)
         tsql.execute("create table  if not exists %s (ts timestamp, c1 bigint, c2 binary(16)) tags(t1 int)"%stbName)
@@ -151,8 +151,7 @@ class TDTestCase:
                            parameterDict["dbName"],\
                            parameterDict["vgroups"],\
                            parameterDict["stbName"],\
-                           parameterDict["ctbNum"],\
-                           parameterDict["rowsPerTbl"])
+                           parameterDict["ctbNum"])
 
         self.insert_data(tsql,\
                          parameterDict["dbName"],\
@@ -163,16 +162,16 @@ class TDTestCase:
                          parameterDict["startTs"])                           
         return
 
-    def tmqCase8(self, cfgPath, buildPath):
-        tdLog.printNoPrefix("======== test case 8: Produce while one consume to subscribe one db, inclue 1 stb")
+    def tmqCase6(self, cfgPath, buildPath):
+        tdLog.printNoPrefix("======== test case 6: Produce while one consumers to subscribe tow topic, Each contains one db")
         tdLog.info("step 1: create database, stb, ctb and insert data")
         # create and start thread
         parameterDict = {'cfg':        '',       \
-                         'dbName':     'db8',    \
+                         'dbName':     'db60',    \
                          'vgroups':    4,        \
                          'stbName':    'stb',    \
                          'ctbNum':     10,       \
-                         'rowsPerTbl': 10000,    \
+                         'rowsPerTbl': 5000,    \
                          'batchNum':   100,      \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
@@ -183,14 +182,32 @@ class TDTestCase:
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
-        
+
+        parameterDict2 = {'cfg':        '',       \
+                         'dbName':     'db61',    \
+                         'vgroups':    4,        \
+                         'stbName':    'stb2',    \
+                         'ctbNum':     10,       \
+                         'rowsPerTbl': 5000,    \
+                         'batchNum':   100,      \
+                         'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
+        parameterDict['cfg'] = cfgPath
+
+        tdSql.execute("create database if not exists %s vgroups %d" %(parameterDict2['dbName'], parameterDict2['vgroups']))
+
+        prepareEnvThread2 = threading.Thread(target=self.prepareEnv, kwargs=parameterDict2)
+        prepareEnvThread2.start()
+
         tdLog.info("create topics from db")
-        topicName1 = 'topic_db1'
+        topicName1 = 'topic_db60'
+        topicName2 = 'topic_db61'
         
-        tdSql.execute("create topic %s as database %s" %(topicName1, parameterDict['dbName']))
+        tdSql.execute("create topic %s as database %s" %(topicName1, parameterDict['dbName']))        
+        tdSql.execute("create topic %s as database %s" %(topicName2, parameterDict2['dbName']))
+        
         consumerId   = 0
-        expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] / 2
-        topicList    = topicName1
+        expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] +  parameterDict2["rowsPerTbl"] * parameterDict2["ctbNum"]
+        topicList    = topicName1 + ',' + topicName2
         ifcheckdata  = 0
         ifManualCommit = 0
         keyList      = 'group.id:cgrp1,\
@@ -199,6 +216,9 @@ class TDTestCase:
                         auto.offset.reset:earliest'
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
         
+        #consumerId   = 1
+        #self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
+        
         event.wait()
 
         tdLog.info("start consume processor")
@@ -208,7 +228,8 @@ class TDTestCase:
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         # wait for data ready
-        prepareEnvThread.join()
+        prepareEnvThread.join()        
+        prepareEnvThread2.join()
         
         tdLog.info("insert process end, and start to check consume result")
         expectRows = 1
@@ -221,36 +242,21 @@ class TDTestCase:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
 
-        
-        tdLog.info("again start consume processer")
-        self.initConsumerTable()
-        expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"]
-        self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
-        expectRows = 1
-        resultList = self.selectConsumeResult(expectRows)
-        totalConsumeRows = 0
-        for i in range(expectRows):
-            totalConsumeRows += resultList[i]
-        
-        if totalConsumeRows != expectrowcnt:
-            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
-            tdLog.exit("tmq consume rows error!")
-
         tdSql.query("drop topic %s"%topicName1)
+        tdSql.query("drop topic %s"%topicName2)
 
-        tdLog.printNoPrefix("======== test case 8 end ...... ")
+        tdLog.printNoPrefix("======== test case 6 end ...... ")
 
-    def tmqCase9(self, cfgPath, buildPath):
-        tdLog.printNoPrefix("======== test case 9: Produce while one consume to subscribe one db, inclue 1 stb")
+    def tmqCase7(self, cfgPath, buildPath):
+        tdLog.printNoPrefix("======== test case 7: Produce while two consumers to subscribe tow topic, Each contains one db")
         tdLog.info("step 1: create database, stb, ctb and insert data")
         # create and start thread
         parameterDict = {'cfg':        '',       \
-                         'dbName':     'db9',    \
+                         'dbName':     'db70',    \
                          'vgroups':    4,        \
                          'stbName':    'stb',    \
                          'ctbNum':     10,       \
-                         'rowsPerTbl': 10000,    \
+                         'rowsPerTbl': 5000,    \
                          'batchNum':   100,      \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
@@ -261,14 +267,32 @@ class TDTestCase:
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
-        
+
+        parameterDict2 = {'cfg':        '',       \
+                         'dbName':     'db71',    \
+                         'vgroups':    4,        \
+                         'stbName':    'stb2',    \
+                         'ctbNum':     10,       \
+                         'rowsPerTbl': 5000,    \
+                         'batchNum':   100,      \
+                         'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
+        parameterDict['cfg'] = cfgPath
+
+        tdSql.execute("create database if not exists %s vgroups %d" %(parameterDict2['dbName'], parameterDict2['vgroups']))
+
+        prepareEnvThread2 = threading.Thread(target=self.prepareEnv, kwargs=parameterDict2)
+        prepareEnvThread2.start()
+
         tdLog.info("create topics from db")
-        topicName1 = 'topic_db1'
+        topicName1 = 'topic_db60'
+        topicName2 = 'topic_db61'
         
-        tdSql.execute("create topic %s as database %s" %(topicName1, parameterDict['dbName']))
+        tdSql.execute("create topic %s as database %s" %(topicName1, parameterDict['dbName']))        
+        tdSql.execute("create topic %s as database %s" %(topicName2, parameterDict2['dbName']))
+        
         consumerId   = 0
-        expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] / 2
-        topicList    = topicName1
+        expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] +  parameterDict2["rowsPerTbl"] * parameterDict2["ctbNum"]
+        topicList    = topicName1 + ',' + topicName2
         ifcheckdata  = 0
         ifManualCommit = 1
         keyList      = 'group.id:cgrp1,\
@@ -277,86 +301,7 @@ class TDTestCase:
                         auto.offset.reset:earliest'
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
         
-        event.wait()
-
-        tdLog.info("start consume processor")
-        pollDelay = 100
-        showMsg   = 1
-        showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
-
-        # wait for data ready
-        prepareEnvThread.join()
-        
-        tdLog.info("insert process end, and start to check consume result")
-        expectRows = 1
-        resultList = self.selectConsumeResult(expectRows)
-        totalConsumeRows = 0
-        for i in range(expectRows):
-            totalConsumeRows += resultList[i]
-        
-        tdSql.query("select count(*) from %s.%s" %(parameterDict['dbName'], parameterDict['stbName']))
-        countOfStb = tdSql.getData(0,0)
-        print ("====total rows of stb: %d"%countOfStb)
-
-        tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
-        if totalConsumeRows < expectrowcnt:
-            tdLog.exit("tmq consume rows error!")
-        
-        tdLog.info("again start consume processer")
-        self.initConsumerTable()
-        expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"]
-        self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
-        expectRows = 1
-        resultList = self.selectConsumeResult(expectRows)
-        totalConsumeRows2 = 0
-        for i in range(expectRows):
-            totalConsumeRows2 += resultList[i]
-
-        tdLog.info("firstly act consume rows: %d"%(totalConsumeRows))
-        tdLog.info("secondly act consume rows: %d, expect consume rows: %d"%(totalConsumeRows2, expectrowcnt))
-        if totalConsumeRows + totalConsumeRows2 != expectrowcnt:
-            tdLog.exit("tmq consume rows error!")
-
-        tdSql.query("drop topic %s"%topicName1)
-
-        tdLog.printNoPrefix("======== test case 9 end ...... ")
-
-    def tmqCase10(self, cfgPath, buildPath):
-        tdLog.printNoPrefix("======== test case 10: Produce while one consume to subscribe one db, inclue 1 stb")
-        tdLog.info("step 1: create database, stb, ctb and insert data")
-        # create and start thread
-        parameterDict = {'cfg':        '',       \
-                         'dbName':     'db10',    \
-                         'vgroups':    4,        \
-                         'stbName':    'stb',    \
-                         'ctbNum':     10,       \
-                         'rowsPerTbl': 10000,    \
-                         'batchNum':   100,      \
-                         'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
-        parameterDict['cfg'] = cfgPath
-
-        self.initConsumerTable()
-
-        tdSql.execute("create database if not exists %s vgroups %d" %(parameterDict['dbName'], parameterDict['vgroups']))
-
-        prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
-        prepareEnvThread.start()
-        
-        tdLog.info("create topics from db")
-        topicName1 = 'topic_db1'
-        
-        tdSql.execute("create topic %s as database %s" %(topicName1, parameterDict['dbName']))
-        consumerId   = 0
-        expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"]
-        topicList    = topicName1
-        ifcheckdata  = 0
-        ifManualCommit = 1
-        keyList      = 'group.id:cgrp1,\
-                        enable.auto.commit:false,\
-                        auto.commit.interval.ms:6000,\
-                        auto.offset.reset:earliest'
+        consumerId   = 1
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
         
         event.wait()
@@ -366,24 +311,13 @@ class TDTestCase:
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
-
-        time.sleep(2)
-        tdLog.info("pkill consume processor")
-        if (platform.system().lower() == 'windows'):
-            os.system("TASKKILL /F /IM tmq_sim.exe")
-        else:
-            os.system('pkill tmq_sim')
-        expectRows = 0
-        resultList = self.selectConsumeResult(expectRows)
 
         # wait for data ready
         prepareEnvThread.join()        
+        prepareEnvThread2.join()
+        
         tdLog.info("insert process end, and start to check consume result")
-
-        tdLog.info("again start consume processer")
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
-       
-        expectRows = 1
+        expectRows = 2
         resultList = self.selectConsumeResult(expectRows)
         totalConsumeRows = 0
         for i in range(expectRows):
@@ -393,85 +327,10 @@ class TDTestCase:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
 
-        time.sleep(15)
         tdSql.query("drop topic %s"%topicName1)
+        tdSql.query("drop topic %s"%topicName2)
 
-        tdLog.printNoPrefix("======== test case 10 end ...... ")
-
-    def tmqCase11(self, cfgPath, buildPath):
-        tdLog.printNoPrefix("======== test case 11: Produce while one consume to subscribe one db, inclue 1 stb")
-        tdLog.info("step 1: create database, stb, ctb and insert data")
-        # create and start thread
-        parameterDict = {'cfg':        '',       \
-                         'dbName':     'db11',    \
-                         'vgroups':    4,        \
-                         'stbName':    'stb',    \
-                         'ctbNum':     10,       \
-                         'rowsPerTbl': 10000,    \
-                         'batchNum':   100,      \
-                         'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
-        parameterDict['cfg'] = cfgPath
-
-        self.initConsumerTable()
-
-        tdSql.execute("create database if not exists %s vgroups %d" %(parameterDict['dbName'], parameterDict['vgroups']))
-
-        prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
-        prepareEnvThread.start()
-        
-        tdLog.info("create topics from db")
-        topicName1 = 'topic_db1'
-        
-        tdSql.execute("create topic %s as database %s" %(topicName1, parameterDict['dbName']))
-        consumerId   = 0
-        expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"]
-        topicList    = topicName1
-        ifcheckdata  = 0
-        ifManualCommit = 1
-        keyList      = 'group.id:cgrp1,\
-                        enable.auto.commit:true,\
-                        auto.commit.interval.ms:1000,\
-                        auto.offset.reset:earliest'
-        self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
-        
-        event.wait()
-
-        tdLog.info("start consume processor")
-        pollDelay = 100
-        showMsg   = 1
-        showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
-
-        time.sleep(5)
-        tdLog.info("pkill consume processor")
-        if (platform.system().lower() == 'windows'):
-            os.system("TASKKILL /F /IM tmq_sim.exe")
-        else:
-            os.system('pkill tmq_sim')
-        expectRows = 0
-        resultList = self.selectConsumeResult(expectRows)
-
-        # wait for data ready
-        prepareEnvThread.join()        
-        tdLog.info("insert process end, and start to check consume result")
-
-        tdLog.info("again start consume processer")
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
-       
-        expectRows = 1
-        resultList = self.selectConsumeResult(expectRows)
-        totalConsumeRows = 0
-        for i in range(expectRows):
-            totalConsumeRows += resultList[i]
-        
-        if totalConsumeRows >= expectrowcnt or totalConsumeRows <= 0:
-            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
-            tdLog.exit("tmq consume rows error!")
-
-        time.sleep(15)
-        tdSql.query("drop topic %s"%topicName1)
-
-        tdLog.printNoPrefix("======== test case 11 end ...... ")
+        tdLog.printNoPrefix("======== test case 7 end ...... ")
 
     def run(self):
         tdSql.prepare()
@@ -484,10 +343,9 @@ class TDTestCase:
         cfgPath = buildPath + "/../sim/psim/cfg"
         tdLog.info("cfgPath: %s" % cfgPath)
 
-        self.tmqCase8(cfgPath, buildPath)
-        self.tmqCase9(cfgPath, buildPath) 
-        self.tmqCase10(cfgPath, buildPath)
-        self.tmqCase11(cfgPath, buildPath)
+        self.tmqCase6(cfgPath, buildPath)
+        self.tmqCase7(cfgPath, buildPath)
+
 
     def stop(self):
         tdSql.close()

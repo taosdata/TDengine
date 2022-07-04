@@ -19,7 +19,8 @@
 #include "tdatablock.h"
 #include "vnode.h"
 
-static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, bool assignUid, char* id) {
+static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, bool assignUid,
+                                char* id) {
   ASSERT(pOperator != NULL);
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
@@ -39,19 +40,16 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     SStreamBlockScanInfo* pInfo = pOperator->info;
     pInfo->assignBlockUid = assignUid;
 
-    // the block type can not be changed in the streamscan operators
-    if (pInfo->blockType == 0) {
-      pInfo->blockType = type;
-    } else if (pInfo->blockType != type) {
-      return TSDB_CODE_QRY_APP_ERROR;
-    }
+    // TODO: if a block was set but not consumed,
+    // prevent setting a different type of block
+    pInfo->blockType = type;
 
-    if (type == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
+    if (type == STREAM_INPUT__DATA_SUBMIT) {
       if (tqReadHandleSetMsg(pInfo->streamBlockReader, input, 0) < 0) {
         qError("submit msg messed up when initing stream block, %s" PRIx64, id);
         return TSDB_CODE_QRY_APP_ERROR;
       }
-    } else {
+    } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
 
@@ -62,10 +60,23 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         taosArrayAddAll(p->pDataBlock, pDataBlock->pDataBlock);
         taosArrayPush(pInfo->pBlockLists, &p);
       }
+    } else if (type == STREAM_INPUT__DATA_SCAN) {
+      // do nothing
+      ASSERT(pInfo->blockType == STREAM_INPUT__DATA_SCAN);
+    } else {
+      ASSERT(0);
     }
 
     return TSDB_CODE_SUCCESS;
   }
+}
+
+int32_t qStreamScanSnapshot(qTaskInfo_t tinfo) {
+  if (tinfo == NULL) {
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  return doSetStreamBlock(pTaskInfo->pRoot, NULL, 0, STREAM_INPUT__DATA_SCAN, 0, NULL);
 }
 
 int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type, bool assignUid) {
@@ -83,7 +94,8 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
 
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
-  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, (void**)pBlocks, numOfBlocks, type, assignUid, GET_TASKID(pTaskInfo));
+  int32_t code =
+      doSetStreamBlock(pTaskInfo->pRoot, (void**)pBlocks, numOfBlocks, type, assignUid, GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed to set the stream block data", GET_TASKID(pTaskInfo));
   } else {
@@ -94,17 +106,9 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
 }
 
 qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
-  if (msg == NULL || streamReadHandle == NULL) {
+  if (msg == NULL) {
     return NULL;
   }
-
-  // print those info into log
-#if 0
-  pMsg->sId = pMsg->sId;
-  pMsg->queryId = pMsg->queryId;
-  pMsg->taskId = pMsg->taskId;
-  pMsg->contentLen = pMsg->contentLen;
-#endif
 
   /*qDebugL("stream task string %s", (const char*)msg);*/
 
@@ -116,7 +120,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(streamReadHandle, 0, 0, plan, &pTaskInfo, NULL, OPTR_EXEC_MODEL_STREAM);
+  code = qCreateExecTask(streamReadHandle, 0, 0, plan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_STREAM);
   if (code != TSDB_CODE_SUCCESS) {
     // TODO: destroy SSubplan & pTaskInfo
     terrno = code;
@@ -141,10 +145,12 @@ static SArray* filterQualifiedChildTables(const SStreamBlockScanInfo* pScanInfo,
       continue;
     }
 
-    ASSERT(mr.me.type == TSDB_CHILD_TABLE);
-    if (mr.me.ctbEntry.suid != pScanInfo->tableUid) {
+    // TODO handle ntb case
+    if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != pScanInfo->tableUid) {
       continue;
     }
+    /*pScanInfo->pStreamScanOp->pTaskInfo->tableqinfoList.*/
+    // handle multiple partition
 
     taosArrayPush(qa, id);
   }
@@ -162,7 +168,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
     pInfo = pInfo->pDownstream[0];
   }
 
-  int32_t code = 0;
+  int32_t               code = 0;
   SStreamBlockScanInfo* pScanInfo = pInfo->info;
   if (isAdd) {  // add new table id
     SArray* qa = filterQualifiedChildTables(pScanInfo, tableIdList);
@@ -178,9 +184,10 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
   return code;
 }
 
-int32_t qGetQueriedTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion, int32_t* tversion) {
+int32_t qGetQueriedTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion,
+                                      int32_t* tversion) {
   ASSERT(tinfo != NULL && dbName != NULL && tableName != NULL);
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tinfo;
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
   *sversion = pTaskInfo->schemaVer.sversion;
   *tversion = pTaskInfo->schemaVer.tversion;

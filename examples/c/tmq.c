@@ -26,6 +26,14 @@ static void msg_process(TAOS_RES* msg) {
   printf("topic: %s\n", tmq_get_topic_name(msg));
   printf("db: %s\n", tmq_get_db_name(msg));
   printf("vg: %d\n", tmq_get_vgroup_id(msg));
+  if (tmq_get_res_type(msg) == TMQ_RES_TABLE_META) {
+    void*   meta;
+    int32_t metaLen;
+    tmq_get_raw_meta(msg, &meta, &metaLen);
+
+    printf("meta, len is %d\n", metaLen);
+    return;
+  }
   while (1) {
     TAOS_ROW row = taos_fetch_row(msg);
     if (row == NULL) break;
@@ -47,7 +55,7 @@ int32_t init_env() {
     return -1;
   }
 
-  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 2");
+  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 1");
   if (taos_errno(pRes) != 0) {
     printf("error in create db, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -76,19 +84,41 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table if not exists ct1 using st1 tags(2000)");
+  pRes = taos_query(pConn, "insert into ct0 values(now, 1, 2, 'a')");
   if (taos_errno(pRes) != 0) {
-    printf("failed to create child table tu2, reason:%s\n", taos_errstr(pRes));
+    printf("failed to insert into ct0, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table if not exists ct1 using st1 tags(2000)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create child table ct1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "insert into ct1 values(now, 3, 4, 'b')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to insert into ct1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create table if not exists ct3 using st1 tags(3000)");
   if (taos_errno(pRes) != 0) {
-    printf("failed to create child table tu3, reason:%s\n", taos_errstr(pRes));
+    printf("failed to create child table ct3, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
-
   taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "insert into ct3 values(now, 5, 6, 'c')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to insert into ct3, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
   return 0;
 }
 
@@ -107,7 +137,7 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-  /*pRes = taos_query(pConn, "create topic topic_ctb_column as database abc1");*/
+  /*pRes = taos_query(pConn, "create topic topic_ctb_column with meta as database abc1");*/
   pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from st1");
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topic_ctb_column, reason:%s\n", taos_errstr(pRes));
@@ -146,8 +176,8 @@ int32_t create_topic() {
   return 0;
 }
 
-void tmq_commit_cb_print(tmq_t* tmq, tmq_resp_err_t resp, tmq_topic_vgroup_list_t* offsets, void* param) {
-  printf("commit %d tmq %p offsets %p param %p\n", resp, tmq, offsets, param);
+void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
+  printf("commit %d tmq %p param %p\n", code, tmq, param);
 }
 
 tmq_t* build_consumer() {
@@ -167,7 +197,10 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "msg.with.table.name", "true");
-  tmq_conf_set(conf, "enable.auto.commit", "false");
+  tmq_conf_set(conf, "enable.auto.commit", "true");
+
+  tmq_conf_set(conf, "experimental.snapshot.enable", "true");
+
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   assert(tmq);
@@ -183,16 +216,16 @@ tmq_list_t* build_topic_list() {
 }
 
 void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
-  tmq_resp_err_t err;
+  int32_t code;
 
-  if ((err = tmq_subscribe(tmq, topics))) {
-    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(err));
+  if ((code = tmq_subscribe(tmq, topics))) {
+    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(code));
     printf("subscribe err\n");
     return;
   }
   int32_t cnt = 0;
   while (running) {
-    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 0);
+    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, -1);
     if (tmqmessage) {
       cnt++;
       msg_process(tmqmessage);
@@ -201,12 +234,13 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
       taos_free_result(tmqmessage);
       /*} else {*/
       /*break;*/
+      /*tmq_commit_sync(tmq, NULL);*/
     }
   }
 
-  err = tmq_consumer_close(tmq);
-  if (err)
-    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(err));
+  code = tmq_consumer_close(tmq);
+  if (code)
+    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(code));
   else
     fprintf(stderr, "%% Consumer closed\n");
 }
@@ -214,11 +248,11 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
 void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   static const int MIN_COMMIT_COUNT = 1;
 
-  int            msg_count = 0;
-  tmq_resp_err_t err;
+  int     msg_count = 0;
+  int32_t code;
 
-  if ((err = tmq_subscribe(tmq, topics))) {
-    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(err));
+  if ((code = tmq_subscribe(tmq, topics))) {
+    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(code));
     return;
   }
 
@@ -239,14 +273,14 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
       msg_process(tmqmessage);
       taos_free_result(tmqmessage);
 
-      /*tmq_commit_async(tmq, NULL, tmq_commit_cb_print, NULL);*/
+      /*tmq_commit_sync(tmq, NULL);*/
       /*if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);*/
     }
   }
 
-  err = tmq_consumer_close(tmq);
-  if (err)
-    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(err));
+  code = tmq_consumer_close(tmq);
+  if (code)
+    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(code));
   else
     fprintf(stderr, "%% Consumer closed\n");
 }

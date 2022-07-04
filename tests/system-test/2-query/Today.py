@@ -4,394 +4,184 @@ from util.dnodes import *
 from util.log import *
 from util.sql import *
 from util.cases import *
+import datetime
+import pandas as pd
 
 
 class TDTestCase:
 
-    updatecfgDict = {'rpcDebugFlag': '143'}
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
+        self.today_date = datetime.datetime.strptime(datetime.datetime.now().strftime("%Y-%m-%d"), "%Y-%m-%d")
+        self.today_ts = datetime.datetime.strptime(datetime.datetime.now().strftime("%Y-%m-%d"), "%Y-%m-%d").timestamp()
+        self.time_unit = ['b','u','a','s','m','h','d','w']
+        self.error_param = ['1.5','abc','!@#','"abc"','today()']
+        self.arithmetic_operators = ['+','-','*','/']
+        self.relational_operator = ['<','<=','=','>=','>']
+        # prepare data
+        self.ntbname = 'ntb'
+        self.stbname = 'stb'
+        self.column_dict = {
+            'ts':'timestamp',
+            'c1':'int',
+            'c2':'float',
+            'c3':'double',
+            'c4':'timestamp'
+        }
+        self.tag_dict = {
+            't0':'int'
+        }
+        self.tbnum = 2
+        self.tag_values = [
+            f'10',
+            f'100'
+        ]
+        self.values_list = [f'now,1,1.55,100.555555,today()',
+                        f'now+1d,10,11.11,99.999999,now()',
+                        f'today(),3,3.333,333.333333,now()',
+                        f'today()-1d,10,11.11,99.999999,now()',
+                        f'today()+1d,1,1.55,100.555555,today()']
+        self.db_percision = ['ms','us','ns']
+    def set_create_normaltable_sql(self, ntbname, column_dict):
+        column_sql = ''
+        for k, v in column_dict.items():
+            column_sql += f"{k} {v},"
+        create_ntb_sql = f'create table {ntbname} ({column_sql[:-1]})'
+        return create_ntb_sql
+    def set_create_stable_sql(self,stbname,column_dict,tag_dict):
+        column_sql = ''
+        tag_sql = ''
+        for k,v in column_dict.items():
+            column_sql += f"{k} {v},"
+        for k,v in tag_dict.items():
+            tag_sql += f"{k} {v},"
+        create_stb_sql = f'create table {stbname} ({column_sql[:-1]}) tags({tag_sql[:-1]})'
+        return create_stb_sql
+        
+    def data_check(self,column_dict={},tbname = '',values_list = [],tb_num = 1,tb = 'tb',precision = 'ms'):
+        for k,v in column_dict.items():
+            num_up = 0
+            num_down = 0
+            num_same = 0
+            if v.lower() == 'timestamp':
+                tdSql.query(f'select {k} from {tbname}')
+                for i in tdSql.queryResult:
+                    if precision == 'ms':
+                        if int(i[0].timestamp())*1000 > int(self.today_ts)*1000:
+                            num_up += 1
+                        elif int(i[0].timestamp())*1000 == int(self.today_ts)*1000:
+                            num_same += 1
+                        elif int(i[0].timestamp())*1000 < int(self.today_ts)*1000:
+                            num_down += 1
+                    elif precision == 'us':
+                        if int(i[0].timestamp())*1000000 > int(self.today_ts)*1000000:
+                            num_up += 1
+                        elif int(i[0].timestamp())*1000000 == int(self.today_ts)*1000000:
+                            num_same += 1
+                        elif int(i[0].timestamp())*1000000 < int(self.today_ts)*1000000:
+                            num_down += 1
+                    elif precision == 'ns':
+                        if i[0] > int(self.today_ts)*1000000000:
+                            num_up += 1
+                        elif i[0] == int(self.today_ts)*1000000000:
+                            num_same += 1
+                        elif i[0] < int(self.today_ts)*1000000000:
+                            num_down += 1
+                tdSql.query(f"select today() from {tbname}")
+                tdSql.checkRows(len(values_list)*tb_num)
+                tdSql.checkData(0, 0, str(self.today_date))
+                tdSql.query(f"select * from {tbname} where {k}=today()")
+                if tb == 'tb':
+                    tdSql.checkRows(num_same*tb_num)
+                elif tb == 'stb':
+                    tdSql.checkRows(num_same)
+                for i in [f'{tbname}',f'db.{tbname}']:
+                    for unit in self.time_unit:
+                        for symbol in ['+','-']:
+                            tdSql.query(f"select today() {symbol}1{unit} from {i}")
+                            tdSql.checkRows(len(values_list)*tb_num)
+                    for unit in self.error_param:
+                        for symbol in self.arithmetic_operators:
+                            tdSql.error(f'select today() {symbol}{unit} from {i}')
+                    for symbol in self.arithmetic_operators:
+                        tdSql.query(f'select now(){symbol}null from {i}')
+                        tdSql.checkData(0,0,None)
+                    for symbol in self.relational_operator:
+                        tdSql.query(f'select * from {i} where {k} {symbol} today()')
+                        if symbol == '<' :
+                            if tb == 'tb':
+                                tdSql.checkRows(num_down*tb_num)
+                            elif tb == 'stb':
+                                tdSql.checkRows(num_down)
+                        elif symbol == '<=':
+                            if tb == 'tb':
+                                tdSql.checkRows((num_same+num_down)*tb_num)
+                            elif tb == 'stb':
+                                tdSql.checkRows(num_same+num_down)
+                        elif symbol == '=':
+                            if tb == 'tb':
+                                tdSql.checkRows(num_same*tb_num)
+                            elif tb == 'stb':
+                                tdSql.checkRows(num_same)
+                        elif symbol == '>=':
+                            if tb == 'tb':
+                                tdSql.checkRows((num_up + num_same)*tb_num)
+                            elif tb == 'stb':
+                                tdSql.checkRows(num_up + num_same)
+                        elif symbol == '>':
+                            if tb == 'tb':
+                                tdSql.checkRows(num_up*tb_num)
+                            elif tb == 'stb':
+                                tdSql.checkRows(num_up)
+                tdSql.query(f"select today()/0 from {tbname}")
+                tdSql.checkRows(len(values_list)*tb_num)
+                tdSql.checkData(0,0,None)
+                tdSql.query(f"select {k} from {tbname} where {k}=today()")
+                if tb == 'tb':
+                    tdSql.checkRows(num_same*tb_num)
+                    for i in range(num_same*tb_num):
+                        tdSql.checkData(i, 0, str(self.today_date))
+                elif tb == 'stb':
+                    tdSql.checkRows(num_same)
+                    for i in range(num_same):
+                        tdSql.checkData(i, 0, str(self.today_date))
+    def today_check_ntb(self):
+        for time_unit in self.db_percision:
+            print(time_unit)
+            tdSql.execute(f'create database db precision "{time_unit}"')
+            tdSql.execute('use db')
+            tdSql.execute(self.set_create_normaltable_sql(self.ntbname,self.column_dict))
+            for i in self.values_list:
+                tdSql.execute(
+                    f'insert into {self.ntbname} values({i})')
+            self.data_check(self.column_dict,self.ntbname,self.values_list,1,'tb',time_unit)
+            tdSql.execute('drop database db')
+    def today_check_stb_tb(self):
+        for time_unit in self.db_percision:
+            print(time_unit)
+            tdSql.execute(f'create database db precision "{time_unit}"')
+            tdSql.execute('use db')
+            tdSql.execute(self.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
+            for i in range(self.tbnum):
+                tdSql.execute(f'create table if not exists {self.stbname}_{i} using {self.stbname} tags({self.tag_values[i]})')
+                for j in self.values_list:
+                    tdSql.execute(f'insert into {self.stbname}_{i} values ({j})')
+            # check child table
+            for i in range(self.tbnum):
+                self.data_check(self.column_dict,f'{self.stbname}_{i}',self.values_list,1,'tb',time_unit)
+            # check stable
+            self.data_check(self.column_dict,self.stbname,self.values_list,self.tbnum,'stb',time_unit)
+            tdSql.execute('drop database db')
 
     def run(self):  # sourcery skip: extract-duplicate-method
-        # for func now() , today(), timezone()
-        tdSql.prepare()
-        today_date = datetime.datetime.strptime(
-            datetime.datetime.now().strftime("%Y-%m-%d"), "%Y-%m-%d")
+        
+        self.today_check_ntb()
+        self.today_check_stb_tb()
 
-        tdLog.printNoPrefix("==========step1:create tables==========")
-        tdSql.execute(
-            '''create table if not exists ntb
-            (ts timestamp, c1 int, c2 float,c3 double,c4 timestamp)
-            '''
-        )
-        tdSql.execute(
-            '''create table if not exists stb
-            (ts timestamp, c1 int, c2 float,c3 double,c4 timestamp) tags(t0 int)
-            '''
-        )
-        tdSql.execute(
-            '''create table if not exists stb_1 using stb tags(100)
-            '''
-        )
-        tdLog.printNoPrefix("==========step2:insert data into ntb==========")
-        tdSql.execute(
-            'insert into ntb values(now,1,1.55,100.555555,today())("2020-1-1 00:00:00",10,11.11,99.999999,now())(today(),3,3.333,333.333333,now())')
-        tdSql.execute(
-            'insert into stb_1 values(now,1,1.55,100.555555,today())("2020-1-1 00:00:00",10,11.11,99.999999,now())(today(),3,3.333,333.333333,now())')
-        tdLog.printNoPrefix("==========step2:query test of ntb ==========")
-
-        # test function today()
-        # normal table
-        tdSql.query("select today() from ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 0, str(today_date))
-        tdSql.query("select today() from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 0, str(today_date))
-        tdSql.query("select today() +1w from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1w from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1d from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1d from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1h from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1h from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1m from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1m from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1s from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1s from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1a from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1a from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1u from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1u from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1b from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1b from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1w from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1w from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1d from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1d from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1h from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1h from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1m from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1m from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1s from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1s from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1a from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1a from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1u from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1u from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1b from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1b from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select * from ntb where ts=today()")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 3)
-        tdSql.query("select * from ntb where ts<=today()")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 10)
-        # for bug
-        # tdSql.query("select * from ntb where ts<today()")
-        # tdSql.checkRows(1)
-        tdSql.query("select * from ntb where ts>=today()")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 3)
-        # tdSql.query("select * from ntb where ts>today()")
-        # tdSql.checkRows(1)
-        tdSql.query("select c4 from ntb where c4=today()")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, str(today_date))
-        tdSql.query("select today() from ntb where ts<now()")
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 0, str(today_date))
-
-        tdSql.error("select today()+1.5 from ntb")
-        tdSql.error("select today()-1.5 from ntb")
-        tdSql.error("select today()*1.5 from ntb")
-        tdSql.error("select today()/1.5 from ntb")
-        tdSql.error("select today()+1.5 from db.ntb")
-        tdSql.error("select today()-1.5 from db.ntb")
-        tdSql.error("select today()*1.5 from db.ntb")
-        tdSql.error("select today()/1.5 from db.ntb")
-        tdSql.query("select today()+null from ntb")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()+null from db.ntb")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()-null from ntb")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()-null from db.ntb")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()*null from ntb")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()*null from db.ntb")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()/null from ntb")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()/null from db.ntb")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()/0 from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,None)
-        tdSql.checkData(1,0,None)
-        tdSql.checkData(2,0,None)
-        # stable
-        tdSql.query("select today() from stb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 0, str(today_date))
-        tdSql.query("select today() +1w from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1w from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1d from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1d from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1h from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1h from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1m from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1m from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1s from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1s from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1a from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1a from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1u from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1u from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1b from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1b from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1w from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1w from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1d from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1d from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1h from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1h from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1m from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1m from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1s from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1s from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1a from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1a from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1u from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1u from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1b from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1b from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select ts from stb where ts=today()")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, str(today_date))
-        tdSql.query("select ts from stb where ts<=today()")
-        tdSql.checkRows(2)
-
-        tdSql.error("select today()+1.5 from stb")
-        tdSql.error("select today()-1.5 from stb")
-        tdSql.error("select today()*1.5 from stb")
-        tdSql.error("select today()/1.5 from stb")
-        tdSql.query("select today()+null from stb")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()+null from db.stb")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()-null from stb")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()-null from db.stb")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()*null from stb")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()*null from db.stb")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()/null from stb")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()/null from db.stb")
-        tdSql.checkData(0,0,None)
-        # 
-        # tdSql.query("select * from ntb where ts<today()")
-        # tdSql.checkRows(1)
-        # tdSql.query("select * from stb where ts>=today()")
-        # tdSql.checkRows(2)
-        # tdSql.query("select * from ntb where ts>today()")
-        # tdSql.checkRows(1)
-        tdSql.query("select c4 from stb where c4=today()")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, str(today_date))
-        tdSql.query("select today() from stb where ts<now()")
-        tdSql.checkRows(3)
-        tdSql.query("select today()/0 from db.stb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,None)
-        tdSql.checkData(1,0,None)
-        tdSql.checkData(2,0,None)
-
-        # table
-        tdSql.query("select today() from stb_1")
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 0, str(today_date))
-        tdSql.query("select today() from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 0, str(today_date))
-        tdSql.query("select today() +1w from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1w from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1d from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1d from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1h from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1h from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1m from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1m from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1s from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1s from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1a from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1a from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1u from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1u from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1b from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() +1b from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1w from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1w from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1d from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1d from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1h from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1h from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1m from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1m from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1s from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1s from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1a from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1a from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1u from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1u from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1b from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select today() -1b from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select ts from stb_1 where ts=today()")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, str(today_date))
-        tdSql.query("select ts from stb_1 where ts<=today()")
-        tdSql.checkRows(2)
-        # for bug
-        tdSql.query("select * from ntb where ts<today()")
-        tdSql.checkRows(1)
-        tdSql.checkData(0,0,"2020-1-1 00:00:00")
-        tdSql.query("select * from stb_1 where ts>=today()")
-        tdSql.checkRows(2)
-        tdSql.query("select * from ntb where ts>today()")
-        tdSql.checkRows(1)
-        tdSql.query("select c4 from stb_1 where c4=today()")
-        tdSql.checkRows(1)
-        tdSql.query("select today() from stb_1 where ts<now()")
-        tdSql.checkRows(3)
-        tdSql.error("select today()+1.5 from stb_1")
-        tdSql.error("select today()-1.5 from stb_1")
-        tdSql.error("select today()*1.5 from stb_1")
-        tdSql.error("select today()/1.5 from stb_1")
-        tdSql.query("select today()+null from stb_1")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()+null from db.stb_1")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()-null from stb_1")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()-null from db.stb_1")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()*null from stb_1")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()*null from db.stb_1")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()/null from stb_1")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()/null from db.stb_1")
-        tdSql.checkData(0,0,None)
-        tdSql.query("select today()/0 from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,None)
-        tdSql.checkData(1,0,None)
-        tdSql.checkData(2,0,None)
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())
