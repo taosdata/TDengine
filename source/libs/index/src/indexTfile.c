@@ -457,7 +457,10 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
       } else if (0 != strncmp(ch, p, skip)) {
         continue;
       }
-      cond = cmpFn(ch + skip, tem->colVal, IDX_TYPE_GET_TYPE(tem->colType));
+      char* tBuf = taosMemoryCalloc(1, sz + 1);
+      memcpy(tBuf, ch, sz);
+      cond = cmpFn(tBuf + skip, tem->colVal, IDX_TYPE_GET_TYPE(tem->colType));
+      taosMemoryFree(tBuf);
     }
     if (MATCH == cond) {
       tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total);
