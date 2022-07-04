@@ -69,12 +69,14 @@ _err:
 }
 
 int32_t vnodeSnapReaderClose(SVSnapReader *pReader) {
+  int32_t code = 0;
+
   vnodeFree(pReader->pData);
   tsdbSnapReaderClose(pReader->pTsdbReader);
   metaSnapReaderClose(pReader->pMetaReader);
   taosMemoryFree(pReader);
 
-  return 0;
+  return code;
 }
 
 int32_t vnodeSnapRead(SVSnapReader *pReader, const void **ppData, uint32_t *nData) {
