@@ -480,12 +480,18 @@ static int32_t pushDownCondOptPushCondToProject(SOptimizeContext* pCxt, SProject
   return pushDownCondOptAppendCond(&pProject->node.pConditions, pCond);
 }
 
+static int32_t pushDownCondOptPushCondToJoin(SOptimizeContext* pCxt, SJoinLogicNode * pJoin, SNode** pCond) {
+  return pushDownCondOptAppendCond(&pJoin->node.pConditions, pCond);
+}
+
 static int32_t pushDownCondOptPushCondToChild(SOptimizeContext* pCxt, SLogicNode* pChild, SNode** pCond) {
   switch (nodeType(pChild)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return pushDownCondOptPushCondToScan(pCxt, (SScanLogicNode*)pChild, pCond);
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return pushDownCondOptPushCondToProject(pCxt, (SProjectLogicNode*)pChild, pCond);
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+      return pushDownCondOptPushCondToJoin(pCxt, (SJoinLogicNode*)pChild, pCond);
     default:
       break;
   }
@@ -724,7 +730,8 @@ static int32_t pushDownCondOptDealAgg(SOptimizeContext* pCxt, SAggLogicNode* pAg
   //TODO: remove it after full implementation of pushing down to child
   if (1 != LIST_LENGTH(pAgg->node.pChildren) ||
       QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) &&
-      QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(nodesListGetNode(pAgg->node.pChildren, 0))) {
+      QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) &&
+      QUERY_NODE_LOGIC_PLAN_JOIN != nodeType(nodesListGetNode(pAgg->node.pChildren, 0))) {
     return TSDB_CODE_SUCCESS;
   }
   
