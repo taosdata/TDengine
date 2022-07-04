@@ -2112,7 +2112,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "histogram",
     .type = FUNCTION_TYPE_HISTOGRAM,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateHistogram,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
