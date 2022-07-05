@@ -11,7 +11,7 @@ use sync::WsClient;
 use thiserror::Error;
 // use websocket::{client::ParseError, WebSocketError};
 
-use taos_query::{AsyncQueryable, DeError, Dsn, DsnError, FromDsn, IntoDsn, Queryable};
+use taos_query::{DeError, Dsn, DsnError, FromDsn, IntoDsn, Queryable};
 
 pub mod infra;
 
@@ -181,7 +181,7 @@ impl<'q> Queryable<'q> for Ws {
 
 #[cfg(feature = "async")]
 #[async_trait::async_trait]
-impl<'q> AsyncQueryable<'q> for Ws {
+impl<'q> taos_query::AsyncQueryable<'q> for Ws {
     type Error = asyn::Error;
 
     type AsyncResultSet = asyn::ResultSet;
@@ -212,32 +212,109 @@ mod tests {
     fn ws_sync() -> anyhow::Result<()> {
         use taos_query::{Fetchable, Queryable};
         let client = Ws::from_dsn("ws://localhost:6041/")?;
-        assert_eq!(client.exec("create database if not exists wsabc")?, 0);
+        assert_eq!(client.exec("drop database if exists wsabc")?, 0);
+        assert_eq!(client.exec("create database wsabc keep 36500")?, 0);
         assert_eq!(
-            client.exec("create table if not exists wsabc.tb1(ts timestamp, v int)")?,
+            client.exec(
+                "create table wsabc.tb1(ts timestamp,\
+                    c8i1 tinyint, c16i1 smallint, c32i1 int, c64i1 bigint,\
+                    c8u1 tinyint unsigned, c16u1 smallint unsigned, c32u1 int unsigned, c64u1 bigint unsigned,\
+                    cb1 binary(100), cn1 nchar(10),
+
+                    c8i2 tinyint, c16i2 smallint, c32i2 int, c64i2 bigint,\
+                    c8u2 tinyint unsigned, c16u2 smallint unsigned, c32u2 int unsigned, c64u2 bigint unsigned,\
+                    cb2 binary(10), cn2 nchar(16))"
+            )?,
             0
         );
-        assert_eq!(client.exec("insert into wsabc.tb1 values(now, 1)")?, 1);
+        assert_eq!(
+            client.exec(
+                "insert into wsabc.tb1 values(65535,\
+                -1,-2,-3,-4, 1,2,3,4, 'abc', '涛思',\
+                -5,-6,-7,-8, 5,6,7,8, 'def', '数据')"
+            )?,
+            1
+        );
 
         // let mut rs = client.s_query("select * from wsabc.tb1").unwrap().unwrap();
         let mut rs = client.query("select * from wsabc.tb1")?;
 
-        #[derive(Debug, serde::Deserialize)]
+        #[derive(Debug, serde::Deserialize, PartialEq, Eq)]
         #[allow(dead_code)]
         struct A {
             ts: String,
-            v: i32,
+            c8i1: i8,
+            c16i1: i16,
+            c32i1: i32,
+            c64i1: i64,
+            c8u1: u8,
+            c16u1: u16,
+            c32u1: u32,
+            c64u1: u64,
+
+            c8i2: i8,
+            c16i2: i16,
+            c32i2: i32,
+            c64i2: i64,
+            c8u2: u8,
+            c16u2: u16,
+            c32u2: u32,
+            c64u2: u64,
+
+            cb1: String,
+            cb2: String,
+            cn1: String,
+            cn2: String,
         }
 
         use itertools::Itertools;
         let values: Vec<A> = rs.deserialize::<A>().try_collect()?;
 
-        dbg!(values);
+        dbg!(&values);
+
+        assert_eq!(
+            values[0],
+            A {
+                ts: "1970-01-01T00:01:05.535".to_string(),
+                c8i1: -1,
+                c8i2: -5,
+                cb1: "abc".to_string(),
+                cb2: "def".to_string(),
+                cn1: "涛思".to_string(),
+                cn2: "数据".to_string(),
+                c16i1: -2,
+                c32i1: -3,
+                c64i1: -4,
+                c8u1: 1,
+                c16u1: 2,
+                c32u1: 3,
+                c64u1: 4,
+                c16i2: -6,
+                c32i2: -7,
+                c64i2: -8,
+                c8u2: 5,
+                c16u2: 6,
+                c32u2: 7,
+                c64u2: 8
+            }
+        );
 
         assert_eq!(client.exec("drop database wsabc")?, 0);
         Ok(())
     }
 
+    #[test]
+    fn ws_show_databases() -> anyhow::Result<()> {
+        use taos_query::{Fetchable, Queryable};
+        let client = Ws::from_dsn("ws://localhost:6041/")?;
+
+        // let mut rs = client.s_query("select * from wsabc.tb1").unwrap().unwrap();
+        let mut rs = client.query("show databases")?;
+        let values = rs.to_rows_vec();
+
+        dbg!(values);
+        Ok(())
+    }
     #[cfg(feature = "async")]
     // !Websocket tests should always use `multi_thread`
     #[tokio::test(flavor = "multi_thread")]

@@ -396,7 +396,6 @@ mod tests {
     use super::*;
 
     use serde_json::json;
-    use taos_macros::test;
 
     #[test]
     fn de_value_as_inner() {

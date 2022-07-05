@@ -88,7 +88,6 @@ impl RawTaos {
                 .to_string_lossy()
                 .to_string();
             let err = Error::new(code, err);
-            log::trace!("error: {err}");
         }
 
         if ptr.is_null() {
@@ -97,6 +96,8 @@ impl RawTaos {
             let err = unsafe { CStr::from_ptr(taos_errstr(null)) }
                 .to_string_lossy()
                 .to_string();
+            log::trace!("error: {err}");
+
             Err(Error::new(code, err))
         } else {
             Ok(RawTaos(ptr))
@@ -302,16 +303,23 @@ impl RawRes {
     #[inline]
     pub fn fetch_block(&self) -> Result<Option<(TAOS_ROW, i32, *const i32)>, Error> {
         let block = Box::into_raw(Box::new(std::ptr::null_mut()));
-        let mut num = 0;
-        err_or!(
-            self,
-            taos_fetch_block_s(self.as_ptr(), &mut num, block),
-            if num > 0 {
-                Some((*block, num, self.fetch_lengths_raw()))
-            } else {
-                None
-            }
-        )
+        // let mut num = 0;
+        let num = unsafe { taos_fetch_block(self.as_ptr(), block) };
+        // taos_fetch_block(res, rows)
+        if num > 0 {
+            Ok(Some(unsafe { (*block, num, self.fetch_lengths_raw()) }))
+        } else {
+            Ok(None)
+        }
+        // err_or!(
+        //     self,
+        //     taos_fetch_block_s(self.as_ptr(), &mut num, block),
+        //     if num > 0 {
+        //         Some((*block, num, self.fetch_lengths_raw()))
+        //     } else {
+        //         None
+        //     }
+        // )
     }
 
     #[inline]

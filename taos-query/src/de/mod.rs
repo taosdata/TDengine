@@ -152,7 +152,7 @@ where
     where
         V: Visitor<'de>,
     {
-        log::debug!("call deserialize_option for <{}>", type_name::<V>());
+        log::trace!("call deserialize_option for <{}>", type_name::<V>());
         match self.next_value() {
             Some(v) => {
                 if v.is_null() {
@@ -269,7 +269,7 @@ where
     where
         V: Visitor<'de>,
     {
-        log::debug!("name: {_name}, fields: {_fields:?}");
+        log::trace!("name: {_name}, fields: {_fields:?}");
         self.deserialize_map(visitor)
     }
 }
