@@ -878,6 +878,9 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
     }
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY: {
+      if (strict && (pVal->node.resType.bytes > targetDt.bytes - VARSTR_HEADER_SIZE)) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
       pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + 1);
       if (NULL == pVal->datum.p) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
@@ -5827,10 +5830,6 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
   SDataType targetDt = schemaToDataType(pTableMeta->tableInfo.precision, pSchema);
   if (DEAL_RES_ERROR == translateValueImpl(pCxt, pStmt->pVal, targetDt, true)) {
     return pCxt->errCode;
-  }
-
-  if (IS_VAR_DATA_TYPE(pSchema->type) && strlen(pStmt->pVal->literal) > pSchema->bytes) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pStmt->pVal->literal);
   }
 
   pReq->isNull = (TSDB_DATA_TYPE_NULL == pStmt->pVal->node.resType.type);
