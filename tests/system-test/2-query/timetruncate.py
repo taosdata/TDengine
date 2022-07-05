@@ -24,7 +24,8 @@ class TDTestCase:
         ]
         self.db_param_precision = ['ms','us','ns']
         self.time_unit = ['1w','1d','1h','1m','1s','1a','1u']
-        self.error_unit = ['1b','2w','2d','2h','2m','2s','2a','2u','1c','#1']
+        #self.error_unit = ['1b','2w','2d','2h','2m','2s','2a','2u','1c','#1']
+        self.error_unit = ['2w','2d','2h','2m','2s','2a','2u','1c','#1']
         self.ntbname = 'ntb'
         self.stbname = 'stb'
         self.ctbname = 'ctb'
@@ -92,7 +93,7 @@ class TDTestCase:
         elif unit.lower() == '1d':
             for i in range(len(self.ts_str)):
                 ts_result = self.get_ms_timestamp(str(tdSql.queryResult[i][0]))
-                tdSql.checkEqual(ts_result,int(date_time[i]/1000/60/60/24)*24*60*60*1000)  
+                tdSql.checkEqual(ts_result,int(date_time[i]/1000/60/60/24)*24*60*60*1000)
         elif unit.lower() == '1w':
             for i in range(len(self.ts_str)):
                 ts_result = self.get_ms_timestamp(str(tdSql.queryResult[i][0]))
@@ -121,7 +122,7 @@ class TDTestCase:
         elif unit.lower() == '1d':
             for i in range(len(self.ts_str)):
                 ts_result = self.get_us_timestamp(str(tdSql.queryResult[i][0]))
-                tdSql.checkEqual(ts_result,int(date_time[i]/1000/1000/60/60/24)*24*60*60*1000*1000 ) 
+                tdSql.checkEqual(ts_result,int(date_time[i]/1000/1000/60/60/24)*24*60*60*1000*1000 )
         elif unit.lower() == '1w':
             for i in range(len(self.ts_str)):
                 ts_result = self.get_us_timestamp(str(tdSql.queryResult[i][0]))
@@ -144,21 +145,21 @@ class TDTestCase:
                 tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/60/60)*60*60*1000*1000*1000  )
         elif unit.lower() == '1d':
             for i in range(len(self.ts_str)):
-                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/60/60/24)*24*60*60*1000*1000*1000 ) 
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/60/60/24)*24*60*60*1000*1000*1000 )
         elif unit.lower() == '1w':
             for i in range(len(self.ts_str)):
                 tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/60/60/24/7)*7*24*60*60*1000*1000*1000)
     def data_check(self,date_time,precision,tb_type):
         for unit in self.time_unit:
             if (unit.lower() == '1u' and precision.lower() == 'ms') or () :
-                if tb_type.lower() == 'ntb': 
+                if tb_type.lower() == 'ntb':
                     tdSql.error(f'select timetruncate(ts,{unit}) from {self.ntbname}')
                 elif tb_type.lower() == 'ctb':
                     tdSql.error(f'select timetruncate(ts,{unit}) from {self.ctbname}')
                 elif tb_type.lower() == 'stb':
                     tdSql.error(f'select timetruncate(ts,{unit}) from {self.stbname}')
             elif precision.lower() == 'ms':
-                if tb_type.lower() == 'ntb': 
+                if tb_type.lower() == 'ntb':
                     tdSql.query(f'select timetruncate(ts,{unit}) from {self.ntbname}')
                 elif tb_type.lower() == 'ctb':
                     tdSql.query(f'select timetruncate(ts,{unit}) from {self.ctbname}')
@@ -167,7 +168,7 @@ class TDTestCase:
                 tdSql.checkRows(len(self.ts_str))
                 self.check_ms_timestamp(unit,date_time)
             elif precision.lower() == 'us':
-                if tb_type.lower() == 'ntb': 
+                if tb_type.lower() == 'ntb':
                     tdSql.query(f'select timetruncate(ts,{unit}) from {self.ntbname}')
                 elif tb_type.lower() == 'ctb':
                     tdSql.query(f'select timetruncate(ts,{unit}) from {self.ctbname}')
@@ -176,7 +177,7 @@ class TDTestCase:
                 tdSql.checkRows(len(self.ts_str))
                 self.check_us_timestamp(unit,date_time)
             elif precision.lower() == 'ns':
-                if tb_type.lower() == 'ntb': 
+                if tb_type.lower() == 'ntb':
                     tdSql.query(f'select timetruncate(ts,{unit}) from {self.ntbname}')
                 elif tb_type.lower() == 'ctb':
                     tdSql.query(f'select timetruncate(ts,{unit}) from {self.ctbname}')
