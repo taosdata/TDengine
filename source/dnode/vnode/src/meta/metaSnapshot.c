@@ -114,13 +114,13 @@ int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWr
   return code;
 }
 
-int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
+int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback) {
   int32_t code = 0;
   // TODO
   return code;
 }
 
-int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback) {
+int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t code = 0;
   // TODO
   return code;
