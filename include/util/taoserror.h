@@ -72,7 +72,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_INVALID_TIMESTAMP             TAOS_DEF_ERROR_CODE(0, 0x0030)
 #define TSDB_CODE_MSG_DECODE_ERROR              TAOS_DEF_ERROR_CODE(0, 0x0031)
 #define TSDB_CODE_NO_AVAIL_DISK                 TAOS_DEF_ERROR_CODE(0, 0x0032)
-#define TSDB_CODE_NOT_FOUND                     TAOS_DEF_ERROR_CODE(0, 0x0032)
+#define TSDB_CODE_NOT_FOUND                     TAOS_DEF_ERROR_CODE(0, 0x0033)
 
 #define TSDB_CODE_REF_NO_MEMORY                 TAOS_DEF_ERROR_CODE(0, 0x0040)
 #define TSDB_CODE_REF_FULL                      TAOS_DEF_ERROR_CODE(0, 0x0041)
