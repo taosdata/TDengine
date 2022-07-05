@@ -24,10 +24,11 @@ struct STsdbSnapReader {
   int8_t        dataDone;
   int32_t       fid;
   SDataFReader* pDataFReader;
-  int32_t       iBlockIdx;
   SArray*       aBlockIdx;  // SArray<SBlockIdx>
-  int32_t       iBlock;
+  int32_t       iBlockIdx;
+  SBlockIdx*    pBlockIdx;
   SMapData      mBlock;  // SMapData<SBlock>
+  int32_t       iBlock;
   SBlockData    blkData;
   // for del file
   int8_t       delDone;
@@ -39,39 +40,68 @@ struct STsdbSnapReader {
 
 static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
   int32_t code = 0;
-  SBlock  block;
-  SBlock* pBlock = &block;
 
-  if (pReader->pDataFReader == NULL) {
-    code = tsdbDataFReaderOpen(&pReader->pDataFReader, pReader->pTsdb, NULL);
-    if (code) goto _err;
+  while (true) {
+    if (pReader->pDataFReader == NULL) {
+      SDFileSet* pSet = NULL;
 
-    code = tsdbReadBlockIdx(pReader->pDataFReader, pReader->aBlockIdx, NULL);
-    if (code) goto _err;
+      // search the next data file set to read (todo)
+      if (0 /* TODO */) {
+        code = TSDB_CODE_VND_READ_END;
+        goto _exit;
+      }
 
-    pReader->iBlockIdx = 0;
-  }
+      // open
+      code = tsdbDataFReaderOpen(&pReader->pDataFReader, pReader->pTsdb, pSet);
+      if (code) goto _err;
 
-  while (pReader->iBlockIdx < taosArrayGetSize(pReader->aBlockIdx)) {
-    SBlockIdx* pBlockIdx = taosArrayGet(pReader->aBlockIdx, pReader->iBlockIdx);
+      // SBlockIdx
+      code = tsdbReadBlockIdx(pReader->pDataFReader, pReader->aBlockIdx, NULL);
+      if (code) goto _err;
 
-    pReader->iBlockIdx++;
+      pReader->iBlockIdx = 0;
+      pReader->pBlockIdx = NULL;
+    }
 
-    code = tsdbReadBlock(pReader->pDataFReader, pBlockIdx, &pReader->mBlock, NULL);
-    if (code) goto _err;
+    while (true) {
+      if (pReader->pBlockIdx == NULL) {
+        if (pReader->iBlockIdx >= taosArrayGetSize(pReader->aBlockIdx)) {
+          tsdbDataFReaderClose(&pReader->pDataFReader);
+          break;
+        }
 
-    break;
-  }
+        pReader->pBlockIdx = (SBlockIdx*)taosArrayGet(pReader->aBlockIdx, pReader->iBlockIdx);
+        pReader->iBlockIdx++;
 
-  while (pReader->iBlock < pReader->mBlock.nItem) {
-    tMapDataGetItemByIdx(&pReader->mBlock, pReader->iBlock, pBlock, tGetBlock);
+        // SBlock
+        code = tsdbReadBlock(pReader->pDataFReader, pReader->pBlockIdx, &pReader->mBlock, NULL);
+        if (code) goto _err;
 
-    pReader->iBlock++;
+        pReader->iBlock = 0;
+      }
 
-    if ((pBlock->minVersion >= pReader->sver && pBlock->minVersion <= pReader->ever) &&
-        (pBlock->maxVersion >= pReader->sver && pBlock->maxVersion <= pReader->ever)) {
-      // block in range, encode and return the data (todo)
-      goto _exit;
+      while (true) {
+        SBlock  block;
+        SBlock* pBlock = &block;
+
+        if (pReader->iBlock >= pReader->mBlock.nItem) {
+          pReader->pBlockIdx = NULL;
+          break;
+        }
+
+        tMapDataGetItemByIdx(&pReader->mBlock, pReader->iBlock, pBlock, tGetBlock);
+        pReader->iBlock++;
+
+        if ((pBlock->minVersion >= pReader->sver && pBlock->minVersion <= pReader->ever) ||
+            (pBlock->maxVersion >= pReader->sver && pBlock->maxVersion <= pReader->ever)) {
+          // overlap (todo)
+
+          code = tsdbReadBlockData(pReader->pDataFReader, pReader->pBlockIdx, pBlock, &pReader->blkData, NULL, NULL);
+          if (code) goto _err;
+
+          goto _exit;
+        }
+      }
     }
   }
 
