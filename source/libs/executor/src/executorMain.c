@@ -139,29 +139,8 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
   qDebug("%s execTask is launched", GET_TASKID(pTaskInfo));
 
   int64_t st = taosGetTimestampUs();  
-  /* XXXXXXXXXXXXXXXXXXXX */
-  if (pTaskInfo->pHandle->deleteQuery) {
-    static int32_t first = 1;
-    if (first) {
-      *pRes = createDataBlock();
-      int64_t rows = 33;
-      SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, 8, 1);
-      blockDataAppendColInfo(*pRes, &infoData);
-      blockDataEnsureCapacity(*pRes, 1);
-      (*pRes)->info.rows = 1;
 
-      SColumnInfoData* pCol1 = taosArrayGet((*pRes)->pDataBlock, 0);
-      colDataAppend(pCol1, 0, (char*)&rows, false);
-      first = 0;
-    } else {
-      *pRes = NULL;
-    }
-  } else {
-  /* XXXXXXXXXXXXXXXXXXXX */
-    *pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
-  /* XXXXXXXXXXXXXXXXXXXX */
-  }
-  /* XXXXXXXXXXXXXXXXXXXX */
+  *pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
   uint64_t el = (taosGetTimestampUs() - st);
 
   pTaskInfo->cost.elapsedTime += el;

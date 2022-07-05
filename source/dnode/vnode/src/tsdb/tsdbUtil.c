@@ -229,15 +229,15 @@ int32_t tCmprBlockIdx(void const *lhs, void const *rhs) {
   SBlockIdx *lBlockIdx = *(SBlockIdx **)lhs;
   SBlockIdx *rBlockIdx = *(SBlockIdx **)rhs;
 
-  if (lBlockIdx->suid < lBlockIdx->suid) {
+  if (lBlockIdx->suid < rBlockIdx->suid) {
     return -1;
-  } else if (lBlockIdx->suid > lBlockIdx->suid) {
+  } else if (lBlockIdx->suid > rBlockIdx->suid) {
     return 1;
   }
 
-  if (lBlockIdx->uid < lBlockIdx->uid) {
+  if (lBlockIdx->uid < rBlockIdx->uid) {
     return -1;
-  } else if (lBlockIdx->uid > lBlockIdx->uid) {
+  } else if (lBlockIdx->uid > rBlockIdx->uid) {
     return 1;
   }
 
@@ -385,15 +385,15 @@ int32_t tCmprDelIdx(void const *lhs, void const *rhs) {
   SDelIdx *lDelIdx = *(SDelIdx **)lhs;
   SDelIdx *rDelIdx = *(SDelIdx **)rhs;
 
-  if (lDelIdx->suid < lDelIdx->suid) {
+  if (lDelIdx->suid < rDelIdx->suid) {
     return -1;
-  } else if (lDelIdx->suid > lDelIdx->suid) {
+  } else if (lDelIdx->suid > rDelIdx->suid) {
     return 1;
   }
 
-  if (lDelIdx->uid < lDelIdx->uid) {
+  if (lDelIdx->uid < rDelIdx->uid) {
     return -1;
-  } else if (lDelIdx->uid > lDelIdx->uid) {
+  } else if (lDelIdx->uid > rDelIdx->uid) {
     return 1;
   }
 

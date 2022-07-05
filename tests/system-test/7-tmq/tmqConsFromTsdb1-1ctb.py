@@ -18,8 +18,8 @@ from tmqCommon import *
 class TDTestCase:
     def __init__(self):
         self.vgroups    = 1
-        self.ctbNum     = 10
-        self.rowsPerTbl = 10000
+        self.ctbNum     = 1
+        self.rowsPerTbl = 100000
         
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
@@ -81,7 +81,7 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
-                    'ctbNum':     10,
+                    'ctbNum':     1,
                     'rowsPerTbl': 10000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
@@ -152,7 +152,7 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
-                    'ctbNum':     10,
+                    'ctbNum':     1,
                     'rowsPerTbl': 10000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000

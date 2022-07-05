@@ -68,6 +68,8 @@ TEST_F(PlanOptimizeTest, PartitionTags) {
   run("SELECT SUM(c1), tag1 FROM st1 GROUP BY tag1");
 
   run("SELECT SUM(c1), tag1 + 10 FROM st1 GROUP BY tag1 + 10");
+
+  run("SELECT SUM(c1), tbname FROM st1 GROUP BY tbname");
 }
 
 TEST_F(PlanOptimizeTest, eliminateProjection) {

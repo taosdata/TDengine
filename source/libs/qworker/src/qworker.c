@@ -930,11 +930,6 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
   }
 
   ctx.plan = plan;
-
-  /* XXXXXXXXXXXXXXXXXXXX */
-  SReadHandle *phandle = (SReadHandle*)qwMsg->node;
-  phandle->deleteQuery = 1;
-  /* XXXXXXXXXXXXXXXXXXXX */
   
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, NULL, OPTR_EXEC_MODEL_BATCH);
   if (code) {

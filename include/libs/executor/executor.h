@@ -37,9 +37,6 @@ typedef struct SReadHandle {
   void*   mnd;
   SMsgCb* pMsgCb;
 
-  /* XXXXXXXXXXXXXXXXXXXX */
-  int32_t deleteQuery;
-  /* XXXXXXXXXXXXXXXXXXXX */
 //  int8_t  initTsdbReader;
   bool    tqReader;
 } SReadHandle;
