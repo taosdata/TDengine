@@ -1796,8 +1796,8 @@ int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity) {
   getPerfDbMeta(&pSysDbTableMeta, &size);
   p->info.rows = buildDbTableInfoBlock(p, pSysDbTableMeta, size, TSDB_PERFORMANCE_SCHEMA_DB);
 
-  relocateColumnData(pInfo->pRes, pInfo->scanCols, p->pDataBlock, false);
   pInfo->pRes->info.rows = p->info.rows;
+  relocateColumnData(pInfo->pRes, pInfo->scanCols, p->pDataBlock, false);
   blockDataDestroy(p);
 
   return pInfo->pRes->info.rows;
