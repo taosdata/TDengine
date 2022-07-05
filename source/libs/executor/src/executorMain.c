@@ -138,7 +138,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
 
   qDebug("%s execTask is launched", GET_TASKID(pTaskInfo));
 
-  int64_t st = taosGetTimestampUs();  
+  int64_t st = taosGetTimestampUs();
 
   *pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
   uint64_t el = (taosGetTimestampUs() - st);

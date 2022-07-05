@@ -131,16 +131,17 @@ int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest);
 #define tBlockDataLastRow(PBLOCKDATA)  tsdbRowFromBlockData(PBLOCKDATA, (PBLOCKDATA)->nRow - 1)
 #define tBlockDataFirstKey(PBLOCKDATA) TSDBROW_KEY(&tBlockDataFirstRow(PBLOCKDATA))
 #define tBlockDataLastKey(PBLOCKDATA)  TSDBROW_KEY(&tBlockDataLastRow(PBLOCKDATA))
-int32_t tBlockDataInit(SBlockData *pBlockData);
-void    tBlockDataReset(SBlockData *pBlockData);
-int32_t tBlockDataSetSchema(SBlockData *pBlockData, STSchema *pTSchema);
-void    tBlockDataClearData(SBlockData *pBlockData);
-void    tBlockDataClear(SBlockData *pBlockData);
-int32_t tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
-int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
-int32_t tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData);
-int32_t tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest);
-void    tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData);
+int32_t   tBlockDataInit(SBlockData *pBlockData);
+void      tBlockDataReset(SBlockData *pBlockData);
+int32_t   tBlockDataSetSchema(SBlockData *pBlockData, STSchema *pTSchema);
+void      tBlockDataClearData(SBlockData *pBlockData);
+void      tBlockDataClear(SBlockData *pBlockData);
+int32_t   tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
+int32_t   tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
+int32_t   tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData);
+int32_t   tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest);
+SColData *tBlockDataGetColDataByIdx(SBlockData *pBlockData, int32_t idx);
+void      tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData);
 // SDelIdx
 int32_t tPutDelIdx(uint8_t *p, void *ph);
 int32_t tGetDelIdx(uint8_t *p, void *ph);
@@ -419,8 +420,8 @@ struct SBlockData {
   int32_t  nRow;
   int64_t *aVersion;
   TSKEY   *aTSKEY;
-  SArray  *aColDataP;  // SArray<SColData *>
-  SArray  *aColData;   // SArray<SColData>
+  SArray  *aIdx;      // SArray<int32_t>
+  SArray  *aColData;  // SArray<SColData>
 };
 
 // ================== TSDB global config

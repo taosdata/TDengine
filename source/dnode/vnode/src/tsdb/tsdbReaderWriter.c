@@ -902,7 +902,7 @@ static int32_t tsdbReadSubColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, S
 
       ASSERT(pBlockCol->flag && pBlockCol->flag != HAS_NONE);
 
-      code = tBlockDataAddColData(pBlockData, taosArrayGetSize(pBlockData->aColDataP), &pColData);
+      code = tBlockDataAddColData(pBlockData, taosArrayGetSize(pBlockData->aIdx), &pColData);
       if (code) goto _err;
 
       tColDataInit(pColData, pBlockCol->cid, pBlockCol->type, pBlockCol->smaOn);
@@ -1762,8 +1762,8 @@ static int32_t tsdbWriteBlockSma(TdFilePtr pFD, SBlockData *pBlockData, SSubBloc
 
   // prepare
   pSubBlock->nSma = 0;
-  for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aColDataP); iColData++) {
-    pColData = (SColData *)taosArrayGetP(pBlockData->aColDataP, iColData);
+  for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
+    pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
 
     if (IS_VAR_DATA_TYPE(pColData->type) || (!pColData->smaOn)) continue;
 
@@ -1775,8 +1775,8 @@ static int32_t tsdbWriteBlockSma(TdFilePtr pFD, SBlockData *pBlockData, SSubBloc
   code = tRealloc(ppBuf, sizeof(SColumnDataAgg) * pSubBlock->nSma + sizeof(TSCKSUM));
   if (code) goto _err;
   n = 0;
-  for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aColDataP); iColData++) {
-    pColData = (SColData *)taosArrayGetP(pBlockData->aColDataP, iColData);
+  for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
+    pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
 
     if (IS_VAR_DATA_TYPE(pColData->type) || (!pColData->smaOn)) continue;
 
@@ -1834,14 +1834,14 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
   if (code) goto _err;
 
   // COLUMNS
-  aBlockCol = taosArrayInit(taosArrayGetSize(pBlockData->aColDataP), sizeof(SBlockCol));
+  aBlockCol = taosArrayInit(taosArrayGetSize(pBlockData->aIdx), sizeof(SBlockCol));
   if (aBlockCol == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
   int32_t offset = 0;
-  for (int32_t iCol = 0; iCol < taosArrayGetSize(pBlockData->aColDataP); iCol++) {
-    SColData *pColData = (SColData *)taosArrayGetP(pBlockData->aColDataP, iCol);
+  for (int32_t iCol = 0; iCol < taosArrayGetSize(pBlockData->aIdx); iCol++) {
+    SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iCol);
 
     ASSERT(pColData->flag);
 
