@@ -1190,16 +1190,12 @@ void tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColD
   ASSERT(cid != PRIMARYKEY_TIMESTAMP_COL_ID);
   int32_t lidx = 0;
   int32_t ridx = taosArrayGetSize(pBlockData->aIdx) - 1;
-  int32_t midx;
 
   while (lidx <= ridx) {
-    SColData *pColData;
-    int32_t   c;
+    int32_t   midx = (lidx + ridx) / 2;
+    SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, midx);
+    int32_t   c = tColDataCmprFn(pColData, &(SColData){.cid = cid});
 
-    midx = (lidx + midx) / 2;
-
-    pColData = tBlockDataGetColDataByIdx(pBlockData, midx);
-    c = tColDataCmprFn(pColData, &(SColData){.cid = cid});
     if (c == 0) {
       *ppColData = pColData;
       return;
