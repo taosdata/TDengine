@@ -387,7 +387,7 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
   CHECK_PARSER_STATUS(pCxt);
   if (OP_TYPE_MINUS == type && QUERY_NODE_VALUE == nodeType(pLeft)) {
     SValueNode* pVal = (SValueNode*)pLeft;
-    char*       pNewLiteral = taosMemoryCalloc(1, strlen(pVal->literal) + 1);
+    char*       pNewLiteral = taosMemoryCalloc(1, strlen(pVal->literal) + 2);
     CHECK_OUT_OF_MEM(pNewLiteral);
     sprintf(pNewLiteral, "-%s", pVal->literal);
     taosMemoryFree(pVal->literal);
