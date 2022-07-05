@@ -471,6 +471,9 @@ static EDealRes dispatchPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalk
       SJoinPhysiNode* pJoin = (SJoinPhysiNode*)pNode;
       res = walkPhysiNode((SPhysiNode*)pNode, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkPhysiPlan(pJoin->pMergeCondition, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkPhysiPlan(pJoin->pOnConditions, order, walker, pContext);
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {

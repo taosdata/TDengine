@@ -14,6 +14,7 @@
  */
 
 #include "syncRespMgr.h"
+#include "syncRaftEntry.h"
 #include "syncRaftStore.h"
 
 SSyncRespMgr *syncRespMgrCreate(void *data, int64_t ttl) {
@@ -116,4 +117,59 @@ void syncRespClean(SSyncRespMgr *pObj) {
   taosThreadMutexUnlock(&(pObj->mutex));
 }
 
-void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl) {}
+void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl) {
+  SRespStub *pStub = (SRespStub *)taosHashIterate(pObj->pRespHash, NULL);
+  int        cnt = 0;
+  SSyncNode *pSyncNode = pObj->data;
+
+  SArray *delIndexArray = taosArrayInit(0, sizeof(SyncIndex));
+  ASSERT(delIndexArray != NULL);
+
+  while (pStub) {
+    size_t     len;
+    void      *key = taosHashGetKey(pStub, &len);
+    SyncIndex *pIndex = (SyncIndex *)key;
+
+    int64_t nowMS = taosGetTimestampMs();
+    if (nowMS - pStub->createTime > ttl) {
+      taosArrayPush(delIndexArray, pIndex);
+      cnt++;
+
+      SSyncRaftEntry *pEntry = NULL;
+      int32_t         code = 0;
+      if (pSyncNode->pLogStore != NULL) {
+        code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, *pIndex, &pEntry);
+        if (code == 0 && pEntry != NULL) {
+          SFsmCbMeta cbMeta = {0};
+          cbMeta.index = pEntry->index;
+          cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(pSyncNode, cbMeta.index);
+          cbMeta.isWeak = pEntry->isWeak;
+          cbMeta.code = TSDB_CODE_SYN_TIMEOUT;
+          cbMeta.state = pSyncNode->state;
+          cbMeta.seqNum = pEntry->seqNum;
+          cbMeta.term = pEntry->term;
+          cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
+          cbMeta.flag = 0;
+
+          SRpcMsg rpcMsg = pStub->rpcMsg;
+          rpcMsg.pCont = rpcMallocCont(pEntry->dataLen);
+          memcpy(rpcMsg.pCont, pEntry->data, pEntry->dataLen);
+          pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, cbMeta);
+
+          syncEntryDestory(pEntry);
+        }
+      }
+    }
+
+    pStub = (SRespStub *)taosHashIterate(pObj->pRespHash, pStub);
+  }
+
+  int32_t arraySize = taosArrayGetSize(delIndexArray);
+  sDebug("vgId:%d, resp clean by ttl, cnt:%d, array-size:%d", pSyncNode->vgId, cnt, arraySize);
+
+  for (int32_t i = 0; i < arraySize; ++i) {
+    SyncIndex *pIndex = taosArrayGet(delIndexArray, i);
+    taosHashRemove(pObj->pRespHash, pIndex, sizeof(SyncIndex));
+  }
+  taosArrayDestroy(delIndexArray);
+}
