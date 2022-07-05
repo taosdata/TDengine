@@ -1723,13 +1723,16 @@ static int32_t buildDataBlockFromBuf(STsdbReader* pReader, STableBlockScanInfo* 
   int64_t st = taosGetTimestampUs();
   int32_t code = buildDataBlockFromBufImpl(pBlockScanInfo, endKey, pReader->capacity, pReader);
 
-  int64_t elapsedTime = taosGetTimestampUs() - st;
-
-  tsdbDebug("%p build data block from cache completed, elapsed time:%" PRId64 " us, numOfRows:%d, numOfCols:%d, %s",
-            pReader, elapsedTime, pBlock->info.rows, (int32_t)blockDataGetNumOfCols(pBlock), pReader->idStr);
-
+  blockDataUpdateTsWindow(pBlock, 0);
   pBlock->info.uid = pBlockScanInfo->uid;
+
   setComposedBlockFlag(pReader, true);
+
+  int64_t elapsedTime = taosGetTimestampUs() - st;
+  tsdbDebug("%p build data block from cache completed, elapsed time:%" PRId64
+            " us, numOfRows:%d, numOfCols:%d, brange: %" PRId64 " - %" PRId64 " %s",
+            pReader, elapsedTime, pBlock->info.rows, (int32_t)blockDataGetNumOfCols(pBlock), pBlock->info.window.skey,
+            pBlock->info.window.ekey, pReader->idStr);
   return code;
 }
 
