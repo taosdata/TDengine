@@ -3,6 +3,30 @@ PROJECT(TDengine)
 
 ADD_SUBDIRECTORY(monitor)
 
+IF (TD_WEBSOCKET)
+  MESSAGE("${Green} use libtaos-ws${ColourReset}")
+  IF (TD_LINUX)
+      include(ExternalProject)
+      ExternalProject_Add(taosws-rs
+          PREFIX        "taosws-rs"
+          SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
+          BUILD_ALWAYS         off
+          DEPENDS             taos
+          BUILD_IN_SOURCE     1
+          CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
+          PATCH_COMMAND
+          COMMAND     git clean -f -d
+          BUILD_COMMAND
+          COMMAND cargo build --release -p taos-ws-sys
+          COMMAND ./taos-ws-sys/ci/package.sh
+          INSTALL_COMMAND
+          COMMAND cmake -E copy target/libtaosws/libtaosws.so ${CMAKE_BINARY_DIR}/build/lib
+          COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
+          COMMAND cmake -E copy target/libtaosws/taosws.h ${CMAKE_BINARY_DIR}/build/include
+          )
+  ENDIF()
+ENDIF ()
+
 IF (TD_BUILD_HTTP)
   MESSAGE("")
   MESSAGE("${Yellow} use original embedded httpd ${ColourReset}")
