@@ -18,7 +18,7 @@ from tmqCommon import *
 class TDTestCase:
     def __init__(self):
         self.vgroups    = 4
-        self.ctbNum     = 3000
+        self.ctbNum     = 4000
         self.rowsPerTbl = 150
         
     def init(self, conn, logSql):
@@ -190,16 +190,16 @@ class TDTestCase:
         topicList    = topicNameList[0]
         ifcheckdata  = 1
         ifManualCommit = 1
-        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:500, auto.offset.reset:earliest'
+        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:300, auto.offset.reset:earliest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor 0")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
         
-        # tdLog.info("wait commit notify")
-        # tmqCom.getStartCommitNotifyFromTmqsim()
-        tdLog.info("wait start consume notify")
-        tmqCom.getStartConsumeNotifyFromTmqsim()
+        tdLog.info("wait commit notify")
+        tmqCom.getStartCommitNotifyFromTmqsim()
+        # tdLog.info("wait start consume notify")
+        # tmqCom.getStartConsumeNotifyFromTmqsim()
 
         tdLog.info("pkill consume processor")
         tdCom.killProcessor("tmq_sim")
