@@ -96,8 +96,8 @@ typedef void* queue[2];
 #define QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
 
 #define TRANS_RETRY_COUNT_LIMIT 100  // retry count limit
-#define TRANS_RETRY_INTERVAL 15      // ms retry interval
-#define TRANS_CONN_TIMEOUT 3         // connect timeout
+#define TRANS_RETRY_INTERVAL    15   // ms retry interval
+#define TRANS_CONN_TIMEOUT      3    // connect timeout
 
 typedef SRpcMsg      STransMsg;
 typedef SRpcCtx      STransCtx;
@@ -180,18 +180,18 @@ typedef enum { Normal, Quit, Release, Register, Update } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
-#define RPC_RESERVE_SIZE (sizeof(STranConnCtx))
+#define RPC_RESERVE_SIZE                (sizeof(STranConnCtx))
 
 #define rpcIsReq(type) (type & 1U)
 
 #define TRANS_RESERVE_SIZE (sizeof(STranConnCtx))
 
-#define TRANS_MSG_OVERHEAD (sizeof(STransMsgHead))
-#define transHeadFromCont(cont) ((STransMsgHead*)((char*)cont - sizeof(STransMsgHead)))
-#define transContFromHead(msg) (msg + sizeof(STransMsgHead))
+#define TRANS_MSG_OVERHEAD           (sizeof(STransMsgHead))
+#define transHeadFromCont(cont)      ((STransMsgHead*)((char*)cont - sizeof(STransMsgHead)))
+#define transContFromHead(msg)       (msg + sizeof(STransMsgHead))
 #define transMsgLenFromCont(contLen) (contLen + sizeof(STransMsgHead))
-#define transContLenFromMsg(msgLen) (msgLen - sizeof(STransMsgHead));
-#define transIsReq(type) (type & 1U)
+#define transContLenFromMsg(msgLen)  (msgLen - sizeof(STransMsgHead));
+#define transIsReq(type)             (type & 1U)
 
 #define transLabel(trans) ((STrans*)trans)->label
 
