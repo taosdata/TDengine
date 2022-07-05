@@ -26,7 +26,8 @@ struct STsdbSnapReader {
   SDataFReader* pDataFReader;
   int32_t       iBlockIdx;
   SArray*       aBlockIdx;  // SArray<SBlockIdx>
-  SMapData      mBlock;     // SMapData<SBlock>
+  int32_t       iBlock;
+  SMapData      mBlock;  // SMapData<SBlock>
   SBlockData    blkData;
   // for del file
   int8_t       delDone;
@@ -38,6 +39,8 @@ struct STsdbSnapReader {
 
 static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
   int32_t code = 0;
+  SBlock  block;
+  SBlock* pBlock = &block;
 
   if (pReader->pDataFReader == NULL) {
     code = tsdbDataFReaderOpen(&pReader->pDataFReader, pReader->pTsdb, NULL);
@@ -49,6 +52,30 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
     pReader->iBlockIdx = 0;
   }
 
+  while (pReader->iBlockIdx < taosArrayGetSize(pReader->aBlockIdx)) {
+    SBlockIdx* pBlockIdx = taosArrayGet(pReader->aBlockIdx, pReader->iBlockIdx);
+
+    pReader->iBlockIdx++;
+
+    code = tsdbReadBlock(pReader->pDataFReader, pBlockIdx, &pReader->mBlock, NULL);
+    if (code) goto _err;
+
+    break;
+  }
+
+  while (pReader->iBlock < pReader->mBlock.nItem) {
+    tMapDataGetItemByIdx(&pReader->mBlock, pReader->iBlock, pBlock, tGetBlock);
+
+    pReader->iBlock++;
+
+    if ((pBlock->minVersion >= pReader->sver && pBlock->minVersion <= pReader->ever) &&
+        (pBlock->maxVersion >= pReader->sver && pBlock->maxVersion <= pReader->ever)) {
+      // block in range, encode and return the data (todo)
+      goto _exit;
+    }
+  }
+
+_exit:
   return code;
 
 _err:
@@ -82,6 +109,8 @@ static int32_t tsdbSnapReadDel(STsdbSnapReader* pReader, uint8_t** ppData) {
     SDelIdx* pDelIdx = (SDelIdx*)taosArrayGet(pReader->aDelIdx, pReader->iDelIdx);
     int32_t  size = 0;
 
+    pReader->iDelIdx++;
+
     code = tsdbReadDelData(pReader->pDelFReader, pDelIdx, pReader->aDelData, NULL);
     if (code) goto _err;
 
@@ -94,18 +123,30 @@ static int32_t tsdbSnapReadDel(STsdbSnapReader* pReader, uint8_t** ppData) {
     }
 
     if (size > 0) {
-      code = tRealloc(ppData, sizeof(SSnapDataHdr) + size);  // TODO
+      int64_t n = 0;
+
+      size = size + sizeof(SSnapDataHdr) + sizeof(TABLEID);
+      code = tRealloc(ppData, size);
       if (code) goto _err;
 
-      // encode
-      ((SSnapDataHdr*)(*ppData))->type = 1;
-      ((SSnapDataHdr*)(*ppData))->size = size;
+      // SSnapDataHdr
+      SSnapDataHdr* pSnapDataHdr = (SSnapDataHdr*)(*ppData + n);
+      pSnapDataHdr->type = 1;
+      pSnapDataHdr->size = size;  // TODO: size here may incorrect
+      n += sizeof(SSnapDataHdr);
 
+      // TABLEID
+      TABLEID* pId = (TABLEID*)(*ppData + n);
+      pId->suid = pDelIdx->suid;
+      pId->uid = pDelIdx->uid;
+      n += sizeof(*pId);
+
+      // DATA
       for (int32_t iDelData = 0; iDelData < taosArrayGetSize(pReader->aDelData); iDelData++) {
         SDelData* pDelData = (SDelData*)taosArrayGet(pReader->aDelData, iDelData);
 
         if (pDelData->version >= pReader->sver && pDelData->version <= pReader->ever) {
-          // size += tPutDelData(NULL, pDelData); (todo)
+          n += tPutDelData(*ppData + n, pDelData);
         }
       }
 
