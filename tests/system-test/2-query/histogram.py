@@ -406,17 +406,17 @@ class TDTestCase:
 
         return err_sqls, cur_sqls
 
-    def test_histogram(self):
+    def test_histogram(self,ctb_num=20):
         err_sqls , cur_sqls = self.__hsg_querysql
         for err_sql in err_sqls:
             self.hsg_check(err_sql)
         for cur_sql in cur_sqls:
             self.hsg_check(cur_sql)
 
-        tdSql.query("SELECT HISTOGRAM(c_int, 'USER_INPUT', '[0,3,6,9]', 0) from stb1 where c_int < 10")
-        tdSql.checkData(0, 0, '{"lower_bin":0, "upper_bin":3, "count":6}')
-        tdSql.checkData(1, 0, '{"lower_bin":3, "upper_bin":6, "count":6}')
-        tdSql.checkData(2, 0, '{"lower_bin":6, "upper_bin":9, "count":6}')
+        tdSql.query("SELECT HISTOGRAM(c_int, 'USER_INPUT', '[0,3,6,9]', 0) from stb1 where c_int < 10 ")
+        tdSql.checkData(0, 0, f'{{"lower_bin":0, "upper_bin":3, "count":{ ( ctb_num - 2 ) * 3 }}}')
+        tdSql.checkData(1, 0, f'{{"lower_bin":3, "upper_bin":6, "count":{ ( ctb_num - 2 ) * 3 }}}')
+        tdSql.checkData(2, 0, f'{{"lower_bin":6, "upper_bin":9, "count":{ ( ctb_num - 2 ) * 3 }}}')
 
         tdSql.query("SELECT HISTOGRAM(c_int, 'USER_INPUT', '[0,3,6,9]', 0) from ct1 where c_int < 10")
         tdSql.checkData(0, 0, '{"lower_bin":0, "upper_bin":3, "count":3}')
@@ -431,9 +431,9 @@ class TDTestCase:
     def all_test(self):
         self.test_histogram()
 
-    def __create_tb(self):
+    def __create_tb(self, stb=STBNAME, ctb_num=20, ntbnum=1):
         tdLog.printNoPrefix("==========step: create table")
-        create_stb_sql = f'''create table {STBNAME}(
+        create_stb_sql = f'''create table {stb}(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
@@ -441,18 +441,20 @@ class TDTestCase:
                 {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
             ) tags ({INT_TAG} int)
             '''
-        create_ntb_sql = f'''create table {NTBNAME}(
-                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
-                {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
-                {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
-                {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
-            )
-            '''
+        for i in range(ntbnum):
+
+            create_ntb_sql = f'''create table nt{i+1}(
+                    ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                    {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                    {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
+                    {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
+                    {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
+                )
+                '''
         tdSql.execute(create_stb_sql)
         tdSql.execute(create_ntb_sql)
 
-        for i in range(4):
+        for i in range(ctb_num):
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
 
     def __data_set(self, rows):
@@ -476,7 +478,7 @@ class TDTestCase:
 
         return data_set
 
-    def __insert_data(self):
+    def __insert_data(self, ctbnum=20):
         tdLog.printNoPrefix("==========step: start inser data into tables now.....")
         data = self.__data_set(rows=self.rows)
 
@@ -501,9 +503,11 @@ class TDTestCase:
             tdSql.execute(
                 f"insert into ct2 values ( {NOW - i * int(TIME_STEP * 0.6)}, {neg_row_data} )")
             tdSql.execute(
-                f"insert into ct4 values ( {NOW - i * int(TIME_STEP * 0.8) }, {row_data} )")
-            tdSql.execute(
-                f"insert into {NTBNAME} values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )")
+                f"insert into nt1 values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )")
+
+            for j in range(ctbnum-3):
+                tdSql.execute(
+                f"insert into ct{j+4} values ( {NOW - i * int(TIME_STEP * 0.8) }, {row_data} )")
 
         tdSql.execute(
             f"insert into ct2 values ( {NOW + int(TIME_STEP * 0.6)}, {null_data} )")
@@ -537,10 +541,20 @@ class TDTestCase:
         self.__insert_data()
         self.all_test()
 
+        tdLog.printNoPrefix("==========step2:create table in normal database")
+        tdSql.execute("create database db1 vgroups 2")
+        tdSql.execute("use db1")
+        self.__create_tb()
+        self.__insert_data()
+        self.all_test()
+
         tdDnodes.stop(1)
         tdDnodes.start(1)
 
-        tdLog.printNoPrefix("==========step2:after wal, all check again ")
+        tdLog.printNoPrefix("==========step3:after wal, all check again ")
+        tdSql.execute("use db")
+        self.all_test()
+        tdSql.execute("use db1")
         self.all_test()
 
     def stop(self):
