@@ -1229,7 +1229,7 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
                              "STATEDURATION function time unit parameter should be greater than db precision");
     } else if (ret == TIME_UNIT_INVALID) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "STATEDURATION function time unit parameter should be one of the following: [1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+                             "STATEDURATION function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
     }
   }
 
@@ -1744,7 +1744,7 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
                            "TIMETRUNCATE function time unit parameter should be greater than db precision");
   } else if (ret == TIME_UNIT_INVALID) {
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "TIMETRUNCATE function time unit parameter should be one of the following: [1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+                           "TIMETRUNCATE function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
   }
 
   addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
@@ -1783,7 +1783,7 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
                              "TIMEDIFF function time unit parameter should be greater than db precision");
     } else if (ret == TIME_UNIT_INVALID) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "TIMEDIFF function time unit parameter should be one of the following: [1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+                             "TIMEDIFF function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
     }
   }
 
