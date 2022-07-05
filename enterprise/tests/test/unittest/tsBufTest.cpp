@@ -348,15 +348,15 @@ void performanceTest() {}
 void emptyTagTest() {}
 
 void invalidFileTest() {
-  const char* cmd = "touch /tmp/test";
+  const char* cmd = "touch " TD_TMP_DIR_PATH "test";
 
   // create empty file
   system(cmd);
 
-  STSBuf* pNewBuf = tsBufCreateFromFile("/tmp/test", true);
+  STSBuf* pNewBuf = tsBufCreateFromFile(TD_TMP_DIR_PATH "test", true);
   EXPECT_TRUE(pNewBuf == NULL);
 
-  pNewBuf = tsBufCreateFromFile("/tmp/911", true);
+  pNewBuf = tsBufCreateFromFile(TD_TMP_DIR_PATH "911", true);
   EXPECT_TRUE(pNewBuf == NULL);
 }
 
