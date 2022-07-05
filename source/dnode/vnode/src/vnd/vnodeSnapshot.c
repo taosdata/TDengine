@@ -118,7 +118,7 @@ struct SVSnapWriter {
   int64_t ever;
 };
 
-int32_t vnodeSnapshotWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {
+int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {
   int32_t       code = 0;
   SVSnapWriter *pWriter = NULL;
 
@@ -138,7 +138,7 @@ _err:
   return code;
 }
 
-int32_t vnodeSnapshotWriterClose(SVSnapWriter *pWriter, int8_t rollback) {
+int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback) {
   int32_t code = 0;
 
   if (!rollback) {
@@ -151,7 +151,7 @@ int32_t vnodeSnapshotWriterClose(SVSnapWriter *pWriter, int8_t rollback) {
   return code;
 }
 
-int32_t vnodeSnapshotWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
+int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
   int32_t code = 0;
   // TODO
   return code;

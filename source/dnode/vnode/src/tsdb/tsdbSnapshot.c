@@ -185,6 +185,7 @@ static int32_t tsdbSnapReadDel(STsdbSnapReader* pReader, uint8_t** ppData) {
   }
 
   code = TSDB_CODE_VND_READ_END;
+  tsdbDelFReaderClose(&pReader->pDelFReader);
 
 _exit:
   return code;
@@ -302,7 +303,7 @@ _err:
   return code;
 }
 
-// STsdbSnapReader ========================================
+// STsdbSnapWriter ========================================
 struct STsdbSnapWriter {
   STsdb*  pTsdb;
   int64_t sver;
