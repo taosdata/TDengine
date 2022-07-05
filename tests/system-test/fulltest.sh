@@ -53,6 +53,7 @@ python3 ./test.py -f 2-query/spread.py
 python3 ./test.py -f 2-query/hyperloglog.py
 python3 ./test.py -f 2-query/explain.py
 python3 ./test.py -f 2-query/leastsquares.py
+python3 ./test.py -f 2-query/histogram.py
 
 
 python3 ./test.py -f 2-query/timezone.py
@@ -171,4 +172,3 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
-
