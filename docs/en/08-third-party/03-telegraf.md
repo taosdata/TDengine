@@ -1,46 +1,30 @@
-# Telegraf
+---
+sidebar_label: Telegraf
+title: Telegraf for TDengine Cloud
+---
 
 Telegraf is a viral, open-source, metrics collection software. Telegraf can collect the operation information of various components without having to write any scripts to collect regularly, reducing the difficulty of data acquisition.
 
 Telegraf's data can be written to TDengine by simply adding the output configuration of Telegraf to the URL corresponding to taosAdapter and modifying several configuration items. The presence of Telegraf data in TDengine can take advantage of TDengine's efficient storage query performance and clustering capabilities for time-series data.
 
-## Prerequisites
+## Install Telegraf
 
-To write Telegraf data to TDengine requires the following preparations.
-- The TDengine cluster is deployed and functioning properly
-- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](/reference/taosadapter) for details.
-- Telegraf has been installed. Please refer to the [official documentation](https://docs.influxdata.com/telegraf/v1.22/install/) for Telegraf installation.
+Please refer to the [official documentation](https://docs.influxdata.com/telegraf/v1.22/install/) for Telegraf installation.
 
 ## Configuration steps
-
 
 In the Telegraf configuration file (default location `/etc/telegraf/telegraf.conf`) add an `outputs.http` section.
 
 ```
 [[outputs.http]]
-  url = "http://<taosAdapter's host>:<REST service port>/influxdb/v1/write?db=<database name>"
-  ...
-  username = "<TDengine's username>"
-  password = "<TDengine's password>"
-  ...
-```
-
-Where <taosAdapter's host\> please fill in the server's domain name or IP address running the taosAdapter service. <REST service port\> please fill in the port of the REST service (default is 6041). <TDengine's username\> and <TDengine's password\> please fill in the actual configuration of the currently running TDengine. And <database name\> please fill in the database name where you want to store Telegraf data in TDengine.
-
-An example is as follows.
-
-```
-[[outputs.http]]
-  url = "http://127.0.0.1:6041/influxdb/v1/write?db=telegraf"
+  url = "<url>/influxdb/v1/write?db=<database name>&token=<token>"
   method = "POST"
   timeout = "5s"
-  username = "root"
-  password = "taosdata"
   data_format = "influx"
   influx_max_line_bytes = 250
 ```
 
-## Verification method
+## Verification plugin
 
 Restart Telegraf service:
 
