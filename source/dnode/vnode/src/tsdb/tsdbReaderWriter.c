@@ -60,8 +60,9 @@ _err:
   return code;
 }
 
-int32_t tsdbDelFWriterClose(SDelFWriter *pWriter, int8_t sync) {
-  int32_t code = 0;
+int32_t tsdbDelFWriterClose(SDelFWriter **ppWriter, int8_t sync) {
+  int32_t      code = 0;
+  SDelFWriter *pWriter = *ppWriter;
 
   // sync
   if (sync && taosFsyncFile(pWriter->pWriteH) < 0) {
@@ -75,6 +76,7 @@ int32_t tsdbDelFWriterClose(SDelFWriter *pWriter, int8_t sync) {
     goto _err;
   }
 
+  *ppWriter = NULL;
   return code;
 
 _err:
@@ -286,8 +288,9 @@ _err:
   return code;
 }
 
-int32_t tsdbDelFReaderClose(SDelFReader *pReader) {
-  int32_t code = 0;
+int32_t tsdbDelFReaderClose(SDelFReader **ppReader) {
+  int32_t      code = 0;
+  SDelFReader *pReader = *ppReader;
 
   if (pReader) {
     if (taosCloseFile(&pReader->pReadH) < 0) {
@@ -296,6 +299,7 @@ int32_t tsdbDelFReaderClose(SDelFReader *pReader) {
     }
     taosMemoryFree(pReader);
   }
+  *ppReader = NULL;
 
 _exit:
   return code;
