@@ -405,13 +405,17 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
     code = schHandleRedirect(pJob, pTask, (SDataBuf *)pMsg, rspCode);
     goto _return;
   }
-
-  code = schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode);
+  
+  schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode);
   pMsg->pData = NULL;
 
 _return:
 
   if (pTask) {
+    if (code) {
+      schProcessOnTaskFailure(pJob, pTask, code);
+    }
+
     SCH_UNLOCK_TASK(pTask);
   }
 

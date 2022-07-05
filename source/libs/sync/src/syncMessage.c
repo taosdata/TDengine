@@ -15,6 +15,7 @@
 
 #include "syncMessage.h"
 #include "syncRaftCfg.h"
+#include "syncRaftEntry.h"
 #include "syncUtil.h"
 #include "tcoding.h"
 
@@ -996,7 +997,135 @@ SyncClientRequestBatch* syncClientRequestBatchBuild(SRpcMsg* rpcMsgArr, SRaftMet
   return pMsg;
 }
 
-void syncClientRequestBatch2RpcMsg(const SyncClientRequestBatch* pSyncMsg, SRpcMsg* pRpcMsg) {}
+void syncClientRequestBatch2RpcMsg(const SyncClientRequestBatch* pSyncMsg, SRpcMsg* pRpcMsg) {
+  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
+  pRpcMsg->msgType = pSyncMsg->msgType;
+  pRpcMsg->contLen = pSyncMsg->bytes;
+  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
+  memcpy(pRpcMsg->pCont, pSyncMsg, pRpcMsg->contLen);
+}
+
+void syncClientRequestBatchDestroy(SyncClientRequestBatch* pMsg) {
+  if (pMsg != NULL) {
+    taosMemoryFree(pMsg);
+  }
+}
+
+void syncClientRequestBatchDestroyDeep(SyncClientRequestBatch* pMsg) {
+  if (pMsg != NULL) {
+    int32_t  arrSize = pMsg->dataCount;
+    int32_t  raftMetaArrayLen = sizeof(SRaftMeta) * arrSize;
+    SRpcMsg* msgArr = (SRpcMsg*)((char*)(pMsg->data) + raftMetaArrayLen);
+    for (int i = 0; i < arrSize; ++i) {
+      if (msgArr[i].pCont != NULL) {
+        rpcFreeCont(msgArr[i].pCont);
+      }
+    }
+
+    taosMemoryFree(pMsg);
+  }
+}
+
+SRaftMeta* syncClientRequestBatchMetaArr(const SyncClientRequestBatch* pSyncMsg) {
+  SRaftMeta* raftMetaArr = (SRaftMeta*)(pSyncMsg->data);
+  return raftMetaArr;
+}
+
+SRpcMsg* syncClientRequestBatchRpcMsgArr(const SyncClientRequestBatch* pSyncMsg) {
+  int32_t  arrSize = pSyncMsg->dataCount;
+  int32_t  raftMetaArrayLen = sizeof(SRaftMeta) * arrSize;
+  SRpcMsg* msgArr = (SRpcMsg*)((char*)(pSyncMsg->data) + raftMetaArrayLen);
+  return msgArr;
+}
+
+SyncClientRequestBatch* syncClientRequestBatchFromRpcMsg(const SRpcMsg* pRpcMsg) {
+  SyncClientRequestBatch* pSyncMsg = taosMemoryMalloc(pRpcMsg->contLen);
+  ASSERT(pSyncMsg != NULL);
+  memcpy(pSyncMsg, pRpcMsg->pCont, pRpcMsg->contLen);
+  ASSERT(pRpcMsg->contLen == pSyncMsg->bytes);
+
+  return pSyncMsg;
+}
+
+cJSON* syncClientRequestBatch2Json(const SyncClientRequestBatch* pMsg) {
+  char   u64buf[128] = {0};
+  cJSON* pRoot = cJSON_CreateObject();
+
+  if (pMsg != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+    cJSON_AddNumberToObject(pRoot, "vgId", pMsg->vgId);
+    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+    cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
+    cJSON_AddNumberToObject(pRoot, "dataCount", pMsg->dataCount);
+
+    SRaftMeta* metaArr = syncClientRequestBatchMetaArr(pMsg);
+    SRpcMsg*   msgArr = syncClientRequestBatchRpcMsgArr(pMsg);
+
+    cJSON* pMetaArr = cJSON_CreateArray();
+    cJSON_AddItemToObject(pRoot, "metaArr", pMetaArr);
+    for (int i = 0; i < pMsg->dataCount; ++i) {
+      cJSON* pMeta = cJSON_CreateObject();
+      cJSON_AddNumberToObject(pMeta, "seqNum", metaArr[i].seqNum);
+      cJSON_AddNumberToObject(pMeta, "isWeak", metaArr[i].isWeak);
+      cJSON_AddItemToArray(pMetaArr, pMeta);
+    }
+
+    cJSON* pMsgArr = cJSON_CreateArray();
+    cJSON_AddItemToObject(pRoot, "msgArr", pMsgArr);
+    for (int i = 0; i < pMsg->dataCount; ++i) {
+      cJSON* pRpcMsgJson = syncRpcMsg2Json(&msgArr[i]);
+      cJSON_AddItemToArray(pMsgArr, pRpcMsgJson);
+    }
+
+    char* s;
+    s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+    cJSON_AddStringToObject(pRoot, "data", s);
+    taosMemoryFree(s);
+    s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+    cJSON_AddStringToObject(pRoot, "data2", s);
+    taosMemoryFree(s);
+  }
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SyncClientRequestBatch", pRoot);
+  return pJson;
+}
+
+char* syncClientRequestBatch2Str(const SyncClientRequestBatch* pMsg) {
+  cJSON* pJson = syncClientRequestBatch2Json(pMsg);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+// for debug ----------------------
+void syncClientRequestBatchPrint(const SyncClientRequestBatch* pMsg) {
+  char* serialized = syncClientRequestBatch2Str(pMsg);
+  printf("syncClientRequestBatchPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncClientRequestBatchPrint2(char* s, const SyncClientRequestBatch* pMsg) {
+  char* serialized = syncClientRequestBatch2Str(pMsg);
+  printf("syncClientRequestBatchPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncClientRequestBatchLog(const SyncClientRequestBatch* pMsg) {
+  char* serialized = syncClientRequestBatch2Str(pMsg);
+  sTrace("syncClientRequestBatchLog | len:%lu | %s", strlen(serialized), serialized);
+  taosMemoryFree(serialized);
+}
+
+void syncClientRequestBatchLog2(char* s, const SyncClientRequestBatch* pMsg) {
+  if (gRaftDetailLog) {
+    char* serialized = syncClientRequestBatch2Str(pMsg);
+    sTraceLong("syncClientRequestBatchLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
+}
 
 // ---- message process SyncRequestVote----
 SyncRequestVote* syncRequestVoteBuild(int32_t vgId) {
@@ -1472,21 +1601,20 @@ void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg) {
 
 // block1: SOffsetAndContLen
 // block2: SOffsetAndContLen Array
-// block3: SRpcMsg Array
-// block4: SRpcMsg pCont Array
+// block3: entry Array
 
-SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SRpcMsg* rpcMsgArr, int32_t arrSize, int32_t vgId) {
-  ASSERT(rpcMsgArr != NULL);
+SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SSyncRaftEntry** entryPArr, int32_t arrSize, int32_t vgId) {
+  ASSERT(entryPArr != NULL);
   ASSERT(arrSize > 0);
 
   int32_t dataLen = 0;
   int32_t metaArrayLen = sizeof(SOffsetAndContLen) * arrSize;  // <offset, contLen>
-  int32_t rpcArrayLen = sizeof(SRpcMsg) * arrSize;             // SRpcMsg
-  int32_t contArrayLen = 0;
+  int32_t entryArrayLen = 0;
   for (int i = 0; i < arrSize; ++i) {  // SRpcMsg pCont
-    contArrayLen += rpcMsgArr[i].contLen;
+    SSyncRaftEntry* pEntry = entryPArr[i];
+    entryArrayLen += pEntry->bytes;
   }
-  dataLen += (metaArrayLen + rpcArrayLen + contArrayLen);
+  dataLen += (metaArrayLen + entryArrayLen);
 
   uint32_t                bytes = sizeof(SyncAppendEntriesBatch) + dataLen;
   SyncAppendEntriesBatch* pMsg = taosMemoryMalloc(bytes);
@@ -1498,28 +1626,28 @@ SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SRpcMsg* rpcMsgArr, int32_t 
   pMsg->dataLen = dataLen;
 
   SOffsetAndContLen* metaArr = (SOffsetAndContLen*)(pMsg->data);
-  SRpcMsg*           msgArr = (SRpcMsg*)((char*)(pMsg->data) + metaArrayLen);
   char*              pData = pMsg->data;
 
   for (int i = 0; i < arrSize; ++i) {
-    // init <offset, contLen>
+    // init meta <offset, contLen>
     if (i == 0) {
-      metaArr[i].offset = metaArrayLen + rpcArrayLen;
-      metaArr[i].contLen = rpcMsgArr[i].contLen;
+      metaArr[i].offset = metaArrayLen;
+      metaArr[i].contLen = entryPArr[i]->bytes;
     } else {
       metaArr[i].offset = metaArr[i - 1].offset + metaArr[i - 1].contLen;
-      metaArr[i].contLen = rpcMsgArr[i].contLen;
+      metaArr[i].contLen = entryPArr[i]->bytes;
     }
 
-    // init msgArr
-    msgArr[i] = rpcMsgArr[i];
-
-    // init data
-    ASSERT(rpcMsgArr[i].contLen == metaArr[i].contLen);
-    memcpy(pData + metaArr[i].offset, rpcMsgArr[i].pCont, rpcMsgArr[i].contLen);
+    // init entry array
+    ASSERT(metaArr[i].contLen == entryPArr[i]->bytes);
+    memcpy(pData + metaArr[i].offset, entryPArr[i], metaArr[i].contLen);
   }
 
   return pMsg;
+}
+
+SOffsetAndContLen* syncAppendEntriesBatchMetaTableArray(SyncAppendEntriesBatch* pMsg) {
+  return (SOffsetAndContLen*)(pMsg->data);
 }
 
 void syncAppendEntriesBatchDestroy(SyncAppendEntriesBatch* pMsg) {
@@ -1634,16 +1762,12 @@ cJSON* syncAppendEntriesBatch2Json(const SyncAppendEntriesBatch* pMsg) {
     cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
 
     int32_t metaArrayLen = sizeof(SOffsetAndContLen) * pMsg->dataCount;  // <offset, contLen>
-    int32_t rpcArrayLen = sizeof(SRpcMsg) * pMsg->dataCount;             // SRpcMsg
-    int32_t contArrayLen = pMsg->dataLen - metaArrayLen - rpcArrayLen;
+    int32_t entryArrayLen = pMsg->dataLen - metaArrayLen;
 
     cJSON_AddNumberToObject(pRoot, "metaArrayLen", metaArrayLen);
-    cJSON_AddNumberToObject(pRoot, "rpcArrayLen", rpcArrayLen);
-    cJSON_AddNumberToObject(pRoot, "contArrayLen", contArrayLen);
+    cJSON_AddNumberToObject(pRoot, "entryArrayLen", entryArrayLen);
 
     SOffsetAndContLen* metaArr = (SOffsetAndContLen*)(pMsg->data);
-    SRpcMsg*           msgArr = (SRpcMsg*)(pMsg->data + metaArrayLen);
-    void*              pData = (void*)(pMsg->data + metaArrayLen + rpcArrayLen);
 
     cJSON* pMetaArr = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "metaArr", pMetaArr);
@@ -1654,14 +1778,12 @@ cJSON* syncAppendEntriesBatch2Json(const SyncAppendEntriesBatch* pMsg) {
       cJSON_AddItemToArray(pMetaArr, pMeta);
     }
 
-    cJSON* pMsgArr = cJSON_CreateArray();
-    cJSON_AddItemToObject(pRoot, "msgArr", pMsgArr);
+    cJSON* pEntryArr = cJSON_CreateArray();
+    cJSON_AddItemToObject(pRoot, "entryArr", pEntryArr);
     for (int i = 0; i < pMsg->dataCount; ++i) {
-      cJSON* pRpcMsgJson = cJSON_CreateObject();
-      cJSON_AddNumberToObject(pRpcMsgJson, "code", msgArr[i].code);
-      cJSON_AddNumberToObject(pRpcMsgJson, "contLen", msgArr[i].contLen);
-      cJSON_AddNumberToObject(pRpcMsgJson, "msgType", msgArr[i].msgType);
-      cJSON_AddItemToArray(pMsgArr, pRpcMsgJson);
+      SSyncRaftEntry* pEntry = (SSyncRaftEntry*)(pMsg->data + metaArr[i].offset);
+      cJSON*          pEntryJson = syncEntry2Json(pEntry);
+      cJSON_AddItemToArray(pEntryArr, pEntryJson);
     }
 
     char* s;
@@ -1683,33 +1805,6 @@ char* syncAppendEntriesBatch2Str(const SyncAppendEntriesBatch* pMsg) {
   char*  serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
-}
-
-void syncAppendEntriesBatch2RpcMsgArray(SyncAppendEntriesBatch* pSyncMsg, SRpcMsg* rpcMsgArr, int32_t maxArrSize,
-                                        int32_t* pRetArrSize) {
-  if (pRetArrSize != NULL) {
-    *pRetArrSize = pSyncMsg->dataCount;
-  }
-
-  int32_t arrSize = pSyncMsg->dataCount;
-  if (arrSize > maxArrSize) {
-    arrSize = maxArrSize;
-  }
-
-  int32_t metaArrayLen = sizeof(SOffsetAndContLen) * pSyncMsg->dataCount;  // <offset, contLen>
-  int32_t rpcArrayLen = sizeof(SRpcMsg) * pSyncMsg->dataCount;             // SRpcMsg
-  int32_t contArrayLen = pSyncMsg->dataLen - metaArrayLen - rpcArrayLen;
-
-  SOffsetAndContLen* metaArr = (SOffsetAndContLen*)(pSyncMsg->data);
-  SRpcMsg*           msgArr = (SRpcMsg*)(pSyncMsg->data + metaArrayLen);
-  void*              pData = pSyncMsg->data + metaArrayLen + rpcArrayLen;
-
-  for (int i = 0; i < arrSize; ++i) {
-    rpcMsgArr[i] = msgArr[i];
-    rpcMsgArr[i].pCont = rpcMallocCont(msgArr[i].contLen);
-    void* pRpcCont = pSyncMsg->data + metaArr[i].offset;
-    memcpy(rpcMsgArr[i].pCont, pRpcCont, rpcMsgArr[i].contLen);
-  }
 }
 
 // for debug ----------------------
@@ -2158,6 +2253,9 @@ cJSON* syncSnapshotSend2Json(const SyncSnapshotSend* pMsg) {
 
     snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->privateTerm);
     cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%ld", pMsg->beginIndex);
+    cJSON_AddStringToObject(pRoot, "beginIndex", u64buf);
 
     snprintf(u64buf, sizeof(u64buf), "%ld", pMsg->lastIndex);
     cJSON_AddStringToObject(pRoot, "lastIndex", u64buf);

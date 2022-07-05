@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <executorimpl.h>
-#include <vnode.h>
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
@@ -2845,11 +2843,18 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
 
 int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
   int32_t type = pOperator->operatorType;
+
+  pOperator->status = OP_OPENED;
+
   if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     SStreamBlockScanInfo* pScanInfo = pOperator->info;
     pScanInfo->blockType = STREAM_INPUT__DATA_SCAN;
 
+    pScanInfo->pSnapshotReadOp->status = OP_OPENED;
+
     STableScanInfo* pInfo = pScanInfo->pSnapshotReadOp->info;
+    ASSERT(pInfo->scanMode == TABLE_SCAN__TABLE_ORDER);
+
     if (uid == 0) {
       pInfo->noTable = 1;
       return TSDB_CODE_SUCCESS;
@@ -2863,14 +2868,6 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
     pInfo->noTable = 0;
 
     if (pInfo->lastStatus.uid != uid || pInfo->lastStatus.ts != ts) {
-      tsdbSetTableId(pInfo->dataReader, uid);
-      int64_t oldSkey = pInfo->cond.twindows[0].skey;
-      pInfo->cond.twindows[0].skey = ts + 1;
-      tsdbReaderReset(pInfo->dataReader, &pInfo->cond, 0);
-      pInfo->cond.twindows[0].skey = oldSkey;
-      pInfo->scanTimes = 0;
-      pInfo->curTWinIdx = 0;
-
       SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
       int32_t tableSz = taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList);
@@ -2882,8 +2879,17 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
           pInfo->currentTable = i;
         }
       }
-      // TODO after processing drop,
+      // TODO after processing drop, found can be false
       ASSERT(found);
+
+      tsdbSetTableId(pInfo->dataReader, uid);
+      int64_t oldSkey = pInfo->cond.twindows[0].skey;
+      pInfo->cond.twindows[0].skey = ts + 1;
+      tsdbReaderReset(pInfo->dataReader, &pInfo->cond, 0);
+      pInfo->cond.twindows[0].skey = oldSkey;
+      pInfo->scanTimes = 0;
+      pInfo->curTWinIdx = 0;
+
       qDebug("tsdb reader offset seek to uid %ld ts %ld, table cur set to %d , all table num %d", uid, ts,
              pInfo->currentTable, tableSz);
     }
@@ -4763,7 +4769,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   (*pTaskInfo)->pRoot = createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId,
                                            &(*pTaskInfo)->tableqinfoList, pPlan->user);
 
-  
+
   /* XXXXXXXXXXXXXXXXXXXX */
   (*pTaskInfo)->pHandle = pHandle;
   /* XXXXXXXXXXXXXXXXXXXX */

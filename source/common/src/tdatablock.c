@@ -895,7 +895,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
         SBlockOrderInfo* pOrder = taosArrayGet(pOrderInfo, 0);
 
         int64_t p0 = taosGetTimestampUs();
-        
+
         __compar_fn_t fn = getKeyComparFunc(pColInfoData->info.type, pOrder->order);
         taosSort(pColInfoData->pData, pDataBlock->info.rows, pColInfoData->info.bytes, fn);
 
@@ -923,8 +923,9 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
     pInfo->pColData = taosArrayGet(pDataBlock->pDataBlock, pInfo->slotId);
   }
 
+  terrno = 0;
   taosqsort(index, rows, sizeof(int32_t), &helper, dataBlockCompar);
-  if(terrno) return terrno;
+  if (terrno) return terrno;
 
   int64_t p1 = taosGetTimestampUs();
 
@@ -1438,21 +1439,21 @@ static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
   }
 }
 
-static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, size_t end){
+static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, size_t end) {
   int32_t dataOffset = -1;
   int32_t dataLen = 0;
   int32_t beigin = start;
-  while(beigin < end){
+  while (beigin < end) {
     int32_t offset = pColInfoData->varmeta.offset[beigin];
-    if(offset == -1) {
+    if (offset == -1) {
       beigin++;
       continue;
     }
-    if(start != 0) {
+    if (start != 0) {
       pColInfoData->varmeta.offset[beigin] = dataLen;
     }
-    char *data = pColInfoData->pData + offset;
-    if(dataOffset == -1) dataOffset = offset;   // mark the begin of data
+    char* data = pColInfoData->pData + offset;
+    if (dataOffset == -1) dataOffset = offset;  // mark the begin of data
     int32_t type = pColInfoData->info.type;
     if (type == TSDB_DATA_TYPE_JSON) {
       dataLen += getJsonValueLen(data);
@@ -1461,7 +1462,7 @@ static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, s
     }
     beigin++;
   }
-  if(dataOffset > 0){
+  if (dataOffset > 0) {
     memmove(pColInfoData->pData, pColInfoData->pData + dataOffset, dataLen);
     memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[start], (end - start) * sizeof(int32_t));
   }
