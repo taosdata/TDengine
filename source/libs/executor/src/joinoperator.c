@@ -62,11 +62,19 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
     ASSERT(false);
   }
 
-  //TODO: merge these two conditions
-  ASSERT(pJoinNode->pOnConditions);
-  pInfo->pOnConditions = nodesCloneNode(pJoinNode->pOnConditions);
-  if (pJoinNode->node.pConditions != NULL) {
-    pInfo->pOtherConditions = pJoinNode->node.pConditions;
+  if (pJoinNode->pOnConditions != NULL && pJoinNode->node.pConditions != NULL) {
+    pInfo->pCondAfterMerge = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+    SLogicConditionNode* pLogicCond = (SLogicConditionNode*)(pInfo->pCondAfterMerge);
+    pLogicCond->pParameterList = nodesMakeList();
+    nodesListMakeAppend(&pLogicCond->pParameterList, nodesCloneNode(pJoinNode->pOnConditions));
+    nodesListMakeAppend(&pLogicCond->pParameterList, nodesCloneNode(pJoinNode->node.pConditions));
+    pLogicCond->condType = LOGIC_COND_TYPE_AND;
+  } else if (pJoinNode->pOnConditions != NULL) {
+    pInfo->pCondAfterMerge = nodesCloneNode(pJoinNode->pOnConditions);
+  } else if (pJoinNode->node.pConditions != NULL) {
+    pInfo->pCondAfterMerge = nodesCloneNode(pJoinNode->node.pConditions);
+  } else {
+    pInfo->pCondAfterMerge = NULL;
   }
 
   pOperator->fpSet =
@@ -95,8 +103,7 @@ void setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode) {
 
 void destroyMergeJoinOperator(void* param, int32_t numOfOutput) {
   SJoinOperatorInfo* pJoinOperator = (SJoinOperatorInfo*)param;
-  nodesDestroyNode(pJoinOperator->pOnConditions);
-  nodesDestroyNode(pJoinOperator->pOtherConditions);
+  nodesDestroyNode(pJoinOperator->pCondAfterMerge);
 }
 
 static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) {
@@ -201,8 +208,9 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
     if (numOfNewRows == 0) {
       break;
     }
-    doFilter(pJoinInfo->pOnConditions, pRes);
-    doFilter(pJoinInfo->pOtherConditions, pRes);
+    if (pJoinInfo->pCondAfterMerge != NULL) {
+      doFilter(pJoinInfo->pCondAfterMerge, pRes);
+    }
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
       break;
     }

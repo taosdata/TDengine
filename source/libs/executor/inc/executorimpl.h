@@ -680,8 +680,7 @@ typedef struct SJoinOperatorInfo {
   SSDataBlock       *pRight;
   int32_t            rightPos;
   SColumnInfo        rightCol;
-  SNode             *pOnConditions;
-  SNode             *pOtherConditions;
+  SNode             *pCondAfterMerge;
 } SJoinOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
