@@ -115,7 +115,7 @@ class TestInsert(TDCase):
         self.envMgr._remote.put(config_dict["HOST"], json_file, "/tmp")
 
         # run benchmark
-        cmd = "taosBenchmark -f /tmp/" + json_template_filename
+        cmd = ["ulimit -n 1048576", "taosBenchmark -f /tmp/" + json_template_filename]
         result = self.envMgr._remote.cmd2(config_dict["HOST"], cmd)
         if result.failed:
             # self.logger.error(str(result))

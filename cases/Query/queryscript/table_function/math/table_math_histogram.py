@@ -336,10 +336,10 @@ class TDTestQuery(TDCase):
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)#TD-16309
-                            # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
-                            # cur1.execute(sql2)   
-                            # self.tdCreateData.explain_sql(sql2)
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
+                            cur1.execute(sql2)   
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)
@@ -359,7 +359,10 @@ class TDTestQuery(TDCase):
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
+                            cur1.execute(sql2)   
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                             
                         for i in (22,):                        
@@ -382,10 +385,10 @@ class TDTestQuery(TDCase):
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)#TD-16309
-                            # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
-                            # cur1.execute(sql2)   
-                            # self.tdCreateData.explain_sql(sql2)
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
+                            cur1.execute(sql2)   
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)

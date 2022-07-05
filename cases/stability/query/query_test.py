@@ -190,7 +190,7 @@ class TestQuery(TDCase):
         self.envMgr._remote.put(insert_config_dict[TestQuery.host_field_name], insert_json_file, "/tmp")
 
         # run benchmark insert data
-        cmd = "taosBenchmark -f /tmp/" + insert_json_template_filename
+        cmd = ["ulimit -n 1048576", "taosBenchmark -f /tmp/" + insert_json_template_filename]
         result = self.envMgr._remote.cmd2(insert_config_dict[TestQuery.host_field_name], cmd)
         if result.failed:
             # self.logger.error(str(result))
@@ -225,7 +225,7 @@ class TestQuery(TDCase):
         # put query json file to host
         self.envMgr._remote.put(query_config_dict[TestQuery.host_field_name], query_json_file, "/tmp")
         # run benchmark query data
-        cmd = "taosBenchmark -f /tmp/" + query_json_template_filename
+        cmd = ["ulimit -n 1048576", "taosBenchmark -f /tmp/" + query_json_template_filename]
         result = self.envMgr._remote.cmd2(query_config_dict[TestQuery.host_field_name], cmd)
         if result.failed:
             # self.logger.error(str(result))
