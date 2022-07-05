@@ -1535,10 +1535,10 @@ class TDTestQuery(TDCase):
         self.data_create(self.db)
           
         startTime1 = time.time()
-        # self.right_case_1_groupby()
-        # self.right_case_1_tbname()
-        self.right_case_1()
-        self.right_case_1_interval()
+        self.right_case_1_groupby()
+        self.right_case_1_tbname()
+        # self.right_case_1()
+        # self.right_case_1_interval()
         endTime1 = time.time()       
         self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
