@@ -48,3 +48,15 @@ class GetTime:
                 us_ts = p[15:]
                 _ts += int(us_ts)
         return _ts
+    def time_transform(self,ts_str,precision):
+        date_time = []
+        if precision == 'ms':
+            for i in ts_str:
+                date_time.append(self.get_ms_timestamp(i))
+        elif precision == 'us':
+            for i in ts_str:
+                date_time.append(self.get_us_timestamp(i))
+        elif precision == 'ns':
+            for i in ts_str:
+                date_time.append(self.get_ns_timestamp(i))
+        return date_time

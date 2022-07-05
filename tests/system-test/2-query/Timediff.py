@@ -1,202 +1,171 @@
 from util.log import *
 from util.sql import *
 from util.cases import *
-
+from util.gettime import *
 class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
+        self.get_time = GetTime()
+        self.ts_str = [
+            '2020-1-1',
+            '2020-2-1 00:00:01',
+            '2020-3-1 00:00:00.001',
+            '2020-4-1 00:00:00.001002',
+            '2020-5-1 00:00:00.001002001'
 
+        ]
+        self.db_param_precision = ['ms','us','ns']
+        self.time_unit = ['1w','1d','1h','1m','1s','1a','1u']
+        self.error_unit = ['1b','2w','2d','2h','2m','2s','2a','2u','1c','#1']
+        self.ntbname = 'ntb'
+        self.stbname = 'stb'
+        self.ctbname = 'ctb'
+        self.subtractor = 1  # unit:s
+    def check_tbtype(self,tb_type):
+        if tb_type.lower() == 'ntb': 
+            tdSql.query(f'select timediff(ts,{self.subtractor}) from {self.ntbname}')
+        elif tb_type.lower() == 'ctb':
+            tdSql.query(f'select timediff(ts,{self.subtractor}) from {self.ctbname}')
+        elif tb_type.lower() == 'stb':
+            tdSql.query(f'select timediff(ts,{self.subtractor}) from {self.stbname}')
+    def check_tb_type(self,unit,tb_type):
+        if tb_type.lower() == 'ntb': 
+            tdSql.query(f'select timediff(ts,{self.subtractor},{unit}) from {self.ntbname}')
+        elif tb_type.lower() == 'ctb':
+            tdSql.query(f'select timediff(ts,{self.subtractor},{unit}) from {self.ctbname}')
+        elif tb_type.lower() == 'stb':
+            tdSql.query(f'select timediff(ts,{self.subtractor},{unit}) from {self.stbname}')
+    def data_check(self,date_time,precision,tb_type):
+        for unit in self.time_unit:
+            if (unit.lower() == '1u' and precision.lower() == 'ms') or () :
+                if tb_type.lower() == 'ntb': 
+                    tdSql.error(f'select timediff(ts,{self.subtractor},{unit}) from {self.ntbname}')
+                elif tb_type.lower() == 'ctb':
+                    tdSql.error(f'select timediff(ts,{self.subtractor},{unit}) from {self.ctbname}')
+                elif tb_type.lower() == 'stb':
+                    tdSql.error(f'select timediff(ts,{self.subtractor},{unit}) from {self.stbname}')
+            elif precision.lower() == 'ms':
+                self.check_tb_type(unit,tb_type)
+                tdSql.checkRows(len(self.ts_str))
+                if unit.lower() == '1a':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i])-self.subtractor*1000)
+                elif unit.lower() == '1s':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]/1000)-self.subtractor)
+                elif unit.lower() == '1m':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000)-self.subtractor)/60))
+                elif unit.lower() == '1h':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000)-self.subtractor)/60/60))
+                elif unit.lower() == '1d':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000)-self.subtractor)/60/60/24))        
+                elif unit.lower() == '1w':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000)-self.subtractor)/60/60/24/7))
+                self.check_tbtype(tb_type)
+                tdSql.checkRows(len(self.ts_str))
+                for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i])-self.subtractor*1000)
+            elif precision.lower() == 'us':
+                self.check_tb_type(unit,tb_type)
+                tdSql.checkRows(len(self.ts_str))
+                if unit.lower() == '1w':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000)-self.subtractor)/60/60/24/7))
+                elif unit.lower() == '1d':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000)-self.subtractor)/60/60/24))
+                elif unit.lower() == '1h':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000)-self.subtractor)/60/60))
+                elif unit.lower() == '1m':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000)-self.subtractor)/60))
+                elif unit.lower() == '1s':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000)-self.subtractor)))
+                elif unit.lower() == '1a':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000)-self.subtractor*1000)))
+                elif unit.lower() == '1u':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i])-self.subtractor*1000000)))        
+                self.check_tbtype(tb_type)
+                tdSql.checkRows(len(self.ts_str))
+                for i in range(len(self.ts_str)):
+                    tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i])-self.subtractor*1000000)))
+            elif precision.lower() == 'ns':
+                self.check_tb_type(unit,tb_type)
+                tdSql.checkRows(len(self.ts_str))
+                if unit.lower() == '1w':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000000)-self.subtractor)/60/60/24/7))
+                elif unit.lower() == '1d':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000000)-self.subtractor)/60/60/24))
+                elif unit.lower() == '1h':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000000)-self.subtractor)/60/60))
+                elif unit.lower() == '1m':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000000)-self.subtractor)/60))
+                elif unit.lower() == '1s':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000000)-self.subtractor)))
+                elif unit.lower() == '1a':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000)-self.subtractor*1000)))
+                elif unit.lower() == '1u':
+                    for i in range(len(self.ts_str)):
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000)-self.subtractor*1000000)))
+                # self.check_tbtype(tb_type)
+                # tdSql.checkRows(len(self.ts_str))
+                # for i in range(len(self.ts_str)):
+                #     tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000)-self.subtractor*1000000000)))
+            for unit in self.error_unit:
+                if tb_type.lower() == 'ntb':
+                    tdSql.error(f'select timediff(ts,{self.subtractor},{unit}) from {self.ntbname}')
+                    tdSql.error(f'select timediff(c0,{self.subtractor},{unit}) from {self.ntbname}')
+                elif tb_type.lower() == 'ctb':
+                    tdSql.error(f'select timediff(ts,{self.subtractor},{unit}) from {self.ctbname}')
+                    tdSql.error(f'select timediff(c0,{self.subtractor},{unit}) from {self.ntbname}')
+                elif tb_type.lower() == 'stb':
+                    tdSql.error(f'select timediff(ts,{self.subtractor},{unit}) from {self.stbname}')
+                    tdSql.error(f'select timediff(c0,{self.subtractor},{unit}) from {self.ntbname}')
+    def function_check_ntb(self):
+        for precision in self.db_param_precision:
+            tdSql.execute('drop database if exists db')
+            tdSql.execute(f'create database db precision "{precision}"')
+            tdSql.execute('use db')
+            tdSql.execute(f'create table {self.ntbname} (ts timestamp,c0 int)')
+            for ts in self.ts_str:
+                tdSql.execute(f'insert into {self.ntbname} values("{ts}",1)')
+            for unit in self.error_unit:
+                tdSql.error(f'select timediff(ts,{self.subtractor},{unit}) from {self.ntbname}')
+            date_time = self.get_time.time_transform(self.ts_str,precision)
+            self.data_check(date_time,precision,'ntb')
+    def function_check_stb(self):
+        for precision in self.db_param_precision:
+            tdSql.execute('drop database if exists db')
+            tdSql.execute(f'create database db precision "{precision}"')
+            tdSql.execute('use db')
+            tdSql.execute(f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int)')
+            tdSql.execute(f'create table {self.ctbname} using {self.stbname} tags(1)')
+            for ts in self.ts_str:
+                tdSql.execute(f'insert into {self.ctbname} values("{ts}",1)')
+            date_time = self.get_time.time_transform(self.ts_str,precision)
+            self.data_check(date_time,precision,'ctb')
+            self.data_check(date_time,precision,'stb')
     def run(self):  # sourcery skip: extract-duplicate-method
-        tdSql.prepare()
-        tdLog.printNoPrefix("==========step1:create tables==========")
-        tdSql.execute(
-            '''create table if not exists ntb
-            (ts timestamp, c1 int, c2 float,c3 double,c4 timestamp)
-            '''
-        )
-        tdSql.execute(
-            '''create table if not exists stb
-            (ts timestamp, c1 int, c2 float,c3 double,c4 timestamp) tags(t0 int)
-            '''
-        )
-        tdSql.execute(
-            '''create table if not exists stb_1 using stb tags(100)
-            '''
-        )
-        tdLog.printNoPrefix("==========step2:insert data into ntb==========")
 
-        # RFC3339:2020-01-01T00:00:00+8:00
-        # ISO8601:2020-01-01T00:00:00.000+0800
-        tdSql.execute(
-            'insert into ntb values(now,1,1.55,100.555555,today())("2020-1-1 00:00:00",10,11.11,99.999999,now())(today(),3,3.333,333.333333,now())')
-        tdSql.execute(
-            'insert into stb_1 values(now,1,1.55,100.555555,today())("2020-1-1 00:00:00",10,11.11,99.999999,now())(today(),3,3.333,333.333333,now())')
-
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00') from ntb")
-        tdSql.checkRows(3)
-        tdSql.query("select timediff(1,0,1d) from ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,0)
-        tdSql.query("select timediff(1,0,1d) from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,0)
-        tdSql.query("select timediff(1,0,1s) from ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,1)
-        tdSql.query("select timediff(1,0,1s) from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,1)
-        tdSql.query("select timediff(1,0,1w) from ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,0)
-        tdSql.query("select timediff(1,0,1w) from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,0)
-        tdSql.query("select timediff(1,0,1h) from ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,0)
-        tdSql.query("select timediff(1,0,1h) from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,0)
-        tdSql.query("select timediff(1,0,1m) from ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,0)
-        tdSql.query("select timediff(1,0,1m) from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,0)
-        tdSql.query("select timediff(1,0,1a) from ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,1000)
-        tdSql.query("select timediff(1,0,1a) from db.ntb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,1000)
-        tdSql.error("select timediff(1,0,1u) from ntb")
-        #tdSql.checkRows(3)
-        #tdSql.checkData(0,0,1000000)
-        tdSql.error("select timediff(1,0,1u) from db.ntb")
-        #tdSql.checkRows(3)
-        #tdSql.checkData(0,0,1000000)
-
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00') from stb")
-        tdSql.checkRows(3)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00') from db.stb")
-        tdSql.checkRows(3)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1d) from stb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,1)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1d) from db.stb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,1)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1h) from stb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,24)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1h) from db.stb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,24)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1w) from stb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,0)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1m) from stb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,1440)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1m) from db.stb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,1440)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1s) from stb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,86400)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1s) from db.stb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,86400)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1a) from stb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,86400000)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1a) from db.stb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,86400000)
-        tdSql.error("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1u) from stb")
-        #tdSql.checkRows(3)
-        #tdSql.checkData(0,0,86400000000)
-        tdSql.error("select timediff('2020-1-1 00:00:00','2020-1-2 00:00:00',1u) from db.stb")
-        #tdSql.checkRows(3)
-        #tdSql.checkData(0,0,86400000000)
-
-
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00') from stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00') from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1w) from stb_1 ")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,0)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1w) from db.stb_1 ")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,0)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1d) from stb_1 ")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,0)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1d) from db.stb_1 ")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,0)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1h) from stb_1 ")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,12)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1h) from db.stb_1 ")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,12)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1m) from stb_1" )
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,720)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1m) from db.stb_1" )
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,720)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1s) from stb_1")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,43200)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1s) from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,43200)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1a) from stb_1")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,43200000)
-        tdSql.query("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1a) from db.stb_1")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,43200000)
-        tdSql.error("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1u) from stb_1")
-        #tdSql.checkRows(3)
-        #tdSql.checkData(0,0,43200000000)
-        tdSql.error("select timediff('2020-1-1 00:00:00','2020-1-1 12:00:00',1u) from db.stb_1")
-        #tdSql.checkRows(3)
-        #tdSql.checkData(0,0,43200000000)
-
-        tdSql.query("select timediff('a','b') from stb")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,None)
-        tdSql.checkData(1,0,None)
-        tdSql.checkData(2,0,None)
-        tdSql.error("select timediff(1.5,1.5) from stb")
-        tdSql.error("select timediff(1) from stb")
-        tdSql.error("select timediff(10,1,1.5) from stb")
-        # tdSql.error("select timediff(10,1,2s) from stb")
-        # tdSql.error("select timedifff(10,1,c1) from stb")
-        tdSql.error("select timediff(1.5,1.5) from stb_1")
-        tdSql.error("select timediff(1) from stb_1")
-        tdSql.error("select timediff(10,1,1.5) from stb_1")
-        # tdSql.error("select timediff(10,1,2s) from stb_1")
-        # tdSql.error("select timedifff(10,1,c1) from stb_1")
-        tdSql.error("select timediff(1.5,1.5) from ntb")
-        tdSql.error("select timediff(1) from ntb")
-        tdSql.error("select timediff(10,1,1.5) from ntb")
-        # tdSql.error("select timediff(10,1,2s) from ntb")
-        # tdSql.error("select timedifff(10,1,c1) from ntb")
-
-
-
-
-
-
+        self.function_check_ntb()
+        self.function_check_stb()
+        
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
