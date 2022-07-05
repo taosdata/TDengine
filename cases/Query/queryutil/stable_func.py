@@ -249,7 +249,7 @@ class TDFunction():
 
     def all_cloumn_unique(self):   
         hanshu = ['UNIQUE']             
-        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_binary)','(q_nchar)','(q_double)','(q_bool)','(q_ts)'] 
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_binary)','(q_nchar)','(q_double)','(q_ts)'] #,'(q_bool)'只有一条，不方便对比
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         all_cloumn_unique = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
                     
