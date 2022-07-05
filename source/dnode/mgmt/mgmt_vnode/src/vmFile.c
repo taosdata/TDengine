@@ -32,8 +32,7 @@ SVnodeObj **vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes) {
     if (pVnode && num < size) {
       int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
       // dTrace("vgId:%d, acquire vnode, refCount:%d", pVnode->vgId, refCount);
-      pVnodes[num] = (*ppVnode);
-      num++;
+      pVnodes[num++] = (*ppVnode);
       pIter = taosHashIterate(pMgmt->hash, pIter);
     } else {
       taosHashCancelIterate(pMgmt->hash, pIter);

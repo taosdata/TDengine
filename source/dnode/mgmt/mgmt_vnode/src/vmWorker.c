@@ -185,7 +185,11 @@ int32_t vmPutMsgToMonitorQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
 int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
-  if (pMsg == NULL) return -1;
+  if (pMsg == NULL) {
+    rpcFreeCont(pMsg->pCont);
+    pRpc->pCont = NULL;
+    return -1;
+  }
 
   SMsgHead *pHead = pRpc->pCont;
   dTrace("vgId:%d, msg:%p is created, type:%s", pHead->vgId, pMsg, TMSG_INFO(pRpc->msgType));
@@ -193,7 +197,16 @@ int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   pHead->contLen = htonl(pHead->contLen);
   pHead->vgId = htonl(pHead->vgId);
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
-  return vmPutMsgToQueue(pMgmt, pMsg, qtype);
+
+  int32_t code = vmPutMsgToQueue(pMgmt, pMsg, qtype);
+  if (code != 0) {
+    dTrace("msg:%p, is freed", pMsg);
+    taosFreeQitem(pMsg);
+    rpcFreeCont(pMsg->pCont);
+    pRpc->pCont = NULL;
+  }
+
+  return code;
 }
 
 int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {

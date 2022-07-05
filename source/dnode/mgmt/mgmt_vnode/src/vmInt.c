@@ -88,7 +88,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   while (!taosQueueEmpty(pVnode->pApplyQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pFetchQ)) taosMsleep(10);
-  dTrace("vgId:%d, vnode-fetch queue is empty", pVnode->vgId);
+  dTrace("vgId:%d, vnode queue is empty", pVnode->vgId);
 
   vmFreeQueue(pMgmt, pVnode);
   vnodeClose(pVnode->pImpl);
@@ -140,7 +140,7 @@ static void *vmOpenVnodeInThread(void *param) {
 }
 
 static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
-  pMgmt->hash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  pMgmt->hash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (pMgmt->hash == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     dError("failed to init vnode hash since %s", terrstr());
@@ -156,7 +156,8 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
 
   pMgmt->state.totalVnodes = numOfVnodes;
 
-  int32_t threadNum = 1;
+  int32_t threadNum = tsNumOfCores / 2;
+  if (threadNum < 1) threadNum = 0;
   int32_t vnodesPerThread = numOfVnodes / threadNum + 1;
 
   SVnodeThread *threads = taosMemoryCalloc(threadNum, sizeof(SVnodeThread));
