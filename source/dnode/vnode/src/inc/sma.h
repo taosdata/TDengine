@@ -62,12 +62,10 @@ struct STSmaStat {
 
 struct SRSmaStat {
   SSma     *pSma;
-  int64_t   refId;         // shared by persistence/fetch tasks
-  void     *tmrHandle;     // for persistence task
-  tmr_h     tmrId;         // for persistence task
-  int32_t   tmrSeconds;    // for persistence task
-  int8_t    triggerStat;   // for persistence task
-  int8_t    runningStat;   // for persistence task
+  int64_t   refId;         // shared by fetch tasks
+  void     *tmrHandle;     // shared by fetch tasks
+  int8_t    triggerStat;   // shared by fetch tasks
+  int8_t    runningStat;   // for persistence task 
   SHashObj *rsmaInfoHash;  // key: stbUid, value: SRSmaInfo;
 };
 
@@ -82,7 +80,6 @@ struct SSmaStat {
 #define SMA_TSMA_STAT(s)     (&(s)->tsmaStat)
 #define SMA_RSMA_STAT(s)     (&(s)->rsmaStat)
 #define RSMA_INFO_HASH(r)    ((r)->rsmaInfoHash)
-#define RSMA_TMR_ID(r)       ((r)->tmrId)
 #define RSMA_TMR_HANDLE(r)   ((r)->tmrHandle)
 #define RSMA_TRIGGER_STAT(r) (&(r)->triggerStat)
 #define RSMA_RUNNING_STAT(r) (&(r)->runningStat)
@@ -185,9 +182,11 @@ static FORCE_INLINE void tdSmaStatSetDropped(STSmaStat *pTStat) {
 static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeRSmaInfo(SRSmaInfo *pInfo);
+int32_t        tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat);
 
 int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
 int32_t tdProcessRSmaRestoreImpl(SSma *pSma);
+
 int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg);
 int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg);
 int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
@@ -244,8 +243,8 @@ void    tdUpdateTFileMagic(STFile *pTFile, void *pCksm);
 void    tdCloseTFile(STFile *pTFile);
 void    tdDestroyTFile(STFile *pTFile);
 
-void tdGetVndFileName(int32_t vgId, const char *dname, const char *fname, int64_t version, char *outputName);
-void tdGetVndDirName(int32_t vgId, const char *dname, char *outputName);
+void tdGetVndFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t version, char *outputName);
+void tdGetVndDirName(int32_t vgId,const char *pdname,  const char *dname, bool endWithSep, char *outputName);
 
 #ifdef __cplusplus
 }

@@ -118,12 +118,12 @@ static void syncNodeStartSnapshot(SSyncNode* ths, SyncIndex beginIndex, SyncInde
   SSnapshot snapshot = {
       .data = NULL, .lastApplyIndex = endIndex, .lastApplyTerm = lastApplyTerm, .lastConfigIndex = SYNC_INDEX_INVALID};
 
-  void*        pReader = NULL;
-  SReaderParam readerParam = {.start = beginIndex, .end = endIndex};
+  void*          pReader = NULL;
+  SSnapshotParam readerParam = {.start = beginIndex, .end = endIndex};
   ths->pFsm->FpSnapshotStartRead(ths->pFsm, &readerParam, &pReader);
   if (!snapshotSenderIsStart(pSender) && pMsg->privateTerm < pSender->privateTerm) {
     ASSERT(pReader != NULL);
-    snapshotSenderStart(pSender, snapshot, pReader);
+    snapshotSenderStart(pSender, readerParam, snapshot, pReader);
 
   } else {
     if (pReader != NULL) {
@@ -165,23 +165,22 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
 
     if (ths->pLogStore->syncLogExist(ths->pLogStore, newNextIndex) &&
         ths->pLogStore->syncLogExist(ths->pLogStore, newNextIndex - 1)) {
-      // nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.mmatchIndex + 1]
+      // update next-index, match-index
       syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), newNextIndex);
-
-      // matchIndex' = [matchIndex EXCEPT ![i][j] = m.mmatchIndex]
       syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), newMatchIndex);
 
       // maybe commit
       if (ths->state == TAOS_SYNC_STATE_LEADER) {
         syncMaybeAdvanceCommitIndex(ths);
       }
+
     } else {
       // start snapshot <match+1, old snapshot.end>
-      SSnapshot snapshot;
-      ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
-      syncNodeStartSnapshot(ths, newMatchIndex + 1, snapshot.lastApplyIndex, snapshot.lastApplyTerm, pMsg);
+      SSnapshot oldSnapshot;
+      ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &oldSnapshot);
+      syncNodeStartSnapshot(ths, newMatchIndex + 1, oldSnapshot.lastApplyIndex, oldSnapshot.lastApplyTerm, pMsg);
 
-      syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), snapshot.lastApplyIndex + 1);
+      syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), oldSnapshot.lastApplyIndex + 1);
       syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), newMatchIndex);
     }
 
@@ -301,7 +300,8 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
           !snapshotSenderIsStart(pSender) && pMsg->privateTerm < pSender->privateTerm) {
         // has snapshot
         ASSERT(pReader != NULL);
-        snapshotSenderStart(pSender, snapshot, pReader);
+        SSnapshotParam readerParam = {.start = 0, .end = snapshot.lastApplyIndex};
+        snapshotSenderStart(pSender, readerParam, snapshot, pReader);
 
       } else {
         // no snapshot

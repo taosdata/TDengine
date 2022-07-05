@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDnode.h"
-#include "mndPrivilege.h"
 #include "mndMnode.h"
+#include "mndPrivilege.h"
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndSnode.h"
@@ -274,15 +274,14 @@ static void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
 
     SDnodeEp dnodeEp = {0};
     dnodeEp.id = pDnode->id;
-    dnodeEp.isMnode = 0;
     dnodeEp.ep.port = pDnode->port;
     memcpy(dnodeEp.ep.fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+    sdbRelease(pSdb, pDnode);
 
+    dnodeEp.isMnode = 0;
     if (mndIsMnode(pMnode, pDnode->id)) {
       dnodeEp.isMnode = 1;
     }
-
-    sdbRelease(pSdb, pDnode);
     taosArrayPush(pDnodeEps, &dnodeEp);
   }
 }
@@ -432,7 +431,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
 
     if (!online) {
-      mInfo("dnode:%d, from offline to online", pDnode->id);
+      mInfo("dnode:%d, from offline to online, memory avail:%" PRId64 " total:%" PRId64 " cores:%.2f", pDnode->id,
+            statusReq.memAvail, statusReq.memTotal, statusReq.numOfCores);
     } else {
       mDebug("dnode:%d, send dnode epset, online:%d dnodeVer:%" PRId64 ":%" PRId64 " reboot:%d", pDnode->id, online,
              statusReq.dnodeVer, dnodeVer, reboot);
@@ -441,6 +441,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->rebootTime = statusReq.rebootTime;
     pDnode->numOfCores = statusReq.numOfCores;
     pDnode->numOfSupportVnodes = statusReq.numOfSupportVnodes;
+    pDnode->memAvail = statusReq.memAvail;
+    pDnode->memTotal = statusReq.memTotal;
 
     SStatusRsp statusRsp = {0};
     statusRsp.dnodeVer = dnodeVer;
@@ -580,7 +582,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   strcpy(info.name, "timezone");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
   taosArrayPush(rsp.variables, &info);
-  
+
   strcpy(info.name, "locale");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
   taosArrayPush(rsp.variables, &info);
@@ -756,6 +758,11 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
              numOfVnodes);
       goto _OVER;
     }
+  }
+
+  if (numOfVnodes > 0) {
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    goto _OVER;
   }
 
   code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes);

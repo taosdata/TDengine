@@ -260,7 +260,7 @@ bool fmIsSameInOutType(int32_t funcId) {
 }
 
 static int32_t getFuncInfo(SFunctionNode* pFunc) {
-  char msg[64] = {0};
+  char msg[128] = {0};
   return fmGetFuncInfo(pFunc, msg, sizeof(msg));
 }
 

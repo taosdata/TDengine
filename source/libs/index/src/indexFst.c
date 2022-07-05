@@ -19,11 +19,11 @@
 #include "tchecksum.h"
 #include "tcoding.h"
 
-static void fstPackDeltaIn(FstCountingWriter* wrt, CompiledAddr nodeAddr, CompiledAddr transAddr, uint8_t nBytes) {
+static void fstPackDeltaIn(IdxFstFile* wrt, CompiledAddr nodeAddr, CompiledAddr transAddr, uint8_t nBytes) {
   CompiledAddr deltaAddr = (transAddr == EMPTY_ADDRESS) ? EMPTY_ADDRESS : nodeAddr - transAddr;
-  fstCountingWriterPackUintIn(wrt, deltaAddr, nBytes);
+  idxFilePackUintIn(wrt, deltaAddr, nBytes);
 }
-static uint8_t fstPackDetla(FstCountingWriter* wrt, CompiledAddr nodeAddr, CompiledAddr transAddr) {
+static uint8_t fstPackDetla(IdxFstFile* wrt, CompiledAddr nodeAddr, CompiledAddr transAddr) {
   uint8_t nBytes = packDeltaSize(nodeAddr, transAddr);
   fstPackDeltaIn(wrt, nodeAddr, transAddr, nBytes);
   return nBytes;
@@ -208,7 +208,7 @@ FstState fstStateCreate(State state) {
   return fstStateDict[idx];
 }
 // compile
-void fstStateCompileForOneTransNext(FstCountingWriter* w, CompiledAddr addr, uint8_t inp) {
+void fstStateCompileForOneTransNext(IdxFstFile* w, CompiledAddr addr, uint8_t inp) {
   FstState s = fstStateCreate(OneTransNext);
   fstStateSetCommInput(&s, inp);
 
@@ -216,21 +216,21 @@ void fstStateCompileForOneTransNext(FstCountingWriter* w, CompiledAddr addr, uin
   uint8_t v = fstStateCommInput(&s, &null);
   if (null) {
     // w->write_all(&[inp])
-    fstCountingWriterWrite(w, &inp, 1);
+    idxFileWrite(w, &inp, 1);
   }
-  fstCountingWriterWrite(w, &(s.val), 1);
+  idxFileWrite(w, &(s.val), 1);
   // w->write_all(&[s.val])
   return;
 }
-void fstStateCompileForOneTrans(FstCountingWriter* w, CompiledAddr addr, FstTransition* trn) {
+void fstStateCompileForOneTrans(IdxFstFile* w, CompiledAddr addr, FstTransition* trn) {
   Output    out = trn->out;
-  uint8_t   outPackSize = (out == 0 ? 0 : fstCountingWriterPackUint(w, out));
+  uint8_t   outPackSize = (out == 0 ? 0 : idxFilePackUint(w, out));
   uint8_t   transPackSize = fstPackDetla(w, addr, trn->addr);
   PackSizes packSizes = 0;
 
   FST_SET_OUTPUT_PACK_SIZE(packSizes, outPackSize);
   FST_SET_TRANSITION_PACK_SIZE(packSizes, transPackSize);
-  fstCountingWriterWrite(w, (char*)&packSizes, sizeof(packSizes));
+  idxFileWrite(w, (char*)&packSizes, sizeof(packSizes));
 
   FstState st = fstStateCreate(OneTrans);
 
@@ -239,12 +239,12 @@ void fstStateCompileForOneTrans(FstCountingWriter* w, CompiledAddr addr, FstTran
   bool    null = false;
   uint8_t inp = fstStateCommInput(&st, &null);
   if (null == true) {
-    fstCountingWriterWrite(w, (char*)&trn->inp, sizeof(trn->inp));
+    idxFileWrite(w, (char*)&trn->inp, sizeof(trn->inp));
   }
-  fstCountingWriterWrite(w, (char*)(&(st.val)), sizeof(st.val));
+  idxFileWrite(w, (char*)(&(st.val)), sizeof(st.val));
   return;
 }
-void fstStateCompileForAnyTrans(FstCountingWriter* w, CompiledAddr addr, FstBuilderNode* node) {
+void fstStateCompileForAnyTrans(IdxFstFile* w, CompiledAddr addr, FstBuilderNode* node) {
   int32_t sz = taosArrayGetSize(node->trans);
   assert(sz <= 256);
 
@@ -275,11 +275,11 @@ void fstStateCompileForAnyTrans(FstCountingWriter* w, CompiledAddr addr, FstBuil
 
   if (anyOuts) {
     if (FST_BUILDER_NODE_IS_FINAL(node)) {
-      fstCountingWriterPackUintIn(w, node->finalOutput, oSize);
+      idxFilePackUintIn(w, node->finalOutput, oSize);
     }
     for (int32_t i = sz - 1; i >= 0; i--) {
       FstTransition* t = taosArrayGet(node->trans, i);
-      fstCountingWriterPackUintIn(w, t->out, oSize);
+      idxFilePackUintIn(w, t->out, oSize);
     }
   }
   for (int32_t i = sz - 1; i >= 0; i--) {
@@ -288,7 +288,7 @@ void fstStateCompileForAnyTrans(FstCountingWriter* w, CompiledAddr addr, FstBuil
   }
   for (int32_t i = sz - 1; i >= 0; i--) {
     FstTransition* t = taosArrayGet(node->trans, i);
-    fstCountingWriterWrite(w, (char*)&t->inp, 1);
+    idxFileWrite(w, (char*)&t->inp, 1);
     // fstPackDeltaIn(w, addr, t->addr, tSize);
   }
   if (sz > TRANS_INDEX_THRESHOLD) {
@@ -306,10 +306,10 @@ void fstStateCompileForAnyTrans(FstCountingWriter* w, CompiledAddr addr, FstBuil
       index[t->inp] = i;
       // fstPackDeltaIn(w, addr, t->addr, tSize);
     }
-    fstCountingWriterWrite(w, (char*)index, 256);
+    idxFileWrite(w, (char*)index, 256);
     taosMemoryFree(index);
   }
-  fstCountingWriterWrite(w, (char*)&packSizes, 1);
+  idxFileWrite(w, (char*)&packSizes, 1);
   bool null = false;
   fstStateStateNtrans(&st, &null);
   if (null == true) {
@@ -318,12 +318,12 @@ void fstStateCompileForAnyTrans(FstCountingWriter* w, CompiledAddr addr, FstBuil
     // encoded in the state byte.
     uint8_t v = 1;
     if (sz == 256) {
-      fstCountingWriterWrite(w, (char*)&v, 1);
+      idxFileWrite(w, (char*)&v, 1);
     } else {
-      fstCountingWriterWrite(w, (char*)&sz, 1);
+      idxFileWrite(w, (char*)&sz, 1);
     }
   }
-  fstCountingWriterWrite(w, (char*)(&(st.val)), 1);
+  idxFileWrite(w, (char*)(&(st.val)), 1);
   return;
 }
 
@@ -753,7 +753,7 @@ bool fstNodeCompile(FstNode* node, void* w, CompiledAddr lastAddr, CompiledAddr 
   return true;
 }
 
-bool fstBuilderNodeCompileTo(FstBuilderNode* b, FstCountingWriter* wrt, CompiledAddr lastAddr, CompiledAddr startAddr) {
+bool fstBuilderNodeCompileTo(FstBuilderNode* b, IdxFstFile* wrt, CompiledAddr lastAddr, CompiledAddr startAddr) {
   return fstNodeCompile(NULL, wrt, lastAddr, startAddr, b);
 }
 
@@ -763,7 +763,7 @@ FstBuilder* fstBuilderCreate(void* w, FstType ty) {
     return b;
   }
 
-  b->wrt = fstCountingWriterCreate(w);
+  b->wrt = idxFileCreate(w);
   b->unfinished = fstUnFinishedNodesCreate();
   b->registry = fstRegistryCreate(10000, 2);
   b->last = fstSliceCreate(NULL, 0);
@@ -773,12 +773,12 @@ FstBuilder* fstBuilderCreate(void* w, FstType ty) {
   char  buf64[8] = {0};
   void* pBuf64 = buf64;
   taosEncodeFixedU64(&pBuf64, VERSION);
-  fstCountingWriterWrite(b->wrt, buf64, sizeof(buf64));
+  idxFileWrite(b->wrt, buf64, sizeof(buf64));
 
   pBuf64 = buf64;
   memset(buf64, 0, sizeof(buf64));
   taosEncodeFixedU64(&pBuf64, ty);
-  fstCountingWriterWrite(b->wrt, buf64, sizeof(buf64));
+  idxFileWrite(b->wrt, buf64, sizeof(buf64));
 
   return b;
 }
@@ -787,7 +787,7 @@ void fstBuilderDestroy(FstBuilder* b) {
     return;
   }
 
-  fstCountingWriterDestroy(b->wrt);
+  idxFileDestroy(b->wrt);
   fstUnFinishedNodesDestroy(b->unfinished);
   fstRegistryDestroy(b->registry);
   fstSliceDestroy(&b->last);
@@ -905,21 +905,19 @@ void* fstBuilderInsertInner(FstBuilder* b) {
 
   void* pBuf64 = buf64;
   taosEncodeFixedU64(&pBuf64, b->len);
-  fstCountingWriterWrite(b->wrt, buf64, sizeof(buf64));
+  idxFileWrite(b->wrt, buf64, sizeof(buf64));
 
   pBuf64 = buf64;
   taosEncodeFixedU64(&pBuf64, rootAddr);
-  fstCountingWriterWrite(b->wrt, buf64, sizeof(buf64));
+  idxFileWrite(b->wrt, buf64, sizeof(buf64));
 
   char     buf32[4] = {0};
   void*    pBuf32 = buf32;
-  uint32_t sum = fstCountingWriterMaskedCheckSum(b->wrt);
+  uint32_t sum = idxFileMaskedCheckSum(b->wrt);
   taosEncodeFixedU32(&pBuf32, sum);
-  fstCountingWriterWrite(b->wrt, buf32, sizeof(buf32));
+  idxFileWrite(b->wrt, buf32, sizeof(buf32));
 
-  fstCountingWriterFlush(b->wrt);
-  // fstCountingWriterDestroy(b->wrt);
-  // b->wrt = NULL;
+  idxFileFlush(b->wrt);
   return b->wrt;
 }
 void fstBuilderFinish(FstBuilder* b) { fstBuilderInsertInner(b); }
