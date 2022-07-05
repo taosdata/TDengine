@@ -1333,6 +1333,9 @@ static int32_t rewriteSystemInfoFuncImpl(STranslateContext* pCxt, char* pLiteral
     pVal->isNull = true;
   } else {
     pVal->literal = pLiteral;
+    if (IS_VAR_DATA_TYPE(pVal->node.resType.type)) {
+      pVal->node.resType.bytes = strlen(pLiteral);
+    }
   }
   if (DEAL_RES_ERROR != translateValue(pCxt, pVal)) {
     *pNode = (SNode*)pVal;

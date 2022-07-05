@@ -75,6 +75,11 @@ static SLogicNode* optFindPossibleNode(SLogicNode* pNode, FMayBeOptimized func) 
   return NULL;
 }
 
+static void optResetParent(SLogicNode* pNode) {
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) { ((SLogicNode*)pChild)->pParent = pNode; }
+}
+
 EDealRes scanPathOptHaveNormalColImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     // *((bool*)pContext) = (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType);
@@ -1460,6 +1465,7 @@ static int32_t rewriteTailOptCreateSort(SIndefRowsFuncLogicNode* pIndef, SLogicN
 
   pSort->groupSort = rewriteTailOptNeedGroupSort(pIndef);
   TSWAP(pSort->node.pChildren, pIndef->node.pChildren);
+  optResetParent((SLogicNode*)pSort);
   pSort->node.precision = pIndef->node.precision;
 
   SFunctionNode* pTail = NULL;
@@ -1667,6 +1673,7 @@ static int32_t rewriteUniqueOptCreateAgg(SIndefRowsFuncLogicNode* pIndef, SLogic
   }
 
   TSWAP(pAgg->node.pChildren, pIndef->node.pChildren);
+  optResetParent((SLogicNode*)pAgg);
   pAgg->node.precision = pIndef->node.precision;
 
   int32_t code = TSDB_CODE_SUCCESS;
