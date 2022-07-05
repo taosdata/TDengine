@@ -80,7 +80,7 @@ static int32_t tsdbSnapReadDel(STsdbSnapReader* pReader, uint8_t** ppData) {
 
   while (pReader->iDelIdx < taosArrayGetSize(pReader->aDelIdx)) {
     SDelIdx* pDelIdx = (SDelIdx*)taosArrayGet(pReader->aDelIdx, pReader->iDelIdx);
-    int8_t   overlap = 0;
+    int32_t  size = 0;
 
     code = tsdbReadDelData(pReader->pDelFReader, pDelIdx, pReader->aDelData, NULL);
     if (code) goto _err;
@@ -89,13 +89,26 @@ static int32_t tsdbSnapReadDel(STsdbSnapReader* pReader, uint8_t** ppData) {
       SDelData* pDelData = (SDelData*)taosArrayGet(pReader->aDelData, iDelData);
 
       if (pDelData->version >= pReader->sver && pDelData->version <= pReader->ever) {
-        // encode the data to sync (todo)
-        overlap = 1;
+        size += tPutDelData(NULL, pDelData);
       }
     }
 
-    if (overlap) {
-      // prepare the data
+    if (size > 0) {
+      code = tRealloc(ppData, sizeof(SSnapDataHdr) + size);  // TODO
+      if (code) goto _err;
+
+      // encode
+      ((SSnapDataHdr*)(*ppData))->type = 1;
+      ((SSnapDataHdr*)(*ppData))->size = size;
+
+      for (int32_t iDelData = 0; iDelData < taosArrayGetSize(pReader->aDelData); iDelData++) {
+        SDelData* pDelData = (SDelData*)taosArrayGet(pReader->aDelData, iDelData);
+
+        if (pDelData->version >= pReader->sver && pDelData->version <= pReader->ever) {
+          // size += tPutDelData(NULL, pDelData); (todo)
+        }
+      }
+
       goto _exit;
     }
   }
