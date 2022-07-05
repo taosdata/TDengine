@@ -1375,6 +1375,7 @@ static void destroySysScanOperator(void* param, int32_t numOfOutput) {
   }
 
   taosArrayDestroy(pInfo->scanCols);
+  taosMemoryFreeClear(pInfo->pUser);
 }
 
 static int32_t getSysTableDbNameColId(const char* pTable) {
