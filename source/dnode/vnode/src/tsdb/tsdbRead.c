@@ -758,11 +758,11 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
     i += 1;
   }
 
-  while (i < numOfCols && colIndex < taosArrayGetSize(pBlockData->aColDataP)) {
+  while (i < numOfCols && colIndex < taosArrayGetSize(pBlockData->aIdx)) {
     rowIndex = 0;
     pColData = taosArrayGet(pResBlock->pDataBlock, i);
 
-    SColData* pData = (SColData*)taosArrayGetP(pBlockData->aColDataP, colIndex);
+    SColData* pData = tBlockDataGetColDataByIdx(pBlockData, colIndex);
 
     if (pData->cid == pColData->info.colId) {
       for (int32_t j = pDumpInfo->rowIndex; j < endIndex && j >= 0; j += step) {
@@ -2588,12 +2588,12 @@ static int32_t checkForNeighborFileBlock(STsdbReader* pReader, STableBlockScanIn
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
   SBlockData*         pBlockData = &pReader->status.fileBlockData;
 
+  *state = CHECK_FILEBLOCK_QUIT;
   int32_t step = ASCENDING_TRAVERSE(pReader->order) ? 1 : -1;
 
   int32_t nextIndex = -1;
   SBlock* pNeighborBlock = getNeighborBlockOfSameTable(pFBlock, pScanInfo, &nextIndex, pReader->order);
   if (pNeighborBlock == NULL) {  // do nothing
-    *state = CHECK_FILEBLOCK_QUIT;
     return 0;
   }
 

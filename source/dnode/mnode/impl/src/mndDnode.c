@@ -274,15 +274,14 @@ static void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
 
     SDnodeEp dnodeEp = {0};
     dnodeEp.id = pDnode->id;
-    dnodeEp.isMnode = 0;
     dnodeEp.ep.port = pDnode->port;
     memcpy(dnodeEp.ep.fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+    sdbRelease(pSdb, pDnode);
 
+    dnodeEp.isMnode = 0;
     if (mndIsMnode(pMnode, pDnode->id)) {
       dnodeEp.isMnode = 1;
     }
-
-    sdbRelease(pSdb, pDnode);
     taosArrayPush(pDnodeEps, &dnodeEp);
   }
 }

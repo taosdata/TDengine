@@ -174,6 +174,8 @@ cmake .. -G "NMake Makefiles"
 nmake
 ```
 
+如果你使用的是 Visual Studio 2022 版本， 脚本 `vcvarsall.bat` 的默认安装路径是 `C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat`。 
+
 ### Mac OS X 系统
 
 安装 Xcode 命令行工具和 cmake. 在 Catalina 和 Big Sur 操作系统上，需要安装 XCode 11.4+ 版本。

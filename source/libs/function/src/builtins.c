@@ -15,10 +15,10 @@
 
 #include "builtins.h"
 #include "builtinsimpl.h"
+#include "cJSON.h"
 #include "querynodes.h"
 #include "scalar.h"
 #include "taoserror.h"
-#include "cJSON.h"
 
 static int32_t buildFuncErrMsg(char* pErrBuf, int32_t len, int32_t errCode, const char* pFormat, ...) {
   va_list vArgList;
@@ -815,13 +815,13 @@ static int8_t validateHistogramBinType(char* binTypeStr) {
 }
 
 static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* errMsg, int32_t msgLen) {
-  const char *msg1 = "HISTOGRAM function requires four parameters";
-  const char *msg3 = "HISTOGRAM function invalid format for binDesc parameter";
-  const char *msg4 = "HISTOGRAM function binDesc parameter \"count\" should be in range [1, 1000]";
-  const char *msg5 = "HISTOGRAM function bin/parameter should be in range [-DBL_MAX, DBL_MAX]";
-  const char *msg6 = "HISTOGRAM function binDesc parameter \"width\" cannot be 0";
-  const char *msg7 = "HISTOGRAM function binDesc parameter \"start\" cannot be 0 with \"log_bin\" type";
-  const char *msg8 = "HISTOGRAM function binDesc parameter \"factor\" cannot be negative or equal to 0/1";
+  const char* msg1 = "HISTOGRAM function requires four parameters";
+  const char* msg3 = "HISTOGRAM function invalid format for binDesc parameter";
+  const char* msg4 = "HISTOGRAM function binDesc parameter \"count\" should be in range [1, 1000]";
+  const char* msg5 = "HISTOGRAM function bin/parameter should be in range [-DBL_MAX, DBL_MAX]";
+  const char* msg6 = "HISTOGRAM function binDesc parameter \"width\" cannot be 0";
+  const char* msg7 = "HISTOGRAM function binDesc parameter \"start\" cannot be 0 with \"log_bin\" type";
+  const char* msg8 = "HISTOGRAM function binDesc parameter \"factor\" cannot be negative or equal to 0/1";
 
   cJSON*  binDesc = cJSON_Parse(binDescStr);
   int32_t numOfBins;
@@ -1433,10 +1433,6 @@ static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t l
 
 static int32_t translateFirstLastImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
   // first(col_list) will be rewritten as first(col)
-  if (2 != LIST_LENGTH(pFunc->pParameterList)) {  // input has two params c0,ts, is this a bug?
-    return TSDB_CODE_SUCCESS;
-  }
-
   SNode*  pPara = nodesListGetNode(pFunc->pParameterList, 0);
   uint8_t paraType = ((SExprNode*)pPara)->resType.type;
   int32_t paraBytes = ((SExprNode*)pPara)->resType.bytes;

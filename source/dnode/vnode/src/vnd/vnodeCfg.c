@@ -79,7 +79,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
     SJson *pNodeRetentions = tjsonCreateArray();
     tjsonAddItemToObject(pJson, "retentions", pNodeRetentions);
     for (int32_t i = 0; i < nRetention; ++i) {
-      SJson            *pNodeRetention = tjsonCreateObject();
+      SJson *           pNodeRetention = tjsonCreateObject();
       const SRetention *pRetention = pCfg->tsdbCfg.retentions + i;
       tjsonAddIntegerToObject(pNodeRetention, "freq", pRetention->freq);
       tjsonAddIntegerToObject(pNodeRetention, "freqUnit", pRetention->freqUnit);
@@ -156,7 +156,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "keep2", pCfg->tsdbCfg.keep2, code);
   if (code < 0) return -1;
-  SJson  *pNodeRetentions = tjsonGetObjectItem(pJson, "retentions");
+  SJson * pNodeRetentions = tjsonGetObjectItem(pJson, "retentions");
   int32_t nRetention = tjsonGetArraySize(pNodeRetentions);
   if (nRetention > TSDB_RETENTION_MAX) {
     nRetention = TSDB_RETENTION_MAX;

@@ -65,6 +65,7 @@ int32_t syncInit() {
       syncCleanUp();
       ret = -1;
     } else {
+      sDebug("sync rsetId:%" PRId64 " is open", tsNodeRefId);
       ret = syncEnvStart();
     }
   }
@@ -77,6 +78,7 @@ void syncCleanUp() {
   ASSERT(ret == 0);
 
   if (tsNodeRefId != -1) {
+    sDebug("sync rsetId:%" PRId64 " is closed", tsNodeRefId);
     taosCloseRef(tsNodeRefId);
     tsNodeRefId = -1;
   }
@@ -96,6 +98,7 @@ int64_t syncOpen(const SSyncInfo* pSyncInfo) {
     return -1;
   }
 
+  sDebug("vgId:%d, rid:%" PRId64 " is added to rsetId:%" PRId64, pSyncInfo->vgId, pSyncNode->rid, tsNodeRefId);
   return pSyncNode->rid;
 }
 
@@ -136,13 +139,14 @@ void syncStartStandBy(int64_t rid) {
 
 void syncStop(int64_t rid) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
-  if (pSyncNode == NULL) {
-    return;
-  }
+  if (pSyncNode == NULL) return;
+
+  int32_t vgId = pSyncNode->vgId;
   syncNodeClose(pSyncNode);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   taosRemoveRef(tsNodeRefId, rid);
+  sDebug("vgId:%d, rid:%" PRId64 " is removed from rsetId:%" PRId64, vgId, rid, tsNodeRefId);
 }
 
 int32_t syncSetStandby(int64_t rid) {
@@ -154,13 +158,13 @@ int32_t syncSetStandby(int64_t rid) {
   }
 
   if (pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER) {
-    taosReleaseRef(tsNodeRefId, pSyncNode->rid);
     if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
       terrno = TSDB_CODE_SYN_IS_LEADER;
     } else {
       terrno = TSDB_CODE_SYN_STANDBY_NOT_READY;
     }
     sError("failed to set standby since it is not follower, state:%s rid:%" PRId64, syncStr(pSyncNode->state), rid);
+    taosReleaseRef(tsNodeRefId, pSyncNode->rid);
     return -1;
   }
 
@@ -616,6 +620,7 @@ int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
 
   SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
+    taosReleaseRef(tsNodeRefId, rid);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
