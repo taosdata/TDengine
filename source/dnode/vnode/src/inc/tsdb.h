@@ -223,13 +223,13 @@ int32_t tsdbReadBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *p
 int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnDataAgg, uint8_t **ppBuf);
 // SDelFWriter
 int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb);
-int32_t tsdbDelFWriterClose(SDelFWriter *pWriter, int8_t sync);
+int32_t tsdbDelFWriterClose(SDelFWriter **ppWriter, int8_t sync);
 int32_t tsdbWriteDelData(SDelFWriter *pWriter, SArray *aDelData, uint8_t **ppBuf, SDelIdx *pDelIdx);
 int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SArray *aDelIdx, uint8_t **ppBuf);
 int32_t tsdbUpdateDelFileHdr(SDelFWriter *pWriter);
 // SDelFReader
 int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb, uint8_t **ppBuf);
-int32_t tsdbDelFReaderClose(SDelFReader *pReader);
+int32_t tsdbDelFReaderClose(SDelFReader **ppReader);
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData, uint8_t **ppBuf);
 int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx, uint8_t **ppBuf);
 

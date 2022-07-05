@@ -231,11 +231,11 @@ static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
   code = tsdbFSStateUpsertDelFile(pTsdb->fs->nState, &pCommitter->pDelFWriter->fDel);
   if (code) goto _err;
 
-  code = tsdbDelFWriterClose(pCommitter->pDelFWriter, 1);
+  code = tsdbDelFWriterClose(&pCommitter->pDelFWriter, 1);
   if (code) goto _err;
 
   if (pCommitter->pDelFReader) {
-    code = tsdbDelFReaderClose(pCommitter->pDelFReader);
+    code = tsdbDelFReaderClose(&pCommitter->pDelFReader);
     if (code) goto _err;
   }
 

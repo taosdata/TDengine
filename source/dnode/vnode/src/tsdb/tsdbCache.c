@@ -672,7 +672,7 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, STSRow **ppRo
     code = getTableDelSkyline(pMem, pIMem, pDelFReader, &delIdx, pSkyline);
     if (code) goto _err;
 
-    tsdbDelFReaderClose(pDelFReader);
+    tsdbDelFReaderClose(&pDelFReader);
   } else {
     code = getTableDelSkyline(pMem, pIMem, NULL, NULL, pSkyline);
     if (code) goto _err;
@@ -854,7 +854,7 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
     code = getTableDelSkyline(pMem, pIMem, pDelFReader, &delIdx, pSkyline);
     if (code) goto _err;
 
-    tsdbDelFReaderClose(pDelFReader);
+    tsdbDelFReaderClose(&pDelFReader);
   } else {
     code = getTableDelSkyline(pMem, pIMem, NULL, NULL, pSkyline);
     if (code) goto _err;
