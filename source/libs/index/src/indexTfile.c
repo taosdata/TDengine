@@ -561,8 +561,8 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
   }
   tfileWriteFstOffset(tw, fstOffset);
 
-  int32_t bufCap = 8 * 1024;
-  char*   buf = taosMemoryCalloc(1, bufCap);
+  int32_t cap = 4 * 1024;
+  char*   buf = taosMemoryCalloc(1, cap);
 
   for (size_t i = 0; i < sz; i++) {
     TFileValue* v = taosArrayGetP((SArray*)data, i);
@@ -571,16 +571,16 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     // check buf has enough space or not
     int32_t ttsz = TF_TABLE_TATOAL_SIZE(tbsz);
 
-    if (bufCap < ttsz) {
-      bufCap = ttsz;
-      buf = taosMemoryRealloc(buf, bufCap);
+    if (cap < ttsz) {
+      cap = ttsz;
+      buf = (char*)taosMemoryRealloc(buf, cap);
     }
     char* p = buf;
     tfileSerialTableIdsToBuf(p, v->tableId);
     tw->ctx->write(tw->ctx, buf, ttsz);
     v->offset = tw->offset;
     tw->offset += ttsz;
-    memset(buf, 0, sizeof(buf));
+    memset(buf, 0, cap);
   }
   taosMemoryFree(buf);
 
