@@ -27,10 +27,10 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   SMetaReader    mer1 = {0};
   SMetaReader    mer2 = {0};
   char           tableFName[TSDB_TABLE_FNAME_LEN];
-  SRpcMsg        rpcMsg;
+  SRpcMsg        rpcMsg = {0};
   int32_t        code = 0;
   int32_t        rspLen = 0;
-  void          *pRsp = NULL;
+  void *         pRsp = NULL;
   SSchemaWrapper schema = {0};
   SSchemaWrapper schemaTag = {0};
 
@@ -111,6 +111,7 @@ _exit:
   rpcMsg.pCont = pRsp;
   rpcMsg.contLen = rspLen;
   rpcMsg.code = code;
+  rpcMsg.msgType = pMsg->msgType;
 
   if (code) {
     qError("get table %s meta failed cause of %s", infoReq.tbName, tstrerror(code));
@@ -130,10 +131,10 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg) {
   SMetaReader    mer1 = {0};
   SMetaReader    mer2 = {0};
   char           tableFName[TSDB_TABLE_FNAME_LEN];
-  SRpcMsg        rpcMsg;
+  SRpcMsg        rpcMsg = {0};
   int32_t        code = 0;
   int32_t        rspLen = 0;
-  void          *pRsp = NULL;
+  void *         pRsp = NULL;
   SSchemaWrapper schema = {0};
   SSchemaWrapper schemaTag = {0};
 
@@ -220,6 +221,7 @@ _exit:
   rpcMsg.pCont = pRsp;
   rpcMsg.contLen = rspLen;
   rpcMsg.code = code;
+  rpcMsg.msgType = pMsg->msgType;
 
   if (code) {
     qError("get table %s cfg failed cause of %s", cfgReq.tbName, tstrerror(code));

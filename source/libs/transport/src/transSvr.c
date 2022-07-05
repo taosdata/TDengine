@@ -402,8 +402,9 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
     } else {
       pHead->msgType = pMsg->msgType;
       // set up resp msg type
-      if (pHead->msgType == 0 && transMsgLenFromCont(pMsg->contLen) == sizeof(STransMsgHead))
+      if (pHead->msgType == 0 && transMsgLenFromCont(pMsg->contLen) == sizeof(STransMsgHead)) {
         pHead->msgType = pConn->inType + 1;
+      }
     }
   }
 
