@@ -27,6 +27,9 @@ class TestNumericBoundary(TDCase):
             "tinyint unsigned": self.tdCom.Boundary.UTINYINT_BOUNDARY,
             "bigint unsigned": self.tdCom.Boundary.UBIGINT_BOUNDARY,
         }
+        self.boundary_dict = {
+            "bigint": self.tdCom.Boundary.BIGINT_BOUNDARY
+        }
 
     def numeric_boundary_check(self):
         """
@@ -46,8 +49,8 @@ class TestNumericBoundary(TDCase):
             self.tdSql.query(f'select t1, c1 from {dbname}.tb2')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], data_value[0])
             self.tdSql.checkEqual(self.tdSql.query_data[0][1], data_value[1])
-            # self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({data_value[1]+1})')
-            # self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({data_value[1]-1})')
+            self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({data_value[1]+1})')
+            self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({data_value[0]-1})')
             self.tdSql.error(f'insert into {dbname}.tb1 values (now-1h, {data_value[1]+1})')
             self.tdSql.error(f'insert into {dbname}.tb2 values (now-1h, {data_value[0]-1})')
 
