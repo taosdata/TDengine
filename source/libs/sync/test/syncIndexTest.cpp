@@ -8,7 +8,13 @@ void print(SHashObj *pNextIndex) {
   printf("----------------\n");
   uint64_t *p = (uint64_t *)taosHashIterate(pNextIndex, NULL);
   while (p) {
-    printf("%lu \n", *p);
+
+    size_t len;
+    void*  key = taosHashGetKey(p, &len);
+
+    SRaftId *pRaftId = (SRaftId*)key;
+
+    printf("key:<%lu, %d>, value:%lu \n", pRaftId->addr, pRaftId->vgId, *p);
     p = (uint64_t *)taosHashIterate(pNextIndex, p);
   }
 }
