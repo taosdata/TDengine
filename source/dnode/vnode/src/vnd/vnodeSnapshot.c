@@ -116,6 +116,10 @@ struct SVSnapWriter {
   SVnode *pVnode;
   int64_t sver;
   int64_t ever;
+  // meta
+  SMetaSnapWriter *pMetaSnapWriter;
+  // tsdb
+  STsdbSnapWriter *pTsdbSnapWriter;
 };
 
 int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {
@@ -152,7 +156,25 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback) {
 }
 
 int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
-  int32_t code = 0;
-  // TODO
+  int32_t       code = 0;
+  SSnapDataHdr *pSnapDataHdr = (SSnapDataHdr *)pData;
+  SVnode       *pVnode = pWriter->pVnode;
+
+  ASSERT(pSnapDataHdr->size + sizeof(SSnapDataHdr) == nData);
+
+  if (pSnapDataHdr->type == 0) {
+    // meta
+    if (pWriter->pMetaSnapWriter == NULL) {
+      code = metaSnapWriterOpen(pVnode->pMeta, pWriter->sver, pWriter->ever, &pWriter->pMetaSnapWriter);
+      if (code) goto _err;
+    }
+  } else {
+    // tsdb
+  }
+
+  return code;
+
+_err:
+  vError("vgId:%d vnode snapshot write failed since %s", TD_VID(pVnode), tstrerror(code));
   return code;
 }

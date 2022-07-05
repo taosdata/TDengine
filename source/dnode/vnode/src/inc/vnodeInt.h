@@ -180,11 +180,18 @@ int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapRe
 int32_t metaSnapReaderClose(SMetaSnapReader** ppReader);
 int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData);
 // SMetaSnapWriter ========================================
+int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWriter** ppWriter);
+int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback);
 // STsdbSnapReader ========================================
 int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapReader** ppReader);
 int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader);
 int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData);
 // STsdbSnapWriter ========================================
+int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWriter** ppWriter);
+int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback);
+
 typedef struct {
   int8_t  streamType;  // sma or other
   int8_t  dstType;

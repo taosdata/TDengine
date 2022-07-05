@@ -314,3 +314,21 @@ struct STsdbSnapWriter {
   // for del file
   SDelFWriter* pDelFWriter;
 };
+
+int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWriter** ppWriter) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
