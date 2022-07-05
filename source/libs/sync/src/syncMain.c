@@ -158,13 +158,13 @@ int32_t syncSetStandby(int64_t rid) {
   }
 
   if (pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER) {
-    taosReleaseRef(tsNodeRefId, pSyncNode->rid);
     if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
       terrno = TSDB_CODE_SYN_IS_LEADER;
     } else {
       terrno = TSDB_CODE_SYN_STANDBY_NOT_READY;
     }
     sError("failed to set standby since it is not follower, state:%s rid:%" PRId64, syncStr(pSyncNode->state), rid);
+    taosReleaseRef(tsNodeRefId, pSyncNode->rid);
     return -1;
   }
 
@@ -620,6 +620,7 @@ int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
 
   SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
+    taosReleaseRef(tsNodeRefId, rid);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }

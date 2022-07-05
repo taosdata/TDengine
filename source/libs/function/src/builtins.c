@@ -15,10 +15,10 @@
 
 #include "builtins.h"
 #include "builtinsimpl.h"
+#include "cJSON.h"
 #include "querynodes.h"
 #include "scalar.h"
 #include "taoserror.h"
-#include "cJSON.h"
 
 static int32_t buildFuncErrMsg(char* pErrBuf, int32_t len, int32_t errCode, const char* pFormat, ...) {
   va_list vArgList;
@@ -40,7 +40,7 @@ static int32_t invaildFuncParaValueErrMsg(char* pErrBuf, int32_t len, const char
   return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_VALUE, "Invalid parameter value : %s", pFuncName);
 }
 
-#define TIME_UNIT_INVALID 1
+#define TIME_UNIT_INVALID   1
 #define TIME_UNIT_TOO_SMALL 2
 
 static int32_t validateTimeUnitParam(uint8_t dbPrec, const SValueNode* pVal) {
@@ -701,7 +701,7 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
 
     uint8_t dbPrec = pFunc->node.resType.precision;
 
-    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode *)nodesListGetNode(pFunc->pParameterList, 1));
+    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1));
     if (ret == TIME_UNIT_TOO_SMALL) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "ELAPSED function time unit parameter should be greater than db precision");
@@ -820,13 +820,13 @@ static int8_t validateHistogramBinType(char* binTypeStr) {
 }
 
 static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* errMsg, int32_t msgLen) {
-  const char *msg1 = "HISTOGRAM function requires four parameters";
-  const char *msg3 = "HISTOGRAM function invalid format for binDesc parameter";
-  const char *msg4 = "HISTOGRAM function binDesc parameter \"count\" should be in range [1, 1000]";
-  const char *msg5 = "HISTOGRAM function bin/parameter should be in range [-DBL_MAX, DBL_MAX]";
-  const char *msg6 = "HISTOGRAM function binDesc parameter \"width\" cannot be 0";
-  const char *msg7 = "HISTOGRAM function binDesc parameter \"start\" cannot be 0 with \"log_bin\" type";
-  const char *msg8 = "HISTOGRAM function binDesc parameter \"factor\" cannot be negative or equal to 0/1";
+  const char* msg1 = "HISTOGRAM function requires four parameters";
+  const char* msg3 = "HISTOGRAM function invalid format for binDesc parameter";
+  const char* msg4 = "HISTOGRAM function binDesc parameter \"count\" should be in range [1, 1000]";
+  const char* msg5 = "HISTOGRAM function bin/parameter should be in range [-DBL_MAX, DBL_MAX]";
+  const char* msg6 = "HISTOGRAM function binDesc parameter \"width\" cannot be 0";
+  const char* msg7 = "HISTOGRAM function binDesc parameter \"start\" cannot be 0 with \"log_bin\" type";
+  const char* msg8 = "HISTOGRAM function binDesc parameter \"factor\" cannot be negative or equal to 0/1";
 
   cJSON*  binDesc = cJSON_Parse(binDescStr);
   int32_t numOfBins;
@@ -1009,8 +1009,8 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     }
 
     if (i == 3 && pValue->datum.i != 1 && pValue->datum.i != 0) {
-        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                               "HISTOGRAM function normalized parameter should be 0/1");
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "HISTOGRAM function normalized parameter should be 0/1");
     }
   }
 
@@ -1067,8 +1067,8 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
       }
 
       if (i == 3 && pValue->datum.i != 1 && pValue->datum.i != 0) {
-          return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                                 "HISTOGRAM function normalized parameter should be 0/1");
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                               "HISTOGRAM function normalized parameter should be 0/1");
       }
     }
 
@@ -1223,7 +1223,7 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
   if (numOfParams == 4) {
     uint8_t dbPrec = pFunc->node.resType.precision;
 
-    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode *)nodesListGetNode(pFunc->pParameterList, 3));
+    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 3));
     if (ret == TIME_UNIT_TOO_SMALL) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "STATEDURATION function time unit parameter should be greater than db precision");
@@ -1437,10 +1437,6 @@ static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t l
 
 static int32_t translateFirstLastImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
   // first(col_list) will be rewritten as first(col)
-  if (2 != LIST_LENGTH(pFunc->pParameterList)) {  // input has two params c0,ts, is this a bug?
-    return TSDB_CODE_SUCCESS;
-  }
-
   SNode*  pPara = nodesListGetNode(pFunc->pParameterList, 0);
   uint8_t paraType = ((SExprNode*)pPara)->resType.type;
   int32_t paraBytes = ((SExprNode*)pPara)->resType.bytes;
@@ -1738,7 +1734,7 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
 
-  int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode *)nodesListGetNode(pFunc->pParameterList, 1));
+  int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1));
   if (ret == TIME_UNIT_TOO_SMALL) {
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                            "TIMETRUNCATE function time unit parameter should be greater than db precision");
@@ -1777,7 +1773,7 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   uint8_t dbPrec = pFunc->node.resType.precision;
 
   if (3 == numOfParams) {
-    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode *)nodesListGetNode(pFunc->pParameterList, 2));
+    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2));
     if (ret == TIME_UNIT_TOO_SMALL) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "TIMEDIFF function time unit parameter should be greater than db precision");

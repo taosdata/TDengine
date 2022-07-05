@@ -131,7 +131,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
     hashType = TSDB_DATA_TYPE_BINARY;
   }
 
-  SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(hashType), true, HASH_NO_LOCK);
+  SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(hashType), true, HASH_ENTRY_LOCK);
   if (hash == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;

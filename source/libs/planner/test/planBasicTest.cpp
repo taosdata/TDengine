@@ -63,6 +63,10 @@ TEST_F(PlanBasicTest, uniqueFunc) {
   run("SELECT UNIQUE(c2 + 10), ts, c2 FROM t1 WHERE c1 > 10");
 
   run("SELECT UNIQUE(c1) a FROM t1 ORDER BY a");
+
+  run("SELECT ts, UNIQUE(c1) FROM st1 PARTITION BY TBNAME");
+
+  run("SELECT TBNAME, UNIQUE(c1) FROM st1 PARTITION BY TBNAME");
 }
 
 TEST_F(PlanBasicTest, tailFunc) {
@@ -81,6 +85,8 @@ TEST_F(PlanBasicTest, tailFunc) {
   run("SELECT TAIL(c2 + 10, 10, 80) FROM t1 WHERE c1 > 10 PARTITION BY c1 LIMIT 5");
 
   run("SELECT TAIL(c1, 2, 1) FROM st1s1 UNION ALL SELECT c1 FROM st1s2");
+
+  run("SELECT TAIL(c1, 1) FROM st2 WHERE jtag->'tag1' > 10");
 }
 
 TEST_F(PlanBasicTest, interpFunc) {
