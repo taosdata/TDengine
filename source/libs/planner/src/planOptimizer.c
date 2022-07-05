@@ -832,6 +832,80 @@ static int32_t pushDownCondOptDealAgg(SOptimizeContext* pCxt, SAggLogicNode* pAg
   return code;
 }
 
+typedef struct SRewriteProjCondContext {
+  SProjectLogicNode* pProj;
+  int32_t errCode;
+}SRewriteProjCondContext;
+
+static EDealRes rewriteProjectCondForPushDownImpl(SNode** ppNode, void* pContext) {
+  SRewriteProjCondContext* pCxt = pContext;
+  SProjectLogicNode* pProj = pCxt->pProj;
+  if (QUERY_NODE_COLUMN == nodeType(*ppNode)) {
+    SNode* pTarget = NULL;
+    FOREACH(pTarget, pProj->node.pTargets) {
+      if (nodesEqualNode(pTarget, *ppNode)) {
+        SNode* pProjection = NULL;
+        FOREACH(pProjection, pProj->pProjections) {
+          if (0 == strcmp(((SExprNode*)pProjection)->aliasName, ((SColumnNode*)(*ppNode))->colName)) {
+            SNode* pExpr = nodesCloneNode(pProjection);
+            if (pExpr == NULL) {
+              pCxt->errCode = terrno;
+              return DEAL_RES_ERROR;
+            }
+            nodesDestroyNode(*ppNode);
+            *ppNode = pExpr;
+          } // end if expr alias name equal column name
+        } // end for each project
+      } // end if target node equals cond column node
+    } // end for each targets
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t rewriteProjectCondForPushDown(SOptimizeContext* pCxt, SProjectLogicNode* pProject, SNode** ppProjectCond) {
+  SRewriteProjCondContext cxt = {.pProj = pProject, .errCode = TSDB_CODE_SUCCESS};
+  SNode* pProjectCond = pProject->node.pConditions;
+  nodesRewriteExpr(&pProjectCond, rewriteProjectCondForPushDownImpl, &cxt);
+  *ppProjectCond = pProjectCond;
+  pProject->node.pConditions = NULL;
+  return cxt.errCode;
+}
+
+static int32_t pushDownCondOptDealProject(SOptimizeContext* pCxt, SProjectLogicNode* pProject) {
+  if (NULL == pProject->node.pConditions ||
+      OPTIMIZE_FLAG_TEST_MASK(pProject->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // TODO: remove it after full implementation of pushing down to child
+  if (1 != LIST_LENGTH(pProject->node.pChildren) ||
+      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pProject->node.pChildren, 0)) &&
+          QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(nodesListGetNode(pProject->node.pChildren, 0)) &&
+          QUERY_NODE_LOGIC_PLAN_JOIN != nodeType(nodesListGetNode(pProject->node.pChildren, 0))) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL != pProject->node.pLimit || NULL != pProject->node.pSlimit) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode* pProjCond = NULL;
+  code = rewriteProjectCondForPushDown(pCxt, pProject, &pProjCond);
+  if (TSDB_CODE_SUCCESS == code) {
+    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
+    code = pushDownCondOptPushCondToChild(pCxt, pChild, &pProjCond);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    OPTIMIZE_FLAG_SET_MASK(pProject->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    pCxt->optimized = true;
+  } else {
+    nodesDestroyNode(pProjCond);
+  }
+  return code;
+}
+
 static int32_t pushDownCondOptimizeImpl(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pLogicNode)) {
@@ -843,6 +917,9 @@ static int32_t pushDownCondOptimizeImpl(SOptimizeContext* pCxt, SLogicNode* pLog
       break;
     case QUERY_NODE_LOGIC_PLAN_AGG:
       code = pushDownCondOptDealAgg(pCxt, (SAggLogicNode*)pLogicNode);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      code = pushDownCondOptDealProject(pCxt, (SProjectLogicNode*)pLogicNode);
       break;
     default:
       break;
