@@ -90,12 +90,14 @@ typedef struct SStddevRes {
   double  result;
   int64_t count;
   union {
-    double  quadraticDSum;
-    int64_t quadraticISum;
+    double   quadraticDSum;
+    int64_t  quadraticISum;
+    uint64_t quadraticUSum;
   };
   union {
-    double  dsum;
-    int64_t isum;
+    double   dsum;
+    int64_t  isum;
+    uint64_t usum;
   };
   int16_t type;
 } SStddevRes;
@@ -1729,6 +1731,68 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx) {
       break;
     }
 
+    case TSDB_DATA_TYPE_UTINYINT: {
+      uint8_t* plist = (uint8_t*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + start; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        numOfElem += 1;
+        pStddevRes->count += 1;
+        pStddevRes->usum += plist[i];
+        pStddevRes->quadraticISum += plist[i] * plist[i];
+      }
+
+      break;
+    }
+
+    case TSDB_DATA_TYPE_USMALLINT: {
+      uint16_t* plist = (uint16_t*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        numOfElem += 1;
+        pStddevRes->count += 1;
+        pStddevRes->usum += plist[i];
+        pStddevRes->quadraticISum += plist[i] * plist[i];
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_UINT: {
+      uint32_t* plist = (uint32_t*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        numOfElem += 1;
+        pStddevRes->count += 1;
+        pStddevRes->usum += plist[i];
+        pStddevRes->quadraticISum += plist[i] * plist[i];
+      }
+
+      break;
+    }
+
+    case TSDB_DATA_TYPE_UBIGINT: {
+      uint64_t* plist = (uint64_t*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        numOfElem += 1;
+        pStddevRes->count += 1;
+        pStddevRes->usum += plist[i];
+        pStddevRes->quadraticISum += plist[i] * plist[i];
+      }
+      break;
+    }
+
     case TSDB_DATA_TYPE_FLOAT: {
       float* plist = (float*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
@@ -1771,9 +1835,12 @@ _stddev_over:
 
 static void stddevTransferInfo(SStddevRes* pInput, SStddevRes* pOutput) {
   pOutput->type = pInput->type;
-  if (IS_INTEGER_TYPE(pOutput->type)) {
+  if (IS_SIGNED_NUMERIC_TYPE(pOutput->type)) {
     pOutput->quadraticISum += pInput->quadraticISum;
     pOutput->isum += pInput->isum;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(pOutput->type)) {
+    pOutput->quadraticUSum += pInput->quadraticUSum;
+    pOutput->usum += pInput->usum;
   } else {
     pOutput->quadraticDSum += pInput->quadraticDSum;
     pOutput->dsum += pInput->dsum;
@@ -1871,9 +1938,12 @@ int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t               type = pStddevRes->type;
   double                avg;
 
-  if (IS_INTEGER_TYPE(type)) {
+  if (IS_SIGNED_NUMERIC_TYPE(type)) {
     avg = pStddevRes->isum / ((double)pStddevRes->count);
     pStddevRes->result = sqrt(fabs(pStddevRes->quadraticISum / ((double)pStddevRes->count) - avg * avg));
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    avg = pStddevRes->usum / ((double)pStddevRes->count);
+    pStddevRes->result = sqrt(fabs(pStddevRes->quadraticUSum / ((double)pStddevRes->count) - avg * avg));
   } else {
     avg = pStddevRes->dsum / ((double)pStddevRes->count);
     pStddevRes->result = sqrt(fabs(pStddevRes->quadraticDSum / ((double)pStddevRes->count) - avg * avg));
