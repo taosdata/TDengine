@@ -18,6 +18,7 @@
 #include <string.h>
 #include <time.h>
 #include "taos.h"
+#include <stdlib.h>
 
 static int  running = 1;
 static void msg_process(TAOS_RES* msg) {
@@ -30,7 +31,11 @@ static void msg_process(TAOS_RES* msg) {
     void*   meta;
     int32_t metaLen;
     tmq_get_raw_meta(msg, &meta, &metaLen);
-
+    char* result = tmq_get_json_meta(msg);
+    if(result){
+      printf("meta result: %s\n", result);
+      free(result);
+    }
     printf("meta, len is %d\n", metaLen);
     return;
   }
@@ -137,8 +142,8 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-  /*pRes = taos_query(pConn, "create topic topic_ctb_column with meta as database abc1");*/
-  pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from st1");
+  pRes = taos_query(pConn, "create topic topic_ctb_column with meta as database abc1");
+//  pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from st1");
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topic_ctb_column, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -199,7 +204,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set(conf, "enable.auto.commit", "true");
 
-  tmq_conf_set(conf, "experimental.snapshot.enable", "true");
+  tmq_conf_set(conf, "experimental.snapshot.enable", "false");
 
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
