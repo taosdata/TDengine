@@ -632,6 +632,10 @@ static int32_t pushDownCondOptDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* p
 
   if (NULL == pJoin->node.pConditions) {
     int32_t code = pushDownCondOptJoinExtractMergeCond(pCxt, pJoin);
+    if (TSDB_CODE_SUCCESS == code) {
+      OPTIMIZE_FLAG_SET_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+      pCxt->optimized = true;
+    }
     return code;
   }
 
