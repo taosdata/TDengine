@@ -52,14 +52,8 @@ typedef enum {
   SCH_OP_NULL = 0,
   SCH_OP_EXEC,
   SCH_OP_FETCH,
+  SCH_OP_GET_STATUS,
 } SCH_OP_TYPE;
-
-typedef enum {
-  SCH_EVENT_BEGIN_OP = 1,
-  SCH_EVENT_END_OP,
-  SCH_EVENT_MSG,
-  SCH_EVENT_DROP,
-} SCH_EVENT_TYPE;
 
 typedef struct SSchTrans {
   void *pTrans;
@@ -108,7 +102,7 @@ typedef struct SSchResInfo {
   void**                 fetchRes;
   schedulerExecFp        execFp; 
   schedulerFetchFp       fetchFp; 
-  void*                  userParam;
+  void*                  cbParam;
 } SSchResInfo;
 
 typedef struct SSchOpEvent {
@@ -358,9 +352,10 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_TASK_WLOG(param, ...) \
   qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask),__VA_ARGS__)
 
-#define SCH_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
-#define SCH_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
-#define SCH_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
+#define SCH_SET_ERRNO(_err) do { if (TSDB_CODE_SCH_IGNORE_ERROR != (_err)) { terrno = (_err); } } while (0)
+#define SCH_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { SCH_SET_ERRNO(_code); return _code; } } while (0)
+#define SCH_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { SCH_SET_ERRNO(_code); } return _code; } while (0)
+#define SCH_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { SCH_SET_ERRNO(_code); goto _return; } } while (0)
 
 #define SCH_LOCK(type, _lock) (SCH_READ == (type) ? taosRLockLatch(_lock) : taosWLockLatch(_lock))
 #define SCH_UNLOCK(type, _lock) (SCH_READ == (type) ? taosRUnLockLatch(_lock) : taosWUnLockLatch(_lock))

@@ -513,7 +513,7 @@ void* schtRunJobThread(void *aa) {
     req.pDag = &dag;
     req.sql = "select * from tb";
     req.execFp = schtQueryCb;
-    req.execParam = &queryDone;
+    req.cbParam = &queryDone;
     
     code = schedulerExecJob(&req, &queryJobRefId);      
     assert(code == 0);
@@ -665,7 +665,7 @@ TEST(queryTest, normalCase) {
   req.pDag = &dag;
   req.sql = "select * from tb";
   req.execFp = schtQueryCb;
-  req.execParam = &queryDone;
+  req.cbParam = &queryDone;
     
   code = schedulerExecJob(&req, &job);  
   ASSERT_EQ(code, 0);
@@ -769,7 +769,7 @@ TEST(queryTest, readyFirstCase) {
   req.pDag = &dag;
   req.sql = "select * from tb";
   req.execFp = schtQueryCb;
-  req.execParam = &queryDone;
+  req.cbParam = &queryDone;
   code = schedulerExecJob(&req, &job);
   ASSERT_EQ(code, 0);
 
@@ -876,7 +876,7 @@ TEST(queryTest, flowCtrlCase) {
   req.pDag = &dag;
   req.sql = "select * from tb";
   req.execFp = schtQueryCb;
-  req.execParam = &queryDone;
+  req.cbParam = &queryDone;
 
   code = schedulerExecJob(&req, &job);
   ASSERT_EQ(code, 0);
@@ -989,7 +989,7 @@ TEST(insertTest, normalCase) {
   req.pDag = &dag;
   req.sql = "insert into tb values(now,1)";
   req.execFp = schtQueryCb;
-  req.execParam = NULL;
+  req.cbParam = NULL;
   
   code = schedulerExecJob(&req, &insertJobRefId, &res);
   ASSERT_EQ(code, 0);

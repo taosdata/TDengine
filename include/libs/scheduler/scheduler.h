@@ -82,10 +82,11 @@ typedef struct SSchedulerReq {
   const char           *sql;
   int64_t               startTs;
   schedulerExecFp       execFp;
-  void*                 execParam;
+  schedulerFetchFp      fetchFp;
+  void*                 cbParam;
   schedulerChkKillFp    chkKillFp;
   void*                 chkKillParam;
-  SQueryResult*         pQueryRes;
+  SExecResult*          pExecRes;
   char**                pFetchRes;
 } SSchedulerReq;
 

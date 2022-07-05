@@ -1368,9 +1368,9 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
     SReqResultInfo* pResInfo = &pRequest->body.resInfo;
     SSchedulerReq req = {
       .syncReq = true,
-      .  
+      .pFetchRes = &pResInfo->pData,
     };
-    pRequest->code = schedulerFetchRows(pRequest->body.queryJob, (void**)&pResInfo->pData);
+    pRequest->code = schedulerFetchRows(pRequest->body.queryJob, &req);
     if (pRequest->code != TSDB_CODE_SUCCESS) {
       pResultInfo->numOfRows = 0;
       return NULL;

@@ -73,93 +73,39 @@ int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
   int32_t code = 0;  
   SSchJob *pJob = NULL;
 
-  *pJobId = 0;
+  SCH_ERR_JRET(schInitJob(pJobId, pReq));
 
-  SCH_ERR_RET(schSwitchJobStatus(&pJob, JOB_TASK_STATUS_INIT, pReq));
+  SCH_ERR_JRET(schHandleOpBeginEvent(*pJobId, &pJob, SCH_OP_EXEC, pReq));
 
-  SCH_ERR_RET(schHandleOpBeginEvent(pJob, SCH_OP_EXEC, pReq));
-  
-  SCH_ERR_RET(schSwitchJobStatus(&pJob, JOB_TASK_STATUS_EXEC, pReq));
+  SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_INIT, pReq));
 
-  SCH_ERR_RET(schHandleOpEndEvent(pJob, SCH_OP_EXEC, pReq));
-
-  *pJobId = pJob->refId;
+  SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_EXEC, pReq));
 
 _return:
   
-  schDumpJobExecRes(pJob, pReq->pQueryRes);
-
-  schReleaseJob(pJob->refId);
-
-  return code;
+  SCH_RET(schHandleOpEndEvent(pJob, SCH_OP_EXEC, pReq, code));
 }
 
-int32_t schedulerFetchRows(int64_t job, SSchedulerReq *pReq) {
+int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq *pReq) {
   qDebug("scheduler %s fetch rows start", pReq->syncReq ? "SYNC" : "ASYNC");
 
   int32_t  code = 0;
-  SSchJob *pJob = schAcquireJob(job);
-  if (NULL == pJob) {
-    qError("acquire job from jobRef list failed, may be dropped, jobId:0x%" PRIx64, job);
-    SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
-  }
+  SSchJob *pJob = NULL;
 
-  SCH_ERR_RET(schHandleOpBeginEvent(pJob, SCH_OP_FETCH, pReq));
+  SCH_ERR_JRET(schHandleOpBeginEvent(jobId, &pJob, SCH_OP_FETCH, pReq));
 
-
-
-  SCH_ERR_RET(schBeginOperation(pJob, SCH_OP_FETCH, true));
-
-  pJob->userRes.fetchRes = pData;
-  code = schJobFetchRows(pJob);
-
-  schReleaseJob(job);
-
-  SCH_RET(code);
-}
-
-void schedulerFetchRowsA(int64_t job, schedulerFetchFp fp, void* param) {
-  qDebug("scheduler async fetch rows start");
-
-  int32_t code = 0;
-  if (NULL == fp || NULL == param) {
-    SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
-  }
-
-  SSchJob *pJob = schAcquireJob(job);
-  if (NULL == pJob) {
-    qError("acquire sch job from job list failed, may be dropped, jobId:0x%" PRIx64, job);
-    SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
-  }
-
-  SCH_ERR_JRET(schBeginOperation(pJob, SCH_OP_FETCH, false));
-  
-  pJob->userRes.fetchFp = fp;
-  pJob->userRes.userParam = param;
-  
-  SCH_ERR_JRET(schJobFetchRowsA(pJob));
+  SCH_ERR_JRET(schJobFetchRows(pJob));
 
 _return:
 
-  if (code) {
-    fp(NULL, param, code);
-  }
-  
-  schReleaseJob(job);
+  SCH_RET(schHandleOpEndEvent(pJob, SCH_OP_FETCH, pReq, code));
 }
 
-int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub) {
+int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
   int32_t  code = 0;
-  SSchJob *pJob = schAcquireJob(job);
-  if (NULL == pJob) {
-    qDebug("acquire job from jobRef list failed, may not started or dropped, refId:0x%" PRIx64, job);
-    SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
-  }
+  SSchJob *pJob = NULL;
 
-  if (pJob->status < JOB_TASK_STATUS_INIT || pJob->levelNum <= 0 || NULL == pJob->levels) {
-    qDebug("job not initialized or not executable job, refId:0x%" PRIx64, job);
-    SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
-  }
+  SCH_ERR_JRET(schHandleOpBeginEvent(jobId, &pJob, SCH_OP_GET_STATUS, NULL));
 
   for (int32_t i = pJob->levelNum - 1; i >= 0; --i) {
     SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
@@ -176,23 +122,7 @@ int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub) {
 
 _return:
 
-  schReleaseJob(job);
-
-  SCH_RET(code);
-}
-
-int32_t scheduleCancelJob(int64_t job) {
-  SSchJob *pJob = schAcquireJob(job);
-  if (NULL == pJob) {
-    qError("acquire job from jobRef list failed, may be dropped, jobId:0x%" PRIx64, job);
-    SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
-  }
-
-  int32_t code = schCancelJob(pJob);
-
-  schReleaseJob(job);
-
-  SCH_RET(code);
+  SCH_RET(schHandleOpEndEvent(pJob, SCH_OP_GET_STATUS, NULL, code));
 }
 
 void schedulerStopQueryHb(void *pTrans) {
@@ -203,33 +133,23 @@ void schedulerStopQueryHb(void *pTrans) {
   schCleanClusterHb(pTrans);
 }
 
-void schedulerFreeJob(int64_t* job, int32_t errCode) {
-  if (0 == *job) {
+void schedulerFreeJob(int64_t* jobId, int32_t errCode) {
+  if (0 == *jobId) {
     return;
   }
-  
-  SSchJob *pJob = schAcquireJob(*job);
+
+  SSchJob *pJob = schAcquireJob(*jobId);
   if (NULL == pJob) {
-    qError("acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *job);
-    *job = 0;
+    qError("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
     return;
   }
 
-  int32_t code = schProcessOnJobDropped(pJob, errCode);
-  if (TSDB_CODE_SCH_JOB_IS_DROPPING == code) {
-    SCH_JOB_DLOG("sch job is already dropping, refId:0x%" PRIx64, *job);
-    *job = 0;
+  if (schJobDone(pJob)) {
     return;
   }
 
-  SCH_JOB_DLOG("start to remove job from jobRef list, refId:0x%" PRIx64, *job);
-
-  if (taosRemoveRef(schMgmt.jobRef, *job)) {
-    SCH_JOB_ELOG("remove job from job list failed, refId:0x%" PRIx64, *job);
-  }
-
-  schReleaseJob(*job);
-  *job = 0;
+  schSwitchJobStatus(pJob, JOB_TASK_STATUS_DROP, (void*)errCode);
+  *jobId = 0;
 }
 
 void schedulerDestroy(void) {

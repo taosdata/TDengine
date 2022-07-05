@@ -21,56 +21,66 @@
 #include "tref.h"
 #include "trpc.h"
 
-SSchStatusFps gSchJobFps[JOB_TASK_STATUS_MAX] = {
-  {JOB_TASK_STATUS_NULL,      schJobStNullEnter, schJobStNullLeave, schJobStNullEvent},
-  {JOB_TASK_STATUS_INIT,      schJobStNullEnter, schJobStNullLeave, schJobStNullEvent},
-  {JOB_TASK_STATUS_EXEC,      schJobStNullEnter, schJobStNullLeave, schJobStNullEvent},
-  {JOB_TASK_STATUS_PART_SUCC, schJobStNullEnter, schJobStNullLeave, schJobStNullEvent},
-  {JOB_TASK_STATUS_SUCC,      schJobStNullEnter, schJobStNullLeave, schJobStNullEvent},
-  {JOB_TASK_STATUS_FAIL,      schJobStNullEnter, schJobStNullLeave, schJobStNullEvent},
-  {JOB_TASK_STATUS_DROP,      schJobStNullEnter, schJobStNullLeave, schJobStNullEvent},
-};
-
-SSchStatusFps gSchTaskFps[JOB_TASK_STATUS_MAX] = {
-  {JOB_TASK_STATUS_NULL,      schTaskStatusNullEnter, schTaskStatusNullLeave, schTaskStatusNullEvent},
-  {JOB_TASK_STATUS_INIT,      schTaskStatusNullEnter, schTaskStatusNullLeave, schTaskStatusNullEvent},
-  {JOB_TASK_STATUS_EXEC,      schTaskStatusNullEnter, schTaskStatusNullLeave, schTaskStatusNullEvent},
-  {JOB_TASK_STATUS_PART_SUCC, schTaskStatusNullEnter, schTaskStatusNullLeave, schTaskStatusNullEvent},
-  {JOB_TASK_STATUS_SUCC,      schTaskStatusNullEnter, schTaskStatusNullLeave, schTaskStatusNullEvent},
-  {JOB_TASK_STATUS_FAIL,      schTaskStatusNullEnter, schTaskStatusNullLeave, schTaskStatusNullEvent},
-  {JOB_TASK_STATUS_DROP,      schTaskStatusNullEnter, schTaskStatusNullLeave, schTaskStatusNullEvent},
-};
-
-int32_t schSwitchJobStatus(SSchJob** job, int32_t status, void* param) {
-  SCH_ERR_RET(schUpdateJobStatus(*job, status));
+int32_t schSwitchJobStatus(SSchJob* pJob, int32_t status, void* param) {
+  int32_t code = 0;
+  SCH_ERR_JRET(schUpdateJobStatus(pJob, status));
 
   switch (status) {
     case JOB_TASK_STATUS_INIT:
-      SCH_RET(schInitJob(job, param));
+      break;
     case JOB_TASK_STATUS_EXEC:
-      SCH_RET(schExecJob(job, param));
+      SCH_ERR_JRET(schExecJob(pJob, (SSchedulerReq*)param));    
+      break;
     case JOB_TASK_STATUS_PART_SUCC:
+      SCH_ERR_JRET(schProcessOnJobPartialSuccess(pJob));
+      break;
+    case JOB_TASK_STATUS_SUCC:
+      break;
+    case JOB_TASK_STATUS_FAIL:      
+      SCH_RET(schProcessOnJobFailure(pJob, (int32_t)param));
+      break;
+    case JOB_TASK_STATUS_DROP:
+      SCH_ERR_JRET(schProcessOnJobDropped(pJob, (int32_t)param));
+      
+      if (taosRemoveRef(schMgmt.jobRef, pJob->refId)) {
+        SCH_JOB_ELOG("remove job from job list failed, refId:0x%" PRIx64, pJob->refId);
+      } else {
+        SCH_JOB_DLOG("job removed from jobRef list, refId:0x%" PRIx64, pJob->refId);
+      }
+      break;    
     default: {
-      SSchJob* pJob = *job;
-      SCH_JOB_ELOG("enter unknown job status %d", status);
+      SCH_JOB_ELOG("unknown job status %d", status);
       SCH_RET(TSDB_CODE_SCH_STATUS_ERROR);
     }
   }
 
   return TSDB_CODE_SUCCESS;
+
+_return:
+
+  SCH_RET(schProcessOnJobFailure(pJob, code));
 }
 
-int32_t schHandleOpBeginEvent(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq) {
-  SSchEvent event = {0};
-  event.event = SCH_EVENT_BEGIN_OP;
-  SSchOpEvent opEvent = {0};
-  opEvent.type = type;
-  opEvent.begin = true;
-  opEvent.pReq = pReq;
+int32_t schHandleOpBeginEvent(int64_t jobId, SSchJob** job, SCH_OP_TYPE type, SSchedulerReq* pReq) {
+  SSchJob *pJob = schAcquireJob(jobId);
+  if (NULL == pJob) {
+    qError("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, jobId);
+    SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+  }
 
-  SCH_ERR_RET(schHandleJobEvent(pJob, &event));
+  *job = pJob;
+
+  SCH_RET(schProcessOnOpBegin(pJob, type, pReq));
 }
 
+void schHandleOpEndEvent(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq, int32_t errCode) {
+  if (NULL == pJob) {
+    return;
+  }
+  
+  schProcessOnOpEnd(pJob, type, pReq, errCode);
 
+  schReleaseJob(pJob->refId);
+}
 
 

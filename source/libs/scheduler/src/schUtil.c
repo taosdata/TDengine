@@ -43,6 +43,8 @@ char* schGetOpStr(SCH_OP_TYPE type) {
       return "EXEC";
     case SCH_OP_FETCH:
       return "FETCH";
+    case SCH_OP_GET_STATUS:
+      return "GET STATUS";
     default:
       return "UNKNOWN";
   }
