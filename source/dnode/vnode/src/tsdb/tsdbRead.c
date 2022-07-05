@@ -756,11 +756,11 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
     i += 1;
   }
 
-  while (i < numOfCols && colIndex < taosArrayGetSize(pBlockData->aColDataP)) {
+  while (i < numOfCols && colIndex < taosArrayGetSize(pBlockData->aIdx)) {
     rowIndex = 0;
     pColData = taosArrayGet(pResBlock->pDataBlock, i);
 
-    SColData* pData = (SColData*)taosArrayGetP(pBlockData->aColDataP, colIndex);
+    SColData* pData = tBlockDataGetColDataByIdx(pBlockData, colIndex);
 
     if (pData->cid == pColData->info.colId) {
       for (int32_t j = pDumpInfo->rowIndex; j < endIndex && j >= 0; j += step) {
