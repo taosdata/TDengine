@@ -73,6 +73,8 @@ class HiveMQTest(TDCase):
         self.send_test_data(3)
         time.sleep(3)
         self.tdSql.query("select count(*) from hivemq.mqtt_payload")
+        count = self.tdSql.query_data[0][0]
+        self.logger.info("pub count 6", " query count ", count)
         assert self.tdSql.query_data[0][0] > 4
 
     def desc(self) -> str:
