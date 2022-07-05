@@ -52,6 +52,7 @@ typedef struct {
 typedef struct SSP_CB_PARAM {
   TAOS    *taos;
   bool     fetch;
+  bool     free;
   int32_t *end;
 } SSP_CB_PARAM;
 
@@ -156,7 +157,58 @@ void sqCloseQueryCb(void *param, TAOS_RES *pRes, int code) {
   }
 }
 
-int sqSyncStopQuery(bool fetch) {
+void sqKillFetchCb(void *param, TAOS_RES *pRes, int numOfRows) {
+  SSP_CB_PARAM *qParam = (SSP_CB_PARAM *)param;
+  taos_kill_query(qParam->taos);
+
+  *qParam->end = 1;
+}
+
+void sqKillQueryCb(void *param, TAOS_RES *pRes, int code) {
+  SSP_CB_PARAM *qParam = (SSP_CB_PARAM *)param;
+  if (code == 0 && pRes) {
+    if (qParam->fetch) {
+      taos_fetch_rows_a(pRes, sqKillFetchCb, param);
+    } else {
+      taos_kill_query(qParam->taos);
+      *qParam->end = 1;
+    }
+  } else {
+    sqExit("select", taos_errstr(pRes));
+  }
+}
+
+void sqAsyncFetchCb(void *param, TAOS_RES *pRes, int numOfRows) {
+  SSP_CB_PARAM *qParam = (SSP_CB_PARAM *)param;
+  if (numOfRows > 0) {
+    taos_fetch_rows_a(pRes, sqAsyncFetchCb, param);
+  } else {
+    *qParam->end = 1;
+    if (qParam->free) {
+      taos_free_result(pRes);
+    }
+  }
+}
+
+
+void sqAsyncQueryCb(void *param, TAOS_RES *pRes, int code) {
+  SSP_CB_PARAM *qParam = (SSP_CB_PARAM *)param;
+  if (code == 0 && pRes) {
+    if (qParam->fetch) {
+      taos_fetch_rows_a(pRes, sqAsyncFetchCb, param);
+    } else {
+      if (qParam->free) {
+        taos_free_result(pRes);
+      }
+      *qParam->end = 1;
+    }
+  } else {
+    sqExit("select", taos_errstr(pRes));
+  }
+}
+
+
+int sqStopSyncQuery(bool fetch) {
   CASE_ENTER();  
   for (int32_t i = 0; i < runTimes; ++i) {
     char    sql[1024]  = {0};
@@ -189,7 +241,7 @@ int sqSyncStopQuery(bool fetch) {
   CASE_LEAVE();  
 }
 
-int sqAsyncStopQuery(bool fetch) {
+int sqStopAsyncQuery(bool fetch) {
   CASE_ENTER();  
   for (int32_t i = 0; i < runTimes; ++i) {
     char    sql[1024]  = {0};
@@ -219,7 +271,7 @@ int sqAsyncStopQuery(bool fetch) {
   CASE_LEAVE();  
 }
 
-int sqSyncFreeQuery(bool fetch) {
+int sqFreeSyncQuery(bool fetch) {
   CASE_ENTER();  
   for (int32_t i = 0; i < runTimes; ++i) {
     char    sql[1024]  = {0};
@@ -250,7 +302,7 @@ int sqSyncFreeQuery(bool fetch) {
   CASE_LEAVE();  
 }
 
-int sqAsyncFreeQuery(bool fetch) {
+int sqFreeAsyncQuery(bool fetch) {
   CASE_ENTER();  
   for (int32_t i = 0; i < runTimes; ++i) {
     char    sql[1024]  = {0};
@@ -280,7 +332,7 @@ int sqAsyncFreeQuery(bool fetch) {
   CASE_LEAVE();  
 }
 
-int sqSyncCloseQuery(bool fetch) {
+int sqCloseSyncQuery(bool fetch) {
   CASE_ENTER();  
   for (int32_t i = 0; i < runTimes; ++i) {
     char    sql[1024]  = {0};
@@ -310,7 +362,7 @@ int sqSyncCloseQuery(bool fetch) {
   CASE_LEAVE();  
 }
 
-int sqAsyncCloseQuery(bool fetch) {
+int sqCloseAsyncQuery(bool fetch) {
   CASE_ENTER();  
   for (int32_t i = 0; i < runTimes; ++i) {
     char    sql[1024]  = {0};
@@ -360,8 +412,38 @@ void *syncQueryThreadFp(void *arg) {
     taos_fetch_row(pRes);
   }
 
-  taos_free_result(pRes);
+  if (qParam->free) {
+    taos_free_result(pRes);
+  }
 }
+
+void *asyncQueryThreadFp(void *arg) {
+  SSP_CB_PARAM* qParam = (SSP_CB_PARAM*)arg;
+  char    sql[1024]  = {0};
+  int32_t code = 0;
+  TAOS   *taos = taos_connect(hostName, "root", "taosdata", NULL, 0);
+  if (taos == NULL) sqExit("taos_connect", taos_errstr(NULL));
+
+  qParam->taos = taos;
+
+  sprintf(sql, "reset query cache");
+  sqExecSQLE(taos, sql);
+  
+  sprintf(sql, "use %s", dbName);
+  sqExecSQLE(taos, sql);
+  
+  sprintf(sql, "select * from %s", tbName);
+  
+  int32_t qEnd = 0;
+  SSP_CB_PARAM param = {0};
+  param.fetch = qParam->fetch;
+  param.end = &qEnd;
+  taos_query_a(taos, sql, sqAsyncQueryCb, &param);
+  while (0 == qEnd) {
+    usleep(5000);
+  }
+}
+
 
 void *closeThreadFp(void *arg) {
   SSP_CB_PARAM* qParam = (SSP_CB_PARAM*)arg;
@@ -376,7 +458,22 @@ void *closeThreadFp(void *arg) {
 }
 
 
-int sqConSyncCloseQuery(bool fetch) {
+
+void *killThreadFp(void *arg) {
+  SSP_CB_PARAM* qParam = (SSP_CB_PARAM*)arg;
+  while (true) {
+    if (qParam->taos) {
+      usleep(rand() % 10000);
+      taos_kill_query(qParam->taos);
+      break;
+    }
+    usleep(1);
+  }
+}
+
+
+
+int sqConCloseSyncQuery(bool fetch) {
   CASE_ENTER();  
   pthread_t qid, cid;
   for (int32_t i = 0; i < runTimes; ++i) {
@@ -391,26 +488,160 @@ int sqConSyncCloseQuery(bool fetch) {
   CASE_LEAVE();  
 }
 
+int sqConCloseAsyncQuery(bool fetch) {
+  CASE_ENTER();  
+  pthread_t qid, cid;
+  for (int32_t i = 0; i < runTimes; ++i) {
+    SSP_CB_PARAM param = {0};
+    param.fetch = fetch;
+    pthread_create(&qid, NULL, asyncQueryThreadFp, (void*)&param);
+    pthread_create(&cid, NULL, closeThreadFp, (void*)&param);
+    
+    pthread_join(qid, NULL);
+    pthread_join(cid, NULL);
+  }
+  CASE_LEAVE();  
+}
+
+
+int sqKillSyncQuery(bool fetch) {
+  CASE_ENTER();  
+  for (int32_t i = 0; i < runTimes; ++i) {
+    char    sql[1024]  = {0};
+    int32_t code = 0;
+    TAOS   *taos = taos_connect(hostName, "root", "taosdata", NULL, 0);
+    if (taos == NULL) sqExit("taos_connect", taos_errstr(NULL));
+
+    sprintf(sql, "reset query cache");
+    sqExecSQL(taos, sql);
+
+    sprintf(sql, "use %s", dbName);
+    sqExecSQL(taos, sql);
+
+    sprintf(sql, "select * from %s", tbName);
+    TAOS_RES* pRes = taos_query(taos, sql);
+    code = taos_errno(pRes);
+    if (code) {
+      sqExit("taos_query", taos_errstr(pRes));
+    }
+
+    if (fetch) {
+      taos_fetch_row(pRes);
+    }
+
+    taos_kill_query(taos);
+    
+    taos_close(taos);
+  }
+  CASE_LEAVE();  
+}
+
+int sqKillAsyncQuery(bool fetch) {
+  CASE_ENTER();  
+  for (int32_t i = 0; i < runTimes; ++i) {
+    char    sql[1024]  = {0};
+    int32_t code = 0;
+    TAOS   *taos = taos_connect(hostName, "root", "taosdata", NULL, 0);
+    if (taos == NULL) sqExit("taos_connect", taos_errstr(NULL));
+
+    sprintf(sql, "reset query cache");
+    sqExecSQL(taos, sql);
+
+    sprintf(sql, "use %s", dbName);
+    sqExecSQL(taos, sql);
+
+    sprintf(sql, "select * from %s", tbName);
+
+    int32_t qEnd = 0;
+    SSP_CB_PARAM param = {0};
+    param.fetch = fetch;
+    param.end = &qEnd;
+    param.taos = taos;
+    taos_query_a(taos, sql, sqKillQueryCb, &param);
+    while (0 == qEnd) {
+      usleep(5000);
+    }
+    
+    taos_close(taos);
+  }
+  CASE_LEAVE();  
+}
+
+int sqConKillSyncQuery(bool fetch) {
+  CASE_ENTER();  
+  pthread_t qid, cid;
+  for (int32_t i = 0; i < runTimes; ++i) {
+    SSP_CB_PARAM param = {0};
+    param.fetch = fetch;
+    pthread_create(&qid, NULL, syncQueryThreadFp, (void*)&param);
+    pthread_create(&cid, NULL, killThreadFp, (void*)&param);
+    
+    pthread_join(qid, NULL);
+    pthread_join(cid, NULL);
+  }
+  CASE_LEAVE();  
+}
+
+int sqConKillAsyncQuery(bool fetch) {
+  CASE_ENTER();  
+  pthread_t qid, cid;
+  for (int32_t i = 0; i < runTimes; ++i) {
+    SSP_CB_PARAM param = {0};
+    param.fetch = fetch;
+    pthread_create(&qid, NULL, asyncQueryThreadFp, (void*)&param);
+    pthread_create(&cid, NULL, killThreadFp, (void*)&param);
+    
+    pthread_join(qid, NULL);
+    pthread_join(cid, NULL);
+  }
+  CASE_LEAVE();  
+}
+
+
+
 void sqRunAllCase(void) {
 /*
-  sqSyncStopQuery(false);
-  sqSyncStopQuery(true);
-  sqAsyncStopQuery(false);
-  sqAsyncStopQuery(true);
+  sqStopSyncQuery(false);
+  sqStopSyncQuery(true);
+  sqStopAsyncQuery(false);
+  sqStopAsyncQuery(true);
 
-  sqSyncFreeQuery(false);
-  sqSyncFreeQuery(true);
-  sqAsyncFreeQuery(false);
-  sqAsyncFreeQuery(true);
+  sqFreeSyncQuery(false);
+  sqFreeSyncQuery(true);
+  sqFreeAsyncQuery(false);
+  sqFreeAsyncQuery(true);
 
-  sqSyncCloseQuery(false);
-  sqSyncCloseQuery(true);
-  sqAsyncCloseQuery(false);
-  sqAsyncCloseQuery(true);
-*/  
-  sqConSyncCloseQuery(false);
-  sqConSyncCloseQuery(true);
+  sqCloseSyncQuery(false);
+  sqCloseSyncQuery(true);
+  sqCloseAsyncQuery(false);
+  sqCloseAsyncQuery(true);
+  
+  sqConCloseSyncQuery(false);
+  sqConCloseSyncQuery(true);
+  sqConCloseAsyncQuery(false);
+  sqConCloseAsyncQuery(true);
+*/
 
+#if 0  
+
+  sqKillSyncQuery(false);
+  sqKillSyncQuery(true);
+  sqKillAsyncQuery(false);
+  sqKillAsyncQuery(true);
+#endif  
+
+  //sqConKillSyncQuery(false);
+  sqConKillSyncQuery(true);
+#if 0  
+  sqConKillAsyncQuery(false);
+  sqConKillAsyncQuery(true);
+#endif
+
+  int32_t l = 5;
+  while (l) {
+    printf("%d\n", l--);
+    sleep(1);
+  }
 }
 
 

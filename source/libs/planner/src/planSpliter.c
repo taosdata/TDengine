@@ -1018,14 +1018,14 @@ static int32_t unionMountSubplan(SLogicSubplan* pParent, SNodeList* pChildren) {
   return TSDB_CODE_SUCCESS;
 }
 
-static SLogicSubplan* unionCreateSubplan(SSplitContext* pCxt, SLogicNode* pNode) {
+static SLogicSubplan* unionCreateSubplan(SSplitContext* pCxt, SLogicNode* pNode, ESubplanType subplanType) {
   SLogicSubplan* pSubplan = (SLogicSubplan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
   if (NULL == pSubplan) {
     return NULL;
   }
   pSubplan->id.queryId = pCxt->queryId;
   pSubplan->id.groupId = pCxt->groupId;
-  pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
+  pSubplan->subplanType = subplanType;
   pSubplan->pNode = pNode;
   pNode->pParent = NULL;
   return pSubplan;
@@ -1039,7 +1039,7 @@ static int32_t unionSplitSubplan(SSplitContext* pCxt, SLogicSubplan* pUnionSubpl
 
   SNode* pChild = NULL;
   FOREACH(pChild, pSplitNode->pChildren) {
-    SLogicSubplan* pNewSubplan = unionCreateSubplan(pCxt, (SLogicNode*)pChild);
+    SLogicSubplan* pNewSubplan = unionCreateSubplan(pCxt, (SLogicNode*)pChild, pUnionSubplan->subplanType);
     code = nodesListMakeStrictAppend(&pUnionSubplan->pChildren, (SNode*)pNewSubplan);
     if (TSDB_CODE_SUCCESS == code) {
       REPLACE_NODE(NULL);

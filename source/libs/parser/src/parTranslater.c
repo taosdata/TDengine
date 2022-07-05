@@ -3138,6 +3138,7 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->buffer = pStmt->pOptions->buffer;
   pReq->pageSize = -1;
   pReq->pages = pStmt->pOptions->pages;
+  pReq->lastRowMem = -1;
   pReq->daysPerFile = -1;
   pReq->daysToKeep0 = pStmt->pOptions->keep[0];
   pReq->daysToKeep1 = pStmt->pOptions->keep[1];

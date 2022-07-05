@@ -18,6 +18,7 @@
 #include "taoserror.h"
 #include "tlog.h"
 #include "tsched.h"
+#include "tdef.h"
 
 #define tmrFatal(...)                                                     \
   {                                                                       \
@@ -110,7 +111,7 @@ typedef struct time_wheel_t {
   tmr_obj_t**     slots;
 } time_wheel_t;
 
-static int32_t tsMaxTmrCtrl = 512;
+static int32_t tsMaxTmrCtrl = TSDB_MAX_VNODES_PER_DB + 100;
 
 static TdThreadOnce  tmrModuleInit = PTHREAD_ONCE_INIT;
 static TdThreadMutex tmrCtrlMutex;
