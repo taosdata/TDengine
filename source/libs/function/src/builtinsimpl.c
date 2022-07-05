@@ -1915,6 +1915,22 @@ int32_t stddevInvertFunction(SqlFunctionCtx* pCtx) {
       LIST_STDDEV_SUB_N(pStddevRes->isum, int64_t);
       break;
     }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      LIST_STDDEV_SUB_N(pStddevRes->isum, uint8_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      LIST_STDDEV_SUB_N(pStddevRes->isum, uint16_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      LIST_STDDEV_SUB_N(pStddevRes->isum, uint32_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      LIST_STDDEV_SUB_N(pStddevRes->isum, uint64_t);
+      break;
+    }
     case TSDB_DATA_TYPE_FLOAT: {
       LIST_STDDEV_SUB_N(pStddevRes->dsum, float);
       break;
@@ -1983,9 +1999,12 @@ int32_t stddevCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SStddevRes*          pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  if (IS_INTEGER_TYPE(type)) {
+  if (IS_SIGNED_NUMERIC_TYPE(type)) {
     pDBuf->isum += pSBuf->isum;
     pDBuf->quadraticISum += pSBuf->quadraticISum;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    pDBuf->usum += pSBuf->usum;
+    pDBuf->quadraticUSum += pSBuf->quadraticUSum;
   } else {
     pDBuf->dsum += pSBuf->dsum;
     pDBuf->quadraticDSum += pSBuf->quadraticDSum;
