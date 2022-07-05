@@ -18,10 +18,10 @@ Configuring Prometheus is done by editing the Prometheus configuration file prom
 
 ```yaml
 remote_write:
-  - url: "http://localhost:6041/prometheus/v1/remote_write/prometheus_data?token=<token>"
+  - url: "<url>/prometheus/v1/remote_write/prometheus_data?token=<token>"
 
 remote_read:
-  - url: "http://localhost:6041/prometheus/v1/remote_read/prometheus_data?token=<token>"
+  - url: "<url>/prometheus/v1/remote_read/prometheus_data?token=<token>"
     remote_timeout: 10s
     read_recent: true
 ```
