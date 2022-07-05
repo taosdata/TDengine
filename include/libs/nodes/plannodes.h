@@ -82,6 +82,7 @@ typedef struct SScanLogicNode {
 typedef struct SJoinLogicNode {
   SLogicNode node;
   EJoinType  joinType;
+  SNode*     pMergeCondition;
   SNode*     pOnConditions;
   bool       isSingleTableJoin;
 } SJoinLogicNode;
@@ -320,6 +321,7 @@ typedef struct SInterpFuncPhysiNode {
   SNodeList*  pFuncs;
   STimeWindow timeRange;
   int64_t     interval;
+  int8_t      intervalUnit;
   EFillMode   fillMode;
   SNode*      pFillValues;  // SNodeListNode
   SNode*      pTimeSeries;  // SColumnNode
@@ -328,6 +330,7 @@ typedef struct SInterpFuncPhysiNode {
 typedef struct SJoinPhysiNode {
   SPhysiNode node;
   EJoinType  joinType;
+  SNode*     pMergeCondition;
   SNode*     pOnConditions;
   SNodeList* pTargets;
 } SJoinPhysiNode;

@@ -121,7 +121,7 @@ echo "firstEp                ${HOSTNAME}:7100"   >> $TAOS_CFG
 echo "secondEp               ${HOSTNAME}:7200"   >> $TAOS_CFG
 echo "fqdn                   ${HOSTNAME}"        >> $TAOS_CFG
 echo "serverPort             ${NODE}"            >> $TAOS_CFG
-echo "supportVnodes          128"                >> $TAOS_CFG
+echo "supportVnodes          1024"                >> $TAOS_CFG
 echo "dataDir                $DATA_DIR"          >> $TAOS_CFG
 echo "logDir                 $LOG_DIR"           >> $TAOS_CFG
 echo "debugFlag              0"                  >> $TAOS_CFG

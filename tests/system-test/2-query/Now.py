@@ -40,6 +40,7 @@ class TDTestCase:
         self.time_unit = ['b','u','a','s','m','h','d','w']
         self.symbol = ['+','-','*','/']
         self.error_values = [1.5,'abc','"abc"','!@','today()']
+        self.db_percision = ['ms','us','ns']
     def tbtype_check(self,tb_type):
         if tb_type == 'normal table' or tb_type == 'child table':
             tdSql.checkRows(len(self.values_list))  
@@ -70,23 +71,29 @@ class TDTestCase:
                 tdSql.checkData(i,0,None)
 
     def now_check_ntb(self):
-        tdSql.prepare()
-        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
-        for value in self.values_list:
-            tdSql.execute(
-                f'insert into {self.ntbname} values({value})')
-        self.data_check(self.ntbname,'normal table')
+        for time_unit in self.db_percision:
+            tdSql.execute(f'create database db precision "{time_unit}"')
+            tdSql.execute('use db')
+            tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+            for value in self.values_list:
+                tdSql.execute(
+                    f'insert into {self.ntbname} values({value})')
+            self.data_check(self.ntbname,'normal table')
+            tdSql.execute('drop database db')
 
     def now_check_stb(self):
-        tdSql.prepare()
-        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
-        for i in range(self.tbnum):
-            tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]})")
-            for value in self.values_list:
-                tdSql.execute(f'insert into {self.stbname}_{i} values({value})')
-        for i in range(self.tbnum):
-            self.data_check(f'{self.stbname}_{i}','child table')
-        self.data_check(self.stbname,'stable')
+        for time_unit in self.db_percision:
+            tdSql.execute(f'create database db precision "{time_unit}"')
+            tdSql.execute('use db')
+            tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
+            for i in range(self.tbnum):
+                tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]})")
+                for value in self.values_list:
+                    tdSql.execute(f'insert into {self.stbname}_{i} values({value})')
+            for i in range(self.tbnum):
+                self.data_check(f'{self.stbname}_{i}','child table')
+            self.data_check(self.stbname,'stable')
+            tdSql.execute('drop database db')
     def run(self):  # sourcery skip: extract-duplicate-method
 
         self.now_check_ntb()

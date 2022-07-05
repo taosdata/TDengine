@@ -13,6 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef _TD_DARWIN_64
+#include <pwd.h>
+#endif
+
 #include "shellInt.h"
 
 #define SHELL_HOST     "The auth string to use when connecting to the server."

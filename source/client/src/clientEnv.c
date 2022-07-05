@@ -25,6 +25,7 @@
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
+#include "tsched.h"
 #include "ttime.h"
 
 #define TSC_VAR_NOT_RELEASE 1
@@ -34,9 +35,20 @@ SAppInfo appInfo;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
 
+void *tscQhandle = NULL;
+
 static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t    tscInitRes = 0;
 
+void initTscQhandle() {
+  // init handle
+  tscQhandle = taosInitScheduler(4096, 5, "tsc");
+}
+
+void cleanupTscQhandle() {
+  // destroy handle
+  taosCleanUpScheduler(tscQhandle);
+}
 static int32_t registerRequest(SRequestObj *pRequest) {
   STscObj *pTscObj = acquireTscObj(pRequest->pTscObj->id);
   if (NULL == pTscObj) {
@@ -151,7 +163,6 @@ void stopAllRequests(SHashObj *pRequests) {
   }
 }
 
-
 void destroyAppInst(SAppInstInfo *pAppInfo) {
   tscDebug("destroy app inst mgr %p", pAppInfo);
 
@@ -176,9 +187,9 @@ void destroyTscObj(void *pObj) {
   if (NULL == pObj) {
     return;
   }
-  
+
   STscObj *pTscObj = pObj;
-  int64_t tscId = pTscObj->id;
+  int64_t  tscId = pTscObj->id;
   tscTrace("begin to destroy tscObj %" PRIx64 " p:%p", tscId, pTscObj);
 
   SClientHbKey connKey = {.tscRid = pTscObj->id, .connType = pTscObj->connType};
@@ -292,11 +303,12 @@ void doDestroyRequest(void *p) {
   if (NULL == p) {
     return;
   }
-  
+
   SRequestObj *pRequest = (SRequestObj *)p;
+
   int64_t reqId = pRequest->self;
   tscTrace("begin to destroy request %" PRIx64 " p:%p", reqId, pRequest);
-  
+
   taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
 
   schedulerFreeJob(&pRequest->body.queryJob, 0);
@@ -334,7 +346,7 @@ void taos_init_imp(void) {
   // In the APIs of other program language, taos_cleanup is not available yet.
   // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
   atexit(taos_cleanup);
-
+  initTscQhandle();
   errno = TSDB_CODE_SUCCESS;
   taosSeedRand(taosGetTimestampSec());
 

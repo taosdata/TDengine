@@ -148,7 +148,10 @@ typedef struct {
   int32_t    accessTimes;
   int32_t    numOfVnodes;
   int32_t    numOfSupportVnodes;
-  int32_t    numOfCores;
+  float      numOfCores;
+  int64_t    memTotal;
+  int64_t    memAvail;
+  int64_t    memUsed;
   EDndReason offlineReason;
   uint16_t   port;
   char       fqdn[TSDB_FQDN_LEN];
@@ -243,6 +246,7 @@ typedef struct {
   int32_t buffer;
   int32_t pageSize;
   int32_t pages;
+  int32_t lastRowMem;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -255,8 +259,8 @@ typedef struct {
   int8_t  compression;
   int8_t  replications;
   int8_t  strict;
-  int8_t  cacheLastRow;
   int8_t  hashMethod;  // default is 1
+  int8_t  cacheLastRow;
   int32_t numOfRetensions;
   SArray* pRetensions;
   int8_t  schemaless;
@@ -556,7 +560,7 @@ typedef struct {
   int64_t uid;
   int8_t  status;
   // config
-  int8_t  dropPolicy;
+  int8_t  igExpired;
   int8_t  trigger;
   int64_t triggerParam;
   int64_t watermark;

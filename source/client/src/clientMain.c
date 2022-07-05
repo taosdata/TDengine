@@ -47,11 +47,9 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
   atomic_store_32(&lock, 0);
   return ret;
 }
-
 // this function may be called by user or system, or by both simultaneously.
 void taos_cleanup(void) {
-  tscInfo("start to cleanup client environment");
-
+  tscInfo("start  to cleanup client environment");
   if (atomic_val_compare_exchange_32(&sentinel, TSC_VAR_NOT_RELEASE, TSC_VAR_RELEASED) != TSC_VAR_NOT_RELEASE) {
     return;
   }
@@ -74,8 +72,8 @@ void taos_cleanup(void) {
   catalogDestroy();
   schedulerDestroy();
 
+  cleanupTscQhandle();
   rpcCleanup();
-
   tscInfo("all local resources released");
   taosCleanupCfg();
   taosCloseLog();
@@ -108,7 +106,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   if (pObj) {
     int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
     *rid = pObj->id;
-    return (TAOS*)rid;
+    return (TAOS *)rid;
   }
 
   return NULL;
@@ -196,9 +194,9 @@ void taos_kill_query(TAOS *taos) {
   if (NULL == taos) {
     return;
   }
-  
-  int64_t rid = *(int64_t*)taos;
-  STscObj* pTscObj = acquireTscObj(rid);
+
+  int64_t  rid = *(int64_t *)taos;
+  STscObj *pTscObj = acquireTscObj(rid);
   stopAllRequests(pTscObj->pRequests);
   releaseTscObj(rid);
 }
@@ -244,7 +242,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
 #endif
 
   } else if (TD_RES_TMQ(res)) {
-    SMqRspObj      *msg = ((SMqRspObj *)res);
+    SMqRspObj *     msg = ((SMqRspObj *)res);
     SReqResultInfo *pResultInfo;
     if (msg->resIter == -1) {
       pResultInfo = tmqGetNextResInfo(res, true);
@@ -420,7 +418,7 @@ int taos_affected_rows(TAOS_RES *res) {
     return 0;
   }
 
-  SRequestObj    *pRequest = (SRequestObj *)res;
+  SRequestObj *   pRequest = (SRequestObj *)res;
   SReqResultInfo *pResInfo = &pRequest->body.resInfo;
   return pResInfo->numOfRows;
 }
@@ -604,7 +602,7 @@ int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
   }
 
   SReqResultInfo *pResInfo = tscGetCurResInfo(res);
-  TAOS_FIELD     *pField = &pResInfo->userFields[columnIndex];
+  TAOS_FIELD *    pField = &pResInfo->userFields[columnIndex];
   if (!IS_VAR_DATA_TYPE(pField->type)) {
     return 0;
   }
@@ -648,8 +646,8 @@ const char *taos_get_server_info(TAOS *taos) {
 typedef struct SqlParseWrapper {
   SParseContext *pCtx;
   SCatalogReq    catalogReq;
-  SRequestObj   *pRequest;
-  SQuery        *pQuery;
+  SRequestObj *  pRequest;
+  SQuery *       pQuery;
 } SqlParseWrapper;
 
 static void destorySqlParseWrapper(SqlParseWrapper *pWrapper) {
@@ -670,8 +668,8 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
   tscDebug("enter meta callback, code %s", tstrerror(code));
 
   SqlParseWrapper *pWrapper = (SqlParseWrapper *)param;
-  SQuery          *pQuery = pWrapper->pQuery;
-  SRequestObj     *pRequest = pWrapper->pRequest;
+  SQuery *         pQuery = pWrapper->pQuery;
+  SRequestObj *    pRequest = pWrapper->pRequest;
 
   if (code == TSDB_CODE_SUCCESS) {
     code = qAnalyseSqlSemantic(pWrapper->pCtx, &pWrapper->catalogReq, pResultMeta, pQuery);
@@ -720,31 +718,29 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  **pCxt = (SParseContext){
-      .requestId = pRequest->requestId,
-      .requestRid = pRequest->self,
-      .acctId = pTscObj->acctId,
-      .db = pRequest->pDb,
-      .topicQuery = false,
-      .pSql = pRequest->sqlstr,
-      .sqlLen = pRequest->sqlLen,
-      .pMsg = pRequest->msgBuf,
-      .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
-      .pTransporter = pTscObj->pAppInfo->pTransporter,
-      .pStmtCb = NULL,
-      .pUser = pTscObj->user,
-      .schemalessType = pTscObj->schemalessType,
-      .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
-      .async = true,
-      .svrVer = pTscObj->sVer,
-      .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes)
-  };
+  **pCxt = (SParseContext){.requestId = pRequest->requestId,
+                           .requestRid = pRequest->self,
+                           .acctId = pTscObj->acctId,
+                           .db = pRequest->pDb,
+                           .topicQuery = false,
+                           .pSql = pRequest->sqlstr,
+                           .sqlLen = pRequest->sqlLen,
+                           .pMsg = pRequest->msgBuf,
+                           .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
+                           .pTransporter = pTscObj->pAppInfo->pTransporter,
+                           .pStmtCb = NULL,
+                           .pUser = pTscObj->user,
+                           .schemalessType = pTscObj->schemalessType,
+                           .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
+                           .async = true,
+                           .svrVer = pTscObj->sVer,
+                           .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes)};
   return TSDB_CODE_SUCCESS;
 }
 
 void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   SParseContext *pCxt = NULL;
-  STscObj       *pTscObj = pRequest->pTscObj;
+  STscObj *      pTscObj = pRequest->pTscObj;
   int32_t        code = 0;
 
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
@@ -914,10 +910,10 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     return terrno;
   }
 
-  int64_t rid = *(int64_t*)taos;
+  int64_t       rid = *(int64_t *)taos;
   const int32_t MAX_TABLE_NAME_LENGTH = 12 * 1024 * 1024;  // 12MB list
   int32_t       code = 0;
-  SRequestObj  *pRequest = NULL;
+  SRequestObj * pRequest = NULL;
   SCatalogReq   catalogReq = {0};
 
   if (NULL == tableNameList) {

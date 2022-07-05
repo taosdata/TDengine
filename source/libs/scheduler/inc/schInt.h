@@ -69,7 +69,7 @@ typedef struct SSchHbTrans {
 
 typedef struct SSchApiStat {
 
-#ifdef WINDOWS
+#if defined(WINDOWS) || defined(_TD_DARWIN_64)
   size_t avoidCompilationErrors;
 #endif
 
@@ -77,7 +77,7 @@ typedef struct SSchApiStat {
 
 typedef struct SSchRuntimeStat {
 
-#ifdef WINDOWS
+#if defined(WINDOWS) || defined(_TD_DARWIN_64)
   size_t avoidCompilationErrors;
 #endif
 
@@ -85,7 +85,7 @@ typedef struct SSchRuntimeStat {
 
 typedef struct SSchJobStat {
 
-#ifdef WINDOWS
+#if defined(WINDOWS) || defined(_TD_DARWIN_64)
   size_t avoidCompilationErrors;
 #endif
 

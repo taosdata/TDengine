@@ -62,7 +62,7 @@ typedef struct STableComInfo {
 
 
 typedef struct SIndexMeta {
-#ifdef WINDOWS
+#if defined(WINDOWS) || defined(_TD_DARWIN_64)
   size_t avoidCompilationErrors;
 #endif
 

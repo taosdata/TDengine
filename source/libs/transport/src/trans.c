@@ -76,12 +76,16 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pInit->user) {
     memcpy(pRpc->user, pInit->user, strlen(pInit->user));
   }
-  int64_t refId = taosAddRef(transGetInstMgt(), pRpc);
+
+  int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
+  transAcquireExHandle(transGetInstMgt(), refId);
+  pRpc->refId = refId;
   return (void*)refId;
 }
 void rpcClose(void* arg) {
   tInfo("start to close rpc");
-  taosRemoveRef(transGetInstMgt(), (int64_t)arg);
+  transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
+  transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
   tInfo("finish to close rpc");
   return;
 }
