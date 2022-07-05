@@ -154,7 +154,8 @@ static void doMergeMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo *pIter, SArr
 static void doMergeMemIMemRows(TSDBROW* pRow, TSDBROW* piRow, STableBlockScanInfo* pBlockScanInfo, STsdbReader* pReader,
                                STSRow** pTSRow);
 static int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader* pReader, STbData* pMemTbData, STbData* piMemTbData);
-static STsdb*  getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* retentions, const char* idstr);
+static STsdb*  getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* retentions, const char* idstr, int8_t *pLevel);
+static SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond, int8_t level);
 
 static int32_t setColumnIdSlotList(STsdbReader* pReader, SSDataBlock* pBlock) {
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
@@ -366,6 +367,7 @@ static SSDataBlock* createResBlock(SQueryTableDataCond* pCond, int32_t capacity)
 
 static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsdbReader** ppReader, const char* idstr) {
   int32_t      code = 0;
+  int8_t       level = 0;
   STsdbReader* pReader = (STsdbReader*)taosMemoryCalloc(1, sizeof(*pReader));
   if (pReader == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -374,13 +376,13 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
 
   initReaderStatus(&pReader->status);
 
-  pReader->pTsdb       = getTsdbByRetentions(pVnode, pCond->twindows[0].skey, pVnode->config.tsdbCfg.retentions, idstr);
+  pReader->pTsdb       = getTsdbByRetentions(pVnode, pCond->twindows[0].skey, pVnode->config.tsdbCfg.retentions, idstr, &level);
   pReader->suid        = pCond->suid;
   pReader->order       = pCond->order;
   pReader->capacity    = 4096;
   pReader->idStr       = (idstr != NULL)? strdup(idstr):NULL;
-  pReader->verRange    = (SVersionRange) {.minVer = pCond->startVersion, .maxVer = 10000};
-  pReader->type        = pCond->type;
+  pReader->verRange    = getQueryVerRange(pVnode, pCond, level);
+  pReader->type = pCond->type;
   pReader->window      = updateQueryTimeWindow(pVnode->pTsdb, pCond->twindows);
 
   // todo remove this
@@ -2379,12 +2381,13 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
   }
 }
 
-STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* retentions, const char* idStr) {
+static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* retentions, const char* idStr,
+                                  int8_t* pLevel) {
   if (VND_IS_RSMA(pVnode)) {
-    int     level = 0;
+    int8_t  level = 0;
     int64_t now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
 
-    for (int i = 0; i < TSDB_RETENTION_MAX; ++i) {
+    for (int8_t i = 0; i < TSDB_RETENTION_MAX; ++i) {
       SRetention* pRetention = retentions + level;
       if (pRetention->keep <= 0) {
         if (level > 0) {
@@ -2398,22 +2401,33 @@ STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* retentions
       ++level;
     }
 
-    int32_t vgId = TD_VID(pVnode);
-    const char* str = (idStr != NULL)? idStr:"";
+    int32_t     vgId = TD_VID(pVnode);
+    const char* str = (idStr != NULL) ? idStr : "";
 
     if (level == TSDB_RETENTION_L0) {
+      *pLevel = TSDB_RETENTION_L0;
       tsdbDebug("vgId:%d, read handle %p rsma level %d is selected to query %s", vgId, TSDB_RETENTION_L0, str);
       return VND_RSMA0(pVnode);
     } else if (level == TSDB_RETENTION_L1) {
+      *pLevel = TSDB_RETENTION_L1;
       tsdbDebug("vgId:%d, read handle %p rsma level %d is selected to query %s", vgId, TSDB_RETENTION_L1, str);
       return VND_RSMA1(pVnode);
     } else {
+      *pLevel = TSDB_RETENTION_L2;
       tsdbDebug("vgId:%d, read handle %p rsma level %d is selected to query %s", vgId, TSDB_RETENTION_L2, str);
       return VND_RSMA2(pVnode);
     }
   }
 
   return VND_TSDB(pVnode);
+}
+
+static SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond, int8_t level) {
+  if (VND_IS_RSMA(pVnode)) {
+    return (SVersionRange){.minVer = pCond->startVersion, .maxVer = tdRSmaGetMaxSubmitVer(pVnode->pSma, level)};
+  }
+
+  return (SVersionRange){.minVer = pCond->startVersion, .maxVer = pVnode->state.applied};
 }
 
 // // todo not unref yet, since it is not support multi-group interpolation query
