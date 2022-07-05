@@ -236,7 +236,6 @@ int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char*
 
   const char* prefix = "syntax error";
   if (sourceStr == NULL) {
-    assert(additionalInfo != NULL);
     snprintf(pBuf->buf, pBuf->len, msgFormat1, additionalInfo);
     return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
   }
@@ -254,40 +253,25 @@ int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char*
   return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
 }
 
-SSchema* getTableColumnSchema(const STableMeta* pTableMeta) {
-  assert(pTableMeta != NULL);
-  return (SSchema*)pTableMeta->schema;
-}
+SSchema* getTableColumnSchema(const STableMeta* pTableMeta) { return (SSchema*)pTableMeta->schema; }
 
 static SSchema* getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex) {
-  assert(pTableMeta != NULL && pTableMeta->schema != NULL && colIndex >= 0 &&
-         colIndex < (getNumOfColumns(pTableMeta) + getNumOfTags(pTableMeta)));
-
   SSchema* pSchema = (SSchema*)pTableMeta->schema;
   return &pSchema[colIndex];
 }
 
 SSchema* getTableTagSchema(const STableMeta* pTableMeta) {
-  assert(pTableMeta != NULL &&
-         (pTableMeta->tableType == TSDB_SUPER_TABLE || pTableMeta->tableType == TSDB_CHILD_TABLE));
   return getOneColumnSchema(pTableMeta, getTableInfo(pTableMeta).numOfColumns);
 }
 
 int32_t getNumOfColumns(const STableMeta* pTableMeta) {
-  assert(pTableMeta != NULL);
   // table created according to super table, use data from super table
   return getTableInfo(pTableMeta).numOfColumns;
 }
 
-int32_t getNumOfTags(const STableMeta* pTableMeta) {
-  assert(pTableMeta != NULL);
-  return getTableInfo(pTableMeta).numOfTags;
-}
+int32_t getNumOfTags(const STableMeta* pTableMeta) { return getTableInfo(pTableMeta).numOfTags; }
 
-STableComInfo getTableInfo(const STableMeta* pTableMeta) {
-  assert(pTableMeta != NULL);
-  return pTableMeta->tableInfo;
-}
+STableComInfo getTableInfo(const STableMeta* pTableMeta) { return pTableMeta->tableInfo; }
 
 STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   size_t size = TABLE_META_SIZE(pTableMeta);

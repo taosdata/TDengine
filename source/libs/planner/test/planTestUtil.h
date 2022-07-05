@@ -45,6 +45,7 @@ extern void    setDumpModule(const char* pModule);
 extern void    setSkipSqlNum(const char* pNum);
 extern void    setLimitSqlNum(const char* pNum);
 extern void    setLogLevel(const char* pLogLevel);
+extern void    setQueryPolicy(const char* pQueryPolicy);
 extern int32_t getLogLevel();
 
 #endif  // PLAN_TEST_UTIL_H
