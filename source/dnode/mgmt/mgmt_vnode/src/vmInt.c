@@ -157,7 +157,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
   pMgmt->state.totalVnodes = numOfVnodes;
 
   int32_t threadNum = tsNumOfCores / 2;
-  if (threadNum < 1) threadNum = 0;
+  if (threadNum < 1) threadNum = 1;
   int32_t vnodesPerThread = numOfVnodes / threadNum + 1;
 
   SVnodeThread *threads = taosMemoryCalloc(threadNum, sizeof(SVnodeThread));
