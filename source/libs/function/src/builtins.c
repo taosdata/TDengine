@@ -48,14 +48,19 @@ static int32_t validateTimeUnitParam(uint8_t dbPrec, const SValueNode* pVal) {
     return TIME_UNIT_INVALID;
   }
 
-  if (TSDB_TIME_PRECISION_MILLI == dbPrec && 0 == strcasecmp(pVal->literal, "1u")) {
+  if (TSDB_TIME_PRECISION_MILLI == dbPrec && (0 == strcasecmp(pVal->literal, "1u") ||
+                                              0 == strcasecmp(pVal->literal, "1b"))) {
+    return TIME_UNIT_TOO_SMALL;
+  }
+
+  if (TSDB_TIME_PRECISION_MICRO == dbPrec && 0 == strcasecmp(pVal->literal, "1b")) {
     return TIME_UNIT_TOO_SMALL;
   }
 
   if (pVal->literal[0] != '1' || (pVal->literal[1] != 'u' && pVal->literal[1] != 'a' &&
                                   pVal->literal[1] != 's' && pVal->literal[1] != 'm' &&
                                   pVal->literal[1] != 'h' && pVal->literal[1] != 'd' &&
-                                  pVal->literal[1] != 'w')) {
+                                  pVal->literal[1] != 'w' && pVal->literal[1] != 'b')) {
     return TIME_UNIT_INVALID;
   }
 
@@ -702,7 +707,7 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
                              "ELAPSED function time unit parameter should be greater than db precision");
     } else if (ret == TIME_UNIT_INVALID) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "ELAPSED function time unit parameter should be one of the following: [1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+                             "ELAPSED function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
     }
   }
 
