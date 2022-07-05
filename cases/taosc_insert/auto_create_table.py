@@ -75,15 +75,14 @@ class TestAutoCreateTable(TDCase):
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdSql.execute(f'insert into {dbname}.t1 using {dbname}.stb(t11, t12) tags(11, 12) (ts, c11, c12) values (now-1m, 11, 21)(now-2m, 11, 21)')
         self.tdSql.execute(f'insert into {dbname}.t2 using {dbname}.stb(t11, t12) tags(11, 12) values (now-3m, 11, 21)(now-4m, 11, 21)')
-        # ! TD-16206
-        # self.tdSql.execute(f'insert into {dbname}.t3 (ts, c11, c12) using {dbname}.stb(t11, t12) tags(11, 12) values (now-5m, 11, 21)(now-6m, 11, 21)')
+        self.tdSql.execute(f'insert into {dbname}.t3 (ts, c11, c12) using {dbname}.stb(t11, t12) tags(11, 12) values (now-5m, 11, 21)(now-6m, 11, 21)')
         self.tdSql.execute(f'insert into {dbname}.t3 using {dbname}.stb(t11, t12) tags(11, 12) (ts, c11, c12) values (now-7m, 11, 21)(now-8m, 11, 21)')
         self.tdSql.error(f'insert into {dbname}.t4 using {dbname}.stb(t11, t12) tags(11, 12) values (now-7m, 11, 21) (ts, c11, c12) values (now-8m, 11, 21)')
         self.tdSql.error(f'insert into {dbname}.t5 using {dbname}.stb(t11, t12) tags(11, 12) (ts, c11, c12) values (now-9m, 11, 21) (ts, c11, c12) values (now-10m, 11, 21)')
         self.tdSql.error(f'insert into {dbname}.t6 (ts, c11, c12) using {dbname}.stb(t11, t12) values (now-11m, 11, 21) (now-12m, 11, 21) using {dbname}.stb(t11, t12) tags(11, 12')
         self.tdSql.error(f'insert into {dbname}.t7 (ts, c11, c12) using {dbname}.stb(t11, t12) using {dbname}.stb(t11, t12) tags(11, 12')
         self.tdSql.query(f'select count(*) from {dbname}.stb')
-        self.tdSql.checkEqual(self.tdSql.query_data[0][0], 6)
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], 8)
         self.tdSql.execute(f'drop database if exists {dbname}')
 
 

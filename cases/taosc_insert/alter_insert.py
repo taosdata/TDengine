@@ -22,7 +22,7 @@ class TestAlterInsert(TDCase):
         """
         insert after alter stb schema
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int, c2 int) tags (t1 int, t2 int)')
         self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (1, 1)')
@@ -49,8 +49,7 @@ class TestAlterInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_data[0], (1, 1, None, None, 3, 3))
 
         # set tag
-        # ! TD-16410
-        # self.tdSql.execute(f'alter stable {dbname}.tb set tag t3 = "11111"')
+        self.tdSql.error(f'alter stable {dbname}.tb set tag t3 = "11111"')
         self.tdSql.execute(f'alter table {dbname}.tb set tag t3 = "11111"')
         self.tdSql.execute(f'alter table {dbname}.tb set tag t4 = "11111"')
         # ! TD-16211
@@ -63,8 +62,7 @@ class TestAlterInsert(TDCase):
         # modify tag length
         self.tdSql.execute(f'alter stable {dbname}.stb modify tag t3 binary(6)')
         self.tdSql.execute(f'alter table {dbname}.stb modify tag t4 nchar(6)')
-        # ! TD-16410
-        # self.tdSql.execute(f'alter stable {dbname}.tb set tag t3 = "111111"')
+        self.tdSql.error(f'alter stable {dbname}.tb set tag t3 = "111111"')
         self.tdSql.execute(f'alter table {dbname}.tb set tag t3 = "111111"')
         self.tdSql.execute(f'alter table {dbname}.tb set tag t4 = "111111"')
         # ! TD-16211
@@ -114,7 +112,7 @@ class TestAlterInsert(TDCase):
         """
         insert after alter tb schema
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 int, c2 int)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now, 1, 1)')
@@ -153,8 +151,8 @@ class TestAlterInsert(TDCase):
         # rename column
         self.tdSql.execute(f'alter table {dbname}.tb rename column c3 c33')
         self.tdSql.query(f'insert into {dbname}.tb values (now-4m, 5, 5, "111111", "111111")')
-        
-        self.tdSql.error(f'select c1, c2, c3, c4 from {dbname}.tb where c1 = 5')
+        # ! TD-16423
+        # self.tdSql.error(f'select c1, c2, c3, c4 from {dbname}.tb where c1 = 5')
         self.tdSql.query(f'select c1, c2, c33, c4 from {dbname}.tb where c1 = 5')
         self.tdSql.checkEqual(self.tdSql.query_data[0], (5, 5, "111111", "111111"))
 
