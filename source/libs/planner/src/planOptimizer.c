@@ -490,18 +490,7 @@ static int32_t pushDownCondOptPushCondToJoin(SOptimizeContext* pCxt, SJoinLogicN
 }
 
 static int32_t pushDownCondOptPushCondToChild(SOptimizeContext* pCxt, SLogicNode* pChild, SNode** pCond) {
-  switch (nodeType(pChild)) {
-    case QUERY_NODE_LOGIC_PLAN_SCAN:
-      return pushDownCondOptPushCondToScan(pCxt, (SScanLogicNode*)pChild, pCond);
-    case QUERY_NODE_LOGIC_PLAN_PROJECT:
-      return pushDownCondOptPushCondToProject(pCxt, (SProjectLogicNode*)pChild, pCond);
-    case QUERY_NODE_LOGIC_PLAN_JOIN:
-      return pushDownCondOptPushCondToJoin(pCxt, (SJoinLogicNode*)pChild, pCond);
-    default:
-      break;
-  }
-  planError("pushDownCondOptPushCondToChild failed, invalid logic plan node %s", nodesNodeName(nodeType(pChild)));
-  return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  return pushDownCondOptAppendCond(&pChild->pConditions, pCond);
 }
 
 static bool pushDownCondOptIsPriKey(SNode* pNode, SNodeList* pTableCols) {
@@ -802,10 +791,7 @@ static int32_t pushDownCondOptDealAgg(SOptimizeContext* pCxt, SAggLogicNode* pAg
     return TSDB_CODE_SUCCESS;
   }
   // TODO: remove it after full implementation of pushing down to child
-  if (1 != LIST_LENGTH(pAgg->node.pChildren) ||
-      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) &&
-      QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) &&
-      QUERY_NODE_LOGIC_PLAN_JOIN != nodeType(nodesListGetNode(pAgg->node.pChildren, 0))) {
+  if (1 != LIST_LENGTH(pAgg->node.pChildren)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -878,10 +864,7 @@ static int32_t pushDownCondOptDealProject(SOptimizeContext* pCxt, SProjectLogicN
     return TSDB_CODE_SUCCESS;
   }
   // TODO: remove it after full implementation of pushing down to child
-  if (1 != LIST_LENGTH(pProject->node.pChildren) ||
-      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pProject->node.pChildren, 0)) &&
-          QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(nodesListGetNode(pProject->node.pChildren, 0)) &&
-          QUERY_NODE_LOGIC_PLAN_JOIN != nodeType(nodesListGetNode(pProject->node.pChildren, 0))) {
+  if (1 != LIST_LENGTH(pProject->node.pChildren)) {
     return TSDB_CODE_SUCCESS;
   }
 
