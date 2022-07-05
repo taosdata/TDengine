@@ -205,7 +205,7 @@ impl WsResultSet {
     fn errno(&self) -> i32 {
         match self.rs.as_ref() {
             Ok(_) => 0,
-            Err(err) => err.code as i32,
+            Err(err) => err.code.into(),
         }
     }
     fn errstr(&self) -> *const c_char {
@@ -279,7 +279,7 @@ impl WsResultSet {
                 }
                 0
             }
-            Err(err) => err.code as i32,
+            Err(err) => err.code.into(),
         }
     }
 
@@ -311,7 +311,7 @@ pub unsafe extern "C" fn ws_connect_with_dsn(dsn: *const c_char) -> *mut WS_TAOS
 pub unsafe extern "C" fn ws_connect_errno(taos: *mut WS_TAOS) -> i32 {
     match (taos as *mut WsTaos).as_ref() {
         Some(Ok(_)) => 0,
-        Some(Err(err)) => err.code as i32,
+        Some(Err(err)) => err.code.into(),
         None => 0,
     }
 }

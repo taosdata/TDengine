@@ -13,10 +13,13 @@ pub async fn sync_schema(from: &Taos, to: &Taos) -> Result<(), Error> {
         .deserialize_stream()
         .try_collect()
         .await?;
+    dbg!(&stables);
     let mut stable_fields = HashMap::new();
     for stable in stables {
+        debug_assert!(!stable.is_empty());
         // todo: use "show create" sql?
         // from.query(format!("show create stable {stable}")).await?;
+        log::info!("describe table {stable}");
         let desc = from.describe(&stable).await?;
         let sql = desc.to_create_table_sql(&stable);
         stable_fields.insert(stable, desc);
@@ -72,14 +75,23 @@ pub async fn sync_schema(from: &Taos, to: &Taos) -> Result<(), Error> {
 pub fn sync_table(from: &Taos, to: &Taos, db: &str, table: &str) -> Result<(), Error> {
     use taos::prelude::sync::*;
 
-    let stable: Option<String> = from
+    #[derive(Debug, Deserialize)]
+    struct Table {
+        table_name: String,
+        stable_name: Option<String>,
+    }
+
+    let stable: Table = from
         .query_one(format!(
-            "select stable_name from information_schema.user_tables where db_name = '{db}' and table_name = \"{table}\""
+            "select * from information_schema.user_tables where db_name = '{db}' and table_name = \"{table}\""
         ))?
         .unwrap();
     use itertools::Itertools;
 
-    if let Some(stable) = stable {
+    if let Some(stable) = stable.stable_name {
+        dbg!(&table);
+        // let stable = table.stable_name;
+        debug_assert!(!stable.is_empty());
         let desc = from.describe(&format!("{db}.`{stable}`"))?;
         let sql = desc.to_create_table_sql(&stable);
         to.exec(sql)?;

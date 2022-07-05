@@ -382,7 +382,7 @@ mod test {
 
     /// Consume from one database and write to another.
     // #[crate::test(log_level = "trace")]
-    #[crate::test(log_level = "trace", naming = "tmq1")]
+    #[crate::test(log_level = "trace", naming = "tmq1", dropping = "none")]
     async fn tmq_stream(taos: &Taos, database: &str) -> Result<()> {
         let version = crate::client_info();
         println!("version: {}", version);
@@ -401,7 +401,7 @@ mod test {
         let gid = database;
 
         let dsn = format!(
-            "taos:///{database}?topics={topic}&group.id={gid}&wait=2000&msg.with.table.name=true"
+            "taos:///{database}?topics={topic}&group.id={gid}&wait=2000"
         );
         log::info!("subscribe with dsn: {dsn}");
         let consumer = TmqBuilder::from_dsn(&dsn)?
@@ -436,18 +436,20 @@ mod test {
             let (blocks, rows) = rs.summary();
             assert!(blocks == 1, "tmq response blocks always should be 1");
             sum += rows;
-            eprintln!("sum: {sum}, rows in block = {rows}");
+            eprintln!("total: {sum}, rows in block = {rows}");
             Ok::<_, crate::Error>(sum)
         });
         futures::pin_mut!(unfold);
         use futures::prelude::*;
         consumer.forward(unfold).await?;
+        // tokio::time::sleep(Duration::from_millis(100)).await;
+        taos.exec("reset query cache").unwrap();
 
         let db2_rows: usize = taos.query_one("select count(*) from db2.tu1")?.unwrap_or(0);
         drop_topic(&taos, &topic)?;
         taos.exec("drop database db2")?;
         if db2_rows != MAX_INSERTS {
-            anyhow::bail!("inserted rows not match");
+            anyhow::bail!("inserted rows not match: inserted {MAX_INSERTS}, select count is {db2_rows}");
         }
         println!("finished");
         Ok(())

@@ -79,7 +79,9 @@ impl XSinkBuilder for TaosSinkBuilder {
     }
 
     fn with_transformer(mut self, transformer: Vec<Action>) -> Self {
-        self.transformer = Arc::new(Some(transformer));
+        if transformer.len() > 0 {
+            self.transformer = Arc::new(Some(transformer));
+        }
         self
     }
 
@@ -111,13 +113,24 @@ pub fn sync_table_with_transformer(
     use taos::prelude::sync::*;
     assert!(transformer.len() > 0);
 
-    let stable: Option<String> = from
+    // let stable: Option<String> = from
+    //     .query_one(format!(
+    //         "select stable_name from information_schema.user_tables where db_name = '{db}' and table_name = \"{table}\""
+    //     ))?
+    //     .unwrap();
+
+    // if let Some(stable) = stable {
+    #[derive(Debug, serde::Deserialize)]
+    struct Table {
+        stable_name: Option<String>,
+    }
+
+    let stable: Table = from
         .query_one(format!(
-            "select stable_name from information_schema.user_tables where db_name = '{db}' and table_name = \"{table}\""
+            "select * from information_schema.user_tables where db_name = '{db}' and table_name = \"{table}\""
         ))?
         .unwrap();
-
-    if let Some(stable) = stable {
+    if let Some(stable) = stable.stable_name {
         let desc = from.describe(&format!("{db}.`{stable}`"))?;
         let mut stable2 = stable.to_string();
 
@@ -373,6 +386,7 @@ impl TaosxSink for TaosSink {
         taos.exec(format!("use {db}"))?;
         let table = block.tmq_table_name().unwrap();
         log::debug!("[{idx}] db: {db}, table: {table}");
+        debug_assert!(!table.is_empty());
 
         if let Some(transformer) = self.transformer.as_ref() {
             // if self.taos.exec(format!("describe {table}")).is_err() {

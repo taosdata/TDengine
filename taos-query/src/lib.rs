@@ -244,6 +244,7 @@ where
         &'q self,
         sql: T,
     ) -> Result<Option<O>, Self::Error> {
+        log::info!("query one: {}", sql.as_ref());
         self.query(sql)?
             .deserialize::<O>()
             .next()

@@ -173,12 +173,11 @@ impl RawBlock {
         }
         // lengths placeholder for each columns, use u32.
         data.extend(std::iter::repeat(0).take(fields.len() * 4));
-        dbg!(&data);
 
         let lengths_offset = 8 + fields.len() * 6;
 
-        let column_lengths =
-            unsafe { data.as_mut_ptr().offset(8 + fields.len() as isize * 6) as *mut u32 };
+        // let column_lengths =
+        //     unsafe { data.as_mut_ptr().offset(8 + fields.len() as isize * 6) as *mut u32 };
         use bitvec::prelude::*;
 
         let mut offset = 0;
@@ -205,7 +204,7 @@ impl RawBlock {
                     }
                 }
                 Ty::TinyInt => {
-                    dbg!(&data);
+                    // dbg!(&data);
                     debug_assert_eq!(field.bytes(), *length);
                     let mut is_null: BitVec<u8> = BitVec::with_capacity(rows);
                     let byte_slice = &bytes[offset..(offset + rows * *length as usize)];
@@ -374,34 +373,29 @@ impl RawBlock {
                             offsets.push(-1);
                         } else {
                             // not null
-                            dbg!(len);
                             offsets.push(row_offset);
                             slice.extend(len.to_le_bytes());
-                            dbg!(std::str::from_utf8_unchecked(slice::from_raw_parts(
-                                col.offset(2),
-                                len as usize
-                            )));
                             slice.extend(slice::from_raw_parts(col.offset(2), len as usize));
 
                             row_offset += len as i32 + 2;
                         }
                     }
-                    dbg!(&offsets);
-                    dbg!(&slice);
 
+                    // Write slice.len() as column length.
+                    // Do not include the offsets part length.
                     std::ptr::copy_nonoverlapping(
-                        ((offsets.len() * 4 + slice.len()) as u32)
-                            .to_le_bytes()
-                            .as_slice()
-                            .as_ptr(),
+                        (slice.len() as u32).to_le_bytes().as_slice().as_ptr(),
                         data.as_mut_ptr()
                             .offset(lengths_offset as isize + i as isize * 4),
                         4,
                     );
-
+                    // let len = *(data
+                    //     .as_ptr()
+                    //     .offset(lengths_offset as isize + i as isize * 4)
+                    //     as *const u32);
                     data.extend(slice::from_raw_parts(
                         offsets.as_ptr() as *const u8,
-                        offsets.len() * 4,
+                        offsets.len() * std::mem::size_of::<i32>(),
                     ));
                     data.extend(slice);
                     offset += rows * *length as usize;
@@ -461,10 +455,7 @@ impl RawBlock {
                     }
 
                     std::ptr::copy_nonoverlapping(
-                        ((offsets.len() * 4 + slice.len()) as u32)
-                            .to_le_bytes()
-                            .as_slice()
-                            .as_ptr(),
+                        (slice.len() as u32).to_le_bytes().as_slice().as_ptr(),
                         data.as_mut_ptr()
                             .offset(lengths_offset as isize + i as isize * 4),
                         4,
@@ -727,11 +718,13 @@ impl RawBlock {
         self.offsets.get_or_init(|| {
             let lengths = self.lengths();
             let mut data_offset = self.data_offset();
+            // dbg!(data_offset, self.len());
+            debug_assert!(data_offset < self.len() as isize);
             self.schemas()
                 .iter()
                 .enumerate()
                 .map(|(i, col)| {
-                    debug_assert!(data_offset < self.len() as isize);
+                    // debug_assert!(data_offset < self.len() as isize);
                     if col.ty.is_var_type() {
                         let o = (col.ty, data_offset, data_offset + 4 * self.rows as isize);
                         data_offset = o.2 + lengths[i] as isize;

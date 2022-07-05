@@ -40,9 +40,9 @@ r2d2 = { version = "0.8.9", optional = true }
 [dev-dependencies]
 pretty_env_logger = "*"
 rand = "*"
-taos = { path = "../taos" }
-taos-macros = { path = "../taos-macros" }
-tokio = { version = "1" }
+# # taos = { path = "../taos" }
+# taos-macros = { path = "../taos-macros" }
+tokio = { version = "1", features = ["full"] }
 
 [build-dependencies]
 rustc_version = "0.4.0"

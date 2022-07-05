@@ -87,7 +87,6 @@ impl Error {
     }
 }
 
-
 type Result<T> = std::result::Result<T, Error>;
 
 impl WsClient {
@@ -367,7 +366,7 @@ impl ResultSet {
                 let raw = RawBlock::from_v2(
                     &raw,
                     self.fields.as_ref().unwrap(),
-                    dbg!(fetch_resp.lengths.as_ref().unwrap()),
+                    fetch_resp.lengths.as_ref().unwrap(),
                     fetch_resp.rows,
                     self.precision,
                 );

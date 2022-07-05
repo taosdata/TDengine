@@ -379,7 +379,6 @@ mod tests {
     use super::*;
 
     use serde_json::json;
-    use taos_macros::test;
 
     #[test]
     fn value_de_value_ref() {
@@ -540,7 +539,7 @@ mod tests {
         };
     }
 
-    #[test(log_level = "trace")]
+    #[test]
     fn de_json() {
         use Value::*;
 
@@ -571,7 +570,7 @@ mod tests {
         );
     }
 
-    #[test(log_level = "trace")]
+    #[test]
     fn de_newtype_struct() {
         use serde_json::json;
         use Value::*;
