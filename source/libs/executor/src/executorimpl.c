@@ -4770,9 +4770,6 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
                                            &(*pTaskInfo)->tableqinfoList, pPlan->user);
 
 
-  /* XXXXXXXXXXXXXXXXXXXX */
-  (*pTaskInfo)->pHandle = pHandle;
-  /* XXXXXXXXXXXXXXXXXXXX */
   if (NULL == (*pTaskInfo)->pRoot) {
     code = (*pTaskInfo)->code;
     goto _complete;

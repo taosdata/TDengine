@@ -151,10 +151,6 @@ typedef struct SExecTaskInfo {
   jmp_buf          env;                  // jump to this position when error happens.
   EOPTR_EXEC_MODEL execModel;            // operator execution model [batch model|stream model]
   struct SOperatorInfo* pRoot;
-
-  /* XXXXXXXXXXXXXXXXXXXX */
-  SReadHandle* pHandle;
-  /* XXXXXXXXXXXXXXXXXXXX */
 } SExecTaskInfo;
 
 enum {
