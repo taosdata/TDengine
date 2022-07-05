@@ -628,7 +628,7 @@ _return:
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
 
-  SQueryResult     res = {0};
+  SExecResult     res = {0};
   SRequestConnInfo conn = {.pTrans = pRequest->pTscObj->pAppInfo->pTransporter,
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self};
@@ -640,14 +640,14 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
     .sql = pRequest->sqlstr,
     .startTs = pRequest->metric.start,
     .execFp = NULL,
-    .execParam = NULL,
+    .cbParam = NULL,
     .chkKillFp = chkRequestKilled,
-    .chkKillParam = (void*)pRequest->self
-    .pQueryRes = &res,
+    .chkKillParam = (void*)pRequest->self,
+    .pExecRes = &res,
   };
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
-  pRequest->body.resInfo.execRes = res.res;
+  memcpy(&pRequest->body.resInfo.execRes, &res, sizeof(res));
 
   if (code != TSDB_CODE_SUCCESS) {
     schedulerFreeJob(&pRequest->body.queryJob, 0);
@@ -784,10 +784,10 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   return code;
 }
 
-void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
+void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*)param;
   pRequest->code = code;
-  pRequest->body.resInfo.execRes = pResult->res;
+  memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));
 
   if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type ||
       TDMT_VND_CREATE_TABLE == pRequest->type) {
@@ -952,10 +952,10 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
           .sql = pRequest->sqlstr,
           .startTs = pRequest->metric.start,
           .execFp = schedulerExecCb,
-          .execParam = pRequest,
+          .cbParam = pRequest,
           .chkKillFp = chkRequestKilled,
           .chkKillParam = (void*)pRequest->self,
-          .pQueryRes = NULL,
+          .pExecRes = NULL,
         };
         code = schedulerExecJob(&req, &pRequest->body.queryJob);
         taosArrayDestroy(pNodeList);
@@ -1398,7 +1398,7 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
     SReqResultInfo* pResInfo = &pRequest->body.resInfo;
     SSchedulerReq req = {
       .syncReq = true,
-      .pFetchRes = &pResInfo->pData,
+      .pFetchRes = (void**)&pResInfo->pData,
     };
     pRequest->code = schedulerFetchRows(pRequest->body.queryJob, &req);
     if (pRequest->code != TSDB_CODE_SUCCESS) {

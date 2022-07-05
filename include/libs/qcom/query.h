@@ -68,6 +68,13 @@ typedef struct SIndexMeta {
 
 } SIndexMeta;
 
+typedef struct SExecResult {
+  int32_t         code;
+  uint64_t        numOfRows;
+  int32_t         msgType;
+  void*           res;
+} SExecResult;
+
 typedef struct STbVerInfo {
   char    tbFName[TSDB_TABLE_FNAME_LEN];
   int32_t sversion;

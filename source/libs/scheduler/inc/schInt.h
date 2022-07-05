@@ -98,7 +98,7 @@ typedef struct SSchStat {
 } SSchStat;
 
 typedef struct SSchResInfo {
-  SQueryResult*          queryRes;
+  SExecResult*           execRes;
   void**                 fetchRes;
   schedulerExecFp        execFp; 
   schedulerFetchFp       fetchFp; 
@@ -110,11 +110,6 @@ typedef struct SSchOpEvent {
   bool           begin;
   SSchedulerReq *pReq;
 } SSchOpEvent;
-
-typedef struct SSchEvent {
-  SCH_EVENT_TYPE event;
-  void*          info;
-} SSchEvent;
 
 typedef int32_t (*schStatusEnterFp)(void* pHandle, void* pParam);
 typedef int32_t (*schStatusLeaveFp)(void* pHandle, void* pParam);
@@ -315,9 +310,9 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_GET_JOB_STATUS(job) atomic_load_8(&(job)->status)
 #define SCH_GET_JOB_STATUS_STR(job) jobTaskStatusStr(SCH_GET_JOB_STATUS(job))
 
-#define SCH_JOB_IN_SYNC_OP(job) ((job)->opStatus.op && (job)->opStatus.sync)
-#define SCH_JOB_IN_ASYNC_EXEC_OP(job) (((job)->opStatus.op == SCH_OP_EXEC) && (!(job)->opStatus.sync))
-#define SCH_JOB_IN_ASYNC_FETCH_OP(job) (((job)->opStatus.op == SCH_OP_FETCH) && (!(job)->opStatus.sync))
+#define SCH_JOB_IN_SYNC_OP(job) ((job)->opStatus.op && (job)->opStatus.syncReq)
+#define SCH_JOB_IN_ASYNC_EXEC_OP(job) ((SCH_OP_EXEC == atomic_val_compare_exchange_32(&(job)->opStatus.op, SCH_OP_EXEC, SCH_OP_NULL)) && (!(job)->opStatus.syncReq))
+#define SCH_JOB_IN_ASYNC_FETCH_OP(job) ((SCH_OP_FETCH == atomic_val_compare_exchange_32(&(job)->opStatus.op, SCH_OP_FETCH, SCH_OP_NULL)) && (!(job)->opStatus.syncReq))
 
 #define SCH_SET_JOB_NEED_FLOW_CTRL(_job) (_job)->attr.needFlowCtrl = true
 #define SCH_JOB_NEED_FLOW_CTRL(_job) ((_job)->attr.needFlowCtrl)
@@ -355,7 +350,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_SET_ERRNO(_err) do { if (TSDB_CODE_SCH_IGNORE_ERROR != (_err)) { terrno = (_err); } } while (0)
 #define SCH_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { SCH_SET_ERRNO(_code); return _code; } } while (0)
 #define SCH_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { SCH_SET_ERRNO(_code); } return _code; } while (0)
-#define SCH_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { SCH_SET_ERRNO(_code); goto _return; } } while (0)
+#define SCH_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { SCH_SET_ERRNO(code); goto _return; } } while (0)
 
 #define SCH_LOCK(type, _lock) (SCH_READ == (type) ? taosRLockLatch(_lock) : taosWLockLatch(_lock))
 #define SCH_UNLOCK(type, _lock) (SCH_READ == (type) ? taosRUnLockLatch(_lock) : taosWUnLockLatch(_lock))
@@ -408,11 +403,32 @@ int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId* pEpId, SArray* pStatusList);
 void    schFreeSMsgSendInfo(SMsgSendInfo *msgSendInfo);
 char*   schGetOpStr(SCH_OP_TYPE type);
 int32_t schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync);
-int32_t schInitJob(SSchJob **pJob, SSchedulerReq *pReq);
+int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq);
 int32_t schExecJob(SSchJob *pJob, SSchedulerReq *pReq);
-int32_t schDumpJobExecRes(SSchJob* pJob, SQueryResult* pRes);
+int32_t schDumpJobExecRes(SSchJob* pJob, SExecResult* pRes);
 int32_t schUpdateTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask, SEpSet* pEpSet);
 int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf* pData, int32_t rspCode);
+void    schProcessOnOpEnd(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq* pReq, int32_t errCode);
+int32_t schProcessOnOpBegin(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq);
+void    schProcessOnCbEnd(SSchJob *pJob, SSchTask *pTask, int32_t errCode);
+int32_t schProcessOnCbBegin(SSchJob** job, SSchTask** task, uint64_t qId, int64_t rId, uint64_t tId);
+void    schDropTaskOnExecNode(SSchJob *pJob, SSchTask *pTask);
+bool    schJobDone(SSchJob *pJob);
+int32_t schRemoveTaskFromExecList(SSchJob *pJob, SSchTask *pTask);
+int32_t schLaunchJobLowerLevel(SSchJob *pJob, SSchTask *pTask);
+int32_t schSwitchJobStatus(SSchJob* pJob, int32_t status, void* param);
+int32_t schHandleOpBeginEvent(int64_t jobId, SSchJob** job, SCH_OP_TYPE type, SSchedulerReq* pReq);
+int32_t schHandleOpEndEvent(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq, int32_t errCode);
+int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask);
+void    schUpdateJobErrCode(SSchJob *pJob, int32_t errCode);
+int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bool *needRetry);
+int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode);
+int32_t schProcessOnJobPartialSuccess(SSchJob *pJob);
+void    schFreeTask(SSchJob *pJob, SSchTask *pTask);
+void    schDropTaskInHashList(SSchJob *pJob, SHashObj *list);
+int32_t schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level);
+int32_t schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask);
+int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel);
 
 
 #ifdef __cplusplus

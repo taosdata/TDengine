@@ -16,7 +16,7 @@
 #include "catalog.h"
 #include "command.h"
 #include "query.h"
-#include "schedulerInt.h"
+#include "schInt.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
@@ -378,7 +378,7 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   SSchTask              *pTask = NULL;
   SSchJob               *pJob = NULL;
 
-  SCH_TASK_DLOG("begin to handle rsp msg, type:%s, handle:%p, code:%s", TMSG_INFO(pMsg->msgType), pMsg->handle, tstrerror(rspCode));
+  qDebug("begin to handle rsp msg, type:%s, handle:%p, code:%s", TMSG_INFO(pMsg->msgType), pMsg->handle, tstrerror(rspCode));
 
   SCH_ERR_RET(schProcessOnCbBegin(&pJob, &pTask, pParam->queryId, pParam->refId, pParam->taskId));
   
@@ -390,7 +390,7 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   taosMemoryFreeClear(pMsg->pData);
   taosMemoryFreeClear(param);
 
-  SCH_TASK_DLOG("end to handle rsp msg, type:%s, handle:%p, code:%s", TMSG_INFO(pMsg->msgType), pMsg->handle, tstrerror(rspCode));
+  qDebug("end to handle rsp msg, type:%s, handle:%p, code:%s", TMSG_INFO(pMsg->msgType), pMsg->handle, tstrerror(rspCode));
 
   SCH_RET(code);
 }

@@ -53,13 +53,6 @@ typedef struct SQueryProfileSummary {
   uint64_t resultSize;   // generated result size in Kb.
 } SQueryProfileSummary;
 
-typedef struct SExecResult {
-  int32_t         code;
-  uint64_t        numOfRows;
-  int32_t         msgType;
-  void*           res;
-} SExecResult;
-
 typedef struct STaskInfo {
   SQueryNodeAddr addr;
   SSubQueryMsg  *msg;
@@ -70,7 +63,7 @@ typedef struct SSchdFetchParam {
   int32_t* code;
 } SSchdFetchParam;
 
-typedef void (*schedulerExecFp)(SQueryResult* pResult, void* param, int32_t code);
+typedef void (*schedulerExecFp)(SExecResult* pResult, void* param, int32_t code);
 typedef void (*schedulerFetchFp)(void* pResult, void* param, int32_t code);
 typedef bool (*schedulerChkKillFp)(void* param);
 
@@ -87,7 +80,7 @@ typedef struct SSchedulerReq {
   schedulerChkKillFp    chkKillFp;
   void*                 chkKillParam;
   SExecResult*          pExecRes;
-  char**                pFetchRes;
+  void**                pFetchRes;
 } SSchedulerReq;
 
 
@@ -95,7 +88,7 @@ int32_t schedulerInit(SSchedulerCfg *cfg);
 
 int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJob);
 
-int32_t schedulerFetchRows(int64_t job, void **data);
+int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq *pReq);
 
 void schedulerFetchRowsA(int64_t job, schedulerFetchFp fp, void* param);
 
@@ -119,7 +112,7 @@ void schedulerFreeJob(int64_t* job, int32_t errCode);
 
 void schedulerDestroy(void);
 
-void schdExecCallback(SQueryResult* pResult, void* param, int32_t code);
+void schdExecCallback(SExecResult* pResult, void* param, int32_t code);
 
 #ifdef __cplusplus
 }

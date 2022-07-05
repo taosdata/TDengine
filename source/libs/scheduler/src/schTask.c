@@ -16,7 +16,7 @@
 #include "catalog.h"
 #include "command.h"
 #include "query.h"
-#include "schedulerInt.h"
+#include "schInt.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
@@ -226,7 +226,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
       }
 
       if (pTask->level->taskFailed > 0) {
-        SCH_RET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_FAIL, 0));
+        SCH_RET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_FAIL, NULL));
       } else {
         SCH_RET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_PART_SUCC, NULL));
       }
@@ -294,7 +294,7 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf* pData, int32
   
   if ((pTask->execId + 1) >= pTask->maxExecTimes) {
     SCH_TASK_DLOG("task no more retry since reach max try times, execId:%d", pTask->execId);
-    schSwitchJobStatus(pJob, JOB_TASK_STATUS_FAIL, (void*)rspCode);
+    schSwitchJobStatus(pJob, JOB_TASK_STATUS_FAIL, (void*)&rspCode);
     return TSDB_CODE_SUCCESS;
   }
 

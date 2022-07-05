@@ -16,7 +16,7 @@
 #include "catalog.h"
 #include "command.h"
 #include "query.h"
-#include "schedulerInt.h"
+#include "schInt.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"

@@ -37,10 +37,10 @@ int32_t schSwitchJobStatus(SSchJob* pJob, int32_t status, void* param) {
     case JOB_TASK_STATUS_SUCC:
       break;
     case JOB_TASK_STATUS_FAIL:      
-      SCH_RET(schProcessOnJobFailure(pJob, (int32_t)param));
+      SCH_RET(schProcessOnJobFailure(pJob, (param ? *(int32_t*)param : 0)));
       break;
     case JOB_TASK_STATUS_DROP:
-      SCH_ERR_JRET(schProcessOnJobDropped(pJob, (int32_t)param));
+      SCH_ERR_JRET(schProcessOnJobDropped(pJob, *(int32_t*)param));
       
       if (taosRemoveRef(schMgmt.jobRef, pJob->refId)) {
         SCH_JOB_ELOG("remove job from job list failed, refId:0x%" PRIx64, pJob->refId);
@@ -73,14 +73,22 @@ int32_t schHandleOpBeginEvent(int64_t jobId, SSchJob** job, SCH_OP_TYPE type, SS
   SCH_RET(schProcessOnOpBegin(pJob, type, pReq));
 }
 
-void schHandleOpEndEvent(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq, int32_t errCode) {
+int32_t schHandleOpEndEvent(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq, int32_t errCode) {
+  int32_t code = errCode;
+  
   if (NULL == pJob) {
-    return;
+    SCH_RET(code);
   }
   
   schProcessOnOpEnd(pJob, type, pReq, errCode);
 
+  if (TSDB_CODE_SCH_IGNORE_ERROR == errCode) {
+    code = pJob->errCode;
+  }
+
   schReleaseJob(pJob->refId);
+
+  return code;
 }
 
 

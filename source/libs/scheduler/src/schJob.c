@@ -16,7 +16,7 @@
 #include "catalog.h"
 #include "command.h"
 #include "query.h"
-#include "schedulerInt.h"
+#include "schInt.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
@@ -72,6 +72,8 @@ FORCE_INLINE bool schJobNeedToStop(SSchJob *pJob, int8_t *pStatus) {
     schUpdateJobErrCode(pJob, TSDB_CODE_TSC_QUERY_KILLED);
     return true;
   }
+
+  return false;
 }
 
 int32_t schUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
@@ -369,7 +371,7 @@ _return:
 int32_t schDumpJobExecRes(SSchJob* pJob, SExecResult* pRes) {
   pRes->code = atomic_load_32(&pJob->errCode);
   pRes->numOfRows = pJob->resNumOfRows;
-  pRes->res = pJob->execRes;
+  memcpy(pRes, &pJob->execRes, sizeof(pJob->execRes));
   pJob->execRes.res = NULL;
 
   return TSDB_CODE_SUCCESS;
@@ -406,15 +408,13 @@ int32_t schDumpJobFetchRes(SSchJob* pJob, void** pData) {
 }
 
 int32_t schNotifyUserExecRes(SSchJob* pJob) {
-  SQueryResult* pRes = taosMemoryCalloc(1, sizeof(SQueryResult));
+  SExecResult* pRes = taosMemoryCalloc(1, sizeof(SExecResult));
   if (pRes) {
     schDumpJobExecRes(pJob, pRes);
   }
 
-  schEndOperation(pJob);
-
   SCH_JOB_DLOG("sch start to invoke exec cb, code: %s", tstrerror(pJob->errCode));
-  (*pJob->userRes.execFp)(pRes, pJob->userRes.userParam, atomic_load_32(&pJob->errCode));
+  (*pJob->userRes.execFp)(pRes, pJob->userRes.cbParam, atomic_load_32(&pJob->errCode));
   SCH_JOB_DLOG("sch end from exec cb, code: %s", tstrerror(pJob->errCode));
 
   return TSDB_CODE_SUCCESS;
@@ -425,10 +425,8 @@ int32_t schNotifyUserFetchRes(SSchJob* pJob) {
   
   schDumpJobFetchRes(pJob, &pRes);
 
-  schEndOperation(pJob);
-
   SCH_JOB_DLOG("sch start to invoke fetch cb, code: %s", tstrerror(pJob->errCode));
-  (*pJob->userRes.fetchFp)(pRes, pJob->userRes.userParam, atomic_load_32(&pJob->errCode));
+  (*pJob->userRes.fetchFp)(pRes, pJob->userRes.cbParam, atomic_load_32(&pJob->errCode));
   SCH_JOB_DLOG("sch end from fetch cb, code: %s", tstrerror(pJob->errCode));
 
   return TSDB_CODE_SUCCESS;
@@ -627,7 +625,7 @@ void schFreeJobImpl(void *job) {
 
   qDestroyQueryPlan(pJob->pDag);
 
-  taosMemoryFreeClear(pJob->userRes.queryRes);
+  taosMemoryFreeClear(pJob->userRes.execRes);
   taosMemoryFreeClear(pJob->resData);
   taosMemoryFree(pJob);
 
@@ -648,10 +646,14 @@ int32_t schJobFetchRows(SSchJob *pJob) {
     if (pJob->opStatus.syncReq) {
       SCH_JOB_DLOG("sync wait for rsp now, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
       tsem_wait(&pJob->rspSem);
-      schPostJobRes(pJob, SCH_OP_FETCH);
+      SCH_RET(schDumpJobFetchRes(pJob, pJob->userRes.fetchRes));  
     }
   } else {
-    schPostJobRes(pJob, SCH_OP_FETCH);
+    if (pJob->opStatus.syncReq) {
+      SCH_RET(schDumpJobFetchRes(pJob, pJob->userRes.fetchRes));  
+    } else {
+      schPostJobRes(pJob, SCH_OP_FETCH);
+    }
   }
 
   SCH_RET(code);
@@ -674,8 +676,6 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   pJob->chkKillParam = pReq->chkKillParam;
   pJob->userRes.execFp = pReq->execFp;
   pJob->userRes.cbParam = pReq->cbParam;
-  pJob->opStatus.op = SCH_OP_EXEC;
-  pJob->opStatus.syncReq = pReq->syncReq;
 
   if (pReq->pNodeList == NULL || taosArrayGetSize(pReq->pNodeList) <= 0) {
     qDebug("QID:0x%" PRIx64 " input exec nodeList is empty", pReq->pDag->queryId);
@@ -750,22 +750,27 @@ int32_t schExecJob(SSchJob *pJob, SSchedulerReq *pReq) {
 
 
 void schProcessOnOpEnd(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq* pReq, int32_t errCode) {
+  int32_t op = 0;
+  
   switch (type) {
     case SCH_OP_EXEC:
-      int32_t op = atomic_val_compare_exchange_32(&pJob->opStatus.op, type, SCH_OP_NULL);
+/*  
+      op = atomic_val_compare_exchange_32(&pJob->opStatus.op, type, SCH_OP_NULL);
       if (SCH_OP_NULL == op || op != type) {
         SCH_JOB_ELOG("job not in %s operation, op:%s, status:%s", schGetOpStr(type), schGetOpStr(op), jobTaskStatusStr(pJob->status));
       }
-      
-      if (pReq) {
+*/    
+      if (pReq && pReq->syncReq) {
         schDumpJobExecRes(pJob, pReq->pExecRes);
       }
       break;
     case SCH_OP_FETCH:
-      int32_t op = atomic_val_compare_exchange_32(&pJob->opStatus.op, type, SCH_OP_NULL);
+/*  
+      op = atomic_val_compare_exchange_32(&pJob->opStatus.op, type, SCH_OP_NULL);
       if (SCH_OP_NULL == op || op != type) {
         SCH_JOB_ELOG("job not in %s operation, op:%s, status:%s", schGetOpStr(type), schGetOpStr(op), jobTaskStatusStr(pJob->status));
       }
+*/
       break;
     case SCH_OP_GET_STATUS:
       errCode = TSDB_CODE_SUCCESS;
@@ -775,7 +780,7 @@ void schProcessOnOpEnd(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq* pReq, int
   }
 
   if (errCode) {
-    schSwitchJobStatus(pJob, JOB_TASK_STATUS_FAIL, errCode);
+    schSwitchJobStatus(pJob, JOB_TASK_STATUS_FAIL, (void*)&errCode);
   }
 
   SCH_JOB_DLOG("job end %s operation with code %s", schGetOpStr(type), tstrerror(errCode));
@@ -846,7 +851,7 @@ void schProcessOnCbEnd(SSchJob *pJob, SSchTask *pTask, int32_t errCode) {
   }
 
   if (errCode) {
-    schSwitchJobStatus(pJob, JOB_TASK_STATUS_FAIL, errCode);
+    schSwitchJobStatus(pJob, JOB_TASK_STATUS_FAIL, (void*)&errCode);
   }
   
   if (pJob) {
@@ -865,7 +870,6 @@ int32_t schProcessOnCbBegin(SSchJob** job, SSchTask** task, uint64_t qId, int64_
     SCH_ERR_RET(TSDB_CODE_QRY_JOB_NOT_EXIST);
   }
   
-  int8_t  status = 0;
   if (schJobNeedToStop(pJob, &status)) {
     SCH_TASK_ELOG("will not do further processing cause of job status %s", jobTaskStatusStr(status));
     SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
@@ -874,6 +878,9 @@ int32_t schProcessOnCbBegin(SSchJob** job, SSchTask** task, uint64_t qId, int64_
   SCH_ERR_JRET(schGetTaskInJob(pJob, tId, &pTask));
 
   SCH_LOCK_TASK(pTask);
+
+  *job = pJob;
+  *task = pTask;
 
   return TSDB_CODE_SUCCESS;
 
