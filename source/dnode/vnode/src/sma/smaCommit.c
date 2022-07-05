@@ -83,8 +83,8 @@ int32_t smaBegin(SSma *pSma) {
 /**
  * @brief pre-commit for rollup sma.
  *  1) set trigger stat of rsma timer TASK_TRIGGER_STAT_PAUSED.
- *  2) perform persist task for qTaskInfo
- *  3) wait all triggered fetch tasks finished
+ *  2) wait all triggered fetch tasks finished
+ *  3) perform persist task for qTaskInfo
  *
  * @param pSma
  * @return int32_t
@@ -102,10 +102,7 @@ static int32_t tdProcessRSmaPreCommitImpl(SSma *pSma) {
   // step 1: set persistence task paused
   atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_PAUSED);
 
-  // step 2: perform persist task for qTaskInfo
-  tdRSmaPersistExecImpl(pRSmaStat);
-
-  // step 3: wait all triggered fetch tasks finished
+  // step 2: wait all triggered fetch tasks finished
   int32_t nLoops = 0;
   while (1) {
     if (T_REF_VAL_GET(pStat) == 0) {
@@ -120,6 +117,9 @@ static int32_t tdProcessRSmaPreCommitImpl(SSma *pSma) {
       nLoops = 0;
     }
   }
+
+  // step 3: perform persist task for qTaskInfo
+  tdRSmaPersistExecImpl(pRSmaStat);
 
   smaDebug("vgId:%d, rsma pre commit succeess", SMA_VID(pSma));
 

@@ -1035,3 +1035,72 @@ _return:
   sclFreeRes(ctx.pRes);
   return code;
 }
+
+int32_t scalarGetOperatorResultType(SDataType left, SDataType right, EOperatorType op, SDataType* pRes) {
+  switch (op) {
+    case OP_TYPE_ADD:
+      if (left.type == TSDB_DATA_TYPE_TIMESTAMP && right.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        qError("invalid op %d, left type:%d, right type:%d", op, left.type, right.type);
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      if ((left.type == TSDB_DATA_TYPE_TIMESTAMP && (IS_INTEGER_TYPE(right.type) || right.type == TSDB_DATA_TYPE_BOOL)) ||
+          (right.type == TSDB_DATA_TYPE_TIMESTAMP && (IS_INTEGER_TYPE(left.type) || left.type == TSDB_DATA_TYPE_BOOL))) {
+        pRes->type = TSDB_DATA_TYPE_TIMESTAMP;
+        return TSDB_CODE_SUCCESS;
+      }
+      pRes->type = TSDB_DATA_TYPE_DOUBLE;
+      return TSDB_CODE_SUCCESS;
+    case OP_TYPE_SUB:
+      if ((left.type == TSDB_DATA_TYPE_TIMESTAMP && right.type == TSDB_DATA_TYPE_BIGINT) ||
+          (right.type == TSDB_DATA_TYPE_TIMESTAMP && left.type == TSDB_DATA_TYPE_BIGINT)) {
+        pRes->type = TSDB_DATA_TYPE_TIMESTAMP;
+        return TSDB_CODE_SUCCESS;
+      }
+      pRes->type = TSDB_DATA_TYPE_DOUBLE;
+      return TSDB_CODE_SUCCESS;
+    case OP_TYPE_MULTI:
+      if (left.type == TSDB_DATA_TYPE_TIMESTAMP && right.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        qError("invalid op %d, left type:%d, right type:%d", op, left.type, right.type);
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+    case OP_TYPE_DIV:
+      if (left.type == TSDB_DATA_TYPE_TIMESTAMP && right.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        qError("invalid op %d, left type:%d, right type:%d", op, left.type, right.type);
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+    case OP_TYPE_REM:
+    case OP_TYPE_MINUS:
+      pRes->type = TSDB_DATA_TYPE_DOUBLE;
+      return TSDB_CODE_SUCCESS;
+    case OP_TYPE_GREATER_THAN:
+    case OP_TYPE_GREATER_EQUAL:
+    case OP_TYPE_LOWER_THAN:
+    case OP_TYPE_LOWER_EQUAL:
+    case OP_TYPE_EQUAL:
+    case OP_TYPE_NOT_EQUAL:
+    case OP_TYPE_IN:
+    case OP_TYPE_NOT_IN:
+    case OP_TYPE_LIKE:
+    case OP_TYPE_NOT_LIKE:
+    case OP_TYPE_MATCH:
+    case OP_TYPE_NMATCH:
+    case OP_TYPE_IS_NULL:
+    case OP_TYPE_IS_NOT_NULL:
+    case OP_TYPE_IS_TRUE:
+    case OP_TYPE_JSON_CONTAINS:
+      pRes->type = TSDB_DATA_TYPE_BOOL;
+      return TSDB_CODE_SUCCESS;
+    case OP_TYPE_BIT_AND:
+    case OP_TYPE_BIT_OR:
+      pRes->type = TSDB_DATA_TYPE_BIGINT;
+      return TSDB_CODE_SUCCESS;
+    case OP_TYPE_JSON_GET_VALUE:
+      pRes->type = TSDB_DATA_TYPE_JSON;
+      return TSDB_CODE_SUCCESS;
+    default:
+      ASSERT(0);
+      return TSDB_CODE_APP_ERROR;
+  }
+}
+
+

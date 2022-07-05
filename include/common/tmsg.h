@@ -55,8 +55,9 @@ extern int32_t tMsgDict[];
 
 #define TMSG_SEG_CODE(TYPE) (((TYPE)&0xff00) >> 8)
 #define TMSG_SEG_SEQ(TYPE)  ((TYPE)&0xff)
-#define TMSG_INFO(TYPE)     tMsgInfo[tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE)]
-#define TMSG_INDEX(TYPE)    (tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE))
+#define TMSG_INFO(TYPE) \
+  (((TYPE) >= 0 && (TYPE) < TDMT_MAX) ? tMsgInfo[tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE)] : 0)
+#define TMSG_INDEX(TYPE) (tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE))
 
 typedef uint16_t tmsg_t;
 
@@ -708,6 +709,7 @@ typedef struct {
   int32_t buffer;        // MB
   int32_t pageSize;
   int32_t pages;
+  int32_t lastRowMem;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -736,6 +738,7 @@ typedef struct {
   int32_t buffer;
   int32_t pageSize;
   int32_t pages;
+  int32_t lastRowMem;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -1023,8 +1026,10 @@ typedef struct {
   int64_t     clusterId;
   int64_t     rebootTime;
   int64_t     updateTime;
-  int32_t     numOfCores;
+  float       numOfCores;
   int32_t     numOfSupportVnodes;
+  int64_t     memTotal;
+  int64_t     memAvail;
   char        dnodeEp[TSDB_EP_LEN];
   SMnodeLoad  mload;
   SQnodeLoad  qload;
@@ -1079,6 +1084,7 @@ typedef struct {
   int32_t  buffer;
   int32_t  pageSize;
   int32_t  pages;
+  int32_t  lastRowMem;
   int32_t  daysPerFile;
   int32_t  daysToKeep0;
   int32_t  daysToKeep1;
@@ -1131,6 +1137,7 @@ typedef struct {
   int32_t  buffer;
   int32_t  pageSize;
   int32_t  pages;
+  int32_t  lastRowMem;
   int32_t  daysPerFile;
   int32_t  daysToKeep0;
   int32_t  daysToKeep1;

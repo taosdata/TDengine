@@ -1565,6 +1565,10 @@ void constructUdfService(void *argsThread) {
   //TODO return value of uv_run
   uv_run(&udfc->uvLoop, UV_RUN_DEFAULT);
   uv_loop_close(&udfc->uvLoop);
+
+  uv_walk(&udfc->uvLoop, udfUdfdCloseWalkCb, NULL);
+  uv_run(&udfc->uvLoop, UV_RUN_DEFAULT);
+  uv_loop_close(&udfc->uvLoop);
 }
 
 int32_t udfcOpen() {
