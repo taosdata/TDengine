@@ -114,28 +114,6 @@ static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOf
   }
 }
 
-static void vmProcessMergeQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
-  SVnodeObj *pVnode = pInfo->ahandle;
-  SRpcMsg   *pMsg = NULL;
-
-  for (int32_t i = 0; i < numOfMsgs; ++i) {
-    if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
-    const STraceId *trace = &pMsg->info.traceId;
-    dGTrace("vgId:%d, msg:%p get from vnode-merge queue", pVnode->vgId, pMsg);
-
-    int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, pMsg, pInfo);
-    if (code != 0) {
-      if (terrno != 0) code = terrno;
-      dGError("vgId:%d, msg:%p failed to merge since %s", pVnode->vgId, pMsg, terrstr());
-      vmSendRsp(pMsg, code);
-    }
-
-    dGTrace("msg:%p, is freed, code:0x%x", pMsg, code);
-    rpcFreeCont(pMsg->pCont);
-    taosFreeQitem(pMsg);
-  }
-}
-
 static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtype) {
   const STraceId *trace = &pMsg->info.traceId;
   SMsgHead       *pHead = pMsg->pCont;
