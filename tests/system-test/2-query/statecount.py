@@ -344,6 +344,8 @@ class TDTestCase:
         tdSql.error("select stateduration(c1,'GT',1,1b) from ct1")
         tdSql.error("select stateduration(c1,'GT',1,1u) from ct1")
         tdSql.error("select stateduration(c1,'GT',1,1000s) from t1")
+        tdSql.error("select stateduration(c1,'GT',1,10m) from t1")
+        tdSql.error("select stateduration(c1,'GT',1,10d) from t1")
         tdSql.query("select stateduration(c1,'GT',1,1s) from t1")
         tdSql.checkData(10,0,63072035)
         tdSql.query("select stateduration(c1,'GT',1,1m) from t1")
