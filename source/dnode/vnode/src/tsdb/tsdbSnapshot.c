@@ -167,7 +167,7 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
   }
   tBlockDataClear(&pReader->blkData);
   tMapDataClear(&pReader->mBlock);
-  taosArrayDestroy(&pReader->aBlockIdx);
+  taosArrayDestroy(pReader->aBlockIdx);
   if (pReader->pDataFReader) {
     tsdbDataFReaderClose(&pReader->pDataFReader);
   }
