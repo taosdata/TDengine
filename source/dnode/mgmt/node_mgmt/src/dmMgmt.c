@@ -212,6 +212,7 @@ void dmCleanupDnode(SDnode *pDnode) {
   dmCleanupClient(pDnode);
   dmCleanupServer(pDnode);
   dmClearVars(pDnode);
+  rpcCleanup();
   dDebug("dnode is closed, ptr:%p", pDnode);
 }
 
