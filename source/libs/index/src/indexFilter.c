@@ -752,6 +752,7 @@ int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, 
 
   taosArrayAddAll(result, param.result);
   sifFreeParam(&param);
+  *status = st;
   return TSDB_CODE_SUCCESS;
 }
 

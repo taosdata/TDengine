@@ -63,7 +63,7 @@ static void indexDestroy(void* sIdx);
 void indexInit() {
   // refactor later
   indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, INDEX_NUM_OF_THREADS, "index");
-  indexRefMgt = taosOpenRef(10, indexDestroy);
+  indexRefMgt = taosOpenRef(1000, indexDestroy);
 }
 void indexCleanUp() {
   // refacto later
@@ -100,15 +100,16 @@ static void indexWait(void* idx) {
 }
 
 int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
+  int ret = TSDB_CODE_SUCCESS;
   taosThreadOnce(&isInit, indexInit);
   SIndex* sIdx = taosMemoryCalloc(1, sizeof(SIndex));
   if (sIdx == NULL) {
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  // sIdx->cache = (void*)idxCacheCreate(sIdx);
   sIdx->tindex = idxTFileCreate(path);
   if (sIdx->tindex == NULL) {
+    ret = TSDB_CODE_OUT_OF_MEMORY;
     goto END;
   }
 
@@ -122,14 +123,14 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   idxAcquireRef(sIdx->refId);
 
   *index = sIdx;
-  return 0;
+  return ret;
 
 END:
   if (sIdx != NULL) {
     indexClose(sIdx);
   }
   *index = NULL;
-  return -1;
+  return ret;
 }
 
 void indexDestroy(void* handle) {
@@ -272,18 +273,6 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
   tm->operType = oper;
   tm->colType = colType;
 
-#if 0
-  tm->colName = (char*)taosMemoryCalloc(1, nColName + 1);
-  memcpy(tm->colName, colName, nColName);
-  tm->nColName = nColName;
-
-  tm->colVal = (char*)taosMemoryCalloc(1, nColVal + 1);
-  memcpy(tm->colVal, colVal, nColVal);
-  tm->nColVal = nColVal;
-#endif
-
-#if 1
-
   tm->colName = (char*)taosMemoryCalloc(1, nColName + 1);
   memcpy(tm->colName, colName, nColName);
   tm->nColName = nColName;
@@ -294,8 +283,6 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
 
   tm->colVal = buf;
   tm->nColVal = len;
-
-#endif
 
   return tm;
 }
@@ -325,7 +312,7 @@ void indexMultiTermDestroy(SIndexMultiTerm* terms) {
  */
 
 static void idxSchedRebuildIdx(SSchedMsg* msg) {
-  // TODO
+  // TODO, no need rebuild index
   SIndex* idx = msg->ahandle;
 
   int8_t st = kFinished;
