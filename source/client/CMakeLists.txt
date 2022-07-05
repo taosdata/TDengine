@@ -8,7 +8,6 @@ endif()
 
 INCLUDE_DIRECTORIES(jni)
 INCLUDE_DIRECTORIES(jni/linux)
-INCLUDE_DIRECTORIES(jni/windows)
 
 target_include_directories(
     taos
@@ -27,6 +26,7 @@ if(TD_WINDOWS)
         LINK_FLAGS
         /DEF:${CMAKE_CURRENT_SOURCE_DIR}/src/taos.def
     )
+    INCLUDE_DIRECTORIES(jni/windows)
 endif()
 
 set_target_properties(
