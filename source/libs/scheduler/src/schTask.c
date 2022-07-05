@@ -170,7 +170,7 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
 
     SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_FAIL);
 
-    if (SCH_IS_WAIT_ALL_JOB(pJob)) {
+    if (SCH_JOB_NEED_WAIT(pJob)) {
       SCH_LOCK(SCH_WRITE, &pTask->level->lock);
       pTask->level->taskFailed++;
       taskDone = pTask->level->taskSucceed + pTask->level->taskFailed;
@@ -212,7 +212,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
   int32_t parentNum = pTask->parents ? (int32_t)taosArrayGetSize(pTask->parents) : 0;
   if (parentNum == 0) {
     int32_t taskDone = 0;
-    if (SCH_IS_WAIT_ALL_JOB(pJob)) {
+    if (SCH_JOB_NEED_WAIT(pJob)) {
       SCH_LOCK(SCH_WRITE, &pTask->level->lock);
       pTask->level->taskSucceed++;
       taskDone = pTask->level->taskSucceed + pTask->level->taskFailed;
@@ -792,7 +792,7 @@ int32_t schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level) {
 }
 
 void schDropTaskInHashList(SSchJob *pJob, SHashObj *list) {
-  if (!SCH_IS_NEED_DROP_JOB(pJob)) {
+  if (!SCH_JOB_NEED_DROP(pJob)) {
     return;
   }
 

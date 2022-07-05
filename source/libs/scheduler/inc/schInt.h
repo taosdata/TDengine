@@ -175,7 +175,7 @@ typedef struct SSchLevel {
   int32_t         taskNum;
   int32_t         taskLaunchedNum;
   int32_t         taskDoneNum;
-  SArray         *subTasks;      // Element is SQueryTask
+  SArray         *subTasks;      // Element is SSchTask
 } SSchLevel;
 
 typedef struct SSchTaskProfile {
@@ -213,6 +213,7 @@ typedef struct SSchTask {
 typedef struct SSchJobAttr {
   EExplainMode explainMode;
   bool         queryJob;
+  bool         needFetch;
   bool         needFlowCtrl;
 } SSchJobAttr;
 
@@ -318,11 +319,11 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_JOB_NEED_FLOW_CTRL(_job) ((_job)->attr.needFlowCtrl)
 #define SCH_TASK_NEED_FLOW_CTRL(_job, _task) (SCH_IS_DATA_SRC_QRY_TASK(_task) && SCH_JOB_NEED_FLOW_CTRL(_job) && SCH_IS_LEVEL_UNFINISHED((_task)->level))
 
-#define SCH_SET_JOB_TYPE(_job, type) (_job)->attr.queryJob = ((type) != SUBPLAN_TYPE_MODIFY)
+#define SCH_SET_JOB_TYPE(_job, type) do { if ((type) != SUBPLAN_TYPE_MODIFY) { (_job)->attr.queryJob = true; } } while (0)
 #define SCH_IS_QUERY_JOB(_job) ((_job)->attr.queryJob) 
-#define SCH_JOB_NEED_FETCH(_job) SCH_IS_QUERY_JOB(_job)
-#define SCH_IS_WAIT_ALL_JOB(_job) (!SCH_IS_QUERY_JOB(_job))
-#define SCH_IS_NEED_DROP_JOB(_job) (SCH_IS_QUERY_JOB(_job))
+#define SCH_JOB_NEED_FETCH(_job) ((_job)->attr.needFetch)
+#define SCH_JOB_NEED_WAIT(_job) (!SCH_IS_QUERY_JOB(_job))
+#define SCH_JOB_NEED_DROP(_job) (SCH_IS_QUERY_JOB(_job))
 #define SCH_IS_EXPLAIN_JOB(_job) (EXPLAIN_MODE_ANALYZE == (_job)->attr.explainMode)
 #define SCH_NETWORK_ERR(_code) ((_code) == TSDB_CODE_RPC_BROKEN_LINK || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL)
 #define SCH_SUB_TASK_NETWORK_ERR(_code, _len) (SCH_NETWORK_ERR(_code) && ((_len) > 0))

@@ -230,9 +230,16 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
   }
 
   SSchLevel *pLevel = taosArrayGet(pJob->levels, 0);
-  if (SCH_IS_QUERY_JOB(pJob) && pLevel->taskNum > 1) {
-    SCH_JOB_ELOG("invalid query plan, level:0, taskNum:%d", pLevel->taskNum);
-    SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+  if (SCH_IS_QUERY_JOB(pJob)) {
+    if (pLevel->taskNum > 1) {
+      SCH_JOB_ELOG("invalid query plan, level:0, taskNum:%d", pLevel->taskNum);
+      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+    }
+
+    SSchTask* pTask = taosArrayGet(pLevel->subTasks, 0);
+    if (SUBPLAN_TYPE_MODIFY != pTask->plan->subplanType) {
+      pJob->attr.needFetch = true;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -371,8 +378,11 @@ _return:
 int32_t schDumpJobExecRes(SSchJob* pJob, SExecResult* pRes) {
   pRes->code = atomic_load_32(&pJob->errCode);
   pRes->numOfRows = pJob->resNumOfRows;
-  memcpy(pRes, &pJob->execRes, sizeof(pJob->execRes));
+  pRes->res = pJob->execRes.res;
+  pRes->msgType = pJob->execRes.msgType;
   pJob->execRes.res = NULL;
+
+  SCH_JOB_DLOG("execRes dumped, code: %s", tstrerror(pRes->code));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -434,12 +444,12 @@ int32_t schNotifyUserFetchRes(SSchJob* pJob) {
 
 void schPostJobRes(SSchJob *pJob, SCH_OP_TYPE op) {
   if (SCH_OP_NULL == pJob->opStatus.op) {
-    SCH_JOB_DLOG("job not in any op, no need to post job res, status:%s", jobTaskStatusStr(pJob->status));
+    SCH_JOB_DLOG("job not in any operation, no need to post job res, status:%s", jobTaskStatusStr(pJob->status));
     return;
   }
   
   if (op && pJob->opStatus.op != op) {
-    SCH_JOB_ELOG("job in op %s mis-match with expected %s", schGetOpStr(pJob->opStatus.op), schGetOpStr(op));
+    SCH_JOB_ELOG("job in operation %s mis-match with expected %s", schGetOpStr(pJob->opStatus.op), schGetOpStr(op));
     return;
   }
   
@@ -754,23 +764,21 @@ void schProcessOnOpEnd(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq* pReq, int
   
   switch (type) {
     case SCH_OP_EXEC:
-/*  
-      op = atomic_val_compare_exchange_32(&pJob->opStatus.op, type, SCH_OP_NULL);
-      if (SCH_OP_NULL == op || op != type) {
-        SCH_JOB_ELOG("job not in %s operation, op:%s, status:%s", schGetOpStr(type), schGetOpStr(op), jobTaskStatusStr(pJob->status));
-      }
-*/    
       if (pReq && pReq->syncReq) {
+        op = atomic_val_compare_exchange_32(&pJob->opStatus.op, type, SCH_OP_NULL);
+        if (SCH_OP_NULL == op || op != type) {
+          SCH_JOB_ELOG("job not in %s operation, op:%s, status:%s", schGetOpStr(type), schGetOpStr(op), jobTaskStatusStr(pJob->status));
+        }
         schDumpJobExecRes(pJob, pReq->pExecRes);
       }
       break;
     case SCH_OP_FETCH:
-/*  
-      op = atomic_val_compare_exchange_32(&pJob->opStatus.op, type, SCH_OP_NULL);
-      if (SCH_OP_NULL == op || op != type) {
-        SCH_JOB_ELOG("job not in %s operation, op:%s, status:%s", schGetOpStr(type), schGetOpStr(op), jobTaskStatusStr(pJob->status));
+      if (pReq && pReq->syncReq) {
+        op = atomic_val_compare_exchange_32(&pJob->opStatus.op, type, SCH_OP_NULL);
+        if (SCH_OP_NULL == op || op != type) {
+          SCH_JOB_ELOG("job not in %s operation, op:%s, status:%s", schGetOpStr(type), schGetOpStr(op), jobTaskStatusStr(pJob->status));
+        }
       }
-*/
       break;
     case SCH_OP_GET_STATUS:
       errCode = TSDB_CODE_SUCCESS;
