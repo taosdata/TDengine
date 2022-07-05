@@ -145,7 +145,9 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
             rsp.code = terrno;
             vError("vgId:%d, msg:%p failed to apply right now since %s", vgId, pMsg, terrstr());
           }
-          tmsgSendRsp(&rsp);
+          if (rsp.info.handle != NULL) {
+            tmsgSendRsp(&rsp);
+          }
         }
       }
     }
@@ -168,7 +170,9 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
         if (terrno != 0) code = terrno;
         vError("vgId:%d, msg:%p failed to propose since %s, code:0x%x", vgId, pMsg, tstrerror(code), code);
         SRpcMsg rsp = {.code = code, .info = pMsg->info};
-        tmsgSendRsp(&rsp);
+        if (rsp.info.handle != NULL) {
+          tmsgSendRsp(&rsp);
+        }
       }
     } else {
     }
