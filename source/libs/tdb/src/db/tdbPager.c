@@ -98,7 +98,7 @@ int tdbPagerClose(SPager *pPager) {
   return 0;
 }
 
-int tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate) {
+int tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate, SBTree *pBt) {
   SPgno  pgno;
   SPage *pPage;
   int    ret;
@@ -110,25 +110,41 @@ int tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate) {
   }
 
   {
-      // TODO: try to search the main DB to get the page number
-      // pgno = 0;
+    // TODO: try to search the main DB to get the page number
+    // pgno = 0;
   }
 
-      // if (pgno == 0 && toCreate) {
-      //   ret = tdbPagerAllocPage(pPager, &pPage, &pgno);
-      //   if (ret < 0) {
-      //     return -1;
-      //   }
+  if (pgno == 0 && toCreate) {
+    // allocate a new child page
+    TXN txn;
+    tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, 0);
 
-      //   // TODO: Need to zero the page
+    pPager->inTran = 1;
 
-      //   ret = tdbPagerWrite(pPager, pPage);
-      //   if (ret < 0) {
-      //     return -1;
-      //   }
-      // }
+    SBtreeInitPageArg zArg;
+    zArg.flags = 0x1 | 0x2;  // root leaf node;
+    zArg.pBt = pBt;
+    ret = tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &zArg, &txn);
+    if (ret < 0) {
+      return -1;
+    }
 
-      *ppgno = pgno;
+    //    ret = tdbPagerAllocPage(pPager, &pPage, &pgno);
+    // if (ret < 0) {
+    //  return -1;
+    //}
+
+    // TODO: Need to zero the page
+
+    ret = tdbPagerWrite(pPager, pPage);
+    if (ret < 0) {
+      return -1;
+    }
+
+    tdbTxnClose(&txn);
+  }
+
+  *ppgno = pgno;
   return 0;
 }
 
@@ -427,9 +443,9 @@ static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage) {
 }
 
 int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
-  int ret = 0;
+  int   ret = 0;
   SPgno journalSize = 0;
-  u8 *pageBuf = NULL;
+  u8   *pageBuf = NULL;
 
   tdb_fd_t jfd = tdbOsOpen(pPager->jFileName, TDB_O_RDWR, 0755);
   if (jfd == NULL) {
@@ -454,7 +470,7 @@ int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
 
   for (int pgIndex = 0; pgIndex < journalSize; ++pgIndex) {
     // read pgno & the page from journal
-    SPgno pgno;
+    SPgno  pgno;
     SPage *pPage;
 
     int ret = tdbOsRead(jfd, &pgno, sizeof(pgno));

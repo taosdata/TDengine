@@ -24,6 +24,7 @@
 #include "mockCatalogService.h"
 #include "parser.h"
 #include "planInt.h"
+#include "tglobal.h"
 
 using namespace std;
 using namespace testing;
@@ -53,6 +54,7 @@ DumpModule g_dumpModule = DUMP_MODULE_NOTHING;
 int32_t    g_skipSql = 0;
 int32_t    g_limitSql = 0;
 int32_t    g_logLevel = 131;
+int32_t    g_queryPolicy = QUERY_POLICY_VNODE;
 
 void setDumpModule(const char* pModule) {
   if (NULL == pModule) {
@@ -79,6 +81,7 @@ void setDumpModule(const char* pModule) {
 void setSkipSqlNum(const char* pNum) { g_skipSql = stoi(pNum); }
 void setLimitSqlNum(const char* pNum) { g_limitSql = stoi(pNum); }
 void setLogLevel(const char* pLogLevel) { g_logLevel = stoi(pLogLevel); }
+void setQueryPolicy(const char* pQueryPolicy) { g_queryPolicy = stoi(pQueryPolicy); }
 
 int32_t getLogLevel() { return g_logLevel; }
 
@@ -105,7 +108,23 @@ class PlannerTestBaseImpl {
     }
     ++sqlNum_;
 
+    switch (g_queryPolicy) {
+      case QUERY_POLICY_VNODE:
+      case QUERY_POLICY_HYBRID:
+      case QUERY_POLICY_QNODE:
+        runImpl(sql, g_queryPolicy);
+        break;
+      default:
+        runImpl(sql, QUERY_POLICY_VNODE);
+        runImpl(sql, QUERY_POLICY_HYBRID);
+        runImpl(sql, QUERY_POLICY_QNODE);
+        break;
+    }
+  }
+
+  void runImpl(const string& sql, int32_t queryPolicy) {
     reset();
+    tsQueryPolicy = queryPolicy;
     try {
       SQuery* pQuery = nullptr;
       doParseSql(sql, &pQuery);
