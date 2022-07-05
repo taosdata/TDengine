@@ -562,7 +562,7 @@ static int32_t tdFetchAndSubmitRSmaResult(SRSmaInfoItem *pItem, int8_t blkType) 
       goto _err;
     }
 
-    if (pReq && tdProcessSubmitReq(sinkTsdb, INT64_MAX, pReq) < 0) {
+    if (pReq && tdProcessSubmitReq(sinkTsdb, 1, pReq) < 0) {
       taosMemoryFreeClear(pReq);
       goto _err;
     }
