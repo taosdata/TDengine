@@ -345,8 +345,14 @@ int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData
   ASSERT(pHdr->suid == pDelIdx->suid);
   ASSERT(pHdr->uid == pDelIdx->uid);
   n += sizeof(*pHdr);
+  taosArrayClear(aDelData);
   while (n < size - sizeof(TSCKSUM)) {
     n += tGetDelData(*ppBuf + n, pDelData);
+
+    if (taosArrayPush(aDelData, pDelData) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
   }
 
   ASSERT(n == size - sizeof(TSCKSUM));
