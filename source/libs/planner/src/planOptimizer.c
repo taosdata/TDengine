@@ -608,13 +608,31 @@ static int32_t pushDownCondOptPartJoinOnCond(SJoinLogicNode* pJoin, SNode** ppMe
   }
 }
 
+static int32_t pushDownCondOptJoinExtractMergeCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
+  int32_t code = pushDownCondOptCheckJoinOnCond(pCxt, pJoin);
+  SNode* pJoinMergeCond = NULL;
+  SNode* pJoinOnCond = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = pushDownCondOptPartJoinOnCond(pJoin, &pJoinMergeCond, &pJoinOnCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pJoin->pMergeCondition = pJoinMergeCond;
+    pJoin->pOnConditions = pJoinOnCond;
+  } else {
+    nodesDestroyNode(pJoinMergeCond);
+    nodesDestroyNode(pJoinOnCond);
+  }
+  return code;
+}
+
 static int32_t pushDownCondOptDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (OPTIMIZE_FLAG_TEST_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
   }
 
   if (NULL == pJoin->node.pConditions) {
-    return pushDownCondOptCheckJoinOnCond(pCxt, pJoin);
+    int32_t code = pushDownCondOptJoinExtractMergeCond(pCxt, pJoin);
+    return code;
   }
 
   SNode*  pOnCond = NULL;
@@ -634,25 +652,13 @@ static int32_t pushDownCondOptDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* p
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = pushDownCondOptCheckJoinOnCond(pCxt, pJoin);
-  }
-
-  SNode* pJoinMergeCond = NULL;
-  SNode* pJoinOnCond = NULL;
-  if (TSDB_CODE_SUCCESS == code) {
-    code = pushDownCondOptPartJoinOnCond(pJoin, &pJoinMergeCond, &pJoinOnCond);
-  }
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoinMergeCond) {
-    pJoin->pMergeCondition = pJoinMergeCond;
-    pJoin->pOnConditions = pJoinOnCond;
+    code = pushDownCondOptJoinExtractMergeCond(pCxt, pJoin);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
     OPTIMIZE_FLAG_SET_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
     pCxt->optimized = true;
   } else {
-    nodesDestroyNode(pJoinMergeCond);
-    nodesDestroyNode(pJoinOnCond);
     nodesDestroyNode(pOnCond);
     nodesDestroyNode(pLeftChildCond);
     nodesDestroyNode(pRightChildCond);
