@@ -23,7 +23,7 @@
 #include "tcoding.h"
 #include "tcompare.h"
 
-const static uint64_t tfileMagicNumber = 0xdb4775248b80fb57ull;
+const static uint64_t FILE_MAGIC_NUMBER = 0xdb4775248b80fb57ull;
 
 typedef struct TFileFstIter {
   FStmBuilder* fb;
@@ -548,9 +548,6 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     taosArraySortPWithExt((SArray*)(data), tfileValueCompare, &fn);
   }
 
-  int32_t bufLimit = 64 * 4096, offset = 0;
-  // char*   buf = taosMemoryCalloc(1, sizeof(char) * bufLimit);
-  // char*   p = buf;
   int32_t sz = taosArrayGetSize((SArray*)data);
   int32_t fstOffset = tw->offset;
 
@@ -564,6 +561,9 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
   }
   tfileWriteFstOffset(tw, fstOffset);
 
+  int32_t bufCap = 8 * 1024;
+  char*   buf = taosMemoryCalloc(1, bufCap);
+
   for (size_t i = 0; i < sz; i++) {
     TFileValue* v = taosArrayGetP((SArray*)data, i);
 
@@ -571,14 +571,18 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     // check buf has enough space or not
     int32_t ttsz = TF_TABLE_TATOAL_SIZE(tbsz);
 
-    char* buf = taosMemoryCalloc(1, ttsz * sizeof(char));
+    if (bufCap < ttsz) {
+      bufCap = ttsz;
+      buf = taosMemoryRealloc(buf, bufCap);
+    }
     char* p = buf;
     tfileSerialTableIdsToBuf(p, v->tableId);
     tw->ctx->write(tw->ctx, buf, ttsz);
     v->offset = tw->offset;
     tw->offset += ttsz;
-    taosMemoryFree(buf);
+    memset(buf, 0, sizeof(buf));
   }
+  taosMemoryFree(buf);
 
   tw->fb = fstBuilderCreate(tw->ctx, 0);
   if (tw->fb == NULL) {
@@ -869,13 +873,13 @@ static int tfileWriteData(TFileWriter* write, TFileValue* tval) {
   //}
 }
 static int tfileWriteFooter(TFileWriter* write) {
-  char  buf[sizeof(tfileMagicNumber) + 1] = {0};
+  char  buf[sizeof(FILE_MAGIC_NUMBER) + 1] = {0};
   void* pBuf = (void*)buf;
-  taosEncodeFixedU64((void**)(void*)&pBuf, tfileMagicNumber);
+  taosEncodeFixedU64((void**)(void*)&pBuf, FILE_MAGIC_NUMBER);
   int nwrite = write->ctx->write(write->ctx, buf, (int32_t)strlen(buf));
 
   indexInfo("tfile write footer size: %d", write->ctx->size(write->ctx));
-  assert(nwrite == sizeof(tfileMagicNumber));
+  assert(nwrite == sizeof(FILE_MAGIC_NUMBER));
   return nwrite;
 }
 static int tfileReaderLoadHeader(TFileReader* reader) {
@@ -899,7 +903,7 @@ static int tfileReaderLoadFst(TFileReader* reader) {
   int       size = ctx->size(ctx);
 
   // current load fst into memory, refactor it later
-  int   fstSize = size - reader->header.fstOffset - sizeof(tfileMagicNumber);
+  int   fstSize = size - reader->header.fstOffset - sizeof(FILE_MAGIC_NUMBER);
   char* buf = taosMemoryCalloc(1, fstSize);
   if (buf == NULL) {
     return -1;
@@ -959,9 +963,8 @@ static int tfileReaderVerify(TFileReader* reader) {
   IFileCtx* ctx = reader->ctx;
 
   uint64_t tMagicNumber = 0;
-
-  char buf[sizeof(tMagicNumber) + 1] = {0};
-  int  size = ctx->size(ctx);
+  char     buf[sizeof(tMagicNumber) + 1] = {0};
+  int      size = ctx->size(ctx);
 
   if (size < sizeof(tMagicNumber) || size <= sizeof(reader->header)) {
     return -1;
@@ -970,25 +973,25 @@ static int tfileReaderVerify(TFileReader* reader) {
   }
 
   taosDecodeFixedU64(buf, &tMagicNumber);
-  return tMagicNumber == tfileMagicNumber ? 0 : -1;
+  return tMagicNumber == FILE_MAGIC_NUMBER ? 0 : -1;
 }
 
-void tfileReaderRef(TFileReader* reader) {
-  if (reader == NULL) {
+void tfileReaderRef(TFileReader* rd) {
+  if (rd == NULL) {
     return;
   }
-  int ref = T_REF_INC(reader);
+  int ref = T_REF_INC(rd);
   UNUSED(ref);
 }
 
-void tfileReaderUnRef(TFileReader* reader) {
-  if (reader == NULL) {
+void tfileReaderUnRef(TFileReader* rd) {
+  if (rd == NULL) {
     return;
   }
-  int ref = T_REF_DEC(reader);
+  int ref = T_REF_DEC(rd);
   if (ref == 0) {
     // do nothing
-    tfileReaderDestroy(reader);
+    tfileReaderDestroy(rd);
   }
 }
 
