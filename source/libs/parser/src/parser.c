@@ -19,19 +19,27 @@
 #include "parInt.h"
 #include "parToken.h"
 
-bool qIsInsertSql(const char* pStr, size_t length) {
+bool qIsInsertValuesSql(const char* pStr, size_t length) {
   if (NULL == pStr) {
     return false;
   }
 
+  const char* pSql = pStr;
+
   int32_t index = 0;
+  SToken  t = tStrGetToken((char*)pStr, &index, false);
+  if (TK_INSERT != t.type && TK_IMPORT != t.type) {
+    return false;
+  }
 
   do {
-    SToken t0 = tStrGetToken((char*)pStr, &index, false);
-    if (t0.type != TK_NK_LP) {
-      return t0.type == TK_INSERT || t0.type == TK_IMPORT;
+    pStr += index;
+    t = tStrGetToken((char*)pStr, &index, false);
+    if (TK_USING == t.type || TK_VALUES == t.type) {
+      return true;
     }
-  } while (1);
+  } while (pStr - pSql < length);
+  return false;
 }
 
 static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
@@ -148,7 +156,7 @@ static void rewriteExprAlias(SNode* pRoot) {
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (qIsInsertSql(pCxt->pSql, pCxt->sqlLen)) {
+  if (qIsInsertValuesSql(pCxt->pSql, pCxt->sqlLen)) {
     code = parseInsertSql(pCxt, pQuery, NULL);
   } else {
     code = parseSqlIntoAst(pCxt, pQuery);
@@ -160,7 +168,7 @@ int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
 int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
   SParseMetaCache metaCache = {0};
   int32_t         code = TSDB_CODE_SUCCESS;
-  if (qIsInsertSql(pCxt->pSql, pCxt->sqlLen)) {
+  if (qIsInsertValuesSql(pCxt->pSql, pCxt->sqlLen)) {
     code = parseInsertSyntax(pCxt, pQuery, &metaCache);
   } else {
     code = parseSqlSyntax(pCxt, pQuery, &metaCache);
