@@ -1366,8 +1366,6 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
                    (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
 
-  timeUnit = timeUnit * 1000 / factor;
-
   int32_t numOfRows = 0;
   for (int32_t i = 0; i < inputNum; ++i) {
     if (pInput[i].numOfRows > numOfRows) {
@@ -1447,9 +1445,14 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
         }
       }
     } else {
-      switch(timeUnit) {
-        case 0: { /* 1u */
-          result = result / 1000;
+      int64_t unit = timeUnit * 1000 / factor;
+      switch(unit) {
+        case 0: { /* 1u or 1b */
+          if (timePrec == TSDB_TIME_PRECISION_NANO && timeUnit == 1) {
+            result = result / 1;
+          } else {
+            result = result / 1000;
+          }
           break;
         }
         case 1: { /* 1a */
