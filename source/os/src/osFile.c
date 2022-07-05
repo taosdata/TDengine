@@ -54,11 +54,18 @@ typedef struct TdFile {
   int            refId;
   FileFd         fd;
   FILE          *fp;
-  char          *name;
-  bool           autoDel;
 } * TdFilePtr, TdFile;
 
 #define FILE_WITH_LOCK 1
+
+typedef struct AutoDelFile * AutoDelFilePtr;
+typedef struct AutoDelFile {
+  char           *name;
+  AutoDelFilePtr  lastAutoDelFilePtr;
+} AutoDelFile;
+static TdThreadMutex autoDelFileLock;
+static AutoDelFilePtr nowAutoDelFilePtr = NULL;
+static TdThreadOnce autoDelFileInit = PTHREAD_ONCE_INIT;
 
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath) {
 #ifdef WINDOWS
@@ -240,6 +247,34 @@ int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
   return 0;
 }
 
+void autoDelFileList() {
+  taosThreadMutexLock(&autoDelFileLock);
+  while (nowAutoDelFilePtr != NULL) {
+    taosRemoveFile(nowAutoDelFilePtr->name);
+    AutoDelFilePtr tmp = nowAutoDelFilePtr->lastAutoDelFilePtr;
+    taosMemoryFree(nowAutoDelFilePtr->name);
+    taosMemoryFree(nowAutoDelFilePtr);
+    nowAutoDelFilePtr = tmp;
+  }
+  taosThreadMutexUnlock(&autoDelFileLock);
+  taosThreadMutexDestroy(&autoDelFileLock);
+}
+
+void autoDelFileListInit() {
+  taosThreadMutexInit(&autoDelFileLock, NULL);
+  atexit(autoDelFileList);
+}
+
+void autoDelFileListAdd(const char *path) {
+  taosThreadOnce(&autoDelFileInit, autoDelFileListInit);
+  taosThreadMutexLock(&autoDelFileLock);
+  AutoDelFilePtr tmp = taosMemoryMalloc(sizeof(AutoDelFile));
+  tmp->lastAutoDelFilePtr = nowAutoDelFilePtr;
+  tmp->name = taosMemoryStrDup(path);
+  nowAutoDelFilePtr = tmp;
+  taosThreadMutexUnlock(&autoDelFileLock);
+}
+
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
   int   fd = -1;
   FILE *fp = NULL;
@@ -295,11 +330,8 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
   pFile->fd = fd;
   pFile->fp = fp;
   pFile->refId = 0;
-  pFile->name = taosMemoryStrDup(path);
   if (tdFileOptions & TD_FILE_AUTO_DEL) {
-    pFile->autoDel = true;
-  } else {
-    pFile->autoDel = false;
+    autoDelFileListAdd(path);
   }
   return pFile;
 }
@@ -333,10 +365,6 @@ int32_t taosCloseFile(TdFilePtr *ppFile) {
   taosThreadRwlockUnlock(&((*ppFile)->rwlock));
   taosThreadRwlockDestroy(&((*ppFile)->rwlock));
 #endif
-  if ((*ppFile)->autoDel) {
-    taosRemoveFile((*ppFile)->name);
-  }
-  taosMemoryFree((*ppFile)->name);
   taosMemoryFree(*ppFile);
   *ppFile = NULL;
   return code;
