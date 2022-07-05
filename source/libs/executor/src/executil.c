@@ -305,9 +305,6 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   SNode* pTagIndexCond = (SNode*)pListInfo->pTagIndexCond;
   if (pScanNode->tableType == TSDB_SUPER_TABLE) {
     if (pTagIndexCond) {
-      SIndexMetaArg metaArg = {
-          .metaEx = metaHandle, .idx = vnodeGetIdx(metaHandle), .ivtIdx = vnodeGetIvtIdx(metaHandle), .suid = tableUid};
-
       SArray* res = taosArrayInit(8, sizeof(uint64_t));
       // code = doFilterTag(pTagIndexCond, &metaArg, res);
       code = TSDB_CODE_INDEX_REBUILDING;

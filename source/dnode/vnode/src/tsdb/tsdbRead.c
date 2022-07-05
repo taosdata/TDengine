@@ -154,6 +154,7 @@ static void doMergeMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo *pIter, SArr
 static void doMergeMemIMemRows(TSDBROW* pRow, TSDBROW* piRow, STableBlockScanInfo* pBlockScanInfo, STsdbReader* pReader,
                                STSRow** pTSRow);
 static int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader* pReader, STbData* pMemTbData, STbData* piMemTbData);
+static STsdb*  getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* retentions, const char* idstr);
 
 static int32_t setColumnIdSlotList(STsdbReader* pReader, SSDataBlock* pBlock) {
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
@@ -373,7 +374,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
 
   initReaderStatus(&pReader->status);
 
-  pReader->pTsdb       = pVnode->pTsdb;
+  pReader->pTsdb       = getTsdbByRetentions(pVnode, pCond->twindows[0].skey, pVnode->config.tsdbCfg.retentions, idstr);
   pReader->suid        = pCond->suid;
   pReader->order       = pCond->order;
   pReader->capacity    = 4096;
@@ -2375,6 +2376,43 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
   }
 }
 
+STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* retentions, const char* idStr) {
+  if (VND_IS_RSMA(pVnode)) {
+    int     level = 0;
+    int64_t now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
+
+    for (int i = 0; i < TSDB_RETENTION_MAX; ++i) {
+      SRetention* pRetention = retentions + level;
+      if (pRetention->keep <= 0) {
+        if (level > 0) {
+          --level;
+        }
+        break;
+      }
+      if ((now - pRetention->keep) <= winSKey) {
+        break;
+      }
+      ++level;
+    }
+
+    int32_t vgId = TD_VID(pVnode);
+    const char* str = (idStr != NULL)? idStr:"";
+
+    if (level == TSDB_RETENTION_L0) {
+      tsdbDebug("vgId:%d, read handle %p rsma level %d is selected to query %s", vgId, TSDB_RETENTION_L0, str);
+      return VND_RSMA0(pVnode);
+    } else if (level == TSDB_RETENTION_L1) {
+      tsdbDebug("vgId:%d, read handle %p rsma level %d is selected to query %s", vgId, TSDB_RETENTION_L1, str);
+      return VND_RSMA1(pVnode);
+    } else {
+      tsdbDebug("vgId:%d, read handle %p rsma level %d is selected to query %s", vgId, TSDB_RETENTION_L2, str);
+      return VND_RSMA2(pVnode);
+    }
+  }
+
+  return VND_TSDB(pVnode);
+}
+
 // // todo not unref yet, since it is not support multi-group interpolation query
 // static UNUSED_FUNC void changeQueryHandleForInterpQuery(STsdbReader* pHandle) {
 //   // filter the queried time stamp in the first place
@@ -3280,8 +3318,8 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond, int32_
     }
   }
 
-  ASSERT(0);
-  tsdbDebug("%p reset tsdbreader in query %s", pReader, numOfTables, pReader->idStr);
+  tsdbDebug("%p reset reader, suid:%"PRIu64", numOfTables:%d, query range:%"PRId64" - %"PRId64" in query %s", pReader, pReader->suid,
+      numOfTables, pReader->window.skey, pReader->window.ekey, pReader->idStr);
   return code;
 }
 
