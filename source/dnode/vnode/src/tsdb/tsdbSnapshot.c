@@ -26,6 +26,8 @@ struct STsdbSnapReader {
   SDataFReader* pDataFReader;
   int32_t       iBlockIdx;
   SArray*       aBlockIdx;  // SArray<SBlockIdx>
+  SMapData      mBlock;     // SMapData<SBlock>
+  SBlockData    blkData;
   // for del file
   int8_t       delDone;
   SDelFReader* pDelFReader;
@@ -57,7 +59,7 @@ _err:
 static int32_t tsdbSnapReadDel(STsdbSnapReader* pReader, uint8_t** ppData) {
   int32_t   code = 0;
   STsdb*    pTsdb = pReader->pTsdb;
-  SDelFile* pDelFile = pTsdb->fs->nState->pDelFile;
+  SDelFile* pDelFile = pTsdb->fs->cState->pDelFile;
 
   if (pReader->pDelFReader == NULL) {
     if (pDelFile == NULL) {
@@ -69,6 +71,7 @@ static int32_t tsdbSnapReadDel(STsdbSnapReader* pReader, uint8_t** ppData) {
     code = tsdbDelFReaderOpen(&pReader->pDelFReader, pDelFile, pTsdb, NULL);
     if (code) goto _err;
 
+    // read index
     code = tsdbReadDelIdx(pReader->pDelFReader, pReader->aDelIdx, NULL);
     if (code) goto _err;
 
@@ -121,6 +124,29 @@ int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapRe
   pReader->sver = sver;
   pReader->ever = ever;
 
+  pReader->aBlockIdx = taosArrayInit(0, sizeof(SBlockIdx));
+  if (pReader->aBlockIdx == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  pReader->mBlock = tMapDataInit();
+
+  code = tBlockDataInit(&pReader->blkData);
+  if (code) goto _err;
+
+  pReader->aDelIdx = taosArrayInit(0, sizeof(SDelIdx));
+  if (pReader->aDelIdx == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  pReader->aDelData = taosArrayInit(0, sizeof(SDelData));
+  if (pReader->aDelData == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
   *ppReader = pReader;
   return code;
 
@@ -131,8 +157,23 @@ _err:
 }
 
 int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
-  int32_t code = 0;
-  taosMemoryFree(ppReader);
+  int32_t          code = 0;
+  STsdbSnapReader* pReader = *ppReader;
+
+  taosArrayDestroy(pReader->aDelData);
+  taosArrayDestroy(pReader->aDelIdx);
+  if (pReader->pDelFReader) {
+    tsdbDelFReaderClose(&pReader->pDelFReader);
+  }
+  tBlockDataClear(&pReader->blkData);
+  tMapDataClear(&pReader->mBlock);
+  taosArrayDestroy(&pReader->aBlockIdx);
+  if (pReader->pDataFReader) {
+    tsdbDataFReaderClose(&pReader->pDataFReader);
+  }
+  taosMemoryFree(pReader);
+  *ppReader = NULL;
+
   return code;
 }
 

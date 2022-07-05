@@ -75,7 +75,8 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
   for (;;) {
     code = tdbTbcGet(pReader->pTbc, &pKey, &nKey, &pData, &nData);
     if (code || ((STbDbKey*)pData)->version > pReader->ever) {
-      return TSDB_CODE_VND_READ_END;
+      code = TSDB_CODE_VND_READ_END;
+      goto _exit;
     }
 
     if (((STbDbKey*)pData)->version < pReader->sver) {
@@ -95,6 +96,8 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
   ((SSnapDataHdr*)(*ppData))->type = 0;  // TODO: use macro
   ((SSnapDataHdr*)(*ppData))->size = nData;
   memcpy(((SSnapDataHdr*)(*ppData))->data, pData, nData);
+
+_exit:
   return code;
 }
 
