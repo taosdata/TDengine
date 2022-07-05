@@ -707,6 +707,7 @@ char *snapshotReceiver2SimpleStr(SSyncSnapshotReceiver *pReceiver, char *event) 
 // condition 2, recv SYNC_SNAPSHOT_SEQ_END, finish receiver(apply snapshot data, update commit index, maybe reconfig)
 // condition 3, recv SYNC_SNAPSHOT_SEQ_FORCE_CLOSE, force close
 // condition 4, got data, update ack
+//
 int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
   // get receiver
   SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
