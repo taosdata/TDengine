@@ -37,26 +37,28 @@ extern "C" {
 
 //---------------------------------------------------
 typedef struct SSyncSnapshotSender {
-  bool       start;
-  int32_t    seq;
-  int32_t    ack;
-  void      *pReader;
-  void      *pCurrentBlock;
-  int32_t    blockLen;
-  SSnapshot  snapshot;
-  SSyncCfg   lastConfig;
-  int64_t    sendingMS;
-  SSyncNode *pSyncNode;
-  int32_t    replicaIndex;
-  SyncTerm   term;
-  SyncTerm   privateTerm;
-  bool       finish;
+  bool           start;
+  int32_t        seq;
+  int32_t        ack;
+  void          *pReader;
+  void          *pCurrentBlock;
+  int32_t        blockLen;
+  SSnapshotParam snapshotParam;
+  SSnapshot      snapshot;
+  SSyncCfg       lastConfig;
+  int64_t        sendingMS;
+  SSyncNode     *pSyncNode;
+  int32_t        replicaIndex;
+  SyncTerm       term;
+  SyncTerm       privateTerm;
+  bool           finish;
 } SSyncSnapshotSender;
 
 SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex);
 void                 snapshotSenderDestroy(SSyncSnapshotSender *pSender);
 bool                 snapshotSenderIsStart(SSyncSnapshotSender *pSender);
-int32_t              snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshot snapshot, void *pReader);
+int32_t              snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshotParam snapshotParam, SSnapshot snapshot,
+                                         void *pReader);
 int32_t              snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish);
 int32_t              snapshotSend(SSyncSnapshotSender *pSender);
 int32_t              snapshotReSend(SSyncSnapshotSender *pSender);
@@ -67,22 +69,23 @@ char  *snapshotSender2SimpleStr(SSyncSnapshotSender *pSender, char *event);
 
 //---------------------------------------------------
 typedef struct SSyncSnapshotReceiver {
-  bool       start;
-  int32_t    ack;
-  void      *pWriter;
-  SyncTerm   term;
-  SyncTerm   privateTerm;
-  SSnapshot  snapshot;
-  SRaftId    fromId;
-  SSyncNode *pSyncNode;
+  bool           start;
+  int32_t        ack;
+  void          *pWriter;
+  SyncTerm       term;
+  SyncTerm       privateTerm;
+  SSnapshotParam snapshotParam;
+  SSnapshot      snapshot;
+  SRaftId        fromId;
+  SSyncNode     *pSyncNode;
 
 } SSyncSnapshotReceiver;
 
 SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId);
 void                   snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver);
-int32_t snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncTerm privateTerm, SyncSnapshotSend *pBeginMsg);
-int32_t snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
-bool    snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver);
+int32_t                snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg);
+int32_t                snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
+bool                   snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver);
 
 cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver);
 char  *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver);

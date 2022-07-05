@@ -145,25 +145,33 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
       return -1;
     }
 
-    SRpcMsg rpcMsgArr[SYNC_MAX_BATCH_SIZE];
-    memset(rpcMsgArr, 0, sizeof(rpcMsgArr));
+    SSyncRaftEntry* entryPArr[SYNC_MAX_BATCH_SIZE];
+    memset(entryPArr, 0, sizeof(entryPArr));
 
-    int32_t getCount = 0;
+    int32_t   getCount = 0;
+    SyncIndex getEntryIndex = nextIndex;
     for (int32_t i = 0; i < pSyncNode->batchSize; ++i) {
       SSyncRaftEntry* pEntry;
-      int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, nextIndex, &pEntry);
+      int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, getEntryIndex, &pEntry);
       if (code == 0) {
         ASSERT(pEntry != NULL);
-        // get rpc msg [i] from entry
-        syncEntryDestory(pEntry);
+        entryPArr[i] = pEntry;
         getCount++;
       } else {
         break;
       }
     }
 
-    SyncAppendEntriesBatch* pMsg = syncAppendEntriesBatchBuild(rpcMsgArr, getCount, pSyncNode->vgId);
+    SyncAppendEntriesBatch* pMsg = syncAppendEntriesBatchBuild(entryPArr, getCount, pSyncNode->vgId);
     ASSERT(pMsg != NULL);
+
+    for (int32_t i = 0; i < pSyncNode->batchSize; ++i) {
+      SSyncRaftEntry* pEntry = entryPArr[i];
+      if (pEntry != NULL) {
+        syncEntryDestory(pEntry);
+        entryPArr[i] = NULL;
+      }
+    }
 
     // prepare msg
     pMsg->srcId = pSyncNode->myRaftId;

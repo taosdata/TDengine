@@ -159,7 +159,7 @@ void generatePerformanceSchema(MockCatalogService* mcs) {
  *          c4         |       column       |       DOUBLE       |    8     |
  *          c5         |       column       |       DOUBLE       |    8     |
  */
-void generateTestT1(MockCatalogService* mcs) {
+void generateTestTables(MockCatalogService* mcs) {
   ITableBuilder& builder = mcs->createTableBuilder("test", "t1", TSDB_NORMAL_TABLE, 6)
                                .setPrecision(TSDB_TIME_PRECISION_MILLI)
                                .setVgid(1)
@@ -183,23 +183,7 @@ void generateTestT1(MockCatalogService* mcs) {
  *         tag2        |        tag         |      VARCHAR       |    20    |
  *         tag3        |        tag         |     TIMESTAMP      |    8     |
  * Child Table: st1s1, st1s2
- */
-void generateTestST1(MockCatalogService* mcs) {
-  ITableBuilder& builder = mcs->createTableBuilder("test", "st1", TSDB_SUPER_TABLE, 3, 3)
-                               .setPrecision(TSDB_TIME_PRECISION_MILLI)
-                               .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
-                               .addColumn("c1", TSDB_DATA_TYPE_INT)
-                               .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
-                               .addTag("tag1", TSDB_DATA_TYPE_INT)
-                               .addTag("tag2", TSDB_DATA_TYPE_BINARY, 20)
-                               .addTag("tag3", TSDB_DATA_TYPE_TIMESTAMP);
-  builder.done();
-  mcs->createSubTable("test", "st1", "st1s1", 1);
-  mcs->createSubTable("test", "st1", "st1s2", 2);
-  mcs->createSubTable("test", "st1", "st1s3", 1);
-}
-
-/*
+ *
  * Super Table: st2
  *        Field        |        Type        |      DataType      |  Bytes   |
  * ==========================================================================
@@ -209,16 +193,32 @@ void generateTestST1(MockCatalogService* mcs) {
  *         jtag        |        tag         |        json        |    --    |
  * Child Table: st2s1, st2s2
  */
-void generateTestST2(MockCatalogService* mcs) {
-  ITableBuilder& builder = mcs->createTableBuilder("test", "st2", TSDB_SUPER_TABLE, 3, 1)
-                               .setPrecision(TSDB_TIME_PRECISION_MILLI)
-                               .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
-                               .addColumn("c1", TSDB_DATA_TYPE_INT)
-                               .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
-                               .addTag("jtag", TSDB_DATA_TYPE_JSON);
-  builder.done();
-  mcs->createSubTable("test", "st2", "st2s1", 1);
-  mcs->createSubTable("test", "st2", "st2s2", 2);
+void generateTestStables(MockCatalogService* mcs) {
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("test", "st1", TSDB_SUPER_TABLE, 3, 3)
+                                 .setPrecision(TSDB_TIME_PRECISION_MILLI)
+                                 .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+                                 .addColumn("c1", TSDB_DATA_TYPE_INT)
+                                 .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
+                                 .addTag("tag1", TSDB_DATA_TYPE_INT)
+                                 .addTag("tag2", TSDB_DATA_TYPE_BINARY, 20)
+                                 .addTag("tag3", TSDB_DATA_TYPE_TIMESTAMP);
+    builder.done();
+    mcs->createSubTable("test", "st1", "st1s1", 1);
+    mcs->createSubTable("test", "st1", "st1s2", 2);
+    mcs->createSubTable("test", "st1", "st1s3", 1);
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("test", "st2", TSDB_SUPER_TABLE, 3, 1)
+                                 .setPrecision(TSDB_TIME_PRECISION_MILLI)
+                                 .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+                                 .addColumn("c1", TSDB_DATA_TYPE_INT)
+                                 .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
+                                 .addTag("jtag", TSDB_DATA_TYPE_JSON);
+    builder.done();
+    mcs->createSubTable("test", "st2", "st2s1", 1);
+    mcs->createSubTable("test", "st2", "st2s2", 2);
+  }
 }
 
 void generateFunctions(MockCatalogService* mcs) {
@@ -231,6 +231,11 @@ void generateDnodes(MockCatalogService* mcs) {
   mcs->createDnode(1, "host1", 7030);
   mcs->createDnode(2, "host2", 7030);
   mcs->createDnode(3, "host3", 7030);
+}
+
+void generateDatabases(MockCatalogService* mcs) {
+  mcs->createDatabase("test");
+  mcs->createDatabase("rollup_db", true);
 }
 
 }  // namespace
@@ -262,7 +267,7 @@ int32_t __catalogGetDBVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char
 }
 
 int32_t __catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SDbCfgInfo* pDbCfg) {
-  return 0;
+  return g_mockCatalogService->catalogGetDBCfg(dbFName, pDbCfg);
 }
 
 int32_t __catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, const char* dbFName, AUTH_TYPE type,
@@ -359,11 +364,11 @@ void initMetaDataEnv() {
 }
 
 void generateMetaData() {
+  generateDatabases(g_mockCatalogService.get());
   generateInformationSchema(g_mockCatalogService.get());
   generatePerformanceSchema(g_mockCatalogService.get());
-  generateTestT1(g_mockCatalogService.get());
-  generateTestST1(g_mockCatalogService.get());
-  generateTestST2(g_mockCatalogService.get());
+  generateTestTables(g_mockCatalogService.get());
+  generateTestStables(g_mockCatalogService.get());
   generateFunctions(g_mockCatalogService.get());
   generateDnodes(g_mockCatalogService.get());
   g_mockCatalogService->showTables();

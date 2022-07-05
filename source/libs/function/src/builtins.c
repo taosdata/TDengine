@@ -15,6 +15,7 @@
 
 #include "builtins.h"
 #include "builtinsimpl.h"
+#include "cJSON.h"
 #include "querynodes.h"
 #include "scalar.h"
 #include "taoserror.h"
@@ -39,7 +40,7 @@ static int32_t invaildFuncParaValueErrMsg(char* pErrBuf, int32_t len, const char
   return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_VALUE, "Invalid parameter value : %s", pFuncName);
 }
 
-#define TIME_UNIT_INVALID 1
+#define TIME_UNIT_INVALID   1
 #define TIME_UNIT_TOO_SMALL 2
 
 static int32_t validateTimeUnitParam(uint8_t dbPrec, const SValueNode* pVal) {
@@ -47,14 +48,19 @@ static int32_t validateTimeUnitParam(uint8_t dbPrec, const SValueNode* pVal) {
     return TIME_UNIT_INVALID;
   }
 
-  if (TSDB_TIME_PRECISION_MILLI == dbPrec && 0 == strcasecmp(pVal->literal, "1u")) {
+  if (TSDB_TIME_PRECISION_MILLI == dbPrec && (0 == strcasecmp(pVal->literal, "1u") ||
+                                              0 == strcasecmp(pVal->literal, "1b"))) {
+    return TIME_UNIT_TOO_SMALL;
+  }
+
+  if (TSDB_TIME_PRECISION_MICRO == dbPrec && 0 == strcasecmp(pVal->literal, "1b")) {
     return TIME_UNIT_TOO_SMALL;
   }
 
   if (pVal->literal[0] != '1' || (pVal->literal[1] != 'u' && pVal->literal[1] != 'a' &&
                                   pVal->literal[1] != 's' && pVal->literal[1] != 'm' &&
                                   pVal->literal[1] != 'h' && pVal->literal[1] != 'd' &&
-                                  pVal->literal[1] != 'w')) {
+                                  pVal->literal[1] != 'w' && pVal->literal[1] != 'b')) {
     return TIME_UNIT_INVALID;
   }
 
@@ -695,13 +701,13 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
 
     uint8_t dbPrec = pFunc->node.resType.precision;
 
-    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode *)nodesListGetNode(pFunc->pParameterList, 1));
+    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1));
     if (ret == TIME_UNIT_TOO_SMALL) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "ELAPSED function time unit parameter should be greater than db precision");
     } else if (ret == TIME_UNIT_INVALID) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "ELAPSED function time unit parameter should be one of the following: [1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+                             "ELAPSED function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
     }
   }
 
@@ -796,6 +802,165 @@ static int32_t translateLeastSQR(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   return TSDB_CODE_SUCCESS;
 }
 
+typedef enum { UNKNOWN_BIN = 0, USER_INPUT_BIN, LINEAR_BIN, LOG_BIN } EHistoBinType;
+
+static int8_t validateHistogramBinType(char* binTypeStr) {
+  int8_t binType;
+  if (strcasecmp(binTypeStr, "user_input") == 0) {
+    binType = USER_INPUT_BIN;
+  } else if (strcasecmp(binTypeStr, "linear_bin") == 0) {
+    binType = LINEAR_BIN;
+  } else if (strcasecmp(binTypeStr, "log_bin") == 0) {
+    binType = LOG_BIN;
+  } else {
+    binType = UNKNOWN_BIN;
+  }
+
+  return binType;
+}
+
+static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* errMsg, int32_t msgLen) {
+  const char* msg1 = "HISTOGRAM function requires four parameters";
+  const char* msg3 = "HISTOGRAM function invalid format for binDesc parameter";
+  const char* msg4 = "HISTOGRAM function binDesc parameter \"count\" should be in range [1, 1000]";
+  const char* msg5 = "HISTOGRAM function bin/parameter should be in range [-DBL_MAX, DBL_MAX]";
+  const char* msg6 = "HISTOGRAM function binDesc parameter \"width\" cannot be 0";
+  const char* msg7 = "HISTOGRAM function binDesc parameter \"start\" cannot be 0 with \"log_bin\" type";
+  const char* msg8 = "HISTOGRAM function binDesc parameter \"factor\" cannot be negative or equal to 0/1";
+
+  cJSON*  binDesc = cJSON_Parse(binDescStr);
+  int32_t numOfBins;
+  double* intervals;
+  if (cJSON_IsObject(binDesc)) { /* linaer/log bins */
+    int32_t numOfParams = cJSON_GetArraySize(binDesc);
+    int32_t startIndex;
+    if (numOfParams != 4) {
+      snprintf(errMsg, msgLen, "%s", msg1);
+      return false;
+    }
+
+    cJSON* start = cJSON_GetObjectItem(binDesc, "start");
+    cJSON* factor = cJSON_GetObjectItem(binDesc, "factor");
+    cJSON* width = cJSON_GetObjectItem(binDesc, "width");
+    cJSON* count = cJSON_GetObjectItem(binDesc, "count");
+    cJSON* infinity = cJSON_GetObjectItem(binDesc, "infinity");
+
+    if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) || !cJSON_IsBool(infinity)) {
+      snprintf(errMsg, msgLen, "%s", msg3);
+      return false;
+    }
+
+    if (count->valueint <= 0 || count->valueint > 1000) {  // limit count to 1000
+      snprintf(errMsg, msgLen, "%s", msg4);
+      return false;
+    }
+
+    if (isinf(start->valuedouble) || (width != NULL && isinf(width->valuedouble)) ||
+        (factor != NULL && isinf(factor->valuedouble)) || (count != NULL && isinf(count->valuedouble))) {
+      snprintf(errMsg, msgLen, "%s", msg5);
+      return false;
+    }
+
+    int32_t counter = (int32_t)count->valueint;
+    if (infinity->valueint == false) {
+      startIndex = 0;
+      numOfBins = counter + 1;
+    } else {
+      startIndex = 1;
+      numOfBins = counter + 3;
+    }
+
+    intervals = taosMemoryCalloc(numOfBins, sizeof(double));
+    if (cJSON_IsNumber(width) && factor == NULL && binType == LINEAR_BIN) {
+      // linear bin process
+      if (width->valuedouble == 0) {
+        snprintf(errMsg, msgLen, "%s", msg6);
+        taosMemoryFree(intervals);
+        return false;
+      }
+      for (int i = 0; i < counter + 1; ++i) {
+        intervals[startIndex] = start->valuedouble + i * width->valuedouble;
+        if (isinf(intervals[startIndex])) {
+          snprintf(errMsg, msgLen, "%s", msg5);
+          taosMemoryFree(intervals);
+          return false;
+        }
+        startIndex++;
+      }
+    } else if (cJSON_IsNumber(factor) && width == NULL && binType == LOG_BIN) {
+      // log bin process
+      if (start->valuedouble == 0) {
+        snprintf(errMsg, msgLen, "%s", msg7);
+        taosMemoryFree(intervals);
+        return false;
+      }
+      if (factor->valuedouble < 0 || factor->valuedouble == 0 || factor->valuedouble == 1) {
+        snprintf(errMsg, msgLen, "%s", msg8);
+        taosMemoryFree(intervals);
+        return false;
+      }
+      for (int i = 0; i < counter + 1; ++i) {
+        intervals[startIndex] = start->valuedouble * pow(factor->valuedouble, i * 1.0);
+        if (isinf(intervals[startIndex])) {
+          snprintf(errMsg, msgLen, "%s", msg5);
+          taosMemoryFree(intervals);
+          return false;
+        }
+        startIndex++;
+      }
+    } else {
+      snprintf(errMsg, msgLen, "%s", msg3);
+      taosMemoryFree(intervals);
+      return false;
+    }
+
+    if (infinity->valueint == true) {
+      intervals[0] = -INFINITY;
+      intervals[numOfBins - 1] = INFINITY;
+      // in case of desc bin orders, -inf/inf should be swapped
+      ASSERT(numOfBins >= 4);
+      if (intervals[1] > intervals[numOfBins - 2]) {
+        TSWAP(intervals[0], intervals[numOfBins - 1]);
+      }
+    }
+  } else if (cJSON_IsArray(binDesc)) { /* user input bins */
+    if (binType != USER_INPUT_BIN) {
+      snprintf(errMsg, msgLen, "%s", msg3);
+      return false;
+    }
+    numOfBins = cJSON_GetArraySize(binDesc);
+    intervals = taosMemoryCalloc(numOfBins, sizeof(double));
+    cJSON* bin = binDesc->child;
+    if (bin == NULL) {
+      snprintf(errMsg, msgLen, "%s", msg3);
+      taosMemoryFree(intervals);
+      return false;
+    }
+    int i = 0;
+    while (bin) {
+      intervals[i] = bin->valuedouble;
+      if (!cJSON_IsNumber(bin)) {
+        snprintf(errMsg, msgLen, "%s", msg3);
+        taosMemoryFree(intervals);
+        return false;
+      }
+      if (i != 0 && intervals[i] <= intervals[i - 1]) {
+        snprintf(errMsg, msgLen, "%s", msg3);
+        taosMemoryFree(intervals);
+        return false;
+      }
+      bin = bin->next;
+      i++;
+    }
+  } else {
+    snprintf(errMsg, msgLen, "%s", msg3);
+    return false;
+  }
+
+  taosMemoryFree(intervals);
+  return true;
+}
+
 static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (4 != numOfParams) {
@@ -814,6 +979,8 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
+  int8_t binType;
+  char*  binDesc;
   for (int32_t i = 1; i < numOfParams; ++i) {
     SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, i);
     if (QUERY_NODE_VALUE != nodeType(pParamNode)) {
@@ -824,9 +991,26 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
 
     pValue->notReserved = true;
 
-    if (i == 3 && pValue->datum.i != 1 && pValue->datum.i != 0) {
+    if (i == 1) {
+      binType = validateHistogramBinType(varDataVal(pValue->datum.p));
+      if (binType == UNKNOWN_BIN) {
         return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                               "HISTOGRAM function normalized parameter should be 0/1");
+                               "HISTOGRAM function binType parameter should be "
+                               "\"user_input\", \"log_bin\" or \"linear_bin\"");
+      }
+    }
+
+    if (i == 2) {
+      char errMsg[128] = {0};
+      binDesc = varDataVal(pValue->datum.p);
+      if (!validateHistogramBinDesc(binDesc, binType, errMsg, (int32_t)sizeof(errMsg))) {
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, errMsg);
+      }
+    }
+
+    if (i == 3 && pValue->datum.i != 1 && pValue->datum.i != 0) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "HISTOGRAM function normalized parameter should be 0/1");
     }
   }
 
@@ -853,6 +1037,8 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
 
+    int8_t binType;
+    char*  binDesc;
     for (int32_t i = 1; i < numOfParams; ++i) {
       SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, i);
       if (QUERY_NODE_VALUE != nodeType(pParamNode)) {
@@ -863,9 +1049,26 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
 
       pValue->notReserved = true;
 
-      if (i == 3 && pValue->datum.i != 1 && pValue->datum.i != 0) {
+      if (i == 1) {
+        binType = validateHistogramBinType(varDataVal(pValue->datum.p));
+        if (binType == UNKNOWN_BIN) {
           return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                                 "HISTOGRAM function normalized parameter should be 0/1");
+                                 "HISTOGRAM function binType parameter should be "
+                                 "\"user_input\", \"log_bin\" or \"linear_bin\"");
+        }
+      }
+
+      if (i == 2) {
+        char errMsg[128] = {0};
+        binDesc = varDataVal(pValue->datum.p);
+        if (!validateHistogramBinDesc(binDesc, binType, errMsg, (int32_t)sizeof(errMsg))) {
+          return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, errMsg);
+        }
+      }
+
+      if (i == 3 && pValue->datum.i != 1 && pValue->datum.i != 0) {
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                               "HISTOGRAM function normalized parameter should be 0/1");
       }
     }
 
@@ -1020,13 +1223,13 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
   if (numOfParams == 4) {
     uint8_t dbPrec = pFunc->node.resType.precision;
 
-    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode *)nodesListGetNode(pFunc->pParameterList, 3));
+    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 3));
     if (ret == TIME_UNIT_TOO_SMALL) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "STATEDURATION function time unit parameter should be greater than db precision");
     } else if (ret == TIME_UNIT_INVALID) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "STATEDURATION function time unit parameter should be one of the following: [1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+                             "STATEDURATION function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
     }
   }
 
@@ -1234,10 +1437,6 @@ static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t l
 
 static int32_t translateFirstLastImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
   // first(col_list) will be rewritten as first(col)
-  if (2 != LIST_LENGTH(pFunc->pParameterList)) {  // input has two params c0,ts, is this a bug?
-    return TSDB_CODE_SUCCESS;
-  }
-
   SNode*  pPara = nodesListGetNode(pFunc->pParameterList, 0);
   uint8_t paraType = ((SExprNode*)pPara)->resType.type;
   int32_t paraBytes = ((SExprNode*)pPara)->resType.bytes;
@@ -1535,13 +1734,13 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
 
-  int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode *)nodesListGetNode(pFunc->pParameterList, 1));
+  int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1));
   if (ret == TIME_UNIT_TOO_SMALL) {
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                            "TIMETRUNCATE function time unit parameter should be greater than db precision");
   } else if (ret == TIME_UNIT_INVALID) {
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "TIMETRUNCATE function time unit parameter should be one of the following: [1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+                           "TIMETRUNCATE function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
   }
 
   addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
@@ -1574,13 +1773,13 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   uint8_t dbPrec = pFunc->node.resType.precision;
 
   if (3 == numOfParams) {
-    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode *)nodesListGetNode(pFunc->pParameterList, 2));
+    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2));
     if (ret == TIME_UNIT_TOO_SMALL) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "TIMEDIFF function time unit parameter should be greater than db precision");
     } else if (ret == TIME_UNIT_INVALID) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "TIMEDIFF function time unit parameter should be one of the following: [1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+                             "TIMEDIFF function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
     }
   }
 
@@ -2112,7 +2311,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "histogram",
     .type = FUNCTION_TYPE_HISTOGRAM,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateHistogram,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,

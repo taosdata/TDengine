@@ -19,6 +19,7 @@
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
 static int32_t refMgt;
+static int32_t instMgt;
 
 int transAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey) {
   T_MD5_CTX context;
@@ -479,53 +480,54 @@ bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
   }
   return true;
 }
-static int32_t transGetRefMgt() {
-  //
-  return refMgt;
-}
 
 static void transInitEnv() {
-  refMgt = transOpenExHandleMgt(50000);
+  refMgt = transOpenRefMgt(50000, transDestoryExHandle);
+  instMgt = taosOpenRef(50, rpcCloseImpl);
   uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1");
 }
 static void transDestroyEnv() {
-  // close ref
-  transCloseExHandleMgt();
+  transCloseRefMgt(refMgt);
+  transCloseRefMgt(instMgt);
 }
 
 void transInit() {
   // init env
   taosThreadOnce(&transModuleInit, transInitEnv);
 }
+
+int32_t transGetRefMgt() { return refMgt; }
+int32_t transGetInstMgt() { return instMgt; }
+
 void transCleanup() {
   // clean env
   transDestroyEnv();
 }
-int32_t transOpenExHandleMgt(int size) {
+int32_t transOpenRefMgt(int size, void (*func)(void*)) {
   // added into once later
-  return taosOpenRef(size, transDestoryExHandle);
+  return taosOpenRef(size, func);
 }
-void transCloseExHandleMgt() {
+void transCloseRefMgt(int32_t mgt) {
   // close ref
-  taosCloseRef(transGetRefMgt());
+  taosCloseRef(mgt);
 }
-int64_t transAddExHandle(void* p) {
+int64_t transAddExHandle(int32_t refMgt, void* p) {
   // acquire extern handle
-  return taosAddRef(transGetRefMgt(), p);
+  return taosAddRef(refMgt, p);
 }
-int32_t transRemoveExHandle(int64_t refId) {
+int32_t transRemoveExHandle(int32_t refMgt, int64_t refId) {
   // acquire extern handle
-  return taosRemoveRef(transGetRefMgt(), refId);
+  return taosRemoveRef(refMgt, refId);
 }
 
-SExHandle* transAcquireExHandle(int64_t refId) {
+void* transAcquireExHandle(int32_t refMgt, int64_t refId) {
   // acquire extern handle
-  return (SExHandle*)taosAcquireRef(transGetRefMgt(), refId);
+  return (void*)taosAcquireRef(refMgt, refId);
 }
 
-int32_t transReleaseExHandle(int64_t refId) {
+int32_t transReleaseExHandle(int32_t refMgt, int64_t refId) {
   // release extern handle
-  return taosReleaseRef(transGetRefMgt(), refId);
+  return taosReleaseRef(refMgt, refId);
 }
 void transDestoryExHandle(void* handle) {
   if (handle == NULL) {

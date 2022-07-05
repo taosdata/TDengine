@@ -73,9 +73,15 @@ void syncRespMgrGetAndDelTest(uint64_t i) {
   }
 }
 
+SSyncNode *createSyncNode() {
+  SSyncNode *pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
+  memset(pSyncNode, 0, sizeof(SSyncNode));
+  return pSyncNode;
+}
+
 void test1() {
   printf("------- test1 ---------\n");
-  pMgr = syncRespMgrCreate(NULL, 0);
+  pMgr = syncRespMgrCreate(createSyncNode(), 0);
   assert(pMgr != NULL);
 
   syncRespMgrInsert(10);
@@ -100,7 +106,7 @@ void test1() {
 
 void test2() {
   printf("------- test2 ---------\n");
-  pMgr = syncRespMgrCreate(NULL, 0);
+  pMgr = syncRespMgrCreate(createSyncNode(), 0);
   assert(pMgr != NULL);
 
   syncRespMgrInsert(10);
@@ -117,7 +123,7 @@ void test2() {
 
 void test3() {
   printf("------- test3 ---------\n");
-  pMgr = syncRespMgrCreate(NULL, 0);
+  pMgr = syncRespMgrCreate(createSyncNode(), 0);
   assert(pMgr != NULL);
 
   syncRespMgrInsert(10);
@@ -132,13 +138,34 @@ void test3() {
   syncRespMgrDestroy(pMgr);
 }
 
+void test4() {
+  printf("------- test4 ---------\n");
+  pMgr = syncRespMgrCreate(createSyncNode(), 2);
+  assert(pMgr != NULL);
+
+  syncRespMgrInsert(5);
+  syncRespMgrPrint();
+
+  taosMsleep(3000);
+
+  syncRespMgrInsert(3);
+  syncRespMgrPrint();
+
+  printf("====== after clean ttl \n");
+  syncRespClean(pMgr);
+  syncRespMgrPrint();
+
+  syncRespMgrDestroy(pMgr);
+}
+
 int main() {
   tsAsyncLog = 0;
-  sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
+  sDebugFlag = DEBUG_DEBUG + DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
   logTest();
   test1();
   test2();
   test3();
+  test4();
 
   return 0;
 }

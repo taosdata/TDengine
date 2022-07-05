@@ -50,6 +50,22 @@ SSyncRaftEntry* syncEntryBuild3(SyncClientRequest* pMsg, SyncTerm term, SyncInde
   return pEntry;
 }
 
+SSyncRaftEntry* syncEntryBuild4(SRpcMsg* pOriginalMsg, SyncTerm term, SyncIndex index) {
+  SSyncRaftEntry* pEntry = syncEntryBuild(pOriginalMsg->contLen);
+  ASSERT(pEntry != NULL);
+
+  pEntry->msgType = TDMT_SYNC_CLIENT_REQUEST;
+  pEntry->originalRpcType = pOriginalMsg->msgType;
+  pEntry->seqNum = 0;
+  pEntry->isWeak = 0;
+  pEntry->term = term;
+  pEntry->index = index;
+  pEntry->dataLen = pOriginalMsg->contLen;
+  memcpy(pEntry->data, pOriginalMsg->pCont, pOriginalMsg->contLen);
+
+  return pEntry;
+}
+
 SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId) {
   // init rpcMsg
   SMsgHead head;

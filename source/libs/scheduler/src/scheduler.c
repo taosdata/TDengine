@@ -225,26 +225,33 @@ void schedulerStopQueryHb(void *pTrans) {
   schCleanClusterHb(pTrans);
 }
 
-void schedulerFreeJob(int64_t job, int32_t errCode) {
-  SSchJob *pJob = schAcquireJob(job);
+void schedulerFreeJob(int64_t* job, int32_t errCode) {
+  if (0 == *job) {
+    return;
+  }
+  
+  SSchJob *pJob = schAcquireJob(*job);
   if (NULL == pJob) {
-    qError("acquire job from jobRef list failed, may be dropped, jobId:0x%" PRIx64, job);
+    qError("acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *job);
+    *job = 0;
     return;
   }
 
   int32_t code = schProcessOnJobDropped(pJob, errCode);
   if (TSDB_CODE_SCH_JOB_IS_DROPPING == code) {
-    SCH_JOB_DLOG("sch job is already dropping, refId:0x%" PRIx64, job);
+    SCH_JOB_DLOG("sch job is already dropping, refId:0x%" PRIx64, *job);
+    *job = 0;
     return;
   }
 
-  SCH_JOB_DLOG("start to remove job from jobRef list, refId:0x%" PRIx64, job);
+  SCH_JOB_DLOG("start to remove job from jobRef list, refId:0x%" PRIx64, *job);
 
-  if (taosRemoveRef(schMgmt.jobRef, job)) {
-    SCH_JOB_ELOG("remove job from job list failed, refId:0x%" PRIx64, job);
+  if (taosRemoveRef(schMgmt.jobRef, *job)) {
+    SCH_JOB_ELOG("remove job from job list failed, refId:0x%" PRIx64, *job);
   }
 
-  schReleaseJob(job);
+  schReleaseJob(*job);
+  *job = 0;
 }
 
 void schedulerDestroy(void) {

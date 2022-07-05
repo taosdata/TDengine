@@ -31,6 +31,12 @@ extern bool gRaftDetailLog;
 #define SYNC_INDEX_INVALID -1
 #define SYNC_TERM_INVALID 0xFFFFFFFFFFFFFFFF
 
+typedef enum {
+  SYNC_STRATEGY_NO_SNAPSHOT = 0,
+  SYNC_STRATEGY_STANDARD_SNAPSHOT = 1,
+  SYNC_STRATEGY_WAL_FIRST = 2,
+} ESyncStrategy;
+
 typedef uint64_t SyncNodeId;
 typedef int32_t  SyncGroupId;
 typedef int64_t  SyncIndex;
@@ -47,11 +53,6 @@ typedef enum {
   TAOS_SYNC_STATE_LEADER = 102,
   TAOS_SYNC_STATE_ERROR = 103,
 } ESyncState;
-
-typedef enum {
-  TAOS_SYNC_FSM_CB_SUCCESS = 0,
-  TAOS_SYNC_FSM_CB_OTHER_ERROR = 1,
-} ESyncFsmCbCode;
 
 typedef struct SNodeInfo {
   uint16_t nodePort;
@@ -96,6 +97,11 @@ typedef struct SReConfigCbMeta {
 
 } SReConfigCbMeta;
 
+typedef struct SSnapshotParam {
+  SyncIndex start;
+  SyncIndex end;
+} SSnapshotParam;
+
 typedef struct SSnapshot {
   void*     data;
   SyncIndex lastApplyIndex;
@@ -125,7 +131,7 @@ typedef struct SSyncFSM {
   int32_t (*FpSnapshotStopRead)(struct SSyncFSM* pFsm, void* pReader);
   int32_t (*FpSnapshotDoRead)(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len);
 
-  int32_t (*FpSnapshotStartWrite)(struct SSyncFSM* pFsm, void** ppWriter);
+  int32_t (*FpSnapshotStartWrite)(struct SSyncFSM* pFsm, void* pWriterParam, void** ppWriter);
   int32_t (*FpSnapshotStopWrite)(struct SSyncFSM* pFsm, void* pWriter, bool isApply);
   int32_t (*FpSnapshotDoWrite)(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_t len);
 
@@ -178,15 +184,15 @@ typedef struct SSyncLogStore {
 } SSyncLogStore;
 
 typedef struct SSyncInfo {
-  bool        isStandBy;
-  bool        snapshotEnable;
-  SyncGroupId vgId;
-  int32_t     batchSize;
-  SSyncCfg    syncCfg;
-  char        path[TSDB_FILENAME_LEN];
-  SWal*       pWal;
-  SSyncFSM*   pFsm;
-  SMsgCb*     msgcb;
+  bool          isStandBy;
+  ESyncStrategy snapshotStrategy;
+  SyncGroupId   vgId;
+  int32_t       batchSize;
+  SSyncCfg      syncCfg;
+  char          path[TSDB_FILENAME_LEN];
+  SWal*         pWal;
+  SSyncFSM*     pFsm;
+  SMsgCb*       msgcb;
   int32_t (*FpSendMsg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
   int32_t (*FpEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 } SSyncInfo;
@@ -205,7 +211,7 @@ SyncGroupId syncGetVgId(int64_t rid);
 void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
 int32_t     syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak);
-// int32_t     syncProposeBatch(int64_t rid, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_t arrSize);
+int32_t     syncProposeBatch(int64_t rid, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_t arrSize);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
