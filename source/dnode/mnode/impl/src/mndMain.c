@@ -519,6 +519,8 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
     }
   }
 
+  syncNodeRelease(pSyncNode);
+
   if (code != 0) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
   }
