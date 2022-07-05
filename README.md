@@ -136,7 +136,7 @@ cmake .. -DCPUTYPE=mips64 && cmake --build .
 
 ### On Windows platform
 
-If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
+If you use Visual Studio 2013, please open a command window by executing "cmd.exe".
 Please specify "amd64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
 ```cmd
 mkdir debug && cd debug
@@ -145,7 +145,7 @@ cmake .. -G "NMake Makefiles"
 nmake
 ```
 
-If you use the Visual Studio 2019 or 2017:
+If you use Visual Studio 2019 or 2017:
 
 please open a command window by executing "cmd.exe".
 Please specify "x64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
@@ -163,6 +163,8 @@ mkdir debug && cd debug
 cmake .. -G "NMake Makefiles"
 nmake
 ```
+
+If you use Visual Studio 2022, the only change is the default path of `vcvarsall.bat`, which is `C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat`.
 
 ### On Mac OS X platform
 

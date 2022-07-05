@@ -78,6 +78,7 @@ static void parseArg(int argc, char* argv[]) {
     {"skipSql", required_argument, NULL, 's'},
     {"limitSql", required_argument, NULL, 'i'},
     {"log", required_argument, NULL, 'l'},
+    {"queryPolicy", required_argument, NULL, 'q'},
     {0, 0, 0, 0}
   };
   // clang-format on
@@ -94,6 +95,9 @@ static void parseArg(int argc, char* argv[]) {
         break;
       case 'l':
         setLogLevel(optarg);
+        break;
+      case 'q':
+        setQueryPolicy(optarg);
         break;
       default:
         break;

@@ -718,6 +718,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
       SJoinLogicNode* pLogicNode = (SJoinLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
+      nodesDestroyNode(pLogicNode->pMergeCondition);
       nodesDestroyNode(pLogicNode->pOnConditions);
       break;
     }
@@ -828,6 +829,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN: {
       SJoinPhysiNode* pPhyNode = (SJoinPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
+      nodesDestroyNode(pPhyNode->pMergeCondition);
       nodesDestroyNode(pPhyNode->pOnConditions);
       nodesDestroyList(pPhyNode->pTargets);
       break;
@@ -1491,6 +1493,38 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, ECollectColType type, SNodeList** pCols) {
+  if (NULL == pCols) {
+    return TSDB_CODE_FAILED;
+  }
+  SCollectColumnsCxt cxt = {
+      .errCode = TSDB_CODE_SUCCESS,
+      .pTableAlias = pTableAlias,
+      .collectType = type,
+      .pCols = (NULL == *pCols ? nodesMakeList() : *pCols),
+      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
+  if (NULL == cxt.pCols || NULL == cxt.pColHash) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  *pCols = NULL;
+
+  nodesWalkExpr(node, collectColumns, &cxt);
+
+  taosHashCleanup(cxt.pColHash);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyList(cxt.pCols);
+    return cxt.errCode;
+  }
+  if (LIST_LENGTH(cxt.pCols) > 0) {
+    *pCols = cxt.pCols;
+  } else {
+    nodesDestroyList(cxt.pCols);
+  }
+
+  return TSDB_CODE_SUCCESS;
+
 }
 
 typedef struct SCollectFuncsCxt {

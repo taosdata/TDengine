@@ -128,13 +128,13 @@ typedef struct SBtInfo {
 #define TDB_CELLDECODER_FREE_VAL(pCellDecoder) ((pCellDecoder)->freeKV & TDB_CELLD_F_VAL)
 
 typedef struct {
-  int       kLen;
-  u8       *pKey;
-  int       vLen;
-  u8       *pVal;
-  SPgno     pgno;
-  u8       *pBuf;
-  u8        freeKV;
+  int   kLen;
+  u8   *pKey;
+  int   vLen;
+  u8   *pVal;
+  SPgno pgno;
+  u8   *pBuf;
+  u8    freeKV;
 } SCellDecoder;
 
 struct SBTC {
@@ -184,7 +184,7 @@ int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int 
 
 int  tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager);
 int  tdbPagerClose(SPager *pPager);
-int  tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate);
+int  tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate, SBTree *pBt);
 int  tdbPagerWrite(SPager *pPager, SPage *pPage);
 int  tdbPagerBegin(SPager *pPager, TXN *pTxn);
 int  tdbPagerCommit(SPager *pPager, TXN *pTxn);
@@ -192,7 +192,7 @@ int  tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initP
                        TXN *pTxn);
 void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn);
 int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
-int tdbPagerRestore(SPager *pPager, SBTree *pBt);
+int  tdbPagerRestore(SPager *pPager, SBTree *pBt);
 
 // tdbPCache.c ====================================
 #define TDB_PCACHE_PAGE    \
@@ -314,19 +314,18 @@ static inline int tdbTryLockPage(tdb_spinlock_t *pLock) {
 #define TDB_TRY_LOCK_PAGE(pPage)     tdbTryLockPage(&((pPage)->lock))
 
 // APIs
-#define TDB_PAGE_TOTAL_CELLS(pPage)        ((pPage)->nOverflow + (pPage)->pPageMethods->getCellNum(pPage))
-#define TDB_PAGE_USABLE_SIZE(pPage)        ((u8 *)(pPage)->pPageFtr - (pPage)->pCellIdx)
-#define TDB_PAGE_FREE_SIZE(pPage)          (*(pPage)->pPageMethods->getFreeBytes)(pPage)
-#define TDB_PAGE_PGNO(pPage)               ((pPage)->pgid.pgno)
-#define TDB_BYTES_CELL_TAKEN(pPage, pCell) ((*(pPage)->xCellSize)(pPage, pCell, 0, NULL, NULL) + (pPage)->pPageMethods->szOffset)
-#define TDB_PAGE_OFFSET_SIZE(pPage)        ((pPage)->pPageMethods->szOffset)
+#define TDB_PAGE_TOTAL_CELLS(pPage) ((pPage)->nOverflow + (pPage)->pPageMethods->getCellNum(pPage))
+#define TDB_PAGE_USABLE_SIZE(pPage) ((u8 *)(pPage)->pPageFtr - (pPage)->pCellIdx)
+#define TDB_PAGE_FREE_SIZE(pPage)   (*(pPage)->pPageMethods->getFreeBytes)(pPage)
+#define TDB_PAGE_PGNO(pPage)        ((pPage)->pgid.pgno)
+#define TDB_BYTES_CELL_TAKEN(pPage, pCell) \
+  ((*(pPage)->xCellSize)(pPage, pCell, 0, NULL, NULL) + (pPage)->pPageMethods->szOffset)
+#define TDB_PAGE_OFFSET_SIZE(pPage) ((pPage)->pPageMethods->szOffset)
 
 int  tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg);
 int  tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg);
-void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int,
-							    TXN *, SBTree *pBt));
-void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int,
-							    TXN *, SBTree *pBt));
+void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt));
+void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt));
 int  tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl);
 int  tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt);
 int  tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell, TXN *pTxn, SBTree *pBt);

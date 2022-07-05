@@ -637,6 +637,7 @@ void dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage) {
   SListNode* pNode = tdListPopNode(pBuf->lruList, ppi->pn);
   taosMemoryFreeClear(ppi->pData);
   taosMemoryFreeClear(pNode);
+  ppi->pn = NULL;
 
   tdListAppend(pBuf->freePgList, &ppi);
 }

@@ -1203,7 +1203,8 @@ typedef struct SQnodeSplitInfo {
 
 static bool qndSplFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
                                 SQnodeSplitInfo* pInfo) {
-  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) && NULL != pNode->pParent) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) && NULL != pNode->pParent &&
+      ((SScanLogicNode*)pNode)->scanSeq[0] < 1 && ((SScanLogicNode*)pNode)->scanSeq[1] < 1) {
     pInfo->pSplitNode = pNode;
     pInfo->pSubplan = pSubplan;
     return true;
