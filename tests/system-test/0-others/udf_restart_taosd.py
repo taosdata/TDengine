@@ -312,11 +312,11 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.query("select udf1(num1) , bottom(num1,1) from tb;")
         tdSql.checkRows(1)
-        tdSql.query("select udf1(num1) , last_row(num1) from tb;")
-        tdSql.checkRows(1)
+        # tdSql.query("select udf1(num1) , last_row(num1) from tb;")
+        # tdSql.checkRows(1)
 
-        tdSql.query("select round(num1) , last_row(num1) from tb;")
-        tdSql.checkRows(1)
+        # tdSql.query("select round(num1) , last_row(num1) from tb;")
+        # tdSql.checkRows(1)
 
 
         # stable
@@ -341,10 +341,10 @@ class TDTestCase:
         tdSql.query("select ceil(c1) , bottom(c1,1) from stb1;")
         tdSql.checkRows(1)
 
-        tdSql.query("select udf1(c1) , last_row(c1) from stb1;")
-        tdSql.checkRows(1)
-        tdSql.query("select ceil(c1) , last_row(c1) from stb1;")
-        tdSql.checkRows(1)
+        # tdSql.query("select udf1(c1) , last_row(c1) from stb1;")
+        # tdSql.checkRows(1)
+        # tdSql.query("select ceil(c1) , last_row(c1) from stb1;")
+        # tdSql.checkRows(1)
 
         # regular table with compute functions
 

@@ -261,11 +261,49 @@ void vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId) {
   }
 }
 
-// wrapper of tsdb read interface
-tsdbReaderT tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *tableList, uint64_t qId,
-                               void *pMemRef) {
-#if 0
-  return tsdbQueryCacheLastT(pVnode->pTsdb, pCond, groupList, qId, pMemRef);
-#endif
-  return 0;
+int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, uid);
+
+  while (1) {
+    tb_uid_t id = metaCtbCursorNext(pCur);
+    if (id == 0) {
+      break;
+    }
+
+    STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, uid = id};
+    taosArrayPush(list, &info);
+  }
+
+  metaCloseCtbCursor(pCur);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, suid);
+
+  while (1) {
+    tb_uid_t id = metaCtbCursorNext(pCur);
+    if (id == 0) {
+      break;
+    }
+
+    taosArrayPush(list, &id);
+  }
+
+  metaCloseCtbCursor(pCur);
+  return TSDB_CODE_SUCCESS;
+}
+
+void *vnodeGetIdx(SVnode *pVnode) {
+  if (pVnode == NULL) {
+    return NULL;
+  }
+  return metaGetIdx(pVnode->pMeta);
+}
+
+void *vnodeGetIvtIdx(SVnode *pVnode) {
+  if (pVnode == NULL) {
+    return NULL;
+  }
+  return metaGetIvtIdx(pVnode->pMeta);
 }

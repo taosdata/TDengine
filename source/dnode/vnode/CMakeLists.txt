@@ -44,8 +44,12 @@ target_sources(
     "src/tsdb/tsdbMemTable.c"
     "src/tsdb/tsdbRead.c"
     "src/tsdb/tsdbReadImpl.c"
+    "src/tsdb/tsdbCache.c"
     "src/tsdb/tsdbWrite.c"
+    "src/tsdb/tsdbReaderWriter.c"
+    "src/tsdb/tsdbUtil.c"
     "src/tsdb/tsdbSnapshot.c"
+    "src/tsdb/tsdbCacheRead.c"
 
     # tq
     "src/tq/tq.c"

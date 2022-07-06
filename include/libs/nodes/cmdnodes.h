@@ -98,6 +98,11 @@ typedef struct SAlterDatabaseStmt {
   SDatabaseOptions* pOptions;
 } SAlterDatabaseStmt;
 
+typedef struct SFlushDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+} SFlushDatabaseStmt;
+
 typedef struct STableOptions {
   ENodeType  type;
   bool       commentNull;
