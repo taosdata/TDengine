@@ -100,7 +100,7 @@ void dsEndPut(DataSinkHandle handle, uint64_t useconds);
  * @param handle
  * @param pLen data length
  */
-void dsGetDataLength(DataSinkHandle handle, int32_t* pLen, bool* pQueryEnd);
+void dsGetDataLength(DataSinkHandle handle, int64_t* pLen, bool* pQueryEnd);
 
 /**
  * Get data, the caller needs to allocate data memory.

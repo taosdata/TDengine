@@ -43,13 +43,16 @@ void qwFreeFetchRsp(void *msg) {
   }
 }
 
-int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, STbVerInfo* tbInfo) {
+int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, SQWTaskCtx *ctx) {
+  STbVerInfo* tbInfo = ctx ? &ctx->tbInfo : NULL;
+  int64_t affectedRows = ctx ? ctx->affectedRows : 0;
   SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(sizeof(SQueryTableRsp));
-  pRsp->code = code;
+  pRsp->code = htonl(code);
+  pRsp->affectedRows = htobe64(affectedRows);
   if (tbInfo) {
     strcpy(pRsp->tbFName, tbInfo->tbFName);
-    pRsp->sversion = tbInfo->sversion;
-    pRsp->tversion = tbInfo->tversion;
+    pRsp->sversion = htonl(tbInfo->sversion);
+    pRsp->tversion = htonl(tbInfo->tversion);
   }
 
   SRpcMsg rpcRsp = {

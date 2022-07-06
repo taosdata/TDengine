@@ -57,6 +57,10 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
       connInfo.ahandle = NULL;
       QW_ERR_RET(qwBuildAndSendExplainRsp(&connInfo, execInfo, resNum));
     }
+
+    if (!ctx->needFetch) {
+      dsGetDataLength(ctx->sinkHandle, &ctx->affectedRows, NULL);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -184,7 +188,7 @@ int32_t qwGenerateSchHbRsp(SQWorker *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo)
 }
 
 int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void **rspMsg, SOutputData *pOutput) {
-  int32_t            len = 0;
+  int64_t            len = 0;
   SRetrieveTableRsp *rsp = NULL;
   bool               queryEnd = false;
   int32_t            code = 0;
@@ -243,7 +247,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
 }
 
 int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void **rspMsg, SDeleteRes *pRes) {
-  int32_t            len = 0;
+  int64_t            len = 0;
   SVDeleteRsp        rsp = {0};
   bool               queryEnd = false;
   int32_t            code = 0;
@@ -445,7 +449,7 @@ _return:
   }
 
   if (rspConnection) {
-    qwBuildAndSendQueryRsp(input->msgType + 1, rspConnection, code, ctx ? &ctx->tbInfo : NULL);
+    qwBuildAndSendQueryRsp(input->msgType + 1, rspConnection, code, ctx);
     QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", rspConnection->handle, code, tstrerror(code));
   }
 
