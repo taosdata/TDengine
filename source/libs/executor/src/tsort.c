@@ -545,6 +545,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
   return 0;
 }
 
+// TODO consider the page meta size
 int32_t getProperSortPageSize(size_t rowSize) {
   uint32_t defaultPageSize = 4096;
 

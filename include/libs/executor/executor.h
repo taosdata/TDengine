@@ -36,6 +36,8 @@ typedef struct SReadHandle {
   void*   vnode;
   void*   mnd;
   SMsgCb* pMsgCb;
+
+//  int8_t  initTsdbReader;
   bool    tqReader;
 } SReadHandle;
 

@@ -260,6 +260,14 @@ char *taosDirName(char *name) {
     name[0] = 0;
   }
   return name;
+#elif defined(_TD_DARWIN_64)
+  char *end = strrchr(name, '/');
+  if (end != NULL) {
+    *end = '\0';
+  } else {
+    name[0] = 0;
+  }
+  return name; 
 #else
   return dirname(name);
 #endif

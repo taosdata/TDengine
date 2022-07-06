@@ -29,15 +29,9 @@ typedef struct {
 #pragma pack(pop)
 
 #define TSROW_IS_KV_ROW(r) ((r)->flags & TSROW_KV_ROW)
-#define BIT1_SIZE(n)       (((n)-1) / 8 + 1)
-#define BIT2_SIZE(n)       (((n)-1) / 4 + 1)
-#define SET_BIT1(p, i, v)  ((p)[(i) / 8] = (p)[(i) / 8] & (~(((uint8_t)1) << ((i) % 8))) | ((v) << ((i) % 8)))
-#define SET_BIT2(p, i, v)  ((p)[(i) / 4] = (p)[(i) / 4] & (~(((uint8_t)3) << ((i) % 4))) | ((v) << ((i) % 4)))
-#define GET_BIT1(p, i)     (((p)[(i) / 8] >> ((i) % 8)) & ((uint8_t)1))
-#define GET_BIT2(p, i)     (((p)[(i) / 4] >> ((i) % 4)) & ((uint8_t)3))
 
 // SValue
-static FORCE_INLINE int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type) {
+int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type) {
   int32_t n = 0;
 
   if (IS_VAR_DATA_TYPE(type)) {
@@ -88,7 +82,7 @@ static FORCE_INLINE int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type) {
   return n;
 }
 
-static FORCE_INLINE int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type) {
+int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type) {
   int32_t n = 0;
 
   if (IS_VAR_DATA_TYPE(type)) {
@@ -421,7 +415,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
     _set_none:
       if ((flags & 0xf0) == 0) {
         setBitMap(pb, 0, iColumn - 1, flags);
-        if (flags & TSROW_HAS_VAL) { // set 0
+        if (flags & TSROW_HAS_VAL) {  // set 0
           if (IS_VAR_DATA_TYPE(pTColumn->type)) {
             *(VarDataOffsetT *)(pf + pTColumn->offset) = 0;
           } else {
@@ -434,7 +428,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
     _set_null:
       if ((flags & 0xf0) == 0) {
         setBitMap(pb, 1, iColumn - 1, flags);
-        if (flags & TSROW_HAS_VAL) { // set 0
+        if (flags & TSROW_HAS_VAL) {  // set 0
           if (IS_VAR_DATA_TYPE(pTColumn->type)) {
             *(VarDataOffsetT *)(pf + pTColumn->offset) = 0;
           } else {
@@ -639,15 +633,15 @@ void tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal
   }
 
 _return_none:
-  *pColVal = COL_VAL_NONE(pTColumn->colId);
+  *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
   return;
 
 _return_null:
-  *pColVal = COL_VAL_NULL(pTColumn->colId);
+  *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
   return;
 
 _return_value:
-  *pColVal = COL_VAL_VALUE(pTColumn->colId, value);
+  *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, value);
   return;
 }
 
@@ -1105,9 +1099,9 @@ _err:
 #if 1  // ===================================================================================================================
 static void dataColSetNEleNull(SDataCol *pCol, int nEle);
 int         tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
-  int spaceNeeded = pCol->bytes * maxPoints;
-  if (IS_VAR_DATA_TYPE(pCol->type)) {
-    spaceNeeded += sizeof(VarDataOffsetT) * maxPoints;
+          int spaceNeeded = pCol->bytes * maxPoints;
+          if (IS_VAR_DATA_TYPE(pCol->type)) {
+            spaceNeeded += sizeof(VarDataOffsetT) * maxPoints;
   }
 #ifdef TD_SUPPORT_BITMAP
   int32_t nBitmapBytes = (int32_t)TD_BITMAP_BYTES(maxPoints);

@@ -34,21 +34,40 @@ typedef struct SValue        SValue;
 typedef struct SColVal       SColVal;
 typedef struct STSRow2       STSRow2;
 typedef struct STSRowBuilder STSRowBuilder;
-typedef struct SColData      SColData;
 typedef struct STagVal       STagVal;
 typedef struct STag          STag;
+
+// bitmap
+#define N1(n)        ((1 << (n)) - 1)
+#define BIT1_SIZE(n) (((n)-1) / 8 + 1)
+#define BIT2_SIZE(n) (((n)-1) / 4 + 1)
+#define SET_BIT1(p, i, v)                            \
+  do {                                               \
+    (p)[(i) / 8] &= N1((i) % 8);                     \
+    (p)[(i) / 8] |= (((uint8_t)(v)) << (((i) % 8))); \
+  } while (0)
+
+#define GET_BIT1(p, i) (((p)[(i) / 8] >> ((i) % 8)) & ((uint8_t)1))
+#define SET_BIT2(p, i, v)                                \
+  do {                                                   \
+    p[(i) / 4] &= N1((i) % 4 * 2);                       \
+    (p)[(i) / 4] |= (((uint8_t)(v)) << (((i) % 4) * 2)); \
+  } while (0)
+#define GET_BIT2(p, i) (((p)[(i) / 4] >> (((i) % 4) * 2)) & ((uint8_t)3))
 
 // STSchema
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
 void    tTSchemaDestroy(STSchema *pTSchema);
 
 // SValue
-int tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type);
+int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type);
+int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type);
+int     tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type);
 
 // STSRow2
-#define COL_VAL_NONE(CID)     ((SColVal){.cid = (CID), .isNone = 1})
-#define COL_VAL_NULL(CID)     ((SColVal){.cid = (CID), .isNull = 1})
-#define COL_VAL_VALUE(CID, V) ((SColVal){.cid = (CID), .value = (V)})
+#define COL_VAL_NONE(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .isNone = 1})
+#define COL_VAL_NULL(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .isNull = 1})
+#define COL_VAL_VALUE(CID, TYPE, V) ((SColVal){.cid = (CID), .type = (TYPE), .value = (V)})
 
 int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow);
 int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow);
@@ -140,6 +159,7 @@ struct SValue {
 
 struct SColVal {
   int16_t cid;
+  int8_t  type;
   int8_t  isNone;
   int8_t  isNull;
   SValue  value;
@@ -171,12 +191,6 @@ struct STag {
   int8_t  idx[];
 };
 #pragma pack(pop)
-
-struct SColData {
-  int16_t  cid;
-  uint32_t nData;
-  uint8_t *pData;
-};
 
 #if 1  //================================================================================================================================================
 // Imported since 3.0 and use bitmap to demonstrate None/Null/Norm, while use Null/Norm below 3.0 without of bitmap.

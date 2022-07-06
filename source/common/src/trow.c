@@ -34,6 +34,7 @@ const uint8_t tdVTypeByte[2][3] = {{
 // declaration
 static uint8_t tdGetBitmapByte(uint8_t byte);
 static int32_t tdCompareColId(const void *arg1, const void *arg2);
+static FORCE_INLINE int32_t compareKvRowColId(const void *key1, const void *key2);
 
 // static void dataColSetNEleNull(SDataCol *pCol, int nEle);
 
@@ -339,9 +340,9 @@ int32_t tdSetBitmapValTypeN(void *pBitmap, int16_t nEle, TDRowValT valType, int8
 }
 
 bool tdIsBitmapBlkNorm(const void *pBitmap, int32_t numOfBits, int8_t bitmapMode) {
-  int32_t nBytes = (bitmapMode == 0 ? numOfBits / TD_VTYPE_PARTS : numOfBits / TD_VTYPE_PARTS_I);
-  uint8_t vTypeByte = tdVTypeByte[bitmapMode][TD_VTYPE_NORM];
-  uint8_t *qBitmap = (uint8_t*)pBitmap;
+  int32_t  nBytes = (bitmapMode == 0 ? numOfBits / TD_VTYPE_PARTS : numOfBits / TD_VTYPE_PARTS_I);
+  uint8_t  vTypeByte = tdVTypeByte[bitmapMode][TD_VTYPE_NORM];
+  uint8_t *qBitmap = (uint8_t *)pBitmap;
   for (int i = 0; i < nBytes; ++i) {
     if (*qBitmap != vTypeByte) {
       return false;
@@ -1045,13 +1046,28 @@ int32_t dataColGetNEleLen(SDataCol *pDataCol, int32_t rows, int8_t bitmapMode) {
   return result;
 }
 
-bool tdSKvRowGetVal(STSRow *pRow, col_id_t colId, uint32_t offset, col_id_t colIdx, SCellVal *pVal) {
+bool tdSKvRowGetVal(STSRow *pRow, col_id_t colId, col_id_t colIdx, SCellVal *pVal) {
   if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
     tdRowSetVal(pVal, TD_VTYPE_NORM, TD_ROW_KEY_ADDR(pRow));
     return true;
   }
+  int16_t nCols = tdRowGetNCols(pRow) - 1;
+  if (nCols <= 0) {
+    pVal->valType = TD_VTYPE_NONE;
+    return true;
+  }
+
+  SKvRowIdx *pColIdx =
+      (SKvRowIdx *)taosbsearch(&colId, TD_ROW_COL_IDX(pRow), nCols, sizeof(SKvRowIdx), compareKvRowColId, TD_EQ);
+
+  if (!pColIdx) {
+    pVal->valType = TD_VTYPE_NONE;
+    return true;
+  }
+
   void *pBitmap = tdGetBitmapAddrKv(pRow, tdRowGetNCols(pRow));
-  tdGetKvRowValOfCol(pVal, pRow, pBitmap, offset, colIdx);
+  tdGetKvRowValOfCol(pVal, pRow, pBitmap, pColIdx->offset,
+                     POINTER_DISTANCE(pColIdx, TD_ROW_COL_IDX(pRow)) / sizeof(SKvRowIdx));
   return true;
 }
 
@@ -1202,6 +1218,112 @@ static FORCE_INLINE int32_t compareKvRowColId(const void *key1, const void *key2
   } else {
     return 0;
   }
+}
+
+int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
+  STColumn *pTColumn;
+  SColVal  *pColVal;
+  int32_t   nColVal = taosArrayGetSize(pArray);
+  int32_t   varDataLen = 0;
+  int32_t   maxVarDataLen = 0;
+  int32_t   iColVal = 0;
+  void     *varBuf = NULL;
+
+  ASSERT(nColVal > 1);
+
+  for (int32_t iColumn = 0; iColumn < pTSchema->numOfCols; ++iColumn) {
+    pTColumn = &pTSchema->columns[iColumn];
+    if (iColVal < nColVal) {
+      pColVal = (SColVal *)taosArrayGet(pArray, iColVal);
+    } else {
+      pColVal = NULL;
+    }
+
+    if (iColumn == 0) {
+      ASSERT(pColVal->cid == pTColumn->colId);
+      ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
+      ASSERT(pTColumn->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
+    } else {
+      if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+        if (pColVal) {
+          varDataLen += (pColVal->value.nData + sizeof(VarDataLenT));
+          if (maxVarDataLen < (pColVal->value.nData + sizeof(VarDataLenT))) {
+            maxVarDataLen = pColVal->value.nData + sizeof(VarDataLenT);
+          }
+        } else {
+          varDataLen += sizeof(VarDataLenT);
+          if (pTColumn->type == TSDB_DATA_TYPE_VARCHAR) {
+            varDataLen += CHAR_BYTES;
+            if (maxVarDataLen < CHAR_BYTES + sizeof(VarDataLenT)) {
+              maxVarDataLen = CHAR_BYTES + sizeof(VarDataLenT);
+            }
+          } else {
+            varDataLen += INT_BYTES;
+            if (maxVarDataLen < INT_BYTES + sizeof(VarDataLenT)) {
+              maxVarDataLen = INT_BYTES + sizeof(VarDataLenT);
+            }
+          }
+        }
+      }
+    }
+
+    ++iColVal;
+  }
+
+  *ppRow = (STSRow *)taosMemoryCalloc(
+      1, sizeof(STSRow) + pTSchema->flen + varDataLen + TD_BITMAP_BYTES(pTSchema->numOfCols - 1));
+
+  if (!(*ppRow)) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if (maxVarDataLen > 0) {
+    varBuf = taosMemoryMalloc(maxVarDataLen);
+    if (!varBuf) {
+      taosMemoryFreeClear(*ppRow);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+  }
+
+  SRowBuilder rb = {0};
+  tdSRowInit(&rb, pTSchema->version);
+  tdSRowSetInfo(&rb, pTSchema->numOfCols, pTSchema->numOfCols, pTSchema->flen);
+  tdSRowResetBuf(&rb, *ppRow);
+
+  iColVal = 0;
+  for (int32_t iColumn = 0; iColumn < pTSchema->numOfCols; ++iColumn) {
+    pTColumn = &pTSchema->columns[iColumn];
+
+    TDRowValT   valType = TD_VTYPE_NORM;
+    const void *val = NULL;
+    if (iColVal < nColVal) {
+      pColVal = (SColVal *)taosArrayGet(pArray, iColVal);
+      if (pColVal->isNone) {
+        valType = TD_VTYPE_NONE;
+      } else if (pColVal->isNull) {
+        valType = TD_VTYPE_NULL;
+      } else if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+        varDataSetLen(varBuf, pColVal->value.nData);
+        memcpy(varDataVal(varBuf), pColVal->value.pData, pColVal->value.nData);
+        val = varBuf;
+      } else {
+        val = (const void *)&pColVal->value.i64;
+      }
+    } else {
+      pColVal = NULL;
+      valType = TD_VTYPE_NONE;
+    }
+
+    tdAppendColValToRow(&rb, pTColumn->colId, pTColumn->type, valType, val, true, pTColumn->offset, iColVal);
+
+    ++iColVal;
+  }
+
+  taosMemoryFreeClear(varBuf);
+
+  return 0;
 }
 
 bool tdSTSRowGetVal(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal) {
@@ -1593,7 +1715,6 @@ int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBou
   } else {
     pBuilder->rowType = TD_ROW_TP;
   }
-
   pBuilder->flen = flen;
   pBuilder->nCols = nCols;
   pBuilder->nBoundCols = nBoundCols;
@@ -1855,4 +1976,36 @@ void tdSTSRowIterReset(STSRowIter *pIter, STSRow *pRow) {
 void tdSTSRowIterInit(STSRowIter *pIter, STSchema *pSchema) {
   pIter->pSchema = pSchema;
   pIter->maxColId = pSchema->columns[pSchema->numOfCols - 1].colId;
+}
+
+void tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColVal) {
+  STColumn *pTColumn = &pTSchema->columns[iCol];
+  SCellVal  cv;
+  SValue    value;
+
+  ASSERT(iCol > 0);
+
+  if (TD_IS_TP_ROW(pRow)) {
+    tdSTpRowGetVal(pRow, pTColumn->colId, pTColumn->type, pTSchema->flen, pTColumn->offset, iCol - 1, &cv);
+  } else if (TD_IS_KV_ROW(pRow)) {
+    ASSERT(iCol > 0);
+    tdSKvRowGetVal(pRow, pTColumn->colId, iCol - 1, &cv);
+  } else {
+    ASSERT(0);
+  }
+
+  if (tdValTypeIsNone(cv.valType)) {
+    *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+  } else if (tdValTypeIsNull(cv.valType)) {
+    *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
+  } else {
+    if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+      value.nData = varDataLen(cv.val);
+      value.pData = varDataVal(cv.val);
+    } else {
+      tGetValue(cv.val, &value, pTColumn->type);
+    }
+
+    *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, value);
+  }
 }
