@@ -15,7 +15,6 @@ taos-error = { path = "../taos-error" }
 taos-query = { path = "../taos-query" }
 taos-ws = { path = "../taos-ws", default-features = false }
 
-
 [build-dependencies]
 cbindgen = "0.24.3"
 

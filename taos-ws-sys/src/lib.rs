@@ -1,9 +1,8 @@
-#![feature(local_key_cell_methods)]
-
 use std::{
     ffi::{c_void, CStr, CString},
-    fmt::{Debug, Display},
+    fmt::{format, Debug, Display},
     os::raw::c_char,
+    ptr::slice_from_raw_parts,
     str::Utf8Error,
 };
 
@@ -14,7 +13,7 @@ use taos_query::{
     common::{Precision, Ty},
     Fetchable,
 };
-use taos_ws::{sync::*, Ws};
+use taos_ws::sync::*;
 
 use anyhow::Result;
 
@@ -27,13 +26,6 @@ pub type WS_TAOS = c_void;
 /// Opaque type definition for websocket result set.
 #[allow(non_camel_case_types)]
 pub type WS_RS = c_void;
-
-use std::cell::RefCell;
-thread_local! {
-    pub static ERROR: RefCell<Option<Error>> = RefCell::new(None);
-
-    pub static TS: RefCell<[u8; 192]> = RefCell::new([0; 192]);
-}
 
 #[derive(Debug)]
 struct WsError {
@@ -479,25 +471,20 @@ pub unsafe extern "C" fn ws_get_value_in_block(
 ///  use it only if it work as you expected.
 #[no_mangle]
 pub unsafe extern "C" fn ws_timestamp_to_rfc3339(
+    dest: *mut u8,
     raw: i64,
     precision: i32,
     use_z: bool,
-) -> *const c_char {
+) {
     let precision = Precision::from_u8(precision as u8);
-    // static mut ts: [u8; 192] = [0; 192];
-    TS.with_borrow_mut(|ts| {
-        ts.fill(0);
-        use std::io::Write;
-        ts.as_mut_slice()
-            .write_fmt(format_args!(
-                "{}",
-                Timestamp::new(raw, precision)
-                    .to_datetime_with_tz()
-                    .to_rfc3339_opts(precision.to_seconds_format(), use_z),
-            ))
-            .unwrap();
-        ts.as_ptr() as _
-    })
+    let s = format!(
+        "{}",
+        Timestamp::new(raw, precision)
+            .to_datetime_with_tz()
+            .to_rfc3339_opts(precision.to_seconds_format(), use_z)
+    );
+
+    std::ptr::copy_nonoverlapping(s.as_ptr(), dest, s.len());
 }
 
 #[no_mangle]
@@ -555,6 +542,16 @@ mod tests {
             // Incomplete SQL statement
             assert!(code != 0);
             assert!(err.to_str().unwrap() == "Incomplete SQL statement");
+        }
+    }
+
+    #[test]
+    fn ts_to_rfc3339() {
+        unsafe {
+            let mut ts = [0; 192];
+            ws_timestamp_to_rfc3339(ts.as_mut_ptr(), 0, 0, true);
+            let s = CStr::from_ptr(ts.as_ptr() as _);
+            dbg!(s);
         }
     }
     #[test]
