@@ -122,6 +122,18 @@ struct SVSnapWriter {
   STsdbSnapWriter *pTsdbSnapWriter;
 };
 
+static int32_t vnodeSnapRollback(SVSnapWriter *pWriter) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+static int32_t vnodeSnapCommit(SVSnapWriter *pWriter) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
 int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {
   int32_t       code = 0;
   SVSnapWriter *pWriter = NULL;
@@ -139,19 +151,26 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
   return code;
 
 _err:
+  vError("vgId:%d vnode snapshot writer open failed since %s", TD_VID(pVnode), tstrerror(code));
   return code;
 }
 
 int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback) {
   int32_t code = 0;
 
-  if (!rollback) {
-    // apply the change
+  if (rollback) {
+    code = vnodeSnapRollback(pWriter);
+    if (code) goto _err;
   } else {
-    // rollback the change
+    code = vnodeSnapCommit(pWriter);
+    if (code) goto _err;
   }
 
   taosMemoryFree(pWriter);
+  return code;
+
+_err:
+  vError("vgId:%d vnode snapshow writer close failed since %s", TD_VID(pWriter->pVnode), tstrerror(code));
   return code;
 }
 
