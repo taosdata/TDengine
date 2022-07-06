@@ -323,6 +323,7 @@ struct STsdbSnapWriter {
   SDataFWriter* pDataFWriter;
   SArray*       aBlockIdxN;
   SMapData      mBlockN;
+  SBlockData    nBlockData;
   // for del file
   SDelFReader* pDelFReader;
   SDelFWriter* pDelFWriter;
@@ -365,6 +366,24 @@ _exit:
 
 _err:
   tsdbError("vgId:%d tsdb snapshot writer data end failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+static int32_t tsdbSnapWriteAppendData(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
+  int32_t     code = 0;
+  int32_t     iRow = 0;           // todo
+  int32_t     nRow = 0;           // todo
+  SBlockData* pBlockData = NULL;  // todo
+
+  while (iRow < nRow) {
+    code = tBlockDataAppendRow(&pWriter->nBlockData, &tsdbRowFromBlockData(pBlockData, iRow), NULL);
+    if (code) goto _err;
+  }
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb snapshot write append data failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -428,9 +447,21 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
       if (c == 0) {
         // merge
       } else if (c < 0) {
-        // write the block
+        code = tsdbSnapWriteAppendData(pWriter, pData, nData);
+        if (code) goto _err;
       } else {
         // commit the block
+        code = tsdbReadBlock(pWriter->pDataFReader, pBlockIdx, &pWriter->mBlock, NULL);
+        if (code) goto _err;
+
+        SBlockIdx blockIdx = {.suid = pBlockIdx->suid, .uid = pBlockIdx->uid};
+        code = tsdbWriteBlock(pWriter->pDataFWriter, &pWriter->mBlock, NULL, &blockIdx);
+        if (code) goto _err;
+
+        if (taosArrayPush(pWriter->aBlockIdxN, &blockIdx) == NULL) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          goto _err;
+        }
       }
     }
   }
