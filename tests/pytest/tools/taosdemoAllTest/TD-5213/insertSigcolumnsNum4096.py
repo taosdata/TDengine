@@ -56,18 +56,18 @@ class TDTestCase:
         tdSql.execute("use regular_old")
         tdSql.query("show tables;")
         tdSql.checkRows(1)
-        tdSql.query("select * from d0;")
+        tdSql.query("select * from meters;")
         tdSql.checkCols(1024)
-        tdSql.query("describe d0;")
+        tdSql.query("describe meters;")
         tdSql.checkRows(1024)
 
         os.system("%s -N -d regular_new -t 1 -n 10 -l 4095 -y" % binPath)
         tdSql.execute("use regular_new")
         tdSql.query("show tables;")
         tdSql.checkRows(1)
-        tdSql.query("select * from d0;")
+        tdSql.query("select * from meters;")
         tdSql.checkCols(4096)
-        tdSql.query("describe d0;")
+        tdSql.query("describe meters;")
         tdSql.checkRows(4096)
 
         # super table  -d:database name   -t:table num  -n:rows num per table

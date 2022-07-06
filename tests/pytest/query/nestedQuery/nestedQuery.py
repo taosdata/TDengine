@@ -2222,18 +2222,18 @@ class TDTestCase:
         # regualr-table
         os.system("%staosBenchmark -N -d regular -t 2 -n 1000 -l 4095 -y" % binPath)
         tdSql.execute("use regular")
-        tdSql.query("select * from d0;")
+        tdSql.query("select * from meters;")
         tdSql.checkCols(4096)
-        tdSql.query("describe d0;")
+        tdSql.query("describe meters;")
         tdSql.checkRows(4096)
-        tdSql.query("select * from (select * from d0);")
+        tdSql.query("select * from (select * from meters);")
         tdSql.checkCols(4096)
 
         # select * from (select 4096 columns form d0)
         sql = "select * from ( select ts , "
         for i in range(4094):
             sql += "c%d , " % (i)
-        sql += "c4094 from d0 "  
+        sql += "c4094 from meters "  
         sql += " %s )" % random.choice(order_where)
         sql += " %s ;" % random.choice(order_desc_where)
         tdLog.info(len(sql))      
