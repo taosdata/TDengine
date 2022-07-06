@@ -700,7 +700,7 @@ void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray
   while (i < numOfSrcCols && j < taosArrayGetSize(pColMatchInfo)) {
     SColumnInfoData* p = taosArrayGet(pCols, i);
     SColMatchInfo*   pmInfo = taosArrayGet(pColMatchInfo, j);
-    if (!outputEveryColumn && !pmInfo->output) {
+    if (!outputEveryColumn && pmInfo->reserved) {
       j++;
       continue;
     }
