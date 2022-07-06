@@ -463,6 +463,12 @@ _err:
   return code;
 }
 
+static int32_t tsdbSnapWriteDelEnd(STsdbSnapWriter* pWriter) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
 int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWriter** ppWriter) {
   int32_t          code = 0;
   STsdbSnapWriter* pWriter = NULL;
