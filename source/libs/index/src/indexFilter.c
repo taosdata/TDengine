@@ -517,6 +517,8 @@ static int32_t sifGetOperFn(int32_t funcId, sif_func_t *func, SIdxFltStatus *sta
 static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   int32_t code = 0;
   if (sifValidOp(node->opType) < 0) {
+    code = TSDB_CODE_QRY_INVALID_INPUT;
+    ctx->code = code;
     output->status = SFLT_NOT_INDEX;
     return code;
   }
