@@ -1279,10 +1279,16 @@ static int32_t createVnodeModifLogicNodeByInsert(SLogicPlanContext* pCxt, SInser
 
   pModify->modifyType = MODIFY_TABLE_TYPE_INSERT;
   pModify->tableId = pRealTable->pMeta->uid;
+  pModify->stableId = pRealTable->pMeta->suid;
   pModify->tableType = pRealTable->pMeta->tableType;
   snprintf(pModify->tableFName, sizeof(pModify->tableFName), "%d.%s.%s", pCxt->pPlanCxt->acctId,
            pRealTable->table.dbName, pRealTable->table.tableName);
   TSWAP(pModify->pVgroupList, pRealTable->pVgroupList);
+  pModify->pInsertCols = nodesCloneList(pInsert->pCols);
+  if (NULL == pModify->pInsertCols) {
+    nodesDestroyNode((SNode*)pModify);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   *pLogicNode = (SLogicNode*)pModify;
   return TSDB_CODE_SUCCESS;
