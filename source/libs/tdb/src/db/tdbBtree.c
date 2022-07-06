@@ -314,7 +314,6 @@ static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2
 
 static int tdbBtreeOpenImpl(SBTree *pBt) {
   // Try to get the root page of the an existing btree
-#if 0
   SPgno  pgno;
   SPage *pPage;
   int    ret;
@@ -339,8 +338,6 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
 
   ASSERT(pgno != 0);
   pBt->root = pgno;
-#endif
-  pBt->root = 0;
 
   return 0;
 }
