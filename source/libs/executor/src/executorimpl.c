@@ -3012,11 +3012,19 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   }
 
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
-  doBuildResultDatablock(pOperator, pInfo, &pAggInfo->groupResInfo, pAggInfo->aggSup.pResultBuf);
-  if (pInfo->pRes->info.rows == 0 || !hasDataInGroupInfo(&pAggInfo->groupResInfo)) {
-    doSetOperatorCompleted(pOperator);
-  }
+  while (1) {
+    doBuildResultDatablock(pOperator, pInfo, &pAggInfo->groupResInfo, pAggInfo->aggSup.pResultBuf);
+    doFilter(pAggInfo->pCondition, pInfo->pRes);
 
+    if (!hasDataInGroupInfo(&pAggInfo->groupResInfo)) {
+      doSetOperatorCompleted(pOperator);
+      break;
+    }
+
+    if (pInfo->pRes->info.rows > 0) {
+      break;
+    }
+  }
   size_t rows = blockDataGetNumOfRows(pInfo->pRes);
   pOperator->resultInfo.totalRows += rows;
 
@@ -3557,7 +3565,7 @@ int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr) {
 }
 
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
-                                           SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
+                                           SSDataBlock* pResultBlock, SNode* pCondition, SExprInfo* pScalarExprInfo,
                                            int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo) {
   SAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SAggOperatorInfo));
   SOperatorInfo*    pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
@@ -3581,6 +3589,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
   }
 
   pInfo->groupId = INT32_MIN;
+  pInfo->pCondition = pCondition;
   pOperator->name = "TableAggregate";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_HASH_AGG;
   pOperator->blocking = true;
@@ -4362,7 +4371,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
                                       pScalarExprInfo, numOfScalarExpr, pTaskInfo);
     } else {
       pOptr =
-          createAggregateOperatorInfo(ops[0], pExprInfo, num, pResBlock, pScalarExprInfo, numOfScalarExpr, pTaskInfo);
+          createAggregateOperatorInfo(ops[0], pExprInfo, num, pResBlock, pAggNode->node.pConditions, pScalarExprInfo, numOfScalarExpr, pTaskInfo);
     }
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL == type || QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type) {
     SIntervalPhysiNode* pIntervalPhyNode = (SIntervalPhysiNode*)pPhyNode;
