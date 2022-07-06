@@ -51,6 +51,13 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 
 #define NEEDTO_COMPRESS_QUERY(size) ((size) > tsCompressColData ? 1 : 0)
 
+#define START_TS_COLUMN_INDEX 0
+#define END_TS_COLUMN_INDEX 1
+#define UID_COLUMN_INDEX 2
+#define GROUPID_COLUMN_INDEX UID_COLUMN_INDEX
+#define DELETE_GROUPID_COLUMN_INDEX 2
+
+
 enum {
   // when this task starts to execute, this status will set
   TASK_NOT_COMPLETED = 0x1u,
@@ -233,7 +240,7 @@ typedef struct SColMatchInfo {
   int32_t srcSlotId;     // source slot id
   int32_t colId;
   int32_t targetSlotId;
-  bool    output;
+  bool    output;        // todo remove this?
   bool    reserved;
   int32_t matchType;     // determinate the source according to col id or slot id
 } SColMatchInfo;
@@ -364,6 +371,8 @@ typedef struct SStreamBlockScanInfo {
   int32_t         scanWinIndex;   // for state operator
   int32_t         pullDataResIndex;
   SSDataBlock*    pPullDataRes;             // pull data SSDataBlock
+  SSDataBlock*    pDeleteDataRes;             // delete data SSDataBlock
+  int32_t         deleteDataIndex;
 } SStreamBlockScanInfo;
 
 typedef struct SSysTableScanInfo {
@@ -429,6 +438,10 @@ typedef struct SIntervalAggOperatorInfo {
   bool               invertible;
   SArray*            pPrevValues;        //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
   bool               ignoreExpiredData;
+  SArray*            pRecycledPages;
+  SArray*            pDelWins;           // SWinRes
+  int32_t            delIndex;
+  SSDataBlock*       pDelRes;
 } SIntervalAggOperatorInfo;
 
 typedef struct SStreamFinalIntervalOperatorInfo {
@@ -451,6 +464,10 @@ typedef struct SStreamFinalIntervalOperatorInfo {
   int32_t            pullIndex;
   SSDataBlock*       pPullDataRes;
   bool               ignoreExpiredData;
+  SArray*            pRecycledPages;
+  SArray*            pDelWins;           // SWinRes
+  int32_t            delIndex;
+  SSDataBlock*       pDelRes;
 } SStreamFinalIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
@@ -462,6 +479,8 @@ typedef struct SAggOperatorInfo {
   uint64_t           groupId;
   SGroupResInfo      groupResInfo;
   SExprSupp          scalarExprSup;
+
+  SNode             *pCondition;
 } SAggOperatorInfo;
 
 typedef struct SProjectOperatorInfo {
@@ -663,6 +682,8 @@ typedef struct SSortOperatorInfo {
 
   int64_t      startTs;       // sort start time
   uint64_t     sortElapsed;   // sort elapsed time, time to flush to disk not included.
+
+  SNode*      pCondition;
 } SSortOperatorInfo;
 
 typedef struct STagFilterOperatorInfo {
@@ -680,7 +701,7 @@ typedef struct SJoinOperatorInfo {
   SSDataBlock       *pRight;
   int32_t            rightPos;
   SColumnInfo        rightCol;
-  SNode             *pOnCondition;
+  SNode             *pCondAfterMerge;
 } SJoinOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
@@ -741,7 +762,7 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
                                          STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode *pScanPhyNode, const char* pUser, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
+SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SNode* pCondition, SExprInfo* pScalarExprInfo,
                                            int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode *pNode, SExecTaskInfo* pTaskInfo);

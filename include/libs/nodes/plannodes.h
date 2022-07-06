@@ -82,6 +82,7 @@ typedef struct SScanLogicNode {
 typedef struct SJoinLogicNode {
   SLogicNode node;
   EJoinType  joinType;
+  SNode*     pMergeCondition;
   SNode*     pOnConditions;
   bool       isSingleTableJoin;
 } SJoinLogicNode;
@@ -130,6 +131,7 @@ typedef struct SVnodeModifyLogicNode {
   int8_t           tableType;  // table type
   char             tableFName[TSDB_TABLE_FNAME_LEN];
   STimeWindow      deleteTimeRange;
+  SVgroupsInfo*    pVgroupList;
 } SVnodeModifyLogicNode;
 
 typedef struct SExchangeLogicNode {
@@ -329,6 +331,7 @@ typedef struct SInterpFuncPhysiNode {
 typedef struct SJoinPhysiNode {
   SPhysiNode node;
   EJoinType  joinType;
+  SNode*     pMergeCondition;
   SNode*     pOnConditions;
   SNodeList* pTargets;
 } SJoinPhysiNode;
@@ -453,6 +456,15 @@ typedef struct SDataInserterNode {
   uint32_t      size;
   char*         pData;
 } SDataInserterNode;
+
+typedef struct SQueryInserterNode {
+  SDataSinkNode sink;
+  uint64_t      tableId;
+  int8_t        tableType;  // table type
+  char          tableFName[TSDB_TABLE_FNAME_LEN];
+  int32_t       vgId;
+  SEpSet        epSet;
+} SQueryInserterNode;
 
 typedef struct SDataDeleterNode {
   SDataSinkNode sink;
