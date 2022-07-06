@@ -1992,7 +1992,7 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
   const void *pTKey;
   int         tkLen;
 
-  tdbError("ttl moveto, pager:%p, ipage:%d", pPager, pBtc->iPage);
+  tdbTrace("ttl moveto, pager:%p, ipage:%d", pPager, pBtc->iPage);
   if (pBtc->iPage < 0) {
     // move from a clear cursor
     ret = tdbPagerFetchPage(pPager, &pBt->root, &(pBtc->pPage), tdbBtreeInitPage,

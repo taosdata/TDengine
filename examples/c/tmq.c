@@ -124,6 +124,104 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
+  pRes = taos_query(pConn, "alter table st1 add column c4 bigint");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter super table st1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table st1 modify column c3 binary(64)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter super table st1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table st1 add tag t2 binary(64)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter super table st1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table ct3 set tag t1=5000");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to slter child table ct3, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "drop table ct3 ct1");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to drop child table ct3, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "drop table st1");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to drop super table st1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table if not exists n1(ts timestamp, c1 int, c2 nchar(4))");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create normal table n1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table n1 add column c3 bigint");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter normal table n1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table n1 modify column c2 nchar(8)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter normal table n1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table n1 rename column c3 cc3");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter normal table n1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table n1 drop column c1");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter normal table n1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "drop table n1");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to drop normal table n1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table jt(ts timestamp, i int) tags(t json)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table jt, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table jt1 using jt tags('{\"k1\":1, \"k2\":\"hello\"}')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table jt, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
   return 0;
 }
 

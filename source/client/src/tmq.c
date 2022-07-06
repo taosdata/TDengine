@@ -1684,7 +1684,8 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
       if (pollRspWrapper->metaRsp.head.epoch == consumerEpoch) {
         SMqClientVg* pVg = pollRspWrapper->vgHandle;
         /*printf("vg %d offset %ld up to %ld\n", pVg->vgId, pVg->currentOffset, rspMsg->msg.rspOffset);*/
-        pVg->currentOffsetNew = pollRspWrapper->metaRsp.rspOffsetNew;
+        pVg->currentOffsetNew.version = pollRspWrapper->metaRsp.rspOffset;
+        pVg->currentOffsetNew.type = TMQ_OFFSET__LOG;
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
         // build rsp
         SMqMetaRspObj* pRsp = tmqBuildMetaRspFromWrapper(pollRspWrapper);
@@ -1857,8 +1858,11 @@ static char *buildCreateTableJson(SSchemaWrapper *schemaRow, SSchemaWrapper* sch
   }
   cJSON* type = cJSON_CreateString("create");
   cJSON_AddItemToObject(json, "type", type);
-  cJSON* uid = cJSON_CreateNumber(id);
-  cJSON_AddItemToObject(json, "uid", uid);
+
+  char uid[32] = {0};
+  sprintf(uid, "%"PRIi64, id);
+  cJSON* id_ = cJSON_CreateString(uid);
+  cJSON_AddItemToObject(json, "id", id_);
   cJSON* tableName = cJSON_CreateString(name);
   cJSON_AddItemToObject(json, "tableName", tableName);
   cJSON* tableType = cJSON_CreateString(t == TSDB_NORMAL_TABLE ? "normal" : "super");
@@ -1874,8 +1878,15 @@ static char *buildCreateTableJson(SSchemaWrapper *schemaRow, SSchemaWrapper* sch
     cJSON_AddItemToObject(column, "name", cname);
     cJSON* ctype = cJSON_CreateNumber(s->type);
     cJSON_AddItemToObject(column, "type", ctype);
-    cJSON* cbytes = cJSON_CreateNumber(s->bytes);
-    cJSON_AddItemToObject(column, "bytes", cbytes);
+    if(s->type == TSDB_DATA_TYPE_BINARY){
+      int32_t length = s->bytes - VARSTR_HEADER_SIZE;
+      cJSON* cbytes = cJSON_CreateNumber(length);
+      cJSON_AddItemToObject(column, "length", cbytes);
+    }else if (s->type == TSDB_DATA_TYPE_NCHAR){
+      int32_t length = (s->bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
+      cJSON* cbytes = cJSON_CreateNumber(length);
+      cJSON_AddItemToObject(column, "length", cbytes);
+    }
     cJSON_AddItemToArray(columns, column);
   }
   cJSON_AddItemToObject(json, "columns", columns);
@@ -1888,8 +1899,15 @@ static char *buildCreateTableJson(SSchemaWrapper *schemaRow, SSchemaWrapper* sch
     cJSON_AddItemToObject(tag, "name", tname);
     cJSON* ttype = cJSON_CreateNumber(s->type);
     cJSON_AddItemToObject(tag, "type", ttype);
-    cJSON* tbytes = cJSON_CreateNumber(s->bytes);
-    cJSON_AddItemToObject(tag, "bytes", tbytes);
+    if(s->type == TSDB_DATA_TYPE_BINARY){
+      int32_t length = s->bytes - VARSTR_HEADER_SIZE;
+      cJSON* cbytes = cJSON_CreateNumber(length);
+      cJSON_AddItemToObject(tag, "length", cbytes);
+    }else if (s->type == TSDB_DATA_TYPE_NCHAR){
+      int32_t length = (s->bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
+      cJSON* cbytes = cJSON_CreateNumber(length);
+      cJSON_AddItemToObject(tag, "length", cbytes);
+    }
     cJSON_AddItemToArray(tags, tag);
   }
   cJSON_AddItemToObject(json, "tags", tags);
@@ -1929,13 +1947,19 @@ static char *buildCreateCTableJson(STag* pTag, int64_t sid, char* name, int64_t 
   }
   cJSON* type = cJSON_CreateString("create");
   cJSON_AddItemToObject(json, "type", type);
-  cJSON* uid = cJSON_CreateNumber(id);
-  cJSON_AddItemToObject(json, "uid", uid);
+  char cid[32] = {0};
+  sprintf(cid, "%"PRIi64, id);
+  cJSON* cid_ = cJSON_CreateString(cid);
+  cJSON_AddItemToObject(json, "id", cid_);
+
   cJSON* tableName = cJSON_CreateString(name);
   cJSON_AddItemToObject(json, "tableName", tableName);
   cJSON* tableType = cJSON_CreateString("child");
   cJSON_AddItemToObject(json, "tableType", tableType);
-  cJSON* using = cJSON_CreateNumber(sid);
+
+  char sid_[32] = {0};
+  sprintf(sid_, "%"PRIi64, sid);
+  cJSON* using = cJSON_CreateString(sid_);
   cJSON_AddItemToObject(json, "using", using);
 //  cJSON* version = cJSON_CreateNumber(1);
 //  cJSON_AddItemToObject(json, "version", version);
@@ -1946,11 +1970,11 @@ static char *buildCreateCTableJson(STag* pTag, int64_t sid, char* name, int64_t 
     char* pJson = parseTagDatatoJson(pTag);
 
     cJSON* tag = cJSON_CreateObject();
-    cJSON* tname = cJSON_CreateNumber(1);                 // todo
-    cJSON_AddItemToObject(tag, "cid", tname);
+    cJSON* tname = cJSON_CreateString("unknown");                 // todo
+    cJSON_AddItemToObject(tag, "name", tname);
     cJSON* ttype = cJSON_CreateNumber(TSDB_DATA_TYPE_JSON);
     cJSON_AddItemToObject(tag, "type", ttype);
-    cJSON* tvalue = cJSON_CreateString(pJson);   // todo
+    cJSON* tvalue = cJSON_CreateString(pJson);
     cJSON_AddItemToObject(tag, "value", tvalue);
     cJSON_AddItemToArray(tags, tag);
     cJSON_AddItemToObject(json, "tags", tags);
@@ -1965,15 +1989,27 @@ static char *buildCreateCTableJson(STag* pTag, int64_t sid, char* name, int64_t 
     goto end;
   }
 
-  for(int i = 0; taosArrayGetSize(pTagVals); i++){
+  for(int i = 0; i < taosArrayGetSize(pTagVals); i++){
     STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, i);
 
     cJSON* tag = cJSON_CreateObject();
-    cJSON* tname = cJSON_CreateNumber(pTagVal->cid);
-    cJSON_AddItemToObject(tag, "cid", tname);
+//    cJSON* tname = cJSON_CreateNumber(pTagVal->cid);
+    cJSON* tname = cJSON_CreateString("unkonwn");    // todo
+    cJSON_AddItemToObject(tag, "name", tname);
     cJSON* ttype = cJSON_CreateNumber(pTagVal->type);
     cJSON_AddItemToObject(tag, "type", ttype);
-    cJSON* tvalue = cJSON_CreateString("todo");   // todo
+
+    char* buf = NULL;
+    if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+      buf = taosMemoryCalloc(pTagVal->nData + 1, 1);
+      dataConverToStr(buf, pTagVal->type, pTagVal->pData, pTagVal->nData, NULL);
+    } else {
+      buf = taosMemoryCalloc(32, 1);
+      dataConverToStr(buf, pTagVal->type, &pTagVal->i64, tDataTypes[pTagVal->type].bytes, NULL);
+    }
+
+    cJSON* tvalue = cJSON_CreateString(buf);
+    taosMemoryFree(buf);
     cJSON_AddItemToObject(tag, "value", tvalue);
     cJSON_AddItemToArray(tags, tag);
   }
@@ -2039,7 +2075,7 @@ static char *processAlterTable(SMqMetaRsp *metaRsp){
 //  cJSON_AddItemToObject(json, "uid", uid);
   cJSON* tableName = cJSON_CreateString(vAlterTbReq.tbName);
   cJSON_AddItemToObject(json, "tableName", tableName);
-  cJSON* tableType = cJSON_CreateString("normal");
+  cJSON* tableType = cJSON_CreateString(vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ? "child" : "normal");
   cJSON_AddItemToObject(json, "tableType", tableType);
 
   switch (vAlterTbReq.action) {
@@ -2050,8 +2086,16 @@ static char *processAlterTable(SMqMetaRsp *metaRsp){
       cJSON_AddItemToObject(json, "colName", colName);
       cJSON* colType = cJSON_CreateNumber(vAlterTbReq.type);
       cJSON_AddItemToObject(json, "colType", colType);
-      cJSON* colBytes = cJSON_CreateNumber(vAlterTbReq.bytes);
-      cJSON_AddItemToObject(json, "colBytes", colBytes);
+
+      if(vAlterTbReq.type == TSDB_DATA_TYPE_BINARY){
+        int32_t length = vAlterTbReq.bytes - VARSTR_HEADER_SIZE;
+        cJSON* cbytes = cJSON_CreateNumber(length);
+        cJSON_AddItemToObject(json, "colLength", cbytes);
+      }else if (vAlterTbReq.type == TSDB_DATA_TYPE_NCHAR){
+        int32_t length = (vAlterTbReq.bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
+        cJSON* cbytes = cJSON_CreateNumber(length);
+        cJSON_AddItemToObject(json, "colLength", cbytes);
+      }
       break;
     }
     case TSDB_ALTER_TABLE_DROP_COLUMN:{
@@ -2068,8 +2112,15 @@ static char *processAlterTable(SMqMetaRsp *metaRsp){
       cJSON_AddItemToObject(json, "colName", colName);
       cJSON* colType = cJSON_CreateNumber(vAlterTbReq.type);
       cJSON_AddItemToObject(json, "colType", colType);
-      cJSON* colBytes = cJSON_CreateNumber(vAlterTbReq.colModBytes);
-      cJSON_AddItemToObject(json, "colBytes", colBytes);
+      if(vAlterTbReq.type == TSDB_DATA_TYPE_BINARY){
+        int32_t length = vAlterTbReq.bytes - VARSTR_HEADER_SIZE;
+        cJSON* cbytes = cJSON_CreateNumber(length);
+        cJSON_AddItemToObject(json, "colLength", cbytes);
+      }else if (vAlterTbReq.type == TSDB_DATA_TYPE_NCHAR){
+        int32_t length = (vAlterTbReq.bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
+        cJSON* cbytes = cJSON_CreateNumber(length);
+        cJSON_AddItemToObject(json, "colLength", cbytes);
+      }
       break;
     }
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:{
@@ -2079,6 +2130,17 @@ static char *processAlterTable(SMqMetaRsp *metaRsp){
       cJSON_AddItemToObject(json, "colName", colName);
       cJSON* colNewName = cJSON_CreateString(vAlterTbReq.colNewName);
       cJSON_AddItemToObject(json, "colNewName", colNewName);
+      break;
+    }
+    case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:{
+      cJSON* alterType = cJSON_CreateNumber(TSDB_ALTER_TABLE_UPDATE_TAG_VAL);
+      cJSON_AddItemToObject(json, "alterType", alterType);
+      cJSON* tagName = cJSON_CreateString(vAlterTbReq.tagName);
+      cJSON_AddItemToObject(json, "colName", tagName);
+      cJSON* colValue = cJSON_CreateString("invalid, todo");   // todo
+      cJSON_AddItemToObject(json, "colValue", colValue);
+      cJSON* isNull = cJSON_CreateBool(vAlterTbReq.isNull);
+      cJSON_AddItemToObject(json, "colValueNull", isNull);
       break;
     }
     default:
@@ -2110,8 +2172,10 @@ static char *processDropSTable(SMqMetaRsp *metaRsp){
   }
   cJSON* type = cJSON_CreateString("drop");
   cJSON_AddItemToObject(json, "type", type);
-  cJSON* uid = cJSON_CreateNumber(req.suid);
-  cJSON_AddItemToObject(json, "uid", uid);
+  char uid[32] = {0};
+  sprintf(uid, "%"PRIi64, req.suid);
+  cJSON* id = cJSON_CreateString(uid);
+  cJSON_AddItemToObject(json, "id", id);
   cJSON* tableName = cJSON_CreateString(req.name);
   cJSON_AddItemToObject(json, "tableName", tableName);
   cJSON* tableType = cJSON_CreateString("super");
@@ -2145,8 +2209,8 @@ static char *processDropTable(SMqMetaRsp *metaRsp){
   cJSON_AddItemToObject(json, "type", type);
 //  cJSON* uid = cJSON_CreateNumber(id);
 //  cJSON_AddItemToObject(json, "uid", uid);
-  cJSON* tableType = cJSON_CreateString("normal");
-  cJSON_AddItemToObject(json, "tableType", tableType);
+//  cJSON* tableType = cJSON_CreateString("normal");
+//  cJSON_AddItemToObject(json, "tableType", tableType);
 
   cJSON* tableNameList = cJSON_CreateArray();
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
@@ -2173,7 +2237,7 @@ char *tmq_get_json_meta(TAOS_RES *res){
   if(pMetaRspObj->metaRsp.resMsgType == TDMT_VND_CREATE_STB){
     return processCreateStb(&pMetaRspObj->metaRsp);
   }else if(pMetaRspObj->metaRsp.resMsgType == TDMT_VND_ALTER_STB){
-
+    return processCreateStb(&pMetaRspObj->metaRsp);
   }else if(pMetaRspObj->metaRsp.resMsgType == TDMT_VND_DROP_STB){
     return processDropSTable(&pMetaRspObj->metaRsp);
   }else if(pMetaRspObj->metaRsp.resMsgType == TDMT_VND_CREATE_TABLE){
