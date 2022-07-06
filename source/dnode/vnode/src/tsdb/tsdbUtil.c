@@ -226,8 +226,8 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph) {
 }
 
 int32_t tCmprBlockIdx(void const *lhs, void const *rhs) {
-  SBlockIdx *lBlockIdx = *(SBlockIdx **)lhs;
-  SBlockIdx *rBlockIdx = *(SBlockIdx **)rhs;
+  SBlockIdx *lBlockIdx = (SBlockIdx *)lhs;
+  SBlockIdx *rBlockIdx = (SBlockIdx *)rhs;
 
   if (lBlockIdx->suid < rBlockIdx->suid) {
     return -1;
@@ -382,8 +382,8 @@ int32_t tBlockColCmprFn(const void *p1, const void *p2) {
 
 // SDelIdx ======================================================
 int32_t tCmprDelIdx(void const *lhs, void const *rhs) {
-  SDelIdx *lDelIdx = *(SDelIdx **)lhs;
-  SDelIdx *rDelIdx = *(SDelIdx **)rhs;
+  SDelIdx *lDelIdx = (SDelIdx *)lhs;
+  SDelIdx *rDelIdx = (SDelIdx *)rhs;
 
   if (lDelIdx->suid < rDelIdx->suid) {
     return -1;
