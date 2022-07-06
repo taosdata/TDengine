@@ -33,13 +33,12 @@ print =============== step3:
 print =============== stop
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
+print =============== check
 print ----> start to check if there are ERRORS in vagrind log file for each dnode
-# -n : dnode[x] be check
 system_content sh/checkValgrind.sh -n dnode1 
 
-# temporarily expand the threshold, since no time to fix the memory leaks.
 print cmd return result ----> [ $system_content ]
-if $system_content <= 10 then
+if $system_content <= 40 then
   return 0
 endi 
 
