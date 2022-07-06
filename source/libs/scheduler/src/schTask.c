@@ -159,7 +159,6 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
   bool    needRetry = false;
   bool    moved = false;
   int32_t taskDone = 0;
-  int32_t code = 0;
 
   SCH_TASK_DLOG("taskOnFailure, code:%s", tstrerror(errCode));
 
@@ -180,8 +179,10 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
 
       if (taskDone < pTask->level->taskNum) {
         SCH_TASK_DLOG("need to wait other tasks, doneNum:%d, allNum:%d", taskDone, pTask->level->taskNum);
-        SCH_RET(errCode);
+        SCH_RET(TSDB_CODE_SCH_IGNORE_ERROR);
       }
+
+      SCH_RET(atomic_load_32(&pJob->errCode));
     }
   } else {
     SCH_ERR_RET(schHandleTaskRetry(pJob, pTask));
@@ -189,7 +190,7 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
     return TSDB_CODE_SUCCESS;
   }
 
-  SCH_RET(code);
+  SCH_RET(errCode);
 }
 
 
