@@ -1326,9 +1326,9 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     pInfo->tableUid = pScanPhyNode->uid;
 
     // set the extract column id to streamHandle
-    tqReadHandleSetColIdList((SStreamReader*)pHandle->streamReader, pColIds);
+    tqReadHandleSetColIdList(pInfo->streamReader, pColIds);
     SArray* tableIdList = extractTableIdList(&pTaskInfo->tableqinfoList);
-    int32_t code = tqReadHandleSetTbUidList(pHandle->streamReader, tableIdList);
+    int32_t code = tqReadHandleSetTbUidList(pInfo->streamReader, tableIdList);
     if (code != 0) {
       taosArrayDestroy(tableIdList);
       goto _error;
