@@ -94,8 +94,6 @@ class TDTestCase:
         tdSql.checkData(0, 0, 160)
         tdSql.query("select count(*) from db.stb where c13 = 'b1' or c13 = 'b2'")
         tdSql.checkData(0, 0, 160)
-        tdSql.query("select count(*) from db.stb where t0 >= 0 and t0 <= 10")
-        tdSql.checkData(0, 0, 160)
         tdSql.query("select count(*) from db.stb where t1 >= 0 and t1 <= 10")
         tdSql.checkData(0, 0, 160)
         tdSql.query("select count(*) from db.stb where t2 >= 0 and t2 <= 10")
