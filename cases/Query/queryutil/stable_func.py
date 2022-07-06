@@ -715,7 +715,14 @@ class TDFunction():
         time_to_iso8601 = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         
         return time_to_iso8601   
-
+    def time_to_iso8601_1(self):   
+        hanshu = ['TO_ISO8601']      
+        column = ['(now())'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        time_to_iso8601 = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        
+        return time_to_iso8601  
+    
     def time_to_unixtimestamp(self):   
         hanshu = ['TO_UNIXTIMESTAMP']  
         #增加日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回0。
@@ -807,7 +814,9 @@ class TDFunction():
         elif i == 3:
             func_stable_time = self.time_zone() 
         elif i == 4:
-            func_stable_time = self.time_to_iso8601() 
+            func_stable_time = self.time_to_iso8601()
+        elif i == 41:
+            func_stable_time = self.time_to_iso8601_1()  
         elif i == 5:
             func_stable_time = self.time_to_unixtimestamp()    
         elif i == 6:
