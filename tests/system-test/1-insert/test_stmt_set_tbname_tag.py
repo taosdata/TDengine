@@ -218,13 +218,13 @@ class TDTestCase:
             tdLog.debug("assert 8th case %s"%rows)
             assert rows[0][0] == 3, ' 8th case is failed'
 
-            # #query: selector Functions 9
-            # queryparam=new_bind_params(1)
-            # queryparam[0].int(2)
-            # rows=self.stmtExe(conn,"select bottom(bu,?)  from log group by bu ; ",queryparam)
-            # tdLog.debug("assert 9th case %s"%rows)
-            # assert rows[0][0] == 4, ' 9 case is failed'
-            # assert rows[1][0] == 3, ' 9 case is failed'
+            #query: selector Functions 9
+            queryparam=new_bind_params(1)
+            queryparam[0].int(2)
+            rows=self.stmtExe(conn,"select bottom(bu,?)  from log group by bu  order by bu desc ; ",queryparam)
+            tdLog.debug("assert 9th case %s"%rows)
+            assert rows[1][0] == 4, ' 9 case is failed'
+            assert rows[2][0] == 3, ' 9 case is failed'
 
             # #query: time-series specific Functions 10
 

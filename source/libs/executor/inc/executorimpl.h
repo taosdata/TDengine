@@ -479,6 +479,8 @@ typedef struct SAggOperatorInfo {
   uint64_t           groupId;
   SGroupResInfo      groupResInfo;
   SExprSupp          scalarExprSup;
+
+  SNode             *pCondition;
 } SAggOperatorInfo;
 
 typedef struct SProjectOperatorInfo {
@@ -680,6 +682,8 @@ typedef struct SSortOperatorInfo {
 
   int64_t      startTs;       // sort start time
   uint64_t     sortElapsed;   // sort elapsed time, time to flush to disk not included.
+
+  SNode*      pCondition;
 } SSortOperatorInfo;
 
 typedef struct STagFilterOperatorInfo {
@@ -758,7 +762,7 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
                                          STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode *pScanPhyNode, const char* pUser, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
+SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SNode* pCondition, SExprInfo* pScalarExprInfo,
                                            int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode *pNode, SExecTaskInfo* pTaskInfo);
