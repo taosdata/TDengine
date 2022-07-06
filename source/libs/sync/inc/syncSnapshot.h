@@ -83,9 +83,9 @@ typedef struct SSyncSnapshotReceiver {
 
 SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId);
 void                   snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver);
-int32_t snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncTerm privateTerm, SyncSnapshotSend *pBeginMsg);
-int32_t snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
-bool    snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver);
+int32_t                snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg);
+int32_t                snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
+bool                   snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver);
 
 cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver);
 char  *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver);

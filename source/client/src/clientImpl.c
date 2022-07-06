@@ -279,7 +279,6 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   }
 
   pRequest->body.queryFp(pRequest->body.param, pRequest, code);
-  //  pRequest->body.fetchFp(pRequest->body.param, pRequest, pResultInfo->numOfRows);
 }
 
 int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
