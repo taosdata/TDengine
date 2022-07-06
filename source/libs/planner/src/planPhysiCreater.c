@@ -1502,7 +1502,7 @@ static int32_t buildInsertValuesSubplan(SPhysiPlanContext* pCxt, SVnodeModifyLog
   return createDataInserter(pCxt, pModify->pVgDataBlocks, &pSubplan->pDataSink);
 }
 
-static int32_t createQueryInserter(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode* pModify, const SPhysiNode* pRoot,
+static int32_t createQueryInserter(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode* pModify, SSubplan* pSubplan,
                                    SDataSinkNode** pSink) {
   SQueryInserterNode* pInserter = (SQueryInserterNode*)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT);
   if (NULL == pInserter) {
@@ -1514,10 +1514,12 @@ static int32_t createQueryInserter(SPhysiPlanContext* pCxt, SVnodeModifyLogicNod
   strcpy(pInserter->tableFName, pModify->tableFName);
   pInserter->vgId = pModify->pVgroupList->vgroups[0].vgId;
   pInserter->epSet = pModify->pVgroupList->vgroups[0].epSet;
+  vgroupInfoToNodeAddr(pModify->pVgroupList->vgroups, &pSubplan->execNode);
 
   int32_t code = TSDB_CODE_SUCCESS;
 
-  pInserter->sink.pInputDataBlockDesc = (SDataBlockDescNode*)nodesCloneNode((SNode*)pRoot->pOutputDataBlockDesc);
+  pInserter->sink.pInputDataBlockDesc =
+      (SDataBlockDescNode*)nodesCloneNode((SNode*)pSubplan->pNode->pOutputDataBlockDesc);
   if (NULL == pInserter->sink.pInputDataBlockDesc) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -1535,7 +1537,7 @@ static int32_t buildInsertSelectSubplan(SPhysiPlanContext* pCxt, SVnodeModifyLog
   int32_t code =
       createPhysiNode(pCxt, (SLogicNode*)nodesListGetNode(pModify->node.pChildren, 0), pSubplan, &pSubplan->pNode);
   if (TSDB_CODE_SUCCESS == code) {
-    code = createQueryInserter(pCxt, pModify, pSubplan->pNode, &pSubplan->pDataSink);
+    code = createQueryInserter(pCxt, pModify, pSubplan, &pSubplan->pDataSink);
   }
   pSubplan->msgType = TDMT_VND_SUBMIT;
   return code;

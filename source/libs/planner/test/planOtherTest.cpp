@@ -95,5 +95,5 @@ TEST_F(PlanOtherTest, delete) {
 TEST_F(PlanOtherTest, insert) {
   useDb("root", "test");
 
-  // run("INSERT INTO t1 SELECT * FROM t1");
+  run("INSERT INTO t1 SELECT * FROM t1");
 }

@@ -2846,6 +2846,9 @@ static int32_t translateInsert(STranslateContext* pCxt, SInsertStmt* pInsert) {
     code = translateExprList(pCxt, pInsert->pCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = resetTranslateNamespace(pCxt);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = translateQuery(pCxt, pInsert->pQuery);
   }
   return code;

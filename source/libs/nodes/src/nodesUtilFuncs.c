@@ -327,6 +327,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDataDispatcherNode));
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
       return makeNode(type, sizeof(SDataInserterNode));
+    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
+      return makeNode(type, sizeof(SQueryInserterNode));
     case QUERY_NODE_PHYSICAL_PLAN_DELETE:
       return makeNode(type, sizeof(SDataDeleterNode));
     case QUERY_NODE_PHYSICAL_SUBPLAN:
@@ -932,6 +934,11 @@ void nodesDestroyNode(SNode* pNode) {
       SDataInserterNode* pSink = (SDataInserterNode*)pNode;
       destroyDataSinkNode((SDataSinkNode*)pSink);
       taosMemoryFreeClear(pSink->pData);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
+      SQueryInserterNode* pSink = (SQueryInserterNode*)pNode;
+      destroyDataSinkNode((SDataSinkNode*)pSink);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {

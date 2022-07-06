@@ -1282,6 +1282,7 @@ static int32_t createVnodeModifLogicNodeByInsert(SLogicPlanContext* pCxt, SInser
   pModify->tableType = pRealTable->pMeta->tableType;
   snprintf(pModify->tableFName, sizeof(pModify->tableFName), "%d.%s.%s", pCxt->pPlanCxt->acctId,
            pRealTable->table.dbName, pRealTable->table.tableName);
+  TSWAP(pModify->pVgroupList, pRealTable->pVgroupList);
 
   *pLogicNode = (SLogicNode*)pModify;
   return TSDB_CODE_SUCCESS;
