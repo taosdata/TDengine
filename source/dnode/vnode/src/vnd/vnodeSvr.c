@@ -28,7 +28,7 @@ static int32_t vnodeProcessAlterHasnRangeReq(SVnode *pVnode, int64_t version, vo
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 
-int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
+int32_t vnodePreProcessReq(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t  code = 0;
   SDecoder dc = {0};
 

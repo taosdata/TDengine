@@ -739,9 +739,12 @@ int64_t mndGetVgroupMemory(SMnode *pMnode, SDbObj *pDbInput, SVgObj *pVgroup) {
     pDb = mndAcquireDb(pMnode, pVgroup->dbName);
   }
 
-  int64_t vgroupMemroy = (int64_t)pDb->cfg.buffer * 1024 * 1024 + (int64_t)pDb->cfg.pages * pDb->cfg.pageSize * 1024;
-  if (pDb->cfg.cacheLastRow > 0) {
-    vgroupMemroy += (int64_t)pDb->cfg.lastRowMem * 1024 * 1024;
+  int64_t vgroupMemroy = 0;
+  if (pDb != NULL) {
+    vgroupMemroy = (int64_t)pDb->cfg.buffer * 1024 * 1024 + (int64_t)pDb->cfg.pages * pDb->cfg.pageSize * 1024;
+    if (pDb->cfg.cacheLastRow > 0) {
+      vgroupMemroy += (int64_t)pDb->cfg.lastRowMem * 1024 * 1024;
+    }
   }
 
   if (pDbInput == NULL) {
