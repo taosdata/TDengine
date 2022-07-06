@@ -523,7 +523,14 @@ static int32_t tsdbCommitTableMemData(SCommitter *pCommitter, STbDataIter *pIter
 
     tsdbTbDataIterNext(pIter);
     pRow = tsdbTbDataIterGet(pIter);
-    if (pRow && tsdbKeyCmprFn(&TSDBROW_KEY(pRow), &toKey) >= 0) pRow = NULL;
+    // if (pRow && tsdbKeyCmprFn(&TSDBROW_KEY(pRow), &toKey) >= 0) pRow = NULL;
+    // crash on CI, use the block following
+    if (pRow) {
+      TSDBKEY tmpKey = TSDBROW_KEY(pRow);
+      if (tsdbKeyCmprFn(&tmpKey, &toKey) >= 0) {
+        pRow = NULL;
+      }
+    }
 
     if (pBlockData->nRow >= pCommitter->maxRow * 4 / 5) goto _write_block;
     continue;
