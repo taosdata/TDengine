@@ -665,8 +665,6 @@ static void destorySqlParseWrapper(SqlParseWrapper *pWrapper) {
 }
 
 void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
-  tscDebug("enter meta callback, code %s", tstrerror(code));
-
   SqlParseWrapper *pWrapper = (SqlParseWrapper *)param;
   SQuery *         pQuery = pWrapper->pQuery;
   SRequestObj *    pRequest = pWrapper->pRequest;
@@ -686,10 +684,11 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
     TSWAP(pRequest->tableList, (pQuery)->pTableList);
 
     destorySqlParseWrapper(pWrapper);
+
+    tscDebug("0x%"PRIx64" analysis semantics completed, start async query, reqId:0x%"PRIx64, pRequest->self, pRequest->requestId);
     launchAsyncQuery(pRequest, pQuery, pResultMeta);
   } else {
     destorySqlParseWrapper(pWrapper);
-    tscDebug("error happens, code:%d", code);
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
@@ -859,7 +858,12 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
     }
   }
 
-  schedulerAsyncFetchRows(pRequest->body.queryJob, fetchCallback, pRequest);
+  SSchedulerReq req = {
+    .syncReq = false,
+    .fetchFp = fetchCallback,
+    .cbParam = pRequest,
+  };
+  schedulerFetchRows(pRequest->body.queryJob, &req);
 }
 
 void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {

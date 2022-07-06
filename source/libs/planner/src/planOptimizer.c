@@ -75,6 +75,11 @@ static SLogicNode* optFindPossibleNode(SLogicNode* pNode, FMayBeOptimized func) 
   return NULL;
 }
 
+static void optResetParent(SLogicNode* pNode) {
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) { ((SLogicNode*)pChild)->pParent = pNode; }
+}
+
 EDealRes scanPathOptHaveNormalColImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     // *((bool*)pContext) = (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType);
@@ -480,23 +485,12 @@ static int32_t pushDownCondOptPushCondToProject(SOptimizeContext* pCxt, SProject
   return pushDownCondOptAppendCond(&pProject->node.pConditions, pCond);
 }
 
-static int32_t pushDownCondOptPushCondToJoin(SOptimizeContext* pCxt, SJoinLogicNode * pJoin, SNode** pCond) {
+static int32_t pushDownCondOptPushCondToJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SNode** pCond) {
   return pushDownCondOptAppendCond(&pJoin->node.pConditions, pCond);
 }
 
 static int32_t pushDownCondOptPushCondToChild(SOptimizeContext* pCxt, SLogicNode* pChild, SNode** pCond) {
-  switch (nodeType(pChild)) {
-    case QUERY_NODE_LOGIC_PLAN_SCAN:
-      return pushDownCondOptPushCondToScan(pCxt, (SScanLogicNode*)pChild, pCond);
-    case QUERY_NODE_LOGIC_PLAN_PROJECT:
-      return pushDownCondOptPushCondToProject(pCxt, (SProjectLogicNode*)pChild, pCond);
-    case QUERY_NODE_LOGIC_PLAN_JOIN:
-      return pushDownCondOptPushCondToJoin(pCxt, (SJoinLogicNode*)pChild, pCond);
-    default:
-      break;
-  }
-  planError("pushDownCondOptPushCondToChild failed, invalid logic plan node %s", nodesNodeName(nodeType(pChild)));
-  return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  return pushDownCondOptAppendCond(&pChild->pConditions, pCond);
 }
 
 static bool pushDownCondOptIsPriKey(SNode* pNode, SNodeList* pTableCols) {
@@ -563,9 +557,9 @@ static int32_t pushDownCondOptCheckJoinOnCond(SOptimizeContext* pCxt, SJoinLogic
 static int32_t pushDownCondOptPartJoinOnCondLogicCond(SJoinLogicNode* pJoin, SNode** ppMergeCond, SNode** ppOnCond) {
   SLogicConditionNode* pLogicCond = (SLogicConditionNode*)(pJoin->pOnConditions);
 
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t    code = TSDB_CODE_SUCCESS;
   SNodeList* pOnConds = NULL;
-  SNode* pCond = NULL;
+  SNode*     pCond = NULL;
   FOREACH(pCond, pLogicCond->pParameterList) {
     if (pushDownCondOptIsPriKeyEqualCond(pJoin, pCond)) {
       *ppMergeCond = nodesCloneNode(pCond);
@@ -610,8 +604,8 @@ static int32_t pushDownCondOptPartJoinOnCond(SJoinLogicNode* pJoin, SNode** ppMe
 
 static int32_t pushDownCondOptJoinExtractMergeCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   int32_t code = pushDownCondOptCheckJoinOnCond(pCxt, pJoin);
-  SNode* pJoinMergeCond = NULL;
-  SNode* pJoinOnCond = NULL;
+  SNode*  pJoinMergeCond = NULL;
+  SNode*  pJoinOnCond = NULL;
   if (TSDB_CODE_SUCCESS == code) {
     code = pushDownCondOptPartJoinOnCond(pJoin, &pJoinMergeCond, &pJoinOnCond);
   }
@@ -797,10 +791,7 @@ static int32_t pushDownCondOptDealAgg(SOptimizeContext* pCxt, SAggLogicNode* pAg
     return TSDB_CODE_SUCCESS;
   }
   // TODO: remove it after full implementation of pushing down to child
-  if (1 != LIST_LENGTH(pAgg->node.pChildren) ||
-      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) &&
-      QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) &&
-      QUERY_NODE_LOGIC_PLAN_JOIN != nodeType(nodesListGetNode(pAgg->node.pChildren, 0))) {
+  if (1 != LIST_LENGTH(pAgg->node.pChildren)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -827,6 +818,78 @@ static int32_t pushDownCondOptDealAgg(SOptimizeContext* pCxt, SAggLogicNode* pAg
   return code;
 }
 
+typedef struct SRewriteProjCondContext {
+  SProjectLogicNode* pProj;
+  int32_t            errCode;
+} SRewriteProjCondContext;
+
+static EDealRes rewriteProjectCondForPushDownImpl(SNode** ppNode, void* pContext) {
+  SRewriteProjCondContext* pCxt = pContext;
+  SProjectLogicNode*       pProj = pCxt->pProj;
+  if (QUERY_NODE_COLUMN == nodeType(*ppNode)) {
+    SNode* pTarget = NULL;
+    FOREACH(pTarget, pProj->node.pTargets) {
+      if (nodesEqualNode(pTarget, *ppNode)) {
+        SNode* pProjection = NULL;
+        FOREACH(pProjection, pProj->pProjections) {
+          if (0 == strcmp(((SExprNode*)pProjection)->aliasName, ((SColumnNode*)(*ppNode))->colName)) {
+            SNode* pExpr = nodesCloneNode(pProjection);
+            if (pExpr == NULL) {
+              pCxt->errCode = terrno;
+              return DEAL_RES_ERROR;
+            }
+            nodesDestroyNode(*ppNode);
+            *ppNode = pExpr;
+          }  // end if expr alias name equal column name
+        }    // end for each project
+      }      // end if target node equals cond column node
+    }        // end for each targets
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t rewriteProjectCondForPushDown(SOptimizeContext* pCxt, SProjectLogicNode* pProject,
+                                             SNode** ppProjectCond) {
+  SRewriteProjCondContext cxt = {.pProj = pProject, .errCode = TSDB_CODE_SUCCESS};
+  SNode*                  pProjectCond = pProject->node.pConditions;
+  nodesRewriteExpr(&pProjectCond, rewriteProjectCondForPushDownImpl, &cxt);
+  *ppProjectCond = pProjectCond;
+  pProject->node.pConditions = NULL;
+  return cxt.errCode;
+}
+
+static int32_t pushDownCondOptDealProject(SOptimizeContext* pCxt, SProjectLogicNode* pProject) {
+  if (NULL == pProject->node.pConditions ||
+      OPTIMIZE_FLAG_TEST_MASK(pProject->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // TODO: remove it after full implementation of pushing down to child
+  if (1 != LIST_LENGTH(pProject->node.pChildren)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL != pProject->node.pLimit || NULL != pProject->node.pSlimit) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pProjCond = NULL;
+  code = rewriteProjectCondForPushDown(pCxt, pProject, &pProjCond);
+  if (TSDB_CODE_SUCCESS == code) {
+    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
+    code = pushDownCondOptPushCondToChild(pCxt, pChild, &pProjCond);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    OPTIMIZE_FLAG_SET_MASK(pProject->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    pCxt->optimized = true;
+  } else {
+    nodesDestroyNode(pProjCond);
+  }
+  return code;
+}
+
 static int32_t pushDownCondOptimizeImpl(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pLogicNode)) {
@@ -838,6 +901,9 @@ static int32_t pushDownCondOptimizeImpl(SOptimizeContext* pCxt, SLogicNode* pLog
       break;
     case QUERY_NODE_LOGIC_PLAN_AGG:
       code = pushDownCondOptDealAgg(pCxt, (SAggLogicNode*)pLogicNode);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      code = pushDownCondOptDealProject(pCxt, (SProjectLogicNode*)pLogicNode);
       break;
     default:
       break;
@@ -1540,6 +1606,7 @@ static int32_t rewriteTailOptCreateSort(SIndefRowsFuncLogicNode* pIndef, SLogicN
 
   pSort->groupSort = rewriteTailOptNeedGroupSort(pIndef);
   TSWAP(pSort->node.pChildren, pIndef->node.pChildren);
+  optResetParent((SLogicNode*)pSort);
   pSort->node.precision = pIndef->node.precision;
 
   SFunctionNode* pTail = NULL;
@@ -1747,6 +1814,7 @@ static int32_t rewriteUniqueOptCreateAgg(SIndefRowsFuncLogicNode* pIndef, SLogic
   }
 
   TSWAP(pAgg->node.pChildren, pIndef->node.pChildren);
+  optResetParent((SLogicNode*)pAgg);
   pAgg->node.precision = pIndef->node.precision;
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -2015,13 +2083,18 @@ static const int32_t optimizeRuleNum = (sizeof(optimizeRuleSet) / sizeof(SOptimi
 static void dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
   char* pStr = NULL;
   nodesNodeToString((SNode*)pSubplan, false, &pStr, NULL);
-  qDebugL("apply optimize %s rule: %s", pRuleName, pStr);
+  if (NULL == pRuleName) {
+    qDebugL("before optimize: %s", pStr);
+  } else {
+    qDebugL("apply optimize %s rule: %s", pRuleName, pStr);
+  }
   taosMemoryFree(pStr);
 }
 
 static int32_t applyOptimizeRule(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SOptimizeContext cxt = {.pPlanCxt = pCxt, .optimized = false};
   bool             optimized = false;
+  dumpLogicSubplan(NULL, pLogicSubplan);
   do {
     optimized = false;
     for (int32_t i = 0; i < optimizeRuleNum; ++i) {

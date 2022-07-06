@@ -1174,7 +1174,7 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
                    (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
 
-  timeUnit = timeUnit * 1000 / factor;
+  int64_t unit = timeUnit * 1000 / factor;
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
@@ -1209,12 +1209,14 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
     NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal, sizeof(buf), buf);
     int32_t tsDigits = (int32_t)strlen(buf);
 
-    switch (timeUnit) {
-      case 0: { /* 1u */
+    switch (unit) {
+      case 0: { /* 1u or 1b */
         if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          timeVal = timeVal / 1000 * 1000;
-        //} else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-        //  //timeVal = timeVal / 1000;
+          if (timePrec == TSDB_TIME_PRECISION_NANO && timeUnit == 1) {
+            timeVal = timeVal * 1;
+          } else {
+            timeVal = timeVal / 1000 * 1000;
+          }
         } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
           timeVal = timeVal * factor;
         } else {
@@ -1366,8 +1368,6 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
                    (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
 
-  timeUnit = timeUnit * 1000 / factor;
-
   int32_t numOfRows = 0;
   for (int32_t i = 0; i < inputNum; ++i) {
     if (pInput[i].numOfRows > numOfRows) {
@@ -1447,9 +1447,14 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
         }
       }
     } else {
-      switch(timeUnit) {
-        case 0: { /* 1u */
-          result = result / 1000;
+      int64_t unit = timeUnit * 1000 / factor;
+      switch(unit) {
+        case 0: { /* 1u or 1b */
+          if (timePrec == TSDB_TIME_PRECISION_NANO && timeUnit == 1) {
+            result = result / 1;
+          } else {
+            result = result / 1000;
+          }
           break;
         }
         case 1: { /* 1a */

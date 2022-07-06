@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "dmNodes.h"
+#include "index.h"
 #include "qworker.h"
 
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
@@ -212,6 +213,8 @@ void dmCleanupDnode(SDnode *pDnode) {
   dmCleanupClient(pDnode);
   dmCleanupServer(pDnode);
   dmClearVars(pDnode);
+  rpcCleanup();
+  indexCleanup();
   dDebug("dnode is closed, ptr:%p", pDnode);
 }
 
