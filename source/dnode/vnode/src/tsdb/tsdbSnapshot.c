@@ -465,6 +465,17 @@ _err:
   return code;
 }
 
+static int32_t tsdbSnapWriteDataEnd(STsdbSnapWriter* pWriter) {
+  int32_t code = 0;
+  STsdb*  pTsdb = pWriter->pTsdb;
+
+_exit:
+  return code;
+
+_err:
+  return code;
+}
+
 static int32_t tsdbSnapWriteDelEnd(STsdbSnapWriter* pWriter) {
   int32_t code = 0;
   STsdb*  pTsdb = pWriter->pTsdb;
@@ -539,6 +550,12 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
     code = tsdbSnapRollback(pWriter);
     if (code) goto _err;
   } else {
+    code = tsdbSnapWriteDataEnd(pWriter);
+    if (code) goto _err;
+
+    code = tsdbSnapWriteDelEnd(pWriter);
+    if (code) goto _err;
+
     code = tsdbSnapCommit(pWriter);
     if (code) goto _err;
   }
@@ -562,13 +579,8 @@ int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
     code = tsdbSnapWriteData(pWriter, pData + 1, nData - 1);
     if (code) goto _err;
   } else {
-    if (pWriter->pDataFWriter) {
-      // commit the remain data of the FSet (todo)
-
-      // close and update the file
-      code = tsdbDataFWriterClose(&pWriter->pDataFWriter, 1);
-      if (code) goto _err;
-    }
+    code = tsdbSnapWriteDataEnd(pWriter);
+    if (code) goto _err;
   }
 
   // del data
