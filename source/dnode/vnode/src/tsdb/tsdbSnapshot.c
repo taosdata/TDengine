@@ -379,6 +379,7 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
   int32_t fid = tsdbKeyFid(skey, pWriter->minutes, pWriter->precision);
   ASSERT(fid == tsdbKeyFid(ekey, pWriter->minutes, pWriter->precision));
 
+  // begin
   if (pWriter->pDataFWriter == NULL || pWriter->fid != fid) {
     code = tsdbSnapWriteDataEnd(pWriter);
     if (code) goto _err;
@@ -409,6 +410,29 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
     if (code) goto _err;
 
     taosArrayClear(pWriter->aBlockIdxN);
+  }
+
+  // process
+  TABLEID id = {0};  // TODO
+
+  while (true) {
+    SBlockIdx* pBlockIdx = NULL;
+
+    if (pWriter->iBlockIdx < taosArrayGetSize(pWriter->aBlockIdx)) {
+      pBlockIdx = (SBlockIdx*)taosArrayGet(pWriter->aBlockIdx, pWriter->iBlockIdx);
+    }
+
+    if (pBlockIdx) {
+      int32_t c = tTABLEIDCmprFn(&id, pBlockIdx);
+
+      if (c == 0) {
+        // merge
+      } else if (c < 0) {
+        // write the block
+      } else {
+        // commit the block
+      }
+    }
   }
 
   return code;
