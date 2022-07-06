@@ -81,3 +81,8 @@ TEST_F(PlanOptimizeTest, eliminateProjection) {
   run("SELECT c1 FROM st1s3");
   // run("select 1-abs(c1) from (select unique(c1) c1 from st1s3) order by 1 nulls first");
 }
+
+TEST_F(PlanOptimizeTest, pushDownProjectCond) {
+  useDb("root", "test");
+  run("select 1-abs(c1) from (select unique(c1) c1 from st1s3) where 1-c1>5 order by 1 nulls first");
+}
