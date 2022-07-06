@@ -478,6 +478,9 @@ class TDTestCase:
         self.test_case3()
         # tdLog.debug(" LIMIT test_case3 ............ [OK]")
 
+    def stop(self):
+        tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")
 
         return 
 #
