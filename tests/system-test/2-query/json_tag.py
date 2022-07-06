@@ -33,9 +33,9 @@ class TDTestCase:
     def init(self, conn, logSql):
         self.testcasePath = os.path.split(__file__)[0]
         self.testcaseFilename = os.path.split(__file__)[-1]
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
+        # os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+        tdSql.init(conn.cursor(), True)
 
     def run(self):
         # tdSql.prepare()
