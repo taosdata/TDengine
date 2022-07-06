@@ -682,6 +682,8 @@ typedef struct SSortOperatorInfo {
 
   int64_t      startTs;       // sort start time
   uint64_t     sortElapsed;   // sort elapsed time, time to flush to disk not included.
+
+  SNode*      pCondition;
 } SSortOperatorInfo;
 
 typedef struct STagFilterOperatorInfo {
