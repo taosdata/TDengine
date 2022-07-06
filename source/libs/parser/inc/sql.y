@@ -259,7 +259,7 @@ multi_create_clause(A) ::= multi_create_clause(B) create_subtable_clause(C).    
 
 create_subtable_clause(A) ::=
   not_exists_opt(B) full_table_name(C) USING full_table_name(D)
-  specific_tags_opt(E) TAGS NK_LP expression_list(F) NK_RP table_options(G).      { A = createCreateSubTableClause(pCxt, B, C, D, E, F, G); }
+  specific_cols_opt(E) TAGS NK_LP expression_list(F) NK_RP table_options(G).      { A = createCreateSubTableClause(pCxt, B, C, D, E, F, G); }
 
 %type multi_drop_clause                                                           { SNodeList* }
 %destructor multi_drop_clause                                                     { nodesDestroyList($$); }
@@ -268,10 +268,10 @@ multi_drop_clause(A) ::= multi_drop_clause(B) drop_table_clause(C).             
 
 drop_table_clause(A) ::= exists_opt(B) full_table_name(C).                        { A = createDropTableClause(pCxt, B, C); }
 
-%type specific_tags_opt                                                           { SNodeList* }
-%destructor specific_tags_opt                                                     { nodesDestroyList($$); }
-specific_tags_opt(A) ::= .                                                        { A = NULL; }
-specific_tags_opt(A) ::= NK_LP col_name_list(B) NK_RP.                            { A = B; }
+%type specific_cols_opt                                                           { SNodeList* }
+%destructor specific_cols_opt                                                     { nodesDestroyList($$); }
+specific_cols_opt(A) ::= .                                                        { A = NULL; }
+specific_cols_opt(A) ::= NK_LP col_name_list(B) NK_RP.                            { A = B; }
 
 full_table_name(A) ::= table_name(B).                                             { A = createRealTableNode(pCxt, NULL, &B, NULL); }
 full_table_name(A) ::= db_name(B) NK_DOT table_name(C).                           { A = createRealTableNode(pCxt, &B, &C, NULL); }
@@ -514,6 +514,9 @@ cmd ::= DELETE FROM full_table_name(A) where_clause_opt(B).                     
 
 /************************************************ select **************************************************************/
 cmd ::= query_expression(A).                                                      { pCxt->pRootNode = A; }
+
+/************************************************ insert **************************************************************/
+cmd ::= INSERT INTO full_table_name(A) specific_cols_opt(B) query_expression(C).  { pCxt->pRootNode = createInsertStmt(pCxt, A, B, C); }
 
 /************************************************ literal *************************************************************/
 literal(A) ::= NK_INTEGER(B).                                                     { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B)); }
@@ -973,4 +976,4 @@ null_ordering_opt(A) ::= .                                                      
 null_ordering_opt(A) ::= NULLS FIRST.                                             { A = NULL_ORDER_FIRST; }
 null_ordering_opt(A) ::= NULLS LAST.                                              { A = NULL_ORDER_LAST; }
 
-%fallback ID NK_BITNOT INSERT VALUES IMPORT NK_SEMI FILE.
+%fallback ID NK_BITNOT VALUES IMPORT NK_SEMI FILE.

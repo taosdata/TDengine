@@ -131,6 +131,7 @@ typedef struct SVnodeModifyLogicNode {
   int8_t           tableType;  // table type
   char             tableFName[TSDB_TABLE_FNAME_LEN];
   STimeWindow      deleteTimeRange;
+  SVgroupsInfo*    pVgroupList;
 } SVnodeModifyLogicNode;
 
 typedef struct SExchangeLogicNode {
@@ -455,6 +456,15 @@ typedef struct SDataInserterNode {
   uint32_t      size;
   char*         pData;
 } SDataInserterNode;
+
+typedef struct SQueryInserterNode {
+  SDataSinkNode sink;
+  uint64_t      tableId;
+  int8_t        tableType;  // table type
+  char          tableFName[TSDB_TABLE_FNAME_LEN];
+  int32_t       vgId;
+  SEpSet        epSet;
+} SQueryInserterNode;
 
 typedef struct SDataDeleterNode {
   SDataSinkNode sink;

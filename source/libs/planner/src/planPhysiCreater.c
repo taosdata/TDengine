@@ -632,8 +632,8 @@ static int32_t createJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pOnConditions) {
-    code = setNodeSlotId(pCxt, ((SPhysiNode*)pJoin)->pOutputDataBlockDesc->dataBlockId, -1, pJoinLogicNode->pOnConditions,
-                         &pJoin->pOnConditions);
+    code = setNodeSlotId(pCxt, ((SPhysiNode*)pJoin)->pOutputDataBlockDesc->dataBlockId, -1,
+                         pJoinLogicNode->pOnConditions, &pJoin->pOnConditions);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -1496,10 +1496,56 @@ static SSubplan* makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubpl
   return pSubplan;
 }
 
-static int32_t buildInsertSubplan(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode* pModify, SSubplan* pSubplan) {
+static int32_t buildInsertValuesSubplan(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode* pModify, SSubplan* pSubplan) {
   pSubplan->msgType = pModify->msgType;
   pSubplan->execNode.epSet = pModify->pVgDataBlocks->vg.epSet;
   return createDataInserter(pCxt, pModify->pVgDataBlocks, &pSubplan->pDataSink);
+}
+
+static int32_t createQueryInserter(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode* pModify, const SPhysiNode* pRoot,
+                                   SDataSinkNode** pSink) {
+  SQueryInserterNode* pInserter = (SQueryInserterNode*)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT);
+  if (NULL == pInserter) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pInserter->tableId = pModify->tableId;
+  pInserter->tableType = pModify->tableType;
+  strcpy(pInserter->tableFName, pModify->tableFName);
+  pInserter->vgId = pModify->pVgroupList->vgroups[0].vgId;
+  pInserter->epSet = pModify->pVgroupList->vgroups[0].epSet;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  pInserter->sink.pInputDataBlockDesc = (SDataBlockDescNode*)nodesCloneNode((SNode*)pRoot->pOutputDataBlockDesc);
+  if (NULL == pInserter->sink.pInputDataBlockDesc) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pSink = (SDataSinkNode*)pInserter;
+  } else {
+    nodesDestroyNode((SNode*)pInserter);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t buildInsertSelectSubplan(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode* pModify, SSubplan* pSubplan) {
+  int32_t code =
+      createPhysiNode(pCxt, (SLogicNode*)nodesListGetNode(pModify->node.pChildren, 0), pSubplan, &pSubplan->pNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createQueryInserter(pCxt, pModify, pSubplan->pNode, &pSubplan->pDataSink);
+  }
+  pSubplan->msgType = TDMT_VND_SUBMIT;
+  return code;
+}
+
+static int32_t buildInsertSubplan(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode* pModify, SSubplan* pSubplan) {
+  if (NULL == pModify->node.pChildren) {
+    return buildInsertValuesSubplan(pCxt, pModify, pSubplan);
+  }
+  return buildInsertSelectSubplan(pCxt, pModify, pSubplan);
 }
 
 static int32_t createDataDeleter(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode* pModify, const SPhysiNode* pRoot,
