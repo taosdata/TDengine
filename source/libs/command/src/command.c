@@ -548,19 +548,17 @@ static int32_t execShowLocalVariables(SRetrieveTableRsp** pRsp) {
 }
 
 static int32_t createSelectResultDataBlock(SNodeList* pProjects, SSDataBlock** pOutput) {
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  SSDataBlock* pBlock = createDataBlock();
   if (NULL == pBlock) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-
-  pBlock->pDataBlock = taosArrayInit(LIST_LENGTH(pProjects), sizeof(SColumnInfoData));
 
   SNode* pProj = NULL;
   FOREACH(pProj, pProjects) {
     SColumnInfoData infoData = {0};
     infoData.info.type = ((SExprNode*)pProj)->resType.type;
     infoData.info.bytes = ((SExprNode*)pProj)->resType.bytes;
-    taosArrayPush(pBlock->pDataBlock, &infoData);
+    blockDataAppendColInfo(pBlock, &infoData);
   }
   *pOutput = pBlock;
   return TSDB_CODE_SUCCESS;

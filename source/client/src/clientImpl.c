@@ -279,7 +279,6 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   }
 
   pRequest->body.queryFp(pRequest->body.param, pRequest, code);
-  //  pRequest->body.fetchFp(pRequest->body.param, pRequest, pResultInfo->numOfRows);
 }
 
 int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
@@ -628,22 +627,26 @@ _return:
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
 
-  SQueryResult     res = {0};
+  SExecResult     res = {0};
   SRequestConnInfo conn = {.pTrans = pRequest->pTscObj->pAppInfo->pTransporter,
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self};
-  SSchedulerReq    req = {.pConn = &conn,
-                       .pNodeList = pNodeList,
-                       .pDag = pDag,
-                       .sql = pRequest->sqlstr,
-                       .startTs = pRequest->metric.start,
-                       .execFp = NULL,
-                       .execParam = NULL,
-                       .chkKillFp = chkRequestKilled,
-                       .chkKillParam = (void*)pRequest->self};
+  SSchedulerReq    req = {
+    .syncReq = true,
+    .pConn = &conn,
+    .pNodeList = pNodeList,
+    .pDag = pDag,
+    .sql = pRequest->sqlstr,
+    .startTs = pRequest->metric.start,
+    .execFp = NULL,
+    .cbParam = NULL,
+    .chkKillFp = chkRequestKilled,
+    .chkKillParam = (void*)pRequest->self,
+    .pExecRes = &res,
+  };
 
-  int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob, &res);
-  pRequest->body.resInfo.execRes = res.res;
+  int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
+  memcpy(&pRequest->body.resInfo.execRes, &res, sizeof(res));
 
   if (code != TSDB_CODE_SUCCESS) {
     schedulerFreeJob(&pRequest->body.queryJob, 0);
@@ -754,7 +757,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   }
 
   SEpSet         epset = getEpSet_s(&pAppInfo->mgmtEp);
-  SQueryExecRes* pRes = &pRequest->body.resInfo.execRes;
+  SExecResult* pRes = &pRequest->body.resInfo.execRes;
 
   switch (pRes->msgType) {
     case TDMT_VND_ALTER_TABLE:
@@ -780,10 +783,10 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   return code;
 }
 
-void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
+void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*)param;
   pRequest->code = code;
-  pRequest->body.resInfo.execRes = pResult->res;
+  memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));
 
   if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type ||
       TDMT_VND_CREATE_TABLE == pRequest->type) {
@@ -940,16 +943,20 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
 
         SRequestConnInfo conn = {
             .pTrans = pAppInfo->pTransporter, .requestId = pRequest->requestId, .requestObjRefId = pRequest->self};
-        SSchedulerReq req = {.pConn = &conn,
-                             .pNodeList = pNodeList,
-                             .pDag = pDag,
-                             .sql = pRequest->sqlstr,
-                             .startTs = pRequest->metric.start,
-                             .execFp = schedulerExecCb,
-                             .execParam = pRequest,
-                             .chkKillFp = chkRequestKilled,
-                             .chkKillParam = (void*)pRequest->self};
-        code = schedulerAsyncExecJob(&req, &pRequest->body.queryJob);
+        SSchedulerReq req = {
+          .syncReq = false,
+          .pConn = &conn,
+          .pNodeList = pNodeList,
+          .pDag = pDag,
+          .sql = pRequest->sqlstr,
+          .startTs = pRequest->metric.start,
+          .execFp = schedulerExecCb,
+          .cbParam = pRequest,
+          .chkKillFp = chkRequestKilled,
+          .chkKillParam = (void*)pRequest->self,
+          .pExecRes = NULL,
+        };
+        code = schedulerExecJob(&req, &pRequest->body.queryJob);
         taosArrayDestroy(pNodeList);
       } else {
         tscDebug("0x%" PRIx64 " plan not executed, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
@@ -1388,7 +1395,11 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
     }
 
     SReqResultInfo* pResInfo = &pRequest->body.resInfo;
-    pRequest->code = schedulerFetchRows(pRequest->body.queryJob, (void**)&pResInfo->pData);
+    SSchedulerReq req = {
+      .syncReq = true,
+      .pFetchRes = (void**)&pResInfo->pData,
+    };
+    pRequest->code = schedulerFetchRows(pRequest->body.queryJob, &req);
     if (pRequest->code != TSDB_CODE_SUCCESS) {
       pResultInfo->numOfRows = 0;
       return NULL;

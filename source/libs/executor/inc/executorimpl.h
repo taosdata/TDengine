@@ -240,7 +240,7 @@ typedef struct SColMatchInfo {
   int32_t srcSlotId;     // source slot id
   int32_t colId;
   int32_t targetSlotId;
-  bool    output;
+  bool    output;        // todo remove this?
   bool    reserved;
   int32_t matchType;     // determinate the source according to col id or slot id
 } SColMatchInfo;

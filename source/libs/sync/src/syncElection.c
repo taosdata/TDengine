@@ -96,12 +96,20 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
     return ret;
   }
 
-  if (pSyncNode->pRaftCfg->snapshotEnable) {
-    ret = syncNodeRequestVotePeersSnapshot(pSyncNode);
-  } else {
-    ret = syncNodeRequestVotePeers(pSyncNode);
-  }
+  switch (pSyncNode->pRaftCfg->snapshotStrategy) {
+    case SYNC_STRATEGY_NO_SNAPSHOT:
+      ret = syncNodeRequestVotePeers(pSyncNode);
+      break;
 
+    case SYNC_STRATEGY_STANDARD_SNAPSHOT:
+    case SYNC_STRATEGY_WAL_FIRST:
+      ret = syncNodeRequestVotePeersSnapshot(pSyncNode);
+      break;
+
+    default:
+      ret = syncNodeRequestVotePeers(pSyncNode);
+      break;
+  }
   ASSERT(ret == 0);
   syncNodeResetElectTimer(pSyncNode);
 
