@@ -313,9 +313,19 @@ struct STsdbSnapWriter {
   int8_t  precision;
   // for data file
   int32_t       fid;
+  SDataFReader* pDataFReader;
+  SArray*       aBlockIdx;
+  SMapData      mBlock;
   SDataFWriter* pDataFWriter;
+  SArray*       aBlockIdxN;
+  SMapData      mBlockN;
   // for del file
+  SDelFReader* pDelFReader;
   SDelFWriter* pDelFWriter;
+  int32_t      iDelIdx;
+  SArray*      aDelIdx;
+  SArray*      aDelData;
+  SArray*      aDelIdxN;
 };
 
 static int32_t tsdbSnapRollback(STsdbSnapWriter* pWriter) {
@@ -367,7 +377,89 @@ _err:
 
 static int32_t tsdbSnapWriteDel(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t code = 0;
-  // TODO
+  STsdb*  pTsdb = pWriter->pTsdb;
+
+  if (pWriter->pDelFWriter == NULL) {
+    SDelFile* pDelFile = tsdbFSStateGetDelFile(pTsdb->fs->nState);
+
+    // reader
+    if (pDelFile) {
+      code = tsdbDelFReaderOpen(&pWriter->pDelFReader, pDelFile, pTsdb, NULL);
+      if (code) goto _err;
+
+      code = tsdbReadDelIdx(pWriter->pDelFReader, pWriter->aDelIdx, NULL);
+      if (code) goto _err;
+    }
+
+    // writer
+    SDelFile delFile = {.commitID = pTsdb->pVnode->state.commitID, .offset = 0, .size = 0};
+    code = tsdbDelFWriterOpen(&pWriter->pDelFWriter, &delFile, pTsdb);
+    if (code) goto _err;
+  }
+
+  // process the del data
+  TABLEID id = {0};  // todo
+
+  while (true) {
+    SDelIdx* pDelIdx = NULL;
+    int64_t  n = 0;
+    SDelData delData;
+    SDelIdx  delIdx;
+    int8_t   toBreak = 0;
+
+    if (pWriter->iDelIdx < taosArrayGetSize(pWriter->aDelIdx)) {
+      pDelIdx = taosArrayGet(pWriter->aDelIdx, pWriter->iDelIdx);
+    }
+
+    if (pDelIdx) {
+      int32_t c = tTABLEIDCmprFn(&id, pDelIdx);
+      if (c < 0) {
+        goto _new_del;
+      } else {
+        code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->aDelData, NULL);
+        if (code) goto _err;
+
+        pWriter->iDelIdx++;
+        if (c == 0) {
+          toBreak = 1;
+          goto _merge_del;
+        } else {
+          goto _write_del;
+        }
+      }
+    }
+
+  _new_del:
+    toBreak = 1;
+    taosArrayClear(pWriter->aDelData);
+
+  _merge_del:
+    while (n < nData) {
+      n += tGetDelData(pData + n, &delData);
+      if (taosArrayPush(pWriter->aDelData, &delData) == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _err;
+      }
+    }
+
+  _write_del:
+    delIdx = (SDelIdx){.suid = id.suid, .uid = id.uid};
+    code = tsdbWriteDelData(pWriter->pDelFWriter, pWriter->aDelData, NULL, &delIdx);
+    if (code) goto _err;
+
+    if (taosArrayPush(pWriter->aDelIdxN, &delIdx) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+
+    if (toBreak) break;
+  }
+
+_exit:
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb snapshot write del failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
