@@ -27,8 +27,7 @@ python3 ./test.py -f 1-insert/table_comment.py
 python3 ./test.py -f 1-insert/time_range_wise.py
 python3 ./test.py -f 1-insert/block_wise.py
 python3 ./test.py -f 1-insert/create_retentions.py
-
-#python3 ./test.py -f 1-insert/table_param_ttl.py
+python3 ./test.py -f 1-insert/table_param_ttl.py
 
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
@@ -118,7 +117,7 @@ python3 ./test.py -f 2-query/distribute_agg_avg.py
 python3 ./test.py -f 2-query/distribute_agg_stddev.py
 python3 ./test.py -f 2-query/twa.py
 python3 ./test.py -f 2-query/irate.py
-python3 ./test.py -f 2-query/and_or_for_byte.py
+#python3 ./test.py -f 2-query/and_or_for_byte.py
 
 python3 ./test.py -f 2-query/function_null.py
 python3 ./test.py -f 2-query/queryQnode.py
