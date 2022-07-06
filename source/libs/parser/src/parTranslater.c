@@ -2839,17 +2839,87 @@ static int32_t translateDelete(STranslateContext* pCxt, SDeleteStmt* pDelete) {
   return code;
 }
 
+static int32_t translateInsertCols(STranslateContext* pCxt, SInsertStmt* pInsert) {
+  if (NULL == pInsert->pCols) {
+    return createAllColumns(pCxt, false, &pInsert->pCols);
+  }
+  return translateExprList(pCxt, pInsert->pCols);
+}
+
+static int32_t translateInsertQuery(STranslateContext* pCxt, SInsertStmt* pInsert) {
+  int32_t code = resetTranslateNamespace(pCxt);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateQuery(pCxt, pInsert->pQuery);
+  }
+  return code;
+}
+
+static int32_t addOrderByPrimaryKeyToQueryImpl(STranslateContext* pCxt, SNode* pPrimaryKeyExpr,
+                                               SNodeList** pOrderByList) {
+  SOrderByExprNode* pOrderByExpr = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
+  if (NULL == pOrderByExpr) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pOrderByExpr->nullOrder = NULL_ORDER_FIRST;
+  pOrderByExpr->order = ORDER_ASC;
+  pOrderByExpr->pExpr = nodesCloneNode(pPrimaryKeyExpr);
+  if (NULL == pOrderByExpr->pExpr) {
+    nodesDestroyNode((SNode*)pOrderByExpr);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  ((SExprNode*)pOrderByExpr->pExpr)->orderAlias = true;
+  NODES_DESTORY_LIST(*pOrderByList);
+  return nodesListMakeStrictAppend(pOrderByList, (SNode*)pOrderByExpr);
+}
+
+static int32_t addOrderByPrimaryKeyToQuery(STranslateContext* pCxt, SNode* pPrimaryKeyExpr, SNode* pStmt) {
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    return addOrderByPrimaryKeyToQueryImpl(pCxt, pPrimaryKeyExpr, &((SSelectStmt*)pStmt)->pOrderByList);
+  }
+  return addOrderByPrimaryKeyToQueryImpl(pCxt, pPrimaryKeyExpr, &((SSetOperator*)pStmt)->pOrderByList);
+}
+
+static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pInsert) {
+  SNodeList* pProjects = getProjectList(pInsert->pQuery);
+  if (LIST_LENGTH(pInsert->pCols) != LIST_LENGTH(pProjects)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM, "Illegal number of columns");
+  }
+
+  SNode* pPrimaryKeyExpr = NULL;
+  SNode* pBoundCol = NULL;
+  SNode* pProj = NULL;
+  FORBOTH(pBoundCol, pInsert->pCols, pProj, pProjects) {
+    SColumnNode* pCol = (SColumnNode*)pBoundCol;
+    SExprNode*   pExpr = (SExprNode*)pProj;
+    if (!dataTypeEqual(&pCol->node.resType, &pExpr->resType)) {
+      SNode*  pFunc = NULL;
+      int32_t code = createCastFunc(pCxt, pProj, pCol->node.resType, &pFunc);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      REPLACE_LIST2_NODE(pFunc);
+      pExpr = (SExprNode*)pFunc;
+    }
+    snprintf(pExpr->aliasName, sizeof(pExpr->aliasName), "%s", pCol->colName);
+    if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
+      pPrimaryKeyExpr = pProj;
+    }
+  }
+
+  return addOrderByPrimaryKeyToQuery(pCxt, pPrimaryKeyExpr, pInsert->pQuery);
+}
+
 static int32_t translateInsert(STranslateContext* pCxt, SInsertStmt* pInsert) {
   pCxt->pCurrStmt = (SNode*)pInsert;
   int32_t code = translateFrom(pCxt, pInsert->pTable);
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateExprList(pCxt, pInsert->pCols);
+    code = translateInsertCols(pCxt, pInsert);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = resetTranslateNamespace(pCxt);
+    code = translateInsertQuery(pCxt, pInsert);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateQuery(pCxt, pInsert->pQuery);
+    code = translateInsertProject(pCxt, pInsert);
   }
   return code;
 }

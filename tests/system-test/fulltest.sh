@@ -96,7 +96,7 @@ python3 ./test.py -f 2-query/query_cols_tags_and_or.py
 # python3 ./test.py -f 2-query/nestedQuery_str.py
 
 python3 ./test.py -f 2-query/avg.py
-#python3 ./test.py -f 2-query/elapsed.py
+python3 ./test.py -f 2-query/elapsed.py
 python3 ./test.py -f 2-query/csum.py
 python3 ./test.py -f 2-query/mavg.py
 python3 ./test.py -f 2-query/diff.py
@@ -118,6 +118,7 @@ python3 ./test.py -f 2-query/distribute_agg_avg.py
 python3 ./test.py -f 2-query/distribute_agg_stddev.py
 python3 ./test.py -f 2-query/twa.py
 python3 ./test.py -f 2-query/irate.py
+python3 ./test.py -f 2-query/and_or_for_byte.py
 
 python3 ./test.py -f 2-query/function_null.py
 python3 ./test.py -f 2-query/queryQnode.py
