@@ -742,7 +742,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
     if (pSyncNode->changing && pMsg->msgType != TDMT_SYNC_CONFIG_CHANGE_FINISH) {
       ret = -1;
       terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
-      sError("sync propose not ready, type:%s,%d", TMSG_INFO(pMsg->msgType), pMsg->msgType);
+      sError("vgId:%d, sync propose not ready, type:%s,%d", pSyncNode->vgId, TMSG_INFO(pMsg->msgType), pMsg->msgType);
       goto _END;
     }
 
@@ -751,7 +751,8 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
       if (!syncNodeCanChange(pSyncNode)) {
         ret = -1;
         terrno = TSDB_CODE_SYN_RECONFIG_NOT_READY;
-        sError("sync reconfig not ready, type:%s,%d", TMSG_INFO(pMsg->msgType), pMsg->msgType);
+        sError("vgId:%d, sync reconfig not ready, type:%s,%d", pSyncNode->vgId, TMSG_INFO(pMsg->msgType),
+               pMsg->msgType);
         goto _END;
       }
 
@@ -792,7 +793,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
       } else {
         ret = -1;
         terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-        sError("enqueue msg error, FpEqMsg is NULL");
+        sError("vgId:%d, enqueue msg error, FpEqMsg is NULL", pSyncNode->vgId);
       }
     }
 
@@ -802,7 +803,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
   } else {
     ret = -1;
     terrno = TSDB_CODE_SYN_NOT_LEADER;
-    sError("sync propose not leader, %s", syncUtilState2String(pSyncNode->state));
+    sError("vgId:%d, sync propose not leader, %s", pSyncNode->vgId, syncUtilState2String(pSyncNode->state));
     goto _END;
   }
 
@@ -832,7 +833,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
     // create a new raft config file
     SRaftCfgMeta meta;
     meta.isStandBy = pSyncInfo->isStandBy;
-    meta.snapshotEnable = pSyncInfo->snapshotStrategy;
+    meta.snapshotStrategy = pSyncInfo->snapshotStrategy;
     meta.lastConfigIndex = SYNC_INDEX_INVALID;
     ret = raftCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), meta, pSyncNode->configPath);
     ASSERT(ret == 0);
@@ -981,7 +982,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   pSyncNode->FpOnSnapshotSend = syncNodeOnSnapshotSendCb;
   pSyncNode->FpOnSnapshotRsp = syncNodeOnSnapshotRspCb;
 
-  if (pSyncNode->pRaftCfg->snapshotEnable) {
+  if (pSyncNode->pRaftCfg->snapshotStrategy) {
     sInfo("sync node use snapshot");
     pSyncNode->FpOnRequestVote = syncNodeOnRequestVoteSnapshotCb;
     pSyncNode->FpOnRequestVoteReply = syncNodeOnRequestVoteReplySnapshotCb;
@@ -1119,7 +1120,7 @@ void syncNodeClose(SSyncNode* pSyncNode) {
 // option
 // bool syncNodeSnapshotEnable(SSyncNode* pSyncNode) { return pSyncNode->pRaftCfg->snapshotEnable; }
 
-ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode) { return pSyncNode->pRaftCfg->snapshotEnable; }
+ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode) { return pSyncNode->pRaftCfg->snapshotStrategy; }
 
 // ping --------------
 int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg) {
@@ -2507,6 +2508,15 @@ int32_t syncNodeOnClientRequestBatchCb(SSyncNode* ths, SyncClientRequestBatch* p
   SSyncLogStoreData* pData = ths->pLogStore->data;
   SWal*              pWal = pData->pWal;
   walFsync(pWal, true);
+
+  if (ths->replicaNum > 1) {
+    // if mulit replica, start replicate right now
+    syncNodeReplicate(ths);
+
+  } else if (ths->replicaNum == 1) {
+    // one replica
+    syncMaybeAdvanceCommitIndex(ths);
+  }
 
   return 0;
 }

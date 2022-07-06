@@ -83,7 +83,7 @@ void test3() {
   } else {
     SRaftCfgMeta meta;
     meta.isStandBy = 7;
-    meta.snapshotEnable = 9;
+    meta.snapshotStrategy = 9;
     meta.lastConfigIndex = 789;
     raftCfgCreateFile(pCfg, meta, s);
     printf("%s create json file: %s \n", (char*)__FUNCTION__, s);
@@ -108,7 +108,7 @@ void test5() {
 
   pCfg->cfg.myIndex = taosGetTimestampSec();
   pCfg->isStandBy += 2;
-  pCfg->snapshotEnable += 3;
+  pCfg->snapshotStrategy += 3;
   pCfg->lastConfigIndex += 1000;
 
   pCfg->configIndexCount = 5;
