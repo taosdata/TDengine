@@ -33,8 +33,8 @@ static uint64_t genUID() {
   return id;
 }
 
-static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, SSmlLinesInfo* info) {
-  const char *cur = *index;
+static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **idx, SSmlLinesInfo* info) {
+  const char *cur = *idx;
   uint16_t len = 0;
 
   pSml->stableName = tcalloc(TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE, 1);
@@ -76,13 +76,13 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
   }
 
   addEscapeCharToString(pSml->stableName, len);
-  *index = cur + 1;
+  *idx = cur + 1;
   tscDebug("OTD:0x%"PRIx64" Stable name in metric:%s|len:%d", info->id, pSml->stableName, len);
 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char **index, SSmlLinesInfo* info) {
+static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char **idx, SSmlLinesInfo* info) {
   //Timestamp must be the first KV to parse
   assert(*num_kvs == 0);
 
@@ -92,7 +92,7 @@ static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char 
   char key[] = OTD_TIMESTAMP_COLUMN_NAME;
   char *value = NULL;
 
-  start = cur = *index;
+  start = cur = *idx;
   //allocate fields for timestamp and value
   *pTS = tcalloc(OTD_MAX_FIELDS_NUM, sizeof(TAOS_SML_KV));
 
@@ -130,12 +130,12 @@ static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char 
   addEscapeCharToString((*pTS)->key, (int32_t)strlen(key));
 
   *num_kvs += 1;
-  *index = cur + 1;
+  *idx = cur + 1;
 
   return ret;
 }
 
-static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const char **index, SSmlLinesInfo* info) {
+static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const char **idx, SSmlLinesInfo* info) {
   //skip timestamp
   TAOS_SML_KV *pVal = *pKVs + 1;
   const char *start, *cur;
@@ -145,7 +145,7 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
   char key[] = OTD_METRIC_VALUE_COLUMN_NAME;
   char *value = NULL;
 
-  start = cur = *index;
+  start = cur = *idx;
 
   //if metric value is string
   if (*cur == '"') {
@@ -201,12 +201,12 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
   addEscapeCharToString(pVal->key, (int32_t)strlen(pVal->key));
   *num_kvs += 1;
 
-  *index = cur + 1;
+  *idx = cur + 1;
   return ret;
 }
 
-static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash, SSmlLinesInfo* info) {
-  const char *cur = *index;
+static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **idx, SHashObj *pHash, SSmlLinesInfo* info) {
+  const char *cur = *idx;
   char key[TSDB_COL_NAME_LEN];
   uint16_t len = 0;
 
@@ -244,17 +244,17 @@ static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **index, SHashObj 
   memcpy(pKV->key, key, len + 1);
   addEscapeCharToString(pKV->key, len);
   //tscDebug("OTD:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
-  *index = cur + 1;
+  *idx = cur + 1;
   return TSDB_CODE_SUCCESS;
 }
 
 
-static int32_t parseTelnetTagValue(TAOS_SML_KV *pKV, const char **index,
+static int32_t parseTelnetTagValue(TAOS_SML_KV *pKV, const char **idx,
                           bool *is_last_kv, SSmlLinesInfo* info) {
   const char *start, *cur;
   char *value = NULL;
   uint16_t len = 0;
-  start = cur = *index;
+  start = cur = *idx;
 
   while (1) {
     // whitespace or '\0' identifies a value
@@ -290,14 +290,14 @@ static int32_t parseTelnetTagValue(TAOS_SML_KV *pKV, const char **index,
   }
   tfree(value);
 
-  *index = (*cur == '\0') ? cur : cur + 1;
+  *idx = (*cur == '\0') ? cur : cur + 1;
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
-                               const char **index,  char **childTableName,
+                               const char **idx,  char **childTableName,
                                SHashObj *pHash, SSmlLinesInfo* info) {
-  const char *cur = *index;
+  const char *cur = *idx;
   int32_t ret = TSDB_CODE_SUCCESS;
   TAOS_SML_KV *pkv;
   bool is_last_kv = false;
@@ -357,11 +357,11 @@ static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
 }
 
 static int32_t tscParseTelnetLine(const char* line, TAOS_SML_DATA_POINT* smlData, SSmlLinesInfo* info) {
-  const char* index = line;
+  const char* idx = line;
   int32_t ret = TSDB_CODE_SUCCESS;
 
   //Parse metric
-  ret = parseTelnetMetric(smlData, &index, info);
+  ret = parseTelnetMetric(smlData, &idx, info);
   if (ret) {
     tscError("OTD:0x%"PRIx64" Unable to parse metric", info->id);
     return ret;
@@ -369,7 +369,7 @@ static int32_t tscParseTelnetLine(const char* line, TAOS_SML_DATA_POINT* smlData
   tscDebug("OTD:0x%"PRIx64" Parse metric finished", info->id);
 
   //Parse timestamp
-  ret = parseTelnetTimeStamp(&smlData->fields, &smlData->fieldNum, &index, info);
+  ret = parseTelnetTimeStamp(&smlData->fields, &smlData->fieldNum, &idx, info);
   if (ret) {
     tscError("OTD:0x%"PRIx64" Unable to parse timestamp", info->id);
     return ret;
@@ -377,7 +377,7 @@ static int32_t tscParseTelnetLine(const char* line, TAOS_SML_DATA_POINT* smlData
   tscDebug("OTD:0x%"PRIx64" Parse timestamp finished", info->id);
 
   //Parse value
-  ret = parseTelnetMetricValue(&smlData->fields, &smlData->fieldNum, &index, info);
+  ret = parseTelnetMetricValue(&smlData->fields, &smlData->fieldNum, &idx, info);
   if (ret) {
     tscError("OTD:0x%"PRIx64" Unable to parse metric value", info->id);
     return ret;
@@ -386,7 +386,7 @@ static int32_t tscParseTelnetLine(const char* line, TAOS_SML_DATA_POINT* smlData
 
   //Parse tagKVs
   SHashObj *keyHashTable = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
-  ret = parseTelnetTagKvs(&smlData->tags, &smlData->tagNum, &index, &smlData->childTableName, keyHashTable, info);
+  ret = parseTelnetTagKvs(&smlData->tags, &smlData->tagNum, &idx, &smlData->childTableName, keyHashTable, info);
   if (ret) {
     tscError("OTD:0x%"PRIx64" Unable to parse tags", info->id);
     taosHashCleanup(keyHashTable);
