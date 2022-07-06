@@ -5,31 +5,31 @@
     "port": 6030,
     "user": "root",
     "password": "taosdata",
-    "thread_count": 8,
-    "thread_count_create_tbl": 8,
+    "thread_count": 20,
+    "thread_count_create_tbl": 20,
     "result_file": "./insert_res.txt",
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,
-    "interlace_rows": 1000,
+    "interlace_rows": 0,
     "num_of_records_per_req": 100000,
     "databases": [
         {
             "dbinfo": {
                 "name": "db",
                 "drop": "yes",
-                "vgroups": 8
+                "vgroups": 20
             },
             "super_tables": [
                 {
-                    "name": "stable_1",
+                    "name": "regular_table_null",
                     "child_table_exists": "no",
-                    "childtable_count": 1000,
-                    "childtable_prefix": "stable_1_",
+                    "childtable_count": 1,
+                    "childtable_prefix": "regular_table_null_",
                     "auto_create_table": "no",
                     "batch_create_tbl_num": 50000,
                     "data_source": "rand",
                     "insert_mode": "taosc",
-                    "insert_rows": 1000,
+                    "insert_rows": 100000,
                     "interlace_rows": 100000,
                     "insert_interval": 0,
                     "max_sql_len": 10000000,
@@ -204,55 +204,6 @@
                         {
                             "type": "timestamp",
                             "name": "q_ts_null"
-                        }
-                    ],
-                    "tags": [
-                        {
-                            "type": "nchar",
-                            "len": 100,
-                            "name": "loc"
-                        },
-                        {
-                            "type": "int",
-                            "name": "t_int"
-                        },
-                        {
-                            "type": "bigint",
-                            "name": "t_bigint"
-                        },
-                        {
-                            "type": "smallint",
-                            "name": "t_smallint"
-                        },
-                        {
-                            "type": "tinyint",
-                            "name": "t_tinyint"
-                        },
-                        {
-                            "type": "bool",
-                            "name": "t_bool"
-                        },
-                        {
-                            "type": "float",
-                            "name": "t_float"
-                        },
-                        {
-                            "type": "double",
-                            "name": "t_double"
-                        },
-                        {
-                            "type": "timestamp",
-                            "name": "t_ts"
-                        },
-                        {
-                            "type": "binary",
-                            "len": 20,
-                            "name": "t_binary"
-                        },
-                        {
-                            "type": "nchar",
-                            "len": 20,
-                            "name": "t_nchar"
                         }
                     ]
                 }

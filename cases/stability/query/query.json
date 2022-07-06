@@ -1,30 +1,20 @@
 {
     "filetype": "query",
     "cfgdir": "/etc/taos",
-    "host": "HOST",
-    "port": PORT,
-    "rest_port": RESTPORT,
+    "host": "trd04",
+    "port": 6030,
+    "rest_port": 6041,
     "user": "root",
     "password": "taosdata",
     "confirm_parameter_prompt": "no",
     "databases": "db",
-    "query_times": QUERYTIMES,
-    "query_mode": "QUERYMODE",
+    "query_times": 1,
+    "query_mode": "taosc",
     "specified_table_query": {
-        "query_interval": 1,
-        "concurrent": 3,
-        "sqls": [
-        ]
-    },
-    "super_table_query": {
-        "stblname": "STABLENAME",
-        "query_interval": 1,
-        "threads": THREADS,
-        "sqls": [
-            {
-                "sql": "select last_row(ts) from xxxx",
-                "result": "./query_res2.txt"
-            }
-        ]
-    }
+	"query_interval": 0,
+	"concurrent": 100,
+	"sql_file": "sql.txt",
+	"sqls": [
+	]
+     }
 }
