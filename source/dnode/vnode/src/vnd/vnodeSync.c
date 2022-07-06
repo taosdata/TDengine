@@ -411,6 +411,7 @@ static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta c
   memcpy(rpcMsg.pCont, pMsg->pCont, pMsg->contLen);
   syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &rpcMsg.info);
   rpcMsg.info.conn.applyIndex = cbMeta.index;
+  rpcMsg.info.conn.applyTerm = cbMeta.term;
   tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
 }
 

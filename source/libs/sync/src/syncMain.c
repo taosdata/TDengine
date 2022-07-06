@@ -818,6 +818,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
       int32_t   code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg, &retIndex);
       if (code == 0) {
         pMsg->info.conn.applyIndex = retIndex;
+        pMsg->info.conn.applyTerm = pSyncNode->pRaftStore->currentTerm;
         rpcFreeCont(rpcMsg.pCont);
         syncRespMgrDel(pSyncNode->pSyncRespMgr, seqNum);
         ret = 1;
