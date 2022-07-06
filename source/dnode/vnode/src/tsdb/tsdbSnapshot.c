@@ -422,8 +422,10 @@ static int32_t tsdbSnapWriteDel(STsdbSnapWriter* pWriter, uint8_t* pData, uint32
         pWriter->iDelIdx++;
         if (c == 0) {
           toBreak = 1;
+          delIdx = (SDelIdx){.suid = id.suid, .uid = id.uid};
           goto _merge_del;
         } else {
+          delIdx = (SDelIdx){.suid = pDelIdx->suid, .uid = pDelIdx->uid};
           goto _write_del;
         }
       }
@@ -431,6 +433,7 @@ static int32_t tsdbSnapWriteDel(STsdbSnapWriter* pWriter, uint8_t* pData, uint32
 
   _new_del:
     toBreak = 1;
+    delIdx = (SDelIdx){.suid = id.suid, .uid = id.uid};
     taosArrayClear(pWriter->aDelData);
 
   _merge_del:
@@ -443,7 +446,6 @@ static int32_t tsdbSnapWriteDel(STsdbSnapWriter* pWriter, uint8_t* pData, uint32
     }
 
   _write_del:
-    delIdx = (SDelIdx){.suid = id.suid, .uid = id.uid};
     code = tsdbWriteDelData(pWriter->pDelFWriter, pWriter->aDelData, NULL, &delIdx);
     if (code) goto _err;
 
@@ -465,7 +467,44 @@ _err:
 
 static int32_t tsdbSnapWriteDelEnd(STsdbSnapWriter* pWriter) {
   int32_t code = 0;
-  // TODO
+  STsdb*  pTsdb = pWriter->pTsdb;
+
+  if (pWriter->pDelFWriter == NULL) goto _exit;
+  for (; pWriter->iDelIdx < taosArrayGetSize(pWriter->aDelIdx); pWriter->iDelIdx++) {
+    SDelIdx* pDelIdx = (SDelIdx*)taosArrayGet(pWriter->aDelIdx, pWriter->iDelIdx);
+
+    code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->aDelData, NULL);
+    if (code) goto _err;
+
+    SDelIdx delIdx = (SDelIdx){.suid = pDelIdx->suid, .uid = pDelIdx->uid};
+    code = tsdbWriteDelData(pWriter->pDelFWriter, pWriter->aDelData, NULL, &delIdx);
+    if (code) goto _err;
+
+    if (taosArrayPush(pWriter->aDelIdx, &delIdx) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+  }
+
+  code = tsdbUpdateDelFileHdr(pWriter->pDelFWriter);
+  if (code) goto _err;
+
+  code = tsdbFSStateUpsertDelFile(pTsdb->fs->nState, &pWriter->pDelFWriter->fDel);
+  if (code) goto _err;
+
+  code = tsdbDelFWriterClose(&pWriter->pDelFWriter, 1);
+  if (code) goto _err;
+
+  if (pWriter->pDelFReader) {
+    code = tsdbDelFReaderClose(&pWriter->pDelFReader);
+    if (code) goto _err;
+  }
+
+_exit:
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb snapshow write del end failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
