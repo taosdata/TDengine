@@ -110,7 +110,7 @@ typedef struct SMemParam {
 static int32_t skipInsertInto(char** pSql, SMsgBuf* pMsg) {
   SToken sToken;
   NEXT_TOKEN(*pSql, sToken);
-  if (TK_INSERT != sToken.type) {
+  if (TK_INSERT != sToken.type && TK_IMPORT != sToken.type) {
     return buildSyntaxErrMsg(pMsg, "keyword INSERT is expected", sToken.z);
   }
   NEXT_TOKEN(*pSql, sToken);
