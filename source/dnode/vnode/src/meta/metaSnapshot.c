@@ -165,7 +165,20 @@ _err:
 }
 
 int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
-  int32_t code = 0;
-  // TODO
+  int32_t    code = 0;
+  SMeta*     pMeta = pWriter->pMeta;
+  SMetaEntry metaEntry = {0};
+  SDecoder*  pDecoder = &(SDecoder){0};
+
+  tDecoderInit(pDecoder, pData, nData);
+  metaDecodeEntry(pDecoder, &metaEntry);
+
+  code = metaHandleEntry(pMeta, &metaEntry);
+  if (code) goto _err;
+
+  return code;
+
+_err:
+  metaError("vgId:%d meta snapshot write failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
   return code;
 }

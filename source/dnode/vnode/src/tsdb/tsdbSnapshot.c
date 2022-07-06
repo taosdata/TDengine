@@ -449,6 +449,8 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
       } else if (c < 0) {
         code = tsdbSnapWriteAppendData(pWriter, pData, nData);
         if (code) goto _err;
+
+        break;
       } else {
         // commit the block
         code = tsdbReadBlock(pWriter->pDataFReader, pBlockIdx, &pWriter->mBlock, NULL);
