@@ -1687,6 +1687,7 @@ int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowValT valType, const vo
 
 int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen,
                               int32_t allNullLen, int32_t boundNullLen) {
+#if 0
   if ((boundNullLen > 0) && (allNullLen > 0) && (nBoundCols > 0)) {
     uint32_t tpLen = allNullLen;
     uint32_t kvLen = sizeof(col_id_t) + sizeof(SKvRowIdx) * nBoundCols + boundNullLen;
@@ -1699,7 +1700,8 @@ int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBou
   } else {
     pBuilder->rowType = TD_ROW_TP;
   }
-
+#endif
+  pBuilder->rowType = TD_ROW_TP;
   pBuilder->flen = flen;
   pBuilder->nCols = nCols;
   pBuilder->nBoundCols = nBoundCols;
