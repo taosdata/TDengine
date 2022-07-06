@@ -2826,8 +2826,8 @@ typedef struct {
 
 static FORCE_INLINE int32_t tEncodeSMqMetaRsp(void** buf, const SMqMetaRsp* pRsp) {
   int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
-  tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
+  // tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
+  // tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
   tlen += taosEncodeFixedI16(buf, pRsp->resMsgType);
   tlen += taosEncodeFixedI32(buf, pRsp->metaRspLen);
   tlen += taosEncodeBinary(buf, pRsp->metaRsp, pRsp->metaRspLen);
@@ -2835,8 +2835,8 @@ static FORCE_INLINE int32_t tEncodeSMqMetaRsp(void** buf, const SMqMetaRsp* pRsp
 }
 
 static FORCE_INLINE void* tDecodeSMqMetaRsp(const void* buf, SMqMetaRsp* pRsp) {
-  buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
-  buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
+  // buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
+  // buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
   buf = taosDecodeFixedI16(buf, &pRsp->resMsgType);
   buf = taosDecodeFixedI32(buf, &pRsp->metaRspLen);
   buf = taosDecodeBinary(buf, &pRsp->metaRsp, pRsp->metaRspLen);

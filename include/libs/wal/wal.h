@@ -178,7 +178,6 @@ void    walFsync(SWal *, bool force);
 
 // apis for lifecycle management
 int32_t walCommit(SWal *, int64_t ver);
-// truncate after
 int32_t walRollback(SWal *, int64_t ver);
 // notify that previous logs can be pruned safely
 int32_t walBeginSnapshot(SWal *, int64_t ver);
@@ -207,10 +206,11 @@ void     walCloseRef(SWalRef *);
 int32_t  walRefVer(SWalRef *, int64_t ver);
 int32_t  walUnrefVer(SWal *);
 
+// help function for raft
 bool walLogExist(SWal *, int64_t ver);
+bool walIsEmpty(SWal *);
 
 // lifecycle check
-bool    walIsEmpty(SWal *);
 int64_t walGetFirstVer(SWal *);
 int64_t walGetSnapshotVer(SWal *);
 int64_t walGetLastVer(SWal *);

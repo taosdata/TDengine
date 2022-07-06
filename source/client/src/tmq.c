@@ -49,19 +49,18 @@ struct tmq_list_t {
 };
 
 struct tmq_conf_t {
-  char     clientId[256];
-  char     groupId[TSDB_CGROUP_LEN];
-  int8_t   autoCommit;
-  int8_t   resetOffset;
-  int8_t   withTbName;
-  int8_t   spEnable;
-  int32_t  spBatchSize;
-  uint16_t port;
-  int32_t  autoCommitInterval;
-  char*    ip;
-  char*    user;
-  char*    pass;
-  /*char*          db;*/
+  char           clientId[256];
+  char           groupId[TSDB_CGROUP_LEN];
+  int8_t         autoCommit;
+  int8_t         resetOffset;
+  int8_t         withTbName;
+  int8_t         spEnable;
+  int32_t        spBatchSize;
+  uint16_t       port;
+  int32_t        autoCommitInterval;
+  char*          ip;
+  char*          user;
+  char*          pass;
   tmq_commit_cb* commitCb;
   void*          commitCbUserParam;
 };
@@ -337,7 +336,7 @@ tmq_list_t* tmq_list_new() {
 
 int32_t tmq_list_append(tmq_list_t* list, const char* src) {
   SArray* container = &list->container;
-  char*   topic = strdup(src);
+  char*   topic = strDupUnquo(src);
   if (taosArrayPush(container, &topic) == NULL) return -1;
   return 0;
 }

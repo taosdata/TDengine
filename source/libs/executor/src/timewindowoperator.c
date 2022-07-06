@@ -2980,7 +2980,7 @@ void initDummyFunction(SqlFunctionCtx* pDummy, SqlFunctionCtx* pCtx, int32_t num
 void initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, int64_t gap, int64_t waterMark,
                     uint8_t type) {
   ASSERT(downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN);
-  SStreamBlockScanInfo* pScanInfo = downstream->info;
+  SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->sessionSup = (SessionWindowSupporter){.pStreamAggSup = pAggSup, .gap = gap, .parentType = type};
   pScanInfo->pUpdateInfo = updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, waterMark);
 }
@@ -3464,8 +3464,8 @@ typedef SResultWindowInfo* (*__get_win_info_)(void*);
 SResultWindowInfo* getResWinForSession(void* pData) { return (SResultWindowInfo*)pData; }
 SResultWindowInfo* getResWinForState(void* pData) { return &((SStateWindowInfo*)pData)->winInfo; }
 
-int32_t closeSessionWindow(SHashObj* pHashMap, STimeWindowAggSupp* pTwSup,
-    SArray* pClosed, __get_win_info_ fn, bool delete) {
+int32_t closeSessionWindow(SHashObj* pHashMap, STimeWindowAggSupp* pTwSup, SArray* pClosed, __get_win_info_ fn,
+                           bool delete) {
   // Todo(liuyao) save window to tdb
   void** pIte = NULL;
   size_t keyLen = 0;
@@ -3604,8 +3604,8 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
   // restore the value
   pOperator->status = OP_RES_TO_RETURN;
 
-  closeSessionWindow(pInfo->streamAggSup.pResultRows, &pInfo->twAggSup, pUpdated,
-      getResWinForSession, pInfo->ignoreExpiredData);
+  closeSessionWindow(pInfo->streamAggSup.pResultRows, &pInfo->twAggSup, pUpdated, getResWinForSession,
+                     pInfo->ignoreExpiredData);
   closeChildSessionWindow(pInfo->pChildren, pInfo->twAggSup.maxTs, pInfo->ignoreExpiredData);
   copyUpdateResult(pStUpdated, pUpdated);
   taosHashCleanup(pStUpdated);
@@ -4097,8 +4097,8 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
   // restore the value
   pOperator->status = OP_RES_TO_RETURN;
 
-  closeSessionWindow(pInfo->streamAggSup.pResultRows, &pInfo->twAggSup, pUpdated,
-      getResWinForState, pInfo->ignoreExpiredData);
+  closeSessionWindow(pInfo->streamAggSup.pResultRows, &pInfo->twAggSup, pUpdated, getResWinForState,
+                     pInfo->ignoreExpiredData);
   closeChildSessionWindow(pInfo->pChildren, pInfo->twAggSup.maxTs, pInfo->ignoreExpiredData);
   copyUpdateResult(pSeUpdated, pUpdated);
   taosHashCleanup(pSeUpdated);

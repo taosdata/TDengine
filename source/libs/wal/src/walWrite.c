@@ -79,13 +79,13 @@ int32_t walCommit(SWal *pWal, int64_t ver) {
 }
 
 int32_t walRollback(SWal *pWal, int64_t ver) {
+  taosThreadMutexLock(&pWal->mutex);
   int64_t code;
   char    fnameStr[WAL_FILE_LEN];
   if (ver > pWal->vers.lastVer || ver < pWal->vers.commitVer) {
     terrno = TSDB_CODE_WAL_INVALID_VER;
     return -1;
   }
-  taosThreadMutexLock(&pWal->mutex);
 
   // find correct file
   if (ver < walGetLastFileFirstVer(pWal)) {

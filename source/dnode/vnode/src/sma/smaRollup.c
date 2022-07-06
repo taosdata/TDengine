@@ -332,7 +332,7 @@ int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
   }
 
   SReadHandle handle = {
-      .reader = pReadHandle,
+      .streamReader = pReadHandle,
       .meta = pMeta,
       .pMsgCb = pMsgCb,
       .vnode = pVnode,

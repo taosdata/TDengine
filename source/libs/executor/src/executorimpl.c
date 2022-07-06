@@ -2847,12 +2847,12 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
   pOperator->status = OP_OPENED;
 
   if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    SStreamBlockScanInfo* pScanInfo = pOperator->info;
+    SStreamScanInfo* pScanInfo = pOperator->info;
     pScanInfo->blockType = STREAM_INPUT__DATA_SCAN;
 
-    pScanInfo->pSnapshotReadOp->status = OP_OPENED;
+    pScanInfo->pTableScanOp->status = OP_OPENED;
 
-    STableScanInfo* pInfo = pScanInfo->pSnapshotReadOp->info;
+    STableScanInfo* pInfo = pScanInfo->pTableScanOp->info;
     ASSERT(pInfo->scanMode == TABLE_SCAN__TABLE_ORDER);
 
     if (uid == 0) {
@@ -2912,8 +2912,8 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
 int32_t doGetScanStatus(SOperatorInfo* pOperator, uint64_t* uid, int64_t* ts) {
   int32_t type = pOperator->operatorType;
   if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    SStreamBlockScanInfo* pScanInfo = pOperator->info;
-    STableScanInfo*       pSnapShotScanInfo = pScanInfo->pSnapshotReadOp->info;
+    SStreamScanInfo* pScanInfo = pOperator->info;
+    STableScanInfo*  pSnapShotScanInfo = pScanInfo->pTableScanOp->info;
     *uid = pSnapShotScanInfo->lastStatus.uid;
     *ts = pSnapShotScanInfo->lastStatus.ts;
   } else {
@@ -4537,9 +4537,9 @@ static int32_t extractTbscanInStreamOpTree(SOperatorInfo* pOperator, STableScanI
     }
     return extractTbscanInStreamOpTree(pOperator->pDownstream[0], ppInfo);
   } else {
-    SStreamBlockScanInfo* pInfo = pOperator->info;
-    ASSERT(pInfo->pSnapshotReadOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
-    *ppInfo = pInfo->pSnapshotReadOp->info;
+    SStreamScanInfo* pInfo = pOperator->info;
+    ASSERT(pInfo->pTableScanOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+    *ppInfo = pInfo->pTableScanOp->info;
     return 0;
   }
 }

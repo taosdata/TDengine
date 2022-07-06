@@ -84,7 +84,7 @@ int32_t tqMetaOpen(STQ* pTq) {
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       for (int32_t i = 0; i < 5; i++) {
         SReadHandle reader = {
-            .reader = handle.execHandle.pExecReader[i],
+            .streamReader = handle.execHandle.pExecReader[i],
             .meta = pTq->pVnode->pMeta,
             .pMsgCb = &pTq->pVnode->msgCb,
         };

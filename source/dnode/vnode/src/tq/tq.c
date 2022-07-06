@@ -28,8 +28,12 @@ int32_t tqInit() {
       atomic_store_8(&tqMgmt.inited, 0);
       return -1;
     }
+    if (streamInit() < 0) {
+      return -1;
+    }
     atomic_store_8(&tqMgmt.inited, 1);
   }
+
   return 0;
 }
 
@@ -361,8 +365,11 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
         ASSERT(IS_META_MSG(pHead->msgType));
         tqInfo("fetch meta msg, ver: %ld, type: %d", pHead->version, pHead->msgType);
         SMqMetaRsp metaRsp = {0};
-        metaRsp.reqOffset = pReq->reqOffset.version;
-        metaRsp.rspOffset = fetchVer;
+        /*metaRsp.reqOffset = pReq->reqOffset.version;*/
+        /*metaRsp.rspOffset = fetchVer;*/
+        /*metaRsp.rspOffsetNew.version = fetchVer;*/
+        tqOffsetResetToLog(&metaRsp.reqOffsetNew, pReq->reqOffset.version);
+        tqOffsetResetToLog(&metaRsp.rspOffsetNew, fetchVer);
         metaRsp.resMsgType = pHead->msgType;
         metaRsp.metaRspLen = pHead->bodyLen;
         metaRsp.metaRsp = pHead->body;
@@ -448,10 +455,10 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
       req.qmsg = NULL;
       for (int32_t i = 0; i < 5; i++) {
         SReadHandle handle = {
-            .reader = pHandle->execHandle.pExecReader[i],
+            .streamReader = pHandle->execHandle.pExecReader[i],
             .meta = pTq->pVnode->pMeta,
             .vnode = pTq->pVnode,
-            .tqReader = true,
+            .initTableReader = true,
         };
         pHandle->execHandle.execCol.task[i] = qCreateStreamExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle);
         ASSERT(pHandle->execHandle.execCol.task[i]);
@@ -522,11 +529,11 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen) {
   if (pTask->execType != TASK_EXEC__NONE) {
     // expand runners
     if (pTask->isDataScan) {
-      SStreamReader* pStreamReader = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
-      SReadHandle    handle = {
-             .reader = pStreamReader,
-             .meta = pTq->pVnode->pMeta,
-             .vnode = pTq->pVnode,
+      /*SStreamReader* pStreamReader = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);*/
+      SReadHandle handle = {
+          .meta = pTq->pVnode->pMeta,
+          .vnode = pTq->pVnode,
+          .initStreamReader = 1,
       };
       /*pTask->exec.inputHandle = pStreamReader;*/
       pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);

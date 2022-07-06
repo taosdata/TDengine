@@ -30,13 +30,15 @@ struct SRpcMsg;
 struct SSubplan;
 
 typedef struct SReadHandle {
-  void*   reader;
+  void*   streamReader;
   void*   meta;
   void*   config;
   void*   vnode;
   void*   mnd;
   SMsgCb* pMsgCb;
-  bool    tqReader;
+  bool    initMetaReader;
+  bool    initTableReader;
+  bool    initStreamReader;
 } SReadHandle;
 
 typedef enum {
