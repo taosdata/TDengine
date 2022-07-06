@@ -605,7 +605,7 @@ static int32_t translateTopBot(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   }
 
   SValueNode* pValue = (SValueNode*)pParamNode1;
-  if (pValue->node.resType.type != TSDB_DATA_TYPE_BIGINT) {
+  if (!IS_INTEGER_TYPE(pValue->node.resType.type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -1615,26 +1615,27 @@ static int32_t translateSubstr(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   }
 
   SExprNode* pPara0 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
-  SExprNode* p1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 1);
+  SExprNode* pPara1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 1);
 
-  uint8_t para1Type = p1->resType.type;
-  if (!IS_VAR_DATA_TYPE(pPara0->resType.type) || !IS_INTEGER_TYPE(para1Type)) {
+  uint8_t para0Type = pPara0->resType.type;
+  uint8_t para1Type = pPara1->resType.type;
+  if (!IS_VAR_DATA_TYPE(para0Type) || !IS_INTEGER_TYPE(para1Type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  if (((SValueNode*)p1)->datum.i < 1) {
+  if (((SValueNode*)pPara1)->datum.i == 0) {
     return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
   if (3 == numOfParams) {
-    SExprNode* p2 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 2);
-    uint8_t    para2Type = p2->resType.type;
+    SExprNode* pPara2 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    uint8_t    para2Type = pPara2->resType.type;
     if (!IS_INTEGER_TYPE(para2Type)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
 
-    int64_t v = ((SValueNode*)p1)->datum.i;
-    if (v < 0 || v > INT16_MAX) {
+    int64_t v = ((SValueNode*)pPara2)->datum.i;
+    if (v < 0) {
       return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
@@ -2210,22 +2211,12 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "last_row",
     .type = FUNCTION_TYPE_LAST_ROW,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
-    .processFunc  = lastRowFunction,
-    .finalizeFunc = lastRowFinalize,
-  },
-  {
-    .name = "_cache_last_row",
-    .type = FUNCTION_TYPE_CACHE_LAST_ROW,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
-    .translateFunc = translateLastRow,
-    .getEnvFunc   = getMinmaxFuncEnv,
-    .initFunc     = minmaxFunctionSetup,
-    .processFunc  = maxFunction,
-    .finalizeFunc = functionFinalize
+    .processFunc  = lastrowFunction,
+    .finalizeFunc = firstLastFinalize
   },
   {
     .name = "first",

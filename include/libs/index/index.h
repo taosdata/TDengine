@@ -208,7 +208,7 @@ int32_t doFilterTag(const SNode* pFilterNode, SIndexMetaArg* metaArg, SArray* re
  * destory index env
  *
  */
-void indexCleanUp();
+void indexCleanup();
 
 #ifdef __cplusplus
 }

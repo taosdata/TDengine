@@ -523,6 +523,17 @@ static void tdDestroySDataBlockArray(SArray *pArray) {
   taosArrayDestroy(pArray);
 }
 
+int64_t tdRSmaGetMaxSubmitVer(SSma *pSma, int8_t level) {
+  if (level == TSDB_RETENTION_L0) {
+    return pSma->pVnode->state.applied;
+  }
+
+  SSmaEnv   *pRSmaEnv = SMA_RSMA_ENV(pSma);
+  SRSmaStat *pRSmaStat = (SRSmaStat *)(SMA_ENV_STAT(pRSmaEnv));
+
+  return atomic_load_64(&pRSmaStat->submitVer);
+}
+
 static int32_t tdFetchAndSubmitRSmaResult(SRSmaInfoItem *pItem, int8_t blkType) {
   SArray    *pResult = NULL;
   SRSmaInfo *pRSmaInfo = pItem->pRsmaInfo;
@@ -562,7 +573,7 @@ static int32_t tdFetchAndSubmitRSmaResult(SRSmaInfoItem *pItem, int8_t blkType) 
       goto _err;
     }
 
-    if (pReq && tdProcessSubmitReq(sinkTsdb, INT64_MAX, pReq) < 0) {
+    if (pReq && tdProcessSubmitReq(sinkTsdb, atomic_add_fetch_64(&pRSmaInfo->pStat->submitVer, 1), pReq) < 0) {
       taosMemoryFreeClear(pReq);
       goto _err;
     }
@@ -814,6 +825,7 @@ static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma, int64_t *committed) {
   }
 
   if (!taosCheckExistFile(TD_TFILE_FULL_NAME(&tFile))) {
+    *committed = 0;
     if (pVnode->state.committed > 0) {
       smaWarn("vgId:%d, rsma restore for version %" PRIi64 ", not start as %s not exist", TD_VID(pVnode),
               pVnode->state.committed, TD_TFILE_FULL_NAME(&tFile));
@@ -827,6 +839,18 @@ static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma, int64_t *committed) {
   if (tdOpenTFile(&tFile, TD_FILE_READ) < 0) {
     goto _err;
   }
+
+  STFInfo tFileInfo = {0};
+  if (tdLoadTFileHeader(&tFile, &tFileInfo) < 0) {
+    goto _err;
+  }
+
+  ASSERT(tFileInfo.qTaskInfo.submitVer > 0);
+
+  SSmaEnv   *pRSmaEnv = pSma->pRSmaEnv;
+  SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pRSmaEnv);
+  atomic_store_64(&pRSmaStat->submitVer, tFileInfo.qTaskInfo.submitVer);
+  smaDebug("%s:%d tFileInfo.qTaskInfo.submitVer = %" PRIi64, __func__, __LINE__, tFileInfo.qTaskInfo.submitVer);
 
   SRSmaQTaskInfoIter fIter = {0};
   if (tdRSmaQTaskInfoIterInit(&fIter, &tFile) < 0) {
@@ -1094,6 +1118,22 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat) {
   }
 
   STFile tFile = {0};
+  if (RSMA_SUBMIT_VER(pRSmaStat) > 0) {
+    char qTaskInfoFName[TSDB_FILENAME_LEN];
+    tdRSmaQTaskInfoGetFName(vid, pSma->pVnode->state.applied, qTaskInfoFName);
+    if (tdInitTFile(&tFile, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFName) < 0) {
+      smaError("vgId:%d, rsma persit, init %s failed since %s", vid, qTaskInfoFName, terrstr());
+      goto _err;
+    }
+    if (tdCreateTFile(&tFile, true, TD_FTYPE_RSMA_QTASKINFO) < 0) {
+      smaError("vgId:%d, rsma persit, create %s failed since %s", vid, TD_TFILE_FULL_NAME(&tFile), terrstr());
+      goto _err;
+    }
+    smaDebug("vgId:%d, rsma, serialize qTaskInfo, file %s created", vid, TD_TFILE_FULL_NAME(&tFile));
+
+    isFileCreated = true;
+  }
+
   while (infoHash) {
     SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)infoHash;
     for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
@@ -1129,12 +1169,12 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat) {
           smaError("vgId:%d, rsma persit, init %s failed since %s", vid, qTaskInfoFName, terrstr());
           goto _err;
         }
-        if (tdCreateTFile(&tFile, true, -1) < 0) {
+        if (tdCreateTFile(&tFile, true, TD_FTYPE_RSMA_QTASKINFO) < 0) {
           smaError("vgId:%d, rsma persit, create %s failed since %s", vid, TD_TFILE_FULL_NAME(&tFile), terrstr());
           goto _err;
         }
-        smaDebug("vgId:%d, rsma, table %" PRIi64 " level %d serialize qTaskInfo, file %s created", vid, pRSmaInfo->suid,
-                 i + 1, TD_TFILE_FULL_NAME(&tFile));
+        smaDebug("vgId:%d, rsma, table %" PRIi64 " serialize qTaskInfo, file %s created", vid, pRSmaInfo->suid,
+                 TD_TFILE_FULL_NAME(&tFile));
 
         isFileCreated = true;
       }
@@ -1161,6 +1201,7 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat) {
   }
 
   if (isFileCreated) {
+    tFile.info.qTaskInfo.submitVer = atomic_load_64(&pRSmaStat->submitVer);
     if (tdUpdateTFileHeader(&tFile) < 0) {
       smaError("vgId:%d, rsma, failed to update tfile %s header since %s", vid, TD_TFILE_FULL_NAME(&tFile),
                tstrerror(terrno));

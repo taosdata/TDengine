@@ -40,7 +40,7 @@ bool shellRegexMatch(const char *s, const char *reg, int32_t cflags) {
     return false;
   } else {
     regerror(reti, &regex, msgbuf, sizeof(msgbuf));
-    fprintf(stderr, "Regex match failed: %s\n", msgbuf);
+    fprintf(stderr, "Regex match failed: %s\r\n", msgbuf);
     regfree(&regex);
     shellExit();
   }
@@ -68,19 +68,19 @@ int32_t shellCheckIntSize() {
   return 0;
 }
 
-void shellPrintVersion() { printf("version: %s\n", version); }
+void shellPrintVersion() { printf("version: %s\r\n", version); }
 
 void shellGenerateAuth() {
   char secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
   taosEncryptPass_c((uint8_t *)shell.args.password, strlen(shell.args.password), secretEncrypt);
-  printf("%s\n", secretEncrypt);
+  printf("%s\r\n", secretEncrypt);
   fflush(stdout);
 }
 
 void shellDumpConfig() {
   SConfig *pCfg = taosGetCfg();
   if (pCfg == NULL) {
-    printf("TDengine read global config failed!\n");
+    printf("TDengine read global config failed!\r\n");
   } else {
     cfgDumpCfg(pCfg, 1, true);
   }
@@ -95,23 +95,23 @@ void shellCheckServerStatus() {
     code = taos_check_server_status(shell.args.host, shell.args.port, details, 1024);
     switch (code) {
       case TSDB_SRV_STATUS_UNAVAILABLE:
-        printf("0: unavailable\n");
+        printf("0: unavailable\r\n");
         break;
       case TSDB_SRV_STATUS_NETWORK_OK:
-        printf("1: network ok\n");
+        printf("1: network ok\r\n");
         break;
       case TSDB_SRV_STATUS_SERVICE_OK:
-        printf("2: service ok\n");
+        printf("2: service ok\r\n");
         break;
       case TSDB_SRV_STATUS_SERVICE_DEGRADED:
-        printf("3: service degraded\n");
+        printf("3: service degraded\r\n");
         break;
       case TSDB_SRV_STATUS_EXTING:
-        printf("4: exiting\n");
+        printf("4: exiting\r\n");
         break;
     }
     if (strlen(details) != 0) {
-      printf("%s\n\n", details);
+      printf("%s\r\n\r\n", details);
     }
     fflush(stdout);
     if (code == TSDB_SRV_STATUS_NETWORK_OK && shell.args.is_startup) {

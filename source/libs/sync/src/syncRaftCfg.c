@@ -182,7 +182,8 @@ cJSON *raftCfg2Json(SRaftCfg *pRaftCfg) {
   cJSON *pRoot = cJSON_CreateObject();
   cJSON_AddItemToObject(pRoot, "SSyncCfg", syncCfg2Json(&(pRaftCfg->cfg)));
   cJSON_AddNumberToObject(pRoot, "isStandBy", pRaftCfg->isStandBy);
-  cJSON_AddNumberToObject(pRoot, "snapshotEnable", pRaftCfg->snapshotEnable);
+  cJSON_AddNumberToObject(pRoot, "snapshotStrategy", pRaftCfg->snapshotStrategy);
+  cJSON_AddNumberToObject(pRoot, "batchSize", pRaftCfg->batchSize);
 
   char buf64[128];
   snprintf(buf64, sizeof(buf64), "%ld", pRaftCfg->lastConfigIndex);
@@ -228,7 +229,8 @@ int32_t raftCfgCreateFile(SSyncCfg *pCfg, SRaftCfgMeta meta, const char *path) {
   SRaftCfg raftCfg;
   raftCfg.cfg = *pCfg;
   raftCfg.isStandBy = meta.isStandBy;
-  raftCfg.snapshotEnable = meta.snapshotEnable;
+  raftCfg.batchSize = meta.batchSize;
+  raftCfg.snapshotStrategy = meta.snapshotStrategy;
   raftCfg.lastConfigIndex = meta.lastConfigIndex;
   raftCfg.configIndexCount = 1;
   memset(raftCfg.configIndexArr, 0, sizeof(raftCfg.configIndexArr));
@@ -257,8 +259,11 @@ int32_t raftCfgFromJson(const cJSON *pRoot, SRaftCfg *pRaftCfg) {
   cJSON *pJsonIsStandBy = cJSON_GetObjectItem(pJson, "isStandBy");
   pRaftCfg->isStandBy = cJSON_GetNumberValue(pJsonIsStandBy);
 
-  cJSON *pJsonSnapshotEnable = cJSON_GetObjectItem(pJson, "snapshotEnable");
-  pRaftCfg->snapshotEnable = cJSON_GetNumberValue(pJsonSnapshotEnable);
+  cJSON *pJsonBatchSize = cJSON_GetObjectItem(pJson, "batchSize");
+  pRaftCfg->batchSize = cJSON_GetNumberValue(pJsonBatchSize);
+
+  cJSON *pJsonSnapshotStrategy = cJSON_GetObjectItem(pJson, "snapshotStrategy");
+  pRaftCfg->snapshotStrategy = cJSON_GetNumberValue(pJsonSnapshotStrategy);
 
   cJSON *pJsonLastConfigIndex = cJSON_GetObjectItem(pJson, "lastConfigIndex");
   pRaftCfg->lastConfigIndex = atoll(cJSON_GetStringValue(pJsonLastConfigIndex));

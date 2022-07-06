@@ -37,6 +37,7 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   info.config = *pCfg;
   info.state.committed = -1;
   info.state.applied = -1;
+  info.state.commitID = 0;
 
   if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir, &info) < 0) {
     vError("vgId:%d, failed to save vnode config since %s", pCfg->vgId, tstrerror(terrno));
@@ -79,9 +80,10 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->config = info.config;
   pVnode->state.committed = info.state.committed;
   pVnode->state.applied = info.state.committed;
+  pVnode->state.commitID = info.state.commitID;
   pVnode->pTfs = pTfs;
   pVnode->msgCb = msgCb;
-  pVnode->syncCount = 0;
+  pVnode->blockCount = 0;
 
   tsem_init(&pVnode->syncSem, 0, 0);
   tsem_init(&(pVnode->canCommit), 0, 1);
