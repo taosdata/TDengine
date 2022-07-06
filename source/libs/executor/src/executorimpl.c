@@ -2053,7 +2053,7 @@ static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInf
   pMsgSendInfo->param = pWrapper;
   pMsgSendInfo->msgInfo.pData = pMsg;
   pMsgSendInfo->msgInfo.len = sizeof(SResFetchReq);
-  pMsgSendInfo->msgType = TDMT_SCH_FETCH;
+  pMsgSendInfo->msgType = pSource->fetchMsgType;
   pMsgSendInfo->fp = loadRemoteDataCallback;
 
   int64_t transporterId = 0;

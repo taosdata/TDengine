@@ -351,6 +351,7 @@ typedef struct SDownstreamSourceNode {
   uint64_t       taskId;
   uint64_t       schedId;
   int32_t        execId;
+  int32_t        fetchMsgType;
 } SDownstreamSourceNode;
 
 typedef struct SExchangePhysiNode {

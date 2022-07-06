@@ -133,7 +133,7 @@ void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   }
   pMsg->info.hasEpSet = 1;
 
-  SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info};
+  SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info, .msgType = pMsg->msgType + 1};
   tmsgSendRedirectRsp(&rsp, &newEpSet);
 }
 
