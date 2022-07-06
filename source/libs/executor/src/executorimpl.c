@@ -1992,7 +1992,7 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   taosMemoryFreeClear(pMsgBody);
 }
 
-void qProcessFetchRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
+void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
   assert(pMsg->info.ahandle != NULL);
 
@@ -4687,10 +4687,20 @@ int32_t decodeOperator(SOperatorInfo* ops, const char* result, int32_t length) {
   return TDB_CODE_SUCCESS;
 }
 
-int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pTaskInfo) {
+int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pTaskInfo, SReadHandle* readHandle) {
   SExecTaskInfo* pTask = *(SExecTaskInfo**)pTaskInfo;
 
   switch (pNode->type) {
+    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
+      SInserterParam* pInserterParam = taosMemoryCalloc(1, sizeof(SInserterParam));
+      if (NULL == pInserterParam) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      pInserterParam->readHandle = readHandle;
+      
+      *pParam = pInserterParam;
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
       SDeleterParam* pDeleterParam = taosMemoryCalloc(1, sizeof(SDeleterParam));
       if (NULL == pDeleterParam) {

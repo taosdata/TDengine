@@ -3777,3 +3777,39 @@ void tsdbCleanupReadHandle(tsdbReaderT queryHandle) {
   taosMemoryFree(pTsdbReadHandle->pSchema);
   taosMemoryFreeClear(pTsdbReadHandle);
 }
+
+int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int64_t *suid) {
+  int32_t sversion = 1;
+
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, pVnode->pMeta, 0);
+  int32_t code = metaGetTableEntryByUid(&mr, uid);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
+    metaReaderClear(&mr);
+    return terrno;
+  }
+
+  *suid = 0;
+  
+  if (mr.me.type == TSDB_CHILD_TABLE) {
+    *suid = mr.me.ctbEntry.suid;
+    code = metaGetTableEntryByUid(&mr, *suid);
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
+      metaReaderClear(&mr);
+      return terrno;
+    }
+    sversion = mr.me.stbEntry.schemaRow.version;
+  } else {
+    ASSERT(mr.me.type == TSDB_NORMAL_TABLE);
+    sversion = mr.me.ntbEntry.schemaRow.version;
+  }
+
+  metaReaderClear(&mr);
+  *pSchema = metaGetTbTSchema(pVnode->pMeta, uid, sversion);
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+

@@ -24,195 +24,153 @@
 
 extern SDataSinkStat gDataSinkStat;
 
-typedef struct SDataInserterBuf {
-  int32_t useSize;
-  int32_t allocSize;
-  char*   pData;
-} SDataInserterBuf;
-
-typedef struct SDataCacheEntry {
-  int32_t dataLen;
-  int32_t numOfRows;
-  int32_t numOfCols;
-  int8_t  compressed;
-  char    data[];
-} SDataCacheEntry;
+typedef struct SSubmitRes {
+  int64_t     affectedRows;
+  int32_t     code;
+  SSubmitRsp *pRsp;
+} SSubmitRes;
 
 typedef struct SDataInserterHandle {
   SDataSinkHandle     sink;
   SDataSinkManager*   pManager;
-  SDataBlockDescNode* pSchema;
-  SDataDeleterNode*   pDeleter;
-  SDeleterParam*      pParam;
-  STaosQueue*         pDataBlocks;
-  SDataInserterBuf    nextOutput;
+  STSchema*           pSchema;
+  SQueryInserterNode* pNode;
+  SSubmitRes          submitRes;
+  SInserterParam*     pParam;
+  SArray*             pDataBlocks;
   int32_t             status;
   bool                queryEnd;
   uint64_t            useconds;
   uint64_t            cachedSize;
   TdThreadMutex       mutex;
+  tsem_t              ready;  
 } SDataInserterHandle;
 
-static bool needCompress(const SSDataBlock* pData, int32_t numOfCols) {
-  if (tsCompressColData < 0 || 0 == pData->info.rows) {
-    return false;
-  }
+typedef struct SSubmitRspParam {
+  SDataInserterHandle* pInserter;
+} SSubmitRspParam;
 
-  for (int32_t col = 0; col < numOfCols; ++col) {
-    SColumnInfoData* pColRes = taosArrayGet(pData->pDataBlock, col);
-    int32_t          colSize = pColRes->info.bytes * pData->info.rows;
-    if (NEEDTO_COMPRESS_QUERY(colSize)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-static void toDataCacheEntry(SDataInserterHandle* pHandle, const SInputData* pInput, SDataInserterBuf* pBuf) {
-  int32_t numOfCols = LIST_LENGTH(pHandle->pSchema->pSlots);
-
-  SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
-  pEntry->compressed = 0;
-  pEntry->numOfRows = pInput->pData->info.rows;
-  pEntry->numOfCols = taosArrayGetSize(pInput->pData->pDataBlock);
-  pEntry->dataLen = sizeof(SDeleterRes);
-
-  ASSERT(1 == pEntry->numOfRows);
-  ASSERT(1 == pEntry->numOfCols);
-
-  pBuf->useSize = sizeof(SDataCacheEntry);
-
-  SColumnInfoData* pColRes = (SColumnInfoData*)taosArrayGet(pInput->pData->pDataBlock, 0);
-
-  SDeleterRes* pRes = (SDeleterRes*)pEntry->data;
-  pRes->suid = pHandle->pParam->suid;
-  pRes->uidList = pHandle->pParam->pUidList;
-  pRes->skey = pHandle->pDeleter->deleteTimeRange.skey;
-  pRes->ekey = pHandle->pDeleter->deleteTimeRange.ekey;
-  pRes->affectedRows = *(int64_t*)pColRes->pData;
-
-  pBuf->useSize += pEntry->dataLen;
-  
-  atomic_add_fetch_64(&pHandle->cachedSize, pEntry->dataLen); 
-  atomic_add_fetch_64(&gDataSinkStat.cachedSize, pEntry->dataLen); 
-}
-
-static bool allocBuf(SDataInserterHandle* pDeleter, const SInputData* pInput, SDataInserterBuf* pBuf) {
-  uint32_t capacity = pDeleter->pManager->cfg.maxDataBlockNumPerQuery;
-  if (taosQueueItemSize(pDeleter->pDataBlocks) > capacity) {
-    qError("SinkNode queue is full, no capacity, max:%d, current:%d, no capacity", capacity,
-           taosQueueItemSize(pDeleter->pDataBlocks));
-    return false;
-  }
-
-  pBuf->allocSize = sizeof(SDataCacheEntry) + sizeof(SDeleterRes);
-
-  pBuf->pData = taosMemoryMalloc(pBuf->allocSize);
-  if (pBuf->pData == NULL) {
-    qError("SinkNode failed to malloc memory, size:%d, code:%d", pBuf->allocSize, TAOS_SYSTEM_ERROR(errno));
-  }
-
-  return NULL != pBuf->pData;
-}
-
-static int32_t updateStatus(SDataInserterHandle* pDeleter) {
-  taosThreadMutexLock(&pDeleter->mutex);
-  int32_t blockNums = taosQueueItemSize(pDeleter->pDataBlocks);
+static int32_t updateStatus(SDataInserterHandle* pInserter) {
+  taosThreadMutexLock(&pInserter->mutex);
+  int32_t blockNums = taosQueueItemSize(pInserter->pDataBlocks);
   int32_t status =
       (0 == blockNums ? DS_BUF_EMPTY
-                      : (blockNums < pDeleter->pManager->cfg.maxDataBlockNumPerQuery ? DS_BUF_LOW : DS_BUF_FULL));
-  pDeleter->status = status;
-  taosThreadMutexUnlock(&pDeleter->mutex);
+                      : (blockNums < pInserter->pManager->cfg.maxDataBlockNumPerQuery ? DS_BUF_LOW : DS_BUF_FULL));
+  pInserter->status = status;
+  taosThreadMutexUnlock(&pInserter->mutex);
   return status;
 }
 
-static int32_t getStatus(SDataInserterHandle* pDeleter) {
-  taosThreadMutexLock(&pDeleter->mutex);
-  int32_t status = pDeleter->status;
-  taosThreadMutexUnlock(&pDeleter->mutex);
+static int32_t getStatus(SDataInserterHandle* pInserter) {
+  taosThreadMutexLock(&pInserter->mutex);
+  int32_t status = pInserter->status;
+  taosThreadMutexUnlock(&pInserter->mutex);
   return status;
 }
+
+int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
+  SSubmitRspParam* pParam = (SSubmitRspParam*)param;
+  SDataInserterHandle* pInserter = pParam->pInserter;
+
+  pInserter->submitRes.code = code;
+  
+  if (code == TSDB_CODE_SUCCESS) {
+    pInserter->submitRes.pRsp = taosMemoryCalloc(1, sizeof(SSubmitRsp));
+    SDecoder    coder = {0};
+    tDecoderInit(&coder, pMsg->pData, pMsg->len);
+    code = tDecodeSSubmitRsp(&coder, pInserter->submitRes.pRsp);
+    if (code) {
+      tFreeSSubmitRsp(pInserter->submitRes.pRsp);
+      pInserter->submitRes.code = code;
+      goto _return;
+    }
+    
+    if (pInserter->submitRes.pRsp->nBlocks > 0) {
+      for (int32_t i = 0; i < pInserter->submitRes.pRsp->nBlocks; ++i) {
+        SSubmitBlkRsp *blk = pInserter->submitRes.pRsp->pBlocks + i;
+        if (TSDB_CODE_SUCCESS != blk->code) {
+          code = blk->code;
+          tFreeSSubmitRsp(pInserter->submitRes.pRsp);
+          pInserter->submitRes.code = code;
+          goto _return;
+        }
+      }
+    }
+    
+    pInserter->submitRes.affectedRows += pInserter->submitRes.pRsp->affectedRows;
+    qDebug("submit rsp received, affectedRows:%d, total:%d", pInserter->submitRes.pRsp->affectedRows, pInserter->submitRes.affectedRows);
+
+    tFreeSSubmitRsp(pInserter->submitRes.pRsp);
+  }
+
+_return:
+
+  tsem_post(&pInserter->ready);
+
+  taosMemoryFree(param);
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, SSubmitReq* pMsg, void* pTransporter, SEpSet* pEpset) {
+  // send the fetch remote task result reques
+  SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  if (NULL == pMsgSendInfo) {
+    taosMemoryFreeClear(pMsg);
+    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return terrno;
+  }
+
+  SSubmitRspParam* pParam = taosMemoryCalloc(1, sizeof(SSubmitRspParam));
+  pParam->pInserter = pInserter;
+
+  pMsgSendInfo->param = pParam;
+  pMsgSendInfo->msgInfo.pData = pMsg;
+  pMsgSendInfo->msgInfo.len = sizeof(SSubmitReq);
+  pMsgSendInfo->msgType = TDMT_VND_SUBMIT;
+  pMsgSendInfo->fp = inserterCallback;
+
+  int64_t transporterId = 0;
+  return asyncSendMsgToServer(pTransporter, pEpset, &transporterId, pMsgSendInfo);
+}
+
 
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
-  SDataInserterHandle* pDeleter = (SDataInserterHandle*)pHandle;
-  SDataInserterBuf*    pBuf = taosAllocateQitem(sizeof(SDataInserterBuf), DEF_QITEM);
-  if (NULL == pBuf || !allocBuf(pDeleter, pInput, pBuf)) {
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+  SDataInserterHandle* pInserter = (SDataInserterHandle*)pHandle;
+  taosArrayPush(pInserter->pDataBlocks, pInput->pData);
+  SSubmitReq* pMsg = dataBlockToSubmit(pInserter->pDataBlocks, pInserter->pSchema, pInserter->pNode->tableId, pInserter->pNode->suid, pInserter->pNode->vgId);
+
+  int32_t code = sendSubmitRequest(pInserter, pMsg, pInserter->pParam->readHandle->pMsgCb->clientRpc, &pInserter->pNode->epSet);
+  if (code) {
+    return code;
   }
-  toDataCacheEntry(pDeleter, pInput, pBuf);
-  taosWriteQitem(pDeleter->pDataBlocks, pBuf);
-  *pContinue = (DS_BUF_LOW == updateStatus(pDeleter) ? true : false);
+
+  tsem_wait(&pInserter->ready);
+
+  if (pInserter->submitRes.code) {
+    return pInserter->submitRes.code;
+  }
+
+  *pContinue = true;
+  
   return TSDB_CODE_SUCCESS;
 }
 
 static void endPut(struct SDataSinkHandle* pHandle, uint64_t useconds) {
-  SDataInserterHandle* pDeleter = (SDataInserterHandle*)pHandle;
-  taosThreadMutexLock(&pDeleter->mutex);
-  pDeleter->queryEnd = true;
-  pDeleter->useconds = useconds;
-  taosThreadMutexUnlock(&pDeleter->mutex);
-}
-
-static void getDataLength(SDataSinkHandle* pHandle, int32_t* pLen, bool* pQueryEnd) {
-  SDataInserterHandle* pDeleter = (SDataInserterHandle*)pHandle;
-  if (taosQueueEmpty(pDeleter->pDataBlocks)) {
-    *pQueryEnd = pDeleter->queryEnd;
-    *pLen = 0;
-    return;
-  }
-
-  SDataInserterBuf* pBuf = NULL;
-  taosReadQitem(pDeleter->pDataBlocks, (void**)&pBuf);
-  memcpy(&pDeleter->nextOutput, pBuf, sizeof(SDataInserterBuf));
-  taosFreeQitem(pBuf);
-  *pLen = ((SDataCacheEntry*)(pDeleter->nextOutput.pData))->dataLen;
-  *pQueryEnd = pDeleter->queryEnd;
-  qDebug("got data len %d, row num %d in sink", *pLen, ((SDataCacheEntry*)(pDeleter->nextOutput.pData))->numOfRows);
-}
-
-static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
-  SDataInserterHandle* pDeleter = (SDataInserterHandle*)pHandle;
-  if (NULL == pDeleter->nextOutput.pData) {
-    assert(pDeleter->queryEnd);
-    pOutput->useconds = pDeleter->useconds;
-    pOutput->precision = pDeleter->pSchema->precision;
-    pOutput->bufStatus = DS_BUF_EMPTY;
-    pOutput->queryEnd = pDeleter->queryEnd;
-    return TSDB_CODE_SUCCESS;
-  }
-  SDataCacheEntry* pEntry = (SDataCacheEntry*)(pDeleter->nextOutput.pData);
-  memcpy(pOutput->pData, pEntry->data, pEntry->dataLen);
-  pOutput->numOfRows = pEntry->numOfRows;
-  pOutput->numOfCols = pEntry->numOfCols;
-  pOutput->compressed = pEntry->compressed;
-
-  atomic_sub_fetch_64(&pDeleter->cachedSize, pEntry->dataLen);  
-  atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pEntry->dataLen); 
-
-  taosMemoryFreeClear(pDeleter->nextOutput.pData);  // todo persistent
-  pOutput->bufStatus = updateStatus(pDeleter);
-  taosThreadMutexLock(&pDeleter->mutex);
-  pOutput->queryEnd = pDeleter->queryEnd;
-  pOutput->useconds = pDeleter->useconds;
-  pOutput->precision = pDeleter->pSchema->precision;
-  taosThreadMutexUnlock(&pDeleter->mutex);
-  
-  return TSDB_CODE_SUCCESS;
+  SDataInserterHandle* pInserter = (SDataInserterHandle*)pHandle;
+  taosThreadMutexLock(&pInserter->mutex);
+  pInserter->queryEnd = true;
+  pInserter->useconds = useconds;
+  taosThreadMutexUnlock(&pInserter->mutex);
 }
 
 static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
-  SDataInserterHandle* pDeleter = (SDataInserterHandle*)pHandle;
-  atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pDeleter->cachedSize);
-  taosMemoryFreeClear(pDeleter->nextOutput.pData);
-  while (!taosQueueEmpty(pDeleter->pDataBlocks)) {
-    SDataInserterBuf* pBuf = NULL;
-    taosReadQitem(pDeleter->pDataBlocks, (void**)&pBuf);
-    taosMemoryFreeClear(pBuf->pData);
-    taosFreeQitem(pBuf);
-  }
-  taosCloseQueue(pDeleter->pDataBlocks);
-  taosThreadMutexDestroy(&pDeleter->mutex);
+  SDataInserterHandle* pInserter = (SDataInserterHandle*)pHandle;
+  atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pInserter->cachedSize);
+  taosArrayDestroy(pInserter->pDataBlocks);
+  taosMemoryFree(pInserter->pSchema);
+  taosThreadMutexDestroy(&pInserter->mutex);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -230,25 +188,39 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
-  SDataDeleterNode* pDeleterNode = (SDataDeleterNode *)pDataSink;
+  SDataDeleterNode* pInserterNode = (SQueryInserterNode *)pDataSink;
   inserter->sink.fPut = putDataBlock;
   inserter->sink.fEndPut = endPut;
-  inserter->sink.fGetLen = getDataLength;
-  inserter->sink.fGetData = getDataBlock;
+  inserter->sink.fGetLen = NULL;
+  inserter->sink.fGetData = NULL;
   inserter->sink.fDestroy = destroyDataSinker;
   inserter->sink.fGetCacheSize = getCacheSize;
   inserter->pManager = pManager;
-  inserter->pDeleter = pDeleterNode;
-  inserter->pSchema = pDataSink->pInputDataBlockDesc;
+  inserter->pNode = pInserterNode;
   inserter->pParam = pParam;
   inserter->status = DS_BUF_EMPTY;
   inserter->queryEnd = false;
-  inserter->pDataBlocks = taosOpenQueue();
+
+  int64_t suid = 0;
+  int32_t code = tsdbGetTableSchema(inserter->pParam->readHandle->vnode, pInserterNode->tableId, &inserter->pSchema, &suid);
+  if (code) {
+    return code;
+  }
+
+  if (pInserterNode->suid != suid) {
+    terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
+    return terrno;
+  }
+
+  inserter->pDataBlocks = taosArrayInit(1, POINTER_BYTES);
   taosThreadMutexInit(&inserter->mutex, NULL);
   if (NULL == inserter->pDataBlocks) {
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
+
+  tsem_init(&inserter->ready, 0, 0);
+  
   *pHandle = inserter;
   return TSDB_CODE_SUCCESS;
 }

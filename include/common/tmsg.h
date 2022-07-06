@@ -1510,6 +1510,7 @@ typedef struct SSubQueryMsg {
   int32_t  execId;
   int8_t   taskType;
   int8_t   explain;
+  int8_t   needFetch;
   uint32_t sqlLen;  // the query sql,
   uint32_t phyLen;
   char     msg[];

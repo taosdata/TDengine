@@ -981,6 +981,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       pMsg->execId = htonl(pTask->execId);
       pMsg->taskType = TASK_TYPE_TEMP;
       pMsg->explain = SCH_IS_EXPLAIN_JOB(pJob);
+      pMsg->needFetch = SCH_JOB_NEED_FETCH(pJob);
       pMsg->phyLen = htonl(pTask->msgLen);
       pMsg->sqlLen = htonl(len);
 

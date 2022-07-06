@@ -45,6 +45,10 @@ typedef struct SDeleterParam {
   SArray*  pUidList;
 } SDeleterParam;
 
+typedef struct SInserterParam {
+  SReadHandle* readHandle;
+} SInserterParam;
+
 typedef struct SDataSinkStat {
   uint64_t cachedSize;
 } SDataSinkStat;

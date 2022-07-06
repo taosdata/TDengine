@@ -247,7 +247,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
 
 
 int32_t schAppendJobDataSrc(SSchJob *pJob, SSchTask *pTask) {
-  if (!SCH_IS_DATA_SRC_QRY_TASK(pTask)) {
+  if (!SCH_IS_DATA_BIND_QRY_TASK(pTask)) {
     return TSDB_CODE_SUCCESS;
   }
 

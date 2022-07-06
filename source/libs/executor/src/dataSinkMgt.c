@@ -40,6 +40,8 @@ int32_t dsCreateDataSinker(const SDataSinkNode *pDataSink, DataSinkHandle* pHand
       return createDataDispatcher(&gDataSinkManager, pDataSink, pHandle);
     case QUERY_NODE_PHYSICAL_PLAN_DELETE:
       return createDataDeleter(&gDataSinkManager, pDataSink, pHandle, pParam);
+    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
+      return createDataInserter(&gDataSinkManager, pDataSink, pHandle, pParam);
   }
   return TSDB_CODE_FAILED;
 }
