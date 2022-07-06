@@ -19,7 +19,7 @@ class TDTestCase:
             '2020-5-1 00:00:00.001002001'
         ]
         self.db_param_precision = ['ms','us','ns']
-        self.time_unit = ['1w','1d','1h','1m','1s','1a','1u']
+        self.time_unit = ['1w','1d','1h','1m','1s','1a','1u','1b']
         self.error_unit = ['2w','2d','2h','2m','2s','2a','2u','1c','#1']
         self.error_unit = ['2w','2d','2h','2m','2s','2a','2u','1c','#1']
         self.ntbname = 'ntb'
@@ -80,7 +80,10 @@ class TDTestCase:
                 ts_result = self.get_time.get_us_timestamp(str(tdSql.queryResult[i][0]))
                 tdSql.checkEqual(ts_result,int(date_time[i]/1000/1000/60/60/24/7)*7*24*60*60*1000*1000)
     def check_ns_timestamp(self,unit,date_time):
-        if unit.lower() == '1u':
+        if unit.lower() == '1b':
+            for i in range(len(self.ts_str)):
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]))
+        elif unit.lower() == '1u':
             for i in range(len(self.ts_str)):
                 tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000)*1000)
         elif unit.lower() == '1a':
@@ -110,7 +113,7 @@ class TDTestCase:
             tdSql.query(f'select timetruncate(ts,{unit}) from {self.stbname}')
     def data_check(self,date_time,precision,tb_type):
         for unit in self.time_unit:
-            if (unit.lower() == '1u' and precision.lower() == 'ms') or (unit.lower() == '1b' and precision.lower() == 'us'):
+            if (unit.lower() == '1u' and precision.lower() == 'ms') or (unit.lower() == '1b' and precision.lower() == 'us') or (unit.lower() == '1b' and precision.lower() == 'ms'):
                 if tb_type.lower() == 'ntb': 
                     tdSql.error(f'select timetruncate(ts,{unit}) from {self.ntbname}')
                 elif tb_type.lower() == 'ctb':

@@ -17,8 +17,8 @@ class TDTestCase:
 
         ]
         self.db_param_precision = ['ms','us','ns']
-        self.time_unit = ['1w','1d','1h','1m','1s','1a','1u']
-        self.error_unit = ['1b','2w','2d','2h','2m','2s','2a','2u','1c','#1']
+        self.time_unit = ['1w','1d','1h','1m','1s','1a','1u','1b']
+        self.error_unit = ['2w','2d','2h','2m','2s','2a','2u','1c','#1']
         self.ntbname = 'ntb'
         self.stbname = 'stb'
         self.ctbname = 'ctb'
@@ -39,7 +39,7 @@ class TDTestCase:
             tdSql.query(f'select timediff(ts,{self.subtractor},{unit}) from {self.stbname}')
     def data_check(self,date_time,precision,tb_type):
         for unit in self.time_unit:
-            if (unit.lower() == '1u' and precision.lower() == 'ms') or () :
+            if (unit.lower() == '1u' and precision.lower() == 'ms') or (unit.lower() == '1b' and precision.lower() == 'us') or (unit.lower() == '1b' and precision.lower() == 'ms'):
                 if tb_type.lower() == 'ntb': 
                     tdSql.error(f'select timediff(ts,{self.subtractor},{unit}) from {self.ntbname}')
                 elif tb_type.lower() == 'ctb':
