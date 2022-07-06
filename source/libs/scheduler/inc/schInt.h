@@ -52,6 +52,7 @@ typedef enum {
   SCH_OP_NULL = 0,
   SCH_OP_EXEC,
   SCH_OP_FETCH,
+  SCH_OP_GET_STATUS,
 } SCH_OP_TYPE;
 
 typedef struct SSchTrans {
@@ -97,12 +98,29 @@ typedef struct SSchStat {
 } SSchStat;
 
 typedef struct SSchResInfo {
-  SQueryResult*          queryRes;
+  SExecResult*           execRes;
   void**                 fetchRes;
   schedulerExecFp        execFp; 
   schedulerFetchFp       fetchFp; 
-  void*                  userParam;
+  void*                  cbParam;
 } SSchResInfo;
+
+typedef struct SSchOpEvent {
+  SCH_OP_TYPE    type;
+  bool           begin;
+  SSchedulerReq *pReq;
+} SSchOpEvent;
+
+typedef int32_t (*schStatusEnterFp)(void* pHandle, void* pParam);
+typedef int32_t (*schStatusLeaveFp)(void* pHandle, void* pParam);
+typedef int32_t (*schStatusEventFp)(void* pHandle, void* pParam, void* pEvent);
+
+typedef struct SSchStatusFps {
+  EJobTaskType     status;
+  schStatusEnterFp enterFp;
+  schStatusLeaveFp leaveFp;
+  schStatusEventFp eventFp;
+} SSchStatusFps;
 
 typedef struct SSchedulerMgmt {
   uint64_t        taskId; // sequential taksId
@@ -157,7 +175,7 @@ typedef struct SSchLevel {
   int32_t         taskNum;
   int32_t         taskLaunchedNum;
   int32_t         taskDoneNum;
-  SArray         *subTasks;      // Element is SQueryTask
+  SArray         *subTasks;      // Element is SSchTask
 } SSchLevel;
 
 typedef struct SSchTaskProfile {
@@ -195,12 +213,13 @@ typedef struct SSchTask {
 typedef struct SSchJobAttr {
   EExplainMode explainMode;
   bool         queryJob;
+  bool         needFetch;
   bool         needFlowCtrl;
 } SSchJobAttr;
 
 typedef struct {
   int32_t     op;
-  bool        sync;
+  bool        syncReq;
 } SSchOpStatus;
 
 typedef struct SSchJob {
@@ -231,7 +250,7 @@ typedef struct SSchJob {
   SSchTask          *fetchTask;
   int32_t            errCode;
   SRWLatch           resLock;
-  SQueryExecRes      execRes;
+  SExecResult        execRes;
   void              *resData;         //TODO free it or not
   int32_t            resNumOfRows;
   SSchResInfo        userRes;
@@ -292,19 +311,19 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_GET_JOB_STATUS(job) atomic_load_8(&(job)->status)
 #define SCH_GET_JOB_STATUS_STR(job) jobTaskStatusStr(SCH_GET_JOB_STATUS(job))
 
-#define SCH_JOB_IN_SYNC_OP(job) ((job)->opStatus.op && (job)->opStatus.sync)
-#define SCH_JOB_IN_ASYNC_EXEC_OP(job) (((job)->opStatus.op == SCH_OP_EXEC) && (!(job)->opStatus.sync))
-#define SCH_JOB_IN_ASYNC_FETCH_OP(job) (((job)->opStatus.op == SCH_OP_FETCH) && (!(job)->opStatus.sync))
+#define SCH_JOB_IN_SYNC_OP(job) ((job)->opStatus.op && (job)->opStatus.syncReq)
+#define SCH_JOB_IN_ASYNC_EXEC_OP(job) ((SCH_OP_EXEC == atomic_val_compare_exchange_32(&(job)->opStatus.op, SCH_OP_EXEC, SCH_OP_NULL)) && (!(job)->opStatus.syncReq))
+#define SCH_JOB_IN_ASYNC_FETCH_OP(job) ((SCH_OP_FETCH == atomic_val_compare_exchange_32(&(job)->opStatus.op, SCH_OP_FETCH, SCH_OP_NULL)) && (!(job)->opStatus.syncReq))
 
 #define SCH_SET_JOB_NEED_FLOW_CTRL(_job) (_job)->attr.needFlowCtrl = true
 #define SCH_JOB_NEED_FLOW_CTRL(_job) ((_job)->attr.needFlowCtrl)
 #define SCH_TASK_NEED_FLOW_CTRL(_job, _task) (SCH_IS_DATA_SRC_QRY_TASK(_task) && SCH_JOB_NEED_FLOW_CTRL(_job) && SCH_IS_LEVEL_UNFINISHED((_task)->level))
 
-#define SCH_SET_JOB_TYPE(_job, type) (_job)->attr.queryJob = ((type) != SUBPLAN_TYPE_MODIFY)
+#define SCH_SET_JOB_TYPE(_job, type) do { if ((type) != SUBPLAN_TYPE_MODIFY) { (_job)->attr.queryJob = true; } } while (0)
 #define SCH_IS_QUERY_JOB(_job) ((_job)->attr.queryJob) 
-#define SCH_JOB_NEED_FETCH(_job) SCH_IS_QUERY_JOB(_job)
-#define SCH_IS_WAIT_ALL_JOB(_job) (!SCH_IS_QUERY_JOB(_job))
-#define SCH_IS_NEED_DROP_JOB(_job) (SCH_IS_QUERY_JOB(_job))
+#define SCH_JOB_NEED_FETCH(_job) ((_job)->attr.needFetch)
+#define SCH_JOB_NEED_WAIT(_job) (!SCH_IS_QUERY_JOB(_job))
+#define SCH_JOB_NEED_DROP(_job) (SCH_IS_QUERY_JOB(_job))
 #define SCH_IS_EXPLAIN_JOB(_job) (EXPLAIN_MODE_ANALYZE == (_job)->attr.explainMode)
 #define SCH_NETWORK_ERR(_code) ((_code) == TSDB_CODE_RPC_BROKEN_LINK || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL)
 #define SCH_SUB_TASK_NETWORK_ERR(_code, _len) (SCH_NETWORK_ERR(_code) && ((_len) > 0))
@@ -329,9 +348,10 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_TASK_WLOG(param, ...) \
   qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask),__VA_ARGS__)
 
-#define SCH_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
-#define SCH_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
-#define SCH_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
+#define SCH_SET_ERRNO(_err) do { if (TSDB_CODE_SCH_IGNORE_ERROR != (_err)) { terrno = (_err); } } while (0)
+#define SCH_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { SCH_SET_ERRNO(_code); return _code; } } while (0)
+#define SCH_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { SCH_SET_ERRNO(_code); } return _code; } while (0)
+#define SCH_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { SCH_SET_ERRNO(code); goto _return; } } while (0)
 
 #define SCH_LOCK(type, _lock) (SCH_READ == (type) ? taosRLockLatch(_lock) : taosWLockLatch(_lock))
 #define SCH_UNLOCK(type, _lock) (SCH_READ == (type) ? taosRUnLockLatch(_lock) : taosWUnLockLatch(_lock))
@@ -349,7 +369,7 @@ int32_t schDecTaskFlowQuota(SSchJob *pJob, SSchTask *pTask);
 int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough);
 int32_t schLaunchTasksInFlowCtrlList(SSchJob *pJob, SSchTask *pTask);
 int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask);
-int32_t schFetchFromRemote(SSchJob *pJob);
+int32_t schLaunchFetchTask(SSchJob *pJob);
 int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode);
 int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId, SArray* taskAction);
 int32_t schCloneSMsgSendInfo(void *src, void **dst);
@@ -371,25 +391,45 @@ void    schFreeRpcCtxVal(const void *arg);
 int32_t schMakeBrokenLinkVal(SSchJob *pJob, SSchTask *pTask, SRpcBrokenlinkVal *brokenVal, bool isHb);
 int32_t schAppendTaskExecNode(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, int32_t execId);
 int32_t schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync);
-int32_t schExecJobImpl(SSchedulerReq *pReq, SSchJob *pJob, bool sync);
 int32_t schUpdateJobStatus(SSchJob *pJob, int8_t newStatus);
 int32_t schCancelJob(SSchJob *pJob);
 int32_t schProcessOnJobDropped(SSchJob *pJob, int32_t errCode);
 uint64_t schGenTaskId(void);
 void    schCloseJobRef(void);
-int32_t schExecJob(SSchedulerReq *pReq, int64_t *pJob, SQueryResult *pRes);
 int32_t schAsyncExecJob(SSchedulerReq *pReq, int64_t *pJob);
-int32_t schFetchRows(SSchJob *pJob);
-int32_t schAsyncFetchRows(SSchJob *pJob);
+int32_t schJobFetchRows(SSchJob *pJob);
+int32_t schJobFetchRowsA(SSchJob *pJob);
 int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, int32_t execId);
 int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId* pEpId, SArray* pStatusList);
 void    schFreeSMsgSendInfo(SMsgSendInfo *msgSendInfo);
 char*   schGetOpStr(SCH_OP_TYPE type);
 int32_t schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync);
-int32_t schInitJob(SSchedulerReq *pReq, SSchJob **pSchJob);
-int32_t schSetJobQueryRes(SSchJob* pJob, SQueryResult* pRes);
+int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq);
+int32_t schExecJob(SSchJob *pJob, SSchedulerReq *pReq);
+int32_t schDumpJobExecRes(SSchJob* pJob, SExecResult* pRes);
 int32_t schUpdateTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask, SEpSet* pEpSet);
 int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf* pData, int32_t rspCode);
+void    schProcessOnOpEnd(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq* pReq, int32_t errCode);
+int32_t schProcessOnOpBegin(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq);
+void    schProcessOnCbEnd(SSchJob *pJob, SSchTask *pTask, int32_t errCode);
+int32_t schProcessOnCbBegin(SSchJob** job, SSchTask** task, uint64_t qId, int64_t rId, uint64_t tId);
+void    schDropTaskOnExecNode(SSchJob *pJob, SSchTask *pTask);
+bool    schJobDone(SSchJob *pJob);
+int32_t schRemoveTaskFromExecList(SSchJob *pJob, SSchTask *pTask);
+int32_t schLaunchJobLowerLevel(SSchJob *pJob, SSchTask *pTask);
+int32_t schSwitchJobStatus(SSchJob* pJob, int32_t status, void* param);
+int32_t schHandleOpBeginEvent(int64_t jobId, SSchJob** job, SCH_OP_TYPE type, SSchedulerReq* pReq);
+int32_t schHandleOpEndEvent(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq, int32_t errCode);
+int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask);
+void    schUpdateJobErrCode(SSchJob *pJob, int32_t errCode);
+int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bool *needRetry);
+int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode);
+int32_t schProcessOnJobPartialSuccess(SSchJob *pJob);
+void    schFreeTask(SSchJob *pJob, SSchTask *pTask);
+void    schDropTaskInHashList(SSchJob *pJob, SHashObj *list);
+int32_t schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level);
+int32_t schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask);
+int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel);
 
 
 #ifdef __cplusplus
