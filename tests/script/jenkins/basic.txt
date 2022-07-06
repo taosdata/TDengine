@@ -164,9 +164,10 @@
 ./test.sh -f tsim/sma/drop_sma.sim
 ./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
 ./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
+./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
 
 # --- valgrind
-./test.sh -f tsim/valgrind/checkError.sim -v
+./test.sh -f tsim/valgrind/checkError.sim
 
 # --- vnode
 # ./test.sh -f tsim/vnode/replica3_basic.sim

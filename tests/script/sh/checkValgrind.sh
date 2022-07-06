@@ -35,5 +35,10 @@ LOG_DIR=$TAOS_DIR/sim/$NODE_NAME/log
 #echo ---- $LOG_DIR
 
 #errors=`grep "ERROR SUMMARY:" ${LOG_DIR}/valgrind-taosd-*.log | cut -d ' ' -f 2,3,4,5 | tr -d "\n"`
-errors=`cat ${LOG_DIR}/valgrind-taosd-*.log | grep "ERROR SUMMARY:" | awk '{print $4}' | awk '{sum+=$1}END{print sum}'`
+
+error_summary=`cat ${LOG_DIR}/valgrind-taosd-*.log | grep "ERROR SUMMARY:" | awk '{print $4}' | awk '{sum+=$1}END{print sum}'`
+still_reachable=`cat ${LOG_DIR}/valgrind-taosd-*.log | grep "still reachable in" | wc -l`
+definitely_lost=`cat ${LOG_DIR}/valgrind-taosd-*.log | grep "definitely lost in" | wc -l`
+
+let "errors=$still_reachable+$error_summary+$definitely_lost"
 echo $errors

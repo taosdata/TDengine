@@ -140,6 +140,17 @@ class MockCatalogServiceImpl {
     return TSDB_CODE_SUCCESS;
   }
 
+  int32_t catalogGetDBCfg(const char* pDbFName, SDbCfgInfo* pDbCfg) const {
+    std::string                dbFName(pDbFName);
+    DbCfgCache::const_iterator it = dbCfg_.find(dbFName.substr(std::string(pDbFName).find_last_of('.') + 1));
+    if (dbCfg_.end() == it) {
+      return TSDB_CODE_FAILED;
+    }
+
+    memcpy(pDbCfg, &(it->second), sizeof(SDbCfgInfo));
+    return TSDB_CODE_SUCCESS;
+  }
+
   int32_t catalogGetUdfInfo(const std::string& funcName, SFuncInfo* pInfo) const {
     auto it = udf_.find(funcName);
     if (udf_.end() == it) {
@@ -323,12 +334,21 @@ class MockCatalogServiceImpl {
     dnode_.insert(std::make_pair(dnodeId, epSet));
   }
 
+  void createDatabase(const std::string& db, bool rollup) {
+    SDbCfgInfo cfg = {0};
+    if (rollup) {
+      cfg.pRetensions = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SRetention));
+    }
+    dbCfg_.insert(std::make_pair(db, cfg));
+  }
+
  private:
   typedef std::map<std::string, std::shared_ptr<MockTableMeta>> TableMetaCache;
   typedef std::map<std::string, TableMetaCache>                 DbMetaCache;
   typedef std::map<std::string, std::shared_ptr<SFuncInfo>>     UdfMetaCache;
   typedef std::map<std::string, std::vector<STableIndexInfo>>   IndexMetaCache;
   typedef std::map<int32_t, SEpSet>                             DnodeCache;
+  typedef std::map<std::string, SDbCfgInfo>                     DbCfgCache;
 
   uint64_t getNextId() { return id_++; }
 
@@ -486,6 +506,7 @@ class MockCatalogServiceImpl {
       for (int32_t i = 0; i < ndbs; ++i) {
         SMetaRes res = {0};
         res.pRes = taosMemoryCalloc(1, sizeof(SDbCfgInfo));
+        res.code = catalogGetDBCfg((const char*)taosArrayGet(pDbCfgReq, i), (SDbCfgInfo*)res.pRes);
         taosArrayPush(*pDbCfgData, &res);
       }
     }
@@ -576,6 +597,7 @@ class MockCatalogServiceImpl {
   UdfMetaCache                  udf_;
   IndexMetaCache                index_;
   DnodeCache                    dnode_;
+  DbCfgCache                    dbCfg_;
 };
 
 MockCatalogService::MockCatalogService() : impl_(new MockCatalogServiceImpl()) {}
@@ -605,6 +627,8 @@ void MockCatalogService::createDnode(int32_t dnodeId, const std::string& host, i
   impl_->createDnode(dnodeId, host, port);
 }
 
+void MockCatalogService::createDatabase(const std::string& db, bool rollup) { impl_->createDatabase(db, rollup); }
+
 int32_t MockCatalogService::catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta) const {
   return impl_->catalogGetTableMeta(pTableName, pTableMeta);
 }
@@ -619,6 +643,10 @@ int32_t MockCatalogService::catalogGetTableDistVgInfo(const SName* pTableName, S
 
 int32_t MockCatalogService::catalogGetDBVgInfo(const char* pDbFName, SArray** pVgList) const {
   return impl_->catalogGetDBVgInfo(pDbFName, pVgList);
+}
+
+int32_t MockCatalogService::catalogGetDBCfg(const char* pDbFName, SDbCfgInfo* pDbCfg) const {
+  return impl_->catalogGetDBCfg(pDbFName, pDbCfg);
 }
 
 int32_t MockCatalogService::catalogGetUdfInfo(const std::string& funcName, SFuncInfo* pInfo) const {

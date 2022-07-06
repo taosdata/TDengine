@@ -628,12 +628,55 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
 
 #endif
 
-static int32_t syncNodeMakeLogSame2(SSyncNode* ths, SyncAppendEntriesBatch* pMsg) { return 0; }
-
 static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg) {
   int32_t code;
 
   SyncIndex delBegin = pMsg->prevLogIndex + 1;
+  SyncIndex delEnd = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+
+  // invert roll back!
+  for (SyncIndex index = delEnd; index >= delBegin; --index) {
+    if (ths->pFsm->FpRollBackCb != NULL) {
+      SSyncRaftEntry* pRollBackEntry;
+      code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, index, &pRollBackEntry);
+      ASSERT(code == 0);
+      ASSERT(pRollBackEntry != NULL);
+
+      if (syncUtilUserRollback(pRollBackEntry->msgType)) {
+        SRpcMsg rpcMsg;
+        syncEntry2OriginalRpc(pRollBackEntry, &rpcMsg);
+
+        SFsmCbMeta cbMeta = {0};
+        cbMeta.index = pRollBackEntry->index;
+        cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
+        cbMeta.isWeak = pRollBackEntry->isWeak;
+        cbMeta.code = 0;
+        cbMeta.state = ths->state;
+        cbMeta.seqNum = pRollBackEntry->seqNum;
+        ths->pFsm->FpRollBackCb(ths->pFsm, &rpcMsg, cbMeta);
+        rpcFreeCont(rpcMsg.pCont);
+      }
+
+      syncEntryDestory(pRollBackEntry);
+    }
+  }
+
+  // delete confict entries
+  code = ths->pLogStore->syncLogTruncate(ths->pLogStore, delBegin);
+  ASSERT(code == 0);
+
+  char eventLog[128];
+  snprintf(eventLog, sizeof(eventLog), "log truncate, from %ld to %ld", delBegin, delEnd);
+  syncNodeEventLog(ths, eventLog);
+  logStoreSimpleLog2("after syncNodeMakeLogSame", ths->pLogStore);
+
+  return code;
+}
+
+static int32_t syncNodeDoMakeLogSame(SSyncNode* ths, SyncIndex FromIndex) {
+  int32_t code;
+
+  SyncIndex delBegin = FromIndex;
   SyncIndex delEnd = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
 
   // invert roll back!
@@ -692,6 +735,31 @@ static int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   }
   rpcFreeCont(rpcMsg.pCont);
   return 0;
+}
+
+static bool syncNodeOnAppendEntriesBatchLogOK(SSyncNode* pSyncNode, SyncAppendEntriesBatch* pMsg) {
+  if (pMsg->prevLogIndex == SYNC_INDEX_INVALID) {
+    return true;
+  }
+
+  SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
+  if (pMsg->prevLogIndex > myLastIndex) {
+    sDebug("vgId:%d sync log not ok, preindex:%ld", pSyncNode->vgId, pMsg->prevLogIndex);
+    return false;
+  }
+
+  SyncTerm myPreLogTerm = syncNodeGetPreTerm(pSyncNode, pMsg->prevLogIndex + 1);
+  if (myPreLogTerm == SYNC_TERM_INVALID) {
+    sDebug("vgId:%d sync log not ok2, preindex:%ld", pSyncNode->vgId, pMsg->prevLogIndex);
+    return false;
+  }
+
+  if (pMsg->prevLogIndex <= myLastIndex && pMsg->prevLogTerm == myPreLogTerm) {
+    return true;
+  }
+
+  sDebug("vgId:%d sync log not ok3, preindex:%ld", pSyncNode->vgId, pMsg->prevLogIndex);
+  return false;
 }
 
 // really pre log match
@@ -767,7 +835,6 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
   // operation:
   // if hasAppendEntries && pMsg->prevLogIndex == ths->commitIndex, append entry
   // match my-commit-index or my-commit-index + 1
-  // no operation on log
   do {
     bool condition = (pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) &&
                      (pMsg->prevLogIndex <= ths->commitIndex);
@@ -780,14 +847,11 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
         syncNodeEventLog(ths, logBuf);
       } while (0);
 
-      SyncIndex matchIndex = ths->commitIndex;
-      bool      hasAppendEntries = pMsg->dataLen > 0;
-      if (hasAppendEntries && pMsg->prevLogIndex == ths->commitIndex) {
-        SRpcMsg rpcMsgArr[SYNC_MAX_BATCH_SIZE];
-        memset(rpcMsgArr, 0, sizeof(rpcMsgArr));
-        int32_t retArrSize = 0;
-        syncAppendEntriesBatch2RpcMsgArray(pMsg, rpcMsgArr, SYNC_MAX_BATCH_SIZE, &retArrSize);
+      SyncIndex          matchIndex = ths->commitIndex;
+      bool               hasAppendEntries = pMsg->dataLen > 0;
+      SOffsetAndContLen* metaTableArr = syncAppendEntriesBatchMetaTableArray(pMsg);
 
+      if (hasAppendEntries && pMsg->prevLogIndex == ths->commitIndex) {
         // make log same
         do {
           SyncIndex logLastIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
@@ -795,15 +859,15 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
 
           if (hasExtraEntries) {
             // make log same, rollback deleted entries
-            code = syncNodeMakeLogSame2(ths, pMsg);
+            code = syncNodeDoMakeLogSame(ths, pMsg->prevLogIndex + 1);
             ASSERT(code == 0);
           }
 
         } while (0);
 
         // append entry batch
-        for (int32_t i = 0; i < retArrSize; ++i) {
-          SSyncRaftEntry* pAppendEntry = syncEntryBuild(1234);
+        for (int32_t i = 0; i < pMsg->dataCount; ++i) {
+          SSyncRaftEntry* pAppendEntry = (SSyncRaftEntry*)(pMsg->data + metaTableArr[i].offset);
           code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
           if (code != 0) {
             return -1;
@@ -821,7 +885,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
         walFsync(pWal, true);
 
         // update match index
-        matchIndex = pMsg->prevLogIndex + retArrSize;
+        matchIndex = pMsg->prevLogIndex + pMsg->dataCount;
       }
 
       // prepare response msg
@@ -839,13 +903,12 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
       syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
       syncAppendEntriesReplyDestroy(pReply);
 
-      return ret;
+      return 0;
     }
   } while (0);
 
   // calculate logOK here, before will coredump, due to fake match
-  // bool logOK = syncNodeOnAppendEntriesLogOK(ths, pMsg);
-  bool logOK = true;
+  bool logOK = syncNodeOnAppendEntriesBatchLogOK(ths, pMsg);
 
   // not match
   //
@@ -866,8 +929,9 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
 
     if (condition) {
       char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, not match, pre-index:%ld, pre-term:%lu, datalen:%d",
-               pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
+      snprintf(logBuf, sizeof(logBuf),
+               "recv sync-append-entries-batch, not match, pre-index:%ld, pre-term:%lu, datalen:%d", pMsg->prevLogIndex,
+               pMsg->prevLogTerm, pMsg->dataLen);
       syncNodeEventLog(ths, logBuf);
 
       // prepare response msg
@@ -885,7 +949,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
       syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
       syncAppendEntriesReplyDestroy(pReply);
 
-      return ret;
+      return 0;
     }
   } while (0);
 
@@ -905,28 +969,26 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
       bool      hasExtraEntries = myLastIndex > pMsg->prevLogIndex;
 
       // has entries in SyncAppendEntries msg
-      bool hasAppendEntries = pMsg->dataLen > 0;
+      bool               hasAppendEntries = pMsg->dataLen > 0;
+      SOffsetAndContLen* metaTableArr = syncAppendEntriesBatchMetaTableArray(pMsg);
 
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, match, pre-index:%ld, pre-term:%lu, datalen:%d",
-               pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
-      syncNodeEventLog(ths, logBuf);
+      do {
+        char logBuf[128];
+        snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, match, pre-index:%ld, pre-term:%lu, datalen:%d",
+                 pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
+        syncNodeEventLog(ths, logBuf);
+      } while (0);
 
       if (hasExtraEntries) {
         // make log same, rollback deleted entries
-        // code = syncNodeMakeLogSame(ths, pMsg);
+        code = syncNodeDoMakeLogSame(ths, pMsg->prevLogIndex + 1);
         ASSERT(code == 0);
       }
 
-      int32_t retArrSize = 0;
       if (hasAppendEntries) {
-        SRpcMsg rpcMsgArr[SYNC_MAX_BATCH_SIZE];
-        memset(rpcMsgArr, 0, sizeof(rpcMsgArr));
-        syncAppendEntriesBatch2RpcMsgArray(pMsg, rpcMsgArr, SYNC_MAX_BATCH_SIZE, &retArrSize);
-
         // append entry batch
-        for (int32_t i = 0; i < retArrSize; ++i) {
-          SSyncRaftEntry* pAppendEntry = syncEntryBuild(1234);
+        for (int32_t i = 0; i < pMsg->dataCount; ++i) {
+          SSyncRaftEntry* pAppendEntry = (SSyncRaftEntry*)(pMsg->data + metaTableArr[i].offset);
           code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
           if (code != 0) {
             return -1;
@@ -951,7 +1013,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
       pReply->term = ths->pRaftStore->currentTerm;
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
       pReply->success = true;
-      pReply->matchIndex = hasAppendEntries ? pMsg->prevLogIndex + retArrSize : pMsg->prevLogIndex;
+      pReply->matchIndex = hasAppendEntries ? pMsg->prevLogIndex + pMsg->dataCount : pMsg->prevLogIndex;
 
       // send response
       SRpcMsg rpcMsg;
@@ -991,11 +1053,11 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
           ASSERT(code == 0);
         }
       }
-      return ret;
+      return 0;
     }
   } while (0);
 
-  return ret;
+  return 0;
 }
 
 int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMsg) {

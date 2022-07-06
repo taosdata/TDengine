@@ -719,8 +719,10 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
     ASSERT(numOfElem >= 0);
 
     pAvgRes->count += numOfElem;
-    if (IS_INTEGER_TYPE(type)) {
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
       pAvgRes->sum.isum += pAgg->sum;
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      pAvgRes->sum.usum += pAgg->sum;
     } else if (IS_FLOAT_TYPE(type)) {
       pAvgRes->sum.dsum += GET_DOUBLE_VAL((const char*)&(pAgg->sum));
     }
@@ -784,6 +786,64 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
         break;
       }
 
+      case TSDB_DATA_TYPE_UTINYINT: {
+        uint8_t* plist = (uint8_t*)pCol->pData;
+        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+            continue;
+          }
+
+          numOfElem += 1;
+          pAvgRes->count += 1;
+          pAvgRes->sum.usum += plist[i];
+        }
+
+        break;
+      }
+
+      case TSDB_DATA_TYPE_USMALLINT: {
+        uint16_t* plist = (uint16_t*)pCol->pData;
+        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+            continue;
+          }
+
+          numOfElem += 1;
+          pAvgRes->count += 1;
+          pAvgRes->sum.usum += plist[i];
+        }
+        break;
+      }
+
+      case TSDB_DATA_TYPE_UINT: {
+        uint32_t* plist = (uint32_t*)pCol->pData;
+        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+            continue;
+          }
+
+          numOfElem += 1;
+          pAvgRes->count += 1;
+          pAvgRes->sum.usum += plist[i];
+        }
+
+        break;
+      }
+
+      case TSDB_DATA_TYPE_UBIGINT: {
+        uint64_t* plist = (uint64_t*)pCol->pData;
+        for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+          if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+            continue;
+          }
+
+          numOfElem += 1;
+          pAvgRes->count += 1;
+          pAvgRes->sum.usum += plist[i];
+        }
+        break;
+      }
+
       case TSDB_DATA_TYPE_FLOAT: {
         float* plist = (float*)pCol->pData;
         for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
@@ -825,8 +885,10 @@ _avg_over:
 
 static void avgTransferInfo(SAvgRes* pInput, SAvgRes* pOutput) {
   pOutput->type = pInput->type;
-  if (IS_INTEGER_TYPE(pOutput->type)) {
+  if (IS_SIGNED_NUMERIC_TYPE(pOutput->type)) {
     pOutput->sum.isum += pInput->sum.isum;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(pOutput->type)) {
+    pOutput->sum.usum += pInput->sum.usum;
   } else {
     pOutput->sum.dsum += pInput->sum.dsum;
   }
@@ -900,6 +962,22 @@ int32_t avgInvertFunction(SqlFunctionCtx* pCtx) {
       LIST_AVG_N(pAvgRes->sum.isum, int64_t);
       break;
     }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      LIST_AVG_N(pAvgRes->sum.usum, uint8_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      LIST_AVG_N(pAvgRes->sum.usum, uint16_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      LIST_AVG_N(pAvgRes->sum.usum, uint32_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      LIST_AVG_N(pAvgRes->sum.usum, uint64_t);
+      break;
+    }
     case TSDB_DATA_TYPE_FLOAT: {
       LIST_AVG_N(pAvgRes->sum.dsum, float);
       break;
@@ -925,8 +1003,10 @@ int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SAvgRes*             pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  if (IS_INTEGER_TYPE(type)) {
+  if (IS_SIGNED_NUMERIC_TYPE(type)) {
     pDBuf->sum.isum += pSBuf->sum.isum;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    pDBuf->sum.usum += pSBuf->sum.usum;
   } else {
     pDBuf->sum.dsum += pSBuf->sum.dsum;
   }
@@ -941,8 +1021,10 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SAvgRes* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   int32_t  type = pAvgRes->type;
 
-  if (IS_INTEGER_TYPE(type)) {
+  if (IS_SIGNED_NUMERIC_TYPE(type)) {
     pAvgRes->result = pAvgRes->sum.isum / ((double)pAvgRes->count);
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    pAvgRes->result = pAvgRes->sum.usum / ((double)pAvgRes->count);
   } else {
     pAvgRes->result = pAvgRes->sum.dsum / ((double)pAvgRes->count);
   }

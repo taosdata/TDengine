@@ -29,19 +29,20 @@ extern "C" {
 
 typedef struct SSyncRaftEntry {
   uint32_t  bytes;
-  uint32_t  msgType;          // SyncClientRequest msgType
-  uint32_t  originalRpcType;  // user RpcMsg msgType
+  uint32_t  msgType;          // TDMT_SYNC_CLIENT_REQUEST
+  uint32_t  originalRpcType;  // origin RpcMsg msgType
   uint64_t  seqNum;
   bool      isWeak;
   SyncTerm  term;
   SyncIndex index;
-  uint32_t  dataLen;  // user RpcMsg.contLen
-  char      data[];   // user RpcMsg.pCont
+  uint32_t  dataLen;  // origin RpcMsg.contLen
+  char      data[];   // origin RpcMsg.pCont
 } SSyncRaftEntry;
 
 SSyncRaftEntry* syncEntryBuild(uint32_t dataLen);
 SSyncRaftEntry* syncEntryBuild2(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index);  // step 4
 SSyncRaftEntry* syncEntryBuild3(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index);
+SSyncRaftEntry* syncEntryBuild4(SRpcMsg* pOriginalMsg, SyncTerm term, SyncIndex index);
 SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId);
 void            syncEntryDestory(SSyncRaftEntry* pEntry);
 char*           syncEntrySerialize(const SSyncRaftEntry* pEntry, uint32_t* len);  // step 5
