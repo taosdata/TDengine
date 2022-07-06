@@ -18,6 +18,7 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
+        self.ts = 1420041600000 # 2015-01-01 00:00:00  this is begin time for first record
 
     def prepare_datas(self):
         tdSql.execute(
@@ -357,6 +358,58 @@ class TDTestCase:
         tdSql.query("select stateduration(c1,'GT',1,1w) from t1")
         tdSql.checkData(10,0,int(63072035/60/7/24/60))
 
+    def query_precision(self):
+        def generate_data(precision="ms"):
+            tdSql.execute("create database if not exists db_%s precision '%s';" %(precision, precision))
+            tdSql.execute("use db_%s;" %precision)
+            tdSql.execute("create stable db_%s.st (ts timestamp , id int) tags(ind int);"%precision)
+            tdSql.execute("create table db_%s.tb1 using st tags(1);"%precision)
+            tdSql.execute("create table db_%s.tb2 using st tags(2);"%precision)
+
+            if precision == "ms":
+                start_ts = self.ts
+                step = 10000
+            elif precision == "us":
+                start_ts = self.ts*1000
+                step = 10000000
+            elif precision == "ns":
+                start_ts = self.ts*1000000
+                step = 10000000000
+            else:
+                pass
+
+            for i in range(10):
+
+                sql1 = "insert into db_%s.tb1 values (%d,%d)"%(precision ,start_ts+i*step,i)
+                sql2 = "insert into db_%s.tb1 values (%d,%d)"%(precision, start_ts+i*step,i)
+                tdSql.execute(sql1)
+                tdSql.execute(sql2)
+
+        time_units = ["1s","1a","1u","1b"]
+
+        precision_list = ["ms","us","ns"]
+        for pres in precision_list:
+            generate_data(pres)
+
+            for index,unit in enumerate(time_units):
+
+                if pres == "ms":
+                    if unit in ["1u","1b"]:
+                        tdSql.error("select stateduration(id,'GT',1,%s) from db_%s.tb1 "%(unit,pres))
+                        pass
+                    else:
+                        tdSql.query("select stateduration(id,'GT',1,%s) from db_%s.tb1 "%(unit,pres))
+                elif pres == "us" and unit in ["1b"]:
+                    if unit in ["1b"]:
+                        tdSql.error("select stateduration(id,'GT',1,%s) from db_%s.tb1 "%(unit,pres))
+                        pass
+                    else:
+                        tdSql.query("select stateduration(id,'GT',1,%s) from db_%s.tb1 "%(unit,pres))
+                else:
+
+                    tdSql.query("select stateduration(id,'GT',1,%s) from db_%s.tb1 "%(unit,pres))
+                    basic_result = 70
+                    tdSql.checkData(9,0,basic_result*pow(1000,index))
 
     def check_boundary_values(self):
 
@@ -422,6 +475,8 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step6: statecount unit time test ============")
 
         self.check_unit_time()
+        self.query_precision()
+        
 
 
     def stop(self):
