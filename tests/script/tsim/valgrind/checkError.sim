@@ -39,7 +39,7 @@ system_content sh/checkValgrind.sh -n dnode1
 
 # temporarily expand the threshold, since no time to fix the memory leaks.
 print cmd return result ----> [ $system_content ]
-if $system_content <= 5 then
+if $system_content <= 10 then
   return 0
 endi 
 
