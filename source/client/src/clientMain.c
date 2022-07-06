@@ -843,19 +843,25 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   pRequest->body.param = param;
 
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
-  if (taos_num_fields(pRequest) == 0) {
+
+  // this query has no results or error exists, return directly
+  if (taos_num_fields(pRequest) == 0 || pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
     pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
     return;
   }
 
-  if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
-    // All data has returned to App already, no need to try again
-    if (pResultInfo->completed) {
-      pResultInfo->numOfRows = 0;
-      pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
-      return;
-    }
+  // all data has returned to App already, no need to try again
+  if ((pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) && pResultInfo->completed) {
+    pResultInfo->numOfRows = 0;
+    pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
+    return;
+  }
+
+  // it is a local executed query, no need to do async fetch
+  if (pResultInfo->current < pResultInfo->numOfRows && pRequest->body.queryJob == 0) {
+    pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
+    return;
   }
 
   schedulerAsyncFetchRows(pRequest->body.queryJob, fetchCallback, pRequest);
@@ -864,14 +870,14 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   ASSERT(res != NULL && fp != NULL);
   ASSERT(TD_RES_QUERY(res));
+
   SRequestObj *pRequest = res;
-
-  pRequest->body.resInfo.convertUcs4 = false;
-
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
 
   // set the current block is all consumed
   pResultInfo->current = pResultInfo->numOfRows;
+  pResultInfo->convertUcs4 = false;
+
   taos_fetch_rows_a(res, fp, param);
 }
 

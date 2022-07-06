@@ -13,13 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catalog.h"
-#include "command.h"
 #include "query.h"
 #include "schedulerInt.h"
 #include "tmsg.h"
 #include "tref.h"
-#include "trpc.h"
 
 SSchedulerMgmt schMgmt = {
     .jobRef = -1,
