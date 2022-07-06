@@ -150,6 +150,7 @@ endi
 
 sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
 if $data01 != 21 then
+  print expect 21, actual $data01
   return -1
 endi
 

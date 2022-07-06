@@ -1831,6 +1831,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
     pSubmitBlk->suid = suid;
     pSubmitBlk->uid = pDataBlock->info.groupId;
     pSubmitBlk->numOfRows = rows;
+    pSubmitBlk->sversion = pTSchema->version;
 
     msgLen += sizeof(SSubmitBlk);
     int32_t dataLen = 0;

@@ -62,6 +62,7 @@ struct STSmaStat {
 
 struct SRSmaStat {
   SSma     *pSma;
+  int64_t   submitVer;
   int64_t   refId;         // shared by fetch tasks
   void     *tmrHandle;     // shared by fetch tasks
   int8_t    triggerStat;   // shared by fetch tasks
@@ -84,6 +85,7 @@ struct SSmaStat {
 #define RSMA_TRIGGER_STAT(r) (&(r)->triggerStat)
 #define RSMA_RUNNING_STAT(r) (&(r)->runningStat)
 #define RSMA_REF_ID(r)       ((r)->refId)
+#define RSMA_SUBMIT_VER(r)   ((r)->submitVer)
 
 enum {
   TASK_TRIGGER_STAT_INIT = 0,
@@ -208,9 +210,13 @@ struct STFInfo {
   // specific fields
   union {
     struct {
-      int64_t applyVer[2];
+      int64_t submitVer;
     } qTaskInfo;
   };
+};
+
+enum {
+  TD_FTYPE_RSMA_QTASKINFO = 0,
 };
 
 struct STFile {

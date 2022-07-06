@@ -32,6 +32,9 @@ static int32_t tdEncodeTFInfo(void **buf, STFInfo *pInfo) {
   tlen += taosEncodeFixedU32(buf, pInfo->ftype);
   tlen += taosEncodeFixedU32(buf, pInfo->fver);
   tlen += taosEncodeFixedI64(buf, pInfo->fsize);
+  if (pInfo->ftype == TD_FTYPE_RSMA_QTASKINFO) {
+    tlen += taosEncodeFixedI64(buf, pInfo->qTaskInfo.submitVer);
+  }
 
   return tlen;
 }
@@ -41,6 +44,11 @@ static void *tdDecodeTFInfo(void *buf, STFInfo *pInfo) {
   buf = taosDecodeFixedU32(buf, &(pInfo->ftype));
   buf = taosDecodeFixedU32(buf, &(pInfo->fver));
   buf = taosDecodeFixedI64(buf, &(pInfo->fsize));
+  // specific
+  if (pInfo->ftype == TD_FTYPE_RSMA_QTASKINFO) {
+    buf = taosDecodeFixedI64(buf, &(pInfo->qTaskInfo.submitVer));
+  }
+
   return buf;
 }
 
