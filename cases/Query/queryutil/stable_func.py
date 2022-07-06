@@ -734,7 +734,18 @@ class TDFunction():
         time_to_unixtimestamp = str(time_to_unixtimestamp).replace("t_to_s","%s" %t_to_s)
         
         return time_to_unixtimestamp  
-    
+    def time_to_unixtimestamp_1(self):   
+        hanshu = ['TO_UNIXTIMESTAMP']  
+        #增加日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回0。
+        t = time.time()  
+        t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))     
+        column = ['(t_to_s)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        time_to_unixtimestamp = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("\"","").replace("t_to_s","'t_to_s'")
+        time_to_unixtimestamp = str(time_to_unixtimestamp).replace("t_to_s","%s" %t_to_s)
+        
+        return time_to_unixtimestamp  
+        
     def time_truncate(self):  
         #TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) 
         hanshu = ['TIMETRUNCATE'] 
@@ -747,13 +758,31 @@ class TDFunction():
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         time_truncate = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("\"","").replace("t_to_s","'t_to_s'")
         
-        timeunits = ['1u' , '1a' ,'1s', '1m' ,'1h', '1d']  
+        timeunits = ['1a' ,'1s', '1m' ,'1h', '1d']  #暂时去掉 1u
+        timeunit = str(random.sample(timeunits,1)).replace("[","").replace("]","").replace("'","") 
+            
+        time_truncate = str(time_truncate).replace("timeutil","%s" %timeunit).replace("t_to_s","%s" %t_to_s) 
+        
+        return time_truncate          
+    def time_truncate_1(self):  
+        #TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) 
+        hanshu = ['TIMETRUNCATE'] 
+        t = time.time()  
+        t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t)) 
+        column_select = ['1600000000000','1600000000000000','1600000000000000000',
+        '%d' %t, '%d000' %t, '%d000000' %t,'t_to_s']    
+        column_1 = random.sample(column_select,1)
+        column = ['(%s,timeutil)'%(column_1)]
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        time_truncate = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("\"","").replace("t_to_s","'t_to_s'")
+        
+        timeunits = ['1a' ,'1s', '1m' ,'1h', '1d']  #暂时去掉 1u
         timeunit = str(random.sample(timeunits,1)).replace("[","").replace("]","").replace("'","") 
             
         time_truncate = str(time_truncate).replace("timeutil","%s" %timeunit).replace("t_to_s","%s" %t_to_s) 
         
         return time_truncate  
-
+    
     def time_diff_1(self):  
         #TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2 | ts_col2 [, time_unit]) 
         hanshu = ['TIMEDIFF'] 
@@ -818,9 +847,13 @@ class TDFunction():
         elif i == 41:
             func_stable_time = self.time_to_iso8601_1()  
         elif i == 5:
-            func_stable_time = self.time_to_unixtimestamp()    
+            func_stable_time = self.time_to_unixtimestamp()  
+        elif i == 51:
+            func_stable_time = self.time_to_unixtimestamp_1()   
         elif i == 6:
             func_stable_time = self.time_truncate()  
+        elif i == 61:
+            func_stable_time = self.time_truncate_1()
         elif i == 7:
             func_stable_time = self.time_diff_1()   
         elif i == 8:

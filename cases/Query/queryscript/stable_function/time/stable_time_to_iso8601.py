@@ -732,7 +732,7 @@ class TDTestQuery(TDCase):
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname========case3======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
-                sql1 = "select %s from %s where tbname in ('%s_1');"  % (func,self.table,self.table)
+                sql1 = "select %s from %s where tbname in ('%s_1') order by ts ;"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
