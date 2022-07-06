@@ -278,9 +278,17 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
   tm->nColName = nColName;
 
   char*   buf = NULL;
-  int32_t len = idxConvertDataToStr((void*)colVal, IDX_TYPE_GET_TYPE(colType), (void**)&buf);
-  assert(len != -1);
-
+  int32_t len = 0;
+  if (colVal != NULL && nColVal != 0) {
+    len = idxConvertDataToStr((void*)colVal, IDX_TYPE_GET_TYPE(colType), (void**)&buf);
+  } else if (colVal == NULL) {
+    buf = strndup(INDEX_DATA_NULL_STR, (int32_t)strlen(INDEX_DATA_NULL_STR));
+    len = (int32_t)strlen(INDEX_DATA_NULL_STR);
+  } else {
+    const char* emptyStr = " ";
+    buf = strndup(emptyStr, (int32_t)strlen(emptyStr));
+    len = (int32_t)strlen(emptyStr);
+  }
   tm->colVal = buf;
   tm->nColVal = len;
 

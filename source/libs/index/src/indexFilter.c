@@ -181,18 +181,16 @@ static int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   param->colValType = l->node.resType.type;
   memcpy(param->dbName, l->dbName, sizeof(l->dbName));
   memcpy(param->colName, r->literal, strlen(r->literal));
-  // sprintf(param->colName, "%s_%s", l->colName, r->literal);
   param->colValType = r->typeData;
   param->status = SFLT_COARSE_INDEX;
   return 0;
-  // memcpy(param->colName, l->colName, sizeof(l->colName));
 }
 static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   param->status = SFLT_COARSE_INDEX;
   switch (nodeType(node)) {
     case QUERY_NODE_VALUE: {
       SValueNode *vn = (SValueNode *)node;
-      if (vn->typeData == TSDB_DATA_TYPE_NULL || (vn->literal == NULL || strlen(vn->literal) == 0)) {
+      if (vn->typeData == TSDB_DATA_TYPE_NULL && (vn->literal == NULL || strlen(vn->literal) == 0)) {
         param->status = SFLT_NOT_INDEX;
         return 0;
       }
@@ -511,7 +509,6 @@ static int32_t sifGetOperFn(int32_t funcId, sif_func_t *func, SIdxFltStatus *sta
   }
   return 0;
 }
-// typedef struct filterFuncDict {
 
 static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   int32_t code = 0;
@@ -532,9 +529,11 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   SIFParam *params = NULL;
   SIF_ERR_RET(sifInitOperParams(&params, node, ctx));
 
-  if (params[0].status == SFLT_NOT_INDEX || (nParam > 1 && params[1].status == SFLT_NOT_INDEX)) {
-    output->status = SFLT_NOT_INDEX;
-    return code;
+  if (node->opType != OP_TYPE_JSON_CONTAINS) {
+    if (params[0].status == SFLT_NOT_INDEX || (nParam > 1 && params[1].status == SFLT_NOT_INDEX)) {
+      output->status = SFLT_NOT_INDEX;
+      return code;
+    }
   }
 
   // ugly code, refactor later
@@ -546,9 +545,11 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
     SIF_ERR_RET(operFn(&params[0], nParam > 1 ? &params[1] : NULL, output));
   } else {
     // ugly code, refactor later
-    if (nParam > 1 && params[1].status == SFLT_NOT_INDEX) {
-      output->status = SFLT_NOT_INDEX;
-      return code;
+    if (node->opType != OP_TYPE_JSON_CONTAINS) {
+      if (nParam > 1 && params[1].status == SFLT_NOT_INDEX) {
+        output->status = SFLT_NOT_INDEX;
+        return code;
+      }
     }
     SIF_ERR_RET(sifGetOperFn(node->opType, &operFn, &output->status));
   }

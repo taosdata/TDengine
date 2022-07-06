@@ -74,7 +74,7 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
 
     SIndexTerm *term = NULL;
     if (type == TSDB_DATA_TYPE_NULL) {
-      // handle null value
+      term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_VARCHAR, key, nKey, NULL, 0);
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
       if (pTagVal->nData > 0) {
         char *  val = taosMemoryCalloc(1, pTagVal->nData + VARSTR_HEADER_SIZE);
@@ -83,9 +83,10 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
         type = TSDB_DATA_TYPE_VARCHAR;
         term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, val, len);
       } else if (pTagVal->nData == 0) {
+        // TODO
         char *  val = NULL;
         int32_t len = 0;
-        // handle NULL key
+        term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_VARCHAR, key, nKey, pTagVal->pData, 0);
       }
     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
       double val = *(double *)(&pTagVal->i64);
@@ -440,7 +441,6 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
   tdbTbDelete(pMeta->pNameIdx, e.name, strlen(e.name) + 1, &pMeta->txn);
   tdbTbDelete(pMeta->pUidIdx, &uid, sizeof(uid), &pMeta->txn);
   if (e.type != TSDB_SUPER_TABLE) metaDeleteTtlIdx(pMeta, &e);
-
 
   if (e.type == TSDB_CHILD_TABLE) {
     tdbTbDelete(pMeta->pCtbIdx, &(SCtbIdxKey){.suid = e.ctbEntry.suid, .uid = uid}, sizeof(SCtbIdxKey), &pMeta->txn);
@@ -1095,7 +1095,7 @@ static int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME) {
 
     if (pME->type == TSDB_SUPER_TABLE) {
       if (metaUpdateSuidIdx(pMeta, pME) < 0) goto _err;
-    }    
+    }
   }
 
   if (pME->type != TSDB_SUPER_TABLE) {
