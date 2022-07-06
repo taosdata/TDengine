@@ -2438,8 +2438,9 @@ int32_t stopGroupTableMergeScan(SOperatorInfo* pOperator) {
     STsdbReader* reader = taosArrayGetP(pInfo->dataReaders, i);
     tsdbReaderClose(reader);
   }
-  taosArrayDestroy(pInfo->dataReaders);
 
+  taosArrayDestroy(pInfo->dataReaders);
+  pInfo->dataReaders = NULL;
   return TSDB_CODE_SUCCESS;
 }
 

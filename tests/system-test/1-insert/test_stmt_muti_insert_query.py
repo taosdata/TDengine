@@ -96,7 +96,7 @@ class TDTestCase:
                 ff float, dd double, bb binary(100), nn nchar(100), tt timestamp)",
             )
             # conn.load_table_info("log")
-
+            tdLog.debug("statement start")
             start = datetime.now()
             stmt = conn.statement("insert into stb1 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 
@@ -118,8 +118,11 @@ class TDTestCase:
             params[14].nchar(["涛思数据", None, "a long string with 中文字符"])
             params[15].timestamp([None, None, 1626861392591])
             # print(type(stmt))
+            tdLog.debug("bind_param_batch start")
             stmt.bind_param_batch(params)
+            tdLog.debug("bind_param_batch end")
             stmt.execute()
+            tdLog.debug("execute end")
             end = datetime.now()
             print("elapsed time: ", end - start)
             assert stmt.affected_rows == 3
@@ -155,7 +158,7 @@ class TDTestCase:
             print(rows1)
             assert str(rows1[0][0]) == "2021-07-21 17:56:32.589000"
             assert rows1[0][10] == 3
-
+            tdLog.debug("close start")
 
             stmt.close()
 

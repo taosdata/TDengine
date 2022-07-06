@@ -485,7 +485,7 @@ static int32_t pushDownCondOptPushCondToProject(SOptimizeContext* pCxt, SProject
   return pushDownCondOptAppendCond(&pProject->node.pConditions, pCond);
 }
 
-static int32_t pushDownCondOptPushCondToJoin(SOptimizeContext* pCxt, SJoinLogicNode * pJoin, SNode** pCond) {
+static int32_t pushDownCondOptPushCondToJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SNode** pCond) {
   return pushDownCondOptAppendCond(&pJoin->node.pConditions, pCond);
 }
 
@@ -557,9 +557,9 @@ static int32_t pushDownCondOptCheckJoinOnCond(SOptimizeContext* pCxt, SJoinLogic
 static int32_t pushDownCondOptPartJoinOnCondLogicCond(SJoinLogicNode* pJoin, SNode** ppMergeCond, SNode** ppOnCond) {
   SLogicConditionNode* pLogicCond = (SLogicConditionNode*)(pJoin->pOnConditions);
 
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t    code = TSDB_CODE_SUCCESS;
   SNodeList* pOnConds = NULL;
-  SNode* pCond = NULL;
+  SNode*     pCond = NULL;
   FOREACH(pCond, pLogicCond->pParameterList) {
     if (pushDownCondOptIsPriKeyEqualCond(pJoin, pCond)) {
       *ppMergeCond = nodesCloneNode(pCond);
@@ -604,8 +604,8 @@ static int32_t pushDownCondOptPartJoinOnCond(SJoinLogicNode* pJoin, SNode** ppMe
 
 static int32_t pushDownCondOptJoinExtractMergeCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   int32_t code = pushDownCondOptCheckJoinOnCond(pCxt, pJoin);
-  SNode* pJoinMergeCond = NULL;
-  SNode* pJoinOnCond = NULL;
+  SNode*  pJoinMergeCond = NULL;
+  SNode*  pJoinOnCond = NULL;
   if (TSDB_CODE_SUCCESS == code) {
     code = pushDownCondOptPartJoinOnCond(pJoin, &pJoinMergeCond, &pJoinOnCond);
   }
@@ -820,12 +820,12 @@ static int32_t pushDownCondOptDealAgg(SOptimizeContext* pCxt, SAggLogicNode* pAg
 
 typedef struct SRewriteProjCondContext {
   SProjectLogicNode* pProj;
-  int32_t errCode;
-}SRewriteProjCondContext;
+  int32_t            errCode;
+} SRewriteProjCondContext;
 
 static EDealRes rewriteProjectCondForPushDownImpl(SNode** ppNode, void* pContext) {
   SRewriteProjCondContext* pCxt = pContext;
-  SProjectLogicNode* pProj = pCxt->pProj;
+  SProjectLogicNode*       pProj = pCxt->pProj;
   if (QUERY_NODE_COLUMN == nodeType(*ppNode)) {
     SNode* pTarget = NULL;
     FOREACH(pTarget, pProj->node.pTargets) {
@@ -840,18 +840,19 @@ static EDealRes rewriteProjectCondForPushDownImpl(SNode** ppNode, void* pContext
             }
             nodesDestroyNode(*ppNode);
             *ppNode = pExpr;
-          } // end if expr alias name equal column name
-        } // end for each project
-      } // end if target node equals cond column node
-    } // end for each targets
+          }  // end if expr alias name equal column name
+        }    // end for each project
+      }      // end if target node equals cond column node
+    }        // end for each targets
     return DEAL_RES_IGNORE_CHILD;
   }
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t rewriteProjectCondForPushDown(SOptimizeContext* pCxt, SProjectLogicNode* pProject, SNode** ppProjectCond) {
+static int32_t rewriteProjectCondForPushDown(SOptimizeContext* pCxt, SProjectLogicNode* pProject,
+                                             SNode** ppProjectCond) {
   SRewriteProjCondContext cxt = {.pProj = pProject, .errCode = TSDB_CODE_SUCCESS};
-  SNode* pProjectCond = pProject->node.pConditions;
+  SNode*                  pProjectCond = pProject->node.pConditions;
   nodesRewriteExpr(&pProjectCond, rewriteProjectCondForPushDownImpl, &cxt);
   *ppProjectCond = pProjectCond;
   pProject->node.pConditions = NULL;
@@ -873,7 +874,7 @@ static int32_t pushDownCondOptDealProject(SOptimizeContext* pCxt, SProjectLogicN
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
-  SNode* pProjCond = NULL;
+  SNode*  pProjCond = NULL;
   code = rewriteProjectCondForPushDown(pCxt, pProject, &pProjCond);
   if (TSDB_CODE_SUCCESS == code) {
     SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
@@ -2082,13 +2083,18 @@ static const int32_t optimizeRuleNum = (sizeof(optimizeRuleSet) / sizeof(SOptimi
 static void dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
   char* pStr = NULL;
   nodesNodeToString((SNode*)pSubplan, false, &pStr, NULL);
-  qDebugL("apply optimize %s rule: %s", pRuleName, pStr);
+  if (NULL == pRuleName) {
+    qDebugL("before optimize: %s", pStr);
+  } else {
+    qDebugL("apply optimize %s rule: %s", pRuleName, pStr);
+  }
   taosMemoryFree(pStr);
 }
 
 static int32_t applyOptimizeRule(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SOptimizeContext cxt = {.pPlanCxt = pCxt, .optimized = false};
   bool             optimized = false;
+  dumpLogicSubplan(NULL, pLogicSubplan);
   do {
     optimized = false;
     for (int32_t i = 0; i < optimizeRuleNum; ++i) {

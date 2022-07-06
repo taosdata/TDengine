@@ -91,3 +91,9 @@ TEST_F(PlanOtherTest, delete) {
 
   run("DELETE FROM st1 WHERE ts > now - 2d and ts < now - 1d AND tag1 = 10");
 }
+
+TEST_F(PlanOtherTest, insert) {
+  useDb("root", "test");
+
+  run("INSERT INTO t1 SELECT * FROM t1");
+}

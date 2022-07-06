@@ -212,6 +212,20 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableK
   return pTableMap;
 }
 
+static void resetDataBlockScanInfo(SHashObj* pTableMap) {
+  STableBlockScanInfo* p = NULL;
+
+  while((p = taosHashIterate(pTableMap, p)) != NULL) {
+    p->iterInit = false;
+    p->iiter.hasVal = false;
+    if (p->iter.iter != NULL)  {
+      tsdbTbDataIterDestroy(p->iter.iter);
+    }
+
+    taosArrayDestroy(p->delSkyline);
+  }
+}
+
 static bool isEmptyQueryTimeWindow(STimeWindow* pWindow) {
   ASSERT(pWindow != NULL);
   return pWindow->skey > pWindow->ekey;
@@ -3157,37 +3171,6 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
   } else {
     ASSERT(0);
   }
-  // if (pReader->loadType == BLOCK_LOAD_TABLE_SEQ_ORDER) {
-  //   return loadDataBlockFromTableSeq(pReader);
-  // } else {  // loadType == RR and Offset Order
-  //   if (pReader->checkFiles) {
-  //     // check if the query range overlaps with the file data block
-  //     bool exists = true;
-  //     int32_t code = buildBlockFromFiles(pReader, &exists);
-  //     if (code != TSDB_CODE_SUCCESS) {
-  //       pReader->activeIndex = 0;
-  //       pReader->checkFiles = false;
-
-  //       return false;
-  //     }
-
-  //     if (exists) {
-  //       pReader->cost.checkForNextTime += (taosGetTimestampUs() - stime);
-  //       return exists;
-  //     }
-
-  //     pReader->activeIndex = 0;
-  //     pReader->checkFiles = false;
-  //   }
-
-  //   // TODO: opt by consider the scan order
-  //   bool ret = doHasDataInBuffer(pReader);
-  //   terrno = TSDB_CODE_SUCCESS;
-
-  //   elapsedTime = taosGetTimestampUs() - stime;
-  //   pReader->cost.checkForNextTime += elapsedTime;
-  //   return ret;
-  // }
   return false;
 }
 
@@ -3305,10 +3288,10 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond, int32_
 
   setQueryTimewindow(pReader, pCond, tWinIdx);
 
-  pReader->order = pCond->order;
-  pReader->type = BLOCK_LOAD_OFFSET_ORDER;
+  pReader->order               = pCond->order;
+  pReader->type                = BLOCK_LOAD_OFFSET_ORDER;
   pReader->status.loadFromFile = true;
-  pReader->status.pTableIter = NULL;
+  pReader->status.pTableIter   = NULL;
 
   pReader->window = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows[tWinIdx]);
 
@@ -3323,6 +3306,7 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond, int32_
   STsdbFSState* pFState = pReader->pTsdb->fs->cState;
   initFilesetIterator(&pReader->status.fileIter, pFState, pReader->order, pReader->idStr);
   resetDataBlockIterator(&pReader->status.blockIter, pReader->order);
+  resetDataBlockScanInfo(pReader->status.pTableMap);
 
   int32_t code = 0;
   // no data in files, let's try buffer in memory
