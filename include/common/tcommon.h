@@ -73,15 +73,17 @@ typedef struct {
   uint64_t  suid;
 } STableListInfo;
 
+#pragma pack(push, 1)
 typedef struct SColumnDataAgg {
   int16_t colId;
-  int16_t maxIndex;
   int16_t minIndex;
+  int16_t maxIndex;
   int16_t numOfNull;
   int64_t sum;
   int64_t max;
   int64_t min;
 } SColumnDataAgg;
+#pragma pack(pop)
 
 typedef struct SDataBlockInfo {
   STimeWindow window;
@@ -122,13 +124,11 @@ typedef struct SColumnInfoData {
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {
-  // STimeWindow  twindow;
   uint64_t     suid;
   int32_t      order;  // desc|asc order to iterate the data block
   int32_t      numOfCols;
   SColumnInfo* colList;
-  bool         loadExternalRows;  // load external rows or not
-  int32_t      type;              // data block load type:
+  int32_t      type;  // data block load type:
   int32_t      numOfTWindows;
   STimeWindow* twindows;
   int64_t      startVersion;

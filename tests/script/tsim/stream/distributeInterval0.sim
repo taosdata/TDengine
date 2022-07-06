@@ -97,23 +97,23 @@ if $data01 != 8 then
   goto loop1
 endi
 
-if $data02 != 4 then
+if $data02 != 6 then
   print =====data02=$data02
   goto loop1
 endi
 
-if $data03 != 4 then
-  print ======$data03
+if $data03 != 52 then
+  print ======data03=$data03
   goto loop1
 endi
 
 if $data04 != 52 then
-  print ======$data04
+  print ======data04=$data04
   goto loop1
 endi
 
 if $data05 != 13 then
-  print ======$data05
+  print ======data05=$data05
   goto loop1
 endi
 

@@ -6199,6 +6199,67 @@ static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
+static int32_t serializeFlushVgroup(SVgroupInfo* pVg, SArray* pBufArray) {
+  int32_t len = sizeof(SMsgHead);
+  void*   buf = taosMemoryMalloc(len);
+  if (NULL == buf) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  ((SMsgHead*)buf)->vgId = htonl(pVg->vgId);
+  ((SMsgHead*)buf)->contLen = htonl(len);
+
+  SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
+  if (NULL == pVgData) {
+    taosMemoryFree(buf);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pVgData->vg = *pVg;
+  pVgData->pData = buf;
+  pVgData->size = len;
+  taosArrayPush(pBufArray, &pVgData);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t serializeFlushDb(SArray* pVgs, SArray** pOutput) {
+  int32_t numOfVgs = taosArrayGetSize(pVgs);
+
+  SArray* pBufArray = taosArrayInit(numOfVgs, sizeof(void*));
+  if (NULL == pBufArray) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  for (int32_t i = 0; i < numOfVgs; ++i) {
+    int32_t code = serializeFlushVgroup((SVgroupInfo*)taosArrayGet(pVgs, i), pBufArray);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosArrayDestroy(pBufArray);
+      return code;
+    }
+  }
+
+  *pOutput = pBufArray;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t rewriteFlushDatabase(STranslateContext* pCxt, SQuery* pQuery) {
+  SFlushDatabaseStmt* pStmt = (SFlushDatabaseStmt*)pQuery->pRoot;
+
+  SArray* pBufArray = NULL;
+  SArray* pVgs = NULL;
+  int32_t code = getDBVgInfo(pCxt, pStmt->dbName, &pVgs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = serializeFlushDb(pVgs, &pBufArray);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteToVnodeModifyOpStmt(pQuery, pBufArray);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    taosArrayDestroy(pBufArray);
+  }
+  taosArrayDestroy(pVgs);
+  return code;
+}
+
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
@@ -6246,6 +6307,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_ALTER_TABLE_STMT:
       code = rewriteAlterTable(pCxt, pQuery);
+      break;
+    case QUERY_NODE_FLUSH_DATABASE_STMT:
+      code = rewriteFlushDatabase(pCxt, pQuery);
       break;
     default:
       break;
