@@ -272,10 +272,10 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
     SIF_ERR_JRET(sifInitParam(node->pLeft, &paramList[0], ctx));
     if (nParam > 1) {
       SIF_ERR_JRET(sifInitParam(node->pRight, &paramList[1], ctx));
-      if (paramList[1].colValType == TSDB_DATA_TYPE_JSON &&
-          ((SOperatorNode *)(node))->opType == OP_TYPE_JSON_CONTAINS) {
-        return TSDB_CODE_QRY_OUT_OF_MEMORY;
-      }
+      // if (paramList[0].colValType == TSDB_DATA_TYPE_JSON &&
+      //    ((SOperatorNode *)(node))->opType == OP_TYPE_JSON_CONTAINS) {
+      //  return TSDB_CODE_QRY_OUT_OF_MEMORY;
+      //}
     }
     *params = paramList;
     return TSDB_CODE_SUCCESS;
@@ -763,6 +763,8 @@ SIdxFltStatus idxGetFltStatus(SNode *pFilterNode) {
     return SFLT_NOT_INDEX;
   }
 
-  SIF_ERR_RET(sifGetFltHint((SNode *)pFilterNode, &st));
+  if (sifGetFltHint((SNode *)pFilterNode, &st) != TSDB_CODE_SUCCESS) {
+    st = SFLT_NOT_INDEX;
+  }
   return st;
 }
