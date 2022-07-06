@@ -64,6 +64,7 @@ typedef struct SRowIter       SRowIter;
 typedef struct STsdbFS        STsdbFS;
 typedef struct SRowMerger     SRowMerger;
 typedef struct STsdbFSState   STsdbFSState;
+typedef struct STsdbSnapHdr   STsdbSnapHdr;
 
 #define TSDB_MAX_SUBBLOCKS 8
 #define TSDB_FHDR_SIZE     512
