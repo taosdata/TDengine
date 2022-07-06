@@ -462,8 +462,8 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
       pHandle->execHandle.execTb.suid = req.suid;
       SArray* tbUidList = taosArrayInit(0, sizeof(int64_t));
-      tsdbGetCtbIdList(pTq->pVnode->pMeta, req.suid, tbUidList);
-      tqDebug("vg %d, tq try get suid: %ld", TD_VID(pTq->pVnode), req.suid);
+      vnodeGetCtbIdList(pTq->pVnode, req.suid, tbUidList);
+      tqDebug("vg %d, tq try get suid: %ld", pTq->pVnode->config.vgId, req.suid);
       for (int32_t i = 0; i < taosArrayGetSize(tbUidList); i++) {
         int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
         tqDebug("vg %d, idx %d, uid: %ld", TD_VID(pTq->pVnode), i, tbUid);

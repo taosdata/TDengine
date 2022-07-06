@@ -65,9 +65,10 @@ void indexInit() {
   indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, INDEX_NUM_OF_THREADS, "index");
   indexRefMgt = taosOpenRef(1000, indexDestroy);
 }
-void indexCleanUp() {
+void indexCleanup() {
   // refacto later
   taosCleanUpScheduler(indexQhandle);
+  taosCloseRef(indexRefMgt);
 }
 
 typedef struct SIdxColInfo {
