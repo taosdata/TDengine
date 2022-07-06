@@ -659,6 +659,18 @@ static bool syncNodeBatchOK(SRpcMsg* pMsgArr, int32_t arrSize) {
     if (pMsgArr[i].msgType == TDMT_SYNC_CONFIG_CHANGE_FINISH) {
       return false;
     }
+
+    if (pMsgArr[i].msgType == TDMT_SYNC_LEADER_TRANSFER) {
+      return false;
+    }
+
+    if (pMsgArr[i].msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
+      return false;
+    }
+
+    if (pMsgArr[i].msgType == TDMT_SYNC_SET_VNODE_STANDBY) {
+      return false;
+    }
   }
 
   return true;
@@ -672,12 +684,12 @@ int32_t syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg* pMsgArr, bool* pIsWe
   }
 
   if (arrSize > SYNC_MAX_BATCH_SIZE) {
-    syncNodeErrorLog(pSyncNode, "sync propose match batch error");
+    syncNodeErrorLog(pSyncNode, "sync propose batch error");
     terrno = TSDB_CODE_SYN_BATCH_ERROR;
     return -1;
   }
 
-  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
     syncNodeErrorLog(pSyncNode, "sync propose not leader");
     terrno = TSDB_CODE_SYN_NOT_LEADER;
     return -1;
@@ -711,7 +723,7 @@ int32_t syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg* pMsgArr, bool* pIsWe
     // enqueue msg ok
 
   } else {
-    sError("enqueue msg error, FpEqMsg is NULL");
+    sError("vgId:%d, enqueue msg error, FpEqMsg is NULL", pSyncNode->vgId);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
