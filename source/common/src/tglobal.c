@@ -189,6 +189,7 @@ int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushInterval = 60;
+int32_t tsGrantHBInterval = 1;
 
 
 void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary) {

@@ -139,6 +139,7 @@ extern int32_t tsTransPullupInterval;
 extern int32_t tsMqRebalanceInterval;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushInterval;
+extern int32_t tsGrantHBInterval;
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 

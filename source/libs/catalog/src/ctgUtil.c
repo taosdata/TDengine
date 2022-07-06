@@ -271,7 +271,7 @@ void ctgFreeHandle(SCatalog* pCtg) {
 
   taosMemoryFree(pCtg);
 
-  ctgInfo("handle freed, culsterId:0x%" PRIx64, clusterId);
+  ctgInfo("handle freed, clusterId:0x%" PRIx64, clusterId);
 }
 
 void ctgClearHandle(SCatalog* pCtg) {
@@ -302,7 +302,7 @@ void ctgClearHandle(SCatalog* pCtg) {
 
   CTG_CACHE_STAT_INC(numOfClear, 1);
 
-  ctgInfo("handle cleared, culsterId:0x%" PRIx64, clusterId);
+  ctgInfo("handle cleared, clusterId:0x%" PRIx64, clusterId);
 }
 
 void ctgFreeSUseDbOutput(SUseDbOutput* pOutput) {
