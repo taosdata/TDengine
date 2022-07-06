@@ -83,18 +83,15 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
         type = TSDB_DATA_TYPE_VARCHAR;
         term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, val, len);
       } else if (pTagVal->nData == 0) {
-        // TODO
-        char *  val = NULL;
-        int32_t len = 0;
         term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_VARCHAR, key, nKey, pTagVal->pData, 0);
       }
     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
       double val = *(double *)(&pTagVal->i64);
-      int    len = 0;
+      int    len = sizeof(val);
       term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, (const char *)&val, len);
     } else if (type == TSDB_DATA_TYPE_BOOL) {
       int val = *(int *)(&pTagVal->i64);
-      int len = 0;
+      int len = sizeof(val);
       term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_INT, key, nKey, (const char *)&val, len);
     }
     if (term != NULL) {
