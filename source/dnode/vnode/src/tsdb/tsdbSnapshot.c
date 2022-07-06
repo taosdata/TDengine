@@ -315,19 +315,64 @@ struct STsdbSnapWriter {
   SDelFWriter* pDelFWriter;
 };
 
-int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWriter** ppWriter) {
+static int32_t tsdbSnapRollback(STsdbSnapWriter* pWriter) {
   int32_t code = 0;
   // TODO
   return code;
 }
 
-int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
+static int32_t tsdbSnapCommit(STsdbSnapWriter* pWriter) {
   int32_t code = 0;
   // TODO
+  return code;
+}
+
+int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWriter** ppWriter) {
+  int32_t          code = 0;
+  STsdbSnapWriter* pWriter = NULL;
+
+  // alloc
+  pWriter = (STsdbSnapWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
+  if (pWriter == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+  pWriter->pTsdb = pTsdb;
+  pWriter->sver = sver;
+  pWriter->ever = ever;
+
+  *ppWriter = pWriter;
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb snapshot writer open failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  *ppWriter = NULL;
   return code;
 }
 
 int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
+  int32_t          code = 0;
+  STsdbSnapWriter* pWriter = *ppWriter;
+
+  if (rollback) {
+    code = tsdbSnapRollback(pWriter);
+    if (code) goto _err;
+  } else {
+    code = tsdbSnapCommit(pWriter);
+    if (code) goto _err;
+  }
+
+  taosMemoryFree(pWriter);
+  *ppWriter = NULL;
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb snapshot writer close failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t code = 0;
   // TODO
   return code;

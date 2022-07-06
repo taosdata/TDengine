@@ -108,15 +108,59 @@ struct SMetaSnapWriter {
   int64_t ever;
 };
 
-int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWriter** ppWriter) {
+static int32_t metaSnapRollback(SMetaSnapWriter* pWriter) {
   int32_t code = 0;
   // TODO
   return code;
 }
 
-int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback) {
+static int32_t metaSnapCommit(SMetaSnapWriter* pWriter) {
   int32_t code = 0;
   // TODO
+  return code;
+}
+
+int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWriter** ppWriter) {
+  int32_t          code = 0;
+  SMetaSnapWriter* pWriter;
+
+  // alloc
+  pWriter = (SMetaSnapWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
+  if (pWriter == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+  pWriter->pMeta = pMeta;
+  pWriter->sver = sver;
+  pWriter->ever = ever;
+
+  *ppWriter = pWriter;
+  return code;
+
+_err:
+  metaError("vgId:%d meta snapshot writer open failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
+  *ppWriter = NULL;
+  return code;
+}
+
+int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback) {
+  int32_t          code = 0;
+  SMetaSnapWriter* pWriter = *ppWriter;
+
+  if (rollback) {
+    code = metaSnapRollback(pWriter);
+    if (code) goto _err;
+  } else {
+    code = metaSnapCommit(pWriter);
+    if (code) goto _err;
+  }
+  taosMemoryFree(pWriter);
+  *ppWriter = NULL;
+
+  return code;
+
+_err:
+  metaError("vgId:%d meta snapshot writer close failed since %s", TD_VID(pWriter->pMeta->pVnode), tstrerror(code));
   return code;
 }
 
