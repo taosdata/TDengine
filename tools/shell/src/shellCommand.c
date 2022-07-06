@@ -314,7 +314,7 @@ void shellGetScreenSize(int32_t *ws_col, int32_t *ws_row) {
 #else
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
-    // fprintf(stderr, "No stream device, and use default value(col 120, row 30)\n");
+    // fprintf(stderr, "No stream device, and use default value(col 120, row 30)\r\n");
     if (ws_col != NULL) *ws_col = 120;
     if (ws_row != NULL) *ws_row = 30;
   } else {
@@ -473,7 +473,7 @@ int32_t shellReadCommand(char *command) {
           shellPositionCursorHome(&cmd);
           break;
         case 3:
-          printf("\n");
+          printf("\r\n");
           shellResetCommand(&cmd, "");
           #ifdef WINDOWS
             raise(SIGINT);
@@ -483,7 +483,7 @@ int32_t shellReadCommand(char *command) {
           break;
         case 4:  // EOF or Ctrl+D
           taosResetTerminalMode();
-          printf("\n");
+          printf("\r\n");
           return -1;
         case 5:  // ctrl E
           shellPositionCursorEnd(&cmd);
@@ -495,7 +495,7 @@ int32_t shellReadCommand(char *command) {
         case '\r':
         #ifdef WINDOWS 
         #else
-          printf("\n");
+          printf("\r\n");
         #endif
           if (shellIsReadyGo(&cmd)) {
             sprintf(command, "%s%s", cmd.buffer, cmd.command);
