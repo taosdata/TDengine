@@ -172,7 +172,7 @@ class TDTestCase:
         tmqCom.initConsumerTable()
         
         tdLog.info("create topics from stb with filter")
-        queryString = "select ts, acos(c1), ceil(pow(c1,3)) from %s.%s where (sin(c2) >= 0) and (c1 %% 4 == 0) and (ts >= %d) and (t4 like 'shanghai')"%(paraDict['dbName'], paraDict['stbName'], paraDict["startTs"]+math.ceil(self.rowsPerTbl/5))
+        queryString = "select ts, acos(c1), ceil(pow(c1,3)) from %s.%s where (sin(c2) >= 0) and (c1 %% 4 != 0) and (ts+1a >= %d) and (t4 like '%%shanghai')"%(paraDict['dbName'], paraDict['stbName'], paraDict["startTs"]+math.ceil(self.rowsPerTbl/10))
         # queryString = "select * from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
         # sqlString = "create topic %s as stable %s" %(topicNameList[0], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)

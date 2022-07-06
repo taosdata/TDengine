@@ -302,6 +302,14 @@ typedef struct SDeleteStmt {
   bool        deleteZeroRows;
 } SDeleteStmt;
 
+typedef struct SInsertStmt {
+  ENodeType  type;  // QUERY_NODE_INSERT_STMT
+  SNode*     pTable;
+  SNodeList* pCols;
+  SNode*     pQuery;
+  uint8_t    precision;
+} SInsertStmt;
+
 typedef enum {
   PAYLOAD_TYPE_KV = 0,
   PAYLOAD_TYPE_RAW = 1,

@@ -82,29 +82,41 @@ static int32_t scaleOutByVgroups(SScaleOutContext* pCxt, SLogicSubplan* pSubplan
   return code;
 }
 
+static int32_t scaleOutForMerge(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
+  return nodesListStrictAppend(pGroup, (SNode*)singleCloneSubLogicPlan(pCxt, pSubplan, level));
+}
+
+static int32_t scaleOutForInsertValues(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level,
+                                       SNodeList* pGroup) {
+  SVnodeModifyLogicNode* pNode = (SVnodeModifyLogicNode*)pSubplan->pNode;
+  size_t                 numOfVgroups = taosArrayGetSize(pNode->pDataBlocks);
+  for (int32_t i = 0; i < numOfVgroups; ++i) {
+    SLogicSubplan* pNewSubplan = singleCloneSubLogicPlan(pCxt, pSubplan, level);
+    if (NULL == pNewSubplan) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    ((SVnodeModifyLogicNode*)pNewSubplan->pNode)->pVgDataBlocks = (SVgDataBlocks*)taosArrayGetP(pNode->pDataBlocks, i);
+    if (TSDB_CODE_SUCCESS != nodesListStrictAppend(pGroup, (SNode*)pNewSubplan)) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t scaleOutForInsert(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
+  SVnodeModifyLogicNode* pNode = (SVnodeModifyLogicNode*)pSubplan->pNode;
+  if (NULL == pNode->node.pChildren) {
+    return scaleOutForInsertValues(pCxt, pSubplan, level, pGroup);
+  }
+  return scaleOutForMerge(pCxt, pSubplan, level, pGroup);
+}
+
 static int32_t scaleOutForModify(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
   SVnodeModifyLogicNode* pNode = (SVnodeModifyLogicNode*)pSubplan->pNode;
   if (MODIFY_TABLE_TYPE_DELETE == pNode->modifyType) {
     return scaleOutByVgroups(pCxt, pSubplan, level, pGroup);
-  } else {
-    size_t numOfVgroups = taosArrayGetSize(pNode->pDataBlocks);
-    for (int32_t i = 0; i < numOfVgroups; ++i) {
-      SLogicSubplan* pNewSubplan = singleCloneSubLogicPlan(pCxt, pSubplan, level);
-      if (NULL == pNewSubplan) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-      ((SVnodeModifyLogicNode*)pNewSubplan->pNode)->pVgDataBlocks =
-          (SVgDataBlocks*)taosArrayGetP(pNode->pDataBlocks, i);
-      if (TSDB_CODE_SUCCESS != nodesListStrictAppend(pGroup, (SNode*)pNewSubplan)) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-    }
-    return TSDB_CODE_SUCCESS;
   }
-}
-
-static int32_t scaleOutForMerge(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
-  return nodesListStrictAppend(pGroup, (SNode*)singleCloneSubLogicPlan(pCxt, pSubplan, level));
+  return scaleOutForInsert(pCxt, pSubplan, level, pGroup);
 }
 
 static int32_t scaleOutForScan(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
