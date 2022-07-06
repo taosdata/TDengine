@@ -792,12 +792,19 @@ static void doClearBufferedBlocks(SStreamBlockScanInfo* pInfo) {
 }
 
 static bool isSessionWindow(SStreamBlockScanInfo* pInfo) {
-  return pInfo->sessionSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION;
+  return pInfo->sessionSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION ||
+      pInfo->sessionSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION;
 }
 
 static bool isStateWindow(SStreamBlockScanInfo* pInfo) {
   return pInfo->sessionSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE;
 }
+
+static bool isIntervalWindow(SStreamBlockScanInfo* pInfo) {
+  return pInfo->sessionSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL ||
+      pInfo->sessionSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL;
+}
+
 
 static uint64_t getGroupId(SOperatorInfo* pOperator, uint64_t uid) {
   uint64_t* groupId = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &uid, sizeof(int64_t));
@@ -836,6 +843,49 @@ static void setGroupId(SStreamBlockScanInfo* pInfo, SSDataBlock* pBlock, int32_t
   }
 }
 
+void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin) {
+  pTableScanInfo->cond.twindows[0] = *pWin;
+  pTableScanInfo->curTWinIdx = 0;
+  //  tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
+  // if (!pTableScanInfo->dataReader) {
+  //   return false;
+  // }
+  pTableScanInfo->scanTimes = 0;
+  pTableScanInfo->currentGroupId = -1;
+}
+
+static bool prepareRangeScan(SStreamBlockScanInfo* pInfo, SSDataBlock* pBlock, int32_t* pRowIndex) {
+  if ((*pRowIndex) == pBlock->info.rows) {
+    return false;
+  }
+
+  ASSERT(taosArrayGetSize(pBlock->pDataBlock) >= 3);
+  SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
+  TSKEY* startData = (TSKEY*)pStartTsCol->pData;
+  SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
+  TSKEY* endData = (TSKEY*)pEndTsCol->pData;
+  STimeWindow win = {.skey = startData[*pRowIndex], .ekey = endData[*pRowIndex]};
+  setGroupId(pInfo, pBlock, GROUPID_COLUMN_INDEX, *pRowIndex);
+  (*pRowIndex)++;
+
+  for (; *pRowIndex < pBlock->info.rows; (*pRowIndex)++) {
+    if (win.skey == startData[*pRowIndex]) {
+      win.ekey = TMAX(win.ekey, endData[*pRowIndex]);
+      continue;
+    }
+    if (win.skey == endData[*pRowIndex]) {
+      win.skey = TMIN(win.skey, startData[*pRowIndex]);
+      continue;
+    }
+    ASSERT( (win.skey > startData[*pRowIndex] && win.ekey < endData[*pRowIndex]) ||
+            ( isInTimeWindow(&win, startData[*pRowIndex], 0) || isInTimeWindow(&win, endData[*pRowIndex], 0) ) );
+    break;
+  }
+
+  resetTableScanInfo(pInfo->pSnapshotReadOp->info, &win);
+  return true;
+}
+
 static bool prepareDataScan(SStreamBlockScanInfo* pInfo, SSDataBlock* pSDB, int32_t tsColIndex, int32_t* pRowIndex) {
   STimeWindow win = {
       .skey = INT64_MIN,
@@ -854,6 +904,7 @@ static bool prepareDataScan(SStreamBlockScanInfo* pInfo, SSDataBlock* pSDB, int3
       SResultWindowInfo*   pCurWin =
           getSessionTimeWindow(pAggSup, tsCols[*pRowIndex], INT64_MIN, pSDB->info.groupId, gap, &winIndex);
       win = pCurWin->win;
+      setGroupId(pInfo, pSDB, GROUPID_COLUMN_INDEX, *pRowIndex);
       (*pRowIndex) += updateSessionWindowInfo(pCurWin, tsCols, NULL, pSDB->info.rows, *pRowIndex, gap, NULL);
     } else {
       win =
@@ -878,15 +929,7 @@ static bool prepareDataScan(SStreamBlockScanInfo* pInfo, SSDataBlock* pSDB, int3
   if (!needRead) {
     return false;
   }
-  STableScanInfo* pTableScanInfo = pInfo->pSnapshotReadOp->info;
-  pTableScanInfo->cond.twindows[0] = win;
-  pTableScanInfo->curTWinIdx = 0;
-  //  tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
-  // if (!pTableScanInfo->dataReader) {
-  //   return false;
-  // }
-  pTableScanInfo->scanTimes = 0;
-  pTableScanInfo->currentGroupId = -1;
+  resetTableScanInfo(pInfo->pSnapshotReadOp->info, &win);
   return true;
 }
 
@@ -901,6 +944,26 @@ static void copyOneRow(SSDataBlock* dest, SSDataBlock* source, int32_t sourceRow
     }
   }
   dest->info.rows++;
+}
+
+static SSDataBlock* doRangeScan(SStreamBlockScanInfo* pInfo, SSDataBlock* pSDB, int32_t tsColIndex, int32_t* pRowIndex) {
+  while (1) {
+    SSDataBlock* pResult = NULL;
+    pResult = doTableScan(pInfo->pSnapshotReadOp);
+    if (!pResult && prepareRangeScan(pInfo, pSDB, pRowIndex)) {
+      // scan next window data
+      pResult = doTableScan(pInfo->pSnapshotReadOp);
+    }
+    if (!pResult) {
+      blockDataCleanup(pSDB);
+      *pRowIndex = 0;
+      return NULL;
+    }
+
+    if (pResult->info.groupId == pInfo->groupId) {
+      return pResult;
+    }
+  }
 }
 
 static SSDataBlock* doDataScan(SStreamBlockScanInfo* pInfo, SSDataBlock* pSDB, int32_t tsColIndex, int32_t* pRowIndex) {
@@ -935,7 +998,7 @@ static SSDataBlock* doDataScan(SStreamBlockScanInfo* pInfo, SSDataBlock* pSDB, i
   */
 }
 
-static void copyDeleteDataBlock(SStreamBlockScanInfo* pInfo, SSDataBlock* pDelBlock, SOperatorInfo* pOperator, SSDataBlock* pUpdateRes) {
+static void generateIntervalTs(SStreamBlockScanInfo* pInfo, SSDataBlock* pDelBlock, SOperatorInfo* pOperator, SSDataBlock* pUpdateRes) {
   if (pDelBlock->info.rows == 0) {
     return;
   }
@@ -950,7 +1013,7 @@ static void copyDeleteDataBlock(SStreamBlockScanInfo* pInfo, SSDataBlock* pDelBl
   uint64_t* uidCol = (uint64_t*)pGpCol->pData;
 
   SColumnInfoData* pDestTsCol = taosArrayGet(pUpdateRes->pDataBlock, START_TS_COLUMN_INDEX);
-  SColumnInfoData* pDestGpCol = taosArrayGet(pUpdateRes->pDataBlock, DELETE_GROUPID_COLUMN_INDEX);
+  SColumnInfoData* pDestGpCol = taosArrayGet(pUpdateRes->pDataBlock, GROUPID_COLUMN_INDEX);
   for (int32_t i = pInfo->deleteDataIndex ; i < pDelBlock->info.rows &&
       i < pDelBlock->info.capacity - (endData[i] - startData[i])/pInfo->interval.interval - 1; i++) {
     uint64_t groupId = getGroupId(pOperator, uidCol[i]);
@@ -969,6 +1032,40 @@ static void copyDeleteDataBlock(SStreamBlockScanInfo* pInfo, SSDataBlock* pDelBl
   }
 }
 
+static void generateScanRange(SStreamBlockScanInfo* pInfo, SSDataBlock* pBlock, SOperatorInfo* pOperator, SSDataBlock* pUpdateRes) {
+   if (pBlock->info.rows == 0) {
+    return;
+  }
+  blockDataCleanup(pUpdateRes);
+  blockDataEnsureCapacity(pUpdateRes, pBlock->info.rows);
+  ASSERT(taosArrayGetSize(pBlock->pDataBlock) >= 3);
+  SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
+  TSKEY* startData = (TSKEY*)pStartTsCol->pData;
+  SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
+  TSKEY* endData = (TSKEY*)pEndTsCol->pData;
+  SColumnInfoData* pGpCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
+  uint64_t* uidCol = (uint64_t*)pGpCol->pData;
+
+  SColumnInfoData* pDestStartCol = taosArrayGet(pUpdateRes->pDataBlock, START_TS_COLUMN_INDEX);
+  SColumnInfoData* pDestEndCol = taosArrayGet(pUpdateRes->pDataBlock, END_TS_COLUMN_INDEX);
+  SColumnInfoData* pDestGpCol = taosArrayGet(pUpdateRes->pDataBlock, GROUPID_COLUMN_INDEX);
+  int32_t dummy = 0;
+  for (int32_t i = 0 ; i < pBlock->info.rows; i++) {
+    uint64_t groupId = getGroupId(pOperator, uidCol[i]);
+    //gap must be 0.
+    SResultWindowInfo* pStartWin = getCurSessionWindow(pInfo->sessionSup.pStreamAggSup, startData[i], endData[i], groupId, 0, &dummy);
+    if (!pStartWin) {
+      // window has been closed.
+      continue;
+    }
+    SResultWindowInfo* pEndWin = getCurSessionWindow(pInfo->sessionSup.pStreamAggSup, endData[i], endData[i], groupId, 0, &dummy);
+    ASSERT(pEndWin);
+    colDataAppend(pDestStartCol, i, (const char*)&pStartWin->win.skey, false);
+    colDataAppend(pDestEndCol, i, (const char*)&pEndWin->win.ekey, false);
+    colDataAppend(pDestGpCol, i, (const char*)&groupId, false);
+    pUpdateRes->info.rows++;
+  }
+}
 static void setUpdateData(SStreamBlockScanInfo* pInfo, SSDataBlock* pBlock, SSDataBlock* pUpdateBlock) {
   blockDataCleanup(pUpdateBlock);
   int32_t size = taosArrayGetSize(pInfo->tsArray);
@@ -1001,7 +1098,7 @@ static void setUpdateData(SStreamBlockScanInfo* pInfo, SSDataBlock* pBlock, SSDa
   }
 
   if (size == 0) {
-    copyDeleteDataBlock(pInfo, pInfo->pDeleteDataRes, pInfo->pSnapshotReadOp, pUpdateBlock);
+    generateIntervalTs(pInfo, pInfo->pDeleteDataRes, pInfo->pSnapshotReadOp, pUpdateBlock);
   }
 }
 
@@ -1061,11 +1158,17 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       break;
     case STREAM_DELETE_DATA: {
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
-      pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER;
-      copyDataBlock(pInfo->pDeleteDataRes, pBlock);
-      copyDeleteDataBlock(pInfo, pInfo->pDeleteDataRes, pInfo->pSnapshotReadOp, pInfo->pUpdateRes);
       pInfo->updateResIndex = 0;
-      prepareDataScan(pInfo, pInfo->pUpdateRes, START_TS_COLUMN_INDEX, &pInfo->updateResIndex);
+      if (isIntervalWindow(pInfo)) {
+        copyDataBlock(pInfo->pDeleteDataRes, pBlock);
+        generateIntervalTs(pInfo, pInfo->pDeleteDataRes, pInfo->pSnapshotReadOp, pInfo->pUpdateRes);
+        prepareDataScan(pInfo, pInfo->pUpdateRes, START_TS_COLUMN_INDEX, &pInfo->updateResIndex);
+        pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER;
+      } else {
+        generateScanRange(pInfo, pBlock, pInfo->pSnapshotReadOp, pInfo->pUpdateRes);
+        prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
+        pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+      }
       pInfo->pUpdateRes->info.type = STREAM_DELETE_DATA;
       return pInfo->pUpdateRes;
     }
@@ -1080,8 +1183,10 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
       return pInfo->pRes;
     } else if (pInfo->scanMode == STREAM_SCAN_FROM_UPDATERES) {
-      pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER;
-      if (!isStateWindow(pInfo)) {
+      if (isStateWindow(pInfo)) {
+        pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+      } else {
+        pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER;
         prepareDataScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
       }
       return pInfo->pUpdateRes;
@@ -1106,11 +1211,19 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
         return pInfo->pUpdateRes;
       }
       pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+    } else if (pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE) {
+      SSDataBlock* pSDB = doRangeScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
+      if (pSDB) {
+        pSDB->info.type = STREAM_NORMAL;
+        checkUpdateData(pInfo, true, pSDB, false);
+        return pSDB;
+      }
+      pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
     } else if (isStateWindow(pInfo)) {
       pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER;
       pInfo->updateResIndex = pInfo->pUpdateRes->info.rows;
       if (prepareDataScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex)) {
-        ASSERT(pInfo->pUpdateRes->info.rows == 0);
+        blockDataCleanup(pInfo->pUpdateRes);
         // return empty data blcok
         return pInfo->pUpdateRes;
       }
