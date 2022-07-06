@@ -75,25 +75,13 @@ int32_t tsdbLastRowReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList, 
   STableKeyInfo* pKeyInfo = taosArrayGet(pTableIdList, 0);
   p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, pKeyInfo->uid, -1);
   p->pTableList = pTableIdList;
-#if 0
+
   for(int32_t i = 0; i < p->numOfCols; ++i) {
-    for(int32_t j = 0; j < p->pSchema->numOfCols; ++j) {
-      if (colId[i] == PRIMARYKEY_TIMESTAMP_COL_ID) {
-        p->pSlotIds[i] = -1;
-        break;
-      }
-
-      if (colId[i] == p->pSchema->columns[j].colId) {
-        p->pSlotIds[i] = j;
-        break;
-      }
-    }
-
     if (IS_VAR_DATA_TYPE(colId[i])) {
-      p->transferBuf[i] = taosMemoryMalloc(p->pSchema->columns[p->pSlotIds[i]].bytes);
+      p->transferBuf[i] = taosMemoryMalloc(p->pSchema->columns[i].bytes);
     }
   }
-#endif
+
   *pReader = p;
   return TSDB_CODE_SUCCESS;
 }
