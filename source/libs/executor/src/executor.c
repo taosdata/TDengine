@@ -189,7 +189,11 @@ int32_t qGetQueriedTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tab
   ASSERT(tinfo != NULL && dbName != NULL && tableName != NULL);
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
-  *sversion = pTaskInfo->schemaVer.sversion;
+  if (pTaskInfo->schemaVer.sw == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *sversion = pTaskInfo->schemaVer.sw->version;
   *tversion = pTaskInfo->schemaVer.tversion;
   if (pTaskInfo->schemaVer.dbname) {
     strcpy(dbName, pTaskInfo->schemaVer.dbname);

@@ -87,6 +87,7 @@ int32_t tqMetaOpen(STQ* pTq) {
             .streamReader = handle.execHandle.pExecReader[i],
             .meta = pTq->pVnode->pMeta,
             .pMsgCb = &pTq->pVnode->msgCb,
+            .vnode  = pTq->pVnode,
         };
         handle.execHandle.execCol.task[i] = qCreateStreamExecTaskInfo(handle.execHandle.execCol.qmsg, &reader);
         ASSERT(handle.execHandle.execCol.task[i]);

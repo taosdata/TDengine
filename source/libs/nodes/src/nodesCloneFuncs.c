@@ -165,7 +165,7 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
       memcpy(pDst->datum.p, pSrc->datum.p, len);
       break;
     }
-    case TSDB_DATA_TYPE_JSON:{
+    case TSDB_DATA_TYPE_JSON: {
       int32_t len = getJsonValueLen(pSrc->datum.p);
       pDst->datum.p = taosMemoryCalloc(1, len);
       if (NULL == pDst->datum.p) {
@@ -394,9 +394,12 @@ static int32_t logicVnodeModifCopy(const SVnodeModifyLogicNode* pSrc, SVnodeModi
   COPY_SCALAR_FIELD(msgType);
   CLONE_NODE_FIELD(pAffectedRows);
   COPY_SCALAR_FIELD(tableId);
+  COPY_SCALAR_FIELD(stableId);
   COPY_SCALAR_FIELD(tableType);
   COPY_CHAR_ARRAY_FIELD(tableFName);
   COPY_OBJECT_FIELD(deleteTimeRange, sizeof(STimeWindow));
+  CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
+  CLONE_NODE_LIST_FIELD(pInsertCols);
   return TSDB_CODE_SUCCESS;
 }
 
