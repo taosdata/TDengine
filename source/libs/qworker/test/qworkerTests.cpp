@@ -214,7 +214,8 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
       rpcFreeCont(rsp);
       break;
     }
-    case TDMT_SCH_FETCH_RSP: {
+    case TDMT_SCH_FETCH_RSP:
+    case TDMT_SCH_MERGE_FETCH_RSP: {
       SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)pRsp->pCont;
   
       if (0 == pRsp->code && 0 == rsp->completed) {
@@ -815,6 +816,7 @@ void *fetchQueueThread(void *param) {
 
     switch (fetchRpc->msgType) {
       case TDMT_SCH_FETCH:
+      case TDMT_SCH_MERGE_FETCH:
         qWorkerProcessFetchMsg(mockPointer, mgmt, fetchRpc, 0);
         break;
       case TDMT_SCH_CANCEL_TASK:
