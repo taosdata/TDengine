@@ -145,9 +145,11 @@ system sh/exec.sh -n dnode4 -s stop -x SIGINT
 sql insert into ct1 values(now+0s, 10, 2.0, 3.0)
 sql insert into ct1 values(now+1s, 11, 2.1, 3.1)(now+2s, -12, -2.2, -3.2)(now+3s, -13, -2.3, -3.3)
 
+sql flush database db;
+
 system sh/exec.sh -n dnode4 -s start
 
-
+sql insert into ct1 values(now+1s, 81, 8.1, 8.1)(now+2s, -92, -9.2, -9.2)(now+3s, -73, -7.3, -7.3)
 
 
 
