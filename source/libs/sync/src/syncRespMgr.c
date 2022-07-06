@@ -127,7 +127,7 @@ void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl) {
 
   while (pStub) {
     size_t     len;
-    void      *key = taosHashGetKey(pStub, &len);
+    void *     key = taosHashGetKey(pStub, &len);
     SyncIndex *pIndex = (SyncIndex *)key;
 
     int64_t nowMS = taosGetTimestampMs();
