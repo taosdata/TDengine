@@ -340,6 +340,30 @@ static int32_t tsdbSnapCommit(STsdbSnapWriter* pWriter) {
   return code;
 }
 
+static int32_t tsdbSnapWriteDataEnd(STsdbSnapWriter* pWriter) {
+  int32_t code = 0;
+  STsdb*  pTsdb = pWriter->pTsdb;
+
+  if (pWriter->pDataFWriter == NULL) goto _exit;
+
+  // TODO
+
+  code = tsdbDataFWriterClose(&pWriter->pDataFWriter, 0);
+  if (code) goto _err;
+
+  if (pWriter->pDataFReader) {
+    code = tsdbDataFReaderClose(&pWriter->pDataFReader);
+    if (code) goto _err;
+  }
+
+_exit:
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb snapshot writer data end failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
 static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t code = 0;
   STsdb*  pTsdb = pWriter->pTsdb;
@@ -350,14 +374,17 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
 
   int32_t fid = tsdbKeyFid(skey, pWriter->minutes, pWriter->precision);
   ASSERT(fid == tsdbKeyFid(ekey, pWriter->minutes, pWriter->precision));
+
   if (pWriter->pDataFWriter == NULL || pWriter->fid != fid) {
-    if (pWriter->pDataFWriter) {
-      // finish current file and close the SDataFWriter
-    }
+    code = tsdbSnapWriteDataEnd(pWriter);
+    if (code) goto _err;
 
     pWriter->fid = fid;
     SDFileSet* pSet = tsdbFSStateGetDFileSet(pTsdb->fs->nState, fid);
-    SDFileSet  wSet = {0};
+    // reader
+
+    // writer
+    SDFileSet wSet = {0};
     if (pSet == NULL) {
       wSet = (SDFileSet){0};  // todo
     } else {
@@ -462,17 +489,6 @@ _exit:
 
 _err:
   tsdbError("vgId:%d tsdb snapshot write del failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
-static int32_t tsdbSnapWriteDataEnd(STsdbSnapWriter* pWriter) {
-  int32_t code = 0;
-  STsdb*  pTsdb = pWriter->pTsdb;
-
-_exit:
-  return code;
-
-_err:
   return code;
 }
 
