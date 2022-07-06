@@ -442,6 +442,8 @@ typedef struct SIntervalAggOperatorInfo {
   SArray*            pDelWins;           // SWinRes
   int32_t            delIndex;
   SSDataBlock*       pDelRes;
+
+  SNode *pCondition;
 } SIntervalAggOperatorInfo;
 
 typedef struct SStreamFinalIntervalOperatorInfo {
