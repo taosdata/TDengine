@@ -34,6 +34,7 @@ const uint8_t tdVTypeByte[2][3] = {{
 // declaration
 static uint8_t tdGetBitmapByte(uint8_t byte);
 static int32_t tdCompareColId(const void *arg1, const void *arg2);
+static FORCE_INLINE int32_t compareKvRowColId(const void *key1, const void *key2);
 
 // static void dataColSetNEleNull(SDataCol *pCol, int nEle);
 
@@ -1045,13 +1046,28 @@ int32_t dataColGetNEleLen(SDataCol *pDataCol, int32_t rows, int8_t bitmapMode) {
   return result;
 }
 
-bool tdSKvRowGetVal(STSRow *pRow, col_id_t colId, uint32_t offset, col_id_t colIdx, SCellVal *pVal) {
+bool tdSKvRowGetVal(STSRow *pRow, col_id_t colId, col_id_t colIdx, SCellVal *pVal) {
   if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
     tdRowSetVal(pVal, TD_VTYPE_NORM, TD_ROW_KEY_ADDR(pRow));
     return true;
   }
+  int16_t nCols = tdRowGetNCols(pRow) - 1;
+  if (nCols <= 0) {
+    pVal->valType = TD_VTYPE_NONE;
+    return true;
+  }
+
+  SKvRowIdx *pColIdx =
+      (SKvRowIdx *)taosbsearch(&colId, TD_ROW_COL_IDX(pRow), nCols, sizeof(SKvRowIdx), compareKvRowColId, TD_EQ);
+
+  if (!pColIdx) {
+    pVal->valType = TD_VTYPE_NONE;
+    return true;
+  }
+
   void *pBitmap = tdGetBitmapAddrKv(pRow, tdRowGetNCols(pRow));
-  tdGetKvRowValOfCol(pVal, pRow, pBitmap, offset, colIdx);
+  tdGetKvRowValOfCol(pVal, pRow, pBitmap, pColIdx->offset,
+                     POINTER_DISTANCE(pColIdx, TD_ROW_COL_IDX(pRow)) / sizeof(SKvRowIdx));
   return true;
 }
 
@@ -1687,7 +1703,6 @@ int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowValT valType, const vo
 
 int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen,
                               int32_t allNullLen, int32_t boundNullLen) {
-#if 0
   if ((boundNullLen > 0) && (allNullLen > 0) && (nBoundCols > 0)) {
     uint32_t tpLen = allNullLen;
     uint32_t kvLen = sizeof(col_id_t) + sizeof(SKvRowIdx) * nBoundCols + boundNullLen;
@@ -1700,8 +1715,6 @@ int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBou
   } else {
     pBuilder->rowType = TD_ROW_TP;
   }
-#endif
-  pBuilder->rowType = TD_ROW_TP;
   pBuilder->flen = flen;
   pBuilder->nCols = nCols;
   pBuilder->nBoundCols = nBoundCols;
@@ -1976,8 +1989,7 @@ void tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColV
     tdSTpRowGetVal(pRow, pTColumn->colId, pTColumn->type, pTSchema->flen, pTColumn->offset, iCol - 1, &cv);
   } else if (TD_IS_KV_ROW(pRow)) {
     ASSERT(iCol > 0);
-    SKvRowIdx *pColIdx = tdKvRowColIdxAt(pRow, iCol - 1);
-    tdSKvRowGetVal(pRow, pTColumn->colId, pColIdx->offset, iCol - 1, &cv);
+    tdSKvRowGetVal(pRow, pTColumn->colId, iCol - 1, &cv);
   } else {
     ASSERT(0);
   }
