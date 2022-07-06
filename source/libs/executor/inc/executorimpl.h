@@ -149,8 +149,8 @@ typedef struct SExecTaskInfo {
   struct {
     char          *tablename;
     char          *dbname;
-    int32_t        sversion;
     int32_t        tversion;
+    SSchemaWrapper*sw;
   } schemaVer;
 
   STableListInfo   tableqinfoList;       // this is a table list
@@ -261,7 +261,7 @@ enum {
 };
 
 typedef struct STableScanInfo {
-  void*           dataReader;
+  STsdbReader*    dataReader;
   SReadHandle     readHandle;
 
   SFileBlockLoadRecorder readRecorder;
@@ -305,6 +305,15 @@ typedef struct STagScanInfo {
   SReadHandle      readHandle;
   STableListInfo  *pTableList;
 } STagScanInfo;
+
+typedef struct SLastrowScanInfo {
+  SSDataBlock    *pRes;
+  SArray         *pTableList;
+  SReadHandle     readHandle;
+  void           *pLastrowReader;
+  SArray         *pColMatchInfo;
+  int32_t        *pSlotIds;
+} SLastrowScanInfo;
 
 typedef enum EStreamScanMode {
   STREAM_SCAN_FROM_READERHANDLE = 1,
@@ -442,6 +451,8 @@ typedef struct SIntervalAggOperatorInfo {
   SArray*            pDelWins;           // SWinRes
   int32_t            delIndex;
   SSDataBlock*       pDelRes;
+
+  SNode *pCondition;
 } SIntervalAggOperatorInfo;
 
 typedef struct SStreamFinalIntervalOperatorInfo {
@@ -682,6 +693,8 @@ typedef struct SSortOperatorInfo {
 
   int64_t      startTs;       // sort start time
   uint64_t     sortElapsed;   // sort elapsed time, time to flush to disk not included.
+
+  SNode*      pCondition;
 } SSortOperatorInfo;
 
 typedef struct STagFilterOperatorInfo {
@@ -755,7 +768,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
 
 SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNode, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle, SExecTaskInfo* pTaskInfo, uint64_t queryId, uint64_t taskId);
+SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* pPhyNode,
                                          STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode *pScanPhyNode, const char* pUser, SExecTaskInfo* pTaskInfo);
@@ -768,6 +781,8 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
 SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortPhyNode, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** dowStreams, size_t numStreams, SMergePhysiNode* pMergePhysiNode, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t num, SArray* pSortInfo, SArray* pGroupInfo, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
+                                         SArray* pTableList, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,

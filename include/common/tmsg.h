@@ -3024,6 +3024,17 @@ typedef struct {
 int32_t tEncodeSVDeleteRsp(SEncoder* pCoder, const SVDeleteRsp* pReq);
 int32_t tDecodeSVDeleteRsp(SDecoder* pCoder, SVDeleteRsp* pReq);
 
+typedef struct SDeleteRes {
+  uint64_t suid;
+  SArray*  uidList;
+  int64_t  skey;
+  int64_t  ekey;
+  int64_t  affectedRows;
+} SDeleteRes;
+
+int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
+int32_t tDecodeDeleteRes(SDecoder* pCoder, SDeleteRes* pRes);
+
 #pragma pack(pop)
 
 #ifdef __cplusplus

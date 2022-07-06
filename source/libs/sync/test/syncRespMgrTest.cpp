@@ -74,7 +74,7 @@ void syncRespMgrGetAndDelTest(uint64_t i) {
 }
 
 SSyncNode *createSyncNode() {
-  SSyncNode *pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
+  SSyncNode *pSyncNode = (SSyncNode *)taosMemoryMalloc(sizeof(SSyncNode));
   memset(pSyncNode, 0, sizeof(SSyncNode));
   return pSyncNode;
 }

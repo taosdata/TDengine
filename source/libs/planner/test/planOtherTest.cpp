@@ -96,4 +96,8 @@ TEST_F(PlanOtherTest, insert) {
   useDb("root", "test");
 
   run("INSERT INTO t1 SELECT * FROM t1");
+
+  run("INSERT INTO t1 (ts, c1, c2) SELECT ts, c1, c2 FROM st1");
+
+  run("INSERT INTO t1 (ts, c1, c2) SELECT ts, c1, c2 FROM st1s1 UNION ALL SELECT ts, c1, c2 FROM st2");
 }

@@ -337,7 +337,7 @@ class TDTestCase:
         tdSql.checkData(2,0,5)
 
         # nest query
-        # tdSql.query("select tail(c1,2) from (select c1 from ct1)")
+        # tdSql.query("select tail(c1,2) from (select _rowts , c1 from ct1)")
         tdSql.query("select c1 from (select tail(c1,2) c1 from ct4) order by 1 nulls first")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, None)
@@ -363,10 +363,59 @@ class TDTestCase:
         tdSql.error("select tail(c1,2) from ct1 group by tbname")
 
         # super table
-        
+        tdSql.error("select tbname , tail(c1,2) from stb1 group by tbname")
+        tdSql.query("select tail(c1,2) from stb1 partition by tbname")
+        tdSql.checkRows(4)
 
 
-    
+        # bug need fix 
+        # tdSql.query("select tbname , tail(c1,2) from stb1 partition by tbname")
+        # tdSql.checkRows(4)
+
+        # tdSql.query("select tbname , tail(c1,2) from stb1 partition by tbname order by tbname")
+        # tdSql.checkRows(4)
+
+        # tdSql.query(" select tbname , count(c1) from stb1 partition by tbname order by tbname ")
+        # tdSql.checkRows(2)
+        # tdSql.query(" select tbname , max(c1) ,c1 from stb1 partition by tbname order by tbname ")
+        # tdSql.checkRows(2)
+        # tdSql.query(" select tbname ,first(c1) from stb1 partition by tbname order by tbname ")
+        # tdSql.checkRows(2)
+
+        tdSql.query("select tail(c1,2) from stb1 partition by tbname")
+        tdSql.checkRows(4)
+
+
+        # # bug need fix 
+        # tdSql.query(" select tbname , tail(c1,2) from stb1  where t1 = 0 partition by tbname ")
+        # tdSql.checkRows(2)
+        # tdSql.query(" select tbname , tail(c1,2) from stb1  where t1 = 0 partition by tbname order by tbname ")
+        # tdSql.checkRows(2)
+        # tdSql.query(" select tbname , tail(c1,2) from stb1  where c1 = 0 partition by tbname order by tbname ")
+        # tdSql.checkRows(3)
+        # tdSql.query(" select tbname , tail(c1,2) from stb1  where c1 = 0 partition by tbname ")
+        # tdSql.checkRows(3)
+        # tdSql.query(" select tbname , tail(c1,2) from stb1  where c1 = 0 partition by tbname ")
+        # tdSql.checkRows(3)
+        tdSql.query(" select tail(t1,2) from stb1  ")
+        tdSql.checkRows(2)
+        tdSql.query(" select tail(t1+c1,2) from stb1 ")
+        tdSql.checkRows(2)
+        tdSql.query(" select tail(t1+c1,2) from stb1 partition by tbname ")
+        tdSql.checkRows(4)
+        tdSql.query(" select tail(t1,2) from stb1 partition by tbname ")
+        tdSql.checkRows(4)
+
+        # nest query 
+        tdSql.query(" select  tail(c1,2) from (select _rowts , t1 ,c1 , tbname from stb1 ) ")
+        tdSql.checkRows(2)
+        tdSql.checkData(0,0,None)
+        tdSql.checkData(1,0,9)
+        tdSql.query("select  tail(t1,2) from (select _rowts , t1 , tbname from stb1 )")
+        tdSql.checkRows(2)
+        tdSql.checkData(0,0,4)
+        tdSql.checkData(1,0,1)
+
     def check_boundary_values(self):
 
         tdSql.execute("drop database if exists bound_test")
