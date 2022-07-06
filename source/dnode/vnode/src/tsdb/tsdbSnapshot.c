@@ -315,7 +315,11 @@ struct STsdbSnapWriter {
   int32_t       fid;
   SDataFReader* pDataFReader;
   SArray*       aBlockIdx;
+  int32_t       iBlockIdx;
   SMapData      mBlock;
+  int32_t       iBlock;
+  SBlockData    blockData;
+  int32_t       iRow;
   SDataFWriter* pDataFWriter;
   SArray*       aBlockIdxN;
   SMapData      mBlockN;
@@ -382,6 +386,16 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
     pWriter->fid = fid;
     SDFileSet* pSet = tsdbFSStateGetDFileSet(pTsdb->fs->nState, fid);
     // reader
+    if (pSet) {
+      code = tsdbDataFReaderOpen(&pWriter->pDataFReader, pTsdb, pSet);
+      if (code) goto _err;
+
+      code = tsdbReadBlockIdx(pWriter->pDataFReader, pWriter->aBlockIdx, NULL);
+      if (code) goto _err;
+    } else {
+      taosArrayClear(pWriter->aBlockIdx);
+    }
+    pWriter->iBlockIdx = 0;
 
     // writer
     SDFileSet wSet = {0};
@@ -393,6 +407,8 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
 
     code = tsdbDataFWriterOpen(&pWriter->pDataFWriter, pTsdb, &wSet);
     if (code) goto _err;
+
+    taosArrayClear(pWriter->aBlockIdxN);
   }
 
   return code;
