@@ -212,7 +212,9 @@ typedef struct {
 struct SVState {
   int64_t committed;
   int64_t applied;
+  int64_t applyTerm;
   int64_t commitID;
+  int64_t commitTerm;
 };
 
 struct SVnodeInfo {
