@@ -120,7 +120,24 @@ static int32_t vnodeProcessAlterReplicaReq(SVnode *pVnode, SRpcMsg *pMsg) {
   return code;
 }
 
-void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
+void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg) {
+  SEpSet newEpSet = {0};
+  syncGetRetryEpSet(pVnode->sync, &newEpSet);
+
+  const STraceId *trace = &pMsg->info.traceId;
+  vGTrace("vgId:%d, msg:%p is redirect since not leader, numOfEps:%d inUse:%d", pVnode->config.vgId, pMsg,
+          newEpSet.numOfEps, newEpSet.inUse);
+  for (int32_t i = 0; i < newEpSet.numOfEps; ++i) {
+    vGTrace("vgId:%d, msg:%p redirect:%d ep:%s:%u", pVnode->config.vgId, pMsg, i, newEpSet.eps[i].fqdn,
+            newEpSet.eps[i].port);
+  }
+  pMsg->info.hasEpSet = 1;
+
+  SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info};
+  tmsgSendRedirectRsp(&rsp, &newEpSet);
+}
+
+void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnode  *pVnode = pInfo->ahandle;
   int32_t  vgId = pVnode->config.vgId;
   int32_t  code = 0;
@@ -131,7 +148,7 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
     const STraceId *trace = &pMsg->info.traceId;
     vGTrace("vgId:%d, msg:%p get from vnode-write queue handle:%p", vgId, pMsg, pMsg->info.handle);
 
-    code = vnodePreProcessReq(pVnode, pMsg);
+    code = vnodePreProcessWriteMsg(pVnode, pMsg);
     if (code != 0) {
       vError("vgId:%d, msg:%p failed to pre-process since %s", vgId, pMsg, terrstr());
     } else {
@@ -141,7 +158,7 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
         code = syncPropose(pVnode->sync, pMsg, vnodeIsMsgWeak(pMsg->msgType));
         if (code > 0) {
           SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
-          if (vnodeProcessWriteReq(pVnode, pMsg, pMsg->info.conn.applyIndex, &rsp) < 0) {
+          if (vnodeProcessWriteMsg(pVnode, pMsg, pMsg->info.conn.applyIndex, &rsp) < 0) {
             rsp.code = terrno;
             vError("vgId:%d, msg:%p failed to apply right now since %s", vgId, pMsg, terrstr());
           }
@@ -156,16 +173,7 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
       vnodeAccumBlockMsg(pVnode, pMsg->msgType);
     } else if (code < 0) {
       if (terrno == TSDB_CODE_SYN_NOT_LEADER) {
-        SEpSet newEpSet = {0};
-        syncGetRetryEpSet(pVnode->sync, &newEpSet);
-        vGTrace("vgId:%d, msg:%p is redirect since not leader, numOfEps:%d inUse:%d", vgId, pMsg, newEpSet.numOfEps,
-                newEpSet.inUse);
-        for (int32_t i = 0; i < newEpSet.numOfEps; ++i) {
-          vGTrace("vgId:%d, msg:%p redirect:%d ep:%s:%u", vgId, pMsg, i, newEpSet.eps[i].fqdn, newEpSet.eps[i].port);
-        }
-        pMsg->info.hasEpSet = 1;
-        SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info};
-        tmsgSendRedirectRsp(&rsp, &newEpSet);
+        vnodeRedirectRpcMsg(pVnode, pMsg);
       } else {
         if (terrno != 0) code = terrno;
         vError("vgId:%d, msg:%p failed to propose since %s, code:0x%x", vgId, pMsg, tstrerror(code), code);
@@ -185,7 +193,7 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   vnodeWaitBlockMsg(pVnode);
 }
 
-void vnodeApplyMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
+void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnode  *pVnode = pInfo->ahandle;
   int32_t  vgId = pVnode->config.vgId;
   int32_t  code = 0;
@@ -199,7 +207,7 @@ void vnodeApplyMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
 
     SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
     if (rsp.code == 0) {
-      if (vnodeProcessWriteReq(pVnode, pMsg, pMsg->info.conn.applyIndex, &rsp) < 0) {
+      if (vnodeProcessWriteMsg(pVnode, pMsg, pMsg->info.conn.applyIndex, &rsp) < 0) {
         rsp.code = terrno;
         vError("vgId:%d, msg:%p failed to apply since %s", vgId, pMsg, terrstr());
       }
@@ -500,3 +508,17 @@ void vnodeSyncStart(SVnode *pVnode) {
 }
 
 void vnodeSyncClose(SVnode *pVnode) { syncStop(pVnode->sync); }
+
+bool vnodeIsLeader(SVnode *pVnode) {
+  if (!syncIsReady(pVnode->sync)) {
+    return false;
+  }
+
+  // todo
+  // if (!pVnode->restored) {
+  //   terrno = TSDB_CODE_APP_NOT_READY;
+  //   return false;
+  // }
+
+  return true;
+}

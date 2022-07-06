@@ -616,8 +616,6 @@ void setHeartbeatTimerMS(int64_t rid, int32_t hbTimerMS) {
 }
 
 int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
-  int32_t ret = 0;
-
   SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
     taosReleaseRef(tsNodeRefId, rid);
@@ -625,8 +623,8 @@ int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
     return -1;
   }
   ASSERT(rid == pSyncNode->rid);
-  ret = syncNodePropose(pSyncNode, pMsg, isWeak);
 
+  int32_t ret = syncNodePropose(pSyncNode, pMsg, isWeak);
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return ret;
 }
@@ -637,15 +635,14 @@ int32_t syncProposeBatch(int64_t rid, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_
     return -1;
   }
 
-  int32_t    ret = 0;
   SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
   ASSERT(rid == pSyncNode->rid);
-  ret = syncNodeProposeBatch(pSyncNode, pMsgArr, pIsWeakArr, arrSize);
 
+  int32_t ret = syncNodeProposeBatch(pSyncNode, pMsgArr, pIsWeakArr, arrSize);
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return ret;
 }
