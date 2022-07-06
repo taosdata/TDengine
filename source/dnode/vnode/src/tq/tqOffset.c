@@ -85,6 +85,7 @@ STqOffsetStore* tqOffsetOpen(STQ* pTq) {
 void tqOffsetClose(STqOffsetStore* pStore) {
   tqOffsetSnapshot(pStore);
   taosHashCleanup(pStore->pHash);
+  taosMemoryFree(pStore);
 }
 
 STqOffset* tqOffsetRead(STqOffsetStore* pStore, const char* subscribeKey) {
