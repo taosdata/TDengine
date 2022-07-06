@@ -70,21 +70,21 @@ impl {NAME} {{
         output,
         r#"
 impl {NAME} {{
-    pub fn to_str(&self) -> &'static str {{
+    pub fn as_error_str(&self) -> &'static str {{
         match self {{
-            Success => "Success",
+            &Code::Success => "Success",
 "#
     )?;
     for (name, _, reason) in &codes {
         writeln!(
             output,
-            r#"            {} => "{reason}","#,
+            r#"            &Code::{} => "{reason}","#,
             name.to_upper_camel_case()
         )?;
     }
     writeln!(
         output,
-        r#"            Failed => "Unknown or common error","#
+        r#"            _ => "Unknown or common error","#
     )?;
     writeln!(
         output,

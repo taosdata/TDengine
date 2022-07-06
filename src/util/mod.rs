@@ -77,7 +77,6 @@ pub fn sync_table(from: &Taos, to: &Taos, db: &str, table: &str) -> Result<(), E
 
     #[derive(Debug, Deserialize)]
     struct Table {
-        table_name: String,
         stable_name: Option<String>,
     }
 

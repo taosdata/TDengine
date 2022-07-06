@@ -8,8 +8,6 @@ use once_cell::sync::{Lazy, OnceCell};
 #[cfg(feature = "async")]
 use asyn::WsAsyncClient;
 use sync::WsClient;
-use thiserror::Error;
-// use websocket::{client::ParseError, WebSocketError};
 
 use taos_query::{DeError, Dsn, DsnError, FromDsn, IntoDsn, Queryable};
 
@@ -44,7 +42,7 @@ impl WsInfo {
         ) {
             ("ws" | "http", _) => "ws",
             ("wss" | "https", _) => "wss",
-            ("taos", Some("ws" | "http")) => "ws",
+            ("taos", Some("ws" | "http") | None) => "ws",
             ("taos", Some("wss" | "https")) => "wss",
             _ => Err(DsnError::InvalidDriver(dsn.to_string()))?,
         };
@@ -277,11 +275,6 @@ mod tests {
             A {
                 ts: "1970-01-01T00:01:05.535".to_string(),
                 c8i1: -1,
-                c8i2: -5,
-                cb1: "abc".to_string(),
-                cb2: "def".to_string(),
-                cn1: "涛思".to_string(),
-                cn2: "数据".to_string(),
                 c16i1: -2,
                 c32i1: -3,
                 c64i1: -4,
@@ -289,13 +282,18 @@ mod tests {
                 c16u1: 2,
                 c32u1: 3,
                 c64u1: 4,
+                c8i2: -5,
                 c16i2: -6,
                 c32i2: -7,
                 c64i2: -8,
                 c8u2: 5,
                 c16u2: 6,
                 c32u2: 7,
-                c64u2: 8
+                c64u2: 8,
+                cb1: "abc".to_string(),
+                cb2: "def".to_string(),
+                cn1: "涛思".to_string(),
+                cn2: "数据".to_string(),
             }
         );
 
@@ -307,8 +305,6 @@ mod tests {
     fn ws_show_databases() -> anyhow::Result<()> {
         use taos_query::{Fetchable, Queryable};
         let client = Ws::from_dsn("ws://localhost:6041/")?;
-
-        // let mut rs = client.s_query("select * from wsabc.tb1").unwrap().unwrap();
         let mut rs = client.query("show databases")?;
         let values = rs.to_rows_vec();
 

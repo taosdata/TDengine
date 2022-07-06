@@ -7,14 +7,13 @@ edition = "2021"
 
 [lib]
 name = "taosws"
-crate-type = ["cdylib", "staticlib", "rlib"]
+crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 anyhow = "1"
 taos-error = { path = "../taos-error" }
 taos-query = { path = "../taos-query" }
-taos-ws = { path = "../taos-ws" }
-
+taos-ws = { path = "../taos-ws", default-features = false }
 
 [build-dependencies]
 cbindgen = "0.24.3"
