@@ -565,7 +565,6 @@ static int32_t createSelectResultDataBlock(SNodeList* pProjects, SSDataBlock** p
 }
 
 int32_t buildSelectResultDataBlock(SNodeList* pProjects, SSDataBlock* pBlock) {
-  int32_t numOfCols = LIST_LENGTH(pProjects);
   blockDataEnsureCapacity(pBlock, 1);
 
   int32_t index = 0;
@@ -579,7 +578,6 @@ int32_t buildSelectResultDataBlock(SNodeList* pProjects, SSDataBlock* pBlock) {
   }
 
   pBlock->info.rows = 1;
-
   return TSDB_CODE_SUCCESS;
 }
 

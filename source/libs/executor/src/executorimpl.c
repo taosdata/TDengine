@@ -2823,7 +2823,7 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
   int32_t type = pOperator->operatorType;
   if (type == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE || type == QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN ||
       type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN ||
-      type == QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN) {
+      type == QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN) {
     *order = TSDB_ORDER_ASC;
     *scanFlag = MAIN_SCAN;
     return TSDB_CODE_SUCCESS;
@@ -2885,7 +2885,7 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
       tsdbSetTableId(pInfo->dataReader, uid);
       int64_t oldSkey = pInfo->cond.twindows[0].skey;
       pInfo->cond.twindows[0].skey = ts + 1;
-      tsdbResetReadHandle(pInfo->dataReader, &pInfo->cond, 0);
+      tsdbReaderReset(pInfo->dataReader, &pInfo->cond, 0);
       pInfo->cond.twindows[0].skey = oldSkey;
       pInfo->scanTimes = 0;
       pInfo->curTWinIdx = 0;
@@ -3889,6 +3889,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
+  pOperator->exprSupp.pExprInfo = pExprInfo;
   pOperator->exprSupp.numOfExprs = numOfExpr;
   pOperator->pTaskInfo = pTaskInfo;
 
@@ -3991,29 +3992,32 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
   return pTaskInfo;
 }
 
+static STsdbReader* doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
+                                       STableListInfo* pTableListInfo, const char* idstr);
+
 static SArray* extractColumnInfo(SNodeList* pNodeList);
 
 int32_t extractTableSchemaVersion(SReadHandle* pHandle, uint64_t uid, SExecTaskInfo* pTaskInfo) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pHandle->meta, 0);
   int32_t code = metaGetTableEntryByUid(&mr, uid);
-  if (code) {
+  if (code != TSDB_CODE_SUCCESS) {
     metaReaderClear(&mr);
-    return code;
+    return terrno;
   }
 
   pTaskInfo->schemaVer.tablename = strdup(mr.me.name);
 
   if (mr.me.type == TSDB_SUPER_TABLE) {
-    pTaskInfo->schemaVer.sversion = mr.me.stbEntry.schemaRow.version;
+    pTaskInfo->schemaVer.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
     pTaskInfo->schemaVer.tversion = mr.me.stbEntry.schemaTag.version;
   } else if (mr.me.type == TSDB_CHILD_TABLE) {
     tb_uid_t suid = mr.me.ctbEntry.suid;
     metaGetTableEntryByUid(&mr, suid);
-    pTaskInfo->schemaVer.sversion = mr.me.stbEntry.schemaRow.version;
+    pTaskInfo->schemaVer.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
     pTaskInfo->schemaVer.tversion = mr.me.stbEntry.schemaTag.version;
   } else {
-    pTaskInfo->schemaVer.sversion = mr.me.ntbEntry.schemaRow.version;
+    pTaskInfo->schemaVer.sw = tCloneSSchemaWrapper(&mr.me.ntbEntry.schemaRow);
   }
 
   metaReaderClear(&mr);
@@ -4193,13 +4197,14 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         pTaskInfo->code = code;
         return NULL;
       }
+
       code = extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
       if (code) {
         pTaskInfo->code = terrno;
         return NULL;
       }
 
-      SOperatorInfo*  pOperator = createTableScanOperatorInfo(pTableScanNode, pHandle, pTaskInfo, queryId, taskId);
+      SOperatorInfo*  pOperator = createTableScanOperatorInfo(pTableScanNode, pHandle, pTaskInfo);
       STableScanInfo* pScanInfo = pOperator->info;
       pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
       return pOperator;
@@ -4252,20 +4257,19 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN == type) {
       STagScanPhysiNode* pScanPhyNode = (STagScanPhysiNode*)pPhyNode;
 
-      int32_t code = getTableList(pHandle->meta, pScanPhyNode, pTableListInfo);
+      int32_t code = getTableList(pHandle->meta, pHandle->vnode, pScanPhyNode, pTableListInfo);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = terrno;
         return NULL;
       }
 
       return createTagScanOperatorInfo(pHandle, pScanPhyNode, pTableListInfo, pTaskInfo);
-
     } else if (QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN == type) {
       SBlockDistScanPhysiNode* pBlockNode = (SBlockDistScanPhysiNode*)pPhyNode;
       pTableListInfo->pTableList = taosArrayInit(4, sizeof(STableKeyInfo));
 
       if (pBlockNode->tableType == TSDB_SUPER_TABLE) {
-        int32_t code = tsdbGetAllTableList(pHandle->meta, pBlockNode->uid, pTableListInfo->pTableList);
+        int32_t code = vnodeGetAllTableList(pHandle->vnode, pBlockNode->uid, pTableListInfo->pTableList);
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = terrno;
           return NULL;
@@ -4294,12 +4298,42 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         cond.twindows = taosMemoryCalloc(1, sizeof(STimeWindow));
         cond.twindows[0] = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
         cond.suid = pBlockNode->suid;
-        cond.type = BLOCK_LOAD_OFFSET_SEQ_ORDER;
+        cond.type = BLOCK_LOAD_OFFSET_ORDER;
       }
-      tsdbReaderT* pReader = tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo->pTableList, queryId, taskId);
+
+      STsdbReader* pReader = NULL;
+      tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo->pTableList, &pReader, "");
       cleanupQueryTableDataCond(&cond);
 
       return createDataBlockInfoScanOperator(pReader, pHandle, cond.suid, pBlockNode, pTaskInfo);
+    } else if (QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN == type) {
+      SLastRowScanPhysiNode* pScanNode = (SLastRowScanPhysiNode*)pPhyNode;
+
+//      int32_t code = createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId);
+//      if (code) {
+//        pTaskInfo->code = code;
+//        return NULL;
+//      }
+
+      int32_t code = extractTableSchemaVersion(pHandle, pScanNode->uid, pTaskInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        pTaskInfo->code = code;
+        return NULL;
+      }
+
+      pTableListInfo->pTableList = taosArrayInit(4, sizeof(STableKeyInfo));
+      if (pScanNode->tableType == TSDB_SUPER_TABLE) {
+        code = vnodeGetAllTableList(pHandle->vnode, pScanNode->uid, pTableListInfo->pTableList);
+        if (code != TSDB_CODE_SUCCESS) {
+          pTaskInfo->code = terrno;
+          return NULL;
+        }
+      } else {  // Create one table group.
+        STableKeyInfo info = {.lastKey = 0, .uid = pScanNode->uid, .groupId = 0};
+        taosArrayPush(pTableListInfo->pTableList, &info);
+      }
+
+      return createLastrowScanOperator(pScanNode, pHandle, pTableListInfo->pTableList, pTaskInfo);
     } else {
       ASSERT(0);
     }
@@ -4504,16 +4538,15 @@ SArray* extractColumnInfo(SNodeList* pNodeList) {
   return pList;
 }
 
-tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
-                               STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId) {
-  int32_t code = getTableList(pHandle->meta, &pTableScanNode->scan, pTableListInfo);
+STsdbReader* doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle, STableListInfo* pTableListInfo, const char* idstr) {
+  int32_t code = getTableList(pHandle->meta, pHandle->vnode, &pTableScanNode->scan, pTableListInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 
   if (taosArrayGetSize(pTableListInfo->pTableList) == 0) {
     code = 0;
-    qDebug("no table qualified for query, TID:0x%" PRIx64 ", QID:0x%" PRIx64, taskId, queryId);
+    qDebug("no table qualified for query, %s", idstr);
     goto _error;
   }
 
@@ -4523,7 +4556,12 @@ tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle*
     goto _error;
   }
 
-  tsdbReaderT pReader = tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo->pTableList, queryId, taskId);
+  STsdbReader* pReader;
+  code = tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo->pTableList, &pReader, idstr);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   cleanupQueryTableDataCond(&cond);
 
   return pReader;
@@ -4586,10 +4624,10 @@ int32_t rebuildReader(SOperatorInfo* pOperator, SSubplan* plan, SReadHandle* pHa
     ASSERT(0);
   }
 
-  tsdbCleanupReadHandle(pTableScanInfo->dataReader);
+  tsdbReaderClose(pTableScanInfo->dataReader);
 
   STableListInfo info = {0};
-  pTableScanInfo->dataReader = doCreateDataReader(pNode, pHandle, &info, 0, 0);
+  pTableScanInfo->dataReader = doCreateDataReader(pNode, pHandle, &info, NULL);
   if (pTableScanInfo->dataReader == NULL) {
     ASSERT(0);
     qError("failed to create data reader");
@@ -4743,6 +4781,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   (*pTaskInfo)->tableqinfoList.pTagIndexCond = pPlan->pTagIndexCond;
   (*pTaskInfo)->pRoot = createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId,
                                            &(*pTaskInfo)->tableqinfoList, pPlan->user);
+
 
   if (NULL == (*pTaskInfo)->pRoot) {
     code = (*pTaskInfo)->code;

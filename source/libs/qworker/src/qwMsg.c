@@ -583,8 +583,8 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_
 }
 
 
-int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SRpcMsg *pRsp, SDeleteRes *pRes) {
-  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg || NULL == pRsp) {
+int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SDeleteRes *pRes) {
+  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
@@ -606,7 +606,7 @@ int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SR
   QW_SCH_TASK_DLOG("processDelete start, node:%p, handle:%p, sql:%s", node, pMsg->info.handle, req.sql);
   taosMemoryFreeClear(req.sql);
 
-  QW_ERR_JRET(qwProcessDelete(QW_FPARAMS(), &qwMsg, pRsp, pRes));
+  QW_ERR_JRET(qwProcessDelete(QW_FPARAMS(), &qwMsg, pRes));
 
   QW_SCH_TASK_DLOG("processDelete end, node:%p", node);
 

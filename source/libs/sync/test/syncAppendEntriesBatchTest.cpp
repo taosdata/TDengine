@@ -54,15 +54,15 @@ void test1() {
   SyncAppendEntriesBatch *pMsg = createMsg();
   syncAppendEntriesBatchLog2((char *)"==test1==", pMsg);
 
-/*
-  SOffsetAndContLen *metaArr = syncAppendEntriesBatchMetaTableArray(pMsg);
-  int32_t            retArrSize = pMsg->dataCount;
-  for (int i = 0; i < retArrSize; ++i) {
-    SSyncRaftEntry *pEntry = (SSyncRaftEntry*)(pMsg->data + metaArr[i].offset);
-    ASSERT(pEntry->bytes == metaArr[i].contLen);
-    syncEntryPrint(pEntry);
-  }
-*/
+  /*
+    SOffsetAndContLen *metaArr = syncAppendEntriesBatchMetaTableArray(pMsg);
+    int32_t            retArrSize = pMsg->dataCount;
+    for (int i = 0; i < retArrSize; ++i) {
+      SSyncRaftEntry *pEntry = (SSyncRaftEntry*)(pMsg->data + metaArr[i].offset);
+      ASSERT(pEntry->bytes == metaArr[i].contLen);
+      syncEntryPrint(pEntry);
+    }
+  */
 
   syncAppendEntriesBatchDestroy(pMsg);
 }

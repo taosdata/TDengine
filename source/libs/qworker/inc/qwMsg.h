@@ -31,7 +31,7 @@ int32_t qwProcessReady(QW_FPARAMS_DEF, SQWMsg *qwMsg);
 int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg);
 int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg);
 int32_t qwProcessHb(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req);
-int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SRpcMsg *pRsp, SDeleteRes *pRes);
+int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes);
 
 int32_t qwBuildAndSendDropRsp(SRpcHandleInfo *pConn, int32_t code);
 int32_t qwBuildAndSendCancelRsp(SRpcHandleInfo *pConn, int32_t code);
