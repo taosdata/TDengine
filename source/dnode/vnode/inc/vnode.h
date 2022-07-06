@@ -28,7 +28,6 @@
 
 #include "tcommon.h"
 #include "tfs.h"
-#include "tmallocator.h"
 #include "tmsg.h"
 #include "trow.h"
 
@@ -70,6 +69,10 @@ int32_t vnodeSnapshotReaderOpen(SVnode *pVnode, SVSnapshotReader **ppReader, int
 int32_t vnodeSnapshotReaderClose(SVSnapshotReader *pReader);
 int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32_t *nData);
 int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen);
+int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
+int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list);
+void   *vnodeGetIdx(SVnode *pVnode);
+void   *vnodeGetIvtIdx(SVnode *pVnode);
 
 void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void vnodeApplyMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
@@ -110,33 +113,31 @@ int32_t     metaTbCursorNext(SMTbCursor *pTbCur);
 
 // tsdb
 // typedef struct STsdb STsdb;
-typedef void *tsdbReaderT;
+typedef struct STsdbReader STsdbReader;
 
-#define BLOCK_LOAD_OFFSET_SEQ_ORDER 1
-#define BLOCK_LOAD_TABLE_SEQ_ORDER  2
-#define BLOCK_LOAD_TABLE_RR_ORDER   3
+#define BLOCK_LOAD_OFFSET_ORDER   1
+#define BLOCK_LOAD_TABLESEQ_ORDER 2
+#define BLOCK_LOAD_EXTERN_ORDER   3
 
-int32_t     tsdbSetTableId(tsdbReaderT reader, int64_t uid);
-int32_t     tsdbSetTableList(tsdbReaderT reader, SArray *tableList);
-tsdbReaderT tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *tableList, uint64_t qId,
-                           uint64_t taskId);
-tsdbReaderT tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *groupList, uint64_t qId,
-                               void *pMemRef);
-int32_t     tsdbGetFileBlocksDistInfo(tsdbReaderT *pReader, STableBlockDistInfo *pTableBlockInfo);
-bool        isTsdbCacheLastRow(tsdbReaderT *pReader);
-int32_t     tsdbGetAllTableList(SMeta *pMeta, uint64_t uid, SArray *list);
-int32_t     tsdbGetCtbIdList(SMeta *pMeta, int64_t suid, SArray *list);
-int32_t     tsdbGetStbIdList(SMeta *pMeta, int64_t suid, SArray *list);
-void       *tsdbGetIdx(SMeta *pMeta);
-void       *tsdbGetIvtIdx(SMeta *pMeta);
-int64_t     tsdbGetNumOfRowsInMemTable(tsdbReaderT *pHandle);
+#define LASTROW_RETRIEVE_TYPE_ALL    0x1
+#define LASTROW_RETRIEVE_TYPE_SINGLE 0x2
 
-bool    tsdbNextDataBlock(tsdbReaderT pTsdbReadHandle);
-void    tsdbRetrieveDataBlockInfo(tsdbReaderT *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
-int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SColumnDataAgg ***pBlockStatis, bool *allHave);
-SArray *tsdbRetrieveDataBlock(tsdbReaderT *pTsdbReadHandle, SArray *pColumnIdList);
-void    tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond *pCond, int32_t tWinIdx);
-void    tsdbCleanupReadHandle(tsdbReaderT queryHandle);
+int32_t tsdbSetTableId(STsdbReader *pReader, int64_t uid);
+int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *pTableList, STsdbReader **ppReader,
+                       const char *idstr);
+void    tsdbReaderClose(STsdbReader *pReader);
+bool    tsdbNextDataBlock(STsdbReader *pReader);
+void    tsdbRetrieveDataBlockInfo(STsdbReader *pReader, SDataBlockInfo *pDataBlockInfo);
+int32_t tsdbRetrieveDataBlockStatisInfo(STsdbReader *pReader, SColumnDataAgg ***pBlockStatis, bool *allHave);
+SArray *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
+int32_t tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond, int32_t tWinIdx);
+int32_t tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
+int64_t tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
+
+int32_t tsdbLastRowReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, int32_t *colId, int32_t numOfCols,
+                              void **pReader);
+int32_t tsdbRetrieveLastRow(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds);
+int32_t tsdbLastrowReaderClose(void *pReader);
 
 // tq
 

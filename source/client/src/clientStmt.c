@@ -324,9 +324,9 @@ int32_t stmtCleanSQLInfo(STscStmt* pStmt) {
 }
 
 int32_t stmtRebuildDataBlock(STscStmt* pStmt, STableDataBlocks* pDataBlock, STableDataBlocks** newBlock, uint64_t uid) {
-  SEpSet      ep = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
-  SVgroupInfo vgInfo = {0};
-  SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter, 
+  SEpSet           ep = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
+  SVgroupInfo      vgInfo = {0};
+  SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter,
                            .requestId = pStmt->exec.pRequest->requestId,
                            .requestObjRefId = pStmt->exec.pRequest->self,
                            .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
@@ -391,13 +391,12 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
     STMT_RET(stmtCleanBindInfo(pStmt));
   }
 
-  STableMeta* pTableMeta = NULL;
-  SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter, 
+  STableMeta*      pTableMeta = NULL;
+  SRequestConnInfo conn = {.pTrans = pStmt->taos->pAppInfo->pTransporter,
                            .requestId = pStmt->exec.pRequest->requestId,
                            .requestObjRefId = pStmt->exec.pRequest->self,
                            .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
-  int32_t     code =
-      catalogGetTableMeta(pStmt->pCatalog, &conn, &pStmt->bInfo.sname, &pTableMeta);
+  int32_t          code = catalogGetTableMeta(pStmt->pCatalog, &conn, &pStmt->bInfo.sname, &pTableMeta);
   if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
     STMT_ERR_RET(stmtCleanBindInfo(pStmt));
 
@@ -849,7 +848,7 @@ int stmtIsInsert(TAOS_STMT* stmt, int* insert) {
   if (pStmt->sql.type) {
     *insert = (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type);
   } else {
-    *insert = qIsInsertSql(pStmt->sql.sqlStr, 0);
+    *insert = qIsInsertValuesSql(pStmt->sql.sqlStr, pStmt->sql.sqlLen);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -861,7 +860,7 @@ int stmtGetTagFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
     STMT_RET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
-  
+
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_FETCH_FIELDS));
 
   if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
@@ -893,7 +892,7 @@ int stmtGetColFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
     STMT_RET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
-  
+
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_FETCH_FIELDS));
 
   if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
@@ -918,7 +917,6 @@ int stmtGetColFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 int stmtGetParamNum(TAOS_STMT* stmt, int* nums) {
   STscStmt* pStmt = (STscStmt*)stmt;
@@ -952,13 +950,13 @@ int stmtGetParamNum(TAOS_STMT* stmt, int* nums) {
   return TSDB_CODE_SUCCESS;
 }
 
-int stmtGetParam(TAOS_STMT *stmt, int idx, int *type, int *bytes) {
+int stmtGetParam(TAOS_STMT* stmt, int idx, int* type, int* bytes) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
     STMT_RET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
-  
+
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_FETCH_FIELDS));
 
   if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
@@ -979,8 +977,8 @@ int stmtGetParam(TAOS_STMT *stmt, int idx, int *type, int *bytes) {
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
 
-  int32_t nums = 0;
-  TAOS_FIELD_E *pField = NULL;
+  int32_t       nums = 0;
+  TAOS_FIELD_E* pField = NULL;
   STMT_ERR_RET(stmtFetchColFields(stmt, &nums, &pField));
   if (idx >= nums) {
     tscError("idx %d is too big", idx);

@@ -26,7 +26,7 @@ extern "C" {
 
 extern bool gRaftDetailLog;
 
-#define SYNC_MAX_BATCH_SIZE 100
+#define SYNC_MAX_BATCH_SIZE 500
 #define SYNC_INDEX_BEGIN 0
 #define SYNC_INDEX_INVALID -1
 #define SYNC_TERM_INVALID 0xFFFFFFFFFFFFFFFF
@@ -215,6 +215,7 @@ int32_t     syncProposeBatch(int64_t rid, SRpcMsg* pMsgArr, bool* pIsWeakArr, in
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
+int32_t     syncGetSnapshotByIndex(int64_t rid, SyncIndex index, SSnapshot* pSnapshot);
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg);
 
