@@ -659,18 +659,6 @@ static bool syncNodeBatchOK(SRpcMsg* pMsgArr, int32_t arrSize) {
     if (pMsgArr[i].msgType == TDMT_SYNC_CONFIG_CHANGE_FINISH) {
       return false;
     }
-
-    if (pMsgArr[i].msgType == TDMT_SYNC_LEADER_TRANSFER) {
-      return false;
-    }
-
-    if (pMsgArr[i].msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
-      return false;
-    }
-
-    if (pMsgArr[i].msgType == TDMT_SYNC_SET_VNODE_STANDBY) {
-      return false;
-    }
   }
 
   return true;
