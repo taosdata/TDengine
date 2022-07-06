@@ -529,11 +529,9 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   SIFParam *params = NULL;
   SIF_ERR_RET(sifInitOperParams(&params, node, ctx));
 
-  if (node->opType != OP_TYPE_JSON_CONTAINS) {
-    if (params[0].status == SFLT_NOT_INDEX || (nParam > 1 && params[1].status == SFLT_NOT_INDEX)) {
-      output->status = SFLT_NOT_INDEX;
-      return code;
-    }
+  if (params[0].status == SFLT_NOT_INDEX && (nParam > 1 && params[1].status == SFLT_NOT_INDEX)) {
+    output->status = SFLT_NOT_INDEX;
+    return code;
   }
 
   // ugly code, refactor later
@@ -545,11 +543,9 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
     SIF_ERR_RET(operFn(&params[0], nParam > 1 ? &params[1] : NULL, output));
   } else {
     // ugly code, refactor later
-    if (node->opType != OP_TYPE_JSON_CONTAINS) {
-      if (nParam > 1 && params[1].status == SFLT_NOT_INDEX) {
-        output->status = SFLT_NOT_INDEX;
-        return code;
-      }
+    if (nParam > 1 && params[1].status == SFLT_NOT_INDEX) {
+      output->status = SFLT_NOT_INDEX;
+      return code;
     }
     SIF_ERR_RET(sifGetOperFn(node->opType, &operFn, &output->status));
   }
