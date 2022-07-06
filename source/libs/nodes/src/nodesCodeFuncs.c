@@ -3598,7 +3598,7 @@ static int32_t databaseOptionsToJson(const void* pObj, SJson* pJson) {
 
   int32_t code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsBuffer, pNode->buffer);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsCachelast, pNode->cachelast);
+    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsCachelast, pNode->cacheLast);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsCompressionLevel, pNode->compressionLevel);
@@ -3660,7 +3660,7 @@ static int32_t jsonToDatabaseOptions(const SJson* pJson, void* pObj) {
 
   int32_t code = tjsonGetIntValue(pJson, jkDatabaseOptionsBuffer, &pNode->buffer);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsCachelast, &pNode->cachelast);
+    code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsCachelast, &pNode->cacheLast);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsCompressionLevel, &pNode->compressionLevel);

@@ -39,6 +39,7 @@ typedef struct SAstCreateContext {
 typedef enum EDatabaseOptionType {
   DB_OPTION_BUFFER = 1,
   DB_OPTION_CACHELAST,
+  DB_OPTION_CACHELASTSIZE,
   DB_OPTION_COMP,
   DB_OPTION_DAYS,
   DB_OPTION_FSYNC,

@@ -51,7 +51,8 @@ extern "C" {
 typedef struct SDatabaseOptions {
   ENodeType   type;
   int32_t     buffer;
-  int8_t      cachelast;
+  int8_t      cacheLast;
+  int32_t     cacheLastSize;
   int8_t      compressionLevel;
   int32_t     daysPerFile;
   SValueNode* pDaysPerFile;
