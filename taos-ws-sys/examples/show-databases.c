@@ -5,7 +5,7 @@
 #include <string.h>
 
 int main() {
-  char* dsn = getenv("TAOS_DSN");
+  char *dsn = getenv("TAOS_DSN");
   if (dsn == NULL) {
     dsn = "ws://localhost:6041";
   }
@@ -34,7 +34,7 @@ int main() {
   for (int col = 0; col < cols; col++) {
     const struct WS_FIELD_V2 *field = &fields[col];
     dprintf(2, "column %d: name: %s, length: %d, type: %d\n", col, field->name,
-           field->bytes, field->type);
+            field->bytes, field->type);
   }
 
   for (int col = 0; col < cols; col++) {
@@ -73,58 +73,56 @@ int main() {
           printf(" NULL ");
           break;
         case TSDB_DATA_TYPE_BOOL:
-          if (*(bool*)(value)) {
+          if (*(bool *)(value)) {
             printf(" true  ");
           } else {
             printf(" false ");
           }
           break;
         case TSDB_DATA_TYPE_TINYINT:
-          printf(" %d ", *(int8_t*)value);
+          printf(" %d ", *(int8_t *)value);
           break;
         case TSDB_DATA_TYPE_SMALLINT:
-          printf(" %d ", *(int16_t*)value);
+          printf(" %d ", *(int16_t *)value);
           break;
         case TSDB_DATA_TYPE_INT:
-          printf(" %d ", *(int32_t*)value);
+          printf(" %d ", *(int32_t *)value);
           break;
         case TSDB_DATA_TYPE_BIGINT:
-          printf(" %ld ", *(int64_t*)value);
+          printf(" %ld ", *(int64_t *)value);
           break;
         case TSDB_DATA_TYPE_UTINYINT:
-          printf(" %d ", *(uint8_t*)value);
+          printf(" %d ", *(uint8_t *)value);
           break;
         case TSDB_DATA_TYPE_USMALLINT:
-          printf(" %d ", *(uint16_t*)value);
+          printf(" %d ", *(uint16_t *)value);
           break;
         case TSDB_DATA_TYPE_UINT:
-          printf(" %d ", *(uint32_t*)value);
+          printf(" %d ", *(uint32_t *)value);
           break;
         case TSDB_DATA_TYPE_UBIGINT:
-          printf(" %ld ", *(uint64_t*)value);
+          printf(" %ld ", *(uint64_t *)value);
           break;
         case TSDB_DATA_TYPE_FLOAT:
-          printf(" %f ", *(float*)value);
+          printf(" %f ", *(float *)value);
           break;
         case TSDB_DATA_TYPE_DOUBLE:
-          printf(" %lf ", *(double*)value);
+          printf(" %lf ", *(double *)value);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          char ts[192] = {0};
-          ws_timestamp_to_rfc3339(ts, *(int64_t*)value, precision, true);
-          printf("\"%s\"", ts);
+          memset(tmp, 0, 4096);
+          ws_timestamp_to_rfc3339(tmp, *(int64_t *)value, precision, true);
+          printf("\"%s\"", (char *)tmp);
           break;
         case TSDB_DATA_TYPE_VARCHAR:
           memset(tmp, 0, 4096);
           memcpy(tmp, value, len);
-          printf("\"%s\"", (char*)tmp);
+          printf("\"%s\"", (char *)tmp);
           break;
         case TSDB_DATA_TYPE_JSON:
           memset(tmp, 0, 4096);
           memcpy(tmp, value, len);
-          printf("'%s'", (char*)tmp);
-          break;
-        case 10:
+          printf("'%s'", (char *)tmp);
           break;
         default:
           printf(" ");
