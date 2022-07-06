@@ -23,3 +23,19 @@ sql create database db vgroups 1
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
+print =============== check
+print ----> start to check if there are ERRORS in vagrind log file for each dnode
+system_content sh/checkValgrind.sh -n dnode1 
+
+print cmd return result ----> [ $system_content ]
+if $system_content <= 60 then
+  return 0
+endi 
+
+$null=
+if $system_content == $null then
+  return 0
+endi 
+
+return -1
