@@ -759,9 +759,11 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   return 0;
 #elif defined(_TD_DARWIN_64)
   uuid_t uuid = {0};
+  char buf[37] = {0};
   uuid_generate(uuid);
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
-  uuid_unparse_lower(uuid, uid);
+  uuid_unparse_lower(uuid, buf);
+  memcpy(uid, buf, uidlen);
   return 0;
 #else
   int len = 0;

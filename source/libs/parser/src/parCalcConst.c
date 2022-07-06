@@ -300,6 +300,14 @@ static int32_t calcConstDelete(SCalcConstContext* pCxt, SDeleteStmt* pDelete) {
   return code;
 }
 
+static int32_t calcConstInsert(SCalcConstContext* pCxt, SInsertStmt* pInsert) {
+  int32_t code = calcConstFromTable(pCxt, pInsert->pTable);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstQuery(pCxt, pInsert->pQuery, false);
+  }
+  return code;
+}
+
 static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subquery) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pStmt)) {
@@ -319,6 +327,9 @@ static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subque
     }
     case QUERY_NODE_DELETE_STMT:
       code = calcConstDelete(pCxt, (SDeleteStmt*)pStmt);
+      break;
+    case QUERY_NODE_INSERT_STMT:
+      code = calcConstInsert(pCxt, (SInsertStmt*)pStmt);
       break;
     default:
       break;

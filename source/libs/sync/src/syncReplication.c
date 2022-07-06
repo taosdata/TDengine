@@ -132,10 +132,6 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
     SyncIndex preLogIndex = syncNodeGetPreIndex(pSyncNode, nextIndex);
     SyncTerm  preLogTerm = syncNodeGetPreTerm(pSyncNode, nextIndex);
     if (preLogTerm == SYNC_TERM_INVALID) {
-      SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(pSyncNode, pDestId);
-      ASSERT(pSender != NULL);
-      ASSERT(!snapshotSenderIsStart(pSender));
-
       SyncIndex newNextIndex = syncNodeGetLastIndex(pSyncNode) + 1;
       syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, newNextIndex);
       syncIndexMgrSetIndex(pSyncNode->pMatchIndex, pDestId, SYNC_INDEX_INVALID);
@@ -145,26 +141,32 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
       return -1;
     }
 
+    // entry pointer array
     SSyncRaftEntry* entryPArr[SYNC_MAX_BATCH_SIZE];
     memset(entryPArr, 0, sizeof(entryPArr));
 
+    // get entry batch
     int32_t   getCount = 0;
     SyncIndex getEntryIndex = nextIndex;
     for (int32_t i = 0; i < pSyncNode->batchSize; ++i) {
-      SSyncRaftEntry* pEntry;
+      SSyncRaftEntry* pEntry = NULL;
       int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, getEntryIndex, &pEntry);
       if (code == 0) {
         ASSERT(pEntry != NULL);
         entryPArr[i] = pEntry;
         getCount++;
+        getEntryIndex++;
+
       } else {
         break;
       }
     }
 
+    // build msg
     SyncAppendEntriesBatch* pMsg = syncAppendEntriesBatchBuild(entryPArr, getCount, pSyncNode->vgId);
     ASSERT(pMsg != NULL);
 
+    // free entries
     for (int32_t i = 0; i < pSyncNode->batchSize; ++i) {
       SSyncRaftEntry* pEntry = entryPArr[i];
       if (pEntry != NULL) {
@@ -197,12 +199,6 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
   syncIndexMgrLog2("begin append entries peers pNextIndex:", pSyncNode->pNextIndex);
   syncIndexMgrLog2("begin append entries peers pMatchIndex:", pSyncNode->pMatchIndex);
   logStoreSimpleLog2("begin append entries peers LogStore:", pSyncNode->pLogStore);
-  if (gRaftDetailLog) {
-    SSnapshot snapshot;
-    pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
-    sTrace("begin append entries peers, snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
-           snapshot.lastApplyIndex, snapshot.lastApplyTerm);
-  }
 
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
@@ -223,9 +219,6 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
 
       return -1;
     }
-
-    // batch optimized
-    // SyncIndex lastIndex = syncUtilMinIndex(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore), nextIndex);
 
     // prepare entry
     SyncAppendEntries* pMsg = NULL;
@@ -283,11 +276,24 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
   // start replicate
   int32_t ret = 0;
 
-  if (pSyncNode->pRaftCfg->snapshotEnable) {
-    ret = syncNodeAppendEntriesPeersSnapshot(pSyncNode);
-  } else {
-    ret = syncNodeAppendEntriesPeers(pSyncNode);
+  switch (pSyncNode->pRaftCfg->snapshotStrategy) {
+    case SYNC_STRATEGY_NO_SNAPSHOT:
+      ret = syncNodeAppendEntriesPeers(pSyncNode);
+      break;
+
+    case SYNC_STRATEGY_STANDARD_SNAPSHOT:
+      ret = syncNodeAppendEntriesPeersSnapshot(pSyncNode);
+      break;
+
+    case SYNC_STRATEGY_WAL_FIRST:
+      ret = syncNodeAppendEntriesPeersSnapshot2(pSyncNode);
+      break;
+
+    default:
+      ret = syncNodeAppendEntriesPeers(pSyncNode);
+      break;
   }
+
   return ret;
 }
 
