@@ -1,9 +1,16 @@
+#![cfg_attr(feature = "backtrace", feature(backtrace))]
+
 use std::{
     borrow::Cow,
-    fmt::{self, Display},
+    fmt::{self, Debug, Display},
     ops::{Deref, DerefMut},
     str::FromStr,
 };
+
+#[cfg(feature = "backtrace")]
+use std::backtrace::Backtrace;
+
+use thiserror::Error;
 
 macro_rules! _impl_fmt {
     ($fmt:ident) => {
@@ -15,25 +22,28 @@ macro_rules! _impl_fmt {
     };
 }
 
-_impl_fmt!(Display);
 _impl_fmt!(LowerHex);
 _impl_fmt!(UpperHex);
 
 /// TDengine error code.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C)]
 pub struct Code(i32);
 
-impl From<i32> for Code {
-    #[inline]
-    fn from(c: i32) -> Self {
-        Self(c)
+impl Display for Code {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("{:#06X}", *self))
     }
 }
 
-impl From<Code> for i32 {
-    fn from(c: Code) -> Self {
-        c.0
+impl Debug for Code {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!(
+            "Code([{:#06X}] {})",
+            self.0,
+            self.as_error_str()
+        ))
     }
 }
 
@@ -56,7 +66,7 @@ macro_rules! _impl_from {
     };
 }
 
-_impl_from!(i8 u8 i16 u16 u32 i64 u64);
+_impl_from!(i8 u8 i16 i32 u16 u32 i64 u64);
 
 impl Deref for Code {
     type Target = i32;
@@ -84,17 +94,15 @@ mod code {
     include!(concat!(env!("OUT_DIR"), "/code.rs"));
 }
 
-use serde::de;
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Error)]
 pub struct Error {
     code: Code,
     err: Cow<'static, str>,
+    #[cfg(feature = "backtrace")]
+    backtrace: Backtrace,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
-
-impl std::error::Error for Error {}
 
 impl Error {
     #[inline]
@@ -102,6 +110,8 @@ impl Error {
         Self {
             code: code.into(),
             err: err.into(),
+            #[cfg(feature = "backtrace")]
+            backtrace: Backtrace::capture(),
         }
     }
 
@@ -116,18 +126,12 @@ impl Error {
 
     #[inline]
     pub fn from_code(code: impl Into<Code>) -> Self {
-        Self {
-            code: code.into(),
-            err: "".into(),
-        }
+        Self::new(code, "")
     }
 
     #[inline]
     pub fn from_string(err: impl Into<Cow<'static, str>>) -> Self {
-        Self {
-            code: Code::Failed,
-            err: err.into(),
-        }
+        Self::new(Code::Failed, err)
     }
 }
 
@@ -136,10 +140,7 @@ impl FromStr for Error {
 
     #[inline]
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        Ok(Self {
-            code: Code::Failed,
-            err: s.to_string().into(),
-        })
+        Ok(Self::from_string(s.to_string()))
     }
 }
 
@@ -150,7 +151,8 @@ impl Display for Error {
     }
 }
 
-impl de::Error for Error {
+#[cfg(feature = "serde")]
+impl serde::de::Error for Error {
     #[inline]
     fn custom<T: fmt::Display>(msg: T) -> Error {
         Error::from_string(format!("{}", msg))
@@ -161,10 +163,14 @@ impl de::Error for Error {
 fn test_code() {
     let c: i32 = Code::new(0).into();
     assert_eq!(c, 0);
+    let c = Code::from(0).to_string();
+    assert_eq!(c, "0x0000");
+    dbg!(Code::from(0x200));
 }
 
 #[test]
 fn test_display() {
     let err = Error::new(Code::Success, "Success");
     assert_eq!(format!("{err}"), "[0x0000] Success");
+
 }

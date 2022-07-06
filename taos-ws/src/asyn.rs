@@ -249,10 +249,10 @@ impl WsAsyncClient {
                                                 .unwrap();
                                             }
                                             let data = ok.map(|_|WsFetchData::Fetch(fetch));
-                                            if let Some(_) = fetches_sender.read(&id, |_, v| {
+                                            if let Some(v) = fetches_sender.read(&id, |_, v| v.clone()) {
                                                 log::info!("send data to fetches with id {}", id);
-                                                v.send(data.clone()).unwrap();
-                                            }) {}
+                                                v.send(data).unwrap();
+                                            }
                                         }
                                         // Block type is for binary.
                                         WsRecvData::Block(_) => unreachable!(),

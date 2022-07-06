@@ -16,6 +16,7 @@ use messages::*;
 
 use std::fmt::Debug;
 use std::result::Result as StdResult;
+use std::str::FromStr;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::Duration;
@@ -192,11 +193,11 @@ impl WsStmtClient {
                                             }
                                         }
                                         StmtOk::Stmt(stmt_id, res) => {
-                                            if let Some(_) = fetches_sender.read(&stmt_id, |_, sender| {
+                                            if let Some(sender) = fetches_sender.read(&stmt_id, |_, sender| sender.clone()) {
                                                 log::info!("send data to fetches with id {}", stmt_id);
-                                                let res = res.clone();
+                                                // let res = res.clone();
                                                 sender.send(res).unwrap();
-                                            }) {
+                                            // }) {
 
                                             } else {
                                                 log::error!("Got unknown stmt id: {stmt_id} with result: {res:?}");
@@ -384,6 +385,9 @@ async fn test_stmt_stable() -> anyhow::Result<()> {
     use crate::Ws;
     use taos_query::AsyncQueryable;
 
+    let dsn = Dsn::from_str("taos://localhost:6041")?;
+    dbg!(&dsn);
+
     let taos = Ws::from_dsn("taos://localhost:6041")?;
     taos.exec("drop database if exists stmt_s").await?;
     taos.exec("create database stmt_s").await?;
@@ -417,6 +421,3 @@ async fn test_stmt_stable() -> anyhow::Result<()> {
     taos.exec("drop database stmt_s").await?;
     Ok(())
 }
-
-
-                                                                                                                                                                                             

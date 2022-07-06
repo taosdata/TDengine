@@ -36,8 +36,8 @@ anyhow = "1"
 pretty_env_logger = "*"
 
 [features]
-default = []
-async = ["async-trait", "tokio", "tokio-tungstenite", "futures"]
+default = [ "async", "stmt", "tmq"]
+async = ["async-trait", "tokio", "tokio-tungstenite", "futures", "taos-query/async"]
 sync = []
-stmt = []
-tmq = []
+stmt = ["async"]
+tmq = ["async"]
