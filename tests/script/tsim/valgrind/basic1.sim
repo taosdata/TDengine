@@ -18,8 +18,6 @@ if $rows != 1 then
   return -1
 endi
 
-goto _OVER
-
 print =============== step2: create alter drop show user
 sql create user u1 pass 'taosdata'
 sql show users
@@ -28,6 +26,18 @@ sql alter user u1 enable 1
 sql alter user u1 pass 'taosdata'
 sql drop user u1
 sql_error alter user u2 sysinfo 0
+
+print =============== step3: create alter drop show database
+sql create database db vgroups 1
+sql show databases
+sql show db.vgroups
+sql drop database db
+sql show databases
+
+print =============== step4: create drop dnode
+sql create dnode $hostname port 7200
+sql drop dnode 2
+sql alter dnode 1 'debugflag 143'
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
