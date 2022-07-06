@@ -987,7 +987,7 @@ class TDCreateData():
             chazhi =(datetime.datetime.strptime(data, "%Y-%m-%dT%H:%M:%S.%f") - datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f")).total_seconds()            
             self.logger.info(datetime.datetime.strptime(data, "%Y-%m-%dT%H:%M:%S.%f"))
             self.logger.info(datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f"))
-            self.logger.info(chazhi,float(chazhi))
+            self.logger.info(f"{chazhi},float({chazhi})")
             
             if str(data).split(".")[0] == str(value).split(".")[0]:  
                 self.logger.debug(f"TO_ISO8601（时间对比=.）checkEqual success, elm={data} expect_elm={value}")                 
