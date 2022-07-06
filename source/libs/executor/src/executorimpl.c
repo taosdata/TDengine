@@ -1340,6 +1340,8 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
 
   extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
   blockDataUpdateTsWindow(pBlock, 0);
+
+  taosMemoryFree(rowRes);
 }
 
 void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep) {
