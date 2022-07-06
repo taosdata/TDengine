@@ -2839,6 +2839,21 @@ static int32_t translateDelete(STranslateContext* pCxt, SDeleteStmt* pDelete) {
   return code;
 }
 
+static int32_t translateInsert(STranslateContext* pCxt, SInsertStmt* pInsert) {
+  pCxt->pCurrStmt = (SNode*)pInsert;
+  int32_t code = translateFrom(pCxt, pInsert->pTable);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateExprList(pCxt, pInsert->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = resetTranslateNamespace(pCxt);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateQuery(pCxt, pInsert->pQuery);
+  }
+  return code;
+}
+
 static int64_t getUnitPerMinute(uint8_t precision) {
   switch (precision) {
     case TSDB_TIME_PRECISION_MILLI:
@@ -4608,6 +4623,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_DELETE_STMT:
       code = translateDelete(pCxt, (SDeleteStmt*)pNode);
       break;
+    case QUERY_NODE_INSERT_STMT:
+      code = translateInsert(pCxt, (SInsertStmt*)pNode);
+      break;
     case QUERY_NODE_CREATE_DATABASE_STMT:
       code = translateCreateDatabase(pCxt, (SCreateDatabaseStmt*)pNode);
       break;
@@ -6223,6 +6241,10 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_DELETE_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
       pQuery->msgType = TDMT_VND_DELETE;
+      break;
+    case QUERY_NODE_INSERT_STMT:
+      pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
+      pQuery->msgType = TDMT_VND_SUBMIT;
       break;
     case QUERY_NODE_VNODE_MODIF_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
