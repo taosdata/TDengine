@@ -195,6 +195,10 @@ static int32_t collectMetaKeyFromAlterDatabase(SCollectMetaKeyCxt* pCxt, SAlterD
   return reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
 }
 
+static int32_t collectMetaKeyFromFlushDatabase(SCollectMetaKeyCxt* pCxt, SFlushDatabaseStmt* pStmt) {
+  return reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromCreateTable(SCollectMetaKeyCxt* pCxt, SCreateTableStmt* pStmt) {
   int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code && NULL == pStmt->pTags) {
@@ -447,6 +451,14 @@ static int32_t collectMetaKeyFromDelete(SCollectMetaKeyCxt* pCxt, SDeleteStmt* p
   return collectMetaKeyFromRealTableImpl(pCxt, (SRealTableNode*)pStmt->pFromTable, AUTH_TYPE_WRITE);
 }
 
+static int32_t collectMetaKeyFromInsert(SCollectMetaKeyCxt* pCxt, SInsertStmt* pStmt) {
+  int32_t code = collectMetaKeyFromRealTableImpl(pCxt, (SRealTableNode*)pStmt->pTable, AUTH_TYPE_WRITE);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectMetaKeyFromQuery(pCxt, pStmt->pQuery);
+  }
+  return code;
+}
+
 static int32_t collectMetaKeyFromShowBlockDist(SCollectMetaKeyCxt* pCxt, SShowTableDistributedStmt* pStmt) {
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
   strcpy(name.dbname, pStmt->dbName);
@@ -479,6 +491,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromSelect(pCxt, (SSelectStmt*)pStmt);
     case QUERY_NODE_ALTER_DATABASE_STMT:
       return collectMetaKeyFromAlterDatabase(pCxt, (SAlterDatabaseStmt*)pStmt);
+    case QUERY_NODE_FLUSH_DATABASE_STMT:
+      return collectMetaKeyFromFlushDatabase(pCxt, (SFlushDatabaseStmt*)pStmt);
     case QUERY_NODE_CREATE_TABLE_STMT:
       return collectMetaKeyFromCreateTable(pCxt, (SCreateTableStmt*)pStmt);
     case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
@@ -554,6 +568,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowTransactions(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_DELETE_STMT:
       return collectMetaKeyFromDelete(pCxt, (SDeleteStmt*)pStmt);
+    case QUERY_NODE_INSERT_STMT:
+      return collectMetaKeyFromInsert(pCxt, (SInsertStmt*)pStmt);
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return collectMetaKeyFromShowBlockDist(pCxt, (SShowTableDistributedStmt*)pStmt);
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:

@@ -912,6 +912,17 @@ SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* 
   return (SNode*)pStmt;
 }
 
+SNode* createFlushDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkDbName(pCxt, pDbName, false)) {
+    return NULL;
+  }
+  SAlterDatabaseStmt* pStmt = (SAlterDatabaseStmt*)nodesMakeNode(QUERY_NODE_FLUSH_DATABASE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  return (SNode*)pStmt;
+}
+
 SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   STableOptions* pOptions = (STableOptions*)nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
@@ -1659,6 +1670,21 @@ SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere) {
   if (NULL == pStmt->pCountFunc) {
     nodesDestroyNode((SNode*)pStmt);
     CHECK_OUT_OF_MEM(NULL);
+  }
+  return (SNode*)pStmt;
+}
+
+SNode* createInsertStmt(SAstCreateContext* pCxt, SNode* pTable, SNodeList* pCols, SNode* pQuery) {
+  CHECK_PARSER_STATUS(pCxt);
+  SInsertStmt* pStmt = (SInsertStmt*)nodesMakeNode(QUERY_NODE_INSERT_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->pTable = pTable;
+  pStmt->pCols = pCols;
+  pStmt->pQuery = pQuery;
+  if (QUERY_NODE_SELECT_STMT == nodeType(pQuery)) {
+    strcpy(((SSelectStmt*)pQuery)->stmtName, ((STableNode*)pTable)->tableAlias);
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pQuery)) {
+    strcpy(((SSetOperator*)pQuery)->stmtName, ((STableNode*)pTable)->tableAlias);
   }
   return (SNode*)pStmt;
 }

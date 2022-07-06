@@ -111,7 +111,7 @@ int32_t SnapshotDoRead(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32
   return 0;
 }
 
-int32_t SnapshotStartWrite(struct SSyncFSM* pFsm, void *pParam, void** ppWriter) {
+int32_t SnapshotStartWrite(struct SSyncFSM* pFsm, void* pParam, void** ppWriter) {
   *ppWriter = (void*)0xCDEF;
   char logBuf[256] = {0};
 
@@ -314,18 +314,18 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
-  int32_t replicaNum = atoi(argv[1]);
-  int32_t myIndex = atoi(argv[2]);
-  ESyncStrategy    enableSnapshot = (ESyncStrategy)atoi(argv[3]);
-  int32_t lastApplyIndex = atoi(argv[4]);
-  int32_t lastApplyTerm = atoi(argv[5]);
-  int32_t writeRecordNum = atoi(argv[6]);
-  bool    isStandBy = atoi(argv[7]);
-  int32_t isConfigChange = atoi(argv[8]);
-  int32_t iterTimes = atoi(argv[9]);
-  int32_t finishLastApplyIndex = atoi(argv[10]);
-  int32_t finishLastApplyTerm = atoi(argv[11]);
-  int32_t leaderTransfer = atoi(argv[12]);
+  int32_t       replicaNum = atoi(argv[1]);
+  int32_t       myIndex = atoi(argv[2]);
+  ESyncStrategy enableSnapshot = (ESyncStrategy)atoi(argv[3]);
+  int32_t       lastApplyIndex = atoi(argv[4]);
+  int32_t       lastApplyTerm = atoi(argv[5]);
+  int32_t       writeRecordNum = atoi(argv[6]);
+  bool          isStandBy = atoi(argv[7]);
+  int32_t       isConfigChange = atoi(argv[8]);
+  int32_t       iterTimes = atoi(argv[9]);
+  int32_t       finishLastApplyIndex = atoi(argv[10]);
+  int32_t       finishLastApplyTerm = atoi(argv[11]);
+  int32_t       leaderTransfer = atoi(argv[12]);
 
   sInfo(
       "args: replicaNum:%d, myIndex:%d, enableSnapshot:%d, lastApplyIndex:%d, lastApplyTerm:%d, writeRecordNum:%d, "

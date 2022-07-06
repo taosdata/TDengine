@@ -947,9 +947,9 @@ int32_t taosGetFqdn(char *fqdn) {
   hostname[1023] = '\0';
   if (gethostname(hostname, 1023) == -1) {
 #ifdef WINDOWS
-    printf("failed to get hostname, reason:%s", strerror(WSAGetLastError()));
+    printf("failed to get hostname, reason:%s\n", strerror(WSAGetLastError()));
 #else
-    printf("failed to get hostname, reason:%s", strerror(errno));
+    printf("failed to get hostname, reason:%s\n", strerror(errno));
 #endif
     assert(0);
     return -1;
@@ -968,7 +968,7 @@ int32_t taosGetFqdn(char *fqdn) {
 #endif  // __APPLE__
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
-    fprintf(stderr, "failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
+    fprintf(stderr, "failed to get fqdn, code:%d, reason:%s\n", ret, gai_strerror(ret));
     return -1;
   }
 

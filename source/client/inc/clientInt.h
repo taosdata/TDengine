@@ -156,7 +156,7 @@ typedef struct SResultColumn {
 } SResultColumn;
 
 typedef struct SReqResultInfo {
-  SQueryExecRes  execRes;
+  SExecResult    execRes;
   const char*    pRspMsg;
   const char*    pData;
   TAOS_FIELD*    fields;      // todo, column names are not needed.
