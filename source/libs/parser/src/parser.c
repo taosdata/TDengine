@@ -34,6 +34,7 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
 
   do {
     pStr += index;
+    index = 0;
     t = tStrGetToken((char*)pStr, &index, false);
     if (TK_USING == t.type || TK_VALUES == t.type) {
       return true;
