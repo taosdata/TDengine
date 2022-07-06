@@ -92,9 +92,8 @@ TEST_F(PlanOtherTest, delete) {
   run("DELETE FROM st1 WHERE ts > now - 2d and ts < now - 1d AND tag1 = 10");
 }
 
-TEST_F(PlanOtherTest, queryPolicy) {
+TEST_F(PlanOtherTest, insert) {
   useDb("root", "test");
 
-  tsQueryPolicy = QUERY_POLICY_QNODE;
-  run("SELECT COUNT(*) FROM st1");
+  run("INSERT INTO t1 SELECT * FROM t1");
 }

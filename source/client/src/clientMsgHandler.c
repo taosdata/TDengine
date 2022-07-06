@@ -266,7 +266,7 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (pRequest->body.queryFp != NULL) {
-    SQueryExecRes* pRes = &pRequest->body.resInfo.execRes;
+    SExecResult* pRes = &pRequest->body.resInfo.execRes;
 
     if (code == TSDB_CODE_SUCCESS) {
       SCatalog* pCatalog = NULL;

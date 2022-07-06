@@ -9,25 +9,17 @@ step1:
 	$x = $x + 1
 	sleep 1000
 	if $x == 10 then
-	  print ====> dnode not ready!
+	  print ----> dnode not ready!
 		return -1
 	endi
 sql show dnodes
-print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ----> $data00 $data01 $data02 $data03 $data04 $data05
 if $rows != 1 then
   return -1
 endi
 
-goto _OVER
-
-print =============== step2: create alter drop show user
-sql create user u1 pass 'taosdata'
-sql show users
-sql alter user u1 sysinfo 1
-sql alter user u1 enable 1
-sql alter user u1 pass 'taosdata'
-sql alter user u2 sysinfo 0
-sql drop user u1
+print =============== step2: create db
+sql create database db vgroups 1
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

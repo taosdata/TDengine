@@ -385,6 +385,15 @@ SNode* createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType typ
 
 SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pLeft, SNode* pRight) {
   CHECK_PARSER_STATUS(pCxt);
+  if (OP_TYPE_MINUS == type && QUERY_NODE_VALUE == nodeType(pLeft)) {
+    SValueNode* pVal = (SValueNode*)pLeft;
+    char*       pNewLiteral = taosMemoryCalloc(1, strlen(pVal->literal) + 2);
+    CHECK_OUT_OF_MEM(pNewLiteral);
+    sprintf(pNewLiteral, "-%s", pVal->literal);
+    taosMemoryFree(pVal->literal);
+    pVal->literal = pNewLiteral;
+    return pLeft;
+  }
   SOperatorNode* op = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
   CHECK_OUT_OF_MEM(op);
   op->opType = type;
@@ -1651,5 +1660,15 @@ SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere) {
     nodesDestroyNode((SNode*)pStmt);
     CHECK_OUT_OF_MEM(NULL);
   }
+  return (SNode*)pStmt;
+}
+
+SNode* createInsertStmt(SAstCreateContext* pCxt, SNode* pTable, SNodeList* pCols, SNode* pQuery) {
+  CHECK_PARSER_STATUS(pCxt);
+  SInsertStmt* pStmt = (SInsertStmt*)nodesMakeNode(QUERY_NODE_INSERT_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->pTable = pTable;
+  pStmt->pCols = pCols;
+  pStmt->pQuery = pQuery;
   return (SNode*)pStmt;
 }

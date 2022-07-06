@@ -14,7 +14,7 @@ sql_error alter table db.stb MODIFY tag ts int
 sql_error alter table db.stb MODIFY tag t2 binary(3)
 sql_error alter table db.stb MODIFY tag t2 int
 sql_error alter table db.stb MODIFY tag t1 int
-sql create table db.ctb using db.stb tags(101, "12345")
+sql create table db.ctb using db.stb tags(101, "123")
 sql insert into db.ctb values(now, 1, "1234")
 
 sql select * from db.stb
@@ -32,7 +32,7 @@ endi
 if $data[0][3] != 101 then
   return -1
 endi
-if $data[0][4] != 1234 then
+if $data[0][4] != 123 then
   return -1
 endi
 
