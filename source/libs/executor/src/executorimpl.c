@@ -3992,9 +3992,9 @@ int32_t extractTableSchemaVersion(SReadHandle* pHandle, uint64_t uid, SExecTaskI
   SMetaReader mr = {0};
   metaReaderInit(&mr, pHandle->meta, 0);
   int32_t code = metaGetTableEntryByUid(&mr, uid);
-  if (code) {
+  if (code != TSDB_CODE_SUCCESS) {
     metaReaderClear(&mr);
-    return code;
+    return terrno;
   }
 
   pTaskInfo->schemaVer.tablename = strdup(mr.me.name);
@@ -4307,6 +4307,10 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 //      }
 
       int32_t code = extractTableSchemaVersion(pHandle, pScanNode->uid, pTaskInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        pTaskInfo->code = code;
+        return NULL;
+      }
 
       pTableListInfo->pTableList = taosArrayInit(4, sizeof(STableKeyInfo));
       if (pScanNode->tableType == TSDB_SUPER_TABLE) {

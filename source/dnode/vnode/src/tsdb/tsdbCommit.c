@@ -527,7 +527,7 @@ static int32_t tsdbCommitTableMemData(SCommitter *pCommitter, STbDataIter *pIter
     // crash on CI, use the block following
     if (pRow) {
       TSDBKEY key = TSDBROW_KEY(pRow);
-      if (tsdbKeyCmprFn(&TSDBROW_KEY(pRow), &toKey) >= 0) {
+      if (tsdbKeyCmprFn(&key, &toKey) >= 0) {
         pRow = NULL;
       }
     }

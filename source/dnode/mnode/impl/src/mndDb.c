@@ -1373,9 +1373,9 @@ char *buildRetension(SArray *pRetension) {
 static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, int32_t rows, int64_t numOfTables,
                            bool sysDb, ESdbStatus objStatus, bool sysinfo) {
   int32_t cols = 0;
+  int32_t bytes = pShow->pMeta->pSchemas[cols].bytes;
+  char   *buf = taosMemoryMalloc(bytes);
 
-  int32_t     bytes = pShow->pMeta->pSchemas[cols].bytes;
-  char       *buf = taosMemoryMalloc(bytes);
   const char *name = mndGetDbStr(pDb->name);
   if (name != NULL) {
     STR_WITH_MAXSIZE_TO_VARSTR(buf, name, bytes);
@@ -1383,11 +1383,11 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     STR_WITH_MAXSIZE_TO_VARSTR(buf, "NULL", bytes);
   }
 
-  char *status = "ready";
-  if (objStatus == SDB_STATUS_CREATING) status = "creating";
-  if (objStatus == SDB_STATUS_DROPPING) status = "dropping";
-  char statusB[24] = {0};
-  STR_WITH_SIZE_TO_VARSTR(statusB, status, strlen(status));
+  char *statusStr = "ready";
+  if (objStatus == SDB_STATUS_CREATING) statusStr = "creating";
+  if (objStatus == SDB_STATUS_DROPPING) statusStr = "dropping";
+  char statusVstr[24] = {0};
+  STR_WITH_SIZE_TO_VARSTR(statusVstr, statusStr, strlen(statusStr));
 
   if (sysDb || !sysinfo) {
     for (int32_t i = 0; i < pShow->numOfColumns; ++i) {
@@ -1397,7 +1397,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
       } else if (i == 3) {
         colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
       } else if (i == 20) {
-        colDataAppend(pColInfo, rows, statusB, false);
+        colDataAppend(pColInfo, rows, statusVstr, false);
       } else {
         colDataAppendNULL(pColInfo, rows);
       }
@@ -1405,7 +1405,6 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
   } else {
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, buf, false);
-    taosMemoryFree(buf);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->createdTime, false);
@@ -1419,30 +1418,29 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
 
-    const char *src = pDb->cfg.strict ? "strict" : "no_strict";
-    char        strict[24] = {0};
-    STR_WITH_SIZE_TO_VARSTR(strict, src, strlen(src));
+    const char *strictStr = pDb->cfg.strict ? "strict" : "no_strict";
+    char        strictVstr[24] = {0};
+    STR_WITH_SIZE_TO_VARSTR(strictVstr, strictStr, strlen(strictStr));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)strict, false);
+    colDataAppend(pColInfo, rows, (const char *)strictVstr, false);
 
-    char    tmp[128] = {0};
-    int32_t len = 0;
-    len = sprintf(&tmp[VARSTR_HEADER_SIZE], "%dm", pDb->cfg.daysPerFile);
-    varDataSetLen(tmp, len);
+    char    durationVstr[128] = {0};
+    int32_t len = sprintf(&durationVstr[VARSTR_HEADER_SIZE], "%dm", pDb->cfg.daysPerFile);
+    varDataSetLen(durationVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)tmp, false);
+    colDataAppend(pColInfo, rows, (const char *)durationVstr, false);
 
+    char keepVstr[128] = {0};
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
-      len = sprintf(&tmp[VARSTR_HEADER_SIZE], "%dm,%dm,%dm", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2,
+      len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%dm,%dm,%dm", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2,
                     pDb->cfg.daysToKeep0);
     } else {
-      len = sprintf(&tmp[VARSTR_HEADER_SIZE], "%dm,%dm,%dm", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1,
+      len = sprintf(&keepVstr[VARSTR_HEADER_SIZE], "%dm,%dm,%dm", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1,
                     pDb->cfg.daysToKeep2);
     }
-
-    varDataSetLen(tmp, len);
+    varDataSetLen(keepVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)tmp, false);
+    colDataAppend(pColInfo, rows, (const char *)keepVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.buffer, false);
@@ -1469,68 +1467,49 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-
-    STR_WITH_SIZE_TO_VARSTR(strict, src, strlen(src));
-#if 0
-    char cacheModel[24] = {0};
-    bool null = false;
-    if (pDb->cfg.cacheLastRow == 0) {
-      STR_TO_VARSTR(cacheModel, "no_cache");
-    } else if (pDb->cfg.cacheLastRow == 1) {
-      STR_TO_VARSTR(cacheModel, "last_row_cache")
-    } else {
-      null = true;
-    }
-    colDataAppend(pColInfo, rows, cacheModel, null);
-#endif
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.cacheLastRow, false);
 
-    char *prec = NULL;
+    const char *precStr = NULL;
     switch (pDb->cfg.precision) {
       case TSDB_TIME_PRECISION_MILLI:
-        prec = TSDB_TIME_PRECISION_MILLI_STR;
+        precStr = TSDB_TIME_PRECISION_MILLI_STR;
         break;
       case TSDB_TIME_PRECISION_MICRO:
-        prec = TSDB_TIME_PRECISION_MICRO_STR;
+        precStr = TSDB_TIME_PRECISION_MICRO_STR;
         break;
       case TSDB_TIME_PRECISION_NANO:
-        prec = TSDB_TIME_PRECISION_NANO_STR;
+        precStr = TSDB_TIME_PRECISION_NANO_STR;
         break;
       default:
-        prec = "none";
+        precStr = "none";
         break;
     }
-
-    char t[10] = {0};
-    STR_WITH_SIZE_TO_VARSTR(t, prec, 2);
+    char precVstr[10] = {0};
+    STR_WITH_SIZE_TO_VARSTR(precVstr, precStr, 2);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)t, false);
+    colDataAppend(pColInfo, rows, (const char *)precVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)statusB, false);
+    colDataAppend(pColInfo, rows, (const char *)statusVstr, false);
 
-    //    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    //    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.schemaless, false);
-
-    char *p = buildRetension(pDb->cfg.pRetensions);
-
+    char *rentensionVstr = buildRetension(pDb->cfg.pRetensions);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    if (p == NULL) {
+    if (rentensionVstr == NULL) {
       colDataAppendNULL(pColInfo, rows);
     } else {
-      colDataAppend(pColInfo, rows, (const char *)p, false);
-      taosMemoryFree(p);
+      colDataAppend(pColInfo, rows, (const char *)rentensionVstr, false);
+      taosMemoryFree(rentensionVstr);
     }
   }
+
+  taosMemoryFree(buf);
 }
 
 static void setInformationSchemaDbCfg(SDbObj *pDbObj) {
-  ASSERT(pDbObj != NULL);
-  strncpy(pDbObj->name, TSDB_INFORMATION_SCHEMA_DB, tListLen(pDbObj->name));
-
+  tstrncpy(pDbObj->name, TSDB_INFORMATION_SCHEMA_DB, tListLen(pDbObj->name));
   pDbObj->createdTime = 0;
   pDbObj->cfg.numOfVgroups = 0;
   pDbObj->cfg.strict = 1;
@@ -1539,9 +1518,7 @@ static void setInformationSchemaDbCfg(SDbObj *pDbObj) {
 }
 
 static void setPerfSchemaDbCfg(SDbObj *pDbObj) {
-  ASSERT(pDbObj != NULL);
-  strncpy(pDbObj->name, TSDB_PERFORMANCE_SCHEMA_DB, tListLen(pDbObj->name));
-
+  tstrncpy(pDbObj->name, TSDB_PERFORMANCE_SCHEMA_DB, tListLen(pDbObj->name));
   pDbObj->createdTime = 0;
   pDbObj->cfg.numOfVgroups = 0;
   pDbObj->cfg.strict = 1;
@@ -1585,14 +1562,11 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetchAll(pSdb, SDB_DB, pShow->pIter, (void **)&pDb, &objStatus);
-    if (pShow->pIter == NULL) {
-      break;
-    }
+    if (pShow->pIter == NULL) break;
 
     if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb) == 0) {
       int32_t numOfTables = 0;
       sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, NULL, NULL);
-
       dumpDbInfoData(pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus, sysinfo);
       numOfRows++;
     }

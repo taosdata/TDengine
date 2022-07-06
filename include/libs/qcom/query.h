@@ -29,12 +29,13 @@ extern "C" {
 
 typedef enum {
   JOB_TASK_STATUS_NULL = 0,
-  JOB_TASK_STATUS_NOT_START = 1,
-  JOB_TASK_STATUS_EXECUTING,
-  JOB_TASK_STATUS_PARTIAL_SUCCEED,
-  JOB_TASK_STATUS_SUCCEED,
-  JOB_TASK_STATUS_FAILED,
-  JOB_TASK_STATUS_DROPPING,
+  JOB_TASK_STATUS_INIT,
+  JOB_TASK_STATUS_EXEC,
+  JOB_TASK_STATUS_PART_SUCC,
+  JOB_TASK_STATUS_SUCC,
+  JOB_TASK_STATUS_FAIL,
+  JOB_TASK_STATUS_DROP,
+  JOB_TASK_STATUS_MAX,
 } EJobTaskType;
 
 typedef enum {
@@ -59,10 +60,6 @@ typedef struct STableComInfo {
   int32_t  rowSize;       // row size of the schema
 } STableComInfo;
 
-typedef struct SQueryExecRes {
-  int32_t msgType;
-  void*   res;
-} SQueryExecRes;
 
 typedef struct SIndexMeta {
 #if defined(WINDOWS) || defined(_TD_DARWIN_64)
@@ -70,6 +67,13 @@ typedef struct SIndexMeta {
 #endif
 
 } SIndexMeta;
+
+typedef struct SExecResult {
+  int32_t         code;
+  uint64_t        numOfRows;
+  int32_t         msgType;
+  void*           res;
+} SExecResult;
 
 typedef struct STbVerInfo {
   char    tbFName[TSDB_TABLE_FNAME_LEN];
@@ -210,7 +214,7 @@ char*   jobTaskStatusStr(int32_t status);
 
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
 
-void    destroyQueryExecRes(SQueryExecRes* pRes);
+void    destroyQueryExecRes(SExecResult* pRes);
 int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t* len);
 char*   parseTagDatatoJson(void* p);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);

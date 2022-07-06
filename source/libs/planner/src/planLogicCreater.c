@@ -26,6 +26,7 @@ typedef int32_t (*FCreateLogicNode)(SLogicPlanContext*, void*, SLogicNode**);
 typedef int32_t (*FCreateSelectLogicNode)(SLogicPlanContext*, SSelectStmt*, SLogicNode**);
 typedef int32_t (*FCreateSetOpLogicNode)(SLogicPlanContext*, SSetOperator*, SLogicNode**);
 typedef int32_t (*FCreateDeleteLogicNode)(SLogicPlanContext*, SDeleteStmt*, SLogicNode**);
+typedef int32_t (*FCreateInsertLogicNode)(SLogicPlanContext*, SInsertStmt*, SLogicNode**);
 
 static int32_t doCreateLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SNode* pTable,
                                         SLogicNode** pLogicNode);
@@ -1264,6 +1265,47 @@ static int32_t createDeleteLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* pDele
   return code;
 }
 
+static int32_t creatInsertRootLogicNode(SLogicPlanContext* pCxt, SInsertStmt* pInsert, FCreateInsertLogicNode func,
+                                        SLogicNode** pRoot) {
+  return createRootLogicNode(pCxt, pInsert, pInsert->precision, (FCreateLogicNode)func, pRoot);
+}
+
+static int32_t createVnodeModifLogicNodeByInsert(SLogicPlanContext* pCxt, SInsertStmt* pInsert,
+                                                 SLogicNode** pLogicNode) {
+  SVnodeModifyLogicNode* pModify = (SVnodeModifyLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY);
+  if (NULL == pModify) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SRealTableNode* pRealTable = (SRealTableNode*)pInsert->pTable;
+
+  pModify->modifyType = MODIFY_TABLE_TYPE_INSERT;
+  pModify->tableId = pRealTable->pMeta->uid;
+  pModify->tableType = pRealTable->pMeta->tableType;
+  snprintf(pModify->tableFName, sizeof(pModify->tableFName), "%d.%s.%s", pCxt->pPlanCxt->acctId,
+           pRealTable->table.dbName, pRealTable->table.tableName);
+  TSWAP(pModify->pVgroupList, pRealTable->pVgroupList);
+
+  *pLogicNode = (SLogicNode*)pModify;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createInsertLogicNode(SLogicPlanContext* pCxt, SInsertStmt* pInsert, SLogicNode** pLogicNode) {
+  SLogicNode* pRoot = NULL;
+  int32_t     code = createQueryLogicNode(pCxt, pInsert->pQuery, &pRoot);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = creatInsertRootLogicNode(pCxt, pInsert, createVnodeModifLogicNodeByInsert, &pRoot);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pLogicNode = pRoot;
+  } else {
+    nodesDestroyNode((SNode*)pRoot);
+  }
+
+  return code;
+}
+
 static int32_t createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt, SLogicNode** pLogicNode) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SELECT_STMT:
@@ -1276,6 +1318,8 @@ static int32_t createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt, SLogi
       return createSetOperatorLogicNode(pCxt, (SSetOperator*)pStmt, pLogicNode);
     case QUERY_NODE_DELETE_STMT:
       return createDeleteLogicNode(pCxt, (SDeleteStmt*)pStmt, pLogicNode);
+    case QUERY_NODE_INSERT_STMT:
+      return createInsertLogicNode(pCxt, (SInsertStmt*)pStmt, pLogicNode);
     default:
       break;
   }
