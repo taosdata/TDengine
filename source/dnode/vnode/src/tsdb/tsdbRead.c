@@ -2727,7 +2727,7 @@ void tsdbRetrieveDataBlockInfo(STsdbReader* pReader, SDataBlockInfo* pDataBlockI
   pDataBlockInfo->window = pReader->pResBlock->info.window;
 }
 
-int32_t tsdbRetrieveDataBlockStatisInfo(STsdbReader* pReader, SColumnDataAgg*** pBlockStatis, bool* allHave) {
+int32_t tsdbRetrieveDatablockSMAInfo(STsdbReader* pReader, SColumnDataAgg*** pBlockStatis, bool* allHave) {
   int32_t code = 0;
   *allHave = false;
 
