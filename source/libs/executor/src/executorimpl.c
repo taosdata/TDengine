@@ -3364,17 +3364,12 @@ static void doHandleRemainBlockFromNewGroup(SFillOperatorInfo* pInfo, SResultInf
   }
 }
 
-static SSDataBlock* doFill(SOperatorInfo* pOperator) {
+static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   SFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
 
   SResultInfo* pResultInfo = &pOperator->resultInfo;
   SSDataBlock* pResBlock = pInfo->pRes;
-
-  blockDataCleanup(pResBlock);
-  if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
-  }
 
   // todo handle different group data interpolation
   bool  n = false;
@@ -3438,6 +3433,40 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
       return NULL;
     }
   }
+}
+
+static SSDataBlock* doFill(SOperatorInfo* pOperator) {
+  SFillOperatorInfo* pInfo = pOperator->info;
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+
+  SResultInfo* pResultInfo = &pOperator->resultInfo;
+  SSDataBlock* pResBlock = pInfo->pRes;
+
+  blockDataCleanup(pResBlock);
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+
+  while (true) {
+    SSDataBlock* fillResult = doFillImpl(pOperator);
+    if (fillResult != NULL) {
+      doFilter(pInfo->pCondition, fillResult);
+    }
+
+    if (fillResult == NULL) {
+      doSetOperatorCompleted(pOperator);
+      break;
+    }
+
+    if (fillResult->info.rows > 0) {
+      break;
+    }
+  }
+
+  size_t rows = pResBlock->info.rows;
+  pOperator->resultInfo.totalRows += rows;
+
+  return (rows == 0)? NULL:pResBlock;
 }
 
 static void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
@@ -3958,6 +3987,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
 
   pInfo->pRes = pResBlock;
   pInfo->multigroupResult = multigroupResult;
+  pInfo->pCondition = pPhyFillNode->node.pConditions;
   pOperator->name = "FillOperator";
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
