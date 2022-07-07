@@ -92,7 +92,7 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
     } else if (type == TSDB_DATA_TYPE_BOOL) {
       int val = *(int *)(&pTagVal->i64);
       int len = sizeof(val);
-      term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_INT, key, nKey, (const char *)&val, len);
+      term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_BOOL, key, nKey, (const char *)&val, len);
     }
     if (term != NULL) {
       indexMultiTermAdd(terms, term);
