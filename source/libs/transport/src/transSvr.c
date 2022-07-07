@@ -392,7 +392,11 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   pHead->hasEpSet = pMsg->info.hasEpSet;
 
   if (pConn->status == ConnNormal) {
-    pHead->msgType = pConn->inType + 1;
+    if (0 == smsg->msg.msgType) {
+      pHead->msgType = pConn->inType + 1;
+    } else {
+      pHead->msgType = smsg->msg.msgType;
+    }
   } else {
     if (smsg->type == Release) {
       pHead->msgType = 0;
