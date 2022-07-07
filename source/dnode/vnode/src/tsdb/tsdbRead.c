@@ -1416,29 +1416,58 @@ static bool keyOverlapFileBlock(TSDBKEY key, SBlock* pBlock, SVersionRange* pVer
          (pBlock->minVersion <= pVerRange->maxVer);
 }
 
+static bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBlock* pBlock) {
+  if (pBlockScanInfo->delSkyline == NULL) {
+    return false;
+  }
+
+  TSDBKEY* pFirst = taosArrayGet(pBlockScanInfo->delSkyline, 0);
+  TSDBKEY* pLast  = taosArrayGetLast(pBlockScanInfo->delSkyline);
+
+  // ts is not overlap
+  if (pBlock->minKey.ts > pLast->ts || pBlock->maxKey.ts < pFirst->ts) {
+    return false;
+  }
+
+  // version is not overlap
+  size_t num = taosArrayGetSize(pBlockScanInfo->delSkyline);
+  for(int32_t i = pBlockScanInfo->fileDelIndex; i < num; ++i) {
+    TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, i);
+    if (p->ts >= pBlock->minKey.ts && p->ts <= pBlock->maxKey.ts) {
+      if (p->version >= pBlock->minVersion) {
+        return true;
+      }
+    } else if (p->ts > pBlock->maxKey.ts) {
+      return false;
+    }
+  }
+
+  ASSERT(0);
+  return false;
+}
+
 // 1. the version of all rows should be less than the endVersion
 // 2. current block should not overlap with next neighbor block
 // 3. current timestamp should not be overlap with each other
 // 4. output buffer should be large enough to hold all rows in current block
+// 5. delete info should not overlap with current block data
 static bool fileBlockShouldLoad(STsdbReader* pReader, SFileDataBlockInfo* pFBlock, SBlock* pBlock,
                                 STableBlockScanInfo* pScanInfo, TSDBKEY key) {
   int32_t neighborIndex = 0;
   SBlock* pNeighbor = getNeighborBlockOfSameTable(pFBlock, pScanInfo, &neighborIndex, pReader->order);
 
+  // overlap with neighbor
   bool overlapWithNeighbor = false;
   if (pNeighbor) {
     overlapWithNeighbor = overlapWithNeighborBlock(pBlock, pNeighbor, pReader->order);
   }
 
-  bool hasDup = false;
-  if (pBlock->nSubBlock == 1) {
-    hasDup = pBlock->hasDup;
-  } else {
-    hasDup = true;
-  }
+  // has duplicated ts of different version in this block
+  bool hasDup = (pBlock->nSubBlock == 1)? pBlock->hasDup:true;
+  bool overlapWithDel= overlapWithDelSkyline(pScanInfo, pBlock);
 
   return (overlapWithNeighbor || hasDup || dataBlockPartiallyRequired(&pReader->window, &pReader->verRange, pBlock) ||
-          keyOverlapFileBlock(key, pBlock, &pReader->verRange) || (pBlock->nRow > pReader->capacity));
+          keyOverlapFileBlock(key, pBlock, &pReader->verRange) || (pBlock->nRow > pReader->capacity) || overlapWithDel);
 }
 
 static int32_t buildDataBlockFromBuf(STsdbReader* pReader, STableBlockScanInfo* pBlockScanInfo, int64_t endKey) {
