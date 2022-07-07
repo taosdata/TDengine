@@ -796,13 +796,32 @@ class TDFunction():
         time_diff = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("\"","").replace("t_to_s","'t_to_s'")
         #增加字符串格式的时间 datetime_string
         t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t)) 
-        timeunits = ['1u' , '1a' ,'1s', '1m' ,'1h', '1d']  
+        timeunits = ['1a' ,'1s', '1m' ,'1h', '1d']   #暂时去掉 1u
         timeunit = str(random.sample(timeunits,1)).replace("[","").replace("]","").replace("'","") 
             
         time_diff_1 = str(time_diff).replace("timeutil","%s" %timeunit).replace("t_to_s","%s" %t_to_s)   
         
         return time_diff_1  
-
+    def time_diff_1_1(self):  
+        #TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2 | ts_col2 [, time_unit]) 
+        hanshu = ['TIMEDIFF'] 
+        #增加指定格式的时间 ts_val
+        t = time.time()          
+        column_select = ['1600000000000','1600000000000000','1600000000000000000',
+        '%d' %t, '%d000' %t, '%d000000' %t,'t_to_s'] 
+        column_1,column_2 = random.sample(column_select,1),random.sample(column_select,1)
+        column = ['(%s,%s,timeutil)'%(column_1,column_2)]
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        time_diff = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("\"","").replace("t_to_s","'t_to_s'")
+        #增加字符串格式的时间 datetime_string
+        t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t)) 
+        timeunits = ['1a' ,'1s', '1m' ,'1h', '1d']   #暂时去掉 1u
+        timeunit = str(random.sample(timeunits,1)).replace("[","").replace("]","").replace("'","") 
+            
+        time_diff_1 = str(time_diff).replace("timeutil","%s" %timeunit).replace("t_to_s","%s" %t_to_s)   
+        
+        return time_diff_1  
+    
     def time_diff_2(self): 
         #TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2 | ts_col2) 
         hanshu = ['TIMEDIFF']  
@@ -818,17 +837,35 @@ class TDFunction():
         time_diff_2 = str(time_diff).replace("t_to_s","%s" %t_to_s) 
         
         return time_diff_2  
- 
+    def time_diff_2_1(self): 
+        #TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2 | ts_col2) 
+        hanshu = ['TIMEDIFF']  
+        t = time.time()  
+        column_select = ['1600000000000','1600000000000000','1600000000000000000',
+        '%d' %t, '%d000' %t, '%d000000' %t,'t_to_s']
+        column_1,column_2 = random.sample(column_select,1),random.sample(column_select,1)
+        column = ['(%s,%s)'%(column_1,column_2)]
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        time_diff = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("\"","").replace("t_to_s","'t_to_s'")
+        #增加字符串格式的时间   datetime_string              
+        t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t)) 
+        time_diff_2 = str(time_diff).replace("t_to_s","%s" %t_to_s) 
+        
+        return time_diff_2  
+     
     def time_elapsed(self):   
         #ELAPSED(ts_primary_key [, time_unit])
         hanshu = ['ELAPSED'] 
         column = ['(ts)','(_c0)','(_C0)','(ts,time_unit)','(_c0,time_unit)','(_C0,time_unit)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
           
-        time_units = ['nums','numm','numh','numd','numa']      
-        time_unit = str(random.sample(time_units,1)).replace("[","").replace("]","").replace("'","")          
-        time_num = random.randint(0, 1000)  
-        time_unit = time_unit.replace("num","%d" %time_num)         
+        # time_units = ['nums','numm','numh','numd','numa']   # ELAPSED function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]   
+        # time_unit = str(random.sample(time_units,1)).replace("[","").replace("]","").replace("'","")          
+        # time_num = random.randint(0, 1000)  
+        # time_unit = time_unit.replace("num","%d" %time_num)      
+        
+        time_units = ['1s','1m','1h','1d','1a']       #暂时去掉 1u
+        time_unit = str(random.sample(time_units,1)).replace("[","").replace("]","").replace("'","")   
         
         time_elapsed = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("time_unit","%s" %time_unit)
         
@@ -858,6 +895,10 @@ class TDFunction():
             func_stable_time = self.time_diff_1()   
         elif i == 8:
             func_stable_time = self.time_diff_2()   
+        elif i == 71:
+            func_stable_time = self.time_diff_1_1()   
+        elif i == 81:
+            func_stable_time = self.time_diff_2_1()             
         elif i == 9:
             func_stable_time = self.time_elapsed()   
                                                                                         
