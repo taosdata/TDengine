@@ -45,13 +45,18 @@ extern void *tsMnodeTmr;
 #endif
 extern SGrantObj grantObj;
 
-static char      *grantSecondsToString(uint32_t seconds);
-static void       grantCheckGrantInfo(void *, void *);
-static void       grantSendMsgToMgmt(void *, void *);
-static int32_t    grantProcessMsgInMgmt(SRpcMsg *pMsg);
-static void       grantProcessRspInDnode(SRpcMsg *rpcMsg);
-static void       mndRefreshGrantCfg();
-static SGrantMsg *mndGenerateGrantMsg();
+static char   *grantSecondsToString(uint32_t seconds);
+static void    grantCheckGrantInfo(void *, void *);
+static void    grantSendMsgToMgmt(void *, void *);
+static int32_t grantProcessMsgInMgmt(SRpcMsg *pMsg);
+static void    grantProcessRspInDnode(SRpcMsg *rpcMsg);
+static void    mndRefreshGrantCfg();
+static int32_t dmGenerateGrantMsg(SGrantMsg *pGrant);
+static int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, SGrantStatus *pStatus);
+static int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, SGrantStatus *pStatus);
+static int32_t tSerializeGrantMsg(void *buf, int32_t bufLen, SGrantMsg *pMsg);
+static int32_t tDeserializeGrantMsg(void *buf, int32_t bufLen, SGrantMsg *pMsg);
+
 #if 0
 // static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 #endif
@@ -81,37 +86,53 @@ SGrantStatus grantStatus = {false,
                             GRANT_CPU_LIMITS};
 
 /**
- * @brief process grant msg in dnode
- * 
- * @param pMsg 
- * @return int32_t 
+ * @brief process grant status msg in dnode and respond with grant msg
+ *
+ * @param pMsg
+ * @return int32_t
  */
 int32_t dmProcessGrantReq(SRpcMsg *pMsg) {
-  SGrantMsg *pGrantMsg = pMsg->pCont;
-
-  if (pMsg->contLen != sizeof(SGrantMsg)) {
-    mWarn("failed to process grant req in dnode since msg is corrupted");
-    return -1;
+  if (!pMsg->pCont || (pMsg->contLen <= 0)) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    uWarn("failed to process grant req in dnode since msg is empty");
+    goto _err;
+  }
+  // step 1: process grant status from mnode
+  SGrantStatus grantStatusReq = {0};
+  if (tDeserializeGrantStatus(pMsg->pCont, pMsg->contLen, &grantStatusReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    uWarn("failed to process grant req in dnode since %s", terrstr());
+    goto _err;
   }
 
-  if (!pMsg->pCont) {
-    mWarn("failed to process grant req in dnode since msg is empty");
-    return -1;
-  }
-
-  // TODO: judge and save grant msg from mnode
+  // TODO: process grant status from mnode
   // ...
 
-  SGrantMsg *pRsp = mndGenerateGrantMsg();
-  if (pRsp == NULL) {
-    mWarn("failed to process dnode grant req since %s", terrstr());
-    return -1;
+  // step 2: respond with grant msg
+  SGrantMsg grantMsg = {0};
+  dmGenerateGrantMsg(&grantMsg);
+  int32_t contLen = tSerializeGrantMsg(NULL, 0, &grantMsg);
+  void   *pCont = rpcMallocCont(contLen);
+  if (!pCont) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
   }
 
-  pMsg->info.rsp = pRsp;
-  pMsg->info.rspLen = sizeof(SGrantMsg);
+  tSerializeGrantMsg(pCont, contLen, &grantMsg);
+
+  pMsg->code = 0;
+  pMsg->info.rsp = pCont;
+  pMsg->info.rspLen = contLen;
+
+  uInfo("succeed to process grant req and send rsp in dnode");
 
   return TSDB_CODE_SUCCESS;
+_err:
+  pMsg->code = terrno;
+  pMsg->info.rsp = NULL;
+  pMsg->info.rspLen = 0;
+
+  return TSDB_CODE_FAILED;
 }
 
 static void mndRefreshGrantCfg() {
@@ -120,63 +141,70 @@ static void mndRefreshGrantCfg() {
   grantActiveSystem(cfgFile);
 }
 
-static SGrantMsg *mndGenerateGrantMsg() {
-  SGrantMsg *pGrant = rpcMallocCont(sizeof(SGrantMsg));
-  if (!pGrant) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-
+static int32_t dmGenerateGrantMsg(SGrantMsg *pGrant) {
   // refresh
   mndRefreshGrantCfg();
 
-  pGrant->usbDongle = htonl(grantObj.usbDongle);
-  pGrant->updateForced = htonl(grantObj.updateForced);
-  pGrant->officialVersion = htonl(grantObj.officialVersion);
-  pGrant->expireTimeSec = htonl(grantObj.expireTimeSec);
-  pGrant->limitStorage = htonl(grantObj.limitStorage);
-  pGrant->limitSpeed = htonl(grantObj.limitSpeed);
-  pGrant->limitTimeSeries = htonl(grantObj.limitTimeSeries);
-  pGrant->limitQueryTime = htonl(grantObj.limitQueryTime);
-  pGrant->limitDbs = htonl(grantObj.limitDbs);
-  pGrant->limitUsers = htonl(grantObj.limitUsers);
-  pGrant->limitConns = htonl(grantObj.limitConns);
-  pGrant->limitStreams = htonl(grantObj.limitStreams);
-  pGrant->limitAccts = htonl(grantObj.limitAccts);
-  pGrant->limitDnodes = htonl(grantObj.limitDnodes);
-  pGrant->limitCpuCores = htonl(grantObj.limitCpuCores);
-  pGrant->reserveKey1 = htonl(grantObj.reserveKey1);
-  pGrant->reserveKey2 = htonl(grantObj.reserveKey2);
+  pGrant->usbDongle = grantObj.usbDongle;
+  pGrant->updateForced = grantObj.updateForced;
+  pGrant->officialVersion = grantObj.officialVersion;
+  pGrant->expireTimeSec = grantObj.expireTimeSec;
+  pGrant->limitStorage = grantObj.limitStorage;
+  pGrant->limitSpeed = grantObj.limitSpeed;
+  pGrant->limitTimeSeries = grantObj.limitTimeSeries;
+  pGrant->limitQueryTime = grantObj.limitQueryTime;
+  pGrant->limitDbs = grantObj.limitDbs;
+  pGrant->limitUsers = grantObj.limitUsers;
+  pGrant->limitConns = grantObj.limitConns;
+  pGrant->limitStreams = grantObj.limitStreams;
+  pGrant->limitAccts = grantObj.limitAccts;
+  pGrant->limitDnodes = grantObj.limitDnodes;
+  pGrant->limitCpuCores = grantObj.limitCpuCores;
+  pGrant->reserveKey1 = grantObj.reserveKey1;
+  pGrant->reserveKey2 = grantObj.reserveKey2;
 
   char *ts = grantSecondsToString(grantObj.expireTimeSec);
-  mDebug("generate grant message: storage:%uGB, timeseries:%u, database:%u, users:%u, expire:%s %u",
+  uDebug("generate grant message: storage:%uGB, timeseries:%u, database:%u, users:%u, expire:%s %u",
          grantObj.limitStorage, grantObj.limitTimeSeries, grantObj.limitDbs, grantObj.limitUsers, ts,
          grantObj.expireTimeSec);
   taosMemoryFreeClear(ts);
 
-  return pGrant;
+  return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mndSendGrantToDnode(SMnode *pMnode, SDnodeEp *pDnodeEp) {
-#if 0  // TODO: set to 1 when release
+/**
+ * @brief 1) send grant status to dnode
+ *        2) process response (grant msg) from dnode
+ * @param pMnode
+ * @param pDnodeEp
+ * @return int32_t
+ */
+static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeEp *pDnodeEp) {
+#if 0
   if (pDnodeEp->isMnode) {
-    // no need to send grant msg to mnode
-    return 0;
+    // no need to send grant status, but should check the local grantObj
+    // TODO: check the local grantObj and update the grantStatus
+    // ...
+    uInfo("dnode id:%d, %s:%" PRIu16 " is mnode", pDnodeEp->id, pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
+    return TSDB_CODE_SUCCESS;
   }
 #endif
 
-  SGrantMsg *pGrantMsg = mndGenerateGrantMsg();
-  if (!pGrantMsg) {
-    mWarn("failed to generate grant msg since %s", terrstr());
-    return -1;
+  // step 1: send grant status to dnode
+  int32_t contLen = tSerializeGrantStatus(NULL, 0, &grantStatus);
+  void   *pCont = rpcMallocCont(contLen);
+  if (!pCont) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    uWarn("failed to generate grant status msg since %s", terrstr());
+    return TSDB_CODE_FAILED;
   }
 
-  // TODO: encode/decode
-  int32_t contLen = sizeof(SGrantMsg);
-  SRpcMsg rpcMsg = {.pCont = pGrantMsg, .contLen = contLen, .msgType = TDMT_MND_GRANT};
+  tSerializeGrantStatus(pCont, contLen, &grantStatus);
+
+  SRpcMsg rpcMsg = {.pCont = pCont, .contLen = contLen, .msgType = TDMT_MND_GRANT};
   SRpcMsg rpcRsp = {0};
 
-  mInfo("send grant msg to dnode:%d %s:%" PRIu16, pDnodeEp->id, pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
+  uInfo("send grant status msg to dnode:%d %s:%" PRIu16, pDnodeEp->id, pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
 
   SEpSet epSet = {.numOfEps = 1};
   strncpy(epSet.eps[0].fqdn, pDnodeEp->ep.fqdn, TSDB_FQDN_LEN);
@@ -184,30 +212,35 @@ static int32_t mndSendGrantToDnode(SMnode *pMnode, SDnodeEp *pDnodeEp) {
 
   rpcSendRecv(pMnode->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp);
 
-  if (rpcRsp.contLen != sizeof(SGrantMsg)) {
-    mError("the grant rsp msg from dnode is corrupted");
-    goto _err;
-  } else if (!rpcRsp.pCont) {
-    mError("the grant rsp msg from dnode is empty");
+  // step 2: process response from dnode
+  if (!rpcRsp.pCont || rpcRsp.contLen <= 0 || rpcRsp.code != 0) {
+    uError("failed to process the grant rsp from dnode since empty content");
     goto _err;
   }
 
-  SGrantMsg *pDndGrantMsg = rpcRsp.pCont;
-  mInfo("receive grant rsp from dnode");
-  // TODO: fetch grant msg from dnode, and process
+  SGrantMsg grantMsgRsp = {0};
+  if (tDeserializeGrantMsg(rpcRsp.pCont, rpcRsp.contLen, &grantMsgRsp) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    uWarn("failed to process the grant rsp from dnode since %s", terrstr());
+    goto _err;
+  }
+
+  uInfo("succeed to receive grant msg from dnode");
+  // TODO: process the grant rsp from dnode
+  // ...
 
   rpcFreeCont(rpcRsp.pCont);
-  return 0;
+  return TSDB_CODE_SUCCESS;
 _err:
   rpcFreeCont(rpcRsp.pCont);
-  return -1;
+  return TSDB_CODE_FAILED;
 }
 
 /**
  * @brief process grant heartbeat msg from mnode
- * 
- * @param pReq 
- * @return int32_t 
+ *
+ * @param pReq
+ * @return int32_t
  */
 static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
@@ -216,7 +249,7 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
   SArray *pDnodeEps = taosArrayInit(dnodeSize, sizeof(SDnodeEp));
   if (!pDnodeEps) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mWarn("failed to process grant hb msg since %s", terrstr());
+    uWarn("failed to process grant hb msg since %s", terrstr());
     return -1;
   }
 
@@ -224,10 +257,10 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
 
   for (int32_t i = 0; i < taosArrayGetSize(pDnodeEps); ++i) {
     SDnodeEp *pDnodeEp = (SDnodeEp *)taosArrayGet(pDnodeEps, i);
-    mInfo("dnode id:%d, is mnode:%" PRIi8 ", %s:%" PRIu16, pDnodeEp->id, pDnodeEp->isMnode, pDnodeEp->ep.fqdn,
+    uInfo("dnode id:%d, is mnode:%" PRIi8 ", %s:%" PRIu16, pDnodeEp->id, pDnodeEp->isMnode, pDnodeEp->ep.fqdn,
           pDnodeEp->ep.port);
 
-    mndSendGrantToDnode(pMnode, pDnodeEp);
+    mndSendGrantStatusToDnode(pMnode, pDnodeEp);
   }
 
   taosArrayDestroy(pDnodeEps);
@@ -247,7 +280,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
   taosTmrReset(grantSendMsgToMgmt, 500, NULL, tsMnodeTmr, &grantSendTimer);
 #endif
 
-  mDebug("grant data is initialized");
+  uDebug("grant data is initialized");
   return TSDB_CODE_SUCCESS;
 }
 
@@ -931,4 +964,134 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 static void mndCancelGetNextGrant(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
+}
+
+int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, SGrantStatus *pStatus) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  // grant status
+  if (tEncodeI8(&encoder, pStatus->usbDongle ? 1 : 0) < 0) return -1;
+  if (tEncodeI8(&encoder, pStatus->officialVersion ? 1 : 0) < 0) return -1;
+  if (tEncodeI8(&encoder, pStatus->expired ? 1 : 0) < 0) return -1;
+  if (tEncodeU32(&encoder, pStatus->expireTimeSec) < 0) return -1;
+  if (tEncodeU32(&encoder, pStatus->lastReceived) < 0) return -1;
+  if (tEncodeU64(&encoder, pStatus->curStorage) < 0) return -1;
+  if (tEncodeU64(&encoder, pStatus->limitStorage) < 0) return -1;
+  if (tEncodeU32(&encoder, pStatus->curSpeed) < 0) return -1;
+  if (tEncodeU32(&encoder, pStatus->limitSpeed) < 0) return -1;
+  if (tEncodeU32(&encoder, pStatus->curTimeSeries) < 0) return -1;
+  if (tEncodeU32(&encoder, pStatus->limitTimeSeries) < 0) return -1;
+  if (tEncodeU32(&encoder, pStatus->curQueryTime) < 0) return -1;
+  if (tEncodeU32(&encoder, pStatus->limitQueryTime) < 0) return -1;
+  if (tEncodeU32(&encoder, pStatus->limitDbs) < 0) return -1;
+  if (tEncodeU32(&encoder, pStatus->limitUsers) < 0) return -1;
+  if (tEncodeU32(&encoder, pStatus->limitConns) < 0) return -1;
+  if (tEncodeU32(&encoder, pStatus->limitStreams) < 0) return -1;
+  if (tEncodeU32(&encoder, pStatus->limitAccts) < 0) return -1;
+  if (tEncodeU32(&encoder, pStatus->limitDnodes) < 0) return -1;
+  if (tEncodeU32(&encoder, pStatus->limitCpuCores) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, SGrantStatus *pStatus) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  // grant status
+  if (tDecodeI8(&decoder, (int8_t *)&pStatus->usbDongle) < 0) return -1;
+  if (tDecodeI8(&decoder, (int8_t *)&pStatus->officialVersion) < 0) return -1;
+  if (tDecodeI8(&decoder, (int8_t *)&pStatus->expired) < 0) return -1;
+  if (tDecodeU32(&decoder, &pStatus->expireTimeSec) < 0) return -1;
+  if (tDecodeU32(&decoder, &pStatus->lastReceived) < 0) return -1;
+  if (tDecodeU64(&decoder, &pStatus->curStorage) < 0) return -1;
+  if (tDecodeU64(&decoder, &pStatus->limitStorage) < 0) return -1;
+  if (tDecodeU32(&decoder, &pStatus->curSpeed) < 0) return -1;
+  if (tDecodeU32(&decoder, &pStatus->limitSpeed) < 0) return -1;
+  if (tDecodeU32(&decoder, &pStatus->curTimeSeries) < 0) return -1;
+  if (tDecodeU32(&decoder, &pStatus->limitTimeSeries) < 0) return -1;
+  if (tDecodeU32(&decoder, &pStatus->curQueryTime) < 0) return -1;
+  if (tDecodeU32(&decoder, &pStatus->limitQueryTime) < 0) return -1;
+  if (tDecodeU32(&decoder, &pStatus->limitDbs) < 0) return -1;
+  if (tDecodeU32(&decoder, &pStatus->limitUsers) < 0) return -1;
+  if (tDecodeU32(&decoder, &pStatus->limitConns) < 0) return -1;
+  if (tDecodeU32(&decoder, &pStatus->limitStreams) < 0) return -1;
+  if (tDecodeU32(&decoder, &pStatus->limitAccts) < 0) return -1;
+  if (tDecodeU32(&decoder, &pStatus->limitDnodes) < 0) return -1;
+  if (tDecodeU32(&decoder, &pStatus->limitCpuCores) < 0) return -1;
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeGrantMsg(void *buf, int32_t bufLen, SGrantMsg *pMsg) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  // grant msg
+  if (tEncodeI8(&encoder, pMsg->updateForced ? 1 : 0) < 0) return -1;
+  if (tEncodeU32(&encoder, pMsg->usbDongle) < 0) return -1;
+  if (tEncodeU32(&encoder, pMsg->officialVersion) < 0) return -1;
+  if (tEncodeU32(&encoder, pMsg->expireTimeSec) < 0) return -1;
+  if (tEncodeU32(&encoder, pMsg->limitStorage) < 0) return -1;
+  if (tEncodeU32(&encoder, pMsg->limitSpeed) < 0) return -1;
+  if (tEncodeU32(&encoder, pMsg->limitTimeSeries) < 0) return -1;
+  if (tEncodeU32(&encoder, pMsg->limitQueryTime) < 0) return -1;
+  if (tEncodeU32(&encoder, pMsg->limitDbs) < 0) return -1;
+  if (tEncodeU32(&encoder, pMsg->limitUsers) < 0) return -1;
+  if (tEncodeU32(&encoder, pMsg->limitConns) < 0) return -1;
+  if (tEncodeU32(&encoder, pMsg->limitStreams) < 0) return -1;
+  if (tEncodeU32(&encoder, pMsg->limitAccts) < 0) return -1;
+  if (tEncodeU32(&encoder, pMsg->limitDnodes) < 0) return -1;
+  if (tEncodeU32(&encoder, pMsg->limitCpuCores) < 0) return -1;
+  if (tEncodeU32(&encoder, pMsg->reserveKey1) < 0) return -1;
+  if (tEncodeU32(&encoder, pMsg->reserveKey2) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeGrantMsg(void *buf, int32_t bufLen, SGrantMsg *pMsg) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  // grant msg
+  if (tDecodeI8(&decoder, (int8_t *)&pMsg->updateForced) < 0) return -1;
+  if (tDecodeU32(&decoder, &pMsg->usbDongle) < 0) return -1;
+  if (tDecodeU32(&decoder, &pMsg->officialVersion) < 0) return -1;
+  if (tDecodeU32(&decoder, &pMsg->expireTimeSec) < 0) return -1;
+  if (tDecodeU32(&decoder, &pMsg->limitStorage) < 0) return -1;
+  if (tDecodeU32(&decoder, &pMsg->limitSpeed) < 0) return -1;
+  if (tDecodeU32(&decoder, &pMsg->limitTimeSeries) < 0) return -1;
+  if (tDecodeU32(&decoder, &pMsg->limitQueryTime) < 0) return -1;
+  if (tDecodeU32(&decoder, &pMsg->limitDbs) < 0) return -1;
+  if (tDecodeU32(&decoder, &pMsg->limitUsers) < 0) return -1;
+  if (tDecodeU32(&decoder, &pMsg->limitConns) < 0) return -1;
+  if (tDecodeU32(&decoder, &pMsg->limitStreams) < 0) return -1;
+  if (tDecodeU32(&decoder, &pMsg->limitAccts) < 0) return -1;
+  if (tDecodeU32(&decoder, &pMsg->limitDnodes) < 0) return -1;
+  if (tDecodeU32(&decoder, &pMsg->limitCpuCores) < 0) return -1;
+  if (tDecodeU32(&decoder, &pMsg->reserveKey1) < 0) return -1;
+  if (tDecodeU32(&decoder, &pMsg->reserveKey2) < 0) return -1;
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
 }
