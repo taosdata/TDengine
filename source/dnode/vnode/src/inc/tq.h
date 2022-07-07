@@ -40,15 +40,6 @@ extern "C" {
 #define tqDebug(...) do { if (tqDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
 #define tqTrace(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
 
-#define IS_META_MSG(x) ( \
-     x == TDMT_VND_CREATE_STB     \
-  || x == TDMT_VND_ALTER_STB      \
-  || x == TDMT_VND_DROP_STB       \
-  || x == TDMT_VND_CREATE_TABLE   \
-  || x == TDMT_VND_ALTER_TABLE    \
-  || x == TDMT_VND_DROP_TABLE     \
-  || x == TDMT_VND_DROP_TTL_TABLE \
-)
 // clang-format on
 
 typedef struct STqOffsetStore STqOffsetStore;
@@ -128,7 +119,7 @@ typedef struct {
   int8_t  fetchMeta;
 
   // reader
-  SWalReadHandle* pWalReader;
+  SWalReader* pWalReader;
 
   // push
   STqPushHandle pushHandle;
