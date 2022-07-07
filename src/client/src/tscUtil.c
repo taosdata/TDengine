@@ -3014,8 +3014,8 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
 
       // single token, validate it
       if (len == pToken->n) {
-        if (strncmp(pToken->z, "string", len) == 0) {
-          return TSDB_CODE_SUCCESS;
+        if (taosIsKeyWordToken(pToken->z, (int32_t) pToken->n)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
         }
 
         return validateQuoteToken(pToken, escapeEnabled, NULL);

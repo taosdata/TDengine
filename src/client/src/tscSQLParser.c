@@ -1511,7 +1511,6 @@ int32_t tscSetTableFullName(SName* pName, SStrToken* pTableName, SSqlObj* pSql, 
   const char* msg4 = "db name too long";
   const char* msg5 = "table name too long";
   const char* msg6 = "table name empty";
-  const char* msg7 = "invalid table name";
 
   SSqlCmd* pCmd = &pSql->cmd;
   int32_t  code = TSDB_CODE_SUCCESS;
@@ -1574,15 +1573,6 @@ int32_t tscSetTableFullName(SName* pName, SStrToken* pTableName, SSqlObj* pSql, 
     if (code != 0) {
       code = invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
-  }
-
-  if (code != 0) {
-    return code;
-  }
-
-  bool ret = taosIsKeyWordToken(pName->tname, (int32_t) strlen(pName->tname));
-  if (ret) {
-    code = invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
   }
 
   return code;
