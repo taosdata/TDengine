@@ -105,7 +105,7 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgI
 
   // check if table exists (todo: refact)
   SMetaReader mr = {0};
-  SMetaEntry  me = {0};
+  // SMetaEntry  me = {0};
   metaReaderInit(&mr, pTsdb->pVnode->pMeta, 0);
   if (metaGetTableEntryByUid(&mr, pMsgIter->uid) < 0) {
     metaReaderClear(&mr);
@@ -117,6 +117,8 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgI
   if (mr.me.type == TSDB_NORMAL_TABLE) {
     sverNew = mr.me.ntbEntry.schemaRow.version;
   } else {
+    tDecoderClear(&mr.coder);
+
     metaGetTableEntryByUid(&mr, mr.me.ctbEntry.suid);
     sverNew = mr.me.stbEntry.schemaRow.version;
   }
