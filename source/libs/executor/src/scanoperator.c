@@ -210,7 +210,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
 
     bool             allColumnsHaveAgg = true;
     SColumnDataAgg** pColAgg = NULL;
-    int32_t code = tsdbRetrieveDatablockSMAInfo(pTableScanInfo->dataReader, &pColAgg, &allColumnsHaveAgg);
+    int32_t code = tsdbRetrieveDatablockSMA(pTableScanInfo->dataReader, &pColAgg, &allColumnsHaveAgg);
     if (code != TSDB_CODE_SUCCESS) {
       longjmp(pTaskInfo->env, code);
     }
@@ -2230,7 +2230,7 @@ static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeSc
     bool             allColumnsHaveAgg = true;
     SColumnDataAgg** pColAgg = NULL;
     STsdbReader*     reader = taosArrayGetP(pTableScanInfo->dataReaders, readerIdx);
-    tsdbRetrieveDatablockSMAInfo(reader, &pColAgg, &allColumnsHaveAgg);
+    tsdbRetrieveDatablockSMA(reader, &pColAgg, &allColumnsHaveAgg);
 
     if (allColumnsHaveAgg == true) {
       int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
