@@ -30,6 +30,7 @@ int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
     case TDMT_SCH_EXPLAIN_RSP:
       return TSDB_CODE_SUCCESS;
     case TDMT_SCH_FETCH_RSP:
+    case TDMT_SCH_MERGE_FETCH_RSP:
       if (lastMsgType != reqMsgType) {
         SCH_TASK_ELOG("rsp msg type mis-match, last sent msgType:%s, rspType:%s", TMSG_INFO(lastMsgType),
                       TMSG_INFO(msgType));

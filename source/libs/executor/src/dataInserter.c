@@ -118,7 +118,13 @@ static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, SSubmitReq* pMs
 }
 
 
-SSubmitReq* dataBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, int64_t uid, int64_t suid, int32_t vgId) {
+SSubmitReq* dataBlockToSubmit(SDataInserterHandle* pInserter) {
+  const SArray* pBlocks = pInserter->pDataBlocks;
+  const STSchema* pTSchema = pInserter->pSchema; 
+  int64_t uid = pInserter->pNode->tableId; 
+  int64_t suid = pInserter->pNode->stableId; 
+  int32_t vgId = pInserter->pNode->vgId;
+
   SSubmitReq* ret = NULL;
   int32_t sz = taosArrayGetSize(pBlocks);
 
@@ -192,7 +198,7 @@ SSubmitReq* dataBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, i
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   SDataInserterHandle* pInserter = (SDataInserterHandle*)pHandle;
   taosArrayPush(pInserter->pDataBlocks, pInput->pData);
-  SSubmitReq* pMsg = dataBlockToSubmit(pInserter->pDataBlocks, pInserter->pSchema, pInserter->pNode->tableId, pInserter->pNode->suid, pInserter->pNode->vgId);
+  SSubmitReq* pMsg = dataBlockToSubmit(pInserter);
 
   int32_t code = sendSubmitRequest(pInserter, pMsg, pInserter->pParam->readHandle->pMsgCb->clientRpc, &pInserter->pNode->epSet);
   if (code) {
@@ -248,7 +254,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
-  SDataDeleterNode* pInserterNode = (SQueryInserterNode *)pDataSink;
+  SQueryInserterNode* pInserterNode = (SQueryInserterNode *)pDataSink;
   inserter->sink.fPut = putDataBlock;
   inserter->sink.fEndPut = endPut;
   inserter->sink.fGetLen = getDataLength;
@@ -267,7 +273,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
     return code;
   }
 
-  if (pInserterNode->suid != suid) {
+  if (pInserterNode->stableId != suid) {
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
     return terrno;
   }
