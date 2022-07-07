@@ -528,6 +528,7 @@ typedef struct SFillOperatorInfo {
   SSDataBlock*      existNewGroupBlock;
   bool              multigroupResult;
   STimeWindow       win;
+  SNode*            pCondition;
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {
