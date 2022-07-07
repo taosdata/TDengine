@@ -826,9 +826,24 @@ TEST(testCase, update_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  taos_query(pConn, "use abc1");
+  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1");
+  if (taos_errno(pRes) != TSDB_CODE_SUCCESS) {
+    printf("failed to create database, code:%s", taos_errstr(pRes));
+    taos_free_result(pRes);
+    return;
+  }
 
-  TAOS_RES* pRes = taos_query(pConn, "create table tup (ts timestamp, k int);");
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "use abc1");
+  if (taos_errno(pRes) != TSDB_CODE_SUCCESS) {
+    printf("failed to use db, code:%s", taos_errstr(pRes));
+    taos_free_result(pRes);
+    return;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table tup (ts timestamp, k int);");
   if (taos_errno(pRes) != 0) {
     printf("failed to create table, reason:%s", taos_errstr(pRes));
   }
@@ -836,8 +851,8 @@ TEST(testCase, update_test) {
   taos_free_result(pRes);
 
   char s[256]  = {0};
-  for(int32_t i = 0; i < 7000; ++i) {
-    sprintf(s, "insert into tup values('2020-1-1 1:1:1', %d)", i);
+  for(int32_t i = 0; i < 17000; ++i) {
+    sprintf(s, "insert into tup values(now+%da, %d)", i, i);
     pRes = taos_query(pConn, s);
     taos_free_result(pRes);
   }
