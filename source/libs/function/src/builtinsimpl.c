@@ -1080,6 +1080,19 @@ bool getMinmaxFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
 static void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos);
 static void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos);
 
+static int32_t findRowIndex(int32_t start, int32_t num, SColumnInfoData* pCol, const char* tval) {
+  // the data is loaded, not only the block SMA value
+  for(int32_t i = start; i < num + start; ++i) {
+    char* p = colDataGetData(pCol, i);
+    if (memcpy((void*)tval, p, pCol->info.bytes) == 0)  {
+      return i;
+    }
+  }
+
+  ASSERT(0);
+}
+
+
 int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
   int32_t numOfElems = 0;
 
@@ -1111,15 +1124,14 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
     if (isMinFunc) {
       tval = &pInput->pColumnDataAgg[0]->min;
-      index = pInput->pColumnDataAgg[0]->minIndex;
     } else {
       tval = &pInput->pColumnDataAgg[0]->max;
-      index = pInput->pColumnDataAgg[0]->maxIndex;
     }
 
     if (!pBuf->assign) {
       pBuf->v = *(int64_t*)tval;
       if (pCtx->subsidiaries.num > 0) {
+        index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
         saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
       }
     } else {
@@ -1131,6 +1143,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         if ((prev < val) ^ isMinFunc) {
           pBuf->v = val;
           if (pCtx->subsidiaries.num > 0) {
+            index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
           }
         }
@@ -1143,6 +1156,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         if ((prev < val) ^ isMinFunc) {
           pBuf->v = val;
           if (pCtx->subsidiaries.num > 0) {
+            index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
           }
         }
@@ -1154,6 +1168,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         if ((prev < val) ^ isMinFunc) {
           pBuf->v = val;
           if (pCtx->subsidiaries.num > 0) {
+            index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
           }
         }
@@ -1167,6 +1182,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         }
 
         if (pCtx->subsidiaries.num > 0) {
+          index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
           saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
         }
       }

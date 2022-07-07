@@ -741,10 +741,10 @@ static int32_t doCreateConstantValColumnAggInfo(SInputColumnInfoData* pInput, SF
 
   if (type == TSDB_DATA_TYPE_BIGINT) {
     int64_t v = pFuncParam->param.i;
-    *da = (SColumnDataAgg){.numOfNull = 0, .min = v, .max = v, .maxIndex = 0, .minIndex = 0, .sum = v * numOfRows};
+    *da = (SColumnDataAgg){.numOfNull = 0, .min = v, .max = v, .sum = v * numOfRows};
   } else if (type == TSDB_DATA_TYPE_DOUBLE) {
     double v = pFuncParam->param.d;
-    *da = (SColumnDataAgg){.numOfNull = 0, .maxIndex = 0, .minIndex = 0};
+    *da = (SColumnDataAgg){.numOfNull = 0};
 
     *(double*)&da->min = v;
     *(double*)&da->max = v;
@@ -752,7 +752,7 @@ static int32_t doCreateConstantValColumnAggInfo(SInputColumnInfoData* pInput, SF
   } else if (type == TSDB_DATA_TYPE_BOOL) {  // todo validate this data type
     bool v = pFuncParam->param.i;
 
-    *da = (SColumnDataAgg){.numOfNull = 0, .maxIndex = 0, .minIndex = 0};
+    *da = (SColumnDataAgg){.numOfNull = 0};
     *(bool*)&da->min = 0;
     *(bool*)&da->max = v;
     *(bool*)&da->sum = v * numOfRows;

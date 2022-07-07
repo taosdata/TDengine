@@ -2801,11 +2801,11 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg*** pBlockS
     if (pAgg->colId == pSup->colIds[j]) {
       if (IS_BSMA_ON(&(pReader->pSchema->columns[i]))) {
         pSup->plist[j] = pAgg;
-        i += 1;
-        j += 1;
       } else {
         *allHave = false;
       }
+      i += 1;
+      j += 1;
     } else if (pAgg->colId < pSup->colIds[j]) {
       i += 1;
     } else if (pSup->colIds[j] < pAgg->colId) {
