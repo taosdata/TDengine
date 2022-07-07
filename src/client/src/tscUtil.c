@@ -3014,6 +3014,10 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
 
       // single token, validate it
       if (len == pToken->n) {
+        if (strncmp(pToken->z, "string", len) == 0) {
+          return TSDB_CODE_SUCCESS;
+        }
+
         return validateQuoteToken(pToken, escapeEnabled, NULL);
       } else {
         sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
