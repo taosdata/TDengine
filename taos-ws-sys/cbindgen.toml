@@ -19,6 +19,16 @@ header = """
 #define TDENGINE_TAOS_WS_H
 
 /**
+ * When using libtaosws along with libtaos, include `taos.h` in front of `taosws.h`, eg.
+ *
+ * ```c
+ * include "taos.h"
+ * include "taosws.h"
+ * ```
+ */
+#ifndef TDENGINE_TAOS_H
+
+/**
  * Data type definitions.
  */
 #define TSDB_DATA_TYPE_NULL       0   // 1 bytes
@@ -43,6 +53,8 @@ header = """
 #define TSDB_DATA_TYPE_MEDIUMBLOB 19
 #define TSDB_DATA_TYPE_BINARY     TSDB_DATA_TYPE_VARCHAR  // string
 #define TSDB_DATA_TYPE_MAX        20
+
+#endif
 """
 
 trailer = """
