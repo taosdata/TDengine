@@ -87,7 +87,7 @@ int32_t tqMetaOpen(STQ* pTq) {
             .streamReader = handle.execHandle.pExecReader[i],
             .meta = pTq->pVnode->pMeta,
             .pMsgCb = &pTq->pVnode->msgCb,
-            .vnode  = pTq->pVnode,
+            .vnode = pTq->pVnode,
         };
         handle.execHandle.execCol.task[i] = qCreateStreamExecTaskInfo(handle.execHandle.execCol.qmsg, &reader);
         ASSERT(handle.execHandle.execCol.task[i]);
@@ -99,6 +99,7 @@ int32_t tqMetaOpen(STQ* pTq) {
     taosHashPut(pTq->handles, pKey, kLen, &handle, sizeof(STqHandle));
   }
 
+  tdbTbcClose(pCur);
   if (tdbTxnClose(&txn) < 0) {
     ASSERT(0);
   }
@@ -106,6 +107,9 @@ int32_t tqMetaOpen(STQ* pTq) {
 }
 
 int32_t tqMetaClose(STQ* pTq) {
+  if (pTq->pExecStore) {
+    tdbTbClose(pTq->pExecStore);
+  }
   tdbClose(pTq->pMetaStore);
   return 0;
 }
