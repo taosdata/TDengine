@@ -28,7 +28,10 @@ sql alter user u1 pass 'taosdata'
 sql drop user u1
 sql_error alter user u2 sysinfo 0
 
-print =============== step3: 
+print =============== step3: create drop dnode
+sql create dnode $hostname port 7200
+sql drop dnode 2
+sql alter dnode 1 'debugflag 143'
 
 print =============== stop
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

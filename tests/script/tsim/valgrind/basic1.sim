@@ -35,7 +35,8 @@ sql alter dnode 1 'debugflag 143'
 print =============== step4: create show database
 sql create database d1 vgroups 1
 sql show databases
-sql show d1.vgroups
+sql use d1
+sql show vgroups
 
 print =============== step5: create show stable
 sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
@@ -44,8 +45,6 @@ if $rows != 1 then
   return -1
 endi
 
-
-goto _OVER
 print =============== step6: create show table
 sql create table ct1 using stb tags(1000)
 sql show tables
