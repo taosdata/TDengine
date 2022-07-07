@@ -29,7 +29,7 @@ print ----> start to check if there are ERRORS in vagrind log file for each dnod
 system_content sh/checkValgrind.sh -n dnode1 
 
 print cmd return result ----> [ $system_content ]
-if $system_content <= 60 then
+if $system_content <= 10 then
   return 0
 endi 
 
