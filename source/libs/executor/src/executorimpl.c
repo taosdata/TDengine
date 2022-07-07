@@ -3862,6 +3862,8 @@ static SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
     }
   }
 
+  doFilter(pIndefInfo->pCondition, pInfo->pRes);
+
   size_t rows = pInfo->pRes->info.rows;
   pOperator->resultInfo.totalRows += rows;
 
@@ -3915,6 +3917,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
 
   pInfo->binfo.pRes = pResBlock;
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pSup->pCtx, numOfExpr);
+  pInfo->pCondition = pPhyNode->node.pConditions;
 
   pOperator->name = "IndefinitOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PROJECT;

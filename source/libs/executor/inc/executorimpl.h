@@ -518,6 +518,7 @@ typedef struct SIndefOperatorInfo {
   SAggSupporter      aggSup;
   SArray*            pPseudoColInfo;
   SExprSupp          scalarSup;
+  SNode*             pCondition;
 } SIndefOperatorInfo;
 
 typedef struct SFillOperatorInfo {
