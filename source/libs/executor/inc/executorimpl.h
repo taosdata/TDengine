@@ -365,7 +365,7 @@ typedef struct SStreamScanInfo {
   int32_t         blockType;        // current block type
   int32_t         validBlockIndex;  // Is current data has returned?
   uint64_t        numOfExec;        // execution times
-  void*           streamReader;// stream block reader handle
+  STqReader*           tqReader;
 
   int32_t         tsArrayIndex;
   SArray*         tsArray;
@@ -383,6 +383,11 @@ typedef struct SStreamScanInfo {
   SSDataBlock*    pPullDataRes;             // pull data SSDataBlock
   SSDataBlock*    pDeleteDataRes;             // delete data SSDataBlock
   int32_t         deleteDataIndex;
+
+  // status for tmq
+  //SSchemaWrapper schema;
+  STqOffset offset;
+
 } SStreamScanInfo;
 
 typedef struct SSysTableScanInfo {

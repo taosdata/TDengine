@@ -325,14 +325,14 @@ int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
     return TSDB_CODE_FAILED;
   }
 
-  SStreamReader *pReadHandle = tqInitSubmitMsgScanner(pMeta);
-  if (!pReadHandle) {
+  STqReader *pReader = tqOpenReader(pVnode);
+  if (!pReader) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
 
   SReadHandle handle = {
-      .streamReader = pReadHandle,
+      .tqReader = pReader,
       .meta = pMeta,
       .pMsgCb = pMsgCb,
       .vnode = pVnode,
@@ -364,7 +364,7 @@ int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
   return TSDB_CODE_SUCCESS;
 _err:
   tdFreeRSmaInfo(pRSmaInfo);
-  taosMemoryFree(pReadHandle);
+  taosMemoryFree(pReader);
   return TSDB_CODE_FAILED;
 }
 
