@@ -848,67 +848,75 @@ class TDTestQuery(TDCase):
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s order by ts) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            #self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1) #先不校验，没想明白
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                                           
-                        # for i in (6,7,8,9,):                        
-                        #     time_window_new = tdWhere.time_window_new(i)
-                        #     self.logger.info("\n\n\n====right case1=======time num = %d======interval======\n\n\n" %i)
-                        #     sql1 = 'select %s from %s %s %s group by tbname;'  % (func,self.table,interval_fill,time_window_new)                            
+                        for i in (1,2,3,4,6,7,8,9,):                        
+                            time_window_new = tdWhere.time_window_new(i)
+                            self.logger.info("\n\n\n====right case1=======time num = %d======interval======\n\n\n" %i)
+                            sql1 = "select %s from %s %s and tbname in ('%s_1') %s ;"  % (func,self.table,interval_fill,self.table,time_window_new)                            
 
-                        #     sql2 = "select %s from %s where  %s %s %s %s %s group by tbname;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                        #     cur1.execute(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from %s where  %s %s %s %s %s group by tbname;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
                             
-                        #     sql2 = "select * from (select %s from %s where %s %s %s %s %s group by tbname);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                        #     cur1.execute(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select * from (select %s from %s where %s %s %s %s %s group by tbname);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
                             
-                        #     sql2 = "select %s from (select * from %s) where %s %s %s %s %s group by tbname;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from (select * from %s) where %s %s %s %s %s group by tbname;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
                             
-                        #     sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s %s %s group by tbname;" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                        #     cur1.execute(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s %s %s group by tbname;" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
 
-                        #     sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s %s %s group by tbname);" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                        #     cur1.execute(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s %s %s group by tbname);" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
 
-                        #     sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and %s %s %s %s %s group by tbname;" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and %s %s %s %s %s group by tbname;" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
 
-                        #     sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s %s %s; " %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2                        
+                            sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s %s %s; " %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2                        
                             
-                        #     sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s %s %s );" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s %s %s );" %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
 
-                        #     sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and %s %s %s %s %s; " %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and %s %s %s %s %s; " %(func,self.table,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
+                                                        
+                            sql1 = 'select %s from %s %s %s ;'  % (func,self.table,interval_fill,time_window_new) 
 
-                        #     sql2 = "select %s from %s where  %s %s %s %s %s ;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from %s where  %s %s %s %s %s ;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
 
-                        #     sql2 = "select * from (select %s from %s where %s %s %s %s %s);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select * from (select %s from %s where %s %s %s %s %s);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
 
-                        #     sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                        #     self.tdSql.error(sql2)
-                        #     sql= sql + sql2
+                            sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            #self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1) #先不校验，没想明白
+                            cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
                                               
                         for i in (11,12,13,14,15,16,17,18,19,20,):  #22先忽略，本来不支持超级表，现在支持了                       
                             time_window_new = tdWhere.time_window_new(i)
