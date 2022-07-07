@@ -2844,7 +2844,7 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
 }
 
 int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
-  int32_t type = pOperator->operatorType;
+  uint8_t type = pOperator->operatorType;
 
   pOperator->status = OP_OPENED;
 
@@ -4346,11 +4346,11 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     } else if (QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN == type) {
       SLastRowScanPhysiNode* pScanNode = (SLastRowScanPhysiNode*)pPhyNode;
 
-//      int32_t code = createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId);
-//      if (code) {
-//        pTaskInfo->code = code;
-//        return NULL;
-//      }
+      //      int32_t code = createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId);
+      //      if (code) {
+      //        pTaskInfo->code = code;
+      //        return NULL;
+      //      }
 
       int32_t code = extractTableSchemaVersion(pHandle, pScanNode->uid, pTaskInfo);
       if (code != TSDB_CODE_SUCCESS) {
@@ -4407,8 +4407,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       pOptr = createGroupOperatorInfo(ops[0], pExprInfo, num, pResBlock, pColList, pAggNode->node.pConditions,
                                       pScalarExprInfo, numOfScalarExpr, pTaskInfo);
     } else {
-      pOptr =
-          createAggregateOperatorInfo(ops[0], pExprInfo, num, pResBlock, pAggNode->node.pConditions, pScalarExprInfo, numOfScalarExpr, pTaskInfo);
+      pOptr = createAggregateOperatorInfo(ops[0], pExprInfo, num, pResBlock, pAggNode->node.pConditions,
+                                          pScalarExprInfo, numOfScalarExpr, pTaskInfo);
     }
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL == type || QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type) {
     SIntervalPhysiNode* pIntervalPhyNode = (SIntervalPhysiNode*)pPhyNode;
@@ -4575,7 +4575,8 @@ SArray* extractColumnInfo(SNodeList* pNodeList) {
   return pList;
 }
 
-STsdbReader* doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle, STableListInfo* pTableListInfo, const char* idstr) {
+STsdbReader* doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
+                                STableListInfo* pTableListInfo, const char* idstr) {
   int32_t code = getTableList(pHandle->meta, pHandle->vnode, &pTableScanNode->scan, pTableListInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -4818,7 +4819,6 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   (*pTaskInfo)->tableqinfoList.pTagIndexCond = pPlan->pTagIndexCond;
   (*pTaskInfo)->pRoot = createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId,
                                            &(*pTaskInfo)->tableqinfoList, pPlan->user);
-
 
   if (NULL == (*pTaskInfo)->pRoot) {
     code = (*pTaskInfo)->code;
