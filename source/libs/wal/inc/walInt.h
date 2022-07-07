@@ -19,6 +19,7 @@
 #include "taoserror.h"
 #include "tchecksum.h"
 #include "tcoding.h"
+#include "tcommon.h"
 #include "tcompare.h"
 #include "wal.h"
 
