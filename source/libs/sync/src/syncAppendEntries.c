@@ -842,8 +842,8 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
       do {
         char logBuf[128];
         snprintf(logBuf, sizeof(logBuf),
-                 "recv sync-append-entries-batch, fake match2, pre-index:%ld, pre-term:%lu, datalen:%d",
-                 pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
+                 "recv sync-append-entries-batch, fake match2, {pre-index:%ld, pre-term:%lu, datalen:%d, datacount:%d}",
+                 pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen, pMsg->dataCount);
         syncNodeEventLog(ths, logBuf);
       } while (0);
 
@@ -876,7 +876,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
           code = syncNodePreCommit(ths, pAppendEntry);
           ASSERT(code == 0);
 
-          syncEntryDestory(pAppendEntry);
+          // syncEntryDestory(pAppendEntry);
         }
 
         // fsync once
@@ -931,8 +931,8 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
       do {
         char logBuf[128];
         snprintf(logBuf, sizeof(logBuf),
-                 "recv sync-append-entries-batch, not match, pre-index:%ld, pre-term:%lu, datalen:%d",
-                 pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
+                 "recv sync-append-entries-batch, not match, {pre-index:%ld, pre-term:%lu, datalen:%d, datacount:%d}",
+                 pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen, pMsg->dataCount);
         syncNodeEventLog(ths, logBuf);
       } while (0);
 
@@ -976,8 +976,9 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
 
       do {
         char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, match, pre-index:%ld, pre-term:%lu, datalen:%d",
-                 pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
+        snprintf(logBuf, sizeof(logBuf),
+                 "recv sync-append-entries, match, {pre-index:%ld, pre-term:%lu, datalen:%d, datacount:%d}",
+                 pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen, pMsg->dataCount);
         syncNodeEventLog(ths, logBuf);
       } while (0);
 
@@ -999,7 +1000,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
           code = syncNodePreCommit(ths, pAppendEntry);
           ASSERT(code == 0);
 
-          syncEntryDestory(pAppendEntry);
+          // syncEntryDestory(pAppendEntry);
         }
 
         // fsync once
