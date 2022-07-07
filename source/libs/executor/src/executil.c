@@ -305,9 +305,21 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   SNode* pTagIndexCond = (SNode*)pListInfo->pTagIndexCond;
   if (pScanNode->tableType == TSDB_SUPER_TABLE) {
     if (pTagIndexCond) {
-      SArray* res = taosArrayInit(8, sizeof(uint64_t));
-      // code = doFilterTag(pTagIndexCond, &metaArg, res);
-      code = TSDB_CODE_INDEX_REBUILDING;
+      ///<<<<<<< HEAD
+      SIndexMetaArg metaArg = {
+          .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = tsdbGetIvtIdx(metaHandle), .suid = tableUid};
+
+      SArray*       res = taosArrayInit(8, sizeof(uint64_t));
+      SIdxFltStatus status = SFLT_NOT_INDEX;
+      code = doFilterTag(pTagIndexCond, &metaArg, res, &status);
+      if (code != 0 || status == SFLT_NOT_INDEX) {
+        code = TSDB_CODE_INDEX_REBUILDING;
+      }
+      //=======
+      //      SArray* res = taosArrayInit(8, sizeof(uint64_t));
+      //      // code = doFilterTag(pTagIndexCond, &metaArg, res);
+      //      code = TSDB_CODE_INDEX_REBUILDING;
+      //>>>>>>> dvv
       if (code == TSDB_CODE_INDEX_REBUILDING) {
         code = vnodeGetAllTableList(pVnode, tableUid, pListInfo->pTableList);
       } else if (code != TSDB_CODE_SUCCESS) {
