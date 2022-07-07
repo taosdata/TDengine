@@ -1,0 +1,46 @@
+
+
+### Configuring taosAdapter
+
+To configure taosAdapter to receive icinga2 data.
+
+- Enable the configuration item in the taosAdapter configuration file (default location /etc/taos/taosadapter.toml)
+
+```
+...
+[opentsdb_telnet]
+enable = true
+maxTCPConnections = 250
+tcpKeepAlive = false
+dbs = ["opentsdb_telnet", "collectd", "icinga2", "tcollector"]
+ports = [6046, 6047, 6048, 6049]
+user = "root"
+password = "taosdata"
+...
+```
+
+The default database name written by the taosAdapter is `icinga2`. You can also modify the taosAdapter configuration file dbs entry to specify a different name. user and password are the values configured by the actual TDengine. You need to restart the taosAdapter after modification.
+
+- You can also enable taosAdapter to receive icinga2 data by using the taosAdapter command-line parameters or setting environment variables.
+
+### Configure icinga3
+
+- Enable opentsdb-writer for icinga2 (refer to the link https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer)
+- Modify the configuration file `/etc/icinga2/features-enabled/opentsdb.conf` by filling in <taosAdapter's host\> as the domain name or IP address of the server running taosAdapter and <port for icinga2\> as the corresponding port on which taosAdapter supports receiving icinga2 data (default is 6048)
+
+```
+object OpenTsdbWriter "opentsdb" {
+  host = "<taosAdapter's host>"
+  port = <port for icinga2>
+}
+```
+
+Example file:
+
+```
+object OpenTsdbWriter "opentsdb" {
+  host = "127.0.0.1"
+  port = 6048
+}
+```
+

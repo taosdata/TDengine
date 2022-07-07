@@ -15,25 +15,45 @@ rm -rf /var/lib/taos/*
 rm -rf /var/log/taos/*
 nohup taosd -c /etc/taos/ > /dev/null 2>&1 &
 sleep 10
+
+# define fun to check if execute correct.
+check(){
+if [ $1 -eq 0 ]
+then
+    echo "===================$2 succeed==================="
+else
+    echo "===================$2 failed==================="
+    exit 1
+fi
+}
+
 cd ../../
 WKC=`pwd`
-cd ${WKC}/src/connector/C#
-dotnet test
-# run example under Driver
-cd ${WKC}/src/connector/C#/examples 
-dotnet run
-
-#dotnet run --project src/test/Cases/Cases.csproj
+echo "WKC:${WKC}"
 
 # run example with neuget package
 cd ${WKC}/tests/examples/C#
+
 dotnet run --project C#checker/C#checker.csproj
+check $? C#checker.csproj
+
 dotnet run --project TDengineTest/TDengineTest.csproj
+check $? TDengineTest.csproj
+
 dotnet run --project schemaless/schemaless.csproj
+check $? schemaless.csproj
+
 dotnet run --project jsonTag/jsonTag.csproj
+check $? jsonTag.csproj
+
 dotnet run --project stmt/stmt.csproj
+check $? stmt.csproj
+
+dotnet run --project insertCn/insertCn.csproj
+check $? insertCn.csproj
 
 cd ${WKC}/tests/examples/C#/taosdemo
 dotnet build -c Release
 tree | true
 ./bin/Release/net5.0/taosdemo -c /etc/taos -y
+check $? taosdemo

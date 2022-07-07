@@ -10,7 +10,7 @@
     <description>Demo project for TDengine</description>
 
     <properties>
-        <spring.version>5.3.19</spring.version>
+        <spring.version>5.3.20</spring.version>
     </properties>
 
     <dependencies>
@@ -75,13 +75,13 @@
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>fastjson</artifactId>
-            <version>1.2.75</version>
+            <version>1.2.83</version>
         </dependency>
         <!-- mysql: just for test -->
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
-            <version>8.0.16</version>
+            <version>8.0.28</version>
             <scope>test</scope>
         </dependency>
         <!-- log4j -->

@@ -5,11 +5,11 @@ set -e
 taosd >> /dev/null 2>&1 &
 taosadapter >> /dev/null 2>&1 &
 
-cd ../../docs-examples/python
+cd ../../docs/examples/python
 
 # 1
 taos -s "create database if not exists log"
-python3 connect_exmaple.py
+python3 connect_example.py
 
 # 2
 taos -s "drop database if exists power"

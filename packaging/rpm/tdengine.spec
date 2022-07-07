@@ -68,7 +68,7 @@ cp %{_compiledir}/../packaging/tools/set_core.sh    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/../packaging/tools/taosd-dump-cfg.gdb    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taos                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
-#cp %{_compiledir}/build/bin/taosBenchmark           %{buildroot}%{homepath}/bin
+cp %{_compiledir}/build/bin/taosBenchmark           %{buildroot}%{homepath}/bin
 
 if [ -f %{_compiledir}/build/bin/taosadapter ]; then
     cp %{_compiledir}/build/bin/taosadapter                    %{buildroot}%{homepath}/bin ||:

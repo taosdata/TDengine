@@ -64,7 +64,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   }
   SRpcCorEpSet corMgmtEpSet;
 
-  char secretEncrypt[TSDB_PASS_LEN] = {0};
+  char secretEncrypt[32] = {0};
   int  secretEncryptLen = 0;
   if (auth == NULL) {
     if (!validPassword(pass)) {
@@ -211,7 +211,9 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
       } else {
         printf("taos connect failed, reason: %s.\n\n", tstrerror(terrno));
       }
+      int32_t lastError = terrno;
       taos_free_result(pSql);
+      if (terrno != lastError) terrno = lastError;
       taos_close(pObj);
       return NULL;
     }

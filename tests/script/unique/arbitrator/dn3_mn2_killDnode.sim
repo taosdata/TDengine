@@ -104,7 +104,7 @@ $mnode2Status = $data2_2
 $mnode3Status = $data2_3  
 #$mnode4Status = $data2_4 
 
-if $mnode1Status != master then
+if $mnode1Status != leader then
 	return -1
 endi
 

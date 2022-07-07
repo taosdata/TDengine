@@ -133,11 +133,11 @@ namespace TDengineDriver
                     String indent = "    ";
                     Console.WriteLine("taosTest is simple example to operate TDengine use C# Language.\n");
                     Console.WriteLine("{0:G}{1:G}", indent, "-h");
-                    Console.WriteLine("{0:G}{1:G}{2:G}", indent, indent, "TDEngine server IP address to connect");
+                    Console.WriteLine("{0:G}{1:G}{2:G}", indent, indent, "TDengine server IP address to connect");
                     Console.WriteLine("{0:G}{1:G}", indent, "-u");
-                    Console.WriteLine("{0:G}{1:G}{2:G}", indent, indent, "The TDEngine user name to use when connecting to the server, default is root");
+                    Console.WriteLine("{0:G}{1:G}{2:G}", indent, indent, "The TDengine user name to use when connecting to the server, default is root");
                     Console.WriteLine("{0:G}{1:G}", indent, "-p");
-                    Console.WriteLine("{0:G}{1:G}{2:G}", indent, indent, "The TDEngine user name to use when connecting to the server, default is taosdata");
+                    Console.WriteLine("{0:G}{1:G}{2:G}", indent, indent, "The TDengine user name to use when connecting to the server, default is taosdata");
                     Console.WriteLine("{0:G}{1:G}", indent, "-d");
                     Console.WriteLine("{0:G}{1:G}{2:G}", indent, indent, "Database used to create table or import data, default is db");
                     Console.WriteLine("{0:G}{1:G}", indent, "-s");

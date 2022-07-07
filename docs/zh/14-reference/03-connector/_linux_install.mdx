@@ -1,0 +1,30 @@
+import PkgList from "/components/PkgList";
+
+1. 下载客户端安装包
+  
+  <PkgList type={1} sys="Linux" />
+
+   [所有下载](https://www.taosdata.com/cn/all-downloads/)
+
+2. 解压缩软件包
+
+   将软件包放置在当前用户可读写的任意目录下，然后执行下面的命令：`tar -xzvf TDengine-client-VERSION.tar.gz`
+   其中 VERSION 需要替换为实际版本的字符串。
+3. 执行安装脚本
+
+   解压软件包之后，会在解压目录下看到以下文件(目录)：
+   - _ install_client.sh_：安装脚本，用于应用驱动程序
+   - _ taos.tar.gz_：应用驱动安装包
+   - _ driver_：TDengine 应用驱动 driver
+   - _examples_: 各种编程语言的示例程序(c/C#/go/JDBC/MATLAB/python/R)
+   运行 install_client.sh 进行安装。
+4. 配置 taos.cfg
+
+   编辑 `taos.cfg` 文件（默认路径/etc/taos/taos.cfg），将 `firstEP` 修改为 TDengine 服务器的 End Point，例如：`h1.tdengine.com:6030`
+
+:::tip
+
+1. 如本机没有部署 TDengine 服务，仅安装了应用驱动，则 `taos.cfg` 中仅需配置 `firstEP`，无需在本机配置 `FQDN`。
+2. 为防止与服务器端连接时出现“Unable to resolve FQDN”错误，建议确认本机的 `/etc/hosts` 文件已经配置了服务器正确的 FQDN 值，或配置好了 DNS 服务。
+
+:::

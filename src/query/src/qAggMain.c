@@ -1856,6 +1856,17 @@ int32_t tsCompare(const void* p1, const void* p2) {
   }
 }
 
+int32_t tsCompareDesc(const void* p1, const void* p2) {
+  TSKEY k = *(TSKEY*)p1;
+  SResPair* pair = (SResPair*)p2;
+
+  if (k == pair->key) {
+    return 0;
+  } else {
+    return k > pair->key? -1:1;
+  }
+}
+
 static void stddev_dst_function(SQLFunctionCtx *pCtx) {
   SStddevdstInfo *pStd = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
@@ -1877,7 +1888,7 @@ static void stddev_dst_function(SQLFunctionCtx *pCtx) {
     SResPair* p = taosArrayGet(resList, 0);
     avg = p->avg;
   } else {  // todo opt performance by using iterator since the timestamp lsit is matched with the output result
-    SResPair* p = bsearch(&pCtx->startTs, resList->pData, len, sizeof(SResPair), tsCompare);
+    SResPair* p = bsearch(&pCtx->startTs, resList->pData, len, sizeof(SResPair), pCtx->order == TSDB_ORDER_DESC ? tsCompareDesc : tsCompare);
     if (p == NULL) {
       return;
     }

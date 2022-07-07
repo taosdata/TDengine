@@ -19,25 +19,6 @@ MESSAGE(STATUS "Project binary files output path: " ${PROJECT_BINARY_DIR})
 MESSAGE(STATUS "Project executable files output path: " ${EXECUTABLE_OUTPUT_PATH})
 MESSAGE(STATUS "Project library files output path: " ${LIBRARY_OUTPUT_PATH})
 
-find_package(Git QUIET)
-if(GIT_FOUND AND EXISTS "${TD_COMMUNITY_DIR}/.git")
-# Update submodules as needed
-    option(GIT_SUBMODULE "Check submodules during build" ON)
-    if(GIT_SUBMODULE)
-        message(STATUS "Submodule update")
-        execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
-                        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                        RESULT_VARIABLE GIT_SUBMOD_RESULT)
-        if(NOT GIT_SUBMOD_RESULT EQUAL "0")
-            message(WARNING "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}, please checkout submodules")
-        endif()
-    endif()
-endif()
-
-if(NOT EXISTS "${TD_COMMUNITY_DIR}/deps/jemalloc/Makefile.in")
-    message(WARNING "The submodules were not downloaded! GIT_SUBMODULE was turned off or failed. Please update submodules manually if you need build them.")
-endif()
-
 IF (TD_BUILD_JDBC)
     FIND_PROGRAM(TD_MVN_INSTALLED mvn)
     IF (TD_MVN_INSTALLED)
