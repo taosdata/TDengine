@@ -50,24 +50,6 @@ typedef struct SSubmitRspParam {
   SDataInserterHandle* pInserter;
 } SSubmitRspParam;
 
-static int32_t updateStatus(SDataInserterHandle* pInserter) {
-  taosThreadMutexLock(&pInserter->mutex);
-  int32_t blockNums = taosQueueItemSize(pInserter->pDataBlocks);
-  int32_t status =
-      (0 == blockNums ? DS_BUF_EMPTY
-                      : (blockNums < pInserter->pManager->cfg.maxDataBlockNumPerQuery ? DS_BUF_LOW : DS_BUF_FULL));
-  pInserter->status = status;
-  taosThreadMutexUnlock(&pInserter->mutex);
-  return status;
-}
-
-static int32_t getStatus(SDataInserterHandle* pInserter) {
-  taosThreadMutexLock(&pInserter->mutex);
-  int32_t status = pInserter->status;
-  taosThreadMutexUnlock(&pInserter->mutex);
-  return status;
-}
-
 int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SSubmitRspParam* pParam = (SSubmitRspParam*)param;
   SDataInserterHandle* pInserter = pParam->pInserter;
@@ -236,6 +218,13 @@ static void endPut(struct SDataSinkHandle* pHandle, uint64_t useconds) {
   taosThreadMutexUnlock(&pInserter->mutex);
 }
 
+static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryEnd) {
+  SDataInserterHandle* pDispatcher = (SDataInserterHandle*)pHandle;
+  *pLen = pDispatcher->submitRes.affectedRows;
+  qDebug("got total affectedRows %" PRId64 , *pLen);
+}
+
+
 static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   SDataInserterHandle* pInserter = (SDataInserterHandle*)pHandle;
   atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pInserter->cachedSize);
@@ -262,7 +251,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
   SDataDeleterNode* pInserterNode = (SQueryInserterNode *)pDataSink;
   inserter->sink.fPut = putDataBlock;
   inserter->sink.fEndPut = endPut;
-  inserter->sink.fGetLen = NULL;
+  inserter->sink.fGetLen = getDataLength;
   inserter->sink.fGetData = NULL;
   inserter->sink.fDestroy = destroyDataSinker;
   inserter->sink.fGetCacheSize = getCacheSize;

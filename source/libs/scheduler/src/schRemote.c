@@ -236,15 +236,22 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
     }    
     case TDMT_SCH_QUERY_RSP:
     case TDMT_SCH_MERGE_QUERY_RSP: {
-      SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
-
       SCH_ERR_JRET(rspCode);
       if (NULL == msg) {
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
+
+      SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
+      rsp->code = ntohl(rsp->code);
+      rsp->sversion = ntohl(rsp->sversion);
+      rsp->tversion = ntohl(rsp->tversion);
+      rsp->affectedRows = be64toh(rsp->affectedRows);
+      
       SCH_ERR_JRET(rsp->code);
 
       SCH_ERR_JRET(schSaveJobQueryRes(pJob, rsp));
+
+      atomic_add_fetch_32(&pJob->resNumOfRows, rsp->affectedRows);
 
       taosMemoryFreeClear(msg);              
       
