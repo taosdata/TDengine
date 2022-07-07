@@ -969,6 +969,8 @@ int32_t tsdbReadColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBl
     SBlockData *pBlockData1 = &(SBlockData){0};
     SBlockData *pBlockData2 = &(SBlockData){0};
 
+    tBlockDataInit(pBlockData1);
+    tBlockDataInit(pBlockData2);
     for (int32_t iSubBlock = 1; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
       code = tsdbReadSubColData(pReader, pBlockIdx, pBlock, iSubBlock, aColId, nCol, pBlockData1, ppBuf1, ppBuf2);
       if (code) goto _err;
