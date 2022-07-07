@@ -857,5 +857,4 @@ TEST(testCase, update_test) {
     taos_free_result(pRes);
   }
 }
-#endif
 #pragma GCC diagnostic pop
