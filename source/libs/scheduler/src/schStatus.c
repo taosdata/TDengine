@@ -40,7 +40,7 @@ int32_t schSwitchJobStatus(SSchJob* pJob, int32_t status, void* param) {
       SCH_RET(schProcessOnJobFailure(pJob, (param ? *(int32_t*)param : 0)));
       break;
     case JOB_TASK_STATUS_DROP:
-      SCH_ERR_JRET(schProcessOnJobDropped(pJob, *(int32_t*)param));
+      schProcessOnJobDropped(pJob, *(int32_t*)param);
       
       if (taosRemoveRef(schMgmt.jobRef, pJob->refId)) {
         SCH_JOB_ELOG("remove job from job list failed, refId:0x%" PRIx64, pJob->refId);

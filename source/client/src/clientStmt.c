@@ -848,7 +848,7 @@ int stmtIsInsert(TAOS_STMT* stmt, int* insert) {
   if (pStmt->sql.type) {
     *insert = (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type);
   } else {
-    *insert = qIsInsertValuesSql(pStmt->sql.sqlStr, 0);
+    *insert = qIsInsertValuesSql(pStmt->sql.sqlStr, pStmt->sql.sqlLen);
   }
 
   return TSDB_CODE_SUCCESS;

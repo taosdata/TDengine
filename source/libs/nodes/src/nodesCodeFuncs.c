@@ -273,6 +273,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiDispatch";
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
       return "PhysiInsert";
+    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
+      return "PhysiQueryInsert";
     case QUERY_NODE_PHYSICAL_PLAN_DELETE:
       return "PhysiDelete";
     case QUERY_NODE_PHYSICAL_SUBPLAN:
@@ -2212,6 +2214,72 @@ static int32_t physiDispatchNodeToJson(const void* pObj, SJson* pJson) { return 
 
 static int32_t jsonToPhysiDispatchNode(const SJson* pJson, void* pObj) { return jsonToPhysicDataSinkNode(pJson, pObj); }
 
+static const char* jkQueryInsertPhysiPlanInsertCols = "InsertCols";
+static const char* jkQueryInsertPhysiPlanStableId = "StableId";
+static const char* jkQueryInsertPhysiPlanTableId = "TableId";
+static const char* jkQueryInsertPhysiPlanTableType = "TableType";
+static const char* jkQueryInsertPhysiPlanTableFName = "TableFName";
+static const char* jkQueryInsertPhysiPlanVgId = "VgId";
+static const char* jkQueryInsertPhysiPlanEpSet = "EpSet";
+
+static int32_t physiQueryInsertNodeToJson(const void* pObj, SJson* pJson) {
+  const SQueryInserterNode* pNode = (const SQueryInserterNode*)pObj;
+
+  int32_t code = physicDataSinkNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkQueryInsertPhysiPlanInsertCols, pNode->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkQueryInsertPhysiPlanStableId, pNode->stableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkQueryInsertPhysiPlanTableId, pNode->tableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkQueryInsertPhysiPlanTableType, pNode->tableType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkQueryInsertPhysiPlanTableFName, pNode->tableFName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkQueryInsertPhysiPlanVgId, pNode->vgId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkQueryInsertPhysiPlanEpSet, epSetToJson, &pNode->epSet);
+  }
+
+  return code;
+}
+
+static int32_t jsonToPhysiQueryInsertNode(const SJson* pJson, void* pObj) {
+  SQueryInserterNode* pNode = (SQueryInserterNode*)pObj;
+
+  int32_t code = jsonToPhysicDataSinkNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkQueryInsertPhysiPlanInsertCols, &pNode->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetUBigIntValue(pJson, jkQueryInsertPhysiPlanStableId, &pNode->stableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetUBigIntValue(pJson, jkQueryInsertPhysiPlanTableId, &pNode->tableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkQueryInsertPhysiPlanTableType, &pNode->tableType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkQueryInsertPhysiPlanTableFName, pNode->tableFName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkQueryInsertPhysiPlanVgId, &pNode->vgId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonToObject(pJson, jkQueryInsertPhysiPlanEpSet, jsonToEpSet, &pNode->epSet);
+  }
+
+  return code;
+}
+
 static const char* jkDeletePhysiPlanTableId = "TableId";
 static const char* jkDeletePhysiPlanTableType = "TableType";
 static const char* jkDeletePhysiPlanTableFName = "TableFName";
@@ -3470,6 +3538,7 @@ static const char* jkDownstreamSourceAddr = "Addr";
 static const char* jkDownstreamSourceTaskId = "TaskId";
 static const char* jkDownstreamSourceSchedId = "SchedId";
 static const char* jkDownstreamSourceExecId = "ExecId";
+static const char* jkDownstreamSourceFetchMsgType = "FetchMsgType";
 
 static int32_t downstreamSourceNodeToJson(const void* pObj, SJson* pJson) {
   const SDownstreamSourceNode* pNode = (const SDownstreamSourceNode*)pObj;
@@ -3483,6 +3552,9 @@ static int32_t downstreamSourceNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceExecId, pNode->execId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceFetchMsgType, pNode->fetchMsgType);
   }
 
   return code;
@@ -3500,6 +3572,9 @@ static int32_t jsonToDownstreamSourceNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkDownstreamSourceExecId, &pNode->execId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkDownstreamSourceFetchMsgType, &pNode->fetchMsgType);
   }
 
   return code;
@@ -4234,6 +4309,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return physiDispatchNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
+      return physiQueryInsertNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_DELETE:
       return physiDeleteNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_SUBPLAN:
@@ -4376,6 +4453,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToPhysiInterpFuncNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return jsonToPhysiDispatchNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
+      return jsonToPhysiQueryInsertNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_DELETE:
       return jsonToPhysiDeleteNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_SUBPLAN:

@@ -123,10 +123,10 @@ class TDTestCase:
                 elif unit.lower() == '1u':
                     for i in range(len(self.ts_str)):
                         tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000)-self.subtractor*1000000)))
-                # self.check_tbtype(tb_type)
-                # tdSql.checkRows(len(self.ts_str))
-                # for i in range(len(self.ts_str)):
-                #     tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000)-self.subtractor*1000000000)))
+                self.check_tbtype(tb_type)
+                tdSql.checkRows(len(self.ts_str))
+                for i in range(len(self.ts_str)):
+                    tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i])-self.subtractor*1000000000)))
             for unit in self.error_unit:
                 if tb_type.lower() == 'ntb':
                     tdSql.error(f'select timediff(ts,{self.subtractor},{unit}) from {self.ntbname}')

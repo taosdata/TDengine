@@ -121,9 +121,10 @@ SPager *tdbEnvGetPager(TDB *pDb, const char *fname) {
 
   hash = tdbCstringHash(fname);
   ppPager = &pDb->pgrHash[hash % pDb->nPgrHash];
+  tdbTrace("tdbttl getPager1: pager:%p, index:%d, name:%s", *ppPager, hash % pDb->nPgrHash, fname);
   for (; *ppPager && (strcmp(fname, (*ppPager)->dbFileName) != 0); ppPager = &((*ppPager)->pHashNext)) {
   }
-
+  tdbTrace("tdbttl getPager2: pager:%p, index:%d, name:%s", *ppPager, hash % pDb->nPgrHash, fname);
   return *ppPager;
 }
 
@@ -143,8 +144,11 @@ void tdbEnvAddPager(TDB *pDb, SPager *pPager) {
   // add to hash
   hash = tdbCstringHash(pPager->dbFileName);
   ppPager = &pDb->pgrHash[hash % pDb->nPgrHash];
+  tdbTrace("tdbttl addPager1: pager:%p, index:%d, name:%s", *ppPager, hash % pDb->nPgrHash, pPager->dbFileName);
   pPager->pHashNext = *ppPager;
   *ppPager = pPager;
+
+  tdbTrace("tdbttl addPager2: pager:%p, index:%d, name:%s", *ppPager, hash % pDb->nPgrHash, pPager->dbFileName);
 
   // increase the counter
   pDb->nPager++;

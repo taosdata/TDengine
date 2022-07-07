@@ -258,7 +258,9 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
                                     .taskId = pTask->taskId,
                                     .schedId = schMgmt.sId,
                                     .execId = pTask->execId,
-                                    .addr = pTask->succeedAddr};
+                                    .addr = pTask->succeedAddr,
+                                    .fetchMsgType = SCH_FETCH_TYPE(pTask),
+                                    };
     qSetSubplanExecutionNode(parent->plan, pTask->plan->id.groupId, &source);
     SCH_UNLOCK(SCH_WRITE, &parent->lock);
 
@@ -818,7 +820,7 @@ int32_t schLaunchFetchTask(SSchJob *pJob) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SCH_ERR_JRET(schBuildAndSendMsg(pJob, pJob->fetchTask, &pJob->resNode, TDMT_SCH_FETCH));
+  SCH_ERR_JRET(schBuildAndSendMsg(pJob, pJob->fetchTask, &pJob->resNode, SCH_FETCH_TYPE(pJob->fetchTask)));
 
   return TSDB_CODE_SUCCESS;
 

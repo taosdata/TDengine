@@ -103,6 +103,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDropDatabaseStmt));
     case QUERY_NODE_ALTER_DATABASE_STMT:
       return makeNode(type, sizeof(SAlterDatabaseStmt));
+    case QUERY_NODE_FLUSH_DATABASE_STMT:
+      return makeNode(type, sizeof(SFlushDatabaseStmt));
     case QUERY_NODE_CREATE_TABLE_STMT:
       return makeNode(type, sizeof(SCreateTableStmt));
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
@@ -327,6 +329,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDataDispatcherNode));
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
       return makeNode(type, sizeof(SDataInserterNode));
+    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
+      return makeNode(type, sizeof(SQueryInserterNode));
     case QUERY_NODE_PHYSICAL_PLAN_DELETE:
       return makeNode(type, sizeof(SDataDeleterNode));
     case QUERY_NODE_PHYSICAL_SUBPLAN:
@@ -542,6 +546,8 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_ALTER_DATABASE_STMT:
       nodesDestroyNode((SNode*)((SAlterDatabaseStmt*)pNode)->pOptions);
+      break;
+    case QUERY_NODE_FLUSH_DATABASE_STMT:  // no pointer field
       break;
     case QUERY_NODE_CREATE_TABLE_STMT: {
       SCreateTableStmt* pStmt = (SCreateTableStmt*)pNode;
@@ -932,6 +938,11 @@ void nodesDestroyNode(SNode* pNode) {
       SDataInserterNode* pSink = (SDataInserterNode*)pNode;
       destroyDataSinkNode((SDataSinkNode*)pSink);
       taosMemoryFreeClear(pSink->pData);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
+      SQueryInserterNode* pSink = (SQueryInserterNode*)pNode;
+      destroyDataSinkNode((SDataSinkNode*)pSink);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {

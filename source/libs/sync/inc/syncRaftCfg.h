@@ -36,7 +36,8 @@ typedef struct SRaftCfg {
   TdFilePtr pFile;
   char      path[TSDB_FILENAME_LEN * 2];
   int8_t    isStandBy;
-  int8_t    snapshotEnable;
+  int32_t   batchSize;
+  int8_t    snapshotStrategy;
   SyncIndex lastConfigIndex;
 
   SyncIndex configIndexArr[MAX_CONFIG_INDEX_COUNT];
@@ -62,7 +63,8 @@ int32_t raftCfgFromStr(const char *s, SRaftCfg *pRaftCfg);
 
 typedef struct SRaftCfgMeta {
   int8_t    isStandBy;
-  int8_t    snapshotEnable;
+  int32_t   batchSize;
+  int8_t    snapshotStrategy;
   SyncIndex lastConfigIndex;
 } SRaftCfgMeta;
 

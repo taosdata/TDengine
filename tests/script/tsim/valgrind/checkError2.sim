@@ -3,8 +3,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start -v
 sql connect
 
-print =============== step1
-
+print =============== step1: create drop show dnodes
 $x = 0
 step1:
 	$x = $x + 1
@@ -19,18 +18,18 @@ if $rows != 1 then
   return -1
 endi
 
-print =============== step2
+print =============== step2: create db
+sql create database db vgroups 1
 
-print =============== stop
+_OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
+print =============== check
 print ----> start to check if there are ERRORS in vagrind log file for each dnode
-# -n : dnode[x] be check
 system_content sh/checkValgrind.sh -n dnode1 
 
-# temporarily expand the threshold, since no time to fix the memory leaks.
 print cmd return result ----> [ $system_content ]
-if $system_content <= 5 then
+if $system_content <= 10 then
   return 0
 endi 
 

@@ -673,11 +673,65 @@ class TDTestCase:
         tdSql.query("select mavg(abs(c1),1) from t1")
         tdSql.checkRows(4)
 
+    def mavg_support_stable(self):
+        tdSql.query(" select mavg(1,3) from stb1 ")
+        tdSql.checkRows(68)
+        tdSql.checkData(0,0,1.000000000)
+        tdSql.query("select mavg(c1,3) from stb1 partition by tbname ")
+        tdSql.checkRows(38)
+        # tdSql.query("select mavg(st1,3) from stb1 partition by tbname")
+        # tdSql.checkRows(38)
+        tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname")
+        tdSql.checkRows(38)
+        tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname")
+        tdSql.checkRows(38)
+        tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname")
+        tdSql.checkRows(38)
+
+        # # bug need fix 
+        # tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname slimit 1 ")
+        # tdSql.checkRows(2)
+        # tdSql.error("select mavg(st1+c1,3) from stb1 partition by tbname limit 1 ")
+
+
+        # bug need fix 
+        tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname")
+        tdSql.checkRows(38)        
+
+        # bug need fix 
+        # tdSql.query("select tbname , mavg(c1,3) from stb1 partition by tbname")
+        # tdSql.checkRows(38)
+        # tdSql.query("select tbname , mavg(st1,3) from stb1 partition by tbname")
+        # tdSql.checkRows(38)
+        # tdSql.query("select tbname , mavg(st1,3) from stb1 partition by tbname slimit 1")
+        # tdSql.checkRows(2)
+
+        # partition by tags 
+        # tdSql.query("select st1 , mavg(c1,3) from stb1 partition by st1")
+        # tdSql.checkRows(38)
+        # tdSql.query("select mavg(c1,3) from stb1 partition by st1")
+        # tdSql.checkRows(38)
+        # tdSql.query("select st1 , mavg(c1,3) from stb1 partition by st1 slimit 1")
+        # tdSql.checkRows(2)
+        # tdSql.query("select mavg(c1,3) from stb1 partition by st1 slimit 1")
+        # tdSql.checkRows(2)
+
+        # partition by col
+        # tdSql.query("select c1 , mavg(c1,3) from stb1 partition by c1")
+        # tdSql.checkRows(38)
+        # tdSql.query("select mavg(c1 ,3) from stb1 partition by c1")
+        # tdSql.checkRows(38)
+        # tdSql.query("select c1 , mavg(c1,3) from stb1 partition by st1 slimit 1")
+        # tdSql.checkRows(2)
+        # tdSql.query("select diff(c1) from stb1 partition by st1 slimit 1")
+        # tdSql.checkRows(2)
+
     def run(self):
         import traceback
         try:
             # run in  develop branch
             self.mavg_test_run()
+            self.mavg_support_stable()
             pass
         except Exception as e:
             traceback.print_exc()

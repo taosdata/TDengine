@@ -42,7 +42,7 @@ static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
 
 static inline void dmSendRedirectRsp(SRpcMsg *pMsg, const SEpSet *pNewEpSet) {
   pMsg->info.hasEpSet = 1;
-  SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info};
+  SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info, .msgType = pMsg->msgType};
   int32_t contLen = tSerializeSEpSet(NULL, 0, pNewEpSet);
 
   rsp.pCont = rpcMallocCont(contLen);
@@ -88,6 +88,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     case TDMT_MND_SYSTABLE_RETRIEVE_RSP:
     case TDMT_DND_SYSTABLE_RETRIEVE_RSP:
     case TDMT_SCH_FETCH_RSP:
+    case TDMT_SCH_MERGE_FETCH_RSP:
     case TDMT_VND_SUBMIT_RSP:
       qWorkerProcessRspMsg(NULL, NULL, pRpc, 0);
       return;
@@ -254,7 +255,7 @@ static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) {
 static bool rpcRfp(int32_t code, tmsg_t msgType) {
   if (code == TSDB_CODE_RPC_REDIRECT || code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_NODE_NOT_DEPLOYED ||
       code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_APP_NOT_READY || code == TSDB_CODE_RPC_BROKEN_LINK) {
-    if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH) {
+    if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH || msgType == TDMT_SCH_MERGE_FETCH) {
       return false;
     }
     return true;
