@@ -49,7 +49,7 @@ int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb
   }
 
   pDelFWriter->fDel.size = TSDB_FHDR_SIZE;
-  pDelFWriter->fDel.size = 0;
+  pDelFWriter->fDel.offset = 0;
 
   *ppWriter = pDelFWriter;
   return code;
