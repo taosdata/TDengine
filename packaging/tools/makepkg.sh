@@ -96,7 +96,10 @@ else
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
+wslib_files="${build_dir}/lib/libtaosws.so."
+
 header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
+wsheader_files="${code_dir}/inc/taosws.h"
 
 if [ "$dbName" != "taos" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
@@ -115,6 +118,9 @@ init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
+
+${wsheader_files} ${install_dir}/inc || :
+
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
 
 # !!! do not change the taosadapter here!!!
@@ -298,6 +304,7 @@ fi
 
 # Copy driver
 mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" >${install_dir}/driver/vercomp.txt
+cp ${wslib_files} ${install_dir}/driver || :
 
 # Copy connector
 if [ "$verMode" == "cluster" ]; then
