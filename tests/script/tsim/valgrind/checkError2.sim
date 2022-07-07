@@ -1,5 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c debugflag -v 131
 system sh/exec.sh -n dnode1 -s start -v
 sql connect
 
@@ -19,7 +20,17 @@ if $rows != 1 then
 endi
 
 print =============== step2: create db
-sql create database db vgroups 1
+sql create database d1 vgroups 1 buffer 3
+sql show databases
+sql use d1
+sql show vgroups
+
+print =============== step3: create show stable
+sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -29,7 +40,7 @@ print ----> start to check if there are ERRORS in vagrind log file for each dnod
 system_content sh/checkValgrind.sh -n dnode1 
 
 print cmd return result ----> [ $system_content ]
-if $system_content <= 60 then
+if $system_content <= 0 then
   return 0
 endi 
 

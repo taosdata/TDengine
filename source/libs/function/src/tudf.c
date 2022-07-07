@@ -75,6 +75,10 @@ static int32_t udfSpawnUdfd(SUdfdData* pData) {
   #ifdef WINDOWS
     GetModuleFileName(NULL, path, PATH_MAX);
     taosDirName(path);
+  #elif defined(_TD_DARWIN_64)
+    uint32_t pathSize = sizeof(path);
+    _NSGetExecutablePath(path, &pathSize);
+    taosDirName(path);
   #endif
   } else {
     strncpy(path, tsProcPath, strlen(tsProcPath));
