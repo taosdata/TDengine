@@ -1178,7 +1178,7 @@ int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnD
   }
 
   // check
-  if (!taosCheckChecksumWhole(NULL, size)) {
+  if (!taosCheckChecksumWhole(*ppBuf, size)) {
     code = TSDB_CODE_FILE_CORRUPTED;
     goto _err;
   }
