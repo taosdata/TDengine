@@ -109,19 +109,30 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
 }
 
 // only start once
-static void syncNodeStartSnapshot(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, SyncTerm lastApplyTerm,
-                                  SyncAppendEntriesReply* pMsg) {
+static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, SyncTerm lastApplyTerm,
+                                      SyncAppendEntriesReply* pMsg) {
   // get sender
   SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(pMsg->srcId));
   ASSERT(pSender != NULL);
 
+  if (snapshotSenderIsStart(pSender)) {
+    do {
+      char* eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender already start");
+      syncNodeErrorLog(ths, eventLog);
+      taosMemoryFree(eventLog);
+    } while (0);
+
+    return;
+  }
+
   SSnapshot snapshot = {
       .data = NULL, .lastApplyIndex = endIndex, .lastApplyTerm = lastApplyTerm, .lastConfigIndex = SYNC_INDEX_INVALID};
-
   void*          pReader = NULL;
   SSnapshotParam readerParam = {.start = beginIndex, .end = endIndex};
-  ths->pFsm->FpSnapshotStartRead(ths->pFsm, &readerParam, &pReader);
-  if (!snapshotSenderIsStart(pSender) && pMsg->privateTerm < pSender->privateTerm) {
+  int32_t        code = ths->pFsm->FpSnapshotStartRead(ths->pFsm, &readerParam, &pReader);
+  ASSERT(code == 0);
+
+  if (pMsg->privateTerm < pSender->privateTerm) {
     ASSERT(pReader != NULL);
     snapshotSenderStart(pSender, readerParam, snapshot, pReader);
 
@@ -178,7 +189,9 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
       // start snapshot <match+1, old snapshot.end>
       SSnapshot oldSnapshot;
       ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &oldSnapshot);
-      syncNodeStartSnapshot(ths, newMatchIndex + 1, oldSnapshot.lastApplyIndex, oldSnapshot.lastApplyTerm, pMsg);
+      ASSERT(oldSnapshot.lastApplyIndex >= newMatchIndex + 1);
+      syncNodeStartSnapshotOnce(ths, newMatchIndex + 1, oldSnapshot.lastApplyIndex, oldSnapshot.lastApplyTerm,
+                                pMsg);  // term maybe not ok?
 
       syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), oldSnapshot.lastApplyIndex + 1);
       syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), newMatchIndex);
@@ -187,7 +200,6 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
   } else {
     SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
 
-    // notice! int64, uint64
     if (nextIndex > SYNC_INDEX_BEGIN) {
       --nextIndex;
 
@@ -198,7 +210,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
         SSyncRaftEntry* pEntry;
         int32_t         code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, nextIndex, &pEntry);
         ASSERT(code == 0);
-        syncNodeStartSnapshot(ths, SYNC_INDEX_BEGIN, nextIndex, pEntry->term, pMsg);
+        syncNodeStartSnapshotOnce(ths, SYNC_INDEX_BEGIN, nextIndex, pEntry->term, pMsg);
 
         // get sender
         SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(pMsg->srcId));

@@ -242,9 +242,8 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void **rspMsg, SDeleteRes *pRes) {
+int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes) {
   int32_t            len = 0;
-  SVDeleteRsp        rsp = {0};
   bool               queryEnd = false;
   int32_t            code = 0;
   SOutputData        output = {0};
@@ -270,21 +269,11 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen
 
   SDeleterRes* pDelRes = (SDeleterRes*)output.pData;
   
-  rsp.affectedRows = pDelRes->affectedRows;
   pRes->suid = pDelRes->suid;
   pRes->uidList = pDelRes->uidList;
   pRes->skey = pDelRes->skey;
   pRes->ekey = pDelRes->ekey;
-
-  SEncoder coder = {0};  
-  tEncodeSize(tEncodeSVDeleteRsp, &rsp, len, code);
-  void *msg = rpcMallocCont(len);
-  tEncoderInit(&coder, msg, len);
-  tEncodeSVDeleteRsp(&coder, &rsp);
-  tEncoderClear(&coder);
-
-  *rspMsg = msg;
-  *dataLen = len;
+  pRes->affectedRows = pDelRes->affectedRows;
   
   return TSDB_CODE_SUCCESS;
 }
@@ -617,7 +606,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
         qwMsg->connInfo = ctx->dataConnInfo;
         QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_FETCH);
 
-        qwBuildAndSendFetchRsp(&qwMsg->connInfo, rsp, dataLen, code);
+        qwBuildAndSendFetchRsp(ctx->fetchType, &qwMsg->connInfo, rsp, dataLen, code);
         rsp = NULL;
         
         QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code,
@@ -639,7 +628,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       rsp = NULL;
 
       qwMsg->connInfo = ctx->dataConnInfo;
-      qwBuildAndSendFetchRsp(&qwMsg->connInfo, NULL, 0, code);
+      qwBuildAndSendFetchRsp(ctx->fetchType, &qwMsg->connInfo, NULL, 0, code);
       QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code, tstrerror(code),
                    0);
     }
@@ -671,6 +660,8 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   QW_ERR_JRET(qwHandlePrePhaseEvents(QW_FPARAMS(), QW_PHASE_PRE_FETCH, &input, NULL));
 
   QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
+
+  ctx->queryType = qwMsg->msgType;
 
   SOutputData sOutput = {0};
   QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
@@ -722,7 +713,7 @@ _return:
   }
 
   if (code || rsp) {
-    qwBuildAndSendFetchRsp(&qwMsg->connInfo, rsp, dataLen, code);
+    qwBuildAndSendFetchRsp(qwMsg->msgType + 1, &qwMsg->connInfo, rsp, dataLen, code);
     QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code, tstrerror(code),
                  dataLen);
   }
@@ -926,7 +917,7 @@ _return:
   qwRelease(refId);
 }
 
-int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SRpcMsg *pRsp, SDeleteRes *pRes) {
+int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
   int32_t        code = 0;
   SSubplan      *plan = NULL;
   qTaskInfo_t    pTaskInfo = NULL;
@@ -941,7 +932,7 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SRpcMsg *pRsp, SDeleteRes
   }
 
   ctx.plan = plan;
-
+  
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, NULL, OPTR_EXEC_MODEL_BATCH);
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));
@@ -958,7 +949,7 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SRpcMsg *pRsp, SDeleteRes
 
   QW_ERR_JRET(qwExecTask(QW_FPARAMS(), &ctx, NULL));
 
-  QW_ERR_JRET(qwGetDeleteResFromSink(QW_FPARAMS(), &ctx, &pRsp->contLen, &pRsp->pCont, pRes));
+  QW_ERR_JRET(qwGetDeleteResFromSink(QW_FPARAMS(), &ctx, pRes));
 
 _return:
 

@@ -71,9 +71,7 @@ static int idxFileCtxGetSize(IFileCtx* ctx) {
 }
 static int idxFileCtxDoFlush(IFileCtx* ctx) {
   if (ctx->type == TFile) {
-    // taosFsyncFile(ctx->file.pFile);
     taosFsyncFile(ctx->file.pFile);
-    // tfFlush(ctx->file.pFile);
   } else {
     // do nothing
   }
@@ -190,13 +188,11 @@ int idxFileRead(IdxFstFile* write, uint8_t* buf, uint32_t len) {
     return 0;
   }
   IFileCtx* ctx = write->wrt;
-  int       nRead = ctx->read(ctx, buf, len);
-  // assert(nRead == len);
-  return nRead;
+  return ctx->read(ctx, buf, len);
 }
 
 uint32_t idxFileMaskedCheckSum(IdxFstFile* write) {
-  // opt
+  //////
   return write->summer;
 }
 

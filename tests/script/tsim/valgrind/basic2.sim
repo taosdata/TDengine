@@ -20,6 +20,8 @@ endi
 
 print =============== step2: create db
 sql create database db vgroups 1
+sql use db
+sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

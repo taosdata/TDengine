@@ -21,12 +21,12 @@ const CompiledAddr EMPTY_ADDRESS = 0;
 const CompiledAddr NONE_ADDRESS = 1;
 
 // This version number is written to every finite state transducer created by
-// this crate. When a finite state transducer is read, its version number is
+// this version. When a finite state transducer is read, its version number is
 // checked against this value.
 const uint64_t VERSION = 3;
+
 // The threshold (in number of transitions) at which an index is created for
 // a node's transitions. This speeds up lookup time at the expense of FST size
-
 const uint64_t TRANS_INDEX_THRESHOLD = 32;
 
 uint8_t packSize(uint64_t n) {
@@ -52,7 +52,6 @@ uint8_t packSize(uint64_t n) {
 uint64_t unpackUint64(uint8_t* ch, uint8_t sz) {
   uint64_t n = 0;
   for (uint8_t i = 0; i < sz; i++) {
-    //
     n = n | (ch[i] << (8 * i));
   }
   return n;

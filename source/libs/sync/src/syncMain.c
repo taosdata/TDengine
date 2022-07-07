@@ -397,6 +397,38 @@ bool syncIsRestoreFinish(int64_t rid) {
   return b;
 }
 
+int32_t syncGetSnapshotByIndex(int64_t rid, SyncIndex index, SSnapshot* pSnapshot) {
+  if (index < SYNC_INDEX_BEGIN) {
+    return -1;
+  }
+
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return -1;
+  }
+  ASSERT(rid == pSyncNode->rid);
+
+  SSyncRaftEntry* pEntry = NULL;
+  int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index, &pEntry);
+  if (code != 0) {
+    if (pEntry != NULL) {
+      syncEntryDestory(pEntry);
+    }
+    taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+    return -1;
+  }
+  ASSERT(pEntry != NULL);
+
+  pSnapshot->data = NULL;
+  pSnapshot->lastApplyIndex = index;
+  pSnapshot->lastApplyTerm = pEntry->term;
+  pSnapshot->lastConfigIndex = syncNodeGetSnapshotConfigIndex(pSyncNode, index);
+
+  syncEntryDestory(pEntry);
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return 0;
+}
+
 int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
@@ -616,8 +648,6 @@ void setHeartbeatTimerMS(int64_t rid, int32_t hbTimerMS) {
 }
 
 int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
-  int32_t ret = 0;
-
   SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
     taosReleaseRef(tsNodeRefId, rid);
@@ -625,8 +655,8 @@ int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
     return -1;
   }
   ASSERT(rid == pSyncNode->rid);
-  ret = syncNodePropose(pSyncNode, pMsg, isWeak);
 
+  int32_t ret = syncNodePropose(pSyncNode, pMsg, isWeak);
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return ret;
 }
@@ -637,15 +667,14 @@ int32_t syncProposeBatch(int64_t rid, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_
     return -1;
   }
 
-  int32_t    ret = 0;
   SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
   ASSERT(rid == pSyncNode->rid);
-  ret = syncNodeProposeBatch(pSyncNode, pMsgArr, pIsWeakArr, arrSize);
 
+  int32_t ret = syncNodeProposeBatch(pSyncNode, pMsgArr, pIsWeakArr, arrSize);
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return ret;
 }
@@ -786,6 +815,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
       int32_t   code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg, &retIndex);
       if (code == 0) {
         pMsg->info.conn.applyIndex = retIndex;
+        pMsg->info.conn.applyTerm = pSyncNode->pRaftStore->currentTerm;
         rpcFreeCont(rpcMsg.pCont);
         syncRespMgrDel(pSyncNode->pSyncRespMgr, seqNum);
         ret = 1;
@@ -846,6 +876,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
     meta.isStandBy = pSyncInfo->isStandBy;
     meta.snapshotStrategy = pSyncInfo->snapshotStrategy;
     meta.lastConfigIndex = SYNC_INDEX_INVALID;
+    meta.batchSize = pSyncInfo->batchSize;
     ret = raftCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), meta, pSyncNode->configPath);
     ASSERT(ret == 0);
 
