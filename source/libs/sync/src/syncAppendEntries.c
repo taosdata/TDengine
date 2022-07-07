@@ -834,7 +834,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
   //
   // operation:
   // if hasAppendEntries && pMsg->prevLogIndex == ths->commitIndex, append entry
-  // match my-commit-index or my-commit-index + 1
+  // match my-commit-index or my-commit-index + batchSize
   do {
     bool condition = (pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) &&
                      (pMsg->prevLogIndex <= ths->commitIndex);
@@ -928,11 +928,13 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
     bool condition = condition1 || condition2;
 
     if (condition) {
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf),
-               "recv sync-append-entries-batch, not match, pre-index:%ld, pre-term:%lu, datalen:%d", pMsg->prevLogIndex,
-               pMsg->prevLogTerm, pMsg->dataLen);
-      syncNodeEventLog(ths, logBuf);
+      do {
+        char logBuf[128];
+        snprintf(logBuf, sizeof(logBuf),
+                 "recv sync-append-entries-batch, not match, pre-index:%ld, pre-term:%lu, datalen:%d",
+                 pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
+        syncNodeEventLog(ths, logBuf);
+      } while (0);
 
       // prepare response msg
       SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);

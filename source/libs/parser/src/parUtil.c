@@ -376,8 +376,6 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
 
     char* jsonKey = item->string;
     if (!isValidateTag(jsonKey)) {
-      fprintf(stdout, "%s(%d) %s %08" PRId64 "\n", __FILE__, __LINE__, __func__, taosGetSelfPthreadId());
-      fflush(stdout);
       retCode = buildSyntaxErrMsg(pMsgBuf, "json key not validate", jsonKey);
       goto end;
     }

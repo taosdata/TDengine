@@ -302,14 +302,21 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = pInfo->binfo.pRes;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
+    while(1) {
+      doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
+      doFilter(pInfo->pCondition, pRes);
 
-    size_t rows = pRes->info.rows;
-    if (rows == 0 || !hasDataInGroupInfo(&pInfo->groupResInfo)) {
-      doSetOperatorCompleted(pOperator);
+      bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
+      if (!hasRemain) {
+        doSetOperatorCompleted(pOperator);
+        break;
+      }
+
+      if (pRes->info.rows > 0) {
+        break;
+      }
     }
-
-    pOperator->resultInfo.totalRows += rows;
+    pOperator->resultInfo.totalRows += pRes->info.rows;
     return (pRes->info.rows == 0)? NULL:pRes;
   }
 

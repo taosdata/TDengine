@@ -128,10 +128,12 @@ typedef struct SVnodeModifyLogicNode {
   SVgDataBlocks*   pVgDataBlocks;
   SNode*           pAffectedRows;  // SColumnNode
   uint64_t         tableId;
+  uint64_t         stableId;
   int8_t           tableType;  // table type
   char             tableFName[TSDB_TABLE_FNAME_LEN];
   STimeWindow      deleteTimeRange;
   SVgroupsInfo*    pVgroupList;
+  SNodeList*       pInsertCols;
 } SVnodeModifyLogicNode;
 
 typedef struct SExchangeLogicNode {
@@ -351,6 +353,7 @@ typedef struct SDownstreamSourceNode {
   uint64_t       taskId;
   uint64_t       schedId;
   int32_t        execId;
+  int32_t        fetchMsgType;
 } SDownstreamSourceNode;
 
 typedef struct SExchangePhysiNode {
@@ -459,7 +462,9 @@ typedef struct SDataInserterNode {
 
 typedef struct SQueryInserterNode {
   SDataSinkNode sink;
+  SNodeList*    pCols;
   uint64_t      tableId;
+  uint64_t      stableId;
   int8_t        tableType;  // table type
   char          tableFName[TSDB_TABLE_FNAME_LEN];
   int32_t       vgId;

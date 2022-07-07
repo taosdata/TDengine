@@ -5937,3 +5937,43 @@ int32_t interpFunction(SqlFunctionCtx* pCtx) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t lastrowFunction(SqlFunctionCtx* pCtx) {
+  int32_t numOfElems = 0;
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SFirstLastRes*       pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+
+  int32_t type = pInputCol->info.type;
+  int32_t bytes = pInputCol->info.bytes;
+  pInfo->bytes = bytes;
+
+  for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
+    if (pInputCol->hasNull && colDataIsNull_s(pInputCol, i)) {
+      continue;
+    }
+
+    numOfElems++;
+
+    char* data = colDataGetData(pInputCol, i);
+    TSKEY cts = getRowPTs(pInput->pPTS, i);
+    if (pResInfo->numOfRes == 0 || *(TSKEY*)(pInfo->buf + bytes) < cts) {
+      if (IS_VAR_DATA_TYPE(type)) {
+        bytes = varDataTLen(data);
+        pInfo->bytes = bytes;
+      }
+
+      memcpy(pInfo->buf, data, bytes);
+      *(TSKEY*)(pInfo->buf + bytes) = cts;
+
+      pInfo->hasResult = true;
+      pResInfo->numOfRes = 1;
+    }
+  }
+
+  SET_VAL(pResInfo, numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
+}
