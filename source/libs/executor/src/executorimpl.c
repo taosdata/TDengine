@@ -3371,6 +3371,8 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   SResultInfo* pResultInfo = &pOperator->resultInfo;
   SSDataBlock* pResBlock = pInfo->pRes;
 
+  blockDataCleanup(pResBlock);
+
   // todo handle different group data interpolation
   bool  n = false;
   bool* newgroup = &n;
@@ -3439,16 +3441,13 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
   SFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
 
-  SResultInfo* pResultInfo = &pOperator->resultInfo;
-  SSDataBlock* pResBlock = pInfo->pRes;
-
-  blockDataCleanup(pResBlock);
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
 
+  SSDataBlock* fillResult = NULL;
   while (true) {
-    SSDataBlock* fillResult = doFillImpl(pOperator);
+    fillResult = doFillImpl(pOperator);
     if (fillResult != NULL) {
       doFilter(pInfo->pCondition, fillResult);
     }
@@ -3463,10 +3462,12 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
     }
   }
 
-  size_t rows = pResBlock->info.rows;
-  pOperator->resultInfo.totalRows += rows;
+  if (fillResult != NULL) {
+    size_t rows = fillResult->info.rows;
+    pOperator->resultInfo.totalRows += rows;
+  }
 
-  return (rows == 0)? NULL:pResBlock;
+  return fillResult;
 }
 
 static void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
