@@ -282,8 +282,9 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("message in fetch queue is processing");
-  if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG) 
-     && !vnodeIsLeader(pVnode)) {
+  if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META ||
+       pMsg->msgType == TDMT_VND_TABLE_CFG) &&
+      !vnodeIsLeader(pVnode)) {
     vnodeRedirectRpcMsg(pVnode, pMsg);
     return 0;
   }
@@ -349,7 +350,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *p
   if (tbUids == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t t = ntohl(*(int32_t *)pReq);
-  vError("rec ttl time:%d", t);
+  vDebug("rec ttl time:%d", t);
   int32_t ret = metaTtlDropTable(pVnode->pMeta, t, tbUids);
   if (ret != 0) {
     goto end;
@@ -390,10 +391,14 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *p
     goto _err;
   }
 
+  taosMemoryFree(req.schemaRow.pSchema);
+  taosMemoryFree(req.schemaTag.pSchema);
   tDecoderClear(&coder);
   return 0;
 
 _err:
+  taosMemoryFree(req.schemaRow.pSchema);
+  taosMemoryFree(req.schemaTag.pSchema);
   tDecoderClear(&coder);
   return -1;
 }
