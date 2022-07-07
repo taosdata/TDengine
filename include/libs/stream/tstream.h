@@ -223,7 +223,7 @@ typedef struct {
   SEpSet  epSet;
 } SStreamChildEpInfo;
 
-struct SStreamTask {
+typedef struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
   int8_t  isDataScan;
@@ -234,6 +234,11 @@ struct SStreamTask {
 
   int8_t taskStatus;
   int8_t execStatus;
+
+  // exec info
+  int64_t enqueueVer;
+  int64_t processedVer;
+  int64_t checkpointVer;
 
   // node info
   int32_t selfChildId;
@@ -277,7 +282,7 @@ struct SStreamTask {
 
   // msg handle
   SMsgCb* pMsgCb;
-};
+} SStreamTask;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
 int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo);
@@ -288,6 +293,7 @@ int32_t      tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeSStreamTask(SStreamTask* pTask);
 
 static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem) {
+#if 0
   while (1) {
     int8_t inputStatus =
         atomic_val_compare_exchange_8(&pTask->inputStatus, TASK_INPUT_STATUS__NORMAL, TASK_INPUT_STATUS__PROCESSING);
@@ -296,6 +302,7 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
     }
     ASSERT(0);
   }
+#endif
 
   if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit*)pItem);
@@ -316,8 +323,10 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
     atomic_val_compare_exchange_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__IN_ACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
   }
 
+#if 0
   // TODO: back pressure
   atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__NORMAL);
+#endif
   return 0;
 }
 

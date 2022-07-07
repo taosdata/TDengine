@@ -854,7 +854,7 @@ static int32_t tsdbCommitFileDataEnd(SCommitter *pCommitter) {
 
   if (pCommitter->pReader) {
     code = tsdbDataFReaderClose(&pCommitter->pReader);
-    goto _err;
+    if (code) goto _err;
   }
 
 _exit:
