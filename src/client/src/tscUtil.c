@@ -2983,6 +2983,10 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
 
       // single token, validate it
       if (len == pToken->n) {
+        if (taosIsKeyWordToken(pToken->z, (int32_t) pToken->n)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
         return validateQuoteToken(pToken, escapeEnabled, NULL);
       } else {
         sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
