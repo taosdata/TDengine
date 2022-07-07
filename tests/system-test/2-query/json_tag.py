@@ -323,12 +323,12 @@ class TDTestCase:
         # where json value is bool
         tdSql.query("select * from jsons1 where jtag->'tag1'=true")
         tdSql.checkRows(0)
-        #tdSql.query("select * from jsons1 where jtag->'tag1'=false")
-        #tdSql.checkRows(1)
+        tdSql.query("select * from jsons1 where jtag->'tag1'=false")
+        tdSql.checkRows(1)
         tdSql.query("select * from jsons1 where jtag->'tag1'!=false")
         tdSql.checkRows(0)
-        #tdSql.query("select * from jsons1 where jtag->'tag1'>false")
-        #tdSql.checkRows(0)
+        tdSql.query("select * from jsons1 where jtag->'tag1'>false")
+        tdSql.checkRows(0)
 
         # where json value is null
         tdSql.query("select * from jsons1 where jtag->'tag1'=null")
