@@ -88,7 +88,7 @@ typedef struct {
   EWalType level;  // wal level
 } SWalCfg;
 
-typedef struct SWalVer {
+typedef struct {
   int64_t firstVer;
   int64_t verInSnapshotting;
   int64_t snapshotVer;
@@ -149,17 +149,22 @@ typedef struct SWal {
   SWalCkHead writeHead;
 } SWal;  // WAL HANDLE
 
-typedef struct SWalReadHandle {
-  SWal         *pWal;
-  TdFilePtr     pReadLogTFile;
-  TdFilePtr     pReadIdxTFile;
-  int64_t       curFileFirstVer;
-  int64_t       curVersion;
-  int64_t       capacity;
-  int64_t       status;  // if cursor valid
-  TdThreadMutex mutex;
-  SWalCkHead   *pHead;
-} SWalReadHandle;
+typedef struct {
+  int8_t scanUncommited;
+  int8_t scanMeta;
+} SWalFilterCond;
+
+typedef struct {
+  SWal          *pWal;
+  TdFilePtr      pLogFile;
+  TdFilePtr      pIdxFile;
+  int64_t        curFileFirstVer;
+  int64_t        curVersion;
+  int64_t        capacity;
+  TdThreadMutex  mutex;
+  SWalFilterCond cond;
+  SWalCkHead    *pHead;
+} SWalReader;
 
 // module initialization
 int32_t walInit();
@@ -186,15 +191,16 @@ int32_t walRestoreFromSnapshot(SWal *, int64_t ver);
 // int32_t  walDataCorrupted(SWal*);
 
 // read
-SWalReadHandle *walOpenReadHandle(SWal *);
-void            walCloseReadHandle(SWalReadHandle *);
-int32_t         walReadWithHandle(SWalReadHandle *pRead, int64_t ver);
+SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond);
+void        walCloseReader(SWalReader *pRead);
+int32_t     walReadVer(SWalReader *pRead, int64_t ver);
+int32_t     walNextValidMsg(SWalReader *pRead, SWalCkHead **ppHead);
 
 // only for tq usage
-void    walSetReaderCapacity(SWalReadHandle *pRead, int32_t capacity);
-int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalCkHead *pHead);
-int32_t walFetchBody(SWalReadHandle *pRead, SWalCkHead **ppHead);
-int32_t walSkipFetchBody(SWalReadHandle *pRead, const SWalCkHead *pHead);
+void    walSetReaderCapacity(SWalReader *pRead, int32_t capacity);
+int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead);
+int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead);
+int32_t walSkipFetchBody(SWalReader *pRead, const SWalCkHead *pHead);
 
 typedef struct {
   int64_t refId;

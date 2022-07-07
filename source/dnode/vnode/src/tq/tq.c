@@ -149,7 +149,6 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
   SEncoder encoder;
   tEncoderInit(&encoder, abuf, len);
   tEncodeSMqDataRsp(&encoder, pRsp);
-  /*tEncodeSMqDataBlkRsp(&abuf, pRsp);*/
 
   SRpcMsg rsp = {
       .info = pMsg->info,
@@ -447,7 +446,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
     pHandle->execHandle.subType = req.subType;
     pHandle->fetchMeta = req.withMeta;
 
-    pHandle->pWalReader = walOpenReadHandle(pTq->pVnode->pWal);
+    pHandle->pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
     for (int32_t i = 0; i < 5; i++) {
       pHandle->execHandle.pExecReader[i] = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
     }

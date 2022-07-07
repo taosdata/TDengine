@@ -128,7 +128,7 @@ typedef struct {
   int8_t  fetchMeta;
 
   // reader
-  SWalReadHandle* pWalReader;
+  SWalReader* pWalReader;
 
   // push
   STqPushHandle pushHandle;
