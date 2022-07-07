@@ -123,6 +123,7 @@ typedef struct SQWTaskCtx {
   int8_t   taskType;
   int8_t   explain;
   int32_t  queryType;
+  int32_t  fetchType;
   int32_t  execId;
 
   bool    queryFetched;
@@ -226,8 +227,8 @@ typedef struct SQWorkerMgmt {
 #define QW_TASK_NOT_EXIST(code)     (TSDB_CODE_QRY_SCH_NOT_EXIST == (code) || TSDB_CODE_QRY_TASK_NOT_EXIST == (code))
 #define QW_TASK_ALREADY_EXIST(code) (TSDB_CODE_QRY_TASK_ALREADY_EXIST == (code))
 #define QW_TASK_READY(status)                                                                                      \
-  (status == JOB_TASK_STATUS_SUCCEED || status == JOB_TASK_STATUS_FAILED || status == JOB_TASK_STATUS_CANCELLED || \
-   status == JOB_TASK_STATUS_PARTIAL_SUCCEED)
+  (status == JOB_TASK_STATUS_SUCC || status == JOB_TASK_STATUS_FAIL || status == JOB_TASK_STATUS_CANCELLED || \
+   status == JOB_TASK_STATUS_PART_SUCC)
 #define QW_SET_QTID(id, qId, tId, eId)                              \
   do {                                                              \
     *(uint64_t *)(id) = (qId);                                      \

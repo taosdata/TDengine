@@ -1,0 +1,41 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start -v
+sql connect
+
+print =============== step1: create drop show dnodes
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ----> dnode not ready!
+		return -1
+	endi
+sql show dnodes
+print ----> $data00 $data01 $data02 $data03 $data04 $data05
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step2: create db
+sql create database db vgroups 1
+
+_OVER:
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
+print =============== check
+print ----> start to check if there are ERRORS in vagrind log file for each dnode
+system_content sh/checkValgrind.sh -n dnode1 
+
+print cmd return result ----> [ $system_content ]
+if $system_content <= 8 then
+  return 0
+endi 
+
+$null=
+if $system_content == $null then
+  return 0
+endi 
+
+return -1

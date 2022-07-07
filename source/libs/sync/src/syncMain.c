@@ -397,6 +397,38 @@ bool syncIsRestoreFinish(int64_t rid) {
   return b;
 }
 
+int32_t syncGetSnapshotByIndex(int64_t rid, SyncIndex index, SSnapshot* pSnapshot) {
+  if (index < SYNC_INDEX_BEGIN) {
+    return -1;
+  }
+
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return -1;
+  }
+  ASSERT(rid == pSyncNode->rid);
+
+  SSyncRaftEntry* pEntry = NULL;
+  int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index, &pEntry);
+  if (code != 0) {
+    if (pEntry != NULL) {
+      syncEntryDestory(pEntry);
+    }
+    taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+    return -1;
+  }
+  ASSERT(pEntry != NULL);
+
+  pSnapshot->data = NULL;
+  pSnapshot->lastApplyIndex = index;
+  pSnapshot->lastApplyTerm = pEntry->term;
+  pSnapshot->lastConfigIndex = syncNodeGetSnapshotConfigIndex(pSyncNode, index);
+
+  syncEntryDestory(pEntry);
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return 0;
+}
+
 int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
@@ -616,8 +648,6 @@ void setHeartbeatTimerMS(int64_t rid, int32_t hbTimerMS) {
 }
 
 int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
-  int32_t ret = 0;
-
   SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
     taosReleaseRef(tsNodeRefId, rid);
@@ -625,8 +655,8 @@ int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
     return -1;
   }
   ASSERT(rid == pSyncNode->rid);
-  ret = syncNodePropose(pSyncNode, pMsg, isWeak);
 
+  int32_t ret = syncNodePropose(pSyncNode, pMsg, isWeak);
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return ret;
 }
@@ -637,15 +667,14 @@ int32_t syncProposeBatch(int64_t rid, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_
     return -1;
   }
 
-  int32_t    ret = 0;
   SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
   ASSERT(rid == pSyncNode->rid);
-  ret = syncNodeProposeBatch(pSyncNode, pMsgArr, pIsWeakArr, arrSize);
 
+  int32_t ret = syncNodeProposeBatch(pSyncNode, pMsgArr, pIsWeakArr, arrSize);
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return ret;
 }
@@ -672,12 +701,12 @@ int32_t syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg* pMsgArr, bool* pIsWe
   }
 
   if (arrSize > SYNC_MAX_BATCH_SIZE) {
-    syncNodeErrorLog(pSyncNode, "sync propose match batch error");
+    syncNodeErrorLog(pSyncNode, "sync propose batch error");
     terrno = TSDB_CODE_SYN_BATCH_ERROR;
     return -1;
   }
 
-  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
     syncNodeErrorLog(pSyncNode, "sync propose not leader");
     terrno = TSDB_CODE_SYN_NOT_LEADER;
     return -1;
@@ -707,13 +736,36 @@ int32_t syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg* pMsgArr, bool* pIsWe
   syncClientRequestBatch2RpcMsg(pSyncMsg, &rpcMsg);
   taosMemoryFree(pSyncMsg);  // only free msg body, do not free rpc msg content
 
-  if (pSyncNode->FpEqMsg != NULL && (*pSyncNode->FpEqMsg)(pSyncNode->msgcb, &rpcMsg) == 0) {
-    // enqueue msg ok
+  if (pSyncNode->replicaNum == 1 && pSyncNode->vgId != 1) {
+    int32_t code = syncNodeOnClientRequestBatchCb(pSyncNode, pSyncMsg);
+    if (code == 0) {
+      // update rpc msg applyIndex
+      SRpcMsg* msgArr = syncClientRequestBatchRpcMsgArr(pSyncMsg);
+      ASSERT(arrSize == pSyncMsg->dataCount);
+      for (int i = 0; i < arrSize; ++i) {
+        pMsgArr[i].info.conn.applyIndex = msgArr[i].info.conn.applyIndex;
+        syncRespMgrDel(pSyncNode->pSyncRespMgr, raftArr[i].seqNum);
+      }
+
+      rpcFreeCont(rpcMsg.pCont);
+      terrno = 0;
+      return 1;
+
+    } else {
+      terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+      return -1;
+    }
 
   } else {
-    sError("enqueue msg error, FpEqMsg is NULL");
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    return -1;
+    if (pSyncNode->FpEqMsg != NULL && (*pSyncNode->FpEqMsg)(pSyncNode->msgcb, &rpcMsg) == 0) {
+      // enqueue msg ok
+      return 0;
+
+    } else {
+      sError("vgId:%d, enqueue msg error, FpEqMsg is NULL", pSyncNode->vgId);
+      terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+      return -1;
+    }
   }
 
   return 0;
@@ -730,7 +782,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
     if (pSyncNode->changing && pMsg->msgType != TDMT_SYNC_CONFIG_CHANGE_FINISH) {
       ret = -1;
       terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
-      sError("sync propose not ready, type:%s,%d", TMSG_INFO(pMsg->msgType), pMsg->msgType);
+      sError("vgId:%d, sync propose not ready, type:%s,%d", pSyncNode->vgId, TMSG_INFO(pMsg->msgType), pMsg->msgType);
       goto _END;
     }
 
@@ -739,7 +791,8 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
       if (!syncNodeCanChange(pSyncNode)) {
         ret = -1;
         terrno = TSDB_CODE_SYN_RECONFIG_NOT_READY;
-        sError("sync reconfig not ready, type:%s,%d", TMSG_INFO(pMsg->msgType), pMsg->msgType);
+        sError("vgId:%d, sync reconfig not ready, type:%s,%d", pSyncNode->vgId, TMSG_INFO(pMsg->msgType),
+               pMsg->msgType);
         goto _END;
       }
 
@@ -762,6 +815,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
       int32_t   code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg, &retIndex);
       if (code == 0) {
         pMsg->info.conn.applyIndex = retIndex;
+        pMsg->info.conn.applyTerm = pSyncNode->pRaftStore->currentTerm;
         rpcFreeCont(rpcMsg.pCont);
         syncRespMgrDel(pSyncNode->pSyncRespMgr, seqNum);
         ret = 1;
@@ -780,7 +834,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
       } else {
         ret = -1;
         terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-        sError("enqueue msg error, FpEqMsg is NULL");
+        sError("vgId:%d, enqueue msg error, FpEqMsg is NULL", pSyncNode->vgId);
       }
     }
 
@@ -790,7 +844,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
   } else {
     ret = -1;
     terrno = TSDB_CODE_SYN_NOT_LEADER;
-    sError("sync propose not leader, %s", syncUtilState2String(pSyncNode->state));
+    sError("vgId:%d, sync propose not leader, %s", pSyncNode->vgId, syncUtilState2String(pSyncNode->state));
     goto _END;
   }
 
@@ -820,8 +874,9 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
     // create a new raft config file
     SRaftCfgMeta meta;
     meta.isStandBy = pSyncInfo->isStandBy;
-    meta.snapshotEnable = pSyncInfo->snapshotStrategy;
+    meta.snapshotStrategy = pSyncInfo->snapshotStrategy;
     meta.lastConfigIndex = SYNC_INDEX_INVALID;
+    meta.batchSize = pSyncInfo->batchSize;
     ret = raftCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), meta, pSyncNode->configPath);
     ASSERT(ret == 0);
 
@@ -969,7 +1024,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   pSyncNode->FpOnSnapshotSend = syncNodeOnSnapshotSendCb;
   pSyncNode->FpOnSnapshotRsp = syncNodeOnSnapshotRspCb;
 
-  if (pSyncNode->pRaftCfg->snapshotEnable) {
+  if (pSyncNode->pRaftCfg->snapshotStrategy) {
     sInfo("sync node use snapshot");
     pSyncNode->FpOnRequestVote = syncNodeOnRequestVoteSnapshotCb;
     pSyncNode->FpOnRequestVoteReply = syncNodeOnRequestVoteReplySnapshotCb;
@@ -1107,7 +1162,7 @@ void syncNodeClose(SSyncNode* pSyncNode) {
 // option
 // bool syncNodeSnapshotEnable(SSyncNode* pSyncNode) { return pSyncNode->pRaftCfg->snapshotEnable; }
 
-ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode) { return pSyncNode->pRaftCfg->snapshotEnable; }
+ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode) { return pSyncNode->pRaftCfg->snapshotStrategy; }
 
 // ping --------------
 int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg) {
@@ -2489,12 +2544,24 @@ int32_t syncNodeOnClientRequestBatchCb(SSyncNode* ths, SyncClientRequestBatch* p
       ASSERT(0);
       return -1;
     }
+
+    // update rpc msg conn apply.index
+    msgArr[i].info.conn.applyIndex = pEntry->index;
   }
 
   // fsync once
   SSyncLogStoreData* pData = ths->pLogStore->data;
   SWal*              pWal = pData->pWal;
   walFsync(pWal, true);
+
+  if (ths->replicaNum > 1) {
+    // if multi replica, start replicate right now
+    syncNodeReplicate(ths);
+
+  } else if (ths->replicaNum == 1) {
+    // one replica
+    syncMaybeAdvanceCommitIndex(ths);
+  }
 
   return 0;
 }

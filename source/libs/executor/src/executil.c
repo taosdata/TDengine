@@ -63,7 +63,8 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
     rowSize += pCtx[i].resDataInfo.interBufSize;
   }
 
-  rowSize += (numOfOutput * sizeof(bool));    // expand rowSize to mark if col is null for top/bottom result(saveTupleData)
+  rowSize +=
+      (numOfOutput * sizeof(bool));  // expand rowSize to mark if col is null for top/bottom result(saveTupleData)
   return rowSize;
 }
 
@@ -114,7 +115,7 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int
     p->pos = *(SResultRowPosition*)pData;
     memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
 #ifdef BUF_PAGE_DEBUG
-    qDebug("page_groupRes, groupId:%"PRIu64",pageId:%d,offset:%d\n", p->groupId, p->pos.pageId, p->pos.offset);
+    qDebug("page_groupRes, groupId:%" PRIu64 ",pageId:%d,offset:%d\n", p->groupId, p->pos.pageId, p->pos.offset);
 #endif
     taosArrayPush(pGroupResInfo->pRows, &p);
   }
@@ -288,10 +289,13 @@ static bool isTableOk(STableKeyInfo* info, SNode* pTagCond, SMeta* metaHandle) {
   return result;
 }
 
-int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo* pListInfo) {
+int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, STableListInfo* pListInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
+
   pListInfo->pTableList = taosArrayInit(8, sizeof(STableKeyInfo));
-  if (pListInfo->pTableList == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (pListInfo->pTableList == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   uint64_t tableUid = pScanNode->uid;
 
@@ -301,14 +305,23 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
   SNode* pTagIndexCond = (SNode*)pListInfo->pTagIndexCond;
   if (pScanNode->tableType == TSDB_SUPER_TABLE) {
     if (pTagIndexCond) {
+      ///<<<<<<< HEAD
       SIndexMetaArg metaArg = {
           .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = tsdbGetIvtIdx(metaHandle), .suid = tableUid};
 
-      SArray* res = taosArrayInit(8, sizeof(uint64_t));
-      // code = doFilterTag(pTagIndexCond, &metaArg, res);
-      code = TSDB_CODE_INDEX_REBUILDING;
+      SArray*       res = taosArrayInit(8, sizeof(uint64_t));
+      SIdxFltStatus status = SFLT_NOT_INDEX;
+      code = doFilterTag(pTagIndexCond, &metaArg, res, &status);
+      if (code != 0 || status == SFLT_NOT_INDEX) {
+        code = TSDB_CODE_INDEX_REBUILDING;
+      }
+      //=======
+      //      SArray* res = taosArrayInit(8, sizeof(uint64_t));
+      //      // code = doFilterTag(pTagIndexCond, &metaArg, res);
+      //      code = TSDB_CODE_INDEX_REBUILDING;
+      //>>>>>>> dvv
       if (code == TSDB_CODE_INDEX_REBUILDING) {
-        code = tsdbGetAllTableList(metaHandle, tableUid, pListInfo->pTableList);
+        code = vnodeGetAllTableList(pVnode, tableUid, pListInfo->pTableList);
       } else if (code != TSDB_CODE_SUCCESS) {
         qError("failed  to  get tableIds, reason: %s, suid: %" PRIu64 "", tstrerror(code), tableUid);
         taosArrayDestroy(res);
@@ -324,7 +337,7 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
       }
       taosArrayDestroy(res);
     } else {
-      code = tsdbGetAllTableList(metaHandle, tableUid, pListInfo->pTableList);
+      code = vnodeGetAllTableList(pVnode, tableUid, pListInfo->pTableList);
     }
 
     if (code != TSDB_CODE_SUCCESS) {
@@ -333,13 +346,13 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
       return code;
     }
 
-    if(pTagCond){
+    if (pTagCond) {
       int32_t i = 0;
       while (i < taosArrayGetSize(pListInfo->pTableList)) {
         STableKeyInfo* info = taosArrayGet(pListInfo->pTableList, i);
-        bool isOk = isTableOk(info, pTagCond, metaHandle);
-        if(terrno) return terrno;
-        if(!isOk){
+        bool           isOk = isTableOk(info, pTagCond, metaHandle);
+        if (terrno) return terrno;
+        if (!isOk) {
           taosArrayRemove(pListInfo->pTableList, i);
           continue;
         }
@@ -350,8 +363,11 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
     STableKeyInfo info = {.lastKey = 0, .uid = tableUid, .groupId = 0};
     taosArrayPush(pListInfo->pTableList, &info);
   }
+
   pListInfo->pGroupList = taosArrayInit(4, POINTER_BYTES);
-  if (pListInfo->pGroupList == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (pListInfo->pGroupList == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   // put into list as default group, remove it if grouping sorting is required later
   taosArrayPush(pListInfo->pGroupList, &pListInfo->pTableList);
@@ -700,7 +716,7 @@ void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray
   while (i < numOfSrcCols && j < taosArrayGetSize(pColMatchInfo)) {
     SColumnInfoData* p = taosArrayGet(pCols, i);
     SColMatchInfo*   pmInfo = taosArrayGet(pColMatchInfo, j);
-    if (!outputEveryColumn && !pmInfo->output) {
+    if (!outputEveryColumn && pmInfo->reserved) {
       j++;
       continue;
     }
@@ -742,8 +758,6 @@ SColumn extractColumnFromColumnNode(SColumnNode* pColNode) {
 }
 
 int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode) {
-  pCond->loadExternalRows = false;
-
   pCond->order = pTableScanNode->scanSeq[0] > 0 ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
   pCond->numOfCols = LIST_LENGTH(pTableScanNode->scan.pScanCols);
   pCond->colList = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnInfo));
@@ -759,25 +773,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   pCond->twindows[0] = pTableScanNode->scanRange;
   pCond->suid = pTableScanNode->scan.suid;
 
-#if 1
-  // todo work around a problem, remove it later
-  for (int32_t i = 0; i < pCond->numOfTWindows; ++i) {
-    if ((pCond->order == TSDB_ORDER_ASC && pCond->twindows[i].skey > pCond->twindows[i].ekey) ||
-        (pCond->order == TSDB_ORDER_DESC && pCond->twindows[i].skey < pCond->twindows[i].ekey)) {
-      TSWAP(pCond->twindows[i].skey, pCond->twindows[i].ekey);
-    }
-  }
-#endif
-
-  for (int32_t i = 0; i < pCond->numOfTWindows; ++i) {
-    if ((pCond->order == TSDB_ORDER_ASC && pCond->twindows[i].skey > pCond->twindows[i].ekey) ||
-        (pCond->order == TSDB_ORDER_DESC && pCond->twindows[i].skey < pCond->twindows[i].ekey)) {
-      TSWAP(pCond->twindows[i].skey, pCond->twindows[i].ekey);
-    }
-  }
-  taosqsort(pCond->twindows, pCond->numOfTWindows, sizeof(STimeWindow), pCond, compareTimeWindow);
-
-  pCond->type = BLOCK_LOAD_OFFSET_SEQ_ORDER;
+  pCond->type = BLOCK_LOAD_OFFSET_ORDER;
   //  pCond->type = pTableScanNode->scanFlag;
 
   int32_t j = 0;
@@ -798,10 +794,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   return TSDB_CODE_SUCCESS;
 }
 
-void cleanupQueryTableDataCond(SQueryTableDataCond* pCond) {
-  taosMemoryFree(pCond->twindows);
-  taosMemoryFree(pCond->colList);
-}
+void cleanupQueryTableDataCond(SQueryTableDataCond* pCond) { taosMemoryFree(pCond->colList); }
 
 int32_t convertFillType(int32_t mode) {
   int32_t type = TSDB_FILL_NONE;
