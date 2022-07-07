@@ -210,7 +210,10 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
 
     bool             allColumnsHaveAgg = true;
     SColumnDataAgg** pColAgg = NULL;
-    tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->dataReader, &pColAgg, &allColumnsHaveAgg);
+    int32_t code = tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->dataReader, &pColAgg, &allColumnsHaveAgg);
+    if (code != TSDB_CODE_SUCCESS) {
+      longjmp(pTaskInfo->env, code);
+    }
 
     if (allColumnsHaveAgg == true) {
       int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
