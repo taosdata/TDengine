@@ -391,12 +391,9 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
 
+
   if (pConn->status == ConnNormal) {
-    if (0 == smsg->msg.msgType) {
-      pHead->msgType = pConn->inType + 1;
-    } else {
-      pHead->msgType = smsg->msg.msgType;
-    }
+    pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
   } else {
     if (smsg->type == Release) {
       pHead->msgType = 0;
@@ -405,11 +402,8 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
       destroyConnRegArg(pConn);
       transUnrefSrvHandle(pConn);
     } else {
-      pHead->msgType = pMsg->msgType;
       // set up resp msg type
-      if (pHead->msgType == 0 && transMsgLenFromCont(pMsg->contLen) == sizeof(STransMsgHead)) {
-        pHead->msgType = pConn->inType + 1;
-      }
+      pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
     }
   }
 
