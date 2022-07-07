@@ -316,6 +316,7 @@ struct STsdbSnapWriter {
   SDataFReader* pDataFReader;
   SArray*       aBlockIdx;
   int32_t       iBlockIdx;
+  SBlockIdx*    pBlockIdx;
   SMapData      mBlock;
   int32_t       iBlock;
   SBlockData    blockData;
@@ -432,37 +433,33 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
   }
 
   // process
-  TABLEID id = {0};  // TODO
+  TABLEID id = {0};    // TODO
+  TSKEY   minKey = 0;  // TODO
+  TSKEY   maxKey = 0;  // TODO
 
   while (true) {
-    SBlockIdx* pBlockIdx = NULL;
-
-    if (pWriter->iBlockIdx < taosArrayGetSize(pWriter->aBlockIdx)) {
-      pBlockIdx = (SBlockIdx*)taosArrayGet(pWriter->aBlockIdx, pWriter->iBlockIdx);
-    }
-
-    if (pBlockIdx) {
-      int32_t c = tTABLEIDCmprFn(&id, pBlockIdx);
+    if (pWriter->pBlockIdx == NULL) {
+      // TODO
+    } else {
+      int32_t c = tTABLEIDCmprFn(&id, pWriter->pBlockIdx);
 
       if (c == 0) {
-        // merge
       } else if (c < 0) {
-        code = tsdbSnapWriteAppendData(pWriter, pData, nData);
-        if (code) goto _err;
-
-        break;
+        // keep merge
       } else {
-        // commit the block
-        code = tsdbReadBlock(pWriter->pDataFReader, pBlockIdx, &pWriter->mBlock, NULL);
+        code = tsdbSnapWriteTableDataEnd(pWriter);
         if (code) goto _err;
 
-        SBlockIdx blockIdx = {.suid = pBlockIdx->suid, .uid = pBlockIdx->uid};
-        code = tsdbWriteBlock(pWriter->pDataFWriter, &pWriter->mBlock, NULL, &blockIdx);
-        if (code) goto _err;
+        pWriter->iBlockIdx++;
+        if (pWriter->iBlockIdx < taosArrayGetSize(pWriter->aBlockIdx)) {
+          pWriter->pBlockIdx = (SBlockIdx*)taosArrayGet(pWriter->aBlockIdx, pWriter->iBlockIdx);
+        } else {
+          pWriter->pBlockIdx = NULL;
+        }
 
-        if (taosArrayPush(pWriter->aBlockIdxN, &blockIdx) == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _err;
+        if (pWriter->pBlockIdx) {
+          code = tsdbReadBlock(pWriter->pDataFReader, pWriter->pBlockIdx, &pWriter->mBlock, NULL);
+          if (code) goto _err;
         }
       }
     }
