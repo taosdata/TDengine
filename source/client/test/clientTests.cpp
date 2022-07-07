@@ -750,7 +750,6 @@ TEST(testCase, projection_query_stables) {
   taos_close(pConn);
 }
 
-#endif
 TEST(testCase, agg_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
@@ -775,7 +774,6 @@ TEST(testCase, agg_query_tables) {
   taos_close(pConn);
 }
 
-#if 0
 /*
 --- copy the following script in the shell to setup the environment ---
 
@@ -821,6 +819,7 @@ TEST(testCase, async_api_test) {
   getchar();
   taos_close(pConn);
 }
+#endif
 
 
 TEST(testCase, update_test) {
