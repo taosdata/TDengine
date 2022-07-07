@@ -517,9 +517,9 @@ static SResultRow* doSetResultOutBufByKey(SQueryRuntimeEnv* pRuntimeEnv, SResult
         pResultRowInfo->curPos = 0;
       } else {  // check if current pResultRowInfo contains the existed pResultRow
         SET_RES_EXT_WINDOW_KEY(pRuntimeEnv->keyBuf, pData, bytes, tid, pResultRowInfo);
-        int64_t* index = taosHashGet(pRuntimeEnv->pResultRowListSet, pRuntimeEnv->keyBuf, GET_RES_EXT_WINDOW_KEY_LEN(bytes));
-        if (index != NULL) {
-          pResultRowInfo->curPos = (int32_t) *index;
+        int64_t* idx = taosHashGet(pRuntimeEnv->pResultRowListSet, pRuntimeEnv->keyBuf, GET_RES_EXT_WINDOW_KEY_LEN(bytes));
+        if (idx != NULL) {
+          pResultRowInfo->curPos = (int32_t) *idx;
           existed = true;
         } else {
           existed = false;
@@ -555,9 +555,9 @@ static SResultRow* doSetResultOutBufByKey(SQueryRuntimeEnv* pRuntimeEnv, SResult
     pResultRowInfo->curPos = pResultRowInfo->size;
     pResultRowInfo->pResult[pResultRowInfo->size++] = pResult;
 
-    int64_t index = pResultRowInfo->curPos;
+    int64_t idx = pResultRowInfo->curPos;
     SET_RES_EXT_WINDOW_KEY(pRuntimeEnv->keyBuf, pData, bytes, tid, pResultRowInfo);
-    taosHashPut(pRuntimeEnv->pResultRowListSet, pRuntimeEnv->keyBuf, GET_RES_EXT_WINDOW_KEY_LEN(bytes), &index, POINTER_BYTES);
+    taosHashPut(pRuntimeEnv->pResultRowListSet, pRuntimeEnv->keyBuf, GET_RES_EXT_WINDOW_KEY_LEN(bytes), &idx, POINTER_BYTES);
   }
 
   // too many time window in query
@@ -1280,8 +1280,8 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
     }
 
     SColIndex *      pColIndex = &pExpr[k].base.colInfo;
-    int16_t          index = pColIndex->colIndex;
-    SColumnInfoData *pColInfo = taosArrayGet(pDataBlock, index);
+    int16_t          idx = pColIndex->colIndex;
+    SColumnInfoData *pColInfo = taosArrayGet(pDataBlock, idx);
 
     assert(pColInfo->info.colId <= TSDB_RES_COL_ID || (pColInfo->info.colId >= 0 && pColInfo->info.colId == pColIndex->colId));
     double v1 = 0, v2 = 0, v = 0;
@@ -1289,7 +1289,7 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
     if (functionId == TSDB_FUNC_INTERP) {
       if (type == RESULT_ROW_START_INTERP) {
         if (prevRowIndex == -1) {
-          COPY_DATA(&pCtx[k].start.val, (char *)pRuntimeEnv->prevRow[index]);
+          COPY_DATA(&pCtx[k].start.val, (char *)pRuntimeEnv->prevRow[idx]);
         } else {
           COPY_DATA(&pCtx[k].start.val, (char *)pColInfo->pData + prevRowIndex * pColInfo->info.bytes);
         }
@@ -1298,7 +1298,7 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
 
         if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
           if (prevRowIndex == -1) {
-            pCtx[k].start.ptr = (char *)pRuntimeEnv->prevRow[index];
+            pCtx[k].start.ptr = (char *)pRuntimeEnv->prevRow[idx];
           } else {
             pCtx[k].start.ptr = (char *)pColInfo->pData + prevRowIndex * pColInfo->info.bytes;
           }
@@ -1306,7 +1306,7 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
 
       } else {
         if (curRowIndex == -1) {
-          COPY_DATA(&pCtx[k].end.val, pRuntimeEnv->prevRow[index]);
+          COPY_DATA(&pCtx[k].end.val, pRuntimeEnv->prevRow[idx]);
         } else {
           COPY_DATA(&pCtx[k].end.val, (char *)pColInfo->pData + curRowIndex * pColInfo->info.bytes);
         }
@@ -1321,7 +1321,7 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
       assert(curTs != windowKey);
 
       if (prevRowIndex == -1) {
-        GET_TYPED_DATA(v1, double, pColInfo->info.type, (char *)pRuntimeEnv->prevRow[index]);
+        GET_TYPED_DATA(v1, double, pColInfo->info.type, (char *)pRuntimeEnv->prevRow[idx]);
       } else {
         GET_TYPED_DATA(v1, double, pColInfo->info.type, (char *)pColInfo->pData + prevRowIndex * pColInfo->info.bytes);
       }
@@ -5625,15 +5625,15 @@ SArray* getOrderCheckColumns(SQueryAttr* pQuery) {
   {
     numOfCols = (int32_t) taosArrayGetSize(pOrderColumns);
     for(int32_t i = 0; i < numOfCols; ++i) {
-      SColIndex* index = taosArrayGet(pOrderColumns, i);
+      SColIndex* idx = taosArrayGet(pOrderColumns, i);
       for(int32_t j = 0; j < pQuery->numOfOutput; ++j) {
         SSqlExpr* pExpr = &pQuery->pExpr1[j].base;
         int32_t functionId = pExpr->functionId;
 
-        if (index->colId == pExpr->colInfo.colId &&
+        if (idx->colId == pExpr->colInfo.colId &&
             (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TS)) {
-          index->colIndex = j;
-          index->colId = pExpr->resColId;
+          idx->colIndex = j;
+          idx->colId = pExpr->resColId;
         }
       }
     }
@@ -5657,24 +5657,24 @@ SArray* getResultGroupCheckColumns(SQueryAttr* pQuery) {
   }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    SColIndex* index = taosArrayGet(pOrderColumns, i);
+    SColIndex* idx = taosArrayGet(pOrderColumns, i);
 
     bool found = false;
     for(int32_t j = 0; j < pQuery->numOfOutput; ++j) {
       SSqlExpr* pExpr = &pQuery->pExpr1[j].base;
 
       // TSDB_FUNC_TAG_DUMMY function needs to be ignored
-      if (index->colId == pExpr->colInfo.colId &&
+      if (idx->colId == pExpr->colInfo.colId &&
           ((TSDB_COL_IS_TAG(pExpr->colInfo.flag) && ((pExpr->functionId == TSDB_FUNC_TAG) || (pExpr->functionId == TSDB_FUNC_TAGPRJ))) ||
            (TSDB_COL_IS_NORMAL_COL(pExpr->colInfo.flag) && pExpr->functionId == TSDB_FUNC_PRJ))) {
-        index->colIndex = j;
-        index->colId = pExpr->resColId;
+        idx->colIndex = j;
+        idx->colId = pExpr->resColId;
         found = true;
         break;
       }
     }
 
-    assert(found && index->colIndex >= 0 && index->colIndex < pQuery->numOfOutput);
+    assert(found && idx->colIndex >= 0 && idx->colIndex < pQuery->numOfOutput);
   }
 
   return pOrderColumns;
@@ -5755,8 +5755,8 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
   for(int32_t i = 0; i < numOfCols; ++i) {
     pInfo->prevRow[i] = (char*)pInfo->prevRow + offset;
 
-    SColIndex* index = taosArrayGet(pInfo->orderColumnList, i);
-    offset += pExpr[index->colIndex].base.resBytes;
+    SColIndex* idx = taosArrayGet(pInfo->orderColumnList, i);
+    offset += pExpr[idx->colIndex].base.resBytes;
   }
 
   numOfCols = (pInfo->groupColumnList != NULL)? (int32_t)taosArrayGetSize(pInfo->groupColumnList):0;
@@ -5770,8 +5770,8 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
   for(int32_t i = 0; i < numOfCols; ++i) {
     pInfo->currentGroupColData[i] = (char*)pInfo->currentGroupColData + offset;
 
-    SColIndex* index = taosArrayGet(pInfo->groupColumnList, i);
-    offset += pExpr[index->colIndex].base.resBytes;
+    SColIndex* idx = taosArrayGet(pInfo->groupColumnList, i);
+    offset += pExpr[idx->colIndex].base.resBytes;
   }
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
@@ -5838,8 +5838,8 @@ SOperatorInfo *createMultiwaySortOperatorInfo(SQueryRuntimeEnv *pRuntimeEnv, SEx
     for(int32_t i = 0; i < numOfCols; ++i) {
       pInfo->prevRow[i] = (char*)pInfo->prevRow + offset;
 
-      SColIndex* index = taosArrayGet(pInfo->orderColumnList, i);
-      offset += pExpr[index->colIndex].base.colBytes;
+      SColIndex* idx = taosArrayGet(pInfo->orderColumnList, i);
+      offset += pExpr[idx->colIndex].base.colBytes;
     }
   }
 
@@ -8105,8 +8105,8 @@ SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
   for(int32_t i = 0; i < numOfCols; ++i) {
     pInfo->prevRow[i] = (char*)pInfo->prevRow + offset;
 
-    SColIndex* index = taosArrayGet(pInfo->orderColumnList, i);
-    offset += pExpr[index->colIndex].base.resBytes;
+    SColIndex* idx = taosArrayGet(pInfo->orderColumnList, i);
+    offset += pExpr[idx->colIndex].base.resBytes;
   }
 
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
@@ -9408,11 +9408,11 @@ int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t nu
       pExprs[i].base.resType = pExprs[i].pExpr->resultType;
       pExprs[i].base.interBytes = 0;
     } else {
-      int32_t index = pExprs[i].base.colInfo.colIndex;
-      assert(prevExpr[index].base.resColId == pExprs[i].base.colInfo.colId);
+      int32_t idx = pExprs[i].base.colInfo.colIndex;
+      assert(prevExpr[idx].base.resColId == pExprs[i].base.colInfo.colId);
 
-      type = prevExpr[index].base.resType;
-      bytes = prevExpr[index].base.resBytes;
+      type = prevExpr[idx].base.resType;
+      bytes = prevExpr[idx].base.resBytes;
 
       int32_t param = (int32_t)pExprs[i].base.param[0].i64;
       if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].base.resType,
@@ -9741,7 +9741,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   STimeWindow window = pQueryAttr->window;
 
-  int32_t index = 0;
+  int32_t idx = 0;
   for(int32_t i = 0; i < numOfGroups; ++i) {
     SArray* pa = taosArrayGetP(pQueryAttr->tableGroupInfo.pGroupList, i);
 
@@ -9757,7 +9757,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
       STableKeyInfo* info = taosArrayGet(pa, j);
       window.skey = info->lastKey;
 
-      void* buf = (char*) pQInfo->pBuf + index * sizeof(STableQueryInfo);
+      void* buf = (char*) pQInfo->pBuf + idx * sizeof(STableQueryInfo);
       STableQueryInfo* item = createTableQueryInfo(pQueryAttr, info->pTable, pQueryAttr->groupbyColumn, window, buf);
       if (item == NULL) {
         goto _cleanup;
@@ -9768,7 +9768,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
 
       STableId* id = TSDB_TABLEID(info->pTable);
       taosHashPut(pRuntimeEnv->tableqinfoGroupInfo.map, &id->tid, sizeof(id->tid), &item, POINTER_BYTES);
-      index += 1;
+      idx += 1;
     }
   }
 

@@ -642,7 +642,7 @@ void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool freeHandle) {
 
 //kill by qid
 int32_t qKillQueryByQId(void* pMgmt, int64_t qId, int32_t waitMs, int32_t waitCount) {
-  int32_t error = TSDB_CODE_SUCCESS;
+  int32_t err = TSDB_CODE_SUCCESS;
   void** handle = qAcquireQInfo(pMgmt, qId);
   if(handle == NULL) return terrno;
 
@@ -658,13 +658,13 @@ int32_t qKillQueryByQId(void* pMgmt, int64_t qId, int32_t waitMs, int32_t waitCo
   while (pQInfo->owner != 0) {
     taosMsleep(waitMs);
     if(loop++ > waitCount){
-      error = TSDB_CODE_FAILED;
+      err = TSDB_CODE_FAILED;
       break;
     }
   }
 
   qReleaseQInfo(pMgmt, (void **)&handle, true);
-  return error;
+  return err;
 }
 
 // local struct
