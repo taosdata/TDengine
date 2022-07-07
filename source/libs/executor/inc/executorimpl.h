@@ -348,7 +348,7 @@ typedef struct SessionWindowSupporter {
   uint8_t parentType;
 } SessionWindowSupporter;
 
-typedef struct SStreamBlockScanInfo {
+typedef struct SStreamScanInfo {
   uint64_t        tableUid;         // queried super table uid
   SExprInfo*      pPseudoExpr;
   int32_t         numOfPseudoExpr;
@@ -365,7 +365,7 @@ typedef struct SStreamBlockScanInfo {
   int32_t         blockType;        // current block type
   int32_t         validBlockIndex;  // Is current data has returned?
   uint64_t        numOfExec;        // execution times
-  void*           streamBlockReader;// stream block reader handle
+  void*           streamReader;// stream block reader handle
 
   int32_t         tsArrayIndex;
   SArray*         tsArray;
@@ -374,7 +374,7 @@ typedef struct SStreamBlockScanInfo {
 
   EStreamScanMode scanMode;
   SOperatorInfo* pStreamScanOp;
-  SOperatorInfo* pSnapshotReadOp;
+  SOperatorInfo* pTableScanOp;
   SArray*        childIds;
   SessionWindowSupporter sessionSup;
   bool            assignBlockUid; // assign block uid to groupId, temporarily used for generating rollup SMA.
@@ -383,7 +383,7 @@ typedef struct SStreamBlockScanInfo {
   SSDataBlock*    pPullDataRes;             // pull data SSDataBlock
   SSDataBlock*    pDeleteDataRes;             // delete data SSDataBlock
   int32_t         deleteDataIndex;
-} SStreamBlockScanInfo;
+} SStreamScanInfo;
 
 typedef struct SSysTableScanInfo {
   SRetrieveMetaTableRsp* pRsp;
