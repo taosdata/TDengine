@@ -33,12 +33,12 @@ typedef struct SCompareParam {
   int32_t            groupOrderType;
 } SCompareParam;
 
-static bool needToMerge(SSDataBlock* pBlock, SArray* columnIndexList, int32_t index, char **buf) {
+static bool needToMerge(SSDataBlock* pBlock, SArray* columnIndexList, int32_t idx, char **buf) {
   int32_t ret = 0;
 
   size_t  size = taosArrayGetSize(columnIndexList);
   if (size > 0) {
-    ret = compare_aRv(pBlock, columnIndexList, (int32_t) size, index, buf, TSDB_ORDER_ASC);
+    ret = compare_aRv(pBlock, columnIndexList, (int32_t) size, idx, buf, TSDB_ORDER_ASC);
   }
 
   // if ret == 0, means the result belongs to the same group
@@ -563,9 +563,9 @@ static void savePrevOrderColumns(char** prevRow, SArray* pColumnList, SSDataBloc
   int32_t size = (int32_t) taosArrayGetSize(pColumnList);
 
   for(int32_t i = 0; i < size; ++i) {
-    SColIndex* index = taosArrayGet(pColumnList, i);
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, index->colIndex);
-    assert(index->colId == pColInfo->info.colId);
+    SColIndex* idx = taosArrayGet(pColumnList, i);
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, idx->colIndex);
+    assert(idx->colId == pColInfo->info.colId);
 
     memcpy(prevRow[i], pColInfo->pData + pColInfo->info.bytes * rowIndex, pColInfo->info.bytes);
   }

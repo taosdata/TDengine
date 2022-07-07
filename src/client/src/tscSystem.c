@@ -87,24 +87,24 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
     return 0;
   }
 
-  SRpcInit rpcInit;
-  memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localPort = 0;
-  rpcInit.label = "TSC";
-  rpcInit.numOfThreads = tscNumOfThreads;    
-  rpcInit.cfp = tscProcessMsgFromServer;
-  rpcInit.sessions = tsMaxConnections;
-  rpcInit.connType = TAOS_CONN_CLIENT;
-  rpcInit.user = (char *)user;
-  rpcInit.idleTime = tsShellActivityTimer * 1000; 
-  rpcInit.ckey = "key"; 
-  rpcInit.spi = 1; 
-  rpcInit.secret = (char *)secretEncrypt;
+  SRpcInit rpcInitial;
+  memset(&rpcInitial, 0, sizeof(rpcInitial));
+  rpcInitial.localPort = 0;
+  rpcInitial.label = "TSC";
+  rpcInitial.numOfThreads = tscNumOfThreads;    
+  rpcInitial.cfp = tscProcessMsgFromServer;
+  rpcInitial.sessions = tsMaxConnections;
+  rpcInitial.connType = TAOS_CONN_CLIENT;
+  rpcInitial.user = (char *)user;
+  rpcInitial.idleTime = tsShellActivityTimer * 1000; 
+  rpcInitial.ckey = "key"; 
+  rpcInitial.spi = 1; 
+  rpcInitial.secret = (char *)secretEncrypt;
 
   SRpcObj rpcObj;
   memset(&rpcObj, 0, sizeof(rpcObj));
   tstrncpy(rpcObj.key, key, sizeof(rpcObj.key));
-  rpcObj.pDnodeConn = rpcOpen(&rpcInit);
+  rpcObj.pDnodeConn = rpcOpen(&rpcInitial);
   if (rpcObj.pDnodeConn == NULL) {
     pthread_mutex_unlock(&rpcObjMutex);
     tscError("failed to init connection to server");

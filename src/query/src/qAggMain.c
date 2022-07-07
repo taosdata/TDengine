@@ -352,7 +352,7 @@ static uint64_t hllCountCnt(uint8_t *buckets) {
 
 static uint8_t hllCountNum(void *ele, int32_t elesize, int32_t *buk) {
   uint64_t hash = MurmurHash3_64(ele,elesize);
-  int32_t index = hash & HLL_BUCKET_MASK;
+  int32_t idx = hash & HLL_BUCKET_MASK;
   hash >>= HLL_BUCKET_BITS;
   hash |= ((uint64_t)1<<HLL_DATA_BITS);
   uint64_t bit = 1;
@@ -361,7 +361,7 @@ static uint8_t hllCountNum(void *ele, int32_t elesize, int32_t *buk) {
     count++;
     bit <<= 1;
   }
-  *buk = index;
+  *buk = idx;
   return count;
 }
 
@@ -377,11 +377,11 @@ static void hll_function(SQLFunctionCtx *pCtx) {
       elesize = varDataLen(val);
       val = varDataVal(val);
     }
-    int32_t index = 0;
-    uint8_t count = hllCountNum(val,elesize,&index);
-    uint8_t oldcount = pHLLInfo->buckets[index];
+    int32_t idx = 0;
+    uint8_t count = hllCountNum(val,elesize,&idx);
+    uint8_t oldcount = pHLLInfo->buckets[idx];
     if (count > oldcount) {
-      pHLLInfo->buckets[index] = count;
+      pHLLInfo->buckets[idx] = count;
     }
   }
   GET_RES_INFO(pCtx)->numOfRes = 1;
@@ -1363,14 +1363,14 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
     }
 
     void*   tval = NULL;
-    int16_t index = 0;
+    int16_t idx = 0;
 
     if (isMin) {
       tval = &pCtx->preAggVals.statis.min;
-      index = pCtx->preAggVals.statis.minIndex;
+      idx = pCtx->preAggVals.statis.minIndex;
     } else {
       tval = &pCtx->preAggVals.statis.max;
-      index = pCtx->preAggVals.statis.maxIndex;
+      idx = pCtx->preAggVals.statis.maxIndex;
     }
 
     TSKEY key = TSKEY_INITIAL_VAL;
@@ -1381,12 +1381,12 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
        *
        * The following codes of 3 lines will be removed later.
        */
-//      if (index < 0 || index >= pCtx->size + pCtx->startOffset) {
-//        index = 0;
+//      if (idx < 0 || idx >= pCtx->size + pCtx->startOffset) {
+//        idx = 0;
 //      }
 
-      // the index is the original position, not the relative position
-      key = pCtx->ptsList[index];
+      // the idx is the original position, not the relative position
+      key = pCtx->ptsList[idx];
     }
 
     if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
@@ -2065,15 +2065,15 @@ static void first_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, notNullElems, 1);
 }
 
-static void first_data_assign_impl(SQLFunctionCtx *pCtx, char *pData, int32_t index) {
+static void first_data_assign_impl(SQLFunctionCtx *pCtx, char *pData, int32_t idx) {
   int64_t *timestamp = GET_TS_LIST(pCtx);
   
   SFirstLastInfo *pInfo = (SFirstLastInfo *)(pCtx->pOutput + pCtx->inputBytes);
   
-  if (pInfo->hasResult != DATA_SET_FLAG || timestamp[index] < pInfo->ts) {
+  if (pInfo->hasResult != DATA_SET_FLAG || timestamp[idx] < pInfo->ts) {
     memcpy(pCtx->pOutput, pData, pCtx->inputBytes);
     pInfo->hasResult = DATA_SET_FLAG;
-    pInfo->ts = timestamp[index];
+    pInfo->ts = timestamp[idx];
     
     DO_UPDATE_TAG_COLUMNS(pCtx, pInfo->ts);
   }
@@ -2203,19 +2203,19 @@ static void last_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, notNullElems, 1);
 }
 
-static void last_data_assign_impl(SQLFunctionCtx *pCtx, char *pData, int32_t index) {
+static void last_data_assign_impl(SQLFunctionCtx *pCtx, char *pData, int32_t idx) {
   int64_t *timestamp = GET_TS_LIST(pCtx);
   
   SFirstLastInfo *pInfo = (SFirstLastInfo *)(pCtx->pOutput + pCtx->inputBytes);
   
-  if (pInfo->hasResult != DATA_SET_FLAG || pInfo->ts < timestamp[index]) {
+  if (pInfo->hasResult != DATA_SET_FLAG || pInfo->ts < timestamp[idx]) {
 #if defined(_DEBUG_VIEW)
-    qDebug("assign index:%d, ts:%" PRId64 ", val:%d, ", index, timestamp[index], *(int32_t *)pData);
+    qDebug("assign index:%d, ts:%" PRId64 ", val:%d, ", idx, timestamp[idx], *(int32_t *)pData);
 #endif
     
     memcpy(pCtx->pOutput, pData, pCtx->inputBytes);
     pInfo->hasResult = DATA_SET_FLAG;
-    pInfo->ts = timestamp[index];
+    pInfo->ts = timestamp[idx];
     
     DO_UPDATE_TAG_COLUMNS(pCtx, pInfo->ts);
   }
@@ -3188,12 +3188,12 @@ static bool leastsquares_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo
   return true;
 }
 
-#define LEASTSQR_CAL(p, x, y, index, step) \
+#define LEASTSQR_CAL(p, x, y, idx, step) \
   do {                                     \
     (p)[0][0] += (double)(x) * (x);        \
     (p)[0][1] += (double)(x);              \
-    (p)[0][2] += (double)(x) * (y)[index]; \
-    (p)[1][2] += (y)[index];               \
+    (p)[0][2] += (double)(x) * (y)[idx]; \
+    (p)[1][2] += (y)[idx];               \
     (x) += step;                           \
   } while (0)
 
@@ -3831,16 +3831,16 @@ static void diff_function(SQLFunctionCtx *pCtx) {
 char *getScalarExprColumnData(void *param, const char* name, int32_t colId) {
   SScalarExprSupport *pSupport = (SScalarExprSupport *)param;
   
-  int32_t index = -1;
+  int32_t idx = -1;
   for (int32_t i = 0; i < pSupport->numOfCols; ++i) {
     if (colId == pSupport->colList[i].colId) {
-      index = i;
+      idx = i;
       break;
     }
   }
   
-  assert(index >= 0);
-  return pSupport->data[index] + pSupport->offset * pSupport->colList[index].bytes;
+  assert(idx >= 0);
+  return pSupport->data[idx] + pSupport->offset * pSupport->colList[idx].bytes;
 }
 
 static void scalar_expr_function(SQLFunctionCtx *pCtx) {
@@ -4049,14 +4049,14 @@ static double twa_get_area(SPoint1 s, SPoint1 e) {
   return val;
 }
 
-static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t size) {
+static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t idx, int32_t size) {
   int32_t notNullElems = 0;
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
 
   STwaInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   TSKEY    *tsList = GET_TS_LIST(pCtx);
 
-  int32_t i = index;
+  int32_t i = idx;
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
   SPoint1* last = &pInfo->p;
 
@@ -4067,7 +4067,7 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
     assert(last->key == INT64_MIN);
 
     last->key = tsList[i];
-    GET_TYPED_DATA(last->val, double, pCtx->inputType, GET_INPUT_DATA(pCtx, index));
+    GET_TYPED_DATA(last->val, double, pCtx->inputType, GET_INPUT_DATA(pCtx, idx));
 
     pInfo->dOutput += twa_get_area(pCtx->start, *last);
 
@@ -4077,7 +4077,7 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
     i += step;
   } else if (pInfo->p.key == INT64_MIN) {
     last->key = tsList[i];
-    GET_TYPED_DATA(last->val, double, pCtx->inputType, GET_INPUT_DATA(pCtx, index));
+    GET_TYPED_DATA(last->val, double, pCtx->inputType, GET_INPUT_DATA(pCtx, idx));
 
     pInfo->hasResult = DATA_SET_FLAG;
     pInfo->win.skey = last->key;
@@ -5016,13 +5016,13 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
 //////////////////////////////////////////////////////////////////////////////////
 // Sample function with reservoir sampling algorithm
 
-static void assignResultSample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, int32_t index, int64_t ts, void *pData, uint16_t type, int16_t bytes, char *inputTags) {
-  assignVal(pInfo->values + index*bytes, pData, bytes, type);
-  *(pInfo->timeStamps + index) = ts;
+static void assignResultSample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, int32_t idx, int64_t ts, void *pData, uint16_t type, int16_t bytes, char *inputTags) {
+  assignVal(pInfo->values + idx*bytes, pData, bytes, type);
+  *(pInfo->timeStamps + idx) = ts;
 
   SExtTagsInfo* pTagInfo = &pCtx->tagInfo;
   int32_t posTag = 0;
-  char* tags = pInfo->taglists + index*pTagInfo->tagsLen;
+  char* tags = pInfo->taglists + idx*pTagInfo->tagsLen;
   if (pCtx->currentStage == MERGE_STAGE) {
     assert(inputTags != NULL);
     memcpy(tags, inputTags, (size_t)pTagInfo->tagsLen);
