@@ -19,13 +19,17 @@ from typing import List
 from taostest import TDCase
 from taostest.performance.perfor_basic import InsertFile
 from taostest.performance.result_reduction import Perf_Base_func
+import time
+from taostest.util.remote import Remote
 
 
 class StreamComputingPerfTest(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", 
-            "avg(c7)", "count(c8)", "spread(c1)", "stddev(c2)", "hyperloglog(c9)", "now"]
+        # ! "hyperloglog(c9)" slow
+        # self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", 
+        #     "avg(c7)", "count(c8)", "spread(c1)", "stddev(c2)", "hyperloglog(c9)", "now"]
+        self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "avg(c7)", "now"]
         self.output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list)))
         self.source_select_str = ','.join(self.downsampling_function_list)
         self.stb_name = "stb"
@@ -36,7 +40,44 @@ class StreamComputingPerfTest(TDCase):
         self.stb_stream_des_table = f'{self.stb_name}{self.des_table_suffix}'
         self.ctb_stream_des_table = f'{self.ctb_name}{self.des_table_suffix}'
         self.tb_stream_des_table = f'{self.tb_name}{self.des_table_suffix}'
+        self.stream_timeout = 20
+        self.restart_timeout = 10
+        self._remote: Remote = Remote(self.logger)
+        self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
+        self.fqdn = self.taosd_setting["fqdn"][0]
+        self.firstEp = self.taosd_setting["spec"]["config"]["firstEP"]
+        print(self.taosd_setting)
+        self.data_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"]
+        self.log_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["logDir"]
+        
+    def get_batch_query_sql(self, ori_str, pos_str, str_add):
+        str_list = ori_str.split(",")
+        print(str_list)
+        for i in str_list:
+            if pos_str in i:
+                insert_index = str_list.index(i)
+        str_list.insert(insert_index, str_add)
+        return ','.join(str_list)
 
+    def clean_and_restart_taosd(self):
+        killCmd = "systemctl stop taosd"
+        startCmd = "systemctl start taosd"
+        self._remote.cmd(self.fqdn, [killCmd])
+        self._remote.cmd(self.fqdn, [f"rm -rf {self.data_dir} {self.log_dir}"])
+        self._remote.cmd(self.fqdn, [startCmd])
+        taosd_process_count = self._remote.cmd(self.fqdn, [f"ps -ef | grep taosd | grep -v grep | grep -v sudo | grep -v defunct | wc -l"])
+        if int(taosd_process_count) > 0:
+            ready_count = self._remote.cmd(self.fqdn, [f'taos -s "show dnodes" | grep {self.firstEp} | grep ready | wc -l'])
+            ready_flag = 0
+            while int(ready_count) != 1:
+                taosd_process_count = self._remote.cmd(self.fqdn, [f"ps -ef | grep taosd | grep -v grep | grep -v sudo | grep -v defunct | wc -l"])
+                if ready_flag < self.restart_timeout and int(taosd_process_count) > 0:
+                    ready_flag += 0.5
+                    time.sleep(0.5)
+                    ready_count = self._remote.cmd(self.fqdn, [f'taos -s "show dnodes" | grep {self.firstEp} | grep ready | wc -l'])
+                else:
+                    return
+                
     def desc(self):
         pass
 
@@ -59,8 +100,10 @@ class StreamComputingPerfTest(TDCase):
         jfile = InsertFile()
         Insert_file = Perf_Base_func(self.logger, self.run_log_dir)
         for cases in cfg:
+            self.clean_and_restart_taosd()
             i = 0
             for json_file in cfg[cases]:
+                self.tdSql.execute(f'create database if not exists perf_db2 vgroups {cfg[cases][json_file]["db_info"]["vgroups"]}')
                 # if "stream_info" in cfg[cases][json_file]:
                 #     trigger_mode=cfg[cases][json_file]["stream_info"]["trigger_mode"]
                 #     interval=cfg[cases][json_file]["stream_info"]["interval"]
@@ -98,7 +141,8 @@ class StreamComputingPerfTest(TDCase):
                                      comp=cfg[cases][json_file]["db_info"]["comp"],
                                      walLevel=cfg[cases][json_file]["db_info"]["walLevel"],
                                      fsync=cfg[cases][json_file]["db_info"]["fsync"],
-                                     update=cfg[cases][json_file]["db_info"]["update"]
+                                     update=cfg[cases][json_file]["db_info"]["update"],
+                                     vgroups=cfg[cases][json_file]["db_info"]["vgroups"]
                                      )
                 stb = jfile.setStbinfo(name=cfg[cases][json_file]["stb_info"]["stb_name"],
                                        childtable_prefix=cfg[cases][json_file]["stb_info"]["childtable_prefix"] + str(
@@ -111,18 +155,25 @@ class StreamComputingPerfTest(TDCase):
                                        insert_mode=cfg[cases][json_file]["stb_info"]["insert_mode"],
                                        line_protocol=cfg[cases][json_file]["stb_info"]["line_protocol"],
                                        batch_create_tbl_num=cfg[cases][json_file]["stb_info"]["batch_create_tbl_num"])
-                stream = jfile.setStreaminfo(stream_name=cfg[cases][json_file]["stream_info"]["stream_name"],
-                                            stream_stb=cfg[cases][json_file]["stream_info"]["stream_stb"],
-                                            trigger_mode=cfg[cases][json_file]["stream_info"]["trigger_mode"],
-                                            watermark=cfg[cases][json_file]["stream_info"]["watermark"],
-                                            source_sql=cfg[cases][json_file]["stream_info"]["source_sql"],
-                                            drop=cfg[cases][json_file]["stream_info"]["drop"])
-                database1 = jfile.setDatabases(dbinfo=db, streams=[stream], super_tables=[stb])
+                if "stream_info" in cfg[cases][json_file]:
+                    if "watermark" in cfg[cases][json_file]["stream_info"]:
+                        watermark = cfg[cases][json_file]["stream_info"]["watermark"]
+                    else:
+                        watermark = None
+                    stream = jfile.setStreaminfo(stream_name=cfg[cases][json_file]["stream_info"]["stream_name"],
+                                                stream_stb=cfg[cases][json_file]["stream_info"]["stream_stb"],
+                                                trigger_mode=cfg[cases][json_file]["stream_info"]["trigger_mode"],
+                                                watermark=watermark,
+                                                source_sql=cfg[cases][json_file]["stream_info"]["source_sql"],
+                                                drop=cfg[cases][json_file]["stream_info"]["drop"])
+                    database1 = jfile.setDatabases(dbinfo=db, streams=[stream], super_tables=[stb])
+                else:
+                    database1 = jfile.setDatabases(dbinfo=db, streams=None, super_tables=[stb])
                 json_info = jfile.setJsoninfo(host=cfg[cases][json_file]["json_info"]["host"], databases=[database1],
-                                              thread_count=cfg[cases][json_file]["json_info"]["thread_count"],
-                                              result_file=cfg[cases][json_file]["json_info"]["result_file"],
-                                              num_of_records_per_req=cfg[cases][json_file]["json_info"][
-                                                  "num_of_records_per_req"])
+                                            thread_count=cfg[cases][json_file]["json_info"]["thread_count"],
+                                            result_file=cfg[cases][json_file]["json_info"]["result_file"],
+                                            num_of_records_per_req=cfg[cases][json_file]["json_info"][
+                                                "num_of_records_per_req"])
                 json_info.update({"test_log": "/root/testlog/"})
                 json_data.append({})
                 json_data[i] = json_info
@@ -168,15 +219,41 @@ class StreamComputingPerfTest(TDCase):
             env_setting = self.get_component_by_name("prometheus")
             Insert_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
             Insert_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
-            f = open(result_file_name, 'a')
-            f.write(f'--------{cases}---- \select max(cast(c10 as bigint))  from {db["name"]}.stb;\t--------\n')
-            self.tdSql.query(f'select max(cast(c10 as bigint))  from {db["name"]}.stb;')
-            f.write(str(self.tdSql.query_data[0][0]))
-            f.write(f'\n\n')
+            self.tdSql.execute(f'use {db["name"]}')
+            if "stream_info" in cfg[cases][json_file]:
+                query_sql = f'select max(cast(`now` as bigint)) from {cfg[cases][json_file]["stream_info"]["stream_stb"]};'
+                f = open(result_file_name, 'a')
+                source_stb_query_sql = f'select max(cast(c10 as bigint))  from {db["name"]}.stb;'
+                batch_query_sql = self.get_batch_query_sql(cfg[cases][json_file]["stream_info"]["source_sql"], "now", " max(cast(c10 as bigint)) a")
+                source_stb_query_sql = f'select max(a) from ({batch_query_sql});'
 
-            f.write(f'--------{cases}---- \select cast(last(`now`) as bigint) from {db["name"]}.{cases}{self.des_table_suffix}_streamtb;\t--------\n')
-            self.tdSql.query(f'select cast(last(`now`) as bigint) from {db["name"]}.{cases}{self.des_table_suffix}_streamtb;')
-            f.write(str(self.tdSql.query_data[0][0]))
-            f.write(f'\n\n')
-            f.close()
+                f.write(f'--------{cases}---- {source_stb_query_sql}\t--------\n')
+                self.tdSql.query(source_stb_query_sql)
+                f.write(str(self.tdSql.query_data[0][0]))
+                f.write(f'\n\n')
+
+                self.tdSql.query(query_sql)
+                init_res = self.tdSql.query_data[0][0]
+                time.sleep(1)
+                self.tdSql.query(query_sql)
+                expected_res = self.tdSql.query_data[0][0]
+                end_tag = 0
+                while init_res != expected_res:
+                    self.tdSql.query(query_sql)
+                    init_res = self.tdSql.query_data[0][0]
+                    time.sleep(1)
+                    self.tdSql.query(fquery_sql)
+                    expected_res = self.tdSql.query_data[0][0]
+                    if latency < self.stream_timeout:
+                        latency += 1
+                        time.sleep(1)
+                    else:
+                        return False
+
+                f.write(f'--------{cases}---- {query_sql} \t--------\n')
+                self.tdSql.query(query_sql)
+                f.write(str(self.tdSql.query_data[0][0]))
+                f.write(f'\n\n')
+                f.close()
+            print(result_file_name)
             
