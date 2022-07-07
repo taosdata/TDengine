@@ -879,7 +879,7 @@ int32_t schProcessOnCbBegin(SSchJob** job, SSchTask** task, uint64_t qId, int64_
   }
   
   if (schJobNeedToStop(pJob, &status)) {
-    SCH_TASK_ELOG("will not do further processing cause of job status %s", jobTaskStatusStr(status));
+    SCH_TASK_DLOG("will not do further processing cause of job status %s", jobTaskStatusStr(status));
     SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
   }
 
