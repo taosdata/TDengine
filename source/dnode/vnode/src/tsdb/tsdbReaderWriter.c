@@ -1152,7 +1152,7 @@ _err:
 int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnDataAgg, uint8_t **ppBuf) {
   int32_t   code = 0;
   TdFilePtr pFD = pReader->pSmaFD;
-  int64_t   offset = pBlock->aSubBlock[0].offset;
+  int64_t   offset = pBlock->aSubBlock[0].sOffset;
   int64_t   size = pBlock->aSubBlock[0].nSma * sizeof(SColumnDataAgg) + sizeof(TSCKSUM);
   uint8_t  *pBuf = NULL;
   int64_t   n;
@@ -1174,6 +1174,9 @@ int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnD
   n = taosReadFile(pFD, *ppBuf, size);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  } else if (n < size) {
+    code = TSDB_CODE_FILE_CORRUPTED;
     goto _err;
   }
 
