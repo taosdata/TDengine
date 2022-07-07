@@ -308,9 +308,11 @@ struct STsdbSnapWriter {
   STsdb*  pTsdb;
   int64_t sver;
   int64_t ever;
+
   // config
   int32_t minutes;
   int8_t  precision;
+
   // for data file
   int32_t       fid;
   SDataFReader* pDataFReader;
@@ -321,10 +323,14 @@ struct STsdbSnapWriter {
   int32_t       iBlock;
   SBlockData    blockData;
   int32_t       iRow;
+
   SDataFWriter* pDataFWriter;
   SArray*       aBlockIdxN;
+  SBlockIdx     blockIdx;
   SMapData      mBlockN;
+  SBlock        block;
   SBlockData    nBlockData;
+
   // for del file
   SDelFReader* pDelFReader;
   SDelFWriter* pDelFWriter;
@@ -408,9 +414,11 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
     SDFileSet* pSet = tsdbFSStateGetDFileSet(pTsdb->fs->nState, fid);
     // reader
     if (pSet) {
+      // open
       code = tsdbDataFReaderOpen(&pWriter->pDataFReader, pTsdb, pSet);
       if (code) goto _err;
 
+      // SBlockIdx
       code = tsdbReadBlockIdx(pWriter->pDataFReader, pWriter->aBlockIdx, NULL);
       if (code) goto _err;
     } else {
@@ -438,16 +446,14 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
   TSKEY   maxKey = 0;  // TODO
 
   while (true) {
-    if (pWriter->pBlockIdx == NULL) {
-      // TODO
-    } else {
+    if (pWriter->pBlockIdx) {
       int32_t c = tTABLEIDCmprFn(&id, pWriter->pBlockIdx);
 
       if (c == 0) {
       } else if (c < 0) {
         // keep merge
       } else {
-        code = tsdbSnapWriteTableDataEnd(pWriter);
+        // code = tsdbSnapWriteTableDataEnd(pWriter);
         if (code) goto _err;
 
         pWriter->iBlockIdx++;
@@ -461,6 +467,17 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
           code = tsdbReadBlock(pWriter->pDataFReader, pWriter->pBlockIdx, &pWriter->mBlock, NULL);
           if (code) goto _err;
         }
+      }
+    } else {
+      int32_t c = tTABLEIDCmprFn(&id, &pWriter->blockIdx);
+
+      if (c == 0) {
+        // merge commit the block data
+      } else if (c > 0) {
+        // code = tsdbSnapWriteTableDataEnd(pWriter);
+        if (code) goto _err;
+      } else {
+        ASSERT(0);
       }
     }
   }
