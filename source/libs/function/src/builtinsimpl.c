@@ -5547,30 +5547,18 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     }
   }
 
-  int32_t delta = maxVal - minVal;
-  int32_t step = delta / 50;
-  if (step == 0) {
-    step = 1;
-  }
+  // maximum number of step is 80
+  double factor = pData->numOfBlocks / 80.0;
 
   int32_t numOfBuckets = sizeof(pData->blockRowsHisto) / sizeof(pData->blockRowsHisto[0]);
-  int32_t bucketRange = (pData->maxRows - pData->minRows) / numOfBuckets;
-
-  bool singleModel = false;
-  if (bucketRange == 0) {
-    singleModel = true;
-    step = 20;
-    bucketRange = (pData->defMaxRows - pData->defMinRows) / numOfBuckets;
-  }
+  int32_t bucketRange = (pData->defMaxRows - pData->defMinRows) / numOfBuckets;
 
   for (int32_t i = 0; i < tListLen(pData->blockRowsHisto); ++i) {
-    len = sprintf(st + VARSTR_HEADER_SIZE, "%04d |", pData->defMinRows + bucketRange * (i + 1));
+    len = sprintf(st + VARSTR_HEADER_SIZE, "%04d |", pData->defMinRows + bucketRange * i);
 
     int32_t num = 0;
-    if (singleModel && pData->blockRowsHisto[i] > 0) {
-      num = 20;
-    } else {
-      num = (pData->blockRowsHisto[i] + step - 1) / step;
+    if (pData->blockRowsHisto[i] > 0) {
+      num = (pData->blockRowsHisto[i]) / factor;
     }
 
     for (int32_t j = 0; j < num; ++j) {
@@ -5578,9 +5566,10 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       len += x;
     }
 
-    double v = pData->blockRowsHisto[i] * 100.0 / pData->numOfBlocks;
-    len += sprintf(st + VARSTR_HEADER_SIZE + len, "  %d (%.2f%c)", pData->blockRowsHisto[i], v, '%');
-    printf("%s\n", st);
+    if (num > 0) {
+      double v = pData->blockRowsHisto[i] * 100.0 / pData->numOfBlocks;
+      len += sprintf(st + VARSTR_HEADER_SIZE + len, "  %d (%.2f%c)", pData->blockRowsHisto[i], v, '%');
+    }
 
     varDataSetLen(st, len);
     colDataAppend(pColInfo, row++, st, false);

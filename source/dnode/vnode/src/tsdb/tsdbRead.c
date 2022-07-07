@@ -55,7 +55,7 @@ typedef struct SIOCostSummary {
 } SIOCostSummary;
 
 typedef struct SBlockLoadSuppInfo {
-  SColumnDataAgg*  pstatis;
+  SColumnDataAgg   tsColAgg;
   SColumnDataAgg** plist;
   int16_t*         colIds;    // column ids for loading file block data
   int32_t*         slotIds;   // colId to slotId
@@ -364,12 +364,13 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
 
   // allocate buffer in order to load data blocks from file
   SBlockLoadSuppInfo* pSup = &pReader->suppInfo;
-  pSup->pstatis = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnDataAgg));
   pSup->plist = taosMemoryCalloc(pCond->numOfCols, POINTER_BYTES);
-  if (pSup->pstatis == NULL || pSup->plist == NULL) {
+  if (pSup->plist == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _end;
   }
+
+  pSup->tsColAgg.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
 
   pReader->pResBlock = createResBlock(pCond, pReader->capacity);
   if (pReader->pResBlock == NULL) {
@@ -2647,8 +2648,6 @@ void tsdbReaderClose(STsdbReader* pReader) {
   }
 
   blockDataDestroy(pReader->pResBlock);
-
-  taosMemoryFreeClear(pReader->suppInfo.pstatis);
   taosMemoryFreeClear(pReader->suppInfo.plist);
   taosMemoryFree(pReader->suppInfo.slotIds);
 
@@ -2744,56 +2743,48 @@ int32_t tsdbRetrieveDataBlockStatisInfo(STsdbReader* pReader, SColumnDataAgg*** 
 
   int64_t stime = taosGetTimestampUs();
 
+  SArray* pColAgg = taosArrayInit(4, sizeof(SColumnDataAgg));
   if (tBlockHasSma(pBlock)) {
-    SArray* pColAgg = taosArrayInit(4, sizeof(SColumnDataAgg));
     code = tsdbReadBlockSma(pReader->pFileReader, pBlock, pColAgg, NULL);
     if (code != TSDB_CODE_SUCCESS) {
       tsdbDebug("vgId:%d, failed to load block SMA for uid %" PRIu64", code:%s, %s", 0, pFBlock->uid,
                 tstrerror(code), pReader->idStr);
       return code;
     }
+  } else {
+    *pBlockStatis = NULL;
+    return TSDB_CODE_SUCCESS;
   }
 
-  int64_t el = taosGetTimestampUs() - stime;
-  tsdbDebug("vgId:%d, succeed to load block SMA for uid %" PRIu64", elapsed time:%"PRId64"us, %s", 0, pFBlock->uid,
-      el, pReader->idStr);
-
-  // int16_t* colIds = pReader->suppInfo.defaultLoadColumn->pData;
-
-  // size_t numOfCols = QH_GET_NUM_OF_COLS(pReader);
-  // memset(pReader->suppInfo.plist, 0, numOfCols * POINTER_BYTES);
-  // memset(pReader->suppInfo.pstatis, 0, numOfCols * sizeof(SColumnDataAgg));
-
-  // for (int32_t i = 0; i < numOfCols; ++i) {
-  //   pReader->suppInfo.pstatis[i].colId = colIds[i];
-  // }
-
-  // *allHave = true;
-  // tsdbGetBlockStatis(&pReader->rhelper, pReader->suppInfo.pstatis, (int)numOfCols, pBlockInfo->compBlock);
+   *allHave = true;
 
    // always load the first primary timestamp column data
-   SColumnDataAgg* pTsAgg = &pReader->suppInfo.pstatis[0];
-   assert(pTsAgg->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
+   SColumnDataAgg* pTsAgg = &pReader->suppInfo.tsColAgg;
 
-   pTsAgg->numOfNull = 0;
+  pTsAgg->numOfNull = 0;
+  pTsAgg->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
    pTsAgg->min = pReader->pResBlock->info.window.skey;
    pTsAgg->max = pReader->pResBlock->info.window.ekey;
-   pReader->suppInfo.plist[0] = &pReader->suppInfo.pstatis[0];
+   pReader->suppInfo.plist[0] = pTsAgg;
 
    // update the number of NULL data rows
    size_t numOfCols = blockDataGetNumOfCols(pReader->pResBlock);
-   int32_t* slotIds = pReader->suppInfo.slotIds;
 
-   for (int32_t i = 1; i < numOfCols; ++i) {
-//     ASSERT(colIds[i] == pReader->pSchema->columns[slotIds[i]].colId);
-     if (IS_BSMA_ON(&(pReader->pSchema->columns[slotIds[i]]))) {
-       if (pReader->suppInfo.pstatis[i].numOfNull == -1) {  // set the column data are all NULL
-//         pReader->suppInfo.pstatis[i].numOfNull = pBlockInfo->compBlock->numOfRows;
+   int32_t i = 0, j = 0;
+   while(j < numOfCols && i < taosArrayGetSize(pColAgg)) {
+     SColumnDataAgg* pAgg = taosArrayGet(pColAgg, i);
+     if (pAgg->colId == pReader->suppInfo.colIds[j]) {
+       if (IS_BSMA_ON(&(pReader->pSchema->columns[i]))) {
+         pReader->suppInfo.plist[j] = pAgg;
+         i += 1;
+         j += 1;
+       } else {
+         *allHave = false;
        }
-
-       pReader->suppInfo.plist[i] = &pReader->suppInfo.pstatis[i];
-     } else {
-       *allHave = false;
+     } else if (pAgg->colId < pReader->suppInfo.colIds[j]) {
+       i += 1;
+     } else if (pReader->suppInfo.colIds[j] < pAgg->colId) {
+       j += 1;
      }
    }
 
@@ -2801,6 +2792,10 @@ int32_t tsdbRetrieveDataBlockStatisInfo(STsdbReader* pReader, SColumnDataAgg*** 
    pReader->cost.smaLoadTime += elapsed;
 
    *pBlockStatis = pReader->suppInfo.plist;
+
+  tsdbDebug("vgId:%d, succeed to load block SMA for uid %" PRIu64", elapsed time:%"PRId64"us, %s", 0, pFBlock->uid,
+            elapsed, pReader->idStr);
+
   return code;
 }
 
@@ -2843,7 +2838,7 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond, int32_
   pReader->window = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows[tWinIdx]);
 
   // allocate buffer in order to load data blocks from file
-  memset(pReader->suppInfo.pstatis, 0, sizeof(SColumnDataAgg));
+  memset(&pReader->suppInfo.tsColAgg, 0, sizeof(SColumnDataAgg));
   memset(pReader->suppInfo.plist, 0, POINTER_BYTES);
 
   // todo set the correct numOfTables
@@ -2899,9 +2894,9 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
   pTableBlockInfo->numOfBlocks += pBlockIter->numOfBlocks;
 
   pTableBlockInfo->numOfTables = numOfTables;
+  bool hasNext = true;
 
   while (true) {
-    bool hasNext = blockIteratorNext(&pStatus->blockIter);
     if (hasNext) {
       SFileDataBlockInfo*  pFBlock = getCurrentBlockInfo(pBlockIter);
       STableBlockScanInfo* pScanInfo = taosHashGet(pStatus->pTableMap, &pFBlock->uid, sizeof(pFBlock->uid));
@@ -2924,6 +2919,9 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
 
       int32_t bucketIndex = getBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows);
       pTableBlockInfo->blockRowsHisto[bucketIndex]++;
+
+      hasNext = blockIteratorNext(&pStatus->blockIter);
+
     } else {
       code = initForFirstBlockInFile(pReader, pBlockIter);
       if ((code != TSDB_CODE_SUCCESS) || (pReader->status.loadFromFile == false)) {
@@ -2932,6 +2930,11 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
 
       pTableBlockInfo->numOfBlocks += pBlockIter->numOfBlocks;
     }
+
+/*
+    hasNext = blockIteratorNext(&pStatus->blockIter);
+*/
+
 
 //         tsdbDebug("%p %d blocks found in file for %d table(s), fid:%d, %s", pReader, numOfBlocks, numOfTables,
 //                   pReader->pFileGroup->fid, pReader->idStr);

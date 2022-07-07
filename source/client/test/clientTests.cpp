@@ -750,7 +750,7 @@ TEST(testCase, projection_query_stables) {
   taos_close(pConn);
 }
 
-
+#endif
 TEST(testCase, agg_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
@@ -763,7 +763,7 @@ TEST(testCase, agg_query_tables) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "show table distributed st1");
+  pRes = taos_query(pConn, "show table distributed tup");
   if (taos_errno(pRes) != 0) {
     printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
@@ -775,6 +775,7 @@ TEST(testCase, agg_query_tables) {
   taos_close(pConn);
 }
 
+#if 0
 /*
 --- copy the following script in the shell to setup the environment ---
 
@@ -820,7 +821,7 @@ TEST(testCase, async_api_test) {
   getchar();
   taos_close(pConn);
 }
-#endif
+
 
 TEST(testCase, update_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -857,5 +858,5 @@ TEST(testCase, update_test) {
     taos_free_result(pRes);
   }
 }
-
+#endif
 #pragma GCC diagnostic pop
