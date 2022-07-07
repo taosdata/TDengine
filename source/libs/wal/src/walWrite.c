@@ -84,6 +84,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   char    fnameStr[WAL_FILE_LEN];
   if (ver > pWal->vers.lastVer || ver < pWal->vers.commitVer) {
     terrno = TSDB_CODE_WAL_INVALID_VER;
+    taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
 
@@ -92,6 +93,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     // change current files
     code = walChangeWrite(pWal, ver);
     if (code < 0) {
+      taosThreadMutexUnlock(&pWal->mutex);
       return -1;
     }
 
@@ -146,6 +148,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   ASSERT(taosValidFile(pLogTFile));
   int64_t size = taosReadFile(pLogTFile, &head, sizeof(SWalCkHead));
   if (size != sizeof(SWalCkHead)) {
+    taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
   code = walValidHeadCksum(&head);
@@ -154,11 +157,13 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   if (code != 0) {
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     ASSERT(0);
+    taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
   if (head.head.version != ver) {
     ASSERT(0);
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
 
@@ -167,12 +172,14 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   if (code < 0) {
     ASSERT(0);
     terrno = TAOS_SYSTEM_ERROR(errno);
+    taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
   code = taosFtruncateFile(pIdxTFile, idxOff);
   if (code < 0) {
     ASSERT(0);
     terrno = TAOS_SYSTEM_ERROR(errno);
+    taosThreadMutexUnlock(&pWal->mutex);
     return -1;
   }
   pWal->vers.lastVer = ver - 1;
