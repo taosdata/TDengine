@@ -77,14 +77,14 @@ int32_t tqMetaOpen(STQ* pTq) {
     STqHandle handle;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     tDecodeSTqHandle(&decoder, &handle);
-    handle.pWalReader = walOpenReadHandle(pTq->pVnode->pWal);
+    handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
     for (int32_t i = 0; i < 5; i++) {
       handle.execHandle.pExecReader[i] = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
     }
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       for (int32_t i = 0; i < 5; i++) {
         SReadHandle reader = {
-            .reader = handle.execHandle.pExecReader[i],
+            .streamReader = handle.execHandle.pExecReader[i],
             .meta = pTq->pVnode->pMeta,
             .pMsgCb = &pTq->pVnode->msgCb,
             .vnode = pTq->pVnode,
