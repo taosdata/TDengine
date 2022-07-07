@@ -309,8 +309,10 @@ static int32_t getTableDelIdx(SDelFReader *pDelFReader, tb_uid_t suid, tb_uid_t 
   if (code) goto _err;
 
   // code = tMapDataSearch(&delIdxMap, &idx, tGetDelIdx, tCmprDelIdx, pDelIdx);
-  pDelIdx = taosArraySearch(pDelIdxArray, &idx, tCmprDelIdx, TD_EQ);
+  SDelIdx *pIdx = taosArraySearch(pDelIdxArray, &idx, tCmprDelIdx, TD_EQ);
   if (code) goto _err;
+
+  *pDelIdx = *pIdx;
 
   if (pDelIdxArray) {
     taosArrayDestroy(pDelIdxArray);
