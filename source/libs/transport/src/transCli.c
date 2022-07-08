@@ -573,7 +573,7 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
   if (nread < 0) {
-    tWarn("%s conn %p read error: %s, ref: %d", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread),
+    tWarn("%s conn %p read error:%s, ref:%d", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread),
           T_REF_VAL_GET(conn));
     conn->broken = true;
     cliHandleExcept(conn);
@@ -655,7 +655,7 @@ static void cliSendCb(uv_write_t* req, int status) {
   if (status == 0) {
     tTrace("%s conn %p data already was written out", CONN_GET_INST_LABEL(pConn), pConn);
   } else {
-    tError("%s conn %p failed to write: %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(status));
+    tError("%s conn %p failed to write:%s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(status));
     cliHandleExcept(pConn);
     return;
   }
@@ -719,7 +719,7 @@ void cliConnCb(uv_connect_t* req, int status) {
   // impl later
   SCliConn* pConn = req->data;
   if (status != 0) {
-    tError("%s conn %p failed to connect server: %s", CONN_GET_INST_LABEL(pConn), pConn, uv_strerror(status));
+    tError("%s conn %p failed to connect server:%s", CONN_GET_INST_LABEL(pConn), pConn, uv_strerror(status));
     cliHandleExcept(pConn);
     return;
   }
@@ -852,7 +852,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     tTrace("%s conn %p try to connect to %s:%d", pTransInst->label, conn, conn->ip, conn->port);
     ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
     if (ret != 0) {
-      tTrace("%s conn %p failed to connect to %s:%d, reason: %s", pTransInst->label, conn, conn->ip, conn->port,
+      tTrace("%s conn %p failed to connect to %s:%d, reason:%s", pTransInst->label, conn, conn->ip, conn->port,
              uv_err_name(ret));
       cliHandleExcept(conn);
       return;
@@ -883,7 +883,7 @@ static void cliAsyncCb(uv_async_t* handle) {
     count++;
   }
   if (count >= 2) {
-    tTrace("cli process batch size: %d", count);
+    tTrace("cli process batch size:%d", count);
   }
 }
 
@@ -1222,7 +1222,7 @@ void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
   cliMsg->refId = (int64_t)shandle;
 
   STraceId* trace = &pReq->info.traceId;
-  tGTrace("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", transLabel(pTransInst), pThrd->pid,
+  tGTrace("%s send request at thread:%08" PRId64 ", dst:%s:%d, app:%p", transLabel(pTransInst), pThrd->pid,
           EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
   ASSERT(transAsyncSend(pThrd->asyncPool, &(cliMsg->q)) == 0);
   transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
@@ -1260,7 +1260,7 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransM
   cliMsg->refId = (int64_t)shandle;
 
   STraceId* trace = &pReq->info.traceId;
-  tGTrace("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", transLabel(pTransInst), pThrd->pid,
+  tGTrace("%s send request at thread:%08" PRId64 ", dst:%s:%d, app:%p", transLabel(pTransInst), pThrd->pid,
           EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
 
   transAsyncSend(pThrd->asyncPool, &(cliMsg->q));
