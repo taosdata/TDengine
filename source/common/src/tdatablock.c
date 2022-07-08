@@ -2119,3 +2119,4 @@ const char* blockDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRow
   ASSERT(pStart - pData == dataLen);
   return pStart;
 }
+
