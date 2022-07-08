@@ -1356,7 +1356,7 @@ SColumnInfoData createColumnInfoData(int16_t type, int32_t bytes, int16_t colId)
   return col;
 }
 
-SColumnInfoData* bdGetColumnInfoData(SSDataBlock* pBlock, int32_t index) {
+SColumnInfoData* bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index) {
   ASSERT(pBlock != NULL);
   if (index >= taosArrayGetSize(pBlock->pDataBlock)) {
     return NULL;

@@ -307,7 +307,22 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   SMqDataRsp dataRsp = {0};
   tqInitDataRsp(&dataRsp, pReq, pHandle->execHandle.subType);
 
-  if (fetchOffsetNew.type == TMQ_OFFSET__LOG) {
+  if (!pHandle->fetchMeta && fetchOffsetNew.type == TMQ_OFFSET__LOG) {
+    if (tqScanLog(pTq, &pHandle->execHandle, &dataRsp, &fetchOffsetNew) < 0) {
+      ASSERT(0);
+      code = -1;
+      goto OVER;
+    }
+    if (dataRsp.blockNum == 0) {
+      // add to async task
+    }
+    if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
+      code = -1;
+    }
+    goto OVER;
+  }
+
+  if (pHandle->fetchMeta && fetchOffsetNew.type == TMQ_OFFSET__LOG) {
     int64_t     fetchVer = fetchOffsetNew.version + 1;
     SWalCkHead* pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
     if (pCkHead == NULL) {

@@ -267,7 +267,44 @@ const STqOffset* qExtractStatusFromStreamScanner(void* scanner) {
   return &pInfo->offset;
 }
 
-int32_t qStreamPrepareScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts) {
+void* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
+  return pTaskInfo->streamInfo.metaBlk;
+}
+
+int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
+  memcpy(pOffset, &pTaskInfo->streamInfo.lastStatus, sizeof(STqOffsetVal));
+  return 0;
+}
+
+int32_t qStreamPrepareScan1(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  SOperatorInfo* pOperator = pTaskInfo->pRoot;
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
+  pTaskInfo->streamInfo.prepareStatus = *pOffset;
+  // TODO: optimize
+  /*if (pTaskInfo->streamInfo.lastStatus.type != pOffset->type ||*/
+  /*pTaskInfo->streamInfo.prepareStatus.version != pTaskInfo->streamInfo.lastStatus.version) {*/
+  while (1) {
+    uint8_t type = pOperator->operatorType;
+    pOperator->status = OP_OPENED;
+    if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+      SStreamScanInfo* pInfo = pOperator->info;
+      tqSeekVer(pInfo->tqReader, pOffset->version);
+      return 0;
+    } else {
+      ASSERT(pOperator->numOfDownstream == 1);
+      pOperator = pOperator->pDownstream[0];
+    }
+  }
+  /*}*/
+  return 0;
+}
+
+int32_t qStreamPrepareTsdbScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
   if (uid == 0) {

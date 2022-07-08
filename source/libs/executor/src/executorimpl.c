@@ -2848,7 +2848,7 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
 
   if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     SStreamScanInfo* pScanInfo = pOperator->info;
-    pScanInfo->blockType = STREAM_INPUT__DATA_SCAN;
+    pScanInfo->blockType = STREAM_INPUT__TABLE_SCAN;
 
     pScanInfo->pTableScanOp->status = OP_OPENED;
 
@@ -3283,7 +3283,10 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     // The downstream exec may change the value of the newgroup, so use a local variable instead.
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
+      // TODO optimize
+      /*if (pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM) {*/
       doSetOperatorCompleted(pOperator);
+      /*}*/
       break;
     }
     if (pBlock->info.type == STREAM_RETRIEVE) {

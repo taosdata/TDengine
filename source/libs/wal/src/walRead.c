@@ -147,7 +147,7 @@ static int32_t walReadChangeFile(SWalReader *pRead, int64_t fileFirstVer) {
   return 0;
 }
 
-static int32_t walReadSeekVer(SWalReader *pRead, int64_t ver) {
+int32_t walReadSeekVer(SWalReader *pRead, int64_t ver) {
   SWal *pWal = pRead->pWal;
   if (ver == pRead->curVersion) {
     return 0;
@@ -352,22 +352,6 @@ int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead) {
   }
 
   pRead->curVersion = ver + 1;
-  return 0;
-}
-
-int32_t walReadWithHandle_s(SWalReader *pRead, int64_t ver, SWalCont **ppHead) {
-  taosThreadMutexLock(&pRead->mutex);
-  if (walReadVer(pRead, ver) < 0) {
-    taosThreadMutexUnlock(&pRead->mutex);
-    return -1;
-  }
-  *ppHead = taosMemoryMalloc(sizeof(SWalCont) + pRead->pHead->head.bodyLen);
-  if (*ppHead == NULL) {
-    taosThreadMutexUnlock(&pRead->mutex);
-    return -1;
-  }
-  memcpy(*ppHead, &pRead->pHead->head, sizeof(SWalCont) + pRead->pHead->head.bodyLen);
-  taosThreadMutexUnlock(&pRead->mutex);
   return 0;
 }
 

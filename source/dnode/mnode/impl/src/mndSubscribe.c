@@ -546,7 +546,11 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
       char cgroup[TSDB_CGROUP_LEN];
       mndSplitSubscribeKey(pRebInfo->key, topic, cgroup, true);
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
-      ASSERT(pTopic);
+      /*ASSERT(pTopic);*/
+      if (pTopic == NULL) {
+        mError("rebalance %s failed since topic %s was dropped, abort", pRebInfo->key, topic);
+        continue;
+      }
       taosRLockLatch(&pTopic->lock);
 
       rebOutput.pSub = mndCreateSub(pMnode, pTopic, pRebInfo->key);

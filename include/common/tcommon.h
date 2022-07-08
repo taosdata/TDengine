@@ -55,7 +55,8 @@ enum {
 enum {
   STREAM_INPUT__DATA_SUBMIT = 1,
   STREAM_INPUT__DATA_BLOCK,
-  STREAM_INPUT__DATA_SCAN,
+  STREAM_INPUT__TABLE_SCAN,
+  STREAM_INPUT__TQ_SCAN,
   STREAM_INPUT__DATA_RETRIEVE,
   STREAM_INPUT__TRIGGER,
   STREAM_INPUT__CHECKPOINT,
@@ -124,7 +125,8 @@ enum {
 };
 
 typedef struct {
-  int8_t fetchType;
+  int8_t       fetchType;
+  STqOffsetVal offset;
   union {
     SSDataBlock data;
     void*       meta;
