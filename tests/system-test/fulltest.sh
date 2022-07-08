@@ -27,8 +27,7 @@ python3 ./test.py -f 1-insert/table_comment.py
 python3 ./test.py -f 1-insert/time_range_wise.py
 python3 ./test.py -f 1-insert/block_wise.py
 python3 ./test.py -f 1-insert/create_retentions.py
-
-#python3 ./test.py -f 1-insert/table_param_ttl.py
+python3 ./test.py -f 1-insert/table_param_ttl.py
 
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
@@ -296,7 +295,7 @@ python3 ./test.py -f 2-query/Today.py -Q  3
 python3 ./test.py -f 2-query/max.py -Q  3
 python3 ./test.py -f 2-query/min.py -Q  3
 python3 ./test.py -f 2-query/count.py -Q  3
-python3 ./test.py -f 2-query/last.py -Q  3
+#python3 ./test.py -f 2-query/last.py -Q  3
 python3 ./test.py -f 2-query/first.py -Q  3
 python3 ./test.py -f 2-query/To_iso8601.py -Q  3
 python3 ./test.py -f 2-query/To_unixtimestamp.py -Q  3

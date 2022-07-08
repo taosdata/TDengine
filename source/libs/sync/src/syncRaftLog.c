@@ -62,7 +62,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   ASSERT(pData->pWal != NULL);
 
   taosThreadMutexInit(&(pData->mutex), NULL);
-  pData->pWalHandle = walOpenReadHandle(pData->pWal);
+  pData->pWalHandle = walOpenReader(pData->pWal, NULL);
   ASSERT(pData->pWalHandle != NULL);
 
   pLogStore->appendEntry = logStoreAppendEntry;
@@ -95,7 +95,7 @@ void logStoreDestory(SSyncLogStore* pLogStore) {
 
     taosThreadMutexLock(&(pData->mutex));
     if (pData->pWalHandle != NULL) {
-      walCloseReadHandle(pData->pWalHandle);
+      walCloseReader(pData->pWalHandle);
       pData->pWalHandle = NULL;
     }
     taosThreadMutexUnlock(&(pData->mutex));
@@ -255,7 +255,7 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
   *ppEntry = NULL;
 
   // SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
-  SWalReadHandle* pWalHandle = pData->pWalHandle;
+  SWalReader* pWalHandle = pData->pWalHandle;
   if (pWalHandle == NULL) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
@@ -263,7 +263,7 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
 
   taosThreadMutexLock(&(pData->mutex));
 
-  code = walReadWithHandle(pWalHandle, index);
+  code = walReadVer(pWalHandle, index);
   if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
@@ -326,6 +326,14 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
 
     ASSERT(0);
   }
+
+  // event log
+  do {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "wal truncate, from-index:%ld", fromIndex);
+    syncNodeEventLog(pData->pSyncNode, logBuf);
+  } while (0);
+
   return code;
 }
 
@@ -398,10 +406,10 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
     taosThreadMutexLock(&(pData->mutex));
 
     // SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
-    SWalReadHandle* pWalHandle = pData->pWalHandle;
+    SWalReader* pWalHandle = pData->pWalHandle;
     ASSERT(pWalHandle != NULL);
 
-    int32_t code = walReadWithHandle(pWalHandle, index);
+    int32_t code = walReadVer(pWalHandle, index);
     if (code != 0) {
       int32_t     err = terrno;
       const char* errStr = tstrerror(err);
@@ -463,6 +471,14 @@ int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
 
     ASSERT(0);
   }
+
+  // event log
+  do {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "wal truncate, from-index:%ld", fromIndex);
+    syncNodeEventLog(pData->pSyncNode, logBuf);
+  } while (0);
+
   return 0;
 }
 

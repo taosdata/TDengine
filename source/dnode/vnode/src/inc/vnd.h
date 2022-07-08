@@ -94,6 +94,8 @@ int32_t vnodeAsyncCommit(SVnode* pVnode);
 int32_t vnodeSyncOpen(SVnode* pVnode, char* path);
 void    vnodeSyncStart(SVnode* pVnode);
 void    vnodeSyncClose(SVnode* pVnode);
+void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg);
+bool    vnodeIsLeader(SVnode* pVnode);
 
 #ifdef __cplusplus
 }

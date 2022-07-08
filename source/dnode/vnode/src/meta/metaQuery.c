@@ -439,6 +439,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
   tDecoderInit(&dc, pData, nData);
   tDecodeSSchemaWrapper(&dc, pSchemaWrapper);
   tDecoderClear(&dc);
+  tdbFree(pData);
 
   // convert
   STSchemaBuilder sb = {0};
