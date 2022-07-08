@@ -11,7 +11,6 @@
 
 # -*- coding: utf-8 -*-
 
-from collections import defaultdict
 import random
 import string
 import requests
@@ -25,6 +24,79 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import *
 from util.common import *
+from util.constant import *
+from dataclasses import dataclass,field
+from typing import List
+
+@dataclass
+class DataSet:
+    ts_data     : List[int]     = field(default_factory=list)
+    int_data    : List[int]     = field(default_factory=list)
+    bint_data   : List[int]     = field(default_factory=list)
+    sint_data   : List[int]     = field(default_factory=list)
+    tint_data   : List[int]     = field(default_factory=list)
+    uint_data   : List[int]     = field(default_factory=list)
+    ubint_data  : List[int]     = field(default_factory=list)
+    usint_data  : List[int]     = field(default_factory=list)
+    utint_data  : List[int]     = field(default_factory=list)
+    float_data  : List[float]   = field(default_factory=list)
+    double_data : List[float]   = field(default_factory=list)
+    bool_data   : List[int]     = field(default_factory=list)
+    vchar_data  : List[str]     = field(default_factory=list)
+    nchar_data  : List[str]     = field(default_factory=list)
+
+    def get_order_set(self,
+        rows,
+        int_step    :int    = 1,
+        bint_step   :int    = 1,
+        sint_step   :int    = 1,
+        tint_step   :int    = 1,
+        uint_step   :int    = 1,
+        ubint_step  :int    = 1,
+        usint_step  :int    = 1,
+        utint_step  :int    = 1,
+        float_step  :float  = 1,
+        double_step :float  = 1,
+        bool_start  :int    = 1,
+        vchar_prefix:str    = "vachar_",
+        vchar_step  :int    = 1,
+        nchar_prefix:str    = "nchar_测试_",
+        nchar_step  :int    = 1,
+        ts_step     :int    = 1
+    ):
+        for i in range(rows):
+            self.int_data.append( int(i * int_step % INT_MAX ))
+            self.bint_data.append( int(i * bint_step % BIGINT_MAX ))
+            self.sint_data.append( int(i * sint_step % SMALLINT_MAX ))
+            self.tint_data.append( int(i * tint_step % TINYINT_MAX ))
+            self.uint_data.append( int(i * uint_step % INT_UN_MAX ))
+            self.ubint_data.append( int(i * ubint_step % BIGINT_UN_MAX ))
+            self.usint_data.append( int(i * usint_step % SMALLINT_UN_MAX ))
+            self.utint_data.append( int(i * utint_step % TINYINT_UN_MAX ))
+            self.float_data.append( float(i * float_step % FLOAT_MAX ))
+            self.double_data.append( float(i * double_step % DOUBLE_MAX ))
+            self.bool_data.append( bool((i + bool_start) % 2 ))
+            self.vchar_data.append( f"{vchar_prefix}_{i * vchar_step}" )
+            self.nchar_data.append( f"{nchar_prefix}_{i * nchar_step}")
+            self.ts_data.append( int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000 - i * ts_step))
+
+    def get_disorder_set(self,
+        rows,
+        int_low     :int    = INT_MIN,
+        int_up      :int    = INT_MAX,
+        bint_low    :int    = BIGINT_MIN,
+        bint_up     :int    = BIGINT_MAX,
+        sint_low    :int    = SMALLINT_MIN,
+        sint_up     :int    = SMALLINT_MAX,
+        tint_low    :int    = TINYINT_MIN,
+        tint_up     :int    = TINYINT_MAX,
+        ubint_low   :int    = BIGINT_UN_MIN,
+        ubint_up    :int    = BIGINT_UN_MAX,
+
+
+    ):
+        pass
+
 
 class TDCom:
     def __init__(self):
@@ -650,7 +722,7 @@ class TDCom:
                     else:
                         column_value_str += f'{column_value}, '
                         idx += 1
-                column_value_str = column_value_str.rstrip()[:-1]      
+                column_value_str = column_value_str.rstrip()[:-1]
                 insert_sql = f'insert into {dbname}.{tbname} values ({column_value_str});'
                 tsql.execute(insert_sql)
     def getOneRow(self, location, containElm):
@@ -662,12 +734,12 @@ class TDCom:
             return res_list
         else:
             tdLog.exit(f"getOneRow out of range: row_index={location} row_count={self.query_row}")
-            
-    def killProcessor(self, processorName):        
+
+    def killProcessor(self, processorName):
         if (platform.system().lower() == 'windows'):
             os.system("TASKKILL /F /IM %s.exe"%processorName)
         else:
-            os.system('pkill %s'%processorName)        
+            os.system('pkill %s'%processorName)
 
 
 def is_json(msg):
