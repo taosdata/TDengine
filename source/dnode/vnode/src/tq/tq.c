@@ -447,26 +447,38 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
     pHandle->fetchMeta = req.withMeta;
 
     pHandle->pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
-    for (int32_t i = 0; i < 5; i++) {
-      pHandle->execHandle.pExecReader[i] = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
-    }
+    /*for (int32_t i = 0; i < 5; i++) {*/
+    /*pHandle->execHandle.pExecReader[i] = tqOpenReader(pTq->pVnode);*/
+    /*}*/
     if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       pHandle->execHandle.execCol.qmsg = req.qmsg;
       req.qmsg = NULL;
       for (int32_t i = 0; i < 5; i++) {
         SReadHandle handle = {
-            .streamReader = pHandle->execHandle.pExecReader[i],
+            .tqReader = pHandle->execHandle.pExecReader[i],
             .meta = pTq->pVnode->pMeta,
             .vnode = pTq->pVnode,
             .initTableReader = true,
+            .initTqReader = true,
         };
         pHandle->execHandle.execCol.task[i] = qCreateStreamExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle);
         ASSERT(pHandle->execHandle.execCol.task[i]);
+        void* scanner = NULL;
+        qExtractStreamScanner(pHandle->execHandle.execCol.task[i], &scanner);
+        ASSERT(scanner);
+        pHandle->execHandle.pExecReader[i] = qExtractReaderFromStreamScanner(scanner);
+        ASSERT(pHandle->execHandle.pExecReader[i]);
       }
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
+      for (int32_t i = 0; i < 5; i++) {
+        pHandle->execHandle.pExecReader[i] = tqOpenReader(pTq->pVnode);
+      }
       pHandle->execHandle.execDb.pFilterOutTbUid =
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
+      for (int32_t i = 0; i < 5; i++) {
+        pHandle->execHandle.pExecReader[i] = tqOpenReader(pTq->pVnode);
+      }
       pHandle->execHandle.execTb.suid = req.suid;
       SArray* tbUidList = taosArrayInit(0, sizeof(int64_t));
       vnodeGetCtbIdList(pTq->pVnode, req.suid, tbUidList);
@@ -476,7 +488,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
         tqDebug("vg %d, idx %d, uid: %ld", TD_VID(pTq->pVnode), i, tbUid);
       }
       for (int32_t i = 0; i < 5; i++) {
-        tqReadHandleSetTbUidList(pHandle->execHandle.pExecReader[i], tbUidList);
+        tqReaderSetTbUidList(pHandle->execHandle.pExecReader[i], tbUidList);
       }
       taosArrayDestroy(tbUidList);
     }
@@ -532,7 +544,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen) {
       SReadHandle handle = {
           .meta = pTq->pVnode->pMeta,
           .vnode = pTq->pVnode,
-          .initStreamReader = 1,
+          .initTqReader = 1,
       };
       pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
     } else {

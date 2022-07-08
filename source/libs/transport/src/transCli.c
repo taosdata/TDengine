@@ -573,8 +573,8 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
   if (nread < 0) {
-    tError("%s conn %p read error: %s, ref: %d", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread),
-           T_REF_VAL_GET(conn));
+    tWarn("%s conn %p read error: %s, ref: %d", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread),
+          T_REF_VAL_GET(conn));
     conn->broken = true;
     cliHandleExcept(conn);
   }

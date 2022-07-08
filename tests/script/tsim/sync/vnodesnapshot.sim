@@ -142,20 +142,33 @@ sql create table ct1 using stb tags(1000)
 
 system sh/exec.sh -n dnode4 -s stop -x SIGINT
 
-sql insert into ct1 values(now+0s, 10, 2.0, 3.0)
-sql insert into ct1 values(now+1s, 11, 2.1, 3.1)(now+2s, -12, -2.2, -3.2)(now+3s, -13, -2.3, -3.3)
-
-sql flush database db;
-
-system sh/exec.sh -n dnode4 -s start
-
-sql insert into ct1 values(now+1s, 81, 8.1, 8.1)(now+2s, -92, -9.2, -9.2)(now+3s, -73, -7.3, -7.3)
-
+$N = 100
+$count = 0
+while $count < $N
+	$ms = 1591200000000 + $count
+    sql insert into ct1 values( $ms , $count , 2.1, 3.1)
+    $count = $count + 1
+endw
 
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
-#system sh/exec.sh -n dnode2 -s stop -x SIGINT
-#system sh/exec.sh -n dnode3 -s stop -x SIGINT
+
+#sql insert into ct1 values(now+0s, 10, 2.0, 3.0)
+#sql insert into ct1 values(now+1s, 11, 2.1, 3.1)(now+2s, -12, -2.2, -3.2)(now+3s, -13, -2.3, -3.3)
+
+#sql flush database db;
+
+#system sh/exec.sh -n dnode4 -s start
+
+#sql insert into ct1 values(now+1s, 81, 8.1, 8.1)(now+2s, -92, -9.2, -9.2)(now+3s, -73, -7.3, -7.3)
+
+
+
+sleep 5000
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
 #system sh/exec.sh -n dnode4 -s stop -x SIGINT
 
 
