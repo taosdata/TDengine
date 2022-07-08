@@ -150,6 +150,7 @@ static int32_t walReadChangeFile(SWalReader *pRead, int64_t fileFirstVer) {
 int32_t walReadSeekVer(SWalReader *pRead, int64_t ver) {
   SWal *pWal = pRead->pWal;
   if (ver == pRead->curVersion) {
+    wDebug("wal version %ld match, no need to reset", ver);
     return 0;
   }
   if (ver > pWal->vers.lastVer || ver < pWal->vers.firstVer) {
@@ -176,6 +177,8 @@ int32_t walReadSeekVer(SWalReader *pRead, int64_t ver) {
   if (walReadSeekFilePos(pRead, pRet->firstVer, ver) < 0) {
     return -1;
   }
+
+  wDebug("wal version reset from %ld to %ld", pRead->curVersion, ver);
 
   pRead->curVersion = ver;
 
@@ -249,6 +252,7 @@ static int32_t walFetchBodyNew(SWalReader *pRead) {
   }
 
   pRead->curVersion = ver + 1;
+  wDebug("version advance to %ld, fetch body", pRead->curVersion);
   return 0;
 }
 
@@ -265,6 +269,7 @@ static int32_t walSkipFetchBodyNew(SWalReader *pRead) {
   }
 
   pRead->curVersion++;
+  wDebug("version advance to %ld, skip fetch", pRead->curVersion);
 
   return 0;
 }

@@ -135,6 +135,7 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
       int32_t code = tqRetrieveDataBlock(&ret->data, pReader);
       if (code != 0 || ret->data.info.rows == 0) {
         ASSERT(0);
+        continue;
 #if 0
         if (fromProcessedMsg) {
           ret->fetchType = FETCH_TYPE__NONE;
