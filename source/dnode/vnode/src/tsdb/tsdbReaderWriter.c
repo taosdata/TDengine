@@ -424,10 +424,12 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx, uint8_t **ppBuf) {
 
   ASSERT(n == size - sizeof(TSCKSUM));
 
+  tFree(pBuf);
   return code;
 
 _err:
   tsdbError("vgId:%d read del idx failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  tFree(pBuf);
   return code;
 }
 
