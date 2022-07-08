@@ -152,7 +152,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
 static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols, int32_t typeColLength,
                                                int32_t noteColLength) {
   int32_t  rowLen = 0;
-  SColumnIndex index = {0};
+  SColumnIndex idx = {0};
   
   pSql->cmd.numOfCols = numOfCols;
 
@@ -163,7 +163,7 @@ static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
   tstrncpy(f.name, "Field", sizeof(f.name));
   
   SInternalField* pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
-  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY,
+  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &idx, TSDB_DATA_TYPE_BINARY,
       (TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE, -1000, (TSDB_COL_NAME_LEN - 1), false);
   
   rowLen += ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE);
@@ -173,7 +173,7 @@ static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
   tstrncpy(f.name, "Type", sizeof(f.name));
   
   pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
-  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY, (int16_t)(typeColLength + VARSTR_HEADER_SIZE),
+  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &idx, TSDB_DATA_TYPE_BINARY, (int16_t)(typeColLength + VARSTR_HEADER_SIZE),
       -1000, typeColLength, false);
   
   rowLen += typeColLength + VARSTR_HEADER_SIZE;
@@ -183,7 +183,7 @@ static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
   tstrncpy(f.name, "Length", sizeof(f.name));
   
   pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
-  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_INT, sizeof(int32_t),
+  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &idx, TSDB_DATA_TYPE_INT, sizeof(int32_t),
       -1000, sizeof(int32_t), false);
   
   rowLen += sizeof(int32_t);
@@ -193,7 +193,7 @@ static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
   tstrncpy(f.name, "Note", sizeof(f.name));
   
   pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
-  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY, (int16_t)(noteColLength + VARSTR_HEADER_SIZE),
+  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &idx, TSDB_DATA_TYPE_BINARY, (int16_t)(noteColLength + VARSTR_HEADER_SIZE),
       -1000, noteColLength, false);
   
   rowLen += noteColLength + VARSTR_HEADER_SIZE;
@@ -415,7 +415,7 @@ static int32_t tscGetTableTagValue(SCreateBuilder *builder, char *result) {
 static int32_t tscSCreateBuildResultFields(SSqlObj *pSql, BuildType type, const char *ddl) {
   int32_t  rowLen = 0;
   int16_t  ddlLen = (int16_t)strlen(ddl); 
-  SColumnIndex index = {0};
+  SColumnIndex idx = {0};
   pSql->cmd.numOfCols = 2;
 
   SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
@@ -433,7 +433,7 @@ static int32_t tscSCreateBuildResultFields(SSqlObj *pSql, BuildType type, const 
   } 
 
   SInternalField* pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
-  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY, f.bytes, -1000, f.bytes - VARSTR_HEADER_SIZE, false);
+  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &idx, TSDB_DATA_TYPE_BINARY, f.bytes, -1000, f.bytes - VARSTR_HEADER_SIZE, false);
 
   rowLen += f.bytes; 
 
@@ -446,7 +446,7 @@ static int32_t tscSCreateBuildResultFields(SSqlObj *pSql, BuildType type, const 
   }
 
   pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
-  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY,
+  pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &idx, TSDB_DATA_TYPE_BINARY,
       (int16_t)(ddlLen + VARSTR_HEADER_SIZE), -1000, ddlLen, false);
 
   rowLen += ddlLen + VARSTR_HEADER_SIZE;

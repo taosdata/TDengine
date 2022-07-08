@@ -740,13 +740,13 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
     
     int32_t vgId = -1;
     if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-      int32_t index = pTableMetaInfo->vgroupIndex;
-      assert(index >= 0);
+      int32_t idx = pTableMetaInfo->vgroupIndex;
+      assert(idx >= 0);
 
       SVgroupMsg* pVgroupInfo = NULL;
       if (pTableMetaInfo->vgroupList && pTableMetaInfo->vgroupList->numOfVgroups > 0) {
-        assert(index < pTableMetaInfo->vgroupList->numOfVgroups);
-        pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[index];
+        assert(idx < pTableMetaInfo->vgroupList->numOfVgroups);
+        pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[idx];
       } else {
         tscError("0x%"PRIx64" No vgroup info found", pSql->self);
         
@@ -756,7 +756,7 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
 
       vgId = pVgroupInfo->vgId;
       tscSetDnodeEpSet(&pSql->epSet, pVgroupInfo);
-      tscDebug("0x%"PRIx64" query on stable, vgIndex:%d, numOfVgroups:%d", pSql->self, index, pTableMetaInfo->vgroupList->numOfVgroups);
+      tscDebug("0x%"PRIx64" query on stable, vgIndex:%d, numOfVgroups:%d", pSql->self, idx, pTableMetaInfo->vgroupList->numOfVgroups);
     } else {
       vgId = pTableMeta->vgId;
 
@@ -778,11 +778,11 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
     pQueryMsg->numOfTables = htonl(1);  // set the number of tables
     pMsg += sizeof(STableIdInfo);
   } else { // it is a subquery of the super table query, this EP info is acquired from vgroupInfo
-    int32_t index = pTableMetaInfo->vgroupIndex;
+    int32_t idx = pTableMetaInfo->vgroupIndex;
     int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
-    assert(index >= 0 && index < numOfVgroups);
+    assert(idx >= 0 && idx < numOfVgroups);
 
-    SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, index);
+    SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, idx);
 
     // set the vgroup info 
     tscSetDnodeEpSet(&pSql->epSet, &pTableIdList->vgInfo);
@@ -792,7 +792,7 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
     pQueryMsg->numOfTables = htonl(numOfTables);  // set the number of tables
 
     tscDebug("0x%"PRIx64" query on stable, vgId:%d, numOfTables:%d, vgIndex:%d, numOfVgroups:%d", pSql->self,
-             pTableIdList->vgInfo.vgId, numOfTables, index, numOfVgroups);
+             pTableIdList->vgInfo.vgId, numOfTables, idx, numOfVgroups);
 
     // serialize each table id info
     for(int32_t i = 0; i < numOfTables; ++i) {
@@ -2557,18 +2557,18 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   
   SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
   
-  SColumnIndex index = {0};
+  SColumnIndex idx = {0};
   pSchema = pMetaMsg->schema;
 
   uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
   for (int16_t i = 0; i < pMetaMsg->numOfColumns; ++i, ++pSchema) {
-    index.columnIndex = i;
+    idx.columnIndex = i;
     tscColumnListInsert(pQueryInfo->colList, i, uid, pSchema);
     
     TAOS_FIELD f = tscCreateField(pSchema->type, pSchema->name, pSchema->bytes);
     SInternalField* pInfo = tscFieldInfoAppend(pFieldInfo, &f);
     
-    pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index,
+    pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &idx,
                      pTableSchema[i].type, pTableSchema[i].bytes, getNewResColId(pCmd), pTableSchema[i].bytes, false);
   }
   

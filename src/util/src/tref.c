@@ -389,7 +389,7 @@ int taosListRef() {
   return num;
 }
 
-static int taosDecRefCount(int rsetId, int64_t rid, int remove) {
+static int taosDecRefCount(int rsetId, int64_t rid, int rm) {
   int       hash;
   SRefSet  *pSet;
   SRefNode *pNode;
@@ -428,7 +428,7 @@ static int taosDecRefCount(int rsetId, int64_t rid, int remove) {
 
   if (pNode) {
     pNode->count--;
-    if (remove) pNode->removed = 1;
+    if (rm) pNode->removed = 1;
 
     if (pNode->count <= 0) {
       if (pNode->prev) {

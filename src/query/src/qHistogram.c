@@ -119,7 +119,7 @@
 //    }
 //}
 
-static int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t index, double val);
+static int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t idx, double val);
 
 SHistogramInfo* tHistogramCreate(int32_t numOfEntries) {
   /* need one redundant slot */
@@ -390,39 +390,39 @@ static void histogramMergeImpl(SHistBin* pHistBin, int32_t* size) {
   int32_t oldSize = *size;
 
   double  delta = DBL_MAX;
-  int32_t index = -1;
+  int32_t idx = -1;
   for (int32_t i = 1; i < oldSize; ++i) {
     double d = pHistBin[i].val - pHistBin[i - 1].val;
     if (d < delta) {
       delta = d;
-      index = i - 1;
+      idx = i - 1;
     }
   }
 
-  SHistBin* s1 = &pHistBin[index];
-  SHistBin* s2 = &pHistBin[index + 1];
+  SHistBin* s1 = &pHistBin[idx];
+  SHistBin* s2 = &pHistBin[idx + 1];
 
   double newVal = (s1->val * s1->num + s2->val * s2->num) / (s1->num + s2->num);
   s1->val = newVal;
   s1->num = s1->num + s2->num;
 
-  memmove(&pHistBin[index + 1], &pHistBin[index + 2], (oldSize - index - 2) * sizeof(SHistBin));
+  memmove(&pHistBin[idx + 1], &pHistBin[idx + 2], (oldSize - idx - 2) * sizeof(SHistBin));
   (*size) -= 1;
 #endif
 }
 
 /* optimize this procedure */
-int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t index, double val) {
+int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t idx, double val) {
 #if defined(USE_ARRAYLIST)
-  int32_t remain = pHisto->numOfEntries - index;
+  int32_t remain = pHisto->numOfEntries - idx;
   if (remain > 0) {
-    memmove(&pHisto->elems[index + 1], &pHisto->elems[index], sizeof(SHistBin) * remain);
+    memmove(&pHisto->elems[idx + 1], &pHisto->elems[idx], sizeof(SHistBin) * remain);
   }
 
-  assert(index >= 0 && index <= pHisto->maxEntries);
+  assert(idx >= 0 && idx <= pHisto->maxEntries);
 
-  pHisto->elems[index].num = 1;
-  pHisto->elems[index].val = val;
+  pHisto->elems[idx].num = 1;
+  pHisto->elems[idx].val = val;
   pHisto->numOfEntries += 1;
 
   /* we need to merge the slot */
