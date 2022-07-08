@@ -326,6 +326,14 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
 
     ASSERT(0);
   }
+
+  // event log
+  do {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "wal truncate, from-index:%ld", fromIndex);
+    syncNodeEventLog(pData->pSyncNode, logBuf);
+  } while (0);
+
   return code;
 }
 
@@ -463,6 +471,14 @@ int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
 
     ASSERT(0);
   }
+
+  // event log
+  do {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "wal truncate, from-index:%ld", fromIndex);
+    syncNodeEventLog(pData->pSyncNode, logBuf);
+  } while (0);
+
   return 0;
 }
 
