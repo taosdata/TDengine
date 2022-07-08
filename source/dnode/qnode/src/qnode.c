@@ -64,9 +64,14 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) {
   return 0; 
 }
 
+int32_t qnodeCrash = 1;
 int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg * pMsg) {
   if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) {
     return 0;
+  }
+
+  if (qnodeCrash) {
+    ASSERT(0);
   }
 
   return qWorkerPreprocessQueryMsg(pQnode->pQuery, pMsg);
