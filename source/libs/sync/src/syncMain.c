@@ -1025,14 +1025,14 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   pSyncNode->FpOnSnapshotRsp = syncNodeOnSnapshotRspCb;
 
   if (pSyncNode->pRaftCfg->snapshotStrategy) {
-    sInfo("sync node use snapshot");
+    sInfo("vgId:%d, sync node use snapshot", pSyncNode->vgId);
     pSyncNode->FpOnRequestVote = syncNodeOnRequestVoteSnapshotCb;
     pSyncNode->FpOnRequestVoteReply = syncNodeOnRequestVoteReplySnapshotCb;
     pSyncNode->FpOnAppendEntries = syncNodeOnAppendEntriesSnapshotCb;
     pSyncNode->FpOnAppendEntriesReply = syncNodeOnAppendEntriesReplySnapshotCb;
 
   } else {
-    sInfo("sync node do not use snapshot");
+    sInfo("vgId:%d, sync node do not use snapshot", pSyncNode->vgId);
     pSyncNode->FpOnRequestVote = syncNodeOnRequestVoteCb;
     pSyncNode->FpOnRequestVoteReply = syncNodeOnRequestVoteReplyCb;
     pSyncNode->FpOnAppendEntries = syncNodeOnAppendEntriesCb;
