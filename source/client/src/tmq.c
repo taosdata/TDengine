@@ -2312,7 +2312,7 @@ static int32_t taosCreateStb(TAOS *taos, void *meta, int32_t metaLen){
   pReq.source = 1;
 
   SName tableName;
-  tNameExtractFullName(toName(pTscObj->acctId, pRequest->pDb, "rname", &tableName), pReq.name);
+  tNameExtractFullName(toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName), pReq.name);
 
   SCmdMsgInfo pCmdMsg = {0};
   pCmdMsg.epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);

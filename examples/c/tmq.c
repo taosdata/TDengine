@@ -30,7 +30,7 @@ static void msg_process(TAOS_RES* msg) {
   if (tmq_get_res_type(msg) == TMQ_RES_TABLE_META) {
     tmq_raw_data *raw = tmq_get_raw_meta(msg);
     if(raw){
-      TAOS* pConn = taos_connect("localhost", "root", "taosdata", "abc1", 0);
+      TAOS* pConn = taos_connect("192.168.1.86", "root", "taosdata", "abc1", 0);
       if (pConn == NULL) {
         return;
       }
@@ -68,7 +68,7 @@ int32_t init_env() {
     return -1;
   }
 
-  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 3");
+  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 1");
   if (taos_errno(pRes) != 0) {
     printf("error in create db, reason:%s\n", taos_errstr(pRes));
     return -1;
