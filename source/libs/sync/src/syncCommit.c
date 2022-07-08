@@ -57,8 +57,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     pSyncNode->commitIndex = snapshot.lastApplyIndex;
 
     char eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%ld to index:%ld", pSyncNode->commitIndex,
-             snapshot.lastApplyIndex);
+    snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%ld to index:%ld", commitBegin, commitEnd);
     syncNodeEventLog(pSyncNode, eventLog);
   }
 
