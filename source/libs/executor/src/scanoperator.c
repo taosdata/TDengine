@@ -595,6 +595,8 @@ static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
   if (pTableScanInfo->pColMatchInfo != NULL) {
     taosArrayDestroy(pTableScanInfo->pColMatchInfo);
   }
+  
+  taosMemoryFreeClear(param);
 }
 
 SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
@@ -743,6 +745,8 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
 static void destroyBlockDistScanOperatorInfo(void* param, int32_t numOfOutput) {
   SBlockDistInfo* pDistInfo = (SBlockDistInfo*)param;
   blockDataDestroy(pDistInfo->pResBlock);
+  
+  taosMemoryFreeClear(param);
 }
 
 SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* readHandle, uint64_t uid,
@@ -1493,6 +1497,8 @@ static void destroySysScanOperator(void* param, int32_t numOfOutput) {
 
   taosArrayDestroy(pInfo->scanCols);
   taosMemoryFreeClear(pInfo->pUser);
+
+  taosMemoryFreeClear(param);
 }
 
 static int32_t getSysTableDbNameColId(const char* pTable) {
@@ -2171,6 +2177,8 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
 static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
   STagScanInfo* pInfo = (STagScanInfo*)param;
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
+  
+  taosMemoryFreeClear(param);
 }
 
 SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* pPhyNode,
@@ -2661,6 +2669,8 @@ void destroyTableMergeScanOperatorInfo(void* param, int32_t numOfOutput) {
   pTableScanInfo->pSortInputBlock = blockDataDestroy(pTableScanInfo->pSortInputBlock);
 
   taosArrayDestroy(pTableScanInfo->pSortInfo);
+  
+  taosMemoryFreeClear(param);
 }
 
 typedef struct STableMergeScanExecInfo {
@@ -2792,6 +2802,8 @@ static void destroyLastrowScanOperator(void* param, int32_t numOfOutput) {
   SLastrowScanInfo* pInfo = (SLastrowScanInfo*)param;
   blockDataDestroy(pInfo->pRes);
   tsdbLastrowReaderClose(pInfo->pLastrowReader);
+
+  taosMemoryFreeClear(param);
 }
 
 SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandle* readHandle, SArray* pTableList,

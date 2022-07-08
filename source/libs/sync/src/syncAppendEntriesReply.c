@@ -195,9 +195,10 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
       // start snapshot <match+1, old snapshot.end>
       SSnapshot oldSnapshot;
       ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &oldSnapshot);
-      ASSERT(oldSnapshot.lastApplyIndex >= newMatchIndex + 1);
-      syncNodeStartSnapshotOnce(ths, newMatchIndex + 1, oldSnapshot.lastApplyIndex, oldSnapshot.lastApplyTerm,
-                                pMsg);  // term maybe not ok?
+      if (oldSnapshot.lastApplyIndex > newMatchIndex) {
+        syncNodeStartSnapshotOnce(ths, newMatchIndex + 1, oldSnapshot.lastApplyIndex, oldSnapshot.lastApplyTerm,
+                                  pMsg);  // term maybe not ok?
+      }
 
       syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), oldSnapshot.lastApplyIndex + 1);
       syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), newMatchIndex);
