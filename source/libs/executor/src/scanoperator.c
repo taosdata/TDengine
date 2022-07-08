@@ -1225,8 +1225,8 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         /*pTaskInfo->streamInfo.lastStatus = ret.offset;*/
         if (pInfo->pRes->info.rows > 0) {
           return pInfo->pRes;
-        } else {
-          tDeleteSSDataBlock(&ret.data);
+          /*} else {*/
+          /*tDeleteSSDataBlock(&ret.data);*/
         }
       } else if (ret.fetchType == FETCH_TYPE__META) {
         ASSERT(0);
