@@ -4375,6 +4375,8 @@ typedef struct SMergeAlignedIntervalAggOperatorInfo {
   uint64_t     groupId;
   SSDataBlock* prefetchedBlock;
   bool         inputBlocksFinished;
+
+  SNode*       pCondition;
 } SMergeAlignedIntervalAggOperatorInfo;
 
 void destroyMergeAlignedIntervalOperatorInfo(void* param, int32_t numOfOutput) {
@@ -4512,8 +4514,8 @@ static SSDataBlock* doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
       getTableScanInfo(pOperator, &iaInfo->order, &scanFlag);
       setInputDataBlock(pOperator, pSup->pCtx, pBlock, iaInfo->order, scanFlag, true);
       doMergeAlignedIntervalAggImpl(pOperator, &iaInfo->binfo.resultRowInfo, pBlock, scanFlag, pRes);
-
-      if (pRes->info.rows >= pOperator->resultInfo.threshold) {
+      doFilter(miaInfo->pCondition, pRes);
+      if (pRes->info.rows > 0) {
         break;
       }
     }
@@ -4521,7 +4523,7 @@ static SSDataBlock* doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
     pRes->info.groupId = miaInfo->groupId;
   }
 
-  if (pRes->info.rows == 0) {
+  if (miaInfo->inputBlocksFinished) {
     doSetOperatorCompleted(pOperator);
   }
 
@@ -4532,7 +4534,7 @@ static SSDataBlock* doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
 
 SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo,
                                                       int32_t numOfCols, SSDataBlock* pResBlock, SInterval* pInterval,
-                                                      int32_t primaryTsSlotId, SExecTaskInfo* pTaskInfo) {
+                                                      int32_t primaryTsSlotId, SNode* pCondition, SExecTaskInfo* pTaskInfo) {
   SMergeAlignedIntervalAggOperatorInfo* miaInfo = taosMemoryCalloc(1, sizeof(SMergeAlignedIntervalAggOperatorInfo));
   SOperatorInfo*                        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (miaInfo == NULL || pOperator == NULL) {
@@ -4547,6 +4549,7 @@ SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream,
   SIntervalAggOperatorInfo* iaInfo = miaInfo->intervalAggOperatorInfo;
   SExprSupp*                pSup = &pOperator->exprSupp;
 
+  miaInfo->pCondition = pCondition;
   iaInfo->win = pTaskInfo->window;
   iaInfo->order = TSDB_ORDER_ASC;
   iaInfo->interval = *pInterval;
