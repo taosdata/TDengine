@@ -133,6 +133,7 @@ class TDTestCase:
                     else:
                         tdSql.query(f'select percentile({k}, {param}) from {self.stbname}_{i}')
                         tdSql.checkData(0, 0, np.percentile(floatData, param))
+            
             #!bug TD-17119
             # for k,v in self.tag_dict.items():
             #     for param in self.param:
