@@ -32,6 +32,18 @@ enum {
   TMQ_CONF__RESET_OFFSET__LATEST = -1,
 };
 
+// clang-format off
+#define IS_META_MSG(x) ( \
+     x == TDMT_VND_CREATE_STB     \
+  || x == TDMT_VND_ALTER_STB      \
+  || x == TDMT_VND_DROP_STB       \
+  || x == TDMT_VND_CREATE_TABLE   \
+  || x == TDMT_VND_ALTER_TABLE    \
+  || x == TDMT_VND_DROP_TABLE     \
+  || x == TDMT_VND_DROP_TTL_TABLE \
+)
+// clang-format on
+
 enum {
   TMQ_MSG_TYPE__DUMMY = 0,
   TMQ_MSG_TYPE__POLL_RSP,
@@ -76,8 +88,6 @@ typedef struct {
 #pragma pack(push, 1)
 typedef struct SColumnDataAgg {
   int16_t colId;
-  int16_t minIndex;
-  int16_t maxIndex;
   int16_t numOfNull;
   int64_t sum;
   int64_t max;
@@ -104,6 +114,20 @@ typedef struct SSDataBlock {
   SArray*          pDataBlock;  // SArray<SColumnInfoData>
   SDataBlockInfo   info;
 } SSDataBlock;
+
+enum {
+  FETCH_TYPE__DATA = 1,
+  FETCH_TYPE__META,
+  FETCH_TYPE__NONE,
+};
+
+typedef struct {
+  int8_t fetchType;
+  union {
+    SSDataBlock data;
+    void*       meta;
+  };
+} SFetchRet;
 
 typedef struct SVarColAttr {
   int32_t* offset;    // start position for each entry in the list

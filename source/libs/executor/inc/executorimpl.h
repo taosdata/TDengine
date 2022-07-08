@@ -348,7 +348,7 @@ typedef struct SessionWindowSupporter {
   uint8_t parentType;
 } SessionWindowSupporter;
 
-typedef struct SStreamBlockScanInfo {
+typedef struct SStreamScanInfo {
   uint64_t        tableUid;         // queried super table uid
   SExprInfo*      pPseudoExpr;
   int32_t         numOfPseudoExpr;
@@ -365,7 +365,7 @@ typedef struct SStreamBlockScanInfo {
   int32_t         blockType;        // current block type
   int32_t         validBlockIndex;  // Is current data has returned?
   uint64_t        numOfExec;        // execution times
-  void*           streamBlockReader;// stream block reader handle
+  STqReader*           tqReader;
 
   int32_t         tsArrayIndex;
   SArray*         tsArray;
@@ -374,7 +374,7 @@ typedef struct SStreamBlockScanInfo {
 
   EStreamScanMode scanMode;
   SOperatorInfo* pStreamScanOp;
-  SOperatorInfo* pSnapshotReadOp;
+  SOperatorInfo* pTableScanOp;
   SArray*        childIds;
   SessionWindowSupporter sessionSup;
   bool            assignBlockUid; // assign block uid to groupId, temporarily used for generating rollup SMA.
@@ -383,7 +383,12 @@ typedef struct SStreamBlockScanInfo {
   SSDataBlock*    pPullDataRes;             // pull data SSDataBlock
   SSDataBlock*    pDeleteDataRes;             // delete data SSDataBlock
   int32_t         deleteDataIndex;
-} SStreamBlockScanInfo;
+
+  // status for tmq
+  //SSchemaWrapper schema;
+  STqOffset offset;
+
+} SStreamScanInfo;
 
 typedef struct SSysTableScanInfo {
   SRetrieveMetaTableRsp* pRsp;
@@ -518,6 +523,7 @@ typedef struct SIndefOperatorInfo {
   SAggSupporter      aggSup;
   SArray*            pPseudoColInfo;
   SExprSupp          scalarSup;
+  SNode*             pCondition;
 } SIndefOperatorInfo;
 
 typedef struct SFillOperatorInfo {
@@ -528,6 +534,7 @@ typedef struct SFillOperatorInfo {
   SSDataBlock*      existNewGroupBlock;
   bool              multigroupResult;
   STimeWindow       win;
+  SNode*            pCondition;
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {
@@ -799,7 +806,7 @@ SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SExprI
 
 SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          SExecTaskInfo* pTaskInfo);
+                                          SNode* pCondition, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream,
     SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, int32_t numOfChild);
@@ -878,7 +885,7 @@ int32_t decodeOperator(SOperatorInfo* ops, const char* data, int32_t length);
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
                                const char* sql, EOPTR_EXEC_MODEL model);
-int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pTaskInfo);                               
+int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pTaskInfo, SReadHandle* readHandle);                               
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo** pRes, int32_t* capacity,
                                    int32_t* resNum);
 

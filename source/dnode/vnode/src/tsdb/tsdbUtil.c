@@ -821,16 +821,20 @@ int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
   int32_t code = 0;
   int32_t size;
 
+  ASSERT(pColDataSrc->nVal > 0);
+
   pColDataDest->cid = pColDataSrc->cid;
   pColDataDest->type = pColDataSrc->type;
   pColDataDest->smaOn = pColDataSrc->smaOn;
   pColDataDest->nVal = pColDataSrc->nVal;
   pColDataDest->flag = pColDataSrc->flag;
 
-  size = BIT2_SIZE(pColDataSrc->nVal);
-  code = tRealloc(&pColDataDest->pBitMap, size);
-  if (code) goto _exit;
-  memcpy(pColDataDest->pBitMap, pColDataSrc->pBitMap, size);
+  if (pColDataSrc->flag != HAS_NONE && pColDataSrc->flag != HAS_NULL && pColDataSrc->flag != HAS_VALUE) {
+    size = BIT2_SIZE(pColDataSrc->nVal);
+    code = tRealloc(&pColDataDest->pBitMap, size);
+    if (code) goto _exit;
+    memcpy(pColDataDest->pBitMap, pColDataSrc->pBitMap, size);
+  }
 
   if (IS_VAR_DATA_TYPE(pColDataDest->type)) {
     size = sizeof(int32_t) * pColDataSrc->nVal;
@@ -1230,10 +1234,26 @@ void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
           break;
         case TSDB_DATA_TYPE_SMALLINT:
           break;
-        case TSDB_DATA_TYPE_INT:
+        case TSDB_DATA_TYPE_INT: {
+          pColAgg->sum += colVal.value.i32;
+          if (pColAgg->min > colVal.value.i32) {
+            pColAgg->min = colVal.value.i32;
+          }
+          if (pColAgg->max < colVal.value.i32) {
+            pColAgg->max = colVal.value.i32;
+          }
           break;
-        case TSDB_DATA_TYPE_BIGINT:
+        }
+        case TSDB_DATA_TYPE_BIGINT: {
+          pColAgg->sum += colVal.value.i64;
+          if (pColAgg->min > colVal.value.i64) {
+            pColAgg->min = colVal.value.i64;
+          }
+          if (pColAgg->max < colVal.value.i64) {
+            pColAgg->max = colVal.value.i64;
+          }
           break;
+        }
         case TSDB_DATA_TYPE_FLOAT:
           break;
         case TSDB_DATA_TYPE_DOUBLE:

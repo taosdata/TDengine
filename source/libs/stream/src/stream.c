@@ -76,9 +76,6 @@ void streamTriggerByTimer(void* param, void* tmrId) {
 
 int32_t streamSetupTrigger(SStreamTask* pTask) {
   if (pTask->triggerParam != 0) {
-    if (streamInit() < 0) {
-      return -1;
-    }
     pTask->timer = taosTmrStart(streamTriggerByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer);
     pTask->triggerStatus = TASK_TRIGGER_STATUS__IN_ACTIVE;
   }

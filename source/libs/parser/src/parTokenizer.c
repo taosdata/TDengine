@@ -53,6 +53,7 @@ static SKeyword keywordTable[] = {
     {"BY",             TK_BY},
     {"CACHE",          TK_CACHE},
     {"CACHELAST",      TK_CACHELAST},
+    {"CACHELASTSIZE",  TK_CACHELASTSIZE},
     {"CAST",           TK_CAST},
     {"CLIENT_VERSION", TK_CLIENT_VERSION},
     {"CLUSTER",        TK_CLUSTER},
