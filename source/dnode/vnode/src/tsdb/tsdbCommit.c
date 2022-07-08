@@ -168,8 +168,6 @@ static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDel
   tb_uid_t  suid;
   tb_uid_t  uid;
 
-  taosArrayClear(pCommitter->aDelData);
-
   if (pTbData) {
     suid = pTbData->suid;
     uid = pTbData->uid;
@@ -185,6 +183,8 @@ static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDel
 
     code = tsdbReadDelData(pCommitter->pDelFReader, pDelIdx, pCommitter->aDelData, NULL);
     if (code) goto _err;
+  } else {
+    taosArrayClear(pCommitter->aDelData);
   }
 
   if (pTbData == NULL && pDelIdx == NULL) goto _exit;
@@ -205,7 +205,7 @@ static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDel
   if (code) goto _err;
 
   // put delIdx
-  if (taosArrayPush(pCommitter->aDelIdx, &delIdx) == NULL) {
+  if (taosArrayPush(pCommitter->aDelIdxN, &delIdx) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
@@ -602,7 +602,7 @@ static int32_t tsdbGetOvlpNRow(STbDataIter *pIter, SBlock *pBlock) {
 
   iter.pRow = NULL;
   while (true) {
-    pRow = tsdbTbDataIterGet(pIter);
+    pRow = tsdbTbDataIterGet(&iter);
 
     if (pRow == NULL) break;
     key = TSDBROW_KEY(pRow);
@@ -610,7 +610,7 @@ static int32_t tsdbGetOvlpNRow(STbDataIter *pIter, SBlock *pBlock) {
     c = tBlockCmprFn(&(SBlock){.maxKey = key, .minKey = key}, pBlock);
     if (c == 0) {
       nRow++;
-      tsdbTbDataIterNext(pIter);
+      tsdbTbDataIterNext(&iter);
     } else if (c > 0) {
       break;
     } else {
@@ -635,7 +635,7 @@ static int32_t tsdbMergeAsSubBlock(SCommitter *pCommitter, STbDataIter *pIter, S
   code = tsdbCommitterUpdateRowSchema(pCommitter, pBlockIdx->suid, pBlockIdx->uid, TSDBROW_SVERSION(pRow));
   if (code) goto _err;
   while (true) {
-    if (pRow) break;
+    if (pRow == NULL) break;
     code = tBlockDataAppendRow(pBlockData, pRow, pCommitter->skmRow.pTSchema);
     if (code) goto _err;
 
@@ -854,7 +854,7 @@ static int32_t tsdbCommitFileDataEnd(SCommitter *pCommitter) {
 
   if (pCommitter->pReader) {
     code = tsdbDataFReaderClose(&pCommitter->pReader);
-    goto _err;
+    if (code) goto _err;
   }
 
 _exit:

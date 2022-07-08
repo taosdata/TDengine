@@ -305,7 +305,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
 
-  tError("%s conn %p read error: %s", transLabel(pTransInst), conn, uv_err_name(nread));
+  tWarn("%s conn %p read error: %s", transLabel(pTransInst), conn, uv_err_name(nread));
   if (nread < 0) {
     conn->broken = true;
     if (conn->status == ConnAcquire) {
@@ -390,8 +390,9 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
 
+
   if (pConn->status == ConnNormal) {
-    pHead->msgType = pConn->inType + 1;
+    pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
   } else {
     if (smsg->type == Release) {
       pHead->msgType = 0;
@@ -400,11 +401,8 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
       destroyConnRegArg(pConn);
       transUnrefSrvHandle(pConn);
     } else {
-      pHead->msgType = pMsg->msgType;
       // set up resp msg type
-      if (pHead->msgType == 0 && transMsgLenFromCont(pMsg->contLen) == sizeof(STransMsgHead)) {
-        pHead->msgType = pConn->inType + 1;
-      }
+      pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
     }
   }
 
