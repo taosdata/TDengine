@@ -406,7 +406,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
 
     if (statusReq.dnodeId == 0) {
-      mInfo("dnode:%d, %s first access, set clusterId %" PRId64, pDnode->id, pDnode->ep, pMnode->clusterId);
+      mInfo("dnode:%d, %s first access, clusterId:%" PRId64, pDnode->id, pDnode->ep, pMnode->clusterId);
     } else {
       if (statusReq.clusterId != pMnode->clusterId) {
         if (pDnode != NULL) {

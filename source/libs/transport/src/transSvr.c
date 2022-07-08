@@ -245,11 +245,11 @@ static void uvHandleReq(SSvrConn* pConn) {
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
     transRefSrvHandle(pConn);
 
-    tGTrace("%s conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", transLabel(pTransInst), pConn,
+    tGTrace("%s conn %p %s received from %s:%d, local info:%s:%d, msg size:%d", transLabel(pTransInst), pConn,
             TMSG_INFO(transMsg.msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
             taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port), transMsg.contLen);
   } else {
-    tGTrace("%s conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, resp:%d, code: %d",
+    tGTrace("%s conn %p %s received from %s:%d, local info:%s:%d, msg size:%d, resp:%d, code:%d",
             transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), taosInetNtoa(pConn->addr.sin_addr),
             ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port),
             transMsg.contLen, pHead->noResp, transMsg.code);
@@ -265,7 +265,7 @@ static void uvHandleReq(SSvrConn* pConn) {
   transMsg.info.refId = pConn->refId;
   transMsg.info.traceId = pHead->traceId;
 
-  tGTrace("%s handle %p conn: %p translated to app, refId: %" PRIu64 "", transLabel(pTransInst), transMsg.info.handle,
+  tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pTransInst), transMsg.info.handle,
           pConn, pConn->refId);
   assert(transMsg.info.handle != NULL);
 
@@ -292,7 +292,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   STrans*      pTransInst = conn->pTransInst;
   if (nread > 0) {
     pBuf->len += nread;
-    tTrace("%s conn %p total read: %d, current read: %d", transLabel(pTransInst), conn, pBuf->len, (int)nread);
+    tTrace("%s conn %p total read:%d, current read:%d", transLabel(pTransInst), conn, pBuf->len, (int)nread);
     if (transReadComplete(pBuf)) {
       tTrace("%s conn %p alread read complete packet", transLabel(pTransInst), conn);
       uvHandleReq(conn);
@@ -305,7 +305,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
 
-  tError("%s conn %p read error: %s", transLabel(pTransInst), conn, uv_err_name(nread));
+  tError("%s conn %p read error:%s", transLabel(pTransInst), conn, uv_err_name(nread));
   if (nread < 0) {
     conn->broken = true;
     if (conn->status == ConnAcquire) {
@@ -416,7 +416,7 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
 
   STrans*   pTransInst = pConn->pTransInst;
   STraceId* trace = &pMsg->info.traceId;
-  tGTrace("%s conn %p %s is sent to %s:%d, local info: %s:%d, msglen:%d", transLabel(pTransInst), pConn,
+  tGTrace("%s conn %p %s is sent to %s:%d, local info:%s:%d, msglen:%d", transLabel(pTransInst), pConn,
           TMSG_INFO(pHead->msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
           taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port), len);
   pHead->msgLen = htonl(len);
@@ -540,7 +540,7 @@ static void uvAcceptAsyncCb(uv_async_t* async) {
 
 static void uvShutDownCb(uv_shutdown_t* req, int status) {
   if (status != 0) {
-    tDebug("conn failed to shut down: %s", uv_err_name(status));
+    tDebug("conn failed to shut down:%s", uv_err_name(status));
   }
   uv_close((uv_handle_t*)req->handle, uvDestroyConn);
   taosMemoryFree(req);
@@ -601,7 +601,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       tError("read error %s", uv_err_name(nread));
     }
     // TODO(log other failure reason)
-    tError("failed to create connect: %p", q);
+    tWarn("failed to create connect:%p", q);
     taosMemoryFree(buf->base);
     uv_close((uv_handle_t*)q, NULL);
     // taosMemoryFree(q);
@@ -644,7 +644,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   if (uv_accept(q, (uv_stream_t*)(pConn->pTcp)) == 0) {
     uv_os_fd_t fd;
     uv_fileno((const uv_handle_t*)pConn->pTcp, &fd);
-    tTrace("conn %p created, fd: %d", pConn, fd);
+    tTrace("conn %p created, fd:%d", pConn, fd);
 
     int addrlen = sizeof(pConn->addr);
     if (0 != uv_tcp_getpeername(pConn->pTcp, (struct sockaddr*)&pConn->addr, &addrlen)) {
@@ -712,7 +712,7 @@ static bool addHandleToAcceptloop(void* arg) {
 
   int err = 0;
   if ((err = uv_tcp_init(srv->loop, &srv->server)) != 0) {
-    tError("failed to init accept server: %s", uv_err_name(err));
+    tError("failed to init accept server:%s", uv_err_name(err));
     return false;
   }
 
@@ -724,11 +724,11 @@ static bool addHandleToAcceptloop(void* arg) {
   struct sockaddr_in bind_addr;
   uv_ip4_addr("0.0.0.0", srv->port, &bind_addr);
   if ((err = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 0)) != 0) {
-    tError("failed to bind: %s", uv_err_name(err));
+    tError("failed to bind:%s", uv_err_name(err));
     return false;
   }
   if ((err = uv_listen((uv_stream_t*)&srv->server, 512, uvOnAcceptCb)) != 0) {
-    tError("failed to listen: %s", uv_err_name(err));
+    tError("failed to listen:%s", uv_err_name(err));
     terrno = TSDB_CODE_RPC_PORT_EADDRINUSE;
     return false;
   }
@@ -765,7 +765,7 @@ static SSvrConn* createConn(void* hThrd) {
   STrans* pTransInst = pThrd->pTransInst;
   pConn->refId = exh->refId;
   transRefSrvHandle(pConn);
-  tTrace("%s handle %p, conn %p created, refId: %" PRId64 "", transLabel(pTransInst), exh, pConn, pConn->refId);
+  tTrace("%s handle %p, conn %p created, refId:%" PRId64, transLabel(pTransInst), exh, pConn, pConn->refId);
   return pConn;
 }
 
@@ -902,7 +902,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   }
   if (false == taosValidIpAndPort(srv->ip, srv->port)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    tError("invalid ip/port, %d:%d, reason: %s", srv->ip, srv->port, terrstr());
+    tError("invalid ip/port, %d:%d, reason:%s", srv->ip, srv->port, terrstr());
     goto End;
   }
   if (false == addHandleToAcceptloop(srv)) {
@@ -1023,7 +1023,7 @@ void transRefSrvHandle(void* handle) {
     return;
   }
   int ref = T_REF_INC((SSvrConn*)handle);
-  tDebug("conn %p ref count: %d", handle, ref);
+  tDebug("conn %p ref count:%d", handle, ref);
 }
 
 void transUnrefSrvHandle(void* handle) {
@@ -1031,7 +1031,7 @@ void transUnrefSrvHandle(void* handle) {
     return;
   }
   int ref = T_REF_DEC((SSvrConn*)handle);
-  tDebug("conn %p ref count: %d", handle, ref);
+  tDebug("conn %p ref count:%d", handle, ref);
   if (ref == 0) {
     destroyConn((SSvrConn*)handle, true);
   }

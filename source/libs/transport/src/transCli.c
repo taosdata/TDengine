@@ -184,22 +184,22 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
 #define CONN_PERSIST_TIME(para)    (para * 1000 * 10)
 #define CONN_GET_HOST_THREAD(conn) (conn ? ((SCliConn*)conn)->hostThrd : NULL)
 #define CONN_GET_INST_LABEL(conn)  (((STrans*)(((SCliThrd*)(conn)->hostThrd)->pTransInst))->label)
-#define CONN_SHOULD_RELEASE(conn, head)                                                                            \
-  do {                                                                                                             \
-    if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) {                                                 \
-      uint64_t ahandle = head->ahandle;                                                                            \
-      CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle);                                                                   \
-      transClearBuffer(&conn->readBuf);                                                                            \
-      transFreeMsg(transContFromHead((char*)head));                                                                \
-      tDebug("%s conn %p receive release request, ref: %d", CONN_GET_INST_LABEL(conn), conn, T_REF_VAL_GET(conn)); \
-      if (T_REF_VAL_GET(conn) > 1) {                                                                               \
-        transUnrefCliHandle(conn);                                                                                 \
-      }                                                                                                            \
-      destroyCmsg(pMsg);                                                                                           \
-      cliReleaseUnfinishedMsg(conn);                                                                               \
-      addConnToPool(((SCliThrd*)conn->hostThrd)->pool, conn);                                                      \
-      return;                                                                                                      \
-    }                                                                                                              \
+#define CONN_SHOULD_RELEASE(conn, head)                                                                           \
+  do {                                                                                                            \
+    if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) {                                                \
+      uint64_t ahandle = head->ahandle;                                                                           \
+      CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle);                                                                  \
+      transClearBuffer(&conn->readBuf);                                                                           \
+      transFreeMsg(transContFromHead((char*)head));                                                               \
+      tDebug("%s conn %p receive release request, ref:%d", CONN_GET_INST_LABEL(conn), conn, T_REF_VAL_GET(conn)); \
+      if (T_REF_VAL_GET(conn) > 1) {                                                                              \
+        transUnrefCliHandle(conn);                                                                                \
+      }                                                                                                           \
+      destroyCmsg(pMsg);                                                                                          \
+      cliReleaseUnfinishedMsg(conn);                                                                              \
+      addConnToPool(((SCliThrd*)conn->hostThrd)->pool, conn);                                                     \
+      return;                                                                                                     \
+    }                                                                                                             \
   } while (0)
 
 #define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                                         \
@@ -353,7 +353,7 @@ void cliHandleResp(SCliConn* conn) {
   }
 
   STraceId* trace = &transMsg.info.traceId;
-  tGTrace("%s conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, code: %d", CONN_GET_INST_LABEL(conn),
+  tGTrace("%s conn %p %s received from %s:%d, local info:%s:%d, msg size:%d, code:0x%x", CONN_GET_INST_LABEL(conn),
           conn, TMSG_INFO(pHead->msgType), taosInetNtoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port),
           taosInetNtoa(conn->localAddr.sin_addr), ntohs(conn->localAddr.sin_port), transMsg.contLen, transMsg.code);
 
@@ -1294,7 +1294,7 @@ void transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
     cliMsg->refId = (int64_t)shandle;
 
     SCliThrd* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[i];
-    tDebug("%s update epset at thread:%08" PRId64 "", pTransInst->label, thrd->pid);
+    tDebug("%s update epset at thread:%08" PRId64, pTransInst->label, thrd->pid);
 
     transAsyncSend(thrd->asyncPool, &(cliMsg->q));
   }
