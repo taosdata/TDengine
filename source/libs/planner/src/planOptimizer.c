@@ -896,7 +896,7 @@ static int32_t pushDownCondOptTrivialPushDown(SOptimizeContext* pCxt, SLogicNode
     return TSDB_CODE_SUCCESS;
   }
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pLogicNode->pChildren, 0);
-  int32_t code = pushDownCondOptPushCondToChild(pCxt, pChild, &pLogicNode->pConditions);
+  int32_t     code = pushDownCondOptPushCondToChild(pCxt, pChild, &pLogicNode->pConditions);
   if (TSDB_CODE_SUCCESS == code) {
     OPTIMIZE_FLAG_SET_MASK(pLogicNode->optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
     pCxt->optimized = true;
@@ -1183,7 +1183,7 @@ static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNo
     if (smaFuncIndex < 0) {
       break;
     } else {
-      code = nodesListMakeStrictAppend(&pCols, smaIndexOptCreateSmaCol(pFunc, tableId, smaFuncIndex + 2));
+      code = nodesListMakeStrictAppend(&pCols, smaIndexOptCreateSmaCol(pFunc, tableId, smaFuncIndex + 1));
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }

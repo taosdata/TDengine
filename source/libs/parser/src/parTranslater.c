@@ -977,131 +977,11 @@ static bool isMultiResFunc(SNode* pNode) {
   return (QUERY_NODE_COLUMN == nodeType(pParam) ? 0 == strcmp(((SColumnNode*)pParam)->colName, "*") : false);
 }
 
-static int32_t rewriteNegativeOperator(SNode** pOp) {
-  SNode*  pRes = NULL;
-  int32_t code = scalarCalculateConstants(*pOp, &pRes);
-  if (TSDB_CODE_SUCCESS == code) {
-    *pOp = pRes;
-  }
-  return code;
-}
-
-static EDealRes translateUnaryOperator(STranslateContext* pCxt, SOperatorNode** pOpRef) {
-  SOperatorNode* pOp = *pOpRef;
-  if (OP_TYPE_MINUS == pOp->opType) {
-    if (!IS_MATHABLE_TYPE(((SExprNode*)(pOp->pLeft))->resType.type)) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pLeft))->aliasName);
-    }
-    pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
-    pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
-
-    pCxt->errCode = rewriteNegativeOperator((SNode**)pOpRef);
-  } else {
-    pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
-    pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
-  }
-  return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
-}
-
-static EDealRes translateArithmeticOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
-  SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
-  SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
-  if (TSDB_DATA_TYPE_BLOB == ldt.type || TSDB_DATA_TYPE_BLOB == rdt.type) {
-    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
-  }
-  if ((TSDB_DATA_TYPE_TIMESTAMP == ldt.type && TSDB_DATA_TYPE_TIMESTAMP == rdt.type) ||
-      (TSDB_DATA_TYPE_TIMESTAMP == ldt.type && (IS_VAR_DATA_TYPE(rdt.type) || IS_FLOAT_TYPE(rdt.type))) ||
-      (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && (IS_VAR_DATA_TYPE(ldt.type) || IS_FLOAT_TYPE(ldt.type)))) {
-    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
-  }
-
-  if ((TSDB_DATA_TYPE_TIMESTAMP == ldt.type && IS_INTEGER_TYPE(rdt.type)) ||
-      (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && IS_INTEGER_TYPE(ldt.type)) ||
-      (TSDB_DATA_TYPE_TIMESTAMP == ldt.type && TSDB_DATA_TYPE_BOOL == rdt.type) ||
-      (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && TSDB_DATA_TYPE_BOOL == ldt.type)) {
-    pOp->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
-    pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
-  } else {
-    pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
-    pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
-  }
-  return DEAL_RES_CONTINUE;
-}
-
 static bool dataTypeEqual(const SDataType* l, const SDataType* r) {
   return (l->type == r->type && l->bytes == r->bytes && l->precision == r->precision && l->scale == r->scale);
 }
 
-static EDealRes translateComparisonOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
-  SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
-  SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
-  if (TSDB_DATA_TYPE_BLOB == ldt.type || TSDB_DATA_TYPE_BLOB == rdt.type) {
-    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
-  }
-  if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
-    SNodeListNode* pRight = (SNodeListNode*)pOp->pRight;
-    bool           first = true;
-    SDataType      targetDt = {0};
-    SNode*         pNode = NULL;
-    FOREACH(pNode, pRight->pNodeList) {
-      SDataType dt = ((SExprNode*)pNode)->resType;
-      if (first) {
-        targetDt = dt;
-        if (targetDt.type != TSDB_DATA_TYPE_NULL) {
-          first = false;
-        }
-      } else if (dt.type != targetDt.type && dt.type != TSDB_DATA_TYPE_NULL) {
-        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)pNode)->aliasName);
-      } else if (dt.bytes > targetDt.bytes) {
-        targetDt.bytes = dt.bytes;
-      }
-    }
-    pRight->dataType = targetDt;
-  }
-  if (nodesIsRegularOp(pOp)) {
-    if (!IS_VAR_DATA_TYPE(((SExprNode*)(pOp->pLeft))->resType.type)) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pLeft))->aliasName);
-    }
-    if (QUERY_NODE_VALUE != nodeType(pOp->pRight) ||
-        ((!IS_STR_DATA_TYPE(((SExprNode*)(pOp->pRight))->resType.type)) &&
-         (((SExprNode*)(pOp->pRight))->resType.type != TSDB_DATA_TYPE_NULL))) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
-    }
-  }
-  pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
-  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
-  return DEAL_RES_CONTINUE;
-}
-
-static EDealRes translateJsonOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
-  SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
-  SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
-  if (TSDB_DATA_TYPE_JSON != ldt.type || TSDB_DATA_TYPE_BINARY != rdt.type) {
-    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
-  }
-  if (pOp->opType == OP_TYPE_JSON_GET_VALUE) {
-    pOp->node.resType.type = TSDB_DATA_TYPE_JSON;
-  } else if (pOp->opType == OP_TYPE_JSON_CONTAINS) {
-    pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
-  }
-  pOp->node.resType.bytes = tDataTypes[pOp->node.resType.type].bytes;
-  return DEAL_RES_CONTINUE;
-}
-
-static EDealRes translateBitwiseOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
-  SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
-  SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
-  if (TSDB_DATA_TYPE_BLOB == ldt.type || TSDB_DATA_TYPE_BLOB == rdt.type) {
-    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
-  }
-  pOp->node.resType.type = TSDB_DATA_TYPE_BIGINT;
-  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
-  return DEAL_RES_CONTINUE;
-}
-
-static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode** pOpRef) {
-  SOperatorNode* pOp = *pOpRef;
-
+static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   if (isMultiResFunc(pOp->pLeft)) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pLeft))->aliasName);
   }
@@ -1109,17 +989,10 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode** pOpRe
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
   }
 
-  if (nodesIsUnaryOp(pOp)) {
-    return translateUnaryOperator(pCxt, pOpRef);
-  } else if (nodesIsArithmeticOp(pOp)) {
-    return translateArithmeticOperator(pCxt, pOp);
-  } else if (nodesIsComparisonOp(pOp)) {
-    return translateComparisonOperator(pCxt, pOp);
-  } else if (nodesIsJsonOp(pOp)) {
-    return translateJsonOperator(pCxt, pOp);
-  } else if (nodesIsBitwiseOp(pOp)) {
-    return translateBitwiseOperator(pCxt, pOp);
+  if (TSDB_CODE_SUCCESS != scalarGetOperatorResultType(pOp)) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pOp->node.aliasName);
   }
+
   return DEAL_RES_CONTINUE;
 }
 
@@ -1485,7 +1358,7 @@ static EDealRes doTranslateExpr(SNode** pNode, void* pContext) {
     case QUERY_NODE_VALUE:
       return translateValue(pCxt, (SValueNode*)*pNode);
     case QUERY_NODE_OPERATOR:
-      return translateOperator(pCxt, (SOperatorNode**)pNode);
+      return translateOperator(pCxt, (SOperatorNode*)*pNode);
     case QUERY_NODE_FUNCTION:
       return translateFunction(pCxt, (SFunctionNode**)pNode);
     case QUERY_NODE_LOGIC_CONDITION:
@@ -3352,7 +3225,7 @@ static int32_t checkTableRollupOption(STranslateContext* pCxt, SNodeList* pFuncs
   if (NULL == pFuncs) {
     if (NULL != pDbCfg->pRetensions) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
-                                     "To create a super table in a database with the retensions parameter configured, "
+                                     "To create a super table in databases configured with the 'RETENTIONS' option, "
                                      "the 'ROLLUP' option must be present");
     }
     return TSDB_CODE_SUCCESS;
@@ -3563,10 +3436,12 @@ static int32_t checkTableWatermarkOption(STranslateContext* pCxt, STableOptions*
 }
 
 static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt, bool createStable) {
-  int32_t    code = TSDB_CODE_SUCCESS;
   SDbCfgInfo dbCfg = {0};
-  if (createStable) {
-    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
+  int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
+  if (TSDB_CODE_SUCCESS == code && !createStable && NULL != dbCfg.pRetensions) {
+    code = generateSyntaxErrMsgExt(
+        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
+        "Only super table creation is supported in databases configured with the 'RETENTIONS' option");
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableMaxDelayOption(pCxt, pStmt->pOptions, createStable, &dbCfg);
