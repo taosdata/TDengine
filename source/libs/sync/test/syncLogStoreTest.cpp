@@ -85,6 +85,7 @@ void logStoreTest() {
 }
 
 int main(int argc, char** argv) {
+  gRaftDetailLog = true;
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
 

@@ -235,11 +235,6 @@ typedef struct SStreamTask {
   int8_t taskStatus;
   int8_t execStatus;
 
-  // exec info
-  int64_t enqueueVer;
-  int64_t processedVer;
-  int64_t checkpointVer;
-
   // node info
   int32_t selfChildId;
   int32_t nodeId;

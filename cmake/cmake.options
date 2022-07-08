@@ -78,6 +78,12 @@ ELSE ()
 ENDIF ()
 
 option(
+    BUILD_SANITIZER
+    "If build addr2line"
+    OFF
+    )
+
+option(
     BUILD_ADDR2LINE
     "If build addr2line"
     OFF
