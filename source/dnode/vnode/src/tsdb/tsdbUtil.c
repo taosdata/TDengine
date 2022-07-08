@@ -821,16 +821,20 @@ int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
   int32_t code = 0;
   int32_t size;
 
+  ASSERT(pColDataSrc->nVal > 0);
+
   pColDataDest->cid = pColDataSrc->cid;
   pColDataDest->type = pColDataSrc->type;
   pColDataDest->smaOn = pColDataSrc->smaOn;
   pColDataDest->nVal = pColDataSrc->nVal;
   pColDataDest->flag = pColDataSrc->flag;
 
-  size = BIT2_SIZE(pColDataSrc->nVal);
-  code = tRealloc(&pColDataDest->pBitMap, size);
-  if (code) goto _exit;
-  memcpy(pColDataDest->pBitMap, pColDataSrc->pBitMap, size);
+  if (pColDataSrc->flag != HAS_NONE && pColDataSrc->flag != HAS_NULL && pColDataSrc->flag != HAS_VALUE) {
+    size = BIT2_SIZE(pColDataSrc->nVal);
+    code = tRealloc(&pColDataDest->pBitMap, size);
+    if (code) goto _exit;
+    memcpy(pColDataDest->pBitMap, pColDataSrc->pBitMap, size);
+  }
 
   if (IS_VAR_DATA_TYPE(pColDataDest->type)) {
     size = sizeof(int32_t) * pColDataSrc->nVal;

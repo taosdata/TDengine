@@ -518,8 +518,8 @@ void releaseBufPageInfo(SDiskbasedBuf* pBuf, SPageInfo* pi) {
 #ifdef BUF_PAGE_DEBUG
   uDebug("page_releaseBufPageInfo pageId:%d, used:%d, offset:%"PRId64, pi->pageId, pi->used, pi->offset);
 #endif
-  assert(pi->pData != NULL && pi->used == true);
-//  assert(pi->pData != NULL);
+  // assert(pi->pData != NULL && pi->used == true);
+  assert(pi->pData != NULL);
   pi->used = false;
   pBuf->statis.releasePages += 1;
 }
