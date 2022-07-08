@@ -104,6 +104,8 @@ void setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode) {
 void destroyMergeJoinOperator(void* param, int32_t numOfOutput) {
   SJoinOperatorInfo* pJoinOperator = (SJoinOperatorInfo*)param;
   nodesDestroyNode(pJoinOperator->pCondAfterMerge);
+  
+  taosMemoryFreeClear(param);
 }
 
 static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) {

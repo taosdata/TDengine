@@ -143,6 +143,7 @@ int32_t tsdbLastRowReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, 
                               void **pReader);
 int32_t tsdbRetrieveLastRow(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds);
 int32_t tsdbLastrowReaderClose(void *pReader);
+int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid);
 
 // tq
 

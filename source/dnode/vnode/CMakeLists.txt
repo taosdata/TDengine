@@ -9,7 +9,6 @@ target_sources(
     "src/vnd/vnodeCfg.c"
     "src/vnd/vnodeCommit.c"
     "src/vnd/vnodeQuery.c"
-    "src/vnd/vnodeStateMgr.c"
     "src/vnd/vnodeModule.c"
     "src/vnd/vnodeSvr.c"
     "src/vnd/vnodeSync.c"
@@ -32,7 +31,6 @@ target_sources(
     "src/sma/smaUtil.c"
     "src/sma/smaOpen.c"
     "src/sma/smaCommit.c"
-    "src/sma/smaSnapshot.c"
     "src/sma/smaRollup.c"
     "src/sma/smaTimeRange.c"
 

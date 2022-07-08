@@ -806,7 +806,7 @@ SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SExprI
 
 SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          SExecTaskInfo* pTaskInfo);
+                                          SNode* pCondition, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream,
     SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, int32_t numOfChild);
@@ -885,7 +885,7 @@ int32_t decodeOperator(SOperatorInfo* ops, const char* data, int32_t length);
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
                                const char* sql, EOPTR_EXEC_MODEL model);
-int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pTaskInfo);                               
+int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pTaskInfo, SReadHandle* readHandle);                               
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo** pRes, int32_t* capacity,
                                    int32_t* resNum);
 
