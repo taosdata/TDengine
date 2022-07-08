@@ -76,7 +76,7 @@ void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   pGroupResInfo->index = 0;
 }
 
-static int32_t resultrowComparAsc(const void* p1, const void* p2) {
+int32_t resultrowComparAsc(const void* p1, const void* p2) {
   SResKeyPos* pp1 = *(SResKeyPos**)p1;
   SResKeyPos* pp2 = *(SResKeyPos**)p2;
 
