@@ -61,8 +61,8 @@ void    vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId);
 int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen);
 int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
 int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list);
-void *  vnodeGetIdx(SVnode *pVnode);
-void *  vnodeGetIvtIdx(SVnode *pVnode);
+void   *vnodeGetIdx(SVnode *pVnode);
+void   *vnodeGetIvtIdx(SVnode *pVnode);
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int32_t vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
@@ -92,7 +92,7 @@ typedef struct SMetaFltParam {
   tb_uid_t suid;
   int16_t  cid;
   int16_t  type;
-  char *   val;
+  char    *val;
   bool     reverse;
   int (*filterFunc)(void *a, void *b, int16_t type);
 
@@ -133,8 +133,8 @@ SArray *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdLis
 int32_t tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond, int32_t tWinIdx);
 int32_t tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 int64_t tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
-void *  tsdbGetIdx(SMeta *pMeta);
-void *  tsdbGetIvtIdx(SMeta *pMeta);
+void   *tsdbGetIdx(SMeta *pMeta);
+void   *tsdbGetIvtIdx(SMeta *pMeta);
 
 int32_t tsdbLastRowReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, int32_t *colId, int32_t numOfCols,
                               void **pReader);
@@ -218,7 +218,7 @@ struct SMetaEntry {
   int8_t   type;
   int8_t   flags;  // TODO: need refactor?
   tb_uid_t uid;
-  char *   name;
+  char    *name;
   union {
     struct {
       SSchemaWrapper schemaRow;
@@ -229,7 +229,7 @@ struct SMetaEntry {
       int64_t  ctime;
       int32_t  ttlDays;
       int32_t  commentLen;
-      char *   comment;
+      char    *comment;
       tb_uid_t suid;
       uint8_t *pTags;
     } ctbEntry;
@@ -237,7 +237,7 @@ struct SMetaEntry {
       int64_t        ctime;
       int32_t        ttlDays;
       int32_t        commentLen;
-      char *         comment;
+      char          *comment;
       int32_t        ncid;  // next column id
       SSchemaWrapper schemaRow;
     } ntbEntry;
@@ -251,17 +251,17 @@ struct SMetaEntry {
 
 struct SMetaReader {
   int32_t    flags;
-  SMeta *    pMeta;
+  SMeta     *pMeta;
   SDecoder   coder;
   SMetaEntry me;
-  void *     pBuf;
+  void      *pBuf;
   int32_t    szBuf;
 };
 
 struct SMTbCursor {
-  TBC *       pDbc;
-  void *      pKey;
-  void *      pVal;
+  TBC        *pDbc;
+  void       *pKey;
+  void       *pVal;
   int32_t     kLen;
   int32_t     vLen;
   SMetaReader mr;
