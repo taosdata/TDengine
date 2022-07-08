@@ -1016,7 +1016,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   SColData *pColData;
   SColVal  *pColVal;
 
-  ASSERT(nColData > 0);
+  if (nColData == 0) goto _exit;
 
   tRowIterInit(pIter, pRow, pTSchema);
   pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
@@ -1046,6 +1046,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
     }
   }
 
+_exit:
   pBlockData->nRow++;
   return code;
 

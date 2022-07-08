@@ -43,7 +43,6 @@ target_sources(
     "src/tsdb/tsdbOpen.c"
     "src/tsdb/tsdbMemTable.c"
     "src/tsdb/tsdbRead.c"
-    "src/tsdb/tsdbReadImpl.c"
     "src/tsdb/tsdbCache.c"
     "src/tsdb/tsdbWrite.c"
     "src/tsdb/tsdbReaderWriter.c"
