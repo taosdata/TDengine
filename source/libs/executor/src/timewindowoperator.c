@@ -3441,6 +3441,7 @@ static int32_t copyUpdateResult(SHashObj* pStUpdated, SArray* pUpdated) {
     *(int64_t*)pos->key = ((SWinRes*)pData)->ts;
     taosArrayPush(pUpdated, &pos);
   }
+  taosArraySort(pUpdated, resultrowComparAsc);
   return TSDB_CODE_SUCCESS;
 }
 
