@@ -570,7 +570,7 @@ _return:
   SCL_RET(code);
 }
 
-EDealRes sclRewriteBasedOnOptr(SNode** pNode, SScalarCtx *ctx, EOperatorType opType) {
+EDealRes sclRewriteNullInOptr(SNode** pNode, SScalarCtx *ctx, EOperatorType opType) {
   if (opType <= OP_TYPE_CALC_MAX) {
     SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
     if (NULL == res) {
@@ -602,6 +602,24 @@ EDealRes sclRewriteBasedOnOptr(SNode** pNode, SScalarCtx *ctx, EOperatorType opT
   return DEAL_RES_CONTINUE;
 }
 
+EDealRes sclAggFuncWalker(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    *(bool*)pContext = fmIsAggFunc(pFunc->funcId);
+    if (*(bool*)pContext) {
+      return DEAL_RES_END;
+    }
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+
+bool sclContainsAggFuncNode(SNode* pNode) {
+  bool aggFunc = false;
+  nodesWalkExpr(pNode, sclAggFuncWalker, (void *)&aggFunc);
+  return aggFunc;
+}
 
 EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
   SOperatorNode *node = (SOperatorNode *)*pNode;
@@ -609,8 +627,9 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
 
   if (node->pLeft && (QUERY_NODE_VALUE == nodeType(node->pLeft))) {
     SValueNode *valueNode = (SValueNode *)node->pLeft;
-    if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)) {
-      return sclRewriteBasedOnOptr(pNode, ctx, node->opType);
+    if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL) 
+        && (!sclContainsAggFuncNode(node->pRight))) {
+      return sclRewriteNullInOptr(pNode, ctx, node->opType);
     }
 
     if (IS_STR_DATA_TYPE(valueNode->node.resType.type) && node->pRight && nodesIsExprNode(node->pRight) 
@@ -625,8 +644,9 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
 
   if (node->pRight && (QUERY_NODE_VALUE == nodeType(node->pRight))) {
     SValueNode *valueNode = (SValueNode *)node->pRight;
-    if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)) {
-      return sclRewriteBasedOnOptr(pNode, ctx, node->opType);
+    if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)
+       && (!sclContainsAggFuncNode(node->pLeft))) {
+      return sclRewriteNullInOptr(pNode, ctx, node->opType);
     }
 
     if (IS_STR_DATA_TYPE(valueNode->node.resType.type) && node->pLeft && nodesIsExprNode(node->pLeft) 
@@ -648,7 +668,7 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
           ERASE_NODE(listNode->pNodeList);
           continue;
         } else { //OP_TYPE_NOT_IN
-          return sclRewriteBasedOnOptr(pNode, ctx, node->opType);
+          return sclRewriteNullInOptr(pNode, ctx, node->opType);
         }
       }
 
@@ -656,7 +676,7 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
     }
 
     if (listNode->pNodeList->length <= 0) {
-      return sclRewriteBasedOnOptr(pNode, ctx, node->opType);
+      return sclRewriteNullInOptr(pNode, ctx, node->opType);
     }
   }
 
