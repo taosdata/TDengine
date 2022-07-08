@@ -1316,7 +1316,7 @@ bool doDeleteIntervalWindow(SAggSupporter* pAggSup, TSKEY ts, uint64_t groupId) 
     // window has been closed
     return false;
   }
-  SFilePage* bufPage = getBufPage(pAggSup->pResultBuf, p1->pageId);
+  // SFilePage* bufPage = getBufPage(pAggSup->pResultBuf, p1->pageId);
   // dBufSetBufPageRecycled(pAggSup->pResultBuf, bufPage);
   taosHashRemove(pAggSup->pResultRowHashTable, pAggSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
   return true;
@@ -1419,7 +1419,7 @@ static int32_t closeIntervalWindow(SHashObj* pHashMap, STimeWindowAggSupp* pSup,
         ASSERT(pRecyPages != NULL);
         taosArrayPush(pRecyPages, &pPos->pageId);
       } else {
-        SFilePage* bufPage = getBufPage(pDiscBuf, pPos->pageId);
+        // SFilePage* bufPage = getBufPage(pDiscBuf, pPos->pageId);
         // dBufSetBufPageRecycled(pDiscBuf, bufPage);
       }
       char keyBuf[GET_RES_WINDOW_KEY_LEN(sizeof(TSKEY))];
@@ -1446,7 +1446,7 @@ static void freeAllPages(SArray* pageIds, SDiskbasedBuf* pDiskBuf) {
   int32_t size = taosArrayGetSize(pageIds);
   for (int32_t i = 0; i < size; i++) {
     int32_t pageId = *(int32_t*)taosArrayGet(pageIds, i);
-    SFilePage* bufPage = getBufPage(pDiskBuf, pageId);
+    // SFilePage* bufPage = getBufPage(pDiskBuf, pageId);
     // dBufSetBufPageRecycled(pDiskBuf, bufPage);
   }
   taosArrayClear(pageIds);
