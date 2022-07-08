@@ -706,10 +706,10 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   memcpy(pDst->db, pDb->name, TSDB_DB_FNAME_LEN);
   pDst->createdTime = taosGetTimestampMs();
   pDst->updateTime = pDst->createdTime;
-  pDst->uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
+  pDst->uid = (pCreate->source == 1) ? pCreate->suid : mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
   pDst->dbUid = pDb->uid;
-  pDst->tagVer = 1;
-  pDst->colVer = 1;
+  pDst->tagVer = (pCreate->source == 1) ? pCreate->tVersion : 1;
+  pDst->colVer = (pCreate->source == 1) ? pCreate->cVersion : 1;
   pDst->smaVer = 1;
   pDst->nextColId = 1;
   pDst->maxdelay[0] = pCreate->delay1;
@@ -1750,6 +1750,11 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
       terrno = TSDB_CODE_MND_STB_NOT_EXIST;
       goto _OVER;
     }
+  }
+
+  if (dropReq.source == 1 && pStb->uid != dropReq.suid){
+    terrno = TSDB_CODE_MND_STB_NOT_EXIST;
+    goto _OVER;
   }
 
   pDb = mndAcquireDbByStb(pMnode, dropReq.name);

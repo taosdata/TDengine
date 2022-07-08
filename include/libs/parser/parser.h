@@ -96,6 +96,9 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
                     char* tableName, char* msgBuf, int16_t msgBufLen);
 int32_t smlBuildOutput(void* handle, SHashObj* pVgHash);
 
+int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
+SArray* serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap);
+SArray* serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap);
 #ifdef __cplusplus
 }
 #endif
