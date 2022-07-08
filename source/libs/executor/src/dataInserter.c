@@ -154,22 +154,24 @@ int32_t dataBlockToSubmit(SDataInserterHandle* pInserter, SSubmitReq** pReq) {
   for (int32_t i = 0; i < sz; i++) {
     SSDataBlock* pDataBlock = taosArrayGetP(pBlocks, i);
 
-    blkHead->numOfRows = htons(pDataBlock->info.rows);
     blkHead->sversion = htonl(pTSchema->version);
     // TODO
     blkHead->suid = htobe64(suid);
     blkHead->uid = htobe64(uid);
     blkHead->schemaLen = htonl(0);
 
-    int32_t rows = pDataBlock->info.rows;
+    int32_t rows = 0;
     int32_t dataLen = 0;
     STSRow* rowData = POINTER_SHIFT(blkHead, sizeof(SSubmitBlk));
-    for (int32_t j = 0; j < rows; j++) {
+    int64_t lastTs =  TSKEY_MIN;
+    bool    ignoreRow = false;
+    for (int32_t j = 0; j < pDataBlock->info.rows; j++) {
       SRowBuilder rb = {0};
       tdSRowInit(&rb, pTSchema->version);
       tdSRowSetTpInfo(&rb, pTSchema->numOfCols, pTSchema->flen);
       tdSRowResetBuf(&rb, rowData);
 
+      ignoreRow = false;
       for (int32_t k = 0; k < pTSchema->numOfCols; k++) {
         const STColumn*  pColumn = &pTSchema->columns[k];
         SColumnInfoData* pColData = NULL;
@@ -191,18 +193,38 @@ int32_t dataBlockToSubmit(SDataInserterHandle* pInserter, SSubmitReq** pReq) {
         }
         
         if (colDataIsNull_s(pColData, j)) {
+          if (0 == k && TSDB_DATA_TYPE_TIMESTAMP == pColumn->type) {
+            ignoreRow = true;
+            break;
+          }
+          
           tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, pColumn->offset, k);
         } else {
           void* data = colDataGetData(pColData, j);
+          if (0 == k && TSDB_DATA_TYPE_TIMESTAMP == pColumn->type) {
+            if (*(int64_t*)data == lastTs) {
+              ignoreRow = true;
+              break;
+            } else {
+              lastTs = *(int64_t*)data;
+            }
+          }
           tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, data, true, pColumn->offset, k);
         }
       }
+
+      if (ignoreRow) {
+        continue;
+      }
+      
+      rows++;
       int32_t rowLen = TD_ROW_LEN(rowData);
       rowData = POINTER_SHIFT(rowData, rowLen);
       dataLen += rowLen;
     }
     
     blkHead->dataLen = htonl(dataLen);
+    blkHead->numOfRows = htons(rows);
 
     ret->length += sizeof(SSubmitBlk) + dataLen;
     blkHead = POINTER_SHIFT(blkHead, sizeof(SSubmitBlk) + dataLen);
