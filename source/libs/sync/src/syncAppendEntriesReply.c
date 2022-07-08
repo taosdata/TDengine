@@ -52,7 +52,8 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
   // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, recv-term:%lu, drop stale response", pMsg->term);
+    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, recv-term:%" PRIu64 ", drop stale response",
+             pMsg->term);
     syncNodeEventLog(ths, logBuf);
     return 0;
   }
@@ -70,7 +71,7 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, error term, recv-term:%lu", pMsg->term);
+    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, error term, recv-term:%" PRIu64, pMsg->term);
     syncNodeErrorLog(ths, logBuf);
     return -1;
   }
@@ -155,7 +156,8 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
   // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, recv-term:%lu, drop stale response", pMsg->term);
+    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, recv-term:%" PRIu64 ", drop stale response",
+             pMsg->term);
     syncNodeEventLog(ths, logBuf);
     return -1;
   }
@@ -163,7 +165,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
   // error term
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, error term, recv-term:%lu", pMsg->term);
+    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, error term, recv-term:%" PRIu64, pMsg->term);
     syncNodeErrorLog(ths, logBuf);
     return -1;
   }
@@ -208,8 +210,8 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
       syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
 
       char logBuf[256];
-      snprintf(logBuf, sizeof(logBuf), "reset next-index:%ld, match-index:%ld for %s:%d", newNextIndex, newMatchIndex,
-               host, port);
+      snprintf(logBuf, sizeof(logBuf), "reset next-index:%" PRId64 ", match-index:%" PRId64 " for %s:%d", newNextIndex,
+               newMatchIndex, host, port);
       syncNodeEventLog(ths, logBuf);
 
     } while (0);
@@ -262,8 +264,8 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
       SyncIndex newNextIndex = nextIndex;
       SyncIndex newMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
       char      logBuf[256];
-      snprintf(logBuf, sizeof(logBuf), "reset2 next-index:%ld, match-index:%ld for %s:%d", newNextIndex, newMatchIndex,
-               host, port);
+      snprintf(logBuf, sizeof(logBuf), "reset2 next-index:%" PRId64 ", match-index:%" PRId64 " for %s:%d", newNextIndex,
+               newMatchIndex, host, port);
       syncNodeEventLog(ths, logBuf);
 
     } while (0);
@@ -287,7 +289,8 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
   // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, recv-term:%lu, drop stale response", pMsg->term);
+    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, recv-term:%" PRIu64 ", drop stale response",
+             pMsg->term);
     syncNodeEventLog(ths, logBuf);
     return 0;
   }
@@ -305,7 +308,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, error term, recv-term:%lu", pMsg->term);
+    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, error term, recv-term:%" PRIu64, pMsg->term);
     syncNodeErrorLog(ths, logBuf);
     return -1;
   }
@@ -317,7 +320,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
     syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), pMsg->matchIndex + 1);
 
     if (gRaftDetailLog) {
-      sTrace("update next match, index:%ld, success:%d", pMsg->matchIndex + 1, pMsg->success);
+      sTrace("update next match, index:%" PRId64 ", success:%d", pMsg->matchIndex + 1, pMsg->success);
     }
 
     // matchIndex' = [matchIndex EXCEPT ![i][j] = m.mmatchIndex]
@@ -331,7 +334,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
   } else {
     SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
     if (gRaftDetailLog) {
-      sTrace("update next index not match, begin, index:%ld, success:%d", nextIndex, pMsg->success);
+      sTrace("update next index not match, begin, index:%" PRId64 ", success:%d", nextIndex, pMsg->success);
     }
 
     // notice! int64, uint64
@@ -375,7 +378,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
 
     syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), nextIndex);
     if (gRaftDetailLog) {
-      sTrace("update next index not match, end, index:%ld, success:%d", nextIndex, pMsg->success);
+      sTrace("update next index not match, end, index:%" PRId64 ", success:%d", nextIndex, pMsg->success);
     }
   }
 

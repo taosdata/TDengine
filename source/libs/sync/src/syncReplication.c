@@ -135,7 +135,7 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
       SyncIndex newNextIndex = syncNodeGetLastIndex(pSyncNode) + 1;
       syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, newNextIndex);
       syncIndexMgrSetIndex(pSyncNode->pMatchIndex, pDestId, SYNC_INDEX_INVALID);
-      sError("vgId:%d sync get pre term error, nextIndex:%ld, update next-index:%ld, match-index:%d, raftid:%ld",
+      sError("vgId:%d sync get pre term error, nextIndex:%" PRId64 ", update next-index:%" PRId64 ", match-index:%d, raftid:%" PRId64,
              pSyncNode->vgId, nextIndex, newNextIndex, SYNC_INDEX_INVALID, pDestId->addr);
 
       return -1;
@@ -224,7 +224,7 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
       SyncIndex newNextIndex = syncNodeGetLastIndex(pSyncNode) + 1;
       syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, newNextIndex);
       syncIndexMgrSetIndex(pSyncNode->pMatchIndex, pDestId, SYNC_INDEX_INVALID);
-      sError("vgId:%d sync get pre term error, nextIndex:%ld, update next-index:%ld, match-index:%d, raftid:%ld",
+      sError("vgId:%d sync get pre term error, nextIndex:%" PRId64 ", update next-index:%" PRId64 ", match-index:%d, raftid:%" PRId64,
              pSyncNode->vgId, nextIndex, newNextIndex, SYNC_INDEX_INVALID, pDestId->addr);
 
       return -1;
@@ -315,7 +315,7 @@ int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, c
     uint16_t port;
     syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
     sDebug(
-        "vgId:%d, send sync-append-entries to %s:%d, {term:%lu, pre-index:%ld, pre-term:%lu, pterm:%lu, commit:%ld, "
+        "vgId:%d, send sync-append-entries to %s:%d, {term:%" PRIu64 ", pre-index:%" PRId64 ", pre-term:%" PRIu64 ", pterm:%" PRIu64 ", commit:%" PRId64 ", "
         "datalen:%d}",
         pSyncNode->vgId, host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm,
         pMsg->commitIndex, pMsg->dataLen);
@@ -334,8 +334,8 @@ int32_t syncNodeAppendEntriesBatch(SSyncNode* pSyncNode, const SRaftId* destRaft
     uint16_t port;
     syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
     sDebug(
-        "vgId:%d, send sync-append-entries-batch to %s:%d, {term:%lu, pre-index:%ld, pre-term:%lu, pterm:%lu, "
-        "commit:%ld, "
+        "vgId:%d, send sync-append-entries-batch to %s:%d, {term:%" PRIu64 ", pre-index:%" PRId64 ", pre-term:%" PRIu64 ", pterm:%" PRIu64 ", "
+        "commit:%" PRId64 ", "
         "datalen:%d, dataCount:%d}",
         pSyncNode->vgId, host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm,
         pMsg->commitIndex, pMsg->dataLen, pMsg->dataCount);

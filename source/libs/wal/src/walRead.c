@@ -246,7 +246,7 @@ static int32_t walFetchBodyNew(SWalReader *pRead) {
   }
 
   if (walValidBodyCksum(pRead->pHead) != 0) {
-    wError("vgId:%d, wal fetch body error: % " PRId64 ", since body checksum not passed", pRead->pWal->cfg.vgId, ver);
+    wError("vgId:%d, wal fetch body error: % %" PRId64 ", since body checksum not passed", pRead->pWal->cfg.vgId, ver);
     pRead->curVersion = -1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     ASSERT(0);
@@ -352,7 +352,7 @@ int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead) {
   }
 
   if (walValidBodyCksum(*ppHead) != 0) {
-    wError("vgId:%d, wal fetch body error: % " PRId64 ", since body checksum not passed", pRead->pWal->cfg.vgId, ver);
+    wError("vgId:%d, wal fetch body error: % %" PRId64 ", since body checksum not passed", pRead->pWal->cfg.vgId, ver);
     pRead->curVersion = -1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
