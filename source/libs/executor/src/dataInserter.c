@@ -110,7 +110,7 @@ static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, SSubmitReq* pMs
 
   pMsgSendInfo->param = pParam;
   pMsgSendInfo->msgInfo.pData = pMsg;
-  pMsgSendInfo->msgInfo.len = sizeof(SSubmitReq);
+  pMsgSendInfo->msgInfo.len = ntohl(pMsg->length);
   pMsgSendInfo->msgType = TDMT_VND_SUBMIT;
   pMsgSendInfo->fp = inserterCallback;
 
@@ -119,7 +119,7 @@ static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, SSubmitReq* pMs
 }
 
 
-SSubmitReq* dataBlockToSubmit(SDataInserterHandle* pInserter) {
+int32_t dataBlockToSubmit(SDataInserterHandle* pInserter, SSubmitReq** pReq) {
   const SArray* pBlocks = pInserter->pDataBlocks;
   const STSchema* pTSchema = pInserter->pSchema; 
   int64_t uid = pInserter->pNode->tableId; 
@@ -133,7 +133,7 @@ SSubmitReq* dataBlockToSubmit(SDataInserterHandle* pInserter) {
   // cal size
   int32_t cap = sizeof(SSubmitReq);
   for (int32_t i = 0; i < sz; i++) {
-    SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
+    SSDataBlock* pDataBlock = taosArrayGetP(pBlocks, i);
     int32_t      rows = pDataBlock->info.rows;
     // TODO min
     int32_t rowSize = pDataBlock->info.rowSize;
@@ -144,15 +144,15 @@ SSubmitReq* dataBlockToSubmit(SDataInserterHandle* pInserter) {
 
   // assign data
   // TODO
-  ret = rpcMallocCont(cap);
-  ret->header.vgId = vgId;
+  ret = taosMemoryCalloc(1, cap);
+  ret->header.vgId = htonl(vgId);
   ret->version = htonl(pTSchema->version);
   ret->length = sizeof(SSubmitReq);
   ret->numOfBlocks = htonl(sz);
 
   SSubmitBlk* blkHead = POINTER_SHIFT(ret, sizeof(SSubmitReq));
   for (int32_t i = 0; i < sz; i++) {
-    SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
+    SSDataBlock* pDataBlock = taosArrayGetP(pBlocks, i);
 
     blkHead->numOfRows = htons(pDataBlock->info.rows);
     blkHead->sversion = htonl(pTSchema->version);
@@ -184,6 +184,12 @@ SSubmitReq* dataBlockToSubmit(SDataInserterHandle* pInserter) {
         }
 
         pColData = taosArrayGet(pDataBlock->pDataBlock, colIdx);
+        if (pColData->info.type != pColumn->type) {
+          qError("col type mis-match, schema type:%d, type in block:%d", pColumn->type, pColData->info.type);
+          terrno = TSDB_CODE_APP_ERROR;
+          return TSDB_CODE_APP_ERROR;
+        }
+        
         if (colDataIsNull_s(pColData, j)) {
           tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, pColumn->offset, k);
         } else {
@@ -204,16 +210,22 @@ SSubmitReq* dataBlockToSubmit(SDataInserterHandle* pInserter) {
 
   ret->length = htonl(ret->length);
 
-  return ret;
+  *pReq = ret;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   SDataInserterHandle* pInserter = (SDataInserterHandle*)pHandle;
-  taosArrayPush(pInserter->pDataBlocks, pInput->pData);
-  SSubmitReq* pMsg = dataBlockToSubmit(pInserter);
+  taosArrayPush(pInserter->pDataBlocks, &pInput->pData);
+  SSubmitReq* pMsg = NULL;
+  int32_t code = dataBlockToSubmit(pInserter, &pMsg);
+  if (code) {
+    return code;
+  }
 
-  int32_t code = sendSubmitRequest(pInserter, pMsg, pInserter->pParam->readHandle->pMsgCb->clientRpc, &pInserter->pNode->epSet);
+  code = sendSubmitRequest(pInserter, pMsg, pInserter->pParam->readHandle->pMsgCb->clientRpc, &pInserter->pNode->epSet);
   if (code) {
     return code;
   }
