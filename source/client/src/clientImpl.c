@@ -657,7 +657,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   }
 
   if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type ||
-      TDMT_VND_CREATE_TABLE == pRequest->type || TDMT_SCH_MERGE_QUERY == pRequest->type) {
+      TDMT_VND_CREATE_TABLE == pRequest->type) {
     pRequest->body.resInfo.numOfRows = res.numOfRows;
 
     schedulerFreeJob(&pRequest->body.queryJob, 0);
