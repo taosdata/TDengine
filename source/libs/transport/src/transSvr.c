@@ -892,11 +892,10 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     }
     int err = taosThreadCreate(&(thrd->thread), NULL, transWorkerThread, (void*)(thrd));
     if (err == 0) {
-      tDebug("sucess to create worker-thread %d", i);
-      // printf("thread %d create\n", i);
+      tDebug("success to create worker-thread:%d", i);
     } else {
       // TODO: clear all other resource later
-      tError("failed to create worker-thread %d", i);
+      tError("failed to create worker-thread:%d", i);
       goto End;
     }
   }

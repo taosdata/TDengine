@@ -910,7 +910,7 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
     int err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
     if (err == 0) {
-      tDebug("success to create tranport-cli thread %d", i);
+      tDebug("success to create tranport-cli thread:%d", i);
     }
     cli->pThreadObj[i] = pThrd;
   }

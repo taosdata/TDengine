@@ -1409,7 +1409,7 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
 
     // tla+ log vars
     cJSON_AddItemToObject(pRoot, "pLogStore", logStore2Json(pSyncNode->pLogStore));
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64 "", pSyncNode->commitIndex);
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pSyncNode->commitIndex);
     cJSON_AddStringToObject(pRoot, "commitIndex", u64buf);
 
     // timer ms init
@@ -1421,39 +1421,39 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
     snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pPingTimer);
     cJSON_AddStringToObject(pRoot, "pPingTimer", u64buf);
     cJSON_AddNumberToObject(pRoot, "pingTimerMS", pSyncNode->pingTimerMS);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->pingTimerLogicClock);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSyncNode->pingTimerLogicClock);
     cJSON_AddStringToObject(pRoot, "pingTimerLogicClock", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->pingTimerLogicClockUser);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSyncNode->pingTimerLogicClockUser);
     cJSON_AddStringToObject(pRoot, "pingTimerLogicClockUser", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpPingTimerCB);
     cJSON_AddStringToObject(pRoot, "FpPingTimerCB", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->pingTimerCounter);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSyncNode->pingTimerCounter);
     cJSON_AddStringToObject(pRoot, "pingTimerCounter", u64buf);
 
     // elect timer
     snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pElectTimer);
     cJSON_AddStringToObject(pRoot, "pElectTimer", u64buf);
     cJSON_AddNumberToObject(pRoot, "electTimerMS", pSyncNode->electTimerMS);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->electTimerLogicClock);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSyncNode->electTimerLogicClock);
     cJSON_AddStringToObject(pRoot, "electTimerLogicClock", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->electTimerLogicClockUser);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSyncNode->electTimerLogicClockUser);
     cJSON_AddStringToObject(pRoot, "electTimerLogicClockUser", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpElectTimerCB);
     cJSON_AddStringToObject(pRoot, "FpElectTimerCB", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->electTimerCounter);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSyncNode->electTimerCounter);
     cJSON_AddStringToObject(pRoot, "electTimerCounter", u64buf);
 
     // heartbeat timer
     snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pHeartbeatTimer);
     cJSON_AddStringToObject(pRoot, "pHeartbeatTimer", u64buf);
     cJSON_AddNumberToObject(pRoot, "heartbeatTimerMS", pSyncNode->heartbeatTimerMS);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->heartbeatTimerLogicClock);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSyncNode->heartbeatTimerLogicClock);
     cJSON_AddStringToObject(pRoot, "heartbeatTimerLogicClock", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->heartbeatTimerLogicClockUser);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSyncNode->heartbeatTimerLogicClockUser);
     cJSON_AddStringToObject(pRoot, "heartbeatTimerLogicClockUser", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpHeartbeatTimerCB);
     cJSON_AddStringToObject(pRoot, "FpHeartbeatTimerCB", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", pSyncNode->heartbeatTimerCounter);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSyncNode->heartbeatTimerCounter);
     cJSON_AddStringToObject(pRoot, "heartbeatTimerCounter", u64buf);
 
     // callback
@@ -2269,7 +2269,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     }
 
   } else {
-    sTrace("==syncNodeEqPingTimer== pingTimerLogicClock:%" PRIu64 ", pingTimerLogicClockUser:%" PRIu64 "",
+    sTrace("==syncNodeEqPingTimer== pingTimerLogicClock:%" PRIu64 ", pingTimerLogicClockUser:%" PRIu64,
            pSyncNode->pingTimerLogicClock, pSyncNode->pingTimerLogicClockUser);
   }
 }
@@ -2304,7 +2304,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
       sError("sync env is stop, syncNodeEqElectTimer");
     }
   } else {
-    sTrace("==syncNodeEqElectTimer== electTimerLogicClock:%" PRIu64 ", electTimerLogicClockUser:%" PRIu64 "",
+    sTrace("==syncNodeEqElectTimer== electTimerLogicClock:%" PRIu64 ", electTimerLogicClockUser:%" PRIu64,
            pSyncNode->electTimerLogicClock, pSyncNode->electTimerLogicClockUser);
   }
 }
