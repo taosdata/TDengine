@@ -57,8 +57,8 @@ extern int32_t tMsgDict[];
 #define TMSG_SEG_SEQ(TYPE)  ((TYPE)&0xff)
 #define TMSG_INFO(TYPE)                                                                                             \
   ((TYPE) >= 0 &&                                                                                                   \
-   ((TYPE) < TDMT_DND_MAX_MSG | (TYPE) < TDMT_MND_MAX_MSG | (TYPE) < TDMT_VND_MAX_MSG | (TYPE) < TDMT_SCH_MAX_MSG | \
-    (TYPE) < TDMT_STREAM_MAX_MSG | (TYPE) < TDMT_MON_MAX_MSG | (TYPE) < TDMT_SYNC_MAX_MSG))                         \
+   ((TYPE) < TDMT_DND_MAX_MSG || (TYPE) < TDMT_MND_MAX_MSG || (TYPE) < TDMT_VND_MAX_MSG || (TYPE) < TDMT_SCH_MAX_MSG || \
+    (TYPE) < TDMT_STREAM_MAX_MSG || (TYPE) < TDMT_MON_MAX_MSG || (TYPE) < TDMT_SYNC_MAX_MSG))                         \
       ? tMsgInfo[tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE)]                                                \
       : 0
 #define TMSG_INDEX(TYPE) (tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE))
@@ -665,6 +665,7 @@ typedef struct {
   char    tbFName[TSDB_TABLE_FNAME_LEN];
   int32_t sversion;
   int32_t tversion;
+  int64_t affectedRows;
 } SQueryTableRsp;
 
 int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
@@ -1510,6 +1511,7 @@ typedef struct SSubQueryMsg {
   int32_t  execId;
   int8_t   taskType;
   int8_t   explain;
+  int8_t   needFetch;
   uint32_t sqlLen;  // the query sql,
   uint32_t phyLen;
   char     msg[];
@@ -2826,8 +2828,8 @@ typedef struct {
 
 static FORCE_INLINE int32_t tEncodeSMqMetaRsp(void** buf, const SMqMetaRsp* pRsp) {
   int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
-  tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
+  // tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
+  // tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
   tlen += taosEncodeFixedI16(buf, pRsp->resMsgType);
   tlen += taosEncodeFixedI32(buf, pRsp->metaRspLen);
   tlen += taosEncodeBinary(buf, pRsp->metaRsp, pRsp->metaRspLen);
@@ -2835,8 +2837,8 @@ static FORCE_INLINE int32_t tEncodeSMqMetaRsp(void** buf, const SMqMetaRsp* pRsp
 }
 
 static FORCE_INLINE void* tDecodeSMqMetaRsp(const void* buf, SMqMetaRsp* pRsp) {
-  buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
-  buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
+  // buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
+  // buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
   buf = taosDecodeFixedI16(buf, &pRsp->resMsgType);
   buf = taosDecodeFixedI32(buf, &pRsp->metaRspLen);
   buf = taosDecodeBinary(buf, &pRsp->metaRsp, pRsp->metaRspLen);

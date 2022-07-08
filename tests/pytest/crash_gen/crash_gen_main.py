@@ -466,6 +466,7 @@ class ThreadCoordinator:
         self._te = None  # No more executor, time to end
         Logging.debug("Main thread tapping all threads one last time...")
         self.tapAllThreads()  # Let the threads run one last time
+        #TODO: looks like we are not capturing the failures for the last step yet (i.e. calling registerFailure if neccessary)
 
         Logging.debug("\r\n\n--> Main thread ready to finish up...")
         Logging.debug("Main thread joining all threads")
@@ -1290,6 +1291,7 @@ class Task():
 
     def _isErrAcceptable(self, errno, msg):
         if errno in [
+                # TDengine 2.x Error Codes:
                 0x05,  # TSDB_CODE_RPC_NOT_READY
                 0x0B,  # Unable to establish connection, more details in TD-1648
                 # 0x200, # invalid SQL， TODO: re-examine with TD-934
@@ -1310,6 +1312,18 @@ class Task():
                 0x14,   # db not ready, errno changed
                 0x600,  # Invalid table ID, why?
                 0x218,  # Table does not exist
+
+                # TDengine 3.0 Error Codes:
+                0x0333, # Object is creating # TODO: this really is NOT an acceptable error
+                0x03A0, # STable already exists
+                0x03A1, # STable [does] not exist
+                0x03AA, # Tag already exists
+                0x0603, # Table already exists
+                0x2602, # Table does not exist
+                0x260d, # Tags number not matched
+
+
+
                 1000  # REST catch-all error
             ]: 
             return True # These are the ALWAYS-ACCEPTABLE ones
@@ -1749,6 +1763,8 @@ class TdSuperTable:
             tagType = tags[tagName]
             if tagType == 'BINARY':
                 tagStrs.append("'Beijing-Shanghai-LosAngeles'")
+            elif tagType== 'VARCHAR':
+                tagStrs.append("'London-Paris-Berlin'")
             elif tagType == 'FLOAT':
                 tagStrs.append('9.9')
             elif tagType == 'INT':

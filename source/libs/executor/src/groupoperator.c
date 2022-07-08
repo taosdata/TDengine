@@ -38,6 +38,8 @@ static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
   taosArrayDestroy(pInfo->pGroupCols);
   taosArrayDestroy(pInfo->pGroupColVals);
   cleanupExprSupp(&pInfo->scalarSup);
+  
+  taosMemoryFreeClear(param);
 }
 
 static int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char** keyBuf, const SArray* pGroupColList) {
@@ -302,14 +304,21 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = pInfo->binfo.pRes;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
+    while(1) {
+      doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
+      doFilter(pInfo->pCondition, pRes);
 
-    size_t rows = pRes->info.rows;
-    if (rows == 0 || !hasDataInGroupInfo(&pInfo->groupResInfo)) {
-      doSetOperatorCompleted(pOperator);
+      bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
+      if (!hasRemain) {
+        doSetOperatorCompleted(pOperator);
+        break;
+      }
+
+      if (pRes->info.rows > 0) {
+        break;
+      }
     }
-
-    pOperator->resultInfo.totalRows += rows;
+    pOperator->resultInfo.totalRows += pRes->info.rows;
     return (pRes->info.rows == 0)? NULL:pRes;
   }
 
@@ -717,6 +726,8 @@ static void destroyPartitionOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFree(pInfo->columnOffset);
 
   cleanupExprSupp(&pInfo->scalarSup);
+  
+  taosMemoryFreeClear(param);
 }
 
 SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNode* pPartNode, SExecTaskInfo* pTaskInfo) {

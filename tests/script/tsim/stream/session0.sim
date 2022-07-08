@@ -141,7 +141,7 @@ if $data01 != 7 then
   goto loop1
 endi
 
-if $data02 != 9 then
+if $data02 != 18 then
   print =====data02=$data02
   goto loop1
 endi
@@ -151,22 +151,22 @@ if $data03 != 4 then
   goto loop1
 endi
 
-if $data04 != 1.100000000 then
+if $data04 != 1.000000000 then
   print ======$data04
   return -1
 endi
 
-if $data05 != 0.816496581 then
+if $data05 != 1.154700538 then
   print ======$data05
   return -1
 endi
 
-if $data06 != 3 then
+if $data06 != 4 then
   print ======$data06
   return -1
 endi
 
-if $data07 != 1.100000000 then
+if $data07 != 1.000000000 then
   print ======$data07
   return -1
 endi
@@ -235,7 +235,7 @@ sql create stream streams4 trigger at_once  watermark 1d into streamt4 as select
 # sql create stream streams6 trigger at_once  watermark 1d into streamt6 as select  _wstartts, bottom(b,3), a,c from t1 session(ts,10s);
 # sql create stream streams7 trigger at_once  watermark 1d into streamt7 as select  _wstartts, spread(a), elapsed(ts), hyperloglog(a) from t1 session(ts,10s);
 sql create stream streams7 trigger at_once  watermark 1d into streamt7 as select  _wstartts, spread(a), hyperloglog(a) from t1 session(ts,10s);
-sql create stream streams8 trigger at_once  watermark 1d into streamt8 as select  _wstartts, histogram(a,"user_input", "[1,3,5,7]", 1), histogram(a,"user_input", "[1,3,5,7]", 0) from t1 session(ts,10s);
+# sql create stream streams8 trigger at_once  watermark 1d into streamt8 as select  _wstartts, histogram(a,"user_input", "[1,3,5,7]", 1), histogram(a,"user_input", "[1,3,5,7]", 0) from t1 session(ts,10s);
 sql insert into t1 values(1648791213001,1,1,1,1.0);
 sql insert into t1 values(1648791213002,2,3,2,3.4);
 sql insert into t1 values(1648791213003,4,9,3,4.8);
@@ -288,10 +288,10 @@ if $rows == 0 then
   goto loop3
 endi
 
-sql select * from streamt8;
-if $rows == 0 then
-  print ======$rows
-  goto loop3
-endi
+#sql select * from streamt8;
+#if $rows == 0 then
+#  print ======$rows
+#  goto loop3
+#endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

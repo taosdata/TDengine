@@ -32,8 +32,8 @@ typedef struct SSyncLogStoreData {
   SSyncNode* pSyncNode;
   SWal*      pWal;
 
-  TdThreadMutex   mutex;
-  SWalReadHandle* pWalHandle;
+  TdThreadMutex mutex;
+  SWalReader*   pWalHandle;
 
   // SyncIndex       beginIndex;  // valid begin index, default 0, may be set beginIndex > 0
 } SSyncLogStoreData;
