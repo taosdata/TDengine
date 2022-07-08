@@ -171,6 +171,11 @@ class TDTestCase:
         tdSql.waitedQuery(sql, 1, WAITS)
         tdSql.checkData(0, 1, 229400)
 
+        # TS-1664
+        tdSql.error("create database string")
+        tdSql.error("create table string(ts timestamp, c1 int)")
+        tdSql.error("select * from string")
+
 #
 # add case with filename
 #
