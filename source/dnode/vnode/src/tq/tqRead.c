@@ -152,6 +152,7 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
     if (fromProcessedMsg) {
       ret->offset.type = TMQ_OFFSET__LOG;
       ret->offset.version = pReader->ver;
+      ASSERT(pReader->ver != -1);
       ret->fetchType = FETCH_TYPE__NONE;
       return 0;
     }

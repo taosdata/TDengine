@@ -190,7 +190,10 @@ void walSetReaderCapacity(SWalReader *pRead, int32_t capacity) { pRead->capacity
 static int32_t walFetchHeadNew(SWalReader *pRead, int64_t fetchVer) {
   int64_t contLen;
   if (pRead->curVersion != fetchVer) {
-    if (walReadSeekVer(pRead, fetchVer) < 0) return -1;
+    if (walReadSeekVer(pRead, fetchVer) < 0) {
+      ASSERT(0);
+      return -1;
+    }
   }
   contLen = taosReadFile(pRead->pLogFile, pRead->pHead, sizeof(SWalCkHead));
   if (contLen != sizeof(SWalCkHead)) {
@@ -199,6 +202,7 @@ static int32_t walFetchHeadNew(SWalReader *pRead, int64_t fetchVer) {
     } else {
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     }
+    ASSERT(0);
     pRead->curVersion = -1;
     return -1;
   }
@@ -265,6 +269,7 @@ static int32_t walSkipFetchBodyNew(SWalReader *pRead) {
   if (code < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     pRead->curVersion = -1;
+    ASSERT(0);
     return -1;
   }
 

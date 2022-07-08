@@ -210,7 +210,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
 
     bool             allColumnsHaveAgg = true;
     SColumnDataAgg** pColAgg = NULL;
-    int32_t code = tsdbRetrieveDatablockSMA(pTableScanInfo->dataReader, &pColAgg, &allColumnsHaveAgg);
+    int32_t          code = tsdbRetrieveDatablockSMA(pTableScanInfo->dataReader, &pColAgg, &allColumnsHaveAgg);
     if (code != TSDB_CODE_SUCCESS) {
       longjmp(pTaskInfo->env, code);
     }
@@ -595,7 +595,7 @@ static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
   if (pTableScanInfo->pColMatchInfo != NULL) {
     taosArrayDestroy(pTableScanInfo->pColMatchInfo);
   }
-  
+
   taosMemoryFreeClear(param);
 }
 
@@ -745,7 +745,7 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
 static void destroyBlockDistScanOperatorInfo(void* param, int32_t numOfOutput) {
   SBlockDistInfo* pDistInfo = (SBlockDistInfo*)param;
   blockDataDestroy(pDistInfo->pResBlock);
-  
+
   taosMemoryFreeClear(param);
 }
 
@@ -1222,7 +1222,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         if (setBlockIntoRes(pInfo, &ret.data) < 0) {
           ASSERT(0);
         }
-        pTaskInfo->streamInfo.lastStatus = ret.offset;
+        /*pTaskInfo->streamInfo.lastStatus = ret.offset;*/
         if (pInfo->pRes->info.rows > 0) {
           return pInfo->pRes;
         } else {
@@ -1234,7 +1234,12 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         pTaskInfo->streamInfo.metaBlk = ret.meta;
         return NULL;
       } else if (ret.fetchType == FETCH_TYPE__NONE) {
-        pTaskInfo->streamInfo.lastStatus = ret.offset;
+        if (ret.offset.version == -1) {
+          pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__LOG;
+          pTaskInfo->streamInfo.lastStatus.version = pTaskInfo->streamInfo.prepareStatus.version - 1;
+        } else {
+          pTaskInfo->streamInfo.lastStatus = ret.offset;
+        }
         return NULL;
       } else {
         ASSERT(0);
@@ -1355,8 +1360,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       pInfo->pRes->info.uid = block.info.uid;
       pInfo->pRes->info.type = STREAM_NORMAL;
       pInfo->pRes->info.capacity = block.info.rows;
-
-
 
       uint64_t* groupIdPre = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &block.info.uid, sizeof(int64_t));
       if (groupIdPre) {
@@ -2282,7 +2285,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
 static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
   STagScanInfo* pInfo = (STagScanInfo*)param;
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
-  
+
   taosMemoryFreeClear(param);
 }
 
@@ -2774,7 +2777,7 @@ void destroyTableMergeScanOperatorInfo(void* param, int32_t numOfOutput) {
   pTableScanInfo->pSortInputBlock = blockDataDestroy(pTableScanInfo->pSortInputBlock);
 
   taosArrayDestroy(pTableScanInfo->pSortInfo);
-  
+
   taosMemoryFreeClear(param);
 }
 

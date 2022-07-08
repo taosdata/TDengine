@@ -293,7 +293,9 @@ int32_t qStreamPrepareScan1(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
     pOperator->status = OP_OPENED;
     if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
       SStreamScanInfo* pInfo = pOperator->info;
-      tqSeekVer(pInfo->tqReader, pOffset->version);
+      if (tqSeekVer(pInfo->tqReader, pOffset->version) < 0) {
+        return -1;
+      }
       return 0;
     } else {
       ASSERT(pOperator->numOfDownstream == 1);

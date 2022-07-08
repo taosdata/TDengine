@@ -294,6 +294,15 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
         }
       } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
         tqOffsetResetToLog(&fetchOffsetNew, walGetLastVer(pTq->pVnode->pWal));
+        tqDebug("tmq poll: consumer %ld, subkey %s, offset reset to %ld", consumerId, pHandle->subKey,
+                fetchOffsetNew.version);
+        SMqDataRsp dataRsp = {0};
+        tqInitDataRsp(&dataRsp, pReq, pHandle->execHandle.subType);
+        dataRsp.rspOffset = fetchOffsetNew;
+        if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
+          code = -1;
+        }
+        goto OVER;
       } else if (reqOffset.type == TMQ_OFFSET__RESET_NONE) {
         tqError("tmq poll: subkey %s, no offset committed for consumer %ld in vg %d, subkey %s, reset none failed",
                 pHandle->subKey, consumerId, TD_VID(pTq->pVnode), pReq->subKey);
