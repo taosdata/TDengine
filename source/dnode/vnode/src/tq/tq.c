@@ -299,10 +299,21 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
         SMqDataRsp dataRsp = {0};
         tqInitDataRsp(&dataRsp, pReq, pHandle->execHandle.subType);
         dataRsp.rspOffset = fetchOffsetNew;
+        code = 0;
         if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
           code = -1;
         }
-        goto OVER;
+        taosArrayDestroy(dataRsp.blockDataLen);
+        taosArrayDestroyP(dataRsp.blockData, (FDelete)taosMemoryFree);
+
+        if (dataRsp.withSchema) {
+          taosArrayDestroyP(dataRsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
+        }
+
+        if (dataRsp.withTbName) {
+          taosArrayDestroyP(dataRsp.blockTbName, (FDelete)taosMemoryFree);
+        }
+        return code;
       } else if (reqOffset.type == TMQ_OFFSET__RESET_NONE) {
         tqError("tmq poll: subkey %s, no offset committed for consumer %ld in vg %d, subkey %s, reset none failed",
                 pHandle->subKey, consumerId, TD_VID(pTq->pVnode), pReq->subKey);
