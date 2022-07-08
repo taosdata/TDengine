@@ -115,6 +115,20 @@ typedef struct SSDataBlock {
   SDataBlockInfo   info;
 } SSDataBlock;
 
+enum {
+  FETCH_TYPE__DATA = 1,
+  FETCH_TYPE__META,
+  FETCH_TYPE__NONE,
+};
+
+typedef struct {
+  int8_t fetchType;
+  union {
+    SSDataBlock data;
+    void*       meta;
+  };
+} SFetchRet;
+
 typedef struct SVarColAttr {
   int32_t* offset;    // start position for each entry in the list
   uint32_t length;    // used buffer size that contain the valid data

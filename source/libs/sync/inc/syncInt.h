@@ -67,7 +67,6 @@ typedef struct SSyncNode {
   char        path[TSDB_FILENAME_LEN];
   char        raftStorePath[TSDB_FILENAME_LEN * 2];
   char        configPath[TSDB_FILENAME_LEN * 2];
-  int32_t     batchSize;
 
   // sync io
   SWal*         pWal;
