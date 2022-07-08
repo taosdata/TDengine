@@ -350,19 +350,19 @@ cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
     }
 
     cJSON *pSnapshot = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), PRIu64, pSender->snapshot.lastApplyIndex);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->snapshot.lastApplyIndex);
     cJSON_AddStringToObject(pSnapshot, "lastApplyIndex", u64buf);
-    snprintf(u64buf, sizeof(u64buf), PRIu64, pSender->snapshot.lastApplyTerm);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->snapshot.lastApplyTerm);
     cJSON_AddStringToObject(pSnapshot, "lastApplyTerm", u64buf);
     cJSON_AddItemToObject(pRoot, "snapshot", pSnapshot);
-    snprintf(u64buf, sizeof(u64buf), PRIu64, pSender->sendingMS);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->sendingMS);
     cJSON_AddStringToObject(pRoot, "sendingMS", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%p", pSender->pSyncNode);
     cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
     cJSON_AddNumberToObject(pRoot, "replicaIndex", pSender->replicaIndex);
-    snprintf(u64buf, sizeof(u64buf), PRIu64, pSender->term);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
-    snprintf(u64buf, sizeof(u64buf), PRIu64, pSender->privateTerm);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->privateTerm);
     cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
     cJSON_AddNumberToObject(pRoot, "finish", pSender->finish);
   }
@@ -640,7 +640,7 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
     cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
 
     cJSON *pFromId = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), PRIu64, pReceiver->fromId.addr);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->fromId.addr);
     cJSON_AddStringToObject(pFromId, "addr", u64buf);
     {
       uint64_t u64 = pReceiver->fromId.addr;
@@ -654,19 +654,19 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
     cJSON_AddNumberToObject(pFromId, "vgId", pReceiver->fromId.vgId);
     cJSON_AddItemToObject(pRoot, "fromId", pFromId);
 
-    snprintf(u64buf, sizeof(u64buf), PRIu64, pReceiver->snapshot.lastApplyIndex);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->snapshot.lastApplyIndex);
     cJSON_AddStringToObject(pRoot, "snapshot.lastApplyIndex", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), PRIu64, pReceiver->snapshot.lastApplyTerm);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->snapshot.lastApplyTerm);
     cJSON_AddStringToObject(pRoot, "snapshot.lastApplyTerm", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), PRIu64, pReceiver->snapshot.lastConfigIndex);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->snapshot.lastConfigIndex);
     cJSON_AddStringToObject(pRoot, "snapshot.lastConfigIndex", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), PRIu64, pReceiver->term);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), PRIu64, pReceiver->privateTerm);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->privateTerm);
     cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
   }
 

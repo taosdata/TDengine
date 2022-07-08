@@ -186,14 +186,14 @@ cJSON *raftCfg2Json(SRaftCfg *pRaftCfg) {
   cJSON_AddNumberToObject(pRoot, "batchSize", pRaftCfg->batchSize);
 
   char buf64[128];
-  snprintf(buf64, sizeof(buf64), PRId64, pRaftCfg->lastConfigIndex);
+  snprintf(buf64, sizeof(buf64), "%" PRId64, pRaftCfg->lastConfigIndex);
   cJSON_AddStringToObject(pRoot, "lastConfigIndex", buf64);
 
   cJSON_AddNumberToObject(pRoot, "configIndexCount", pRaftCfg->configIndexCount);
   cJSON *pIndexArr = cJSON_CreateArray();
   cJSON_AddItemToObject(pRoot, "configIndexArr", pIndexArr);
   for (int i = 0; i < pRaftCfg->configIndexCount; ++i) {
-    snprintf(buf64, sizeof(buf64), PRId64, (pRaftCfg->configIndexArr)[i]);
+    snprintf(buf64, sizeof(buf64), "%" PRId64, (pRaftCfg->configIndexArr)[i]);
     cJSON *pIndexObj = cJSON_CreateObject();
     cJSON_AddStringToObject(pIndexObj, "index", buf64);
     cJSON_AddItemToArray(pIndexArr, pIndexObj);

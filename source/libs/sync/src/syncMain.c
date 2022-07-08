@@ -1391,7 +1391,7 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
     cJSON_AddItemToObject(pRoot, "leaderCache", pLaderCache);
 
     // life cycle
-    snprintf(u64buf, sizeof(u64buf), PRId64, pSyncNode->rid);
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pSyncNode->rid);
     cJSON_AddStringToObject(pRoot, "rid", u64buf);
 
     // tla+ server vars
