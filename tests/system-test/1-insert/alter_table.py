@@ -223,8 +223,8 @@ class TDTestCase:
                     tdSql.checkEqual(tdSql.queryResult[0][0],tdSql.queryResult[0][0])
                 else:
                     tdLog.exit(f'select {k} from {self.stbname}_{i},data check failure')
-                for error in [constant.FLOAT_MIN-1,constant.FLOAT_MAX+1]:
-                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}') 
+                # for error in [constant.FLOAT_MIN*10,constant.FLOAT_MAX*10]:
+                #     tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}') 
             elif v.lower() == 'double':
                 tdSql.execute(f'alter table {self.stbname}_{i} set tag {k} = {tag_double}')
                 tdSql.query(f'select {k} from {self.stbname}_{i}')
