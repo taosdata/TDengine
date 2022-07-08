@@ -26,6 +26,8 @@ if(TD_WINDOWS)
         /DEF:${CMAKE_CURRENT_SOURCE_DIR}/src/taos.def
     )
     INCLUDE_DIRECTORIES(jni/windows)
+    INCLUDE_DIRECTORIES(jni/windows/win32)
+    INCLUDE_DIRECTORIES(jni/windows/win32/bridge)
 else()
     INCLUDE_DIRECTORIES(jni/linux)
 endif()

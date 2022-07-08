@@ -1298,16 +1298,16 @@ void doProcessMsgFromServer(SSchedMsg* schedMsg) {
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
-
   taosMemoryFree(arg);
 }
 
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SSchedMsg schedMsg = {0};
 
-  SEpSet* tEpSet = pEpSet != NULL ? taosMemoryCalloc(1, sizeof(SEpSet)) : NULL;
-  if (tEpSet != NULL) {
-    *tEpSet = *pEpSet;
+  SEpSet* tEpSet = NULL;
+  if (pEpSet != NULL) {
+    tEpSet = taosMemoryCalloc(1, sizeof(SEpSet));
+    memcpy((void*)tEpSet, (void*)pEpSet, sizeof(SEpSet));
   }
 
   SchedArg* arg = taosMemoryCalloc(1, sizeof(SchedArg));

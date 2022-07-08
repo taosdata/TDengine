@@ -136,6 +136,8 @@ SArray *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdLis
 int32_t tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond, int32_t tWinIdx);
 int32_t tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 int64_t tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
+void   *tsdbGetIdx(SMeta *pMeta);
+void   *tsdbGetIvtIdx(SMeta *pMeta);
 
 int32_t tsdbLastRowReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, int32_t *colId, int32_t numOfCols,
                               void **pReader);
@@ -145,19 +147,37 @@ int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int6
 
 // tq
 
-typedef struct STqReadHandle SStreamReader;
+typedef struct STqReader {
+  int64_t           ver;
+  const SSubmitReq *pMsg;
+  SSubmitBlk       *pBlock;
+  SSubmitMsgIter    msgIter;
+  SSubmitBlkIter    blkIter;
 
-SStreamReader *tqInitSubmitMsgScanner(SMeta *pMeta);
+  SWalReader *pWalReader;
 
-void    tqReadHandleSetColIdList(SStreamReader *pReadHandle, SArray *pColIdList);
-int32_t tqReadHandleSetTbUidList(SStreamReader *pHandle, const SArray *tbUidList);
-int32_t tqReadHandleAddTbUidList(SStreamReader *pHandle, const SArray *tbUidList);
-int32_t tqReadHandleRemoveTbUidList(SStreamReader *pHandle, const SArray *tbUidList);
+  SMeta    *pVnodeMeta;
+  SHashObj *tbIdHash;
+  SArray   *pColIdList;  // SArray<int16_t>
 
-int32_t tqReadHandleSetMsg(SStreamReader *pHandle, SSubmitReq *pMsg, int64_t ver);
-bool    tqNextDataBlock(SStreamReader *pHandle);
-bool    tqNextDataBlockFilterOut(SStreamReader *pHandle, SHashObj *filterOutUids);
-int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, SStreamReader *pHandle);
+  int32_t         cachedSchemaVer;
+  int64_t         cachedSchemaSuid;
+  SSchemaWrapper *pSchemaWrapper;
+  STSchema       *pSchema;
+} STqReader;
+
+STqReader *tqOpenReader(SVnode *pVnode);
+void       tqCloseReader(STqReader *);
+
+void    tqReaderSetColIdList(STqReader *pReader, SArray *pColIdList);
+int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList);
+int32_t tqReaderAddTbUidList(STqReader *pReader, const SArray *tbUidList);
+int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
+
+int32_t tqReaderSetDataMsg(STqReader *pReader, SSubmitReq *pMsg, int64_t ver);
+bool    tqNextDataBlock(STqReader *pReader);
+bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
+int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReader *pReader);
 
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
