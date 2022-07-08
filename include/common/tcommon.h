@@ -88,8 +88,6 @@ typedef struct {
 #pragma pack(push, 1)
 typedef struct SColumnDataAgg {
   int16_t colId;
-  int16_t minIndex;
-  int16_t maxIndex;
   int16_t numOfNull;
   int64_t sum;
   int64_t max;

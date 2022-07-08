@@ -210,7 +210,10 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
 
     bool             allColumnsHaveAgg = true;
     SColumnDataAgg** pColAgg = NULL;
-    tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->dataReader, &pColAgg, &allColumnsHaveAgg);
+    int32_t code = tsdbRetrieveDatablockSMA(pTableScanInfo->dataReader, &pColAgg, &allColumnsHaveAgg);
+    if (code != TSDB_CODE_SUCCESS) {
+      longjmp(pTaskInfo->env, code);
+    }
 
     if (allColumnsHaveAgg == true) {
       int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -1248,17 +1251,19 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       pInfo->pRes->info.type = STREAM_NORMAL;
       pInfo->pRes->info.capacity = block.info.rows;
 
-      // for generating rollup SMA result, each time is an independent time serie.
-      // TODO temporarily used, when the statement of "partition by tbname" is ready, remove this
-      if (pInfo->assignBlockUid) {
-        pInfo->pRes->info.groupId = block.info.uid;
-      }
+
 
       uint64_t* groupIdPre = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &block.info.uid, sizeof(int64_t));
       if (groupIdPre) {
         pInfo->pRes->info.groupId = *groupIdPre;
       } else {
         pInfo->pRes->info.groupId = 0;
+      }
+
+      // for generating rollup SMA result, each time is an independent time serie.
+      // TODO temporarily used, when the statement of "partition by tbname" is ready, remove this
+      if (pInfo->assignBlockUid) {
+        pInfo->pRes->info.groupId = block.info.uid;
       }
 
       // todo extract method
@@ -2347,7 +2352,7 @@ static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeSc
     bool             allColumnsHaveAgg = true;
     SColumnDataAgg** pColAgg = NULL;
     STsdbReader*     reader = taosArrayGetP(pTableScanInfo->dataReaders, readerIdx);
-    tsdbRetrieveDataBlockStatisInfo(reader, &pColAgg, &allColumnsHaveAgg);
+    tsdbRetrieveDatablockSMA(reader, &pColAgg, &allColumnsHaveAgg);
 
     if (allColumnsHaveAgg == true) {
       int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
