@@ -1,0 +1,2 @@
+#####
+taostest --use=common_insert.yaml --case=Performance/Insert/perf_test.py --keep --disable_collection --case-param="\"--insert-tmpl-file=cases/Performance/Insert/meters.json --insert-cfg-file=cases/Performance/Insert/mode_taosc.cfg --key=INSERTROWS=100 --key=CHILDTABLECOUNT=1000 --concurrency=4\"" --containers
