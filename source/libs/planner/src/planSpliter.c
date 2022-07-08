@@ -98,6 +98,24 @@ static int32_t splCreateExchangeNodeForSubplan(SSplitContext* pCxt, SLogicSubpla
   return code;
 }
 
+static int32_t splMountSubplan(SLogicSubplan* pParent, SNodeList* pChildren) {
+  SNode* pChild = NULL;
+  WHERE_EACH(pChild, pChildren) {
+    if (unionIsChildSubplan(pParent->pNode, ((SLogicSubplan*)pChild)->id.groupId)) {
+      int32_t code = nodesListMakeAppend(&pParent->pChildren, pChild);
+      if (TSDB_CODE_SUCCESS == code) {
+        REPLACE_NODE(NULL);
+        ERASE_NODE(pChildren);
+        continue;
+      } else {
+        return code;
+      }
+    }
+    WHERE_NEXT;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static bool splMatchByNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode, FSplFindSplitNode func,
                            void* pInfo) {
   if (func(pCxt, pSubplan, pNode, pInfo)) {
@@ -1001,24 +1019,6 @@ static bool unionIsChildSubplan(SLogicNode* pLogicNode, int32_t groupId) {
   return false;
 }
 
-static int32_t unionMountSubplan(SLogicSubplan* pParent, SNodeList* pChildren) {
-  SNode* pChild = NULL;
-  WHERE_EACH(pChild, pChildren) {
-    if (unionIsChildSubplan(pParent->pNode, ((SLogicSubplan*)pChild)->id.groupId)) {
-      int32_t code = nodesListMakeAppend(&pParent->pChildren, pChild);
-      if (TSDB_CODE_SUCCESS == code) {
-        REPLACE_NODE(NULL);
-        ERASE_NODE(pChildren);
-        continue;
-      } else {
-        return code;
-      }
-    }
-    WHERE_NEXT;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 static SLogicSubplan* unionCreateSubplan(SSplitContext* pCxt, SLogicNode* pNode, ESubplanType subplanType) {
   SLogicSubplan* pSubplan = (SLogicSubplan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
   if (NULL == pSubplan) {
@@ -1044,7 +1044,7 @@ static int32_t unionSplitSubplan(SSplitContext* pCxt, SLogicSubplan* pUnionSubpl
     code = nodesListMakeStrictAppend(&pUnionSubplan->pChildren, (SNode*)pNewSubplan);
     if (TSDB_CODE_SUCCESS == code) {
       REPLACE_NODE(NULL);
-      code = unionMountSubplan(pNewSubplan, pSubplanChildren);
+      code = splMountSubplan(pNewSubplan, pSubplanChildren);
     }
     if (TSDB_CODE_SUCCESS != code) {
       break;
@@ -1232,7 +1232,7 @@ static int32_t insertSelectSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)pNewSubplan);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = unionMountSubplan(pNewSubplan, pSubplanChildren);
+    code = splMountSubplan(pNewSubplan, pSubplanChildren);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
