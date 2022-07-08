@@ -424,10 +424,12 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx, uint8_t **ppBuf) {
 
   ASSERT(n == size - sizeof(TSCKSUM));
 
+  tFree(pBuf);
   return code;
 
 _err:
   tsdbError("vgId:%d read del idx failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  tFree(pBuf);
   return code;
 }
 
@@ -969,6 +971,8 @@ int32_t tsdbReadColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBl
     SBlockData *pBlockData1 = &(SBlockData){0};
     SBlockData *pBlockData2 = &(SBlockData){0};
 
+    tBlockDataInit(pBlockData1);
+    tBlockDataInit(pBlockData2);
     for (int32_t iSubBlock = 1; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
       code = tsdbReadSubColData(pReader, pBlockIdx, pBlock, iSubBlock, aColId, nCol, pBlockData1, ppBuf1, ppBuf2);
       if (code) goto _err;
@@ -1106,6 +1110,8 @@ int32_t tsdbReadBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *p
     SBlockData *pBlockData1 = &(SBlockData){0};
     SBlockData *pBlockData2 = &(SBlockData){0};
 
+    tBlockDataInit(pBlockData1);
+    tBlockDataInit(pBlockData2);
     for (iSubBlock = 1; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
       code = tsdbReadSubBlockData(pReader, pBlockIdx, pBlock, iSubBlock, pBlockData1, ppBuf1, ppBuf2);
       if (code) {
@@ -1152,7 +1158,7 @@ _err:
 int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnDataAgg, uint8_t **ppBuf) {
   int32_t   code = 0;
   TdFilePtr pFD = pReader->pSmaFD;
-  int64_t   offset = pBlock->aSubBlock[0].offset;
+  int64_t   offset = pBlock->aSubBlock[0].sOffset;
   int64_t   size = pBlock->aSubBlock[0].nSma * sizeof(SColumnDataAgg) + sizeof(TSCKSUM);
   uint8_t  *pBuf = NULL;
   int64_t   n;
@@ -1175,10 +1181,13 @@ int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnD
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
+  } else if (n < size) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _err;
   }
 
   // check
-  if (!taosCheckChecksumWhole(NULL, size)) {
+  if (!taosCheckChecksumWhole(*ppBuf, size)) {
     code = TSDB_CODE_FILE_CORRUPTED;
     goto _err;
   }

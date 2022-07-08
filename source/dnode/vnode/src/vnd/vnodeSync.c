@@ -338,12 +338,12 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
       SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
       ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnRequestVoteCb(pSyncNode, pSyncMsg);
+      code = syncNodeOnRequestVoteSnapshotCb(pSyncNode, pSyncMsg);
       syncRequestVoteDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
       SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pMsg);
       ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnRequestVoteReplyCb(pSyncNode, pSyncMsg);
+      code = syncNodeOnRequestVoteReplySnapshotCb(pSyncNode, pSyncMsg);
       syncRequestVoteReplyDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_BATCH) {
       SyncAppendEntriesBatch *pSyncMsg = syncAppendEntriesBatchFromRpcMsg2(pMsg);
@@ -355,6 +355,14 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       ASSERT(pSyncMsg != NULL);
       code = syncNodeOnAppendEntriesReplySnapshot2Cb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
+      SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pMsg);
+      code = syncNodeOnSnapshotSendCb(pSyncNode, pSyncMsg);
+      syncSnapshotSendDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_RSP) {
+      SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
+      code = syncNodeOnSnapshotRspCb(pSyncNode, pSyncMsg);
+      syncSnapshotRspDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_SET_VNODE_STANDBY) {
       code = vnodeSetStandBy(pVnode);
       if (code != 0 && terrno != 0) code = terrno;

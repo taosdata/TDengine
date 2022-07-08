@@ -365,7 +365,7 @@ typedef struct SStreamScanInfo {
   int32_t         blockType;        // current block type
   int32_t         validBlockIndex;  // Is current data has returned?
   uint64_t        numOfExec;        // execution times
-  void*           streamReader;// stream block reader handle
+  STqReader*           tqReader;
 
   int32_t         tsArrayIndex;
   SArray*         tsArray;
@@ -383,6 +383,11 @@ typedef struct SStreamScanInfo {
   SSDataBlock*    pPullDataRes;             // pull data SSDataBlock
   SSDataBlock*    pDeleteDataRes;             // delete data SSDataBlock
   int32_t         deleteDataIndex;
+
+  // status for tmq
+  //SSchemaWrapper schema;
+  STqOffset offset;
+
 } SStreamScanInfo;
 
 typedef struct SSysTableScanInfo {
@@ -801,7 +806,7 @@ SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SExprI
 
 SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          SExecTaskInfo* pTaskInfo);
+                                          SNode* pCondition, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream,
     SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, int32_t numOfChild);
@@ -880,7 +885,7 @@ int32_t decodeOperator(SOperatorInfo* ops, const char* data, int32_t length);
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
                                const char* sql, EOPTR_EXEC_MODEL model);
-int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pTaskInfo);                               
+int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pTaskInfo, SReadHandle* readHandle);                               
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo** pRes, int32_t* capacity,
                                    int32_t* resNum);
 

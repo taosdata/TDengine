@@ -1025,14 +1025,14 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   pSyncNode->FpOnSnapshotRsp = syncNodeOnSnapshotRspCb;
 
   if (pSyncNode->pRaftCfg->snapshotStrategy) {
-    sInfo("sync node use snapshot");
+    sInfo("vgId:%d, sync node use snapshot", pSyncNode->vgId);
     pSyncNode->FpOnRequestVote = syncNodeOnRequestVoteSnapshotCb;
     pSyncNode->FpOnRequestVoteReply = syncNodeOnRequestVoteReplySnapshotCb;
     pSyncNode->FpOnAppendEntries = syncNodeOnAppendEntriesSnapshotCb;
     pSyncNode->FpOnAppendEntriesReply = syncNodeOnAppendEntriesReplySnapshotCb;
 
   } else {
-    sInfo("sync node do not use snapshot");
+    sInfo("vgId:%d, sync node do not use snapshot", pSyncNode->vgId);
     pSyncNode->FpOnRequestVote = syncNodeOnRequestVoteCb;
     pSyncNode->FpOnRequestVoteReply = syncNodeOnRequestVoteReplyCb;
     pSyncNode->FpOnAppendEntries = syncNodeOnAppendEntriesCb;
@@ -1311,8 +1311,10 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRp
     pMsg->info.noResp = 1;
     pSyncNode->FpSendMsg(&epSet, pMsg);
   } else {
-    sTrace("syncNodeSendMsgById pSyncNode->FpSendMsg is NULL");
+    sError("vgId:%d, sync send msg by id error, fp-send-msg is null", pSyncNode->vgId);
+    return -1;
   }
+
   return 0;
 }
 
@@ -1326,7 +1328,7 @@ int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, S
     pMsg->info.noResp = 1;
     pSyncNode->FpSendMsg(&epSet, pMsg);
   } else {
-    sTrace("syncNodeSendMsgByInfo pSyncNode->FpSendMsg is NULL");
+    sError("vgId:%d, sync send msg by info error, fp-send-msg is null", pSyncNode->vgId);
   }
   return 0;
 }
@@ -1526,12 +1528,14 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(logBuf, sizeof(logBuf),
                "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
+               "strategy:%d, batch:%d, "
                "replica-num:%d, "
                "lconfig:%ld, changing:%d, restore:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
-               pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
-               pSyncNode->changing, pSyncNode->restoreFinish, printStr);
+               pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy, pSyncNode->pRaftCfg->batchSize,
+               pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing,
+               pSyncNode->restoreFinish, printStr);
     } else {
       snprintf(logBuf, sizeof(logBuf), "%s", str);
     }
@@ -1543,12 +1547,14 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(s, len,
                "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
+               "strategy:%d, batch:%d, "
                "replica-num:%d, "
                "lconfig:%ld, changing:%d, restore:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
-               pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
-               pSyncNode->changing, pSyncNode->restoreFinish, printStr);
+               pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy, pSyncNode->pRaftCfg->batchSize,
+               pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing,
+               pSyncNode->restoreFinish, printStr);
     } else {
       snprintf(s, len, "%s", str);
     }

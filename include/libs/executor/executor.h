@@ -30,7 +30,7 @@ struct SRpcMsg;
 struct SSubplan;
 
 typedef struct SReadHandle {
-  void*   streamReader;
+  void*   tqReader;
   void*   meta;
   void*   config;
   void*   vnode;
@@ -38,7 +38,7 @@ typedef struct SReadHandle {
   SMsgCb* pMsgCb;
   bool    initMetaReader;
   bool    initTableReader;
-  bool    initStreamReader;
+  bool    initTqReader;
 } SReadHandle;
 
 typedef enum {
@@ -52,7 +52,7 @@ typedef enum {
  * @param streamReadHandle
  * @return
  */
-qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle);
+qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers);
 
 /**
  * Switch the stream scan to snapshot mode
@@ -157,7 +157,7 @@ int64_t qGetQueriedTableUid(qTaskInfo_t tinfo);
  */
 int32_t qGetQualifiedTableIdList(void* pTableList, const char* tagCond, int32_t tagCondLen, SArray* pTableIdList);
 
-void qProcessFetchRsp(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
+void qProcessRspMsg(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
 int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, int32_t* resNum, SExplainExecInfo** pRes);
 
@@ -175,6 +175,9 @@ int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t le
 int32_t qGetStreamScanStatus(qTaskInfo_t tinfo, uint64_t* uid, int64_t* ts);
 
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts);
+
+void*   qExtractReaderFromStreamScanner(void* scanner);
+int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
 
 #ifdef __cplusplus
 }

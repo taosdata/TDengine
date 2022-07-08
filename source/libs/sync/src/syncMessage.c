@@ -1605,7 +1605,7 @@ void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg) {
 
 SyncAppendEntriesBatch* syncAppendEntriesBatchBuild(SSyncRaftEntry** entryPArr, int32_t arrSize, int32_t vgId) {
   ASSERT(entryPArr != NULL);
-  ASSERT(arrSize > 0);
+  ASSERT(arrSize >= 0);
 
   int32_t dataLen = 0;
   int32_t metaArrayLen = sizeof(SOffsetAndContLen) * arrSize;  // <offset, contLen>
