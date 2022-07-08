@@ -1069,15 +1069,13 @@ static int32_t getArithmeticOperatorResultType(SOperatorNode* pOp) {
 
 static int32_t getComparisonOperatorResultType(SOperatorNode* pOp) {
   SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
-  if (NULL != pOp->pRight) {
+  if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
+    ((SExprNode*)(pOp->pRight))->resType = ldt;
+  } else if (nodesIsRegularOp(pOp)) {
     SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
-    if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
-      rdt = ldt;
-    } else if (nodesIsRegularOp(pOp)) {
-      if (!IS_VAR_DATA_TYPE(ldt.type) || QUERY_NODE_VALUE != nodeType(pOp->pRight) ||
-          (!IS_STR_DATA_TYPE(rdt.type) && (rdt.type != TSDB_DATA_TYPE_NULL))) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
+    if (!IS_VAR_DATA_TYPE(ldt.type) || QUERY_NODE_VALUE != nodeType(pOp->pRight) ||
+        (!IS_STR_DATA_TYPE(rdt.type) && (rdt.type != TSDB_DATA_TYPE_NULL))) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
   }
   pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;

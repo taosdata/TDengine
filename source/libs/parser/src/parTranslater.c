@@ -962,6 +962,10 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
   return translateValueImpl(pCxt, pVal, dt, false);
 }
 
+static int32_t doTranslateValue(STranslateContext* pCxt, SValueNode* pVal) {
+  return DEAL_RES_ERROR == translateValue(pCxt, pVal) ? pCxt->errCode : TSDB_CODE_SUCCESS;
+}
+
 static bool isMultiResFunc(SNode* pNode) {
   if (NULL == pNode) {
     return false;
@@ -1430,6 +1434,24 @@ static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR;
 }
 
+static EDealRes rewriteExprToGroupKeyFunc(STranslateContext* pCxt, SNode** pNode) {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    return DEAL_RES_ERROR;
+  }
+
+  strcpy(pFunc->functionName, "_group_key");
+  strcpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName);
+  pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    *pNode = (SNode*)pFunc;
+    pCxt->errCode = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
+  }
+
+  return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+}
+
 static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   SCheckExprForGroupByCxt* pCxt = (SCheckExprForGroupByCxt*)pContext;
   if (!nodesIsExprNode(*pNode) || isAliasColumn(*pNode)) {
@@ -1455,7 +1477,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   SNode* pPartKey = NULL;
   FOREACH(pPartKey, ((SSelectStmt*)pCxt->pTranslateCxt->pCurrStmt)->pPartitionByList) {
     if (nodesEqualNode(pPartKey, *pNode)) {
-      return DEAL_RES_IGNORE_CHILD;
+      return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
     }
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
@@ -1515,35 +1537,30 @@ static int32_t rewriteColsToSelectValFunc(STranslateContext* pCxt, SSelectStmt* 
 
 typedef struct CheckAggColCoexistCxt {
   STranslateContext* pTranslateCxt;
-  bool               existAggFunc;
+  bool               existVectorFunc;
   bool               existCol;
-  bool               existIndefiniteRowsFunc;
   int32_t            selectFuncNum;
-  bool               existOtherAggFunc;
+  bool               existOtherVectorFunc;
 } CheckAggColCoexistCxt;
 
-static EDealRes doCheckAggColCoexist(SNode* pNode, void* pContext) {
+static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
   CheckAggColCoexistCxt* pCxt = (CheckAggColCoexistCxt*)pContext;
-  if (isSelectFunc(pNode)) {
+  if (isSelectFunc(*pNode)) {
     ++(pCxt->selectFuncNum);
-  } else if (isAggFunc(pNode)) {
-    pCxt->existOtherAggFunc = true;
+  } else if (isAggFunc(*pNode)) {
+    pCxt->existOtherVectorFunc = true;
   }
-  if (isAggFunc(pNode)) {
-    pCxt->existAggFunc = true;
-    return DEAL_RES_IGNORE_CHILD;
-  }
-  if (isIndefiniteRowsFunc(pNode)) {
-    pCxt->existIndefiniteRowsFunc = true;
+  if (isVectorFunc(*pNode)) {
+    pCxt->existVectorFunc = true;
     return DEAL_RES_IGNORE_CHILD;
   }
   SNode* pPartKey = NULL;
   FOREACH(pPartKey, ((SSelectStmt*)pCxt->pTranslateCxt->pCurrStmt)->pPartitionByList) {
-    if (nodesEqualNode(pPartKey, pNode)) {
-      return DEAL_RES_IGNORE_CHILD;
+    if (nodesEqualNode(pPartKey, *pNode)) {
+      return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
     }
   }
-  if (isScanPseudoColumnFunc(pNode) || QUERY_NODE_COLUMN == nodeType(pNode)) {
+  if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     pCxt->existCol = true;
   }
   return DEAL_RES_CONTINUE;
@@ -1554,23 +1571,19 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
     return TSDB_CODE_SUCCESS;
   }
   CheckAggColCoexistCxt cxt = {.pTranslateCxt = pCxt,
-                               .existAggFunc = false,
+                               .existVectorFunc = false,
                                .existCol = false,
-                               .existIndefiniteRowsFunc = false,
                                .selectFuncNum = 0,
-                               .existOtherAggFunc = false};
-  nodesWalkExprs(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
+                               .existOtherVectorFunc = false};
+  nodesRewriteExprs(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
   if (!pSelect->isDistinct) {
-    nodesWalkExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
+    nodesRewriteExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
   }
-  if (1 == cxt.selectFuncNum && !cxt.existOtherAggFunc) {
+  if (1 == cxt.selectFuncNum && !cxt.existOtherVectorFunc) {
     return rewriteColsToSelectValFunc(pCxt, pSelect);
   }
-  if ((cxt.selectFuncNum > 1 || cxt.existAggFunc || NULL != pSelect->pWindow) && cxt.existCol) {
+  if ((cxt.selectFuncNum > 1 || cxt.existVectorFunc || NULL != pSelect->pWindow) && cxt.existCol) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SINGLE_GROUP);
-  }
-  if (cxt.existIndefiniteRowsFunc && cxt.existCol) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -4047,29 +4060,42 @@ static int32_t buildCreateSmaReq(STranslateContext* pCxt, SCreateIndexStmt* pStm
   return code;
 }
 
-static int32_t translateCreateSmaIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
-  if (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pInterval) ||
-      (NULL != pStmt->pOptions->pOffset &&
-       DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pOffset)) ||
-      (NULL != pStmt->pOptions->pSliding &&
-       DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pSliding))) {
-    return pCxt->errCode;
+static int32_t checkCreateSmaIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
+  SDbCfgInfo dbCfg = {0};
+  int32_t    code = getDBCfg(pCxt, pCxt->pParseCxt->db, &dbCfg);
+  if (TSDB_CODE_SUCCESS == code && NULL != dbCfg.pRetensions) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_SMA_INDEX,
+                                   "Tables configured with the 'ROLLUP' option do not support creating sma index");
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = doTranslateValue(pCxt, (SValueNode*)pStmt->pOptions->pInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pOptions->pOffset) {
+    code = doTranslateValue(pCxt, (SValueNode*)pStmt->pOptions->pOffset);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pOptions->pSliding) {
+    code = doTranslateValue(pCxt, (SValueNode*)pStmt->pOptions->pSliding);
   }
 
-  if (NULL != pStmt->pOptions->pStreamOptions) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pOptions->pStreamOptions) {
     SStreamOptions* pStreamOpt = (SStreamOptions*)pStmt->pOptions->pStreamOptions;
-    if (NULL != pStreamOpt->pWatermark &&
-        (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStreamOpt->pWatermark))) {
-      return pCxt->errCode;
+    if (NULL != pStreamOpt->pWatermark) {
+      code = doTranslateValue(pCxt, (SValueNode*)pStreamOpt->pWatermark);
     }
-
-    if (NULL != pStreamOpt->pDelay && (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStreamOpt->pDelay))) {
-      return pCxt->errCode;
+    if (TSDB_CODE_SUCCESS == code && NULL != pStreamOpt->pDelay) {
+      code = doTranslateValue(pCxt, (SValueNode*)pStreamOpt->pDelay);
     }
   }
 
+  return code;
+}
+
+static int32_t translateCreateSmaIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
   SMCreateSmaReq createSmaReq = {0};
-  int32_t        code = buildCreateSmaReq(pCxt, pStmt, &createSmaReq);
+  int32_t        code = checkCreateSmaIndex(pCxt, pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCreateSmaReq(pCxt, pStmt, &createSmaReq);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_SMA, (FSerializeFunc)tSerializeSMCreateSmaReq, &createSmaReq);
   }
