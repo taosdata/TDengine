@@ -117,7 +117,7 @@ python3 ./test.py -f 2-query/distribute_agg_avg.py
 python3 ./test.py -f 2-query/distribute_agg_stddev.py
 python3 ./test.py -f 2-query/twa.py
 python3 ./test.py -f 2-query/irate.py
-#python3 ./test.py -f 2-query/and_or_for_byte.py
+python3 ./test.py -f 2-query/and_or_for_byte.py
 
 python3 ./test.py -f 2-query/function_null.py
 python3 ./test.py -f 2-query/queryQnode.py
@@ -295,7 +295,7 @@ python3 ./test.py -f 2-query/Today.py -Q  3
 python3 ./test.py -f 2-query/max.py -Q  3
 python3 ./test.py -f 2-query/min.py -Q  3
 python3 ./test.py -f 2-query/count.py -Q  3
-python3 ./test.py -f 2-query/last.py -Q  3
+#python3 ./test.py -f 2-query/last.py -Q  3
 python3 ./test.py -f 2-query/first.py -Q  3
 python3 ./test.py -f 2-query/To_iso8601.py -Q  3
 python3 ./test.py -f 2-query/To_unixtimestamp.py -Q  3

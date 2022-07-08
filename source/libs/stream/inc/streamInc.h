@@ -17,6 +17,7 @@
 #define _STREAM_INC_H_
 
 #include "executor.h"
+#include "tref.h"
 #include "tstream.h"
 
 #ifdef __cplusplus
@@ -24,8 +25,9 @@ extern "C" {
 #endif
 
 typedef struct {
-  int8_t inited;
-  void*  timer;
+  int8_t  inited;
+  int32_t refPool;
+  void*   timer;
 } SStreamGlobalEnv;
 
 static SStreamGlobalEnv streamEnv;

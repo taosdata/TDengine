@@ -135,8 +135,8 @@ int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataR
     }
   } else if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
     pRsp->withSchema = 1;
-    SStreamReader* pReader = pExec->pExecReader[workerId];
-    tqReadHandleSetMsg(pReader, pReq, 0);
+    STqReader* pReader = pExec->pExecReader[workerId];
+    tqReaderSetDataMsg(pReader, pReq, 0);
     while (tqNextDataBlock(pReader)) {
       SSDataBlock block = {0};
       if (tqRetrieveDataBlock(&block, pReader) < 0) {
@@ -153,8 +153,8 @@ int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataR
     }
   } else if (pExec->subType == TOPIC_SUB_TYPE__DB) {
     pRsp->withSchema = 1;
-    SStreamReader* pReader = pExec->pExecReader[workerId];
-    tqReadHandleSetMsg(pReader, pReq, 0);
+    STqReader* pReader = pExec->pExecReader[workerId];
+    tqReaderSetDataMsg(pReader, pReq, 0);
     while (tqNextDataBlockFilterOut(pReader, pExec->execDb.pFilterOutTbUid)) {
       SSDataBlock block = {0};
       if (tqRetrieveDataBlock(&block, pReader) < 0) {

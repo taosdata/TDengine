@@ -2844,17 +2844,17 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
 }
 
 int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
-  int32_t type = pOperator->operatorType;
+  uint8_t type = pOperator->operatorType;
 
   pOperator->status = OP_OPENED;
 
   if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    SStreamBlockScanInfo* pScanInfo = pOperator->info;
+    SStreamScanInfo* pScanInfo = pOperator->info;
     pScanInfo->blockType = STREAM_INPUT__DATA_SCAN;
 
-    pScanInfo->pSnapshotReadOp->status = OP_OPENED;
+    pScanInfo->pTableScanOp->status = OP_OPENED;
 
-    STableScanInfo* pInfo = pScanInfo->pSnapshotReadOp->info;
+    STableScanInfo* pInfo = pScanInfo->pTableScanOp->info;
     ASSERT(pInfo->scanMode == TABLE_SCAN__TABLE_ORDER);
 
     if (uid == 0) {
@@ -2914,8 +2914,8 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
 int32_t doGetScanStatus(SOperatorInfo* pOperator, uint64_t* uid, int64_t* ts) {
   int32_t type = pOperator->operatorType;
   if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    SStreamBlockScanInfo* pScanInfo = pOperator->info;
-    STableScanInfo*       pSnapShotScanInfo = pScanInfo->pSnapshotReadOp->info;
+    SStreamScanInfo* pScanInfo = pOperator->info;
+    STableScanInfo*  pSnapShotScanInfo = pScanInfo->pTableScanOp->info;
     *uid = pSnapShotScanInfo->lastStatus.uid;
     *ts = pSnapShotScanInfo->lastStatus.ts;
   } else {
@@ -3364,7 +3364,7 @@ static void doHandleRemainBlockFromNewGroup(SFillOperatorInfo* pInfo, SResultInf
   }
 }
 
-static SSDataBlock* doFill(SOperatorInfo* pOperator) {
+static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   SFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
 
@@ -3372,9 +3372,6 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
   SSDataBlock* pResBlock = pInfo->pRes;
 
   blockDataCleanup(pResBlock);
-  if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
-  }
 
   // todo handle different group data interpolation
   bool  n = false;
@@ -3438,6 +3435,39 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
       return NULL;
     }
   }
+}
+
+static SSDataBlock* doFill(SOperatorInfo* pOperator) {
+  SFillOperatorInfo* pInfo = pOperator->info;
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+
+  SSDataBlock* fillResult = NULL;
+  while (true) {
+    fillResult = doFillImpl(pOperator);
+    if (fillResult != NULL) {
+      doFilter(pInfo->pCondition, fillResult);
+    }
+
+    if (fillResult == NULL) {
+      doSetOperatorCompleted(pOperator);
+      break;
+    }
+
+    if (fillResult->info.rows > 0) {
+      break;
+    }
+  }
+
+  if (fillResult != NULL) {
+    size_t rows = fillResult->info.rows;
+    pOperator->resultInfo.totalRows += rows;
+  }
+
+  return fillResult;
 }
 
 static void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
@@ -3832,6 +3862,8 @@ static SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
     }
   }
 
+  doFilter(pIndefInfo->pCondition, pInfo->pRes);
+
   size_t rows = pInfo->pRes->info.rows;
   pOperator->resultInfo.totalRows += rows;
 
@@ -3885,6 +3917,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
 
   pInfo->binfo.pRes = pResBlock;
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pSup->pCtx, numOfExpr);
+  pInfo->pCondition = pPhyNode->node.pConditions;
 
   pOperator->name = "IndefinitOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PROJECT;
@@ -3958,6 +3991,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
 
   pInfo->pRes = pResBlock;
   pInfo->multigroupResult = multigroupResult;
+  pInfo->pCondition = pPhyFillNode->node.pConditions;
   pOperator->name = "FillOperator";
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
@@ -4312,11 +4346,11 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     } else if (QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN == type) {
       SLastRowScanPhysiNode* pScanNode = (SLastRowScanPhysiNode*)pPhyNode;
 
-//      int32_t code = createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId);
-//      if (code) {
-//        pTaskInfo->code = code;
-//        return NULL;
-//      }
+      //      int32_t code = createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId);
+      //      if (code) {
+      //        pTaskInfo->code = code;
+      //        return NULL;
+      //      }
 
       int32_t code = extractTableSchemaVersion(pHandle, pScanNode->uid, pTaskInfo);
       if (code != TSDB_CODE_SUCCESS) {
@@ -4373,8 +4407,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       pOptr = createGroupOperatorInfo(ops[0], pExprInfo, num, pResBlock, pColList, pAggNode->node.pConditions,
                                       pScalarExprInfo, numOfScalarExpr, pTaskInfo);
     } else {
-      pOptr =
-          createAggregateOperatorInfo(ops[0], pExprInfo, num, pResBlock, pAggNode->node.pConditions, pScalarExprInfo, numOfScalarExpr, pTaskInfo);
+      pOptr = createAggregateOperatorInfo(ops[0], pExprInfo, num, pResBlock, pAggNode->node.pConditions,
+                                          pScalarExprInfo, numOfScalarExpr, pTaskInfo);
     }
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL == type || QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type) {
     SIntervalPhysiNode* pIntervalPhyNode = (SIntervalPhysiNode*)pPhyNode;
@@ -4541,7 +4575,8 @@ SArray* extractColumnInfo(SNodeList* pNodeList) {
   return pList;
 }
 
-STsdbReader* doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle, STableListInfo* pTableListInfo, const char* idstr) {
+STsdbReader* doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
+                                STableListInfo* pTableListInfo, const char* idstr) {
   int32_t code = getTableList(pHandle->meta, pHandle->vnode, &pTableScanNode->scan, pTableListInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -4587,9 +4622,9 @@ static int32_t extractTbscanInStreamOpTree(SOperatorInfo* pOperator, STableScanI
     }
     return extractTbscanInStreamOpTree(pOperator->pDownstream[0], ppInfo);
   } else {
-    SStreamBlockScanInfo* pInfo = pOperator->info;
-    ASSERT(pInfo->pSnapshotReadOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
-    *ppInfo = pInfo->pSnapshotReadOp->info;
+    SStreamScanInfo* pInfo = pOperator->info;
+    ASSERT(pInfo->pTableScanOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+    *ppInfo = pInfo->pTableScanOp->info;
     return 0;
   }
 }
@@ -4784,7 +4819,6 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   (*pTaskInfo)->tableqinfoList.pTagIndexCond = pPlan->pTagIndexCond;
   (*pTaskInfo)->pRoot = createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId,
                                            &(*pTaskInfo)->tableqinfoList, pPlan->user);
-
 
   if (NULL == (*pTaskInfo)->pRoot) {
     code = (*pTaskInfo)->code;

@@ -25,7 +25,7 @@ class TDTestCase:
         paraDict = {'dbName':     'db2',
                     'dropFlag':   1,
                     'event':      '',
-                    'vgroups':    4,
+                    'vgroups':    1,
                     'stbName':    'stb',
                     'colPrefix':  'c',
                     'tagPrefix':  't',
@@ -44,7 +44,7 @@ class TDTestCase:
         topicNameList = ['topic1']
         expectRowsList = []
         tmqCom.initConsumerTable()
-        tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=4,replica=1)
+        tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=1,replica=1)
         tdLog.info("create stb")
         tdCom.create_stable(tdSql, dbname=paraDict["dbName"],stbname=paraDict["stbName"], column_elm_list=paraDict['colSchema'], tag_elm_list=paraDict['tagSchema'])
         tdLog.info("create ctb")
