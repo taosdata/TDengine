@@ -1219,14 +1219,27 @@ static int32_t insertSelectSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     return TSDB_CODE_SUCCESS;
   }
 
+  SLogicSubplan* pNewSubplan = NULL;
+  SNodeList*     pSubplanChildren = info.pSubplan->pChildren;
   int32_t code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pQueryRoot, info.pSubplan->subplanType);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, info.pQueryRoot, 0));
+    pNewSubplan = splCreateScanSubplan(pCxt, info.pQueryRoot, 0);
+    if (NULL == pNewSubplan) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)pNewSubplan);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = unionMountSubplan(pNewSubplan, pSubplanChildren);
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     info.pSubplan->subplanType = SUBPLAN_TYPE_MODIFY;
     SPLIT_FLAG_SET_MASK(info.pSubplan->splitFlag, SPLIT_FLAG_INSERT_SPLIT);
   }
+
   ++(pCxt->groupId);
   pCxt->split = true;
   return code;
