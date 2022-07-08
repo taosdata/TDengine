@@ -39,7 +39,6 @@ typedef struct SSplitRule {
   FSplit splitFunc;
 } SSplitRule;
 
-// typedef bool (*FSplFindSplitNode)(SSplitContext* pCxt, SLogicSubplan* pSubplan, void* pInfo);
 typedef bool (*FSplFindSplitNode)(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode, void* pInfo);
 
 static void splSetSubplanVgroups(SLogicSubplan* pSubplan, SLogicNode* pNode) {
@@ -64,6 +63,19 @@ static SLogicSubplan* splCreateScanSubplan(SSplitContext* pCxt, SLogicNode* pNod
   pSubplan->pNode->pParent = NULL;
   splSetSubplanVgroups(pSubplan, pNode);
   SPLIT_FLAG_SET_MASK(pSubplan->splitFlag, flag);
+  return pSubplan;
+}
+
+static SLogicSubplan* splCreateSubplan(SSplitContext* pCxt, SLogicNode* pNode, ESubplanType subplanType) {
+  SLogicSubplan* pSubplan = (SLogicSubplan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
+  if (NULL == pSubplan) {
+    return NULL;
+  }
+  pSubplan->id.queryId = pCxt->queryId;
+  pSubplan->id.groupId = pCxt->groupId;
+  pSubplan->subplanType = subplanType;
+  pSubplan->pNode = pNode;
+  pNode->pParent = NULL;
   return pSubplan;
 }
 
@@ -1019,19 +1031,6 @@ static int32_t singleTableJoinSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan
   return code;
 }
 
-static SLogicSubplan* unionCreateSubplan(SSplitContext* pCxt, SLogicNode* pNode, ESubplanType subplanType) {
-  SLogicSubplan* pSubplan = (SLogicSubplan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
-  if (NULL == pSubplan) {
-    return NULL;
-  }
-  pSubplan->id.queryId = pCxt->queryId;
-  pSubplan->id.groupId = pCxt->groupId;
-  pSubplan->subplanType = subplanType;
-  pSubplan->pNode = pNode;
-  pNode->pParent = NULL;
-  return pSubplan;
-}
-
 static int32_t unionSplitSubplan(SSplitContext* pCxt, SLogicSubplan* pUnionSubplan, SLogicNode* pSplitNode) {
   SNodeList* pSubplanChildren = pUnionSubplan->pChildren;
   pUnionSubplan->pChildren = NULL;
@@ -1040,7 +1039,7 @@ static int32_t unionSplitSubplan(SSplitContext* pCxt, SLogicSubplan* pUnionSubpl
 
   SNode* pChild = NULL;
   FOREACH(pChild, pSplitNode->pChildren) {
-    SLogicSubplan* pNewSubplan = unionCreateSubplan(pCxt, (SLogicNode*)pChild, pUnionSubplan->subplanType);
+    SLogicSubplan* pNewSubplan = splCreateSubplan(pCxt, (SLogicNode*)pChild, pUnionSubplan->subplanType);
     code = nodesListMakeStrictAppend(&pUnionSubplan->pChildren, (SNode*)pNewSubplan);
     if (TSDB_CODE_SUCCESS == code) {
       REPLACE_NODE(NULL);
@@ -1221,9 +1220,10 @@ static int32_t insertSelectSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
 
   SLogicSubplan* pNewSubplan = NULL;
   SNodeList*     pSubplanChildren = info.pSubplan->pChildren;
-  int32_t code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pQueryRoot, info.pSubplan->subplanType);
+  ESubplanType   subplanType = info.pSubplan->subplanType;
+  int32_t        code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pQueryRoot, SUBPLAN_TYPE_MODIFY);
   if (TSDB_CODE_SUCCESS == code) {
-    pNewSubplan = splCreateScanSubplan(pCxt, info.pQueryRoot, 0);
+    pNewSubplan = splCreateSubplan(pCxt, info.pQueryRoot, subplanType);
     if (NULL == pNewSubplan) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -1235,11 +1235,7 @@ static int32_t insertSelectSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     code = splMountSubplan(pNewSubplan, pSubplanChildren);
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    info.pSubplan->subplanType = SUBPLAN_TYPE_MODIFY;
-    SPLIT_FLAG_SET_MASK(info.pSubplan->splitFlag, SPLIT_FLAG_INSERT_SPLIT);
-  }
-
+  SPLIT_FLAG_SET_MASK(info.pSubplan->splitFlag, SPLIT_FLAG_INSERT_SPLIT);
   ++(pCxt->groupId);
   pCxt->split = true;
   return code;
