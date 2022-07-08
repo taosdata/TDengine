@@ -3,6 +3,7 @@ add_executable(idxFstTest "")
 add_executable(idxFstUT "")
 add_executable(idxUtilUT "")
 add_executable(idxJsonUT "")
+add_executable(idxFstUtilUT "")
 
 target_sources(idxTest
   PRIVATE 
@@ -26,6 +27,11 @@ target_sources(idxJsonUT
   PRIVATE 
   "jsonUT.cc" 
 )
+target_sources(idxFstUtilUT
+  PRIVATE 
+  "fstUtilUT.cc" 
+)
+ 
 target_include_directories (idxTest
   PUBLIC
   "${TD_SOURCE_DIR}/include/libs/index" 
@@ -54,6 +60,12 @@ target_include_directories (idxJsonUT
   "${TD_SOURCE_DIR}/include/libs/index" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
+target_include_directories (idxFstUtilUT
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/index" 
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+) 
+
 target_link_libraries (idxTest
   os  
   util
@@ -91,6 +103,13 @@ target_link_libraries (idxJsonUT
   gtest_main
   index
 )
+target_link_libraries (idxFstUtilUT
+  os  
+  util
+  common
+  gtest_main
+  index
+)
 
 add_test(
   NAME idxtest
@@ -107,4 +126,9 @@ add_test(
 add_test(
   NAME idxFstUT 
   COMMAND idxFstUT 
+)
+add_test(
+  NAME idxFstUtilUT 
+  COMMAND idxFstUtilUT  
+
 )

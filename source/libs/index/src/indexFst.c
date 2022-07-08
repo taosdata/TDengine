@@ -1307,7 +1307,6 @@ FStmStRslt* stmStNextWith(FStmSt* sws, StreamCallback callback) {
     taosArrayPush(sws->inp, &(trn.inp));
 
     if (FST_NODE_IS_FINAL(nextNode)) {
-      // void *eofState = sws->aut->acceptEof(nextState);
       void* eofState = automFuncs[aut->type].acceptEof(aut, nextState);
       if (eofState != NULL) {
         isMatch = automFuncs[aut->type].isMatch(aut, eofState);
