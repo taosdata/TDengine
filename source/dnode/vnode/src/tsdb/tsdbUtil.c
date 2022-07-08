@@ -1234,10 +1234,26 @@ void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
           break;
         case TSDB_DATA_TYPE_SMALLINT:
           break;
-        case TSDB_DATA_TYPE_INT:
+        case TSDB_DATA_TYPE_INT: {
+          pColAgg->sum += colVal.value.i32;
+          if (pColAgg->min > colVal.value.i32) {
+            pColAgg->min = colVal.value.i32;
+          }
+          if (pColAgg->max < colVal.value.i32) {
+            pColAgg->max = colVal.value.i32;
+          }
           break;
-        case TSDB_DATA_TYPE_BIGINT:
+        }
+        case TSDB_DATA_TYPE_BIGINT: {
+          pColAgg->sum += colVal.value.i64;
+          if (pColAgg->min > colVal.value.i64) {
+            pColAgg->min = colVal.value.i64;
+          }
+          if (pColAgg->max < colVal.value.i64) {
+            pColAgg->max = colVal.value.i64;
+          }
           break;
+        }
         case TSDB_DATA_TYPE_FLOAT:
           break;
         case TSDB_DATA_TYPE_DOUBLE:
