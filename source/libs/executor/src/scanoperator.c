@@ -1232,38 +1232,33 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
     blockDataCleanup(pInfo->pRes);
 
-    while (tqNextDataBlock(pInfo->streamReader)) {
+    while (tqNextDataBlock(pInfo->tqReader)) {
       SSDataBlock block = {0};
 
       // todo refactor
-      int32_t code = tqRetrieveDataBlock(&block, pInfo->streamReader);
+      int32_t code = tqRetrieveDataBlock(&block, pInfo->tqReader);
 
-      uint64_t groupId = block.info.groupId;
-      uint64_t uid = block.info.uid;
-      int32_t  numOfRows = block.info.rows;
-
-      if (code != TSDB_CODE_SUCCESS || numOfRows == 0) {
+      if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
         pTaskInfo->code = code;
         return NULL;
       }
 
-      pInfo->pRes->info.groupId = groupId;
-      pInfo->pRes->info.rows = numOfRows;
-      pInfo->pRes->info.uid = uid;
+      pInfo->pRes->info.rows = block.info.rows;
+      pInfo->pRes->info.uid = block.info.uid;
       pInfo->pRes->info.type = STREAM_NORMAL;
-      pInfo->pRes->info.capacity = numOfRows;
+      pInfo->pRes->info.capacity = block.info.rows;
 
       // for generating rollup SMA result, each time is an independent time serie.
       // TODO temporarily used, when the statement of "partition by tbname" is ready, remove this
       if (pInfo->assignBlockUid) {
-        pInfo->pRes->info.groupId = uid;
-      } else {
-        pInfo->pRes->info.groupId = groupId;
+        pInfo->pRes->info.groupId = block.info.uid;
       }
 
-      uint64_t* groupIdPre = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &uid, sizeof(int64_t));
+      uint64_t* groupIdPre = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &block.info.uid, sizeof(int64_t));
       if (groupIdPre) {
         pInfo->pRes->info.groupId = *groupIdPre;
+      } else {
+        pInfo->pRes->info.groupId = 0;
       }
 
       // todo extract method
@@ -1413,13 +1408,13 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
       }
     }
 
-    if (pHandle->initStreamReader) {
-      ASSERT(pHandle->streamReader == NULL);
-      pInfo->streamReader = tqInitSubmitMsgScanner(pHandle->meta);
-      ASSERT(pInfo->streamReader);
+    if (pHandle->initTqReader) {
+      ASSERT(pHandle->tqReader == NULL);
+      pInfo->tqReader = tqOpenReader(pHandle->vnode);
+      ASSERT(pInfo->tqReader);
     } else {
-      ASSERT(pHandle->streamReader);
-      pInfo->streamReader = pHandle->streamReader;
+      ASSERT(pHandle->tqReader);
+      pInfo->tqReader = pHandle->tqReader;
     }
 
     if (pSTInfo->interval.interval > 0) {
@@ -1435,9 +1430,9 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     pInfo->tableUid = pScanPhyNode->uid;
 
     // set the extract column id to streamHandle
-    tqReadHandleSetColIdList(pInfo->streamReader, pColIds);
+    tqReaderSetColIdList(pInfo->tqReader, pColIds);
     SArray* tableIdList = extractTableIdList(&pTaskInfo->tableqinfoList);
-    int32_t code = tqReadHandleSetTbUidList(pInfo->streamReader, tableIdList);
+    int32_t code = tqReaderSetTbUidList(pInfo->tqReader, tableIdList);
     if (code != 0) {
       taosArrayDestroy(tableIdList);
       goto _error;
