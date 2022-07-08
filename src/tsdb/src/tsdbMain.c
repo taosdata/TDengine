@@ -344,7 +344,7 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
 #endif
 }
 
-uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t eindex, int64_t *size) {
+uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *idx, uint32_t eindex, int64_t *size) {
   // TODO
   return 0;
 #if 0
@@ -356,16 +356,16 @@ uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t 
 
   struct stat fState;
 
-  tsdbDebug("vgId:%d name:%s index:%d eindex:%d", pRepo->config.tsdbId, name, *index, eindex);
-  ASSERT(*index <= eindex);
+  tsdbDebug("vgId:%d name:%s index:%d eindex:%d", pRepo->config.tsdbId, name, *idx, eindex);
+  ASSERT(*idx <= eindex);
 
   if (name[0] == 0) {  // get the file from index or after, but not larger than eindex
-    int fid = (*index) / TSDB_FILE_TYPE_MAX;
+    int fid = (*idx) / TSDB_FILE_TYPE_MAX;
 
     if (pFileH->nFGroups == 0 || fid > pFileH->pFGroup[pFileH->nFGroups - 1].fileId) {
-      if (*index <= TSDB_META_FILE_INDEX && TSDB_META_FILE_INDEX <= eindex) {
+      if (*idx <= TSDB_META_FILE_INDEX && TSDB_META_FILE_INDEX <= eindex) {
         fname = tsdbGetMetaFileName(pRepo->rootDir);
-        *index = TSDB_META_FILE_INDEX;
+        *idx = TSDB_META_FILE_INDEX;
         magic = TSDB_META_FILE_MAGIC(pRepo->tsdbMeta);
         sprintf(name, "tsdb/%s", TSDB_META_FILE_NAME);
       } else {
@@ -375,7 +375,7 @@ uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t 
       SFileGroup *pFGroup =
           taosbsearch(&fid, pFileH->pFGroup, pFileH->nFGroups, sizeof(SFileGroup), keyFGroupCompFunc, TD_GE);
       if (pFGroup->fileId == fid) {
-        SFile *pFile = &pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX];
+        SFile *pFile = &pFGroup->files[(*idx) % TSDB_FILE_TYPE_MAX];
         fname = strdup(TSDB_FILE_NAME(pFile));
         magic = pFile->info.magic;
         char *tfname = strdup(fname);
@@ -385,7 +385,7 @@ uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t 
         if ((pFGroup->fileId + 1) * TSDB_FILE_TYPE_MAX - 1 < (int)eindex) {
           SFile *pFile = &pFGroup->files[0];
           fname = strdup(TSDB_FILE_NAME(pFile));
-          *index = pFGroup->fileId * TSDB_FILE_TYPE_MAX;
+          *idx = pFGroup->fileId * TSDB_FILE_TYPE_MAX;
           magic = pFile->info.magic;
           char *tfname = strdup(fname);
           sprintf(name, "tsdb/%s/%s", TSDB_DATA_DIR_NAME, basename(tfname));
@@ -402,7 +402,7 @@ uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t 
       tfree(fname);
       return 0;
     }
-    if (*index == TSDB_META_FILE_INDEX) {  // get meta file
+    if (*idx == TSDB_META_FILE_INDEX) {  // get meta file
       tsdbGetStoreInfo(fname, &magic, size);
     } else {
       char tfname[TSDB_FILENAME_LEN] = "\0";

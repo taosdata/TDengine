@@ -2305,10 +2305,10 @@ void tscCloseTscObj(void *param) {
 }
 
 bool tscIsInsertData(char* sqlstr) {
-  int32_t index = 0;
+  int32_t idx = 0;
 
   do {
-    SStrToken t0 = tStrGetToken(sqlstr, &index, false);
+    SStrToken t0 = tStrGetToken(sqlstr, &idx, false);
     if (t0.type != TK_LP) {
       return t0.type == TK_INSERT || t0.type == TK_IMPORT;
     }
@@ -2378,12 +2378,12 @@ SInternalField* tscFieldInfoAppend(SFieldInfo* pFieldInfo, TAOS_FIELD* pField) {
   return taosArrayPush(pFieldInfo->internalField, &info);
 }
 
-SInternalField* tscFieldInfoInsert(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIELD* field) {
+SInternalField* tscFieldInfoInsert(SFieldInfo* pFieldInfo, int32_t idx, TAOS_FIELD* field) {
   pFieldInfo->numOfOutput++;
   struct SInternalField info = { .pExpr = NULL, .visible = true };
 
   info.field = *field;
-  return taosArrayInsert(pFieldInfo->internalField, index, &info);
+  return taosArrayInsert(pFieldInfo->internalField, idx, &info);
 }
 
 void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo) {
@@ -2398,18 +2398,18 @@ void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo) {
   }
 }
 
-SInternalField* tscFieldInfoGetInternalField(SFieldInfo* pFieldInfo, int32_t index) {
-  assert(index < pFieldInfo->numOfOutput);
-  return TARRAY_GET_ELEM(pFieldInfo->internalField, index);
+SInternalField* tscFieldInfoGetInternalField(SFieldInfo* pFieldInfo, int32_t idx) {
+  assert(idx < pFieldInfo->numOfOutput);
+  return TARRAY_GET_ELEM(pFieldInfo->internalField, idx);
 }
 
-TAOS_FIELD* tscFieldInfoGetField(SFieldInfo* pFieldInfo, int32_t index) {
-  assert(index < pFieldInfo->numOfOutput);
-  return &((SInternalField*)TARRAY_GET_ELEM(pFieldInfo->internalField, index))->field;
+TAOS_FIELD* tscFieldInfoGetField(SFieldInfo* pFieldInfo, int32_t idx) {
+  assert(idx < pFieldInfo->numOfOutput);
+  return &((SInternalField*)TARRAY_GET_ELEM(pFieldInfo->internalField, idx))->field;
 }
 
-int32_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index) {
-  SInternalField* pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, index);
+int32_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t idx) {
+  SInternalField* pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, idx);
   assert(pInfo != NULL && pInfo->pExpr->pExpr == NULL);
 
   return pInfo->pExpr->base.offset;
@@ -2635,16 +2635,16 @@ SExprInfo* tscExprCreate(STableMetaInfo* pTableMetaInfo, int16_t functionId, SCo
   return pExpr;
 }
 
-SExprInfo* tscExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
+SExprInfo* tscExprInsert(SQueryInfo* pQueryInfo, int32_t idx, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
                            int16_t size, int16_t resColId, int32_t interSize, bool isTagCol) {
   int32_t num = (int32_t)taosArrayGetSize(pQueryInfo->exprList);
-  if (index == num) {
+  if (idx == num) {
     return tscExprAppend(pQueryInfo, functionId, pColIndex, type, size, resColId, interSize, isTagCol);
   }
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pColIndex->tableIndex);
   SExprInfo* pExpr = tscExprCreate(pTableMetaInfo, functionId, pColIndex, type, size, resColId, interSize, isTagCol);
-  taosArrayInsert(pQueryInfo->exprList, index, &pExpr);
+  taosArrayInsert(pQueryInfo->exprList, idx, &pExpr);
   return pExpr;
 }
 
@@ -2656,10 +2656,10 @@ SExprInfo* tscExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnInde
   return pExpr;
 }
 
-SExprInfo* tscExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex,
+SExprInfo* tscExprUpdate(SQueryInfo* pQueryInfo, int32_t idx, int16_t functionId, int16_t srcColumnIndex,
                            int16_t type, int32_t size) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  SExprInfo* pExpr = tscExprGet(pQueryInfo, index);
+  SExprInfo* pExpr = tscExprGet(pQueryInfo, idx);
   if (pExpr == NULL) {
     return NULL;
   }
@@ -2676,8 +2676,8 @@ SExprInfo* tscExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t function
   return pExpr;
 }
 
-bool tscMultiRoundQuery(SQueryInfo* pQueryInfo, int32_t index) {
-  if (!UTIL_TABLE_IS_SUPER_TABLE(pQueryInfo->pTableMetaInfo[index])) {
+bool tscMultiRoundQuery(SQueryInfo* pQueryInfo, int32_t idx) {
+  if (!UTIL_TABLE_IS_SUPER_TABLE(pQueryInfo->pTableMetaInfo[idx])) {
     return false;
   }
 
@@ -2725,8 +2725,8 @@ void tscExprAddParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t byt
   assert(pExpr->numOfParams <= 3);
 }
 
-SExprInfo* tscExprGet(SQueryInfo* pQueryInfo, int32_t index) {
-  return taosArrayGetP(pQueryInfo->exprList, index);
+SExprInfo* tscExprGet(SQueryInfo* pQueryInfo, int32_t idx) {
+  return taosArrayGetP(pQueryInfo->exprList, idx);
 }
 
 /*
@@ -3297,8 +3297,8 @@ void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryInfo* pQueryInfo) {
     if (TSDB_COL_IS_TAG(pExpr->base.colInfo.flag)) {
       SSchema* pTagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
 
-      int16_t index = pExpr->base.colInfo.colIndex;
-      pColInfo[i].type = (index != -1) ? pTagSchema[index].type : TSDB_DATA_TYPE_BINARY;
+      int16_t idx = pExpr->base.colInfo.colIndex;
+      pColInfo[i].type = (idx != -1) ? pTagSchema[idx].type : TSDB_DATA_TYPE_BINARY;
     } else {
       pColInfo[i].type = pSchema[pExpr->base.colInfo.colIndex].type;
     }
@@ -3381,7 +3381,7 @@ SQueryInfo* tscGetQueryInfoS(SSqlCmd* pCmd) {
   return pQueryInfo;
 }
 
-STableMetaInfo* tscGetTableMetaInfoByUid(SQueryInfo* pQueryInfo, uint64_t uid, int32_t* index) {
+STableMetaInfo* tscGetTableMetaInfoByUid(SQueryInfo* pQueryInfo, uint64_t uid, int32_t* idx) {
   int32_t k = -1;
 
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
@@ -3391,8 +3391,8 @@ STableMetaInfo* tscGetTableMetaInfoByUid(SQueryInfo* pQueryInfo, uint64_t uid, i
     }
   }
 
-  if (index != NULL) {
-    *index = k;
+  if (idx != NULL) {
+    *idx = k;
   }
 
   assert(k != -1);
@@ -3615,19 +3615,19 @@ void tscFreeVgroupTableInfo(SArray* pVgroupTables) {
   taosArrayDestroy(&pVgroupTables);
 }
 
-void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index) {
-  assert(pVgroupTable != NULL && index >= 0);
+void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t idx) {
+  assert(pVgroupTable != NULL && idx >= 0);
 
   size_t size = taosArrayGetSize(pVgroupTable);
-  assert(size > index);
+  assert(size > idx);
 
-  SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTable, index);
+  SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTable, idx);
 //  for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
 //    tfree(pInfo->vgInfo.epAddr[j].fqdn);
 //  }
 
   taosArrayDestroy(&pInfo->itemList);
-  taosArrayRemove(pVgroupTable, index);
+  taosArrayRemove(pVgroupTable, idx);
 }
 
 void tscVgroupTableCopy(SVgroupTableInfo* info, SVgroupTableInfo* pInfo) {
@@ -4102,15 +4102,15 @@ static void tscSubqueryRetrieveCallback(void* param, TAOS_RES* tres, int code) {
   SSqlObj* pParentSql = ps->pParentSql;
   SSqlObj* pSql = tres;
 
-  int32_t index = ps->subqueryIndex;
-  bool ret = subAndCheckDone(pSql, pParentSql, index);
+  int32_t idx = ps->subqueryIndex;
+  bool ret = subAndCheckDone(pSql, pParentSql, idx);
 
   // TODO refactor
   tfree(ps);
   pSql->param = NULL;
 
   if (!ret) {
-    tscDebug("0x%"PRIx64" sub:0x%"PRIx64" orderOfSub:%d completed, not all subquery finished", pParentSql->self, pSql->self, index);
+    tscDebug("0x%"PRIx64" sub:0x%"PRIx64" orderOfSub:%d completed, not all subquery finished", pParentSql->self, pSql->self, idx);
     return;
   }
 
@@ -4131,13 +4131,13 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
   if (pSql->res.code != TSDB_CODE_SUCCESS) {
     SSqlObj* pParentSql = ps->pParentSql;
 
-    int32_t index = ps->subqueryIndex;
-    bool ret = subAndCheckDone(pSql, pParentSql, index);
+    int32_t idx = ps->subqueryIndex;
+    bool ret = subAndCheckDone(pSql, pParentSql, idx);
 
     tscFreeRetrieveSup(&pSql->param);
 
     if (!ret) {
-      tscDebug("0x%"PRIx64" sub:0x%"PRIx64" orderOfSub:%d completed, not all subquery finished", pParentSql->self, pSql->self, index);
+      tscDebug("0x%"PRIx64" sub:0x%"PRIx64" orderOfSub:%d completed, not all subquery finished", pParentSql->self, pSql->self, idx);
       return;
     }
 
