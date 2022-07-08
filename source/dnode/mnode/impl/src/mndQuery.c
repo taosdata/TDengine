@@ -45,6 +45,7 @@ int32_t mndProcessQueryMsg(SRpcMsg *pMsg) {
       code = qWorkerProcessCQueryMsg(&handle, pMnode->pQuery, pMsg, 0);
       break;
     case TDMT_SCH_FETCH:
+    case TDMT_SCH_MERGE_FETCH:
       code = qWorkerProcessFetchMsg(pMnode, pMnode->pQuery, pMsg, 0);
       break;
     case TDMT_SCH_DROP_TASK:
@@ -72,6 +73,7 @@ int32_t mndInitQuery(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_SCH_MERGE_QUERY, mndProcessQueryMsg);
   mndSetMsgHandle(pMnode, TDMT_SCH_QUERY_CONTINUE, mndProcessQueryMsg);
   mndSetMsgHandle(pMnode, TDMT_SCH_FETCH, mndProcessQueryMsg);
+  mndSetMsgHandle(pMnode, TDMT_SCH_MERGE_FETCH, mndProcessQueryMsg);
   mndSetMsgHandle(pMnode, TDMT_SCH_DROP_TASK, mndProcessQueryMsg);
   mndSetMsgHandle(pMnode, TDMT_SCH_QUERY_HEARTBEAT, mndProcessQueryMsg);
 

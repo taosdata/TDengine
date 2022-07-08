@@ -17,7 +17,6 @@
 
 static int tsdbSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg);
 
-
 // implementation
 
 static int tsdbSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg) {
@@ -42,7 +41,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   int    slen = 0;
 
   *ppTsdb = NULL;
-  slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(dir) + 3;
+  slen = strlen(pVnode->path) + strlen(dir) + 2;
 
   // create handle
   pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(*pTsdb) + slen);
@@ -51,10 +50,8 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
     return -1;
   }
 
-  ASSERT(strlen(dir) < TSDB_DATA_DIR_LEN);
-  memcpy(pTsdb->dir, dir, strlen(dir));
   pTsdb->path = (char *)&pTsdb[1];
-  sprintf(pTsdb->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP, dir);
+  sprintf(pTsdb->path, "%s%s%s", pVnode->path, TD_DIRSEP, dir);
   taosRealPath(pTsdb->path, NULL, slen);
   pTsdb->pVnode = pVnode;
   pTsdb->repoLocked = false;
@@ -64,13 +61,17 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   } else {
     memcpy(&pTsdb->keepCfg, pKeepCfg, sizeof(STsdbKeepCfg));
   }
-  pTsdb->fs = tsdbNewFS(REPO_KEEP_CFG(pTsdb));
+  // pTsdb->fs = tsdbNewFS(REPO_KEEP_CFG(pTsdb));
 
-  // create dir (TODO: use tfsMkdir)
-  taosMkDir(pTsdb->path);
+  // create dir
+  tfsMkdir(pVnode->pTfs, pTsdb->path);
 
   // open tsdb
-  if (tsdbOpenFS(pTsdb) < 0) {
+  if (tsdbFSOpen(pTsdb, &pTsdb->fs) < 0) {
+    goto _err;
+  }
+
+  if (tsdbOpenCache(pTsdb) < 0) {
     goto _err;
   }
 
@@ -87,10 +88,9 @@ _err:
 
 int tsdbClose(STsdb **pTsdb) {
   if (*pTsdb) {
-    // TODO: destroy mem/imem
     taosThreadMutexDestroy(&(*pTsdb)->mutex);
-    tsdbCloseFS(*pTsdb);
-    tsdbFreeFS((*pTsdb)->fs);
+    tsdbFSClose((*pTsdb)->fs);
+    tsdbCloseCache((*pTsdb)->lruCache);
     taosMemoryFreeClear(*pTsdb);
   }
   return 0;
@@ -99,7 +99,7 @@ int tsdbClose(STsdb **pTsdb) {
 int tsdbLockRepo(STsdb *pTsdb) {
   int code = taosThreadMutexLock(&pTsdb->mutex);
   if (code != 0) {
-    tsdbError("vgId:%d, failed to lock tsdb since %s", REPO_ID(pTsdb), strerror(errno));
+    tsdbError("vgId:%d, failed to lock tsdb since %s", TD_VID(pTsdb->pVnode), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
     return -1;
   }
@@ -108,11 +108,11 @@ int tsdbLockRepo(STsdb *pTsdb) {
 }
 
 int tsdbUnlockRepo(STsdb *pTsdb) {
-  ASSERT(IS_REPO_LOCKED(pTsdb));
+  // ASSERT(IS_REPO_LOCKED(pTsdb));
   pTsdb->repoLocked = false;
   int code = taosThreadMutexUnlock(&pTsdb->mutex);
   if (code != 0) {
-    tsdbError("vgId:%d, failed to unlock tsdb since %s", REPO_ID(pTsdb), strerror(errno));
+    tsdbError("vgId:%d, failed to unlock tsdb since %s", TD_VID(pTsdb->pVnode), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
     return -1;
   }

@@ -64,6 +64,20 @@ int32_t strdequote(char *z) {
   return j + 1;  // only one quote, do nothing
 }
 
+char *strDupUnquo(const char *src) {
+  if (src == NULL) return NULL;
+  if (src[0] != '`') return strdup(src);
+  int32_t len = (int32_t)strlen(src);
+  if (src[len - 1] != '`') return NULL;
+  char *ret = taosMemoryMalloc(len);
+  if (ret == NULL) return NULL;
+  for (int32_t i = 0; i < len - 1; i++) {
+    ret[i] = src[i + 1];
+  }
+  ret[len - 1] = 0;
+  return ret;
+}
+
 size_t strtrim(char *z) {
   int32_t i = 0;
   int32_t j = 0;

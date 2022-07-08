@@ -31,12 +31,11 @@ int32_t qwProcessReady(QW_FPARAMS_DEF, SQWMsg *qwMsg);
 int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg);
 int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg);
 int32_t qwProcessHb(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req);
-int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SRpcMsg *pRsp, SDeleteRes *pRes);
+int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes);
 
 int32_t qwBuildAndSendDropRsp(SRpcHandleInfo *pConn, int32_t code);
 int32_t qwBuildAndSendCancelRsp(SRpcHandleInfo *pConn, int32_t code);
-int32_t qwBuildAndSendFetchRsp(SRpcHandleInfo *pConn, SRetrieveTableRsp *pRsp, int32_t dataLength,
-                               int32_t code);
+int32_t qwBuildAndSendFetchRsp(int32_t rspType, SRpcHandleInfo *pConn, SRetrieveTableRsp *pRsp, int32_t dataLength, int32_t code);
 void    qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, bool qComplete);
 int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn);
 int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, STbVerInfo* tbInfo);
