@@ -44,6 +44,7 @@ int32_t schValidateReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgTy
       // SCH_SET_TASK_LASTMSG_TYPE(pTask, -1);
       return TSDB_CODE_SUCCESS;
     case TDMT_SCH_FETCH_RSP:
+    case TDMT_SCH_MERGE_FETCH_RSP:
       if (lastMsgType != reqMsgType && -1 != lastMsgType) {
         SCH_TASK_ELOG("rsp msg type mis-match, last sent msgType:%s, rspType:%s", TMSG_INFO(lastMsgType),
                       TMSG_INFO(msgType));
@@ -304,7 +305,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
       }
       break;
     }
-    case TDMT_SCH_FETCH_RSP: {
+    case TDMT_SCH_FETCH_RSP:
+    case TDMT_SCH_MERGE_FETCH_RSP: {
       SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
 
       SCH_ERR_JRET(rspCode);
@@ -558,6 +560,7 @@ int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
     case TDMT_VND_DELETE:
     case TDMT_SCH_EXPLAIN:
     case TDMT_SCH_FETCH:
+    case TDMT_SCH_MERGE_FETCH:
       *fp = schHandleCallback;
       break;
     case TDMT_SCH_DROP_TASK:
@@ -1016,7 +1019,8 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       persistHandle = true;
       break;
     }
-    case TDMT_SCH_FETCH: {
+    case TDMT_SCH_FETCH:
+    case TDMT_SCH_MERGE_FETCH: {
       msgSize = sizeof(SResFetchReq);
       msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {

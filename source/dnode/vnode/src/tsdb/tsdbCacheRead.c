@@ -76,8 +76,8 @@ int32_t tsdbLastRowReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList, 
   p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, pKeyInfo->uid, -1);
   p->pTableList = pTableIdList;
 
-  for(int32_t i = 0; i < p->numOfCols; ++i) {
-    if (IS_VAR_DATA_TYPE(colId[i])) {
+  for (int32_t i = 0; i < p->numOfCols; ++i) {
+    if (IS_VAR_DATA_TYPE(p->pSchema->columns[i].type)) {
       p->transferBuf[i] = taosMemoryMalloc(p->pSchema->columns[i].bytes);
     }
   }

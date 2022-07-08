@@ -857,19 +857,27 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
       return;
     }
     buf[n] = '\0';
-    for (int i = n - 1; i >= 0; --i) {
-      if (buf[i] == '/') {
-        if (tz) {
-          tz = buf + i + 1;
-          break;
-        }
-        tz = buf + i + 1;
-      }
-    }
-    if (!tz || 0 == strchr(tz, '/')) {
+
+    char *zi = strstr(buf, "zoneinfo");
+    if (!zi) {
       printf("parsing /etc/localtime failed");
       return;
     }
+    tz = zi + strlen("zoneinfo") + 1;
+
+    //for (int i = n - 1; i >= 0; --i) {
+    //  if (buf[i] == '/') {
+    //    if (tz) {
+    //      tz = buf + i + 1;
+    //      break;
+    //    }
+    //    tz = buf + i + 1;
+    //  }
+    //}
+    //if (!tz || 0 == strchr(tz, '/')) {
+    //  printf("parsing /etc/localtime failed");
+    //  return;
+    //}
 
     setenv("TZ", tz, 1);
     tzset();
@@ -900,7 +908,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
     int n = readlink("/etc/localtime", buf, sizeof(buf));
     if (n < 0) {
       printf("read /etc/localtime error, reason:%s", strerror(errno));
-      
+
       if (taosCheckExistFile("/etc/timezone")) {
         /*
         * NOTE: do not remove it.
@@ -962,19 +970,27 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
       return;
     }
     buf[n] = '\0';
-    for (int i = n - 1; i >= 0; --i) {
-      if (buf[i] == '/') {
-        if (tz) {
-          tz = buf + i + 1;
-          break;
-        }
-        tz = buf + i + 1;
-      }
-    }
-    if (!tz || 0 == strchr(tz, '/')) {
+
+    char *zi = strstr(buf, "zoneinfo");
+    if (!zi) {
       printf("parsing /etc/localtime failed");
       return;
     }
+    tz = zi + strlen("zoneinfo") + 1;
+
+    //for (int i = n - 1; i >= 0; --i) {
+    //  if (buf[i] == '/') {
+    //    if (tz) {
+    //      tz = buf + i + 1;
+    //      break;
+    //    }
+    //    tz = buf + i + 1;
+    //  }
+    //}
+    //if (!tz || 0 == strchr(tz, '/')) {
+    //  printf("parsing /etc/localtime failed");
+    //  return;
+    //}
 
     setenv("TZ", tz, 1);
     tzset();

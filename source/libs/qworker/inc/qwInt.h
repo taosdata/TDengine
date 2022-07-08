@@ -123,6 +123,7 @@ typedef struct SQWTaskCtx {
   int8_t   taskType;
   int8_t   explain;
   int32_t  queryType;
+  int32_t  fetchType;
   int32_t  execId;
 
   bool    queryFetched;

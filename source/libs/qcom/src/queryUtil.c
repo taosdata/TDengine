@@ -265,7 +265,6 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
       break;
 
     case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
       if (bufSize < 0) {
         //        tscError("invalid buf size");
         return TSDB_CODE_TSC_INVALID_VALUE;
@@ -276,7 +275,20 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
       *(str + bufSize + 1) = '"';
       n = bufSize + 2;
       break;
+    case TSDB_DATA_TYPE_NCHAR:
+      if (bufSize < 0) {
+        //        tscError("invalid buf size");
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
 
+      *str = '"';
+      int32_t length = taosUcs4ToMbs((TdUcs4 *)buf, bufSize, str + 1);
+      if (length <= 0) {
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
+      *(str + length + 1) = '"';
+      n = length + 2;
+      break;
     case TSDB_DATA_TYPE_UTINYINT:
       n = sprintf(str, "%d", *(uint8_t*)buf);
       break;
@@ -298,7 +310,7 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
       return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  *len = n;
+  if(len) *len = n;
 
   return TSDB_CODE_SUCCESS;
 }

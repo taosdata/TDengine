@@ -148,9 +148,17 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
     // get entry batch
     int32_t   getCount = 0;
     SyncIndex getEntryIndex = nextIndex;
-    for (int32_t i = 0; i < pSyncNode->batchSize; ++i) {
+    for (int32_t i = 0; i < pSyncNode->pRaftCfg->batchSize; ++i) {
       SSyncRaftEntry* pEntry = NULL;
       int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, getEntryIndex, &pEntry);
+
+      // event log
+      do {
+        char logBuf[128];
+        snprintf(logBuf, sizeof(logBuf), "get index:%d, code:%d, %s", getEntryIndex, code, tstrerror(terrno));
+        syncNodeEventLog(pSyncNode, logBuf);
+      } while (0);
+
       if (code == 0) {
         ASSERT(pEntry != NULL);
         entryPArr[i] = pEntry;
@@ -162,12 +170,19 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
       }
     }
 
+    // event log
+    do {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "build batch:%d", getCount);
+      syncNodeEventLog(pSyncNode, logBuf);
+    } while (0);
+
     // build msg
     SyncAppendEntriesBatch* pMsg = syncAppendEntriesBatchBuild(entryPArr, getCount, pSyncNode->vgId);
     ASSERT(pMsg != NULL);
 
     // free entries
-    for (int32_t i = 0; i < pSyncNode->batchSize; ++i) {
+    for (int32_t i = 0; i < pSyncNode->pRaftCfg->batchSize; ++i) {
       SSyncRaftEntry* pEntry = entryPArr[i];
       if (pEntry != NULL) {
         syncEntryDestory(pEntry);

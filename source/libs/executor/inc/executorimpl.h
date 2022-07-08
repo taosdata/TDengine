@@ -319,8 +319,9 @@ typedef enum EStreamScanMode {
   STREAM_SCAN_FROM_READERHANDLE = 1,
   STREAM_SCAN_FROM_RES,
   STREAM_SCAN_FROM_UPDATERES,
-  STREAM_SCAN_FROM_DATAREADER,
+  STREAM_SCAN_FROM_DATAREADER, // todo(liuyao) delete it
   STREAM_SCAN_FROM_DATAREADER_RETRIEVE,
+  STREAM_SCAN_FROM_DATAREADER_RANGE,
 } EStreamScanMode;
 
 typedef struct SCatchSupporter {
@@ -347,7 +348,7 @@ typedef struct SessionWindowSupporter {
   uint8_t parentType;
 } SessionWindowSupporter;
 
-typedef struct SStreamBlockScanInfo {
+typedef struct SStreamScanInfo {
   uint64_t        tableUid;         // queried super table uid
   SExprInfo*      pPseudoExpr;
   int32_t         numOfPseudoExpr;
@@ -364,7 +365,7 @@ typedef struct SStreamBlockScanInfo {
   int32_t         blockType;        // current block type
   int32_t         validBlockIndex;  // Is current data has returned?
   uint64_t        numOfExec;        // execution times
-  void*           streamBlockReader;// stream block reader handle
+  STqReader*           tqReader;
 
   int32_t         tsArrayIndex;
   SArray*         tsArray;
@@ -373,7 +374,7 @@ typedef struct SStreamBlockScanInfo {
 
   EStreamScanMode scanMode;
   SOperatorInfo* pStreamScanOp;
-  SOperatorInfo* pSnapshotReadOp;
+  SOperatorInfo* pTableScanOp;
   SArray*        childIds;
   SessionWindowSupporter sessionSup;
   bool            assignBlockUid; // assign block uid to groupId, temporarily used for generating rollup SMA.
@@ -382,7 +383,12 @@ typedef struct SStreamBlockScanInfo {
   SSDataBlock*    pPullDataRes;             // pull data SSDataBlock
   SSDataBlock*    pDeleteDataRes;             // delete data SSDataBlock
   int32_t         deleteDataIndex;
-} SStreamBlockScanInfo;
+
+  // status for tmq
+  //SSchemaWrapper schema;
+  STqOffset offset;
+
+} SStreamScanInfo;
 
 typedef struct SSysTableScanInfo {
   SRetrieveMetaTableRsp* pRsp;
@@ -517,6 +523,7 @@ typedef struct SIndefOperatorInfo {
   SAggSupporter      aggSup;
   SArray*            pPseudoColInfo;
   SExprSupp          scalarSup;
+  SNode*             pCondition;
 } SIndefOperatorInfo;
 
 typedef struct SFillOperatorInfo {
@@ -526,6 +533,8 @@ typedef struct SFillOperatorInfo {
   void**            p;
   SSDataBlock*      existNewGroupBlock;
   bool              multigroupResult;
+  STimeWindow       win;
+  SNode*            pCondition;
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {
@@ -586,6 +595,7 @@ typedef struct SSessionAggOperatorInfo {
   int64_t            gap;             // session window gap
   int32_t            tsSlotId;        // primary timestamp slot id
   STimeWindowAggSupp twAggSup;
+  SNode              *pCondition;
 } SSessionAggOperatorInfo;
 
 typedef struct SResultWindowInfo {
@@ -612,6 +622,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   SSDataBlock*         pWinBlock;       // window result
   SqlFunctionCtx*      pDummyCtx;       // for combine
   SSDataBlock*         pDelRes;         // delete result
+  bool                 returnDelete;
   SSDataBlock*         pUpdateRes;      // update window
   SHashObj*            pStDeleted;
   void*                pDelIterator;
@@ -646,6 +657,7 @@ typedef struct SStateWindowOperatorInfo {
   int32_t            tsSlotId;  // primary timestamp column slot id
   STimeWindowAggSupp twAggSup;
   //  bool             reptScan;
+  const SNode         *pCondition;
 } SStateWindowOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -803,7 +815,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SExpr
                                                 STimeWindowAggSupp *pTwAggSupp, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                             SSDataBlock* pResBlock, int64_t gap, int32_t tsSlotId, STimeWindowAggSupp* pTwAggSupp,
-                                            SExecTaskInfo* pTaskInfo);
+                                            SNode* pCondition, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                        SSDataBlock* pResultBlock, SArray* pGroupColList, SNode* pCondition,
                                        SExprInfo* pScalarExprInfo, int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo);
@@ -817,7 +829,8 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
                                       SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
-                                             SSDataBlock* pResBlock, STimeWindowAggSupp *pTwAggSupp, int32_t tsSlotId, SColumn* pStateKeyCol, SExecTaskInfo* pTaskInfo);
+                                             SSDataBlock* pResBlock, STimeWindowAggSupp *pTwAggSupp, int32_t tsSlotId,
+                                             SColumn* pStateKeyCol, SNode* pCondition, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNode* pPartNode, SExecTaskInfo* pTaskInfo);
 
@@ -889,6 +902,9 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey, SqlF
 SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int64_t tableGroupId, int32_t interBufSize);
 SResultWindowInfo* getSessionTimeWindow(SStreamAggSupporter* pAggSup, TSKEY startTs,
     TSKEY endTs, uint64_t groupId, int64_t gap, int32_t* pIndex);
+SResultWindowInfo* getCurSessionWindow(SStreamAggSupporter* pAggSup, TSKEY startTs,
+    TSKEY endTs, uint64_t groupId, int64_t gap, int32_t* pIndex);
+bool isInTimeWindow(STimeWindow* pWin, TSKEY ts, int64_t gap);
 int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pStartTs,
     TSKEY* pEndTs, int32_t rows, int32_t start, int64_t gap, SHashObj* pStDeleted);
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);

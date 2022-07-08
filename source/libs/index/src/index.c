@@ -63,7 +63,7 @@ static void indexDestroy(void* sIdx);
 void indexInit() {
   // refactor later
   indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, INDEX_NUM_OF_THREADS, "index");
-  indexRefMgt = taosOpenRef(10, indexDestroy);
+  indexRefMgt = taosOpenRef(1000, indexDestroy);
 }
 void indexCleanup() {
   // refacto later
@@ -101,15 +101,16 @@ static void indexWait(void* idx) {
 }
 
 int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
+  int ret = TSDB_CODE_SUCCESS;
   taosThreadOnce(&isInit, indexInit);
   SIndex* sIdx = taosMemoryCalloc(1, sizeof(SIndex));
   if (sIdx == NULL) {
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  // sIdx->cache = (void*)idxCacheCreate(sIdx);
   sIdx->tindex = idxTFileCreate(path);
   if (sIdx->tindex == NULL) {
+    ret = TSDB_CODE_OUT_OF_MEMORY;
     goto END;
   }
 
@@ -123,14 +124,14 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   idxAcquireRef(sIdx->refId);
 
   *index = sIdx;
-  return 0;
+  return ret;
 
 END:
   if (sIdx != NULL) {
     indexClose(sIdx);
   }
   *index = NULL;
-  return -1;
+  return ret;
 }
 
 void indexDestroy(void* handle) {
@@ -231,7 +232,7 @@ int indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* result
 }
 
 int indexDelete(SIndex* index, SIndexMultiTermQuery* query) { return 1; }
-int indexRebuild(SIndex* index, SIndexOpts* opts) { return 0; }
+// int indexRebuild(SIndex* index, SIndexOpts* opts) { return 0; }
 
 SIndexOpts* indexOptsCreate() { return NULL; }
 void        indexOptsDestroy(SIndexOpts* opts) { return; }
@@ -273,33 +274,28 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
   tm->operType = oper;
   tm->colType = colType;
 
-#if 0
-  tm->colName = (char*)taosMemoryCalloc(1, nColName + 1);
-  memcpy(tm->colName, colName, nColName);
-  tm->nColName = nColName;
-
-  tm->colVal = (char*)taosMemoryCalloc(1, nColVal + 1);
-  memcpy(tm->colVal, colVal, nColVal);
-  tm->nColVal = nColVal;
-#endif
-
-#if 1
-
   tm->colName = (char*)taosMemoryCalloc(1, nColName + 1);
   memcpy(tm->colName, colName, nColName);
   tm->nColName = nColName;
 
   char*   buf = NULL;
-  int32_t len = idxConvertDataToStr((void*)colVal, IDX_TYPE_GET_TYPE(colType), (void**)&buf);
-  assert(len != -1);
-
+  int32_t len = 0;
+  if (colVal != NULL && nColVal != 0) {
+    len = idxConvertDataToStr((void*)colVal, IDX_TYPE_GET_TYPE(colType), (void**)&buf);
+  } else if (colVal == NULL) {
+    buf = strndup(INDEX_DATA_NULL_STR, (int32_t)strlen(INDEX_DATA_NULL_STR));
+    len = (int32_t)strlen(INDEX_DATA_NULL_STR);
+  } else {
+    const char* emptyStr = " ";
+    buf = strndup(emptyStr, (int32_t)strlen(emptyStr));
+    len = (int32_t)strlen(emptyStr);
+  }
   tm->colVal = buf;
   tm->nColVal = len;
 
-#endif
-
   return tm;
 }
+
 void indexTermDestroy(SIndexTerm* p) {
   taosMemoryFree(p->colName);
   taosMemoryFree(p->colVal);
@@ -318,6 +314,54 @@ void indexMultiTermDestroy(SIndexMultiTerm* terms) {
     indexTermDestroy(p);
   }
   taosArrayDestroy(terms);
+}
+
+/*
+ * rebuild index
+ */
+
+static void idxSchedRebuildIdx(SSchedMsg* msg) {
+  // TODO, no need rebuild index
+  SIndex* idx = msg->ahandle;
+
+  int8_t st = kFinished;
+  atomic_store_8(&idx->status, st);
+  idxReleaseRef(idx->refId);
+}
+void indexRebuild(SIndexJson* idx, void* iter) {
+  // set up rebuild status
+  int8_t st = kRebuild;
+  atomic_store_8(&idx->status, st);
+
+  // task put into BG thread
+  SSchedMsg schedMsg = {0};
+  schedMsg.fp = idxSchedRebuildIdx;
+  schedMsg.ahandle = idx;
+  idxAcquireRef(idx->refId);
+  taosScheduleTask(indexQhandle, &schedMsg);
+}
+
+/*
+ * check index json status
+ **/
+bool indexIsRebuild(SIndex* idx) {
+  // idx rebuild or not
+  return ((SIdxStatus)atomic_load_8(&idx->status)) == kRebuild ? true : false;
+}
+/*
+ * rebuild index
+ */
+void indexJsonRebuild(SIndexJson* idx, void* iter) {
+  // idx rebuild or not
+  indexRebuild(idx, iter);
+}
+
+/*
+ * check index json status
+ **/
+bool indexJsonIsRebuild(SIndexJson* idx) {
+  // load idx rebuild or not
+  return ((SIdxStatus)atomic_load_8(&idx->status)) == kRebuild ? true : false;
 }
 
 static int idxTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result) {
