@@ -324,9 +324,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_fetchRawBlockImp(
   (*env)->CallVoidMethod(env, rowobj, g_blockdataSetNumOfRowsFp, (jint)numOfRows);
   (*env)->CallVoidMethod(env, rowobj, g_blockdataSetNumOfColsFp, (jint)numOfFields);
 
-  char   *chars = (char *)data;
-  int32_t len = chars[0] + (chars[1] << 8) + (chars[2] << 16) + (chars[3] << 24);
-  (*env)->CallVoidMethod(env, rowobj, g_blockdataSetByteArrayFp, len, jniFromNCharToByteArray(env, (char *)data, len));
-
+  int32_t len = *(int32_t *)data;
+  (*env)->CallVoidMethod(env, rowobj, g_blockdataSetByteArrayFp, jniFromNCharToByteArray(env, (char *)data, len));
   return JNI_SUCCESS;
 }
