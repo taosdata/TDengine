@@ -49,7 +49,7 @@ SSyncNode* createSyncNode(SWal* pWal) {
 void usage(char* exe) { printf("usage: %s path vgId snapshotIndex \n", exe); }
 
 int main(int argc, char** argv) {
-  if (argc != 3) {
+  if (argc != 4) {
     usage(argv[0]);
     exit(-1);
   }
