@@ -35,12 +35,11 @@ int32_t sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode) {
   return TSDB_CODE_SUCCESS;
 }
 
-
-SColumnInfoData* sclCreateColumnInfoData(SDataType* pType, int32_t numOfRows) {
+int32_t sclCreateColumnInfoData(SDataType* pType, int32_t numOfRows, SScalarParam* pParam) {
   SColumnInfoData* pColumnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
   if (pColumnData == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    return terrno;
   }
 
   pColumnData->info.type      = pType->type;
@@ -52,19 +51,25 @@ SColumnInfoData* sclCreateColumnInfoData(SDataType* pType, int32_t numOfRows) {
   if (code != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pColumnData);
-    return NULL;
-  } else {
-    return pColumnData;
+    return terrno;
   }
+
+  pParam->columnData = pColumnData;
+  pParam->type = CREATED_COLDATA;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t doConvertDataType(SValueNode* pValueNode, SScalarParam* out) {
   SScalarParam in = {.numOfRows = 1};
-  in.columnData = sclCreateColumnInfoData(&pValueNode->node.resType, 1);
+  int32_t code = sclCreateColumnInfoData(&pValueNode->node.resType, 1, &in);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
   colDataAppend(in.columnData, 0, nodesGetValueFromNode(pValueNode), false);
 
   colInfoDataEnsureCapacity(out->columnData, 1);
-  int32_t code = vectorConvertImpl(&in, out);
+  code = vectorConvertImpl(&in, out);
   sclFreeParam(&in);
 
   return code;
@@ -190,8 +195,9 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     case QUERY_NODE_VALUE: {
       SValueNode *valueNode = (SValueNode *)node;
 
+      ASSERT(param->columnData == NULL);
       param->numOfRows = 1;
-      param->columnData = sclCreateColumnInfoData(&valueNode->node.resType, 1);
+      /*int32_t code = */sclCreateColumnInfoData(&valueNode->node.resType, 1, param);
       if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type || valueNode->isNull) {
         colDataAppendNULL(param->columnData, 0);
       } else {
@@ -429,10 +435,9 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
       SCL_ERR_JRET(code);
     }
   
-    output->columnData = sclCreateColumnInfoData(&node->node.resType, rowNum);
-    if (output->columnData == NULL) {
-      sclError("calloc %d failed", (int32_t)(rowNum * output->columnData->info.bytes));
-      SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    code = sclCreateColumnInfoData(&node->node.resType, rowNum, output);
+    if (code != TSDB_CODE_SUCCESS) {
+      SCL_ERR_JRET(code);
     }
 
     code = (*ffpSet.process)(params, paramNum, output);
@@ -482,10 +487,9 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
   output->numOfRows = rowNum;
 
   SDataType t = {.type = type, .bytes = tDataTypes[type].bytes};
-  output->columnData = sclCreateColumnInfoData(&t, rowNum);
-  if (output->columnData == NULL) {
-    sclError("calloc %d failed", (int32_t)(rowNum * sizeof(bool)));
-    SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  code = sclCreateColumnInfoData(&t, rowNum, output);
+  if (code != TSDB_CODE_SUCCESS) {
+    SCL_ERR_JRET(code);
   }
 
   bool value = false;
@@ -537,18 +541,19 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   int32_t code = 0;
 
   // json not support in in operator
-  if(nodeType(node->pLeft) == QUERY_NODE_VALUE){
+  if (nodeType(node->pLeft) == QUERY_NODE_VALUE) {
     SValueNode *valueNode = (SValueNode *)node->pLeft;
-    if(valueNode->node.resType.type == TSDB_DATA_TYPE_JSON && (node->opType == OP_TYPE_IN || node->opType == OP_TYPE_NOT_IN)){
+    if (valueNode->node.resType.type == TSDB_DATA_TYPE_JSON && (node->opType == OP_TYPE_IN || node->opType == OP_TYPE_NOT_IN)) {
       SCL_RET(TSDB_CODE_QRY_JSON_IN_ERROR);
     }
   }
 
   SCL_ERR_RET(sclInitOperatorParams(&params, node, ctx, &rowNum));
-  output->columnData = sclCreateColumnInfoData(&node->node.resType, rowNum);
   if (output->columnData == NULL) {
-    sclError("calloc failed, size:%d", (int32_t)rowNum * node->node.resType.bytes);
-    SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    code = sclCreateColumnInfoData(&node->node.resType, rowNum, output);
+    if (code != TSDB_CODE_SUCCESS) {
+      SCL_ERR_JRET(code);
+    }
   }
 
   _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(node->opType);
@@ -563,7 +568,10 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
 
 _return:
   for (int32_t i = 0; i < paramNum; ++i) {
-//    sclFreeParam(&params[i]);
+    if (params[i].type == CREATED_COLDATA) {
+      colDataDestroy(params[i].columnData);
+      taosMemoryFree(params[i].columnData);
+    }
   }
 
   taosMemoryFreeClear(params);
@@ -766,7 +774,7 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
     return sclRewriteNonConstOperator(pNode, ctx);
   }
 
-  SScalarParam output = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
+  SScalarParam output = {0};
   ctx->code = sclExecOperator(node, ctx, &output);
   if (ctx->code) {
     return DEAL_RES_ERROR;
@@ -1026,7 +1034,8 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
       colDataAssign(pDst->columnData, res->columnData, res->numOfRows, NULL);
       pDst->numOfRows = res->numOfRows;
     }
-    
+
+    sclFreeParam(res);
     taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
   }
 

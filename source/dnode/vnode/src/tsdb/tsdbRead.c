@@ -2181,12 +2181,21 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* ret
   return VND_TSDB(pVnode);
 }
 
-static SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond, int8_t level) {
+SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond, int8_t level) {
+  int64_t startVer = (pCond->startVersion == -1)? 0:pCond->startVersion;
+
   if (VND_IS_RSMA(pVnode)) {
-    return (SVersionRange){.minVer = pCond->startVersion, .maxVer = tdRSmaGetMaxSubmitVer(pVnode->pSma, level)};
+    return (SVersionRange){.minVer = startVer, .maxVer = tdRSmaGetMaxSubmitVer(pVnode->pSma, level)};
   }
 
-  return (SVersionRange){.minVer = pCond->startVersion, .maxVer = pVnode->state.applied};
+  int64_t endVer = 0;
+  if (pCond->endVersion == -1) {  // user not specified end version, set current maximum version of vnode as the endVersion
+    endVer = pVnode->state.applied;
+  } else {
+    endVer = (pCond->endVersion > pVnode->state.applied)? pVnode->state.applied:pCond->endVersion;
+  }
+
+  return (SVersionRange){.minVer = startVer, .maxVer = endVer};
 }
 
 // // todo not unref yet, since it is not support multi-group interpolation query
