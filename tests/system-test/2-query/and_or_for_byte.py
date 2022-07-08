@@ -230,7 +230,7 @@ class TDTestCase:
                 work_sql += f"cast({arg} as bigint){opera}"
 
         if not agg:
-            work_sql+= f" from {tbname} order by ts"
+            work_sql+= f" from {tbname} order by tbname ,ts"
         else:
             work_sql+= f" from {tbname} "
         tdSql.query(work_sql)
@@ -243,7 +243,7 @@ class TDTestCase:
             else:
                 origin_sql += f"cast({arg} as bigint),"
         if not agg:
-            origin_sql+= f" from {tbname} order by ts"
+            origin_sql+= f" from {tbname} order by tbname ,ts"
         else:
             origin_sql+= f" from {tbname} "
         tdSql.query(origin_sql)

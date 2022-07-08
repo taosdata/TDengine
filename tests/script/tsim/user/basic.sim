@@ -22,7 +22,7 @@ sql_error ALTER USER root SYSINFO 1
 sql_error ALTER USER root enable 0
 sql_error ALTER USER root enable 1
 
-sql_error create database db vgroups 1;
+#sql_error create database db vgroups 1;
 sql_error GRANT read ON db.* to root;
 sql_error GRANT read ON *.* to root;
 sql_error REVOKE read ON db.* from root;

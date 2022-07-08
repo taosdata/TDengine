@@ -236,6 +236,37 @@ int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t le
   return decodeOperator(pTaskInfo->pRoot, pInput, len);
 }
 
+int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  SOperatorInfo* pOperator = pTaskInfo->pRoot;
+
+  while (1) {
+    uint8_t type = pOperator->operatorType;
+    if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+      *scanner = pOperator->info;
+      return 0;
+    } else {
+      ASSERT(pOperator->numOfDownstream == 1);
+      pOperator = pOperator->pDownstream[0];
+    }
+  }
+}
+
+void* qExtractReaderFromStreamScanner(void* scanner) {
+  SStreamScanInfo* pInfo = scanner;
+  return (void*)pInfo->tqReader;
+}
+
+const SSchemaWrapper* qExtractSchemaFromStreamScanner(void* scanner) {
+  SStreamScanInfo* pInfo = scanner;
+  return pInfo->tqReader->pSchemaWrapper;
+}
+
+const STqOffset* qExtractStatusFromStreamScanner(void* scanner) {
+  SStreamScanInfo* pInfo = scanner;
+  return &pInfo->offset;
+}
+
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
