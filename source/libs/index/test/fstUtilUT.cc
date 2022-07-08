@@ -38,8 +38,15 @@ class FstRegexEnv : public ::testing::Test {
 
 class FstSparseSetEnv : public ::testing::Test {
  protected:
-  virtual void  SetUp() { set = sparSetCreate(256); }
-  virtual void  TearDown() { sparSetDestroy(set); }
+  virtual void SetUp() { set = sparSetCreate(256); }
+  virtual void TearDown() {
+    // tear down
+    sparSetDestroy(set);
+  }
+  void ReBuild(int32_t sz) {
+    sparSetDestroy(set);
+    set = sparSetCreate(sz);
+  }
   FstSparseSet *set;
 };
 
