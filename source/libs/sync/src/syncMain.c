@@ -1025,14 +1025,14 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   pSyncNode->FpOnSnapshotRsp = syncNodeOnSnapshotRspCb;
 
   if (pSyncNode->pRaftCfg->snapshotStrategy) {
-    sInfo("sync node use snapshot");
+    sInfo("vgId:%d, sync node use snapshot", pSyncNode->vgId);
     pSyncNode->FpOnRequestVote = syncNodeOnRequestVoteSnapshotCb;
     pSyncNode->FpOnRequestVoteReply = syncNodeOnRequestVoteReplySnapshotCb;
     pSyncNode->FpOnAppendEntries = syncNodeOnAppendEntriesSnapshotCb;
     pSyncNode->FpOnAppendEntriesReply = syncNodeOnAppendEntriesReplySnapshotCb;
 
   } else {
-    sInfo("sync node do not use snapshot");
+    sInfo("vgId:%d, sync node do not use snapshot", pSyncNode->vgId);
     pSyncNode->FpOnRequestVote = syncNodeOnRequestVoteCb;
     pSyncNode->FpOnRequestVoteReply = syncNodeOnRequestVoteReplyCb;
     pSyncNode->FpOnAppendEntries = syncNodeOnAppendEntriesCb;
@@ -1311,8 +1311,10 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRp
     pMsg->info.noResp = 1;
     pSyncNode->FpSendMsg(&epSet, pMsg);
   } else {
-    sTrace("syncNodeSendMsgById pSyncNode->FpSendMsg is NULL");
+    sError("vgId:%d, sync send msg by id error, fp-send-msg is null", pSyncNode->vgId);
+    return -1;
   }
+
   return 0;
 }
 
@@ -1326,7 +1328,7 @@ int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, S
     pMsg->info.noResp = 1;
     pSyncNode->FpSendMsg(&epSet, pMsg);
   } else {
-    sTrace("syncNodeSendMsgByInfo pSyncNode->FpSendMsg is NULL");
+    sError("vgId:%d, sync send msg by info error, fp-send-msg is null", pSyncNode->vgId);
   }
   return 0;
 }
