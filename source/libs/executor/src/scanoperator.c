@@ -1839,7 +1839,16 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
 
           SMetaReader mr = {0};
           metaReaderInit(&mr, pInfo->readHandle.meta, 0);
-          metaGetTableEntryByUid(&mr, pInfo->pCur->mr.me.ctbEntry.suid);
+
+          uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
+          int32_t code = metaGetTableEntryByUid(&mr, suid);
+          if (code != TSDB_CODE_SUCCESS) {
+            qError("failed to get super table meta, uid:0x%"PRIx64 ", code:%s, %s", suid, tstrerror(terrno), GET_TASKID(pTaskInfo));
+            metaReaderClear(&mr);
+            metaCloseTbCursor(pInfo->pCur);
+            pInfo->pCur = NULL;
+            longjmp(pTaskInfo->env, terrno);
+          }
 
           // number of columns
           pColInfoData = taosArrayGet(p->pDataBlock, 3);

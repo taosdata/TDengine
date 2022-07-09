@@ -211,7 +211,7 @@ void flttMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
 TEST(timerangeTest, greater) {
   SNode *pcol = NULL, *pval = NULL, *opNode1 = NULL;
   bool eRes[5] = {false, false, true, true, true};
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   int64_t tsmall = 222, tbig = 333;
   flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
   flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall);
@@ -234,7 +234,7 @@ TEST(timerangeTest, greater) {
 TEST(timerangeTest, greater_and_lower) {
   SNode *pcol = NULL, *pval = NULL, *opNode1 = NULL, *opNode2 = NULL, *logicNode = NULL;
   bool eRes[5] = {false, false, true, true, true};
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   int64_t tsmall = 222, tbig = 333;
   flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
   flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall);
@@ -265,7 +265,7 @@ TEST(timerangeTest, greater_and_lower) {
 TEST(timerangeTest, greater_equal_and_lower_equal) {
   SNode *pcol = NULL, *pval = NULL, *opNode1 = NULL, *opNode2 = NULL, *logicNode = NULL;
   bool eRes[5] = {false, false, true, true, true};
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   int64_t tsmall = 222, tbig = 333;
   flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
   flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall);
@@ -297,7 +297,7 @@ TEST(timerangeTest, greater_equal_and_lower_equal) {
 TEST(timerangeTest, greater_and_lower_not_strict) {
   SNode *pcol = NULL, *pval = NULL, *opNode1 = NULL, *opNode2 = NULL, *logicNode1 = NULL, *logicNode2 = NULL;
   bool eRes[5] = {false, false, true, true, true};
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   int64_t tsmall1 = 222, tbig1 = 333;
   int64_t tsmall2 = 444, tbig2 = 555;
   SNode *list[2] = {0};
@@ -350,7 +350,7 @@ TEST(columnTest, smallint_column_greater_double_value) {
   double rightv= 2.5;
   int8_t eRes[5] = {0, 0, 1, 1, 1};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
   flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
   flttMakeValueNode(&pRight, TSDB_DATA_TYPE_DOUBLE, &rightv);
@@ -405,7 +405,7 @@ TEST(columnTest, int_column_greater_smallint_value) {
   int16_t rightv= 4;
   int8_t eRes[5] = {0, 0, 1, 1, 1};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
   flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, leftv);
   flttMakeValueNode(&pRight, TSDB_DATA_TYPE_SMALLINT, &rightv);
@@ -460,7 +460,7 @@ TEST(columnTest, int_column_in_double_list) {
   double rightv1 = 1.1,rightv2 = 2.2,rightv3 = 3.3;
   bool eRes[5] = {true, true, true, false, false};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
   flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, leftv);
   SNodeList* list = nodesMakeList();
@@ -503,7 +503,7 @@ TEST(columnTest, binary_column_in_binary_list) {
   SNode *pLeft = NULL, *pRight = NULL, *listNode = NULL, *opNode = NULL;
   bool eRes[5] = {true, true, false, false, false};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   char leftv[5][5]= {0};
   char rightv[3][5]= {0};
   for (int32_t i = 0; i < 5; ++i) {
@@ -567,7 +567,7 @@ TEST(columnTest, binary_column_like_binary) {
   char rightv[64] = {0};
   char leftv[5][5]= {0};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   bool eRes[5] = {true, false, true, false, true};
 
   for (int32_t i = 0; i < 5; ++i) {
@@ -614,7 +614,7 @@ TEST(columnTest, binary_column_is_null) {
   SNode *pLeft = NULL, *opNode = NULL;
   char leftv[5][5]= {0};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   bool eRes[5] = {false, false, true, false, true};
 
   for (int32_t i = 0; i < 5; ++i) {
@@ -661,7 +661,7 @@ TEST(columnTest, binary_column_is_not_null) {
   SNode *pLeft = NULL, *opNode = NULL;
   char leftv[5][5]= {0};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   bool eRes[5] = {true, true, true, true, false};
 
   for (int32_t i = 0; i < 5; ++i) {
@@ -710,7 +710,7 @@ TEST(opTest, smallint_column_greater_int_column) {
   int32_t rightv[5]= {0, -5, -4, 23, 100};
   bool eRes[5] = {true, false, true, false, true};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
   flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
   flttMakeColumnNode(&pRight, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, rightv);
@@ -747,7 +747,7 @@ TEST(opTest, smallint_value_add_int_column) {
   int16_t rightv[5]= {0, -1, -4, -1, 100};
   bool eRes[5] = {true, false, true, false, true};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
   flttMakeValueNode(&pLeft, TSDB_DATA_TYPE_INT, &leftv);
   flttMakeColumnNode(&pRight, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, rightv);
@@ -790,7 +790,7 @@ TEST(opTest, bigint_column_multi_binary_column) {
   }
   bool eRes[5] = {false, true, true, true, true};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
   flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), rowNum, leftv);
   flttMakeColumnNode(&pRight, &src, TSDB_DATA_TYPE_BINARY, 5, rowNum, rightv);
@@ -833,7 +833,7 @@ TEST(opTest, smallint_column_and_binary_column) {
   }
   bool eRes[5] = {false, false, true, false, true};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
   flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
   flttMakeColumnNode(&pRight, &src, TSDB_DATA_TYPE_BINARY, 5, rowNum, rightv);
@@ -871,7 +871,7 @@ TEST(opTest, smallint_column_or_float_column) {
   float rightv[5]= {2.0, 3.0, 0, 5.2, 6.0};
   bool eRes[5] = {true, true, false, true, true};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
   flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
   flttMakeColumnNode(&pRight, &src, TSDB_DATA_TYPE_FLOAT, sizeof(float), rowNum, rightv);
@@ -909,7 +909,7 @@ TEST(opTest, smallint_column_or_double_value) {
   double rightv= 10.2;
   bool eRes[5] = {true, true, true, true, true};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
   flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
   flttMakeValueNode(&pRight, TSDB_DATA_TYPE_DOUBLE, &rightv);
@@ -945,7 +945,7 @@ TEST(opTest, binary_column_is_true) {
   SNode *pLeft = NULL, *opNode = NULL;
   char leftv[5][5]= {0};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
+  SScalarParam res = {.type = SHOULD_FREE_COLDATA};
   bool eRes[5] = {false, true, false, true, false};
 
   for (int32_t i = 0; i < 5; ++i) {
