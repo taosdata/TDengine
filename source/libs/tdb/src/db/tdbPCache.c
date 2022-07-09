@@ -258,8 +258,8 @@ static void tdbPCacheUnpinPage(SPCache *pCache, SPage *pPage) {
 }
 
 static void tdbPCacheRemovePageFromHash(SPCache *pCache, SPage *pPage) {
-  SPage **ppPage;
-  int     h;
+  SPage  **ppPage;
+  uint32_t h;
 
   h = tdbPCachePageHash(&(pPage->pgid));
   for (ppPage = &(pCache->pgHash[h % pCache->nHash]); (*ppPage) && *ppPage != pPage; ppPage = &((*ppPage)->pHashNext))

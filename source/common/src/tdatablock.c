@@ -228,7 +228,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, ui
   uint32_t finalNumOfRows = numOfRow1 + numOfRow2;
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     // Handle the bitmap
-    if (finalNumOfRows > *capacity) {
+    if (finalNumOfRows > *capacity || numOfRow1 == 0) {
       char* p = taosMemoryRealloc(pColumnInfoData->varmeta.offset, sizeof(int32_t) * (numOfRow1 + numOfRow2));
       if (p == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -262,7 +262,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, ui
     memcpy(pColumnInfoData->pData + oldLen, pSource->pData, len);
     pColumnInfoData->varmeta.length = len + oldLen;
   } else {
-    if (finalNumOfRows > *capacity) {
+    if (finalNumOfRows > *capacity || numOfRow1 == 0) {
       ASSERT(finalNumOfRows * pColumnInfoData->info.bytes);
       char* tmp = taosMemoryRealloc(pColumnInfoData->pData, finalNumOfRows * pColumnInfoData->info.bytes);
       if (tmp == NULL) {
@@ -1356,7 +1356,7 @@ SColumnInfoData createColumnInfoData(int16_t type, int32_t bytes, int16_t colId)
   return col;
 }
 
-SColumnInfoData* bdGetColumnInfoData(SSDataBlock* pBlock, int32_t index) {
+SColumnInfoData* bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index) {
   ASSERT(pBlock != NULL);
   if (index >= taosArrayGetSize(pBlock->pDataBlock)) {
     return NULL;
@@ -2119,3 +2119,4 @@ const char* blockDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRow
   ASSERT(pStart - pData == dataLen);
   return pStart;
 }
+

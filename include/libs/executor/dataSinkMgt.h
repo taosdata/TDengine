@@ -45,6 +45,10 @@ typedef struct SDeleterParam {
   SArray*  pUidList;
 } SDeleterParam;
 
+typedef struct SInserterParam {
+  SReadHandle* readHandle;
+} SInserterParam;
+
 typedef struct SDataSinkStat {
   uint64_t cachedSize;
 } SDataSinkStat;
@@ -96,7 +100,7 @@ void dsEndPut(DataSinkHandle handle, uint64_t useconds);
  * @param handle
  * @param pLen data length
  */
-void dsGetDataLength(DataSinkHandle handle, int32_t* pLen, bool* pQueryEnd);
+void dsGetDataLength(DataSinkHandle handle, int64_t* pLen, bool* pQueryEnd);
 
 /**
  * Get data, the caller needs to allocate data memory.

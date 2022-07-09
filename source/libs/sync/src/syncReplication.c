@@ -336,7 +336,7 @@ int32_t syncNodeAppendEntriesBatch(SSyncNode* pSyncNode, const SRaftId* destRaft
     sDebug(
         "vgId:%d, send sync-append-entries-batch to %s:%d, {term:%lu, pre-index:%ld, pre-term:%lu, pterm:%lu, "
         "commit:%ld, "
-        "datalen:%d, dataCount:%d}",
+        "datalen:%d, datacount:%d}",
         pSyncNode->vgId, host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm,
         pMsg->commitIndex, pMsg->dataLen, pMsg->dataCount);
   } while (0);
