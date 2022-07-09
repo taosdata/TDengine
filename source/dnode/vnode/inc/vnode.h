@@ -174,6 +174,9 @@ int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList);
 int32_t tqReaderAddTbUidList(STqReader *pReader, const SArray *tbUidList);
 int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
+int32_t tqSeekVer(STqReader *pReader, int64_t ver);
+int32_t tqNextBlock(STqReader *pReader, SFetchRet *ret);
+
 int32_t tqReaderSetDataMsg(STqReader *pReader, SSubmitReq *pMsg, int64_t ver);
 bool    tqNextDataBlock(STqReader *pReader);
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);

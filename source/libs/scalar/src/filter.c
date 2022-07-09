@@ -3827,13 +3827,20 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnData
     SScalarParam output = {0};
 
     SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
-    output.columnData = sclCreateColumnInfoData(&type, pSrc->info.rows);
+    int32_t code = sclCreateColumnInfoData(&type, pSrc->info.rows, &output);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
 
     SArray *pList = taosArrayInit(1, POINTER_BYTES);
     taosArrayPush(pList, &pSrc);
 
     FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
-    *p = (int8_t *)output.columnData->pData;
+    *p = taosMemoryMalloc(output.numOfRows * sizeof(bool));
+
+    memcpy(*p, output.columnData->pData, output.numOfRows);
+    colDataDestroy(output.columnData);
+    taosMemoryFree(output.columnData);
 
     taosArrayDestroy(pList);
     return false;

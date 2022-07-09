@@ -748,11 +748,12 @@ SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode) {
 
 SColumn extractColumnFromColumnNode(SColumnNode* pColNode) {
   SColumn c = {0};
-  c.slotId = pColNode->slotId;
-  c.colId = pColNode->colId;
-  c.type = pColNode->node.resType.type;
-  c.bytes = pColNode->node.resType.bytes;
-  c.scale = pColNode->node.resType.scale;
+
+  c.slotId    = pColNode->slotId;
+  c.colId     = pColNode->colId;
+  c.type      = pColNode->node.resType.type;
+  c.bytes     = pColNode->node.resType.bytes;
+  c.scale     = pColNode->node.resType.scale;
   c.precision = pColNode->node.resType.precision;
   return c;
 }
@@ -774,6 +775,8 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   pCond->suid = pTableScanNode->scan.suid;
 
   pCond->type = BLOCK_LOAD_OFFSET_ORDER;
+  pCond->startVersion = -1;
+  pCond->endVersion   = -1;
   //  pCond->type = pTableScanNode->scanFlag;
 
   int32_t j = 0;
