@@ -33,20 +33,20 @@ class TestAlterInsert(TDCase):
         self.tdRest.error(f'insert into {dbname}.tb values (now-1m, 2, 2)')
         self.tdRest.error(f'select t1, t2, c1, c2 from {dbname}.tb')
         self.tdRest.request(f'select t1, t2, c1 from {dbname}.tb where c1 = 2')
-        self.tdSql.checkEqual(self.tdRest.resp[0], (1, 1, 2))
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, 2])
 
         # add column
         self.tdRest.request(f'alter stable {dbname}.stb add column c2 int')
         self.tdRest.request(f'insert into {dbname}.tb values (now-2m, 2, 2)')
         self.tdRest.query(f'select t1, t2, c1, c2 from {dbname}.tb where c2 = 2')
-        self.tdSql.checkEqual(self.tdRest.resp[0], (1, 1, 2, 2))
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, 2, 2])
 
         # add tag
         self.tdRest.request(f'alter stable {dbname}.stb add tag t3 binary(5)')
         self.tdRest.request(f'alter table {dbname}.stb add tag t4 nchar(5)')
         self.tdRest.request(f'insert into {dbname}.tb values (now-2m, 3, 3)')
         self.tdRest.request(f'select t1, t2, t3, t4, c1, c2 from {dbname}.tb where c2 = 3')
-        self.tdSql.checkEqual(self.tdRest.resp[0], (1, 1, None, None, 3, 3))
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, None, None, 3, 3])
 
         # set tag
         self.tdRest.error(f'alter stable {dbname}.tb set tag t3 = "11111"')
@@ -57,7 +57,7 @@ class TestAlterInsert(TDCase):
         # self.tdRest.error(f'alter table {dbname}.tb set tag t4 = "111111"')
         self.tdRest.request(f'insert into {dbname}.tb values (now-4m, 4, 4)')
         self.tdRest.request(f'select t1, t2, t3, t4, c1, c2 from {dbname}.tb where c2 = 4')
-        self.tdSql.checkEqual(self.tdRest.resp[0], (1, 1, "11111", "11111", 4, 4))
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, "11111", "11111", 4, 4])
 
         # modify tag length
         self.tdRest.request(f'alter stable {dbname}.stb modify tag t3 binary(6)')
@@ -70,7 +70,7 @@ class TestAlterInsert(TDCase):
         # self.tdRest.error(f'alter table {dbname}.tb set tag t4 = "1111111"')
         self.tdRest.request(f'insert into {dbname}.tb values (now-5m, 5, 5)')
         self.tdRest.request(f'select t1, t2, t3, t4, c1, c2 from {dbname}.tb where c2 = 5')
-        self.tdSql.checkEqual(self.tdRest.resp[0], (1, 1, "111111", "111111", 5, 5))
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, "111111", "111111", 5, 5])
 
         # modify column
         self.tdRest.request(f'alter stable {dbname}.stb add column c3 binary(5)')
@@ -80,7 +80,7 @@ class TestAlterInsert(TDCase):
         self.tdRest.request(f'insert into {dbname}.tb values (now-6m, 6, 6, "11111", "11111")')
         self.tdRest.error(f'insert into {dbname}.tb values (now-6m, 6, 6, "111111", "111111")')
         self.tdRest.request(f'select t1, t2, t3, t4, c1, c2, c3, c4 from {dbname}.tb where c2 = 6')
-        self.tdSql.checkEqual(self.tdRest.resp[0], (1, 1, "111111", "111111", 6, 6, "11111", "11111"))
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, "111111", "111111", 6, 6, "11111", "11111"])
 
         # modify column length
         self.tdRest.request(f'alter stable {dbname}.stb modify column c3 binary(6)')
@@ -90,7 +90,7 @@ class TestAlterInsert(TDCase):
         self.tdRest.request(f'insert into {dbname}.tb values (now-6m, 7, 7, "111111", "111111")')
         self.tdRest.error(f'insert into {dbname}.tb values (now-7m, 7, 7, "1111111", "1111111")')
         self.tdRest.request(f'select t1, t2, t3, t4, c1, c2, c3, c4 from {dbname}.tb where c2 = 7')
-        self.tdSql.checkEqual(self.tdRest.resp[0], (1, 1, "111111", "111111", 7, 7, "111111", "111111"))
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, "111111", "111111", 7, 7, "111111", "111111"])
 
          # rename tag
         self.tdRest.request(f'alter table {dbname}.stb rename tag t1 t11')
@@ -99,7 +99,7 @@ class TestAlterInsert(TDCase):
         self.tdRest.error(f'alter stable {dbname}.tb rename tag t4 t44')
         self.tdRest.request(f'insert into {dbname}.tb values (now-8m, 8, 8, "111111", "111111")')
         self.tdRest.request(f'select t11, t22, t3, t4, c1, c2, c3, c4 from {dbname}.tb where c2 = 8')
-        self.tdSql.checkEqual(self.tdRest.resp[0], (1, 1, "111111", "111111", 8, 8, "111111", "111111"))
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [1, 1, "111111", "111111", 8, 8, "111111", "111111"])
 
         # rename column
         self.tdRest.error(f'alter table {dbname}.stb rename column c3 c33')
@@ -146,7 +146,7 @@ class TestAlterInsert(TDCase):
         self.tdRest.request(f'insert into {dbname}.tb values (now-3m, 4, 4, "111111", "111111")')
         self.tdRest.error(f'insert into {dbname}.tb values (now-3m, 4, 4, "1111111", "1111111")')
         self.tdRest.request(f'select c1, c2, c3, c4 from {dbname}.tb where c1 = 4')
-        self.tdSql.checkEqual(self.tdRest.resp[0], (4, 4, "111111", "111111"))
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [4, 4, "111111", "111111"])
 
         # rename column
         self.tdRest.request(f'alter table {dbname}.tb rename column c3 c33')
@@ -154,7 +154,7 @@ class TestAlterInsert(TDCase):
         # ! TD-16423
         # self.tdRest.error(f'select c1, c2, c3, c4 from {dbname}.tb where c1 = 5')
         self.tdRest.request(f'select c1, c2, c33, c4 from {dbname}.tb where c1 = 5')
-        self.tdSql.checkEqual(self.tdRest.resp[0], (5, 5, "111111", "111111"))
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0], [5, 5, "111111", "111111"])
 
     def run(self) -> bool:
         self.tdCom.drop_all_db()
