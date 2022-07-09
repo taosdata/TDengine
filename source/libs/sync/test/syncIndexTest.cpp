@@ -13,7 +13,7 @@ void print(SHashObj *pNextIndex) {
 
     SRaftId *pRaftId = (SRaftId *)key;
 
-    printf("key:<%lu, %d>, value:%lu \n", pRaftId->addr, pRaftId->vgId, *p);
+    printf("key:<" PRIu64 ", %d>, value:%" PRIu64 " \n", pRaftId->addr, pRaftId->vgId, *p);
     p = (uint64_t *)taosHashIterate(pNextIndex, p);
   }
 }
