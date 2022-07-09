@@ -93,6 +93,7 @@ static STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow,
   return save;
 }
 
+// todo do refactor
 // get the correct time window according to the handled timestamp
 STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int64_t ts, SInterval* pInterval,
                                 int32_t precision, int32_t order) {
