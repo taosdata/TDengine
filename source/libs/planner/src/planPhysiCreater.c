@@ -1566,7 +1566,7 @@ static int32_t buildInsertSelectSubplan(SPhysiPlanContext* pCxt, SVnodeModifyLog
   if (TSDB_CODE_SUCCESS == code) {
     code = createQueryInserter(pCxt, pModify, pSubplan, &pSubplan->pDataSink);
   }
-  pSubplan->msgType = TDMT_VND_SUBMIT;
+  pSubplan->msgType = TDMT_SCH_MERGE_QUERY;
   return code;
 }
 

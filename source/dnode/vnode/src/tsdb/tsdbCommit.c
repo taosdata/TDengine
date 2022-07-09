@@ -602,7 +602,7 @@ static int32_t tsdbGetOvlpNRow(STbDataIter *pIter, SBlock *pBlock) {
 
   iter.pRow = NULL;
   while (true) {
-    pRow = tsdbTbDataIterGet(pIter);
+    pRow = tsdbTbDataIterGet(&iter);
 
     if (pRow == NULL) break;
     key = TSDBROW_KEY(pRow);
@@ -610,7 +610,7 @@ static int32_t tsdbGetOvlpNRow(STbDataIter *pIter, SBlock *pBlock) {
     c = tBlockCmprFn(&(SBlock){.maxKey = key, .minKey = key}, pBlock);
     if (c == 0) {
       nRow++;
-      tsdbTbDataIterNext(pIter);
+      tsdbTbDataIterNext(&iter);
     } else if (c > 0) {
       break;
     } else {
@@ -635,7 +635,7 @@ static int32_t tsdbMergeAsSubBlock(SCommitter *pCommitter, STbDataIter *pIter, S
   code = tsdbCommitterUpdateRowSchema(pCommitter, pBlockIdx->suid, pBlockIdx->uid, TSDBROW_SVERSION(pRow));
   if (code) goto _err;
   while (true) {
-    if (pRow) break;
+    if (pRow == NULL) break;
     code = tBlockDataAppendRow(pBlockData, pRow, pCommitter->skmRow.pTSchema);
     if (code) goto _err;
 

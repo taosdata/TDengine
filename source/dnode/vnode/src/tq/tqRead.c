@@ -15,11 +15,6 @@
 
 #include "tq.h"
 
-int64_t tqScanLog(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffsetVal offset) {
-  /*if ()*/
-  return 0;
-}
-
 int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** ppCkHead) {
   int32_t code = 0;
   taosThreadMutexLock(&pHandle->pWalReader->mutex);
@@ -84,8 +79,10 @@ STqReader* tqOpenReader(SVnode* pVnode) {
     return NULL;
   }
 
-  // TODO open
-  /*pReader->pWalReader = walOpenReader(pVnode->pWal, NULL);*/
+  pReader->pWalReader = walOpenReader(pVnode->pWal, NULL);
+  if (pReader->pWalReader == NULL) {
+    return NULL;
+  }
 
   pReader->pVnodeMeta = pVnode->pMeta;
   pReader->pMsg = NULL;
@@ -106,12 +103,19 @@ void tqCloseReader(STqReader* pReader) {
   taosMemoryFree(pReader);
 }
 
+int32_t tqSeekVer(STqReader* pReader, int64_t ver) {
+  //
+  return walReadSeekVer(pReader->pWalReader, ver);
+}
+
 int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
   bool fromProcessedMsg = pReader->pMsg != NULL;
 
   while (1) {
     if (!fromProcessedMsg) {
       if (walNextValidMsg(pReader->pWalReader) < 0) {
+        ret->offset.type = TMQ_OFFSET__LOG;
+        ret->offset.version = pReader->ver;
         ret->fetchType = FETCH_TYPE__NONE;
         return -1;
       }
@@ -130,19 +134,25 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
       memset(&ret->data, 0, sizeof(SSDataBlock));
       int32_t code = tqRetrieveDataBlock(&ret->data, pReader);
       if (code != 0 || ret->data.info.rows == 0) {
+        ASSERT(0);
+        continue;
+#if 0
         if (fromProcessedMsg) {
           ret->fetchType = FETCH_TYPE__NONE;
           return 0;
         } else {
           break;
         }
+#endif
       }
-
       ret->fetchType = FETCH_TYPE__DATA;
       return 0;
     }
 
     if (fromProcessedMsg) {
+      ret->offset.type = TMQ_OFFSET__LOG;
+      ret->offset.version = pReader->ver;
+      ASSERT(pReader->ver != -1);
       ret->fetchType = FETCH_TYPE__NONE;
       return 0;
     }

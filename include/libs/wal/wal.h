@@ -194,6 +194,7 @@ int32_t walRestoreFromSnapshot(SWal *, int64_t ver);
 SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond);
 void        walCloseReader(SWalReader *pRead);
 int32_t     walReadVer(SWalReader *pRead, int64_t ver);
+int32_t     walReadSeekVer(SWalReader *pRead, int64_t ver);
 int32_t     walNextValidMsg(SWalReader *pRead);
 
 // only for tq usage

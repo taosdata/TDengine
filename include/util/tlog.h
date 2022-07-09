@@ -60,7 +60,7 @@ extern int32_t tsdbDebugFlag;
 extern int32_t tqDebugFlag;
 extern int32_t fsDebugFlag;
 extern int32_t metaDebugFlag;
-extern int32_t fnDebugFlag;
+extern int32_t udfDebugFlag;
 extern int32_t smaDebugFlag;
 extern int32_t idxDebugFlag;
 

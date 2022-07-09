@@ -276,7 +276,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 }
 
 int32_t schRescheduleTask(SSchJob *pJob, SSchTask *pTask) {
-  if (SCH_IS_DATA_SRC_QRY_TASK(pTask)) {
+  if (SCH_IS_DATA_BIND_TASK(pTask)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -313,7 +313,7 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf* pData, int32
   pTask->lastMsgType = 0;
   memset(&pTask->succeedAddr, 0, sizeof(pTask->succeedAddr));
 
-  if (SCH_IS_DATA_SRC_QRY_TASK(pTask)) {
+  if (SCH_IS_DATA_BIND_TASK(pTask)) {
     if (pData) {
       SCH_ERR_JRET(schUpdateTaskCandidateAddr(pJob, pTask, pData->pEpSet));
     }
@@ -358,7 +358,7 @@ _return:
 int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf* pData, int32_t rspCode) {
   int32_t code = 0;
 
-  if (SCH_IS_DATA_SRC_QRY_TASK(pTask)) {
+  if (SCH_IS_DATA_BIND_TASK(pTask)) {
     if (NULL == pData->pEpSet) {
       SCH_TASK_ELOG("no epset updated while got error %s", tstrerror(rspCode));
       SCH_ERR_JRET(rspCode);
@@ -492,7 +492,7 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
     return TSDB_CODE_SUCCESS;
   }
 
-  if (SCH_IS_DATA_SRC_TASK(pTask)) {
+  if (SCH_IS_DATA_BIND_TASK(pTask)) {
     if ((pTask->execId + 1) >= SCH_TASK_NUM_OF_EPS(&pTask->plan->execNode)) {
       *needRetry = false;
       SCH_TASK_DLOG("task no more retry since all ep tried, execId:%d, epNum:%d", pTask->execId,
@@ -528,7 +528,7 @@ int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
 
   schDeregisterTaskHb(pJob, pTask);
 
-  if (SCH_IS_DATA_SRC_TASK(pTask)) {
+  if (SCH_IS_DATA_BIND_TASK(pTask)) {
     SCH_SWITCH_EPSET(&pTask->plan->execNode);
   } else {
     int32_t candidateNum = taosArrayGetSize(pTask->candidateAddrs);  
@@ -596,7 +596,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (SCH_IS_DATA_SRC_QRY_TASK(pTask)) {
+  if (SCH_IS_DATA_BIND_TASK(pTask)) {
     SCH_TASK_ELOG("no execNode specifed for data src task, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
     SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
