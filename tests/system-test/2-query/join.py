@@ -340,9 +340,14 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test()
+        tdLog.printNoPrefix("==========step4:cross db check")
+        tdSql.execute("create database db1")
+        tdSql.execute("use db1")
+        self.__create_tb()
+        self.__insert_data(self.rows)
+        self.all_test()
 
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdSql.execute("flush database db")
 
         tdSql.execute("use db")
 

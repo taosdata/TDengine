@@ -636,8 +636,11 @@ class TDTestCase:
         tdSql.execute("drop database if exists db1 ")
         tdSql.execute("drop database if exists db2 ")
 
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        # tdDnodes.stop(1)
+        # tdDnodes.start(1)
+
+        tdSql.execute("flush database db ")
+
 
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
