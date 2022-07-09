@@ -189,7 +189,7 @@ class TestPerf(TDCase):
             insert_config_dict[TestPerf.dbname_field_name] = f"db{i}"
             insert_config_dict[TestPerf.resultfile_field_name] = f"\/tmp\/result_{i}.txt"
             self.envMgr._remote.cmd(insert_config_dict[TestPerf.host_field_name], f"rm -rf /tmp/result_{i}.txt")
-            os.system(f"rm -rf /tmp/result_{i}.txt")
+            # os.system(f"rm -rf /tmp/result_{i}.txt")
             # replace config settings in json template
             self.replace_config(insert_json_file, insert_config_dict)
             os.system("cat {}".format(insert_json_file))
@@ -237,12 +237,13 @@ class TestPerf(TDCase):
         os.system("echo @#@#@#@#@#@#@#@#@#@#")
         for i in range (self.concurrency):
             result_file = f"/tmp/result_{i}.txt"
-            self.envMgr._remote.get(insert_config_dict[TestPerf.host_field_name], result_file, "/tmp")
+            local_result_file = f"{self.run_log_dir}/tmp/result_{i}.txt"
+            self.envMgr._remote.get(insert_config_dict[TestPerf.host_field_name], result_file, f"{self.run_log_dir}/tmp")
             # check file
-            if os.path.exists(result_file):
-                os.system(f"cat {result_file}")
+            if os.path.exists(local_result_file):
+                os.system(f"cat {local_result_file}")
             else:
-                self.logger.error(f"result file {result_file} not exist")
+                self.logger.error(f"result file {local_result_file} not exist")
                 self.ret = False
         if self.ret != True:
             return self.ret
@@ -253,7 +254,7 @@ class TestPerf(TDCase):
         total_threads = 0
         insert_speed = 0.0
         for i in range (self.concurrency):
-            result_file = f"/tmp/result_{i}.txt"
+            result_file = f"{self.run_log_dir}/tmp/result_{i}.txt"
             with open(result_file, 'r') as file:
                 insert_rows_found = False
                 while 1:
@@ -296,7 +297,7 @@ class TestPerf(TDCase):
                         d_float = float(d)
                         time_elapsed = max(time_elapsed, d_float)
                 if insert_rows_found == False:
-                    self.logger.error("key word insert row not found in {result_file}")
+                    self.logger.error("key word insert row not found in {local_result_file}")
                     self.ret = False
         if self.ret:
             os.system(f"echo @@##@@##  time spent: {time_elapsed}, insert rows: {insert_rows}, total threads: {total_threads}, insert speed: {insert_speed}")
