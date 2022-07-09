@@ -1,0 +1,45 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step1 
+sql drop database if exists db1;
+sql create database db1 vgroups 3;
+sql use db1;
+sql create stable st1 (ts timestamp, f1 int, f2 binary(200)) tags(t1 int);
+sql create table tb1 using st1 tags(1);
+sql insert into tb1 values ('2022-07-07 10:01:01', 11, "aaa");
+sql insert into tb1 values ('2022-07-07 11:01:02', 12, "bbb");
+sql create table tb2 using st1 tags(2);
+sql insert into tb2 values ('2022-07-07 10:02:01', 21, "aaa");
+sql insert into tb2 values ('2022-07-07 11:02:02', 22, "bbb");
+sql create table tb3 using st1 tags(3);
+sql insert into tb3 values ('2022-07-07 10:03:01', 31, "aaa");
+sql insert into tb3 values ('2022-07-07 11:03:02', 32, "bbb");
+sql create table tb4 using st1 tags(4);
+sql insert into tb4 select * from tb1;
+sql select * from tb4;
+if $rows != 2 then
+  return -1
+endi
+sql insert into tb4 select ts,f1,f2 from st1;
+sql select * from tb4;
+if $rows != 6 then
+  return -1
+endi
+sql create table tba (ts timestamp, f1 binary(10), f2 bigint, f3 double);
+sql_error insert into tba select * from tb1;
+sql insert into tba (ts,f2,f1) select * from tb1;
+sql select * from tba;
+if $rows != 2 then
+  return -1
+endi
+sql create table tbb (ts timestamp, f1 binary(10), f2 bigint, f3 double);
+sql insert into tbb (f2,f1,ts) select f1+1,f2,ts+3 from tb2;
+sql select * from tbb;
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

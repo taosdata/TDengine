@@ -424,10 +424,12 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx, uint8_t **ppBuf) {
 
   ASSERT(n == size - sizeof(TSCKSUM));
 
+  tFree(pBuf);
   return code;
 
 _err:
   tsdbError("vgId:%d read del idx failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  tFree(pBuf);
   return code;
 }
 
@@ -969,6 +971,8 @@ int32_t tsdbReadColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBl
     SBlockData *pBlockData1 = &(SBlockData){0};
     SBlockData *pBlockData2 = &(SBlockData){0};
 
+    tBlockDataInit(pBlockData1);
+    tBlockDataInit(pBlockData2);
     for (int32_t iSubBlock = 1; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
       code = tsdbReadSubColData(pReader, pBlockIdx, pBlock, iSubBlock, aColId, nCol, pBlockData1, ppBuf1, ppBuf2);
       if (code) goto _err;
@@ -1106,6 +1110,8 @@ int32_t tsdbReadBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *p
     SBlockData *pBlockData1 = &(SBlockData){0};
     SBlockData *pBlockData2 = &(SBlockData){0};
 
+    tBlockDataInit(pBlockData1);
+    tBlockDataInit(pBlockData2);
     for (iSubBlock = 1; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
       code = tsdbReadSubBlockData(pReader, pBlockIdx, pBlock, iSubBlock, pBlockData1, ppBuf1, ppBuf2);
       if (code) {

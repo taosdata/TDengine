@@ -151,14 +151,6 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
     for (int32_t i = 0; i < pSyncNode->pRaftCfg->batchSize; ++i) {
       SSyncRaftEntry* pEntry = NULL;
       int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, getEntryIndex, &pEntry);
-
-      // event log
-      do {
-        char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "get index:%d, code:%d, %s", getEntryIndex, code, tstrerror(terrno));
-        syncNodeEventLog(pSyncNode, logBuf);
-      } while (0);
-
       if (code == 0) {
         ASSERT(pEntry != NULL);
         entryPArr[i] = pEntry;
@@ -172,8 +164,11 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
 
     // event log
     do {
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "build batch:%d", getCount);
+      char     logBuf[128];
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pDestId->addr, host, sizeof(host), &port);
+      snprintf(logBuf, sizeof(logBuf), "build batch:%d for %s:%d", getCount, host, port);
       syncNodeEventLog(pSyncNode, logBuf);
     } while (0);
 
@@ -341,7 +336,7 @@ int32_t syncNodeAppendEntriesBatch(SSyncNode* pSyncNode, const SRaftId* destRaft
     sDebug(
         "vgId:%d, send sync-append-entries-batch to %s:%d, {term:%lu, pre-index:%ld, pre-term:%lu, pterm:%lu, "
         "commit:%ld, "
-        "datalen:%d, dataCount:%d}",
+        "datalen:%d, datacount:%d}",
         pSyncNode->vgId, host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm,
         pMsg->commitIndex, pMsg->dataLen, pMsg->dataCount);
   } while (0);

@@ -147,9 +147,10 @@ static int32_t walReadChangeFile(SWalReader *pRead, int64_t fileFirstVer) {
   return 0;
 }
 
-static int32_t walReadSeekVer(SWalReader *pRead, int64_t ver) {
+int32_t walReadSeekVer(SWalReader *pRead, int64_t ver) {
   SWal *pWal = pRead->pWal;
   if (ver == pRead->curVersion) {
+    wDebug("wal version %ld match, no need to reset", ver);
     return 0;
   }
   if (ver > pWal->vers.lastVer || ver < pWal->vers.firstVer) {
@@ -177,6 +178,8 @@ static int32_t walReadSeekVer(SWalReader *pRead, int64_t ver) {
     return -1;
   }
 
+  wDebug("wal version reset from %ld to %ld", pRead->curVersion, ver);
+
   pRead->curVersion = ver;
 
   return 0;
@@ -187,7 +190,10 @@ void walSetReaderCapacity(SWalReader *pRead, int32_t capacity) { pRead->capacity
 static int32_t walFetchHeadNew(SWalReader *pRead, int64_t fetchVer) {
   int64_t contLen;
   if (pRead->curVersion != fetchVer) {
-    if (walReadSeekVer(pRead, fetchVer) < 0) return -1;
+    if (walReadSeekVer(pRead, fetchVer) < 0) {
+      ASSERT(0);
+      return -1;
+    }
   }
   contLen = taosReadFile(pRead->pLogFile, pRead->pHead, sizeof(SWalCkHead));
   if (contLen != sizeof(SWalCkHead)) {
@@ -196,6 +202,7 @@ static int32_t walFetchHeadNew(SWalReader *pRead, int64_t fetchVer) {
     } else {
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     }
+    ASSERT(0);
     pRead->curVersion = -1;
     return -1;
   }
@@ -249,6 +256,7 @@ static int32_t walFetchBodyNew(SWalReader *pRead) {
   }
 
   pRead->curVersion = ver + 1;
+  wDebug("version advance to %ld, fetch body", pRead->curVersion);
   return 0;
 }
 
@@ -261,10 +269,12 @@ static int32_t walSkipFetchBodyNew(SWalReader *pRead) {
   if (code < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     pRead->curVersion = -1;
+    ASSERT(0);
     return -1;
   }
 
   pRead->curVersion++;
+  wDebug("version advance to %ld, skip fetch", pRead->curVersion);
 
   return 0;
 }
@@ -352,22 +362,6 @@ int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead) {
   }
 
   pRead->curVersion = ver + 1;
-  return 0;
-}
-
-int32_t walReadWithHandle_s(SWalReader *pRead, int64_t ver, SWalCont **ppHead) {
-  taosThreadMutexLock(&pRead->mutex);
-  if (walReadVer(pRead, ver) < 0) {
-    taosThreadMutexUnlock(&pRead->mutex);
-    return -1;
-  }
-  *ppHead = taosMemoryMalloc(sizeof(SWalCont) + pRead->pHead->head.bodyLen);
-  if (*ppHead == NULL) {
-    taosThreadMutexUnlock(&pRead->mutex);
-    return -1;
-  }
-  memcpy(*ppHead, &pRead->pHead->head, sizeof(SWalCont) + pRead->pHead->head.bodyLen);
-  taosThreadMutexUnlock(&pRead->mutex);
   return 0;
 }
 
