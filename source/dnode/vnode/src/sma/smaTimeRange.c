@@ -20,6 +20,36 @@
 #define SMA_STORAGE_MINUTES_DAY  1440
 #define SMA_STORAGE_SPLIT_FACTOR 14400  // least records in tsma file
 
+// TODO: Who is responsible for resource allocate and release?
+int32_t tdProcessTSmaInsert(SSma *pSma, int64_t indexUid, const char *msg) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if ((code = tdProcessTSmaInsertImpl(pSma, indexUid, msg)) < 0) {
+    smaWarn("vgId:%d, insert tsma data failed since %s", SMA_VID(pSma), tstrerror(terrno));
+  }
+  // TODO: destroy SSDataBlocks(msg)
+  return code;
+}
+
+int32_t tdProcessTSmaCreate(SSma *pSma, int64_t version, const char *msg) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if ((code = tdProcessTSmaCreateImpl(pSma, version, msg)) < 0) {
+    smaWarn("vgId:%d, create tsma failed since %s", SMA_VID(pSma), tstrerror(terrno));
+  }
+  // TODO: destroy SSDataBlocks(msg)
+  return code;
+}
+
+int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if ((code = tdProcessTSmaGetDaysImpl(pCfg, pCont, contLen, days)) < 0) {
+    smaWarn("vgId:%d, get tsma days failed since %s", pCfg->vgId, tstrerror(terrno));
+  }
+  smaDebug("vgId:%d, get tsma days %d", pCfg->vgId, *days);
+  return code;
+}
+
 /**
  * @brief Judge the tsma file split days
  *
