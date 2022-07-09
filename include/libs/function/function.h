@@ -172,7 +172,13 @@ typedef struct tExprNode {
 
 void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *));
 
+typedef enum {
+  SHOULD_FREE_COLDATA    = 0x1,   // the newly created column data needs to be destroyed.
+  DELEGATED_MGMT_COLDATA = 0x2,   // input column data should not be released.
+} ECOLDATA_MGMT_TYPE_E;
+
 struct SScalarParam {
+  ECOLDATA_MGMT_TYPE_E type;
   SColumnInfoData *columnData;
   SHashObj        *pHashFilter;
   int32_t          hashValueType;

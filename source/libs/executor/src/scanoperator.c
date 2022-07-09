@@ -210,7 +210,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
 
     bool             allColumnsHaveAgg = true;
     SColumnDataAgg** pColAgg = NULL;
-    int32_t          code = tsdbRetrieveDatablockSMA(pTableScanInfo->dataReader, &pColAgg, &allColumnsHaveAgg);
+
+    int32_t code = tsdbRetrieveDatablockSMA(pTableScanInfo->dataReader, &pColAgg, &allColumnsHaveAgg);
     if (code != TSDB_CODE_SUCCESS) {
       longjmp(pTaskInfo->env, code);
     }
