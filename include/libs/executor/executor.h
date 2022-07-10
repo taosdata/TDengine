@@ -176,7 +176,7 @@ int32_t qGetStreamScanStatus(qTaskInfo_t tinfo, uint64_t* uid, int64_t* ts);
 
 int32_t qStreamPrepareTsdbScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts);
 
-int32_t qStreamPrepareScan1(qTaskInfo_t tinfo, const STqOffsetVal* pOffset);
+int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset);
 
 int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 

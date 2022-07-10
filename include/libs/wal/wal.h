@@ -133,6 +133,7 @@ typedef struct {
   int64_t        curFileFirstVer;
   int64_t        curVersion;
   int64_t        capacity;
+  int8_t         curInvalid;
   TdThreadMutex  mutex;
   SWalFilterCond cond;
   SWalCkHead    *pHead;
