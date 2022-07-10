@@ -356,14 +356,14 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
   initReaderStatus(&pReader->status);
 
   pReader->pTsdb =
-      getTsdbByRetentions(pVnode, pCond->twindows[0].skey, pVnode->config.tsdbCfg.retentions, idstr, &level);
+      getTsdbByRetentions(pVnode, pCond->twindows.skey, pVnode->config.tsdbCfg.retentions, idstr, &level);
   pReader->suid = pCond->suid;
   pReader->order = pCond->order;
   pReader->capacity = 4096;
   pReader->idStr = (idstr != NULL) ? strdup(idstr) : NULL;
   pReader->verRange = getQueryVerRange(pVnode, pCond, level);
   pReader->type = pCond->type;
-  pReader->window = updateQueryTimeWindow(pVnode->pTsdb, pCond->twindows);
+  pReader->window = updateQueryTimeWindow(pVnode->pTsdb, &pCond->twindows);
 
   ASSERT(pCond->numOfCols > 0);
 
@@ -2954,7 +2954,7 @@ SArray* tsdbRetrieveDataBlock(STsdbReader* pReader, SArray* pIdList) {
   return pReader->pResBlock->pDataBlock;
 }
 
-int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond, int32_t tWinIdx) {
+int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   if (isEmptyQueryTimeWindow(&pReader->window)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -2964,7 +2964,7 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond, int32_
   pReader->status.loadFromFile = true;
   pReader->status.pTableIter = NULL;
 
-  pReader->window = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows[tWinIdx]);
+  pReader->window = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows);
 
   // allocate buffer in order to load data blocks from file
   memset(&pReader->suppInfo.tsColAgg, 0, sizeof(SColumnDataAgg));
