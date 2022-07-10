@@ -89,8 +89,10 @@ int64_t tqScan(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffset
         }
       }
       if (pOffset->type == TMQ_OFFSET__LOG) {
+        continue;
+      } else {
         rowCnt += pDataBlock->info.rows;
-        if (rowCnt >= 4096) break;
+        if (rowCnt <= 4096) continue;
       }
       continue;
     }
@@ -116,6 +118,7 @@ int64_t tqScan(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffset
   return 0;
 }
 
+#if 0
 int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffsetVal offset, int32_t workerId) {
   ASSERT(pExec->subType == TOPIC_SUB_TYPE__COLUMN);
   qTaskInfo_t task = pExec->execCol.task[workerId];
@@ -163,6 +166,7 @@ int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, S
 
   return 0;
 }
+#endif
 
 int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataRsp* pRsp, int32_t workerId) {
   if (pExec->subType == TOPIC_SUB_TYPE__COLUMN) {
