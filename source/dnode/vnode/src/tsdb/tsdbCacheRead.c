@@ -128,6 +128,8 @@ int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t
       }
 
       pRow = (STSRow*)taosLRUCacheValue(lruCache, h);
+      // SArray* pLast = (SArray*)taosLRUCacheValue(lruCache, h);
+      // tsdbCacheLastArray2Row(pLast, &pRow, pr->pSchema);
       if (pRow->ts > lastKey) {
         // Set result row into the same rowIndex repeatly, so we need to check if the internal result row has already
         // appended or not.
@@ -140,6 +142,7 @@ int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t
         lastKey = pRow->ts;
       }
 
+      // taosMemoryFree(pRow);
       tsdbCacheRelease(lruCache, h);
     }
   } else if (pr->type == LASTROW_RETRIEVE_TYPE_ALL) {
@@ -158,8 +161,12 @@ int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t
       }
 
       pRow = (STSRow*)taosLRUCacheValue(lruCache, h);
+      // SArray* pLast = (SArray*)taosLRUCacheValue(lruCache, h);
+      // tsdbCacheLastArray2Row(pLast, &pRow, pr->pSchema);
+
       saveOneRow(pRow, pResBlock, pr, slotIds);
 
+      // taosMemoryFree(pRow);
       tsdbCacheRelease(lruCache, h);
 
       pr->tableIndex += 1;

@@ -314,7 +314,7 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "tsdbDebugFlag", tsdbDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "tqDebugFlag", tqDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "fsDebugFlag", fsDebugFlag, 0, 255, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "fnDebugFlag", fnDebugFlag, 0, 255, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "udfDebugFlag", udfDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "smaDebugFlag", smaDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "idxDebugFlag", idxDebugFlag, 0, 255, 0) != 0) return -1;
   return 0;
@@ -504,7 +504,7 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
   tsdbDebugFlag = cfgGetItem(pCfg, "tsdbDebugFlag")->i32;
   tqDebugFlag = cfgGetItem(pCfg, "tqDebugFlag")->i32;
   fsDebugFlag = cfgGetItem(pCfg, "fsDebugFlag")->i32;
-  fnDebugFlag = cfgGetItem(pCfg, "fnDebugFlag")->i32;
+  udfDebugFlag = cfgGetItem(pCfg, "udfDebugFlag")->i32;
   smaDebugFlag = cfgGetItem(pCfg, "smaDebugFlag")->i32;
   idxDebugFlag = cfgGetItem(pCfg, "idxDebugFlag")->i32;
 }
@@ -715,8 +715,6 @@ int32_t taosSetCfg(SConfig *pCfg, char* name) {
         cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
       } else if (strcasecmp("fsDebugFlag", name) == 0) {
         fsDebugFlag = cfgGetItem(pCfg, "fsDebugFlag")->i32;
-      } else if (strcasecmp("fnDebugFlag", name) == 0) {
-        fnDebugFlag = cfgGetItem(pCfg, "fnDebugFlag")->i32;
       }
       break;
     }
@@ -817,6 +815,8 @@ int32_t taosSetCfg(SConfig *pCfg, char* name) {
         case 'u': {
           if (strcasecmp("multiProcess", name) == 0) {
             tsMultiProcess = cfgGetItem(pCfg, "multiProcess")->bval;
+          } else if (strcasecmp("udfDebugFlag", name) == 0) {
+            udfDebugFlag = cfgGetItem(pCfg, "udfDebugFlag")->i32;
           }
           break;
         }

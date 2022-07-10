@@ -216,7 +216,7 @@ int main(int argc, char const *argv[]) {
     return -1;
   }
 
-  dInfo("start to open dnode");
+  dInfo("start to init service");
   dmSetSignalHandle();
   int32_t code = dmRun();
   dInfo("shutting down the service");

@@ -173,7 +173,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     pThread->pCfgs[pThread->vnodeNum++] = pCfgs[v];
   }
 
-  dInfo("start %d threads to open %d vnodes", threadNum, numOfVnodes);
+  dInfo("open %d vnodes with %d threads", numOfVnodes, threadNum);
 
   for (int32_t t = 0; t < threadNum; ++t) {
     SVnodeThread *pThread = &threads[t];
@@ -204,7 +204,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     dError("there are total vnodes:%d, opened:%d", pMgmt->state.totalVnodes, pMgmt->state.openVnodes);
     return -1;
   } else {
-    dInfo("total vnodes:%d open successfully", pMgmt->state.totalVnodes);
+    dInfo("successfully opened %d vnodes", pMgmt->state.totalVnodes);
     return 0;
   }
 }

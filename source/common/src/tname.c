@@ -115,6 +115,14 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 
 #endif
 
+SName* toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName) {
+  pName->type = TSDB_TABLE_NAME_T;
+  pName->acctId = acctId;
+  strcpy(pName->dbname, pDbName);
+  strcpy(pName->tname, pTableName);
+  return pName;
+}
+
 int32_t tNameExtractFullName(const SName* name, char* dst) {
   assert(name != NULL && dst != NULL);
 
