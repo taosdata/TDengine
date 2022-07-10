@@ -1186,6 +1186,12 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
     pSelect->hasAggFuncs = pSelect->hasAggFuncs ? true : fmIsAggFunc(pFunc->funcId);
     pSelect->hasRepeatScanFuncs = pSelect->hasRepeatScanFuncs ? true : fmIsRepeatScanFunc(pFunc->funcId);
     pSelect->hasIndefiniteRowsFunc = pSelect->hasIndefiniteRowsFunc ? true : fmIsIndefiniteRowsFunc(pFunc->funcId);
+    if (fmIsSelectFunc(pFunc->funcId)) {
+      pSelect->hasSelectFunc = true;
+      ++(pSelect->selectFuncNum);
+    } else if (fmIsAggFunc(pFunc->funcId) || fmIsIndefiniteRowsFunc(pFunc->funcId)) {
+      pSelect->hasOtherVectorFunc = true;
+    }
     pSelect->hasUniqueFunc = pSelect->hasUniqueFunc ? true : (FUNCTION_TYPE_UNIQUE == pFunc->funcType);
     pSelect->hasTailFunc = pSelect->hasTailFunc ? true : (FUNCTION_TYPE_TAIL == pFunc->funcType);
     pSelect->hasInterpFunc = pSelect->hasInterpFunc ? true : (FUNCTION_TYPE_INTERP == pFunc->funcType);
@@ -1395,15 +1401,11 @@ static int32_t getGroupByErrorCode(STranslateContext* pCxt) {
   if (isDistinctOrderBy(pCxt)) {
     return TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION;
   }
-  return TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION;
+  if (isSelectStmt(pCxt->pCurrStmt) && NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pGroupByList) {
+    return TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION;
+  }
+  return TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN;
 }
-
-typedef struct SCheckExprForGroupByCxt {
-  STranslateContext* pTranslateCxt;
-  int32_t            selectFuncNum;
-  bool               hasSelectValFunc;
-  bool               hasOtherAggFunc;
-} SCheckExprForGroupByCxt;
 
 static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode) {
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
@@ -1445,67 +1447,49 @@ static EDealRes rewriteExprToGroupKeyFunc(STranslateContext* pCxt, SNode** pNode
 }
 
 static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
-  SCheckExprForGroupByCxt* pCxt = (SCheckExprForGroupByCxt*)pContext;
+  STranslateContext* pCxt = (STranslateContext*)pContext;
+  SSelectStmt*       pSelect = (SSelectStmt*)pCxt->pCurrStmt;
   if (!nodesIsExprNode(*pNode) || isAliasColumn(*pNode)) {
     return DEAL_RES_CONTINUE;
   }
-  if (isSelectFunc(*pNode)) {
-    ++(pCxt->selectFuncNum);
-  } else if (isAggFunc(*pNode)) {
-    pCxt->hasOtherAggFunc = true;
-  }
-  if ((pCxt->selectFuncNum > 1 && pCxt->hasSelectValFunc) || (pCxt->hasOtherAggFunc && pCxt->hasSelectValFunc)) {
-    return generateDealNodeErrMsg(pCxt->pTranslateCxt, getGroupByErrorCode(pCxt->pTranslateCxt));
-  }
-  if (isAggFunc(*pNode) && !isDistinctOrderBy(pCxt->pTranslateCxt)) {
+  if (isVectorFunc(*pNode) && !isDistinctOrderBy(pCxt)) {
     return DEAL_RES_IGNORE_CHILD;
   }
   SNode* pGroupNode = NULL;
-  FOREACH(pGroupNode, getGroupByList(pCxt->pTranslateCxt)) {
+  FOREACH(pGroupNode, getGroupByList(pCxt)) {
     if (nodesEqualNode(getGroupByNode(pGroupNode), *pNode)) {
       return DEAL_RES_IGNORE_CHILD;
     }
   }
   SNode* pPartKey = NULL;
-  FOREACH(pPartKey, ((SSelectStmt*)pCxt->pTranslateCxt->pCurrStmt)->pPartitionByList) {
+  FOREACH(pPartKey, pSelect->pPartitionByList) {
     if (nodesEqualNode(pPartKey, *pNode)) {
-      return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
+      return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
-    if (pCxt->selectFuncNum > 1 || pCxt->hasOtherAggFunc) {
-      return generateDealNodeErrMsg(pCxt->pTranslateCxt, getGroupByErrorCode(pCxt->pTranslateCxt));
+    if (pSelect->selectFuncNum > 1 || pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc) {
+      return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt));
     } else {
-      pCxt->hasSelectValFunc = true;
-      return rewriteColToSelectValFunc(pCxt->pTranslateCxt, pNode);
+      return rewriteColToSelectValFunc(pCxt, pNode);
     }
   }
-  if (isAggFunc(*pNode) && isDistinctOrderBy(pCxt->pTranslateCxt)) {
-    return generateDealNodeErrMsg(pCxt->pTranslateCxt, getGroupByErrorCode(pCxt->pTranslateCxt));
+  if (isVectorFunc(*pNode) && isDistinctOrderBy(pCxt)) {
+    return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt));
   }
   return DEAL_RES_CONTINUE;
 }
 
 static int32_t checkExprForGroupBy(STranslateContext* pCxt, SNode** pNode) {
-  SCheckExprForGroupByCxt cxt = {
-      .pTranslateCxt = pCxt, .selectFuncNum = 0, .hasSelectValFunc = false, .hasOtherAggFunc = false};
-  nodesRewriteExpr(pNode, doCheckExprForGroupBy, &cxt);
-  if (cxt.selectFuncNum != 1 && cxt.hasSelectValFunc) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, getGroupByErrorCode(pCxt));
-  }
+  nodesRewriteExpr(pNode, doCheckExprForGroupBy, pCxt);
   return pCxt->errCode;
 }
 
-static int32_t checkExprListForGroupBy(STranslateContext* pCxt, SNodeList* pList) {
-  if (NULL == getGroupByList(pCxt)) {
+static int32_t checkExprListForGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect, SNodeList* pList) {
+  if (NULL == getGroupByList(pCxt) && NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
   }
-  SCheckExprForGroupByCxt cxt = {
-      .pTranslateCxt = pCxt, .selectFuncNum = 0, .hasSelectValFunc = false, .hasOtherAggFunc = false};
-  nodesRewriteExprs(pList, doCheckExprForGroupBy, &cxt);
-  if (cxt.selectFuncNum != 1 && cxt.hasSelectValFunc) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, getGroupByErrorCode(pCxt));
-  }
+  nodesRewriteExprs(pList, doCheckExprForGroupBy, pCxt);
   return pCxt->errCode;
 }
 
@@ -1529,7 +1513,6 @@ static int32_t rewriteColsToSelectValFunc(STranslateContext* pCxt, SSelectStmt* 
 
 typedef struct CheckAggColCoexistCxt {
   STranslateContext* pTranslateCxt;
-  bool               existVectorFunc;
   bool               existCol;
   int32_t            selectFuncNum;
   bool               existOtherVectorFunc;
@@ -1537,13 +1520,12 @@ typedef struct CheckAggColCoexistCxt {
 
 static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
   CheckAggColCoexistCxt* pCxt = (CheckAggColCoexistCxt*)pContext;
-  if (isSelectFunc(*pNode)) {
-    ++(pCxt->selectFuncNum);
-  } else if (isAggFunc(*pNode)) {
-    pCxt->existOtherVectorFunc = true;
-  }
   if (isVectorFunc(*pNode)) {
-    pCxt->existVectorFunc = true;
+    if (isSelectFunc(*pNode)) {
+      ++(pCxt->selectFuncNum);
+    } else {
+      pCxt->existOtherVectorFunc = true;
+    }
     return DEAL_RES_IGNORE_CHILD;
   }
   SNode* pPartKey = NULL;
@@ -1559,14 +1541,12 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
 }
 
 static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (NULL != pSelect->pGroupByList) {
+  if (NULL != pSelect->pGroupByList || NULL != pSelect->pWindow ||
+      (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc)) {
     return TSDB_CODE_SUCCESS;
   }
-  CheckAggColCoexistCxt cxt = {.pTranslateCxt = pCxt,
-                               .existVectorFunc = false,
-                               .existCol = false,
-                               .selectFuncNum = 0,
-                               .existOtherVectorFunc = false};
+  CheckAggColCoexistCxt cxt = {
+      .pTranslateCxt = pCxt, .existCol = false, .selectFuncNum = 0, .existOtherVectorFunc = false};
   nodesRewriteExprs(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
   if (!pSelect->isDistinct) {
     nodesRewriteExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
@@ -1574,7 +1554,7 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   if (1 == cxt.selectFuncNum && !cxt.existOtherVectorFunc) {
     return rewriteColsToSelectValFunc(pCxt, pSelect);
   }
-  if ((cxt.selectFuncNum > 1 || cxt.existVectorFunc || NULL != pSelect->pWindow) && cxt.existCol) {
+  if (cxt.existCol) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SINGLE_GROUP);
   }
   return TSDB_CODE_SUCCESS;
@@ -2056,7 +2036,7 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
     pCxt->currClause = SQL_CLAUSE_ORDER_BY;
     code = translateExprList(pCxt, pSelect->pOrderByList);
     if (TSDB_CODE_SUCCESS == code) {
-      code = checkExprListForGroupBy(pCxt, pSelect->pOrderByList);
+      code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
     }
   }
   return code;
@@ -2069,7 +2049,7 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateStar(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkExprListForGroupBy(pCxt, pSelect->pProjectionList);
+    code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pProjectionList);
   }
   return code;
 }
@@ -5264,8 +5244,8 @@ static int32_t serializeVgroupCreateTableBatch(SVgroupCreateTableBatch* pTbBatch
 }
 
 static void destroyCreateTbReqBatch(void* data) {
-  SVgroupCreateTableBatch* pTbBatch = (SVgroupCreateTableBatch*) data;
-  size_t size = taosArrayGetSize(pTbBatch->req.pArray);
+  SVgroupCreateTableBatch* pTbBatch = (SVgroupCreateTableBatch*)data;
+  size_t                   size = taosArrayGetSize(pTbBatch->req.pArray);
   for (int32_t i = 0; i < size; ++i) {
     SVCreateTbReq* pTableReq = taosArrayGet(pTbBatch->req.pArray, i);
     taosMemoryFreeClear(pTableReq->name);
@@ -5347,10 +5327,10 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
 
 static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, SCreateSubTableClause* pStmt,
                                      const STag* pTag, uint64_t suid, SVgroupInfo* pVgInfo) {
-//  char  dbFName[TSDB_DB_FNAME_LEN] = {0};
-//  SName name = {.type = TSDB_DB_NAME_T, .acctId = acctId};
-//  strcpy(name.dbname, pStmt->dbName);
-//  tNameGetFullDbName(&name, dbFName);
+  //  char  dbFName[TSDB_DB_FNAME_LEN] = {0};
+  //  SName name = {.type = TSDB_DB_NAME_T, .acctId = acctId};
+  //  strcpy(name.dbname, pStmt->dbName);
+  //  tNameGetFullDbName(&name, dbFName);
 
   struct SVCreateTbReq req = {0};
   req.type = TD_CHILD_TABLE;
