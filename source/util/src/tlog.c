@@ -745,14 +745,14 @@ cmp_end:
 void taosSetAllDebugFlag(int32_t flag) {
   if (flag <= 0) return;
 
+  uDebugFlag = flag;
+  rpcDebugFlag = flag;
+  jniDebugFlag = flag;
+  qDebugFlag = flag;
+  cDebugFlag = flag;
   dDebugFlag = flag;
   vDebugFlag = flag;
   mDebugFlag = flag;
-  cDebugFlag = flag;
-  jniDebugFlag = flag;
-  uDebugFlag = flag;
-  rpcDebugFlag = flag;
-  qDebugFlag = flag;
   wDebugFlag = flag;
   sDebugFlag = flag;
   tsdbDebugFlag = flag;
@@ -761,6 +761,5 @@ void taosSetAllDebugFlag(int32_t flag) {
   udfDebugFlag = flag;
   smaDebugFlag = flag;
   idxDebugFlag = flag;
-
   uInfo("all debug flag are set to %d", flag);
 }
