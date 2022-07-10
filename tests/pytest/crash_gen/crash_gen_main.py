@@ -1707,6 +1707,7 @@ class TdSuperTable:
             )            
         else:
             sql += " TAGS (dummy int) "
+        print("create stable: ",sql)
         dbc.execute(sql)        
 
     def getRegTables(self, dbc: DbConn):
