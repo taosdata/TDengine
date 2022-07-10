@@ -5369,7 +5369,7 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
 }
 
 static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, SCreateSubTableClause* pStmt,
-                                     const STag* pTag, uint64_t suid, SVgroupInfo* pVgInfo) {
+                                     const STag* pTag, uint64_t suid, const char* sTableNmae, SVgroupInfo* pVgInfo) {
 //  char  dbFName[TSDB_DB_FNAME_LEN] = {0};
 //  SName name = {.type = TSDB_DB_NAME_T, .acctId = acctId};
 //  strcpy(name.dbname, pStmt->dbName);
@@ -5386,6 +5386,7 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, S
     req.commentLen = -1;
   }
   req.ctb.suid = suid;
+  req.ctb.name = strdup(sTableNmae);
   req.ctb.pTag = (uint8_t*)pTag;
   if (pStmt->ignoreExists) {
     req.flags |= TD_CREATE_IF_NOT_EXISTS;
@@ -5471,13 +5472,14 @@ static int32_t buildJsonTagVal(STranslateContext* pCxt, SSchema* pTagSchema, SVa
     return buildSyntaxErrMsg(&pCxt->msgBuf, "json string too long than 4095", pVal->literal);
   }
 
-  return parseJsontoTagData(pVal->literal, pTagArray, ppTag, &pCxt->msgBuf);
+  return parseJsontoTagData(pVal->literal, pTagArray, ppTag, &pCxt->msgBuf, pTagSchema->name);
 }
 
 static int32_t buildNormalTagVal(STranslateContext* pCxt, SSchema* pTagSchema, SValueNode* pVal, SArray* pTagArray) {
   if (pVal->node.resType.type != TSDB_DATA_TYPE_NULL) {
     void*   nodeVal = nodesGetValueFromNode(pVal);
     STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
+    strcpy(val.colName, pTagSchema->name);
     if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
       val.pData = varDataVal(nodeVal);
       val.nData = varDataLen(nodeVal);
@@ -5571,6 +5573,7 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
       } else if (pVal->node.resType.type != TSDB_DATA_TYPE_NULL && !pVal->isNull) {
         char*   tmpVal = nodesGetValueFromNode(pVal);
         STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
+        strcpy(val.colName, pTagSchema->name);
         if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
           val.pData = varDataVal(tmpVal);
           val.nData = varDataLen(tmpVal);
@@ -5627,7 +5630,7 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
     code = getTableHashVgroup(pCxt, pStmt->dbName, pStmt->tableName, &info);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    addCreateTbReqIntoVgroup(pCxt->pParseCxt->acctId, pVgroupHashmap, pStmt, pTag, pSuperTableMeta->uid, &info);
+    addCreateTbReqIntoVgroup(pCxt->pParseCxt->acctId, pVgroupHashmap, pStmt, pTag, pSuperTableMeta->uid, pStmt->useTableName, &info);
   }
 
   taosMemoryFreeClear(pSuperTableMeta);
@@ -5845,8 +5848,8 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
   }
 
   pReq->isNull = (TSDB_DATA_TYPE_NULL == pStmt->pVal->node.resType.type);
+  pReq->tagType = targetDt.type;
   if (targetDt.type == TSDB_DATA_TYPE_JSON) {
-    pReq->isNull = 0;
     if (pStmt->pVal->literal &&
         strlen(pStmt->pVal->literal) > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
       return buildSyntaxErrMsg(&pCxt->msgBuf, "json string too long than 4095", pStmt->pVal->literal);
@@ -5855,7 +5858,7 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
     int32_t code = TSDB_CODE_SUCCESS;
     STag*   pTag = NULL;
     do {
-      code = parseJsontoTagData(pStmt->pVal->literal, pTagVals, &pTag, &pCxt->msgBuf);
+      code = parseJsontoTagData(pStmt->pVal->literal, pTagVals, &pTag, &pCxt->msgBuf, pReq->tagName);
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }
@@ -5869,6 +5872,9 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
     taosArrayDestroy(pTagVals);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
+    }
+    if(pTag->nTag == 0){
+      pReq->isNull = true;
     }
     pReq->nTagVal = pTag->len;
     pReq->pTagVal = (uint8_t*)pTag;
@@ -5927,7 +5933,7 @@ static int32_t buildDropColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
 static int32_t buildUpdateColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                  SVAlterTbReq* pReq) {
   pReq->colModBytes = calcTypeBytes(pStmt->dataType);
-
+  pReq->colModType = pStmt->dataType.type;
   SSchema* pSchema = getColSchema(pTableMeta, pStmt->colName);
   if (NULL == pSchema) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pStmt->colName);

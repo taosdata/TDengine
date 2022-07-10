@@ -341,7 +341,7 @@ static bool isValidateTag(char* input) {
   return true;
 }
 
-int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, void* pMsgBuf) {
+int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, void* pMsgBuf, const char* colName) {
   int32_t   retCode = TSDB_CODE_SUCCESS;
   cJSON*    root = NULL;
   SHashObj* keyHash = NULL;
@@ -389,6 +389,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
       continue;
     }
     STagVal val = {0};
+    strcpy(val.colName, colName);
     val.pKey = jsonKey;
     taosHashPut(keyHash, jsonKey, keyLen, &keyLen,
                 CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless

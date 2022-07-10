@@ -71,6 +71,7 @@ typedef struct SInsertParseContext {
   SVnodeModifOpStmt* pOutput;
   SStmtCallback*     pStmtCb;
   SParseMetaCache*   pMetaCache;
+  char               sTableName[TSDB_TABLE_NAME_LEN];
 } SInsertParseContext;
 
 typedef struct SInsertParseSyntaxCxt {
@@ -811,10 +812,11 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
   return TSDB_CODE_SUCCESS;
 }
 
-static void buildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, int64_t suid) {
+static void buildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, int64_t suid, const char* sname) {
   pTbReq->type = TD_CHILD_TABLE;
   pTbReq->name = strdup(tname);
   pTbReq->ctb.suid = suid;
+  if(sname) pTbReq->ctb.name = strdup(sname);
   pTbReq->ctb.pTag = (uint8_t*)pTag;
   pTbReq->commentLen = -1;
 
@@ -835,6 +837,7 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema, int16
     return TSDB_CODE_SUCCESS;
   }
 
+  strcpy(val->colName, pSchema->name);
   val->cid = pSchema->colId;
   val->type = pSchema->type;
 
@@ -1051,7 +1054,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
       if (isNullStr(&sToken)) {
         code = tTagNew(pTagVals, 1, true, &pTag);
       } else {
-        code = parseJsontoTagData(sToken.z, pTagVals, &pTag, &pCxt->msg);
+        code = parseJsontoTagData(sToken.z, pTagVals, &pTag, &pCxt->msg, pTagSchema->name);
       }
       taosMemoryFree(tmpTokenBuf);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1081,7 +1084,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
     goto end;
   }
 
-  buildCreateTbReq(&pCxt->createTblReq, tName, pTag, pCxt->pTableMeta->suid);
+  buildCreateTbReq(&pCxt->createTblReq, tName, pTag, pCxt->pTableMeta->suid, pCxt->sTableName);
 
 end:
   for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
@@ -1166,6 +1169,7 @@ static int32_t parseUsingClause(SInsertParseContext* pCxt, SName* name, char* tb
   createSName(&sname, &sToken, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg);
   char dbFName[TSDB_DB_FNAME_LEN];
   tNameGetFullDbName(&sname, dbFName);
+  strcpy(pCxt->sTableName, sname.tname);
 
   CHECK_CODE(getSTableMeta(pCxt, &sname, dbFName));
   if (TSDB_SUPER_TABLE != pCxt->pTableMeta->tableType) {
@@ -1402,15 +1406,10 @@ static int32_t parseDataFromFile(SInsertParseContext* pCxt, SToken filePath, STa
   return TSDB_CODE_SUCCESS;
 }
 
-void destroyCreateSubTbReq(SVCreateTbReq* pReq) {
-  taosMemoryFreeClear(pReq->name);
-  taosMemoryFreeClear(pReq->ctb.pTag);
-}
-
 static void destroyInsertParseContextForTable(SInsertParseContext* pCxt) {
   taosMemoryFreeClear(pCxt->pTableMeta);
   destroyBoundColumnInfo(&pCxt->tags);
-  destroyCreateSubTbReq(&pCxt->createTblReq);
+  tdDestroySVCreateTbReq(&pCxt->createTblReq);
 }
 
 static void destroySubTableHashElem(void* p) { taosMemoryFree(*(STableMeta**)p); }
@@ -1556,7 +1555,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     }
     memcpy(tags, &pCxt->tags, sizeof(pCxt->tags));
     (*pCxt->pStmtCb->setInfoFn)(pCxt->pStmtCb->pStmt, pCxt->pTableMeta, tags, tbFName, autoCreateTbl,
-                                pCxt->pVgroupsHashObj, pCxt->pTableBlockHashObj);
+                                pCxt->pVgroupsHashObj, pCxt->pTableBlockHashObj, pCxt->sTableName);
 
     memset(&pCxt->tags, 0, sizeof(pCxt->tags));
     pCxt->pVgroupsHashObj = NULL;
@@ -1865,7 +1864,7 @@ int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tName, TAOS_MULTI_BIND* bind,
+int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName, TAOS_MULTI_BIND* bind,
                            char* msgBuf, int32_t msgBufLen) {
   STableDataBlocks*   pDataBlock = (STableDataBlocks*)pBlock;
   SMsgBuf             pBuf = {.buf = msgBuf, .len = msgBufLen};
@@ -1904,13 +1903,14 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
       isJson = true;
       char* tmp = taosMemoryCalloc(1, colLen + 1);
       memcpy(tmp, bind[c].buffer, colLen);
-      code = parseJsontoTagData(tmp, pTagArray, &pTag, &pBuf);
+      code = parseJsontoTagData(tmp, pTagArray, &pTag, &pBuf, pTagSchema->name);
       taosMemoryFree(tmp);
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
+      strcpy(val.colName, pTagSchema->name);
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY) {
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
@@ -1947,9 +1947,9 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
   }
 
   SVCreateTbReq tbReq = {0};
-  buildCreateTbReq(&tbReq, tName, pTag, suid);
+  buildCreateTbReq(&tbReq, tName, pTag, suid, sTableName);
   code = buildCreateTbMsg(pDataBlock, &tbReq);
-  destroyCreateSubTbReq(&tbReq);
+  tdDestroySVCreateTbReq(&tbReq);
 
 end:
   for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
@@ -2213,7 +2213,7 @@ typedef struct SmlExecHandle {
 static void smlDestroyTableHandle(void* pHandle) {
   SmlExecTableHandle* handle = (SmlExecTableHandle*)pHandle;
   destroyBoundColumnInfo(&handle->tags);
-  destroyCreateSubTbReq(&handle->createTblReq);
+  tdDestroySVCreateTbReq(&handle->createTblReq);
 }
 
 static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SSchema* pSchema) {
@@ -2311,6 +2311,7 @@ static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* p
     SSmlKv*  kv = taosArrayGetP(cols, i);
 
     STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
+    strcpy(val.colName, pTagSchema->name);
     if (pTagSchema->type == TSDB_DATA_TYPE_BINARY) {
       val.pData = (uint8_t*)kv->value;
       val.nData = kv->length;
@@ -2354,7 +2355,7 @@ end:
 }
 
 int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols, bool format, STableMeta* pTableMeta,
-                    char* tableName, char* msgBuf, int16_t msgBufLen) {
+                    char* tableName, const char* sTableName, int32_t sTableNameLen, char* msgBuf, int16_t msgBufLen) {
   SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen};
 
   SSmlExecHandle* smlHandle = (SSmlExecHandle*)handle;
@@ -2372,7 +2373,10 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
     return ret;
   }
 
-  buildCreateTbReq(&smlHandle->tableExecHandle.createTblReq, tableName, pTag, pTableMeta->suid);
+  buildCreateTbReq(&smlHandle->tableExecHandle.createTblReq, tableName, pTag, pTableMeta->suid, NULL);
+  smlHandle->tableExecHandle.createTblReq.ctb.name = taosMemoryMalloc(sTableNameLen + 1);
+  memcpy(smlHandle->tableExecHandle.createTblReq.ctb.name, sTableName, sTableNameLen);
+  smlHandle->tableExecHandle.createTblReq.ctb.name[sTableNameLen] = 0;
 
   STableDataBlocks* pDataBlock = NULL;
   ret = getDataBlockFromList(smlHandle->pBlockHash, &pTableMeta->uid, sizeof(pTableMeta->uid),
