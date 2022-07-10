@@ -136,7 +136,7 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
   } else {
     p->cap = p->total;
     p->buf = taosMemoryRealloc(p->buf, p->cap);
-    tTrace("internal malloc mem: %p, size: %d", p->buf, p->cap);
+    tTrace("internal malloc mem:%p, size:%d", p->buf, p->cap);
 
     uvBuf->base = p->buf + p->len;
     uvBuf->len = p->cap - p->len;
@@ -221,7 +221,7 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   taosThreadMutexUnlock(&item->mtx);
   int64_t el = taosGetTimestampUs() - st;
   if (el > 50) {
-    // tInfo("lock and unlock cost: %d", (int)el);
+    // tInfo("lock and unlock cost:%d", (int)el);
   }
   return uv_async_send(async);
 }
@@ -446,7 +446,7 @@ int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_
     }
   }
 
-  tTrace("timer %p put task into delay queue, timeoutMs: %" PRIu64 "", queue->timer, timeoutMs);
+  tTrace("timer %p put task into delay queue, timeoutMs:%" PRIu64, queue->timer, timeoutMs);
   heapInsert(queue->heap, &task->node);
   uv_timer_start(queue->timer, transDQTimeout, timeoutMs, 0);
   return 0;

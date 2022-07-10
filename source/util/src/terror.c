@@ -77,6 +77,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE,      "Out of memory in rpc 
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TIMESTAMP,            "Invalid timestamp format")
 TAOS_DEFINE_ERROR(TSDB_CODE_MSG_DECODE_ERROR,             "Msg decode error")
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_AVAIL_DISK,                "No available disk")
+TAOS_DEFINE_ERROR(TSDB_CODE_NOT_FOUND,                    "Not found")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NO_MEMORY,                "Ref out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_FULL,                     "too many Ref Objs")
@@ -250,6 +251,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_ALREADY_EXIST,     "Column already exists
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_NOT_EXIST,         "Column does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_CONFLICT_WITH_TOPIC,"Field used by topic")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SINGLE_STB_MODE_DB,       "Database is single stable mode")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SCHEMA_VER,       "Invalid schema version while alter stb")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STABLE_UID_NOT_MATCH,     "Invalid stable uid while alter stb")
 
 // mnode-infoSchema
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SYS_TABLENAME,    "Invalid system table name")

@@ -32,6 +32,9 @@ static int32_t tdEncodeTFInfo(void **buf, STFInfo *pInfo) {
   tlen += taosEncodeFixedU32(buf, pInfo->ftype);
   tlen += taosEncodeFixedU32(buf, pInfo->fver);
   tlen += taosEncodeFixedI64(buf, pInfo->fsize);
+  if (pInfo->ftype == TD_FTYPE_RSMA_QTASKINFO) {
+    tlen += taosEncodeFixedI64(buf, pInfo->qTaskInfo.submitVer);
+  }
 
   return tlen;
 }
@@ -41,6 +44,11 @@ static void *tdDecodeTFInfo(void *buf, STFInfo *pInfo) {
   buf = taosDecodeFixedU32(buf, &(pInfo->ftype));
   buf = taosDecodeFixedU32(buf, &(pInfo->fver));
   buf = taosDecodeFixedI64(buf, &(pInfo->fsize));
+  // specific
+  if (pInfo->ftype == TD_FTYPE_RSMA_QTASKINFO) {
+    buf = taosDecodeFixedI64(buf, &(pInfo->qTaskInfo.submitVer));
+  }
+
   return buf;
 }
 
@@ -286,4 +294,23 @@ int32_t tdRemoveTFile(STFile *pTFile) {
 }
 
 // smaXXXUtil ================
+void *tdAcquireSmaRef(int32_t rsetId, int64_t refId, const char *tags, int32_t ln) {
+  void *pResult = taosAcquireRef(rsetId, refId);
+  if (!pResult) {
+    smaWarn("%s:%d taosAcquireRef for rsetId:%" PRIi64 " refId:%d failed since %s", tags, ln, rsetId, refId, terrstr());
+  } else {
+    smaDebug("%s:%d taosAcquireRef for rsetId:%" PRIi64 " refId:%d success", tags, ln, rsetId, refId);
+  }
+  return pResult;
+}
+
+int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId, const char *tags, int32_t ln) {
+  if (taosReleaseRef(rsetId, refId) < 0) {
+    smaWarn("%s:%d taosReleaseRef for rsetId:%" PRIi64 " refId:%d failed since %s", tags, ln, rsetId, refId, terrstr());
+    return TSDB_CODE_FAILED;
+  }
+  smaDebug("%s:%d taosReleaseRef for rsetId:%" PRIi64 " refId:%d success", tags, ln, rsetId, refId);
+
+  return TSDB_CODE_SUCCESS;
+}
 // ...

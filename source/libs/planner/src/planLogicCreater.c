@@ -1138,6 +1138,8 @@ static int32_t getMsgType(ENodeType sqlType) {
       return TDMT_VND_DROP_TABLE;
     case QUERY_NODE_ALTER_TABLE_STMT:
       return TDMT_VND_ALTER_TABLE;
+    case QUERY_NODE_FLUSH_DATABASE_STMT:
+      return TDMT_VND_COMMIT;
     default:
       break;
   }
@@ -1279,10 +1281,16 @@ static int32_t createVnodeModifLogicNodeByInsert(SLogicPlanContext* pCxt, SInser
 
   pModify->modifyType = MODIFY_TABLE_TYPE_INSERT;
   pModify->tableId = pRealTable->pMeta->uid;
+  pModify->stableId = pRealTable->pMeta->suid;
   pModify->tableType = pRealTable->pMeta->tableType;
   snprintf(pModify->tableFName, sizeof(pModify->tableFName), "%d.%s.%s", pCxt->pPlanCxt->acctId,
            pRealTable->table.dbName, pRealTable->table.tableName);
   TSWAP(pModify->pVgroupList, pRealTable->pVgroupList);
+  pModify->pInsertCols = nodesCloneList(pInsert->pCols);
+  if (NULL == pModify->pInsertCols) {
+    nodesDestroyNode((SNode*)pModify);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   *pLogicNode = (SLogicNode*)pModify;
   return TSDB_CODE_SUCCESS;
@@ -1332,6 +1340,17 @@ static void doSetLogicNodeParent(SLogicNode* pNode, SLogicNode* pParent) {
 
 static void setLogicNodeParent(SLogicNode* pNode) { doSetLogicNodeParent(pNode, NULL); }
 
+static void setLogicSubplanType(SLogicSubplan* pSubplan) {
+  if (QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY != nodeType(pSubplan->pNode)) {
+    pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
+  } else {
+    SVnodeModifyLogicNode* pModify = (SVnodeModifyLogicNode*)pSubplan->pNode;
+    pSubplan->subplanType = (MODIFY_TABLE_TYPE_INSERT == pModify->modifyType && NULL != pModify->node.pChildren)
+                                ? SUBPLAN_TYPE_SCAN
+                                : SUBPLAN_TYPE_MODIFY;
+  }
+}
+
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
   SLogicPlanContext cxt = {.pPlanCxt = pCxt};
 
@@ -1346,11 +1365,7 @@ int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
   int32_t code = createQueryLogicNode(&cxt, pCxt->pAstRoot, &pSubplan->pNode);
   if (TSDB_CODE_SUCCESS == code) {
     setLogicNodeParent(pSubplan->pNode);
-    if (QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY == nodeType(pSubplan->pNode)) {
-      pSubplan->subplanType = SUBPLAN_TYPE_MODIFY;
-    } else {
-      pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
-    }
+    setLogicSubplanType(pSubplan);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

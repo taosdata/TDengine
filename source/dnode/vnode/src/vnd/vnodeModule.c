@@ -100,6 +100,7 @@ void vnodeCleanup() {
 
   walCleanUp();
   tqCleanUp();
+  smaCleanUp();
 }
 
 int vnodeScheduleTask(int (*execute)(void*), void* arg) {

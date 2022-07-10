@@ -163,9 +163,6 @@ typedef struct SSyncLogStore {
   // return commit index of log
   SyncIndex (*getCommitIndex)(struct SSyncLogStore* pLogStore);
 
-  // refactor, log[0 .. n] ==> log[m .. n]
-  // int32_t (*syncLogSetBeginIndex)(struct SSyncLogStore* pLogStore, SyncIndex beginIndex);
-
   SyncIndex (*syncLogBeginIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogEndIndex)(struct SSyncLogStore* pLogStore);
   bool (*syncLogIsEmpty)(struct SSyncLogStore* pLogStore);
@@ -215,6 +212,7 @@ int32_t     syncProposeBatch(int64_t rid, SRpcMsg* pMsgArr, bool* pIsWeakArr, in
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
+int32_t     syncGetSnapshotByIndex(int64_t rid, SyncIndex index, SSnapshot* pSnapshot);
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg);
 

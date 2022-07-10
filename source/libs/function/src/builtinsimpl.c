@@ -1080,6 +1080,19 @@ bool getMinmaxFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
 static void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos);
 static void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos);
 
+static int32_t findRowIndex(int32_t start, int32_t num, SColumnInfoData* pCol, const char* tval) {
+  // the data is loaded, not only the block SMA value
+  for(int32_t i = start; i < num + start; ++i) {
+    char* p = colDataGetData(pCol, i);
+    if (memcpy((void*)tval, p, pCol->info.bytes) == 0)  {
+      return i;
+    }
+  }
+
+  ASSERT(0);
+}
+
+
 int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
   int32_t numOfElems = 0;
 
@@ -1111,15 +1124,14 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
     if (isMinFunc) {
       tval = &pInput->pColumnDataAgg[0]->min;
-      index = pInput->pColumnDataAgg[0]->minIndex;
     } else {
       tval = &pInput->pColumnDataAgg[0]->max;
-      index = pInput->pColumnDataAgg[0]->maxIndex;
     }
 
     if (!pBuf->assign) {
       pBuf->v = *(int64_t*)tval;
       if (pCtx->subsidiaries.num > 0) {
+        index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
         saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
       }
     } else {
@@ -1131,6 +1143,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         if ((prev < val) ^ isMinFunc) {
           pBuf->v = val;
           if (pCtx->subsidiaries.num > 0) {
+            index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
           }
         }
@@ -1143,6 +1156,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         if ((prev < val) ^ isMinFunc) {
           pBuf->v = val;
           if (pCtx->subsidiaries.num > 0) {
+            index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
           }
         }
@@ -1154,6 +1168,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         if ((prev < val) ^ isMinFunc) {
           pBuf->v = val;
           if (pCtx->subsidiaries.num > 0) {
+            index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
             saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
           }
         }
@@ -1167,6 +1182,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         }
 
         if (pCtx->subsidiaries.num > 0) {
+          index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
           saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
         }
       }
@@ -5554,30 +5570,18 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     }
   }
 
-  int32_t delta = maxVal - minVal;
-  int32_t step = delta / 50;
-  if (step == 0) {
-    step = 1;
-  }
+  // maximum number of step is 80
+  double factor = pData->numOfBlocks / 80.0;
 
   int32_t numOfBuckets = sizeof(pData->blockRowsHisto) / sizeof(pData->blockRowsHisto[0]);
-  int32_t bucketRange = (pData->maxRows - pData->minRows) / numOfBuckets;
-
-  bool singleModel = false;
-  if (bucketRange == 0) {
-    singleModel = true;
-    step = 20;
-    bucketRange = (pData->defMaxRows - pData->defMinRows) / numOfBuckets;
-  }
+  int32_t bucketRange = (pData->defMaxRows - pData->defMinRows) / numOfBuckets;
 
   for (int32_t i = 0; i < tListLen(pData->blockRowsHisto); ++i) {
-    len = sprintf(st + VARSTR_HEADER_SIZE, "%04d |", pData->defMinRows + bucketRange * (i + 1));
+    len = sprintf(st + VARSTR_HEADER_SIZE, "%04d |", pData->defMinRows + bucketRange * i);
 
     int32_t num = 0;
-    if (singleModel && pData->blockRowsHisto[i] > 0) {
-      num = 20;
-    } else {
-      num = (pData->blockRowsHisto[i] + step - 1) / step;
+    if (pData->blockRowsHisto[i] > 0) {
+      num = (pData->blockRowsHisto[i]) / factor;
     }
 
     for (int32_t j = 0; j < num; ++j) {
@@ -5585,9 +5589,10 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       len += x;
     }
 
-    double v = pData->blockRowsHisto[i] * 100.0 / pData->numOfBlocks;
-    len += sprintf(st + VARSTR_HEADER_SIZE + len, "  %d (%.2f%c)", pData->blockRowsHisto[i], v, '%');
-    printf("%s\n", st);
+    if (num > 0) {
+      double v = pData->blockRowsHisto[i] * 100.0 / pData->numOfBlocks;
+      len += sprintf(st + VARSTR_HEADER_SIZE + len, "  %d (%.2f%c)", pData->blockRowsHisto[i], v, '%');
+    }
 
     varDataSetLen(st, len);
     colDataAppend(pColInfo, row++, st, false);
@@ -5942,5 +5947,45 @@ int32_t interpFunction(SqlFunctionCtx* pCtx) {
   pCtx->endTs = pCtx->startTs;
 #endif
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t lastrowFunction(SqlFunctionCtx* pCtx) {
+  int32_t numOfElems = 0;
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SFirstLastRes*       pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+
+  int32_t type = pInputCol->info.type;
+  int32_t bytes = pInputCol->info.bytes;
+  pInfo->bytes = bytes;
+
+  for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
+    if (pInputCol->hasNull && colDataIsNull_s(pInputCol, i)) {
+      continue;
+    }
+
+    numOfElems++;
+
+    char* data = colDataGetData(pInputCol, i);
+    TSKEY cts = getRowPTs(pInput->pPTS, i);
+    if (pResInfo->numOfRes == 0 || *(TSKEY*)(pInfo->buf + bytes) < cts) {
+      if (IS_VAR_DATA_TYPE(type)) {
+        bytes = varDataTLen(data);
+        pInfo->bytes = bytes;
+      }
+
+      memcpy(pInfo->buf, data, bytes);
+      *(TSKEY*)(pInfo->buf + bytes) = cts;
+
+      pInfo->hasResult = true;
+      pResInfo->numOfRes = 1;
+    }
+  }
+
+  SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }

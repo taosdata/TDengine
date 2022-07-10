@@ -57,8 +57,8 @@ extern int32_t tMsgDict[];
 #define TMSG_SEG_SEQ(TYPE)  ((TYPE)&0xff)
 #define TMSG_INFO(TYPE)                                                                                             \
   ((TYPE) >= 0 &&                                                                                                   \
-   ((TYPE) < TDMT_DND_MAX_MSG | (TYPE) < TDMT_MND_MAX_MSG | (TYPE) < TDMT_VND_MAX_MSG | (TYPE) < TDMT_SCH_MAX_MSG | \
-    (TYPE) < TDMT_STREAM_MAX_MSG | (TYPE) < TDMT_MON_MAX_MSG | (TYPE) < TDMT_SYNC_MAX_MSG))                         \
+   ((TYPE) < TDMT_DND_MAX_MSG || (TYPE) < TDMT_MND_MAX_MSG || (TYPE) < TDMT_VND_MAX_MSG || (TYPE) < TDMT_SCH_MAX_MSG || \
+    (TYPE) < TDMT_STREAM_MAX_MSG || (TYPE) < TDMT_MON_MAX_MSG || (TYPE) < TDMT_SYNC_MAX_MSG))                         \
       ? tMsgInfo[tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE)]                                                \
       : 0
 #define TMSG_INDEX(TYPE) (tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE))
@@ -168,6 +168,9 @@ typedef enum _mgmt_table {
 #define TD_SUPER_TABLE  TSDB_SUPER_TABLE
 #define TD_CHILD_TABLE  TSDB_CHILD_TABLE
 #define TD_NORMAL_TABLE TSDB_NORMAL_TABLE
+
+#define TD_REQ_FROM_APP  0
+#define TD_REQ_FROM_TAOX 1
 
 typedef struct {
   int32_t vgId;
@@ -432,30 +435,30 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapperEx(SDecoder* pDecoder, SSchemaW
 STSchema* tdGetSTSChemaFromSSChema(SSchema** pSchema, int32_t nCols);
 
 typedef struct {
-  char    name[TSDB_TABLE_FNAME_LEN];
-  int8_t  igExists;
-  int64_t delay1;
-  int64_t delay2;
-  int64_t watermark1;
-  int64_t watermark2;
-  int32_t ttl;
-  int32_t numOfColumns;
-  int32_t numOfTags;
-  int32_t numOfFuncs;
-  int32_t commentLen;
-  int32_t ast1Len;
-  int32_t ast2Len;
-  SArray* pColumns;  // array of SField
-  int32_t cVersion;
-  SArray* pTags;     // array of SField
-  int32_t tVersion;
-  SArray* pFuncs;
-  char*   pComment;
-  char*   pAst1;
-  char*   pAst2;
-  tb_uid_t  suid;
-  int8_t    source; // 1-taosX or 0-taosClient
-  int8_t    reserved[8];
+  char     name[TSDB_TABLE_FNAME_LEN];
+  int8_t   igExists;
+  int8_t   source;  // 1-taosX or 0-taosClient
+  int8_t   reserved[6];
+  tb_uid_t suid;
+  int64_t  delay1;
+  int64_t  delay2;
+  int64_t  watermark1;
+  int64_t  watermark2;
+  int32_t  ttl;
+  int32_t  colVer;
+  int32_t  tagVer;
+  int32_t  numOfColumns;
+  int32_t  numOfTags;
+  int32_t  numOfFuncs;
+  int32_t  commentLen;
+  int32_t  ast1Len;
+  int32_t  ast2Len;
+  SArray*  pColumns;  // array of SField
+  SArray*  pTags;     // array of SField
+  SArray*  pFuncs;
+  char*    pComment;
+  char*    pAst1;
+  char*    pAst2;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -463,11 +466,11 @@ int32_t tDeserializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pR
 void    tFreeSMCreateStbReq(SMCreateStbReq* pReq);
 
 typedef struct {
-  char      name[TSDB_TABLE_FNAME_LEN];
-  int8_t    igNotExists;
-  tb_uid_t  suid;
-  int8_t    source; // 1-taosX or 0-taosClient
-  int8_t    reserved[8];
+  char     name[TSDB_TABLE_FNAME_LEN];
+  int8_t   igNotExists;
+  int8_t   source;  // 1-taosX or 0-taosClient
+  int8_t   reserved[6];
+  tb_uid_t suid;
 } SMDropStbReq;
 
 int32_t tSerializeSMDropStbReq(void* buf, int32_t bufLen, SMDropStbReq* pReq);
@@ -476,8 +479,6 @@ int32_t tDeserializeSMDropStbReq(void* buf, int32_t bufLen, SMDropStbReq* pReq);
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  alterType;
-  int32_t tagVer;
-  int32_t colVer;
   int32_t numOfFields;
   SArray* pFields;
   int32_t ttl;
@@ -673,6 +674,7 @@ typedef struct {
   char    tbFName[TSDB_TABLE_FNAME_LEN];
   int32_t sversion;
   int32_t tversion;
+  int64_t affectedRows;
 } SQueryTableRsp;
 
 int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
@@ -1518,6 +1520,7 @@ typedef struct SSubQueryMsg {
   int32_t  execId;
   int8_t   taskType;
   int8_t   explain;
+  int8_t   needFetch;
   uint32_t sqlLen;  // the query sql,
   uint32_t phyLen;
   char     msg[];
@@ -2840,8 +2843,8 @@ typedef struct {
 
 static FORCE_INLINE int32_t tEncodeSMqMetaRsp(void** buf, const SMqMetaRsp* pRsp) {
   int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
-  tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
+  // tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
+  // tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
   tlen += taosEncodeFixedI16(buf, pRsp->resMsgType);
   tlen += taosEncodeFixedI32(buf, pRsp->metaRspLen);
   tlen += taosEncodeBinary(buf, pRsp->metaRsp, pRsp->metaRspLen);
@@ -2849,8 +2852,8 @@ static FORCE_INLINE int32_t tEncodeSMqMetaRsp(void** buf, const SMqMetaRsp* pRsp
 }
 
 static FORCE_INLINE void* tDecodeSMqMetaRsp(const void* buf, SMqMetaRsp* pRsp) {
-  buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
-  buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
+  // buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
+  // buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
   buf = taosDecodeFixedI16(buf, &pRsp->resMsgType);
   buf = taosDecodeFixedI32(buf, &pRsp->metaRspLen);
   buf = taosDecodeBinary(buf, &pRsp->metaRsp, pRsp->metaRspLen);
@@ -3037,6 +3040,17 @@ typedef struct {
 
 int32_t tEncodeSVDeleteRsp(SEncoder* pCoder, const SVDeleteRsp* pReq);
 int32_t tDecodeSVDeleteRsp(SDecoder* pCoder, SVDeleteRsp* pReq);
+
+typedef struct SDeleteRes {
+  uint64_t suid;
+  SArray*  uidList;
+  int64_t  skey;
+  int64_t  ekey;
+  int64_t  affectedRows;
+} SDeleteRes;
+
+int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
+int32_t tDecodeDeleteRes(SDecoder* pCoder, SDeleteRes* pRes);
 
 #pragma pack(pop)
 

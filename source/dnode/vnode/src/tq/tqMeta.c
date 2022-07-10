@@ -77,16 +77,17 @@ int32_t tqMetaOpen(STQ* pTq) {
     STqHandle handle;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     tDecodeSTqHandle(&decoder, &handle);
-    handle.pWalReader = walOpenReadHandle(pTq->pVnode->pWal);
+    handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
     for (int32_t i = 0; i < 5; i++) {
-      handle.execHandle.pExecReader[i] = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
+      handle.execHandle.pExecReader[i] = tqOpenReader(pTq->pVnode);
     }
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       for (int32_t i = 0; i < 5; i++) {
         SReadHandle reader = {
-            .reader = handle.execHandle.pExecReader[i],
+            .tqReader = handle.execHandle.pExecReader[i],
             .meta = pTq->pVnode->pMeta,
             .pMsgCb = &pTq->pVnode->msgCb,
+            .vnode = pTq->pVnode,
         };
         handle.execHandle.execCol.task[i] = qCreateStreamExecTaskInfo(handle.execHandle.execCol.qmsg, &reader);
         ASSERT(handle.execHandle.execCol.task[i]);
@@ -98,6 +99,7 @@ int32_t tqMetaOpen(STQ* pTq) {
     taosHashPut(pTq->handles, pKey, kLen, &handle, sizeof(STqHandle));
   }
 
+  tdbTbcClose(pCur);
   if (tdbTxnClose(&txn) < 0) {
     ASSERT(0);
   }
@@ -105,6 +107,9 @@ int32_t tqMetaOpen(STQ* pTq) {
 }
 
 int32_t tqMetaClose(STQ* pTq) {
+  if (pTq->pExecStore) {
+    tdbTbClose(pTq->pExecStore);
+  }
   tdbClose(pTq->pMetaStore);
   return 0;
 }

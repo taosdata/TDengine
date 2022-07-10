@@ -890,6 +890,20 @@ static int32_t pushDownCondOptDealProject(SOptimizeContext* pCxt, SProjectLogicN
   return code;
 }
 
+static int32_t pushDownCondOptTrivialPushDown(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
+  if (NULL == pLogicNode->pConditions ||
+      OPTIMIZE_FLAG_TEST_MASK(pLogicNode->optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pLogicNode->pChildren, 0);
+  int32_t code = pushDownCondOptPushCondToChild(pCxt, pChild, &pLogicNode->pConditions);
+  if (TSDB_CODE_SUCCESS == code) {
+    OPTIMIZE_FLAG_SET_MASK(pLogicNode->optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    pCxt->optimized = true;
+  }
+  return code;
+}
+
 static int32_t pushDownCondOptimizeImpl(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pLogicNode)) {
@@ -904,6 +918,10 @@ static int32_t pushDownCondOptimizeImpl(SOptimizeContext* pCxt, SLogicNode* pLog
       break;
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       code = pushDownCondOptDealProject(pCxt, (SProjectLogicNode*)pLogicNode);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      code = pushDownCondOptTrivialPushDown(pCxt, pLogicNode);
       break;
     default:
       break;

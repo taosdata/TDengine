@@ -80,12 +80,19 @@ typedef struct SQWDebug {
 
 extern SQWDebug gQWDebug;
 
+typedef struct SQWMsgInfo {
+  int8_t taskType;
+  int8_t explain;
+  int8_t needFetch;
+} SQWMsgInfo;
+
 typedef struct SQWMsg {
   void          *node;
   int32_t        code;
   int32_t        msgType;
   char          *msg;
   int32_t        msgLen;
+  SQWMsgInfo     msgInfo;
   SRpcHandleInfo connInfo;
 } SQWMsg;
 
@@ -122,14 +129,18 @@ typedef struct SQWTaskCtx {
   int8_t   phase;
   int8_t   taskType;
   int8_t   explain;
+  int8_t   needFetch;
   int32_t  queryType;
+  int32_t  fetchType;
   int32_t  execId;
 
+  bool    queryRsped;
   bool    queryFetched;
   bool    queryEnd;
   bool    queryContinue;
   bool    queryInQueue;
   int32_t rspCode;
+  int64_t affectedRows; // for insert ...select stmt
 
   SRpcHandleInfo ctrlConnInfo;
   SRpcHandleInfo dataConnInfo;
@@ -161,7 +172,7 @@ typedef struct SQWMsgStat {
   uint64_t queryProcessed;
   uint64_t cqueryProcessed;
   uint64_t fetchProcessed;
-  uint64_t fetchRspProcessed;
+  uint64_t rspProcessed;
   uint64_t cancelProcessed;
   uint64_t dropProcessed;
   uint64_t hbProcessed;
@@ -211,8 +222,8 @@ typedef struct SQWorkerMgmt {
 #define QW_STAT_GET(_item) atomic_load_64(&(_item))
 
 #define QW_GET_EVENT(ctx, event) atomic_load_8(&(ctx)->events[event])
-#define QW_IS_EVENT_RECEIVED(ctx, event)   (QW_GET_EVENT(ctx, event) == QW_EVENT_RECEIVED)
-#define QW_IS_EVENT_PROCESSED(ctx, event)  (QW_GET_EVENT(ctx, event) == QW_EVENT_PROCESSED)
+#define QW_EVENT_RECEIVED(ctx, event)   (QW_GET_EVENT(ctx, event) == QW_EVENT_RECEIVED)
+#define QW_EVENT_PROCESSED(ctx, event)  (QW_GET_EVENT(ctx, event) == QW_EVENT_PROCESSED)
 #define QW_SET_EVENT_RECEIVED(ctx, event)  atomic_store_8(&(ctx)->events[event], QW_EVENT_RECEIVED)
 #define QW_SET_EVENT_PROCESSED(ctx, event) atomic_store_8(&(ctx)->events[event], QW_EVENT_PROCESSED)
 
@@ -221,13 +232,8 @@ typedef struct SQWorkerMgmt {
 #define QW_SET_RSP_CODE(ctx, code)    atomic_store_32(&(ctx)->rspCode, code)
 #define QW_UPDATE_RSP_CODE(ctx, code) atomic_val_compare_exchange_32(&(ctx)->rspCode, 0, code)
 
-#define QW_IS_QUERY_RUNNING(ctx) (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY)
+#define QW_QUERY_RUNNING(ctx) (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY)
 
-#define QW_TASK_NOT_EXIST(code)     (TSDB_CODE_QRY_SCH_NOT_EXIST == (code) || TSDB_CODE_QRY_TASK_NOT_EXIST == (code))
-#define QW_TASK_ALREADY_EXIST(code) (TSDB_CODE_QRY_TASK_ALREADY_EXIST == (code))
-#define QW_TASK_READY(status)                                                                                      \
-  (status == JOB_TASK_STATUS_SUCC || status == JOB_TASK_STATUS_FAIL || status == JOB_TASK_STATUS_CANCELLED || \
-   status == JOB_TASK_STATUS_PART_SUCC)
 #define QW_SET_QTID(id, qId, tId, eId)                              \
   do {                                                              \
     *(uint64_t *)(id) = (qId);                                      \

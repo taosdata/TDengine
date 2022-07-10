@@ -30,6 +30,7 @@ configDir="/etc/taos"
 installDir="/usr/local/taos"
 adapterName="taosadapter"
 benchmarkName="taosBenchmark"
+tmqName="tmq_sim"
 dumpName="taosdump"
 demoName="taosdemo"
 
@@ -205,6 +206,7 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -s ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName} || :
   [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${demoName} || :
   [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName} || :
+  [ -x ${install_main_dir}/bin/${tmqName} ] && ${csudo}ln -s ${install_main_dir}/bin/${tmqName} ${bin_link_dir}/${tmqName} || :
   [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName} || :
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
@@ -227,9 +229,13 @@ function install_lib() {
   ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
   ${csudo}ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
 
+  ${csudo}ln -s ${lib_link_dir}/libtaosws.so ${lib_link_dir}/libtaosws.so || :
+
   if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
     ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
     ${csudo}ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so || :
+
+    ${csudo}ln -s ${lib64_link_dir}/libtaosws.so ${lib64_link_dir}/libtaosws.so || :
   fi
 
   ${csudo}ldconfig
@@ -313,11 +319,16 @@ function install_jemalloc() {
 
 function install_header() {
   ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/taosudf.h || :
+
+  ${csudo}rm -f ${inc_link_dir}/taosws.h || :
+
   ${csudo}cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/*
   ${csudo}ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
   ${csudo}ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
   ${csudo}ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
   ${csudo}ln -s ${install_main_dir}/include/taosudf.h ${inc_link_dir}/taosudf.h  
+
+  ${csudo}ln -s ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h || :
 }
 
 function add_newHostname_to_hosts() {

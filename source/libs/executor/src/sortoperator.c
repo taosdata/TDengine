@@ -235,6 +235,8 @@ void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
 
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->pColMatchInfo);
+  
+  taosMemoryFreeClear(param);
 }
 
 int32_t getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
@@ -451,6 +453,8 @@ void destroyGroupSortOperatorInfo(void* param, int32_t numOfOutput) {
 
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->pColMatchInfo);
+  
+  taosMemoryFreeClear(param);
 }
 
 SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNode* pSortPhyNode,
@@ -670,6 +674,8 @@ void destroyMultiwayMergeOperatorInfo(void* param, int32_t numOfOutput) {
 
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->pColMatchInfo);
+  
+  taosMemoryFreeClear(param);
 }
 
 int32_t getMultiwayMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {

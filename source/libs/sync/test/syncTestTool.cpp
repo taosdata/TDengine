@@ -40,8 +40,8 @@ void cleanup() { walCleanUp(); }
 void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, flag:%lu, term:%lu "
-           "currentTerm:%lu \n",
+           "==callback== ==CommitCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64 ", term:%" PRIu64 " "
+           "currentTerm:%" PRIu64 " \n",
            pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
            cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
@@ -50,8 +50,8 @@ void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
 void PreCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, flag:%lu, term:%lu "
-           "currentTerm:%lu \n",
+           "==callback== ==PreCommitCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64 ", term:%" PRIu64 " "
+           "currentTerm:%" PRIu64 " \n",
            pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
            cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
@@ -60,8 +60,8 @@ void PreCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) 
 void RollBackCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==RollBackCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, flag:%lu, term:%lu "
-           "currentTerm:%lu \n",
+           "==callback== ==RollBackCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64 ", term:%" PRIu64 " "
+           "currentTerm:%" PRIu64 " \n",
            pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
            cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
@@ -111,7 +111,7 @@ int32_t SnapshotDoRead(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32
   return 0;
 }
 
-int32_t SnapshotStartWrite(struct SSyncFSM* pFsm, void *pParam, void** ppWriter) {
+int32_t SnapshotStartWrite(struct SSyncFSM* pFsm, void* pParam, void** ppWriter) {
   *ppWriter = (void*)0xCDEF;
   char logBuf[256] = {0};
 
@@ -128,8 +128,8 @@ int32_t SnapshotStopWrite(struct SSyncFSM* pFsm, void* pWriter, bool isApply) {
 
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==SnapshotStopWrite== pFsm:%p, pWriter:%p, isApply:%d, gSnapshotLastApplyIndex:%ld, "
-           "gSnapshotLastApplyTerm:%ld",
+           "==callback== ==SnapshotStopWrite== pFsm:%p, pWriter:%p, isApply:%d, gSnapshotLastApplyIndex:%" PRId64 ", "
+           "gSnapshotLastApplyTerm:%" PRId64,
            pFsm, pWriter, isApply, gSnapshotLastApplyIndex, gSnapshotLastApplyTerm);
   sTrace("%s", logBuf);
 
@@ -148,7 +148,7 @@ void RestoreFinishCb(struct SSyncFSM* pFsm) { sTrace("==callback== ==RestoreFini
 
 void ReConfigCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMeta) {
   char* s = syncCfg2Str(&(cbMeta.newCfg));
-  sTrace("==callback== ==ReConfigCb== flag:0x%lX, index:%ld, code:%d, currentTerm:%lu, term:%lu, newCfg:%s",
+  sTrace("==callback== ==ReConfigCb== flag:0x%lX, index:%" PRId64 ", code:%d, currentTerm:%" PRIu64 ", term:%" PRIu64 ", newCfg:%s",
          cbMeta.flag, cbMeta.index, cbMeta.code, cbMeta.currentTerm, cbMeta.term, s);
   taosMemoryFree(s);
 }
@@ -156,8 +156,8 @@ void ReConfigCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMe
 void LeaderTransferCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==LeaderTransferCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, flag:%lu, term:%lu "
-           "currentTerm:%lu \n",
+           "==callback== ==LeaderTransferCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64 ", term:%" PRIu64 " "
+           "currentTerm:%" PRIu64 " \n",
            pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
            cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
@@ -300,7 +300,7 @@ SRpcMsg* createRpcMsg(int i, int count, int myIndex) {
   pMsg->msgType = TDMT_VND_SUBMIT;
   pMsg->contLen = 256;
   pMsg->pCont = rpcMallocCont(pMsg->contLen);
-  snprintf((char*)(pMsg->pCont), pMsg->contLen, "value-myIndex:%u-%d-%d-%ld", myIndex, i, count, taosGetTimestampMs());
+  snprintf((char*)(pMsg->pCont), pMsg->contLen, "value-myIndex:%u-%d-%d-" PRId64, myIndex, i, count, taosGetTimestampMs());
   return pMsg;
 }
 
@@ -314,18 +314,18 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
-  int32_t replicaNum = atoi(argv[1]);
-  int32_t myIndex = atoi(argv[2]);
-  ESyncStrategy    enableSnapshot = (ESyncStrategy)atoi(argv[3]);
-  int32_t lastApplyIndex = atoi(argv[4]);
-  int32_t lastApplyTerm = atoi(argv[5]);
-  int32_t writeRecordNum = atoi(argv[6]);
-  bool    isStandBy = atoi(argv[7]);
-  int32_t isConfigChange = atoi(argv[8]);
-  int32_t iterTimes = atoi(argv[9]);
-  int32_t finishLastApplyIndex = atoi(argv[10]);
-  int32_t finishLastApplyTerm = atoi(argv[11]);
-  int32_t leaderTransfer = atoi(argv[12]);
+  int32_t       replicaNum = atoi(argv[1]);
+  int32_t       myIndex = atoi(argv[2]);
+  ESyncStrategy enableSnapshot = (ESyncStrategy)atoi(argv[3]);
+  int32_t       lastApplyIndex = atoi(argv[4]);
+  int32_t       lastApplyTerm = atoi(argv[5]);
+  int32_t       writeRecordNum = atoi(argv[6]);
+  bool          isStandBy = atoi(argv[7]);
+  int32_t       isConfigChange = atoi(argv[8]);
+  int32_t       iterTimes = atoi(argv[9]);
+  int32_t       finishLastApplyIndex = atoi(argv[10]);
+  int32_t       finishLastApplyTerm = atoi(argv[11]);
+  int32_t       leaderTransfer = atoi(argv[12]);
 
   sInfo(
       "args: replicaNum:%d, myIndex:%d, enableSnapshot:%d, lastApplyIndex:%d, lastApplyTerm:%d, writeRecordNum:%d, "

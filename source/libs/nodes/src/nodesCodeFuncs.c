@@ -2214,6 +2214,8 @@ static int32_t physiDispatchNodeToJson(const void* pObj, SJson* pJson) { return 
 
 static int32_t jsonToPhysiDispatchNode(const SJson* pJson, void* pObj) { return jsonToPhysicDataSinkNode(pJson, pObj); }
 
+static const char* jkQueryInsertPhysiPlanInsertCols = "InsertCols";
+static const char* jkQueryInsertPhysiPlanStableId = "StableId";
 static const char* jkQueryInsertPhysiPlanTableId = "TableId";
 static const char* jkQueryInsertPhysiPlanTableType = "TableType";
 static const char* jkQueryInsertPhysiPlanTableFName = "TableFName";
@@ -2224,6 +2226,12 @@ static int32_t physiQueryInsertNodeToJson(const void* pObj, SJson* pJson) {
   const SQueryInserterNode* pNode = (const SQueryInserterNode*)pObj;
 
   int32_t code = physicDataSinkNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkQueryInsertPhysiPlanInsertCols, pNode->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkQueryInsertPhysiPlanStableId, pNode->stableId);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkQueryInsertPhysiPlanTableId, pNode->tableId);
   }
@@ -2247,6 +2255,12 @@ static int32_t jsonToPhysiQueryInsertNode(const SJson* pJson, void* pObj) {
   SQueryInserterNode* pNode = (SQueryInserterNode*)pObj;
 
   int32_t code = jsonToPhysicDataSinkNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkQueryInsertPhysiPlanInsertCols, &pNode->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetUBigIntValue(pJson, jkQueryInsertPhysiPlanStableId, &pNode->stableId);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetUBigIntValue(pJson, jkQueryInsertPhysiPlanTableId, &pNode->tableId);
   }
@@ -3524,6 +3538,7 @@ static const char* jkDownstreamSourceAddr = "Addr";
 static const char* jkDownstreamSourceTaskId = "TaskId";
 static const char* jkDownstreamSourceSchedId = "SchedId";
 static const char* jkDownstreamSourceExecId = "ExecId";
+static const char* jkDownstreamSourceFetchMsgType = "FetchMsgType";
 
 static int32_t downstreamSourceNodeToJson(const void* pObj, SJson* pJson) {
   const SDownstreamSourceNode* pNode = (const SDownstreamSourceNode*)pObj;
@@ -3537,6 +3552,9 @@ static int32_t downstreamSourceNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceExecId, pNode->execId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceFetchMsgType, pNode->fetchMsgType);
   }
 
   return code;
@@ -3554,6 +3572,9 @@ static int32_t jsonToDownstreamSourceNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkDownstreamSourceExecId, &pNode->execId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkDownstreamSourceFetchMsgType, &pNode->fetchMsgType);
   }
 
   return code;
@@ -3584,7 +3605,7 @@ static int32_t databaseOptionsToJson(const void* pObj, SJson* pJson) {
 
   int32_t code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsBuffer, pNode->buffer);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsCachelast, pNode->cachelast);
+    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsCachelast, pNode->cacheLast);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsCompressionLevel, pNode->compressionLevel);
@@ -3646,7 +3667,7 @@ static int32_t jsonToDatabaseOptions(const SJson* pJson, void* pObj) {
 
   int32_t code = tjsonGetIntValue(pJson, jkDatabaseOptionsBuffer, &pNode->buffer);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsCachelast, &pNode->cachelast);
+    code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsCachelast, &pNode->cacheLast);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsCompressionLevel, &pNode->compressionLevel);
