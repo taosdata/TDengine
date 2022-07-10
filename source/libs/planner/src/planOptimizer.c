@@ -1010,8 +1010,13 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
                                   SNodeList* pScanNodes) {
   EOrder order = sortPriKeyOptGetPriKeyOrder(pSort);
   if (ORDER_DESC == order) {
-    SNode* pScan = NULL;
-    FOREACH(pScan, pScanNodes) { TSWAP(((SScanLogicNode*)pScan)->scanSeq[0], ((SScanLogicNode*)pScan)->scanSeq[1]); }
+    SNode* pScanNode = NULL;
+    FOREACH(pScanNode, pScanNodes) {
+      SScanLogicNode* pScan = (SScanLogicNode*)pScanNode;
+      if (pScan->scanSeq[0] > 0) {
+        TSWAP(pScan->scanSeq[0], pScan->scanSeq[1]);
+      }
+    }
   }
 
   int32_t code =
@@ -1020,6 +1025,7 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
     NODES_CLEAR_LIST(pSort->node.pChildren);
     nodesDestroyNode((SNode*)pSort);
   }
+  pCxt->optimized = true;
   return code;
 }
 
