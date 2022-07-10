@@ -485,10 +485,6 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
     code = rewriteExprsForSelect(pAgg->pAggFuncs, pSelect, SQL_CLAUSE_GROUP_BY);
   }
 
-  if (NULL != pSelect->pPartitionByList) {
-    code = createGroupKeysFromPartKeys(pSelect->pPartitionByList, &pAgg->pGroupKeys);
-  }
-
   if (NULL != pSelect->pGroupByList) {
     if (NULL != pAgg->pGroupKeys) {
       code = nodesListStrictAppendList(pAgg->pGroupKeys, nodesCloneList(pSelect->pGroupByList));
@@ -845,8 +841,7 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
 }
 
 static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (NULL == pSelect->pPartitionByList || (pSelect->hasAggFuncs && NULL == pSelect->pWindow) ||
-      NULL != pSelect->pGroupByList) {
+  if (NULL == pSelect->pPartitionByList) {
     return TSDB_CODE_SUCCESS;
   }
 

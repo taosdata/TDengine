@@ -294,13 +294,8 @@ static void prepareForDescendingScan(STableScanInfo* pTableScanInfo, SqlFunction
   //  setupQueryRangeForReverseScan(pTableScanInfo);
 
   pTableScanInfo->cond.order = TSDB_ORDER_DESC;
-  for (int32_t i = 0; i < pTableScanInfo->cond.numOfTWindows; ++i) {
-    STimeWindow* pTWindow = &pTableScanInfo->cond.twindows[i];
-    TSWAP(pTWindow->skey, pTWindow->ekey);
-  }
-
-  SQueryTableDataCond* pCond = &pTableScanInfo->cond;
-  taosqsort(pCond->twindows, pCond->numOfTWindows, sizeof(STimeWindow), pCond, compareTimeWindow);
+  STimeWindow* pTWindow = &pTableScanInfo->cond.twindows;
+  TSWAP(pTWindow->skey, pTWindow->ekey);
 }
 
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
@@ -450,16 +445,10 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
 
   // do the ascending order traverse in the first place.
   while (pTableScanInfo->scanTimes < pTableScanInfo->scanInfo.numOfAsc) {
-    while (pTableScanInfo->curTWinIdx < pTableScanInfo->cond.numOfTWindows) {
-      SSDataBlock* p = doTableScanImpl(pOperator);
-      if (p != NULL) {
-        ASSERT(p->info.uid != 0);
-        return p;
-      }
-      pTableScanInfo->curTWinIdx += 1;
-      if (pTableScanInfo->curTWinIdx < pTableScanInfo->cond.numOfTWindows) {
-        tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond, pTableScanInfo->curTWinIdx);
-      }
+    SSDataBlock* p = doTableScanImpl(pOperator);
+    if (p != NULL) {
+      ASSERT(p->info.uid != 0);
+      return p;
     }
 
     pTableScanInfo->scanTimes += 1;
@@ -468,40 +457,25 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
       setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
       pTableScanInfo->scanFlag = REPEAT_SCAN;
       qDebug("%s start to repeat ascending order scan data blocks due to query func required", GET_TASKID(pTaskInfo));
-      for (int32_t i = 0; i < pTableScanInfo->cond.numOfTWindows; ++i) {
-        STimeWindow* pWin = &pTableScanInfo->cond.twindows[i];
-        qDebug("%s qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
-      }
+
       // do prepare for the next round table scan operation
-      tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
-      pTableScanInfo->curTWinIdx = 0;
+      tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond);
     }
   }
 
   int32_t total = pTableScanInfo->scanInfo.numOfAsc + pTableScanInfo->scanInfo.numOfDesc;
   if (pTableScanInfo->scanTimes < total) {
     if (pTableScanInfo->cond.order == TSDB_ORDER_ASC) {
-      prepareForDescendingScan(pTableScanInfo, pTableScanInfo->pCtx, 0);
-      tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
-      pTableScanInfo->curTWinIdx = 0;
+      prepareForDescendingScan(pTableScanInfo, pOperator->exprSupp.pCtx, 0);
+      tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond);
     }
 
     qDebug("%s start to descending order scan data blocks due to query func required", GET_TASKID(pTaskInfo));
-    for (int32_t i = 0; i < pTableScanInfo->cond.numOfTWindows; ++i) {
-      STimeWindow* pWin = &pTableScanInfo->cond.twindows[i];
-      qDebug("%s qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
-    }
 
     while (pTableScanInfo->scanTimes < total) {
-      while (pTableScanInfo->curTWinIdx < pTableScanInfo->cond.numOfTWindows) {
-        SSDataBlock* p = doTableScanImpl(pOperator);
-        if (p != NULL) {
-          return p;
-        }
-        pTableScanInfo->curTWinIdx += 1;
-        if (pTableScanInfo->curTWinIdx < pTableScanInfo->cond.numOfTWindows) {
-          tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond, pTableScanInfo->curTWinIdx);
-        }
+      SSDataBlock* p = doTableScanImpl(pOperator);
+      if (p != NULL) {
+        return p;
       }
 
       pTableScanInfo->scanTimes += 1;
@@ -512,12 +486,7 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
 
         qDebug("%s start to repeat descending order scan data blocks due to query func required",
                GET_TASKID(pTaskInfo));
-        for (int32_t i = 0; i < pTableScanInfo->cond.numOfTWindows; ++i) {
-          STimeWindow* pWin = &pTableScanInfo->cond.twindows[i];
-          qDebug("%s qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
-        }
-        tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
-        pTableScanInfo->curTWinIdx = 0;
+        tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond);
       }
     }
   }
@@ -544,9 +513,8 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       }
       STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, pInfo->currentTable);
       tsdbSetTableId(pInfo->dataReader, pTableInfo->uid);
-      tsdbReaderReset(pInfo->dataReader, &pInfo->cond, 0);
+      tsdbReaderReset(pInfo->dataReader, &pInfo->cond);
       pInfo->scanTimes = 0;
-      pInfo->curTWinIdx = 0;
     }
   }
 
@@ -578,8 +546,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
   SArray* tableList = taosArrayGetP(pTaskInfo->tableqinfoList.pGroupList, pInfo->currentGroupId);
   //  tsdbSetTableList(pInfo->dataReader, tableList);
 
-  tsdbReaderReset(pInfo->dataReader, &pInfo->cond, 0);
-  pInfo->curTWinIdx = 0;
+  tsdbReaderReset(pInfo->dataReader, &pInfo->cond);
   pInfo->scanTimes = 0;
 
   result = doTableScanGroup(pOperator);
@@ -650,7 +617,6 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->pFilterNode = pTableScanNode->scan.node.pConditions;
   pInfo->scanFlag = MAIN_SCAN;
   pInfo->pColMatchInfo = pColList;
-  pInfo->curTWinIdx = 0;
   pInfo->currentGroupId = -1;
 
   pOperator->name = "TableScanOperator";  // for debug purpose
@@ -880,12 +846,7 @@ static void setGroupId(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t grou
 }
 
 void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin) {
-  pTableScanInfo->cond.twindows[0] = *pWin;
-  pTableScanInfo->curTWinIdx = 0;
-  //  tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
-  // if (!pTableScanInfo->dataReader) {
-  //   return false;
-  // }
+  pTableScanInfo->cond.twindows = *pWin;
   pTableScanInfo->scanTimes = 0;
   pTableScanInfo->currentGroupId = -1;
 }
@@ -943,8 +904,7 @@ static bool prepareDataScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32_t t
       setGroupId(pInfo, pSDB, GROUPID_COLUMN_INDEX, *pRowIndex);
       (*pRowIndex) += updateSessionWindowInfo(pCurWin, tsCols, NULL, pSDB->info.rows, *pRowIndex, gap, NULL);
     } else {
-      win = getActiveTimeWindow(NULL, &dumyInfo, tsCols[*pRowIndex], &pInfo->interval, pInfo->interval.precision,
-                                TSDB_ORDER_ASC);
+      win = getActiveTimeWindow(NULL, &dumyInfo, tsCols[*pRowIndex], &pInfo->interval, TSDB_ORDER_ASC);
       setGroupId(pInfo, pSDB, GROUPID_COLUMN_INDEX, *pRowIndex);
       (*pRowIndex) +=
           getNumOfRowsInTimeWindow(&pSDB->info, tsCols, *pRowIndex, win.ekey, binarySearchForKey, NULL, TSDB_ORDER_ASC);

@@ -155,8 +155,8 @@ typedef struct SQueryTableDataCond {
   int32_t      numOfCols;
   SColumnInfo* colList;
   int32_t      type;  // data block load type:
-  int32_t      numOfTWindows;
-  STimeWindow* twindows;
+//  int32_t      numOfTWindows;
+  STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;
 } SQueryTableDataCond;
