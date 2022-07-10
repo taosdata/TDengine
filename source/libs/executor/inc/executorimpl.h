@@ -911,7 +911,6 @@ int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pStartTs,
     TSKEY* pEndTs, int32_t rows, int32_t start, int64_t gap, SHashObj* pStDeleted);
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);
 
-int32_t compareTimeWindow(const void* p1, const void* p2, const void* param);
 int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
                                        SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs, const int32_t* rowCellOffset,
                                        SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);

@@ -1156,11 +1156,13 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
     while (1) {
       doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
       doFilter(pInfo->pCondition, pBlock);
+
       bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
       if (!hasRemain) {
         doSetOperatorCompleted(pOperator);
         break;
       }
+
       if (pBlock->info.rows > 0) {
         break;
       }

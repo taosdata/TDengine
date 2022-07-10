@@ -4546,18 +4546,6 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
   return pOptr;
 }
 
-int32_t compareTimeWindow(const void* p1, const void* p2, const void* param) {
-  const SQueryTableDataCond* pCond = param;
-  const STimeWindow*         pWin1 = p1;
-  const STimeWindow*         pWin2 = p2;
-  if (pCond->order == TSDB_ORDER_ASC) {
-    return pWin1->skey - pWin2->skey;
-  } else if (pCond->order == TSDB_ORDER_DESC) {
-    return pWin2->skey - pWin1->skey;
-  }
-  return 0;
-}
-
 SArray* extractColumnInfo(SNodeList* pNodeList) {
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   SArray* pList = taosArrayInit(numOfCols, sizeof(SColumn));
