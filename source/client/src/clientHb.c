@@ -266,8 +266,10 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   static int32_t emptyRspNum = 0;
   char             *key = (char *)param;
   SClientHbBatchRsp pRsp = {0};
-  tDeserializeSClientHbBatchRsp(pMsg->pData, pMsg->len, &pRsp);
-
+  if (TSDB_CODE_SUCCESS == code) {
+    tDeserializeSClientHbBatchRsp(pMsg->pData, pMsg->len, &pRsp);
+  }
+  
   int32_t rspNum = taosArrayGetSize(pRsp.rsps);
 
   taosThreadMutexLock(&appInfo.mutex);
