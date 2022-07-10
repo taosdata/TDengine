@@ -169,6 +169,9 @@ typedef enum _mgmt_table {
 #define TD_CHILD_TABLE  TSDB_CHILD_TABLE
 #define TD_NORMAL_TABLE TSDB_NORMAL_TABLE
 
+#define TD_REQ_FROM_APP  0
+#define TD_REQ_FROM_TAOX 1
+
 typedef struct {
   int32_t vgId;
   char*   dbFName;
@@ -432,25 +435,30 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapperEx(SDecoder* pDecoder, SSchemaW
 STSchema* tdGetSTSChemaFromSSChema(SSchema** pSchema, int32_t nCols);
 
 typedef struct {
-  char    name[TSDB_TABLE_FNAME_LEN];
-  int8_t  igExists;
-  int64_t delay1;
-  int64_t delay2;
-  int64_t watermark1;
-  int64_t watermark2;
-  int32_t ttl;
-  int32_t numOfColumns;
-  int32_t numOfTags;
-  int32_t numOfFuncs;
-  int32_t commentLen;
-  int32_t ast1Len;
-  int32_t ast2Len;
-  SArray* pColumns;  // array of SField
-  SArray* pTags;     // array of SField
-  SArray* pFuncs;
-  char*   pComment;
-  char*   pAst1;
-  char*   pAst2;
+  char     name[TSDB_TABLE_FNAME_LEN];
+  int8_t   igExists;
+  int8_t   source;  // 1-taosX or 0-taosClient
+  int8_t   reserved[6];
+  tb_uid_t suid;
+  int64_t  delay1;
+  int64_t  delay2;
+  int64_t  watermark1;
+  int64_t  watermark2;
+  int32_t  ttl;
+  int32_t  colVer;
+  int32_t  tagVer;
+  int32_t  numOfColumns;
+  int32_t  numOfTags;
+  int32_t  numOfFuncs;
+  int32_t  commentLen;
+  int32_t  ast1Len;
+  int32_t  ast2Len;
+  SArray*  pColumns;  // array of SField
+  SArray*  pTags;     // array of SField
+  SArray*  pFuncs;
+  char*    pComment;
+  char*    pAst1;
+  char*    pAst2;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -458,8 +466,11 @@ int32_t tDeserializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pR
 void    tFreeSMCreateStbReq(SMCreateStbReq* pReq);
 
 typedef struct {
-  char   name[TSDB_TABLE_FNAME_LEN];
-  int8_t igNotExists;
+  char     name[TSDB_TABLE_FNAME_LEN];
+  int8_t   igNotExists;
+  int8_t   source;  // 1-taosX or 0-taosClient
+  int8_t   reserved[6];
+  tb_uid_t suid;
 } SMDropStbReq;
 
 int32_t tSerializeSMDropStbReq(void* buf, int32_t bufLen, SMDropStbReq* pReq);
@@ -468,8 +479,6 @@ int32_t tDeserializeSMDropStbReq(void* buf, int32_t bufLen, SMDropStbReq* pReq);
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  alterType;
-  int32_t tagVer;
-  int32_t colVer;
   int32_t numOfFields;
   SArray* pFields;
   int32_t ttl;

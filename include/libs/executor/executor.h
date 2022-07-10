@@ -174,7 +174,13 @@ int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t le
  */
 int32_t qGetStreamScanStatus(qTaskInfo_t tinfo, uint64_t* uid, int64_t* ts);
 
-int32_t qStreamPrepareScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts);
+int32_t qStreamPrepareTsdbScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts);
+
+int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset);
+
+int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
+
+void* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
 
 void*   qExtractReaderFromStreamScanner(void* scanner);
 int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);

@@ -13,33 +13,30 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnd.h"
+#include "tsdb.h"
 
-int32_t vnodeRealloc(void** pp, int32_t size) {
-  uint8_t* p = NULL;
-  int32_t  csize = 0;
+int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
+  int32_t code = 0;
 
-  if (*pp) {
-    p = (uint8_t*)(*pp) - sizeof(int32_t);
-    csize = *(int32_t*)p;
+  // begin
+  code = tsdbFSBegin(pTsdb->fs);
+  if (code) goto _err;
+
+  // do retention
+  for (int32_t iSet = 0; iSet < taosArrayGetSize(pTsdb->fs->nState->aDFileSet); iSet++) {
+    SDFileSet *pDFileSet = (SDFileSet *)taosArrayGet(pTsdb->fs->nState->aDFileSet, iSet);
+
+    // TODO
   }
 
-  if (csize >= size) {
-    return 0;
-  }
+  // commit
+  code = tsdbFSCommit(pTsdb->fs);
+  if (code) goto _err;
 
-  p = (uint8_t*)taosMemoryRealloc(p, size);
-  if (p == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  *(int32_t*)p = size;
-  *pp = p + sizeof(int32_t);
+_exit:
+  return code;
 
-  return 0;
-}
-
-void vnodeFree(void* p) {
-  if (p) {
-    taosMemoryFree(((uint8_t*)p) - sizeof(int32_t));
-  }
+_err:
+  tsdbError("vgId:%d tsdb do retention failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  return code;
 }

@@ -337,7 +337,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
       SCH_SET_JOB_TYPE(pJob, plan->subplanType);
 
       SSchTask  task = {0};
-      SCH_ERR_JRET(schInitTask(pJob, &task, plan, pLevel));
+      SCH_ERR_JRET(schInitTask(pJob, &task, plan, pLevel, levelNum));
 
       SSchTask *pTask = taosArrayPush(pLevel->subTasks, &task);
       if (NULL == pTask) {

@@ -143,6 +143,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
          version);
 
   pVnode->state.applied = version;
+  pVnode->state.applyTerm = pMsg->info.conn.applyTerm;
 
   // skip header
   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));

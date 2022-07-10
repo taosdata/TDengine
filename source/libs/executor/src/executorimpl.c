@@ -2463,7 +2463,7 @@ static void destroySortedMergeOperatorInfo(void* param, int32_t numOfOutput) {
 
   blockDataDestroy(pInfo->binfo.pRes);
   cleanupAggSup(&pInfo->aggSup);
-  
+
   taosMemoryFreeClear(param);
 }
 
@@ -2844,7 +2844,7 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
     }
   }
 }
-
+#if 0
 int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
   uint8_t type = pOperator->operatorType;
 
@@ -2852,7 +2852,7 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
 
   if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     SStreamScanInfo* pScanInfo = pOperator->info;
-    pScanInfo->blockType = STREAM_INPUT__DATA_SCAN;
+    pScanInfo->blockType = STREAM_INPUT__TABLE_SCAN;
 
     pScanInfo->pTableScanOp->status = OP_OPENED;
 
@@ -2894,7 +2894,7 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
       pInfo->scanTimes = 0;
       pInfo->curTWinIdx = 0;
 
-      qDebug("tsdb reader offset seek to uid %ld ts %ld, table cur set to %d , all table num %d", uid, ts,
+      qDebug("tsdb reader offset seek to uid %" PRId64 " ts %" PRId64 ", table cur set to %d , all table num %d", uid, ts,
              pInfo->currentTable, tableSz);
     }
 
@@ -2930,6 +2930,7 @@ int32_t doGetScanStatus(SOperatorInfo* pOperator, uint64_t* uid, int64_t* ts) {
 
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 // this is a blocking operator
 static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
@@ -3287,7 +3288,10 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     // The downstream exec may change the value of the newgroup, so use a local variable instead.
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
+      // TODO optimize
+      /*if (pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM) {*/
       doSetOperatorCompleted(pOperator);
+      /*}*/
       break;
     }
     if (pBlock->info.type == STREAM_RETRIEVE) {
@@ -3338,8 +3342,8 @@ static void doHandleRemainBlockForNewGroupImpl(SFillOperatorInfo* pInfo, SResult
                                                SExecTaskInfo* pTaskInfo) {
   pInfo->totalInputRows = pInfo->existNewGroupBlock->info.rows;
 
-  int64_t ekey = Q_STATUS_EQUAL(pTaskInfo->status, TASK_COMPLETED) ? pInfo->win.ekey
-                                                                   : pInfo->existNewGroupBlock->info.window.ekey;
+  int64_t ekey =
+      Q_STATUS_EQUAL(pTaskInfo->status, TASK_COMPLETED) ? pInfo->win.ekey : pInfo->existNewGroupBlock->info.window.ekey;
   taosResetFillInfo(pInfo->pFillInfo, getFillInfoStart(pInfo->pFillInfo));
 
   taosFillSetStartInfo(pInfo->pFillInfo, pInfo->existNewGroupBlock->info.rows, ekey);
@@ -3675,14 +3679,14 @@ void cleanupBasicInfo(SOptrBasicInfo* pInfo) {
 void destroyBasicOperatorInfo(void* param, int32_t numOfOutput) {
   SOptrBasicInfo* pInfo = (SOptrBasicInfo*)param;
   cleanupBasicInfo(pInfo);
-  
+
   taosMemoryFreeClear(param);
 }
 
 void destroyAggOperatorInfo(void* param, int32_t numOfOutput) {
   SAggOperatorInfo* pInfo = (SAggOperatorInfo*)param;
-  cleanupBasicInfo(&pInfo->binfo);  
-  
+  cleanupBasicInfo(&pInfo->binfo);
+
   taosMemoryFreeClear(param);
 }
 
@@ -3691,7 +3695,7 @@ void destroySFillOperatorInfo(void* param, int32_t numOfOutput) {
   pInfo->pFillInfo = taosDestroyFillInfo(pInfo->pFillInfo);
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
   taosMemoryFreeClear(pInfo->p);
-  
+
   taosMemoryFreeClear(param);
 }
 
@@ -3703,7 +3707,7 @@ static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
   taosArrayDestroy(pInfo->pPseudoColInfo);
-  
+
   taosMemoryFreeClear(param);
 }
 
@@ -3721,7 +3725,7 @@ static void destroyIndefinitOperatorInfo(void* param, int32_t numOfOutput) {
   taosArrayDestroy(pInfo->pPseudoColInfo);
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSup);
-  
+
   taosMemoryFreeClear(param);
 }
 
@@ -3740,7 +3744,7 @@ void doDestroyExchangeOperatorInfo(void* param) {
   }
 
   tsem_destroy(&pExInfo->ready);
-  
+
   taosMemoryFreeClear(param);
 }
 
@@ -3969,7 +3973,7 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
   pInfo->pFillInfo = taosCreateFillInfo(order, w.skey, 0, capacity, numOfCols, pInterval, fillType, pColInfo, id);
 
   pInfo->win = win;
-  pInfo->p   = taosMemoryCalloc(numOfCols, POINTER_BYTES);
+  pInfo->p = taosMemoryCalloc(numOfCols, POINTER_BYTES);
   if (pInfo->pFillInfo == NULL || pInfo->p == NULL) {
     taosMemoryFree(pInfo->pFillInfo);
     taosMemoryFree(pInfo->p);
@@ -4462,7 +4466,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
                           .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision};
 
     int32_t tsSlotId = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
-    pOptr = createMergeAlignedIntervalOperatorInfo(ops[0], pExprInfo, num, pResBlock, &interval, tsSlotId, pPhyNode->pConditions, pTaskInfo);
+    pOptr = createMergeAlignedIntervalOperatorInfo(ops[0], pExprInfo, num, pResBlock, &interval, tsSlotId,
+                                                   pPhyNode->pConditions, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL == type) {
     SMergeIntervalPhysiNode* pIntervalPhyNode = (SMergeIntervalPhysiNode*)pPhyNode;
 
@@ -4501,8 +4506,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     SSDataBlock* pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
     int32_t      tsSlotId = ((SColumnNode*)pSessionNode->window.pTspk)->slotId;
 
-    pOptr =
-        createSessionAggOperatorInfo(ops[0], pExprInfo, num, pResBlock, pSessionNode->gap, tsSlotId, &as, pPhyNode->pConditions, pTaskInfo);
+    pOptr = createSessionAggOperatorInfo(ops[0], pExprInfo, num, pResBlock, pSessionNode->gap, tsSlotId, &as,
+                                         pPhyNode->pConditions, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION == type) {
     pOptr = createStreamSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION == type) {
@@ -4524,7 +4529,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
     SColumnNode* pColNode = (SColumnNode*)((STargetNode*)pStateNode->pStateKey)->pExpr;
     SColumn      col = extractColumnFromColumnNode(pColNode);
-    pOptr = createStatewindowOperatorInfo(ops[0], pExprInfo, num, pResBlock, &as, tsSlotId, &col, pPhyNode->pConditions, pTaskInfo);
+    pOptr = createStatewindowOperatorInfo(ops[0], pExprInfo, num, pResBlock, &as, tsSlotId, &col, pPhyNode->pConditions,
+                                          pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE == type) {
     pOptr = createStreamStateAggOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type) {
@@ -4795,7 +4801,7 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pT
         return TSDB_CODE_OUT_OF_MEMORY;
       }
       pInserterParam->readHandle = readHandle;
-      
+
       *pParam = pInserterParam;
       break;
     }
