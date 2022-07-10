@@ -816,7 +816,7 @@ TEST_F(MndTestStb, 08_Alter_Stb_AlterTagBytes) {
   {
     void*    pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "col_not_exist", 20, &contLen, 1);
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
-    ASSERT_EQ(pRsp->code, 0);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_COLUMN_NOT_EXIST);
 
     test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
