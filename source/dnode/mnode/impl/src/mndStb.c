@@ -869,9 +869,38 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   pStb = mndAcquireStb(pMnode, createReq.name);
   if (pStb != NULL) {
     if (createReq.igExists) {
-      mDebug("stb:%s, already exist, ignore exist is set", createReq.name);
-      code = 0;
-      goto _OVER;
+      if (createReq.source == TD_REQ_FROM_APP) {
+        mDebug("stb:%s, already exist, ignore exist is set", createReq.name);
+        code = 0;
+        goto _OVER;
+      } else if (pStb->uid != createReq.suid) {
+        mError("stb:%s, already exist while create, input suid:%" PRId64 " not match with exist suid:%" PRId64,
+               createReq.name, createReq.suid, pStb->uid);
+        terrno = TSDB_CODE_MND_STABLE_UID_NOT_MATCH;
+        goto _OVER;
+      } else if (createReq.tagVer > 0 || createReq.colVer > 0) {
+        int32_t tagDelta = pStb->tagVer - createReq.tagVer;
+        int32_t colDelta = pStb->colVer - createReq.colVer;
+        int32_t verDelta = tagDelta + verDelta;
+        mInfo("stb:%s, already exist while create, input tagVer:%d colVer:%d, exist tagVer:%d colVer:%d",
+              createReq.name, createReq.tagVer, createReq.colVer, pStb->tagVer, pStb->colVer);
+        if (tagDelta <= 0 && colDelta <= 0) {
+          mInfo("stb:%s, schema version is not incremented and nothing needs to be done", createReq.name);
+          code = 0;
+          goto _OVER;
+        } else if ((tagDelta == 1 || colDelta == 1) && (verDelta == 1)) {
+          mInfo("stb:%s, schema version is only increased by 1 number, do alter operation", createReq.name);
+        } else {
+          mError("stb:%s, schema version increase more than 1 number, error is returned", createReq.name);
+          terrno = TSDB_CODE_MND_INVALID_SCHEMA_VER;
+          goto _OVER;
+        }
+      } else {
+        mError("stb:%s, already exist while create, input tagVer:%d colVer:%d is invalid", createReq.name,
+               createReq.tagVer, createReq.colVer, pStb->tagVer, pStb->colVer);
+        terrno = TSDB_CODE_MND_INVALID_SCHEMA_VER;
+        goto _OVER;
+      }
     } else {
       terrno = TSDB_CODE_MND_STB_ALREADY_EXIST;
       goto _OVER;
@@ -898,25 +927,6 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   if (pDb->cfg.numOfStables == 1 && numOfStbs != 0) {
     terrno = TSDB_CODE_MND_SINGLE_STB_MODE_DB;
     goto _OVER;
-  }
-
-  if (createReq.tagVer > 0 || createReq.colVer > 0) {
-    int32_t tagDelta = pStb->tagVer - createReq.tagVer;
-    int32_t colDelta = pStb->colVer - createReq.colVer;
-    int32_t verDelta = tagDelta + verDelta;
-    mInfo("stb:%s, already exist while create, input tagVer:%d colVer:%d, mnode tagVer:%d colVer:%d", createReq.name,
-          createReq.tagVer, createReq.colVer, pStb->tagVer, pStb->colVer);
-    if (tagDelta <= 0 && colDelta <= 0) {
-      mInfo("stb:%s, schema version is not incremented and nothing needs to be done", createReq.name);
-      code = 0;
-      goto _OVER;
-    } else if ((tagDelta == 1 || colDelta == 1) && (verDelta == 1)) {
-      mInfo("stb:%s, schema version is only increased by 1 digit, do alter operation", createReq.name);
-    } else {
-      mInfo("stb:%s, schema version increase more than 1 digit, error is returned", createReq.name);
-      terrno = TSDB_CODE_MND_INVALID_SCHEMA_VER;
-      goto _OVER;
-    }
   }
 
   code = mndCreateStb(pMnode, pReq, &createReq, pDb);
@@ -1631,25 +1641,6 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   if (pStb == NULL) {
     terrno = TSDB_CODE_MND_STB_NOT_EXIST;
     goto _OVER;
-  }
-
-  if (alterReq.tagVer > 0 || alterReq.colVer > 0) {
-    int32_t tagDelta = pStb->tagVer - alterReq.tagVer;
-    int32_t colDelta = pStb->colVer - alterReq.colVer;
-    int32_t verDelta = tagDelta + verDelta;
-    mInfo("stb:%s, already exist while alter, input tagVer:%d colVer:%d, mnode tagVer:%d colVer:%d", alterReq.name,
-          alterReq.tagVer, alterReq.colVer, pStb->tagVer, pStb->colVer);
-    if (tagDelta <= 0 && colDelta <= 0) {
-      mInfo("stb:%s, schema version is not incremented and nothing needs to be done", alterReq.name);
-      code = 0;
-      goto _OVER;
-    } else if ((tagDelta == 1 || colDelta == 1) && (verDelta == 1)) {
-      mInfo("stb:%s, schema version is only increased by 1 digit, do alter operation", alterReq.name);
-    } else {
-      mInfo("stb:%s, schema version increase more than 1 digit, error is returned", alterReq.name);
-      terrno = TSDB_CODE_MND_INVALID_SCHEMA_VER;
-      goto _OVER;
-    }
   }
 
   if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
