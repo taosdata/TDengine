@@ -116,7 +116,8 @@ class TDTestCase:
         threads=[]
         for i in range(restartNumbers):
             dbNameIndex = '%s%d'%(paraDict["dbName"],i)
-            threads.append(threading.Thread(target=clusterComCreate.create_databases, args=(tdSql, dbNameIndex,paraDict["dbNumbers"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
+            newTdSql=tdCom.newTdSql()
+            threads.append(threading.Thread(target=clusterComCreate.create_databases, args=(newTdSql, dbNameIndex,paraDict["dbNumbers"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
 
         for tr in threads:
             tr.start()
