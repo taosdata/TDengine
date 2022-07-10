@@ -17,7 +17,6 @@
 
 static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 static int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
-static int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME);
 static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME);
