@@ -299,7 +299,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
         }
         ASSERT(pInfo->tqReader->pWalReader->curVersion == pOffset->version);
       } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
-        pInfo->blockType = STREAM_INPUT__TABLE_SCAN;
+        /*pInfo->blockType = STREAM_INPUT__TABLE_SCAN;*/
         int64_t uid = pOffset->uid;
         int64_t ts = pOffset->ts;
 
@@ -327,17 +327,14 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
           ASSERT(found);
 
           tsdbSetTableId(pTableScanInfo->dataReader, uid);
-          int64_t oldSkey = pTableScanInfo->cond.twindows[0].skey;
-          pTableScanInfo->cond.twindows[0].skey = ts + 1;
-          tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
-          pTableScanInfo->cond.twindows[0].skey = oldSkey;
+          int64_t oldSkey = pTableScanInfo->cond.twindows.skey;
+          pTableScanInfo->cond.twindows.skey = ts + 1;
+          tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond);
+          pTableScanInfo->cond.twindows.skey = oldSkey;
           pTableScanInfo->scanTimes = 0;
-          pTableScanInfo->curTWinIdx = 0;
 
           qDebug("tsdb reader offset seek to uid %ld ts %ld, table cur set to %d , all table num %d", uid, ts,
                  pTableScanInfo->currentTable, tableSz);
-        } else {
-          // switch to log
         }
 
       } else {
@@ -353,6 +350,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
   return 0;
 }
 
+#if 0
 int32_t qStreamPrepareTsdbScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
@@ -372,3 +370,4 @@ int32_t qGetStreamScanStatus(qTaskInfo_t tinfo, uint64_t* uid, int64_t* ts) {
 
   return doGetScanStatus(pTaskInfo->pRoot, uid, ts);
 }
+#endif

@@ -143,42 +143,43 @@ class TDTestCase:
         threads=[]
         for i in range(restartNumbers):
             dbNameIndex = '%s%d'%(paraDict["dbName"],i)
-            threads.append(threading.Thread(target=clusterComCreate.create_databases, args=(tdSql, dbNameIndex,paraDict["dbNumbers"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
+            newTdSql=tdCom.newTdSql()
+            threads.append(threading.Thread(target=clusterComCreate.create_databases, args=(newTdSql, dbNameIndex,paraDict["dbNumbers"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
 
         for tr in threads:
             tr.start()
 
         tdLog.info("Take turns stopping Mnodes ") 
-        # while stopcount < restartNumbers:
-        #     tdLog.info(" restart loop: %d"%stopcount )
-        #     if stopRole == "mnode":
-        #         for i in range(mnodeNums):
-        #             tdDnodes[i].stoptaosd()
-        #             # sleep(10)
-        #             tdDnodes[i].starttaosd()
-        #             # sleep(10) 
-        #     elif stopRole == "vnode":
-        #         for i in range(vnodeNumbers):
-        #             tdDnodes[i+mnodeNums].stoptaosd()
-        #             # sleep(10)
-        #             tdDnodes[i+mnodeNums].starttaosd()
-        #             # sleep(10)
-        #     elif stopRole == "dnode":
-        #         for i in range(dnodeNumbers):
-        #             tdDnodes[i].stoptaosd()
-        #             # sleep(10)
-        #             tdDnodes[i].starttaosd()
-        #             # sleep(10) 
+        while stopcount < restartNumbers:
+            tdLog.info(" restart loop: %d"%stopcount )
+            if stopRole == "mnode":
+                for i in range(mnodeNums):
+                    tdDnodes[i].stoptaosd()
+                    # sleep(10)
+                    tdDnodes[i].starttaosd()
+                    # sleep(10) 
+            elif stopRole == "vnode":
+                for i in range(vnodeNumbers):
+                    tdDnodes[i+mnodeNums].stoptaosd()
+                    # sleep(10)
+                    tdDnodes[i+mnodeNums].starttaosd()
+                    # sleep(10)
+            elif stopRole == "dnode":
+                for i in range(dnodeNumbers):
+                    tdDnodes[i].stoptaosd()
+                    # sleep(10)
+                    tdDnodes[i].starttaosd()
+                    # sleep(10) 
 
-        #     # dnodeNumbers don't include database of schema
-        #     if clusterComCheck.checkDnodes(dnodeNumbers):
-        #         tdLog.info("check dnodes status is ready")
-        #     else:
-        #         tdLog.info("check dnodes status is not ready")
-        #         self.stopThread(threads)
-        #         tdLog.exit("one or more of dnodes failed to start ")
-        #         # self.check3mnode()
-        #     stopcount+=1
+            # dnodeNumbers don't include database of schema
+            if clusterComCheck.checkDnodes(dnodeNumbers):
+                tdLog.info("check dnodes status is ready")
+            else:
+                tdLog.info("check dnodes status is not ready")
+                self.stopThread(threads)
+                tdLog.exit("one or more of dnodes failed to start ")
+                # self.check3mnode()
+            stopcount+=1
             
         for tr in threads:
             tr.join()
