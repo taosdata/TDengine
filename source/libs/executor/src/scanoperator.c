@@ -1234,17 +1234,21 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         pTaskInfo->streamInfo.metaBlk = ret.meta;
         return NULL;
       } else if (ret.fetchType == FETCH_TYPE__NONE) {
-        if (ret.offset.version == -1) {
-          pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__LOG;
-          pTaskInfo->streamInfo.lastStatus.version = pTaskInfo->streamInfo.prepareStatus.version - 1;
-        } else {
-          pTaskInfo->streamInfo.lastStatus = ret.offset;
-        }
+        /*if (ret.offset.version == -1) {*/
+        /*pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__LOG;*/
+        /*pTaskInfo->streamInfo.lastStatus.version = pTaskInfo->streamInfo.prepareStatus.version - 1;*/
+        /*} else {*/
+        pTaskInfo->streamInfo.lastStatus = ret.offset;
+        ASSERT(pTaskInfo->streamInfo.lastStatus.version >= pTaskInfo->streamInfo.prepareStatus.version);
+        /*}*/
         return NULL;
       } else {
         ASSERT(0);
       }
     }
+  } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
+    SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
+    return pResult && pResult->info.rows > 0 ? pResult : NULL;
   }
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
@@ -1448,6 +1452,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
 
   } else if (pInfo->blockType == STREAM_INPUT__TABLE_SCAN) {
+    ASSERT(0);
     // check reader last status
     // if not match, reset status
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);

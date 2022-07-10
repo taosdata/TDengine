@@ -62,7 +62,7 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp) {
 int64_t tqScanLog(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffsetVal* pOffset) {
   qTaskInfo_t task = pExec->execCol.task[0];
 
-  if (qStreamPrepareScan1(task, pOffset) < 0) {
+  if (qStreamPrepareScan(task, pOffset) < 0) {
     pRsp->rspOffset = *pOffset;
     pRsp->rspOffset.version--;
     return 0;
@@ -109,10 +109,6 @@ int64_t tqScanLog(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOff
 int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffsetVal offset, int32_t workerId) {
   ASSERT(pExec->subType == TOPIC_SUB_TYPE__COLUMN);
   qTaskInfo_t task = pExec->execCol.task[workerId];
-
-  /*if (qStreamScanSnapshot(task) < 0) {*/
-  /*ASSERT(0);*/
-  /*}*/
 
   if (qStreamPrepareTsdbScan(task, offset.uid, offset.ts) < 0) {
     ASSERT(0);

@@ -270,6 +270,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   tqDebug("tmq poll: consumer %ld (epoch %d), subkey %s, recv poll req in vg %d, req offset %s", consumerId,
           pReq->epoch, pHandle->subKey, TD_VID(pTq->pVnode), buf);
 
+  SMqDataRsp dataRsp = {0};
+  tqInitDataRsp(&dataRsp, pReq, pHandle->execHandle.subType);
+
   // 2.reset offset if needed
   if (reqOffset.type > 0) {
     fetchOffsetNew = reqOffset;
@@ -293,40 +296,24 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
           tqOffsetResetToLog(&fetchOffsetNew, walGetFirstVer(pTq->pVnode->pWal));
         }
       } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
-        tqOffsetResetToLog(&fetchOffsetNew, walGetLastVer(pTq->pVnode->pWal));
+        tqOffsetResetToLog(&dataRsp.rspOffset, walGetLastVer(pTq->pVnode->pWal));
         tqDebug("tmq poll: consumer %ld, subkey %s, offset reset to %ld", consumerId, pHandle->subKey,
-                fetchOffsetNew.version);
-        SMqDataRsp dataRsp = {0};
-        tqInitDataRsp(&dataRsp, pReq, pHandle->execHandle.subType);
-        dataRsp.rspOffset = fetchOffsetNew;
-        code = 0;
+                dataRsp.rspOffset.version);
         if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
           code = -1;
         }
-        taosArrayDestroy(dataRsp.blockDataLen);
-        taosArrayDestroyP(dataRsp.blockData, (FDelete)taosMemoryFree);
-
-        if (dataRsp.withSchema) {
-          taosArrayDestroyP(dataRsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
-        }
-
-        if (dataRsp.withTbName) {
-          taosArrayDestroyP(dataRsp.blockTbName, (FDelete)taosMemoryFree);
-        }
-        return code;
+        goto OVER;
       } else if (reqOffset.type == TMQ_OFFSET__RESET_NONE) {
         tqError("tmq poll: subkey %s, no offset committed for consumer %ld in vg %d, subkey %s, reset none failed",
                 pHandle->subKey, consumerId, TD_VID(pTq->pVnode), pReq->subKey);
         terrno = TSDB_CODE_TQ_NO_COMMITTED_OFFSET;
-        return -1;
+        code = -1;
+        goto OVER;
       }
     }
   }
 
   // 3.query
-  SMqDataRsp dataRsp = {0};
-  tqInitDataRsp(&dataRsp, pReq, pHandle->execHandle.subType);
-
   if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN && fetchOffsetNew.type == TMQ_OFFSET__LOG) {
     fetchOffsetNew.version++;
     if (tqScanLog(pTq, &pHandle->execHandle, &dataRsp, &fetchOffsetNew) < 0) {
@@ -335,7 +322,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       goto OVER;
     }
     if (dataRsp.blockNum == 0) {
-      // TODO add to async task
+      // TODO add to async task pool
       /*dataRsp.rspOffset.version--;*/
     }
     if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
@@ -348,7 +335,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     int64_t     fetchVer = fetchOffsetNew.version + 1;
     SWalCkHead* pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
     if (pCkHead == NULL) {
-      return -1;
+      code = -1;
+      goto OVER;
     }
 
     walSetReaderCapacity(pHandle->pWalReader, 2048);
