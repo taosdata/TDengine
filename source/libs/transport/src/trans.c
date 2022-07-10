@@ -58,7 +58,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   uint32_t ip = 0;
   if (pInit->connType == TAOS_CONN_SERVER) {
     if (transValidLocalFqdn(pInit->localFqdn, &ip) != 0) {
-      tError("invalid fqdn: %s, errmsg: %s", pInit->localFqdn, terrstr());
+      tError("invalid fqdn:%s, errmsg:%s", pInit->localFqdn, terrstr());
       taosMemoryFree(pRpc);
       return NULL;
     }
@@ -86,7 +86,7 @@ void rpcClose(void* arg) {
   tInfo("start to close rpc");
   transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
   transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
-  tInfo("finish to close rpc");
+  tInfo("rpc is closed");
   return;
 }
 void rpcCloseImpl(void* arg) {
@@ -112,7 +112,7 @@ void* rpcMallocCont(int32_t contLen) {
 void rpcFreeCont(void* cont) {
   if (cont == NULL) return;
   taosMemoryFree((char*)cont - TRANS_MSG_OVERHEAD);
-  tTrace("free mem: %p", (char*)cont - TRANS_MSG_OVERHEAD);
+  tTrace("free mem:%p", (char*)cont - TRANS_MSG_OVERHEAD);
 }
 
 void* rpcReallocCont(void* ptr, int32_t contLen) {

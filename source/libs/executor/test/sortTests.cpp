@@ -118,7 +118,7 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
       }
 
       colDataAppend(pColInfo, i, result, false);
-      printf("int: %ld\n", v);
+      printf("int: %" PRId64 "\n", v);
       taosMemoryFree(result);
     }
   }
@@ -333,7 +333,7 @@ TEST(testCase, external_mem_sort_Test) {
         }else{
           memcpy((char*)(&result) + sizeof(int64_t) - tDataTypes[pInfo[i].type].bytes, v, tDataTypes[pInfo[i].type].bytes);
         }
-        printf("%d: %ld\n", row++, result);
+        printf("%d: %" PRId64 "\n", row++, result);
       }
     }
     taosArrayDestroy(orderInfo);

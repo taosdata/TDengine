@@ -10,13 +10,16 @@ step1:
 	$x = $x + 1
 	sleep 1000
 	if $x == 10 then
-	  print ----> dnode not ready!
+	  print ---> dnode not ready!
 		return -1
 	endi
 sql show dnodes
-print ----> $data00 $data01 $data02 $data03 $data04 $data05
+print ---> $data00 $data01 $data02 $data03 $data04 $data05
 if $rows != 1 then
   return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
 endi
 
 print =============== step2: create db
@@ -31,6 +34,21 @@ sql show stables
 if $rows != 1 then 
   return -1
 endi
+
+print =============== step3: create show table
+sql create table ct1 using stb tags(1000)
+#sql show tables
+#if $rows != 1 then 
+#  return -1
+#endi
+
+print =============== step5: insert data
+sql insert into ct1 values(now+0s, 10, 2.0, 3.0)
+sql insert into ct1 values(now+1s, 11, 2.1, 3.1)(now+2s, -12, -2.2, -3.2)(now+3s, -13, -2.3, -3.3)
+
+print =============== step6: select data
+#sql select * from ct1
+#sql select * from stb
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

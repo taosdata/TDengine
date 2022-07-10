@@ -5,19 +5,21 @@ system sh/exec.sh -n dnode1 -s start -v
 sql connect
 
 print =============== step1: show dnodes
-
 $x = 0
 step1:
 	$x = $x + 1
 	sleep 1000
 	if $x == 10 then
-	  print ----> dnode not ready!
+	  print ---> dnode not ready!
 		return -1
 	endi
 sql show dnodes
-print ----> $data00 $data01 $data02 $data03 $data04 $data05
+print ---> $data00 $data01 $data02 $data03 $data04 $data05
 if $rows != 1 then
   return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
 endi
 
 print =============== step2: create alter drop show user
@@ -32,7 +34,61 @@ sql_error alter user u2 sysinfo 0
 print =============== step3: create drop dnode
 sql create dnode $hostname port 7200
 sql drop dnode 2
-sql alter dnode 1 'debugflag 143'
+sql alter dnode 1 'debugflag 131'
+
+print =============== step4:
+
+print =============== run show xxxx
+sql show dnodes
+if $rows != 1 then 
+  return -1
+endi
+
+sql show mnodes
+if $rows != 1 then 
+  return -1
+endi
+
+sql show databases
+if $rows != 2 then
+  return -1
+endi
+
+sql show users
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== run select * from information_schema.xxxx
+sql select * from information_schema.`dnodes`
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from information_schema.`mnodes`
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from information_schema.user_users
+if $rows != 1 then 
+  return -1
+endi
+
+sql show variables;
+if $rows != 4 then
+  return -1
+endi
+
+sql show dnode 1 variables;
+if $rows <= 0 then
+  return -1
+endi
+
+sql show local variables;
+if $rows <= 0 then
+  return -1
+endi
 
 print =============== stop
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

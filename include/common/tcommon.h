@@ -55,7 +55,8 @@ enum {
 enum {
   STREAM_INPUT__DATA_SUBMIT = 1,
   STREAM_INPUT__DATA_BLOCK,
-  STREAM_INPUT__DATA_SCAN,
+  STREAM_INPUT__TABLE_SCAN,
+  STREAM_INPUT__TQ_SCAN,
   STREAM_INPUT__DATA_RETRIEVE,
   STREAM_INPUT__TRIGGER,
   STREAM_INPUT__CHECKPOINT,
@@ -88,8 +89,6 @@ typedef struct {
 #pragma pack(push, 1)
 typedef struct SColumnDataAgg {
   int16_t colId;
-  int16_t minIndex;
-  int16_t maxIndex;
   int16_t numOfNull;
   int64_t sum;
   int64_t max;
@@ -116,6 +115,21 @@ typedef struct SSDataBlock {
   SArray*          pDataBlock;  // SArray<SColumnInfoData>
   SDataBlockInfo   info;
 } SSDataBlock;
+
+enum {
+  FETCH_TYPE__DATA = 1,
+  FETCH_TYPE__META,
+  FETCH_TYPE__NONE,
+};
+
+typedef struct {
+  int8_t       fetchType;
+  STqOffsetVal offset;
+  union {
+    SSDataBlock data;
+    void*       meta;
+  };
+} SFetchRet;
 
 typedef struct SVarColAttr {
   int32_t* offset;    // start position for each entry in the list

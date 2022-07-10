@@ -323,12 +323,12 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       if (code == TSDB_CODE_INDEX_REBUILDING) {
         code = vnodeGetAllTableList(pVnode, tableUid, pListInfo->pTableList);
       } else if (code != TSDB_CODE_SUCCESS) {
-        qError("failed  to  get tableIds, reason: %s, suid: %" PRIu64 "", tstrerror(code), tableUid);
+        qError("failed to get tableIds, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
         taosArrayDestroy(res);
         terrno = code;
         return code;
       } else {
-        qDebug("sucess to  get tableIds, size: %d, suid: %" PRIu64 "", (int)taosArrayGetSize(res), tableUid);
+        qDebug("success to get tableIds, size:%d, suid:%" PRIu64, (int)taosArrayGetSize(res), tableUid);
       }
 
       for (int i = 0; i < taosArrayGetSize(res); i++) {
@@ -341,7 +341,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
     }
 
     if (code != TSDB_CODE_SUCCESS) {
-      qError("failed  to  get tableIds, reason: %s, suid: %" PRIu64 "", tstrerror(code), tableUid);
+      qError("failed to get tableIds, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
       terrno = code;
       return code;
     }
@@ -748,11 +748,12 @@ SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode) {
 
 SColumn extractColumnFromColumnNode(SColumnNode* pColNode) {
   SColumn c = {0};
-  c.slotId = pColNode->slotId;
-  c.colId = pColNode->colId;
-  c.type = pColNode->node.resType.type;
-  c.bytes = pColNode->node.resType.bytes;
-  c.scale = pColNode->node.resType.scale;
+
+  c.slotId    = pColNode->slotId;
+  c.colId     = pColNode->colId;
+  c.type      = pColNode->node.resType.type;
+  c.bytes     = pColNode->node.resType.bytes;
+  c.scale     = pColNode->node.resType.scale;
   c.precision = pColNode->node.resType.precision;
   return c;
 }
@@ -774,6 +775,8 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   pCond->suid = pTableScanNode->scan.suid;
 
   pCond->type = BLOCK_LOAD_OFFSET_ORDER;
+  pCond->startVersion = -1;
+  pCond->endVersion   = -1;
   //  pCond->type = pTableScanNode->scanFlag;
 
   int32_t j = 0;

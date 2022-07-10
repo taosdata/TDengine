@@ -44,25 +44,6 @@ extern "C" {
 
 typedef struct STqOffsetStore STqOffsetStore;
 
-// tqRead
-
-struct STqReadHandle {
-  int64_t           ver;
-  const SSubmitReq* pMsg;
-  SSubmitBlk*       pBlock;
-  SSubmitMsgIter    msgIter;
-  SSubmitBlkIter    blkIter;
-
-  SMeta*    pVnodeMeta;
-  SHashObj* tbIdHash;
-  SArray*   pColIdList;  // SArray<int16_t>
-
-  int32_t         cachedSchemaVer;
-  int64_t         cachedSchemaSuid;
-  SSchemaWrapper* pSchemaWrapper;
-  STSchema*       pSchema;
-};
-
 // tqPush
 
 typedef struct {
@@ -102,7 +83,7 @@ typedef struct {
 typedef struct {
   int8_t subType;
 
-  SStreamReader* pExecReader[5];
+  STqReader* pExecReader[5];
   union {
     STqExecCol execCol;
     STqExecTb  execTb;
@@ -118,7 +99,7 @@ typedef struct {
   int32_t epoch;
   int8_t  fetchMeta;
 
-  // reader
+  // TODO remove
   SWalReader* pWalReader;
 
   // push
@@ -148,6 +129,7 @@ typedef struct {
 static STqMgmt tqMgmt = {0};
 
 // tqRead
+int64_t tqScanLog(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffsetVal* offset);
 int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** pHeadWithCkSum);
 
 // tqExec

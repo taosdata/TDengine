@@ -128,7 +128,7 @@ static void dmClearVars(SDnode *pDnode) {
 }
 
 int32_t dmInitDnode(SDnode *pDnode, EDndNodeType rtype) {
-  dInfo("start to create dnode");
+  dDebug("start to create dnode");
   int32_t code = -1;
   char    path[PATH_MAX + 100] = {0};
 

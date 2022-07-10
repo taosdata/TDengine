@@ -111,7 +111,7 @@ static int32_t sndProcessTaskDeployReq(SSnode *pNode, SRpcMsg *pMsg) {
 
   streamSetupTrigger(pTask);
 
-  qInfo("deploy stream: stream id %ld task id %d child id %d on snode", pTask->streamId, pTask->taskId,
+  qInfo("deploy stream: stream id %" PRId64 " task id %d child id %d on snode", pTask->streamId, pTask->taskId,
         pTask->selfChildId);
 
   taosHashPut(pMeta->pHash, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void *));

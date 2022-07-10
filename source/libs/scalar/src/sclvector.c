@@ -865,12 +865,11 @@ int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
 }
 
 int32_t vectorConvertScalarParam(SScalarParam *input, SScalarParam *output, int32_t type) {
-  int32_t code = 0;
   SDataType t = {.type = type, .bytes = tDataTypes[type].bytes};
   output->numOfRows = input->numOfRows;
 
-  output->columnData = sclCreateColumnInfoData(&t, input->numOfRows);
-  if (output->columnData == NULL) {
+  int32_t code = sclCreateColumnInfoData(&t, input->numOfRows, output);
+  if (code != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -940,13 +939,12 @@ static int32_t doConvertHelper(SScalarParam* pDest, int32_t* convert, const SSca
     pDest->numOfRows = pParam->numOfRows;
 
     SDataType t = {.type = type, .bytes = tDataTypes[type].bytes};
-    pDest->columnData = sclCreateColumnInfoData(&t, pParam->numOfRows);
-    if (pDest->columnData == NULL) {
-      sclError("malloc %d failed", (int32_t)(pParam->numOfRows * sizeof(double)));
-      return TSDB_CODE_OUT_OF_MEMORY;
+    int32_t code = sclCreateColumnInfoData(&t, pParam->numOfRows, pDest);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
 
-    int32_t code = vectorConvertImpl(pParam, pDest);
+    code = vectorConvertImpl(pParam, pDest);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
