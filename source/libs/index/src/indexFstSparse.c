@@ -15,6 +15,11 @@
 
 #include "indexFstSparse.h"
 
+static void sparSetUtil(int32_t *buf, int32_t cap) {
+  for (int32_t i = 0; i < cap; i++) {
+    buf[i] = -1;
+  }
+}
 FstSparseSet *sparSetCreate(int32_t sz) {
   FstSparseSet *ss = taosMemoryCalloc(1, sizeof(FstSparseSet));
   if (ss == NULL) {
@@ -22,9 +27,10 @@ FstSparseSet *sparSetCreate(int32_t sz) {
   }
 
   ss->dense = (int32_t *)taosMemoryMalloc(sz * sizeof(int32_t));
-  memset(ss->dense, -1, sz * sizeof(int32_t));
   ss->sparse = (int32_t *)taosMemoryMalloc(sz * sizeof(int32_t));
-  memset(ss->sparse, -1, sz * sizeof(int32_t));
+  sparSetUtil(ss->dense, sz);
+  sparSetUtil(ss->sparse, sz);
+
   ss->cap = sz;
 
   ss->size = 0;
@@ -84,7 +90,7 @@ void sparSetClear(FstSparseSet *ss) {
   if (ss == NULL) {
     return;
   }
-  memset(ss->dense, -1, ss->cap * sizeof(int32_t));
-  memset(ss->sparse, -1, ss->cap * sizeof(int32_t));
+  sparSetUtil(ss->dense, ss->cap);
+  sparSetUtil(ss->sparse, ss->cap);
   ss->size = 0;
 }

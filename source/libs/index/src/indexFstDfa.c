@@ -64,7 +64,7 @@ void dfaBuilderDestroy(FstDfaBuilder *builder) {
   taosMemoryFree(builder);
 }
 
-FstDfa *dfaBuilder(FstDfaBuilder *builder) {
+FstDfa *dfaBuilderBuild(FstDfaBuilder *builder) {
   uint32_t      sz = taosArrayGetSize(builder->dfa->insts);
   FstSparseSet *cur = sparSetCreate(sz);
   FstSparseSet *nxt = sparSetCreate(sz);
@@ -73,7 +73,7 @@ FstDfa *dfaBuilder(FstDfaBuilder *builder) {
 
   SArray  *states = taosArrayInit(0, sizeof(uint32_t));
   uint32_t result;
-  if (dfaBuilderCachedState(builder, cur, &result)) {
+  if (dfaBuilderCacheState(builder, cur, &result)) {
     taosArrayPush(states, &result);
   }
   SHashObj *seen = taosHashInit(12, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -98,8 +98,6 @@ FstDfa *dfaBuilder(FstDfaBuilder *builder) {
   return builder->dfa;
 }
 
-FstDfa *dfaBuilderBuild(FstDfaBuilder *builer) { return NULL; }
-
 bool dfaBuilderRunState(FstDfaBuilder *builder, FstSparseSet *cur, FstSparseSet *next, uint32_t state, uint8_t byte,
                         uint32_t *result) {
   sparSetClear(cur);
@@ -114,7 +112,7 @@ bool dfaBuilderRunState(FstDfaBuilder *builder, FstSparseSet *cur, FstSparseSet 
   t = taosArrayGet(builder->dfa->states, state);
 
   uint32_t nxtState;
-  if (dfaBuilderCachedState(builder, next, &nxtState)) {
+  if (dfaBuilderCacheState(builder, next, &nxtState)) {
     t->next[byte] = nxtState;
     *result = nxtState;
     return true;
@@ -122,7 +120,7 @@ bool dfaBuilderRunState(FstDfaBuilder *builder, FstSparseSet *cur, FstSparseSet 
   return false;
 }
 
-bool dfaBuilderCachedState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *result) {
+bool dfaBuilderCacheState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *result) {
   SArray *tinsts = taosArrayInit(4, sizeof(uint32_t));
   bool    isMatch = false;
 
@@ -190,7 +188,7 @@ void dfaAdd(FstDfa *dfa, FstSparseSet *set, uint32_t ip) {
     return;
   }
   bool succ = sparSetAdd(set, ip, NULL);
-  assert(succ == true);
+  // assert(succ == true);
   Inst *inst = taosArrayGet(dfa->insts, ip);
   if (inst->ty == MATCH || inst->ty == RANGE) {
     // do nothing

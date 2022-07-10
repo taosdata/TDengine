@@ -66,7 +66,10 @@ TEST_F(FstUtilEnv, test4) {
 
 // test FstRegex
 
-TEST_F(FstRegexEnv, test1) {}
+TEST_F(FstRegexEnv, test1) {
+  //
+  EXPECT_EQ(regex != NULL, true);
+}
 TEST_F(FstRegexEnv, test2) {}
 TEST_F(FstRegexEnv, test3) {}
 TEST_F(FstRegexEnv, test4) {}
