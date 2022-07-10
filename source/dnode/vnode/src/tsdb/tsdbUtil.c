@@ -87,8 +87,10 @@ int32_t tPutMapData(uint8_t *p, SMapData *pMapData) {
 
   n += tPutI32v(p ? p + n : p, pMapData->nItem);
   if (pMapData->nItem) {
+    int32_t lOffset = 0;
     for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
-      n += tPutI32v(p ? p + n : p, pMapData->aOffset[iItem]);
+      n += tPutI32v(p ? p + n : p, pMapData->aOffset[iItem] - lOffset);
+      lOffset = pMapData->aOffset[iItem];
     }
 
     n += tPutI32v(p ? p + n : p, pMapData->nData);
@@ -111,8 +113,11 @@ int32_t tGetMapData(uint8_t *p, SMapData *pMapData) {
   if (pMapData->nItem) {
     if (tRealloc((uint8_t **)&pMapData->aOffset, sizeof(int32_t) * pMapData->nItem)) return -1;
 
+    int32_t lOffset = 0;
     for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
       n += tGetI32v(p + n, &pMapData->aOffset[iItem]);
+      pMapData->aOffset[iItem] += lOffset;
+      lOffset = pMapData->aOffset[iItem];
     }
 
     n += tGetI32v(p + n, &pMapData->nData);

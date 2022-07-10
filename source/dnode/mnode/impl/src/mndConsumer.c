@@ -92,7 +92,7 @@ static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg) {
   SMqConsumerObj     *pConsumer = mndAcquireConsumer(pMnode, pLostMsg->consumerId);
   ASSERT(pConsumer);
 
-  mInfo("receive consumer lost msg, consumer id %ld, status %s", pLostMsg->consumerId,
+  mInfo("receive consumer lost msg, consumer id %" PRId64 ", status %s", pLostMsg->consumerId,
         mndConsumerStatusName(pConsumer->status));
 
   if (pConsumer->status != MQ_CONSUMER_STATUS__READY) {
@@ -124,7 +124,7 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   SMqConsumerObj        *pConsumer = mndAcquireConsumer(pMnode, pRecoverMsg->consumerId);
   ASSERT(pConsumer);
 
-  mInfo("receive consumer recover msg, consumer id %ld, status %s", pRecoverMsg->consumerId,
+  mInfo("receive consumer recover msg, consumer id %" PRId64 ", status %s", pRecoverMsg->consumerId,
         mndConsumerStatusName(pConsumer->status));
 
   if (pConsumer->status != MQ_CONSUMER_STATUS__READY) {
@@ -296,7 +296,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   // 2. check epoch, only send ep info when epoches do not match
   if (epoch != serverEpoch) {
     taosRLockLatch(&pConsumer->lock);
-    mInfo("process ask ep, consumer %ld(epoch %d), server epoch %d", consumerId, epoch, serverEpoch);
+    mInfo("process ask ep, consumer:%" PRId64 "(epoch %d), server epoch %d", consumerId, epoch, serverEpoch);
     int32_t numOfTopics = taosArrayGetSize(pConsumer->currentTopics);
 
     rsp.topics = taosArrayInit(numOfTopics, sizeof(SMqSubTopicEp));
@@ -441,7 +441,7 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     SMqTopicObj topicObj = {0};
     memcpy(&topicObj, pTopic, sizeof(SMqTopicObj));
     topicObj.refConsumerCnt = pTopic->refConsumerCnt + 1;
-    mInfo("subscribe topic %s by consumer %ld cgroup %s, refcnt %d", pTopic->name, consumerId, cgroup,
+    mInfo("subscribe topic %s by consumer:%" PRId64 ",cgroup %s, refcnt %d", pTopic->name, consumerId, cgroup,
           topicObj.refConsumerCnt);
     if (mndSetTopicCommitLogs(pMnode, pTrans, &topicObj) != 0) goto SUBSCRIBE_OVER;
 #endif
@@ -451,7 +451,7 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
   pConsumerOld = mndAcquireConsumer(pMnode, consumerId);
   if (pConsumerOld == NULL) {
-    mInfo("receive subscribe request from new consumer: %ld", consumerId);
+    mInfo("receive subscribe request from new consumer:%" PRId64, consumerId);
 
     pConsumerNew = tNewSMqConsumerObj(consumerId, cgroup);
     tstrncpy(pConsumerNew->clientId, subscribe.clientId, 256);
@@ -472,7 +472,7 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
     int32_t status = atomic_load_32(&pConsumerOld->status);
 
-    mInfo("receive subscribe request from old consumer: %ld, current status: %s", consumerId,
+    mInfo("receive subscribe request from old consumer:%" PRId64 ", current status: %s", consumerId,
           mndConsumerStatusName(status));
 
     if (status != MQ_CONSUMER_STATUS__READY) {

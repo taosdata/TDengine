@@ -516,6 +516,8 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
     if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
   }
 
+  if (tEncodeI32(&encoder, pReq->cVersion) < 0) return -1;
+
   for (int32_t i = 0; i < pReq->numOfTags; ++i) {
     SField *pField = taosArrayGet(pReq->pTags, i);
     if (tEncodeI8(&encoder, pField->type) < 0) return -1;
@@ -523,6 +525,8 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
     if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
     if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
   }
+
+  if (tEncodeI32(&encoder, pReq->tVersion) < 0) return -1;
 
   for (int32_t i = 0; i < pReq->numOfFuncs; ++i) {
     const char *pFunc = taosArrayGet(pReq->pFuncs, i);
@@ -537,6 +541,11 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
   }
   if (pReq->ast2Len > 0) {
     if (tEncodeBinary(&encoder, pReq->pAst2, pReq->ast2Len) < 0) return -1;
+  }
+  if (tEncodeI64(&encoder, pReq->suid) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->source) < 0) return -1;
+  for (int32_t i = 0; i < sizeof(pReq->reserved)/sizeof(int8_t); ++i) {
+    if (tEncodeI8(&encoder, pReq->reserved[i]) < 0) return -1;
   }
 
   tEndEncode(&encoder);
@@ -585,6 +594,8 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
     }
   }
 
+  if (tDecodeI32(&decoder, &pReq->cVersion) < 0) return -1;
+
   for (int32_t i = 0; i < pReq->numOfTags; ++i) {
     SField field = {0};
     if (tDecodeI8(&decoder, &field.type) < 0) return -1;
@@ -596,6 +607,8 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
       return -1;
     }
   }
+
+  if (tDecodeI32(&decoder, &pReq->tVersion) < 0) return -1;
 
   for (int32_t i = 0; i < pReq->numOfFuncs; ++i) {
     char pFunc[TSDB_FUNC_NAME_LEN] = {0};
@@ -624,6 +637,12 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
     if (tDecodeCStrTo(&decoder, pReq->pAst2) < 0) return -1;
   }
 
+  if (tDecodeI64(&decoder, &pReq->suid) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->source) < 0) return -1;
+  for (int32_t i = 0; i < sizeof(pReq->reserved)/sizeof(int8_t); ++i) {
+    if (tDecodeI8(&decoder, &pReq->reserved[i]) < 0) return -1;
+  }
+
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
@@ -645,6 +664,11 @@ int32_t tSerializeSMDropStbReq(void *buf, int32_t bufLen, SMDropStbReq *pReq) {
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->suid) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->source) < 0) return -1;
+  for (int32_t i = 0; i < sizeof(pReq->reserved)/sizeof(int8_t); ++i) {
+    if (tEncodeI8(&encoder, pReq->reserved[i]) < 0) return -1;
+  }
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -659,6 +683,12 @@ int32_t tDeserializeSMDropStbReq(void *buf, int32_t bufLen, SMDropStbReq *pReq) 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->suid) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->source) < 0) return -1;
+  for (int32_t i = 0; i < sizeof(pReq->reserved)/sizeof(int8_t); ++i) {
+    if (tDecodeI8(&decoder, &pReq->reserved[i]) < 0) return -1;
+  }
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -5406,11 +5436,11 @@ int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   } else if (pVal->type == TMQ_OFFSET__RESET_LATEST) {
     snprintf(buf, maxLen, "offset(reset to latest)");
   } else if (pVal->type == TMQ_OFFSET__LOG) {
-    snprintf(buf, maxLen, "offset(log) ver:%ld", pVal->version);
+    snprintf(buf, maxLen, "offset(log) ver:%" PRId64, pVal->version);
   } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA) {
-    snprintf(buf, maxLen, "offset(ss data) uid:%ld, ts:%ld", pVal->uid, pVal->ts);
+    snprintf(buf, maxLen, "offset(ss data) uid:%" PRId64 ", ts:%" PRId64, pVal->uid, pVal->ts);
   } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
-    snprintf(buf, maxLen, "offset(ss meta) uid:%ld, ts:%ld", pVal->uid, pVal->ts);
+    snprintf(buf, maxLen, "offset(ss meta) uid:%" PRId64 ", ts:%" PRId64, pVal->uid, pVal->ts);
   } else {
     ASSERT(0);
   }

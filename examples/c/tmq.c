@@ -28,15 +28,23 @@ static void msg_process(TAOS_RES* msg) {
   printf("db: %s\n", tmq_get_db_name(msg));
   printf("vg: %d\n", tmq_get_vgroup_id(msg));
   if (tmq_get_res_type(msg) == TMQ_RES_TABLE_META) {
-    void*   meta;
-    int32_t metaLen;
-    tmq_get_raw_meta(msg, &meta, &metaLen);
+    tmq_raw_data *raw = tmq_get_raw_meta(msg);
+    if(raw){
+      TAOS* pConn = taos_connect("192.168.1.86", "root", "taosdata", "abc1", 0);
+      if (pConn == NULL) {
+        return;
+      }
+      int32_t ret = taos_write_raw_meta(pConn, raw);
+      printf("write raw data: %s\n", tmq_err2str(ret));
+      free(raw);
+      taos_close(pConn);
+    }
     char* result = tmq_get_json_meta(msg);
     if(result){
       printf("meta result: %s\n", result);
       free(result);
     }
-    printf("meta, len is %d\n", metaLen);
+    printf("meta:%p\n", raw);
     return;
   }
   while (1) {
