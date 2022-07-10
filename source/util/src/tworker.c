@@ -39,7 +39,7 @@ int32_t tQWorkerInit(SQWorkerPool *pool) {
     worker->pool = pool;
   }
 
-  uDebug("worker:%s is initialized, min:%d max:%d", pool->name, pool->min, pool->max);
+  uInfo("worker:%s is initialized, min:%d max:%d", pool->name, pool->min, pool->max);
   return 0;
 }
 
