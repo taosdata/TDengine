@@ -2303,8 +2303,8 @@ static int32_t taosCreateStb(TAOS *taos, void *meta, int32_t metaLen){
     strcpy(field.name, pSchema->name);
     taosArrayPush(pReq.pTags, &field);
   }
-  pReq.cVersion = req.schemaRow.version;
-  pReq.tVersion = req.schemaTag.version;
+  pReq.colVer = req.schemaRow.version;
+  pReq.tagVer = req.schemaTag.version;
   pReq.numOfColumns = req.schemaRow.nCols;
   pReq.numOfTags = req.schemaTag.nCols;
   pReq.commentLen = -1;
