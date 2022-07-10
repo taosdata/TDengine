@@ -42,7 +42,7 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
 
   // print log
   char logBuf[128] = {0};
-  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnRequestVoteReplyCb== term:%lu", ths->pRaftStore->currentTerm);
+  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnRequestVoteReplyCb== term:%" PRIu64, ths->pRaftStore->currentTerm);
   syncRequestVoteReplyLog2(logBuf, pMsg);
 
   // if already drop replica, do not process
@@ -53,7 +53,7 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
 
   // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
-    sTrace("recv SyncRequestVoteReply, drop stale response, receive_term:%lu current_term:%lu", pMsg->term,
+    sTrace("recv SyncRequestVoteReply, drop stale response, receive_term:%" PRIu64 " current_term:%" PRIu64, pMsg->term,
            ths->pRaftStore->currentTerm);
     return ret;
   }
@@ -66,7 +66,7 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     char logBuf[128] = {0};
-    snprintf(logBuf, sizeof(logBuf), "syncNodeOnRequestVoteReplyCb error term, receive:%lu current:%lu", pMsg->term,
+    snprintf(logBuf, sizeof(logBuf), "syncNodeOnRequestVoteReplyCb error term, receive:%" PRIu64 " current:%" PRIu64, pMsg->term,
              ths->pRaftStore->currentTerm);
     syncNodePrint2(logBuf, ths);
     sError("%s", logBuf);
@@ -107,7 +107,7 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
   int32_t ret = 0;
 
   char logBuf[128] = {0};
-  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnRequestVoteReplyCb== term:%lu", ths->pRaftStore->currentTerm);
+  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnRequestVoteReplyCb== term:%" PRIu64, ths->pRaftStore->currentTerm);
   syncRequestVoteReplyLog2(logBuf, pMsg);
 
   if (pMsg->term < ths->pRaftStore->currentTerm) {
@@ -124,7 +124,7 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     char logBuf[128] = {0};
-    snprintf(logBuf, sizeof(logBuf), "syncNodeOnRequestVoteReplyCb error term, receive:%lu current:%lu", pMsg->term,
+    snprintf(logBuf, sizeof(logBuf), "syncNodeOnRequestVoteReplyCb error term, receive:%" PRIu64 " current:%" PRIu64, pMsg->term,
              ths->pRaftStore->currentTerm);
     syncNodePrint2(logBuf, ths);
     sError("%s", logBuf);
@@ -166,7 +166,7 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
 
   // print log
   char logBuf[128] = {0};
-  snprintf(logBuf, sizeof(logBuf), "recv SyncRequestVoteReply, term:%lu", ths->pRaftStore->currentTerm);
+  snprintf(logBuf, sizeof(logBuf), "recv SyncRequestVoteReply, term:%" PRIu64, ths->pRaftStore->currentTerm);
   syncRequestVoteReplyLog2(logBuf, pMsg);
 
   // if already drop replica, do not process
@@ -177,7 +177,7 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
 
   // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
-    sTrace("recv SyncRequestVoteReply, drop stale response, receive_term:%lu current_term:%lu", pMsg->term,
+    sTrace("recv SyncRequestVoteReply, drop stale response, receive_term:%" PRIu64 " current_term:%" PRIu64, pMsg->term,
            ths->pRaftStore->currentTerm);
     return ret;
   }
@@ -190,7 +190,7 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     char logBuf[128] = {0};
-    snprintf(logBuf, sizeof(logBuf), "recv SyncRequestVoteReply, error term, receive_term:%lu current_term:%lu",
+    snprintf(logBuf, sizeof(logBuf), "recv SyncRequestVoteReply, error term, receive_term:%" PRIu64 " current_term:%" PRIu64,
              pMsg->term, ths->pRaftStore->currentTerm);
     syncNodePrint2(logBuf, ths);
     sError("%s", logBuf);

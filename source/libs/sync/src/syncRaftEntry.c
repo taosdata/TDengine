@@ -130,12 +130,12 @@ cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry) {
     cJSON_AddNumberToObject(pRoot, "bytes", pEntry->bytes);
     cJSON_AddNumberToObject(pRoot, "msgType", pEntry->msgType);
     cJSON_AddNumberToObject(pRoot, "originalRpcType", pEntry->originalRpcType);
-    snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->seqNum);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pEntry->seqNum);
     cJSON_AddStringToObject(pRoot, "seqNum", u64buf);
     cJSON_AddNumberToObject(pRoot, "isWeak", pEntry->isWeak);
-    snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->term);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pEntry->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->index);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pEntry->index);
     cJSON_AddStringToObject(pRoot, "index", u64buf);
     cJSON_AddNumberToObject(pRoot, "dataLen", pEntry->dataLen);
 
@@ -246,7 +246,7 @@ int32_t raftCachePutEntry(struct SRaftEntryCache* pCache, SSyncRaftEntry* pEntry
 
   do {
     char eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "raft cache add, type:%s,%d, type2:%s,%d, index:%ld, bytes:%d",
+    snprintf(eventLog, sizeof(eventLog), "raft cache add, type:%s,%d, type2:%s,%d, index:%" PRId64 ", bytes:%d",
              TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType,
              pEntry->index, pEntry->bytes);
     syncNodeEventLog(pCache->pSyncNode, eventLog);
@@ -274,7 +274,7 @@ int32_t raftCacheGetEntry(struct SRaftEntryCache* pCache, SyncIndex index, SSync
 
     do {
       char eventLog[128];
-      snprintf(eventLog, sizeof(eventLog), "raft cache get, type:%s,%d, type2:%s,%d, index:%ld",
+      snprintf(eventLog, sizeof(eventLog), "raft cache get, type:%s,%d, type2:%s,%d, index:%" PRId64,
                TMSG_INFO((*ppEntry)->msgType), (*ppEntry)->msgType, TMSG_INFO((*ppEntry)->originalRpcType),
                (*ppEntry)->originalRpcType, (*ppEntry)->index);
       syncNodeEventLog(pCache->pSyncNode, eventLog);
@@ -306,7 +306,7 @@ int32_t raftCacheGetEntryP(struct SRaftEntryCache* pCache, SyncIndex index, SSyn
 
     do {
       char eventLog[128];
-      snprintf(eventLog, sizeof(eventLog), "raft cache get, type:%s,%d, type2:%s,%d, index:%ld",
+      snprintf(eventLog, sizeof(eventLog), "raft cache get, type:%s,%d, type2:%s,%d, index:%" PRId64,
                TMSG_INFO((*ppEntry)->msgType), (*ppEntry)->msgType, TMSG_INFO((*ppEntry)->originalRpcType),
                (*ppEntry)->originalRpcType, (*ppEntry)->index);
       syncNodeEventLog(pCache->pSyncNode, eventLog);
@@ -344,7 +344,7 @@ int32_t raftCacheGetAndDel(struct SRaftEntryCache* pCache, SyncIndex index, SSyn
 
     do {
       char eventLog[128];
-      snprintf(eventLog, sizeof(eventLog), "raft cache get-and-del, type:%s,%d, type2:%s,%d, index:%ld",
+      snprintf(eventLog, sizeof(eventLog), "raft cache get-and-del, type:%s,%d, type2:%s,%d, index:%" PRId64,
                TMSG_INFO((*ppEntry)->msgType), (*ppEntry)->msgType, TMSG_INFO((*ppEntry)->originalRpcType),
                (*ppEntry)->originalRpcType, (*ppEntry)->index);
       syncNodeEventLog(pCache->pSyncNode, eventLog);
@@ -415,28 +415,28 @@ char* raftCache2Str(SRaftEntryCache* pCache) {
 
 void raftCachePrint(SRaftEntryCache* pCache) {
   char* serialized = raftCache2Str(pCache);
-  printf("raftCachePrint | len:%lu | %s \n", strlen(serialized), serialized);
+  printf("raftCachePrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void raftCachePrint2(char* s, SRaftEntryCache* pCache) {
   char* serialized = raftCache2Str(pCache);
-  printf("raftCachePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("raftCachePrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void raftCacheLog(SRaftEntryCache* pCache) {
   char* serialized = raftCache2Str(pCache);
-  sTrace("raftCacheLog | len:%lu | %s", strlen(serialized), serialized);
+  sTrace("raftCacheLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void raftCacheLog2(char* s, SRaftEntryCache* pCache) {
   if (gRaftDetailLog) {
     char* serialized = raftCache2Str(pCache);
-    sTraceLong("raftCacheLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    sTraceLong("raftCacheLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }

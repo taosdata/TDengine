@@ -4,7 +4,7 @@ system sh/cfg.sh -n dnode1 -c debugflag -v 131
 system sh/exec.sh -n dnode1 -s start -v
 sql connect
 
-print =============== step1: show dnodes
+print =============== step1: create drop show dnodes
 $x = 0
 step1:
 	$x = $x + 1
@@ -22,75 +22,35 @@ if $data(1)[4] != ready then
   goto step1
 endi
 
-print =============== step2: create alter drop show user
-sql create user u1 pass 'taosdata'
-sql show users
-sql alter user u1 sysinfo 1
-sql alter user u1 enable 1
-sql alter user u1 pass 'taosdata'
-sql drop user u1
-sql_error alter user u2 sysinfo 0
-
-print =============== step3: create drop dnode
-sql create dnode $hostname port 7200
-sql drop dnode 2
-sql alter dnode 1 'debugflag 131'
-
-print =============== step4:
-
-print =============== run show xxxx
-sql show dnodes
-if $rows != 1 then 
-  return -1
-endi
-
-sql show mnodes
-if $rows != 1 then 
-  return -1
-endi
-
+print =============== step2: create db
+sql create database d1 vgroups 1 buffer 3
 sql show databases
-if $rows != 2 then
-  return -1
-endi
+sql use d1
+sql show vgroups
 
-sql show users
+print =============== step3: create show stable
+sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
+sql show stables
 if $rows != 1 then 
   return -1
 endi
 
-print =============== run select * from information_schema.xxxx
-sql select * from information_schema.`dnodes`
-if $rows != 1 then 
-  return -1
-endi
+print =============== step3: create show table
+sql create table ct1 using stb tags(1000)
+#sql show tables
+#if $rows != 1 then 
+#  return -1
+#endi
 
-sql select * from information_schema.`mnodes`
-if $rows != 1 then 
-  return -1
-endi
+print =============== step5: insert data
+sql insert into ct1 values(now+0s, 10, 2.0, 3.0)
+sql insert into ct1 values(now+1s, 11, 2.1, 3.1)(now+2s, -12, -2.2, -3.2)(now+3s, -13, -2.3, -3.3)
 
-sql select * from information_schema.user_users
-if $rows != 1 then 
-  return -1
-endi
+print =============== step6: select data
+sql select * from ct1
+#sql select * from stb
 
-sql show variables;
-if $rows != 4 then
-  return -1
-endi
-
-sql show dnode 1 variables;
-if $rows <= 0 then
-  return -1
-endi
-
-sql show local variables;
-if $rows <= 0 then
-  return -1
-endi
-
-print =============== stop
+_OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
 print =============== check
