@@ -121,6 +121,7 @@ python3 ./test.py -f 2-query/and_or_for_byte.py
 python3 ./test.py -f 2-query/count_partition.py
 python3 ./test.py -f 2-query/function_null.py
 python3 ./test.py -f 2-query/queryQnode.py
+python3 ./test.py -f 2-query/max_partition.py
 
 #python3 ./test.py -f 6-cluster/5dnode1mnode.py
 #python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3
@@ -263,6 +264,7 @@ python3 ./test.py -f 2-query/twa.py  -Q 2
 python3 ./test.py -f 2-query/irate.py  -Q 2
 python3 ./test.py -f 2-query/function_null.py  -Q 2
 python3 ./test.py -f 2-query/count_partition.py -Q 2
+python3 ./test.py -f 2-query/max_partition.py -Q 2
 
 #------------querPolicy  3-----------
 
@@ -349,3 +351,4 @@ python3 ./test.py -f 2-query/twa.py -Q  3
 python3 ./test.py -f 2-query/irate.py -Q  3
 python3 ./test.py -f 2-query/function_null.py -Q  3
 python3 ./test.py -f 2-query/count_partition.py -Q 3
+python3 ./test.py -f 2-query/max_partition.py -Q 3
