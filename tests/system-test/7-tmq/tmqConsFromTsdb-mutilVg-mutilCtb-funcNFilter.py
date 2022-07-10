@@ -64,9 +64,9 @@ class TDTestCase:
                                                startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
         
         tdLog.info("restart taosd to ensure that the data falls into the disk")
-        tdDnodes.stop(1)
-        # tdDnodes.start(1)
-        tdDnodes.starttaosd(1)
+        # tdDnodes.stop(1)
+        # tdDnodes.starttaosd(1)
+        tdSql.query("flush database %s"%(paraDict['dbName']))
         return
 
     def tmqCase1(self):

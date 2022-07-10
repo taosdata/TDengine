@@ -153,7 +153,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshotParam snapsho
       // event log
       do {
         char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "snapshot sender update lcindex from %ld to %ld", oldLastConfigIndex,
+        snprintf(logBuf, sizeof(logBuf), "snapshot sender update lcindex from %" PRId64 " to %" PRId64, oldLastConfigIndex,
                  newLastConfigIndex);
         char *eventLog = snapshotSender2SimpleStr(pSender, logBuf);
         syncNodeEventLog(pSender->pSyncNode, eventLog);
@@ -350,19 +350,19 @@ cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
     }
 
     cJSON *pSnapshot = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), "%lu", pSender->snapshot.lastApplyIndex);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->snapshot.lastApplyIndex);
     cJSON_AddStringToObject(pSnapshot, "lastApplyIndex", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%lu", pSender->snapshot.lastApplyTerm);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->snapshot.lastApplyTerm);
     cJSON_AddStringToObject(pSnapshot, "lastApplyTerm", u64buf);
     cJSON_AddItemToObject(pRoot, "snapshot", pSnapshot);
-    snprintf(u64buf, sizeof(u64buf), "%lu", pSender->sendingMS);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->sendingMS);
     cJSON_AddStringToObject(pRoot, "sendingMS", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%p", pSender->pSyncNode);
     cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
     cJSON_AddNumberToObject(pRoot, "replicaIndex", pSender->replicaIndex);
-    snprintf(u64buf, sizeof(u64buf), "%lu", pSender->term);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%lu", pSender->privateTerm);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->privateTerm);
     cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
     cJSON_AddNumberToObject(pRoot, "finish", pSender->finish);
   }
@@ -389,7 +389,7 @@ char *snapshotSender2SimpleStr(SSyncSnapshotSender *pSender, char *event) {
   syncUtilU642Addr(destId.addr, host, sizeof(host), &port);
 
   snprintf(s, len,
-           "%s {%p s-param:%ld e-param:%ld laindex:%ld laterm:%lu lcindex:%ld seq:%d ack:%d finish:%d pterm:%lu "
+           "%s {%p s-param:%" PRId64 " e-param:%" PRId64 " laindex:%" PRId64 " laterm:%" PRIu64 " lcindex:%" PRId64 " seq:%d ack:%d finish:%d pterm:%" PRIu64 " "
            "replica-index:%d %s:%d}",
            event, pSender, pSender->snapshotParam.start, pSender->snapshotParam.end, pSender->snapshot.lastApplyIndex,
            pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex, pSender->seq, pSender->ack,
@@ -640,7 +640,7 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
     cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
 
     cJSON *pFromId = cJSON_CreateObject();
-    snprintf(u64buf, sizeof(u64buf), "%lu", pReceiver->fromId.addr);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->fromId.addr);
     cJSON_AddStringToObject(pFromId, "addr", u64buf);
     {
       uint64_t u64 = pReceiver->fromId.addr;
@@ -654,19 +654,19 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
     cJSON_AddNumberToObject(pFromId, "vgId", pReceiver->fromId.vgId);
     cJSON_AddItemToObject(pRoot, "fromId", pFromId);
 
-    snprintf(u64buf, sizeof(u64buf), "%lu", pReceiver->snapshot.lastApplyIndex);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->snapshot.lastApplyIndex);
     cJSON_AddStringToObject(pRoot, "snapshot.lastApplyIndex", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%lu", pReceiver->snapshot.lastApplyTerm);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->snapshot.lastApplyTerm);
     cJSON_AddStringToObject(pRoot, "snapshot.lastApplyTerm", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%lu", pReceiver->snapshot.lastConfigIndex);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->snapshot.lastConfigIndex);
     cJSON_AddStringToObject(pRoot, "snapshot.lastConfigIndex", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%lu", pReceiver->term);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%lu", pReceiver->privateTerm);
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->privateTerm);
     cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
   }
 
@@ -692,8 +692,8 @@ char *snapshotReceiver2SimpleStr(SSyncSnapshotReceiver *pReceiver, char *event) 
   syncUtilU642Addr(fromId.addr, host, sizeof(host), &port);
 
   snprintf(s, len,
-           "%s {%p start:%d ack:%d term:%lu pterm:%lu from:%s:%d s-param:%ld e-param:%ld laindex:%ld laterm:%lu "
-           "lcindex:%ld}",
+           "%s {%p start:%d ack:%d term:%" PRIu64 " pterm:%" PRIu64 " from:%s:%d s-param:%" PRId64 " e-param:%" PRId64 " laindex:%" PRId64 " laterm:%" PRIu64 " "
+           "lcindex:%" PRId64 "}",
            event, pReceiver, pReceiver->start, pReceiver->ack, pReceiver->term, pReceiver->privateTerm, host, port,
            pReceiver->snapshotParam.start, pReceiver->snapshotParam.end, pReceiver->snapshot.lastApplyIndex,
            pReceiver->snapshot.lastApplyTerm, pReceiver->snapshot.lastConfigIndex);

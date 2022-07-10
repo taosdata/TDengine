@@ -94,7 +94,7 @@ int32_t tdbDebugFlag = 131;
 int32_t tqDebugFlag = 135;
 int32_t fsDebugFlag = 135;
 int32_t metaDebugFlag = 135;
-int32_t fnDebugFlag = 135;
+int32_t udfDebugFlag = 135;
 int32_t smaDebugFlag = 135;
 int32_t idxDebugFlag = 135;
 
@@ -758,7 +758,7 @@ void taosSetAllDebugFlag(int32_t flag) {
   tsdbDebugFlag = flag;
   tqDebugFlag = flag;
   fsDebugFlag = flag;
-  fnDebugFlag = flag;
+  udfDebugFlag = flag;
   smaDebugFlag = flag;
   idxDebugFlag = flag;
 

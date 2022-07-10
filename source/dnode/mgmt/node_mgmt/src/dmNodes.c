@@ -277,7 +277,7 @@ int32_t dmRunDnode(SDnode *pDnode) {
 
   while (1) {
     if (pDnode->stop) {
-      dInfo("dnode is about to stop");
+      dInfo("TDengine is about to stop");
       dmSetStatus(pDnode, DND_STAT_STOPPED);
       dmStopNodes(pDnode);
       dmCloseNodes(pDnode);

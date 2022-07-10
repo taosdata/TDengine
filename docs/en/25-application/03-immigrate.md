@@ -379,11 +379,11 @@ We still use the hypothetical environment from Chapter 4. There are three measur
 
 ### Storage resource estimation
 
-Assuming that the number of sensor devices that generate data and need to be stored is `n`, the frequency of data generation is `t` per second, and the length of each record is `L` bytes, the scale of data generated per day is `n * t * L` bytes. Assuming the compression ratio is `C`, the daily data size is `(n * t * L)/C` bytes. The storage resources are estimated to accommodate the data scale for 1.5 years. In the production environment, the compression ratio C of TDengine is generally between 5 and 7.
+Assuming that the number of sensor devices that generate data and need to be stored is `n`, the frequency of data generation is `t` per second, and the length of each record is `L` bytes, the scale of data generated per day is `86400 * n * t * L` bytes. Assuming the compression ratio is `C`, the daily data size is `(86400 * n * t * L)/C` bytes. The storage resources are estimated to accommodate the data scale for 1.5 years. In the production environment, the compression ratio C of TDengine is generally between 5 and 7.
 With additional 20% redundancy, you can calculate the required storage resources:
 
 ```matlab
-(n * t * L) * (365 * 1.5) * (1+20%)/C
+(86400 * n * t * L) * (365 * 1.5) * (1+20%)/C
 ````
 Substituting in the above formula, the raw data generated every year is 11.8TB without considering the label information. Note that tag information is associated with each timeline in TDengine, not every record. The amount of data to be recorded is somewhat reduced relative to the generated data, and label data can be ignored as a whole. Assuming a compression ratio of 5, the size of the retained data ends up being 2.56 TB.
 
