@@ -1273,6 +1273,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         /*pTaskInfo->streamInfo.lastStatus.version = pTaskInfo->streamInfo.prepareStatus.version - 1;*/
         /*} else {*/
         pTaskInfo->streamInfo.lastStatus = ret.offset;
+        /*pTaskInfo->streamInfo.lastScanUid */
         ASSERT(pTaskInfo->streamInfo.lastStatus.version + 1 >= pTaskInfo->streamInfo.prepareStatus.version);
         /*}*/
         return NULL;
@@ -1490,7 +1491,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
 
   } else if (pInfo->blockType == STREAM_INPUT__TABLE_SCAN) {
-    /*ASSERT(0);*/
+    ASSERT(0);
     // check reader last status
     // if not match, reset status
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);

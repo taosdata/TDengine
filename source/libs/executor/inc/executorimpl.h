@@ -144,6 +144,7 @@ typedef struct {
   void*          metaBlk;       // for tmq fetching meta
   SSDataBlock*   pullOverBlk;   // for streaming
   SWalFilterCond cond;
+  int64_t        lastScanUid;
 } SStreamTaskInfo;
 
 typedef struct SExecTaskInfo {

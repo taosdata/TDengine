@@ -336,8 +336,6 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
 
           qDebug("tsdb reader offset seek to uid %ld ts %ld, table cur set to %d , all table num %d", uid, ts,
                  pTableScanInfo->currentTable, tableSz);
-        } else {
-          // switch to log
         }
 
       } else {
