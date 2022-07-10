@@ -29,16 +29,16 @@ extern "C" {
 typedef struct FstDfa FstDfa;
 
 typedef struct {
-  SArray * insts;
+  SArray  *insts;
   uint32_t next[256];
   bool     isMatch;
-} State;
+} DfaState;
 
 /*
  * dfa builder related func
  **/
 typedef struct FstDfaBuilder {
-  FstDfa *  dfa;
+  FstDfa   *dfa;
   SHashObj *cache;
 } FstDfaBuilder;
 

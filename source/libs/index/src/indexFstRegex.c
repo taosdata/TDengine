@@ -23,7 +23,7 @@ FstRegex *regexCreate(const char *str) {
     return NULL;
   }
   int32_t sz = (int32_t)strlen(str);
-  char *  orig = taosMemoryCalloc(1, sz);
+  char   *orig = taosMemoryCalloc(1, sz);
   memcpy(orig, str, sz);
 
   regex->orig = orig;
@@ -34,6 +34,12 @@ FstRegex *regexCreate(const char *str) {
   FstDfaBuilder *builder = dfaBuilderCreate(insts);
   regex->dfa = dfaBuilderBuild(builder);
   return regex;
+}
+
+void regexDestroy(FstRegex *regex) {
+  if (regex == NULL) return;
+  taosMemoryFree(regex->orig);
+  taosMemoryFree(regex);
 }
 
 uint32_t regexAutomStart(FstRegex *regex) {

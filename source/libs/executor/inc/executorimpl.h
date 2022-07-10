@@ -144,6 +144,7 @@ typedef struct {
   void*          metaBlk;       // for tmq fetching meta
   SSDataBlock*   pullOverBlk;   // for streaming
   SWalFilterCond cond;
+  int64_t        lastScanUid;
 } SStreamTaskInfo;
 
 typedef struct SExecTaskInfo {
@@ -298,10 +299,12 @@ typedef struct STableScanInfo {
   uint64_t        queryId;   // todo remove it
   uint64_t        taskId;    // todo remove it
 
+#if 0
   struct {
     uint64_t uid;
     int64_t ts;
   } lastStatus;
+#endif
 
   int8_t scanMode;
   int8_t noTable;
