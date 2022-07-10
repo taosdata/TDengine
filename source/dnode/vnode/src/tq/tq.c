@@ -318,7 +318,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
 
   // 3.query
   if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-    fetchOffsetNew.version++;
+    if (fetchOffsetNew.type == TMQ_OFFSET__LOG) {
+      fetchOffsetNew.version++;
+    }
     if (tqScan(pTq, &pHandle->execHandle, &dataRsp, &fetchOffsetNew) < 0) {
       ASSERT(0);
       code = -1;

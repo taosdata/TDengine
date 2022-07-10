@@ -427,8 +427,11 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     pOperator->cost.totalCost = pTableScanInfo->readRecorder.elapsedTime;
 
     // todo refactor
-    pTableScanInfo->lastStatus.uid = pBlock->info.uid;
-    pTableScanInfo->lastStatus.ts = pBlock->info.window.ekey;
+    /*pTableScanInfo->lastStatus.uid = pBlock->info.uid;*/
+    /*pTableScanInfo->lastStatus.ts = pBlock->info.window.ekey;*/
+    pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__SNAPSHOT_DATA;
+    pTaskInfo->streamInfo.lastStatus.uid = pBlock->info.uid;
+    pTaskInfo->streamInfo.lastStatus.ts = pBlock->info.window.ekey;
 
     ASSERT(pBlock->info.uid != 0);
     return pBlock;
