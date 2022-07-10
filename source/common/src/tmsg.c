@@ -381,9 +381,11 @@ static int32_t tDeserializeSClientHbRsp(SDecoder *pDecoder, SClientHbRsp *pRsp) 
     if (pQnodeNum > 0) {
       pRsp->query->pQnodeList = taosArrayInit(pQnodeNum, sizeof(SQueryNodeLoad));
       if (NULL == pRsp->query->pQnodeList) return -1;
-      SQueryNodeLoad load = {0};
-      if (tDecodeSQueryNodeLoad(pDecoder, &load) < 0) return -1;
-      taosArrayPush(pRsp->query->pQnodeList, &load);
+      for (int32_t i = 0; i < pQnodeNum; ++i) {
+        SQueryNodeLoad load = {0};
+        if (tDecodeSQueryNodeLoad(pDecoder, &load) < 0) return -1;
+        taosArrayPush(pRsp->query->pQnodeList, &load);
+      }
     }
   }
 
