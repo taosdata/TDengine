@@ -1493,6 +1493,9 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   if (pHandle) {
     SOperatorInfo*  pTableScanOp = createTableScanOperatorInfo(pTableScanNode, pHandle, pTaskInfo);
     STableScanInfo* pSTInfo = (STableScanInfo*)pTableScanOp->info;
+    if (pHandle->version > 0) {
+      pSTInfo->cond.endVersion = pHandle->version;
+    }
 
     SArray* tableList = taosArrayGetP(pTaskInfo->tableqinfoList.pGroupList, 0);
     if (pHandle->initTableReader) {

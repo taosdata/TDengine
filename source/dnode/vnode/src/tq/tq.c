@@ -483,6 +483,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
     /*for (int32_t i = 0; i < 5; i++) {*/
     /*pHandle->execHandle.pExecReader[i] = tqOpenReader(pTq->pVnode);*/
     /*}*/
+    int64_t ver = walGetCommittedVer(pTq->pVnode->pWal);
     if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       pHandle->execHandle.execCol.qmsg = req.qmsg;
       req.qmsg = NULL;
@@ -493,6 +494,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
             .vnode = pTq->pVnode,
             .initTableReader = true,
             .initTqReader = true,
+            .version = ver,
         };
         pHandle->execHandle.execCol.task[i] = qCreateStreamExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle);
         ASSERT(pHandle->execHandle.execCol.task[i]);
@@ -501,6 +503,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
         ASSERT(scanner);
         pHandle->execHandle.pExecReader[i] = qExtractReaderFromStreamScanner(scanner);
         ASSERT(pHandle->execHandle.pExecReader[i]);
+        pHandle->execHandle.tsdbEndVer = ver;
       }
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
       for (int32_t i = 0; i < 5; i++) {
