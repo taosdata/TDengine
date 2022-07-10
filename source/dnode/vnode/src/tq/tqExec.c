@@ -96,6 +96,12 @@ int64_t tqScan(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffset
       }
     }
 
+    if (pRsp->blockNum == 0 && pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+      tqOffsetResetToLog(pOffset, pExec->tsdbEndVer + 1);
+      qStreamPrepareScan(task, pOffset);
+      continue;
+    }
+
     void* meta = qStreamExtractMetaMsg(task);
     if (meta != NULL) {
       // tq add meta to rsp
@@ -107,7 +113,7 @@ int64_t tqScan(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffset
 
     ASSERT(pRsp->rspOffset.type != 0);
 
-    if (pRsp->rspOffset.type == TMQ_OFFSET__LOG) {
+    if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
       ASSERT(pRsp->rspOffset.version + 1 >= pRsp->reqOffset.version);
     }
 
