@@ -325,11 +325,13 @@ int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList) {
   if (pInfo->pQnodeList) {
     taosArrayDestroy(pInfo->pQnodeList);
     pInfo->pQnodeList = NULL;
+    tscDebug("QnodeList cleared in cluster 0x%" PRIx64, pInfo->clusterId);
   }
 
   if (pNodeList) {
     pInfo->pQnodeList = taosArrayDup(pNodeList);
     taosArraySort(pInfo->pQnodeList, compareQueryNodeLoad);
+    tscDebug("QnodeList updated in cluster 0x%" PRIx64 ", num:%d", pInfo->clusterId, taosArrayGetSize(pInfo->pQnodeList));
   }
   taosThreadMutexUnlock(&pInfo->qnodeMutex);
 
