@@ -25,8 +25,37 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
   // do retention
   for (int32_t iSet = 0; iSet < taosArrayGetSize(pTsdb->fs->nState->aDFileSet); iSet++) {
     SDFileSet *pDFileSet = (SDFileSet *)taosArrayGet(pTsdb->fs->nState->aDFileSet, iSet);
+    int32_t    expLevel = tsdbFidLevel(pDFileSet->fid, &pTsdb->keepCfg, now);
+    SDiskID    did;
 
-    // TODO
+    // check
+    if (expLevel == pDFileSet->fid) continue;
+
+    if (expLevel < 0) {
+      tsdbFSStateDeleteDFileSet(pTsdb->fs->nState, pDFileSet->fid);
+      iSet--;
+      // tsdbInfo("vgId:%d file is out of data, remove it", td);
+    } else {
+      // alloc
+      if (tfsAllocDisk(pTsdb->pVnode->pTfs, expLevel, &did) < 0) {
+        code = terrno;
+        goto _err;
+      }
+
+      if (did.level == pDFileSet->diskId.level) continue;
+
+      ASSERT(did.level > pDFileSet->diskId.level);
+
+      // copy the file to new disk
+      SDFileSet nDFileSet = *pDFileSet;
+      nDFileSet.diskId = did;
+
+      code = tsdbDFileSetCopy(pTsdb, pDFileSet, &nDFileSet);
+      if (code) goto _err;
+
+      code = tsdbFSStateUpsertDFileSet(pTsdb->fs->nState, &nDFileSet);
+      if (code) goto _err;
+    }
   }
 
   // commit
@@ -38,5 +67,6 @@ _exit:
 
 _err:
   tsdbError("vgId:%d tsdb do retention failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbFSRollback(pTsdb->fs);
   return code;
 }
