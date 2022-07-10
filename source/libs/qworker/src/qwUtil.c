@@ -436,7 +436,7 @@ void qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
   char tbName[TSDB_TABLE_NAME_LEN] = {0};
 
-  qGetQueriedTableSchemaVersion(pTaskInfo, dbFName, tbName, &ctx->tbInfo.sversion, &ctx->tbInfo.tversion);
+  qGetQueryTableSchemaVersion(pTaskInfo, dbFName, tbName, &ctx->tbInfo.sversion, &ctx->tbInfo.tversion);
 
   if (dbFName[0] && tbName[0]) {
     sprintf(ctx->tbInfo.tbFName, "%s.%s", dbFName, tbName);
