@@ -166,7 +166,7 @@ typedef struct SCtgDBCache {
   int8_t           deleted;
   SCtgVgCache      vgCache;
   SHashObj        *tbCache;         // key:tbname, value:SCtgTbCache
-  SHashObj        *stbCache;        // key:suid, value:STableMeta*
+  SHashObj        *stbCache;        // key:suid, value:char*
 } SCtgDBCache;
 
 typedef struct SCtgRentSlot {
