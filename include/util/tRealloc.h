@@ -25,10 +25,11 @@ extern "C" {
 static FORCE_INLINE int32_t tRealloc(uint8_t **ppBuf, int64_t size) {
   int32_t  code = 0;
   int64_t  bsize = 0;
-  uint8_t *pBuf;
+  uint8_t *pBuf = NULL;
 
   if (*ppBuf) {
-    bsize = *(int64_t *)((*ppBuf) - sizeof(int64_t));
+    pBuf = (*ppBuf) - sizeof(int64_t);
+    bsize = *(int64_t *)pBuf;
   }
 
   if (bsize >= size) goto _exit;
@@ -38,7 +39,7 @@ static FORCE_INLINE int32_t tRealloc(uint8_t **ppBuf, int64_t size) {
     bsize *= 2;
   }
 
-  pBuf = (uint8_t *)taosMemoryRealloc(*ppBuf ? (*ppBuf) - sizeof(int64_t) : *ppBuf, bsize + sizeof(int64_t));
+  pBuf = (uint8_t *)taosMemoryRealloc(pBuf, bsize + sizeof(int64_t));
   if (pBuf == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;

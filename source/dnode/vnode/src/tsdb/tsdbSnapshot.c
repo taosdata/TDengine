@@ -394,6 +394,12 @@ _err:
   return code;
 }
 
+static int32_t tsdbSnapWriteTableData(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
 static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t code = 0;
   STsdb*  pTsdb = pWriter->pTsdb;
@@ -440,47 +446,50 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
     taosArrayClear(pWriter->aBlockIdxN);
   }
 
-  // process
-  TABLEID id = {0};    // TODO
-  TSKEY   minKey = 0;  // TODO
-  TSKEY   maxKey = 0;  // TODO
+  code = tsdbSnapWriteTableData(pWriter, pData, nData);
+  if (code) goto _err;
 
-  while (true) {
-    if (pWriter->pBlockIdx) {
-      int32_t c = tTABLEIDCmprFn(&id, pWriter->pBlockIdx);
+  // // process
+  // TABLEID id = {0};    // TODO
+  // TSKEY   minKey = 0;  // TODO
+  // TSKEY   maxKey = 0;  // TODO
 
-      if (c == 0) {
-      } else if (c < 0) {
-        // keep merge
-      } else {
-        // code = tsdbSnapWriteTableDataEnd(pWriter);
-        if (code) goto _err;
+  // while (true) {
+  //   if (pWriter->pBlockIdx) {
+  //     int32_t c = tTABLEIDCmprFn(&id, pWriter->pBlockIdx);
 
-        pWriter->iBlockIdx++;
-        if (pWriter->iBlockIdx < taosArrayGetSize(pWriter->aBlockIdx)) {
-          pWriter->pBlockIdx = (SBlockIdx*)taosArrayGet(pWriter->aBlockIdx, pWriter->iBlockIdx);
-        } else {
-          pWriter->pBlockIdx = NULL;
-        }
+  //     if (c == 0) {
+  //     } else if (c < 0) {
+  //       // keep merge
+  //     } else {
+  //       // code = tsdbSnapWriteTableDataEnd(pWriter);
+  //       if (code) goto _err;
 
-        if (pWriter->pBlockIdx) {
-          code = tsdbReadBlock(pWriter->pDataFReader, pWriter->pBlockIdx, &pWriter->mBlock, NULL);
-          if (code) goto _err;
-        }
-      }
-    } else {
-      int32_t c = tTABLEIDCmprFn(&id, &pWriter->blockIdx);
+  //       pWriter->iBlockIdx++;
+  //       if (pWriter->iBlockIdx < taosArrayGetSize(pWriter->aBlockIdx)) {
+  //         pWriter->pBlockIdx = (SBlockIdx*)taosArrayGet(pWriter->aBlockIdx, pWriter->iBlockIdx);
+  //       } else {
+  //         pWriter->pBlockIdx = NULL;
+  //       }
 
-      if (c == 0) {
-        // merge commit the block data
-      } else if (c > 0) {
-        // code = tsdbSnapWriteTableDataEnd(pWriter);
-        if (code) goto _err;
-      } else {
-        ASSERT(0);
-      }
-    }
-  }
+  //       if (pWriter->pBlockIdx) {
+  //         code = tsdbReadBlock(pWriter->pDataFReader, pWriter->pBlockIdx, &pWriter->mBlock, NULL);
+  //         if (code) goto _err;
+  //       }
+  //     }
+  //   } else {
+  //     int32_t c = tTABLEIDCmprFn(&id, &pWriter->blockIdx);
+
+  //     if (c == 0) {
+  //       // merge commit the block data
+  //     } else if (c > 0) {
+  //       // code = tsdbSnapWriteTableDataEnd(pWriter);
+  //       if (code) goto _err;
+  //     } else {
+  //       ASSERT(0);
+  //     }
+  //   }
+  // }
 
   return code;
 
