@@ -22,11 +22,8 @@ FstRegex *regexCreate(const char *str) {
   if (regex == NULL) {
     return NULL;
   }
-  int32_t sz = (int32_t)strlen(str);
-  char   *orig = taosMemoryCalloc(1, sz);
-  memcpy(orig, str, sz);
 
-  regex->orig = orig;
+  regex->orig = tstrdup(str);
 
   // construct insts based on str
   SArray *insts = taosArrayInit(256, sizeof(uint8_t));

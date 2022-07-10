@@ -52,7 +52,7 @@ bool sparSetAdd(FstSparseSet *ss, int32_t ip, int32_t *idx) {
   if (ss == NULL) {
     return false;
   }
-  if (ip >= ss->cap) {
+  if (ip >= ss->cap || ip < 0) {
     return false;
   }
   uint32_t i = ss->size;
@@ -65,7 +65,7 @@ bool sparSetAdd(FstSparseSet *ss, int32_t ip, int32_t *idx) {
   return true;
 }
 bool sparSetGet(FstSparseSet *ss, int32_t idx, int32_t *ip) {
-  if (idx >= ss->cap || idx >= ss->size) {
+  if (idx >= ss->cap || idx >= ss->size || idx < 0) {
     return false;
   }
   int32_t val = ss->dense[idx];
@@ -75,12 +75,12 @@ bool sparSetGet(FstSparseSet *ss, int32_t idx, int32_t *ip) {
   return val == -1 ? false : true;
 }
 bool sparSetContains(FstSparseSet *ss, int32_t ip) {
-  if (ip >= ss->cap) {
+  if (ip >= ss->cap || ip < 0) {
     return false;
   }
   int32_t i = ss->sparse[ip];
 
-  if (i < ss->cap && i < ss->size && ss->dense[i] == ip) {
+  if (i >= 0 && i < ss->cap && i < ss->size && ss->dense[i] == ip) {
     return true;
   } else {
     return false;

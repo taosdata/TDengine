@@ -126,7 +126,6 @@ bool dfaBuilderCacheState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *r
 
   for (int i = 0; i < sparSetLen(set); i++) {
     int32_t ip;
-
     if (false == sparSetGet(set, i, &ip)) continue;
 
     Inst *inst = taosArrayGet(builder->dfa->insts, ip);
