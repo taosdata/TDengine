@@ -59,92 +59,6 @@ static void doCloseWindow(SResultRowInfo* pResultRowInfo, const SIntervalAggOper
 
 static TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols) { return tsCols == NULL ? win->skey : tsCols[0]; }
 
-static void getInitialStartTimeWindow(SInterval* pInterval, int32_t precision, TSKEY ts, STimeWindow* w,
-                                      bool ascQuery) {
-  if (ascQuery) {
-    getAlignQueryTimeWindow(pInterval, precision, ts, w);
-  } else {
-    // the start position of the first time window in the endpoint that spreads beyond the queried last timestamp
-    getAlignQueryTimeWindow(pInterval, precision, ts, w);
-
-    int64_t key = w->skey;
-    while (key < ts) {  // moving towards end
-      key = taosTimeAdd(key, pInterval->sliding, pInterval->slidingUnit, precision);
-      if (key >= ts) {
-        break;
-      }
-
-      w->skey = key;
-    }
-  }
-}
-
-static STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInterval* pInterval, int32_t order) {
-  int32_t factor = (order == TSDB_ORDER_ASC)? -1:1;
-
-  STimeWindow win = *pWindow;
-  STimeWindow save = win;
-  while(win.skey <= ts && win.ekey >= ts) {
-    save = win;
-    win.skey = taosTimeAdd(win.skey, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
-    win.ekey = taosTimeAdd(win.ekey, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
-  }
-
-  return save;
-}
-
-static STimeWindow  doCalculateTimeWindow(int64_t ts, SInterval* pInterval) {
-  STimeWindow  w =  {0};
-
-  if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
-    w.skey = taosTimeTruncate(ts, pInterval, pInterval->precision);
-    w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-  } else {
-    int64_t st = w.skey;
-
-    if (st > ts) {
-      st -= ((st - ts + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
-    }
-
-    int64_t et = st + pInterval->interval - 1;
-    if (et < ts) {
-      st += ((ts - et + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
-    }
-
-    w.skey = st;
-    w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-  }
-
-  return w;
-}
-
-// todo do refactor
-// get the correct time window according to the handled timestamp
-STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int64_t ts, SInterval* pInterval,
-                                int32_t order) {
-  STimeWindow w = {0};
-  if (pResultRowInfo->cur.pageId == -1) {  // the first window, from the previous stored value
-    getInitialStartTimeWindow(pInterval, pInterval->precision, ts, &w, (order == TSDB_ORDER_ASC));
-    w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-    return w;
-  }
-
-  w = getResultRowByPos(pBuf, &pResultRowInfo->cur)->win;
-
-  // in case of typical time window, we can calculate time window directly.
-  if (w.skey > ts || w.ekey < ts) {
-    w = doCalculateTimeWindow(ts, pInterval);
-  }
-
-  if (pInterval->interval != pInterval->sliding) {
-    // it is an sliding window query, in which sliding value is not equalled to
-    // interval value, and we need to find the first qualified time window.
-    w = getFirstQualifiedTimeWindow(ts, &w, pInterval, order);
-  }
-
-  return w;
-}
-
 static int32_t setTimeWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindow* win, bool masterscan,
                                       SResultRow** pResult, int64_t tableGroupId, SqlFunctionCtx* pCtx,
                                       int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup,
@@ -4679,7 +4593,7 @@ static int32_t outputPrevIntervalResult(SOperatorInfo* pOperatorInfo, uint64_t t
       continue;
     }
     STimeWindow* prevWin = &prevGrpWin->window;
-    if ((ascScan && newWin->skey > prevWin->ekey || (!ascScan) && newWin->skey < prevWin->ekey)) {
+    if ((ascScan && newWin->skey > prevWin->ekey) || ((!ascScan) && newWin->skey < prevWin->ekey)) {
       finalizeWindowResult(pOperatorInfo, tableGroupId, prevWin, pResultBlock);
       tdListPopNode(miaInfo->groupIntervals, listNode);
     }

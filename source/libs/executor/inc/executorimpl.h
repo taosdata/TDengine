@@ -278,9 +278,6 @@ typedef struct STableScanInfo {
   SScanInfo       scanInfo;
   int32_t         scanTimes;
   SNode*          pFilterNode;  // filter info, which is push down by optimizer
-  SqlFunctionCtx* pCtx;         // which belongs to the direct upstream operator operator query context,todo: remove this by using SExprSup
-  int32_t*        rowEntryInfoOffset;  // todo: remove this by using SExprSup
-  SExprInfo*      pExpr;// todo: remove this by using SExprSup
 
   SSDataBlock*    pResBlock;
   SArray*         pColMatchInfo;
@@ -289,14 +286,10 @@ typedef struct STableScanInfo {
   int32_t         scanFlag;     // table scan flag to denote if it is a repeat/reverse/main scan
   int32_t         dataBlockLoadFlag;
   SInterval       interval;     // if the upstream is an interval operator, the interval info is also kept here to get the time window to check if current data block needs to be loaded.
-
   SSampleExecInfo sample;       // sample execution info
-  int32_t         curTWinIdx;
 
   int32_t         currentGroupId;
   int32_t         currentTable;
-  uint64_t        queryId;   // todo remove it
-  uint64_t        taskId;    // todo remove it
 
   struct {
     uint64_t uid;

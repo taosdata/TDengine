@@ -1038,6 +1038,7 @@ static bool overlapWithTimeWindow(STaskAttr* pQueryAttr, SDataBlockInfo* pBlockI
 #endif
 
 static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock) {
+#if 0
   SqlFunctionCtx* pCtx = pTableScanInfo->pCtx;
   uint32_t        status = BLK_DATA_NOT_LOAD;
 
@@ -1059,6 +1060,8 @@ static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSData
   }
 
   return status;
+#endif
+  return 0;
 }
 
 int32_t loadDataBlockOnDemand(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock,
@@ -2887,12 +2890,11 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
       ASSERT(found);
 
       tsdbSetTableId(pInfo->dataReader, uid);
-      int64_t oldSkey = pInfo->cond.twindows[0].skey;
-      pInfo->cond.twindows[0].skey = ts + 1;
-      tsdbReaderReset(pInfo->dataReader, &pInfo->cond, 0);
-      pInfo->cond.twindows[0].skey = oldSkey;
+      int64_t oldSkey = pInfo->cond.twindows.skey;
+      pInfo->cond.twindows.skey = ts + 1;
+      tsdbReaderReset(pInfo->dataReader, &pInfo->cond);
+      pInfo->cond.twindows.skey = oldSkey;
       pInfo->scanTimes = 0;
-      pInfo->curTWinIdx = 0;
 
       qDebug("tsdb reader offset seek to uid %ld ts %ld, table cur set to %d , all table num %d", uid, ts,
              pInfo->currentTable, tableSz);
@@ -4347,9 +4349,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         cond.colList->type = TSDB_DATA_TYPE_TIMESTAMP;
         cond.colList->bytes = sizeof(TSKEY);
 
-        cond.numOfTWindows = 1;
-        cond.twindows = taosMemoryCalloc(1, sizeof(STimeWindow));
-        cond.twindows[0] = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
+        cond.twindows = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
         cond.suid = pBlockNode->suid;
         cond.type = BLOCK_LOAD_OFFSET_ORDER;
       }
