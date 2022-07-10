@@ -17,6 +17,7 @@
 #include "schInt.h"
 
 tsem_t schdRspSem;
+SSchDebug gSCHDebug = {.lockEnable = true};
 
 void schdExecCallback(SExecResult* pResult, void* param, int32_t code) {
   if (code) {

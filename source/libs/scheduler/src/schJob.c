@@ -543,9 +543,12 @@ int32_t schLaunchJobLowerLevel(SSchJob *pJob, SSchTask *pTask) {
 
 int32_t schSaveJobQueryRes(SSchJob *pJob, SQueryTableRsp *rsp) {
   if (rsp->tbFName[0]) {
+    SCH_LOCK(SCH_WRITE, &pJob->resLock);
+    
     if (NULL == pJob->execRes.res) {
       pJob->execRes.res = taosArrayInit(pJob->taskNum, sizeof(STbVerInfo));
       if (NULL == pJob->execRes.res) {
+        SCH_UNLOCK(SCH_WRITE, &pJob->resLock);      
         SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
     }
@@ -557,6 +560,8 @@ int32_t schSaveJobQueryRes(SSchJob *pJob, SQueryTableRsp *rsp) {
 
     taosArrayPush((SArray *)pJob->execRes.res, &tbInfo);
     pJob->execRes.msgType = TDMT_SCH_QUERY;
+
+    SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
   }
 
   return TSDB_CODE_SUCCESS;

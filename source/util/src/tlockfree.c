@@ -17,8 +17,10 @@
 #include "tlockfree.h"
 
 #define TD_RWLATCH_WRITE_FLAG 0x40000000
+#define TD_RWLATCH_REENTRANT_FLAG 0x4000000000000000
 
 void taosInitRWLatch(SRWLatch *pLatch) { *pLatch = 0; }
+void taosInitReentrantRWLatch(SRWLatch *pLatch) { *pLatch = 0x4000000000000000; }
 
 void taosWLockLatch(SRWLatch *pLatch) {
   SRWLatch oLatch, nLatch;

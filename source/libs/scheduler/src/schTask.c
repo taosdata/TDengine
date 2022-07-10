@@ -263,7 +263,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     SSchTask *parent = *(SSchTask **)taosArrayGet(pTask->parents, i);
     int32_t   readyNum = atomic_add_fetch_32(&parent->childReady, 1);
 
-    SCH_LOCK(SCH_WRITE, &parent->lock);
+    SCH_LOCK_TASK(parent);
     SDownstreamSourceNode source = {.type = QUERY_NODE_DOWNSTREAM_SOURCE,
                                     .taskId = pTask->taskId,
                                     .schedId = schMgmt.sId,
@@ -272,7 +272,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
                                     .fetchMsgType = SCH_FETCH_TYPE(pTask),
                                     };
     qSetSubplanExecutionNode(parent->plan, pTask->plan->id.groupId, &source);
-    SCH_UNLOCK(SCH_WRITE, &parent->lock);
+    SCH_UNLOCK_TASK(parent);
 
     if (SCH_TASK_READY_FOR_LAUNCH(readyNum, parent)) {
       SCH_TASK_DLOG("all %d children task done, start to launch parent task 0x%" PRIx64, readyNum, parent->taskId);
