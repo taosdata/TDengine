@@ -2267,13 +2267,7 @@ static int32_t taosCreateStb(TAOS *taos, void *meta, int32_t metaLen){
   int32_t code = TSDB_CODE_SUCCESS;
   SRequestObj* pRequest = NULL;
 
-  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
-  if (NULL == pTscObj) {
-    code = TSDB_CODE_TSC_DISCONNECTED;
-    goto end;
-  }
-
-  code = buildRequest(pTscObj, "", 0, &pRequest);
+  code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
@@ -2313,6 +2307,8 @@ static int32_t taosCreateStb(TAOS *taos, void *meta, int32_t metaLen){
   pReq.suid = req.suid;
   pReq.source = 1;
 
+  STscObj* pTscObj = pRequest->pTscObj;
+
   SName tableName;
   tNameExtractFullName(toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName), pReq.name);
 
@@ -2351,13 +2347,7 @@ static int32_t taosDropStb(TAOS *taos, void *meta, int32_t metaLen){
   int32_t code = TSDB_CODE_SUCCESS;
   SRequestObj* pRequest = NULL;
 
-  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
-  if (NULL == pTscObj) {
-    code = TSDB_CODE_TSC_DISCONNECTED;
-    goto end;
-  }
-
-  code = buildRequest(pTscObj, "", 0, &pRequest);
+  code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
@@ -2379,6 +2369,9 @@ static int32_t taosDropStb(TAOS *taos, void *meta, int32_t metaLen){
   pReq.igNotExists = true;
   pReq.source = 1;
   pReq.suid = req.suid;
+
+  STscObj* pTscObj = pRequest->pTscObj;
+
   SName tableName;
   tNameExtractFullName(toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName), pReq.name);
 
@@ -2427,14 +2420,8 @@ static int32_t taosCreateTable(TAOS *taos, void *meta, int32_t metaLen){
   SRequestObj        *pRequest        = NULL;
   SQuery             *pQuery          = NULL;
   SHashObj           *pVgroupHashmap  = NULL;
-  STscObj            *pTscObj         = acquireTscObj(*(int64_t *)taos);
 
-  if (NULL == pTscObj) {
-    code = TSDB_CODE_TSC_DISCONNECTED;
-    goto end;
-  }
-
-  code = buildRequest(pTscObj, "", 0, &pRequest);
+  code = buildRequest(*(int64_t*) taos, "", 0, NULL, false, &pRequest);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
@@ -2452,7 +2439,9 @@ static int32_t taosCreateTable(TAOS *taos, void *meta, int32_t metaLen){
     goto end;
   }
 
-  SVCreateTbReq     *pCreateReq = NULL;
+  STscObj* pTscObj = pRequest->pTscObj;
+
+  SVCreateTbReq *pCreateReq = NULL;
   SCatalog* pCatalog = NULL;
   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2544,14 +2533,8 @@ static int32_t taosDropTable(TAOS *taos, void *meta, int32_t metaLen){
   SRequestObj        *pRequest        = NULL;
   SQuery             *pQuery          = NULL;
   SHashObj           *pVgroupHashmap  = NULL;
-  STscObj            *pTscObj         = acquireTscObj(*(int64_t *)taos);
 
-  if (NULL == pTscObj) {
-    code = TSDB_CODE_TSC_DISCONNECTED;
-    goto end;
-  }
-
-  code = buildRequest(pTscObj, "", 0, &pRequest);
+  code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
@@ -2568,6 +2551,8 @@ static int32_t taosDropTable(TAOS *taos, void *meta, int32_t metaLen){
     code = TSDB_CODE_INVALID_PARA;
     goto end;
   }
+
+  STscObj* pTscObj = pRequest->pTscObj;
 
   SVDropTbReq     *pDropReq = NULL;
   SCatalog        *pCatalog = NULL;
@@ -2649,14 +2634,9 @@ static int32_t taosAlterTable(TAOS *taos, void *meta, int32_t metaLen){
   SQuery             *pQuery          = NULL;
   SArray             *pArray          = NULL;
   SVgDataBlocks      *pVgData         = NULL;
-  STscObj            *pTscObj         = acquireTscObj(*(int64_t *)taos);
 
-  if (NULL == pTscObj) {
-    code = TSDB_CODE_TSC_DISCONNECTED;
-    goto end;
-  }
 
-  code = buildRequest(pTscObj, "", 0, &pRequest);
+  code = buildRequest(*(int64_t*) taos, "", 0, NULL, false, &pRequest);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
@@ -2679,7 +2659,8 @@ static int32_t taosAlterTable(TAOS *taos, void *meta, int32_t metaLen){
     goto end;
   }
 
-  SCatalog        *pCatalog = NULL;
+  STscObj*  pTscObj = pRequest->pTscObj;
+  SCatalog* pCatalog = NULL;
   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <executorimpl.h>
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
@@ -4052,7 +4053,7 @@ static STsdbReader* doCreateDataReader(STableScanPhysiNode* pTableScanNode, SRea
 
 static SArray* extractColumnInfo(SNodeList* pNodeList);
 
-int32_t extractTableSchemaVersion(SReadHandle* pHandle, uint64_t uid, SExecTaskInfo* pTaskInfo) {
+int32_t extractTableSchemaInfo(SReadHandle* pHandle, uint64_t uid, SExecTaskInfo* pTaskInfo) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pHandle->meta, 0);
   int32_t code = metaGetTableEntryByUid(&mr, uid);
@@ -4076,8 +4077,18 @@ int32_t extractTableSchemaVersion(SReadHandle* pHandle, uint64_t uid, SExecTaskI
   }
 
   metaReaderClear(&mr);
-
   return TSDB_CODE_SUCCESS;
+}
+
+static void cleanupTableSchemaInfo(SExecTaskInfo* pTaskInfo) {
+  taosMemoryFreeClear(pTaskInfo->schemaVer.dbname);
+  if (pTaskInfo->schemaVer.sw == NULL) {
+    return;
+  }
+
+  taosMemoryFree(pTaskInfo->schemaVer.sw->pSchema);
+  taosMemoryFree(pTaskInfo->schemaVer.sw);
+  taosMemoryFree(pTaskInfo->schemaVer.tablename);
 }
 
 static int32_t sortTableGroup(STableListInfo* pTableListInfo, int32_t groupNum) {
@@ -4253,7 +4264,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      code = extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
+      code = extractTableSchemaInfo(pHandle, pTableScanNode->scan.uid, pTaskInfo);
       if (code) {
         pTaskInfo->code = terrno;
         return NULL;
@@ -4271,7 +4282,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         pTaskInfo->code = code;
         return NULL;
       }
-      code = extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
+      code = extractTableSchemaInfo(pHandle, pTableScanNode->scan.uid, pTaskInfo);
       if (code) {
         pTaskInfo->code = terrno;
         return NULL;
@@ -4368,7 +4379,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       //        return NULL;
       //      }
 
-      int32_t code = extractTableSchemaVersion(pHandle, pScanNode->uid, pTaskInfo);
+      int32_t code = extractTableSchemaInfo(pHandle, pScanNode->uid, pTaskInfo);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
         return NULL;
@@ -4867,11 +4878,8 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
 
   doDestroyTableList(&pTaskInfo->tableqinfoList);
   destroyOperatorInfo(pTaskInfo->pRoot);
-  //  taosArrayDestroy(pTaskInfo->summary.queryProfEvents);
-  //  taosHashCleanup(pTaskInfo->summary.operatorProfResults);
+  cleanupTableSchemaInfo(pTaskInfo);
 
-  taosMemoryFree(pTaskInfo->schemaVer.dbname);
-  taosMemoryFree(pTaskInfo->schemaVer.tablename);
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
   taosMemoryFreeClear(pTaskInfo);
