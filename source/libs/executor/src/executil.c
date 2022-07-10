@@ -324,12 +324,12 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       if (code == TSDB_CODE_INDEX_REBUILDING) {
         code = vnodeGetAllTableList(pVnode, tableUid, pListInfo->pTableList);
       } else if (code != TSDB_CODE_SUCCESS) {
-        qError("failed  to  get tableIds, reason: %s, suid: %" PRIu64 "", tstrerror(code), tableUid);
+        qError("failed to get tableIds, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
         taosArrayDestroy(res);
         terrno = code;
         return code;
       } else {
-        qDebug("sucess to  get tableIds, size: %d, suid: %" PRIu64 "", (int)taosArrayGetSize(res), tableUid);
+        qDebug("success to get tableIds, size:%d, suid:%" PRIu64, (int)taosArrayGetSize(res), tableUid);
       }
 
       for (int i = 0; i < taosArrayGetSize(res); i++) {
@@ -342,7 +342,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
     }
 
     if (code != TSDB_CODE_SUCCESS) {
-      qError("failed  to  get tableIds, reason: %s, suid: %" PRIu64 "", tstrerror(code), tableUid);
+      qError("failed to get tableIds, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
       terrno = code;
       return code;
     }

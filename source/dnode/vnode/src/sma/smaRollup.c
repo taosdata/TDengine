@@ -19,7 +19,8 @@
 #define RSMA_QTASKINFO_HEAD_LEN (sizeof(int32_t) + sizeof(int8_t) + sizeof(int64_t))  // len + type + suid
 
 SSmaMgmt smaMgmt = {
-    .smaRef = -1,
+    .inited = 0,
+    .rsetId = -1,
 };
 
 #define TD_QTASKINFO_FNAME_PREFIX "qtaskinfo.ver"
@@ -608,9 +609,11 @@ _err:
 static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   SRSmaInfoItem *pItem = param;
   SSma          *pSma = NULL;
-  SRSmaStat     *pStat = (SRSmaStat *)taosAcquireRef(smaMgmt.smaRef, pItem->refId);
+  SRSmaStat     *pStat = (SRSmaStat *)tdAcquireSmaRef(smaMgmt.rsetId, pItem->refId, __func__, __LINE__);
+
   if (!pStat) {
-    smaDebug("rsma fetch task not start since already destroyed");
+    smaDebug("rsma fetch task not start since already destroyed, rsetId rsetId:%" PRIi64 " refId:%d)", smaMgmt.rsetId,
+             pItem->refId);
     return;
   }
 
@@ -622,9 +625,10 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
     case TASK_TRIGGER_STAT_PAUSED:
     case TASK_TRIGGER_STAT_CANCELLED:
     case TASK_TRIGGER_STAT_FINISHED: {
-      taosReleaseRef(smaMgmt.smaRef, pItem->refId);
-      smaDebug("vgId:%d, not fetch rsma level %" PRIi8 " data for table:%" PRIi64 " since stat is cancelled",
-               SMA_VID(pSma), pItem->level, pItem->pRsmaInfo->suid);
+      tdReleaseSmaRef(smaMgmt.rsetId, pItem->refId, __func__, __LINE__);
+      smaDebug("vgId:%d, not fetch rsma level %" PRIi8 " data for table:%" PRIi64 " since stat is %" PRIi8
+               ", rsetId rsetId:%" PRIi64 " refId:%d",
+               SMA_VID(pSma), pItem->level, pItem->pRsmaInfo->suid, rsmaTriggerStat, smaMgmt.rsetId, pItem->refId);
       return;
     }
     default:
@@ -665,7 +669,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   }
 
 _end:
-  taosReleaseRef(smaMgmt.smaRef, pItem->refId);
+  tdReleaseSmaRef(smaMgmt.rsetId, pItem->refId, __func__, __LINE__);
 }
 
 static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t inputType, SRSmaInfoItem *pItem, tb_uid_t suid,
@@ -1258,7 +1262,8 @@ _end:
   }
 
   atomic_store_8(RSMA_RUNNING_STAT(pRSmaStat), 0);
-  taosReleaseRef(smaMgmt.smaRef, pRSmaStat->refId);
+  smaDebug("vgId:%d, release rsetId rsetId:%" PRIi64 " refId:%d", SMA_VID(pSma), smaMgmt.rsetId, pRSmaStat->refId);
+  tdReleaseSmaRef(smaMgmt.rsetId, pRSmaStat->refId, __func__, __LINE__);
   taosThreadExit(NULL);
   return NULL;
 }
@@ -1283,7 +1288,9 @@ static void tdRSmaPersistTask(SRSmaStat *pRSmaStat) {
               atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat)));
     }
     atomic_store_8(RSMA_RUNNING_STAT(pRSmaStat), 0);
-    taosReleaseRef(smaMgmt.smaRef, pRSmaStat->refId);
+    smaDebug("vgId:%d, release rsetId rsetId:%" PRIi64 " refId:%d)", SMA_VID(pRSmaStat->pSma), smaMgmt.rsetId,
+             pRSmaStat->refId);
+    tdReleaseSmaRef(smaMgmt.rsetId, pRSmaStat->refId, __func__, __LINE__);
   }
 
   taosThreadAttrDestroy(&thAttr);
@@ -1297,8 +1304,8 @@ static void tdRSmaPersistTask(SRSmaStat *pRSmaStat) {
  */
 static void tdRSmaPersistTrigger(void *param, void *tmrId) {
   SRSmaStat *rsmaStat = param;
-  SRSmaStat *pRSmaStat = (SRSmaStat *)taosAcquireRef(smaMgmt.smaRef, rsmaStat->refId);
-
+  SRSmaStat *pRSmaStat = (SRSmaStat *)taosAcquireRef(smaMgmt.rsetId, rsmaStat->refId);
+  ASSERT(0);
   if (!pRSmaStat) {
     smaDebug("rsma persistence task not start since already destroyed");
     return;
@@ -1341,5 +1348,5 @@ static void tdRSmaPersistTrigger(void *param, void *tmrId) {
       smaWarn("rsma persistence not start since unknown stat %" PRIi8, tmrStat);
     } break;
   }
-  taosReleaseRef(smaMgmt.smaRef, rsmaStat->refId);
+  taosReleaseRef(smaMgmt.rsetId, rsmaStat->refId);
 }

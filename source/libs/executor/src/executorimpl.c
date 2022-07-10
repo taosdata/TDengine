@@ -2896,7 +2896,7 @@ int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts) {
       pInfo->cond.twindows.skey = oldSkey;
       pInfo->scanTimes = 0;
 
-      qDebug("tsdb reader offset seek to uid %ld ts %ld, table cur set to %d , all table num %d", uid, ts,
+      qDebug("tsdb reader offset seek to uid %" PRId64 " ts %" PRId64 ", table cur set to %d , all table num %d", uid, ts,
              pInfo->currentTable, tableSz);
     }
 

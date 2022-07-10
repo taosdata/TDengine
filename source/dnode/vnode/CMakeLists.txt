@@ -26,7 +26,6 @@ target_sources(
     "src/meta/metaSnapshot.c"
 
     # sma
-    "src/sma/sma.c"
     "src/sma/smaEnv.c"
     "src/sma/smaUtil.c"
     "src/sma/smaOpen.c"

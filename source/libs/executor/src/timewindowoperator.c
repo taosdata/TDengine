@@ -1331,13 +1331,13 @@ static int32_t closeIntervalWindow(SHashObj* pHashMap, STimeWindowAggSupp* pSup,
       if (chIds && pPullDataMap) {
         SArray* chAy = *(SArray**)chIds;
         int32_t size = taosArrayGetSize(chAy);
-        qInfo("======window %ld wait child size:%d", win.skey, size);
+        qInfo("window %" PRId64 " wait child size:%d", win.skey, size);
         for (int32_t i = 0; i < size; i++) {
-          qInfo("======window %ld wait chid id:%d", win.skey, *(int32_t*)taosArrayGet(chAy, i));
+          qInfo("window %" PRId64 " wait chid id:%d", win.skey, *(int32_t*)taosArrayGet(chAy, i));
         }
         continue;
       } else if (pPullDataMap) {
-        qInfo("======close window %ld", win.skey);
+        qInfo("close window %" PRId64, win.skey);
       }
       SResultRowPosition* pPos = (SResultRowPosition*)pIte;
       if (pSup->calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
