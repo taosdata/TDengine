@@ -77,6 +77,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
     expect.ignoreExist = igExists;
     expect.buffer = TSDB_DEFAULT_BUFFER_PER_VNODE;
     expect.cacheLastRow = TSDB_DEFAULT_CACHE_LAST_ROW;
+    expect.lastRowMem = TSDB_DEFAULT_LAST_ROW_MEM;
     expect.compression = TSDB_DEFAULT_COMP_LEVEL;
     expect.daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
     expect.fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
@@ -97,7 +98,8 @@ TEST_F(ParserInitialCTest, createDatabase) {
   };
 
   auto setDbBufferFunc = [&](int32_t buffer) { expect.buffer = buffer; };
-  auto setDbCachelastFunc = [&](int8_t CACHELAST) { expect.cacheLastRow = CACHELAST; };
+  auto setDbCachelastFunc = [&](int8_t cachelast) { expect.cacheLastRow = cachelast; };
+  auto setDbCachelastSize = [&](int8_t cachelastSize) { expect.lastRowMem = cachelastSize; };
   auto setDbCompressionFunc = [&](int8_t compressionLevel) { expect.compression = compressionLevel; };
   auto setDbDaysFunc = [&](int32_t daysPerFile) { expect.daysPerFile = daysPerFile; };
   auto setDbFsyncFunc = [&](int32_t fsyncPeriod) { expect.fsyncPeriod = fsyncPeriod; };
@@ -154,6 +156,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
     ASSERT_EQ(req.replications, expect.replications);
     ASSERT_EQ(req.strict, expect.strict);
     ASSERT_EQ(req.cacheLastRow, expect.cacheLastRow);
+    ASSERT_EQ(req.lastRowMem, expect.lastRowMem);
     // ASSERT_EQ(req.schemaless, expect.schemaless);
     ASSERT_EQ(req.ignoreExist, expect.ignoreExist);
     ASSERT_EQ(req.numOfRetensions, expect.numOfRetensions);
@@ -179,6 +182,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
   setCreateDbReqFunc("wxy_db", 1);
   setDbBufferFunc(64);
   setDbCachelastFunc(2);
+  setDbCachelastSize(20);
   setDbCompressionFunc(1);
   setDbDaysFunc(100 * 1440);
   setDbFsyncFunc(100);
@@ -200,6 +204,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
       "BUFFER 64 "
       "CACHELAST 2 "
+      "CACHELASTSIZE 20 "
       "COMP 1 "
       "DURATION 100 "
       "FSYNC 100 "

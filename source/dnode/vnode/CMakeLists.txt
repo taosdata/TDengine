@@ -9,7 +9,6 @@ target_sources(
     "src/vnd/vnodeCfg.c"
     "src/vnd/vnodeCommit.c"
     "src/vnd/vnodeQuery.c"
-    "src/vnd/vnodeStateMgr.c"
     "src/vnd/vnodeModule.c"
     "src/vnd/vnodeSvr.c"
     "src/vnd/vnodeSync.c"
@@ -27,12 +26,10 @@ target_sources(
     "src/meta/metaSnapshot.c"
 
     # sma
-    "src/sma/sma.c"
     "src/sma/smaEnv.c"
     "src/sma/smaUtil.c"
     "src/sma/smaOpen.c"
     "src/sma/smaCommit.c"
-    "src/sma/smaSnapshot.c"
     "src/sma/smaRollup.c"
     "src/sma/smaTimeRange.c"
 
@@ -43,7 +40,6 @@ target_sources(
     "src/tsdb/tsdbOpen.c"
     "src/tsdb/tsdbMemTable.c"
     "src/tsdb/tsdbRead.c"
-    "src/tsdb/tsdbReadImpl.c"
     "src/tsdb/tsdbCache.c"
     "src/tsdb/tsdbWrite.c"
     "src/tsdb/tsdbReaderWriter.c"
