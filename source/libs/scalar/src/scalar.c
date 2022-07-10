@@ -59,7 +59,7 @@ int32_t sclCreateColumnInfoData(SDataType* pType, int32_t numOfRows, SScalarPara
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t doConvertDataType(SValueNode* pValueNode, SScalarParam* out) {
+int32_t doConvertDataType(SValueNode* pValueNode, SScalarParam* out, int32_t* overflow) {
   SScalarParam in = {.numOfRows = 1};
   int32_t code = sclCreateColumnInfoData(&pValueNode->node.resType, 1, &in);
   if (code != TSDB_CODE_SUCCESS) {
@@ -69,7 +69,7 @@ int32_t doConvertDataType(SValueNode* pValueNode, SScalarParam* out) {
   colDataAppend(in.columnData, 0, nodesGetValueFromNode(pValueNode), false);
 
   colInfoDataEnsureCapacity(out->columnData, 1);
-  code = vectorConvertImpl(&in, out);
+  code = vectorConvertImpl(&in, out, overflow);
   sclFreeParam(&in);
 
   return code;
@@ -107,15 +107,21 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
         out.columnData->info.bytes = tDataTypes[type].bytes;
       }
 
-      code = doConvertDataType(valueNode, &out);
+      int32_t overflow = 0;
+      code = doConvertDataType(valueNode, &out, &overflow);
       if (code != TSDB_CODE_SUCCESS) {
 //        sclError("convert data from %d to %d failed", in.type, out.type);
         SCL_ERR_JRET(code);
       }
 
+      if (overflow) {
+        cell = cell->pNext;
+        continue;
+      }
+
       if (IS_VAR_DATA_TYPE(type)) {
         buf = colDataGetVarData(out.columnData, 0);
-        len = varDataTLen(data);
+        len = varDataTLen(buf);
       } else {
         len = tDataTypes[type].bytes;
         buf = out.columnData->pData;
