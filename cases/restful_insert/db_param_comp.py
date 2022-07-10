@@ -36,13 +36,13 @@ class TestComp(TDCase):
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.request('show databases')
          # TODO
-        db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
         # default
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
+        self.tdSql.checkEqual(db_field, self.cfg["default"])
         self.tdRest.request(f'show {dbname}.vgroups')
-        db_vnode_kv_dict = self.tdSql.getOneRow(1, dbname)
+        db_vnode_kv_dict = self.tdRest.getOneRow(1, dbname)
         data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], int(data['config'][self.cfg["query_name"]]))
+        self.tdSql.checkEqual(db_field, int(data['config'][self.cfg["query_name"]]))
         self.tdRest.request(f'drop database {dbname}')
         
         for param_value in self.cfg["boundary"]:
@@ -50,12 +50,12 @@ class TestComp(TDCase):
             self.tdRest.request(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdRest.request('show databases')
              # TODO
-            db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-            self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+            self.tdSql.checkEqual(db_field, param_value)
             self.tdRest.request(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdRest.getOneRow(1, dbname)
             data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
-            self.tdSql.checkEqual(db_field_kv_dict[test_param], int(data['config'][self.cfg["query_name"]]))
+            self.tdSql.checkEqual(db_field, int(data['config'][self.cfg["query_name"]]))
             self.tdRest.request(f'drop database {dbname}')
         self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
         self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][-1] + 1}')

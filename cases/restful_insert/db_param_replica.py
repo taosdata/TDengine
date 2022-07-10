@@ -36,27 +36,25 @@ class TestReplica(TDCase):
         dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.request('show databases')
-        #TODO
-        db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
         # default
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
+        self.tdSql.checkEqual(db_field, self.cfg["default"])
         self.tdRest.request(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdRest.getOneRow(1,dbname)
         data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
-        self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config'][self.cfg["vnode_json_key"]]))
+        self.tdSql.checkEqual(db_field,int(data['config'][self.cfg["vnode_json_key"]]))
         self.tdRest.request(f'drop database {dbname}')
         # boundary
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
             self.tdRest.request(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdRest.request('show databases')
-            db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-            self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+            self.tdSql.checkEqual(db_field, param_value)
             self.tdRest.request(f'show {dbname}.vgroups')
-            #TODO
             db_vnode_kv_dict = self.tdRest.getOneRow(1,dbname)
             data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
-            self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config'][self.cfg["vnode_json_key"]]))
+            self.tdSql.checkEqual(db_field,int(data['config'][self.cfg["vnode_json_key"]]))
             self.tdRest.request(f'create table if not exists {dbname}.stb (ts timestamp, c1 int) tags (t1 int)')
             self.tdRest.request(f'create table if not exists {dbname}.sub_tb using {dbname}.stb tags (1)')
             self.tdRest.request(f'insert into {dbname}.sub_tb values (now, 1)')
@@ -64,7 +62,7 @@ class TestReplica(TDCase):
             self.tdRest.request(f'insert into {dbname}.tb values (now, 1)')
             for sql in [f'select c1 from {dbname}.stb', f'select * from {dbname}.sub_tb', f'select * from {dbname}.tb']:
                 self.tdRest.request(sql)
-                self.tdSql.checkEqual(self.tdSql.query_row, 1)
+                self.tdSql.checkEqual(len(self.tdRest.resp['data']), 1)
             self.tdRest.request(f'drop table {dbname}.tb')
             self.tdRest.request(f'drop table {dbname}.sub_tb')
             self.tdRest.request(f'drop table {dbname}.stb')

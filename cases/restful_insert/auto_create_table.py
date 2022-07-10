@@ -37,7 +37,7 @@ class TestAutoCreateTable(TDCase):
         self.tdRest.error(f'insert into {dbname}.t7 using {dbname}.stb(t11, t12) tags(41) (ts, c11, c12) values (now-6m, 11, 21)')
         self.tdRest.error(f'insert into {dbname}.t8 using {dbname}.stb(t11) tags(51, 52) (ts, c11, c12) values (now-7m, 11, 21)')
         self.tdRest.request(f'select count(*) from {dbname}.stb')
-        self.tdSql.checkEqual(self.tdRest.resp[0][0], 4)
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], 4)
         self.tdRest.request(f'drop database if exists {dbname}')
 
     def check_col_value_for_auto_create_table(self):
@@ -63,7 +63,7 @@ class TestAutoCreateTable(TDCase):
         self.tdRest.error(f'insert into {dbname}.t11 using {dbname}.stb(t11, t12) tags(111, 112) (ts, c11, c12) values (now-7m, "Nan", 112)')
 
         self.tdRest.request(f'select count(*) from {dbname}.stb')
-        self.tdSql.checkEqual(self.tdRest.resp[0][0], 3)
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], 3)
         self.tdRest.request(f'drop database if exists {dbname}')
 
     def check_multi_cols_for_auto_create_table(self):
@@ -82,7 +82,7 @@ class TestAutoCreateTable(TDCase):
         self.tdRest.error(f'insert into {dbname}.t6 (ts, c11, c12) using {dbname}.stb(t11, t12) values (now-11m, 11, 21) (now-12m, 11, 21) using {dbname}.stb(t11, t12) tags(11, 12')
         self.tdRest.error(f'insert into {dbname}.t7 (ts, c11, c12) using {dbname}.stb(t11, t12) using {dbname}.stb(t11, t12) tags(11, 12')
         self.tdRest.request(f'select count(*) from {dbname}.stb')
-        self.tdSql.checkEqual(self.tdRest.resp[0][0], 8)
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], 8)
         self.tdRest.request(f'drop database if exists {dbname}')
 
 

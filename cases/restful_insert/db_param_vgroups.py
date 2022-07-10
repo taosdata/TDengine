@@ -28,7 +28,7 @@ class TestVgroups(TDCase):
         self.fqdn = self.taosd_setting["fqdn"][0]
         self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
         self.endpoint = self.taosd_setting["spec"]["config"]["firstEP"]
-
+        self.api_type = 'restful'
     def get_vnode_count(self):
         return int(self._remote.cmd(self.fqdn, [f'ls {self.vnode_dir} | grep -v vnodes.json | grep -v shmfile | wc -l']))
 
@@ -42,9 +42,9 @@ class TestVgroups(TDCase):
         dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.request('show databases')
-        db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
         # default
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
+        self.tdSql.checkEqual(db_field, self.cfg["default"])
         self.tdRest.request(f'drop database {dbname}')
         # boundary
         for param_value in self.cfg["boundary"]:
@@ -52,8 +52,8 @@ class TestVgroups(TDCase):
             self.tdRest.request(f'create database if not exists {dbname} {test_param} {param_value}  buffer {self.buffer_min}')
             self.tdRest.request('show databases')
             #TODO
-            db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-            self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+            self.tdSql.checkEqual(db_field, param_value)
             if param_value == self.cfg["boundary"][-1]:
                 self.tdRest.error(f'create database if not exists {dbname}_error {test_param} 1 buffer {self.buffer_min}')
             self.tdRest.request(f'drop database {dbname}')
@@ -63,12 +63,12 @@ class TestVgroups(TDCase):
         dbname1 = self.tdCom.get_long_name()
         self.tdRest.request(f'create database if not exists {dbname1} vgroups  {int(self.cfg["boundary"][-1]/4)} buffer {self.buffer_min}')
         self.tdRest.request(f'show {dbname1}.vgroups')
-        self.tdSql.checkEqual(self.tdSql.query_row, int(self.cfg["boundary"][-1]/4))
+        self.tdSql.checkEqual(len(self.tdRest.resp['data']), int(self.cfg["boundary"][-1]/4))
         self.tdSql.checkEqual(self.get_vnode_count(), int(self.cfg["boundary"][-1]/4))
         dbname2 = self.tdCom.get_long_name()
         self.tdRest.request(f'create database if not exists {dbname2} vgroups {int(self.cfg["boundary"][-1]/4) + 1} buffer {self.buffer_min}')
         self.tdRest.request(f'show {dbname2}.vgroups')
-        self.tdSql.checkEqual(self.tdSql.query_row, int(self.cfg["boundary"][-1]/4) + 1)
+        self.tdSql.checkEqual(len(self.tdRest.resp['data']), int(self.cfg["boundary"][-1]/4) + 1)
         self.tdSql.checkEqual(self.get_vnode_count(), int(self.cfg["boundary"][-1]/4)*2 + 1)
         self.tdRest.request(f'drop database {dbname1}')
         self.tdSql.checkEqual(self.get_vnode_count(), int(self.cfg["boundary"][-1]/4) + 1)
