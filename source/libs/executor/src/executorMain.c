@@ -280,7 +280,7 @@ int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
   return 0;
 }
 
-int32_t qStreamPrepareScan1(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
+int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
   ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
@@ -293,8 +293,55 @@ int32_t qStreamPrepareScan1(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
     pOperator->status = OP_OPENED;
     if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
       SStreamScanInfo* pInfo = pOperator->info;
-      if (tqSeekVer(pInfo->tqReader, pOffset->version) < 0) {
-        return -1;
+      if (pOffset->type == TMQ_OFFSET__LOG) {
+        if (tqSeekVer(pInfo->tqReader, pOffset->version) < 0) {
+          return -1;
+        }
+        ASSERT(pInfo->tqReader->pWalReader->curVersion == pOffset->version);
+      } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+        pInfo->blockType = STREAM_INPUT__TABLE_SCAN;
+        int64_t uid = pOffset->uid;
+        int64_t ts = pOffset->ts;
+
+        if (uid == 0) {
+          if (taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList) != 0) {
+            STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, 0);
+            uid = pTableInfo->uid;
+            ts = INT64_MIN;
+          }
+        }
+        if (pTaskInfo->streamInfo.lastStatus.type != TMQ_OFFSET__SNAPSHOT_DATA ||
+            pTaskInfo->streamInfo.lastStatus.uid != uid || pTaskInfo->streamInfo.lastStatus.ts != ts) {
+          STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
+          int32_t         tableSz = taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList);
+          bool            found = false;
+          for (int32_t i = 0; i < tableSz; i++) {
+            STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, i);
+            if (pTableInfo->uid == uid) {
+              found = true;
+              pTableScanInfo->currentTable = i;
+            }
+          }
+
+          // TODO after dropping table, table may be not found
+          ASSERT(found);
+
+          tsdbSetTableId(pTableScanInfo->dataReader, uid);
+          int64_t oldSkey = pTableScanInfo->cond.twindows[0].skey;
+          pTableScanInfo->cond.twindows[0].skey = ts + 1;
+          tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
+          pTableScanInfo->cond.twindows[0].skey = oldSkey;
+          pTableScanInfo->scanTimes = 0;
+          pTableScanInfo->curTWinIdx = 0;
+
+          qDebug("tsdb reader offset seek to uid %ld ts %ld, table cur set to %d , all table num %d", uid, ts,
+                 pTableScanInfo->currentTable, tableSz);
+        } else {
+          // switch to log
+        }
+
+      } else {
+        ASSERT(0);
       }
       return 0;
     } else {
