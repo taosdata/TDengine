@@ -1570,41 +1570,40 @@ static int32_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int64_t *tsV
     return TSDB_CODE_TSC_INVALID_TIME_STAMP;
   }
 
+  *tsVal = timeDouble;
   size_t typeLen = strlen(type->valuestring);
   if (typeLen == 1 && (type->valuestring[0] == 's' || type->valuestring[0] == 'S')) {
     // seconds
-    timeDouble = timeDouble * 1e9;
+    *tsVal = *tsVal * NANOSECOND_PER_SEC;
+    timeDouble = timeDouble * NANOSECOND_PER_SEC;
     if (smlDoubleToInt64OverFlow(timeDouble)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
       return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
-    *tsVal = timeDouble;
   } else if (typeLen == 2 && (type->valuestring[1] == 's' || type->valuestring[1] == 'S')) {
     switch (type->valuestring[0]) {
       case 'm':
       case 'M':
         // milliseconds
-        timeDouble = timeDouble * 1e6;
+        *tsVal = *tsVal * NANOSECOND_PER_MSEC;
+        timeDouble = timeDouble * NANOSECOND_PER_MSEC;
         if (smlDoubleToInt64OverFlow(timeDouble)) {
           smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
           return TSDB_CODE_TSC_INVALID_TIME_STAMP;
         }
-        *tsVal = timeDouble;
         break;
       case 'u':
       case 'U':
         // microseconds
-        timeDouble = timeDouble * 1e3;
+        *tsVal = *tsVal * NANOSECOND_PER_USEC;
+        timeDouble = timeDouble * NANOSECOND_PER_USEC;
         if (smlDoubleToInt64OverFlow(timeDouble)) {
           smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
           return TSDB_CODE_TSC_INVALID_TIME_STAMP;
         }
-        *tsVal = timeDouble;
         break;
       case 'n':
       case 'N':
-        // nanoseconds
-        *tsVal = timeDouble;
         break;
       default:
         return TSDB_CODE_TSC_INVALID_JSON;
@@ -1641,21 +1640,23 @@ static int32_t smlParseTSFromJSON(SSmlHandle *info, cJSON *root, SArray *cols) {
     if (timeDouble < 0) {
       return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
+
     uint8_t tsLen = smlGetTimestampLen((int64_t)timeDouble);
+    tsVal = (int64_t)timeDouble;
     if (tsLen == TSDB_TIME_PRECISION_SEC_DIGITS) {
-      timeDouble = timeDouble * 1e9;
+      tsVal = tsVal * NANOSECOND_PER_SEC;
+      timeDouble = timeDouble * NANOSECOND_PER_SEC;
       if (smlDoubleToInt64OverFlow(timeDouble)) {
         smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
         return TSDB_CODE_TSC_INVALID_TIME_STAMP;
       }
-      tsVal = timeDouble;
     } else if (tsLen == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-      timeDouble = timeDouble * 1e6;
+      tsVal = tsVal * NANOSECOND_PER_MSEC;
+      timeDouble = timeDouble * NANOSECOND_PER_MSEC;
       if (smlDoubleToInt64OverFlow(timeDouble)) {
         smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
         return TSDB_CODE_TSC_INVALID_TIME_STAMP;
       }
-      tsVal = timeDouble;
     } else if (timeDouble == 0) {
       tsVal = taosGetTimestampNs();
     } else {

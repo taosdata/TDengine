@@ -1029,7 +1029,7 @@ TEST(testCase, external_sort_Test) {
 
     int64_t e = taosGetTimestampUs();
     if (t++ == 1) {
-      printf("---------------elapsed:%ld\n", e - s);
+      printf("---------------elapsed:%" PRId64 "\n", e - s);
     }
 
     if (pRes == NULL) {
@@ -1046,7 +1046,7 @@ TEST(testCase, external_sort_Test) {
   }
 
   int64_t s2 = taosGetTimestampUs();
-  printf("total:%ld\n", s2 - s1);
+  printf("total:%" PRId64 "\n", s2 - s1);
 
   pOperator->closeFn(pOperator->info, 2);
   taosMemoryFreeClear(exp);
@@ -1101,7 +1101,7 @@ TEST(testCase, sorted_merge_Test) {
 
     int64_t e = taosGetTimestampUs();
     if (t++ == 1) {
-      printf("---------------elapsed:%ld\n", e - s);
+      printf("---------------elapsed:%" PRId64 "\n", e - s);
     }
 
     if (pRes == NULL) {
@@ -1112,13 +1112,13 @@ TEST(testCase, sorted_merge_Test) {
 //    SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
     for (int32_t i = 0; i < pRes->info.rows; ++i) {
 //      char* p = colDataGetData(pCol2, i);
-      printf("%d: %ld\n", total++, ((int64_t*)pCol1->pData)[i]);
+      printf("%d: %" PRId64 "\n", total++, ((int64_t*)pCol1->pData)[i]);
 //      printf("%d: %d, %s\n", total++, ((int32_t*)pCol1->pData)[i], (char*)varDataVal(p));
     }
   }
 
   int64_t s2 = taosGetTimestampUs();
-  printf("total:%ld\n", s2 - s1);
+  printf("total:%" PRId64 "\n", s2 - s1);
 
   pOperator->closeFn(pOperator->info, 2);
   taosMemoryFreeClear(exp);
@@ -1179,7 +1179,7 @@ TEST(testCase, time_interval_Operator_Test) {
 
     int64_t e = taosGetTimestampUs();
     if (t++ == 1) {
-      printf("---------------elapsed:%ld\n", e - s);
+      printf("---------------elapsed:%" PRId64 "\n", e - s);
     }
 
     if (pRes == NULL) {
@@ -1190,13 +1190,13 @@ TEST(testCase, time_interval_Operator_Test) {
 //    SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
     for (int32_t i = 0; i < pRes->info.rows; ++i) {
 //      char* p = colDataGetData(pCol2, i);
-      printf("%d: %ld\n", total++, ((int64_t*)pCol1->pData)[i]);
+      printf("%d: %" PRId64 "\n", total++, ((int64_t*)pCol1->pData)[i]);
 //      printf("%d: %d, %s\n", total++, ((int32_t*)pCol1->pData)[i], (char*)varDataVal(p));
     }
   }
 
   int64_t s2 = taosGetTimestampUs();
-  printf("total:%ld\n", s2 - s1);
+  printf("total:%" PRId64 "\n", s2 - s1);
 
   pOperator->closeFn(pOperator->info, 2);
   taosMemoryFreeClear(exp);

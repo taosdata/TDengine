@@ -1256,6 +1256,8 @@ int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
 
     if (invalidate) {
       taosLRUCacheRelease(pCache, h, true);
+    } else {
+      taosLRUCacheRelease(pCache, h, false);
     }
     // void taosLRUCacheErase(SLRUCache * cache, const void *key, size_t keyLen);
   }

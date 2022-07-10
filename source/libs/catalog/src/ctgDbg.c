@@ -64,7 +64,7 @@ void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
       qDebug("db %d vgInfo:", i);
       for (int32_t j = 0; j < vgNum; ++j) {
         SVgroupInfo* pInfo = taosArrayGet(pDb, j);
-        qDebug("vg %d info: vgId:%d", j, pInfo->vgId);
+        qDebug("vg :%d info: vgId:%d", j, pInfo->vgId);
       }
     }
   } else {

@@ -30,6 +30,7 @@ configDir="/etc/taos"
 installDir="/usr/local/taos"
 adapterName="taosadapter"
 benchmarkName="taosBenchmark"
+tmqName="tmq_sim"
 dumpName="taosdump"
 demoName="taosdemo"
 
@@ -205,6 +206,7 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -s ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName} || :
   [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${demoName} || :
   [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName} || :
+  [ -x ${install_main_dir}/bin/${tmqName} ] && ${csudo}ln -s ${install_main_dir}/bin/${tmqName} ${bin_link_dir}/${tmqName} || :
   [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName} || :
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :

@@ -77,14 +77,6 @@ static int32_t addNamespace(STranslateContext* pCxt, void* pTable) {
   return TSDB_CODE_SUCCESS;
 }
 
-static SName* toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName) {
-  pName->type = TSDB_TABLE_NAME_T;
-  pName->acctId = acctId;
-  strcpy(pName->dbname, pDbName);
-  strcpy(pName->tname, pTableName);
-  return pName;
-}
-
 static int32_t collectUseDatabaseImpl(const char* pFullDbName, SHashObj* pDbs) {
   SFullDatabaseName name = {0};
   strcpy(name.fullDbName, pFullDbName);
@@ -5370,7 +5362,8 @@ static int32_t serializeVgroupCreateTableBatch(SVgroupCreateTableBatch* pTbBatch
   return TSDB_CODE_SUCCESS;
 }
 
-static void destroyCreateTbReqBatch(SVgroupCreateTableBatch* pTbBatch) {
+static void destroyCreateTbReqBatch(void* data) {
+  SVgroupCreateTableBatch* pTbBatch = (SVgroupCreateTableBatch*) data;
   size_t size = taosArrayGetSize(pTbBatch->req.pArray);
   for (int32_t i = 0; i < size; ++i) {
     SVCreateTbReq* pTableReq = taosArrayGet(pTbBatch->req.pArray, i);
@@ -5387,7 +5380,7 @@ static void destroyCreateTbReqBatch(SVgroupCreateTableBatch* pTbBatch) {
   taosArrayDestroy(pTbBatch->req.pArray);
 }
 
-static int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray) {
+int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray) {
   SVnodeModifOpStmt* pNewStmt = (SVnodeModifOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT);
   if (pNewStmt == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -5453,10 +5446,10 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
 
 static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, SCreateSubTableClause* pStmt,
                                      const STag* pTag, uint64_t suid, SVgroupInfo* pVgInfo) {
-  char  dbFName[TSDB_DB_FNAME_LEN] = {0};
-  SName name = {.type = TSDB_DB_NAME_T, .acctId = acctId};
-  strcpy(name.dbname, pStmt->dbName);
-  tNameGetFullDbName(&name, dbFName);
+//  char  dbFName[TSDB_DB_FNAME_LEN] = {0};
+//  SName name = {.type = TSDB_DB_NAME_T, .acctId = acctId};
+//  strcpy(name.dbname, pStmt->dbName);
+//  tNameGetFullDbName(&name, dbFName);
 
   struct SVCreateTbReq req = {0};
   req.type = TD_CHILD_TABLE;
@@ -5717,7 +5710,7 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
   return code;
 }
 
-static SArray* serializeVgroupsCreateTableBatch(int32_t acctId, SHashObj* pVgroupHashmap) {
+SArray* serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap) {
   SArray* pBufArray = taosArrayInit(taosHashGetSize(pVgroupHashmap), sizeof(void*));
   if (NULL == pBufArray) {
     return NULL;
@@ -5732,7 +5725,6 @@ static SArray* serializeVgroupsCreateTableBatch(int32_t acctId, SHashObj* pVgrou
     }
 
     serializeVgroupCreateTableBatch(pTbBatch, pBufArray);
-    destroyCreateTbReqBatch(pTbBatch);
   } while (true);
 
   return pBufArray;
@@ -5746,6 +5738,7 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  taosHashSetFreeFp(pVgroupHashmap, destroyCreateTbReqBatch);
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode;
   FOREACH(pNode, pStmt->pSubTables) {
@@ -5757,7 +5750,7 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
     }
   }
 
-  SArray* pBufArray = serializeVgroupsCreateTableBatch(pCxt->pParseCxt->acctId, pVgroupHashmap);
+  SArray* pBufArray = serializeVgroupsCreateTableBatch(pVgroupHashmap);
   taosHashCleanup(pVgroupHashmap);
   if (NULL == pBufArray) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -5817,7 +5810,10 @@ over:
   return code;
 }
 
-static void destroyDropTbReqBatch(SVgroupDropTableBatch* pTbBatch) { taosArrayDestroy(pTbBatch->req.pArray); }
+static void destroyDropTbReqBatch(void* data) {
+  SVgroupDropTableBatch* pTbBatch = (SVgroupDropTableBatch*)data;
+  taosArrayDestroy(pTbBatch->req.pArray);
+}
 
 static int32_t serializeVgroupDropTableBatch(SVgroupDropTableBatch* pTbBatch, SArray* pBufArray) {
   int      tlen;
@@ -5851,7 +5847,7 @@ static int32_t serializeVgroupDropTableBatch(SVgroupDropTableBatch* pTbBatch, SA
   return TSDB_CODE_SUCCESS;
 }
 
-static SArray* serializeVgroupsDropTableBatch(int32_t acctId, SHashObj* pVgroupHashmap) {
+SArray* serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap) {
   SArray* pBufArray = taosArrayInit(taosHashGetSize(pVgroupHashmap), sizeof(void*));
   if (NULL == pBufArray) {
     return NULL;
@@ -5866,7 +5862,6 @@ static SArray* serializeVgroupsDropTableBatch(int32_t acctId, SHashObj* pVgroupH
     }
 
     serializeVgroupDropTableBatch(pTbBatch, pBufArray);
-    destroyDropTbReqBatch(pTbBatch);
   } while (true);
 
   return pBufArray;
@@ -5880,6 +5875,7 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  taosHashSetFreeFp(pVgroupHashmap, destroyDropTbReqBatch);
   bool   isSuperTable = false;
   SNode* pNode;
   FOREACH(pNode, pStmt->pTables) {
@@ -5898,7 +5894,7 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SArray* pBufArray = serializeVgroupsDropTableBatch(pCxt->pParseCxt->acctId, pVgroupHashmap);
+  SArray* pBufArray = serializeVgroupsDropTableBatch(pVgroupHashmap);
   taosHashCleanup(pVgroupHashmap);
   if (NULL == pBufArray) {
     return TSDB_CODE_OUT_OF_MEMORY;

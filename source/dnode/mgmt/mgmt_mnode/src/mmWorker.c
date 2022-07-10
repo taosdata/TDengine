@@ -167,7 +167,7 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   if (pMsg == NULL) return -1;
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
 
-  dTrace("msg:%p, is created and will put int %s queue", pMsg, pWorker->name);
+  dTrace("msg:%p, is created and will put into %s queue, type:%s", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType));
   return mmPutMsgToWorker(pMgmt, pWorker, pMsg);
 }
 
