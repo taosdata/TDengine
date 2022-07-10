@@ -335,8 +335,6 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
 
           qDebug("tsdb reader offset seek to uid %ld ts %ld, table cur set to %d , all table num %d", uid, ts,
                  pTableScanInfo->currentTable, tableSz);
-        } else {
-          // switch to log
         }
 
       } else {
@@ -352,6 +350,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
   return 0;
 }
 
+#if 0
 int32_t qStreamPrepareTsdbScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
@@ -371,3 +370,4 @@ int32_t qGetStreamScanStatus(qTaskInfo_t tinfo, uint64_t* uid, int64_t* ts) {
 
   return doGetScanStatus(pTaskInfo->pRoot, uid, ts);
 }
+#endif

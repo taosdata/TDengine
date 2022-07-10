@@ -41,7 +41,7 @@ FstDfaBuilder *dfaBuilderCreate(SArray *insts) {
     return NULL;
   }
 
-  SArray *states = taosArrayInit(4, sizeof(State));
+  SArray *states = taosArrayInit(4, sizeof(DfaState));
 
   builder->dfa = dfaCreate(insts, states);
   builder->cache = taosHashInit(
@@ -71,7 +71,7 @@ FstDfa *dfaBuilder(FstDfaBuilder *builder) {
 
   dfaAdd(builder->dfa, cur, 0);
 
-  SArray * states = taosArrayInit(0, sizeof(uint32_t));
+  SArray  *states = taosArrayInit(0, sizeof(uint32_t));
   uint32_t result;
   if (dfaBuilderCachedState(builder, cur, &result)) {
     taosArrayPush(states, &result);
@@ -98,10 +98,12 @@ FstDfa *dfaBuilder(FstDfaBuilder *builder) {
   return builder->dfa;
 }
 
+FstDfa *dfaBuilderBuild(FstDfaBuilder *builer) { return NULL; }
+
 bool dfaBuilderRunState(FstDfaBuilder *builder, FstSparseSet *cur, FstSparseSet *next, uint32_t state, uint8_t byte,
                         uint32_t *result) {
   sparSetClear(cur);
-  State *t = taosArrayGet(builder->dfa->states, state);
+  DfaState *t = taosArrayGet(builder->dfa->states, state);
   for (int i = 0; i < taosArrayGetSize(t->insts); i++) {
     uint32_t ip = *(int32_t *)taosArrayGet(t->insts, i);
     sparSetAdd(cur, ip);
@@ -144,7 +146,7 @@ bool dfaBuilderCachedState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *
     *result = *v;
     taosArrayDestroy(tinsts);
   } else {
-    State st;
+    DfaState st;
     st.insts = tinsts;
     st.isMatch = isMatch;
     taosArrayPush(builder->dfa->states, &st);
@@ -169,14 +171,14 @@ bool dfaIsMatch(FstDfa *dfa, uint32_t si) {
   if (dfa->states == NULL || si < taosArrayGetSize(dfa->states)) {
     return false;
   }
-  State *st = taosArrayGet(dfa->states, si);
+  DfaState *st = taosArrayGet(dfa->states, si);
   return st != NULL ? st->isMatch : false;
 }
 bool dfaAccept(FstDfa *dfa, uint32_t si, uint8_t byte, uint32_t *result) {
   if (dfa->states == NULL || si < taosArrayGetSize(dfa->states)) {
     return false;
   }
-  State *st = taosArrayGet(dfa->states, si);
+  DfaState *st = taosArrayGet(dfa->states, si);
   *result = st->next[byte];
   return true;
 }

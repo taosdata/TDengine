@@ -478,7 +478,7 @@ static int32_t vnodeSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void
 
 static int32_t vnodeSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply) {
   SVnode *pVnode = pFsm->data;
-  int32_t code = vnodeSnapWriterClose(pWriter, isApply);
+  int32_t code = vnodeSnapWriterClose(pWriter, !isApply);
   return code;
 }
 
