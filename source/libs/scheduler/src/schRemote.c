@@ -85,7 +85,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
   SCH_ERR_JRET(schValidateRspMsgType(pJob, pTask, msgType));
 
   int32_t reqType = IsReq(pMsg) ? pMsg->msgType : (pMsg->msgType - 1);
-  if (SCH_NEED_REDIRECT(reqType, rspCode, pMsg->len)) {
+  if (SCH_TASK_NEED_REDIRECT(pTask, reqType, rspCode, pMsg->len)) {
     SCH_RET(schHandleRedirect(pJob, pTask, (SDataBuf *)pMsg, rspCode));
   }
 

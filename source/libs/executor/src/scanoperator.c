@@ -40,8 +40,8 @@ static int32_t buildDbTableInfoBlock(const SSDataBlock* p, const SSysTableMeta* 
                                      const char* dbName);
 
 static int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
-                               SSDataBlock* pBlock, const char* idStr);
-static bool processBlockWithProbability(const SSampleExecInfo* pInfo);
+                                      SSDataBlock* pBlock, const char* idStr);
+static bool    processBlockWithProbability(const SSampleExecInfo* pInfo);
 
 bool processBlockWithProbability(const SSampleExecInfo* pInfo) {
 #if 0
@@ -265,7 +265,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   if (pTableScanInfo->pseudoSup.numOfExprs > 0) {
     SExprSupp* pSup = &pTableScanInfo->pseudoSup;
 
-    int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock, GET_TASKID(pTaskInfo));
+    int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock,
+                                          GET_TASKID(pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
       longjmp(pTaskInfo->env, code);
     }
@@ -298,7 +299,7 @@ static void prepareForDescendingScan(STableScanInfo* pTableScanInfo, SqlFunction
 }
 
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
-                            SSDataBlock* pBlock, const char* idStr) {
+                               SSDataBlock* pBlock, const char* idStr) {
   // currently only the tbname pseudo column
   if (numOfPseudoExpr == 0) {
     return TSDB_CODE_SUCCESS;
@@ -308,7 +309,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int
   metaReaderInit(&mr, pHandle->meta, 0);
   int32_t code = metaGetTableEntryByUid(&mr, pBlock->info.uid);
   if (code != TSDB_CODE_SUCCESS) {
-    qError("failed to get table meta, uid:0x%"PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
+    qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
     metaReaderClear(&mr);
     return terrno;
   }
@@ -663,7 +664,7 @@ static int32_t doGetTableRowSize(void* pMeta, uint64_t uid, int32_t* rowLen, con
   metaReaderInit(&mr, pMeta, 0);
   int32_t code = metaGetTableEntryByUid(&mr, uid);
   if (code != TSDB_CODE_SUCCESS) {
-    qError("failed to get table meta, uid:0x%"PRIx64 ", code:%s, %s", uid, tstrerror(terrno), idstr);
+    qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", uid, tstrerror(terrno), idstr);
     metaReaderClear(&mr);
     return terrno;
   }
@@ -677,7 +678,7 @@ static int32_t doGetTableRowSize(void* pMeta, uint64_t uid, int32_t* rowLen, con
     uint64_t suid = mr.me.ctbEntry.suid;
     code = metaGetTableEntryByUid(&mr, suid);
     if (code != TSDB_CODE_SUCCESS) {
-      qError("failed to get table meta, uid:0x%"PRIx64 ", code:%s, %s", suid, tstrerror(terrno), idstr);
+      qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", suid, tstrerror(terrno), idstr);
       metaReaderClear(&mr);
       return terrno;
     }
@@ -704,12 +705,13 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
   }
 
   SBlockDistInfo* pBlockScanInfo = pOperator->info;
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
 
   STableBlockDistInfo blockDistInfo = {.minRows = INT_MAX, .maxRows = INT_MIN};
-  int32_t code = doGetTableRowSize(pBlockScanInfo->readHandle.meta, pBlockScanInfo->uid, &blockDistInfo.rowSize, GET_TASKID(pTaskInfo));
+  int32_t code = doGetTableRowSize(pBlockScanInfo->readHandle.meta, pBlockScanInfo->uid, &blockDistInfo.rowSize,
+                                   GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
-   longjmp(pTaskInfo->env, code);
+    longjmp(pTaskInfo->env, code);
   }
 
   tsdbGetFileBlocksDistInfo(pBlockScanInfo->pHandle, &blockDistInfo);
@@ -1180,7 +1182,8 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
 
   // currently only the tbname pseudo column
   if (pInfo->numOfPseudoExpr > 0) {
-    int32_t code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes, GET_TASKID(pTaskInfo));
+    int32_t code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
+                                          GET_TASKID(pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
       longjmp(pTaskInfo->env, code);
     }
@@ -1225,17 +1228,21 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         pTaskInfo->streamInfo.metaBlk = ret.meta;
         return NULL;
       } else if (ret.fetchType == FETCH_TYPE__NONE) {
-        if (ret.offset.version == -1) {
-          pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__LOG;
-          pTaskInfo->streamInfo.lastStatus.version = pTaskInfo->streamInfo.prepareStatus.version - 1;
-        } else {
-          pTaskInfo->streamInfo.lastStatus = ret.offset;
-        }
+        /*if (ret.offset.version == -1) {*/
+        /*pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__LOG;*/
+        /*pTaskInfo->streamInfo.lastStatus.version = pTaskInfo->streamInfo.prepareStatus.version - 1;*/
+        /*} else {*/
+        pTaskInfo->streamInfo.lastStatus = ret.offset;
+        ASSERT(pTaskInfo->streamInfo.lastStatus.version + 1 >= pTaskInfo->streamInfo.prepareStatus.version);
+        /*}*/
         return NULL;
       } else {
         ASSERT(0);
       }
     }
+  } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
+    SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
+    return pResult && pResult->info.rows > 0 ? pResult : NULL;
   }
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
@@ -1404,7 +1411,8 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
       // currently only the tbname pseudo column
       if (pInfo->numOfPseudoExpr > 0) {
-        code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes, GET_TASKID(pTaskInfo));
+        code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
+                                      GET_TASKID(pTaskInfo));
         if (code != TSDB_CODE_SUCCESS) {
           longjmp(pTaskInfo->env, code);
         }
@@ -1442,6 +1450,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
 
   } else if (pInfo->blockType == STREAM_INPUT__TABLE_SCAN) {
+    /*ASSERT(0);*/
     // check reader last status
     // if not match, reset status
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
@@ -1834,9 +1843,10 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
           metaReaderInit(&mr, pInfo->readHandle.meta, 0);
 
           uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
-          int32_t code = metaGetTableEntryByUid(&mr, suid);
+          int32_t  code = metaGetTableEntryByUid(&mr, suid);
           if (code != TSDB_CODE_SUCCESS) {
-            qError("failed to get super table meta, uid:0x%"PRIx64 ", code:%s, %s", suid, tstrerror(terrno), GET_TASKID(pTaskInfo));
+            qError("failed to get super table meta, uid:0x%" PRIx64 ", code:%s, %s", suid, tstrerror(terrno),
+                   GET_TASKID(pTaskInfo));
             metaReaderClear(&mr);
             metaCloseTbCursor(pInfo->pCur);
             pInfo->pCur = NULL;
@@ -2236,9 +2246,10 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
 
   while (pInfo->curPos < size && count < pOperator->resultInfo.capacity) {
     STableKeyInfo* item = taosArrayGet(pInfo->pTableList->pTableList, pInfo->curPos);
-    int32_t code = metaGetTableEntryByUid(&mr, item->uid);
+    int32_t        code = metaGetTableEntryByUid(&mr, item->uid);
     if (code != TSDB_CODE_SUCCESS) {
-      qError("failed to get table meta, uid:0x%"PRIx64 ", code:%s, %s", item->uid, tstrerror(terrno), GET_TASKID(pTaskInfo));
+      qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", item->uid, tstrerror(terrno),
+             GET_TASKID(pTaskInfo));
       metaReaderClear(&mr);
       longjmp(pTaskInfo->env, terrno);
     }
@@ -2526,8 +2537,8 @@ static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeSc
 
   // currently only the tbname pseudo column
   if (pTableScanInfo->numOfPseudoExpr > 0) {
-    int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pTableScanInfo->pPseudoExpr, pTableScanInfo->numOfPseudoExpr,
-                           pBlock, GET_TASKID(pTaskInfo));
+    int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pTableScanInfo->pPseudoExpr,
+                                          pTableScanInfo->numOfPseudoExpr, pBlock, GET_TASKID(pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
       longjmp(pTaskInfo->env, code);
     }

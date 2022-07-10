@@ -49,6 +49,7 @@ struct SSmaEnv {
 typedef struct {
   int8_t  inited;
   int32_t rsetId;
+  void   *tmrHandle;  // shared by all fetch tasks
 } SSmaMgmt;
 
 #define SMA_ENV_LOCK(env) ((env)->lock)
@@ -65,7 +66,6 @@ struct SRSmaStat {
   SSma     *pSma;
   int64_t   submitVer;
   int64_t   refId;         // shared by fetch tasks
-  void     *tmrHandle;     // shared by fetch tasks
   int8_t    triggerStat;   // shared by fetch tasks
   int8_t    runningStat;   // for persistence task 
   SHashObj *rsmaInfoHash;  // key: stbUid, value: SRSmaInfo;
@@ -82,7 +82,6 @@ struct SSmaStat {
 #define SMA_TSMA_STAT(s)     (&(s)->tsmaStat)
 #define SMA_RSMA_STAT(s)     (&(s)->rsmaStat)
 #define RSMA_INFO_HASH(r)    ((r)->rsmaInfoHash)
-#define RSMA_TMR_HANDLE(r)   ((r)->tmrHandle)
 #define RSMA_TRIGGER_STAT(r) (&(r)->triggerStat)
 #define RSMA_RUNNING_STAT(r) (&(r)->runningStat)
 #define RSMA_REF_ID(r)       ((r)->refId)
@@ -189,7 +188,7 @@ static FORCE_INLINE void tdSmaStatSetDropped(STSmaStat *pTStat) {
 
 static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
-void          *tdFreeRSmaInfo(SRSmaInfo *pInfo);
+void          *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo);
 int32_t        tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat);
 
 int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);

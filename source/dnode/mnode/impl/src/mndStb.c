@@ -705,10 +705,10 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   memcpy(pDst->db, pDb->name, TSDB_DB_FNAME_LEN);
   pDst->createdTime = taosGetTimestampMs();
   pDst->updateTime = pDst->createdTime;
-  pDst->uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
+  pDst->uid = (pCreate->source == 1) ? pCreate->suid : mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
   pDst->dbUid = pDb->uid;
-  pDst->tagVer = 1;
-  pDst->colVer = 1;
+  pDst->tagVer = (pCreate->source != TD_REQ_FROM_APP) ? pCreate->tagVer : 1;
+  pDst->colVer = (pCreate->source != TD_REQ_FROM_APP) ? pCreate->colVer : 1;
   pDst->smaVer = 1;
   pDst->nextColId = 1;
   pDst->maxdelay[0] = pCreate->delay1;
@@ -869,9 +869,38 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   pStb = mndAcquireStb(pMnode, createReq.name);
   if (pStb != NULL) {
     if (createReq.igExists) {
-      mDebug("stb:%s, already exist, ignore exist is set", createReq.name);
-      code = 0;
-      goto _OVER;
+      if (createReq.source == TD_REQ_FROM_APP) {
+        mDebug("stb:%s, already exist, ignore exist is set", createReq.name);
+        code = 0;
+        goto _OVER;
+      } else if (pStb->uid != createReq.suid) {
+        mError("stb:%s, already exist while create, input suid:%" PRId64 " not match with exist suid:%" PRId64,
+               createReq.name, createReq.suid, pStb->uid);
+        terrno = TSDB_CODE_MND_STABLE_UID_NOT_MATCH;
+        goto _OVER;
+      } else if (createReq.tagVer > 0 || createReq.colVer > 0) {
+        int32_t tagDelta = pStb->tagVer - createReq.tagVer;
+        int32_t colDelta = pStb->colVer - createReq.colVer;
+        int32_t verDelta = tagDelta + verDelta;
+        mInfo("stb:%s, already exist while create, input tagVer:%d colVer:%d, exist tagVer:%d colVer:%d",
+              createReq.name, createReq.tagVer, createReq.colVer, pStb->tagVer, pStb->colVer);
+        if (tagDelta <= 0 && colDelta <= 0) {
+          mInfo("stb:%s, schema version is not incremented and nothing needs to be done", createReq.name);
+          code = 0;
+          goto _OVER;
+        } else if ((tagDelta == 1 || colDelta == 1) && (verDelta == 1)) {
+          mInfo("stb:%s, schema version is only increased by 1 number, do alter operation", createReq.name);
+        } else {
+          mError("stb:%s, schema version increase more than 1 number, error is returned", createReq.name);
+          terrno = TSDB_CODE_MND_INVALID_SCHEMA_VER;
+          goto _OVER;
+        }
+      } else {
+        mError("stb:%s, already exist while create, input tagVer:%d colVer:%d is invalid", createReq.name,
+               createReq.tagVer, createReq.colVer, pStb->tagVer, pStb->colVer);
+        terrno = TSDB_CODE_MND_INVALID_SCHEMA_VER;
+        goto _OVER;
+      }
     } else {
       terrno = TSDB_CODE_MND_STB_ALREADY_EXIST;
       goto _OVER;
@@ -1614,14 +1643,6 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((alterReq.tagVer > 0 && alterReq.colVer > 0) &&
-      (alterReq.tagVer <= pStb->tagVer || alterReq.colVer <= pStb->colVer)) {
-    mDebug("stb:%s, already exist, tagVer:%d colVer:%d smaller than in mnode, tagVer:%d colVer:%d, alter success",
-           alterReq.name, alterReq.tagVer, alterReq.colVer, pStb->tagVer, pStb->colVer);
-    code = 0;
-    goto _OVER;
-  }
-
   if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
@@ -1750,6 +1771,11 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
       terrno = TSDB_CODE_MND_STB_NOT_EXIST;
       goto _OVER;
     }
+  }
+
+  if (dropReq.source != TD_REQ_FROM_APP && pStb->uid != dropReq.suid) {
+    terrno = TSDB_CODE_MND_STB_NOT_EXIST;
+    goto _OVER;
   }
 
   pDb = mndAcquireDbByStb(pMnode, dropReq.name);
