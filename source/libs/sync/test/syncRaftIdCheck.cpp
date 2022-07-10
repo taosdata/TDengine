@@ -15,14 +15,14 @@ int main(int argc, char** argv) {
     char     host[128];
     uint16_t port;
     syncUtilU642Addr(u64, host, sizeof(host), &port);
-    printf("%lu -> %s:%d \n", u64, host, port);
+    printf("" PRIu64 " -> %s:%d \n", u64, host, port);
 
   } else if (argc == 3) {
     uint64_t u64;
     char*    host = argv[1];
     uint16_t port = atoi(argv[2]);
     u64 = syncUtilAddr2U64(host, port);
-    printf("%s:%d -> %lu \n", host, port, u64);
+    printf("%s:%d ->: %" PRIu64 " \n", host, port, u64);
   } else {
     usage(argv[0]);
     exit(-1);

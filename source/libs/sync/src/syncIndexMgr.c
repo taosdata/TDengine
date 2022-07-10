@@ -134,28 +134,28 @@ char *syncIndexMgr2Str(SSyncIndexMgr *pSyncIndexMgr) {
 // for debug -------------------
 void syncIndexMgrPrint(SSyncIndexMgr *pObj) {
   char *serialized = syncIndexMgr2Str(pObj);
-  printf("syncIndexMgrPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  printf("syncIndexMgrPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncIndexMgrPrint2(char *s, SSyncIndexMgr *pObj) {
   char *serialized = syncIndexMgr2Str(pObj);
-  printf("syncIndexMgrPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncIndexMgrPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncIndexMgrLog(SSyncIndexMgr *pObj) {
   char *serialized = syncIndexMgr2Str(pObj);
-  sTrace("syncIndexMgrLog | len:%lu | %s", strlen(serialized), serialized);
+  sTrace("syncIndexMgrLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncIndexMgrLog2(char *s, SSyncIndexMgr *pObj) {
   if (gRaftDetailLog) {
     char *serialized = syncIndexMgr2Str(pObj);
-    sTrace("syncIndexMgrLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncIndexMgrLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -173,7 +173,7 @@ void syncIndexMgrSetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, S
   char     host[128];
   uint16_t port;
   syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d index mgr set for %s:%d, term:%lu error", pSyncIndexMgr->pSyncNode->vgId, host, port, term);
+  sError("vgId:%d index mgr set for %s:%d, term:%" PRIu64 " error", pSyncIndexMgr->pSyncNode->vgId, host, port, term);
 }
 
 SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId) {

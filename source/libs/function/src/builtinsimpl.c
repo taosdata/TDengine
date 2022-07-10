@@ -3467,6 +3467,10 @@ void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
 
   setBufPageDirty(pPage, true);
   releaseBufPage(pCtx->pBuf, pPage);
+#ifdef BUF_PAGE_DEBUG
+  qDebug("page_saveTuple pos:%p,pageId:%d, offset:%d\n", pPos, pPos->pageId,
+           pPos->offset);
+#endif
 }
 
 void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos) {
@@ -3501,6 +3505,9 @@ void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
 
   setBufPageDirty(pPage, true);
   releaseBufPage(pCtx->pBuf, pPage);
+#ifdef BUF_PAGE_DEBUG
+  qDebug("page_copyTuple pos:%p, pageId:%d, offset:%d", pPos, pPos->pageId, pPos->offset);
+#endif
 }
 
 int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
