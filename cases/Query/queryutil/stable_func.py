@@ -947,7 +947,7 @@ class TDFunction():
     def int_cloumn_regular_only_error_0(self):   
         # not support stable, if support should together with groupby tbname.  support all int type \ double type \ 
         # TWA/Diff/Derivative/Irate/CSUM/MAVG/SAMPLE/INTERP/Elapsed are not allowed to apply to super table directly 
-        hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']  
+        hanshu = ['IRATE','INTERP']  #3.0 support ,'DIFF','TWA','CSUM'
         column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn_regular_only = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
