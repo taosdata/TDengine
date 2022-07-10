@@ -1,12 +1,13 @@
 case1:
   json_file1:
     stream_info: 
-      stream_name: case1_stream
-      stream_stb: perf_db1.case1_output_streamtb
-      trigger_mode: "window_close"
+      stream_name: perf_stream
+      stream_stb: perf_db1.output_streamtb
+      trigger_mode: "at_once"
       interval: "10s"
+      watermark: "3650d"
       # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
-      source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), avg(c7), now from stb partition by tbname interval(10s)"
+      source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), avg(c7), now, max(cast(ts as bigint)) from stb interval(10s)"
       drop: "yes"
     json_info:
       host: "vm85"
@@ -47,7 +48,7 @@ case1:
       insert_mode: "taosc"
       line_protocol: null
       tcp_transfer: "no"
-      insert_rows: 100000
+      insert_rows: 1000000
 
       childtable_limit: 0
       childtable_offset: 0
@@ -55,7 +56,7 @@ case1:
       max_sql_len: 65480
       disorder_ratio: 0
       disorder_range: 1000
-      timestamp_step: 10000
+      timestamp_step: 1000
       start_timestamp: "2020-01-01 00:00:00"
       sample_format: "csv"
       sample_file: "./sample.csv"
@@ -86,9 +87,9 @@ case1:
 # case1:
 #   json_file1:
 #     stream_info: 
-#       stream_name: case1_stream
-#       stream_stb: case1_output_streamtb
-#       trigger_mode: "at_once"
+#       stream_name: perf_stream
+#       stream_stb: perf_db2.output_streamtb
+#       trigger_mode: "window_close"
 #       interval: "10s"
 #       # source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), first(c4), last(c5), avg(c7), count(c8), spread(c1), stddev(c2), now  from stb partition by tbname interval(10s)"
 #       source_sql: "select _wstartts as start, min(c1),max(c2), sum(c3), avg(c7), now  from stb partition by tbname interval(10s)"
@@ -119,11 +120,11 @@ case1:
 #       quorum: 1
 #       fsync: 3000
 #       update: 0
-#       vgroups: 2
+#       vgroups: 1
 #     stb_info:
 #       stb_name: "stb"
 #       child_table_exists: "no"
-#       childtable_count: 10
+#       childtable_count: 100
 #       childtable_prefix: "stb_0"
 #       escape_character: "no"
 #       auto_create_table: "no"
@@ -140,7 +141,7 @@ case1:
 #       max_sql_len: 65480
 #       disorder_ratio: 0
 #       disorder_range: 1000
-#       timestamp_step: 11000
+#       timestamp_step: 1000
 #       start_timestamp: "2020-01-01 00:00:00"
 #       sample_format: "csv"
 #       sample_file: "./sample.csv"

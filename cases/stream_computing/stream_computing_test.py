@@ -78,7 +78,7 @@ class StreamComputingTest(TDCase):
         self.date_time = self.tdCom.genTs(precision=self.precision)[0]
         self.stb_data_filter_sql = f'ts >= {self.date_time}+1s and c1 = 1 or c2 > 1 and c3 != 4 or c4 <= 3 and c9 <> 0 or c10 is not Null or c11 is Null or \
                 c12 between "na" and "nchar4" and c11 not between "bi" and "binary" and c12 match "nchar[19]" and c12 nmatch "nchar[25]" or c13 = True or \
-                c5 in (1, 2, 3) or c6 not in (6, 7) and c12 like "nch%" and c11 not like "bina_" and c6 <= 10 or c12 is Null or c8 >= 4 and t1 = 1 or t2 > 1 \
+                c5 in (1, 2, 3) or c6 not in (6, 7) and c12 like "nch%" and c11 not like "bina_" and c6 < 10 or c12 is Null or c8 >= 4 and t1 = 1 or t2 > 1 \
                 and t3 != 4 or c4 <= 3 and t9 <> 0 or t10 is not Null or t11 is Null or t12 between "na" and "nchar4" and t11 not between "bi" and "binary" \
                 or t12 match "nchar[19]" or t12 nmatch "nchar[25]" or t13 = True or t5 in (1, 2, 3) or t6 not in (6, 7) and t12 like "nch%" \
                 and t11 not like "bina_" and t6 <= 10 or t12 is Null or t8 >= 4'
@@ -1115,14 +1115,14 @@ class StreamComputingTest(TDCase):
         # self.data_filter()
         # self.life_cycle()
         # # # ! TD-16617
-        self.stream_tandem()
+        # self.stream_tandem()
         # # self.disorder_data()
         # self.trigger_window_close()
         # self.trigger_max_delay()
         # ! TD-16844
         # self.udf_interval_order(interval=10)
         # ! TD-16843
-        # self.partitionby_interval_order(interval=10)
+        self.partitionby_interval_order(interval=10)
         # ! bug
         # self.window_close_state_window_order(state_window="c1", interation=self.interation)
         # self.window_close_interval_order(interval=random.randint(10, 15), watermark=None, interation=self.interation)

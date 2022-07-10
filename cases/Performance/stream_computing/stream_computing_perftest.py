@@ -225,7 +225,12 @@ class StreamComputingPerfTest(TDCase):
                 f = open(result_file_name, 'a')
                 source_stb_query_sql = f'select max(cast(c10 as bigint))  from {db["name"]}.stb;'
                 batch_query_sql = self.get_batch_query_sql(cfg[cases][json_file]["stream_info"]["source_sql"], "now", " max(cast(c10 as bigint)) a")
-                source_stb_query_sql = f'select max(a) from ({batch_query_sql});'
+                if cfg[cases][json_file]["stream_info"]["trigger_mode"] == "at_once":
+                    source_stb_query_sql = f'select top(`max(a)`, 1) from (select max(a) from ({batch_query_sql}) order by a desc) limit 1;'
+                elif cfg[cases][json_file]["stream_info"]["trigger_mode"] == "window_close":
+                    source_stb_query_sql = f'select top(`max(a)`, 2) from (select max(a) from ({batch_query_sql}) order by a desc) limit 1;'
+                else:
+                    pass
 
                 f.write(f'--------{cases}---- {source_stb_query_sql}\t--------\n')
                 self.tdSql.query(source_stb_query_sql)
@@ -238,11 +243,12 @@ class StreamComputingPerfTest(TDCase):
                 self.tdSql.query(query_sql)
                 expected_res = self.tdSql.query_data[0][0]
                 end_tag = 0
+                latency = 0
                 while init_res != expected_res:
                     self.tdSql.query(query_sql)
                     init_res = self.tdSql.query_data[0][0]
                     time.sleep(1)
-                    self.tdSql.query(fquery_sql)
+                    self.tdSql.query(query_sql)
                     expected_res = self.tdSql.query_data[0][0]
                     if latency < self.stream_timeout:
                         latency += 1
