@@ -94,7 +94,6 @@ int64_t tqScan(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffset
         rowCnt += pDataBlock->info.rows;
         if (rowCnt <= 4096) continue;
       }
-      continue;
     }
 
     void* meta = qStreamExtractMetaMsg(task);
