@@ -551,6 +551,7 @@ typedef struct SFillOperatorInfo {
   bool              multigroupResult;
   STimeWindow       win;
   SNode*            pCondition;
+  SArray*           pColMatchColInfo;
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {

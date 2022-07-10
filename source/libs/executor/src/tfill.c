@@ -50,8 +50,11 @@ static void setTagsValue(SFillInfo* pFillInfo, void** data, int32_t genRows) {
 
 static void setNullRow(SSDataBlock* pBlock, int32_t numOfCol, int32_t rowIndex) {
   // the first are always the timestamp column, so start from the second column.
-  for (int32_t i = 1; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
+  for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
     SColumnInfoData* p = taosArrayGet(pBlock->pDataBlock, i);
+    if (p->info.type == TSDB_DATA_TYPE_TIMESTAMP && i == 0) {
+      continue;
+    }
     colDataAppendNULL(p, rowIndex);
   }
 }
