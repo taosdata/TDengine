@@ -47,7 +47,8 @@ struct SSmaEnv {
 };
 
 typedef struct {
-  int32_t smaRef;
+  int8_t  inited;
+  int32_t rsetId;
 } SSmaMgmt;
 
 #define SMA_ENV_LOCK(env) ((env)->lock)
@@ -95,6 +96,7 @@ enum {
   TASK_TRIGGER_STAT_CANCELLED = 4,
   TASK_TRIGGER_STAT_FINISHED = 5,
 };
+
 void  tdDestroySmaEnv(SSmaEnv *pSmaEnv);
 void *tdFreeSmaEnv(SSmaEnv *pSmaEnv);
 
@@ -104,6 +106,10 @@ int32_t tdInsertRSmaData(SSma *pSma, char *msg);
 
 int32_t tdRefSmaStat(SSma *pSma, SSmaStat *pStat);
 int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat);
+
+void   *tdAcquireSmaRef(int32_t rsetId, int64_t refId, const char *tags, int32_t ln);
+int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId, const char *tags, int32_t ln);
+
 int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType);
 
 int32_t tdLockSma(SSma *pSma);

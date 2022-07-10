@@ -60,9 +60,9 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         taosArrayAddAll(p->pDataBlock, pDataBlock->pDataBlock);
         taosArrayPush(pInfo->pBlockLists, &p);
       }
-    } else if (type == STREAM_INPUT__DATA_SCAN) {
+    } else if (type == STREAM_INPUT__TABLE_SCAN) {
       // do nothing
-      ASSERT(pInfo->blockType == STREAM_INPUT__DATA_SCAN);
+      ASSERT(pInfo->blockType == STREAM_INPUT__TABLE_SCAN);
     } else {
       ASSERT(0);
     }
@@ -76,7 +76,7 @@ int32_t qStreamScanSnapshot(qTaskInfo_t tinfo) {
     return TSDB_CODE_QRY_APP_ERROR;
   }
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  return doSetStreamBlock(pTaskInfo->pRoot, NULL, 0, STREAM_INPUT__DATA_SCAN, 0, NULL);
+  return doSetStreamBlock(pTaskInfo->pRoot, NULL, 0, STREAM_INPUT__TABLE_SCAN, 0, NULL);
 }
 
 int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type, bool assignUid) {
