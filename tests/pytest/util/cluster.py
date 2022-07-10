@@ -58,9 +58,10 @@ class ConfigureyCluster:
             self.dnodes.append(dnode)
         return self.dnodes
         
-    def create_dnode(self,conn):
+    def create_dnode(self,conn,dnodeNum):
         tdSql.init(conn.cursor())
-        for dnode in self.dnodes[1:]:
+        dnodeNum=int(dnodeNum)
+        for dnode in self.dnodes[1:dnodeNum]:
             # print(dnode.cfgDict)
             dnode_id = dnode.cfgDict["fqdn"] +  ":" +dnode.cfgDict["serverPort"]
             tdSql.execute(" create dnode '%s';"%dnode_id)

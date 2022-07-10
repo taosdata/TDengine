@@ -53,6 +53,12 @@ TEST_F(PlanOrderByTest, withGroupBy) {
   run("SELECT SUM(c1) AS a FROM t1 GROUP BY c2 ORDER BY a");
 }
 
+TEST_F(PlanOrderByTest, withSubquery) {
+  useDb("root", "test");
+
+  run("SELECT ts FROM (SELECT * FROM t1 ORDER BY ts DESC) ORDER BY ts DESC");
+}
+
 TEST_F(PlanOrderByTest, stable) {
   useDb("root", "test");
 
