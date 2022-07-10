@@ -52,6 +52,7 @@
 ./test.sh -f tsim/insert/null.sim
 ./test.sh -f tsim/insert/update0.sim
 ./test.sh -f tsim/insert/commit-merge0.sim
+./test.sh -f tsim/insert/insert_select.sim
 
 # ---- parser
 ./test.sh -f tsim/parser/groupby-basic.sim
@@ -192,5 +193,8 @@
 
 # --- catalog
 ./test.sh -f tsim/catalog/alterInCurrent.sim
+
+# --- scalar
+./test.sh -f tsim/scalar/in.sim
 
 #======================b1-end===============

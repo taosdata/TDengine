@@ -466,6 +466,17 @@ typedef struct SIntervalAggOperatorInfo {
   SNode *pCondition;
 } SIntervalAggOperatorInfo;
 
+typedef struct SMergeAlignedIntervalAggOperatorInfo {
+  SIntervalAggOperatorInfo *intervalAggOperatorInfo;
+
+  bool         hasGroupId;
+  uint64_t     groupId;
+  SSDataBlock* prefetchedBlock;
+  bool         inputBlocksFinished;
+
+  SNode*       pCondition;
+} SMergeAlignedIntervalAggOperatorInfo;
+
 typedef struct SStreamFinalIntervalOperatorInfo {
   // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
   SOptrBasicInfo     binfo;              // basic info
