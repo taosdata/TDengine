@@ -164,11 +164,8 @@ int metaClose(SMeta *pMeta) {
     if (pMeta->pIdx) metaCloseIdx(pMeta);
     if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
     if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
-#ifdef USE_INVERTED_INDEX
     if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
-#else
     if (pMeta->pTagIdx) tdbTbClose(pMeta->pTagIdx);
-#endif
     if (pMeta->pCtbIdx) tdbTbClose(pMeta->pCtbIdx);
     if (pMeta->pSuidIdx) tdbTbClose(pMeta->pSuidIdx);
     if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);

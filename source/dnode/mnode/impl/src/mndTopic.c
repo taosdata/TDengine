@@ -558,7 +558,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
         mndReleaseConsumer(pMnode, pConsumer);
         mndReleaseTopic(pMnode, pTopic);
         terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
-        mError("topic:%s, failed to drop since subscribed by consumer %ld in consumer group %s", dropReq.name,
+        mError("topic:%s, failed to drop since subscribed by consumer:%" PRId64 ", in consumer group %s", dropReq.name,
                pConsumer->consumerId, pConsumer->cgroup);
         return -1;
       }

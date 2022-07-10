@@ -47,7 +47,8 @@ struct SSmaEnv {
 };
 
 typedef struct {
-  int32_t smaRef;
+  int8_t  inited;
+  int32_t rsetId;
 } SSmaMgmt;
 
 #define SMA_ENV_LOCK(env) ((env)->lock)
@@ -62,6 +63,7 @@ struct STSmaStat {
 
 struct SRSmaStat {
   SSma     *pSma;
+  int64_t   submitVer;
   int64_t   refId;         // shared by fetch tasks
   void     *tmrHandle;     // shared by fetch tasks
   int8_t    triggerStat;   // shared by fetch tasks
@@ -84,6 +86,7 @@ struct SSmaStat {
 #define RSMA_TRIGGER_STAT(r) (&(r)->triggerStat)
 #define RSMA_RUNNING_STAT(r) (&(r)->runningStat)
 #define RSMA_REF_ID(r)       ((r)->refId)
+#define RSMA_SUBMIT_VER(r)   ((r)->submitVer)
 
 enum {
   TASK_TRIGGER_STAT_INIT = 0,
@@ -93,6 +96,7 @@ enum {
   TASK_TRIGGER_STAT_CANCELLED = 4,
   TASK_TRIGGER_STAT_FINISHED = 5,
 };
+
 void  tdDestroySmaEnv(SSmaEnv *pSmaEnv);
 void *tdFreeSmaEnv(SSmaEnv *pSmaEnv);
 
@@ -102,6 +106,10 @@ int32_t tdInsertRSmaData(SSma *pSma, char *msg);
 
 int32_t tdRefSmaStat(SSma *pSma, SSmaStat *pStat);
 int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat);
+
+void   *tdAcquireSmaRef(int32_t rsetId, int64_t refId, const char *tags, int32_t ln);
+int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId, const char *tags, int32_t ln);
+
 int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType);
 
 int32_t tdLockSma(SSma *pSma);
@@ -208,9 +216,13 @@ struct STFInfo {
   // specific fields
   union {
     struct {
-      int64_t applyVer[2];
+      int64_t submitVer;
     } qTaskInfo;
   };
+};
+
+enum {
+  TD_FTYPE_RSMA_QTASKINFO = 0,
 };
 
 struct STFile {

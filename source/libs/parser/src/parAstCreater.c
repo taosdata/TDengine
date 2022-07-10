@@ -746,7 +746,8 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   SDatabaseOptions* pOptions = (SDatabaseOptions*)nodesMakeNode(QUERY_NODE_DATABASE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->buffer = TSDB_DEFAULT_BUFFER_PER_VNODE;
-  pOptions->cachelast = TSDB_DEFAULT_CACHE_LAST_ROW;
+  pOptions->cacheLast = TSDB_DEFAULT_CACHE_LAST_ROW;
+  pOptions->cacheLastSize = TSDB_DEFAULT_LAST_ROW_MEM;
   pOptions->compressionLevel = TSDB_DEFAULT_COMP_LEVEL;
   pOptions->daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
   pOptions->fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
@@ -772,7 +773,8 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   SDatabaseOptions* pOptions = (SDatabaseOptions*)nodesMakeNode(QUERY_NODE_DATABASE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->buffer = -1;
-  pOptions->cachelast = -1;
+  pOptions->cacheLast = -1;
+  pOptions->cacheLastSize = -1;
   pOptions->compressionLevel = -1;
   pOptions->daysPerFile = -1;
   pOptions->fsyncPeriod = -1;
@@ -800,7 +802,10 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
       ((SDatabaseOptions*)pOptions)->buffer = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_CACHELAST:
-      ((SDatabaseOptions*)pOptions)->cachelast = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      ((SDatabaseOptions*)pOptions)->cacheLast = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_CACHELASTSIZE:
+      ((SDatabaseOptions*)pOptions)->cacheLastSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_COMP:
       ((SDatabaseOptions*)pOptions)->compressionLevel = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
@@ -909,6 +914,17 @@ SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* 
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
   pStmt->pOptions = (SDatabaseOptions*)pOptions;
+  return (SNode*)pStmt;
+}
+
+SNode* createFlushDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkDbName(pCxt, pDbName, false)) {
+    return NULL;
+  }
+  SAlterDatabaseStmt* pStmt = (SAlterDatabaseStmt*)nodesMakeNode(QUERY_NODE_FLUSH_DATABASE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
   return (SNode*)pStmt;
 }
 
@@ -1670,5 +1686,10 @@ SNode* createInsertStmt(SAstCreateContext* pCxt, SNode* pTable, SNodeList* pCols
   pStmt->pTable = pTable;
   pStmt->pCols = pCols;
   pStmt->pQuery = pQuery;
+  if (QUERY_NODE_SELECT_STMT == nodeType(pQuery)) {
+    strcpy(((SSelectStmt*)pQuery)->stmtName, ((STableNode*)pTable)->tableAlias);
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pQuery)) {
+    strcpy(((SSetOperator*)pQuery)->stmtName, ((STableNode*)pTable)->tableAlias);
+  }
   return (SNode*)pStmt;
 }

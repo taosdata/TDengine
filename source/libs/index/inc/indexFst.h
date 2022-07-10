@@ -53,7 +53,7 @@ typedef struct FstRange {
 } FstRange;
 
 typedef enum { OneTransNext, OneTrans, AnyTrans, EmptyFinal } State;
-typedef enum { Ordered, OutOfOrdered, DuplicateKey } OrderType;
+typedef enum { Ordered, OutOfOrdered, DuplicateKey } FstOrderType;
 
 FstBoundWithData* fstBoundStateCreate(FstBound type, FstSlice* data);
 bool              fstBoundWithDataExceededBy(FstBoundWithData* bound, FstSlice* slice);
@@ -106,7 +106,7 @@ bool         fstBuilderInsert(FstBuilder* b, FstSlice bs, Output in);
 void         fstBuilderCompileFrom(FstBuilder* b, uint64_t istate);
 void*        fstBuilerIntoInner(FstBuilder* b);
 void         fstBuilderFinish(FstBuilder* b);
-OrderType    fstBuilderCheckLastKey(FstBuilder* b, FstSlice bs, bool ckDup);
+FstOrderType fstBuilderCheckLastKey(FstBuilder* b, FstSlice bs, bool ckDup);
 CompiledAddr fstBuilderCompile(FstBuilder* b, FstBuilderNode* bn);
 
 typedef struct FstTransitions {
@@ -213,14 +213,18 @@ typedef struct FstNode {
 // If this node is final and has a terminal output value, then it is,  returned.
 // Otherwise, a zero output is returned
 #define FST_NODE_FINAL_OUTPUT(node) node->finalOutput
+
 // Returns true if and only if this node corresponds to a final or "match",
 // state in the finite state transducer.
 #define FST_NODE_IS_FINAL(node) node->isFinal
+
 // Returns the number of transitions in this node, The maximum number of
 // transitions is 256.
 #define FST_NODE_LEN(node) node->nTrans
+
 // Returns true if and only if this node has zero transitions.
 #define FST_NODE_IS_EMPTYE(node) (node->nTrans == 0)
+
 // Return the address of this node.
 #define FST_NODE_ADDR(node) node->start
 
@@ -277,6 +281,8 @@ FStmBuilder* fstSearch(Fst* fst, FAutoCtx* ctx);
 
 FStmStBuilder* fstSearchWithState(Fst* fst, FAutoCtx* ctx);
 // into stream to expand later
+//
+
 FStmSt* stmBuilderIntoStm(FStmBuilder* sb);
 
 bool fstVerify(Fst* fst);
@@ -325,7 +331,8 @@ FStmBuilder* stmBuilderCreate(Fst* fst, FAutoCtx* aut);
 void stmBuilderDestroy(FStmBuilder* b);
 
 // set up bound range
-// refator later:  to simple code by marco
+// refator later
+// simple code by marco
 void stmBuilderSetRange(FStmBuilder* b, FstSlice* val, RangeType type);
 
 #ifdef __cplusplus

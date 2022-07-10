@@ -270,13 +270,12 @@ static int32_t mndStbActionInsert(SSdb *pSdb, SStbObj *pStb) {
 
 static int32_t mndStbActionDelete(SSdb *pSdb, SStbObj *pStb) {
   mTrace("stb:%s, perform delete action, row:%p", pStb->name, pStb);
+  taosArrayDestroy(pStb->pFuncs);
   taosMemoryFreeClear(pStb->pColumns);
   taosMemoryFreeClear(pStb->pTags);
   taosMemoryFreeClear(pStb->comment);
-  taosMemoryFreeClear(pStb->pFuncs);
   taosMemoryFreeClear(pStb->pAst1);
   taosMemoryFreeClear(pStb->pAst2);
-  taosArrayDestroy(pStb->pFuncs);
   return 0;
 }
 
@@ -798,6 +797,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
 
 _OVER:
   mndTransDrop(pTrans);
+  mndStbActionDelete(pMnode->pSdb, &stbObj);
   return code;
 }
 

@@ -5431,11 +5431,11 @@ int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   } else if (pVal->type == TMQ_OFFSET__RESET_LATEST) {
     snprintf(buf, maxLen, "offset(reset to latest)");
   } else if (pVal->type == TMQ_OFFSET__LOG) {
-    snprintf(buf, maxLen, "offset(log) ver:%ld", pVal->version);
+    snprintf(buf, maxLen, "offset(log) ver:%" PRId64, pVal->version);
   } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA) {
-    snprintf(buf, maxLen, "offset(ss data) uid:%ld, ts:%ld", pVal->uid, pVal->ts);
+    snprintf(buf, maxLen, "offset(ss data) uid:%" PRId64 ", ts:%" PRId64, pVal->uid, pVal->ts);
   } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
-    snprintf(buf, maxLen, "offset(ss meta) uid:%ld, ts:%ld", pVal->uid, pVal->ts);
+    snprintf(buf, maxLen, "offset(ss meta) uid:%" PRId64 ", ts:%" PRId64, pVal->uid, pVal->ts);
   } else {
     ASSERT(0);
   }
@@ -5470,6 +5470,37 @@ int32_t tDecodeSTqOffset(SDecoder *pDecoder, STqOffset *pOffset) {
   return 0;
 }
 
+int32_t tEncodeDeleteRes(SEncoder *pCoder, const SDeleteRes *pRes) {
+  int32_t nUid = taosArrayGetSize(pRes->uidList);
+
+  if (tEncodeU64(pCoder, pRes->suid) < 0) return -1;
+  if (tEncodeI32v(pCoder, nUid) < 0) return -1;
+  for (int32_t iUid = 0; iUid < nUid; iUid++) {
+    if (tEncodeU64(pCoder, *(uint64_t *)taosArrayGet(pRes->uidList, iUid)) < 0) return -1;
+  }
+  if (tEncodeI64(pCoder, pRes->skey) < 0) return -1;
+  if (tEncodeI64(pCoder, pRes->ekey) < 0) return -1;
+  if (tEncodeI64v(pCoder, pRes->affectedRows) < 0) return -1;
+
+  return 0;
+}
+
+int32_t tDecodeDeleteRes(SDecoder *pCoder, SDeleteRes *pRes) {
+  int32_t  nUid;
+  uint64_t uid;
+
+  if (tDecodeU64(pCoder, &pRes->suid) < 0) return -1;
+  if (tDecodeI32v(pCoder, &nUid) < 0) return -1;
+  for (int32_t iUid = 0; iUid < nUid; iUid++) {
+    if (tDecodeU64(pCoder, &uid) < 0) return -1;
+    taosArrayPush(pRes->uidList, &uid);
+  }
+  if (tDecodeI64(pCoder, &pRes->skey) < 0) return -1;
+  if (tDecodeI64(pCoder, &pRes->ekey) < 0) return -1;
+  if (tDecodeI64v(pCoder, &pRes->affectedRows) < 0) return -1;
+
+  return 0;
+}
 int32_t tEncodeSMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
   if (tEncodeSTqOffsetVal(pEncoder, &pRsp->reqOffset) < 0) return -1;
   if (tEncodeSTqOffsetVal(pEncoder, &pRsp->rspOffset) < 0) return -1;

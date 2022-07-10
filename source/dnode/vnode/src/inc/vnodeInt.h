@@ -20,6 +20,7 @@
 #include "filter.h"
 #include "qworker.h"
 #include "sync.h"
+#include "tRealloc.h"
 #include "tchecksum.h"
 #include "tcoding.h"
 #include "tcompare.h"
@@ -27,15 +28,15 @@
 #include "tdatablock.h"
 #include "tdb.h"
 #include "tencode.h"
-#include "tref.h"
 #include "tfs.h"
 #include "tglobal.h"
 #include "tjson.h"
 #include "tlist.h"
 #include "tlockfree.h"
 #include "tlosertree.h"
-#include "tmallocator.h"
+#include "tlrucache.h"
 #include "tmsgcb.h"
+#include "tref.h"
 #include "tskiplist.h"
 #include "tstream.h"
 #include "ttime.h"
@@ -94,6 +95,7 @@ int             metaTtlDropTable(SMeta* pMeta, int64_t ttl, SArray* tbUids);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
+int32_t         metaGetTbTSchemaEx(SMeta* pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema** ppTSchema);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
 tb_uid_t        metaGetTableEntryUidByName(SMeta* pMeta, const char* name);
 int             metaGetTbNum(SMeta* pMeta);
@@ -127,9 +129,7 @@ int         tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSub
 int32_t     tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock,
                                 SSubmitBlkRsp* pRsp);
 int32_t     tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
-tsdbReaderT tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* tableList, uint64_t qId,
-                           uint64_t taskId);
-tsdbReaderT tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
+STsdbReader tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
                                 void* pMemRef);
 int32_t     tsdbSnapshotReaderOpen(STsdb* pTsdb, STsdbSnapshotReader** ppReader, int64_t sver, int64_t ever);
 int32_t     tsdbSnapshotReaderClose(STsdbSnapshotReader* pReader);
@@ -157,11 +157,14 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tsdbGetStbIdList(SMeta* pMeta, int64_t suid, SArray* list);
 
 SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
                             const char* stbFullName, int32_t vgId);
 
 // sma
+int32_t smaInit();
+void    smaCleanUp();
 int32_t smaOpen(SVnode* pVnode);
 int32_t smaClose(SSma* pSma);
 int32_t smaBegin(SSma* pSma);
@@ -171,6 +174,7 @@ int32_t smaPostCommit(SSma* pSma);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
+int64_t tdRSmaGetMaxSubmitVer(SSma* pSma, int8_t level);
 
 int32_t tdProcessRSmaCreate(SVnode* pVnode, SVCreateStbReq* pReq);
 int32_t tdProcessRSmaSubmit(SSma* pSma, void* pMsg, int32_t inputType);
@@ -196,9 +200,9 @@ typedef struct {
 
 // SVState
 struct SVState {
-  // int64_t processed;
   int64_t committed;
   int64_t applied;
+  int64_t commitID;
 };
 
 struct SVnodeInfo {

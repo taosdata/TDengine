@@ -16,20 +16,33 @@
 #define _DEFAULT_SOURCE
 #include "tmsgcb.h"
 #include "taoserror.h"
+#include "trpc.h"
 
 static SMsgCb defaultMsgCb;
 
 void tmsgSetDefault(const SMsgCb* msgcb) { defaultMsgCb = *msgcb; }
 
 int32_t tmsgPutToQueue(const SMsgCb* msgcb, EQueueType qtype, SRpcMsg* pMsg) {
-  return (*msgcb->putToQueueFp)(msgcb->mgmt, qtype, pMsg);
+  int32_t code = (*msgcb->putToQueueFp)(msgcb->mgmt, qtype, pMsg);
+  if (code != 0) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
+  }
+  return code;
 }
 
 int32_t tmsgGetQueueSize(const SMsgCb* msgcb, int32_t vgId, EQueueType qtype) {
   return (*msgcb->qsizeFp)(msgcb->mgmt, vgId, qtype);
 }
 
-int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) { return (*defaultMsgCb.sendReqFp)(epSet, pMsg); }
+int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
+  int32_t code = (*defaultMsgCb.sendReqFp)(epSet, pMsg);
+  if (code != 0) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
+  }
+  return code;
+}
 
 void tmsgSendRsp(SRpcMsg* pMsg) { return (*defaultMsgCb.sendRspFp)(pMsg); }
 

@@ -12,7 +12,7 @@ import random
 class TDTestCase:
     updatecfgDict = {'debugFlag': 143, "cDebugFlag": 143, "uDebugFlag": 143, "rpcDebugFlag": 143, "tmrDebugFlag": 143,
                      "jniDebugFlag": 143, "simDebugFlag": 143, "dDebugFlag": 143, "dDebugFlag": 143, "vDebugFlag": 143, "mDebugFlag": 143, "qDebugFlag": 143,
-                     "wDebugFlag": 143, "sDebugFlag": 143, "tsdbDebugFlag": 143, "tqDebugFlag": 143, "fsDebugFlag": 143, "fnDebugFlag": 143}
+                     "wDebugFlag": 143, "sDebugFlag": 143, "tsdbDebugFlag": 143, "tqDebugFlag": 143, "fsDebugFlag": 143, "udfDebugFlag": 143}
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
@@ -230,7 +230,7 @@ class TDTestCase:
                 work_sql += f"cast({arg} as bigint){opera}"
 
         if not agg:
-            work_sql+= f" from {tbname} order by ts"
+            work_sql+= f" from {tbname} order by tbname ,ts"
         else:
             work_sql+= f" from {tbname} "
         tdSql.query(work_sql)
@@ -243,7 +243,7 @@ class TDTestCase:
             else:
                 origin_sql += f"cast({arg} as bigint),"
         if not agg:
-            origin_sql+= f" from {tbname} order by ts"
+            origin_sql+= f" from {tbname} order by tbname ,ts"
         else:
             origin_sql+= f" from {tbname} "
         tdSql.query(origin_sql)

@@ -52,7 +52,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
 
   if (handle) {
     void* pSinkParam = NULL;
-    code = createDataSinkParam(pSubplan->pDataSink, &pSinkParam, pTaskInfo);
+    code = createDataSinkParam(pSubplan->pDataSink, &pSinkParam, pTaskInfo, readHandle);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -143,6 +143,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
   qDebug("%s execTask is launched", GET_TASKID(pTaskInfo));
 
   int64_t st = taosGetTimestampUs();
+
   *pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
   uint64_t el = (taosGetTimestampUs() - st);
 
@@ -235,7 +236,77 @@ int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t le
   return decodeOperator(pTaskInfo->pRoot, pInput, len);
 }
 
-int32_t qStreamPrepareScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts) {
+int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  SOperatorInfo* pOperator = pTaskInfo->pRoot;
+
+  while (1) {
+    uint8_t type = pOperator->operatorType;
+    if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+      *scanner = pOperator->info;
+      return 0;
+    } else {
+      ASSERT(pOperator->numOfDownstream == 1);
+      pOperator = pOperator->pDownstream[0];
+    }
+  }
+}
+
+void* qExtractReaderFromStreamScanner(void* scanner) {
+  SStreamScanInfo* pInfo = scanner;
+  return (void*)pInfo->tqReader;
+}
+
+const SSchemaWrapper* qExtractSchemaFromStreamScanner(void* scanner) {
+  SStreamScanInfo* pInfo = scanner;
+  return pInfo->tqReader->pSchemaWrapper;
+}
+
+const STqOffset* qExtractStatusFromStreamScanner(void* scanner) {
+  SStreamScanInfo* pInfo = scanner;
+  return &pInfo->offset;
+}
+
+void* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
+  return pTaskInfo->streamInfo.metaBlk;
+}
+
+int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
+  memcpy(pOffset, &pTaskInfo->streamInfo.lastStatus, sizeof(STqOffsetVal));
+  return 0;
+}
+
+int32_t qStreamPrepareScan1(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  SOperatorInfo* pOperator = pTaskInfo->pRoot;
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
+  pTaskInfo->streamInfo.prepareStatus = *pOffset;
+  // TODO: optimize
+  /*if (pTaskInfo->streamInfo.lastStatus.type != pOffset->type ||*/
+  /*pTaskInfo->streamInfo.prepareStatus.version != pTaskInfo->streamInfo.lastStatus.version) {*/
+  while (1) {
+    uint8_t type = pOperator->operatorType;
+    pOperator->status = OP_OPENED;
+    if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+      SStreamScanInfo* pInfo = pOperator->info;
+      if (tqSeekVer(pInfo->tqReader, pOffset->version) < 0) {
+        return -1;
+      }
+      return 0;
+    } else {
+      ASSERT(pOperator->numOfDownstream == 1);
+      pOperator = pOperator->pDownstream[0];
+    }
+  }
+  /*}*/
+  return 0;
+}
+
+int32_t qStreamPrepareTsdbScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
   if (uid == 0) {
