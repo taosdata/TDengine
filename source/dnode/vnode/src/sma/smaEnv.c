@@ -49,16 +49,26 @@ int32_t smaInit() {
   }
 
   if (old == 0) {
+    // init tref rset
     smaMgmt.rsetId = taosOpenRef(SMA_MGMT_REF_NUM, tdDestroyRSmaStat);
 
     if (smaMgmt.rsetId < 0) {
-      smaError("failed to init sma rset since %s", terrstr());
       atomic_store_8(&smaMgmt.inited, 0);
+      smaError("failed to init sma rset since %s", terrstr());
       return TSDB_CODE_FAILED;
     }
 
-    smaInfo("sma rset is initialized, rsetId:%d", smaMgmt.rsetId);
+    // init fetch timer handle
+    smaMgmt.tmrHandle = taosTmrInit(10000, 100, 10000, "RSMA");
+    if (!smaMgmt.tmrHandle) {
+      taosCloseRef(smaMgmt.rsetId);
+      atomic_store_8(&smaMgmt.inited, 0);
+      smaError("failed to init sma tmr hanle since %s", terrstr());
+      return TSDB_CODE_FAILED;
+    }
+
     atomic_store_8(&smaMgmt.inited, 1);
+    smaInfo("sma mgmt env is initialized, rsetId:%d, tmrHandle:%p", smaMgmt.rsetId, smaMgmt.tmrHandle);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -81,8 +91,9 @@ void smaCleanUp() {
   }
 
   if (old == 1) {
-    smaInfo("sma rset is cleaned up, resetId:%d", smaMgmt.rsetId);
     taosCloseRef(smaMgmt.rsetId);
+    taosTmrCleanUp(smaMgmt.tmrHandle);
+    smaInfo("sma mgmt env is cleaned up, rsetId:%d, tmrHandle:%p", smaMgmt.rsetId, smaMgmt.tmrHandle);
     atomic_store_8(&smaMgmt.inited, 0);
   }
 }
@@ -203,20 +214,11 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       }
       pRSmaStat->refId = refId;
 
-      // init timer
-      RSMA_TMR_HANDLE(pRSmaStat) = taosTmrInit(10000, 100, 10000, "RSMA");
-      if (!RSMA_TMR_HANDLE(pRSmaStat)) {
-        taosMemoryFreeClear(*pSmaStat);
-        return TSDB_CODE_FAILED;
-      }
 
       // init hash
       RSMA_INFO_HASH(pRSmaStat) = taosHashInit(
           RSMA_TASK_INFO_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
       if (!RSMA_INFO_HASH(pRSmaStat)) {
-        if (RSMA_TMR_HANDLE(pRSmaStat)) {
-          taosTmrCleanUp(RSMA_TMR_HANDLE(pRSmaStat));
-        }
         taosMemoryFreeClear(*pSmaStat);
         return TSDB_CODE_FAILED;
       }
@@ -277,7 +279,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
       void *infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), NULL);
       while (infoHash) {
         SRSmaInfo *pSmaInfo = *(SRSmaInfo **)infoHash;
-        tdFreeRSmaInfo(pSmaInfo);
+        tdFreeRSmaInfo(pSma, pSmaInfo);
         infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), infoHash);
       }
     }
@@ -297,11 +299,6 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
         sched_yield();
         nLoops = 0;
       }
-    }
-
-    // step 6: cleanup the timer handle
-    if (RSMA_TMR_HANDLE(pStat)) {
-      taosTmrCleanUp(RSMA_TMR_HANDLE(pStat));
     }
   }
 }
