@@ -1163,6 +1163,7 @@ static void setBlockGroupId(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32
     uidCol[i] = getGroupId(pOperator, uidCol[i]);
   }
 }
+
 static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock) {
   SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
   SOperatorInfo*  pOperator = pInfo->pStreamScanOp;
@@ -1256,13 +1257,9 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         if (setBlockIntoRes(pInfo, &ret.data) < 0) {
           ASSERT(0);
         }
-        /*pTaskInfo->streamInfo.lastStatus = ret.offset;*/
+        // TODO clean data block
         if (pInfo->pRes->info.rows > 0) {
           return pInfo->pRes;
-        } else {
-          // data is filtered out, do clean
-
-          /*tDeleteSSDataBlock(&ret.data);*/
         }
       } else if (ret.fetchType == FETCH_TYPE__META) {
         ASSERT(0);
@@ -1280,6 +1277,10 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     return pResult && pResult->info.rows > 0 ? pResult : NULL;
+  } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_META) {
+    // TODO scan meta
+    ASSERT(0);
+    return NULL;
   }
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
@@ -1437,6 +1438,11 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   }
 }
 
+static SSDataBlock* doRawScan(SOperatorInfo* pInfo) {
+  //
+  return NULL;
+}
+
 static SArray* extractTableIdList(const STableListInfo* pTableGroupInfo) {
   SArray* tableIdList = taosArrayInit(4, sizeof(uint64_t));
 
@@ -1447,6 +1453,19 @@ static SArray* extractTableIdList(const STableListInfo* pTableGroupInfo) {
   }
 
   return tableIdList;
+}
+
+// for subscribing db or stb (not including column),
+// if this scan is used, meta data can be return
+// and schemas are decided when scanning
+SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode,
+                                         SExecTaskInfo* pTaskInfo, STimeWindowAggSupp* pTwSup) {
+  // create operator
+  // create tb reader
+  // create meta reader
+  // create tq reader
+
+  return NULL;
 }
 
 SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode,
@@ -1492,16 +1511,16 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
 
   if (pHandle) {
     SOperatorInfo*  pTableScanOp = createTableScanOperatorInfo(pTableScanNode, pHandle, pTaskInfo);
-    STableScanInfo* pSTInfo = (STableScanInfo*)pTableScanOp->info;
+    STableScanInfo* pTSInfo = (STableScanInfo*)pTableScanOp->info;
     if (pHandle->version > 0) {
-      pSTInfo->cond.endVersion = pHandle->version;
+      pTSInfo->cond.endVersion = pHandle->version;
     }
 
     SArray* tableList = taosArrayGetP(pTaskInfo->tableqinfoList.pGroupList, 0);
     if (pHandle->initTableReader) {
-      pSTInfo->scanMode = TABLE_SCAN__TABLE_ORDER;
-      pSTInfo->dataReader = NULL;
-      if (tsdbReaderOpen(pHandle->vnode, &pSTInfo->cond, tableList, &pSTInfo->dataReader, NULL) < 0) {
+      pTSInfo->scanMode = TABLE_SCAN__TABLE_ORDER;
+      pTSInfo->dataReader = NULL;
+      if (tsdbReaderOpen(pHandle->vnode, &pTSInfo->cond, tableList, &pTSInfo->dataReader, NULL) < 0) {
         ASSERT(0);
       }
     }
@@ -1515,14 +1534,14 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
       pInfo->tqReader = pHandle->tqReader;
     }
 
-    if (pSTInfo->interval.interval > 0) {
-      pInfo->pUpdateInfo = updateInfoInitP(&pSTInfo->interval, pTwSup->waterMark);
+    if (pTSInfo->interval.interval > 0) {
+      pInfo->pUpdateInfo = updateInfoInitP(&pTSInfo->interval, pTwSup->waterMark);
     } else {
       pInfo->pUpdateInfo = NULL;
     }
 
     pInfo->pTableScanOp = pTableScanOp;
-    pInfo->interval = pSTInfo->interval;
+    pInfo->interval = pTSInfo->interval;
 
     pInfo->readHandle = *pHandle;
     pInfo->tableUid = pScanPhyNode->uid;

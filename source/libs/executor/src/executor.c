@@ -60,9 +60,8 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         taosArrayAddAll(p->pDataBlock, pDataBlock->pDataBlock);
         taosArrayPush(pInfo->pBlockLists, &p);
       }
-    } else if (type == STREAM_INPUT__TABLE_SCAN) {
-      // do nothing
-      ASSERT(pInfo->blockType == STREAM_INPUT__TABLE_SCAN);
+      /*} else if (type == STREAM_INPUT__TABLE_SCAN) {*/
+      /*ASSERT(pInfo->blockType == STREAM_INPUT__TABLE_SCAN);*/
     } else {
       ASSERT(0);
     }
@@ -71,6 +70,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
   }
 }
 
+#if 0
 int32_t qStreamScanSnapshot(qTaskInfo_t tinfo) {
   if (tinfo == NULL) {
     return TSDB_CODE_QRY_APP_ERROR;
@@ -78,6 +78,7 @@ int32_t qStreamScanSnapshot(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   return doSetStreamBlock(pTaskInfo->pRoot, NULL, 0, STREAM_INPUT__TABLE_SCAN, 0, NULL);
 }
+#endif
 
 int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type, bool assignUid) {
   return qSetMultiStreamInput(tinfo, input, 1, type, assignUid);
