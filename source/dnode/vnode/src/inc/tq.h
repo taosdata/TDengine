@@ -89,6 +89,8 @@ typedef struct {
     STqExecTb  execTb;
     STqExecDb  execDb;
   };
+  // TODO remove it
+  int64_t tsdbEndVer;
 
 } STqExecHandle;
 

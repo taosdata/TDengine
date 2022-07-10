@@ -327,12 +327,11 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
           ASSERT(found);
 
           tsdbSetTableId(pTableScanInfo->dataReader, uid);
-          int64_t oldSkey = pTableScanInfo->cond.twindows[0].skey;
-          pTableScanInfo->cond.twindows[0].skey = ts + 1;
-          tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
-          pTableScanInfo->cond.twindows[0].skey = oldSkey;
+          int64_t oldSkey = pTableScanInfo->cond.twindows.skey;
+          pTableScanInfo->cond.twindows.skey = ts + 1;
+          tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond);
+          pTableScanInfo->cond.twindows.skey = oldSkey;
           pTableScanInfo->scanTimes = 0;
-          pTableScanInfo->curTWinIdx = 0;
 
           qDebug("tsdb reader offset seek to uid %ld ts %ld, table cur set to %d , all table num %d", uid, ts,
                  pTableScanInfo->currentTable, tableSz);
