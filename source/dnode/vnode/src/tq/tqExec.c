@@ -59,15 +59,17 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp) {
   return 0;
 }
 
-int64_t tqScanLog(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffsetVal* pOffset) {
+int64_t tqScan(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffsetVal* pOffset) {
   qTaskInfo_t task = pExec->execCol.task[0];
 
   if (qStreamPrepareScan(task, pOffset) < 0) {
+    ASSERT(pOffset->type == TMQ_OFFSET__LOG);
     pRsp->rspOffset = *pOffset;
     pRsp->rspOffset.version--;
     return 0;
   }
 
+  int32_t rowCnt = 0;
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
@@ -77,12 +79,21 @@ int64_t tqScanLog(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOff
 
     if (pDataBlock != NULL) {
       tqAddBlockDataToRsp(pDataBlock, pRsp);
-      if (pRsp->withTbName) {
-        int64_t uid = pExec->pExecReader[0]->msgIter.uid;
-        tqAddTbNameToRsp(pTq, uid, pRsp);
-      }
       pRsp->blockNum++;
-      continue;
+      if (pRsp->withTbName) {
+        if (pOffset->type == TMQ_OFFSET__LOG) {
+          int64_t uid = pExec->pExecReader[0]->msgIter.uid;
+          tqAddTbNameToRsp(pTq, uid, pRsp);
+        } else {
+          pRsp->withTbName = 0;
+        }
+      }
+      if (pOffset->type == TMQ_OFFSET__LOG) {
+        continue;
+      } else {
+        rowCnt += pDataBlock->info.rows;
+        if (rowCnt <= 4096) continue;
+      }
     }
 
     void* meta = qStreamExtractMetaMsg(task);
@@ -94,11 +105,11 @@ int64_t tqScanLog(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOff
       ASSERT(0);
     }
 
+    ASSERT(pRsp->rspOffset.type != 0);
+
     if (pRsp->rspOffset.type == TMQ_OFFSET__LOG) {
       ASSERT(pRsp->rspOffset.version + 1 >= pRsp->reqOffset.version);
     }
-
-    ASSERT(pRsp->rspOffset.type != 0);
 
     break;
   }
@@ -106,6 +117,7 @@ int64_t tqScanLog(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOff
   return 0;
 }
 
+#if 0
 int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffsetVal offset, int32_t workerId) {
   ASSERT(pExec->subType == TOPIC_SUB_TYPE__COLUMN);
   qTaskInfo_t task = pExec->execCol.task[workerId];
@@ -153,6 +165,7 @@ int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, S
 
   return 0;
 }
+#endif
 
 int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataRsp* pRsp, int32_t workerId) {
   if (pExec->subType == TOPIC_SUB_TYPE__COLUMN) {

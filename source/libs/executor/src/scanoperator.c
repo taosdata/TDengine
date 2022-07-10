@@ -427,8 +427,11 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     pOperator->cost.totalCost = pTableScanInfo->readRecorder.elapsedTime;
 
     // todo refactor
-    pTableScanInfo->lastStatus.uid = pBlock->info.uid;
-    pTableScanInfo->lastStatus.ts = pBlock->info.window.ekey;
+    /*pTableScanInfo->lastStatus.uid = pBlock->info.uid;*/
+    /*pTableScanInfo->lastStatus.ts = pBlock->info.window.ekey;*/
+    pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__SNAPSHOT_DATA;
+    pTaskInfo->streamInfo.lastStatus.uid = pBlock->info.uid;
+    pTaskInfo->streamInfo.lastStatus.ts = pBlock->info.window.ekey;
 
     ASSERT(pBlock->info.uid != 0);
     return pBlock;
@@ -1231,9 +1234,6 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
 
   doFilter(pInfo->pCondition, pInfo->pRes);
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
-  if (pBlockInfo->rows > 0) {
-    return 0;
-  }
   return 0;
 }
 
@@ -1259,7 +1259,9 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         /*pTaskInfo->streamInfo.lastStatus = ret.offset;*/
         if (pInfo->pRes->info.rows > 0) {
           return pInfo->pRes;
-          /*} else {*/
+        } else {
+          // data is filtered out, do clean
+
           /*tDeleteSSDataBlock(&ret.data);*/
         }
       } else if (ret.fetchType == FETCH_TYPE__META) {
@@ -1268,13 +1270,8 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         pTaskInfo->streamInfo.metaBlk = ret.meta;
         return NULL;
       } else if (ret.fetchType == FETCH_TYPE__NONE) {
-        /*if (ret.offset.version == -1) {*/
-        /*pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__LOG;*/
-        /*pTaskInfo->streamInfo.lastStatus.version = pTaskInfo->streamInfo.prepareStatus.version - 1;*/
-        /*} else {*/
         pTaskInfo->streamInfo.lastStatus = ret.offset;
         ASSERT(pTaskInfo->streamInfo.lastStatus.version + 1 >= pTaskInfo->streamInfo.prepareStatus.version);
-        /*}*/
         return NULL;
       } else {
         ASSERT(0);
@@ -1394,72 +1391,8 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         return NULL;
       }
 
-      pInfo->pRes->info.rows = block.info.rows;
-      pInfo->pRes->info.uid = block.info.uid;
-      pInfo->pRes->info.type = STREAM_NORMAL;
-      pInfo->pRes->info.capacity = block.info.rows;
+      setBlockIntoRes(pInfo, &block);
 
-      uint64_t* groupIdPre = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &block.info.uid, sizeof(int64_t));
-      if (groupIdPre) {
-        pInfo->pRes->info.groupId = *groupIdPre;
-      } else {
-        pInfo->pRes->info.groupId = 0;
-      }
-
-      // for generating rollup SMA result, each time is an independent time serie.
-      // TODO temporarily used, when the statement of "partition by tbname" is ready, remove this
-      if (pInfo->assignBlockUid) {
-        pInfo->pRes->info.groupId = block.info.uid;
-      }
-
-      // todo extract method
-      for (int32_t i = 0; i < taosArrayGetSize(pInfo->pColMatchInfo); ++i) {
-        SColMatchInfo* pColMatchInfo = taosArrayGet(pInfo->pColMatchInfo, i);
-        if (!pColMatchInfo->output) {
-          continue;
-        }
-
-        bool colExists = false;
-        for (int32_t j = 0; j < blockDataGetNumOfCols(&block); ++j) {
-          SColumnInfoData* pResCol = bdGetColumnInfoData(&block, j);
-          if (pResCol->info.colId == pColMatchInfo->colId) {
-            taosArraySet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId, pResCol);
-            colExists = true;
-            break;
-          }
-        }
-
-        // the required column does not exists in submit block, let's set it to be all null value
-        if (!colExists) {
-          SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId);
-          colDataAppendNNULL(pDst, 0, pBlockInfo->rows);
-        }
-      }
-
-      taosArrayDestroy(block.pDataBlock);
-
-      ASSERT(pInfo->pRes->pDataBlock != NULL);
-#if 0
-      if (pInfo->pRes->pDataBlock == NULL) {
-        // TODO add log
-        updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
-        pOperator->status = OP_EXEC_DONE;
-        pTaskInfo->code = terrno;
-        return NULL;
-      }
-#endif
-
-      // currently only the tbname pseudo column
-      if (pInfo->numOfPseudoExpr > 0) {
-        code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
-                                      GET_TASKID(pTaskInfo));
-        if (code != TSDB_CODE_SUCCESS) {
-          longjmp(pTaskInfo->env, code);
-        }
-      }
-
-      doFilter(pInfo->pCondition, pInfo->pRes);
-      blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
       if (pBlockInfo->rows > 0) {
         break;
       }
@@ -1489,12 +1422,14 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
     return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
 
+#if 0
   } else if (pInfo->blockType == STREAM_INPUT__TABLE_SCAN) {
-    /*ASSERT(0);*/
+    ASSERT(0);
     // check reader last status
     // if not match, reset status
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     return pResult && pResult->info.rows > 0 ? pResult : NULL;
+#endif
 
   } else {
     ASSERT(0);
