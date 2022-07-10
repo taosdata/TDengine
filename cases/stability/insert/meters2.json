@@ -17,13 +17,12 @@
         {
             "dbinfo": {
                 "name": "db",
-                "drop": "yes",
-                "vgroups": VGROUPS,
-		"replica": 3
+                "drop": "no",
+                "vgroups": VGROUPS 
             },
             "super_tables": [
                 {
-                    "name": "stb",
+                    "name": "stb2",
 		    "no_check_for_affected_rows": "yes",
                     "child_table_exists": "no",
                     "childtable_count": CHILDTABLECOUNT,
