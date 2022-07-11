@@ -51,7 +51,8 @@ extern "C" {
 typedef struct SDatabaseOptions {
   ENodeType   type;
   int32_t     buffer;
-  int8_t      cachelast;
+  int8_t      cacheLast;
+  int32_t     cacheLastSize;
   int8_t      compressionLevel;
   int32_t     daysPerFile;
   SValueNode* pDaysPerFile;
@@ -101,6 +102,11 @@ typedef struct SFlushDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
 } SFlushDatabaseStmt;
+
+typedef struct STrimDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+} STrimDatabaseStmt;
 
 typedef struct STableOptions {
   ENodeType  type;

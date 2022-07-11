@@ -121,7 +121,7 @@ static int32_t tdProcessRSmaPreCommitImpl(SSma *pSma) {
   // step 3: perform persist task for qTaskInfo
   tdRSmaPersistExecImpl(pRSmaStat);
 
-  smaDebug("vgId:%d, rsma pre commit succeess", SMA_VID(pSma));
+  smaDebug("vgId:%d, rsma pre commit success", SMA_VID(pSma));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -173,6 +173,7 @@ static int32_t tdProcessRSmaPostCommitImpl(SSma *pSma) {
   }
 
   if ((pDir = taosOpenDir(dir)) == NULL) {
+    regfree(&regex);
     terrno = TAOS_SYSTEM_ERROR(errno);
     smaWarn("vgId:%d, rsma post commit, open dir %s failed since %s", TD_VID(pVnode), dir, terrstr());
     return TSDB_CODE_FAILED;

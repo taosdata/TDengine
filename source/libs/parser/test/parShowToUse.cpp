@@ -222,6 +222,25 @@ TEST_F(ParserShowToUseTest, splitVgroup) {
   run("SPLIT VGROUP 15");
 }
 
+TEST_F(ParserShowToUseTest, trimDatabase) {
+  useDb("root", "test");
+
+  STrimDbReq expect = {0};
+
+  auto setTrimDbReq = [&](const char* pDb) { snprintf(expect.db, sizeof(expect.db), "0.%s", pDb); };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_TRIM_DATABASE_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_TRIM_DB);
+    STrimDbReq req = {0};
+    ASSERT_EQ(tDeserializeSTrimDbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(std::string(req.db), std::string(expect.db));
+  });
+
+  setTrimDbReq("wxy_db");
+  run("TRIM DATABASE wxy_db");
+}
+
 TEST_F(ParserShowToUseTest, useDatabase) {
   useDb("root", "test");
 

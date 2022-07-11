@@ -148,29 +148,49 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
   return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst, connType);
 }
 
-int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest) {
-  *pRequest = createRequest(pTscObj, TSDB_SQL_SELECT);
+int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, bool validateSql, SRequestObj** pRequest) {
+  *pRequest = createRequest(connId, TSDB_SQL_SELECT);
   if (*pRequest == NULL) {
-    tscError("failed to malloc sqlObj");
+    tscError("failed to malloc sqlObj, %s", sql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   (*pRequest)->sqlstr = taosMemoryMalloc(sqlLen + 1);
   if ((*pRequest)->sqlstr == NULL) {
-    tscError("0x%" PRIx64 " failed to prepare sql string buffer", (*pRequest)->self);
-    (*pRequest)->msgBuf = strdup("failed to prepare sql string buffer");
+    tscError("0x%" PRIx64 " failed to prepare sql string buffer, %s", (*pRequest)->self, sql);
+    destroyRequest(*pRequest);
+    *pRequest = NULL;
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   strntolower((*pRequest)->sqlstr, sql, (int32_t)sqlLen);
   (*pRequest)->sqlstr[sqlLen] = 0;
-  (*pRequest)->sqlLen = sqlLen;
+  (*pRequest)->sqlLen       = sqlLen;
+  (*pRequest)->validateOnly = validateSql;
 
+  if (param == NULL) {
+    SSyncQueryParam* pParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
+    if (pParam == NULL) {
+      destroyRequest(*pRequest);
+      *pRequest = NULL;
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+
+    tsem_init(&pParam->sem, 0, 0);
+    pParam->pRequest = (*pRequest);
+    param = pParam;
+  }
+
+  (*pRequest)->body.param = param;
+
+  STscObj* pTscObj = (*pRequest)->pTscObj;
   if (taosHashPut(pTscObj->pRequests, &(*pRequest)->self, sizeof((*pRequest)->self), &(*pRequest)->self,
                   sizeof((*pRequest)->self))) {
+    tscError("%d failed to add to request container, reqId:0x%" PRIx64 ", conn:%d, %s", (*pRequest)->self,
+             (*pRequest)->requestId, pTscObj->id, sql);
+
     destroyRequest(*pRequest);
     *pRequest = NULL;
-    tscError("put request to request hash failed");
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -325,11 +345,13 @@ int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList) {
   if (pInfo->pQnodeList) {
     taosArrayDestroy(pInfo->pQnodeList);
     pInfo->pQnodeList = NULL;
+    tscDebug("QnodeList cleared in cluster 0x%" PRIx64, pInfo->clusterId);
   }
 
   if (pNodeList) {
     pInfo->pQnodeList = taosArrayDup(pNodeList);
     taosArraySort(pInfo->pQnodeList, compareQueryNodeLoad);
+    tscDebug("QnodeList updated in cluster 0x%" PRIx64 ", num:%d", pInfo->clusterId, taosArrayGetSize(pInfo->pQnodeList));
   }
   taosThreadMutexUnlock(&pInfo->qnodeMutex);
 
@@ -880,17 +902,15 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   return pRequest;
 }
 
-SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen, bool validateOnly) {
+SRequestObj* launchQuery(uint64_t connId, const char* sql, int sqlLen, bool validateOnly) {
   SRequestObj* pRequest = NULL;
   SQuery*      pQuery = NULL;
 
-  int32_t code = buildRequest(pTscObj, sql, sqlLen, &pRequest);
+  int32_t code = buildRequest(connId, sql, sqlLen, NULL, validateOnly, &pRequest);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     return NULL;
   }
-
-  pRequest->validateOnly = validateOnly;
 
   code = parseSql(pRequest, false, &pQuery, NULL);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1042,19 +1062,20 @@ int32_t removeMeta(STscObj* pTscObj, SArray* tbList) {
   return TSDB_CODE_SUCCESS;
 }
 
-SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen, bool validateOnly) {
+//  todo remove it soon
+SRequestObj* execQuery(uint64_t connId, const char* sql, int sqlLen, bool validateOnly) {
   SRequestObj* pRequest = NULL;
   int32_t      retryNum = 0;
   int32_t      code = 0;
 
   do {
     destroyRequest(pRequest);
-    pRequest = launchQuery(pTscObj, sql, sqlLen, validateOnly);
+    pRequest = launchQuery(connId, sql, sqlLen, validateOnly);
     if (pRequest == NULL || TSDB_CODE_SUCCESS == pRequest->code || !NEED_CLIENT_HANDLE_ERROR(pRequest->code)) {
       break;
     }
 
-    code = refreshMeta(pTscObj, pRequest);
+    code = refreshMeta(pRequest->pTscObj, pRequest);
     if (code) {
       pRequest->code = code;
       break;
@@ -1062,7 +1083,7 @@ SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen, bool valid
   } while (retryNum++ < REQUEST_TOTAL_EXEC_TIMES);
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
-    removeMeta(pTscObj, pRequest->tableList);
+    removeMeta(pRequest->pTscObj, pRequest->tableList);
   }
 
   return pRequest;
@@ -1117,7 +1138,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
     return pTscObj;
   }
 
-  SRequestObj* pRequest = createRequest(pTscObj, TDMT_MND_CONNECT);
+  SRequestObj* pRequest = createRequest(pTscObj->id, TDMT_MND_CONNECT);
   if (pRequest == NULL) {
     destroyTscObj(pTscObj);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -1298,16 +1319,16 @@ void doProcessMsgFromServer(SSchedMsg* schedMsg) {
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
-
   taosMemoryFree(arg);
 }
 
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SSchedMsg schedMsg = {0};
 
-  SEpSet* tEpSet = pEpSet != NULL ? taosMemoryCalloc(1, sizeof(SEpSet)) : NULL;
-  if (tEpSet != NULL) {
-    *tEpSet = *pEpSet;
+  SEpSet* tEpSet = NULL;
+  if (pEpSet != NULL) {
+    tEpSet = taosMemoryCalloc(1, sizeof(SEpSet));
+    memcpy((void*)tEpSet, (void*)pEpSet, sizeof(SEpSet));
   }
 
   SchedArg* arg = taosMemoryCalloc(1, sizeof(SchedArg));
@@ -1444,15 +1465,10 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
       return NULL;
     }
 
-    SSyncQueryParam* pParam = pRequest->body.param;
-    if (NULL == pParam) {
-      pParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
-      tsem_init(&pParam->sem, 0, 0);
-    }
-
     // convert ucs4 to native multi-bytes string
     pResultInfo->convertUcs4 = convertUcs4;
 
+    SSyncQueryParam* pParam = pRequest->body.param;
     taos_fetch_rows_a(pRequest, syncFetchFn, pParam);
     tsem_wait(&pParam->sem);
   }
@@ -2024,22 +2040,9 @@ void syncQueryFn(void* param, void* res, int32_t code) {
   tsem_post(&pParam->sem);
 }
 
-void taosAsyncQueryImpl(TAOS* taos, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly) {
-  if (NULL == taos) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    fp(param, NULL, terrno);
-    return;
-  }
-
-  int64_t  rid = *(int64_t*)taos;
-  STscObj* pTscObj = acquireTscObj(rid);
-  if (pTscObj == NULL || sql == NULL || NULL == fp) {
+void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly) {
+  if (sql == NULL || NULL == fp) {
     terrno = TSDB_CODE_INVALID_PARA;
-    if (pTscObj) {
-      releaseTscObj(rid);
-    } else {
-      terrno = TSDB_CODE_TSC_DISCONNECTED;
-    }
     fp(param, NULL, terrno);
     return;
   }
@@ -2048,26 +2051,20 @@ void taosAsyncQueryImpl(TAOS* taos, const char* sql, __taos_async_fn_t fp, void*
   if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
     tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
-    releaseTscObj(rid);
-
     fp(param, NULL, terrno);
     return;
   }
 
   SRequestObj* pRequest = NULL;
-  int32_t      code = buildRequest(pTscObj, sql, sqlLen, &pRequest);
+  int32_t      code = buildRequest(connId, sql, sqlLen, param, validateOnly, &pRequest);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    releaseTscObj(rid);
     fp(param, NULL, terrno);
     return;
   }
 
-  pRequest->validateOnly = validateOnly;
   pRequest->body.queryFp = fp;
-  pRequest->body.param = param;
   doAsyncQuery(pRequest, false);
-  releaseTscObj(rid);
 }
 
 TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
@@ -2076,36 +2073,22 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
     return NULL;
   }
 
-  int64_t  rid = *(int64_t*)taos;
-  STscObj* pTscObj = acquireTscObj(rid);
-  if (pTscObj == NULL || sql == NULL) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    return NULL;
-  }
-
 #if SYNC_ON_TOP_OF_ASYNC
   SSyncQueryParam* param = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   tsem_init(&param->sem, 0, 0);
 
-  taosAsyncQueryImpl((TAOS*)&rid, sql, syncQueryFn, param, validateOnly);
+  taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly);
   tsem_wait(&param->sem);
-
-  releaseTscObj(rid);
-
   return param->pRequest;
 #else
   size_t sqlLen = strlen(sql);
   if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
-    releaseTscObj(rid);
     tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     return NULL;
   }
 
-  TAOS_RES* pRes = execQuery(pTscObj, sql, sqlLen, validateOnly);
-
-  releaseTscObj(rid);
-
+  TAOS_RES* pRes = execQuery(connId, sql, sqlLen, validateOnly);
   return pRes;
 #endif
 }

@@ -485,10 +485,6 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
     code = rewriteExprsForSelect(pAgg->pAggFuncs, pSelect, SQL_CLAUSE_GROUP_BY);
   }
 
-  if (NULL != pSelect->pPartitionByList) {
-    code = createGroupKeysFromPartKeys(pSelect->pPartitionByList, &pAgg->pGroupKeys);
-  }
-
   if (NULL != pSelect->pGroupByList) {
     if (NULL != pAgg->pGroupKeys) {
       code = nodesListStrictAppendList(pAgg->pGroupKeys, nodesCloneList(pSelect->pGroupByList));
@@ -845,8 +841,7 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
 }
 
 static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (NULL == pSelect->pPartitionByList || (pSelect->hasAggFuncs && NULL == pSelect->pWindow) ||
-      NULL != pSelect->pGroupByList) {
+  if (NULL == pSelect->pPartitionByList) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1340,6 +1335,17 @@ static void doSetLogicNodeParent(SLogicNode* pNode, SLogicNode* pParent) {
 
 static void setLogicNodeParent(SLogicNode* pNode) { doSetLogicNodeParent(pNode, NULL); }
 
+static void setLogicSubplanType(SLogicSubplan* pSubplan) {
+  if (QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY != nodeType(pSubplan->pNode)) {
+    pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
+  } else {
+    SVnodeModifyLogicNode* pModify = (SVnodeModifyLogicNode*)pSubplan->pNode;
+    pSubplan->subplanType = (MODIFY_TABLE_TYPE_INSERT == pModify->modifyType && NULL != pModify->node.pChildren)
+                                ? SUBPLAN_TYPE_SCAN
+                                : SUBPLAN_TYPE_MODIFY;
+  }
+}
+
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
   SLogicPlanContext cxt = {.pPlanCxt = pCxt};
 
@@ -1354,11 +1360,7 @@ int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
   int32_t code = createQueryLogicNode(&cxt, pCxt->pAstRoot, &pSubplan->pNode);
   if (TSDB_CODE_SUCCESS == code) {
     setLogicNodeParent(pSubplan->pNode);
-    if (QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY == nodeType(pSubplan->pNode)) {
-      pSubplan->subplanType = SUBPLAN_TYPE_MODIFY;
-    } else {
-      pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
-    }
+    setLogicSubplanType(pSubplan);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

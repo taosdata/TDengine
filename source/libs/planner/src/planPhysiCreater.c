@@ -880,6 +880,10 @@ static int32_t createIndefRowsFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    code = setConditionsSlotId(pCxt, (const SLogicNode*)pFuncLogicNode, (SPhysiNode*)pIdfRowsFunc);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
     *pPhyNode = (SPhysiNode*)pIdfRowsFunc;
   } else {
     nodesDestroyNode((SNode*)pIdfRowsFunc);
@@ -931,6 +935,10 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
 
   if (TSDB_CODE_SUCCESS == code) {
     code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pFuncLogicNode->pTimeSeries, &pInterpFunc->pTimeSeries);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setConditionsSlotId(pCxt, (const SLogicNode*)pFuncLogicNode, (SPhysiNode*)pInterpFunc);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -1065,6 +1073,10 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
     if (TSDB_CODE_SUCCESS == code) {
       code = addDataBlockSlots(pCxt, pWindow->pFuncs, pWindow->node.pOutputDataBlockDesc);
     }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setConditionsSlotId(pCxt, (const SLogicNode*)pWindowLogicNode, (SPhysiNode*)pWindow);
   }
 
   pWindow->triggerType = pWindowLogicNode->triggerType;
@@ -1225,6 +1237,10 @@ static int32_t createSortPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    code = setConditionsSlotId(pCxt, (const SLogicNode*)pSortLogicNode, (SPhysiNode*)pSort);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
     *pPhyNode = (SPhysiNode*)pSort;
   } else {
     nodesDestroyNode((SNode*)pSort);
@@ -1269,6 +1285,10 @@ static int32_t createPartitionPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    code = setConditionsSlotId(pCxt, (const SLogicNode*)pPartLogicNode, (SPhysiNode*)pPart);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
     *pPhyNode = (SPhysiNode*)pPart;
   } else {
     nodesDestroyNode((SNode*)pPart);
@@ -1297,10 +1317,7 @@ static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    pFill->pWStartTs = nodesCloneNode(pFillNode->pWStartTs);
-    if (NULL == pFill->pWStartTs) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    }
+    code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->pWStartTs, &pFill->pWStartTs);
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pFillNode->pValues) {
@@ -1308,6 +1325,10 @@ static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
     if (NULL == pFill->pValues) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setConditionsSlotId(pCxt, (const SLogicNode*)pFillNode, (SPhysiNode*)pFill);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -1542,7 +1563,7 @@ static int32_t buildInsertSelectSubplan(SPhysiPlanContext* pCxt, SVnodeModifyLog
   if (TSDB_CODE_SUCCESS == code) {
     code = createQueryInserter(pCxt, pModify, pSubplan, &pSubplan->pDataSink);
   }
-  pSubplan->msgType = TDMT_VND_SUBMIT;
+  pSubplan->msgType = TDMT_SCH_MERGE_QUERY;
   return code;
 }
 

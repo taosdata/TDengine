@@ -527,9 +527,19 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.version = 1;
   streamObj.sql = pCreate->sql;
   streamObj.smaId = smaObj.uid;
-  streamObj.watermark = 0;
-  streamObj.trigger = STREAM_TRIGGER_AT_ONCE;
+  streamObj.watermark = pCreate->watermark;
+  streamObj.trigger = STREAM_TRIGGER_WINDOW_CLOSE;
+  streamObj.triggerParam = pCreate->maxDelay;
   streamObj.ast = strdup(smaObj.ast);
+
+  // check the maxDelay
+  if (streamObj.triggerParam < TSDB_MIN_ROLLUP_MAX_DELAY) {
+    int64_t msInterval = convertTimeFromPrecisionToUnit(pCreate->interval, pDb->cfg.precision, TIME_UNIT_MILLISECOND);
+    streamObj.triggerParam = msInterval > TSDB_MIN_ROLLUP_MAX_DELAY ? msInterval : TSDB_MIN_ROLLUP_MAX_DELAY;
+  }
+  if (streamObj.triggerParam > TSDB_MAX_ROLLUP_MAX_DELAY) {
+    streamObj.triggerParam = TSDB_MAX_ROLLUP_MAX_DELAY;
+  }
 
   if (mndAllocSmaVgroup(pMnode, pDb, &streamObj.fixedSinkVg) != 0) {
     mError("sma:%s, failed to create since %s", smaObj.name, terrstr());
@@ -1131,14 +1141,17 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   SSmaObj *pSma = NULL;
   int32_t  cols = 0;
 
-  SDbObj *pDb = mndAcquireDb(pMnode, pShow->db);
-  if (pDb == NULL) return 0;
+  SDbObj *pDb = NULL;
+  if (strlen(pShow->db) > 0) {
+    pDb = mndAcquireDb(pMnode, pShow->db);
+    if (pDb == NULL) return 0;
+  }
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_SMA, pShow->pIter, (void **)&pSma);
     if (pShow->pIter == NULL) break;
 
-    if (pSma->dbUid != pDb->uid) {
+    if (NULL != pDb && pSma->dbUid != pDb->uid) {
       sdbRelease(pSdb, pSma);
       continue;
     }
@@ -1151,7 +1164,7 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     STR_TO_VARSTR(n1, (char *)tNameGetTableName(&smaName));
 
     char n2[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(n2, (char *)mndGetDbStr(pDb->name));
+    STR_TO_VARSTR(n2, (char *)mndGetDbStr(pSma->db));
 
     SName stbName = {0};
     tNameFromString(&stbName, pSma->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);

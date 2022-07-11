@@ -158,6 +158,7 @@ cmd ::= DROP DATABASE exists_opt(A) db_name(B).                                 
 cmd ::= USE db_name(A).                                                           { pCxt->pRootNode = createUseDatabaseStmt(pCxt, &A); }
 cmd ::= ALTER DATABASE db_name(A) alter_db_options(B).                            { pCxt->pRootNode = createAlterDatabaseStmt(pCxt, &A, B); }
 cmd ::= FLUSH DATABASE db_name(A).                                                { pCxt->pRootNode = createFlushDatabaseStmt(pCxt, &A); }
+cmd ::= TRIM DATABASE db_name(A).                                                 { pCxt->pRootNode = createTrimDatabaseStmt(pCxt, &A); }
 
 %type not_exists_opt                                                              { bool }
 %destructor not_exists_opt                                                        { }
@@ -172,6 +173,7 @@ exists_opt(A) ::= .                                                             
 db_options(A) ::= .                                                               { A = createDefaultDatabaseOptions(pCxt); }
 db_options(A) ::= db_options(B) BUFFER NK_INTEGER(C).                             { A = setDatabaseOption(pCxt, B, DB_OPTION_BUFFER, &C); }
 db_options(A) ::= db_options(B) CACHELAST NK_INTEGER(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_CACHELAST, &C); }
+db_options(A) ::= db_options(B) CACHELASTSIZE NK_INTEGER(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_CACHELASTSIZE, &C); }
 db_options(A) ::= db_options(B) COMP NK_INTEGER(C).                               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMP, &C); }
 db_options(A) ::= db_options(B) DURATION NK_INTEGER(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_DAYS, &C); }
 db_options(A) ::= db_options(B) DURATION NK_VARIABLE(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_DAYS, &C); }
@@ -198,6 +200,7 @@ alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                 
 %destructor alter_db_option                                                       { }
 alter_db_option(A) ::= BUFFER NK_INTEGER(B).                                      { A.type = DB_OPTION_BUFFER; A.val = B; }
 alter_db_option(A) ::= CACHELAST NK_INTEGER(B).                                   { A.type = DB_OPTION_CACHELAST; A.val = B; }
+alter_db_option(A) ::= CACHELASTSIZE NK_INTEGER(B).                               { A.type = DB_OPTION_CACHELASTSIZE; A.val = B; }
 alter_db_option(A) ::= FSYNC NK_INTEGER(B).                                       { A.type = DB_OPTION_FSYNC; A.val = B; }
 alter_db_option(A) ::= KEEP integer_list(B).                                      { A.type = DB_OPTION_KEEP; A.pList = B; }
 alter_db_option(A) ::= KEEP variable_list(B).                                     { A.type = DB_OPTION_KEEP; A.pList = B; }
@@ -767,7 +770,7 @@ compare_op(A) ::= CONTAINS.                                                     
 in_op(A) ::= IN.                                                                  { A = OP_TYPE_IN; }
 in_op(A) ::= NOT IN.                                                              { A = OP_TYPE_NOT_IN; }
 
-in_predicate_value(A) ::= NK_LP(C) expression_list(B) NK_RP(D).                   { A = createRawExprNodeExt(pCxt, &C, &D, createNodeListNode(pCxt, B)); }
+in_predicate_value(A) ::= NK_LP(C) literal_list(B) NK_RP(D).                      { A = createRawExprNodeExt(pCxt, &C, &D, createNodeListNode(pCxt, B)); }
 
 /************************************************ boolean_value_expression ********************************************/
 boolean_value_expression(A) ::= boolean_primary(B).                               { A = B; }
@@ -932,7 +935,11 @@ query_expression_body(A) ::=
 query_primary(A) ::= query_specification(B).                                      { A = B; }
 query_primary(A) ::=
   NK_LP query_expression_body(B) 
-    order_by_clause_opt slimit_clause_opt limit_clause_opt NK_RP.                 { A = B; }
+    order_by_clause_opt(C) slimit_clause_opt(D) limit_clause_opt(E) NK_RP.        { 
+                                                                                    A = addOrderByClause(pCxt, B, C);
+                                                                                    A = addSlimitClause(pCxt, A, D);
+                                                                                    A = addLimitClause(pCxt, A, E);
+                                                                                  }
 
 %type order_by_clause_opt                                                         { SNodeList* }
 %destructor order_by_clause_opt                                                   { nodesDestroyList($$); }

@@ -30,8 +30,8 @@ class TDTestCase:
         self.TDDnodes = None
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
-
-
+        print(tdSql)
+        
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -113,6 +113,7 @@ class TDTestCase:
         allStbNumbers=(paraDict['stbNumbers']*restartNumbers)
         dbNumbers = 1
        
+        print(tdSql)
         tdLog.info("first check dnode and mnode")
         tdSql.query("show dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
@@ -141,9 +142,11 @@ class TDTestCase:
         tdDnodes=cluster.dnodes
         stopcount =0
         threads=[]
+        
         for i in range(restartNumbers):
             stableName= '%s%d'%(paraDict['stbName'],i)
-            threads.append(threading.Thread(target=clusterComCreate.create_stables, args=(tdSql, paraDict["dbName"],stableName,paraDict['stbNumbers'])))
+            newTdSql=tdCom.newTdSql()
+            threads.append(threading.Thread(target=clusterComCreate.create_stables, args=(newTdSql, paraDict["dbName"],stableName,paraDict['stbNumbers'])))
 
         for tr in threads:
             tr.start()

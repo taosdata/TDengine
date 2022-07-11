@@ -30,6 +30,7 @@ mkdir -p ${pkg_dir}
 cd ${pkg_dir}
 
 libfile="libtaos.so.${tdengine_ver}"
+wslibfile="libtaosws.so"
 
 # create install dir
 install_home_path="/usr/local/taos"
@@ -67,10 +68,12 @@ fi
 
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver
+cp ${compile_dir}/build/lib/${wslibfile}            ${pkg_dir}${install_home_path}/driver ||:
 cp ${compile_dir}/../include/client/taos.h          ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/common/taosdef.h       ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/util/taoserror.h       ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/libs/function/taosudf.h       ${pkg_dir}${install_home_path}/include
+cp ${compile_dir}/../src/inc/taosws.h               ${pkg_dir}${install_home_path}/include ||:
 cp -r ${top_dir}/examples/*                         ${pkg_dir}${install_home_path}/examples
 #cp -r ${top_dir}/src/connector/python               ${pkg_dir}${install_home_path}/connector
 #cp -r ${top_dir}/src/connector/go                   ${pkg_dir}${install_home_path}/connector

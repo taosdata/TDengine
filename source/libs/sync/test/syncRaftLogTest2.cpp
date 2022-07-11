@@ -413,7 +413,7 @@ void test6() {
     SyncIndex firstVer = walGetFirstVer(pWal);
     SyncIndex lastVer = walGetLastVer(pWal);
     bool      isEmpty = walIsEmpty(pWal);
-    printf("before -------- firstVer:%ld lastVer:%ld isEmpty:%d \n", firstVer, lastVer, isEmpty);
+    printf("before -------- firstVer:%" PRId64 " lastVer:%" PRId64 " isEmpty:%d \n", firstVer, lastVer, isEmpty);
   } while (0);
 
   logStoreDestory(pLogStore);
@@ -429,7 +429,7 @@ void test6() {
     SyncIndex firstVer = walGetFirstVer(pWal);
     SyncIndex lastVer = walGetLastVer(pWal);
     bool      isEmpty = walIsEmpty(pWal);
-    printf("after -------- firstVer:%ld lastVer:%ld isEmpty:%d \n", firstVer, lastVer, isEmpty);
+    printf("after -------- firstVer:%" PRId64 " lastVer:%" PRId64 " isEmpty:%d \n", firstVer, lastVer, isEmpty);
   } while (0);
 
   logStoreLog2((char*)"\n\n\ntest6 restart ----- ", pLogStore);

@@ -3,18 +3,17 @@ add_library(vnode STATIC "")
 target_sources(
     vnode
     PRIVATE
+
     # vnode
     "src/vnd/vnodeOpen.c"
     "src/vnd/vnodeBufPool.c"
     "src/vnd/vnodeCfg.c"
     "src/vnd/vnodeCommit.c"
     "src/vnd/vnodeQuery.c"
-    "src/vnd/vnodeStateMgr.c"
     "src/vnd/vnodeModule.c"
     "src/vnd/vnodeSvr.c"
     "src/vnd/vnodeSync.c"
     "src/vnd/vnodeSnapshot.c"
-    "src/vnd/vnodeUtil.c"
 
     # meta
     "src/meta/metaOpen.c"
@@ -27,12 +26,10 @@ target_sources(
     "src/meta/metaSnapshot.c"
 
     # sma
-    "src/sma/sma.c"
     "src/sma/smaEnv.c"
     "src/sma/smaUtil.c"
     "src/sma/smaOpen.c"
     "src/sma/smaCommit.c"
-    "src/sma/smaSnapshot.c"
     "src/sma/smaRollup.c"
     "src/sma/smaTimeRange.c"
 
@@ -43,13 +40,13 @@ target_sources(
     "src/tsdb/tsdbOpen.c"
     "src/tsdb/tsdbMemTable.c"
     "src/tsdb/tsdbRead.c"
-    "src/tsdb/tsdbReadImpl.c"
     "src/tsdb/tsdbCache.c"
     "src/tsdb/tsdbWrite.c"
     "src/tsdb/tsdbReaderWriter.c"
     "src/tsdb/tsdbUtil.c"
     "src/tsdb/tsdbSnapshot.c"
     "src/tsdb/tsdbCacheRead.c"
+    "src/tsdb/tsdbRetention.c"
 
     # tq
     "src/tq/tq.c"
@@ -66,7 +63,6 @@ target_include_directories(
     PUBLIC "inc"
     PRIVATE "src/inc"
     PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
-    
 )
 target_link_libraries(
     vnode
@@ -80,18 +76,19 @@ target_link_libraries(
     PUBLIC executor
     PUBLIC scheduler
     PUBLIC tdb
-    #PUBLIC bdb
-    #PUBLIC scalar
+
+    # PUBLIC bdb
+    # PUBLIC scalar
     PUBLIC transport
     PUBLIC stream
     PUBLIC index
 )
 target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
-if (${BUILD_WITH_INVERTEDINDEX})
-  add_definitions(-DUSE_INVERTED_INDEX) 
+
+if(${BUILD_WITH_INVERTEDINDEX})
+    add_definitions(-DUSE_INVERTED_INDEX)
 endif(${BUILD_WITH_INVERTEDINDEX})
+
 if(${BUILD_TEST})
     add_subdirectory(test)
 endif(${BUILD_TEST})
-
-

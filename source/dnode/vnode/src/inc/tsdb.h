@@ -64,6 +64,7 @@ typedef struct SRowIter       SRowIter;
 typedef struct STsdbFS        STsdbFS;
 typedef struct SRowMerger     SRowMerger;
 typedef struct STsdbFSState   STsdbFSState;
+typedef struct STsdbSnapHdr   STsdbSnapHdr;
 
 #define TSDB_MAX_SUBBLOCKS 8
 #define TSDB_FHDR_SIZE     512
@@ -244,6 +245,8 @@ int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUH
 int32_t tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
 
 int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
+
+int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSchema);
 
 // structs =======================
 typedef struct {

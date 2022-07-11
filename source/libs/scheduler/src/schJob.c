@@ -247,7 +247,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
 
 
 int32_t schAppendJobDataSrc(SSchJob *pJob, SSchTask *pTask) {
-  if (!SCH_IS_DATA_SRC_QRY_TASK(pTask)) {
+  if (!SCH_IS_DATA_BIND_QRY_TASK(pTask)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -337,13 +337,13 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
       SCH_SET_JOB_TYPE(pJob, plan->subplanType);
 
       SSchTask  task = {0};
-      SCH_ERR_JRET(schInitTask(pJob, &task, plan, pLevel));
-
       SSchTask *pTask = taosArrayPush(pLevel->subTasks, &task);
       if (NULL == pTask) {
         SCH_TASK_ELOG("taosArrayPush task to level failed, level:%d, taskIdx:%d", pLevel->level, n);
         SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
+
+      SCH_ERR_JRET(schInitTask(pJob, pTask, plan, pLevel, levelNum));
 
       SCH_ERR_JRET(schAppendJobDataSrc(pJob, pTask));
 
@@ -543,9 +543,12 @@ int32_t schLaunchJobLowerLevel(SSchJob *pJob, SSchTask *pTask) {
 
 int32_t schSaveJobQueryRes(SSchJob *pJob, SQueryTableRsp *rsp) {
   if (rsp->tbFName[0]) {
+    SCH_LOCK(SCH_WRITE, &pJob->resLock);
+    
     if (NULL == pJob->execRes.res) {
       pJob->execRes.res = taosArrayInit(pJob->taskNum, sizeof(STbVerInfo));
       if (NULL == pJob->execRes.res) {
+        SCH_UNLOCK(SCH_WRITE, &pJob->resLock);      
         SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
     }
@@ -557,6 +560,8 @@ int32_t schSaveJobQueryRes(SSchJob *pJob, SQueryTableRsp *rsp) {
 
     taosArrayPush((SArray *)pJob->execRes.res, &tbInfo);
     pJob->execRes.msgType = TDMT_SCH_QUERY;
+
+    SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -879,7 +884,7 @@ int32_t schProcessOnCbBegin(SSchJob** job, SSchTask** task, uint64_t qId, int64_
   }
   
   if (schJobNeedToStop(pJob, &status)) {
-    SCH_TASK_ELOG("will not do further processing cause of job status %s", jobTaskStatusStr(status));
+    SCH_TASK_DLOG("will not do further processing cause of job status %s", jobTaskStatusStr(status));
     SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
   }
 

@@ -46,21 +46,32 @@ void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
 }
 
 
-int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel) {
+int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel, int32_t levelNum) {
+  int32_t code = 0;
+  
   pTask->plan = pPlan;
   pTask->level = pLevel;
   pTask->execId = -1;
-  pTask->maxExecTimes = SCH_TASK_MAX_EXEC_TIMES;
+  pTask->maxExecTimes = SCH_TASK_MAX_EXEC_TIMES(pLevel->level, levelNum);
   pTask->timeoutUsec = SCH_DEFAULT_TASK_TIMEOUT_USEC;
-  SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
   pTask->taskId = schGenTaskId();
   pTask->execNodes = taosHashInit(SCH_MAX_CANDIDATE_EP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
-  if (NULL == pTask->execNodes) {
-    SCH_TASK_ELOG("taosHashInit %d execNodes failed", SCH_MAX_CANDIDATE_EP_NUM);
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  pTask->profile.execTime = taosMemoryCalloc(pTask->maxExecTimes, sizeof(int64_t));
+  if (NULL == pTask->execNodes || NULL == pTask->profile.execTime) {
+    SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
+  taosInitReentrantRWLatch(&pTask->lock);
+
+  SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
 
   return TSDB_CODE_SUCCESS;
+
+_return:
+
+  taosMemoryFreeClear(pTask->profile.execTime);
+  taosHashCleanup(pTask->execNodes);
+
+  SCH_RET(code);
 }
 
 int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask) {
@@ -253,14 +264,16 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     SSchTask *parent = *(SSchTask **)taosArrayGet(pTask->parents, i);
     int32_t   readyNum = atomic_add_fetch_32(&parent->childReady, 1);
 
-    SCH_LOCK(SCH_WRITE, &parent->lock);
+    SCH_LOCK_TASK(parent);
     SDownstreamSourceNode source = {.type = QUERY_NODE_DOWNSTREAM_SOURCE,
                                     .taskId = pTask->taskId,
                                     .schedId = schMgmt.sId,
                                     .execId = pTask->execId,
-                                    .addr = pTask->succeedAddr};
+                                    .addr = pTask->succeedAddr,
+                                    .fetchMsgType = SCH_FETCH_TYPE(pTask),
+                                    };
     qSetSubplanExecutionNode(parent->plan, pTask->plan->id.groupId, &source);
-    SCH_UNLOCK(SCH_WRITE, &parent->lock);
+    SCH_UNLOCK_TASK(parent);
 
     if (SCH_TASK_READY_FOR_LAUNCH(readyNum, parent)) {
       SCH_TASK_DLOG("all %d children task done, start to launch parent task 0x%" PRIx64, readyNum, parent->taskId);
@@ -274,7 +287,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 }
 
 int32_t schRescheduleTask(SSchJob *pJob, SSchTask *pTask) {
-  if (SCH_IS_DATA_SRC_QRY_TASK(pTask)) {
+  if (SCH_IS_DATA_BIND_TASK(pTask)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -311,7 +324,7 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf* pData, int32
   pTask->lastMsgType = 0;
   memset(&pTask->succeedAddr, 0, sizeof(pTask->succeedAddr));
 
-  if (SCH_IS_DATA_SRC_QRY_TASK(pTask)) {
+  if (SCH_IS_DATA_BIND_TASK(pTask)) {
     if (pData) {
       SCH_ERR_JRET(schUpdateTaskCandidateAddr(pJob, pTask, pData->pEpSet));
     }
@@ -336,6 +349,11 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf* pData, int32
   
   qClearSubplanExecutionNode(pTask->plan);
 
+  // Note: current error task and upper level merge task
+  if ((pData && 0 == pData->len) || NULL == pData) {
+    SCH_ERR_JRET(schSwitchTaskCandidateAddr(pJob, pTask));
+  }
+
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
   
   int32_t childrenNum = taosArrayGetSize(pTask->children);
@@ -356,7 +374,7 @@ _return:
 int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf* pData, int32_t rspCode) {
   int32_t code = 0;
 
-  if (SCH_IS_DATA_SRC_QRY_TASK(pTask)) {
+  if (SCH_IS_DATA_BIND_TASK(pTask)) {
     if (NULL == pData->pEpSet) {
       SCH_TASK_ELOG("no epset updated while got error %s", tstrerror(rspCode));
       SCH_ERR_JRET(rspCode);
@@ -490,7 +508,7 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
     return TSDB_CODE_SUCCESS;
   }
 
-  if (SCH_IS_DATA_SRC_TASK(pTask)) {
+  if (SCH_IS_DATA_BIND_TASK(pTask)) {
     if ((pTask->execId + 1) >= SCH_TASK_NUM_OF_EPS(&pTask->plan->execNode)) {
       *needRetry = false;
       SCH_TASK_DLOG("task no more retry since all ep tried, execId:%d, epNum:%d", pTask->execId,
@@ -526,13 +544,10 @@ int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
 
   schDeregisterTaskHb(pJob, pTask);
 
-  if (SCH_IS_DATA_SRC_TASK(pTask)) {
+  if (SCH_IS_DATA_BIND_TASK(pTask)) {
     SCH_SWITCH_EPSET(&pTask->plan->execNode);
   } else {
-    int32_t candidateNum = taosArrayGetSize(pTask->candidateAddrs);  
-    if (++pTask->candidateIdx >= candidateNum) {
-      pTask->candidateIdx = 0;
-    }
+    SCH_ERR_RET(schSwitchTaskCandidateAddr(pJob, pTask));
   }
 
   SCH_ERR_RET(schLaunchTask(pJob, pTask));
@@ -594,7 +609,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (SCH_IS_DATA_SRC_QRY_TASK(pTask)) {
+  if (SCH_IS_DATA_BIND_TASK(pTask)) {
     SCH_TASK_ELOG("no execNode specifed for data src task, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
     SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
@@ -630,6 +645,16 @@ int32_t schUpdateTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask, SEpSet* pEpSe
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t schSwitchTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask) {
+  int32_t candidateNum = taosArrayGetSize(pTask->candidateAddrs);  
+  if (++pTask->candidateIdx >= candidateNum) {
+    pTask->candidateIdx = 0;
+  }
+  SCH_TASK_DLOG("switch task candiateIdx to %d", pTask->candidateIdx);
+  return TSDB_CODE_SUCCESS;
+}
+
 
 
 int32_t schRemoveTaskFromExecList(SSchJob *pJob, SSchTask *pTask) {
@@ -818,7 +843,7 @@ int32_t schLaunchFetchTask(SSchJob *pJob) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SCH_ERR_JRET(schBuildAndSendMsg(pJob, pJob->fetchTask, &pJob->resNode, TDMT_SCH_FETCH));
+  SCH_ERR_JRET(schBuildAndSendMsg(pJob, pJob->fetchTask, &pJob->resNode, SCH_FETCH_TYPE(pJob->fetchTask)));
 
   return TSDB_CODE_SUCCESS;
 

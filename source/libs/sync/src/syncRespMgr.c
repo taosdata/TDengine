@@ -50,7 +50,7 @@ int64_t syncRespMgrAdd(SSyncRespMgr *pObj, SRespStub *pStub) {
 
   SSyncNode *pSyncNode = pObj->data;
   char       eventLog[128];
-  snprintf(eventLog, sizeof(eventLog), "resp mgr add, type:%s,%d, seq:%lu, handle:%p, ahandle:%p",
+  snprintf(eventLog, sizeof(eventLog), "resp mgr add, type:%s,%d, seq:%" PRIu64 ", handle:%p, ahandle:%p",
            TMSG_INFO(pStub->rpcMsg.msgType), pStub->rpcMsg.msgType, keyCode, pStub->rpcMsg.info.handle,
            pStub->rpcMsg.info.ahandle);
   syncNodeEventLog(pSyncNode, eventLog);
@@ -77,7 +77,7 @@ int32_t syncRespMgrGet(SSyncRespMgr *pObj, uint64_t index, SRespStub *pStub) {
 
     SSyncNode *pSyncNode = pObj->data;
     char       eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "resp mgr get, type:%s,%d, seq:%lu, handle:%p, ahandle:%p",
+    snprintf(eventLog, sizeof(eventLog), "resp mgr get, type:%s,%d, seq:%" PRIu64 ", handle:%p, ahandle:%p",
              TMSG_INFO(pStub->rpcMsg.msgType), pStub->rpcMsg.msgType, index, pStub->rpcMsg.info.handle,
              pStub->rpcMsg.info.ahandle);
     syncNodeEventLog(pSyncNode, eventLog);
@@ -98,7 +98,7 @@ int32_t syncRespMgrGetAndDel(SSyncRespMgr *pObj, uint64_t index, SRespStub *pStu
 
     SSyncNode *pSyncNode = pObj->data;
     char       eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "resp mgr get-and-del, type:%s,%d, seq:%lu, handle:%p, ahandle:%p",
+    snprintf(eventLog, sizeof(eventLog), "resp mgr get-and-del, type:%s,%d, seq:%" PRIu64 ", handle:%p, ahandle:%p",
              TMSG_INFO(pStub->rpcMsg.msgType), pStub->rpcMsg.msgType, index, pStub->rpcMsg.info.handle,
              pStub->rpcMsg.info.ahandle);
     syncNodeEventLog(pSyncNode, eventLog);

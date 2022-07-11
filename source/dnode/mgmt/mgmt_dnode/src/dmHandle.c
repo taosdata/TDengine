@@ -21,7 +21,7 @@ extern SConfig *tsCfg;
 
 static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
   if (pMgmt->pData->dnodeId == 0 || pMgmt->pData->clusterId == 0) {
-    dInfo("set dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
+    dInfo("set local info, dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
     taosThreadRwlockWrlock(&pMgmt->pData->lock);
     pMgmt->pData->dnodeId = pCfg->dnodeId;
     pMgmt->pData->clusterId = pCfg->clusterId;
