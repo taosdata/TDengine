@@ -540,6 +540,9 @@ typedef struct SIndefOperatorInfo {
   SArray*            pPseudoColInfo;
   SExprSupp          scalarSup;
   SNode*             pCondition;
+  uint64_t           groupId;
+
+  SSDataBlock*       pNextGroupRes;
 } SIndefOperatorInfo;
 
 typedef struct SFillOperatorInfo {

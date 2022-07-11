@@ -461,12 +461,10 @@ static bool isDistinctOrderBy(STranslateContext* pCxt) {
           ((SSelectStmt*)pCxt->pCurrStmt)->isDistinct);
 }
 
-static bool belongTable(const char* currentDb, const SColumnNode* pCol, const STableNode* pTable) {
+static bool belongTable(const SColumnNode* pCol, const STableNode* pTable) {
   int cmp = 0;
   if ('\0' != pCol->dbName[0]) {
     cmp = strcmp(pCol->dbName, pTable->dbName);
-  } else {
-    cmp = (QUERY_NODE_REAL_TABLE == nodeType(pTable) ? strcmp(currentDb, pTable->dbName) : 0);
   }
   if (0 == cmp) {
     cmp = strcmp(pCol->tableAlias, pTable->tableAlias);
@@ -630,7 +628,7 @@ static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode**
   bool    foundTable = false;
   for (size_t i = 0; i < nums; ++i) {
     STableNode* pTable = taosArrayGetP(pTables, i);
-    if (belongTable(pCxt->pParseCxt->db, (*pCol), pTable)) {
+    if (belongTable((*pCol), pTable)) {
       foundTable = true;
       bool foundCol = false;
       pCxt->errCode = findAndSetColumn(pCxt, pCol, pTable, &foundCol);
@@ -4017,8 +4015,15 @@ static int32_t buildCreateSmaReq(STranslateContext* pCxt, SCreateIndexStmt* pStm
       (NULL != pStmt->pOptions->pSliding ? ((SValueNode*)pStmt->pOptions->pSliding)->unit : pReq->intervalUnit);
   if (NULL != pStmt->pOptions->pStreamOptions) {
     SStreamOptions* pStreamOpt = (SStreamOptions*)pStmt->pOptions->pStreamOptions;
-    pReq->maxDelay = (NULL != pStreamOpt->pDelay ? ((SValueNode*)pStreamOpt->pDelay)->datum.i : 0);
-    pReq->watermark = (NULL != pStreamOpt->pWatermark ? ((SValueNode*)pStreamOpt->pWatermark)->datum.i : 0);
+    pReq->maxDelay = (NULL != pStreamOpt->pDelay ? ((SValueNode*)pStreamOpt->pDelay)->datum.i : -1);
+    pReq->watermark = (NULL != pStreamOpt->pWatermark ? ((SValueNode*)pStreamOpt->pWatermark)->datum.i
+                                                      : TSDB_DEFAULT_ROLLUP_WATERMARK);
+    if (pReq->watermark < TSDB_MIN_ROLLUP_WATERMARK) {
+      pReq->watermark = TSDB_MIN_ROLLUP_WATERMARK;
+    }
+    if (pReq->watermark > TSDB_MAX_ROLLUP_WATERMARK) {
+      pReq->watermark = TSDB_MAX_ROLLUP_WATERMARK;
+    }
   }
 
   int32_t code = getSmaIndexDstVgId(pCxt, pStmt->tableName, &pReq->dstVgId);
