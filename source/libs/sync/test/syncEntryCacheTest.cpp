@@ -182,26 +182,21 @@ void delSkipListFirst(SSkipList* pSkipList, int n) {
 
 
 SSyncRaftEntry* getLogEntry2(SSkipList* pSkipList, SyncIndex index) {
-  sTrace("get index: %ld -------------", index);
   SyncIndex index2 = index;
   SSyncRaftEntry *pEntry = NULL;
+  int arraySize = 0;
 
-  SArray*  nodes = tSkipListGet(pSkipList, (char*)(&index2));
-  if (taosArrayGetSize(nodes) > 0) {
-
+  SArray*  entryPArray = tSkipListGet(pSkipList, (char*)(&index2));
+  arraySize = taosArrayGetSize(entryPArray);
+  if (arraySize > 0) {
+    SSkipListNode** ppNode = (SSkipListNode**)taosArrayGet(entryPArray, 0);
+    ASSERT(*ppNode != NULL);
+    pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(*ppNode);
   }
-  taosArrayDestroy(nodes);
+  taosArrayDestroy(entryPArray);
 
-
-
-  SSkipListIterator* pIter = tSkipListCreateIterFromVal(pSkipList, (const char *)&index2, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
-  if (tSkipListIterNext(pIter)) {
-    SSkipListNode* pNode = tSkipListIterGet(pIter);
-    ASSERT(pNode != NULL);
-    pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
-  }
-
-  syncEntryLog2((char*)"", pEntry);
+  sTrace("get index2: %ld, arraySize:%d -------------", index, arraySize);
+  syncEntryLog2((char*)"getLogEntry2", pEntry);
   return pEntry;
 }
 
@@ -217,7 +212,7 @@ SSyncRaftEntry* getLogEntry(SSkipList* pSkipList, SyncIndex index) {
     pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
   }
 
-  syncEntryLog2((char*)"", pEntry);
+  syncEntryLog2((char*)"getLogEntry", pEntry);
   return pEntry;
 }
 
@@ -256,6 +251,11 @@ void test5() {
   getLogEntry(pSkipList, 5);  
   getLogEntry(pSkipList, 7);
   getLogEntry(pSkipList, 7);
+
+  getLogEntry2(pSkipList, 2);
+  getLogEntry2(pSkipList, 5);  
+  getLogEntry2(pSkipList, 7);
+  getLogEntry2(pSkipList, 7);
 
 
   tSkipListDestroy(pSkipList);
