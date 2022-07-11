@@ -394,7 +394,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       } else {
         ASSERT(pHandle->fetchMeta);
         ASSERT(IS_META_MSG(pHead->msgType));
-        tqInfo("fetch meta msg, ver:%" PRId64 ", type:%d", pHead->version, pHead->msgType);
+        tqDebug("fetch meta msg, ver:%" PRId64 ", type:%d", pHead->version, pHead->msgType);
         SMqMetaRsp metaRsp = {0};
         /*metaRsp.reqOffset = pReq->reqOffset.version;*/
         /*metaRsp.rspOffset = fetchVer;*/

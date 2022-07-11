@@ -824,8 +824,8 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
       } else {
         ret = -1;
         terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-        sError("vgId:%d optimized index:%" PRId64 " error, msgtype:%s,%d", pSyncNode->vgId, retIndex, TMSG_INFO(pMsg->msgType),
-               pMsg->msgType);
+        sError("vgId:%d optimized index:%" PRId64 " error, msgtype:%s,%d", pSyncNode->vgId, retIndex,
+               TMSG_INFO(pMsg->msgType), pMsg->msgType);
       }
 
     } else {
@@ -1527,7 +1527,9 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     char logBuf[256 + 256];
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(logBuf, sizeof(logBuf),
-               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", beginlog:%" PRId64 ", lastlog:%" PRId64 ", lastsnapshot:%" PRId64 ", standby:%d, "
+               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", beginlog:%" PRId64 ", lastlog:%" PRId64
+               ", lastsnapshot:%" PRId64
+               ", standby:%d, "
                "strategy:%d, batch:%d, "
                "replica-num:%d, "
                "lconfig:%" PRId64 ", changing:%d, restore:%d, %s",
@@ -1546,7 +1548,9 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     char* s = (char*)taosMemoryMalloc(len);
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(s, len,
-               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", beginlog:%" PRId64 ", lastlog:%" PRId64 ", lastsnapshot:%" PRId64 ", standby:%d, "
+               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", beginlog:%" PRId64 ", lastlog:%" PRId64
+               ", lastsnapshot:%" PRId64
+               ", standby:%d, "
                "strategy:%d, batch:%d, "
                "replica-num:%d, "
                "lconfig:%" PRId64 ", changing:%d, restore:%d, %s",
@@ -1590,7 +1594,9 @@ void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
     char logBuf[256 + 256];
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(logBuf, sizeof(logBuf),
-               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", beginlog:%" PRId64 ", lastlog:%" PRId64 ", lastsnapshot:%" PRId64 ", standby:%d, "
+               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", beginlog:%" PRId64 ", lastlog:%" PRId64
+               ", lastsnapshot:%" PRId64
+               ", standby:%d, "
                "replica-num:%d, "
                "lconfig:%" PRId64 ", changing:%d, restore:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
@@ -1607,7 +1613,9 @@ void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
     char* s = (char*)taosMemoryMalloc(len);
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(s, len,
-               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", beginlog:%" PRId64 ", lastlog:%" PRId64 ", lastsnapshot:%" PRId64 ", standby:%d, "
+               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", beginlog:%" PRId64 ", lastlog:%" PRId64
+               ", lastsnapshot:%" PRId64
+               ", standby:%d, "
                "replica-num:%d, "
                "lconfig:%" PRId64 ", changing:%d, restore:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
@@ -1636,7 +1644,9 @@ char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
   SyncIndex logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
 
   snprintf(s, len,
-           "vgId:%d, sync %s, term:%" PRIu64 ", commit:%" PRId64 ", beginlog:%" PRId64 ", lastlog:%" PRId64 ", lastsnapshot:%" PRId64 ", standby:%d, "
+           "vgId:%d, sync %s, term:%" PRIu64 ", commit:%" PRId64 ", beginlog:%" PRId64 ", lastlog:%" PRId64
+           ", lastsnapshot:%" PRId64
+           ", standby:%d, "
            "replica-num:%d, "
            "lconfig:%" PRId64 ", changing:%d, restore:%d",
            pSyncNode->vgId, syncUtilState2String(pSyncNode->state), pSyncNode->pRaftStore->currentTerm,
@@ -1839,8 +1849,8 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     char  tmpbuf[512];
     char* oldStr = syncCfg2SimpleStr(&oldConfig);
     char* newStr = syncCfg2SimpleStr(pNewConfig);
-    snprintf(tmpbuf, sizeof(tmpbuf), "config change from %d to %d, index:%" PRId64 ", %s  -->  %s", oldConfig.replicaNum,
-             pNewConfig->replicaNum, lastConfigChangeIndex, oldStr, newStr);
+    snprintf(tmpbuf, sizeof(tmpbuf), "config change from %d to %d, index:%" PRId64 ", %s  -->  %s",
+             oldConfig.replicaNum, pNewConfig->replicaNum, lastConfigChangeIndex, oldStr, newStr);
     taosMemoryFree(oldStr);
     taosMemoryFree(newStr);
 
@@ -1863,8 +1873,8 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     char  tmpbuf[512];
     char* oldStr = syncCfg2SimpleStr(&oldConfig);
     char* newStr = syncCfg2SimpleStr(pNewConfig);
-    snprintf(tmpbuf, sizeof(tmpbuf), "do not config change from %d to %d, index:%" PRId64 ", %s  -->  %s", oldConfig.replicaNum,
-             pNewConfig->replicaNum, lastConfigChangeIndex, oldStr, newStr);
+    snprintf(tmpbuf, sizeof(tmpbuf), "do not config change from %d to %d, index:%" PRId64 ", %s  -->  %s",
+             oldConfig.replicaNum, pNewConfig->replicaNum, lastConfigChangeIndex, oldStr, newStr);
     taosMemoryFree(oldStr);
     taosMemoryFree(newStr);
     syncNodeEventLog(pSyncNode, tmpbuf);
@@ -2399,7 +2409,8 @@ int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
   // log state
   char logBuf[1024] = {0};
   snprintf(logBuf, sizeof(logBuf),
-           "==syncNodeOnPingCb== vgId:%d, state: %d, %s, term:%" PRIu64 " electTimerLogicClock:%" PRIu64 ", "
+           "==syncNodeOnPingCb== vgId:%d, state: %d, %s, term:%" PRIu64 " electTimerLogicClock:%" PRIu64
+           ", "
            "electTimerLogicClockUser:%" PRIu64 ", electTimerMS:%d",
            ths->vgId, ths->state, syncUtilState2String(ths->state), ths->pRaftStore->currentTerm,
            ths->electTimerLogicClock, ths->electTimerLogicClockUser, ths->electTimerMS);
