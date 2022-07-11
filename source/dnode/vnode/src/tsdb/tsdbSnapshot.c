@@ -470,7 +470,7 @@ static int32_t tsdbSnapWriteTableData(STsdbSnapWriter* pWriter, uint8_t* pData, 
       if (pWriter->pBlock->last) {
         // load the last block and merge with the data (todo)
       } else {
-        int32_t c = tBlockCmprFn(&(SBlock){/*TODO*/}, pWriter->pBlock);
+        int32_t c = tBlockCmprFn(&(SBlock){0 /*TODO*/}, pWriter->pBlock);
 
         if (c > 0) {
           // commit until pWriter->pBlock (todo)
