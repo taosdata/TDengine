@@ -851,6 +851,75 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
   return 0;
 }
 
+static int32_t mndFindSuperTableTagIndex(const SStbObj *pStb, const char *tagName) {
+  for (int32_t tag = 0; tag < pStb->numOfTags; tag++) {
+    if (strcasecmp(pStb->pTags[tag].name, tagName) == 0) {
+      return tag;
+    }
+  }
+
+  return -1;
+}
+
+static int32_t mndFindSuperTableColumnIndex(const SStbObj *pStb, const char *colName) {
+  for (int32_t col = 0; col < pStb->numOfColumns; col++) {
+    if (strcasecmp(pStb->pColumns[col].name, colName) == 0) {
+      return col;
+    }
+  }
+
+  return -1;
+}
+
+static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq *createReq) {
+  taosRLockLatch(&pStb->lock);
+  memcpy(pDst, pStb, sizeof(SStbObj));
+  taosRUnLockLatch(&pStb->lock);
+
+  pDst->updateTime = taosGetTimestampMs();
+  pDst->numOfColumns = createReq->numOfColumns;
+  pDst->numOfTags = createReq->numOfTags;
+  pDst->pColumns = taosMemoryCalloc(1, pDst->numOfColumns * sizeof(SSchema));
+  pDst->pTags = taosMemoryCalloc(1, pDst->numOfTags * sizeof(SSchema));
+  if (pDst->pColumns == NULL || pDst->pTags == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  for (int32_t i = 0; i < pDst->numOfColumns; ++i) {
+    SField  *pField = taosArrayGet(createReq->pColumns, i);
+    SSchema *pSchema = &pDst->pColumns[i];
+    pSchema->type = pField->type;
+    pSchema->bytes = pField->bytes;
+    pSchema->flags = pField->flags;
+    memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
+    int32_t cIndex = mndFindSuperTableColumnIndex(pStb, pField->name);
+    if (cIndex >= 0){
+      pSchema->colId = pStb->pColumns[cIndex].colId;
+    }else{
+      pSchema->colId = pDst->nextColId++;
+    }
+  }
+
+  for (int32_t i = 0; i < pDst->numOfTags; ++i) {
+    SField  *pField = taosArrayGet(createReq->pTags, i);
+    SSchema *pSchema = &pDst->pTags[i];
+    pSchema->type = pField->type;
+    pSchema->bytes = pField->bytes;
+    memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
+    int32_t cIndex = mndFindSuperTableTagIndex(pStb, pField->name);
+    if (cIndex >= 0){
+      pSchema->colId = pStb->pTags[cIndex].colId;
+    }else{
+      pSchema->colId = pDst->nextColId++;
+    }
+
+  }
+  pDst->tagVer = createReq->tagVer;
+  pDst->colVer = createReq->colVer;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
@@ -937,43 +1006,12 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   if (isAlter) {
     bool needRsp = false;
     SStbObj pDst = {0};
-    taosRLockLatch(&pStb->lock);
-    memcpy(&pDst, pStb, sizeof(SStbObj));
-    taosRUnLockLatch(&pStb->lock);
-
-    pDst.updateTime = taosGetTimestampMs();
-    pDst.nextColId = 1;
-    pDst.numOfColumns = createReq.numOfColumns;
-    pDst.numOfTags = createReq.numOfTags;
-    pDst.pColumns = taosMemoryCalloc(1, pDst.numOfColumns * sizeof(SSchema));
-    pDst.pTags = taosMemoryCalloc(1, pDst.numOfTags * sizeof(SSchema));
-    if (pDst.pColumns == NULL || pDst.pTags == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+    if (mndBuildStbFromAlter(pStb, &pDst, &createReq) != 0) {
+      taosMemoryFreeClear(pDst.pTags);
+      taosMemoryFreeClear(pDst.pColumns);
       goto _OVER;
     }
 
-    for (int32_t i = 0; i < pDst.numOfColumns; ++i) {
-      SField  *pField = taosArrayGet(createReq.pColumns, i);
-      SSchema *pSchema = &pDst.pColumns[i];
-      pSchema->type = pField->type;
-      pSchema->bytes = pField->bytes;
-      pSchema->flags = pField->flags;
-      memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
-      pSchema->colId = pDst.nextColId;
-      pDst.nextColId++;
-    }
-
-    for (int32_t i = 0; i < pDst.numOfTags; ++i) {
-      SField  *pField = taosArrayGet(createReq.pTags, i);
-      SSchema *pSchema = &pDst.pTags[i];
-      pSchema->type = pField->type;
-      pSchema->bytes = pField->bytes;
-      memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
-      pSchema->colId = pDst.nextColId;
-      pDst.nextColId++;
-    }
-    pDst.tagVer = createReq.tagVer;
-    pDst.colVer = createReq.colVer;
     code = mndAlterStbImp(pMnode, pReq, pDb, &pDst, needRsp, NULL, 0);
     taosMemoryFreeClear(pDst.pTags);
     taosMemoryFreeClear(pDst.pColumns);
@@ -1012,26 +1050,6 @@ static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
   }
 
   return 0;
-}
-
-static int32_t mndFindSuperTableTagIndex(const SStbObj *pStb, const char *tagName) {
-  for (int32_t tag = 0; tag < pStb->numOfTags; tag++) {
-    if (strcasecmp(pStb->pTags[tag].name, tagName) == 0) {
-      return tag;
-    }
-  }
-
-  return -1;
-}
-
-static int32_t mndFindSuperTableColumnIndex(const SStbObj *pStb, const char *colName) {
-  for (int32_t col = 0; col < pStb->numOfColumns; col++) {
-    if (strcasecmp(pStb->pColumns[col].name, colName) == 0) {
-      return col;
-    }
-  }
-
-  return -1;
 }
 
 static int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew) {

@@ -2430,7 +2430,7 @@ static int32_t taosCreateStb(TAOS *taos, void *meta, int32_t metaLen){
   pReq.numOfTags = req.schemaTag.nCols;
   pReq.commentLen = -1;
   pReq.suid = req.suid;
-  pReq.source = 1;
+  pReq.source = TD_REQ_FROM_TAOX;
   pReq.igExists = true;
 
   SName tableName;
@@ -2497,7 +2497,7 @@ static int32_t taosDropStb(TAOS *taos, void *meta, int32_t metaLen){
 
   // build drop stable
   pReq.igNotExists = true;
-  pReq.source = 1;
+  pReq.source = TD_REQ_FROM_TAOX;
   pReq.suid = req.suid;
   SName tableName;
   tNameExtractFullName(toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName), pReq.name);
