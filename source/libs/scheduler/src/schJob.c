@@ -759,7 +759,7 @@ int32_t schExecJob(SSchJob *pJob, SSchedulerReq *pReq) {
 }
 
 void schDirectPostJobRes(SSchedulerReq* pReq, int32_t errCode) {
-  if (pReq->syncReq) {
+  if (NULL == pReq || pReq->syncReq) {
     return;
   }
   
