@@ -223,6 +223,13 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
+  pRes = taos_query(pConn, "alter table n1 comment 'hello'");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter normal table n1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
   pRes = taos_query(pConn, "alter table n1 drop column c1");
   if (taos_errno(pRes) != 0) {
     printf("failed to alter normal table n1, reason:%s\n", taos_errstr(pRes));
