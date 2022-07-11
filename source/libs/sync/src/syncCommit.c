@@ -83,7 +83,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
         newCommitIndex = index;
 
         if (gRaftDetailLog) {
-          sTrace("syncMaybeAdvanceCommitIndex maybe to update, newCommitIndex:%" PRId64 " commit, pSyncNode->commitIndex:%" PRId64,
+          sTrace("syncMaybeAdvanceCommitIndex maybe to update, newCommitIndex:%" PRId64
+                 " commit, pSyncNode->commitIndex:%" PRId64,
                  newCommitIndex, pSyncNode->commitIndex);
         }
 

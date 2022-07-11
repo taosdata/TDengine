@@ -381,9 +381,11 @@ static int32_t tDeserializeSClientHbRsp(SDecoder *pDecoder, SClientHbRsp *pRsp) 
     if (pQnodeNum > 0) {
       pRsp->query->pQnodeList = taosArrayInit(pQnodeNum, sizeof(SQueryNodeLoad));
       if (NULL == pRsp->query->pQnodeList) return -1;
-      SQueryNodeLoad load = {0};
-      if (tDecodeSQueryNodeLoad(pDecoder, &load) < 0) return -1;
-      taosArrayPush(pRsp->query->pQnodeList, &load);
+      for (int32_t i = 0; i < pQnodeNum; ++i) {
+        SQueryNodeLoad load = {0};
+        if (tDecodeSQueryNodeLoad(pDecoder, &load) < 0) return -1;
+        taosArrayPush(pRsp->query->pQnodeList, &load);
+      }
     }
   }
 
@@ -1999,7 +2001,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   if (tEncodeI32(&encoder, pReq->buffer) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->pageSize) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->pages) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->lastRowMem) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->cacheLastSize) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysPerFile) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep0) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep1) < 0) return -1;
@@ -2012,7 +2014,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   if (tEncodeI8(&encoder, pReq->compression) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->replications) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->strict) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->cacheLastRow) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->cacheLast) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->schemaless) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->ignoreExist) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfRetensions) < 0) return -1;
@@ -2041,7 +2043,7 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   if (tDecodeI32(&decoder, &pReq->buffer) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->pageSize) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->pages) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->lastRowMem) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->cacheLastSize) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysPerFile) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep0) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep1) < 0) return -1;
@@ -2054,7 +2056,7 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   if (tDecodeI8(&decoder, &pReq->compression) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->replications) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->strict) < 0) return -1;
-  if (tDecodeI8(&decoder, &pReq->cacheLastRow) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->cacheLast) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->schemaless) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->ignoreExist) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numOfRetensions) < 0) return -1;
@@ -2096,7 +2098,7 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   if (tEncodeI32(&encoder, pReq->buffer) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->pageSize) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->pages) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->lastRowMem) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->cacheLastSize) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysPerFile) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep0) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep1) < 0) return -1;
@@ -2104,7 +2106,7 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   if (tEncodeI32(&encoder, pReq->fsyncPeriod) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->walLevel) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->strict) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->cacheLastRow) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->cacheLast) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->replications) < 0) return -1;
   tEndEncode(&encoder);
 
@@ -2122,7 +2124,7 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   if (tDecodeI32(&decoder, &pReq->buffer) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->pageSize) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->pages) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->lastRowMem) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->cacheLastSize) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysPerFile) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep0) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep1) < 0) return -1;
@@ -2130,7 +2132,7 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   if (tDecodeI32(&decoder, &pReq->fsyncPeriod) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->walLevel) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->strict) < 0) return -1;
-  if (tDecodeI8(&decoder, &pReq->cacheLastRow) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->cacheLast) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->replications) < 0) return -1;
   tEndDecode(&decoder);
 
@@ -2645,6 +2647,31 @@ int32_t tDeserializeSDbCfgReq(void *buf, int32_t bufLen, SDbCfgReq *pReq) {
   return 0;
 }
 
+int32_t tSerializeSTrimDbReq(void *buf, int32_t bufLen, STrimDbReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSTrimDbReq(void *buf, int32_t bufLen, STrimDbReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
 int32_t tSerializeSDbCfgRsp(void *buf, int32_t bufLen, const SDbCfgRsp *pRsp) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -2667,7 +2694,7 @@ int32_t tSerializeSDbCfgRsp(void *buf, int32_t bufLen, const SDbCfgRsp *pRsp) {
   if (tEncodeI8(&encoder, pRsp->compression) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->replications) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->strict) < 0) return -1;
-  if (tEncodeI8(&encoder, pRsp->cacheLastRow) < 0) return -1;
+  if (tEncodeI8(&encoder, pRsp->cacheLast) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->numOfRetensions) < 0) return -1;
   for (int32_t i = 0; i < pRsp->numOfRetensions; ++i) {
     SRetention *pRetension = taosArrayGet(pRsp->pRetensions, i);
@@ -2706,7 +2733,7 @@ int32_t tDeserializeSDbCfgRsp(void *buf, int32_t bufLen, SDbCfgRsp *pRsp) {
   if (tDecodeI8(&decoder, &pRsp->compression) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->replications) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->strict) < 0) return -1;
-  if (tDecodeI8(&decoder, &pRsp->cacheLastRow) < 0) return -1;
+  if (tDecodeI8(&decoder, &pRsp->cacheLast) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->numOfRetensions) < 0) return -1;
   if (pRsp->numOfRetensions > 0) {
     pRsp->pRetensions = taosArrayInit(pRsp->numOfRetensions, sizeof(SRetention));
@@ -3617,7 +3644,7 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   if (tEncodeI32(&encoder, pReq->buffer) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->pageSize) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->pages) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->lastRowMem) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->cacheLastSize) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysPerFile) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep0) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep1) < 0) return -1;
@@ -3632,7 +3659,7 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   if (tEncodeI8(&encoder, pReq->precision) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->compression) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->strict) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->cacheLastRow) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->cacheLast) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->standby) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->replica) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->selfIndex) < 0) return -1;
@@ -3675,7 +3702,7 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   if (tDecodeI32(&decoder, &pReq->buffer) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->pageSize) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->pages) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->lastRowMem) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->cacheLastSize) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysPerFile) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep0) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep1) < 0) return -1;
@@ -3690,7 +3717,7 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   if (tDecodeI8(&decoder, &pReq->precision) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->compression) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->strict) < 0) return -1;
-  if (tDecodeI8(&decoder, &pReq->cacheLastRow) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->cacheLast) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->standby) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->replica) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->selfIndex) < 0) return -1;
@@ -3800,7 +3827,7 @@ int32_t tSerializeSAlterVnodeReq(void *buf, int32_t bufLen, SAlterVnodeReq *pReq
   if (tEncodeI32(&encoder, pReq->buffer) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->pageSize) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->pages) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->lastRowMem) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->cacheLastSize) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysPerFile) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep0) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->daysToKeep1) < 0) return -1;
@@ -3808,7 +3835,7 @@ int32_t tSerializeSAlterVnodeReq(void *buf, int32_t bufLen, SAlterVnodeReq *pReq
   if (tEncodeI32(&encoder, pReq->fsyncPeriod) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->walLevel) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->strict) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->cacheLastRow) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->cacheLast) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->selfIndex) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->replica) < 0) return -1;
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
@@ -3831,7 +3858,7 @@ int32_t tDeserializeSAlterVnodeReq(void *buf, int32_t bufLen, SAlterVnodeReq *pR
   if (tDecodeI32(&decoder, &pReq->buffer) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->pageSize) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->pages) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->lastRowMem) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->cacheLastSize) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysPerFile) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep0) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->daysToKeep1) < 0) return -1;
@@ -3839,7 +3866,7 @@ int32_t tDeserializeSAlterVnodeReq(void *buf, int32_t bufLen, SAlterVnodeReq *pR
   if (tDecodeI32(&decoder, &pReq->fsyncPeriod) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->walLevel) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->strict) < 0) return -1;
-  if (tDecodeI8(&decoder, &pReq->cacheLastRow) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->cacheLast) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->selfIndex) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->replica) < 0) return -1;
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {

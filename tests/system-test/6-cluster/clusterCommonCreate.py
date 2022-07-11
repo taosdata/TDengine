@@ -152,7 +152,7 @@ class ClusterComCreate:
             if (i % 2 == 0):
                 tagValue = 'shanghai'
             
-            sql += " %s%d using %s tags(%d, '%s')"%(ctbPrefix,i,stbName,i+1, tagValue)
+            sql += " %s_%d using %s tags(%d, '%s')"%(ctbPrefix,i,stbName,i+1, tagValue)
             if (i > 0) and (i%100 == 0):
                 tsql.execute(sql)
                 sql = pre_create
@@ -173,13 +173,13 @@ class ClusterComCreate:
             startTs = int(round(t * 1000))
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
         for i in range(ctbNum):
-            sql += " %s%d values "%(stbName,i)
+            sql += " %s_%d values "%(stbName,i)
             for j in range(rowsPerTbl):
-                sql += "(%d, %d, 'tmqrow_%d') "%(startTs + j, j, j)
+                sql += "(%d, %d,  %d, 'mnode_%d') "%(startTs + j, j, j,j)
                 if (j > 0) and ((j%batchNum == 0) or (j == rowsPerTbl - 1)):
                     tsql.execute(sql)
                     if j < rowsPerTbl - 1:
-                        sql = "insert into %s%d values " %(stbName,i)
+                        sql = "insert into %s_%d values " %(stbName,i)
                     else:
                         sql = "insert into "
         #end sql

@@ -45,7 +45,6 @@ extern "C" {
 #define WAL_MAGIC        0xFAFBFCFDULL
 
 typedef enum {
-  TAOS_WAL_NOLOG = 0,
   TAOS_WAL_WRITE = 1,
   TAOS_WAL_FSYNC = 2,
 } EWalType;
@@ -74,7 +73,7 @@ typedef struct {
   int8_t   isWeek;
   uint64_t seqNum;
   uint64_t term;
-} SSyncLogMeta;
+} SWalSyncInfo;
 
 typedef struct {
   int8_t  protoVer;
@@ -84,7 +83,7 @@ typedef struct {
   int64_t ingestTs;  // not implemented
 
   // sync meta
-  SSyncLogMeta syncMeta;
+  SWalSyncInfo syncMeta;
 
   char body[];
 } SWalCont;
@@ -124,6 +123,7 @@ typedef struct SWal {
 typedef struct {
   int8_t scanUncommited;
   int8_t scanMeta;
+  int8_t enableRef;
 } SWalFilterCond;
 
 typedef struct {
@@ -133,6 +133,7 @@ typedef struct {
   int64_t        curFileFirstVer;
   int64_t        curVersion;
   int64_t        capacity;
+  int8_t         curInvalid;
   TdThreadMutex  mutex;
   SWalFilterCond cond;
   SWalCkHead    *pHead;
@@ -147,11 +148,22 @@ SWal   *walOpen(const char *path, SWalCfg *pCfg);
 int32_t walAlter(SWal *, SWalCfg *pCfg);
 void    walClose(SWal *);
 
-// write
-int32_t walWriteWithSyncInfo(SWal *, int64_t index, tmsg_t msgType, SSyncLogMeta syncMeta, const void *body,
-                             int32_t bodyLen);
+// write interfaces
+
+// By assigning index by the caller, wal gurantees linearizability
 int32_t walWrite(SWal *, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen);
-void    walFsync(SWal *, bool force);
+int32_t walWriteWithSyncInfo(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body,
+                             int32_t bodyLen);
+
+// This interface assign version automatically and return to caller.
+// When using this interface with concurrent writes,
+// wal will write all logs atomically,
+// but not sure which one will be actually write first,
+// and then the unique index of successful writen is returned.
+// -1 will be returned for failed writes
+int64_t walAppendLog(SWal *, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen);
+
+void walFsync(SWal *, bool force);
 
 // apis for lifecycle management
 int32_t walCommit(SWal *, int64_t ver);

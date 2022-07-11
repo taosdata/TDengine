@@ -35,8 +35,8 @@ void syncRespMgrDelTest(uint64_t begin, uint64_t end) {
 }
 
 void printStub(SRespStub *p) {
-  printf("createTime:%" PRId64 ", rpcMsg.code:%d rpcMsg.ahandle:%" PRId64 " rpcMsg.handle:%" PRId64 " \n", p->createTime, p->rpcMsg.code,
-         (int64_t)(p->rpcMsg.info.ahandle), (int64_t)(p->rpcMsg.info.handle));
+  printf("createTime:%" PRId64 ", rpcMsg.code:%d rpcMsg.ahandle:%" PRId64 " rpcMsg.handle:%" PRId64 " \n",
+         p->createTime, p->rpcMsg.code, (int64_t)(p->rpcMsg.info.ahandle), (int64_t)(p->rpcMsg.info.handle));
 }
 void syncRespMgrPrint() {
   printf("\n----------------syncRespMgrPrint--------------\n");

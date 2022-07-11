@@ -2442,22 +2442,15 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
     return NULL;
   }
 
-  int64_t rid = *(int64_t*)taos;
-  STscObj* pTscObj = acquireTscObj(rid);
-  if (NULL == pTscObj) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    uError("SML:taos_schemaless_insert invalid taos");
-    return NULL;
-  }
-  
-  SRequestObj* request = (SRequestObj*)createRequest(pTscObj, TSDB_SQL_INSERT);
+  SRequestObj* request = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT);
   if(!request){
-    releaseTscObj(rid);
     uError("SML:taos_schemaless_insert error request is null");
     return NULL;
   }
 
   int    batchs = 0;
+  STscObj* pTscObj = request->pTscObj;
+
   pTscObj->schemalessType = 1;
   SSmlMsgBuf msg = {ERROR_MSG_BUF_DEFAULT_SIZE, request->msgBuf};
 
@@ -2507,7 +2500,7 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
 
   batchs = ceil(((double)numLines) / LINE_BATCH);
   for (int i = 0; i < batchs; ++i) {
-    SRequestObj* req = (SRequestObj*)createRequest(pTscObj, TSDB_SQL_INSERT);
+    SRequestObj* req = (SRequestObj*)createRequest(pTscObj->id, TSDB_SQL_INSERT);
     if(!req){
       request->code = TSDB_CODE_OUT_OF_MEMORY;
       uError("SML:taos_schemaless_insert error request is null");
@@ -2549,6 +2542,5 @@ end:
 //  ((STscObj *)taos)->schemalessType = 0;
   pTscObj->schemalessType = 1;
   uDebug("resultend:%s", request->msgBuf);
-  releaseTscObj(rid);
   return (TAOS_RES*)request;
 }

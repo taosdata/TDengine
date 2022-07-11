@@ -46,21 +46,32 @@ void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
 }
 
 
-int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel) {
+int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel, int32_t levelNum) {
+  int32_t code = 0;
+  
   pTask->plan = pPlan;
   pTask->level = pLevel;
   pTask->execId = -1;
-  pTask->maxExecTimes = SCH_TASK_MAX_EXEC_TIMES;
+  pTask->maxExecTimes = SCH_TASK_MAX_EXEC_TIMES(pLevel->level, levelNum);
   pTask->timeoutUsec = SCH_DEFAULT_TASK_TIMEOUT_USEC;
-  SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
   pTask->taskId = schGenTaskId();
   pTask->execNodes = taosHashInit(SCH_MAX_CANDIDATE_EP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
-  if (NULL == pTask->execNodes) {
-    SCH_TASK_ELOG("taosHashInit %d execNodes failed", SCH_MAX_CANDIDATE_EP_NUM);
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  pTask->profile.execTime = taosMemoryCalloc(pTask->maxExecTimes, sizeof(int64_t));
+  if (NULL == pTask->execNodes || NULL == pTask->profile.execTime) {
+    SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
+  taosInitReentrantRWLatch(&pTask->lock);
+
+  SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
 
   return TSDB_CODE_SUCCESS;
+
+_return:
+
+  taosMemoryFreeClear(pTask->profile.execTime);
+  taosHashCleanup(pTask->execNodes);
+
+  SCH_RET(code);
 }
 
 int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask) {
@@ -253,7 +264,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     SSchTask *parent = *(SSchTask **)taosArrayGet(pTask->parents, i);
     int32_t   readyNum = atomic_add_fetch_32(&parent->childReady, 1);
 
-    SCH_LOCK(SCH_WRITE, &parent->lock);
+    SCH_LOCK_TASK(parent);
     SDownstreamSourceNode source = {.type = QUERY_NODE_DOWNSTREAM_SOURCE,
                                     .taskId = pTask->taskId,
                                     .schedId = schMgmt.sId,
@@ -262,7 +273,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
                                     .fetchMsgType = SCH_FETCH_TYPE(pTask),
                                     };
     qSetSubplanExecutionNode(parent->plan, pTask->plan->id.groupId, &source);
-    SCH_UNLOCK(SCH_WRITE, &parent->lock);
+    SCH_UNLOCK_TASK(parent);
 
     if (SCH_TASK_READY_FOR_LAUNCH(readyNum, parent)) {
       SCH_TASK_DLOG("all %d children task done, start to launch parent task 0x%" PRIx64, readyNum, parent->taskId);
@@ -337,6 +348,11 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf* pData, int32
   pTask->childReady = 0;
   
   qClearSubplanExecutionNode(pTask->plan);
+
+  // Note: current error task and upper level merge task
+  if ((pData && 0 == pData->len) || NULL == pData) {
+    SCH_ERR_JRET(schSwitchTaskCandidateAddr(pJob, pTask));
+  }
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
   
@@ -531,10 +547,7 @@ int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
   if (SCH_IS_DATA_BIND_TASK(pTask)) {
     SCH_SWITCH_EPSET(&pTask->plan->execNode);
   } else {
-    int32_t candidateNum = taosArrayGetSize(pTask->candidateAddrs);  
-    if (++pTask->candidateIdx >= candidateNum) {
-      pTask->candidateIdx = 0;
-    }
+    SCH_ERR_RET(schSwitchTaskCandidateAddr(pJob, pTask));
   }
 
   SCH_ERR_RET(schLaunchTask(pJob, pTask));
@@ -632,6 +645,16 @@ int32_t schUpdateTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask, SEpSet* pEpSe
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t schSwitchTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask) {
+  int32_t candidateNum = taosArrayGetSize(pTask->candidateAddrs);  
+  if (++pTask->candidateIdx >= candidateNum) {
+    pTask->candidateIdx = 0;
+  }
+  SCH_TASK_DLOG("switch task candiateIdx to %d", pTask->candidateIdx);
+  return TSDB_CODE_SUCCESS;
+}
+
 
 
 int32_t schRemoveTaskFromExecList(SSchJob *pJob, SSchTask *pTask) {

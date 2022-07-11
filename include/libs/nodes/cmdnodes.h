@@ -103,6 +103,11 @@ typedef struct SFlushDatabaseStmt {
   char      dbName[TSDB_DB_NAME_LEN];
 } SFlushDatabaseStmt;
 
+typedef struct STrimDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+} STrimDatabaseStmt;
+
 typedef struct STableOptions {
   ENodeType  type;
   bool       commentNull;

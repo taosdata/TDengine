@@ -38,10 +38,11 @@ extern "C" {
 #endif
 
 // vnode
-typedef struct SVnode           SVnode;
-typedef struct STsdbCfg         STsdbCfg;  // todo: remove
-typedef struct SVnodeCfg        SVnodeCfg;
-typedef struct SVSnapshotReader SVSnapshotReader;
+typedef struct SVnode       SVnode;
+typedef struct STsdbCfg     STsdbCfg;  // todo: remove
+typedef struct SVnodeCfg    SVnodeCfg;
+typedef struct SVSnapReader SVSnapReader;
+typedef struct SVSnapWriter SVSnapWriter;
 
 extern const SVnodeCfg vnodeCfgDefault;
 
@@ -57,10 +58,6 @@ void    vnodeStop(SVnode *pVnode);
 int64_t vnodeGetSyncHandle(SVnode *pVnode);
 void    vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 void    vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId);
-int32_t vnodeSnapshotReaderOpen(SVnode *pVnode, SVSnapshotReader **ppReader, int64_t sver, int64_t ever);
-int32_t vnodeSnapshotReaderClose(SVSnapshotReader *pReader);
-int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32_t *nData);
-
 int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen);
 int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
 int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list);
@@ -133,7 +130,7 @@ bool    tsdbNextDataBlock(STsdbReader *pReader);
 void    tsdbRetrieveDataBlockInfo(STsdbReader *pReader, SDataBlockInfo *pDataBlockInfo);
 int32_t tsdbRetrieveDatablockSMA(STsdbReader *pReader, SColumnDataAgg ***pBlockStatis, bool *allHave);
 SArray *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
-int32_t tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond, int32_t tWinIdx);
+int32_t tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
 int32_t tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 int64_t tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
 void   *tsdbGetIdx(SMeta *pMeta);
@@ -185,7 +182,14 @@ int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReader *pReader);
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
 
-// need to reposition
+// SVSnapReader
+int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapReader **ppReader);
+int32_t vnodeSnapReaderClose(SVSnapReader *pReader);
+int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData);
+// SVSnapWriter
+int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter);
+int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback);
+int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData);
 
 // structs
 struct STsdbCfg {

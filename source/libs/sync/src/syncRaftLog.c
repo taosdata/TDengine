@@ -122,8 +122,8 @@ static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncI
 
     char logBuf[128];
     snprintf(logBuf, sizeof(logBuf),
-             "wal restore from snapshot error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s", snapshotIndex, err,
-             err, errStr, sysErr, sysErrStr);
+             "wal restore from snapshot error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+             snapshotIndex, err, err, errStr, sysErr, sysErrStr);
     syncNodeErrorLog(pData->pSyncNode, logBuf);
 
     return -1;
@@ -207,13 +207,13 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
 
   SyncIndex writeIndex = raftLogWriteIndex(pLogStore);
   if (pEntry->index != writeIndex) {
-    sError("vgId:%d wal write index error, entry-index:%" PRId64 " update to %" PRId64, pData->pSyncNode->vgId, pEntry->index,
-           writeIndex);
+    sError("vgId:%d wal write index error, entry-index:%" PRId64 " update to %" PRId64, pData->pSyncNode->vgId,
+           pEntry->index, writeIndex);
     pEntry->index = writeIndex;
   }
 
   int          code = 0;
-  SSyncLogMeta syncMeta;
+  SWalSyncInfo syncMeta;
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
@@ -272,8 +272,8 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
 
     do {
       char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "wal read error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s", index, err,
-               err, errStr, sysErr, sysErrStr);
+      snprintf(logBuf, sizeof(logBuf), "wal read error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+               index, err, err, errStr, sysErr, sysErrStr);
       if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
         syncNodeEventLog(pData->pSyncNode, logBuf);
       } else {
@@ -369,7 +369,7 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   ASSERT(pEntry->index == lastIndex + 1);
 
   int          code = 0;
-  SSyncLogMeta syncMeta;
+  SWalSyncInfo syncMeta;
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
@@ -418,8 +418,8 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
 
       do {
         char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "wal read error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s", index,
-                 err, err, errStr, sysErr, sysErrStr);
+        snprintf(logBuf, sizeof(logBuf), "wal read error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+                 index, err, err, errStr, sysErr, sysErrStr);
         if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
           syncNodeEventLog(pData->pSyncNode, logBuf);
         } else {

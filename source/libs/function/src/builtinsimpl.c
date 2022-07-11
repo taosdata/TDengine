@@ -1863,8 +1863,6 @@ static void stddevTransferInfo(SStddevRes* pInput, SStddevRes* pOutput) {
   }
 
   pOutput->count += pInput->count;
-
-  return;
 }
 
 int32_t stddevFunctionMerge(SqlFunctionCtx* pCtx) {
@@ -1874,14 +1872,13 @@ int32_t stddevFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SStddevRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  int32_t     start = pInput->startRowIndex;
-  char*       data = colDataGetData(pCol, start);
-  SStddevRes* pInputInfo = (SStddevRes*)varDataVal(data);
-
-  stddevTransferInfo(pInputInfo, pInfo);
+  for(int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+    char*       data = colDataGetData(pCol, i);
+    SStddevRes* pInputInfo = (SStddevRes*)varDataVal(data);
+    stddevTransferInfo(pInputInfo, pInfo);
+  }
 
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);
-
   return TSDB_CODE_SUCCESS;
 }
 

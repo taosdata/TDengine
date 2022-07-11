@@ -124,9 +124,9 @@ class TDTestCase:
         tdSql.query('show databases;')
         tdSql.checkData(2,5,'no_strict')
         tdSql.error('alter database db strict 0')
-        tdSql.execute('alter database db strict 1')
-        tdSql.query('show databases;')
-        tdSql.checkData(2,5,'strict')
+        # tdSql.execute('alter database db strict 1')
+        # tdSql.query('show databases;')
+        # tdSql.checkData(2,5,'strict')
 
     def getConnection(self, dnode):
         host = dnode.cfgDict["fqdn"]

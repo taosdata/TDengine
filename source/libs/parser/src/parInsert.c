@@ -121,86 +121,6 @@ static int32_t skipInsertInto(char** pSql, SMsgBuf* pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t parserValidateIdToken(SToken* pToken) {
-  if (pToken == NULL || pToken->z == NULL || pToken->type != TK_NK_ID) {
-    return TSDB_CODE_TSC_INVALID_OPERATION;
-  }
-
-  // it is a token quoted with escape char '`'
-  if (pToken->z[0] == TS_ESCAPE_CHAR && pToken->z[pToken->n - 1] == TS_ESCAPE_CHAR) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
-  if (sep == NULL) {  // It is a single part token, not a complex type
-    if (isNumber(pToken)) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-
-    strntolower(pToken->z, pToken->z, pToken->n);
-  } else {  // two part
-    int32_t oldLen = pToken->n;
-    char*   pStr = pToken->z;
-
-    if (pToken->type == TK_NK_SPACE) {
-      pToken->n = (uint32_t)strtrim(pToken->z);
-    }
-
-    pToken->n = tGetToken(pToken->z, &pToken->type);
-    if (pToken->z[pToken->n] != TS_PATH_DELIMITER[0]) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-
-    if (pToken->type != TK_NK_ID) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-
-    int32_t firstPartLen = pToken->n;
-
-    pToken->z = sep + 1;
-    pToken->n = (uint32_t)(oldLen - (sep - pStr) - 1);
-    int32_t len = tGetToken(pToken->z, &pToken->type);
-    if (len != pToken->n || pToken->type != TK_NK_ID) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-
-    // re-build the whole name string
-    if (pStr[firstPartLen] == TS_PATH_DELIMITER[0]) {
-      // first part do not have quote do nothing
-    } else {
-      pStr[firstPartLen] = TS_PATH_DELIMITER[0];
-      memmove(&pStr[firstPartLen + 1], pToken->z, pToken->n);
-      uint32_t offset = (uint32_t)(pToken->z - (pStr + firstPartLen + 1));
-      memset(pToken->z + pToken->n - offset, ' ', offset);
-    }
-
-    pToken->n += (firstPartLen + sizeof(TS_PATH_DELIMITER[0]));
-    pToken->z = pStr;
-
-    strntolower(pToken->z, pToken->z, pToken->n);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t buildName(SInsertParseContext* pCxt, SToken* pStname, char* fullDbName, char* tableName) {
-  if (parserValidateIdToken(pStname) != TSDB_CODE_SUCCESS) {
-    return buildSyntaxErrMsg(&pCxt->msg, "invalid table name", pStname->z);
-  }
-
-  char* p = strnchr(pStname->z, TS_PATH_DELIMITER[0], pStname->n, false);
-  if (NULL != p) {  // db.table
-    int32_t n = sprintf(fullDbName, "%d.", pCxt->pComCxt->acctId);
-    strncpy(fullDbName + n, pStname->z, p - pStname->z);
-    strncpy(tableName, p + 1, pStname->n - (p - pStname->z) - 1);
-  } else {
-    snprintf(fullDbName, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pComCxt->acctId, pCxt->pComCxt->db);
-    strncpy(tableName, pStname->z, pStname->n);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t createSName(SName* pName, SToken* pTableName, int32_t acctId, const char* dbName, SMsgBuf* pMsgBuf) {
   const char* msg1 = "name too long";
   const char* msg2 = "invalid database name";
@@ -981,11 +901,11 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema, int16
 
     case TSDB_DATA_TYPE_NCHAR: {
       int32_t output = 0;
-      void*   p = taosMemoryCalloc(1, pToken->n * TSDB_NCHAR_SIZE);
+      void*   p = taosMemoryCalloc(1, pSchema->bytes - VARSTR_HEADER_SIZE);
       if (p == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
-      if (!taosMbsToUcs4(pToken->z, pToken->n, (TdUcs4*)(p), pToken->n * TSDB_NCHAR_SIZE, &output)) {
+      if (!taosMbsToUcs4(pToken->z, pToken->n, (TdUcs4*)(p), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
         if (errno == E2BIG) {
           taosMemoryFree(p);
           return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);

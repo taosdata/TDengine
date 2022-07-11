@@ -5,6 +5,14 @@
 
 #include "clientStmt.h"
 
+static int32_t stmtCreateRequest(STscStmt* pStmt) {
+  if (pStmt->exec.pRequest == NULL)  {
+    return buildRequest(pStmt->taos->id, pStmt->sql.sqlStr, pStmt->sql.sqlLen, NULL, false, &pStmt->exec.pRequest);
+  } else {
+    return TSDB_CODE_SUCCESS;
+  }
+}
+
 int32_t stmtSwitchStatus(STscStmt* pStmt, STMT_STATUS newStatus) {
   int32_t code = 0;
 
@@ -218,9 +226,7 @@ int32_t stmtParseSql(STscStmt* pStmt) {
       .getExecInfoFn = stmtGetExecInfo,
   };
 
-  if (NULL == pStmt->exec.pRequest) {
-    STMT_ERR_RET(buildRequest(pStmt->taos, pStmt->sql.sqlStr, pStmt->sql.sqlLen, &pStmt->exec.pRequest));
-  }
+  STMT_ERR_RET(stmtCreateRequest(pStmt));
 
   STMT_ERR_RET(parseSql(pStmt->exec.pRequest, false, &pStmt->sql.pQuery, &stmtCb));
 
@@ -533,9 +539,7 @@ int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
 
-  if (NULL == pStmt->exec.pRequest) {
-    STMT_ERR_RET(buildRequest(pStmt->taos, pStmt->sql.sqlStr, pStmt->sql.sqlLen, &pStmt->exec.pRequest));
-  }
+  STMT_ERR_RET(stmtCreateRequest(pStmt));
 
   STMT_ERR_RET(qCreateSName(&pStmt->bInfo.sname, tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
                             pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
@@ -626,9 +630,7 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
     pStmt->exec.pRequest = NULL;
   }
 
-  if (NULL == pStmt->exec.pRequest) {
-    STMT_ERR_RET(buildRequest(pStmt->taos, pStmt->sql.sqlStr, pStmt->sql.sqlLen, &pStmt->exec.pRequest));
-  }
+  STMT_ERR_RET(stmtCreateRequest(pStmt));
 
   if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
@@ -874,9 +876,7 @@ int stmtGetTagFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
     pStmt->exec.pRequest = NULL;
   }
 
-  if (NULL == pStmt->exec.pRequest) {
-    STMT_ERR_RET(buildRequest(pStmt->taos, pStmt->sql.sqlStr, pStmt->sql.sqlLen, &pStmt->exec.pRequest));
-  }
+  STMT_ERR_RET(stmtCreateRequest(pStmt));
 
   if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
@@ -906,9 +906,7 @@ int stmtGetColFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
     pStmt->exec.pRequest = NULL;
   }
 
-  if (NULL == pStmt->exec.pRequest) {
-    STMT_ERR_RET(buildRequest(pStmt->taos, pStmt->sql.sqlStr, pStmt->sql.sqlLen, &pStmt->exec.pRequest));
-  }
+  STMT_ERR_RET(stmtCreateRequest(pStmt));
 
   if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
@@ -934,10 +932,7 @@ int stmtGetParamNum(TAOS_STMT* stmt, int* nums) {
     pStmt->exec.pRequest = NULL;
   }
 
-  if (NULL == pStmt->exec.pRequest) {
-    STMT_ERR_RET(buildRequest(pStmt->taos, pStmt->sql.sqlStr, pStmt->sql.sqlLen, &pStmt->exec.pRequest));
-  }
-
+  STMT_ERR_RET(stmtCreateRequest(pStmt));
   if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
@@ -970,9 +965,7 @@ int stmtGetParam(TAOS_STMT* stmt, int idx, int* type, int* bytes) {
     pStmt->exec.pRequest = NULL;
   }
 
-  if (NULL == pStmt->exec.pRequest) {
-    STMT_ERR_RET(buildRequest(pStmt->taos, pStmt->sql.sqlStr, pStmt->sql.sqlLen, &pStmt->exec.pRequest));
-  }
+  STMT_ERR_RET(stmtCreateRequest(pStmt));
 
   if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));

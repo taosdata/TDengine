@@ -1042,11 +1042,17 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode* tree, SArray *group) {
     
     for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
       SValueNode *valueNode = (SValueNode *)cell->pNode;
-      if (valueNode->node.resType.type != type) {
-        code = doConvertDataType(valueNode, &out);
+      if (valueNode->node.resType.type != type) {        
+        int32_t overflow = 0;
+        code = doConvertDataType(valueNode, &out, &overflow);
         if (code) {
   //        fltError("convert from %d to %d failed", in.type, out.type);
           FLT_ERR_RET(code);
+        }
+
+        if (overflow) {
+          cell = cell->pNext;
+          continue;
         }
         
         len = tDataTypes[type].bytes;
@@ -1835,7 +1841,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       }
 
       // todo refactor the convert
-      int32_t code = doConvertDataType(var, &out);
+      int32_t code = doConvertDataType(var, &out, NULL);
       if (code != TSDB_CODE_SUCCESS) {
         qError("convert value to type[%d] failed", type);
         return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -3617,7 +3623,8 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       return DEAL_RES_CONTINUE;
     }
 
-    if (FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP) && node->opType >= OP_TYPE_NOT_EQUAL) {
+    if (FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP) && 
+        (node->opType >= OP_TYPE_NOT_EQUAL) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)) {
       stat->scalarMode = true;
       return DEAL_RES_CONTINUE;
     }

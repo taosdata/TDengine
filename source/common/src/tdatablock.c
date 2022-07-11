@@ -463,6 +463,7 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
 
   pDst->info = pBlock->info;
   pDst->info.rows = 0;
+  pDst->info.capacity = 0;
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData  colInfo = {0};
@@ -1746,7 +1747,7 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
     for (int32_t k = 0; k < colNum; k++) {
       SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
       void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
-      if (colDataIsNull(pColInfoData, rows, j, NULL)) {
+      if (colDataIsNull(pColInfoData, rows, j, NULL) || !pColInfoData->pData) {
         len += snprintf(dumpBuf + len, size - len, " %15s |", "NULL");
         if (len >= size -1) return dumpBuf;
         continue;

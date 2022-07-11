@@ -32,9 +32,9 @@ class TDTestCase:
     #
     # --------------- main frame -------------------
     #
-    clientCfgDict = {'queryPolicy': '1','debugFlag': 135}
+    clientCfgDict = {'queryPolicy': '1','debugFlag': 143}
     clientCfgDict["queryPolicy"] = '1'
-    clientCfgDict["debugFlag"] = 131
+    clientCfgDict["debugFlag"] = 143
 
     updatecfgDict = {'clientCfg': {}}
     updatecfgDict = {'debugFlag': 143}
@@ -278,22 +278,7 @@ class TDTestCase:
             tdSql.checkData(0,0,rowsPerSTable)
         return 
      
-    # test case1 base 
-    def test_case1(self):
-        #stableCount=threadNumbersCtb
-        parameterDict = {'vgroups':        1,    \
-                         'threadNumbersCtb': 5,  \
-                         'threadNumbersIda': 5, \
-                         'stableCount':   5,      \
-                         'tablesPerStb':    50,  \
-                         'rowsPerTable':    10,  \
-                         'dbname':    'db',    \
-                         'stbname':    'stb',   \
-                         'host':  'localhost',    \
-                         'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
-        
-        tdLog.debug("-----create database and muti-thread create tables test------- ")
-
+    # test case : Switch back and forth among the three queryPolicy（1\2\3）
     def test_case1(self):
         self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 1, 2, 1*10)
         tdSql.execute("use db1;")
@@ -407,6 +392,7 @@ class TDTestCase:
         tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
         assert unionallQnode==tdSql.queryResult
 
+    # test case : queryPolicy = 2
     def test_case2(self):
         self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 10, 2, 1*10)
         tdSql.query("show qnodes")
@@ -438,8 +424,9 @@ class TDTestCase:
         tdSql.query("select max(c1) from stb10_0;")
         tdSql.query("select min(c1) from stb11_0;")
 
-    def test_case3(self):
+    # test case : queryPolicy = 3
 
+    def test_case3(self):
         tdSql.execute('alter local  "queryPolicy" "3"')
         tdLog.debug("create qnode on dnode 1")
         tdSql.execute("create qnode on dnode 1")
@@ -472,10 +459,16 @@ class TDTestCase:
     # run case   
     def run(self):
         # test qnode
+        tdLog.debug(" test_case1 ............ [start]")        
         self.test_case1()
+        tdLog.debug(" test_case1 ............ [OK]")
+        tdLog.debug(" test_case2 ............ [start]")        
         self.test_case2()
-
+        tdLog.debug(" test_case2 ............ [OK]")
+        tdLog.debug(" test_case3 ............ [start]")        
         self.test_case3()
+        tdLog.debug(" test_case3 ............ [OK]")
+
         # tdLog.debug(" LIMIT test_case3 ............ [OK]")
 
     def stop(self):
