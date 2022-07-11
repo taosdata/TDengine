@@ -32,39 +32,38 @@ extern "C" {
 #define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSDB ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
-typedef struct TSDBROW        TSDBROW;
-typedef struct TABLEID        TABLEID;
-typedef struct TSDBKEY        TSDBKEY;
-typedef struct SDelData       SDelData;
-typedef struct SDelIdx        SDelIdx;
-typedef struct STbData        STbData;
-typedef struct SMemTable      SMemTable;
-typedef struct STbDataIter    STbDataIter;
-typedef struct STable         STable;
-typedef struct SMapData       SMapData;
-typedef struct SBlockIdx      SBlockIdx;
-typedef struct SBlock         SBlock;
-typedef struct SBlockStatis   SBlockStatis;
-typedef struct SAggrBlkCol    SAggrBlkCol;
-typedef struct SColData       SColData;
-typedef struct SBlockDataHdr  SBlockDataHdr;
-typedef struct SBlockData     SBlockData;
-typedef struct SDelFile       SDelFile;
-typedef struct STsdbCacheFile STsdbCacheFile;
-typedef struct SHeadFile      SHeadFile;
-typedef struct SDataFile      SDataFile;
-typedef struct SLastFile      SLastFile;
-typedef struct SSmaFile       SSmaFile;
-typedef struct SDFileSet      SDFileSet;
-typedef struct SDataFWriter   SDataFWriter;
-typedef struct SDataFReader   SDataFReader;
-typedef struct SDelFWriter    SDelFWriter;
-typedef struct SDelFReader    SDelFReader;
-typedef struct SRowIter       SRowIter;
-typedef struct STsdbFS        STsdbFS;
-typedef struct SRowMerger     SRowMerger;
-typedef struct STsdbFSState   STsdbFSState;
-typedef struct STsdbSnapHdr   STsdbSnapHdr;
+typedef struct TSDBROW       TSDBROW;
+typedef struct TABLEID       TABLEID;
+typedef struct TSDBKEY       TSDBKEY;
+typedef struct SDelData      SDelData;
+typedef struct SDelIdx       SDelIdx;
+typedef struct STbData       STbData;
+typedef struct SMemTable     SMemTable;
+typedef struct STbDataIter   STbDataIter;
+typedef struct STable        STable;
+typedef struct SMapData      SMapData;
+typedef struct SBlockIdx     SBlockIdx;
+typedef struct SBlock        SBlock;
+typedef struct SBlockStatis  SBlockStatis;
+typedef struct SAggrBlkCol   SAggrBlkCol;
+typedef struct SColData      SColData;
+typedef struct SBlockDataHdr SBlockDataHdr;
+typedef struct SBlockData    SBlockData;
+typedef struct SDelFile      SDelFile;
+typedef struct SHeadFile     SHeadFile;
+typedef struct SDataFile     SDataFile;
+typedef struct SLastFile     SLastFile;
+typedef struct SSmaFile      SSmaFile;
+typedef struct SDFileSet     SDFileSet;
+typedef struct SDataFWriter  SDataFWriter;
+typedef struct SDataFReader  SDataFReader;
+typedef struct SDelFWriter   SDelFWriter;
+typedef struct SDelFReader   SDelFReader;
+typedef struct SRowIter      SRowIter;
+typedef struct STsdbFS       STsdbFS;
+typedef struct SRowMerger    SRowMerger;
+typedef struct STsdbFSState  STsdbFSState;
+typedef struct STsdbSnapHdr  STsdbSnapHdr;
 
 #define TSDB_MAX_SUBBLOCKS 8
 #define TSDB_FHDR_SIZE     512
@@ -163,6 +162,7 @@ int32_t tGetMapData(uint8_t *p, SMapData *pMapData);
 // other
 int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision);
 void    tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minKey, TSKEY *maxKey);
+int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now);
 int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline);
 void    tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg);
 // tsdbMemTable ==============================================================================================
@@ -200,6 +200,7 @@ int32_t tsdbFSRollback(STsdbFS *pFS);
 
 int32_t    tsdbFSStateUpsertDelFile(STsdbFSState *pState, SDelFile *pDelFile);
 int32_t    tsdbFSStateUpsertDFileSet(STsdbFSState *pState, SDFileSet *pSet);
+void       tsdbFSStateDeleteDFileSet(STsdbFSState *pState, int32_t fid);
 SDelFile  *tsdbFSStateGetDelFile(STsdbFSState *pState);
 SDFileSet *tsdbFSStateGetDFileSet(STsdbFSState *pState, int32_t fid);
 // tsdbReaderWriter.c ==============================================================================================
@@ -213,6 +214,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
                            SBlockIdx *pBlockIdx, SBlock *pBlock, int8_t cmprAlg);
 
 SDFileSet *tsdbDataFWriterGetWSet(SDataFWriter *pWriter);
+int32_t    tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo);
 // SDataFReader
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet);
 int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
@@ -238,7 +240,7 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx, uint8_t **ppBuf);
 // tsdbCache
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(SLRUCache *pCache);
-int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row);
+int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb *pTsdb);
 int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, STSRow *row, bool dup);
 int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHandle **h);
 int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHandle **h);
