@@ -182,13 +182,15 @@ class SQLWriter:
 def run_read_task(task_id: int, task_queues: List[Queue]):
     table_count_per_task = TABLE_COUNT // READ_TASK_COUNT
     data_source = MockDataSource(f"tb{task_id}", table_count_per_task)
-    for table_id, line in data_source:
-        i = table_id % len(task_queues)
-        task_queues[i].put(line, block=True)
+    try:
+        for table_id, line in data_source:
+            i = table_id % len(task_queues)
+            task_queues[i].put(line, block=True)
+    except KeyboardInterrupt:
+        pass
 
 
 # ANCHOR_END: read
-
 
 # ANCHOR: write
 def run_write_task(task_id: int, queue: Queue):
@@ -204,6 +206,8 @@ def run_write_task(task_id: int, queue: Queue):
                     writer.flush()
                 else:
                     time.sleep(0.01)
+    except KeyboardInterrupt:
+        pass
     except BaseException as e:
         msg = f"line={line}, buffer_count={writer.buffered_count}"
         log.debug(msg)
