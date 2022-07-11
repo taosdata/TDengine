@@ -2441,7 +2441,6 @@ _error:
     doDestroyExchangeOperatorInfo(pInfo);
   }
 
-  taosMemoryFreeClear(pInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
   return NULL;
@@ -3390,6 +3389,8 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
     if (*newgroup) {
       assert(pBlock != NULL);
     }
+
+    blockDataUpdateTsWindow(pBlock, pInfo->primaryTsCol);
 
     if (*newgroup && pInfo->totalInputRows > 0) {  // there are already processed current group data block
       pInfo->existNewGroupBlock = pBlock;
