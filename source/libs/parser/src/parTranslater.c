@@ -1189,7 +1189,7 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
     if (fmIsSelectFunc(pFunc->funcId)) {
       pSelect->hasSelectFunc = true;
       ++(pSelect->selectFuncNum);
-    } else if (fmIsAggFunc(pFunc->funcId) || fmIsIndefiniteRowsFunc(pFunc->funcId)) {
+    } else if (fmIsVectorFunc(pFunc->funcId)) {
       pSelect->hasOtherVectorFunc = true;
     }
     pSelect->hasUniqueFunc = pSelect->hasUniqueFunc ? true : (FUNCTION_TYPE_UNIQUE == pFunc->funcType);
@@ -1514,18 +1514,11 @@ static int32_t rewriteColsToSelectValFunc(STranslateContext* pCxt, SSelectStmt* 
 typedef struct CheckAggColCoexistCxt {
   STranslateContext* pTranslateCxt;
   bool               existCol;
-  int32_t            selectFuncNum;
-  bool               existOtherVectorFunc;
 } CheckAggColCoexistCxt;
 
 static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
   CheckAggColCoexistCxt* pCxt = (CheckAggColCoexistCxt*)pContext;
   if (isVectorFunc(*pNode)) {
-    if (isSelectFunc(*pNode)) {
-      ++(pCxt->selectFuncNum);
-    } else {
-      pCxt->existOtherVectorFunc = true;
-    }
     return DEAL_RES_IGNORE_CHILD;
   }
   SNode* pPartKey = NULL;
@@ -1542,16 +1535,15 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
 
 static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL != pSelect->pGroupByList || NULL != pSelect->pWindow ||
-      (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc)) {
+      (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc && !pSelect->hasInterpFunc)) {
     return TSDB_CODE_SUCCESS;
   }
-  CheckAggColCoexistCxt cxt = {
-      .pTranslateCxt = pCxt, .existCol = false, .selectFuncNum = 0, .existOtherVectorFunc = false};
+  CheckAggColCoexistCxt cxt = {.pTranslateCxt = pCxt, .existCol = false};
   nodesRewriteExprs(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
   if (!pSelect->isDistinct) {
     nodesRewriteExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
   }
-  if (1 == cxt.selectFuncNum && !cxt.existOtherVectorFunc) {
+  if (1 == pSelect->selectFuncNum && !pSelect->hasOtherVectorFunc) {
     return rewriteColsToSelectValFunc(pCxt, pSelect);
   }
   if (cxt.existCol) {

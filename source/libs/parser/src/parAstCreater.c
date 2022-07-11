@@ -665,6 +665,9 @@ SNode* addHavingClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pHaving) {
 
 SNode* addOrderByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pOrderByList) {
   CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pOrderByList) {
+    return pStmt;
+  }
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     ((SSelectStmt*)pStmt)->pOrderByList = pOrderByList;
   } else {
@@ -675,6 +678,9 @@ SNode* addOrderByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pOrder
 
 SNode* addSlimitClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pSlimit) {
   CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pSlimit) {
+    return pStmt;
+  }
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     ((SSelectStmt*)pStmt)->pSlimit = (SLimitNode*)pSlimit;
   }
@@ -683,6 +689,9 @@ SNode* addSlimitClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pSlimit) {
 
 SNode* addLimitClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pLimit) {
   CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pLimit) {
+    return pStmt;
+  }
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     ((SSelectStmt*)pStmt)->pLimit = (SLimitNode*)pLimit;
   } else {

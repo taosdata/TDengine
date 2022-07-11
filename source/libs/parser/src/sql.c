@@ -4658,10 +4658,11 @@ static YYACTIONTYPE yy_reduce(
   yymsp[-2].minor.yy652 = yylhsminor.yy652;
         break;
       case 465: /* query_primary ::= NK_LP query_expression_body order_by_clause_opt slimit_clause_opt limit_clause_opt NK_RP */
-{ yymsp[-5].minor.yy652 = yymsp[-4].minor.yy652; }
-  yy_destructor(yypParser,369,&yymsp[-3].minor);
-  yy_destructor(yypParser,370,&yymsp[-2].minor);
-  yy_destructor(yypParser,371,&yymsp[-1].minor);
+{ 
+                                                                                    yymsp[-5].minor.yy652 = addOrderByClause(pCxt, yymsp[-4].minor.yy652, yymsp[-3].minor.yy210);
+                                                                                    yymsp[-5].minor.yy652 = addSlimitClause(pCxt, yymsp[-5].minor.yy652, yymsp[-2].minor.yy652);
+                                                                                    yymsp[-5].minor.yy652 = addLimitClause(pCxt, yymsp[-5].minor.yy652, yymsp[-1].minor.yy652);
+                                                                                  }
         break;
       case 469: /* slimit_clause_opt ::= SLIMIT NK_INTEGER */
       case 473: /* limit_clause_opt ::= LIMIT NK_INTEGER */ yytestcase(yyruleno==473);
