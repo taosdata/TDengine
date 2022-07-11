@@ -32,7 +32,6 @@ CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
    - cacheLast: [Description](/reference/config/#cachelast)
    - replica: [Description](/reference/config/#replica)
    - quorum: [Description](/reference/config/#quorum)
-   - maxVgroupsPerDb: [Description](/reference/config/#maxvgroupsperdb)
    - comp: [Description](/reference/config/#comp)
    - precision: [Description](/reference/config/#precision)
 6. Please note that all of the parameters mentioned in this section are configured in configuration file `taos.cfg` on the TDengine server. If not specified in the `create database` statement, the values from taos.cfg are used by default. To override default parameters, they must be specified in the `create database` statement.
