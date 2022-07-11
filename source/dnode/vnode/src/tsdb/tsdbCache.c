@@ -466,7 +466,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
     case SFSNEXTROW_FS:
       state->aDFileSet = state->pTsdb->fs->cState->aDFileSet;
       state->nFileSet = taosArrayGetSize(state->aDFileSet);
-      state->iFileSet = state->nFileSet - 1;
+      state->iFileSet = state->nFileSet;
 
       state->pBlockData = NULL;
 
