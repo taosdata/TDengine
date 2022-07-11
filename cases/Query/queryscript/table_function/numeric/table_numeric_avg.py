@@ -259,19 +259,19 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)
 
                             sql2 = "select %s from %s where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                             
                             sql2 = "select %s from (select * from %s) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
@@ -282,18 +282,21 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)
 
                             sql2 = "select %s from %s where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s %s %s %s %s);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
+                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                                                 
                         for i in range(11,21):                        
@@ -332,16 +335,19 @@ class TDTestQuery(TDCase):
                             sql2 = "select %s from %s where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s %s %s %s %s);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                             
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)
@@ -349,16 +355,19 @@ class TDTestQuery(TDCase):
                             sql2 = "select %s from %s where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s %s %s %s %s);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
+                            self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                                                     
             except Exception as e:
@@ -749,8 +758,7 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)                           
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s order by ts)" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -758,13 +766,11 @@ class TDTestQuery(TDCase):
                             sql= sql + sql2
                             
                             sql2 = "select * from (select %s from %s where  %s %s %s %s order by ts)" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s ) order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -781,8 +787,7 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)                           
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s %s order by ts)" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -790,13 +795,11 @@ class TDTestQuery(TDCase):
                             sql= sql + sql2
                             
                             sql2 = "select * from (select %s from %s where  %s %s %s %s %s order by ts)" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s %s order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s %s ) order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -820,7 +823,6 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                             
-                            # orderby column must projected in subquery
                             sql2 = "select * from (select %s from %s where  %s %s %s %s order by ts)" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdSql.error(sql2)
                             sql= sql + sql2
@@ -843,8 +845,7 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)                           
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s order by ts)" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -852,12 +853,11 @@ class TDTestQuery(TDCase):
                             sql= sql + sql2
                             
                             sql2 = "select * from (select %s from %s where  %s %s %s %s order by ts)" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s ) order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -871,8 +871,7 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)                           
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s %s order by ts)" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -880,12 +879,11 @@ class TDTestQuery(TDCase):
                             sql= sql + sql2
                             
                             sql2 = "select * from (select %s from %s where  %s %s %s %s %s order by ts)" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s %s order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s %s ) order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -914,18 +912,15 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s order by ts desc;'  % (func,self.table,time_window_new)                                                
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts desc" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s order by ts desc)" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #TD-14726 self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s order by ts desc" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s ) order by ts desc" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -942,18 +937,15 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s order by ts desc;'  % (func,self.table,interval_fill,time_window_new)                                                
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #TD-14687 self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            #cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s %s order by ts desc);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            #cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s %s order by ts desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #TD-14690 self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            #cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s %s ) order by ts desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -995,18 +987,15 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s order by ts desc;'  % (func,self.table,time_window_new)                                                
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts desc" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #TD-15226 self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s order by ts desc)" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s order by ts desc" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s ) order by ts desc" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1020,18 +1009,15 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s order by ts desc;'  % (func,self.table,interval_fill,time_window_new)                                                
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts desc" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s %s order by ts desc)" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s %s order by ts desc" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s %s ) order by ts desc" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1385,18 +1371,15 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s ;'  % (func,self.table,time_window_new)
                             
                             sql2 = "select %s from %s where  %s %s %s %s order by ts limit 10;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s order by ts limit 10);" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s order by ts limit 10;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
                         
                         for i in (1,2,3,4,6,7,8,9,21,):                        
@@ -1405,18 +1388,15 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)
                             
                             sql2 = "select %s from %s where %s  %s %s %s %s order by ts limit 10;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s  %s %s %s %s order by ts limit 10);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where %s  %s %s %s %s order by ts limit 10;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #TD-14678 self.tdCreateData.dataequal('%s' %sql1 ,1,2,'%s' %sql2 ,1,2)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
                                                     
                         for i in range(11,21):                        
@@ -1452,36 +1432,31 @@ class TDTestQuery(TDCase):
                             self.logger.info("\n\n\n====right case========case3=====time num = %d======interval======\n\n\n" %i)
                             
                             sql1 = 'select %s from %s %s ;'  % (func,self.table,time_window_new)
+                            
                             sql2 = "select %s from %s where  %s %s %s %s order by ts limit 10;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s order by ts limit 10);" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s order by ts limit 10;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
                             
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)
                             
                             sql2 = "select %s from %s where %s  %s %s %s %s order by ts limit 10;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s  %s %s %s %s order by ts limit 10);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where %s  %s %s %s %s order by ts limit 10;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            cur1.execute(sql2)
+                            self.tdSql.error(sql2)
                             sql= sql + sql2
                                                                     
             except Exception as e:
@@ -1580,8 +1555,8 @@ class TDTestQuery(TDCase):
         self.right_case_1()
         self.right_case_1_tbname()
         self.right_case_1_tbname_groupby()
-        # self.right_case_1_interval()
-        # self.right_case_1_interval_tbname()
+        self.right_case_1_interval()
+        self.right_case_1_interval_tbname()
         endTime1 = time.time()       
         self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
@@ -1589,8 +1564,8 @@ class TDTestQuery(TDCase):
         self.right_case_2()
         self.right_case_2_tbname()
         self.right_case_2_tbname_groupby()
-        # self.right_case_2_interval()
-        # self.right_case_2_interval_tbname()
+        self.right_case_2_interval()
+        self.right_case_2_interval_tbname()
         endTime2 = time.time()       
         self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
@@ -1598,8 +1573,8 @@ class TDTestQuery(TDCase):
         self.right_case_3()
         self.right_case_3_tbname()
         self.right_case_3_tbname_groupby()
-        # self.right_case_3_interval()
-        # self.right_case_3_interval_tbname()
+        self.right_case_3_interval()
+        self.right_case_3_interval_tbname()
         endTime3 = time.time()
         self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
 
