@@ -119,7 +119,7 @@ init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
 
-${wsheader_files} ${install_dir}/inc || :
+[ -f ${wsheader_files} ] && cp ${wsheader_files} ${install_dir}/inc || :
 
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
 
@@ -304,19 +304,17 @@ fi
 
 # Copy driver
 mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" >${install_dir}/driver/vercomp.txt
-cp ${wslib_files} ${install_dir}/driver || :
+[ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver || :
 
 # Copy connector
 if [ "$verMode" == "cluster" ]; then
     connector_dir="${code_dir}/connector"
     mkdir -p ${install_dir}/connector
     if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-        cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
-        if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
-            cp -r ${connector_dir}/go ${install_dir}/connector
-        else
-            echo "WARNING: go connector not found, please check if want to use it!"
-        fi
+        [ -f ${build_dir}/lib/*.jar ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
+
+        git clone --depth 1 https://github.com/taosdata/driver-go ${install_dir}/connector/go
+        rm -rf ${install_dir}/connector/go/.git ||:
         git clone --depth 1 https://github.com/taosdata/taos-connector-python ${install_dir}/connector/python
         rm -rf ${install_dir}/connector/python/.git ||:
 
