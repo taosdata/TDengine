@@ -53,7 +53,7 @@ TDengine 目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后�
 ### Ubuntu 16.04 及以上版本 & Debian：
 
 ```bash
-sudo apt-get install -y gcc cmake build-essential git
+sudo apt-get install -y gcc cmake build-essential git libssl-dev
 ```
 
 ### Ubuntu 14.04：
@@ -92,7 +92,7 @@ sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-d
 ### CentOS 7：
 
 ```bash
-sudo yum install -y gcc gcc-c++ make cmake git
+sudo yum install -y gcc gcc-c++ make cmake git openssl-devel
 ```
 
 安装 OpenJDK 8：
@@ -110,7 +110,7 @@ sudo yum install -y maven
 ### CentOS 8 & Fedora
 
 ```bash
-sudo dnf install -y gcc gcc-c++ make cmake epel-release git
+sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 ```
 
 安装 OpenJDK 8：
@@ -130,12 +130,27 @@ sudo dnf install -y maven
 为了在 CentOS 上构建 [taosTools](https://github.com/taosdata/taos-tools) 需要安装如下依赖软件
 
 ```bash
-sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static
+sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
 ```
 
 注意：由于 snappy 缺乏 pkg-config 支持
 （参考 [链接](https://github.com/google/snappy/pull/86)），会导致
 cmake 提示无法发现 libsnappy，实际上工作正常。
+
+### 设置 golang 开发环境
+
+TDengine 包含数个使用 Go 语言开发的组件，请参考 golang.org 官方文档设置 go 开发环境。
+
+请使用 1.14 及以上版本。对于中国用户，我们建议使用代理来加速软件包下载。
+
+```
+go env -w GO111MODULE=on
+go env -w GOPROXY=https://goproxy.cn,direct
+```
+
+### 设置 rust 开发环境
+
+TDengine 包含数个使用 Rust 语言开发的组件. 请参考 rust-lang.org 官方文档设置 rust 开发环境。
 
 ## 获取源码
 

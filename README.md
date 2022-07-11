@@ -56,7 +56,7 @@ To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in t
 ### Ubuntu 16.04 and above or Debian
 
 ```bash
-sudo apt-get install -y gcc cmake build-essential git
+sudo apt-get install -y gcc cmake build-essential git libssl-dev
 ```
 
 ### Ubuntu 14.04
@@ -96,7 +96,7 @@ sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-d
 ```bash
 sudo yum install epel-release
 sudo yum update
-sudo yum install -y gcc gcc-c++ make cmake3 git
+sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
 sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
@@ -115,7 +115,7 @@ sudo yum install -y maven
 ### CentOS 8 & Fedora
 
 ```bash
-sudo dnf install -y gcc gcc-c++ make cmake epel-release git
+sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 ```
 
 To install openjdk-8:
@@ -135,7 +135,7 @@ sudo dnf install -y maven
 To build the [taosTools](https://github.com/taosdata/taos-tools) on CentOS, the following packages need to be installed.
 
 ```bash
-sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static
+sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
 ```
 
 Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/google/snappy/pull/86)), it lead a cmake prompt libsnappy not found. But snappy will works well.
@@ -150,6 +150,10 @@ Please use version 1.14+. For the user in China, we recommend using a proxy to a
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
 ```
+
+### Setup rust environment
+
+TDengine includees few compoments developed by Rust language. Please refer to rust-lang.org official documentation for rust environment setup.
 
 ## Get the source codes
 
