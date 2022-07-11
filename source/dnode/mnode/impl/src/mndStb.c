@@ -708,7 +708,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   memcpy(pDst->db, pDb->name, TSDB_DB_FNAME_LEN);
   pDst->createdTime = taosGetTimestampMs();
   pDst->updateTime = pDst->createdTime;
-  pDst->uid = (pCreate->source == 1) ? pCreate->suid : mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
+  pDst->uid = (pCreate->source == TD_REQ_FROM_TAOX) ? pCreate->suid : mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
   pDst->dbUid = pDb->uid;
   pDst->tagVer = (pCreate->source != TD_REQ_FROM_APP) ? pCreate->tagVer : 1;
   pDst->colVer = (pCreate->source != TD_REQ_FROM_APP) ? pCreate->colVer : 1;
@@ -883,9 +883,9 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
         terrno = TSDB_CODE_MND_STABLE_UID_NOT_MATCH;
         goto _OVER;
       } else if (createReq.tagVer > 0 || createReq.colVer > 0) {
-        int32_t tagDelta = pStb->tagVer - createReq.tagVer;
-        int32_t colDelta = pStb->colVer - createReq.colVer;
-        int32_t verDelta = tagDelta + verDelta;
+        int32_t tagDelta = createReq.tagVer - pStb->tagVer;
+        int32_t colDelta = createReq.colVer - pStb->colVer;
+        int32_t verDelta = tagDelta + colDelta;
         mInfo("stb:%s, already exist while create, input tagVer:%d colVer:%d, exist tagVer:%d colVer:%d",
               createReq.name, createReq.tagVer, createReq.colVer, pStb->tagVer, pStb->colVer);
         if (tagDelta <= 0 && colDelta <= 0) {
@@ -936,7 +936,47 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
 
   if (isAlter) {
     bool needRsp = false;
-    code = mndAlterStbImp(pMnode, pReq, pDb, pStb, needRsp, NULL, 0);
+    SStbObj pDst = {0};
+    taosRLockLatch(&pStb->lock);
+    memcpy(&pDst, pStb, sizeof(SStbObj));
+    taosRUnLockLatch(&pStb->lock);
+
+    pDst.updateTime = taosGetTimestampMs();
+    pDst.nextColId = 1;
+    pDst.numOfColumns = createReq.numOfColumns;
+    pDst.numOfTags = createReq.numOfTags;
+    pDst.pColumns = taosMemoryCalloc(1, pDst.numOfColumns * sizeof(SSchema));
+    pDst.pTags = taosMemoryCalloc(1, pDst.numOfTags * sizeof(SSchema));
+    if (pDst.pColumns == NULL || pDst.pTags == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _OVER;
+    }
+
+    for (int32_t i = 0; i < pDst.numOfColumns; ++i) {
+      SField  *pField = taosArrayGet(createReq.pColumns, i);
+      SSchema *pSchema = &pDst.pColumns[i];
+      pSchema->type = pField->type;
+      pSchema->bytes = pField->bytes;
+      pSchema->flags = pField->flags;
+      memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
+      pSchema->colId = pDst.nextColId;
+      pDst.nextColId++;
+    }
+
+    for (int32_t i = 0; i < pDst.numOfTags; ++i) {
+      SField  *pField = taosArrayGet(createReq.pTags, i);
+      SSchema *pSchema = &pDst.pTags[i];
+      pSchema->type = pField->type;
+      pSchema->bytes = pField->bytes;
+      memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
+      pSchema->colId = pDst.nextColId;
+      pDst.nextColId++;
+    }
+    pDst.tagVer = createReq.tagVer;
+    pDst.colVer = createReq.colVer;
+    code = mndAlterStbImp(pMnode, pReq, pDb, &pDst, needRsp, NULL, 0);
+    taosMemoryFreeClear(pDst.pTags);
+    taosMemoryFreeClear(pDst.pColumns);
   } else {
     code = mndCreateStb(pMnode, pReq, &createReq, pDb);
   }
