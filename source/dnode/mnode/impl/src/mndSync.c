@@ -188,7 +188,7 @@ int32_t mndInitSync(SMnode *pMnode) {
     SNodeInfo *pNode = &pCfg->nodeInfo[0];
     tstrncpy(pNode->nodeFqdn, pMgmt->replica.fqdn, sizeof(pNode->nodeFqdn));
     pNode->nodePort = pMgmt->replica.port;
-    mInfo("fqdn:%s port:%u", pNode->nodeFqdn, pNode->nodePort);
+    mInfo("mnode ep:%s:%u", pNode->nodeFqdn, pNode->nodePort);
   }
 
   tsem_init(&pMgmt->syncSem, 0, 0);

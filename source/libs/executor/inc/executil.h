@@ -126,4 +126,6 @@ void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 int32_t convertFillType(int32_t mode);
 
+int32_t resultrowComparAsc(const void* p1, const void* p2);
+
 #endif  // TDENGINE_QUERYUTIL_H

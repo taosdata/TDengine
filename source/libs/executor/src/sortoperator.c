@@ -217,6 +217,7 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
       doSetOperatorCompleted(pOperator);
       break;
     }
+
     if (blockDataGetNumOfRows(pBlock) > 0) {
       break;
     }
@@ -235,6 +236,8 @@ void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
 
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->pColMatchInfo);
+  
+  taosMemoryFreeClear(param);
 }
 
 int32_t getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
@@ -451,6 +454,8 @@ void destroyGroupSortOperatorInfo(void* param, int32_t numOfOutput) {
 
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->pColMatchInfo);
+  
+  taosMemoryFreeClear(param);
 }
 
 SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNode* pSortPhyNode,
@@ -597,8 +602,7 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
       break;
     }
 
-    if (pInfo->groupSort)
-    {
+    if (pInfo->groupSort) {
       uint64_t tupleGroupId = tsortGetGroupId(pTupleHandle);
       if (!pInfo->hasGroupId) {
         pInfo->groupId = tupleGroupId;
@@ -670,6 +674,8 @@ void destroyMultiwayMergeOperatorInfo(void* param, int32_t numOfOutput) {
 
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->pColMatchInfo);
+  
+  taosMemoryFreeClear(param);
 }
 
 int32_t getMultiwayMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {

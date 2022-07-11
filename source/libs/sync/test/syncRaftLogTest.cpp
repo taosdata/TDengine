@@ -38,7 +38,7 @@ void test1() {
 
   int64_t firstVer = walGetFirstVer(pWal);
   int64_t lastVer = walGetLastVer(pWal);
-  printf("firstVer:%ld lastVer:%ld \n", firstVer, lastVer);
+  printf("firstVer:%" PRId64 " lastVer:%" PRId64 " \n", firstVer, lastVer);
 
   walClose(pWal);
 }
@@ -68,7 +68,7 @@ void test2() {
 
   int64_t firstVer = walGetFirstVer(pWal);
   int64_t lastVer = walGetLastVer(pWal);
-  printf("firstVer:%ld lastVer:%ld \n", firstVer, lastVer);
+  printf("firstVer:%" PRId64 " lastVer:%" PRId64 " \n", firstVer, lastVer);
 
   walClose(pWal);
 }
@@ -92,7 +92,7 @@ void test3() {
 
   int64_t firstVer = walGetFirstVer(pWal);
   int64_t lastVer = walGetLastVer(pWal);
-  printf("firstVer:%ld lastVer:%ld \n", firstVer, lastVer);
+  printf("firstVer:%" PRId64 " lastVer:%" PRId64 " \n", firstVer, lastVer);
 
   walClose(pWal);
 }
@@ -124,7 +124,7 @@ void test4() {
 
   int64_t firstVer = walGetFirstVer(pWal);
   int64_t lastVer = walGetLastVer(pWal);
-  printf("firstVer:%ld lastVer:%ld \n", firstVer, lastVer);
+  printf("firstVer:%" PRId64 " lastVer:%" PRId64 " \n", firstVer, lastVer);
 
   walClose(pWal);
 }
@@ -149,7 +149,7 @@ void test5() {
 
   int64_t firstVer = walGetFirstVer(pWal);
   int64_t lastVer = walGetLastVer(pWal);
-  printf("firstVer:%ld lastVer:%ld \n", firstVer, lastVer);
+  printf("firstVer:%" PRId64 " lastVer:%" PRId64 " \n", firstVer, lastVer);
 
   walClose(pWal);
 }

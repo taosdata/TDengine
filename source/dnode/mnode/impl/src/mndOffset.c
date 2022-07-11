@@ -185,7 +185,7 @@ static int32_t mndProcessCommitOffsetReq(SRpcMsg *pMsg) {
 
   for (int32_t i = 0; i < commitOffsetReq.num; i++) {
     SMqOffset *pOffset = &commitOffsetReq.offsets[i];
-    mInfo("commit offset %ld to vg %d of consumer group %s on topic %s", pOffset->offset, pOffset->vgId,
+    mInfo("commit offset %" PRId64 " to vgId:%d of consumer group %s on topic %s", pOffset->offset, pOffset->vgId,
           pOffset->cgroup, pOffset->topicName);
     if (mndMakePartitionKey(key, pOffset->cgroup, pOffset->topicName, pOffset->vgId) < 0) {
       mError("submit offset to topic %s failed", pOffset->topicName);

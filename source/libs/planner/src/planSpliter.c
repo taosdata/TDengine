@@ -39,7 +39,6 @@ typedef struct SSplitRule {
   FSplit splitFunc;
 } SSplitRule;
 
-// typedef bool (*FSplFindSplitNode)(SSplitContext* pCxt, SLogicSubplan* pSubplan, void* pInfo);
 typedef bool (*FSplFindSplitNode)(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode, void* pInfo);
 
 static void splSetSubplanVgroups(SLogicSubplan* pSubplan, SLogicNode* pNode) {
@@ -64,6 +63,19 @@ static SLogicSubplan* splCreateScanSubplan(SSplitContext* pCxt, SLogicNode* pNod
   pSubplan->pNode->pParent = NULL;
   splSetSubplanVgroups(pSubplan, pNode);
   SPLIT_FLAG_SET_MASK(pSubplan->splitFlag, flag);
+  return pSubplan;
+}
+
+static SLogicSubplan* splCreateSubplan(SSplitContext* pCxt, SLogicNode* pNode, ESubplanType subplanType) {
+  SLogicSubplan* pSubplan = (SLogicSubplan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
+  if (NULL == pSubplan) {
+    return NULL;
+  }
+  pSubplan->id.queryId = pCxt->queryId;
+  pSubplan->id.groupId = pCxt->groupId;
+  pSubplan->subplanType = subplanType;
+  pSubplan->pNode = pNode;
+  pNode->pParent = NULL;
   return pSubplan;
 }
 
@@ -96,6 +108,43 @@ static int32_t splCreateExchangeNodeForSubplan(SSplitContext* pCxt, SLogicSubpla
     nodesDestroyNode((SNode*)pExchange);
   }
   return code;
+}
+
+static bool splIsChildSubplan(SLogicNode* pLogicNode, int32_t groupId) {
+  if (QUERY_NODE_LOGIC_PLAN_EXCHANGE == nodeType(pLogicNode)) {
+    return ((SExchangeLogicNode*)pLogicNode)->srcGroupId == groupId;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_MERGE == nodeType(pLogicNode)) {
+    return ((SMergeLogicNode*)pLogicNode)->srcGroupId == groupId;
+  }
+
+  SNode* pChild;
+  FOREACH(pChild, pLogicNode->pChildren) {
+    bool isChild = splIsChildSubplan((SLogicNode*)pChild, groupId);
+    if (isChild) {
+      return isChild;
+    }
+  }
+  return false;
+}
+
+static int32_t splMountSubplan(SLogicSubplan* pParent, SNodeList* pChildren) {
+  SNode* pChild = NULL;
+  WHERE_EACH(pChild, pChildren) {
+    if (splIsChildSubplan(pParent->pNode, ((SLogicSubplan*)pChild)->id.groupId)) {
+      int32_t code = nodesListMakeAppend(&pParent->pChildren, pChild);
+      if (TSDB_CODE_SUCCESS == code) {
+        REPLACE_NODE(NULL);
+        ERASE_NODE(pChildren);
+        continue;
+      } else {
+        return code;
+      }
+    }
+    WHERE_NEXT;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool splMatchByNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode, FSplFindSplitNode func,
@@ -896,6 +945,7 @@ static int32_t stbSplSplitPartitionNode(SSplitContext* pCxt, SStableSplitInfo* p
     code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,
                                      (SNode*)splCreateScanSubplan(pCxt, pInfo->pSplitNode, SPLIT_FLAG_STABLE_SPLIT));
   }
+  pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
   ++(pCxt->groupId);
   return code;
 }
@@ -982,56 +1032,6 @@ static int32_t singleTableJoinSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan
   return code;
 }
 
-static bool unionIsChildSubplan(SLogicNode* pLogicNode, int32_t groupId) {
-  if (QUERY_NODE_LOGIC_PLAN_EXCHANGE == nodeType(pLogicNode)) {
-    return ((SExchangeLogicNode*)pLogicNode)->srcGroupId == groupId;
-  }
-
-  if (QUERY_NODE_LOGIC_PLAN_MERGE == nodeType(pLogicNode)) {
-    return ((SMergeLogicNode*)pLogicNode)->srcGroupId == groupId;
-  }
-
-  SNode* pChild;
-  FOREACH(pChild, pLogicNode->pChildren) {
-    bool isChild = unionIsChildSubplan((SLogicNode*)pChild, groupId);
-    if (isChild) {
-      return isChild;
-    }
-  }
-  return false;
-}
-
-static int32_t unionMountSubplan(SLogicSubplan* pParent, SNodeList* pChildren) {
-  SNode* pChild = NULL;
-  WHERE_EACH(pChild, pChildren) {
-    if (unionIsChildSubplan(pParent->pNode, ((SLogicSubplan*)pChild)->id.groupId)) {
-      int32_t code = nodesListMakeAppend(&pParent->pChildren, pChild);
-      if (TSDB_CODE_SUCCESS == code) {
-        REPLACE_NODE(NULL);
-        ERASE_NODE(pChildren);
-        continue;
-      } else {
-        return code;
-      }
-    }
-    WHERE_NEXT;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-static SLogicSubplan* unionCreateSubplan(SSplitContext* pCxt, SLogicNode* pNode, ESubplanType subplanType) {
-  SLogicSubplan* pSubplan = (SLogicSubplan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
-  if (NULL == pSubplan) {
-    return NULL;
-  }
-  pSubplan->id.queryId = pCxt->queryId;
-  pSubplan->id.groupId = pCxt->groupId;
-  pSubplan->subplanType = subplanType;
-  pSubplan->pNode = pNode;
-  pNode->pParent = NULL;
-  return pSubplan;
-}
-
 static int32_t unionSplitSubplan(SSplitContext* pCxt, SLogicSubplan* pUnionSubplan, SLogicNode* pSplitNode) {
   SNodeList* pSubplanChildren = pUnionSubplan->pChildren;
   pUnionSubplan->pChildren = NULL;
@@ -1040,11 +1040,11 @@ static int32_t unionSplitSubplan(SSplitContext* pCxt, SLogicSubplan* pUnionSubpl
 
   SNode* pChild = NULL;
   FOREACH(pChild, pSplitNode->pChildren) {
-    SLogicSubplan* pNewSubplan = unionCreateSubplan(pCxt, (SLogicNode*)pChild, pUnionSubplan->subplanType);
+    SLogicSubplan* pNewSubplan = splCreateSubplan(pCxt, (SLogicNode*)pChild, pUnionSubplan->subplanType);
     code = nodesListMakeStrictAppend(&pUnionSubplan->pChildren, (SNode*)pNewSubplan);
     if (TSDB_CODE_SUCCESS == code) {
       REPLACE_NODE(NULL);
-      code = unionMountSubplan(pNewSubplan, pSubplanChildren);
+      code = splMountSubplan(pNewSubplan, pSubplanChildren);
     }
     if (TSDB_CODE_SUCCESS != code) {
       break;
@@ -1219,14 +1219,24 @@ static int32_t insertSelectSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pQueryRoot, info.pSubplan->subplanType);
+  SLogicSubplan* pNewSubplan = NULL;
+  SNodeList*     pSubplanChildren = info.pSubplan->pChildren;
+  ESubplanType   subplanType = info.pSubplan->subplanType;
+  int32_t        code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pQueryRoot, SUBPLAN_TYPE_MODIFY);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, info.pQueryRoot, 0));
+    pNewSubplan = splCreateSubplan(pCxt, info.pQueryRoot, subplanType);
+    if (NULL == pNewSubplan) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    info.pSubplan->subplanType = SUBPLAN_TYPE_MODIFY;
-    SPLIT_FLAG_SET_MASK(info.pSubplan->splitFlag, SPLIT_FLAG_INSERT_SPLIT);
+    code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)pNewSubplan);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = splMountSubplan(pNewSubplan, pSubplanChildren);
+  }
+
+  SPLIT_FLAG_SET_MASK(info.pSubplan->splitFlag, SPLIT_FLAG_INSERT_SPLIT);
   ++(pCxt->groupId);
   pCxt->split = true;
   return code;
