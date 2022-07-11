@@ -29,7 +29,7 @@ typedef struct {
 typedef struct SSvrConn {
   T_REF_DECLARE()
   uv_tcp_t*  pTcp;
-  uv_write_t pWriter;
+  queue      wreqQueue;
   uv_timer_t pTimer;
 
   queue       queue;
@@ -331,8 +331,14 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
 }
 
 void uvOnSendCb(uv_write_t* req, int status) {
-  SSvrConn* conn = req && req->handle ? req->handle->data : NULL;
-  taosMemoryFree(req);
+  STransReq* wreq = req && req->data ? req->data : NULL;
+  SSvrConn*  conn = req && req->handle ? req->handle->data : NULL;
+  if (wreq != NULL && conn != NULL) {
+    QUEUE_REMOVE(&wreq->q);
+    taosMemoryFree(wreq->data);
+    taosMemoryFree(wreq);
+  }
+
   if (conn == NULL) return;
 
   if (status == 0) {
@@ -437,12 +443,16 @@ static void uvStartSendRespInternal(SSvrMsg* smsg) {
   transRefSrvHandle(pConn);
 
   uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
+  STransReq*  wreq = taosMemoryCalloc(1, sizeof(STransReq));
+  wreq->data = req;
+  req->data = wreq;
+  QUEUE_PUSH(&pConn->wreqQueue, &wreq->q);
+
   uv_write(req, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
 }
 static void uvStartSendResp(SSvrMsg* smsg) {
   // impl
   SSvrConn* pConn = smsg->pConn;
-
   if (pConn->broken == true) {
     // persist by
     transFreeMsg(smsg->msg.pCont);
@@ -639,8 +649,6 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   uv_tcp_init(pThrd->loop, pConn->pTcp);
   pConn->pTcp->data = pConn;
 
-  pConn->pWriter.data = pConn;
-
   transSetConnOption((uv_tcp_t*)pConn->pTcp);
 
   if (uv_accept(q, (uv_stream_t*)(pConn->pTcp)) == 0) {
@@ -748,6 +756,8 @@ static SSvrConn* createConn(void* hThrd) {
   SWorkThrd* pThrd = hThrd;
 
   SSvrConn* pConn = (SSvrConn*)taosMemoryCalloc(1, sizeof(SSvrConn));
+
+  QUEUE_INIT(&pConn->wreqQueue);
   QUEUE_INIT(&pConn->queue);
 
   QUEUE_PUSH(&pThrd->conn, &pConn->queue);
@@ -822,6 +832,14 @@ static void uvDestroyConn(uv_handle_t* handle) {
   for (int i = 0; i < transQueueSize(&conn->srvMsgs); i++) {
     SSvrMsg* msg = transQueueGet(&conn->srvMsgs, i);
     destroySmsg(msg);
+  }
+
+  while (!QUEUE_IS_EMPTY(&conn->wreqQueue)) {
+    queue* h = QUEUE_HEAD(&conn->wreqQueue);
+    QUEUE_REMOVE(h);
+    STransReq* req = QUEUE_DATA(h, STransReq, q);
+    taosMemoryFree(req->data);
+    taosMemoryFree(req);
   }
   transQueueDestroy(&conn->srvMsgs);
 
