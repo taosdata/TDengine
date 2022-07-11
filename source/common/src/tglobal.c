@@ -58,9 +58,8 @@ int32_t tsNumOfVnodeQueryThreads = 2;
 int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeWriteThreads = 2;
 int32_t tsNumOfVnodeSyncThreads = 2;
-int32_t tsNumOfVnodeMergeThreads = 2;
 int32_t tsNumOfQnodeQueryThreads = 2;
-int32_t tsNumOfQnodeFetchThreads = 1;
+int32_t tsNumOfQnodeFetchThreads = 4;
 int32_t tsNumOfSnodeSharedThreads = 2;
 int32_t tsNumOfSnodeUniqueThreads = 2;
 
@@ -105,11 +104,6 @@ int32_t tsCompressMsgSize = -1;
  * other values: if any retrieved column size is greater than the tsCompressColData, all data will be compressed.
  */
 int32_t tsCompressColData = -1;
-
-/*
- * denote if 3.0 query pattern compatible for 2.0
- */
-int32_t tsCompatibleModel = 1;
 
 // count/hyperloglog function always return values in case of all NULL data or Empty data set.
 int32_t tsCountAlwaysReturnValue = 1;
@@ -414,30 +408,28 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfMnodeReadThreads = TRANGE(tsNumOfMnodeReadThreads, 1, 4);
   if (cfgAddInt32(pCfg, "numOfMnodeReadThreads", tsNumOfMnodeReadThreads, 1, 1024, 0) != 0) return -1;
 
-  tsNumOfVnodeQueryThreads = tsNumOfCores / 2;
+  tsNumOfVnodeQueryThreads = tsNumOfCores / 4;
   tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 2);
   if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 1, 1024, 0) != 0) return -1;
 
-  tsNumOfVnodeFetchThreads = TRANGE(tsNumOfVnodeFetchThreads, 1, 1);
+  tsNumOfVnodeFetchThreads = tsNumOfCores / 4;
+  tsNumOfVnodeFetchThreads = TMAX(tsNumOfVnodeFetchThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeFetchThreads", tsNumOfVnodeFetchThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfVnodeWriteThreads = tsNumOfCores;
   tsNumOfVnodeWriteThreads = TMAX(tsNumOfVnodeWriteThreads, 1);
   if (cfgAddInt32(pCfg, "numOfVnodeWriteThreads", tsNumOfVnodeWriteThreads, 1, 1024, 0) != 0) return -1;
 
-  tsNumOfVnodeSyncThreads = tsNumOfCores / 2;
+  tsNumOfVnodeSyncThreads = tsNumOfCores;
   tsNumOfVnodeSyncThreads = TMAX(tsNumOfVnodeSyncThreads, 1);
   if (cfgAddInt32(pCfg, "numOfVnodeSyncThreads", tsNumOfVnodeSyncThreads, 1, 1024, 0) != 0) return -1;
-
-  tsNumOfVnodeMergeThreads = tsNumOfCores / 8;
-  tsNumOfVnodeMergeThreads = TRANGE(tsNumOfVnodeMergeThreads, 1, 1);
-  if (cfgAddInt32(pCfg, "numOfVnodeMergeThreads", tsNumOfVnodeMergeThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfQnodeQueryThreads = tsNumOfCores / 2;
   tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 1);
   if (cfgAddInt32(pCfg, "numOfQnodeQueryThreads", tsNumOfQnodeQueryThreads, 1, 1024, 0) != 0) return -1;
 
-  tsNumOfQnodeFetchThreads = TRANGE(tsNumOfQnodeFetchThreads, 1, 1);
+  tsNumOfQnodeFetchThreads = tsNumOfCores / 2;
+  tsNumOfQnodeFetchThreads = TMAX(tsNumOfQnodeFetchThreads, 4);
   if (cfgAddInt32(pCfg, "numOfQnodeFetchThreads", tsNumOfQnodeFetchThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfSnodeSharedThreads = tsNumOfCores / 4;
@@ -598,7 +590,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfVnodeFetchThreads = cfgGetItem(pCfg, "numOfVnodeFetchThreads")->i32;
   tsNumOfVnodeWriteThreads = cfgGetItem(pCfg, "numOfVnodeWriteThreads")->i32;
   tsNumOfVnodeSyncThreads = cfgGetItem(pCfg, "numOfVnodeSyncThreads")->i32;
-  tsNumOfVnodeMergeThreads = cfgGetItem(pCfg, "numOfVnodeMergeThreads")->i32;
   tsNumOfQnodeQueryThreads = cfgGetItem(pCfg, "numOfQnodeQueryThreads")->i32;
   tsNumOfQnodeFetchThreads = cfgGetItem(pCfg, "numOfQnodeFetchThreads")->i32;
   tsNumOfSnodeSharedThreads = cfgGetItem(pCfg, "numOfSnodeSharedThreads")->i32;
@@ -840,8 +831,6 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         tsNumOfVnodeWriteThreads = cfgGetItem(pCfg, "numOfVnodeWriteThreads")->i32;
       } else if (strcasecmp("numOfVnodeSyncThreads", name) == 0) {
         tsNumOfVnodeSyncThreads = cfgGetItem(pCfg, "numOfVnodeSyncThreads")->i32;
-      } else if (strcasecmp("numOfVnodeMergeThreads", name) == 0) {
-        tsNumOfVnodeMergeThreads = cfgGetItem(pCfg, "numOfVnodeMergeThreads")->i32;
       } else if (strcasecmp("numOfQnodeQueryThreads", name) == 0) {
         tsNumOfQnodeQueryThreads = cfgGetItem(pCfg, "numOfQnodeQueryThreads")->i32;
       } else if (strcasecmp("numOfQnodeFetchThreads", name) == 0) {
