@@ -5,6 +5,7 @@
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
+#include "tskiplist.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -148,15 +149,131 @@ void test4() {
   raftCacheLog2((char*)"==test4 after get-and-del entry 3==", pCache);
 }
 
+static char* keyFn(const void* pData) {
+  SSyncRaftEntry* pEntry = (SSyncRaftEntry*)pData;
+  return (char*)(&(pEntry->index));
+}
+
+static int cmpFn(const void* p1, const void* p2) { return memcmp(p1, p2, sizeof(SyncIndex)); }
+
+void printSkipList(SSkipList* pSkipList) {
+  ASSERT(pSkipList != NULL);
+
+  SSkipListIterator* pIter = tSkipListCreateIter(pSkipList);
+  while (tSkipListIterNext(pIter)) {
+    SSkipListNode* pNode = tSkipListIterGet(pIter);
+    ASSERT(pNode != NULL);
+    SSyncRaftEntry* pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
+    syncEntryPrint2((char*)"", pEntry);
+  }
+}
+
+void delSkipListFirst(SSkipList* pSkipList, int n) {
+  ASSERT(pSkipList != NULL);
+
+  sTrace("delete first %d -------------", n);
+  SSkipListIterator* pIter = tSkipListCreateIter(pSkipList);
+  for (int i = 0; i < n; ++i) {
+    tSkipListIterNext(pIter);
+    SSkipListNode* pNode = tSkipListIterGet(pIter);
+    tSkipListRemoveNode(pSkipList, pNode);
+  }
+}
+
+
+SSyncRaftEntry* getLogEntry2(SSkipList* pSkipList, SyncIndex index) {
+  sTrace("get index: %ld -------------", index);
+  SyncIndex index2 = index;
+  SSyncRaftEntry *pEntry = NULL;
+
+  SArray*  nodes = tSkipListGet(pSkipList, (char*)(&index2));
+  if (taosArrayGetSize(nodes) > 0) {
+
+  }
+  taosArrayDestroy(nodes);
+
+
+
+  SSkipListIterator* pIter = tSkipListCreateIterFromVal(pSkipList, (const char *)&index2, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
+  if (tSkipListIterNext(pIter)) {
+    SSkipListNode* pNode = tSkipListIterGet(pIter);
+    ASSERT(pNode != NULL);
+    pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
+  }
+
+  syncEntryLog2((char*)"", pEntry);
+  return pEntry;
+}
+
+
+SSyncRaftEntry* getLogEntry(SSkipList* pSkipList, SyncIndex index) {
+  sTrace("get index: %ld -------------", index);
+  SyncIndex index2 = index;
+  SSyncRaftEntry *pEntry = NULL;
+  SSkipListIterator* pIter = tSkipListCreateIterFromVal(pSkipList, (const char *)&index2, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
+  if (tSkipListIterNext(pIter)) {
+    SSkipListNode* pNode = tSkipListIterGet(pIter);
+    ASSERT(pNode != NULL);
+    pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
+  }
+
+  syncEntryLog2((char*)"", pEntry);
+  return pEntry;
+}
+
+void test5() {
+  SSkipList* pSkipList =
+      tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, sizeof(SyncIndex), cmpFn, SL_ALLOW_DUP_KEY, keyFn);
+  ASSERT(pSkipList != NULL);
+
+  sTrace("insert 9 - 5");
+  for (int i = 9; i >= 5; --i) {
+    SSyncRaftEntry* pEntry = createEntry(i);
+    SSkipListNode*  pSkipListNode = tSkipListPut(pSkipList, pEntry);
+  }
+
+  sTrace("insert 0 - 4");
+  for (int i = 0; i <= 4; ++i) {
+    SSyncRaftEntry* pEntry = createEntry(i);
+    SSkipListNode*  pSkipListNode = tSkipListPut(pSkipList, pEntry);
+  }
+
+  sTrace("insert 7 7 7 7 7");
+  for (int i = 0; i <= 4; ++i) {
+    SSyncRaftEntry* pEntry = createEntry(7);
+    SSkipListNode*  pSkipListNode = tSkipListPut(pSkipList, pEntry);
+  }
+
+  sTrace("print: -------------");
+  printSkipList(pSkipList);
+
+  delSkipListFirst(pSkipList, 3);
+
+  sTrace("print: -------------");
+  printSkipList(pSkipList);
+
+  getLogEntry(pSkipList, 2);
+  getLogEntry(pSkipList, 5);  
+  getLogEntry(pSkipList, 7);
+  getLogEntry(pSkipList, 7);
+
+
+  tSkipListDestroy(pSkipList);
+}
+
 int main(int argc, char** argv) {
   gRaftDetailLog = true;
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE + DEBUG_DEBUG;
 
-  test1();
-  test2();
-  test3();
-  test4();
+  /*
+    test1();
+    test2();
+    test3();
+    test4();
+  */
+
+  test5();
 
   return 0;
 }
