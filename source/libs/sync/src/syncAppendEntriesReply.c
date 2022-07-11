@@ -235,10 +235,10 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
         // do nothing
 
       } else {
-        SSyncRaftEntry* pEntry;
-        int32_t         code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, nextIndex, &pEntry);
-        ASSERT(code == 0);
-        syncNodeStartSnapshotOnce(ths, SYNC_INDEX_BEGIN, nextIndex, pEntry->term, pMsg);
+        SSnapshot oldSnapshot;
+        ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &oldSnapshot);
+        SyncTerm newSnapshotTerm = oldSnapshot.lastApplyTerm;
+        syncNodeStartSnapshotOnce(ths, SYNC_INDEX_BEGIN, nextIndex, newSnapshotTerm, pMsg);
 
         // get sender
         SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(pMsg->srcId));

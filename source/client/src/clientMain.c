@@ -479,7 +479,6 @@ void taos_stop_query(TAOS_RES *res) {
   }
 
   schedulerFreeJob(&pRequest->body.queryJob, TSDB_CODE_TSC_QUERY_KILLED);
-
   tscDebug("request %" PRIx64 " killed", pRequest->requestId);
 }
 
@@ -706,7 +705,8 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
 }
 
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
-  taosAsyncQueryImpl(taos, sql, fp, param, false);
+  int64_t  connId = *(int64_t*)taos;
+  taosAsyncQueryImpl(connId, sql, fp, param, false);
 }
 
 int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
@@ -915,7 +915,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     return terrno;
   }
 
-  int64_t       rid = *(int64_t *)taos;
+  int64_t       connId = *(int64_t *)taos;
   const int32_t MAX_TABLE_NAME_LENGTH = 12 * 1024 * 1024;  // 12MB list
   int32_t       code = 0;
   SRequestObj * pRequest = NULL;
@@ -933,12 +933,14 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  STscObj *pTscObj = acquireTscObj(rid);
-  if (pTscObj == NULL) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    return terrno;
+  char *sql = "taos_load_table_info";
+  code = buildRequest(connId, sql, strlen(sql), NULL, false, &pRequest);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    goto _return;
   }
 
+  STscObj* pTscObj = pRequest->pTscObj;
   code = transferTableNameList(tableNameList, pTscObj->acctId, pTscObj->db, &catalogReq.pTableMeta);
   if (code) {
     goto _return;
@@ -950,36 +952,22 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     goto _return;
   }
 
-  char *sql = "taos_load_table_info";
-  code = buildRequest(pTscObj, sql, strlen(sql), &pRequest);
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    goto _return;
-  }
-
-  SSyncQueryParam param = {0};
-  tsem_init(&param.sem, 0, 0);
-  param.pRequest = pRequest;
-
   SRequestConnInfo conn = {
       .pTrans = pTscObj->pAppInfo->pTransporter, .requestId = pRequest->requestId, .requestObjRefId = pRequest->self};
 
   conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
-  code = catalogAsyncGetAllMeta(pCtg, &conn, &catalogReq, syncCatalogFn, &param, NULL);
+  code = catalogAsyncGetAllMeta(pCtg, &conn, &catalogReq, syncCatalogFn, NULL, NULL);
   if (code) {
     goto _return;
   }
 
-  tsem_wait(&param.sem);
+  SSyncQueryParam* pParam = pRequest->body.param;
+  tsem_wait(&pParam->sem);
 
 _return:
-
   taosArrayDestroy(catalogReq.pTableMeta);
   destroyRequest(pRequest);
-
-  releaseTscObj(rid);
-
   return code;
 }
 

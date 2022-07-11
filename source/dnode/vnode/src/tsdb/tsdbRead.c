@@ -59,7 +59,6 @@ typedef struct SBlockLoadSuppInfo {
   SColumnDataAgg   tsColAgg;
   SColumnDataAgg** plist;
   int16_t*         colIds;    // column ids for loading file block data
-  int32_t*         slotIds;   // colId to slotId
   char**           buildBuf;  // build string tmp buffer, todo remove it later after all string format being updated.
 } SBlockLoadSuppInfo;
 
@@ -183,7 +182,6 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableK
     return NULL;
   }
 
-  // todo apply the lastkey of table check to avoid to load header file
   for (int32_t j = 0; j < numOfTables; ++j) {
     STableBlockScanInfo info = {.lastKey = 0, .uid = idList[j].uid};
     if (ASCENDING_TRAVERSE(pTsdbReader->order)) {
@@ -216,6 +214,30 @@ static void resetDataBlockScanInfo(SHashObj* pTableMap) {
 
     taosArrayDestroy(p->delSkyline);
   }
+}
+
+static void destroyBlockScanInfo(SHashObj* pTableMap) {
+  STableBlockScanInfo* p = NULL;
+
+  while ((p = taosHashIterate(pTableMap, p)) != NULL) {
+    p->iterInit = false;
+    p->iiter.hasVal = false;
+
+    if (p->iter.iter != NULL) {
+      tsdbTbDataIterDestroy(p->iter.iter);
+      p->iter.iter = NULL;
+    }
+
+    if (p->iiter.iter != NULL) {
+      tsdbTbDataIterDestroy(p->iiter.iter);
+      p->iiter.iter = NULL;
+    }
+
+    taosArrayDestroy(p->delSkyline);
+    p->delSkyline = NULL;
+  }
+
+  taosHashCleanup(pTableMap);
 }
 
 static bool isEmptyQueryTimeWindow(STimeWindow* pWindow) {
@@ -263,6 +285,10 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, const STsdbFSState* pFSt
 
   tsdbDebug("init fileset iterator, total files:%d %s", pIter->numOfFiles, idstr);
   return TSDB_CODE_SUCCESS;
+}
+
+static void cleanupFilesetIterator(SFilesetIter* pIter) {
+  taosArrayDestroy(pIter->pFileList);
 }
 
 static bool filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader) {
@@ -318,7 +344,15 @@ static void resetDataBlockIterator(SDataBlockIter* pIter, int32_t order) {
   pIter->order = order;
   pIter->index = -1;
   pIter->numOfBlocks = -1;
-  pIter->blockList = taosArrayInit(4, sizeof(SFileDataBlockInfo));
+  if (pIter->blockList == NULL) {
+    pIter->blockList = taosArrayInit(4, sizeof(SFileDataBlockInfo));
+  } else {
+    taosArrayClear(pIter->blockList);
+  }
+}
+
+static void cleanupDataBlockIterator(SDataBlockIter* pIter) {
+  taosArrayDestroy(pIter->blockList);
 }
 
 static void initReaderStatus(SReaderStatus* pStatus) {
@@ -2520,6 +2554,7 @@ void doMergeMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, SArray* pDe
   tRowMergerInit(&merge, pRow, pReader->pSchema);
   doMergeRowsInBuf(pIter, k.ts, pDelList, &merge, pReader);
   tRowMergerGetRow(&merge, pTSRow);
+  tRowMergerClear(&merge);
 }
 
 void doMergeMemIMemRows(TSDBROW* pRow, TSDBROW* piRow, STableBlockScanInfo* pBlockScanInfo, STsdbReader* pReader,
@@ -2656,6 +2691,7 @@ int32_t buildDataBlockFromBufImpl(STableBlockScanInfo* pBlockScanInfo, int64_t e
     }
 
     doAppendOneRow(pBlock, pReader, pTSRow);
+    taosMemoryFree(pTSRow);
 
     // no data in buffer, return immediately
     if (!(pBlockScanInfo->iter.hasVal || pBlockScanInfo->iiter.hasVal)) {
@@ -2783,11 +2819,24 @@ void tsdbReaderClose(STsdbReader* pReader) {
     return;
   }
 
-  blockDataDestroy(pReader->pResBlock);
-  taosMemoryFreeClear(pReader->suppInfo.plist);
+  SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
 
-  taosArrayDestroy(pReader->suppInfo.pColAgg);
-  taosMemoryFree(pReader->suppInfo.slotIds);
+  taosMemoryFreeClear(pSupInfo->plist);
+  taosMemoryFree(pSupInfo->colIds);
+
+  taosArrayDestroy(pSupInfo->pColAgg);
+  for(int32_t i = 0; i < blockDataGetNumOfCols(pReader->pResBlock); ++i) {
+    if (pSupInfo->buildBuf[i] != NULL) {
+      taosMemoryFreeClear(pSupInfo->buildBuf[i]);
+    }
+  }
+  taosMemoryFree(pSupInfo->buildBuf);
+
+  cleanupFilesetIterator(&pReader->status.fileIter);
+  cleanupDataBlockIterator(&pReader->status.blockIter);
+  destroyBlockScanInfo(pReader->status.pTableMap);
+  blockDataDestroy(pReader->pResBlock);
+
 
 #if 0
 //   if (pReader->status.pTableScanInfo != NULL) {

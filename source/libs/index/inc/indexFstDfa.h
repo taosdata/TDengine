@@ -51,7 +51,7 @@ FstDfa *dfaBuilderBuild(FstDfaBuilder *builder);
 bool dfaBuilderRunState(FstDfaBuilder *builder, FstSparseSet *cur, FstSparseSet *next, uint32_t state, uint8_t bytes,
                         uint32_t *result);
 
-bool dfaBuilderCachedState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *result);
+bool dfaBuilderCacheState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *result);
 
 /*
  * dfa related func
