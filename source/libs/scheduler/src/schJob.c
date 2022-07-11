@@ -763,6 +763,17 @@ int32_t schExecJob(SSchJob *pJob, SSchedulerReq *pReq) {
   return TSDB_CODE_SUCCESS;
 }
 
+void schDirectPostJobRes(SSchedulerReq* pReq, int32_t errCode) {
+  if (NULL == pReq || pReq->syncReq) {
+    return;
+  }
+  
+  if (pReq->execFp) {
+    (*pReq->execFp)(NULL, pReq->cbParam, errCode);
+  } else if (pReq->fetchFp) {
+    (*pReq->fetchFp)(NULL, pReq->cbParam, errCode);
+  }
+}
 
 void schProcessOnOpEnd(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq* pReq, int32_t errCode) {
   int32_t op = 0;
@@ -801,17 +812,13 @@ void schProcessOnOpEnd(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq* pReq, int
 
 int32_t schProcessOnOpBegin(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq) {
   int32_t code = 0;
-  int8_t status = 0;
-
-  if (schJobNeedToStop(pJob, &status)) {
-    SCH_JOB_ELOG("abort op %s cause of job need to stop, status:%s", schGetOpStr(type), jobTaskStatusStr(status));
-    SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
-  }
+  int8_t status = SCH_GET_JOB_STATUS(pJob);
       
   switch (type) {
     case SCH_OP_EXEC:
       if (SCH_OP_NULL != atomic_val_compare_exchange_32(&pJob->opStatus.op, SCH_OP_NULL, type)) {
         SCH_JOB_ELOG("job already in %s operation", schGetOpStr(pJob->opStatus.op));
+        schDirectPostJobRes(pReq, TSDB_CODE_TSC_APP_ERROR);
         SCH_ERR_RET(TSDB_CODE_TSC_APP_ERROR);
       }
       
@@ -822,11 +829,16 @@ int32_t schProcessOnOpBegin(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq
     case SCH_OP_FETCH:
       if (SCH_OP_NULL != atomic_val_compare_exchange_32(&pJob->opStatus.op, SCH_OP_NULL, type)) {
         SCH_JOB_ELOG("job already in %s operation", schGetOpStr(pJob->opStatus.op));
+        schDirectPostJobRes(pReq, TSDB_CODE_TSC_APP_ERROR);
         SCH_ERR_RET(TSDB_CODE_TSC_APP_ERROR);
       }
       
       SCH_JOB_DLOG("job start %s operation", schGetOpStr(pJob->opStatus.op));
-      
+            
+      pJob->userRes.fetchRes = pReq->pFetchRes;
+      pJob->userRes.fetchFp = pReq->fetchFp;
+      pJob->userRes.cbParam = pReq->cbParam;
+     
       pJob->opStatus.syncReq = pReq->syncReq;
     
       if (!SCH_JOB_NEED_FETCH(pJob)) {
@@ -839,10 +851,6 @@ int32_t schProcessOnOpBegin(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq
         SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
       }
       
-      pJob->userRes.fetchRes = pReq->pFetchRes;
-      pJob->userRes.fetchFp = pReq->fetchFp;
-      pJob->userRes.cbParam = pReq->cbParam;
-      
       break;
     case SCH_OP_GET_STATUS:
       if (pJob->status < JOB_TASK_STATUS_INIT || pJob->levelNum <= 0 || NULL == pJob->levels) {
@@ -853,6 +861,11 @@ int32_t schProcessOnOpBegin(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq
     default:
       SCH_JOB_ELOG("unknown operation type %d", type);
       SCH_ERR_RET(TSDB_CODE_TSC_APP_ERROR);
+  }
+
+  if (schJobNeedToStop(pJob, &status)) {
+    SCH_JOB_ELOG("abort op %s cause of job need to stop, status:%s", schGetOpStr(type), jobTaskStatusStr(status));
+    SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
   }
 
   return TSDB_CODE_SUCCESS;

@@ -472,6 +472,7 @@ int32_t schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level);
 int32_t schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask);
 int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel, int32_t levelNum);
 int32_t schSwitchTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask);
+void    schDirectPostJobRes(SSchedulerReq* pReq, int32_t errCode);
 
 extern SSchDebug gSCHDebug;
 
