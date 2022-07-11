@@ -72,6 +72,7 @@ void dumpDb(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "buffer", pObj->cfg.buffer);
     tjsonAddIntegerToObject(item, "pageSize", pObj->cfg.pageSize);
     tjsonAddIntegerToObject(item, "pages", pObj->cfg.pages);
+    tjsonAddIntegerToObject(item, "cacheLastSize", pObj->cfg.cacheLastSize);
     tjsonAddIntegerToObject(item, "daysPerFile", pObj->cfg.daysPerFile);
     tjsonAddIntegerToObject(item, "daysToKeep0", pObj->cfg.daysToKeep0);
     tjsonAddIntegerToObject(item, "daysToKeep1", pObj->cfg.daysToKeep1);
@@ -84,7 +85,7 @@ void dumpDb(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "compression", pObj->cfg.compression);
     tjsonAddIntegerToObject(item, "replications", pObj->cfg.replications);
     tjsonAddIntegerToObject(item, "strict", pObj->cfg.strict);
-    tjsonAddIntegerToObject(item, "cacheLastRow", pObj->cfg.cacheLastRow);
+    tjsonAddIntegerToObject(item, "cacheLast", pObj->cfg.cacheLast);
     tjsonAddIntegerToObject(item, "hashMethod", pObj->cfg.hashMethod);
     tjsonAddIntegerToObject(item, "numOfRetensions", pObj->cfg.numOfRetensions);
     tjsonAddIntegerToObject(item, "schemaless", pObj->cfg.schemaless);

@@ -213,7 +213,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   }
 
   int          code = 0;
-  SSyncLogMeta syncMeta;
+  SWalSyncInfo syncMeta;
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
@@ -369,7 +369,7 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   ASSERT(pEntry->index == lastIndex + 1);
 
   int          code = 0;
-  SSyncLogMeta syncMeta;
+  SWalSyncInfo syncMeta;
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;

@@ -37,10 +37,10 @@ endi
 
 print =============== step3: create show table
 sql create table ct1 using stb tags(1000)
-#sql show tables
-#if $rows != 1 then 
-#  return -1
-#endi
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
 
 print =============== step5: insert data
 sql insert into ct1 values(now+0s, 10, 2.0, 3.0)

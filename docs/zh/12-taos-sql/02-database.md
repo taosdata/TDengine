@@ -32,7 +32,6 @@ CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
    - cacheLast: [详细说明](/reference/config/#cachelast)
    - replica: [详细说明](/reference/config/#replica)
    - quorum: [详细说明](/reference/config/#quorum)
-   - maxVgroupsPerDb: [详细说明](/reference/config/#maxvgroupsperdb)
    - comp: [详细说明](/reference/config/#comp)
    - precision: [详细说明](/reference/config/#precision)
 6. 请注意上面列出的所有参数都可以配置在配置文件 `taosd.cfg` 中作为创建数据库时使用的默认配置， `create database` 的参数中明确指定的会覆盖配置文件中的设置。
