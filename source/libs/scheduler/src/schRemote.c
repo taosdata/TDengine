@@ -940,7 +940,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
   if (NULL == addr) {
     addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
     isCandidateAddr = true;
-    SCH_TASK_DLOG("target candidateIdx %d", pTask->candidateIdx);
+    SCH_TASK_DLOG("target candidateIdx %d, epInUse %d/%d", pTask->candidateIdx, addr->epSet.inUse, addr->epSet.numOfEps);
   }
 
   switch (msgType) {

@@ -545,7 +545,8 @@ int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
   schDeregisterTaskHb(pJob, pTask);
 
   if (SCH_IS_DATA_BIND_TASK(pTask)) {
-    SCH_SWITCH_EPSET(&pTask->plan->execNode);
+    SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);  
+    SCH_SWITCH_EPSET(addr);
   } else {
     SCH_ERR_RET(schSwitchTaskCandidateAddr(pJob, pTask));
   }
