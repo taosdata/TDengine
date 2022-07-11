@@ -182,14 +182,10 @@ cd "${curr_dir}"
 # 2. cmake executable file
 compile_dir="${top_dir}/debug"
 if [ -d ${compile_dir} ]; then
-  ${csudo}rm -rf ${compile_dir}
+  rm -rf ${compile_dir}
 fi
 
-if [ "$osType" != "Darwin" ]; then
-  ${csudo}mkdir -p ${compile_dir}
-else
-  mkdir -p ${compile_dir}
-fi
+mkdir -p ${compile_dir}
 cd ${compile_dir}
 
 if [[ "$allocator" == "jemalloc" ]]; then
@@ -255,18 +251,18 @@ if [ "$osType" != "Darwin" ]; then
       echo "====do deb package for the ubuntu system===="
       output_dir="${top_dir}/debs"
       if [ -d ${output_dir} ]; then
-        ${csudo}rm -rf ${output_dir}
+        rm -rf ${output_dir}
       fi
-      ${csudo}mkdir -p ${output_dir}
+      mkdir -p ${output_dir}
       cd ${script_dir}/deb
       ${csudo}./makedeb.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
 
       if [[ "$pagMode" == "full" ]]; then
         if [ -d ${top_dir}/src/kit/taos-tools/packaging/deb ]; then
           cd ${top_dir}/src/kit/taos-tools/packaging/deb
+          taos_tools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-          taos_tools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
           ${csudo}./make-taos-tools-deb.sh ${top_dir} \
             ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
         fi
@@ -280,18 +276,18 @@ if [ "$osType" != "Darwin" ]; then
       echo "====do rpm package for the centos system===="
       output_dir="${top_dir}/rpms"
       if [ -d ${output_dir} ]; then
-        ${csudo}rm -rf ${output_dir}
+        rm -rf ${output_dir}
       fi
-      ${csudo}mkdir -p ${output_dir}
+      mkdir -p ${output_dir}
       cd ${script_dir}/rpm
       ${csudo}./makerpm.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
 
       if [[ "$pagMode" == "full" ]]; then
         if [ -d ${top_dir}/src/kit/taos-tools/packaging/rpm ]; then
           cd ${top_dir}/src/kit/taos-tools/packaging/rpm
+          taos_tools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}' | sed -e 's/-/_/g')
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-          taos_tools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}' | sed -e 's/-/_/g')
           ${csudo}./make-taos-tools-rpm.sh ${top_dir} \
             ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
         fi

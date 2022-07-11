@@ -93,7 +93,7 @@ Maven 项目中，在 pom.xml 中添加以下依赖：
 可以通过下载 TDengine 的源码，自己编译最新版本的 Java connector
 
 ```shell
-git clone https://github.com/taosdata/taos-connector-jdbc.git
+git clone https://github.com/taosdata/taos-connector-jdbc.git --branch 2.0
 cd taos-connector-jdbc
 mvn clean install -Dmaven.test.skip=true
 ```
@@ -368,7 +368,7 @@ public class ParameterBindingDemo {
 
     private static final String host = "127.0.0.1";
     private static final Random random = new Random(System.currentTimeMillis());
-    private static final int BINARY_COLUMN_SIZE = 20;
+    private static final int BINARY_COLUMN_SIZE = 30;
     private static final String[] schemaList = {
             "create table stable1(ts timestamp, f1 tinyint, f2 smallint, f3 int, f4 bigint) tags(t1 tinyint, t2 smallint, t3 int, t4 bigint)",
             "create table stable2(ts timestamp, f1 float, f2 double) tags(t1 float, t2 double)",

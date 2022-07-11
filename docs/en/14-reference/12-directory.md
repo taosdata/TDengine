@@ -26,7 +26,6 @@ All executable files of TDengine are in the _/usr/local/taos/bin_ directory by d
 - _remove.sh_: script to uninstall TDengine, please execute it carefully, link to the **rmtaos** command in the /usr/bin directory. Will remove the TDengine installation directory `/usr/local/taos`, but will keep `/etc/taos`, `/var/lib/taos`, `/var/log/taos`
 - _taosadapter_: server-side executable that provides RESTful services and accepts writing requests from a variety of other softwares
 - _tarbitrator_: provides arbitration for two-node cluster deployments
-- _run_taosd_and_taosadapter.sh_: script to start both taosd and taosAdapter
 - _TDinsight.sh_: script to download TDinsight and install it
 - _set_core.sh_: script for setting up the system to generate core dump files for easy debugging
 - _taosd-dump-cfg.gdb_: script to facilitate debugging of taosd's gdb execution.

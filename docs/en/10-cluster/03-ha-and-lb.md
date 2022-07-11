@@ -27,7 +27,7 @@ There may be multiple dnodes in a cluster, but only one mnode can be started in 
 SHOW MNODES;
 ```
 
-The end point and role/status (master, slave, unsynced, or offline) of all mnodes can be shown by the above command. When the first dnode is started in a cluster, there must be one mnode in this dnode. Without at least one mnode, the cluster cannot work. If `numOfMNodes` is configured to 2, another mnode will be started when the second dnode is launched.
+The end point and role/status (leader, follower, unsynced, or offline) of all mnodes can be shown by the above command. When the first dnode is started in a cluster, there must be one mnode in this dnode. Without at least one mnode, the cluster cannot work. If `numOfMNodes` is configured to 2, another mnode will be started when the second dnode is launched.
 
 For the high availability of mnode, `numOfMnodes` needs to be configured to 2 or a higher value. Because the data consistency between mnodes must be guaranteed, the replica confirmation parameter `quorum` is set to 2 automatically if `numOfMNodes` is set to 2 or higher.
 
@@ -58,13 +58,13 @@ When a dnode is offline, it can be detected by the TDengine cluster. There are t
 - If the dnode has been offline over the threshold configured in `offlineThreshold` in `taos.cfg`, the dnode will be removed from the cluster automatically. A system alert will be generated and automatic load balancing will be triggered if `balance` is set to 1. When the removed dnode is restarted and becomes online, it will not join the cluster automatically. The system administrator has to manually join the dnode to the cluster.
 
 :::note
-If all the vnodes in a vgroup (or mnodes in mnode group) are in offline or unsynced status, the master node can only be voted on, after all the vnodes or mnodes in the group become online and can exchange status. Following this, the vgroup (or mnode group) is able to provide service.
+If all the vnodes in a vgroup (or mnodes in mnode group) are in offline or unsynced status, the leader node can only be voted on, after all the vnodes or mnodes in the group become online and can exchange status. Following this, the vgroup (or mnode group) is able to provide service.
 
 :::
 
 ## Arbitrator
 
-The "arbitrator" component is used to address the special case when the number of replicas is set to an even number like 2,4 etc. If half of the vnodes in a vgroup don't work, it is impossible to vote and select a master node. This situation also applies to mnodes if the number of mnodes is set to an even number like 2,4 etc.
+The "arbitrator" component is used to address the special case when the number of replicas is set to an even number like 2,4 etc. If half of the vnodes in a vgroup don't work, it is impossible to vote and select a leader node. This situation also applies to mnodes if the number of mnodes is set to an even number like 2,4 etc.
 
 To resolve this problem, a new arbitrator component named `tarbitrator`, an abbreviation of TDengine Arbitrator, was introduced. The `tarbitrator` simulates a vnode or mnode but it's only responsible for network communication and doesn't handle any actual data access. As long as more than half of the vnode or mnode, including Arbitrator, are available the vnode group or mnode group can provide data insertion or query services normally.
 

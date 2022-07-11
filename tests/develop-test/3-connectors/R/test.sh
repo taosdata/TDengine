@@ -22,7 +22,7 @@ cd ../../
 WKC=`pwd`
 #echo "WKC:${WKC}"
 
-git clone git@github.com:taosdata/taos-connector-jdbc.git --branch main --single-branch --depth 1
+git clone git@github.com:taosdata/taos-connector-jdbc.git --branch 2.0 --single-branch --depth 1
 
 JDBC_PATH=${WKC}'/taos-connector-jdbc/'
 CASE_PATH=${WKC}'/tests/examples/R/'
