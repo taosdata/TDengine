@@ -230,6 +230,7 @@ int vnodeCommit(SVnode *pVnode) {
     ASSERT(0);
     return -1;
   }
+  walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
 
   // preCommit
   smaPreCommit(pVnode->pSma);
@@ -278,6 +279,7 @@ int vnodeCommit(SVnode *pVnode) {
   smaPostCommit(pVnode->pSma);
 
   // apply the commit (TODO)
+  walEndSnapshot(pVnode->pWal);
   vnodeBufPoolReset(pVnode->onCommit);
   pVnode->onCommit->next = pVnode->pPool;
   pVnode->pPool = pVnode->onCommit;
