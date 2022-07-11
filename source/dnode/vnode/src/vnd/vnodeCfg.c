@@ -15,30 +15,37 @@
 
 #include "vnd.h"
 
-const SVnodeCfg vnodeCfgDefault = {
-    .vgId = -1,
-    .dbname = "",
-    .dbId = 0,
-    .szPage = 4096,
-    .szCache = 256,
-    .szBuf = 96 * 1024 * 1024,
-    .isHeap = false,
-    .isWeak = 0,
-    .tsdbCfg = {.precision = TSDB_TIME_PRECISION_MILLI,
-                .update = 1,
-                .compression = 2,
-                .slLevel = 5,
-                .days = 14400,
-                .minRows = 100,
-                .maxRows = 4096,
-                .keep2 = 5256000,
-                .keep0 = 5256000,
-                .keep1 = 5256000},
-    .walCfg =
-        {.vgId = -1, .fsyncPeriod = 0, .retentionPeriod = 0, .rollPeriod = 0, .segSize = 0, .level = TAOS_WAL_WRITE},
-    .hashBegin = 0,
-    .hashEnd = 0,
-    .hashMethod = 0};
+const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
+                                   .dbname = "",
+                                   .dbId = 0,
+                                   .szPage = 4096,
+                                   .szCache = 256,
+                                   .szBuf = 96 * 1024 * 1024,
+                                   .isHeap = false,
+                                   .isWeak = 0,
+                                   .tsdbCfg = {.precision = TSDB_TIME_PRECISION_MILLI,
+                                               .update = 1,
+                                               .compression = 2,
+                                               .slLevel = 5,
+                                               .days = 14400,
+                                               .minRows = 100,
+                                               .maxRows = 4096,
+                                               .keep2 = 5256000,
+                                               .keep0 = 5256000,
+                                               .keep1 = 5256000},
+                                   .walCfg =
+                                       {
+                                           .vgId = -1,
+                                           .fsyncPeriod = 0,
+                                           .retentionPeriod = -1,
+                                           .rollPeriod = -1,
+                                           .segSize = -1,
+                                           .retentionSize = -1,
+                                           .level = TAOS_WAL_WRITE,
+                                       },
+                                   .hashBegin = 0,
+                                   .hashEnd = 0,
+                                   .hashMethod = 0};
 
 int vnodeCheckCfg(const SVnodeCfg *pCfg) {
   // TODO
@@ -79,7 +86,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
     SJson *pNodeRetentions = tjsonCreateArray();
     tjsonAddItemToObject(pJson, "retentions", pNodeRetentions);
     for (int32_t i = 0; i < nRetention; ++i) {
-      SJson *           pNodeRetention = tjsonCreateObject();
+      SJson            *pNodeRetention = tjsonCreateObject();
       const SRetention *pRetention = pCfg->tsdbCfg.retentions + i;
       tjsonAddIntegerToObject(pNodeRetention, "freq", pRetention->freq);
       tjsonAddIntegerToObject(pNodeRetention, "freqUnit", pRetention->freqUnit);
@@ -156,7 +163,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "keep2", pCfg->tsdbCfg.keep2, code);
   if (code < 0) return -1;
-  SJson * pNodeRetentions = tjsonGetObjectItem(pJson, "retentions");
+  SJson  *pNodeRetentions = tjsonGetObjectItem(pJson, "retentions");
   int32_t nRetention = tjsonGetArraySize(pNodeRetentions);
   if (nRetention > TSDB_RETENTION_MAX) {
     nRetention = TSDB_RETENTION_MAX;

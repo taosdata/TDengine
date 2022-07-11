@@ -141,34 +141,32 @@ int walCheckAndRepairMeta(SWal* pWal) {
   regfree(&idxRegPattern);
 
   taosArraySort(pLogInfoArray, compareWalFileInfo);
-  int oldSz = 0;
-  if (pWal->fileInfoSet) {
-    oldSz = taosArrayGetSize(pWal->fileInfoSet);
-  }
-  int newSz = taosArrayGetSize(pLogInfoArray);
 
-  if (oldSz > newSz) {
-    taosArrayPopFrontBatch(pWal->fileInfoSet, oldSz - newSz);
-  } else if (oldSz < newSz) {
-    for (int i = oldSz; i < newSz; i++) {
+  int metaFileNum = taosArrayGetSize(pWal->fileInfoSet);
+  int actualFileNum = taosArrayGetSize(pLogInfoArray);
+
+  if (metaFileNum > actualFileNum) {
+    taosArrayPopFrontBatch(pWal->fileInfoSet, metaFileNum - actualFileNum);
+  } else if (metaFileNum < actualFileNum) {
+    for (int i = metaFileNum; i < actualFileNum; i++) {
       SWalFileInfo* pFileInfo = taosArrayGet(pLogInfoArray, i);
       taosArrayPush(pWal->fileInfoSet, pFileInfo);
     }
   }
   taosArrayDestroy(pLogInfoArray);
 
-  pWal->writeCur = newSz - 1;
-  if (newSz > 0) {
+  pWal->writeCur = actualFileNum - 1;
+  if (actualFileNum > 0) {
     pWal->vers.firstVer = ((SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, 0))->firstVer;
 
-    SWalFileInfo* pLastFileInfo = taosArrayGet(pWal->fileInfoSet, newSz - 1);
+    SWalFileInfo* pLastFileInfo = taosArrayGet(pWal->fileInfoSet, actualFileNum - 1);
     char          fnameStr[WAL_FILE_LEN];
     walBuildLogName(pWal, pLastFileInfo->firstVer, fnameStr);
-    int64_t file_size = 0;
-    taosStatFile(fnameStr, &file_size, NULL);
+    int64_t fileSize = 0;
+    taosStatFile(fnameStr, &fileSize, NULL);
 
-    if (oldSz != newSz || pLastFileInfo->fileSize != file_size) {
-      pLastFileInfo->fileSize = file_size;
+    if (metaFileNum != actualFileNum || pLastFileInfo->fileSize != fileSize) {
+      pLastFileInfo->fileSize = fileSize;
       pWal->vers.lastVer = walScanLogGetLastVer(pWal);
       ((SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet))->lastVer = pWal->vers.lastVer;
       ASSERT(pWal->vers.lastVer != -1);

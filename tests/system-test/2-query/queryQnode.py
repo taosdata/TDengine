@@ -32,9 +32,9 @@ class TDTestCase:
     #
     # --------------- main frame -------------------
     #
-    clientCfgDict = {'queryPolicy': '1','debugFlag': 135}
+    clientCfgDict = {'queryPolicy': '1','debugFlag': 143}
     clientCfgDict["queryPolicy"] = '1'
-    clientCfgDict["debugFlag"] = 131
+    clientCfgDict["debugFlag"] = 143
 
     updatecfgDict = {'clientCfg': {}}
     updatecfgDict = {'debugFlag': 143}
