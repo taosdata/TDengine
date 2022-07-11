@@ -540,6 +540,9 @@ typedef struct SIndefOperatorInfo {
   SArray*            pPseudoColInfo;
   SExprSupp          scalarSup;
   SNode*             pCondition;
+  uint64_t           groupId;
+
+  SSDataBlock*       pNextGroupRes;
 } SIndefOperatorInfo;
 
 typedef struct SFillOperatorInfo {
@@ -551,6 +554,8 @@ typedef struct SFillOperatorInfo {
   bool              multigroupResult;
   STimeWindow       win;
   SNode*            pCondition;
+  SArray*           pColMatchColInfo;
+  int32_t           primaryTsCol;
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {

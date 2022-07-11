@@ -548,8 +548,8 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
 
 int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   SSyncInfo syncInfo = {
-      //.snapshotStrategy = SYNC_STRATEGY_WAL_FIRST,
-      .snapshotStrategy = SYNC_STRATEGY_NO_SNAPSHOT,
+      .snapshotStrategy = SYNC_STRATEGY_WAL_FIRST,
+      //.snapshotStrategy = SYNC_STRATEGY_NO_SNAPSHOT,
       .batchSize = 10,
       .vgId = pVnode->config.vgId,
       .isStandBy = pVnode->config.standby,

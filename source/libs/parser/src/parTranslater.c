@@ -1189,7 +1189,7 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
     if (fmIsSelectFunc(pFunc->funcId)) {
       pSelect->hasSelectFunc = true;
       ++(pSelect->selectFuncNum);
-    } else if (fmIsAggFunc(pFunc->funcId) || fmIsIndefiniteRowsFunc(pFunc->funcId)) {
+    } else if (fmIsVectorFunc(pFunc->funcId)) {
       pSelect->hasOtherVectorFunc = true;
     }
     pSelect->hasUniqueFunc = pSelect->hasUniqueFunc ? true : (FUNCTION_TYPE_UNIQUE == pFunc->funcType);
@@ -1514,18 +1514,11 @@ static int32_t rewriteColsToSelectValFunc(STranslateContext* pCxt, SSelectStmt* 
 typedef struct CheckAggColCoexistCxt {
   STranslateContext* pTranslateCxt;
   bool               existCol;
-  int32_t            selectFuncNum;
-  bool               existOtherVectorFunc;
 } CheckAggColCoexistCxt;
 
 static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
   CheckAggColCoexistCxt* pCxt = (CheckAggColCoexistCxt*)pContext;
   if (isVectorFunc(*pNode)) {
-    if (isSelectFunc(*pNode)) {
-      ++(pCxt->selectFuncNum);
-    } else {
-      pCxt->existOtherVectorFunc = true;
-    }
     return DEAL_RES_IGNORE_CHILD;
   }
   SNode* pPartKey = NULL;
@@ -1542,16 +1535,15 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
 
 static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL != pSelect->pGroupByList || NULL != pSelect->pWindow ||
-      (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc)) {
+      (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc && !pSelect->hasInterpFunc)) {
     return TSDB_CODE_SUCCESS;
   }
-  CheckAggColCoexistCxt cxt = {
-      .pTranslateCxt = pCxt, .existCol = false, .selectFuncNum = 0, .existOtherVectorFunc = false};
+  CheckAggColCoexistCxt cxt = {.pTranslateCxt = pCxt, .existCol = false};
   nodesRewriteExprs(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
   if (!pSelect->isDistinct) {
     nodesRewriteExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
   }
-  if (1 == cxt.selectFuncNum && !cxt.existOtherVectorFunc) {
+  if (1 == pSelect->selectFuncNum && !pSelect->hasOtherVectorFunc) {
     return rewriteColsToSelectValFunc(pCxt, pSelect);
   }
   if (cxt.existCol) {
@@ -3152,6 +3144,14 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
   return buildCmdMsg(pCxt, TDMT_MND_ALTER_DB, (FSerializeFunc)tSerializeSAlterDbReq, &alterReq);
 }
 
+static int32_t translateTrimDatabase(STranslateContext* pCxt, STrimDatabaseStmt* pStmt) {
+  STrimDbReq req = {0};
+  SName      name = {0};
+  tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  tNameGetFullDbName(&name, req.db);
+  return buildCmdMsg(pCxt, TDMT_MND_TRIM_DB, (FSerializeFunc)tSerializeSTrimDbReq, &req);
+}
+
 static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
   *pArray = taosArrayInit(LIST_LENGTH(pList), sizeof(SField));
   SNode* pNode;
@@ -4583,6 +4583,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_ALTER_DATABASE_STMT:
       code = translateAlterDatabase(pCxt, (SAlterDatabaseStmt*)pNode);
+      break;
+    case QUERY_NODE_TRIM_DATABASE_STMT:
+      code = translateTrimDatabase(pCxt, (STrimDatabaseStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:
       code = translateCreateSuperTable(pCxt, (SCreateTableStmt*)pNode);

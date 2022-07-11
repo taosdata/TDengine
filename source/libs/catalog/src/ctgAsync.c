@@ -789,8 +789,12 @@ _return:
 
 int32_t ctgCallUserCb(void* param) {
   SCtgJob* pJob = (SCtgJob*)param;
+
+  qDebug("QID:0x%" PRIx64 " ctg start to call user cb with rsp %s", pJob->queryId, tstrerror(pJob->jobResCode));
   
   (*pJob->userFp)(&pJob->jobRes, pJob->userParam, pJob->jobResCode);
+
+  qDebug("QID:0x%" PRIx64 " ctg end to call user cb", pJob->queryId);
 
   taosRemoveRef(gCtgMgmt.jobPool, pJob->refId);
 
@@ -821,8 +825,6 @@ int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
   CTG_ERR_JRET(ctgMakeAsyncRes(pJob));
 
 _return:
-
-  qDebug("QID:0x%" PRIx64 " ctg call user callback with rsp %s", pJob->queryId, tstrerror(code));
 
   pJob->jobResCode = code;
 
