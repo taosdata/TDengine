@@ -351,6 +351,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
     pStmt->bInfo.inExecCache = true;
 
     if (pStmt->sql.autoCreateTbl) {
+      tscDebug("reuse stmt block for tb %s in execBlock", pStmt->bInfo.tbFName);
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -359,9 +360,11 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
     if (pStmt->bInfo.inExecCache) {
       ASSERT(taosHashGetSize(pStmt->exec.pBlockHash) == 1);
       pStmt->bInfo.needParse = false;
+      tscDebug("reuse stmt block for tb %s in execBlock", pStmt->bInfo.tbFName);
       return TSDB_CODE_SUCCESS;
     }
 
+    tscDebug("no stmt block cache for tb %s", pStmt->bInfo.tbFName);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -385,6 +388,8 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
         STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
 
+      tscDebug("reuse stmt block for tb %s in sqlBlock, suid:0x%" PRIx64 , pStmt->bInfo.tbFName, pStmt->bInfo.tbSuid);
+
       return TSDB_CODE_SUCCESS;
     }
 
@@ -400,6 +405,8 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
   if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
     STMT_ERR_RET(stmtCleanBindInfo(pStmt));
 
+    tscDebug("tb %s not exist", pStmt->bInfo.tbFName);
+
     return TSDB_CODE_SUCCESS;
   }
 
@@ -413,6 +420,8 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
 
   if (uid == pStmt->bInfo.tbUid) {
     pStmt->bInfo.needParse = false;
+
+    tscDebug("tb %s is current table", pStmt->bInfo.tbFName);
 
     return TSDB_CODE_SUCCESS;
   }
@@ -434,6 +443,8 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
     pStmt->bInfo.boundTags = pCache->boundTags;
     pStmt->bInfo.tagsCached = true;
 
+    tscDebug("tb %s in execBlock list, set to current", pStmt->bInfo.tbFName);
+
     return TSDB_CODE_SUCCESS;
   }
 
@@ -454,6 +465,8 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
                     POINTER_BYTES)) {
       STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
+
+    tscDebug("tb %s in sqlBlock list, set to current", pStmt->bInfo.tbFName);
 
     return TSDB_CODE_SUCCESS;
   }
@@ -523,6 +536,8 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
 int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
+  tscDebug("start to set stmt tbName: %s", tbName);
+
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTBNAME));
 
   int32_t insert = 0;
@@ -568,6 +583,7 @@ int stmtSetTbTags(TAOS_STMT* stmt, TAOS_MULTI_BIND* tags) {
     STMT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
 
+  tscDebug("start to bind stmt tag values");
   STMT_ERR_RET(qBindStmtTagsValue(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.tbSuid, pStmt->bInfo.sname.tname,
                                   tags, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
 
@@ -713,6 +729,8 @@ int stmtAddBatch(TAOS_STMT* stmt) {
 }
 
 int stmtUpdateTableUid(STscStmt* pStmt, SSubmitRsp* pRsp) {
+  tscDebug("start to update stmt tbUid");
+
   if (pRsp->nBlocks <= 0) {
     tscError("invalid submit resp block number %d", pRsp->nBlocks);
     STMT_ERR_RET(TSDB_CODE_TSC_APP_ERROR);
