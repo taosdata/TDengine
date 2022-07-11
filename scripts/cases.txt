@@ -86,6 +86,10 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeri
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_floor_ceil_round.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_stddev.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_diff.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_avg.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_sum.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_max_min.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_spread.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_sin_cos_tan.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_sqrt.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/multi_process_run.py --keep --containers
