@@ -517,6 +517,8 @@ TAOS_STMT* stmtInit(STscObj* taos) {
 int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
+  tscDebug("stmt start to prepare");
+
   if (pStmt->sql.status >= STMT_PREPARE) {
     STMT_ERR_RET(stmtResetStmt(pStmt));
   }
@@ -536,7 +538,7 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
 int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  tscDebug("start to set stmt tbName: %s", tbName);
+  tscDebug("stmt start to set tbName: %s", tbName);
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTBNAME));
 
@@ -569,6 +571,8 @@ int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
 
 int stmtSetTbTags(TAOS_STMT* stmt, TAOS_MULTI_BIND* tags) {
   STscStmt* pStmt = (STscStmt*)stmt;
+
+  tscDebug("stmt start to set tbTags");
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTAGS));
 
@@ -628,6 +632,8 @@ int stmtFetchColFields(STscStmt* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fields
 
 int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
   STscStmt* pStmt = (STscStmt*)stmt;
+
+  tscDebug("start to bind stmt data, colIdx: %d", colIdx);
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_BIND));
 
@@ -721,6 +727,8 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
 int stmtAddBatch(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
+  tscDebug("stmt start to add batch");
+
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_ADD_BATCH));
 
   STMT_ERR_RET(stmtCacheBlock(pStmt));
@@ -729,7 +737,7 @@ int stmtAddBatch(TAOS_STMT* stmt) {
 }
 
 int stmtUpdateTableUid(STscStmt* pStmt, SSubmitRsp* pRsp) {
-  tscDebug("start to update stmt tbUid");
+  tscDebug("stmt start to update tbUid, blockNum: %d", pRsp->nBlocks);
 
   if (pRsp->nBlocks <= 0) {
     tscError("invalid submit resp block number %d", pRsp->nBlocks);
@@ -790,6 +798,8 @@ int stmtExec(TAOS_STMT* stmt) {
   int32_t     code = 0;
   SSubmitRsp* pRsp = NULL;
   bool        autoCreateTbl = pStmt->exec.autoCreateTbl;
+
+  tscDebug("stmt start to exec");
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_EXECUTE));
 
