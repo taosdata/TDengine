@@ -480,11 +480,11 @@ int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now) {
   }
 
   key = now - pKeepCfg->keep0 * tsTickPerMin[pKeepCfg->precision];
-  aFid[0] = tsdbKeyFid(key, pKeepCfg->days, pKeepCfg->keep0);
+  aFid[0] = tsdbKeyFid(key, pKeepCfg->days, pKeepCfg->precision);
   key = now - pKeepCfg->keep1 * tsTickPerMin[pKeepCfg->precision];
-  aFid[1] = tsdbKeyFid(key, pKeepCfg->days, pKeepCfg->keep1);
+  aFid[1] = tsdbKeyFid(key, pKeepCfg->days, pKeepCfg->precision);
   key = now - pKeepCfg->keep2 * tsTickPerMin[pKeepCfg->precision];
-  aFid[2] = tsdbKeyFid(key, pKeepCfg->days, pKeepCfg->keep2);
+  aFid[2] = tsdbKeyFid(key, pKeepCfg->days, pKeepCfg->precision);
 
   if (fid >= aFid[0]) {
     return 0;

@@ -32,7 +32,7 @@ static int32_t tsdbDoRetentionImpl(STsdb *pTsdb, int64_t now, int8_t try, int8_t
     SDiskID    did;
 
     // check
-    if (expLevel == pDFileSet->fid) continue;
+    if (expLevel == pDFileSet->diskId.id) continue;
 
     // delete or move
     if (expLevel < 0) {
