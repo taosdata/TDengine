@@ -423,7 +423,7 @@ static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReCon
 
 static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   SVnode *pVnode = pFsm->data;
-  vTrace("vgId:%d, commit-cb is excuted, fsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, msgtype:%d %s",
+  vTrace("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, msgtype:%d %s",
          syncGetVgId(pVnode->sync), pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state,
          syncUtilState2String(cbMeta.state), pMsg->msgType, TMSG_INFO(pMsg->msgType));
 
@@ -438,43 +438,94 @@ static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta c
 
 static void vnodeSyncPreCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   SVnode *pVnode = pFsm->data;
-  vTrace("vgId:%d, pre-commit-cb is excuted, fsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, msgtype:%d %s",
+  vTrace("vgId:%d, pre-commit-cb is excuted, fsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, msgtype:%d %s",
          syncGetVgId(pVnode->sync), pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state,
          syncUtilState2String(cbMeta.state), pMsg->msgType, TMSG_INFO(pMsg->msgType));
 }
 
 static void vnodeSyncRollBackMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   SVnode *pVnode = pFsm->data;
-  vTrace("vgId:%d, rollback-cb is excuted, fsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, msgtype:%d %s",
+  vTrace("vgId:%d, rollback-cb is excuted, fsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, msgtype:%d %s",
          syncGetVgId(pVnode->sync), pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state,
          syncUtilState2String(cbMeta.state), pMsg->msgType, TMSG_INFO(pMsg->msgType));
 }
 
+#define USE_TSDB_SNAPSHOT
+
 static int32_t vnodeSnapshotStartRead(struct SSyncFSM *pFsm, void *pParam, void **ppReader) {
+#ifdef USE_TSDB_SNAPSHOT
   SVnode         *pVnode = pFsm->data;
   SSnapshotParam *pSnapshotParam = pParam;
-  int32_t         code =
-      vnodeSnapshotReaderOpen(pVnode, (SVSnapshotReader **)ppReader, pSnapshotParam->start, pSnapshotParam->end);
+  int32_t code = vnodeSnapReaderOpen(pVnode, pSnapshotParam->start, pSnapshotParam->end, (SVSnapReader **)ppReader);
   return code;
+#else
+  *ppReader = taosMemoryMalloc(32);
+  return 0;
+#endif
 }
 
 static int32_t vnodeSnapshotStopRead(struct SSyncFSM *pFsm, void *pReader) {
+#ifdef USE_TSDB_SNAPSHOT
   SVnode *pVnode = pFsm->data;
-  int32_t code = vnodeSnapshotReaderClose(pReader);
+  int32_t code = vnodeSnapReaderClose(pReader);
   return code;
+#else
+  taosMemoryFree(pReader);
+  return 0;
+#endif
 }
 
 static int32_t vnodeSnapshotDoRead(struct SSyncFSM *pFsm, void *pReader, void **ppBuf, int32_t *len) {
+#ifdef USE_TSDB_SNAPSHOT
   SVnode *pVnode = pFsm->data;
-  int32_t code = vnodeSnapshotRead(pReader, (const void **)ppBuf, len);
+  int32_t code = vnodeSnapRead(pReader, (uint8_t **)ppBuf, len);
   return code;
+#else
+  static int32_t times = 0;
+  if (times++ < 5) {
+    *len = 64;
+    *ppBuf = taosMemoryMalloc(*len);
+    snprintf(*ppBuf, *len, "snapshot block %d", times);
+  } else {
+    *len = 0;
+    *ppBuf = NULL;
+  }
+  return 0;
+#endif
 }
 
-static int32_t vnodeSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void **ppWriter) { return 0; }
+static int32_t vnodeSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void **ppWriter) {
+#ifdef USE_TSDB_SNAPSHOT
+  SVnode         *pVnode = pFsm->data;
+  SSnapshotParam *pSnapshotParam = pParam;
+  int32_t code = vnodeSnapWriterOpen(pVnode, pSnapshotParam->start, pSnapshotParam->end, (SVSnapWriter **)ppWriter);
+  return code;
+#else
+  *ppWriter = taosMemoryMalloc(32);
+  return 0;
+#endif
+}
 
-static int32_t vnodeSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply) { return 0; }
+static int32_t vnodeSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply) {
+#ifdef USE_TSDB_SNAPSHOT
+  SVnode *pVnode = pFsm->data;
+  int32_t code = vnodeSnapWriterClose(pWriter, !isApply);
+  return code;
+#else
+  taosMemoryFree(pWriter);
+  return 0;
+#endif
+}
 
-static int32_t vnodeSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *pBuf, int32_t len) { return 0; }
+static int32_t vnodeSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *pBuf, int32_t len) {
+#ifdef USE_TSDB_SNAPSHOT
+  SVnode *pVnode = pFsm->data;
+  int32_t code = vnodeSnapWrite(pWriter, pBuf, len);
+  return code;
+#else
+  return 0;
+#endif
+}
 
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
@@ -497,7 +548,8 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
 
 int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   SSyncInfo syncInfo = {
-      .snapshotStrategy = SYNC_STRATEGY_NO_SNAPSHOT,
+      .snapshotStrategy = SYNC_STRATEGY_WAL_FIRST,
+      //.snapshotStrategy = SYNC_STRATEGY_NO_SNAPSHOT,
       .batchSize = 10,
       .vgId = pVnode->config.vgId,
       .isStandBy = pVnode->config.standby,

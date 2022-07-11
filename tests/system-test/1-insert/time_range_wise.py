@@ -624,12 +624,12 @@ class TDTestCase:
         self.__insert_data()
         self.all_test()
 
-        tdLog.printNoPrefix("==========step2:create table in rollup database")
-        tdSql.execute("create database db3 retentions 1s:4m,2s:8m,3s:12m")
-        tdSql.execute("use db3")
+        #tdLog.printNoPrefix("==========step2:create table in rollup database")
+        #tdSql.execute("create database db3 retentions 1s:4m,2s:8m,3s:12m")
+        #tdSql.execute("use db3")
         # self.__create_tb()
-        tdSql.execute(f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) watermark 5s max_delay 1m sma({INT_COL}) ")
-        self.all_test()
+        #tdSql.execute(f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) watermark 5s max_delay 1m sma({INT_COL}) ")
+        #self.all_test()
 
         # self.__insert_data()
 
