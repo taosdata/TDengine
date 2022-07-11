@@ -45,6 +45,10 @@ class Logging:
     logger = None # type: Optional[MyLoggingAdapter]
 
     @classmethod
+    def _get_datetime(cls):
+        return datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-1]
+
+    @classmethod
     def getLogger(cls):
         return cls.logger
 
@@ -68,23 +72,19 @@ class Logging:
 
     @classmethod
     def info(cls, msg):
-        date = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-1]
-        cls.logger.info("[time]: " + date +" [msg]: "+ msg)
+        cls.logger.info("[time]: " + cls._get_datetime() +" [msg]: "+ msg)
 
     @classmethod
     def debug(cls, msg):
-        date = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-1]
-        cls.logger.debug("[time]: " + date +" [msg]: "+ msg)
+        cls.logger.debug("[time]: " + cls._get_datetime() +" [msg]: "+ msg)
 
     @classmethod
     def warning(cls, msg):
-        date = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-1]
-        cls.logger.warning("[time]: " + date +" [msg]: "+ msg)
+        cls.logger.warning("[time]: " + cls._get_datetime() +" [msg]: "+ msg)
 
     @classmethod
     def error(cls, msg):
-        date = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-1]
-        cls.logger.error("[time]: " + date +" [msg]: "+ msg)
+        cls.logger.error("[time]: " + cls._get_datetime() +" [msg]: "+ msg)
 
 class Status:
     STATUS_EMPTY    = 99
