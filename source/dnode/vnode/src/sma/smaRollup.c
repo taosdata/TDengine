@@ -37,8 +37,6 @@ static SRSmaInfo *tdGetRSmaInfoBySuid(SSma *pSma, int64_t suid);
 static int32_t    tdRSmaFetchAndSubmitResult(SRSmaInfoItem *pItem, STSchema *pTSchema, int64_t suid, SRSmaStat *pStat,
                                              int8_t blkType);
 static void       tdRSmaFetchTrigger(void *param, void *tmrId);
-static void       tdRSmaPersistTrigger(void *param, void *tmrId);
-static void      *tdRSmaPersistExec(void *param);
 static void       tdRSmaQTaskInfoGetFName(int32_t vid, int64_t version, char *outputName);
 
 static int32_t tdRSmaQTaskInfoIterInit(SRSmaQTaskInfoIter *pIter, STFile *pTFile);
@@ -68,8 +66,8 @@ struct SRSmaInfo {
 static SRSmaInfo *tdGetRSmaInfoByItem(SRSmaInfoItem *pItem) {
   // adapt accordingly if definition of SRSmaInfo update
   int32_t rsmaInfoHeadLen = sizeof(int64_t) + sizeof(STSchema *);
-  ASSERT(pItem->level == 1 || pItem->level == 2);
-  return (SRSmaInfo *)POINTER_SHIFT(pItem, -sizeof(SRSmaInfoItem) * (pItem->level - 1) - rsmaInfoHeadLen);
+  ASSERT(pItem->level == 0 || pItem->level == 1);
+  return (SRSmaInfo *)POINTER_SHIFT(pItem, -sizeof(SRSmaInfoItem) * pItem->level - rsmaInfoHeadLen);
 }
 
 struct SRSmaQTaskInfoItem {
@@ -375,19 +373,47 @@ _err:
 /**
  * @brief Check and init qTaskInfo_t, only applicable to stable with SRSmaParam currently
  *
- * @param pVnode
+ * @param pSma
  * @param pReq
  * @return int32_t
  */
-int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq *pReq) {
-  SSma *pSma = pVnode->pSma;
+int32_t tdProcessRSmaCreate(SSma *pSma, SVCreateStbReq *pReq) {
+  SVnode *pVnode = pSma->pVnode;
   if (!pReq->rollup) {
-    smaTrace("vgId:%d, return directly since no rollup for stable %s %" PRIi64, SMA_VID(pSma), pReq->name, pReq->suid);
+    smaTrace("vgId:%d, not create rsma for stable %s %" PRIi64 " since no rollup in req", TD_VID(pVnode), pReq->name,
+             pReq->suid);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!VND_IS_RSMA(pVnode)) {
+    smaTrace("vgId:%d, not create rsma for stable %s %" PRIi64 " since vnd is not rsma", TD_VID(pVnode), pReq->name,
+             pReq->suid);
     return TSDB_CODE_SUCCESS;
   }
 
   return tdProcessRSmaCreateImpl(pSma, &pReq->rsmaParam, pReq->suid, pReq->name);
 }
+
+/**
+ * @brief drop cache for stb
+ *
+ * @param pSma
+ * @param pReq
+ * @return int32_t
+ */
+int32_t tdProcessRSmaDrop(SSma *pSma,  SVDropStbReq *pReq) { 
+  SVnode *pVnode = pSma->pVnode;
+  if (!VND_IS_RSMA(pVnode)) {
+    smaTrace("vgId:%d, not create rsma for stable %s %" PRIi64 " since vnd is not rsma", TD_VID(pVnode), pReq->name,
+             pReq->suid);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  
+
+  smaDebug("vgId:%d, drop rsma for table %" PRIi64 " succeed", TD_VID(pVnode), pReq->suid);
+  return TSDB_CODE_SUCCESS;
+ }
 
 /**
  * @brief store suid/[uids], prefer to use array and then hash
@@ -667,8 +693,8 @@ static int32_t tdExecuteRSma(SSma *pSma, const void *pMsg, int32_t inputType, tb
   }
 
   if (inputType == STREAM_INPUT__DATA_SUBMIT) {
-    tdExecuteRSmaImpl(pSma, pMsg, inputType, &pRSmaInfo->items[0], pRSmaInfo->pTSchema, suid, TSDB_RETENTION_L1);
-    tdExecuteRSmaImpl(pSma, pMsg, inputType, &pRSmaInfo->items[1], pRSmaInfo->pTSchema, suid, TSDB_RETENTION_L2);
+    tdExecuteRSmaImpl(pSma, pMsg, inputType, &pRSmaInfo->items[0], pRSmaInfo->pTSchema, suid, 0);
+    tdExecuteRSmaImpl(pSma, pMsg, inputType, &pRSmaInfo->items[1], pRSmaInfo->pTSchema, suid, 1);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1174,123 +1200,6 @@ _err:
   return TSDB_CODE_FAILED;
 }
 
-static void *tdRSmaPersistExec(void *param) {
-  setThreadName("rsma-task-persist");
-  SRSmaStat *pRSmaStat = param;
-  SSma      *pSma = pRSmaStat->pSma;
-
-  int8_t triggerStat = atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat));
-
-  if (TASK_TRIGGER_STAT_CANCELLED == triggerStat || TASK_TRIGGER_STAT_PAUSED == triggerStat) {
-    goto _end;
-  }
-
-  // execution
-  tdRSmaPersistExecImpl(pRSmaStat);
-
-_end:
-  if (TASK_TRIGGER_STAT_INACTIVE == atomic_val_compare_exchange_8(RSMA_TRIGGER_STAT(pRSmaStat),
-                                                                  TASK_TRIGGER_STAT_INACTIVE,
-                                                                  TASK_TRIGGER_STAT_ACTIVE)) {
-    smaDebug("vgId:%d, rsma persist task is active again", SMA_VID(pSma));
-  } else if (TASK_TRIGGER_STAT_CANCELLED == atomic_val_compare_exchange_8(RSMA_TRIGGER_STAT(pRSmaStat),
-                                                                          TASK_TRIGGER_STAT_CANCELLED,
-                                                                          TASK_TRIGGER_STAT_FINISHED)) {
-    smaDebug("vgId:%d, rsma persist task is cancelled", SMA_VID(pSma));
-  } else {
-    smaWarn("vgId:%d, rsma persist task in stat %" PRIi8, SMA_VID(pSma), atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat)));
-  }
-
-  atomic_store_8(RSMA_RUNNING_STAT(pRSmaStat), 0);
-  smaDebug("vgId:%d, release rsetId rsetId:%" PRIi64 " refId:%d", SMA_VID(pSma), smaMgmt.rsetId, pRSmaStat->refId);
-  tdReleaseSmaRef(smaMgmt.rsetId, pRSmaStat->refId, __func__, __LINE__);
-  taosThreadExit(NULL);
-  return NULL;
-}
-
-static void tdRSmaPersistTask(SRSmaStat *pRSmaStat) {
-  TdThreadAttr thAttr;
-  taosThreadAttrInit(&thAttr);
-  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_DETACHED);
-  TdThread tid;
-
-  if (taosThreadCreate(&tid, &thAttr, tdRSmaPersistExec, pRSmaStat) != 0) {
-    if (TASK_TRIGGER_STAT_INACTIVE == atomic_val_compare_exchange_8(RSMA_TRIGGER_STAT(pRSmaStat),
-                                                                    TASK_TRIGGER_STAT_INACTIVE,
-                                                                    TASK_TRIGGER_STAT_ACTIVE)) {
-      smaDebug("vgId:%d, persist task is active again", SMA_VID(pRSmaStat->pSma));
-    } else if (TASK_TRIGGER_STAT_CANCELLED == atomic_val_compare_exchange_8(RSMA_TRIGGER_STAT(pRSmaStat),
-                                                                            TASK_TRIGGER_STAT_CANCELLED,
-                                                                            TASK_TRIGGER_STAT_FINISHED)) {
-      smaDebug("vgId:%d, persist task is cancelled and set finished", SMA_VID(pRSmaStat->pSma));
-    } else {
-      smaWarn("vgId:%d, persist task in abnormal stat %" PRIi8, SMA_VID(pRSmaStat->pSma),
-              atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat)));
-    }
-    atomic_store_8(RSMA_RUNNING_STAT(pRSmaStat), 0);
-    smaDebug("vgId:%d, release rsetId rsetId:%" PRIi64 " refId:%d)", SMA_VID(pRSmaStat->pSma), smaMgmt.rsetId,
-             pRSmaStat->refId);
-    tdReleaseSmaRef(smaMgmt.rsetId, pRSmaStat->refId, __func__, __LINE__);
-  }
-
-  taosThreadAttrDestroy(&thAttr);
-}
-
-/**
- * @brief trigger to persist rsma qTaskInfo
- *
- * @param param
- * @param tmrId
- */
-static void tdRSmaPersistTrigger(void *param, void *tmrId) {
-  SRSmaStat *rsmaStat = param;
-  SRSmaStat *pRSmaStat = (SRSmaStat *)taosAcquireRef(smaMgmt.rsetId, rsmaStat->refId);
-  ASSERT(0);
-  if (!pRSmaStat) {
-    smaDebug("rsma persistence task not start since already destroyed");
-    return;
-  }
-
-  int8_t tmrStat =
-      atomic_val_compare_exchange_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_ACTIVE, TASK_TRIGGER_STAT_INACTIVE);
-  switch (tmrStat) {
-    case TASK_TRIGGER_STAT_ACTIVE: {
-      atomic_store_8(RSMA_RUNNING_STAT(pRSmaStat), 1);
-      if (TASK_TRIGGER_STAT_CANCELLED != atomic_val_compare_exchange_8(RSMA_TRIGGER_STAT(pRSmaStat),
-                                                                       TASK_TRIGGER_STAT_CANCELLED,
-                                                                       TASK_TRIGGER_STAT_FINISHED)) {
-        smaDebug("vgId:%d, rsma persistence start since active", SMA_VID(pRSmaStat->pSma));
-
-        // start persist task
-        tdRSmaPersistTask(pRSmaStat);
-
-        // taosTmrReset(tdRSmaPersistTrigger, 5000, pRSmaStat, pRSmaStat->tmrHandle,
-        //              RSMA_TMR_ID(pRSmaStat));
-      } else {
-        atomic_store_8(RSMA_RUNNING_STAT(pRSmaStat), 0);
-      }
-      return;
-    } break;
-    case TASK_TRIGGER_STAT_CANCELLED: {
-      atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_FINISHED);
-      smaDebug("rsma persistence not start since cancelled and finished");
-    } break;
-    case TASK_TRIGGER_STAT_PAUSED: {
-      smaDebug("rsma persistence not start since paused");
-    } break;
-    case TASK_TRIGGER_STAT_INACTIVE: {
-      smaDebug("rsma persistence not start since inactive");
-    } break;
-    case TASK_TRIGGER_STAT_INIT: {
-      smaDebug("rsma persistence not start since init");
-    } break;
-    default: {
-      smaWarn("rsma persistence not start since unknown stat %" PRIi8, tmrStat);
-    } break;
-  }
-  taosReleaseRef(smaMgmt.rsetId, rsmaStat->refId);
-}
-
 /**
  * @brief trigger to get rsma result
  *
@@ -1314,8 +1223,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   int8_t rsmaTriggerStat = atomic_load_8(RSMA_TRIGGER_STAT(pStat));
   switch (rsmaTriggerStat) {
     case TASK_TRIGGER_STAT_PAUSED:
-    case TASK_TRIGGER_STAT_CANCELLED:
-    case TASK_TRIGGER_STAT_FINISHED: {
+    case TASK_TRIGGER_STAT_CANCELLED: {
       tdReleaseSmaRef(smaMgmt.rsetId, pItem->refId, __func__, __LINE__);
       smaDebug("vgId:%d, not fetch rsma level %" PRIi8 " data since stat is %" PRIi8 ", rsetId rsetId:%" PRIi64
                " refId:%d",
@@ -1328,7 +1236,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
 
   SRSmaInfo *pRSmaInfo = tdGetRSmaInfoByItem(pItem);
 
-  ASSERT(pRSmaInfo->suid > 0);
+  ASSERT(pRSmaInfo->items[pItem->level].level == pItem->level);
 
   int8_t fetchTriggerStat =
       atomic_val_compare_exchange_8(&pItem->triggerStat, TASK_TRIGGER_STAT_ACTIVE, TASK_TRIGGER_STAT_INACTIVE);
