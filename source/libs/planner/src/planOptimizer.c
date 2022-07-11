@@ -80,6 +80,23 @@ static void optResetParent(SLogicNode* pNode) {
   FOREACH(pChild, pNode->pChildren) { ((SLogicNode*)pChild)->pParent = pNode; }
 }
 
+static EDealRes optRebuildTbanme(SNode** pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(*pNode) && COLUMN_TYPE_TBNAME == ((SColumnNode*)*pNode)->colType) {
+    SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+    if (NULL == pFunc) {
+      *(int32_t*)pContext = TSDB_CODE_OUT_OF_MEMORY;
+      return DEAL_RES_ERROR;
+    }
+    strcpy(pFunc->functionName, "tbname");
+    pFunc->funcType = FUNCTION_TYPE_TBNAME;
+    pFunc->node.resType = ((SColumnNode*)*pNode)->node.resType;
+    nodesDestroyNode(*pNode);
+    *pNode = (SNode*)pFunc;
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 EDealRes scanPathOptHaveNormalColImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     // *((bool*)pContext) = (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType);
@@ -312,6 +329,12 @@ static int32_t pushDownCondOptCalcTimeRange(SOptimizeContext* pCxt, SScanLogicNo
   return code;
 }
 
+static int32_t pushDownCondOptRebuildTbanme(SNode** pTagCond) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  nodesRewriteExpr(pTagCond, optRebuildTbanme, &code);
+  return code;
+}
+
 static int32_t pushDownCondOptDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
   if (NULL == pScan->node.pConditions ||
       OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE) ||
@@ -323,6 +346,9 @@ static int32_t pushDownCondOptDealScan(SOptimizeContext* pCxt, SScanLogicNode* p
   SNode*  pOtherCond = NULL;
   int32_t code = nodesPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pScan->pTagIndexCond, &pScan->pTagCond,
                                     &pOtherCond);
+  if (TSDB_CODE_SUCCESS == code && NULL != pScan->pTagCond) {
+    code = pushDownCondOptRebuildTbanme(&pScan->pTagCond);
+  }
   if (TSDB_CODE_SUCCESS == code && NULL != pPrimaryKeyCond) {
     code = pushDownCondOptCalcTimeRange(pCxt, pScan, &pPrimaryKeyCond, &pOtherCond);
   }
@@ -1386,26 +1412,9 @@ static bool partTagsOptMayBeOptimized(SLogicNode* pNode) {
   return !partTagsOptHasCol(partTagsGetPartKeys(pNode)) && partTagsOptAreSupportedFuncs(partTagsGetFuncs(pNode));
 }
 
-static EDealRes partTagsOptRebuildTbanmeImpl(SNode** pNode, void* pContext) {
-  if (QUERY_NODE_COLUMN == nodeType(*pNode) && COLUMN_TYPE_TBNAME == ((SColumnNode*)*pNode)->colType) {
-    SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
-    if (NULL == pFunc) {
-      *(int32_t*)pContext = TSDB_CODE_OUT_OF_MEMORY;
-      return DEAL_RES_ERROR;
-    }
-    strcpy(pFunc->functionName, "tbname");
-    pFunc->funcType = FUNCTION_TYPE_TBNAME;
-    pFunc->node.resType = ((SColumnNode*)*pNode)->node.resType;
-    nodesDestroyNode(*pNode);
-    *pNode = (SNode*)pFunc;
-    return DEAL_RES_IGNORE_CHILD;
-  }
-  return DEAL_RES_CONTINUE;
-}
-
 static int32_t partTagsOptRebuildTbanme(SNodeList* pPartKeys) {
   int32_t code = TSDB_CODE_SUCCESS;
-  nodesRewriteExprs(pPartKeys, partTagsOptRebuildTbanmeImpl, &code);
+  nodesRewriteExprs(pPartKeys, optRebuildTbanme, &code);
   return code;
 }
 
