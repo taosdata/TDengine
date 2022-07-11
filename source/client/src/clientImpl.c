@@ -810,11 +810,16 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
 void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*)param;
   pRequest->code = code;
-  memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));
+
+  if (pResult) {
+    memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));
+  }
 
   if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type ||
       TDMT_VND_CREATE_TABLE == pRequest->type) {
-    pRequest->body.resInfo.numOfRows = pResult->numOfRows;
+    if (pResult) {
+      pRequest->body.resInfo.numOfRows = pResult->numOfRows;
+    }
 
     schedulerFreeJob(&pRequest->body.queryJob, 0);
   }
@@ -1476,12 +1481,16 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     tsem_wait(&pParam->sem);
   }
 
-  if (pRequest->code == TSDB_CODE_SUCCESS && pResultInfo->numOfRows > 0 && setupOneRowPtr) {
-    doSetOneRowPtr(pResultInfo);
-    pResultInfo->current += 1;
-  }
+  if (pResultInfo->numOfRows == 0  || pRequest->code != TSDB_CODE_SUCCESS) {
+    return NULL;
+  } else {
+    if (setupOneRowPtr) {
+      doSetOneRowPtr(pResultInfo);
+      pResultInfo->current += 1;
+    }
 
-  return pResultInfo->row;
+    return pResultInfo->row;
+  }
 }
 
 static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
