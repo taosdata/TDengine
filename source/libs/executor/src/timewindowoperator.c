@@ -1285,7 +1285,7 @@ static void doClearWindows(SAggSupporter* pAggSup, SExprSupp* pSup1, SInterval* 
     STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, tsCols[i], pInterval, TSDB_ORDER_ASC);
     step = getNumOfRowsInTimeWindow(&pBlock->info, tsCols, i, win.ekey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
     uint64_t winGpId = pGpDatas ? pGpDatas[i] : pBlock->info.groupId;
-    bool     res = doClearWindow(pAggSup, pSup1, (char*)&win.skey, sizeof(TKEY), winGpId, numOfOutput);
+    bool     res = doClearWindow(pAggSup, pSup1, (char*)&win.skey, sizeof(TSKEY), winGpId, numOfOutput);
     if (pUpWins && res) {
       SWinRes winRes = {.ts = win.skey, .groupId = winGpId};
       taosArrayPush(pUpWins, &winRes);
@@ -2491,8 +2491,8 @@ static void doHashInterval(SOperatorInfo* pOperatorInfo, SSDataBlock* pSDataBloc
     if (IS_FINAL_OP(pInfo)) {
       forwardRows = 1;
     } else {
-      forwardRows = getNumOfRowsInTimeWindow(&pSDataBlock->info, tsCols, startPos, nextWin.ekey, binarySearchForKey, NULL,
-                                           TSDB_ORDER_ASC);
+      forwardRows = getNumOfRowsInTimeWindow(&pSDataBlock->info, tsCols, startPos, nextWin.ekey, binarySearchForKey,
+                                             NULL, TSDB_ORDER_ASC);
     }
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE && pUpdated) {
       saveResultRow(pResult, tableGroupId, pUpdated);

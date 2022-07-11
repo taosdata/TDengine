@@ -304,48 +304,8 @@ int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t flags,
 STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 
 // ----------------- Semantic timestamp key definition
-// typedef uint64_t TKEY;
-#define TKEY TSKEY
-
-#define TKEY_INVALID       UINT64_MAX
-#define TKEY_NULL          TKEY_INVALID
-#define TKEY_NEGATIVE_FLAG (((TKEY)1) << 63)
-#define TKEY_VALUE_FILTER  (~(TKEY_NEGATIVE_FLAG))
-
-#define TKEY_IS_NEGATIVE(tkey) (((tkey)&TKEY_NEGATIVE_FLAG) != 0)
-#define TKEY_IS_DELETED(tkey)  (false)
-
-#define tdGetTKEY(key)  (key)
-#define tdGetKey(tskey) (tskey)
-
 #define MIN_TS_KEY ((TSKEY)0x8000000000000001)
 #define MAX_TS_KEY ((TSKEY)0x7fffffffffffffff)
-
-#define TD_TO_TKEY(key) tdGetTKEY(((key) < MIN_TS_KEY) ? MIN_TS_KEY : (((key) > MAX_TS_KEY) ? MAX_TS_KEY : key))
-
-static FORCE_INLINE TKEY keyToTkey(TSKEY key) {
-  TSKEY lkey = key;
-  if (key > MAX_TS_KEY) {
-    lkey = MAX_TS_KEY;
-  } else if (key < MIN_TS_KEY) {
-    lkey = MIN_TS_KEY;
-  }
-
-  return tdGetTKEY(lkey);
-}
-
-static FORCE_INLINE int32_t tkeyComparFn(const void *tkey1, const void *tkey2) {
-  TSKEY key1 = tdGetKey(*(TKEY *)tkey1);
-  TSKEY key2 = tdGetKey(*(TKEY *)tkey2);
-
-  if (key1 < key2) {
-    return -1;
-  } else if (key1 > key2) {
-    return 1;
-  } else {
-    return 0;
-  }
-}
 
 #endif
 
