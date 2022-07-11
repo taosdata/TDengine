@@ -545,9 +545,7 @@ static int32_t doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunct
       if (pCtx[k].fpSet.process == NULL) {
         continue;
       }
-#ifdef BUF_PAGE_DEBUG
-      qDebug("page_process");
-#endif
+
       int32_t code = pCtx[k].fpSet.process(&pCtx[k]);
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s aggregate function error happens, code: %s", GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
@@ -4010,6 +4008,7 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
 
   STimeWindow w = TSWINDOW_INITIALIZER;
   getAlignQueryTimeWindow(pInterval, pInterval->precision, win.skey, &w);
+  w = getFirstQualifiedTimeWindow(win.skey, &w, pInterval, TSDB_ORDER_ASC);
 
   int32_t order = TSDB_ORDER_ASC;
   pInfo->pFillInfo = taosCreateFillInfo(order, w.skey, 0, capacity, numOfCols, pInterval, fillType, pColInfo, id);
