@@ -250,6 +250,7 @@ typedef struct SSelectStmt {
   SLimitNode* pSlimit;
   char        stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t     precision;
+  int32_t     selectFuncNum;
   bool        isEmptyResult;
   bool        isTimeLineResult;
   bool        hasAggFuncs;
@@ -257,6 +258,7 @@ typedef struct SSelectStmt {
   bool        hasIndefiniteRowsFunc;
   bool        hasSelectFunc;
   bool        hasSelectValFunc;
+  bool        hasOtherVectorFunc;
   bool        hasUniqueFunc;
   bool        hasTailFunc;
   bool        hasInterpFunc;

@@ -92,7 +92,7 @@ class TDTestCase:
 
     def fiveDnodeThreeMnode(self,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
         tdLog.printNoPrefix("======== test case 1: ")
-        paraDict = {'dbName':     'db0_0',
+        paraDict = {'dbName':     'db',
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    4,
@@ -143,7 +143,8 @@ class TDTestCase:
         threads=[]
         for i in range(restartNumbers):
             stableName= '%s%d'%(paraDict['stbName'],i)
-            threads.append(threading.Thread(target=clusterComCreate.create_stables, args=(tdSql, paraDict["dbName"],stableName,paraDict['stbNumbers'])))
+            newTdSql=tdCom.newTdSql()
+            threads.append(threading.Thread(target=clusterComCreate.create_stables, args=(newTdSql, paraDict["dbName"],stableName,paraDict['stbNumbers'])))
 
         for tr in threads:
             tr.start()

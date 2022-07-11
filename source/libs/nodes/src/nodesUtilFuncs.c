@@ -105,6 +105,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SAlterDatabaseStmt));
     case QUERY_NODE_FLUSH_DATABASE_STMT:
       return makeNode(type, sizeof(SFlushDatabaseStmt));
+    case QUERY_NODE_TRIM_DATABASE_STMT:
+      return makeNode(type, sizeof(STrimDatabaseStmt));
     case QUERY_NODE_CREATE_TABLE_STMT:
       return makeNode(type, sizeof(SCreateTableStmt));
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
@@ -548,6 +550,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)((SAlterDatabaseStmt*)pNode)->pOptions);
       break;
     case QUERY_NODE_FLUSH_DATABASE_STMT:  // no pointer field
+    case QUERY_NODE_TRIM_DATABASE_STMT:   // no pointer field
       break;
     case QUERY_NODE_CREATE_TABLE_STMT: {
       SCreateTableStmt* pStmt = (SCreateTableStmt*)pNode;
