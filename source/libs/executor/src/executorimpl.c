@@ -640,7 +640,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         }
 
         numOfRows = pfCtx->fpSet.process(pfCtx);
-      } else if (fmIsAggFunc(fmIsAggFunc(pfCtx->functionId))) {
+      } else if (fmIsAggFunc(pfCtx->functionId)) {
         // _group_key function for "partition by tbname" + csum(col_name) query
         SColumnInfoData* pOutput = taosArrayGet(pResult->pDataBlock, outputSlotId);
         int32_t slotId = pfCtx->param[0].pCol->slotId;
