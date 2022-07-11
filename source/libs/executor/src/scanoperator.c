@@ -578,6 +578,7 @@ static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
     taosArrayDestroy(pTableScanInfo->pColMatchInfo);
   }
 
+  cleanupExprSupp(&pTableScanInfo->pseudoSup);
   taosMemoryFreeClear(param);
 }
 
