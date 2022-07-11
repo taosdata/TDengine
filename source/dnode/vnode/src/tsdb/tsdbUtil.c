@@ -469,6 +469,16 @@ int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now) {
   int32_t aFid[3];
   TSKEY   key;
 
+  if (pKeepCfg->precision == TSDB_TIME_PRECISION_MILLI) {
+    now = now * 1000;
+  } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_MICRO) {
+    now = now * 1000000l;
+  } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_NANO) {
+    now = now * 1000000000l;
+  } else {
+    ASSERT(0);
+  }
+
   key = now - pKeepCfg->keep0 * tsTickPerMin[pKeepCfg->precision];
   aFid[0] = tsdbKeyFid(key, pKeepCfg->days, pKeepCfg->keep0);
   key = now - pKeepCfg->keep1 * tsTickPerMin[pKeepCfg->precision];

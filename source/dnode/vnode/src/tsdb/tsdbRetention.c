@@ -15,48 +15,80 @@
 
 #include "tsdb.h"
 
-int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
-  int32_t code = 0;
+static int32_t tsdbDoRetentionImpl(STsdb *pTsdb, int64_t now, int8_t try, int8_t *canDo) {
+  int32_t       code = 0;
+  STsdbFSState *pState;
 
-  // begin
-  code = tsdbFSBegin(pTsdb->fs);
-  if (code) goto _err;
+  if (try) {
+    pState = pTsdb->fs->cState;
+    *canDo = 0;
+  } else {
+    pState = pTsdb->fs->nState;
+  }
 
-  // do retention
-  for (int32_t iSet = 0; iSet < taosArrayGetSize(pTsdb->fs->nState->aDFileSet); iSet++) {
-    SDFileSet *pDFileSet = (SDFileSet *)taosArrayGet(pTsdb->fs->nState->aDFileSet, iSet);
+  for (int32_t iSet = 0; iSet < taosArrayGetSize(pState->aDFileSet); iSet++) {
+    SDFileSet *pDFileSet = (SDFileSet *)taosArrayGet(pState->aDFileSet, iSet);
     int32_t    expLevel = tsdbFidLevel(pDFileSet->fid, &pTsdb->keepCfg, now);
     SDiskID    did;
 
     // check
     if (expLevel == pDFileSet->fid) continue;
 
+    // delete or move
     if (expLevel < 0) {
-      tsdbFSStateDeleteDFileSet(pTsdb->fs->nState, pDFileSet->fid);
-      iSet--;
-      // tsdbInfo("vgId:%d file is out of data, remove it", td);
+      if (try) {
+        *canDo = 1;
+      } else {
+        tsdbFSStateDeleteDFileSet(pState, pDFileSet->fid);
+        iSet--;
+      }
     } else {
       // alloc
       if (tfsAllocDisk(pTsdb->pVnode->pTfs, expLevel, &did) < 0) {
         code = terrno;
-        goto _err;
+        goto _exit;
       }
 
       if (did.level == pDFileSet->diskId.level) continue;
 
-      ASSERT(did.level > pDFileSet->diskId.level);
+      if (try) {
+        *canDo = 1;
+      } else {
+        // copy the file to new disk
 
-      // copy the file to new disk
-      SDFileSet nDFileSet = *pDFileSet;
-      nDFileSet.diskId = did;
+        SDFileSet nDFileSet = *pDFileSet;
+        nDFileSet.diskId = did;
 
-      code = tsdbDFileSetCopy(pTsdb, pDFileSet, &nDFileSet);
-      if (code) goto _err;
+        tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, did);
 
-      code = tsdbFSStateUpsertDFileSet(pTsdb->fs->nState, &nDFileSet);
-      if (code) goto _err;
+        code = tsdbDFileSetCopy(pTsdb, pDFileSet, &nDFileSet);
+        if (code) goto _exit;
+
+        code = tsdbFSStateUpsertDFileSet(pState, &nDFileSet);
+        if (code) goto _exit;
+      }
     }
   }
+
+_exit:
+  return code;
+}
+
+int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
+  int32_t code = 0;
+  int8_t  canDo;
+
+  // try
+  tsdbDoRetentionImpl(pTsdb, now, 1, &canDo);
+  if (!canDo) goto _exit;
+
+  // begin
+  code = tsdbFSBegin(pTsdb->fs);
+  if (code) goto _err;
+
+  // do retention
+  code = tsdbDoRetentionImpl(pTsdb, now, 0, NULL);
+  if (code) goto _err;
 
   // commit
   code = tsdbFSCommit(pTsdb->fs);

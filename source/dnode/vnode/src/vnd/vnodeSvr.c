@@ -350,20 +350,23 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
 }
 
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  int32_t     code = 0;
   SVTrimDbReq trimReq = {0};
-  if (tDeserializeSVTrimDbReq(pReq, len, &trimReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto end;
-  }
 
   vInfo("vgId:%d, trim vnode request will be processed, time:%d", pVnode->config.vgId, trimReq.timestamp);
-  int32_t ret = 0;
-  if (ret != 0) {
-    goto end;
+
+  // decode
+  if (tDeserializeSVTrimDbReq(pReq, len, &trimReq) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
   }
 
-end:
-  return ret;
+  // process
+  code = tsdbDoRetention(pVnode->pTsdb, trimReq.timestamp);
+  if (code) goto _exit;
+
+_exit:
+  return code;
 }
 
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
