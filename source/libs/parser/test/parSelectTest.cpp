@@ -245,13 +245,21 @@ TEST_F(ParserSelectTest, orderBy) {
 TEST_F(ParserSelectTest, distinct) {
   useDb("root", "test");
 
-  // run("SELECT distinct c1, c2 FROM t1 WHERE c1 > 0 order by c1");
+  run("SELECT distinct c1, c2 FROM t1 WHERE c1 > 0 order by c1");
 
-  // run("SELECT distinct c1 + 10, c2 FROM t1 WHERE c1 > 0 order by c1 + 10, c2");
+  run("SELECT distinct c1 + 10, c2 FROM t1 WHERE c1 > 0 order by c1 + 10, c2");
 
-  // run("SELECT distinct c1 + 10 cc1, c2 cc2 FROM t1 WHERE c1 > 0 order by cc1, c2");
+  run("SELECT distinct c1 + 10 cc1, c2 cc2 FROM t1 WHERE c1 > 0 order by cc1, c2");
 
-  // run("SELECT distinct COUNT(c2) FROM t1 WHERE c1 > 0 GROUP BY c1 order by COUNT(c2)");
+  run("SELECT distinct COUNT(c2) FROM t1 WHERE c1 > 0 GROUP BY c1 order by COUNT(c2)");
+}
+
+TEST_F(ParserSelectTest, limit) {
+  useDb("root", "test");
+
+  run("SELECT c1, c2 FROM t1 LIMIT 10");
+
+  run("(SELECT c1, c2 FROM t1 LIMIT 10)");
 }
 
 // INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]

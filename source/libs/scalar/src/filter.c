@@ -3623,7 +3623,8 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       return DEAL_RES_CONTINUE;
     }
 
-    if (FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP) && node->opType >= OP_TYPE_NOT_EQUAL) {
+    if (FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP) && 
+        (node->opType >= OP_TYPE_NOT_EQUAL) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)) {
       stat->scalarMode = true;
       return DEAL_RES_CONTINUE;
     }
