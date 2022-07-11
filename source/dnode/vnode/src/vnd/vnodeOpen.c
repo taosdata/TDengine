@@ -117,6 +117,8 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   // open wal
   sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
   taosRealPath(tdir, NULL, sizeof(tdir));
+  /*pVnode->config.walCfg.retentionSize = 2000;*/
+  /*pVnode->config.walCfg.segSize = 200;*/
   pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
     vError("vgId:%d, failed to open vnode wal since %s", TD_VID(pVnode), tstrerror(terrno));
