@@ -124,6 +124,7 @@ typedef struct SWal {
 typedef struct {
   int8_t scanUncommited;
   int8_t scanMeta;
+  int8_t enableRef;
 } SWalFilterCond;
 
 typedef struct {

@@ -299,7 +299,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
         }
         ASSERT(pInfo->tqReader->pWalReader->curVersion == pOffset->version);
       } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
-        pInfo->blockType = STREAM_INPUT__TABLE_SCAN;
+        /*pInfo->blockType = STREAM_INPUT__TABLE_SCAN;*/
         int64_t uid = pOffset->uid;
         int64_t ts = pOffset->ts;
 
