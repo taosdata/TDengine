@@ -141,7 +141,7 @@ taostest --use=common_insert.yaml --case=taosc_insert/db_param_vgroups.py --keep
 taostest --use=common_insert.yaml --case=taosc_insert/db_param_wal.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/disorder_insert.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/double_boundary_check.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/error_insert_check.py --keep --containers
+#taostest --use=common_insert.yaml --case=taosc_insert/error_insert_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/float_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/illegal_type_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/multi_table_insert.py --keep --containers
