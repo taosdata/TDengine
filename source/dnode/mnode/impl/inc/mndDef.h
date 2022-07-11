@@ -246,7 +246,7 @@ typedef struct {
   int32_t buffer;
   int32_t pageSize;
   int32_t pages;
-  int32_t lastRowMem;
+  int32_t cacheLastSize;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -260,7 +260,7 @@ typedef struct {
   int8_t  replications;
   int8_t  strict;
   int8_t  hashMethod;  // default is 1
-  int8_t  cacheLastRow;
+  int8_t  cacheLast;
   int32_t numOfRetensions;
   SArray* pRetensions;
   int8_t  schemaless;

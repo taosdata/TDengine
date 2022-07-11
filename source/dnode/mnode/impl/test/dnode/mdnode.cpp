@@ -288,7 +288,7 @@ TEST_F(MndTestDnode, 05_Create_Drop_Restart_Dnode) {
     createReq.compression = 2;
     createReq.replications = 1;
     createReq.strict = 1;
-    createReq.cacheLastRow = 0;
+    createReq.cacheLast = 0;
     createReq.ignoreExist = 1;
     createReq.numOfStables = 0;
     createReq.numOfRetensions = 0;
@@ -319,7 +319,7 @@ TEST_F(MndTestDnode, 05_Create_Drop_Restart_Dnode) {
     alterdbReq.fsyncPeriod = 4000;
     alterdbReq.walLevel = 2;
     alterdbReq.strict = 1;
-    alterdbReq.cacheLastRow = 1;
+    alterdbReq.cacheLast = 1;
     alterdbReq.replications = 3;
 
     int32_t contLen = tSerializeSAlterDbReq(NULL, 0, &alterdbReq);
@@ -345,7 +345,7 @@ TEST_F(MndTestDnode, 05_Create_Drop_Restart_Dnode) {
     alterdbReq.fsyncPeriod = 4000;
     alterdbReq.walLevel = 2;
     alterdbReq.strict = 1;
-    alterdbReq.cacheLastRow = 1;
+    alterdbReq.cacheLast = 1;
     alterdbReq.replications = 1;
 
     int32_t contLen = tSerializeSAlterDbReq(NULL, 0, &alterdbReq);
