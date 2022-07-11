@@ -751,11 +751,6 @@ int stmtUpdateTableUid(STscStmt* pStmt, SSubmitRsp* pRsp) {
     char*             key = taosHashGetKey(pIter, &keyLen);
 
     STableMeta* pMeta = qGetTableMetaInDataBlock(pBlock);
-    if (pMeta->uid != pStmt->bInfo.tbUid) {
-      tscError("table uid %" PRIx64 " mis-match with current table uid %" PRIx64, pMeta->uid, pStmt->bInfo.tbUid);
-      STMT_ERR_RET(TSDB_CODE_TSC_APP_ERROR);
-    }
-
     if (pMeta->uid) {
       pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);
       continue;
