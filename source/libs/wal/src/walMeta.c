@@ -51,10 +51,10 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
   char          fnameStr[WAL_FILE_LEN];
   walBuildLogName(pWal, pLastFileInfo->firstVer, fnameStr);
 
-  int64_t file_size = 0;
-  taosStatFile(fnameStr, &file_size, NULL);
-  int readSize = TMIN(WAL_MAX_SIZE + 2, file_size);
-  pLastFileInfo->fileSize = file_size;
+  int64_t fileSize = 0;
+  taosStatFile(fnameStr, &fileSize, NULL);
+  int readSize = TMIN(WAL_MAX_SIZE + 2, fileSize);
+  pLastFileInfo->fileSize = fileSize;
 
   TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ);
   if (pFile == NULL) {
@@ -145,6 +145,26 @@ int walCheckAndRepairMeta(SWal* pWal) {
   int metaFileNum = taosArrayGetSize(pWal->fileInfoSet);
   int actualFileNum = taosArrayGetSize(pLogInfoArray);
 
+#if 0
+  for (int32_t fileNo = actualFileNum - 1; fileNo >= 0; fileNo--) {
+    SWalFileInfo* pFileInfo = taosArrayGet(pLogInfoArray, fileNo);
+    char          fnameStr[WAL_FILE_LEN];
+    walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
+    int64_t fileSize = 0;
+    taosStatFile(fnameStr, &fileSize, NULL);
+    if (fileSize == 0) {
+      taosRemoveFile(fnameStr);
+      walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
+      taosRemoveFile(fnameStr);
+      taosArrayPop(pLogInfoArray);
+    } else {
+      break;
+    }
+  }
+
+  actualFileNum = taosArrayGetSize(pLogInfoArray);
+#endif
+
   if (metaFileNum > actualFileNum) {
     taosArrayPopFrontBatch(pWal->fileInfoSet, metaFileNum - actualFileNum);
   } else if (metaFileNum < actualFileNum) {
@@ -164,6 +184,7 @@ int walCheckAndRepairMeta(SWal* pWal) {
     walBuildLogName(pWal, pLastFileInfo->firstVer, fnameStr);
     int64_t fileSize = 0;
     taosStatFile(fnameStr, &fileSize, NULL);
+    /*ASSERT(fileSize != 0);*/
 
     if (metaFileNum != actualFileNum || pLastFileInfo->fileSize != fileSize) {
       pLastFileInfo->fileSize = fileSize;
@@ -380,9 +401,9 @@ int walLoadMeta(SWal* pWal) {
   char fnameStr[WAL_FILE_LEN];
   walBuildMetaName(pWal, metaVer, fnameStr);
   // read metafile
-  int64_t file_size = 0;
-  taosStatFile(fnameStr, &file_size, NULL);
-  int   size = (int)file_size;
+  int64_t fileSize = 0;
+  taosStatFile(fnameStr, &fileSize, NULL);
+  int   size = (int)fileSize;
   char* buf = taosMemoryMalloc(size + 5);
   if (buf == NULL) {
     terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;

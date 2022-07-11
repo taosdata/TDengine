@@ -48,7 +48,7 @@ static int64_t walSeekWritePos(SWal* pWal, int64_t ver) {
   return 0;
 }
 
-int walSetWrite(SWal* pWal) {
+int walInitWriteFile(SWal* pWal) {
   TdFilePtr     pIdxTFile, pLogTFile;
   SWalFileInfo* pRet = taosArrayGetLast(pWal->fileInfoSet);
   ASSERT(pRet != NULL);
@@ -70,6 +70,7 @@ int walSetWrite(SWal* pWal) {
   // switch file
   pWal->pWriteIdxTFile = pIdxTFile;
   pWal->pWriteLogTFile = pLogTFile;
+  pWal->writeCur = taosArrayGetSize(pWal->fileInfoSet) - 1;
   return 0;
 }
 
