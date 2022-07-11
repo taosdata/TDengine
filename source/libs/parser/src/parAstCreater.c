@@ -755,8 +755,8 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   SDatabaseOptions* pOptions = (SDatabaseOptions*)nodesMakeNode(QUERY_NODE_DATABASE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->buffer = TSDB_DEFAULT_BUFFER_PER_VNODE;
-  pOptions->cacheLast = TSDB_DEFAULT_CACHE_LAST_ROW;
-  pOptions->cacheLastSize = TSDB_DEFAULT_LAST_ROW_MEM;
+  pOptions->cacheLast = TSDB_DEFAULT_CACHE_LAST;
+  pOptions->cacheLastSize = TSDB_DEFAULT_CACHE_LAST_SIZE;
   pOptions->compressionLevel = TSDB_DEFAULT_COMP_LEVEL;
   pOptions->daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
   pOptions->fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;

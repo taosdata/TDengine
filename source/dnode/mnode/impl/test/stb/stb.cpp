@@ -56,7 +56,7 @@ void* MndTestStb::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
   createReq.compression = 2;
   createReq.replications = 1;
   createReq.strict = 1;
-  createReq.cacheLastRow = 0;
+  createReq.cacheLast = 0;
   createReq.ignoreExist = 1;
 
   int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
