@@ -58,11 +58,18 @@ class TDTestCase:
         tdSql.query(" SELECT avg(velocity) as mean_velocity ,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet interval(10m); ")
         tdSql.checkRows(1)
 
+        # test insert into 
+        tdSql.execute("create table testsnode (ts timestamp, c1 float,c2 binary(30),c3 binary(30),c4 binary(30)) ;")
+        tdSql.query("insert into testsnode SELECT ts,avg(velocity) as mean_velocity,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet,ts interval(10m);")
+        tdSql.checkRows(1)
+
+        tdSql.query("insert into testsnode(c1,c2,c3,c4)  SELECT avg(velocity) as mean_velocity,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet interval(10m);")
+        tdSql.checkRows(1)
 
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdLog.printNoPrefix("==========step1:create database and table,insert data  ==============")
-        self.tsbsIotQuery()
+        self.prepareData()
         self.tsbsIotQuery()
 
 
