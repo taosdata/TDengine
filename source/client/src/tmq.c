@@ -2869,7 +2869,6 @@ end:
 }
 
 int32_t taos_write_raw_meta(TAOS *taos, tmq_raw_data *raw_meta){
-  return 0;
   if (!taos || !raw_meta) {
     return TSDB_CODE_INVALID_PARA;
   }
