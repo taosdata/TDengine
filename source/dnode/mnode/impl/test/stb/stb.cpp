@@ -56,7 +56,7 @@ void* MndTestStb::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
   createReq.compression = 2;
   createReq.replications = 1;
   createReq.strict = 1;
-  createReq.cacheLastRow = 0;
+  createReq.cacheLast = 0;
   createReq.ignoreExist = 1;
 
   int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
@@ -277,8 +277,6 @@ void* MndTestStb::BuildAlterStbUpdateColumnBytesReq(const char* stbname, const c
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
   req.alterType = TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES;
-  req.tagVer = verInBlock;
-  req.colVer = verInBlock;
 
   SField field = {0};
   field.bytes = bytes;
@@ -818,7 +816,7 @@ TEST_F(MndTestStb, 08_Alter_Stb_AlterTagBytes) {
   {
     void*    pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "col_not_exist", 20, &contLen, 1);
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
-    ASSERT_EQ(pRsp->code, 0);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_COLUMN_NOT_EXIST);
 
     test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);

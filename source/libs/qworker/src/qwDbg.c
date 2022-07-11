@@ -9,7 +9,7 @@
 #include "tmsg.h"
 #include "tname.h"
 
-SQWDebug     gQWDebug = {.statusEnable = true, .dumpEnable = false, .tmp = false};
+SQWDebug     gQWDebug = {.statusEnable = true, .dumpEnable = false, .tmp = true};
 
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore) {
   if (!gQWDebug.statusEnable) {

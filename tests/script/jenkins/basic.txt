@@ -52,6 +52,7 @@
 ./test.sh -f tsim/insert/null.sim
 ./test.sh -f tsim/insert/update0.sim
 ./test.sh -f tsim/insert/commit-merge0.sim
+./test.sh -f tsim/insert/insert_select.sim
 
 # ---- parser
 ./test.sh -f tsim/parser/groupby-basic.sim
@@ -80,7 +81,7 @@
 ./test.sh -f tsim/mnode/basic1.sim
 ./test.sh -f tsim/mnode/basic2.sim
 ./test.sh -f tsim/mnode/basic3.sim
-./test.sh -f tsim/mnode/basic4.sim
+#./test.sh -f tsim/mnode/basic4.sim
 ./test.sh -f tsim/mnode/basic5.sim
 
 # ---- show
@@ -97,7 +98,7 @@
 ./test.sh -f tsim/stream/distributeInterval0.sim
 # ./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
 # ./test.sh -f tsim/stream/distributesession0.sim
-# ./test.sh -f tsim/stream/session0.sim
+./test.sh -f tsim/stream/session0.sim
 ./test.sh -f tsim/stream/session1.sim
 # ./test.sh -f tsim/stream/state0.sim
 ./test.sh -f tsim/stream/triggerInterval0.sim
@@ -163,8 +164,8 @@
 # --- sma
 ./test.sh -f tsim/sma/drop_sma.sim
 ./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
-#./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
-#./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
+./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
+./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
 
 # --- valgrind
 ./test.sh -f tsim/valgrind/checkError1.sim
@@ -192,5 +193,8 @@
 
 # --- catalog
 ./test.sh -f tsim/catalog/alterInCurrent.sim
+
+# --- scalar
+./test.sh -f tsim/scalar/in.sim
 
 #======================b1-end===============

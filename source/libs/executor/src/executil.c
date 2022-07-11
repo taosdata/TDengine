@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <common/ttime.h>
 #include "function.h"
 #include "functionMgt.h"
 #include "index.h"
@@ -76,7 +77,7 @@ void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   pGroupResInfo->index = 0;
 }
 
-static int32_t resultrowComparAsc(const void* p1, const void* p2) {
+int32_t resultrowComparAsc(const void* p1, const void* p2) {
   SResKeyPos* pp1 = *(SResKeyPos**)p1;
   SResKeyPos* pp2 = *(SResKeyPos**)p2;
 
@@ -323,12 +324,12 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       if (code == TSDB_CODE_INDEX_REBUILDING) {
         code = vnodeGetAllTableList(pVnode, tableUid, pListInfo->pTableList);
       } else if (code != TSDB_CODE_SUCCESS) {
-        qError("failed  to  get tableIds, reason: %s, suid: %" PRIu64 "", tstrerror(code), tableUid);
+        qError("failed to get tableIds, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
         taosArrayDestroy(res);
         terrno = code;
         return code;
       } else {
-        qDebug("sucess to  get tableIds, size: %d, suid: %" PRIu64 "", (int)taosArrayGetSize(res), tableUid);
+        qDebug("success to get tableIds, size:%d, suid:%" PRIu64, (int)taosArrayGetSize(res), tableUid);
       }
 
       for (int i = 0; i < taosArrayGetSize(res); i++) {
@@ -341,7 +342,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
     }
 
     if (code != TSDB_CODE_SUCCESS) {
-      qError("failed  to  get tableIds, reason: %s, suid: %" PRIu64 "", tstrerror(code), tableUid);
+      qError("failed to get tableIds, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
       terrno = code;
       return code;
     }
@@ -748,11 +749,12 @@ SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode) {
 
 SColumn extractColumnFromColumnNode(SColumnNode* pColNode) {
   SColumn c = {0};
-  c.slotId = pColNode->slotId;
-  c.colId = pColNode->colId;
-  c.type = pColNode->node.resType.type;
-  c.bytes = pColNode->node.resType.bytes;
-  c.scale = pColNode->node.resType.scale;
+
+  c.slotId    = pColNode->slotId;
+  c.colId     = pColNode->colId;
+  c.type      = pColNode->node.resType.type;
+  c.bytes     = pColNode->node.resType.bytes;
+  c.scale     = pColNode->node.resType.scale;
   c.precision = pColNode->node.resType.precision;
   return c;
 }
@@ -768,12 +770,11 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
 
   // pCond->twindow = pTableScanNode->scanRange;
   // TODO: get it from stable scan node
-  pCond->numOfTWindows = 1;
-  pCond->twindows = taosMemoryCalloc(pCond->numOfTWindows, sizeof(STimeWindow));
-  pCond->twindows[0] = pTableScanNode->scanRange;
-  pCond->suid = pTableScanNode->scan.suid;
-
-  pCond->type = BLOCK_LOAD_OFFSET_ORDER;
+  pCond->twindows = pTableScanNode->scanRange;
+  pCond->suid     = pTableScanNode->scan.suid;
+  pCond->type     = BLOCK_LOAD_OFFSET_ORDER;
+  pCond->startVersion = -1;
+  pCond->endVersion   = -1;
   //  pCond->type = pTableScanNode->scanFlag;
 
   int32_t j = 0;
@@ -822,4 +823,88 @@ int32_t convertFillType(int32_t mode) {
   }
 
   return type;
+}
+
+static void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery) {
+  if (ascQuery) {
+    getAlignQueryTimeWindow(pInterval, pInterval->precision, ts, w);
+  } else {
+    // the start position of the first time window in the endpoint that spreads beyond the queried last timestamp
+    getAlignQueryTimeWindow(pInterval, pInterval->precision, ts, w);
+
+    int64_t key = w->skey;
+    while (key < ts) {  // moving towards end
+      key = taosTimeAdd(key, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+      if (key >= ts) {
+        break;
+      }
+
+      w->skey = key;
+    }
+  }
+}
+
+static STimeWindow doCalculateTimeWindow(int64_t ts, SInterval* pInterval) {
+  STimeWindow  w =  {0};
+
+  if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
+    w.skey = taosTimeTruncate(ts, pInterval, pInterval->precision);
+    w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+  } else {
+    int64_t st = w.skey;
+
+    if (st > ts) {
+      st -= ((st - ts + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
+    }
+
+    int64_t et = st + pInterval->interval - 1;
+    if (et < ts) {
+      st += ((ts - et + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
+    }
+
+    w.skey = st;
+    w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+  }
+
+  return w;
+}
+
+STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInterval* pInterval, int32_t order) {
+  int32_t factor = (order == TSDB_ORDER_ASC)? -1:1;
+
+  STimeWindow win = *pWindow;
+  STimeWindow save = win;
+  while(win.skey <= ts && win.ekey >= ts) {
+    save = win;
+    win.skey = taosTimeAdd(win.skey, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+    win.ekey = taosTimeAdd(win.ekey, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+  }
+
+  return save;
+}
+
+// get the correct time window according to the handled timestamp
+STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int64_t ts, SInterval* pInterval,
+                                int32_t order) {
+  STimeWindow w = {0};
+  if (pResultRowInfo->cur.pageId == -1) {  // the first window, from the previous stored value
+    getInitialStartTimeWindow(pInterval, ts, &w, (order == TSDB_ORDER_ASC));
+    w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+    return w;
+  }
+
+  w = getResultRowByPos(pBuf, &pResultRowInfo->cur)->win;
+
+  // in case of typical time window, we can calculate time window directly.
+  if (w.skey > ts || w.ekey < ts) {
+    w = doCalculateTimeWindow(ts, pInterval);
+  }
+
+  if (pInterval->interval != pInterval->sliding) {
+    // it is an sliding window query, in which sliding value is not equalled to
+    // interval value, and we need to find the first qualified time window.
+    w = getFirstQualifiedTimeWindow(ts, &w, pInterval, order);
+  }
+
+  return w;
 }

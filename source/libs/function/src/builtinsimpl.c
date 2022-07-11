@@ -1863,8 +1863,6 @@ static void stddevTransferInfo(SStddevRes* pInput, SStddevRes* pOutput) {
   }
 
   pOutput->count += pInput->count;
-
-  return;
 }
 
 int32_t stddevFunctionMerge(SqlFunctionCtx* pCtx) {
@@ -1874,14 +1872,13 @@ int32_t stddevFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SStddevRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  int32_t     start = pInput->startRowIndex;
-  char*       data = colDataGetData(pCol, start);
-  SStddevRes* pInputInfo = (SStddevRes*)varDataVal(data);
-
-  stddevTransferInfo(pInputInfo, pInfo);
+  for(int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+    char*       data = colDataGetData(pCol, i);
+    SStddevRes* pInputInfo = (SStddevRes*)varDataVal(data);
+    stddevTransferInfo(pInputInfo, pInfo);
+  }
 
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3467,6 +3464,10 @@ void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
 
   setBufPageDirty(pPage, true);
   releaseBufPage(pCtx->pBuf, pPage);
+#ifdef BUF_PAGE_DEBUG
+  qDebug("page_saveTuple pos:%p,pageId:%d, offset:%d\n", pPos, pPos->pageId,
+           pPos->offset);
+#endif
 }
 
 void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos) {
@@ -3501,6 +3502,9 @@ void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
 
   setBufPageDirty(pPage, true);
   releaseBufPage(pCtx->pBuf, pPage);
+#ifdef BUF_PAGE_DEBUG
+  qDebug("page_copyTuple pos:%p, pageId:%d, offset:%d", pPos, pPos->pageId, pPos->offset);
+#endif
 }
 
 int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {

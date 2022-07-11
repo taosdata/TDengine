@@ -23,7 +23,7 @@ void syncRespMgrInsert(uint64_t count) {
     stub.rpcMsg.info.ahandle = (void *)(200 + i);
     stub.rpcMsg.info.handle = (void *)(300 + i);
     uint64_t ret = syncRespMgrAdd(pMgr, &stub);
-    printf("insert %lu \n", ret);
+    printf("insert: %" PRIu64 " \n", ret);
   }
 }
 
@@ -35,8 +35,8 @@ void syncRespMgrDelTest(uint64_t begin, uint64_t end) {
 }
 
 void printStub(SRespStub *p) {
-  printf("createTime:%ld, rpcMsg.code:%d rpcMsg.ahandle:%ld rpcMsg.handle:%ld \n", p->createTime, p->rpcMsg.code,
-         (int64_t)(p->rpcMsg.info.ahandle), (int64_t)(p->rpcMsg.info.handle));
+  printf("createTime:%" PRId64 ", rpcMsg.code:%d rpcMsg.ahandle:%" PRId64 " rpcMsg.handle:%" PRId64 " \n",
+         p->createTime, p->rpcMsg.code, (int64_t)(p->rpcMsg.info.ahandle), (int64_t)(p->rpcMsg.info.handle));
 }
 void syncRespMgrPrint() {
   printf("\n----------------syncRespMgrPrint--------------\n");
@@ -52,24 +52,24 @@ void syncRespMgrPrint() {
 }
 
 void syncRespMgrGetTest(uint64_t i) {
-  printf("------syncRespMgrGetTest------- %lu -- \n", i);
+  printf("------syncRespMgrGetTest-------: %" PRIu64 " -- \n", i);
   SRespStub stub;
   int32_t   ret = syncRespMgrGet(pMgr, i, &stub);
   if (ret == 1) {
     printStub(&stub);
   } else if (ret == 0) {
-    printf("%ld notFound \n", i);
+    printf("" PRId64 " notFound \n", i);
   }
 }
 
 void syncRespMgrGetAndDelTest(uint64_t i) {
-  printf("------syncRespMgrGetAndDelTest-------%lu-- \n", i);
+  printf("------syncRespMgrGetAndDelTest-------" PRIu64 "-- \n", i);
   SRespStub stub;
   int32_t   ret = syncRespMgrGetAndDel(pMgr, i, &stub);
   if (ret == 1) {
     printStub(&stub);
   } else if (ret == 0) {
-    printf("%ld notFound \n", i);
+    printf("" PRId64 " notFound \n", i);
   }
 }
 

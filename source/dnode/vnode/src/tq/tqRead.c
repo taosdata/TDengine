@@ -15,11 +15,6 @@
 
 #include "tq.h"
 
-int64_t tqScanLog(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffsetVal offset) {
-  /*if ()*/
-  return 0;
-}
-
 int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** ppCkHead) {
   int32_t code = 0;
   taosThreadMutexLock(&pHandle->pWalReader->mutex);
@@ -27,8 +22,8 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
 
   while (1) {
     if (walFetchHead(pHandle->pWalReader, offset, *ppCkHead) < 0) {
-      tqDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", pHandle->consumerId,
-              pHandle->epoch, TD_VID(pTq->pVnode), offset);
+      tqDebug("tmq poll: consumer:%" PRId64 ", (epoch %d) vgId:%d offset %" PRId64 ", no more log to return",
+              pHandle->consumerId, pHandle->epoch, TD_VID(pTq->pVnode), offset);
       *fetchOffset = offset - 1;
       code = -1;
       goto END;
@@ -84,8 +79,10 @@ STqReader* tqOpenReader(SVnode* pVnode) {
     return NULL;
   }
 
-  // TODO open
-  /*pReader->pWalReader = walOpenReader(pVnode->pWal, NULL);*/
+  pReader->pWalReader = walOpenReader(pVnode->pWal, NULL);
+  if (pReader->pWalReader == NULL) {
+    return NULL;
+  }
 
   pReader->pVnodeMeta = pVnode->pMeta;
   pReader->pMsg = NULL;
@@ -106,13 +103,27 @@ void tqCloseReader(STqReader* pReader) {
   taosMemoryFree(pReader);
 }
 
+int32_t tqSeekVer(STqReader* pReader, int64_t ver) {
+  if (walReadSeekVer(pReader->pWalReader, ver) < 0) {
+    ASSERT(pReader->pWalReader->curInvalid);
+    ASSERT(pReader->pWalReader->curVersion == ver);
+    return -1;
+  }
+  ASSERT(pReader->pWalReader->curVersion == ver);
+  return 0;
+}
+
 int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
   bool fromProcessedMsg = pReader->pMsg != NULL;
 
   while (1) {
     if (!fromProcessedMsg) {
       if (walNextValidMsg(pReader->pWalReader) < 0) {
+        pReader->ver = pReader->pWalReader->curVersion - pReader->pWalReader->curInvalid;
+        ret->offset.type = TMQ_OFFSET__LOG;
+        ret->offset.version = pReader->ver;
         ret->fetchType = FETCH_TYPE__NONE;
+        ASSERT(ret->offset.version >= 0);
         return -1;
       }
       void* body = pReader->pWalReader->pHead->head.body;
@@ -127,22 +138,21 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
     }
 
     while (tqNextDataBlock(pReader)) {
+      // TODO mem free
       memset(&ret->data, 0, sizeof(SSDataBlock));
       int32_t code = tqRetrieveDataBlock(&ret->data, pReader);
       if (code != 0 || ret->data.info.rows == 0) {
-        if (fromProcessedMsg) {
-          ret->fetchType = FETCH_TYPE__NONE;
-          return 0;
-        } else {
-          break;
-        }
+        ASSERT(0);
+        continue;
       }
-
       ret->fetchType = FETCH_TYPE__DATA;
       return 0;
     }
 
     if (fromProcessedMsg) {
+      ret->offset.type = TMQ_OFFSET__LOG;
+      ret->offset.version = pReader->ver;
+      ASSERT(pReader->ver >= 0);
       ret->fetchType = FETCH_TYPE__NONE;
       return 0;
     }
@@ -179,9 +189,9 @@ bool tqNextDataBlock(STqReader* pReader) {
       return true;
     }
     void* ret = taosHashGet(pReader->tbIdHash, &pReader->msgIter.uid, sizeof(int64_t));
-    /*tqDebug("search uid %ld", pHandle->msgIter.uid);*/
+    /*tqDebug("search uid %" PRId64, pHandle->msgIter.uid);*/
     if (ret != NULL) {
-      /*tqDebug("find   uid %ld", pHandle->msgIter.uid);*/
+      /*tqDebug("find   uid %" PRId64, pHandle->msgIter.uid);*/
       return true;
     }
   }
@@ -212,7 +222,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
     if (pReader->pSchema) taosMemoryFree(pReader->pSchema);
     pReader->pSchema = metaGetTbTSchema(pReader->pVnodeMeta, pReader->msgIter.uid, sversion);
     if (pReader->pSchema == NULL) {
-      tqWarn("cannot found tsschema for table: uid: %ld (suid: %ld), version %d, possibly dropped table",
+      tqWarn("cannot found tsschema for table: uid:%" PRId64 " (suid:%" PRId64 "), version %d, possibly dropped table",
              pReader->msgIter.uid, pReader->msgIter.suid, pReader->cachedSchemaVer);
       /*ASSERT(0);*/
       terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
@@ -222,7 +232,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
     if (pReader->pSchemaWrapper) tDeleteSSchemaWrapper(pReader->pSchemaWrapper);
     pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, pReader->msgIter.uid, sversion, true);
     if (pReader->pSchemaWrapper == NULL) {
-      tqWarn("cannot found schema wrapper for table: suid: %ld, version %d, possibly dropped table",
+      tqWarn("cannot found schema wrapper for table: suid:%" PRId64 ", version %d, possibly dropped table",
              pReader->msgIter.uid, pReader->cachedSchemaVer);
       /*ASSERT(0);*/
       terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;

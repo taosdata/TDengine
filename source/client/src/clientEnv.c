@@ -49,13 +49,8 @@ void cleanupTscQhandle() {
   // destroy handle
   taosCleanUpScheduler(tscQhandle);
 }
-static int32_t registerRequest(SRequestObj *pRequest) {
-  STscObj *pTscObj = acquireTscObj(pRequest->pTscObj->id);
-  if (NULL == pTscObj) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    return terrno;
-  }
 
+static int32_t registerRequest(SRequestObj *pRequest, STscObj* pTscObj) {
   // connection has been released already, abort creating request.
   pRequest->self = taosAddRef(clientReqRefPool, pRequest);
 
@@ -246,29 +241,34 @@ STscObj *acquireTscObj(int64_t rid) { return (STscObj *)taosAcquireRef(clientCon
 
 int32_t releaseTscObj(int64_t rid) { return taosReleaseRef(clientConnRefPool, rid); }
 
-void *createRequest(STscObj *pObj, int32_t type) {
-  assert(pObj != NULL);
-
+void *createRequest(uint64_t connId, int32_t type) {
   SRequestObj *pRequest = (SRequestObj *)taosMemoryCalloc(1, sizeof(SRequestObj));
   if (NULL == pRequest) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
   }
 
+  STscObj* pTscObj = acquireTscObj(connId);
+  if (pTscObj == NULL) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+
   pRequest->resType = RES_TYPE__QUERY;
-  pRequest->pDb = getDbOfConnection(pObj);
   pRequest->requestId = generateRequestId();
   pRequest->metric.start = taosGetTimestampUs();
 
   pRequest->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
-
   pRequest->type = type;
-  pRequest->pTscObj = pObj;
+
+  pRequest->pDb = getDbOfConnection(pTscObj);
+  pRequest->pTscObj = pTscObj;
+
   pRequest->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   pRequest->msgBufLen = ERROR_MSG_BUF_DEFAULT_SIZE;
   tsem_init(&pRequest->body.rspSem, 0, 0);
 
-  if (registerRequest(pRequest)) {
+  if (registerRequest(pRequest, pTscObj)) {
     doDestroyRequest(pRequest);
     return NULL;
   }
@@ -327,8 +327,8 @@ void doDestroyRequest(void *p) {
   if (pRequest->self) {
     deregisterRequest(pRequest);
   }
-  taosMemoryFree(pRequest);
 
+  taosMemoryFree(pRequest);
   tscTrace("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
 }
 
@@ -338,7 +338,6 @@ void destroyRequest(SRequestObj *pRequest) {
   }
 
   taos_stop_query(pRequest);
-
   removeRequest(pRequest->self);
 }
 
