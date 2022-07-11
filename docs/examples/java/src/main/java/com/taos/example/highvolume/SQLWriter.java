@@ -3,10 +3,7 @@ package com.taos.example.highvolume;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -42,6 +39,12 @@ public class SQLWriter {
      * Flush action will be triggered if bufferedCount reached this value,
      */
     private int maxBatchSize;
+
+
+    /**
+     * Maximum SQL length.
+     */
+    private int maxSQLLength;
 
     /**
      * Map from table name to column values. For example:
@@ -80,6 +83,14 @@ public class SQLWriter {
         conn = getConnection();
         stmt = conn.createStatement();
         stmt.execute("use test");
+        ResultSet rs = stmt.executeQuery("show variables");
+        while (rs.next()) {
+            String configName = rs.getString(1);
+            if ("maxSQLLength".equals(configName)) {
+                maxSQLLength = Integer.parseInt(rs.getString(2));
+                logger.info("maxSQLLength={}", maxSQLLength);
+            }
+        }
     }
 
     /**
@@ -94,11 +105,11 @@ public class SQLWriter {
         String tbName = line.substring(0, firstComma);
         int lastComma = line.lastIndexOf(',');
         int secondLastComma = line.lastIndexOf(',', lastComma - 1);
-        String values = "(" + line.substring(firstComma + 1, secondLastComma) + ") ";
+        String value = "(" + line.substring(firstComma + 1, secondLastComma) + ") ";
         if (tbValues.containsKey(tbName)) {
-            tbValues.put(tbName, tbValues.get(tbName) + values);
+            tbValues.put(tbName, tbValues.get(tbName) + value);
         } else {
-            tbValues.put(tbName, values);
+            tbValues.put(tbName, value);
         }
         if (!tbTags.containsKey(tbName)) {
             String location = line.substring(secondLastComma + 1, lastComma);
@@ -121,9 +132,20 @@ public class SQLWriter {
         for (Map.Entry<String, String> entry : tbValues.entrySet()) {
             String tableName = entry.getKey();
             String values = entry.getValue();
-            sb.append(tableName).append(" values ").append(values).append(" ");
+            String q = tableName + " values " + values + " ";
+            if (sb.length() + q.length() > maxSQLLength) {
+                executeSQL(sb.toString());
+                logger.warn("increase maxSQLLength or decrease maxBatchSize to gain better performance");
+                sb = new StringBuilder("INSERT INTO ");
+            }
+            sb.append(q);
         }
-        String sql = sb.toString();
+        executeSQL(sb.toString());
+        tbValues.clear();
+        bufferedCount = 0;
+    }
+
+    private void executeSQL(String sql) throws SQLException {
         try {
             stmt.executeUpdate(sql);
         } catch (SQLException e) {
@@ -137,8 +159,6 @@ public class SQLWriter {
                 throw e;
             }
         }
-        tbValues.clear();
-        bufferedCount = 0;
     }
 
     /**
