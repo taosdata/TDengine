@@ -573,8 +573,7 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
   if (nread < 0) {
-    tWarn("%s conn %p read error:%s, ref:%d", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread),
-          T_REF_VAL_GET(conn));
+    tWarn("%s conn %p read error:%s, ref:%d", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread), T_REF_VAL_GET(conn));
     conn->broken = true;
     cliHandleExcept(conn);
   }
@@ -650,7 +649,11 @@ static bool cliHandleNoResp(SCliConn* conn) {
   return res;
 }
 static void cliSendCb(uv_write_t* req, int status) {
-  SCliConn* pConn = req->data;
+  SCliConn* pConn = req && req->handle ? req->handle->data : NULL;
+  taosMemoryFree(req);
+  if (pConn == NULL) {
+    return;
+  }
 
   if (status == 0) {
     tTrace("%s conn %p data already was written out", CONN_GET_INST_LABEL(pConn), pConn);
@@ -708,8 +711,8 @@ void cliSend(SCliConn* pConn) {
     CONN_SET_PERSIST_BY_APP(pConn);
   }
 
-  pConn->writeReq.data = pConn;
-  uv_write(&pConn->writeReq, (uv_stream_t*)pConn->stream, &wb, 1, cliSendCb);
+  uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
+  uv_write(req, (uv_stream_t*)pConn->stream, &wb, 1, cliSendCb);
   return;
 _RETURN:
   return;

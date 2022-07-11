@@ -265,8 +265,8 @@ static void uvHandleReq(SSvrConn* pConn) {
   transMsg.info.refId = pConn->refId;
   transMsg.info.traceId = pHead->traceId;
 
-  tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pTransInst), transMsg.info.handle,
-          pConn, pConn->refId);
+  tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pTransInst), transMsg.info.handle, pConn,
+          pConn->refId);
   assert(transMsg.info.handle != NULL);
 
   if (pHead->noResp == 1) {
@@ -331,7 +331,10 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
 }
 
 void uvOnSendCb(uv_write_t* req, int status) {
-  SSvrConn* conn = req->data;
+  SSvrConn* conn = req && req->handle ? req->handle->data : NULL;
+  taosMemoryFree(req);
+  if (conn == NULL) return;
+
   if (status == 0) {
     tTrace("conn %p data already was written on stream", conn);
     if (!transQueueEmpty(&conn->srvMsgs)) {
@@ -390,7 +393,6 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
 
-
   if (pConn->status == ConnNormal) {
     pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
   } else {
@@ -433,7 +435,9 @@ static void uvStartSendRespInternal(SSvrMsg* smsg) {
   uvPrepareSendData(smsg, &wb);
 
   transRefSrvHandle(pConn);
-  uv_write(&pConn->pWriter, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
+
+  uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
+  uv_write(req, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
 }
 static void uvStartSendResp(SSvrMsg* smsg) {
   // impl
