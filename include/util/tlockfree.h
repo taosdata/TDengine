@@ -71,11 +71,12 @@ typedef void (*_ref_fn_t)(const void *pObj);
 // single writer multiple reader lock
 typedef volatile int64_t SRWLatch;
 
-void taosInitRWLatch(SRWLatch *pLatch);
-void taosWLockLatch(SRWLatch *pLatch);
-void taosWUnLockLatch(SRWLatch *pLatch);
-void taosRLockLatch(SRWLatch *pLatch);
-void taosRUnLockLatch(SRWLatch *pLatch);
+void    taosInitRWLatch(SRWLatch *pLatch);
+void    taosInitReentrantRWLatch(SRWLatch *pLatch);
+void    taosWLockLatch(SRWLatch *pLatch);
+void    taosWUnLockLatch(SRWLatch *pLatch);
+void    taosRLockLatch(SRWLatch *pLatch);
+void    taosRUnLockLatch(SRWLatch *pLatch);
 int32_t taosWTryLockLatch(SRWLatch *pLatch);
 
 // copy on read

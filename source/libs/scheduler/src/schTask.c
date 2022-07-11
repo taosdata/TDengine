@@ -60,6 +60,7 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
   if (NULL == pTask->execNodes || NULL == pTask->profile.execTime) {
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
+  taosInitReentrantRWLatch(&pTask->lock);
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
 

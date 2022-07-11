@@ -337,13 +337,13 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
       SCH_SET_JOB_TYPE(pJob, plan->subplanType);
 
       SSchTask  task = {0};
-      SCH_ERR_JRET(schInitTask(pJob, &task, plan, pLevel, levelNum));
-
       SSchTask *pTask = taosArrayPush(pLevel->subTasks, &task);
       if (NULL == pTask) {
         SCH_TASK_ELOG("taosArrayPush task to level failed, level:%d, taskIdx:%d", pLevel->level, n);
         SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
+
+      SCH_ERR_JRET(schInitTask(pJob, pTask, plan, pLevel, levelNum));
 
       SCH_ERR_JRET(schAppendJobDataSrc(pJob, pTask));
 
