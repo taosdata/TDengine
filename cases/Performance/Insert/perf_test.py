@@ -314,7 +314,7 @@ class TestPerf(TDCase):
             stb = db["super_tables"][0]
             insert_mode = stb["insert_mode"]
             self.logger.debug("vgroups: {}, insert mode:".format(vgroups, insert_mode))
-            os.system(f"echo @@##@@##  time spent: {time_elapsed}, insert rows: {insert_rows}, total threads: {total_threads}, insert speed: {insert_speed}, taosd count: {taosd_count}, vgroups: {vgroups}, insert mode: {insert_mode}")
+            os.system("echo @@##@@##  time spent: {:.1f}, insert rows: {}, total threads: {}, insert speed: {:.0f}, taosd count: {}, vgroups: {}, insert mode: {}".format(time_elapsed, insert_rows, total_threads, insert_speed, taosd_count, vgroups, insert_mode))
         return self.ret
 
     def get_number_after(self, line, keyword):
