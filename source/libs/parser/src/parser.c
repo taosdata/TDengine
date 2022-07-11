@@ -38,6 +38,11 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
     t = tStrGetToken((char*)pStr, &index, false);
     if (TK_USING == t.type || TK_VALUES == t.type) {
       return true;
+    } else if (TK_SELECT == t.type) {
+      return false;
+    }
+    if (0 == t.type) {
+      break;
     }
   } while (pStr - pSql < length);
   return false;

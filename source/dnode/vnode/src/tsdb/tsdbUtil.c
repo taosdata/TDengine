@@ -87,8 +87,10 @@ int32_t tPutMapData(uint8_t *p, SMapData *pMapData) {
 
   n += tPutI32v(p ? p + n : p, pMapData->nItem);
   if (pMapData->nItem) {
+    int32_t lOffset = 0;
     for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
-      n += tPutI32v(p ? p + n : p, pMapData->aOffset[iItem]);
+      n += tPutI32v(p ? p + n : p, pMapData->aOffset[iItem] - lOffset);
+      lOffset = pMapData->aOffset[iItem];
     }
 
     n += tPutI32v(p ? p + n : p, pMapData->nData);
@@ -111,8 +113,11 @@ int32_t tGetMapData(uint8_t *p, SMapData *pMapData) {
   if (pMapData->nItem) {
     if (tRealloc((uint8_t **)&pMapData->aOffset, sizeof(int32_t) * pMapData->nItem)) return -1;
 
+    int32_t lOffset = 0;
     for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
       n += tGetI32v(p + n, &pMapData->aOffset[iItem]);
+      pMapData->aOffset[iItem] += lOffset;
+      lOffset = pMapData->aOffset[iItem];
     }
 
     n += tGetI32v(p + n, &pMapData->nData);
@@ -1016,7 +1021,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   SColData *pColData;
   SColVal  *pColVal;
 
-  ASSERT(nColData > 0);
+  if (nColData == 0) goto _exit;
 
   tRowIterInit(pIter, pRow, pTSchema);
   pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
@@ -1046,6 +1051,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
     }
   }
 
+_exit:
   pBlockData->nRow++;
   return code;
 
@@ -1234,10 +1240,26 @@ void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
           break;
         case TSDB_DATA_TYPE_SMALLINT:
           break;
-        case TSDB_DATA_TYPE_INT:
+        case TSDB_DATA_TYPE_INT: {
+          pColAgg->sum += colVal.value.i32;
+          if (pColAgg->min > colVal.value.i32) {
+            pColAgg->min = colVal.value.i32;
+          }
+          if (pColAgg->max < colVal.value.i32) {
+            pColAgg->max = colVal.value.i32;
+          }
           break;
-        case TSDB_DATA_TYPE_BIGINT:
+        }
+        case TSDB_DATA_TYPE_BIGINT: {
+          pColAgg->sum += colVal.value.i64;
+          if (pColAgg->min > colVal.value.i64) {
+            pColAgg->min = colVal.value.i64;
+          }
+          if (pColAgg->max < colVal.value.i64) {
+            pColAgg->max = colVal.value.i64;
+          }
           break;
+        }
         case TSDB_DATA_TYPE_FLOAT:
           break;
         case TSDB_DATA_TYPE_DOUBLE:

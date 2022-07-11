@@ -1092,7 +1092,7 @@ void makeCalculate(void *json, void *key, int32_t rightType, void *rightData, do
    printf("op:%s,1result:%f,except:%f\n", gOptrStr[opType].str, *((double *)colDataGetData(column, 0)), exceptValue);
    ASSERT_TRUE(fabs(*((double *)colDataGetData(column, 0)) - exceptValue) < 0.0001);
  }else if(opType == OP_TYPE_BIT_AND || opType == OP_TYPE_BIT_OR){
-   printf("op:%s,2result:%ld,except:%f\n", gOptrStr[opType].str, *((int64_t *)colDataGetData(column, 0)), exceptValue);
+   printf("op:%s,2result:%" PRId64 ",except:%f\n", gOptrStr[opType].str, *((int64_t *)colDataGetData(column, 0)), exceptValue);
    ASSERT_EQ(*((int64_t *)colDataGetData(column, 0)), exceptValue);
  }else if(opType == OP_TYPE_GREATER_THAN || opType == OP_TYPE_GREATER_EQUAL || opType == OP_TYPE_LOWER_THAN ||
             opType == OP_TYPE_LOWER_EQUAL || opType == OP_TYPE_EQUAL || opType == OP_TYPE_NOT_EQUAL ||

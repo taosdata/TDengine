@@ -210,7 +210,7 @@ int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
 //       id = 0;
 //     }
 //     char name[NAME_MAX - 4];
-//     snprintf(name, sizeof(name), "/t%ld", id);
+//     snprintf(name, sizeof(name), "/t" PRId64, id);
 //     p->sem = sem_open(name, O_CREAT | O_EXCL, pshared, value);
 //     p->id = id;
 //     if (p->sem != SEM_FAILED) break;
@@ -366,7 +366,7 @@ int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
 //   }
 // #elif defined(SEM_USE_POSIX)
 //   char name[NAME_MAX - 4];
-//   snprintf(name, sizeof(name), "/t%ld", p->id);
+//   snprintf(name, sizeof(name), "/t" PRId64, p->id);
 //   int r = sem_unlink(name);
 //   if (r) {
 //     int e = errno;

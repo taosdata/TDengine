@@ -37,6 +37,8 @@ typedef struct SName {
   char    tname[TSDB_TABLE_NAME_LEN];
 } SName;
 
+SName* toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName);
+
 int32_t tNameExtractFullName(const SName* name, char* dst);
 
 int32_t tNameLen(const SName* name);

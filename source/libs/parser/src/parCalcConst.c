@@ -195,8 +195,8 @@ static int32_t calcConstProject(SNode* pProject, SNode** pNew) {
   return code;
 }
 
-static bool isUselessCol(bool hasSelectValFunc, SExprNode* pProj) {
-  if (hasSelectValFunc && QUERY_NODE_FUNCTION == nodeType(pProj) && fmIsSelectFunc(((SFunctionNode*)pProj)->funcId)) {
+static bool isUselessCol(SExprNode* pProj) {
+  if (QUERY_NODE_FUNCTION == nodeType(pProj) && !fmIsScalarFunc(((SFunctionNode*)pProj)->funcId)) {
     return false;
   }
   return NULL == ((SExprNode*)pProj)->pAssociation;
@@ -218,7 +218,7 @@ static SNode* createConstantValue() {
 static int32_t calcConstProjections(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
   SNode* pProj = NULL;
   WHERE_EACH(pProj, pSelect->pProjectionList) {
-    if (subquery && isUselessCol(pSelect->hasSelectValFunc, (SExprNode*)pProj)) {
+    if (subquery && isUselessCol((SExprNode*)pProj)) {
       ERASE_NODE(pSelect->pProjectionList);
       continue;
     }

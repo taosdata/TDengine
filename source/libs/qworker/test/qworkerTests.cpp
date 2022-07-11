@@ -332,7 +332,7 @@ void qwtEndPut(DataSinkHandle handle, uint64_t useconds) {
   qwtTestSinkQueryEnd = true;
 }
 
-void qwtGetDataLength(DataSinkHandle handle, int32_t* pLen, bool* pQueryEnd) {
+void qwtGetDataLength(DataSinkHandle handle, int64_t* pLen, bool* pQueryEnd) {
   static int32_t in = 0;
 
   if (in > 0) {
