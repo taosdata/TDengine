@@ -2114,8 +2114,8 @@ static char *buildCreateCTableJson(STag* pTag, char* sname, char* name, int64_t 
 
 //    cJSON* tname = cJSON_CreateString(pTagVal->colName);
 //    cJSON_AddItemToObject(tag, "name", tname);
-    cJSON* cid_ = cJSON_CreateString("");
-    cJSON_AddItemToObject(tag, "cid", cid_);
+//    cJSON* cid_ = cJSON_CreateString("");
+//    cJSON_AddItemToObject(tag, "cid", cid_);
     cJSON* ttype = cJSON_CreateNumber(TSDB_DATA_TYPE_JSON);
     cJSON_AddItemToObject(tag, "type", ttype);
     cJSON* tvalue = cJSON_CreateString(pJson);
@@ -2130,10 +2130,8 @@ static char *buildCreateCTableJson(STag* pTag, char* sname, char* name, int64_t 
 
     cJSON* tag = cJSON_CreateObject();
 
-    char cid[32] = {0};
-    sprintf(cid, "%d", pTagVal->cid);
-    cJSON* cid_ = cJSON_CreateString(cid);
-    cJSON_AddItemToObject(tag, "cid", cid_);
+    cJSON* cid = cJSON_CreateNumber(pTagVal->cid);
+    cJSON_AddItemToObject(tag, "cid", cid);
     cJSON* ttype = cJSON_CreateNumber(pTagVal->type);
     cJSON_AddItemToObject(tag, "type", ttype);
 
