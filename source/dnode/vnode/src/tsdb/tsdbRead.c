@@ -323,6 +323,11 @@ static bool filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader) {
 
     if ((asc && (win.ekey < pReader->window.skey)) || ((!asc) && (win.skey > pReader->window.ekey))) {
       pIter->index += step;
+
+      if ((asc && pIter->index >= pIter->numOfFiles) || ((!asc) && pIter->index < 0)) {
+        return false;
+      }
+
       continue;
     }
 
