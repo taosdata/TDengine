@@ -823,6 +823,20 @@ int32_t tSerializeSTrimDbReq(void* buf, int32_t bufLen, STrimDbReq* pReq);
 int32_t tDeserializeSTrimDbReq(void* buf, int32_t bufLen, STrimDbReq* pReq);
 
 typedef struct {
+  int32_t timestamp;
+} SVTrimDbReq;
+
+int32_t tSerializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
+int32_t tDeserializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
+
+typedef struct {
+  int32_t timestamp;
+} SVDropTtlTableReq;
+
+int32_t tSerializeSVDropTtlTableReq(void* buf, int32_t bufLen, SVDropTtlTableReq* pReq);
+int32_t tDeserializeSVDropTtlTableReq(void* buf, int32_t bufLen, SVDropTtlTableReq* pReq);
+
+typedef struct {
   int32_t numOfVgroups;
   int32_t numOfStables;
   int32_t buffer;
