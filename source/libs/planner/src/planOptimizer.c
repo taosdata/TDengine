@@ -1338,9 +1338,9 @@ static EDealRes partTagsOptHasColImpl(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static bool partTagsOptHasCol(SNodeList* pPartKeys) {
+static bool planOptNodeListHasCol(SNodeList* pKeys) {
   bool hasCol = false;
-  nodesWalkExprs(pPartKeys, partTagsOptHasColImpl, &hasCol);
+  nodesWalkExprs(pKeys, partTagsOptHasColImpl, &hasCol);
   return hasCol;
 }
 
@@ -1383,7 +1383,7 @@ static bool partTagsOptMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
 
-  return !partTagsOptHasCol(partTagsGetPartKeys(pNode)) && partTagsOptAreSupportedFuncs(partTagsGetFuncs(pNode));
+  return !planOptNodeListHasCol(partTagsGetPartKeys(pNode)) && partTagsOptAreSupportedFuncs(partTagsGetFuncs(pNode));
 }
 
 static EDealRes partTagsOptRebuildTbanmeImpl(SNode** pNode, void* pContext) {
@@ -2086,6 +2086,34 @@ static int32_t mergeProjectsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   return mergeProjectsOptimizeImpl(pCxt, pLogicSubplan, pProjectNode);
 }
 
+static bool tagScanMayBeOptimized(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode) || (SCAN_TYPE_TAG == ((SScanLogicNode*)pNode)->scanType)) {
+    return false;
+  }
+
+  if (NULL == pNode->pParent || QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent) || 1 != LIST_LENGTH(pNode->pParent->pChildren)) {
+    return false;
+  }
+
+  SAggLogicNode* pAgg = (SAggLogicNode*)(pNode->pParent);
+  if (NULL == pAgg->pGroupKeys || NULL != pAgg->pAggFuncs || planOptNodeListHasCol(pAgg->pGroupKeys)) {
+    return false;
+  }
+
+  return true;
+}
+
+static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SScanLogicNode* pScanNode = (SScanLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, tagScanMayBeOptimized);
+  if (NULL == pScanNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pScanNode->scanType = SCAN_TYPE_TAG;
+  pCxt->optimized = true;
+  return TSDB_CODE_SUCCESS;
+}
+
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
@@ -2098,7 +2126,8 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "EliminateSetOperator",       .optimizeFunc = eliminateSetOpOptimize},
   {.pName = "RewriteTail",                .optimizeFunc = rewriteTailOptimize},
   {.pName = "RewriteUnique",              .optimizeFunc = rewriteUniqueOptimize},
-  {.pName = "LastRowScan",                .optimizeFunc = lastRowScanOptimize}
+  {.pName = "LastRowScan",               .optimizeFunc = lastRowScanOptimize},
+  {.pName = "TagScan",                   .optimizeFunc = tagScanOptimize}
 };
 // clang-format on
 
