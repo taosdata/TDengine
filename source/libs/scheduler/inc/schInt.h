@@ -54,6 +54,11 @@ typedef enum {
   SCH_OP_GET_STATUS,
 } SCH_OP_TYPE;
 
+typedef struct SSchDebug {
+  bool     lockEnable;
+  bool     apiEnable;
+} SSchDebug;
+
 typedef struct SSchTrans {
   void *pTrans;
   void *pHandle;
@@ -186,7 +191,7 @@ typedef struct SSchTaskProfile {
 
 typedef struct SSchTask {
   uint64_t             taskId;         // task id
-  SRWLatch             lock;           // task lock
+  SRWLatch             lock;           // task reentrant lock
   int32_t              maxExecTimes;   // task may exec times
   int32_t              execId;        // task current execute try index
   SSchLevel           *level;          // level
@@ -356,8 +361,41 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { SCH_SET_ERRNO(_code); } return _code; } while (0)
 #define SCH_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { SCH_SET_ERRNO(code); goto _return; } } while (0)
 
-#define SCH_LOCK(type, _lock) (SCH_READ == (type) ? taosRLockLatch(_lock) : taosWLockLatch(_lock))
-#define SCH_UNLOCK(type, _lock) (SCH_READ == (type) ? taosRUnLockLatch(_lock) : taosWUnLockLatch(_lock))
+#define SCH_LOCK_DEBUG(...) do { if (gSCHDebug.lockEnable) { qDebug(__VA_ARGS__); } } while (0)
+
+#define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
+
+#define SCH_LOCK(type, _lock) do {   \
+  if (SCH_READ == (type)) {          \
+    assert(atomic_load_64(_lock) >= 0);  \
+    SCH_LOCK_DEBUG("SCH RLOCK%p:%" PRIx64 ", %s:%d B", (_lock), atomic_load_64(_lock), __FILE__, __LINE__); \
+    taosRLockLatch(_lock);           \
+    SCH_LOCK_DEBUG("SCH RLOCK%p:%" PRIx64 ", %s:%d E", (_lock), atomic_load_64(_lock), __FILE__, __LINE__); \
+    assert(atomic_load_64(_lock) > 0);  \
+  } else {                                                \
+    assert(atomic_load_64(_lock) >= 0);  \
+    SCH_LOCK_DEBUG("SCH WLOCK%p:%" PRIx64 ", %s:%d B", (_lock), atomic_load_64(_lock), __FILE__, __LINE__);  \
+    taosWLockLatch(_lock);                                \
+    SCH_LOCK_DEBUG("SCH WLOCK%p:%" PRIx64 ", %s:%d E", (_lock), atomic_load_64(_lock), __FILE__, __LINE__);  \
+    assert(atomic_load_64(_lock) & TD_RWLATCH_WRITE_FLAG_COPY);  \
+  }                                                       \
+} while (0)
+
+#define SCH_UNLOCK(type, _lock) do {                       \
+  if (SCH_READ == (type)) {                                \
+    assert(atomic_load_64((_lock)) > 0);  \
+    SCH_LOCK_DEBUG("SCH RULOCK%p:%" PRIx64 ", %s:%d B", (_lock), atomic_load_64(_lock), __FILE__, __LINE__); \
+    taosRUnLockLatch(_lock);                              \
+    SCH_LOCK_DEBUG("SCH RULOCK%p:%" PRIx64 ", %s:%d E", (_lock), atomic_load_64(_lock), __FILE__, __LINE__); \
+    assert(atomic_load_64((_lock)) >= 0);  \
+  } else {                                                \
+    assert(atomic_load_64((_lock)) & TD_RWLATCH_WRITE_FLAG_COPY);  \
+    SCH_LOCK_DEBUG("SCH WULOCK%p:%" PRIx64 ", %s:%d B", (_lock), atomic_load_64(_lock), __FILE__, __LINE__); \
+    taosWUnLockLatch(_lock);                              \
+    SCH_LOCK_DEBUG("SCH WULOCK%p:%" PRIx64 ", %s:%d E", (_lock), atomic_load_64(_lock), __FILE__, __LINE__); \
+    assert(atomic_load_64((_lock)) >= 0);  \
+  }                                                       \
+} while (0)
 
 
 void    schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask);
@@ -435,6 +473,8 @@ int32_t schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTas
 int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel, int32_t levelNum);
 int32_t schSwitchTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask);
 void    schDirectPostJobRes(SSchedulerReq* pReq, int32_t errCode);
+
+extern SSchDebug gSCHDebug;
 
 
 #ifdef __cplusplus
