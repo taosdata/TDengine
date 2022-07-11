@@ -837,7 +837,7 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema, int16
     return TSDB_CODE_SUCCESS;
   }
 
-  strcpy(val->colName, pSchema->name);
+//  strcpy(val->colName, pSchema->name);
   val->cid = pSchema->colId;
   val->type = pSchema->type;
 
@@ -1910,7 +1910,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       }
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-      strcpy(val.colName, pTagSchema->name);
+//      strcpy(val.colName, pTagSchema->name);
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY) {
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
@@ -2311,7 +2311,7 @@ static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* p
     SSmlKv*  kv = taosArrayGetP(cols, i);
 
     STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-    strcpy(val.colName, pTagSchema->name);
+//    strcpy(val.colName, pTagSchema->name);
     if (pTagSchema->type == TSDB_DATA_TYPE_BINARY) {
       val.pData = (uint8_t*)kv->value;
       val.nData = kv->length;

@@ -5555,7 +5555,7 @@ static int32_t buildNormalTagVal(STranslateContext* pCxt, SSchema* pTagSchema, S
   if (pVal->node.resType.type != TSDB_DATA_TYPE_NULL) {
     void*   nodeVal = nodesGetValueFromNode(pVal);
     STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-    strcpy(val.colName, pTagSchema->name);
+//    strcpy(val.colName, pTagSchema->name);
     if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
       val.pData = varDataVal(nodeVal);
       val.nData = varDataLen(nodeVal);
@@ -5649,7 +5649,7 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
       } else if (pVal->node.resType.type != TSDB_DATA_TYPE_NULL && !pVal->isNull) {
         char*   tmpVal = nodesGetValueFromNode(pVal);
         STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-        strcpy(val.colName, pTagSchema->name);
+//        strcpy(val.colName, pTagSchema->name);
         if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
           val.pData = varDataVal(tmpVal);
           val.nData = varDataLen(tmpVal);

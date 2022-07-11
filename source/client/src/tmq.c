@@ -2101,8 +2101,10 @@ static char *buildCreateCTableJson(STag* pTag, char* sname, char* name, int64_t 
     cJSON* tag = cJSON_CreateObject();
     STagVal* pTagVal = taosArrayGet(pTagVals, 0);
 
-    cJSON* tname = cJSON_CreateString(pTagVal->colName);
-    cJSON_AddItemToObject(tag, "name", tname);
+//    cJSON* tname = cJSON_CreateString(pTagVal->colName);
+//    cJSON_AddItemToObject(tag, "name", tname);
+    cJSON* cid_ = cJSON_CreateString("");
+    cJSON_AddItemToObject(tag, "cid", cid_);
     cJSON* ttype = cJSON_CreateNumber(TSDB_DATA_TYPE_JSON);
     cJSON_AddItemToObject(tag, "type", ttype);
     cJSON* tvalue = cJSON_CreateString(pJson);
@@ -2116,8 +2118,11 @@ static char *buildCreateCTableJson(STag* pTag, char* sname, char* name, int64_t 
     STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, i);
 
     cJSON* tag = cJSON_CreateObject();
-    cJSON* tname = cJSON_CreateString(pTagVal->colName);
-    cJSON_AddItemToObject(tag, "name", tname);
+
+    char cid[32] = {0};
+    sprintf(cid, "%d", pTagVal->cid);
+    cJSON* cid_ = cJSON_CreateString(cid);
+    cJSON_AddItemToObject(tag, "cid", cid_);
     cJSON* ttype = cJSON_CreateNumber(pTagVal->type);
     cJSON_AddItemToObject(tag, "type", ttype);
 
