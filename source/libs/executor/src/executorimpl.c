@@ -3391,6 +3391,8 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
       assert(pBlock != NULL);
     }
 
+    blockDataUpdateTsWindow(pBlock, pInfo->primaryTsCol);
+
     if (*newgroup && pInfo->totalInputRows > 0) {  // there are already processed current group data block
       pInfo->existNewGroupBlock = pBlock;
       *newgroup = false;
