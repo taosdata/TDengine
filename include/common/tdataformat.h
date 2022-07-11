@@ -230,20 +230,6 @@ struct STag {
     memcpy(varDataVal(x), (str), (_size));      \
   } while (0);
 
-// ----------------- TSDB COLUMN DEFINITION
-
-#define colType(col)   ((col)->type)
-#define colFlags(col)  ((col)->flags)
-#define colColId(col)  ((col)->colId)
-#define colBytes(col)  ((col)->bytes)
-#define colOffset(col) ((col)->offset)
-
-#define colSetType(col, t)   (colType(col) = (t))
-#define colSetFlags(col, f)  (colFlags(col) = (f))
-#define colSetColId(col, id) (colColId(col) = (id))
-#define colSetBytes(col, b)  (colBytes(col) = (b))
-#define colSetOffset(col, o) (colOffset(col) = (o))
-
 // ----------------- TSDB SCHEMA DEFINITION
 
 #define schemaNCols(s)    ((s)->numOfCols)
@@ -253,26 +239,6 @@ struct STag {
 #define schemaVLen(s)     ((s)->vlen)
 #define schemaColAt(s, i) ((s)->columns + i)
 #define tdFreeSchema(s)   taosMemoryFreeClear((s))
-
-STSchema *tdDupSchema(const STSchema *pSchema);
-int32_t   tdEncodeSchema(void **buf, STSchema *pSchema);
-void     *tdDecodeSchema(void *buf, STSchema **pRSchema);
-
-static FORCE_INLINE int32_t comparColId(const void *key1, const void *key2) {
-  if (*(int16_t *)key1 > ((STColumn *)key2)->colId) {
-    return 1;
-  } else if (*(int16_t *)key1 < ((STColumn *)key2)->colId) {
-    return -1;
-  } else {
-    return 0;
-  }
-}
-
-static FORCE_INLINE STColumn *tdGetColOfID(STSchema *pSchema, int16_t colId) {
-  void *ptr = bsearch(&colId, (void *)pSchema->columns, schemaNCols(pSchema), sizeof(STColumn), comparColId);
-  if (ptr == NULL) return NULL;
-  return (STColumn *)ptr;
-}
 
 // ----------------- SCHEMA BUILDER DEFINITION
 typedef struct {

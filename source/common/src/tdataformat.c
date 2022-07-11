@@ -1065,72 +1065,6 @@ _err:
 }
 
 #if 1  // ===================================================================================================================
-
-/**
- * Duplicate the schema and return a new object
- */
-STSchema *tdDupSchema(const STSchema *pSchema) {
-  int       tlen = sizeof(STSchema) + sizeof(STColumn) * schemaNCols(pSchema);
-  STSchema *tSchema = (STSchema *)taosMemoryMalloc(tlen);
-  if (tSchema == NULL) return NULL;
-
-  memcpy((void *)tSchema, (void *)pSchema, tlen);
-
-  return tSchema;
-}
-
-/**
- * Encode a schema to dst, and return the next pointer
- */
-int tdEncodeSchema(void **buf, STSchema *pSchema) {
-  int tlen = 0;
-  tlen += taosEncodeFixedI32(buf, schemaVersion(pSchema));
-  tlen += taosEncodeFixedI32(buf, schemaNCols(pSchema));
-
-  for (int i = 0; i < schemaNCols(pSchema); i++) {
-    STColumn *pCol = schemaColAt(pSchema, i);
-    tlen += taosEncodeFixedI8(buf, colType(pCol));
-    tlen += taosEncodeFixedI8(buf, colFlags(pCol));
-    tlen += taosEncodeFixedI16(buf, colColId(pCol));
-    tlen += taosEncodeFixedI16(buf, colBytes(pCol));
-  }
-
-  return tlen;
-}
-
-/**
- * Decode a schema from a binary.
- */
-void *tdDecodeSchema(void *buf, STSchema **pRSchema) {
-  int             version = 0;
-  int             numOfCols = 0;
-  STSchemaBuilder schemaBuilder;
-
-  buf = taosDecodeFixedI32(buf, &version);
-  buf = taosDecodeFixedI32(buf, &numOfCols);
-
-  if (tdInitTSchemaBuilder(&schemaBuilder, version) < 0) return NULL;
-
-  for (int i = 0; i < numOfCols; i++) {
-    col_type_t  type = 0;
-    int8_t      flags = 0;
-    col_id_t    colId = 0;
-    col_bytes_t bytes = 0;
-    buf = taosDecodeFixedI8(buf, &type);
-    buf = taosDecodeFixedI8(buf, &flags);
-    buf = taosDecodeFixedI16(buf, &colId);
-    buf = taosDecodeFixedI32(buf, &bytes);
-    if (tdAddColToSchema(&schemaBuilder, type, flags, colId, bytes) < 0) {
-      tdDestroyTSchemaBuilder(&schemaBuilder);
-      return NULL;
-    }
-  }
-
-  *pRSchema = tdGetSchemaFromBuilder(&schemaBuilder);
-  tdDestroyTSchemaBuilder(&schemaBuilder);
-  return buf;
-}
-
 int tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version) {
   if (pBuilder == NULL) return -1;
 
@@ -1167,22 +1101,22 @@ int32_t tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t flags, c
   }
 
   STColumn *pCol = &(pBuilder->columns[pBuilder->nCols]);
-  colSetType(pCol, type);
-  colSetColId(pCol, colId);
-  colSetFlags(pCol, flags);
+  pCol->type = type;
+  pCol->colId = colId;
+  pCol->flags = flags;
   if (pBuilder->nCols == 0) {
-    colSetOffset(pCol, 0);
+    pCol->offset = 0;
   } else {
     STColumn *pTCol = &(pBuilder->columns[pBuilder->nCols - 1]);
-    colSetOffset(pCol, pTCol->offset + TYPE_BYTES[pTCol->type]);
+    pCol->offset = pTCol->offset + TYPE_BYTES[pTCol->type];
   }
 
   if (IS_VAR_DATA_TYPE(type)) {
-    colSetBytes(pCol, bytes);
+    pCol->bytes = bytes;
     pBuilder->tlen += (TYPE_BYTES[type] + bytes);
     pBuilder->vlen += bytes - sizeof(VarDataLenT);
   } else {
-    colSetBytes(pCol, TYPE_BYTES[type]);
+    pCol->bytes = TYPE_BYTES[type];
     pBuilder->tlen += TYPE_BYTES[type];
     pBuilder->vlen += TYPE_BYTES[type];
   }
