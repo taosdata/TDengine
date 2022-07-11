@@ -15,11 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "mndConsumer.h"
-#include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndOffset.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndSubscribe.h"
@@ -435,17 +435,6 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
       goto SUBSCRIBE_OVER;
     }
 
-#if 0
-    // ref topic to prevent drop
-    // TODO make topic complete
-    SMqTopicObj topicObj = {0};
-    memcpy(&topicObj, pTopic, sizeof(SMqTopicObj));
-    topicObj.refConsumerCnt = pTopic->refConsumerCnt + 1;
-    mInfo("subscribe topic %s by consumer:%" PRId64 ",cgroup %s, refcnt %d", pTopic->name, consumerId, cgroup,
-          topicObj.refConsumerCnt);
-    if (mndSetTopicCommitLogs(pMnode, pTrans, &topicObj) != 0) goto SUBSCRIBE_OVER;
-#endif
-
     mndReleaseTopic(pMnode, pTopic);
   }
 
@@ -472,8 +461,8 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
     int32_t status = atomic_load_32(&pConsumerOld->status);
 
-    mInfo("receive subscribe request from old consumer:%" PRId64 ", current status: %s", consumerId,
-          mndConsumerStatusName(status));
+    mInfo("receive subscribe request from existing consumer:%" PRId64 ", current status: %s, subscribe topic num: %d",
+          consumerId, mndConsumerStatusName(status), newTopicNum);
 
     if (status != MQ_CONSUMER_STATUS__READY) {
       terrno = TSDB_CODE_MND_CONSUMER_NOT_READY;
@@ -849,11 +838,14 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
     pShow->pIter = sdbFetch(pSdb, SDB_CONSUMER, pShow->pIter, (void **)&pConsumer);
     if (pShow->pIter == NULL) break;
     if (taosArrayGetSize(pConsumer->assignedTopics) == 0) {
+      mDebug("showing consumer %ld no assigned topic, skip", pConsumer->consumerId);
       sdbRelease(pSdb, pConsumer);
       continue;
     }
 
     taosRLockLatch(&pConsumer->lock);
+
+    mDebug("showing consumer %ld", pConsumer->consumerId);
 
     int32_t topicSz = taosArrayGetSize(pConsumer->assignedTopics);
     bool    hasTopic = true;

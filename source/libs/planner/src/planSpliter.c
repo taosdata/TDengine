@@ -945,6 +945,7 @@ static int32_t stbSplSplitPartitionNode(SSplitContext* pCxt, SStableSplitInfo* p
     code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,
                                      (SNode*)splCreateScanSubplan(pCxt, pInfo->pSplitNode, SPLIT_FLAG_STABLE_SPLIT));
   }
+  pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
   ++(pCxt->groupId);
   return code;
 }

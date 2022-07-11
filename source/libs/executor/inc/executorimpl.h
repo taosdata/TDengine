@@ -466,11 +466,22 @@ typedef struct SIntervalAggOperatorInfo {
   SNode *pCondition;
 } SIntervalAggOperatorInfo;
 
+typedef struct SMergeAlignedIntervalAggOperatorInfo {
+  SIntervalAggOperatorInfo *intervalAggOperatorInfo;
+
+  bool         hasGroupId;
+  uint64_t     groupId;
+  SSDataBlock* prefetchedBlock;
+  bool         inputBlocksFinished;
+
+  SNode*       pCondition;
+} SMergeAlignedIntervalAggOperatorInfo;
+
 typedef struct SStreamFinalIntervalOperatorInfo {
   // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
   SOptrBasicInfo     binfo;              // basic info
   SAggSupporter      aggSup;             // aggregate supporter
-
+  SExprSupp          scalarSupp;         // supporter for perform scalar function
   SGroupResInfo      groupResInfo;       // multiple results build supporter
   SInterval          interval;           // interval info
   int32_t            primaryTsIndex;     // primary time stamp slot id from result of downstream operator.
@@ -543,6 +554,7 @@ typedef struct SFillOperatorInfo {
   bool              multigroupResult;
   STimeWindow       win;
   SNode*            pCondition;
+  SArray*           pColMatchColInfo;
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {
@@ -621,6 +633,7 @@ typedef struct SStateWindowInfo {
 typedef struct SStreamSessionAggOperatorInfo {
   SOptrBasicInfo       binfo;
   SStreamAggSupporter  streamAggSup;
+  SExprSupp            scalarSupp;         // supporter for perform scalar function
   SGroupResInfo        groupResInfo;
   int64_t              gap;             // session window gap
   int32_t              primaryTsIndex;  // primary timestamp slot id
@@ -671,11 +684,12 @@ typedef struct SStateWindowOperatorInfo {
 typedef struct SStreamStateAggOperatorInfo {
   SOptrBasicInfo       binfo;
   SStreamAggSupporter  streamAggSup;
+  SExprSupp            scalarSupp;      // supporter for perform scalar function
   SGroupResInfo        groupResInfo;
   int32_t              primaryTsIndex;  // primary timestamp slot id
   int32_t              order;           // current SSDataBlock scan order
   STimeWindowAggSupp   twAggSup;
-  SColumn              stateCol;  // start row index
+  SColumn              stateCol;
   SqlFunctionCtx*      pDummyCtx;       // for combine
   SSDataBlock*         pDelRes;
   SHashObj*            pSeDeleted;

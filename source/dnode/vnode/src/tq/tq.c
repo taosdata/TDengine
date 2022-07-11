@@ -512,9 +512,6 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
       pHandle->execHandle.execDb.pFilterOutTbUid =
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
-      for (int32_t i = 0; i < 5; i++) {
-        pHandle->execHandle.pExecReader[i] = tqOpenReader(pTq->pVnode);
-      }
       pHandle->execHandle.execTb.suid = req.suid;
       SArray* tbUidList = taosArrayInit(0, sizeof(int64_t));
       vnodeGetCtbIdList(pTq->pVnode, req.suid, tbUidList);
@@ -524,6 +521,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
         tqDebug("vgId:%d, idx %d, uid:%" PRId64, TD_VID(pTq->pVnode), i, tbUid);
       }
       for (int32_t i = 0; i < 5; i++) {
+        pHandle->execHandle.pExecReader[i] = tqOpenReader(pTq->pVnode);
         tqReaderSetTbUidList(pHandle->execHandle.pExecReader[i], tbUidList);
       }
       taosArrayDestroy(tbUidList);
