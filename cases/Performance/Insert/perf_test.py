@@ -248,7 +248,7 @@ class TestPerf(TDCase):
         if self.ret != True:
             return self.ret
 
-        # TODO analyze result
+        # analyze result
         time_elapsed = 0.0
         insert_rows = 0
         total_threads = 0
@@ -300,7 +300,21 @@ class TestPerf(TDCase):
                     self.logger.error("key word insert row not found in {local_result_file}")
                     self.ret = False
         if self.ret:
-            os.system(f"echo @@##@@##  time spent: {time_elapsed}, insert rows: {insert_rows}, total threads: {total_threads}, insert speed: {insert_speed}")
+            taosd_count = len(taosd_nodes)
+            vgroups = 0
+            insert_mode = ""
+            insert_json_file = self.json_config_files[0]
+            # get VGROUPS, INSERT MODE
+            # load taosBenchmark json
+            benchmark_config = dict()
+            with open(insert_json_file, 'r') as file: 
+                benchmark_config = json.load(file)
+            db = benchmark_config["databases"][0]
+            vgroups = db["dbinfo"]["vgroups"]
+            stb = db["super_tables"][0]
+            insert_mode = stb["insert_mode"]
+            self.logger.debug("vgroups: {}, insert mode:".format(vgroups, insert_mode))
+            os.system(f"echo @@##@@##  time spent: {time_elapsed}, insert rows: {insert_rows}, total threads: {total_threads}, insert speed: {insert_speed}, taosd count: {taosd_count}, vgroups: {vgroups}, insert mode: {insert_mode}")
         return self.ret
 
     def get_number_after(self, line, keyword):

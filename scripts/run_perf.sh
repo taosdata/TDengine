@@ -138,43 +138,31 @@ while [ 1 ]; do
 done
 
 result=""
-function get_number_after() {
+function get_field() {
     result=""
     local line="$1"
     local keyword="$2"
-    local info=`echo "$line"|grep -o "${keyword}.*"|sed "s/^${keyword}//"|awk '{print $1}'|grep -o "[0-9.]*"`
+    local info=`echo "$line"|grep -o "${keyword}.*"|sed "s/^${keyword}//"|awk -F, '{print $1}'|sed "s/^\s*//"|sed "s/\s*$//"`
     result="$info"
-}
-function get_number_before() {
-    result=""
-    local line="$1"
-    local keyword="$2"
-    local info=`echo "$line"|grep -o ".*${keyword}"|sed "s/${keyword}\$//"|awk '{print $NF}'|grep -o "[0-9.]*"`
-    result="$info"
-}
-function parse_perf_create_tables() {
-    local line="$1"
-    get_number_after "$line" "Spent"
-    local time_elapsed="$result"
-    get_number_after "$line" "create"
-    local create_tables="$result"
-    get_number_before "$line" "thread(s)"
-    local threads="$result"
-    printf "%-16s %-16s %-12s\n" "time(seconds)" "create tables" "threads"
-    printf "%-16s %-16s %-12s\n" $time_elapsed $create_tables $threads
 }
 function parse_perf_insert_rows() {
     local line="$1"
-    get_number_after "$line" "time spent:"
+    get_field "$line" "time spent:"
     local time_elapsed="$result"
-    get_number_after "$line" "insert rows:"
+    get_field "$line" "insert rows:"
     local insert_rows="$result"
-    get_number_after "$line" "total threads:"
+    get_field "$line" "total threads:"
     local threads="$result"
-    get_number_after "$line" "insert speed:"
+    get_field "$line" "insert speed:"
     local speed="$result"
-    printf "%-16s %-16s %-12s %-16s\n" "time(seconds)" "insert rows" "threads" "speed(records/second)"
-    printf "%-16s %-16s %-12s %-16s\n" $time_elapsed $insert_rows $threads $speed
+    get_field "$line" "taosd count:"
+    local taosd_count="$result"
+    get_field "$line" "vgroups:"
+    local vgroups="$result"
+    get_field "$line" "insert mode:"
+    local insert_mode="$result"
+    printf "%-16s %-12s %-16s %-16s %-16s %-12s %-16s\n" "taosd count" "vgroups" "insert mode" "time(seconds)" "insert rows" "threads" "speed(records/second)"
+    printf "%-16s %-12s %-16s %-16s %-16s %-12s %-16s\n" "$taosd_count" "$vgroups" "$insert_mode" "$time_elapsed" "$insert_rows" "$threads" "$speed"
 }
 function parse_perf() {
     local file="$1"
