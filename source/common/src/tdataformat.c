@@ -175,7 +175,8 @@ static void setBitMap(uint8_t *pb, uint8_t v, int32_t idx, uint8_t flags) {
   } while (0)
 
 int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow) {
-  int32_t   code = 0;
+  int32_t code = 0;
+#if 0
   STColumn *pTColumn;
   SColVal  *pColVal;
   int32_t   nColVal = taosArrayGetSize(pArray);
@@ -462,30 +463,22 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
     }
   }
 
+#endif
 _exit:
   return code;
 }
 
 int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow) {
   int32_t code = 0;
+  int32_t rLen;
 
-  (*ppRow) = (STSRow2 *)taosMemoryMalloc(sizeof(**ppRow));
+  TSROW_LEN(pRow, rLen);
+  (*ppRow) = (STSRow2 *)taosMemoryMalloc(rLen);
   if (*ppRow == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  **ppRow = *pRow;
-  (*ppRow)->pData = NULL;
-
-  if (pRow->nData) {
-    (*ppRow)->pData = taosMemoryMalloc(pRow->nData);
-    if ((*ppRow)->pData == NULL) {
-      taosMemoryFree(*ppRow);
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
-    memcpy((*ppRow)->pData, pRow->pData, pRow->nData);
-  }
+  memcpy(*ppRow, pRow, rLen);
 
 _exit:
   return code;
@@ -493,12 +486,12 @@ _exit:
 
 void tTSRowFree(STSRow2 *pRow) {
   if (pRow) {
-    if (pRow->pData) taosMemoryFree(pRow->pData);
     taosMemoryFree(pRow);
   }
 }
 
 void tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
+#if 0
   uint8_t   isTuple = ((pRow->flags & 0xf0) == 0) ? 1 : 0;
   STColumn *pTColumn = &pTSchema->columns[iCol];
   uint8_t   flags = pRow->flags & (uint8_t)0xf;
@@ -643,10 +636,12 @@ _return_null:
 _return_value:
   *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, value);
   return;
+#endif
 }
 
 int32_t tTSRowToArray(STSRow2 *pRow, STSchema *pTSchema, SArray **ppArray) {
   int32_t code = 0;
+#if 0
   SColVal cv;
 
   (*ppArray) = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
@@ -660,52 +655,27 @@ int32_t tTSRowToArray(STSRow2 *pRow, STSchema *pTSchema, SArray **ppArray) {
     taosArrayPush(*ppArray, &cv);
   }
 
+#endif
 _exit:
   return code;
 }
 
 int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow) {
-  int32_t n = 0;
+  int32_t n;
 
-  n += tPutI64(p ? p + n : p, pRow->ts);
-  n += tPutI8(p ? p + n : p, pRow->flags);
-  n += tPutI32v(p ? p + n : p, pRow->sver);
-
-  ASSERT(pRow->flags & 0xf);
-
-  switch (pRow->flags & 0xf) {
-    case TSROW_HAS_NONE:
-    case TSROW_HAS_NULL:
-      ASSERT(pRow->nData == 0);
-      ASSERT(pRow->pData == NULL);
-      break;
-    default:
-      ASSERT(pRow->nData && pRow->pData);
-      n += tPutBinary(p ? p + n : p, pRow->pData, pRow->nData);
-      break;
+  TSROW_LEN(pRow, n);
+  if (p) {
+    memcpy(p, pRow, n);
   }
 
   return n;
 }
 
-int32_t tGetTSRow(uint8_t *p, STSRow2 *pRow) {
-  int32_t n = 0;
+int32_t tGetTSRow(uint8_t *p, STSRow2 **ppRow) {
+  int32_t n;
 
-  n += tGetI64(p + n, &pRow->ts);
-  n += tGetI8(p + n, &pRow->flags);
-  n += tGetI32v(p + n, &pRow->sver);
-
-  ASSERT(pRow->flags);
-  switch (pRow->flags & 0xf) {
-    case TSROW_HAS_NONE:
-    case TSROW_HAS_NULL:
-      pRow->nData = 0;
-      pRow->pData = NULL;
-      break;
-    default:
-      n += tGetBinary(p + n, &pRow->pData, &pRow->nData);
-      break;
-  }
+  *ppRow = (STSRow2 *)p;
+  TSROW_LEN(*ppRow, n);
 
   return n;
 }
@@ -904,15 +874,13 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
   return n;
 }
 
-bool tTagIsJson(const void *pTag){
-  return (((const STag *)pTag)->flags & TD_TAG_JSON);
-}
+bool tTagIsJson(const void *pTag) { return (((const STag *)pTag)->flags & TD_TAG_JSON); }
 
-bool tTagIsJsonNull(void *data){
-  STag *pTag = (STag*)data;
-  int8_t   isJson = tTagIsJson(pTag);
-  if(!isJson) return false;
-  return ((STag*)data)->nTag == 0;
+bool tTagIsJsonNull(void *data) {
+  STag  *pTag = (STag *)data;
+  int8_t isJson = tTagIsJson(pTag);
+  if (!isJson) return false;
+  return ((STag *)data)->nTag == 0;
 }
 
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
@@ -1097,46 +1065,6 @@ _err:
 }
 
 #if 1  // ===================================================================================================================
-static void dataColSetNEleNull(SDataCol *pCol, int nEle);
-int         tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
-          int spaceNeeded = pCol->bytes * maxPoints;
-          if (IS_VAR_DATA_TYPE(pCol->type)) {
-            spaceNeeded += sizeof(VarDataOffsetT) * maxPoints;
-  }
-#ifdef TD_SUPPORT_BITMAP
-  int32_t nBitmapBytes = (int32_t)TD_BITMAP_BYTES(maxPoints);
-  spaceNeeded += (int)nBitmapBytes;
-  // TODO: Currently, the compression of bitmap parts is affiliated to the column data parts, thus allocate 1 more
-  // TYPE_BYTES as to comprise complete TYPE_BYTES. Otherwise, invalid read/write would be triggered.
-  // spaceNeeded += TYPE_BYTES[pCol->type]; // the bitmap part is append as a single part since 2022.04.03, thus
-  // remove the additional space
-#endif
-
-  if (pCol->spaceSize < spaceNeeded) {
-    void *ptr = taosMemoryRealloc(pCol->pData, spaceNeeded);
-    if (ptr == NULL) {
-      uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)spaceNeeded, strerror(errno));
-      return -1;
-    } else {
-      pCol->pData = ptr;
-      pCol->spaceSize = spaceNeeded;
-    }
-  }
-#ifdef TD_SUPPORT_BITMAP
-
-  if (IS_VAR_DATA_TYPE(pCol->type)) {
-    pCol->pBitmap = POINTER_SHIFT(pCol->pData, pCol->bytes * maxPoints);
-    pCol->dataOff = POINTER_SHIFT(pCol->pBitmap, nBitmapBytes);
-  } else {
-    pCol->pBitmap = POINTER_SHIFT(pCol->pData, pCol->bytes * maxPoints);
-  }
-#else
-  if (IS_VAR_DATA_TYPE(pCol->type)) {
-    pCol->dataOff = POINTER_SHIFT(pCol->pData, pCol->bytes * maxPoints);
-  }
-#endif
-  return 0;
-}
 
 /**
  * Duplicate the schema and return a new object
@@ -1288,138 +1216,6 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
   memcpy(schemaColAt(pSchema, 0), pBuilder->columns, sizeof(STColumn) * pBuilder->nCols);
 
   return pSchema;
-}
-
-void dataColInit(SDataCol *pDataCol, STColumn *pCol, int maxPoints) {
-  pDataCol->type = colType(pCol);
-  pDataCol->colId = colColId(pCol);
-  pDataCol->bytes = colBytes(pCol);
-  pDataCol->offset = colOffset(pCol) + 0;  // TD_DATA_ROW_HEAD_SIZE;
-
-  pDataCol->len = 0;
-}
-
-static FORCE_INLINE const void *tdGetColDataOfRowUnsafe(SDataCol *pCol, int row) {
-  if (IS_VAR_DATA_TYPE(pCol->type)) {
-    return POINTER_SHIFT(pCol->pData, pCol->dataOff[row]);
-  } else {
-    return POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * row);
-  }
-}
-
-bool isNEleNull(SDataCol *pCol, int nEle) {
-  if (isAllRowsNull(pCol)) return true;
-  for (int i = 0; i < nEle; ++i) {
-    if (!isNull(tdGetColDataOfRowUnsafe(pCol, i), pCol->type)) return false;
-  }
-  return true;
-}
-
-void *dataColSetOffset(SDataCol *pCol, int nEle) {
-  ASSERT(((pCol->type == TSDB_DATA_TYPE_BINARY) || (pCol->type == TSDB_DATA_TYPE_NCHAR)));
-
-  void *tptr = pCol->pData;
-  // char *tptr = (char *)(pCol->pData);
-
-  VarDataOffsetT offset = 0;
-  for (int i = 0; i < nEle; ++i) {
-    pCol->dataOff[i] = offset;
-    offset += varDataTLen(tptr);
-    tptr = POINTER_SHIFT(tptr, varDataTLen(tptr));
-  }
-  return POINTER_SHIFT(tptr, varDataTLen(tptr));
-}
-
-SDataCols *tdNewDataCols(int maxCols, int maxRows) {
-  SDataCols *pCols = (SDataCols *)taosMemoryCalloc(1, sizeof(SDataCols));
-  if (pCols == NULL) {
-    uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)sizeof(SDataCols), strerror(errno));
-    return NULL;
-  }
-
-  pCols->maxPoints = maxRows;
-  pCols->maxCols = maxCols;
-  pCols->numOfRows = 0;
-  pCols->numOfCols = 0;
-  pCols->bitmapMode = TSDB_BITMODE_DEFAULT;
-
-  if (maxCols > 0) {
-    pCols->cols = (SDataCol *)taosMemoryCalloc(maxCols, sizeof(SDataCol));
-    if (pCols->cols == NULL) {
-      uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)sizeof(SDataCol) * maxCols,
-             strerror(errno));
-      tdFreeDataCols(pCols);
-      return NULL;
-    }
-#if 0  // no need as calloc used
-    int i;
-    for (i = 0; i < maxCols; i++) {
-      pCols->cols[i].spaceSize = 0;
-      pCols->cols[i].len = 0;
-      pCols->cols[i].pData = NULL;
-      pCols->cols[i].dataOff = NULL;
-    }
-#endif
-  }
-
-  return pCols;
-}
-
-int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
-  int i;
-  int oldMaxCols = pCols->maxCols;
-  if (schemaNCols(pSchema) > oldMaxCols) {
-    pCols->maxCols = schemaNCols(pSchema);
-    void *ptr = (SDataCol *)taosMemoryRealloc(pCols->cols, sizeof(SDataCol) * pCols->maxCols);
-    if (ptr == NULL) return -1;
-    pCols->cols = ptr;
-    for (i = oldMaxCols; i < pCols->maxCols; ++i) {
-      pCols->cols[i].pData = NULL;
-      pCols->cols[i].dataOff = NULL;
-      pCols->cols[i].pBitmap = NULL;
-      pCols->cols[i].spaceSize = 0;
-    }
-  }
-#if 0
-  tdResetDataCols(pCols); // redundant loop to reset len/blen to 0, already reset in following dataColInit(...)
-#endif
-
-  pCols->numOfRows = 0;
-  pCols->bitmapMode = TSDB_BITMODE_DEFAULT;
-  pCols->numOfCols = schemaNCols(pSchema);
-
-  for (i = 0; i < schemaNCols(pSchema); ++i) {
-    dataColInit(pCols->cols + i, schemaColAt(pSchema, i), pCols->maxPoints);
-  }
-
-  return 0;
-}
-
-SDataCols *tdFreeDataCols(SDataCols *pCols) {
-  int i;
-  if (pCols) {
-    if (pCols->cols) {
-      int maxCols = pCols->maxCols;
-      for (i = 0; i < maxCols; ++i) {
-        SDataCol *pCol = &pCols->cols[i];
-        taosMemoryFreeClear(pCol->pData);
-      }
-      taosMemoryFree(pCols->cols);
-      pCols->cols = NULL;
-    }
-    taosMemoryFree(pCols);
-  }
-  return NULL;
-}
-
-void tdResetDataCols(SDataCols *pCols) {
-  if (pCols != NULL) {
-    pCols->numOfRows = 0;
-    pCols->bitmapMode = 0;
-    for (int i = 0; i < pCols->maxCols; ++i) {
-      dataColReset(pCols->cols + i);
-    }
-  }
 }
 
 #endif
