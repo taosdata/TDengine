@@ -360,15 +360,15 @@ class TDTestCase:
         tdSql.checkRows(229)
         tdSql.checkData(0,0,0)
         tdSql.query("select diff(c1) from stb1 partition by tbname ")
-        tdSql.checkRows(199)
+        tdSql.checkRows(190)
         # tdSql.query("select diff(st1) from stb1 partition by tbname")
         # tdSql.checkRows(229)
         tdSql.query("select diff(st1+c1) from stb1 partition by tbname")
-        tdSql.checkRows(199)
+        tdSql.checkRows(190)
         tdSql.query("select diff(st1+c1) from stb1 partition by tbname")
-        tdSql.checkRows(199)
+        tdSql.checkRows(190)
         tdSql.query("select diff(st1+c1) from stb1 partition by tbname")
-        tdSql.checkRows(199)
+        tdSql.checkRows(190)
 
         # # bug need fix 
         # tdSql.query("select diff(st1+c1) from stb1 partition by tbname slimit 1 ")
@@ -378,7 +378,7 @@ class TDTestCase:
 
         # bug need fix 
         tdSql.query("select diff(st1+c1) from stb1 partition by tbname")
-        tdSql.checkRows(199)        
+        tdSql.checkRows(190)
 
         # bug need fix 
         # tdSql.query("select tbname , diff(c1) from stb1 partition by tbname")

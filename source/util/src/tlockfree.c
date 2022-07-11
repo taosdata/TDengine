@@ -17,8 +17,10 @@
 #include "tlockfree.h"
 
 #define TD_RWLATCH_WRITE_FLAG 0x40000000
+#define TD_RWLATCH_REENTRANT_FLAG 0x4000000000000000
 
 void taosInitRWLatch(SRWLatch *pLatch) { *pLatch = 0; }
+void taosInitReentrantRWLatch(SRWLatch *pLatch) { *pLatch = TD_RWLATCH_REENTRANT_FLAG; }
 
 void taosWLockLatch(SRWLatch *pLatch) {
   SRWLatch oLatch, nLatch;
@@ -26,8 +28,14 @@ void taosWLockLatch(SRWLatch *pLatch) {
 
   // Set write flag
   while (1) {
-    oLatch = atomic_load_32(pLatch);
+    oLatch = atomic_load_64(pLatch);
     if (oLatch & TD_RWLATCH_WRITE_FLAG) {
+      if (oLatch & TD_RWLATCH_REENTRANT_FLAG) {
+        nLatch = (((oLatch >> 32) + 1) << 32) | (oLatch & 0xFFFFFFFF);
+        if (atomic_val_compare_exchange_64(pLatch, oLatch, nLatch) == oLatch) break;
+
+        continue;
+      }
       nLoops++;
       if (nLoops > 1000) {
         sched_yield();
@@ -37,14 +45,14 @@ void taosWLockLatch(SRWLatch *pLatch) {
     }
 
     nLatch = oLatch | TD_RWLATCH_WRITE_FLAG;
-    if (atomic_val_compare_exchange_32(pLatch, oLatch, nLatch) == oLatch) break;
+    if (atomic_val_compare_exchange_64(pLatch, oLatch, nLatch) == oLatch) break;
   }
 
   // wait for all reads end
   nLoops = 0;
   while (1) {
-    oLatch = atomic_load_32(pLatch);
-    if (oLatch == TD_RWLATCH_WRITE_FLAG) break;
+    oLatch = atomic_load_64(pLatch);
+    if (0 == (oLatch & 0xFFFFFFF)) break;
     nLoops++;
     if (nLoops > 1000) {
       sched_yield();
@@ -53,29 +61,50 @@ void taosWLockLatch(SRWLatch *pLatch) {
   }
 }
 
+// no reentrant
 int32_t taosWTryLockLatch(SRWLatch *pLatch) {
   SRWLatch oLatch, nLatch;
-  oLatch = atomic_load_32(pLatch);
-  if (oLatch) {
+  oLatch = atomic_load_64(pLatch);
+  if (oLatch << 2) {
     return -1;
   }
 
   nLatch = oLatch | TD_RWLATCH_WRITE_FLAG;
-  if (atomic_val_compare_exchange_32(pLatch, oLatch, nLatch) == oLatch) {
+  if (atomic_val_compare_exchange_64(pLatch, oLatch, nLatch) == oLatch) {
     return 0;
   }
 
   return -1;
 }
 
-void taosWUnLockLatch(SRWLatch *pLatch) { atomic_store_32(pLatch, 0); }
+void taosWUnLockLatch(SRWLatch *pLatch) { 
+  SRWLatch oLatch, nLatch, wLatch;
+
+  while (1) {  
+    oLatch = atomic_load_64(pLatch);
+    
+    if (0 == (oLatch & TD_RWLATCH_REENTRANT_FLAG)) {
+      atomic_store_64(pLatch, 0); 
+      break;
+    }
+
+    wLatch = ((oLatch << 2) >> 34);
+    if (wLatch) {
+      nLatch = ((--wLatch) << 32) | TD_RWLATCH_REENTRANT_FLAG | TD_RWLATCH_WRITE_FLAG;
+    } else {
+      nLatch = TD_RWLATCH_REENTRANT_FLAG;
+    }
+
+    if (atomic_val_compare_exchange_64(pLatch, oLatch, nLatch) == oLatch) break;
+  }
+}
 
 void taosRLockLatch(SRWLatch *pLatch) {
   SRWLatch oLatch, nLatch;
   int32_t  nLoops = 0;
 
   while (1) {
-    oLatch = atomic_load_32(pLatch);
+    oLatch = atomic_load_64(pLatch);
     if (oLatch & TD_RWLATCH_WRITE_FLAG) {
       nLoops++;
       if (nLoops > 1000) {
@@ -86,8 +115,8 @@ void taosRLockLatch(SRWLatch *pLatch) {
     }
 
     nLatch = oLatch + 1;
-    if (atomic_val_compare_exchange_32(pLatch, oLatch, nLatch) == oLatch) break;
+    if (atomic_val_compare_exchange_64(pLatch, oLatch, nLatch) == oLatch) break;
   }
 }
 
-void taosRUnLockLatch(SRWLatch *pLatch) { atomic_fetch_sub_32(pLatch, 1); }
+void taosRUnLockLatch(SRWLatch *pLatch) { atomic_fetch_sub_64(pLatch, 1); }
