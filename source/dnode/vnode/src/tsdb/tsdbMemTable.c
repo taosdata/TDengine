@@ -561,7 +561,7 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
     }
   }
 
-  tsdbCacheInsertLast(pMemTable->pTsdb->lruCache, pTbData->uid, pLastRow);
+  tsdbCacheInsertLast(pMemTable->pTsdb->lruCache, pTbData->uid, pLastRow, pMemTable->pTsdb);
 
   pTbData->minVersion = TMIN(pTbData->minVersion, version);
   pTbData->maxVersion = TMAX(pTbData->maxVersion, version);

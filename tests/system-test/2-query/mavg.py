@@ -678,15 +678,15 @@ class TDTestCase:
         tdSql.checkRows(68)
         tdSql.checkData(0,0,1.000000000)
         tdSql.query("select mavg(c1,3) from stb1 partition by tbname ")
-        tdSql.checkRows(38)
+        tdSql.checkRows(20)
         # tdSql.query("select mavg(st1,3) from stb1 partition by tbname")
         # tdSql.checkRows(38)
         tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname")
-        tdSql.checkRows(38)
+        tdSql.checkRows(20)
         tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname")
-        tdSql.checkRows(38)
+        tdSql.checkRows(20)
         tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname")
-        tdSql.checkRows(38)
+        tdSql.checkRows(20)
 
         # # bug need fix 
         # tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname slimit 1 ")
@@ -696,7 +696,7 @@ class TDTestCase:
 
         # bug need fix 
         tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname")
-        tdSql.checkRows(38)        
+        tdSql.checkRows(20)
 
         # bug need fix 
         # tdSql.query("select tbname , mavg(c1,3) from stb1 partition by tbname")

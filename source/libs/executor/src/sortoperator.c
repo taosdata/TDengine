@@ -217,6 +217,7 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
       doSetOperatorCompleted(pOperator);
       break;
     }
+
     if (blockDataGetNumOfRows(pBlock) > 0) {
       break;
     }
@@ -601,8 +602,7 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
       break;
     }
 
-    if (pInfo->groupSort)
-    {
+    if (pInfo->groupSort) {
       uint64_t tupleGroupId = tsortGetGroupId(pTupleHandle);
       if (!pInfo->hasGroupId) {
         pInfo->groupId = tupleGroupId;
