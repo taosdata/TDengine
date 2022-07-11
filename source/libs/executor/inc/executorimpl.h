@@ -555,6 +555,7 @@ typedef struct SFillOperatorInfo {
   STimeWindow       win;
   SNode*            pCondition;
   SArray*           pColMatchColInfo;
+  int32_t           primaryTsCol;
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {
