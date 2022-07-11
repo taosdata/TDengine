@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dnode.h"
 #include "machine.h"
+#include "mndCluster.h"
 #include "mndDb.h"
 #include "mndDef.h"
 #include "mndDnode.h"
@@ -319,7 +320,6 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
 
 int32_t mndInitGrant(SMnode *pMnode) {
   tsGrantHBInterval = GRANT_CHECK_INTERVAL;
-  grantReset(TSDB_GRANT_ALL, 0);
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
@@ -351,46 +351,14 @@ static char *grantSecondsToString(uint32_t seconds) {
   return ts;
 }
 
-static uint32_t grantGetClusterCreateTime() {
-  void      *pIter = NULL;
-  SDnodeObj *pDnode = NULL;
-  SAcctObj  *pAcct = NULL;
-  SUserObj  *pUser = NULL;
-  SDbObj    *pDb = NULL;
-
+static uint32_t grantGetClusterCreateTime(SMnode *pMnode) {
   int64_t createTime = (int64_t)taosGetTimestampMs();
-#if 0
-  while (1) {
-    pIter = mnodeGetNextDnode(pIter, &pDnode);
-    if (pDnode == NULL) break;
-    createTime = createTime < pDnode->createdTime ? createTime : pDnode->createdTime;
-    mnodeDecDnodeRef(pDnode);
-  }
-  pIter = NULL;
+  int64_t clusterTime = mndGetClusterCreateTime(pMnode);
 
-  while (1) {
-    pIter = mnodeGetNextAcct(pIter, &pAcct);
-    if (pAcct == NULL) break;
-    createTime = createTime < pAcct->createdTime ? createTime : pAcct->createdTime;
-    mnodeDecAcctRef(pAcct);
+  if (clusterTime < createTime) {
+    createTime = clusterTime;
   }
-  pIter = NULL;
 
-  while (1) {
-    pIter = mnodeGetNextUser(pIter, &pUser);
-    if (pUser == NULL) break;
-    createTime = createTime < pUser->createdTime ? createTime : pUser->createdTime;
-    mnodeDecUserRef(pUser);
-  }
-  pIter = NULL;
-
-  while (1) {
-    pIter = mnodeGetNextDb(pIter, &pDb);
-    if (pDb == NULL) break;
-    createTime = createTime < pDb->createdTime ? createTime : pDb->createdTime;
-    mnodeDecDbRef(pDb);
-  }
-#endif
   return (uint32_t)(createTime / 1000);
 }
 
@@ -480,9 +448,9 @@ static uint32_t grantGetClusterCurDnodes() {
   return numOfDnodes;
 }
 
-static void grantResetMaster() {
+static void grantResetMaster(SMnode *pMnode) {
   uint32_t curTime = taosGetTimestampSec();
-  uint32_t clusterCreateTime = grantGetClusterCreateTime();
+  uint32_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
 
   grantStatus.expireTimeSec = clusterCreateTime + GRANT_DEFAULT;
   grantStatus.expireTimeSec = grantStatus.expireTimeSec > curTime ? grantStatus.expireTimeSec : curTime;
@@ -502,10 +470,10 @@ static void grantResetMaster() {
   taosMemoryFree(ts);
 }
 
-void grantReset(EGrantType grant, uint64_t value) {
+void grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {
   switch (grant) {
     case TSDB_GRANT_ALL:
-      grantResetMaster();
+      grantResetMaster(pMnode);
       break;
     case TSDB_GRANT_STORAGE:
       grantStatus.curStorage = value;

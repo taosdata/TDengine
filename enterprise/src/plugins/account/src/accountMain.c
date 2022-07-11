@@ -84,7 +84,7 @@ static void acctDoStatistic(void *handle, void *tmrId) {
       mnodeDecAcctRef(pAcct);
     }
 
-    grantReset(TSDB_GRANT_STORAGE, (uint64_t)totalStorage);
+    grantReset(NULL, TSDB_GRANT_STORAGE, (uint64_t)totalStorage);
     taosReleaseRef(tsSdbRid, tsAcctRid);
   }
 
