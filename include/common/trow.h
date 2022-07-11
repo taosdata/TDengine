@@ -168,7 +168,7 @@ typedef struct {
 
 // N.B. If without STSchema, getExtendedRowSize() is used to get the rowMaxBytes and
 // (int32_t)ceil((double)nCols/TD_VTYPE_PARTS) should be added if TD_SUPPORT_BITMAP defined.
-#define TD_ROW_MAX_BYTES_FROM_SCHEMA(s) (schemaTLen(s) + TD_ROW_HEAD_LEN)
+#define TD_ROW_MAX_BYTES_FROM_SCHEMA(s) ((s)->tlen + TD_ROW_HEAD_LEN)
 
 #define TD_ROW_SET_INFO(r, i)  (TD_ROW_INFO(r) = (i))
 #define TD_ROW_SET_TYPE(r, t)  (TD_ROW_TYPE(r) = (t))

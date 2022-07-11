@@ -286,7 +286,7 @@ int32_t debugPrintSColVal(SColVal *cv, int8_t type) {
 
 void debugPrintTSRow(STSRow2 *row, STSchema *pTSchema, const char *tags, int32_t ln) {
   printf("%s:%d %s:v%d:%d ", tags, ln, (row->flags & 0xf0) ? "KV" : "TP", row->sver, row->nData);
-  for (int16_t i = 0; i < schemaNCols(pTSchema); ++i) {
+  for (int16_t i = 0; i < pTSchema->numOfCols; ++i) {
     SColVal cv = {0};
     tTSRowGet(row, pTSchema, i, &cv);
     debugPrintSColVal(&cv, pTSchema->columns[i].type);
@@ -393,7 +393,7 @@ static int32_t checkSColVal(const char *rawVal, SColVal *cv, int8_t type) {
 }
 
 static void checkTSRow(const char **data, STSRow2 *row, STSchema *pTSchema) {
-  for (int16_t i = 0; i < schemaNCols(pTSchema); ++i) {
+  for (int16_t i = 0; i < pTSchema->numOfCols; ++i) {
     SColVal cv = {0};
     tTSRowGet(row, pTSchema, i, &cv);
     checkSColVal(data[i], &cv, pTSchema->columns[i].type);

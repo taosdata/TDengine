@@ -1137,17 +1137,17 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
   STSchema *pSchema = (STSchema *)taosMemoryMalloc(tlen);
   if (pSchema == NULL) return NULL;
 
-  schemaVersion(pSchema) = pBuilder->version;
-  schemaNCols(pSchema) = pBuilder->nCols;
-  schemaTLen(pSchema) = pBuilder->tlen;
-  schemaFLen(pSchema) = pBuilder->flen;
-  schemaVLen(pSchema) = pBuilder->vlen;
+  pSchema->version = pBuilder->version;
+  pSchema->numOfCols = pBuilder->nCols;
+  pSchema->tlen = pBuilder->tlen;
+  pSchema->flen = pBuilder->flen;
+  pSchema->vlen = pBuilder->vlen;
 
 #ifdef TD_SUPPORT_BITMAP
-  schemaTLen(pSchema) += (int)TD_BITMAP_BYTES(schemaNCols(pSchema));
+  pSchema->tlen += (int)TD_BITMAP_BYTES(pSchema->numOfCols);
 #endif
 
-  memcpy(schemaColAt(pSchema, 0), pBuilder->columns, sizeof(STColumn) * pBuilder->nCols);
+  memcpy(&pSchema->columns[0], pBuilder->columns, sizeof(STColumn) * pBuilder->nCols);
 
   return pSchema;
 }

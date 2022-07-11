@@ -230,16 +230,6 @@ struct STag {
     memcpy(varDataVal(x), (str), (_size));      \
   } while (0);
 
-// ----------------- TSDB SCHEMA DEFINITION
-
-#define schemaNCols(s)    ((s)->numOfCols)
-#define schemaVersion(s)  ((s)->version)
-#define schemaTLen(s)     ((s)->tlen)
-#define schemaFLen(s)     ((s)->flen)
-#define schemaVLen(s)     ((s)->vlen)
-#define schemaColAt(s, i) ((s)->columns + i)
-#define tdFreeSchema(s)   taosMemoryFreeClear((s))
-
 // ----------------- SCHEMA BUILDER DEFINITION
 typedef struct {
   int32_t      tCols;
