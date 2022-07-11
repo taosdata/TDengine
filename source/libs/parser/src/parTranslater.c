@@ -4017,8 +4017,15 @@ static int32_t buildCreateSmaReq(STranslateContext* pCxt, SCreateIndexStmt* pStm
       (NULL != pStmt->pOptions->pSliding ? ((SValueNode*)pStmt->pOptions->pSliding)->unit : pReq->intervalUnit);
   if (NULL != pStmt->pOptions->pStreamOptions) {
     SStreamOptions* pStreamOpt = (SStreamOptions*)pStmt->pOptions->pStreamOptions;
-    pReq->maxDelay = (NULL != pStreamOpt->pDelay ? ((SValueNode*)pStreamOpt->pDelay)->datum.i : 0);
-    pReq->watermark = (NULL != pStreamOpt->pWatermark ? ((SValueNode*)pStreamOpt->pWatermark)->datum.i : 0);
+    pReq->maxDelay = (NULL != pStreamOpt->pDelay ? ((SValueNode*)pStreamOpt->pDelay)->datum.i : -1);
+    pReq->watermark = (NULL != pStreamOpt->pWatermark ? ((SValueNode*)pStreamOpt->pWatermark)->datum.i
+                                                      : TSDB_DEFAULT_ROLLUP_WATERMARK);
+    if (pReq->watermark < TSDB_MIN_ROLLUP_WATERMARK) {
+      pReq->watermark = TSDB_MIN_ROLLUP_WATERMARK;
+    }
+    if (pReq->watermark > TSDB_MAX_ROLLUP_WATERMARK) {
+      pReq->watermark = TSDB_MAX_ROLLUP_WATERMARK;
+    }
   }
 
   int32_t code = getSmaIndexDstVgId(pCxt, pStmt->tableName, &pReq->dstVgId);
