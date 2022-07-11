@@ -1473,12 +1473,16 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     tsem_wait(&pParam->sem);
   }
 
-  if (pRequest->code == TSDB_CODE_SUCCESS && pResultInfo->numOfRows > 0 && setupOneRowPtr) {
-    doSetOneRowPtr(pResultInfo);
-    pResultInfo->current += 1;
-  }
+  if (pResultInfo->numOfRows == 0  || pRequest->code != TSDB_CODE_SUCCESS) {
+    return NULL;
+  } else {
+    if (setupOneRowPtr) {
+      doSetOneRowPtr(pResultInfo);
+      pResultInfo->current += 1;
+    }
 
-  return pResultInfo->row;
+    return pResultInfo->row;
+  }
 }
 
 static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
