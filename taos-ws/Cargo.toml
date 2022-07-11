@@ -10,6 +10,7 @@ edition = "2021"
 itertools = "0.10.3"
 log = "0.4"
 once_cell = "1"
+bytes = "1.1.0"
 # parking_lot = "0.12.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }

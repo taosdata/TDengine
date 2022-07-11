@@ -25,7 +25,7 @@ pub type WS_TAOS = c_void;
 
 /// Opaque type definition for websocket result set.
 #[allow(non_camel_case_types)]
-pub type WS_RS = c_void;
+pub type WS_RES = c_void;
 
 #[derive(Debug)]
 struct WsError {
@@ -102,7 +102,7 @@ type WsTaos = Result<WsClient, WsError>;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct WS_FIELD_V2 {
-    pub name: [u8; 65usize],
+    pub name: [c_char; 65usize],
     pub r#type: u8,
     pub bytes: u16,
 }
@@ -123,8 +123,8 @@ impl WS_FIELD_V2 {
 impl From<&Field> for WS_FIELD_V2 {
     fn from(field: &Field) -> Self {
         let f_name = field.name();
-        let mut name = [0; 65usize];
-        unsafe { std::ptr::copy_nonoverlapping(f_name.as_ptr(), name.as_mut_ptr(), f_name.len()) };
+        let mut name = [0 as c_char; 65usize];
+        unsafe { std::ptr::copy_nonoverlapping(f_name.as_ptr(), name.as_mut_ptr() as _, f_name.len()) };
         Self {
             name,
             r#type: field.ty() as u8,
@@ -137,7 +137,7 @@ impl From<&Field> for WS_FIELD_V2 {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct WS_FIELD {
-    pub name: [u8; 65usize],
+    pub name: [c_char; 65usize],
     pub r#type: u8,
     pub bytes: u32,
 }
@@ -168,8 +168,8 @@ impl Debug for WS_FIELD {
 impl From<&Field> for WS_FIELD {
     fn from(field: &Field) -> Self {
         let f_name = field.name();
-        let mut name = [0; 65usize];
-        unsafe { std::ptr::copy_nonoverlapping(f_name.as_ptr(), name.as_mut_ptr(), f_name.len()) };
+        let mut name = [0 as c_char; 65usize];
+        unsafe { std::ptr::copy_nonoverlapping(f_name.as_ptr(), name.as_mut_ptr() as _, f_name.len()) };
         Self {
             name,
             r#type: field.ty() as u8,
@@ -338,14 +338,14 @@ unsafe fn query_with_sql(taos: *mut WS_TAOS, sql: *const c_char) -> Result<Resul
 /// Query with a sql command, returns pointer to result set.
 ///
 /// Please always use `ws_query_errno` to check it work and `ws_free_result` to free memory.
-pub unsafe extern "C" fn ws_query(taos: *mut WS_TAOS, sql: *const c_char) -> *mut WS_RS {
+pub unsafe extern "C" fn ws_query(taos: *mut WS_TAOS, sql: *const c_char) -> *mut WS_RES {
     let res = query_with_sql(taos, sql);
     Box::into_raw(Box::new(WsResultSet::new(res))) as _
 }
 
 #[no_mangle]
 /// Always use this to ensure that the query is executed correctly.
-pub unsafe extern "C" fn ws_query_errno(rs: *mut WS_RS) -> i32 {
+pub unsafe extern "C" fn ws_query_errno(rs: *mut WS_RES) -> i32 {
     match (rs as *mut WsResultSet).as_ref() {
         Some(rs) => rs.errno(),
         None => 0,
@@ -354,7 +354,7 @@ pub unsafe extern "C" fn ws_query_errno(rs: *mut WS_RS) -> i32 {
 
 #[no_mangle]
 /// Use this method to get a formatted error string when query errno is not 0.
-pub unsafe extern "C" fn ws_query_errstr(rs: *mut WS_RS) -> *const c_char {
+pub unsafe extern "C" fn ws_query_errstr(rs: *mut WS_RES) -> *const c_char {
     match (rs as *mut WsResultSet).as_ref() {
         Some(rs) => rs.errstr(),
         None => EMPTY.as_ptr(),
@@ -363,7 +363,7 @@ pub unsafe extern "C" fn ws_query_errstr(rs: *mut WS_RS) -> *const c_char {
 
 #[no_mangle]
 /// Works exactly the same to taos_affected_rows.
-pub unsafe extern "C" fn ws_affected_rows(rs: *const WS_RS) -> i32 {
+pub unsafe extern "C" fn ws_affected_rows(rs: *const WS_RES) -> i32 {
     match (rs as *mut WsResultSet).as_ref() {
         Some(rs) => rs.affected_rows(),
         None => 0,
@@ -372,7 +372,7 @@ pub unsafe extern "C" fn ws_affected_rows(rs: *const WS_RS) -> i32 {
 
 #[no_mangle]
 /// Returns number of fields in current result set.
-pub unsafe extern "C" fn ws_num_of_fields(rs: *const WS_RS) -> i32 {
+pub unsafe extern "C" fn ws_num_of_fields(rs: *const WS_RES) -> i32 {
     match (rs as *mut WsResultSet).as_ref() {
         Some(rs) => rs.num_of_fields(),
         None => 0,
@@ -381,7 +381,7 @@ pub unsafe extern "C" fn ws_num_of_fields(rs: *const WS_RS) -> i32 {
 
 #[no_mangle]
 /// Works like taos_fetch_fields, users should use it along with a `num_of_fields`.
-pub unsafe extern "C" fn ws_fetch_fields(rs: *mut WS_RS) -> *const WS_FIELD {
+pub unsafe extern "C" fn ws_fetch_fields(rs: *mut WS_RES) -> *const WS_FIELD {
     match (rs as *mut WsResultSet).as_mut() {
         Some(rs) => rs.get_fields(),
         None => std::ptr::null(),
@@ -390,7 +390,7 @@ pub unsafe extern "C" fn ws_fetch_fields(rs: *mut WS_RS) -> *const WS_FIELD {
 
 #[no_mangle]
 /// To fetch v2-compatible fields structs.
-pub unsafe extern "C" fn ws_fetch_fields_v2(rs: *mut WS_RS) -> *const WS_FIELD_V2 {
+pub unsafe extern "C" fn ws_fetch_fields_v2(rs: *mut WS_RES) -> *const WS_FIELD_V2 {
     match (rs as *mut WsResultSet).as_mut() {
         Some(rs) => rs.get_fields_v2(),
         None => std::ptr::null(),
@@ -399,7 +399,7 @@ pub unsafe extern "C" fn ws_fetch_fields_v2(rs: *mut WS_RS) -> *const WS_FIELD_V
 #[no_mangle]
 /// Works like taos_fetch_raw_block, it will always return block with format v3.
 pub unsafe extern "C" fn ws_fetch_block(
-    rs: *mut WS_RS,
+    rs: *mut WS_RES,
     ptr: *mut *const c_void,
     rows: *mut i32,
 ) -> i32 {
@@ -413,13 +413,13 @@ pub unsafe extern "C" fn ws_fetch_block(
 }
 #[no_mangle]
 /// Same to taos_free_result. Every websocket result-set object should be freed with this method.
-pub unsafe extern "C" fn ws_free_result(rs: *mut WS_RS) {
+pub unsafe extern "C" fn ws_free_result(rs: *mut WS_RES) {
     let _ = Box::from_raw(rs as *mut WsResultSet);
 }
 
 #[no_mangle]
 /// Same to taos_result_precision.
-pub unsafe extern "C" fn ws_result_precision(rs: *const WS_RS) -> i32 {
+pub unsafe extern "C" fn ws_result_precision(rs: *const WS_RES) -> i32 {
     match (rs as *mut WsResultSet).as_mut() {
         Some(rs) => rs.precision() as i32,
         None => 0,
@@ -444,7 +444,7 @@ pub unsafe extern "C" fn ws_result_precision(rs: *const WS_RS) -> i32 {
 /// ```
 #[no_mangle]
 pub unsafe extern "C" fn ws_get_value_in_block(
-    rs: *mut WS_RS,
+    rs: *mut WS_RES,
     row: i32,
     col: i32,
     ty: *mut u8,
@@ -489,7 +489,7 @@ pub unsafe extern "C" fn ws_timestamp_to_rfc3339(
 
 #[no_mangle]
 /// Unimplemented currently.
-pub unsafe fn ws_print_row(rs: *mut WS_RS, row: i32) {
+pub unsafe fn ws_print_row(rs: *mut WS_RES, row: i32) {
     todo!()
     // match (rs as *mut WsResultSet).as_mut() {
     //     Some(rs) => rs.fetch_block(ptr, rows),

@@ -1,4 +1,4 @@
-use taos_query::common::{Block, Field, Precision, RawBlock};
+use taos_query::common::{Block, Field, Precision, RawBlock, Raw};
 use taos_query::{DeError, Dsn, DsnError, Fetchable, IntoDsn, Queryable};
 use thiserror::Error;
 use websocket::sync::Writer;
@@ -205,8 +205,9 @@ impl WsClient {
                                 // v3
                                 if let Some(v) = fetches_sender.read(&res_id, |_, v| v.clone()) {
                                     log::info!("send data to fetches with id {}", res_id);
-                                    let raw = slice.read_inlinable::<RawBlock>().unwrap();
-                                    v.send(Ok(WsFetchData::Block(raw).clone())).unwrap();
+                                    // let raw = slice.read_inlinable::<RawBlock>().unwrap();
+                                    v.send(Ok(WsFetchData::Block(block[8..].to_vec()).clone()))
+                                        .unwrap();
                                 }
                             } else {
                                 // v2
@@ -273,7 +274,7 @@ impl WsClient {
                 .collect();
             let (tx, rx) = std::sync::mpsc::sync_channel(100);
             {
-                self.fetches.insert(resp.id, tx);
+                self.fetches.insert(resp.id, tx).unwrap();
             }
             Ok(ResultSet {
                 sender: self.sender.clone(),
@@ -322,7 +323,7 @@ impl WsClient {
 }
 
 impl ResultSet {
-    pub fn fetch_block(&mut self) -> Result<Option<Block>> {
+    pub fn fetch_block(&mut self) -> Result<Option<Raw>> {
         if self.receiver.is_none() {
             return Ok(None);
         }
@@ -354,32 +355,48 @@ impl ResultSet {
 
         match rx.recv()?? {
             WsFetchData::Block(mut raw) => {
-                raw.with_rows(fetch_resp.rows)
-                    .with_cols(self.fields_count)
-                    .with_precision(self.precision);
+                let mut raw = Raw::parse_from_raw_block(
+                    raw,
+                    fetch_resp.rows,
+                    self.fields_count,
+                    self.precision,
+                );
 
-                let mut block = Block::from_raw_block(raw);
-                block.with_fields(self.fields.as_ref().unwrap().to_vec());
-                Ok(Some(block))
+                for row in 0..raw.nrows() {
+                    for col in 0..raw.ncols() {
+                        log::debug!("at ({}, {})", row, col);
+                        let v = unsafe { raw.get_ref_unchecked(row, col) };
+                        println!("({}, {}): {:?}", row, col, v);
+                    }
+                }
+                raw.with_fields(self.fields.as_ref().unwrap().to_vec());
+                Ok(Some(raw))
             }
             WsFetchData::BlockV2(raw) => {
-                let raw = RawBlock::from_v2(
-                    &raw,
+                let mut raw = Raw::parse_from_raw_block_v2(
+                    raw,
                     self.fields.as_ref().unwrap(),
-                    fetch_resp.lengths.as_ref().unwrap(),
+                    dbg!(fetch_resp.lengths.as_ref().unwrap()),
                     fetch_resp.rows,
                     self.precision,
                 );
-                let mut block = Block::from_raw_block(raw);
-                block.with_fields(self.fields.as_ref().unwrap().to_vec());
-                Ok(Some(block))
+
+                for row in 0..raw.nrows() {
+                    for col in 0..raw.ncols() {
+                        log::debug!("at ({}, {})", row, col);
+                        let v = unsafe { raw.get_ref_unchecked(row, col) };
+                        println!("({}, {}): {:?}", row, col, v);
+                    }
+                }
+                raw.with_fields(self.fields.as_ref().unwrap().to_vec());
+                Ok(Some(raw))
             }
             _ => Ok(None),
         }
     }
 }
 impl Iterator for ResultSet {
-    type Item = Block;
+    type Item = Raw;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.fetch_block().unwrap_or_default()

@@ -24,12 +24,12 @@ impl ColSchema {
         Self { ty, len }
     }
     #[inline]
-    fn as_bytes(&self) -> &[u8] {
+    pub(crate) fn as_bytes(&self) -> &[u8] {
         unsafe { std::mem::transmute::<&Self, &[u8; 6]>(self) }
     }
 
     #[inline]
-    fn into_bytes(self) -> [u8; 6] {
+    pub fn into_bytes(self) -> [u8; 6] {
         unsafe { std::mem::transmute::<Self, [u8; 6]>(self) }
     }
 }
@@ -942,6 +942,9 @@ impl RawBlock {
                 } else {
                     let ptr = self.offset(o2 + offset as isize);
                     let len: i16 = *(ptr as *mut i16);
+                    if len < 0 {
+                        return Null;
+                    }
                     NChar(
                         slice::from_raw_parts(ptr.offset(2) as *mut char, len as usize / 4)
                             .into_iter()

@@ -2,7 +2,7 @@ use futures::stream::SplitSink;
 use futures::{FutureExt, SinkExt, StreamExt};
 use scc::HashMap;
 // use std::sync::Mutex;
-use taos_query::common::{Block, Field, Precision, RawBlock};
+use taos_query::common::{Block, Field, Precision, Raw, RawBlock};
 use taos_query::{AsyncFetchable, AsyncQueryable, DeError, DsnError, IntoDsn};
 use thiserror::Error;
 use tokio::net::TcpStream;
@@ -268,8 +268,8 @@ impl WsAsyncClient {
                                         // v3
                                         if let Some(_) = fetches_sender.read(&res_id, |_, v| {
                                             log::info!("send data to fetches with id {}", res_id);
-                                            let raw = slice.read_inlinable::<RawBlock>().unwrap();
-                                            v.send(Ok(WsFetchData::Block(raw).clone())).unwrap();
+                                            // let raw = slice.read_inlinable::<RawBlock>().unwrap();
+                                            v.send(Ok(WsFetchData::Block(block[8..].to_vec()).clone())).unwrap();
                                         }) {}
                                     } else {
                                         // v2
@@ -400,7 +400,7 @@ impl WsAsyncClient {
 }
 
 impl ResultSetRef {
-    async fn fetch(&mut self) -> Result<Option<Block>> {
+    async fn fetch(&mut self) -> Result<Option<Raw>> {
         let fetch = WsSend::Fetch(self.args);
         {
             log::info!("send fetch message: {fetch:?}");
@@ -432,24 +432,26 @@ impl ResultSetRef {
         log::info!("receiving block...");
         match self.receiver.as_mut().unwrap().recv()?? {
             WsFetchData::Block(mut raw) => {
-                raw.with_rows(fetch_resp.rows)
-                    .with_cols(self.fields_count)
-                    .with_precision(self.precision);
+                let mut raw = Raw::parse_from_raw_block(
+                    raw,
+                    fetch_resp.rows,
+                    self.fields_count,
+                    self.precision,
+                );
 
                 for row in 0..raw.nrows() {
                     for col in 0..raw.ncols() {
                         log::debug!("at ({}, {})", row, col);
-                        let v = unsafe { raw.get_unchecked(row, col) };
-                        println!("({}, {}): {}", row, col, v);
+                        let v = unsafe { raw.get_ref_unchecked(row, col) };
+                        println!("({}, {}): {:?}", row, col, v);
                     }
                 }
-                let mut block = Block::from_raw_block(raw);
-                block.with_fields(self.fields.as_ref().unwrap().to_vec());
-                Ok(Some(block))
+                raw.with_fields(self.fields.as_ref().unwrap().to_vec());
+                Ok(Some(raw))
             }
             WsFetchData::BlockV2(raw) => {
-                let raw = RawBlock::from_v2(
-                    &raw,
+                let mut raw = Raw::parse_from_raw_block_v2(
+                    raw,
                     self.fields.as_ref().unwrap(),
                     dbg!(fetch_resp.lengths.as_ref().unwrap()),
                     fetch_resp.rows,
@@ -459,13 +461,12 @@ impl ResultSetRef {
                 for row in 0..raw.nrows() {
                     for col in 0..raw.ncols() {
                         log::debug!("at ({}, {})", row, col);
-                        let v = unsafe { raw.get_unchecked(row, col) };
-                        println!("({}, {}): {}", row, col, v);
+                        let v = unsafe { raw.get_ref_unchecked(row, col) };
+                        println!("({}, {}): {:?}", row, col, v);
                     }
                 }
-                let mut block = Block::from_raw_block(raw);
-                block.with_fields(self.fields.as_ref().unwrap().to_vec());
-                Ok(Some(block))
+                raw.with_fields(self.fields.as_ref().unwrap().to_vec());
+                Ok(Some(raw))
             }
             _ => Ok(None),
         }
@@ -473,7 +474,7 @@ impl ResultSetRef {
 }
 
 impl futures::Stream for ResultSetRef {
-    type Item = Block;
+    type Item = Raw;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
@@ -597,5 +598,19 @@ async fn test_client_cloud() -> anyhow::Result<()> {
             row.into_iter().map(|value| format!("{value}")).join(" | ")
         );
     }
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 10)]
+async fn ws_show_databases() -> anyhow::Result<()> {
+    use taos_query::{Fetchable, Queryable};
+    let client = WsAsyncClient::from_dsn(
+        "https://gw-aws.cloud.tdengine.com?token=8c7a628b568b7d32cc50f36b0f2d6273ffd060fc",
+    )
+    .await?;
+    let mut rs = client.query("show databases").await?;
+    let values = rs.to_records();
+
+    dbg!(values);
     Ok(())
 }

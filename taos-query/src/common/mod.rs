@@ -3,7 +3,7 @@ mod describe;
 mod field;
 mod opts;
 mod precision;
-mod raw;
+pub mod raw;
 mod timestamp;
 mod ty;
 mod value;
