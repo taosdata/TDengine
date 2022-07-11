@@ -259,10 +259,6 @@ void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version)
 int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t flags, col_id_t colId, col_bytes_t bytes);
 STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 
-// ----------------- Semantic timestamp key definition
-#define MIN_TS_KEY ((TSKEY)0x8000000000000001)
-#define MAX_TS_KEY ((TSKEY)0x7fffffffffffffff)
-
 #endif
 
 #ifdef __cplusplus
