@@ -285,9 +285,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
   ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
   pTaskInfo->streamInfo.prepareStatus = *pOffset;
-  // TODO: optimize
-  if (pTaskInfo->streamInfo.lastStatus.type != pOffset->type ||
-      pTaskInfo->streamInfo.prepareStatus.version != pTaskInfo->streamInfo.lastStatus.version) {
+  if (!tOffsetEqual(pOffset, &pTaskInfo->streamInfo.lastStatus)) {
     while (1) {
       uint8_t type = pOperator->operatorType;
       pOperator->status = OP_OPENED;
@@ -310,32 +308,32 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
               ts = INT64_MIN;
             }
           }
-          if (pTaskInfo->streamInfo.lastStatus.type != TMQ_OFFSET__SNAPSHOT_DATA ||
-              pTaskInfo->streamInfo.lastStatus.uid != uid || pTaskInfo->streamInfo.lastStatus.ts != ts) {
-            STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-            int32_t         tableSz = taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList);
-            bool            found = false;
-            for (int32_t i = 0; i < tableSz; i++) {
-              STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, i);
-              if (pTableInfo->uid == uid) {
-                found = true;
-                pTableScanInfo->currentTable = i;
-              }
+          /*if (pTaskInfo->streamInfo.lastStatus.type != TMQ_OFFSET__SNAPSHOT_DATA ||*/
+          /*pTaskInfo->streamInfo.lastStatus.uid != uid || pTaskInfo->streamInfo.lastStatus.ts != ts) {*/
+          STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
+          int32_t         tableSz = taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList);
+          bool            found = false;
+          for (int32_t i = 0; i < tableSz; i++) {
+            STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, i);
+            if (pTableInfo->uid == uid) {
+              found = true;
+              pTableScanInfo->currentTable = i;
             }
-
-            // TODO after dropping table, table may be not found
-            ASSERT(found);
-
-            tsdbSetTableId(pTableScanInfo->dataReader, uid);
-            int64_t oldSkey = pTableScanInfo->cond.twindows.skey;
-            pTableScanInfo->cond.twindows.skey = ts + 1;
-            tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond);
-            pTableScanInfo->cond.twindows.skey = oldSkey;
-            pTableScanInfo->scanTimes = 0;
-
-            qDebug("tsdb reader offset seek to uid %ld ts %ld, table cur set to %d , all table num %d", uid, ts,
-                   pTableScanInfo->currentTable, tableSz);
           }
+
+          // TODO after dropping table, table may be not found
+          ASSERT(found);
+
+          tsdbSetTableId(pTableScanInfo->dataReader, uid);
+          int64_t oldSkey = pTableScanInfo->cond.twindows.skey;
+          pTableScanInfo->cond.twindows.skey = ts + 1;
+          tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond);
+          pTableScanInfo->cond.twindows.skey = oldSkey;
+          pTableScanInfo->scanTimes = 0;
+
+          qDebug("tsdb reader offset seek to uid %ld ts %ld, table cur set to %d , all table num %d", uid, ts,
+                 pTableScanInfo->currentTable, tableSz);
+          /*}*/
 
         } else {
           ASSERT(0);
