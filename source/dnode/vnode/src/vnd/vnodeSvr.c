@@ -936,6 +936,11 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
 
   vInfo("vgId:%d, start to alter vnode config, cacheLast:%d cacheLastSize:%d", TD_VID(pVnode), alterReq.cacheLast,
         alterReq.cacheLastSize);
+  if (pVnode->config.cacheLastSize != alterReq.cacheLastSize) {
+    pVnode->config.cacheLastSize = alterReq.cacheLastSize;
+    // TODO: save config
+    tsdbCacheSetCapacity(pVnode, (size_t)pVnode->config.cacheLastSize * 1024 * 1024);
+  }
   return 0;
 }
 
