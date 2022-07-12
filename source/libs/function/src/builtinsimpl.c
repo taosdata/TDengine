@@ -2881,13 +2881,17 @@ static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuer
 
   SFirstLastRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  int32_t        start = pInput->startRowIndex;
-  char*          data = colDataGetData(pCol, start);
-  SFirstLastRes* pInputInfo = (SFirstLastRes*)varDataVal(data);
+  int32_t start = pInput->startRowIndex;
+  int32_t numOfElems = 0;
 
-  firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery);
-
-  int32_t numOfElems = pInputInfo->hasResult ? 1 : 0;
+  for(int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    char* data = colDataGetData(pCol, i);
+    SFirstLastRes* pInputInfo = (SFirstLastRes*)varDataVal(data);
+    firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery);
+    if (!numOfElems) {
+      numOfElems = pInputInfo->hasResult ? 1 : 0;
+    }
+  }
 
   SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
 
