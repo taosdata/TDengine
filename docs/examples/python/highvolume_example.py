@@ -163,7 +163,7 @@ def main():
     task_queues: List[Queue] = []
 
     for i in range(WRITE_TASK_COUNT):
-        queue = Queue(maxsize=10000000)
+        queue = Queue(maxsize=100)
         task_queues.append(queue)
         p = Process(target=run_write_task, args=(i, queue))
         p.start()
