@@ -199,6 +199,7 @@ int32_t mndInitSync(SMnode *pMnode) {
   }
 
   // decrease election timer
+  setPingTimerMS(pMgmt->sync, 5000);
   setElectTimerMS(pMgmt->sync, 600);
   setHeartbeatTimerMS(pMgmt->sync, 300);
 

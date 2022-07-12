@@ -671,8 +671,7 @@ static void *hbThreadFunc(void *param) {
   }
 #endif
   while (1) {
-    int8_t threadStop = atomic_val_compare_exchange_8(&clientHbMgr.threadStop, 1, 2);
-    if (1 == threadStop) {
+    if (1 == clientHbMgr.threadStop) {
       break;
     }
 
@@ -760,9 +759,7 @@ static void hbStopThread() {
     return;
   }
 
-  while (2 != atomic_load_8(&clientHbMgr.threadStop)) {
-    taosUsleep(10);
-  }
+  taosThreadJoin(clientHbMgr.thread, NULL);    
 
   tscDebug("hb thread stopped");
 }
