@@ -136,7 +136,7 @@ struct STSRow2 {
 #pragma pack(pop)
 
 struct STSRowBuilder {
-  STSRow2  tsRow;
+  // STSRow2  tsRow;
   int32_t  szBuf;
   uint8_t *pBuf;
 };
