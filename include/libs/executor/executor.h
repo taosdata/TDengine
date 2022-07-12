@@ -42,25 +42,28 @@ typedef struct SReadHandle {
   bool    initTqReader;
 } SReadHandle;
 
+// in queue mode, data streams are seperated by msg
 typedef enum {
   OPTR_EXEC_MODEL_BATCH = 0x1,
   OPTR_EXEC_MODEL_STREAM = 0x2,
+  OPTR_EXEC_MODEL_QUEUE = 0x3,
 } EOPTR_EXEC_MODEL;
 
 /**
- * Create the exec task for streaming mode
+ * Create the exec task for stream mode
  * @param pMsg
- * @param streamReadHandle
+ * @param SReadHandle
  * @return
  */
 qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers);
 
 /**
- * Switch the stream scan to snapshot mode
- * @param tinfo
+ * Create the exec task for queue mode
+ * @param pMsg
+ * @param SReadHandle
  * @return
  */
-int32_t qStreamScanSnapshot(qTaskInfo_t tinfo);
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers);
 
 /**
  * Set the input data block for the stream scan.
@@ -111,7 +114,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
  * @return
  */
 int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion,
-                                      int32_t* tversion);
+                                    int32_t* tversion);
 
 /**
  * The main task execution function, including query on both table and multiple tables,

@@ -538,7 +538,7 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
   return code;
 }
 
-static int32_t doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunctionCtx* pCtx) {
+static int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
   for (int32_t k = 0; k < pOperator->exprSupp.numOfExprs; ++k) {
     if (functionNeedToExecute(&pCtx[k])) {
       // todo add a dummy funtion to avoid process check
@@ -2969,25 +2969,10 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
     // the pDataBlock are always the same one, no need to call this again
     setExecutionContext(pOperator, pOperator->exprSupp.numOfExprs, pBlock->info.groupId, pAggInfo);
     setInputDataBlock(pOperator, pSup->pCtx, pBlock, order, scanFlag, true);
-    code = doAggregateImpl(pOperator, 0, pSup->pCtx);
+    code = doAggregateImpl(pOperator, pSup->pCtx);
     if (code != 0) {
       longjmp(pTaskInfo->env, code);
     }
-
-#if 0  // test for encode/decode result info
-    if(pOperator->fpSet.encodeResultRow){
-      char *result = NULL;
-      int32_t length = 0;
-      pOperator->fpSet.encodeResultRow(pOperator, &result, &length);
-      SAggSupporter* pSup = &pAggInfo->aggSup;
-      taosHashClear(pSup->pResultRowHashTable);
-      pInfo->resultRowInfo.size = 0;
-      pOperator->fpSet.decodeResultRow(pOperator, result);
-      if(result){
-        taosMemoryFree(result);
-      }
-    }
-#endif
   }
 
   closeAllResultRows(&pAggInfo->binfo.resultRowInfo);
@@ -3250,6 +3235,10 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (pOperator->status == OP_EXEC_DONE) {
+    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
+      pOperator->status = OP_OPENED;
+      return NULL;
+    }
     return NULL;
   }
 
@@ -3283,11 +3272,15 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
   while (1) {
     // The downstream exec may change the value of the newgroup, so use a local variable instead.
+    qDebug("projection call next");
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
-      // TODO optimize
-      /*if (pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM) {*/
+      qDebug("projection get null");
+
+      /*if (pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH) {*/
       doSetOperatorCompleted(pOperator);
+      /*} else if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {*/
+      /*pOperator->status = OP_RES_TO_RETURN;*/
       /*}*/
       break;
     }

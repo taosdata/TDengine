@@ -94,7 +94,7 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
 #define pError(...) { taosPrintLog("APP ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }
 #define pPrint(...) { taosPrintLog("APP ", DEBUG_INFO, 255, __VA_ARGS__); }
 // clang-format on
-#define BUF_PAGE_DEBUG
+//#define BUF_PAGE_DEBUG
 #ifdef __cplusplus
 }
 #endif
