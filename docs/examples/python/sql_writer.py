@@ -5,9 +5,7 @@ import taos
 class SQLWriter:
     log = logging.getLogger("SQLWriter")
 
-    def __init__(self, max_batch_size):
-        self._buffered_count = 0
-        self._max_batch_size = max_batch_size
+    def __init__(self):
         self._tb_values = {}
         self._tb_tags = {}
         self._conn = self.get_connection()
@@ -21,30 +19,29 @@ class SQLWriter:
             if name == "maxSQLLength":
                 return int(r[1])
 
-    def get_connection(self):
+    @staticmethod
+    def get_connection():
         return taos.connect(host="localhost", user="root", password="taosdata", port=6030)
 
-    def process_line(self, line: str):
+    def process_lines(self, lines: str):
         """
-        :param line: tbName,ts,current,voltage,phase,location,groupId
+        :param lines: [[tbName,ts,current,voltage,phase,location,groupId]]
         """
-        self._buffered_count += 1
-        ps = line.split(",")
-        table_name = ps[0]
-        value = '(' + ",".join(ps[1:-2]) + ') '
-        if table_name in self._tb_values:
-            self._tb_values[table_name] += value
-        else:
-            self._tb_values[table_name] = value
+        for line in lines:
+            ps = line.split(",")
+            table_name = ps[0]
+            value = '(' + ",".join(ps[1:-2]) + ') '
+            if table_name in self._tb_values:
+                self._tb_values[table_name] += value
+            else:
+                self._tb_values[table_name] = value
 
-        if table_name not in self._tb_tags:
-            location = ps[-2]
-            group_id = ps[-1]
-            tag_value = f"('{location}',{group_id})"
-            self._tb_tags[table_name] = tag_value
-
-        if self._buffered_count == self._max_batch_size:
-            self.flush()
+            if table_name not in self._tb_tags:
+                location = ps[-2]
+                group_id = ps[-1]
+                tag_value = f"('{location}',{group_id})"
+                self._tb_tags[table_name] = tag_value
+        self.flush()
 
     def flush(self):
         """
@@ -68,7 +65,6 @@ class SQLWriter:
         sql += " ".join(buf)
         self.execute_sql(sql)
         self._tb_values.clear()
-        self._buffered_count = 0
 
     def execute_sql(self, sql):
         try:
@@ -87,7 +83,3 @@ class SQLWriter:
             tag_values = self._tb_tags[tb]
             sql += "IF NOT EXISTS " + tb + " USING meters TAGS " + tag_values + " "
         self._conn.execute(sql)
-
-    @property
-    def buffered_count(self):
-        return self._buffered_count
