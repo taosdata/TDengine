@@ -88,10 +88,10 @@ By default, TDengine compiling does not include taosTools. You can use 'cmake ..
 To build the [taosTools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
 
 ```bash
-sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config libssl-dev
 ```
 
-### CentOS 7
+### CentOS 7/RHEL
 
 ```bash
 sudo yum install epel-release
@@ -112,7 +112,7 @@ To install Apache Maven:
 sudo yum install -y maven
 ```
 
-### CentOS 8 & Fedora
+### CentOS 8/Fedora/Rocky Linux
 
 ```bash
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel

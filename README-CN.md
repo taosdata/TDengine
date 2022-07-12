@@ -86,10 +86,10 @@ taosTools 是用于 TDengine 的辅助工具软件集合。目前它包含 taosB
 为了在 Ubuntu/Debian 系统上编译 [taos-tools](https://github.com/taosdata/taos-tools) 需要安装如下软件：
 
 ```bash
-sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config libssl-dev
 ```
 
-### CentOS 7：
+### CentOS 7/RHEL
 
 ```bash
 sudo yum install -y gcc gcc-c++ make cmake git openssl-devel
@@ -107,7 +107,7 @@ sudo yum install -y java-1.8.0-openjdk
 sudo yum install -y maven
 ```
 
-### CentOS 8 & Fedora
+### CentOS 8/Fedora/Rocky Linux
 
 ```bash
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
