@@ -39,9 +39,6 @@ void *cancelHandler(void *arg) {
     }
     if (args.restful || args.cloud) {
       stop_fetch = true;
-      if (wsclient_send_sql(NULL, WS_CLOSE, ws_id)) {
-        exit(EXIT_FAILURE);
-      }
     }
 #ifdef LINUX
     int64_t rid = atomic_val_compare_exchange_64(&result, result, 0);
@@ -99,8 +96,8 @@ SShellArguments args = {.host = NULL,
   .cloudDsn = NULL,
   .cloud = true,
   .cloudHost = NULL,
-  .cloudPort = NULL,
   .cloudToken = NULL,
+  .dsn = NULL,
   };
 
 /*
@@ -144,13 +141,18 @@ int main(int argc, char* argv[]) {
       if (parse_cloud_dsn()) {
           exit(EXIT_FAILURE);
       }
-      if (tcpConnect(args.cloudHost, atoi(args.cloudPort))) {
-          exit(EXIT_FAILURE);
-      }
+      args.dsn = calloc(1, 1024);
+      snprintf(args.dsn, 1024, "wss://%s:443/rest/ws?token=%s", args.cloudHost, args.cloudToken);
   } else if (args.restful) {
-      if (tcpConnect(args.host, args.port)) {
-          exit(EXIT_FAILURE);
-      }
+    args.dsn = calloc(1, 1024);
+    if (args.host == NULL) {
+      args.host = "localhost";
+    }
+    if (args.port == 0) {
+      args.port = 6041;
+    }
+    
+    snprintf(args.dsn, 1024, "ws://%s:%d/rest/ws",args.host, args.port);
   }
 
   /* Initialize the shell */
@@ -169,11 +171,6 @@ int main(int argc, char* argv[]) {
   taosSetSignal(SIGINT, shellQueryInterruptHandler);
   taosSetSignal(SIGHUP, shellQueryInterruptHandler);
   taosSetSignal(SIGABRT, shellQueryInterruptHandler);
-  if (args.restful || args.cloud) {
-#ifdef LINUX
-    taosSetSignal(SIGPIPE, shellRestfulSendInterruptHandler);
-#endif
-  }
 
   /* Get grant information */
   shellGetGrantInfo(args.con);

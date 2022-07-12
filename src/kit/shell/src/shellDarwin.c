@@ -578,37 +578,3 @@ void exitShell() {
   tcsetattr(0, TCSANOW, &oldtio);
   exit(EXIT_SUCCESS);
 }
-
-int tcpConnect(char* host, int port) {
-    struct sockaddr_in serv_addr;
-    if (port == 0) {
-        port = 6041;
-        args.port = 6041;
-    }
-    if (NULL == host) {
-        host = "localhost";
-        args.host = "localhost";
-    }
-
-    struct hostent *server = gethostbyname(host);
-    if ((server == NULL) || (server->h_addr == NULL)) {
-        fprintf(stderr, "no such host: %s\n", host);
-        return -1;
-    }
-    memset(&serv_addr, 0, sizeof(struct sockaddr_in));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(port);
-    memcpy(&(serv_addr.sin_addr.s_addr), server->h_addr, server->h_length);
-    args.socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (args.socket < 0) {
-        fprintf(stderr, "failed to create socket\n");
-        return -1;
-    }
-    int retConn = connect(args.socket, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr));
-    if (retConn < 0) {
-        fprintf(stderr, "failed to connect\n");
-        close(args.socket);
-        return -1;
-    }
-    return 0;
-}
