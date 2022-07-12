@@ -79,7 +79,7 @@ static void *tQWorkerThreadFp(SQWorker *worker) {
   uDebug("worker:%s:%d is running", pool->name, worker->id);
 
   while (1) {
-    if (taosReadQitemFromQset(pool->qset, (void **)&msg, &qinfo) == 0) {
+     if (taosReadQitemFromQset(pool->qset, (void **)&msg, &qinfo) == 0) {
       uDebug("worker:%s:%d qset:%p, got no message and exiting", pool->name, worker->id, pool->qset);
       break;
     }
@@ -89,6 +89,8 @@ static void *tQWorkerThreadFp(SQWorker *worker) {
       qinfo.threadNum = pool->num;
       (*((FItem)qinfo.fp))(&qinfo, msg);
     }
+
+    taosUpdateItemSize(qinfo.queue, 1);
   }
 
   return NULL;
@@ -214,6 +216,7 @@ static void *tWWorkerThreadFp(SWWorker *worker) {
       qinfo.threadNum = pool->num;
       (*((FItems)qinfo.fp))(&qinfo, worker->qall, numOfMsgs);
     }
+    taosUpdateItemSize(qinfo.queue, numOfMsgs);
   }
 
   return NULL;

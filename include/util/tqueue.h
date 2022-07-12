@@ -67,6 +67,7 @@ void        taosFreeQitem(void *pItem);
 void        taosWriteQitem(STaosQueue *queue, void *pItem);
 int32_t     taosReadQitem(STaosQueue *queue, void **ppItem);
 bool        taosQueueEmpty(STaosQueue *queue);
+void        taosUpdateItemSize(STaosQueue *queue, int32_t items);
 int32_t     taosQueueItemSize(STaosQueue *queue);
 int64_t     taosQueueMemorySize(STaosQueue *queue);
 

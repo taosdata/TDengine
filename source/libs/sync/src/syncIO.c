@@ -369,6 +369,8 @@ static void *syncIOConsumerFunc(void *param) {
 
       taosFreeQitem(pRpcMsg);
     }
+
+    taosUpdateItemSize(qinfo.queue, numOfMsgs);
   }
 
   taosFreeQall(qall);
