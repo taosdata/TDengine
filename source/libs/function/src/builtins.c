@@ -1427,9 +1427,12 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
 }
 
 static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  // first(col_list) will be rewritten as first(col)
-  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
-    return TSDB_CODE_SUCCESS;
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  for (int32_t i = 0; i < numOfParams; ++i) {
+    SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, i);
+    if (QUERY_NODE_VALUE == nodeType(pParamNode)) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+    }
   }
 
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
@@ -2323,7 +2326,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateHistogramPartial,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
-    .processFunc  = histogramFunction,
+    .processFunc  = histogramFunctionPartial,
     .finalizeFunc = histogramPartialFinalize,
     .invertFunc   = NULL,
     .combineFunc  = histogramCombine,

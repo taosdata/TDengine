@@ -361,19 +361,25 @@ class TMQCom:
         if startTs == 0:
             t = time.time()
             startTs = int(round(t * 1000))
-
+            
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
         rowsBatched = 0        
         for i in range(ctbNum):
-            sql += " %s.%s_%d using %s.%s tags (%d) values "%(dbName,ctbPrefix,i+ctbStartIdx,dbName,stbName,i)
+            tagBinaryValue = 'beijing'
+            if (i % 2 == 0):
+                tagBinaryValue = 'shanghai'
+            elif (i % 3 == 0):
+                tagBinaryValue = 'changsha'
+                
+            sql += " %s.%s_%d using %s.%s tags (%d, %d, %d, '%s', '%s') values "%(dbName,ctbPrefix,i+ctbStartIdx,dbName,stbName,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx,tagBinaryValue,tagBinaryValue)
             for j in range(rowsPerTbl):
-                sql += "(%d, %d, 'tmqrow_%d') "%(startTs + j, j, j)
+                sql += "(%d, %d, %d, %d, 'binary_%d', 'nchar_%d', now) "%(startTs+j, j,j, j,i+ctbStartIdx,rowsBatched)
                 rowsBatched += 1
                 if ((rowsBatched == batchNum) or (j == rowsPerTbl - 1)):
                     tsql.execute(sql)
                     rowsBatched = 0
                     if j < rowsPerTbl - 1:
-                        sql = "insert into %s.%s_%d using %s.%s tags (%d) values " %(dbName,ctbPrefix,i+ctbStartIdx,dbName,stbName,i)
+                        sql = "insert into %s.%s_%d using %s.%s tags (%d, %d, %d, '%s', '%s') values " %(dbName,ctbPrefix,i+ctbStartIdx,dbName,stbName,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx,tagBinaryValue,tagBinaryValue)
                     else:
                         sql = "insert into "
         #end sql

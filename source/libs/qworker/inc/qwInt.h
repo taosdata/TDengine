@@ -316,34 +316,34 @@ typedef struct SQWorkerMgmt {
 #define QW_LOCK(type, _lock)                                                                       \
   do {                                                                                             \
     if (QW_READ == (type)) {                                                                       \
-      assert(atomic_load_64((_lock)) >= 0);                                                        \
-      QW_LOCK_DEBUG("QW RLOCK%p:%" PRIx64 ", %s:%d B", (_lock), atomic_load_64(_lock), __FILE__, __LINE__); \
+      assert(atomic_load_32((_lock)) >= 0);                                                        \
+      QW_LOCK_DEBUG("QW RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRLockLatch(_lock);                                                                       \
-      QW_LOCK_DEBUG("QW RLOCK%p:%" PRIx64 ", %s:%d E", (_lock), atomic_load_64(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_64((_lock)) > 0);                                                         \
+      QW_LOCK_DEBUG("QW RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      assert(atomic_load_32((_lock)) > 0);                                                         \
     } else {                                                                                       \
-      assert(atomic_load_64((_lock)) >= 0);                                                        \
-      QW_LOCK_DEBUG("QW WLOCK%p:%" PRIx64 ", %s:%d B", (_lock), atomic_load_64(_lock), __FILE__, __LINE__); \
+      assert(atomic_load_32((_lock)) >= 0);                                                        \
+      QW_LOCK_DEBUG("QW WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWLockLatch(_lock);                                                                       \
-      QW_LOCK_DEBUG("QW WLOCK%p:%" PRIx64 ", %s:%d E", (_lock), atomic_load_64(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_64((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);                               \
+      QW_LOCK_DEBUG("QW WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      assert(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);                               \
     }                                                                                              \
   } while (0)
 
 #define QW_UNLOCK(type, _lock)                                                                      \
   do {                                                                                              \
     if (QW_READ == (type)) {                                                                        \
-      assert(atomic_load_64((_lock)) > 0);                                                          \
-      QW_LOCK_DEBUG("QW RULOCK%p:%" PRIx64 ", %s:%d B", (_lock), atomic_load_64(_lock), __FILE__, __LINE__); \
+      assert(atomic_load_32((_lock)) > 0);                                                          \
+      QW_LOCK_DEBUG("QW RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRUnLockLatch(_lock);                                                                      \
-      QW_LOCK_DEBUG("QW RULOCK%p:%" PRIx64 ", %s:%d E", (_lock), atomic_load_64(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_64((_lock)) >= 0);                                                         \
+      QW_LOCK_DEBUG("QW RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      assert(atomic_load_32((_lock)) >= 0);                                                         \
     } else {                                                                                        \
-      assert(atomic_load_64((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);                                \
-      QW_LOCK_DEBUG("QW WULOCK%p:%" PRIx64 ", %s:%d B", (_lock), atomic_load_64(_lock), __FILE__, __LINE__); \
+      assert(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);                                \
+      QW_LOCK_DEBUG("QW WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWUnLockLatch(_lock);                                                                      \
-      QW_LOCK_DEBUG("QW WULOCK%p:%" PRIx64 ", %s:%d E", (_lock), atomic_load_64(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_64((_lock)) >= 0);                                                         \
+      QW_LOCK_DEBUG("QW WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      assert(atomic_load_32((_lock)) >= 0);                                                         \
     }                                                                                               \
   } while (0)
 
