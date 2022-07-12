@@ -1301,7 +1301,7 @@ static void doClearWindows(SAggSupporter* pAggSup, SExprSupp* pSup1, SInterval* 
     step =
         getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, win.ekey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
     uint64_t winGpId = pGpDatas ? pGpDatas[startPos] : pBlock->info.groupId;
-    bool     res = doClearWindow(pAggSup, pSup1, (char*)&win.skey, sizeof(TKEY), winGpId, numOfOutput);
+    bool     res = doClearWindow(pAggSup, pSup1, (char*)&win.skey, sizeof(TSKEY), winGpId, numOfOutput);
     if (pUpWins && res) {
       SWinRes winRes = {.ts = win.skey, .groupId = winGpId};
       taosArrayPush(pUpWins, &winRes);
