@@ -956,7 +956,8 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_SUBPLAN: {
       SSubplan* pSubplan = (SSubplan*)pNode;
-      nodesDestroyList(pSubplan->pChildren);
+      // nodesDestroyList(pSubplan->pChildren);
+      nodesClearList(pSubplan->pChildren);
       nodesDestroyNode((SNode*)pSubplan->pNode);
       nodesDestroyNode((SNode*)pSubplan->pDataSink);
       nodesDestroyNode((SNode*)pSubplan->pTagCond);
@@ -972,7 +973,7 @@ void nodesDestroyNode(SNode* pNode) {
         SNode* pElement = NULL;
         FOREACH(pElement, pPlan->pSubplans) {
           if (first) {
-            first = false;
+            // first = false;
             nodesDestroyNode(pElement);
           } else {
             nodesClearList(((SNodeListNode*)pElement)->pNodeList);

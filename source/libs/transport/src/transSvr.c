@@ -29,7 +29,7 @@ typedef struct {
 typedef struct SSvrConn {
   T_REF_DECLARE()
   uv_tcp_t*  pTcp;
-  uv_write_t pWriter;
+  queue      wreqQueue;
   uv_timer_t pTimer;
 
   queue       queue;
@@ -316,7 +316,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
         memset(&conn->regArg, 0, sizeof(conn->regArg));
       }
     }
-    transUnrefSrvHandle(conn);
+    destroyConn(conn, true);
   }
 }
 void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
@@ -331,8 +331,7 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
 }
 
 void uvOnSendCb(uv_write_t* req, int status) {
-  SSvrConn* conn = req && req->handle ? req->handle->data : NULL;
-  taosMemoryFree(req);
+  SSvrConn* conn = transReqQueueRemove(req);
   if (conn == NULL) return;
 
   if (status == 0) {
@@ -435,14 +434,12 @@ static void uvStartSendRespInternal(SSvrMsg* smsg) {
   uvPrepareSendData(smsg, &wb);
 
   transRefSrvHandle(pConn);
-
-  uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
+  uv_write_t* req = transReqQueuePushReq(&pConn->wreqQueue);
   uv_write(req, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
 }
 static void uvStartSendResp(SSvrMsg* smsg) {
   // impl
   SSvrConn* pConn = smsg->pConn;
-
   if (pConn->broken == true) {
     // persist by
     transFreeMsg(smsg->msg.pCont);
@@ -639,8 +636,6 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   uv_tcp_init(pThrd->loop, pConn->pTcp);
   pConn->pTcp->data = pConn;
 
-  pConn->pWriter.data = pConn;
-
   transSetConnOption((uv_tcp_t*)pConn->pTcp);
 
   if (uv_accept(q, (uv_stream_t*)(pConn->pTcp)) == 0) {
@@ -748,6 +743,8 @@ static SSvrConn* createConn(void* hThrd) {
   SWorkThrd* pThrd = hThrd;
 
   SSvrConn* pConn = (SSvrConn*)taosMemoryCalloc(1, sizeof(SSvrConn));
+
+  transReqQueueInit(&pConn->wreqQueue);
   QUEUE_INIT(&pConn->queue);
 
   QUEUE_PUSH(&pThrd->conn, &pConn->queue);
@@ -782,9 +779,6 @@ static void destroyConn(SSvrConn* conn, bool clear) {
       tTrace("conn %p to be destroyed", conn);
       uv_close((uv_handle_t*)conn->pTcp, uvDestroyConn);
     }
-    //} else {
-    //  uvDestroyConn((uv_handle_t*)conn->pTcp);
-    //}
   }
 }
 static void destroyConnRegArg(SSvrConn* conn) {
@@ -823,6 +817,8 @@ static void uvDestroyConn(uv_handle_t* handle) {
     SSvrMsg* msg = transQueueGet(&conn->srvMsgs, i);
     destroySmsg(msg);
   }
+
+  transReqQueueClear(&conn->wreqQueue);
   transQueueDestroy(&conn->srvMsgs);
 
   QUEUE_REMOVE(&conn->queue);

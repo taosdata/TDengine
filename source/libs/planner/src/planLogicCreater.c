@@ -162,12 +162,11 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
   }
 
   if (NULL == pScanCols) {
-    // select count(*) from t
     return NULL == pScanPseudoCols
                ? SCAN_TYPE_TABLE
                : ((FUNCTION_TYPE_BLOCK_DIST_INFO == ((SFunctionNode*)nodesListGetNode(pScanPseudoCols, 0))->funcType)
                       ? SCAN_TYPE_BLOCK_INFO
-                      : SCAN_TYPE_TAG);
+                      : SCAN_TYPE_TABLE);
   }
 
   if (TSDB_SYSTEM_TABLE == tableType) {
@@ -181,7 +180,7 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
     }
   }
 
-  return SCAN_TYPE_TAG;
+  return SCAN_TYPE_TABLE;
 }
 
 static SNode* createPrimaryKeyCol(uint64_t tableId) {
@@ -476,12 +475,12 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   int32_t code = TSDB_CODE_SUCCESS;
 
   // set grouyp keys, agg funcs and having conditions
-  if (TSDB_CODE_SUCCESS == code && pSelect->hasAggFuncs) {
+  if (TSDB_CODE_SUCCESS == code) {
     code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, fmIsAggFunc, &pAgg->pAggFuncs);
   }
 
   // rewrite the expression in subsequent clauses
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pAgg->pAggFuncs) {
     code = rewriteExprsForSelect(pAgg->pAggFuncs, pSelect, SQL_CLAUSE_GROUP_BY);
   }
 

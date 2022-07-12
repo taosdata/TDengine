@@ -630,6 +630,17 @@ int32_t qCloneStmtDataBlock(void** pDst, void* pSrc) {
   memcpy(*pDst, pSrc, sizeof(STableDataBlocks));
   ((STableDataBlocks*)(*pDst))->cloned = true;
 
+  STableDataBlocks* pBlock = (STableDataBlocks*)(*pDst);
+  if (pBlock->pTableMeta) {
+    void *pNewMeta = taosMemoryMalloc(TABLE_META_SIZE(pBlock->pTableMeta));
+    if (NULL == pNewMeta) {
+      taosMemoryFreeClear(*pDst);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    memcpy(pNewMeta, pBlock->pTableMeta, TABLE_META_SIZE(pBlock->pTableMeta));
+    pBlock->pTableMeta = pNewMeta;
+  }
+
   return qResetStmtDataBlock(*pDst, false);
 }
 

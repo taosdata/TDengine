@@ -108,6 +108,7 @@ typedef struct SDataBlockInfo {
   // TODO: optimize and remove following
   int32_t     childId;  // used for stream, do not serialize
   EStreamType type;     // used for stream, do not serialize
+  STimeWindow calWin;   // used for stream, do not serialize
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {

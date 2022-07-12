@@ -688,6 +688,14 @@ _exit:
   return code;
 }
 
+void tsdbFSStateDeleteDFileSet(STsdbFSState *pState, int32_t fid) {
+  int32_t idx;
+
+  idx = taosArraySearchIdx(pState->aDFileSet, &(SDFileSet){.fid = fid}, tDFileSetCmprFn, TD_EQ);
+  ASSERT(idx >= 0);
+  taosArrayRemove(pState->aDFileSet, idx);
+}
+
 SDelFile *tsdbFSStateGetDelFile(STsdbFSState *pState) { return pState->pDelFile; }
 
 SDFileSet *tsdbFSStateGetDFileSet(STsdbFSState *pState, int32_t fid) {

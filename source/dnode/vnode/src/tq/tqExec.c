@@ -59,13 +59,13 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp) {
   return 0;
 }
 
-int64_t tqScan(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffsetVal* pOffset) {
-  qTaskInfo_t task = pExec->execCol.task[0];
+int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset) {
+  const STqExecHandle* pExec = &pHandle->execHandle;
+  qTaskInfo_t          task = pExec->execCol.task[0];
 
   if (qStreamPrepareScan(task, pOffset) < 0) {
     ASSERT(pOffset->type == TMQ_OFFSET__LOG);
     pRsp->rspOffset = *pOffset;
-    pRsp->rspOffset.version--;
     return 0;
   }
 
@@ -73,9 +73,11 @@ int64_t tqScan(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffset
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
+    tqDebug("task start to execute");
     if (qExecTask(task, &pDataBlock, &ts) < 0) {
       ASSERT(0);
     }
+    tqDebug("task execute end, get %p", pDataBlock);
 
     if (pDataBlock != NULL) {
       tqAddBlockDataToRsp(pDataBlock, pRsp);
@@ -97,7 +99,7 @@ int64_t tqScan(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffset
     }
 
     if (pRsp->blockNum == 0 && pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
-      tqOffsetResetToLog(pOffset, pExec->tsdbEndVer + 1);
+      tqOffsetResetToLog(pOffset, pHandle->snapshotVer + 1);
       qStreamPrepareScan(task, pOffset);
       continue;
     }
@@ -116,7 +118,7 @@ int64_t tqScan(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffset
     if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
       ASSERT(pRsp->rspOffset.version + 1 >= pRsp->reqOffset.version);
     }
-
+    tqDebug("task exec exited");
     break;
   }
 
