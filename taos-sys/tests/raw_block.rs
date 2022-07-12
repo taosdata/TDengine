@@ -1,7 +1,7 @@
 use std::slice;
 
 // todo: some const functions are not available for stable Rust.
-use taos_query::common::{RawBlock, Value};
+use taos_query::common::{Raw, Value};
 #[test]
 fn raw_block() -> Result<(), taos_error::Error> {
     use taos_sys::*;
@@ -17,22 +17,19 @@ fn raw_block() -> Result<(), taos_error::Error> {
     let precision = rs.precision();
     let field_count = rs.field_count();
     let (ptr, rows) = rs.fetch_raw_block()?;
+    let inner = unsafe { Raw::parse_from_ptr(ptr as _, rows as _, field_count as _, precision) };
 
-    let inner = unsafe { RawBlock::from_ptr(ptr, rows as _, field_count as _, precision) };
+    // let inner = unsafe { Raw::from_ptr(ptr, rows as _, field_count as _, precision) };
     let gid = inner.group_id();
     println!("group id: {gid}");
 
-    for i in 0..field_count {
-        let col = inner.get_schema_of(i as _);
-        let field = &fields[i as usize];
-        println!("{field:?}, {col:#x?}");
-    }
+    dbg!(inner.schemas());
 
-    dbg!(unsafe { inner.get_unchecked(0, field_count as usize - 1) });
+    dbg!(unsafe { inner.get_ref_unchecked(0, field_count as usize - 1) });
     for row in 0..dbg!(rows) as usize {
         for col in 0..field_count as usize {
             println!("({row}, {col}): ");
-            let v = unsafe { inner.get_unchecked(row, col) };
+            let v = unsafe { inner.get_ref_unchecked(row, col) };
             dbg!(v);
         }
     }
@@ -67,7 +64,7 @@ fn raw_block_full_test() -> Result<(), taos_error::Error> {
         (1655793421375,true, -1, -1, -1, -1, 1, 1, 1, 1, 0.0, 0.0, 'abc', '涛思𝄞数据')",
     )?;
     // let rs = taos.query("select * from stb1 order by tbname,ts")?;
-    let rs = taos.query("select ts from abc_a.tb1 limit 1")?;
+    let rs = taos.query("select ts from tb1 limit 1")?;
     let fields = rs.fields();
     let precision = rs.precision();
     let field_count = rs.field_count();
@@ -79,7 +76,7 @@ fn raw_block_full_test() -> Result<(), taos_error::Error> {
     let len = u32::from_le_bytes(len_bytes);
     let raw = dbg!(unsafe { slice::from_raw_parts(ptr, len as _) });
 
-    let inner = unsafe { RawBlock::from_ptr(ptr, rows as _, field_count as _, precision) };
+    let inner = unsafe { Raw::parse_from_ptr(ptr as _, rows as _, field_count as _, precision) };
     let gid = inner.group_id();
     println!("group id: {gid}");
 
@@ -95,22 +92,20 @@ fn raw_block_full_test() -> Result<(), taos_error::Error> {
         )
         .unwrap()
     }
-
-    dbg!(inner.len());
-    dbg!(inner.as_bytes());
-    let bytes = inner.to_vec();
+    let bytes = inner.as_raw_bytes();
     println!("{}", show_buf(bytes));
 
+    let schemas = inner.schemas();
     for i in 0..field_count {
-        let col = inner.get_schema_of(i as _);
+        let col = schemas[i as usize];
         let field = &fields[i as usize];
         println!("{field:?}, {col:#x?}");
     }
-    dbg!(unsafe { inner.get_unchecked(0, field_count as usize - 1) });
+    dbg!(unsafe { inner.get_ref_unchecked(0, field_count as usize - 1) });
     for row in 0..dbg!(rows) as usize {
         for col in 0..field_count as usize {
             println!("({row}, {col}): ");
-            let v = unsafe { inner.get_unchecked(row, col) };
+            let v = unsafe { inner.get_ref_unchecked(row, col) };
 
             dbg!(v);
         }

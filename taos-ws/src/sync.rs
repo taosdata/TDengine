@@ -1,4 +1,4 @@
-use taos_query::common::{Block, Field, Precision, Raw, RawBlock};
+use taos_query::common::{Field, Precision, Raw};
 use taos_query::{DeError, Dsn, DsnError, Fetchable, IntoDsn, Queryable};
 use thiserror::Error;
 use tokio_tungstenite::connect_async;

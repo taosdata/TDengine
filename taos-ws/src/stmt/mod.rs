@@ -1,7 +1,7 @@
 use futures::{FutureExt, SinkExt, StreamExt};
 use scc::HashMap;
 use serde_json::json;
-use taos_query::common::{Block, Column, Field, Precision, RawBlock};
+use taos_query::common::{Column, Field, Precision};
 use taos_query::{AsyncFetchable, AsyncQueryable, DeError, Dsn, DsnError, FromDsn, IntoDsn};
 use thiserror::Error;
 use tokio::sync::{oneshot, watch};

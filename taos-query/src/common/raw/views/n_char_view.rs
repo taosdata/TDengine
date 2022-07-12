@@ -1,6 +1,7 @@
-use std::{borrow::Cow, ffi::c_void, fmt::Debug, ops::Deref};
+use std::{ffi::c_void, fmt::Debug};
 
 use super::Offsets;
+
 use crate::{
     common::{BorrowedValue, Ty},
     util::{InlineNChar, InlineStr},
@@ -37,6 +38,9 @@ impl NCharView {
     }
 
     /// Get UTF-8 string at `row`.
+    ///
+    /// In this method, InlineNChar will directly converted to InlineStr, which means v3 raw block
+    /// will be changed in-place.
     #[inline]
     pub unsafe fn get_inline_str_unchecked(&self, row: usize) -> Option<&InlineStr> {
         let offset = self.offsets.get_unchecked(row);
