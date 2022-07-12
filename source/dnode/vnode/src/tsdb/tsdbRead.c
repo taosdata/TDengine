@@ -304,6 +304,10 @@ static bool filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader) {
   STimeWindow win = {0};
 
   while (1) {
+    if (pReader->pFileReader != NULL) {
+      tsdbDataFReaderClose(&pReader->pFileReader);
+    }
+
     pReader->status.pCurrentFileset = (SDFileSet*)taosArrayGet(pIter->pFileList, pIter->index);
 
     int32_t code = tsdbDataFReaderOpen(&pReader->pFileReader, pReader->pTsdb, pReader->status.pCurrentFileset);
@@ -2437,6 +2441,7 @@ static int32_t doMergeRowsInFileBlockImpl(SBlockData* pBlockData, int32_t rowInd
                                           SVersionRange* pVerRange, int32_t step) {
   while (pBlockData->aTSKEY[rowIndex] == key && rowIndex < pBlockData->nRow && rowIndex >= 0) {
     if (pBlockData->aVersion[rowIndex] > pVerRange->maxVer || pBlockData->aVersion[rowIndex] < pVerRange->minVer) {
+      rowIndex += step;
       continue;
     }
 
@@ -2834,7 +2839,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
   cleanupDataBlockIterator(&pReader->status.blockIter);
   destroyBlockScanInfo(pReader->status.pTableMap);
   blockDataDestroy(pReader->pResBlock);
-
+  tsdbDataFReaderClose(&pReader->pFileReader);
 
 #if 0
 //   if (pReader->status.pTableScanInfo != NULL) {
@@ -3023,6 +3028,7 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   memset(pReader->suppInfo.plist, 0, POINTER_BYTES);
 
   pReader->suppInfo.tsColAgg.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  tsdbDataFReaderClose(&pReader->pFileReader);
 
   // todo set the correct numOfTables
   int32_t         numOfTables = 1;
