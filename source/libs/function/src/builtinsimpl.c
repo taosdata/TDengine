@@ -907,11 +907,13 @@ int32_t avgFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SAvgRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  int32_t  start = pInput->startRowIndex;
-  char*    data = colDataGetData(pCol, start);
-  SAvgRes* pInputInfo = (SAvgRes*)varDataVal(data);
+  int32_t start = pInput->startRowIndex;
 
-  avgTransferInfo(pInputInfo, pInfo);
+  for(int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    char* data = colDataGetData(pCol, i);
+    SAvgRes* pInputInfo = (SAvgRes*)varDataVal(data);
+    avgTransferInfo(pInputInfo, pInfo);
+  }
 
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);
 
@@ -2512,11 +2514,13 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SAPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  int32_t           start = pInput->startRowIndex;
-  char*             data = colDataGetData(pCol, start);
-  SAPercentileInfo* pInputInfo = (SAPercentileInfo*)varDataVal(data);
+  int32_t start = pInput->startRowIndex;
 
-  apercentileTransferInfo(pInputInfo, pInfo);
+  for(int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    char* data = colDataGetData(pCol, i);
+    SAPercentileInfo* pInputInfo = (SAPercentileInfo*)varDataVal(data);
+    apercentileTransferInfo(pInputInfo, pInfo);
+  }
 
   SET_VAL(pResInfo, 1, 1);
   return TSDB_CODE_SUCCESS;
@@ -2877,13 +2881,17 @@ static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuer
 
   SFirstLastRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  int32_t        start = pInput->startRowIndex;
-  char*          data = colDataGetData(pCol, start);
-  SFirstLastRes* pInputInfo = (SFirstLastRes*)varDataVal(data);
+  int32_t start = pInput->startRowIndex;
+  int32_t numOfElems = 0;
 
-  firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery);
-
-  int32_t numOfElems = pInputInfo->hasResult ? 1 : 0;
+  for(int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    char* data = colDataGetData(pCol, i);
+    SFirstLastRes* pInputInfo = (SFirstLastRes*)varDataVal(data);
+    firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery);
+    if (!numOfElems) {
+      numOfElems = pInputInfo->hasResult ? 1 : 0;
+    }
+  }
 
   SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
 
@@ -3703,11 +3711,13 @@ int32_t spreadFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  int32_t      start = pInput->startRowIndex;
-  char*        data = colDataGetData(pCol, start);
-  SSpreadInfo* pInputInfo = (SSpreadInfo*)varDataVal(data);
+  int32_t start = pInput->startRowIndex;
 
-  spreadTransferInfo(pInputInfo, pInfo);
+  for(int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    char* data = colDataGetData(pCol, i);
+    SSpreadInfo* pInputInfo = (SSpreadInfo*)varDataVal(data);
+    spreadTransferInfo(pInputInfo, pInfo);
+  }
 
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);
 
@@ -3873,11 +3883,13 @@ int32_t elapsedFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  int32_t       start = pInput->startRowIndex;
-  char*         data = colDataGetData(pCol, start);
-  SElapsedInfo* pInputInfo = (SElapsedInfo*)varDataVal(data);
+  int32_t start = pInput->startRowIndex;
 
-  elapsedTransferInfo(pInputInfo, pInfo);
+  for(int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    char* data = colDataGetData(pCol, i);
+    SElapsedInfo* pInputInfo = (SElapsedInfo*)varDataVal(data);
+    elapsedTransferInfo(pInputInfo, pInfo);
+  }
 
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);
   return TSDB_CODE_SUCCESS;
@@ -4164,10 +4176,10 @@ int32_t histogramFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  int32_t         start = pInput->startRowIndex;
+  int32_t start = pInput->startRowIndex;
 
   for(int32_t i = start; i < start + pInput->numOfRows; ++i) {
-    char*       data = colDataGetData(pCol, i);
+    char* data = colDataGetData(pCol, i);
     SHistoFuncInfo* pInputInfo = (SHistoFuncInfo*)varDataVal(data);
     histogramTransferInfo(pInputInfo, pInfo);
   }
@@ -4385,11 +4397,13 @@ int32_t hllFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SHLLInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  int32_t   start = pInput->startRowIndex;
-  char*     data = colDataGetData(pCol, start);
-  SHLLInfo* pInputInfo = (SHLLInfo*)varDataVal(data);
+  int32_t start = pInput->startRowIndex;
 
-  hllTransferInfo(pInputInfo, pInfo);
+  for(int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    char* data = colDataGetData(pCol, i);
+    SHLLInfo* pInputInfo = (SHLLInfo*)varDataVal(data);
+    hllTransferInfo(pInputInfo, pInfo);
+  }
 
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);
   return TSDB_CODE_SUCCESS;
