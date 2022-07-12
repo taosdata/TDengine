@@ -82,7 +82,8 @@ macro_rules! _impl_inline_str {
                 }
 
                 #[inline]
-                pub const fn chars(&self) -> &[char] {
+                #[rustversion::attr(nightly, const)]
+                pub fn chars(&self) -> &[char] {
                     unsafe { std::slice::from_raw_parts(self.data.as_ptr() as _, self.chars_len()) }
                 }
 
