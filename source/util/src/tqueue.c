@@ -115,7 +115,7 @@ bool taosQueueEmpty(STaosQueue *queue) {
 
   bool empty = false;
   taosThreadMutexLock(&queue->mutex);
-  if (queue->head == NULL && queue->tail == NULL) {
+  if (queue->head == NULL && queue->tail == NULL && queue->numOfItems == 0 && queue->memOfItems == 0) {
     empty = true;
   }
   taosThreadMutexUnlock(&queue->mutex);
@@ -397,7 +397,7 @@ void taosRemoveFromQset(STaosQset *qset, STaosQueue *queue) {
 
 int32_t taosGetQueueNumber(STaosQset *qset) { return qset->numOfQueues; }
 
-int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, int64_t *ts, void **ahandle, FItem *itemFp) {
+int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, SQueueInfo *qinfo) {
   STaosQnode *pNode = NULL;
   int32_t     code = 0;
 
@@ -417,9 +417,10 @@ int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, int64_t *ts, void 
     if (queue->head) {
       pNode = queue->head;
       *ppItem = pNode->item;
-      if (ahandle) *ahandle = queue->ahandle;
-      if (itemFp) *itemFp = queue->itemFp;
-      if (ts) *ts = pNode->timestamp;
+      qinfo->ahandle = queue->ahandle;
+      qinfo->fp = queue->itemFp;
+      qinfo->queue = queue;
+      qinfo->timestamp = pNode->timestamp;
 
       queue->head = pNode->next;
       if (queue->head == NULL) queue->tail = NULL;
@@ -440,7 +441,7 @@ int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, int64_t *ts, void 
   return code;
 }
 
-int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, void **ahandle, FItems *itemsFp) {
+int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *qinfo) {
   STaosQueue *queue;
   int32_t     code = 0;
 
@@ -461,13 +462,16 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, void **ahand
       qall->start = queue->head;
       qall->numOfItems = queue->numOfItems;
       code = qall->numOfItems;
-      if (ahandle) *ahandle = queue->ahandle;
-      if (itemsFp) *itemsFp = queue->itemsFp;
+      qinfo->ahandle = queue->ahandle;
+      qinfo->fp = queue->itemsFp;
+      qinfo->queue = queue;
 
       queue->head = NULL;
       queue->tail = NULL;
       queue->numOfItems = 0;
       queue->memOfItems = 0;
+      uTrace("read %d items from queue:%p, items:%d mem:%" PRId64, code, queue, queue->numOfItems, queue->memOfItems);
+
       atomic_sub_fetch_32(&qset->numOfItems, qall->numOfItems);
       for (int32_t j = 1; j < qall->numOfItems; ++j) {
         tsem_wait(&qset->sem);

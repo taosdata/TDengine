@@ -242,13 +242,13 @@ static int32_t syncIOStopInternal(SSyncIO *io) {
 }
 
 static void *syncIOConsumerFunc(void *param) {
-  SSyncIO *  io = param;
-  STaosQall *qall;
-  SRpcMsg *  pRpcMsg, rpcMsg;
-  qall = taosAllocateQall();
+  SSyncIO   *io = param;
+  STaosQall *qall = taosAllocateQall();
+  SRpcMsg   *pRpcMsg, rpcMsg;
+  SQueueInfo qinfo = {0};
 
   while (1) {
-    int numOfMsgs = taosReadAllQitemsFromQset(io->pQset, qall, NULL, NULL);
+    int numOfMsgs = taosReadAllQitemsFromQset(io->pQset, qall, &qinfo);
     sTrace("syncIOConsumerFunc %d msgs are received", numOfMsgs);
     if (numOfMsgs <= 0) {
       break;
