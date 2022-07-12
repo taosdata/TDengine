@@ -67,7 +67,6 @@ struct SRSmaStat {
   int64_t   submitVer;
   int64_t   refId;         // shared by fetch tasks
   int8_t    triggerStat;   // shared by fetch tasks
-  int8_t    runningStat;   // for persistence task 
   SHashObj *rsmaInfoHash;  // key: stbUid, value: SRSmaInfo;
 };
 
@@ -83,7 +82,6 @@ struct SSmaStat {
 #define SMA_RSMA_STAT(s)     (&(s)->rsmaStat)
 #define RSMA_INFO_HASH(r)    ((r)->rsmaInfoHash)
 #define RSMA_TRIGGER_STAT(r) (&(r)->triggerStat)
-#define RSMA_RUNNING_STAT(r) (&(r)->runningStat)
 #define RSMA_REF_ID(r)       ((r)->refId)
 #define RSMA_SUBMIT_VER(r)   ((r)->submitVer)
 
@@ -93,7 +91,7 @@ enum {
   TASK_TRIGGER_STAT_INACTIVE = 2,
   TASK_TRIGGER_STAT_PAUSED = 3,
   TASK_TRIGGER_STAT_CANCELLED = 4,
-  TASK_TRIGGER_STAT_FINISHED = 5,
+  TASK_TRIGGER_STAT_DROPPED = 5,
 };
 
 void  tdDestroySmaEnv(SSmaEnv *pSmaEnv);

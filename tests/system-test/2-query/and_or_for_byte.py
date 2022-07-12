@@ -495,9 +495,9 @@ class TDTestCase:
         tdSql.checkRows(13)
         self.check_function("&", False ,"t1","c1+2","abs(c2)")
         tdSql.query("select t1 from stb1 where t1 >0 ")
-        tdSql.checkRows(3)
+        tdSql.checkRows(12)
         tdSql.query("select t1 from stb1 where t1 =3 ")
-        tdSql.checkRows(1)
+        tdSql.checkRows(12)
         # tdSql.query("select sum(t1) from (select c1 ,t1 from stb1)")
         # tdSql.checkData(0,0,61)
         # tdSql.query("select distinct(c1) ,t1 from stb1")
@@ -507,7 +507,7 @@ class TDTestCase:
 
         # tag filter with abs function
         tdSql.query("select t1 from stb1 where abs(t1)=1")
-        tdSql.checkRows(1)
+        tdSql.checkRows(0)
         tdSql.query("select t1 from stb1 where abs(c1+t1)=1")
         tdSql.checkRows(1)
         tdSql.checkData(0,0,0)

@@ -52,6 +52,7 @@ typedef struct {
   // char     autoOffsetRest[16];    // none, earliest, latest
 
   TdFilePtr pConsumeRowsFile;
+  TdFilePtr pConsumeMetaFile;  
   int32_t   ifCheckData;
   int64_t   expectMsgCnt;
 
@@ -445,7 +446,7 @@ static void dumpToFileForCheck(TdFilePtr pFile, TAOS_ROW row, TAOS_FIELD* fields
   taosFprintfFile(pFile, "\n");
 }
 
-static int32_t msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIndex) {
+static int32_t data_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIndex) {
   char    buf[1024];
   int32_t totalRows = 0;
 
@@ -496,6 +497,52 @@ static int32_t msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIndex) 
   return totalRows;
 }
 
+
+static int32_t meta_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIndex) {
+  char    buf[1024];
+  int32_t totalRows = 0;
+
+  // printf("topic: %s\n", tmq_get_topic_name(msg));
+  int32_t     vgroupId = tmq_get_vgroup_id(msg);
+  const char* dbName = tmq_get_db_name(msg);
+
+  taosFprintfFile(g_fp, "consumerId: %d, msg index:%" PRId64 "\n", pInfo->consumerId, msgIndex);
+  taosFprintfFile(g_fp, "dbName: %s, topic: %s, vgroupId: %d\n", dbName != NULL ? dbName : "invalid table",
+                  tmq_get_topic_name(msg), vgroupId);
+
+  {
+    tmq_raw_data *raw = tmq_get_raw_meta(msg);
+	
+    if(raw){
+	  TAOS_RES* pRes = taos_query(pInfo->taos, "use metadb");
+	  if (taos_errno(pRes) != 0) {
+		pError("error when use metadb, reason:%s\n", taos_errstr(pRes));
+		taosFprintfFile(g_fp, "error when use metadb, reason:%s\n", taos_errstr(pRes));
+		taosCloseFile(&g_fp);
+		taos_free_result(pRes);
+		exit(-1);
+	  }	  
+	  taos_free_result(pRes);
+	  taosFprintfFile(g_fp, "raw:%p\n", raw);
+	
+      int32_t ret = taos_write_raw_meta(pInfo->taos, raw);
+      taosMemoryFree(raw);	  
+    }
+	
+    char* result = tmq_get_json_meta(msg);
+    if(result){
+  	  //printf("meta result: %s\n", result);
+  	  taosFprintfFile(pInfo->pConsumeMetaFile, "%s\n", result);
+  	  taosMemoryFree(result);
+    }
+  }
+
+  totalRows++;
+
+  return totalRows;
+}
+
+
 int queryDB(TAOS* taos, char* command) {
   TAOS_RES* pRes = taos_query(taos, command);
   int       code = taos_errno(pRes);
@@ -526,7 +573,7 @@ int32_t notifyMainScript(SThreadInfo* pInfo, int32_t cmdId) {
 
 static int32_t g_once_commit_flag = 0;
 static void    tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
-  pError("tmq_commit_cb_print() commit %d\n", code);
+  taosFprintfFile(g_fp, "tmq_commit_cb_print() commit %d\n", code);
 
   if (0 == g_once_commit_flag) {
     g_once_commit_flag = 1;
@@ -630,8 +677,12 @@ void loop_consume(SThreadInfo* pInfo) {
     // getCurrentTimeString(tmpString));
     sprintf(filename, "%s/../log/consumerid_%d.txt", configDir, pInfo->consumerId);
     pInfo->pConsumeRowsFile = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
-    if (pInfo->pConsumeRowsFile == NULL) {
-      taosFprintfFile(g_fp, "%s create file fail for save rows content\n", getCurrentTimeString(tmpString));
+
+	sprintf(filename, "%s/../log/meta_consumerid_%d.txt", configDir, pInfo->consumerId);
+	pInfo->pConsumeMetaFile = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+	
+    if (pInfo->pConsumeRowsFile == NULL || pInfo->pConsumeMetaFile == NULL) {
+      taosFprintfFile(g_fp, "%s create file fail for save rows or save meta\n", getCurrentTimeString(tmpString));
       return;
     }
   }
@@ -645,7 +696,11 @@ void loop_consume(SThreadInfo* pInfo) {
     TAOS_RES* tmqMsg = tmq_consumer_poll(pInfo->tmq, consumeDelay);
     if (tmqMsg) {
       if (0 != g_stConfInfo.showMsgFlag) {
-        totalRows += msg_process(tmqMsg, pInfo, totalMsgs);
+	  	tmq_res_t msgType = tmq_get_res_type(tmqMsg);
+		if (msgType == TMQ_RES_TABLE_META) {
+ 		  totalRows += meta_msg_process(tmqMsg, pInfo, totalMsgs);
+		} else if (msgType == TMQ_RES_DATA)
+          totalRows += data_msg_process(tmqMsg, pInfo, totalMsgs);
       }
 
       taos_free_result(tmqMsg);
