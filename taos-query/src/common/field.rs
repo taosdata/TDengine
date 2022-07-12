@@ -39,6 +39,13 @@ impl Inlinable for Field {
 }
 
 impl Field {
+    pub const fn empty() -> Self {
+        Self {
+            name: String::new(),
+            ty: Ty::Null,
+            bytes: 0,
+        }
+    }
     pub fn new(name: impl Into<String>, ty: Ty, bytes: u32) -> Self {
         let name = name.into();
         Self { name, ty, bytes }

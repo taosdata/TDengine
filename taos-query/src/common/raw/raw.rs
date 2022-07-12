@@ -287,7 +287,7 @@ impl Raw {
                     data_lengths[i] = data.len() as u32;
                     // build column view
                     let column = ColumnView::Bool(BoolView { nulls, data });
-                    columns.push(dbg!(column));
+                    columns.push(column);
                 }
 
                 // Signed integers columns.
@@ -320,7 +320,7 @@ impl Raw {
                         }
                     }));
 
-                    columns.push(dbg!(ColumnView::VarChar(VarCharView { offsets, data })));
+                    columns.push(ColumnView::VarChar(VarCharView { offsets, data }));
 
                     data_lengths[i] = *length as u32 * rows as u32;
                 }
@@ -351,7 +351,7 @@ impl Raw {
                         data,
                         precision,
                     });
-                    columns.push(dbg!(column));
+                    columns.push(column);
                 }
                 Ty::NChar => {
                     let start = offset;
@@ -623,13 +623,8 @@ impl Raw {
         &self.columns
     }
 
-    pub fn as_raw_bytes(&self) -> Cow<[u8]> {
-        match &self.layout {
-            Layout::V2Ptr => todo!(),
-            Layout::V2Raw => todo!(),
-            Layout::Ref => Cow::Borrowed(&self.data),
-            Layout::Owned => Cow::Borrowed(&self.data),
-        }
+    pub fn as_raw_bytes(&self) -> &[u8] {
+        &self.data
     }
 
     pub fn is_null(&self, row: usize, col: usize) -> bool {

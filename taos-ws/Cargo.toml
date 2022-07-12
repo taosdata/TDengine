@@ -17,20 +17,17 @@ serde_json = { version = "1" }
 serde_with = "1.14.0"
 thiserror = "1"
 # tungstenite = { version = "0.17", features = ["native-tls-vendored"] }
-websocket = "0.26.4"
 
 taos-error = { path = "../taos-error" }
 taos-query = { path = "../taos-query", default-features = false }
 
 async-trait = { version = "0.1.56", optional = true }
-futures = { version = "0.3", optional = true }
-# lockfree = "0.5"
-# oneshot = "0.1.3"
+futures = { version = "0.3" }
 
 scc = "0.8"
-tokio = { version = "1", features = ["full"], optional = true }
+tokio = { version = "1", features = ["full"] }
 #tokio-tungstenite = { version = "0.17.1", features = ["__rustls-tls"] }
-tokio-tungstenite = { version = "0.17", features = ["native-tls-vendored"], optional = true }
+tokio-tungstenite = { version = "0.17", features = ["native-tls-vendored"] }
 
 [dev-dependencies]
 anyhow = "1"
@@ -38,7 +35,7 @@ pretty_env_logger = "*"
 
 [features]
 default = [ "async", "stmt", "tmq"]
-async = ["async-trait", "tokio", "tokio-tungstenite", "futures", "taos-query/async"]
+async = ["async-trait", "taos-query/async"]
 sync = []
 stmt = ["async"]
 tmq = ["async"]
