@@ -19,6 +19,8 @@ class TestTb(TDCase):
     def init(self):
         super().init()
         self.tdCom = TDCom(self.tdSql)
+        self.test_ttl = 2
+        self.comment = "stb_param_test"
 
     def tbname_length_check(self):
         """
@@ -124,22 +126,20 @@ class TestTb(TDCase):
         tb comment check
         """
         tbname = self.tdCom.get_long_name()
-        comment = "stb_param_test"
-        self.tdSql.execute(f'create table if not exists {tbname} (ts timestamp, c1 int) comment "{comment}"')
+        self.tdSql.execute(f'create table if not exists {tbname} (ts timestamp, c1 int) comment "{self.comment}"')
         self.tdSql.query('show tables')
         res = self.tdSql.get_db_field_kv(0, tbname)
-        self.tdSql.checkEqual(res["table_comment"], comment)
+        self.tdSql.checkEqual(res["table_comment"], self.comment)
 
     def ttl_check(self):
         """
         check ttl
         """
         tbname = self.tdCom.get_long_name()
-        test_ttl = 2
-        self.tdSql.execute(f'create table if not exists {tbname} (ts timestamp, c1 int) ttl {test_ttl}')
+        self.tdSql.execute(f'create table if not exists {tbname} (ts timestamp, c1 int) ttl {self.test_ttl}')
         self.tdSql.query(f'show tables')
         res = self.tdSql.get_db_field_kv(0, tbname)
-        self.tdSql.checkEqual(int(res["ttl"]), test_ttl)
+        self.tdSql.checkEqual(int(res["ttl"]), self.test_ttl)
 
     def run(self):
         self.tbname_length_check()
@@ -147,8 +147,8 @@ class TestTb(TDCase):
         self.tbname_without_backquote()
         self.upper_lower_tbname_check()
         self.illegal_tbsql_check()
-        # self.comment_check()
-        # self.ttl_check()
+        self.comment_check()
+        self.ttl_check()
 
     def desc(self):
         case_description = """
