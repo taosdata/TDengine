@@ -11,7 +11,7 @@ class SQLWriter:
         self._tb_values = {}
         self._tb_tags = {}
         self._conn = self.get_connection()
-        self._max_sql_lenght = self.get_max_sql_length()
+        self._max_sql_length = self.get_max_sql_length()
         self._conn.execute("USE test")
 
     def get_max_sql_length(self):
@@ -57,7 +57,7 @@ class SQLWriter:
         buf = []
         for tb_name, values in self._tb_values.items():
             q = tb_name + " VALUES " + values
-            if sql_len + len(q) >= self._max_sql_lenght:
+            if sql_len + len(q) >= self._max_sql_length:
                 sql += " ".join(buf)
                 self.execute_sql(sql)
                 sql = "INSERT INTO "
