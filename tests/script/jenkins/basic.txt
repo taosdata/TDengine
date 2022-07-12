@@ -170,6 +170,7 @@
 # --- valgrind
 ./test.sh -f tsim/valgrind/checkError1.sim
 ./test.sh -f tsim/valgrind/checkError2.sim
+./test.sh -f tsim/valgrind/checkError3.sim
 
 # --- vnode
 # ./test.sh -f tsim/vnode/replica3_basic.sim
