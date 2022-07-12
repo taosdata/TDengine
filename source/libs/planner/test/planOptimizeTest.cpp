@@ -88,3 +88,10 @@ TEST_F(PlanOptimizeTest, pushDownProjectCond) {
   useDb("root", "test");
   run("select 1-abs(c1) from (select unique(c1) c1 from st1s3) where 1-c1>5 order by 1 nulls first");
 }
+
+TEST_F(PlanOptimizeTest, tagScan) {
+  useDb("root", "test");
+  run("select tag1 from st1 group by tag1");
+  run("select distinct tag1 from st1");
+  run("select tag1*tag1 from st1 group by tag1*tag1");
+}
