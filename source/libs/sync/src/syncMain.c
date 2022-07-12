@@ -1099,19 +1099,13 @@ void syncNodeStart(SSyncNode* pSyncNode) {
     // Raft 3.6.2 Committing entries from previous terms
     syncNodeAppendNoop(pSyncNode);
     syncMaybeAdvanceCommitIndex(pSyncNode);
-
-    return;
+  } else {
+    syncNodeBecomeFollower(pSyncNode, "first start");
   }
 
-  syncNodeBecomeFollower(pSyncNode, "first start");
-
-  // int32_t ret = 0;
-  // ret = syncNodeStartPingTimer(pSyncNode);
-  // ASSERT(ret == 0);
-
-  if (gRaftDetailLog) {
-    syncNodeLog2("==state change become leader immediately==", pSyncNode);
-  }
+  int32_t ret = 0;
+  ret = syncNodeStartPingTimer(pSyncNode);
+  ASSERT(ret == 0);
 }
 
 void syncNodeStartStandBy(SSyncNode* pSyncNode) {
@@ -1161,14 +1155,6 @@ void syncNodeClose(SSyncNode* pSyncNode) {
     snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
     pSyncNode->pNewNodeReceiver = NULL;
   }
-
-  /*
-  if (pSyncNode->pSnapshot != NULL) {
-    taosMemoryFree(pSyncNode->pSnapshot);
-  }
-  */
-
-  // tsem_destroy(&pSyncNode->restoreSem);
 
   // free memory in syncFreeNode
   // taosMemoryFree(pSyncNode);
@@ -1234,7 +1220,7 @@ int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
                  &pSyncNode->pPingTimer);
     atomic_store_64(&pSyncNode->pingTimerLogicClock, pSyncNode->pingTimerLogicClockUser);
   } else {
-    sError("sync env is stop, syncNodeStartPingTimer");
+    sError("vgId:%d, start ping timer error, sync env is stop", pSyncNode->vgId);
   }
   return ret;
 }
@@ -1255,7 +1241,7 @@ int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
                  &pSyncNode->pElectTimer);
     atomic_store_64(&pSyncNode->electTimerLogicClock, pSyncNode->electTimerLogicClockUser);
   } else {
-    sError("sync env is stop, syncNodeStartElectTimer");
+    sError("vgId:%d, start elect timer error, sync env is stop", pSyncNode->vgId);
   }
   return ret;
 }
@@ -1295,7 +1281,7 @@ int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
                  &pSyncNode->pHeartbeatTimer);
     atomic_store_64(&pSyncNode->heartbeatTimerLogicClock, pSyncNode->heartbeatTimerLogicClockUser);
   } else {
-    sError("sync env is stop, syncNodeStartHeartbeatTimer");
+    sError("vgId:%d, start heartbeat timer error, sync env is stop", pSyncNode->vgId);
   }
   return ret;
 }
