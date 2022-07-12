@@ -174,8 +174,8 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
-
-
+python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
+#python3 ./test.py -f 7-tmq/tmqDnode.py
 
 #------------querPolicy  2-----------
 
