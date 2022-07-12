@@ -285,7 +285,7 @@ int32_t debugPrintSColVal(SColVal *cv, int8_t type) {
 }
 
 void debugPrintTSRow(STSRow2 *row, STSchema *pTSchema, const char *tags, int32_t ln) {
-  printf("%s:%d %s:v%d:%d ", tags, ln, (row->flags & 0xf0) ? "KV" : "TP", row->sver, row->nData);
+  // printf("%s:%d %s:v%d:%d ", tags, ln, (row->flags & 0xf0) ? "KV" : "TP", row->sver, row->nData);
   for (int16_t i = 0; i < pTSchema->numOfCols; ++i) {
     SColVal cv = {0};
     tTSRowGet(row, pTSchema, i, &cv);
