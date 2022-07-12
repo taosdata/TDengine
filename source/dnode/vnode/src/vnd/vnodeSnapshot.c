@@ -20,13 +20,13 @@ struct SVSnapReader {
   SVnode *pVnode;
   int64_t sver;
   int64_t ever;
+  int64_t index;
   // meta
   int8_t           metaDone;
   SMetaSnapReader *pMetaReader;
   // tsdb
   int8_t           tsdbDone;
   STsdbSnapReader *pTsdbReader;
-  uint8_t         *pData;
 };
 
 int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapReader **ppReader) {
@@ -42,12 +42,7 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapRe
   pReader->sver = sver;
   pReader->ever = ever;
 
-  code = metaSnapReaderOpen(pVnode->pMeta, sver, ever, &pReader->pMetaReader);
-  if (code) goto _err;
-
-  code = tsdbSnapReaderOpen(pVnode->pTsdb, sver, ever, &pReader->pTsdbReader);
-  if (code) goto _err;
-
+  vInfo("vgId:%d vnode snapshot reader opened, sver:%" PRId64 " ever:%" PRId64, TD_VID(pVnode), sver, ever);
   *ppReader = pReader;
   return code;
 
@@ -60,50 +55,75 @@ _err:
 int32_t vnodeSnapReaderClose(SVSnapReader *pReader) {
   int32_t code = 0;
 
-  tFree(pReader->pData);
-  if (pReader->pTsdbReader) tsdbSnapReaderClose(&pReader->pTsdbReader);
-  if (pReader->pMetaReader) metaSnapReaderClose(&pReader->pMetaReader);
-  taosMemoryFree(pReader);
+  // tFree(pReader->pData);
+  // if (pReader->pTsdbReader) tsdbSnapReaderClose(&pReader->pTsdbReader);
+  // if (pReader->pMetaReader) metaSnapReaderClose(&pReader->pMetaReader);
+  // taosMemoryFree(pReader);
 
+  vInfo("vgId:%d vnode snapshot reader closed", TD_VID(pReader->pVnode));
   return code;
 }
 
 int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) {
   int32_t code = 0;
 
+  // META ==============
   if (!pReader->metaDone) {
-    code = metaSnapRead(pReader->pMetaReader, &pReader->pData);
+    // open reader if not
+    if (pReader->pMetaReader == NULL) {
+      code = metaSnapReaderOpen(pReader->pVnode->pMeta, pReader->sver, pReader->ever, &pReader->pMetaReader);
+      if (code) goto _err;
+    }
+
+    code = metaSnapRead(pReader->pMetaReader, ppData);
     if (code) {
-      if (code == TSDB_CODE_VND_READ_END) {
+      goto _err;
+    } else {
+      if (*ppData) {
+        goto _exit;
+      } else {
         pReader->metaDone = 1;
-      } else {
-        goto _err;
+        code = metaSnapReaderClose(&pReader->pMetaReader);
+        if (code) goto _err;
+
+        vInfo("vgId:%d vnode snapshot meta data read end, index:%" PRId64, TD_VID(pReader->pVnode), pReader->index);
       }
-    } else {
-      *ppData = pReader->pData;
-      *nData = sizeof(SSnapDataHdr) + ((SSnapDataHdr *)pReader->pData)->size;
-      goto _exit;
     }
   }
 
+  // TSDB ==============
   if (!pReader->tsdbDone) {
-    code = tsdbSnapRead(pReader->pTsdbReader, &pReader->pData);
-    if (code) {
-      if (code == TSDB_CODE_VND_READ_END) {
-        pReader->tsdbDone = 1;
-      } else {
-        goto _err;
-      }
-    } else {
-      *ppData = pReader->pData;
-      *nData = sizeof(SSnapDataHdr) + ((SSnapDataHdr *)pReader->pData)->size;
-      goto _exit;
-    }
+    // open if not
+    // if (pReader->pTsdbReader == NULL) {
+    //   code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, &pReader->pTsdbReader);
+    //   if (code) goto _err;
+    // }
+
+    // code = tsdbSnapRead(pReader->pTsdbReader, &pReader->pData);
+    // if (code) {
+    //   if (code == TSDB_CODE_VND_READ_END) {
+    //     pReader->tsdbDone = 1;
+    //   } else {
+    //     goto _err;
+    //   }
+    // } else {
+    //   *ppData = pReader->pData;
+    //   *nData = sizeof(SSnapDataHdr) + ((SSnapDataHdr *)pReader->pData)->size;
+    //   goto _exit;
+    // }
   }
 
-  code = TSDB_CODE_VND_READ_END;
+  *ppData = NULL;
+  *nData = 0;
 
 _exit:
+  if (*ppData) {
+    pReader->index++;
+    ((SSnapDataHdr *)(*ppData))->index = pReader->index;
+    vInfo("vgId:%d vnode snapshot read data, index:%" PRId64, TD_VID(pReader->pVnode), pReader->index);
+  } else {
+    vInfo("vgId:%d vnode snapshot read data end, index:%" PRId64, TD_VID(pReader->pVnode), pReader->index);
+  }
   return code;
 
 _err:
@@ -116,6 +136,7 @@ struct SVSnapWriter {
   SVnode *pVnode;
   int64_t sver;
   int64_t ever;
+  int64_t index;
   // meta
   SMetaSnapWriter *pMetaSnapWriter;
   // tsdb
@@ -148,15 +169,21 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
   pWriter->sver = sver;
   pWriter->ever = ever;
 
+  vInfo("vgId:%d vnode snapshot writer opened", TD_VID(pVnode));
+
+  *ppWriter = pWriter;
   return code;
 
 _err:
   vError("vgId:%d vnode snapshot writer open failed since %s", TD_VID(pVnode), tstrerror(code));
+  *ppWriter = NULL;
   return code;
 }
 
 int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback) {
   int32_t code = 0;
+
+  goto _exit;
 
   if (rollback) {
     code = vnodeSnapRollback(pWriter);
@@ -166,6 +193,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback) {
     if (code) goto _err;
   }
 
+_exit:
   taosMemoryFree(pWriter);
   return code;
 
@@ -178,6 +206,8 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
   int32_t       code = 0;
   SSnapDataHdr *pSnapDataHdr = (SSnapDataHdr *)pData;
   SVnode       *pVnode = pWriter->pVnode;
+
+  goto _exit;
 
   ASSERT(pSnapDataHdr->size + sizeof(SSnapDataHdr) == nData);
 
@@ -201,6 +231,7 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
     if (code) goto _err;
   }
 
+_exit:
   return code;
 
 _err:
