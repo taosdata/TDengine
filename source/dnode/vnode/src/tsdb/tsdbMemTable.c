@@ -181,8 +181,12 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   pMemTable->maxVersion = TMAX(pMemTable->maxVersion, version);
   pMemTable->nDel++;
 
-  if (tsdbKeyCmprFn(&lastKey, &pTbData->maxKey) >= 0) {
-    tsdbCacheDelete(pTsdb->lruCache, pTbData->uid, eKey);
+  if (TSDB_CACHE_LAST_ROW(pMemTable->pTsdb->pVnode->config) && tsdbKeyCmprFn(&lastKey, &pTbData->maxKey) >= 0) {
+    tsdbCacheDeleteLastrow(pTsdb->lruCache, pTbData->uid, eKey);
+  }
+
+  if (TSDB_CACHE_LAST(pMemTable->pTsdb->pVnode->config)) {
+    tsdbCacheDeleteLast(pTsdb->lruCache, pTbData->uid, eKey);
   }
 
   tsdbError("vgId:%d, delete data from table suid:%" PRId64 " uid:%" PRId64 " skey:%" PRId64 " eKey:%" PRId64
@@ -556,12 +560,14 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
       pTbData->maxKey = key.ts;
     }
 
-    if (pLastRow != NULL) {
+    if (TSDB_CACHE_LAST_ROW(pMemTable->pTsdb->pVnode->config) && pLastRow != NULL) {
       tsdbCacheInsertLastrow(pMemTable->pTsdb->lruCache, pMemTable->pTsdb, pTbData->uid, pLastRow, true);
     }
   }
 
-  tsdbCacheInsertLast(pMemTable->pTsdb->lruCache, pTbData->uid, pLastRow);
+  if (TSDB_CACHE_LAST(pMemTable->pTsdb->pVnode->config)) {
+    tsdbCacheInsertLast(pMemTable->pTsdb->lruCache, pTbData->uid, pLastRow, pMemTable->pTsdb);
+  }
 
   pTbData->minVersion = TMIN(pTbData->minVersion, version);
   pTbData->maxVersion = TMAX(pTbData->maxVersion, version);

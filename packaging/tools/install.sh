@@ -328,7 +328,7 @@ function install_header() {
   ${csudo}ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
   ${csudo}ln -s ${install_main_dir}/include/taosudf.h ${inc_link_dir}/taosudf.h  
 
-  ${csudo}ln -s ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h || :
+  [ -f ${install_main_dir}/include/taosws.h ] && ${csudo}ln -s ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h || :
 }
 
 function add_newHostname_to_hosts() {

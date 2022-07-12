@@ -637,6 +637,7 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
   int32_t* pageId = taosArrayGet(pGroupInfo->pPageList, pInfo->pageIndex);
   void* page = getBufPage(pInfo->pBuf, *pageId);
 
+  blockDataEnsureCapacity(pInfo->binfo.pRes, pInfo->rowCapacity);
   blockDataFromBuf1(pInfo->binfo.pRes, page, pInfo->rowCapacity);
 
   pInfo->pageIndex += 1;

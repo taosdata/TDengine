@@ -147,6 +147,8 @@ int metaTbCursorNext(SMTbCursor *pTbCur) {
       return -1;
     }
 
+    tDecoderClear(&pTbCur->mr.coder);
+
     metaGetTableEntryByVersion(&pTbCur->mr, *(int64_t *)pTbCur->pVal, *(tb_uid_t *)pTbCur->pKey);
     if (pTbCur->mr.me.type == TSDB_SUPER_TABLE) {
       continue;

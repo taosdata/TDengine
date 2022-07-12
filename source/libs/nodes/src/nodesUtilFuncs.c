@@ -1793,7 +1793,7 @@ static EDealRes classifyConditionImpl(SNode* pNode, void* pContext) {
     } else if (pCol->hasIndex) {
       pCxt->hasTagIndexCol = true;
       pCxt->hasTagCol = true;
-    } else if (COLUMN_TYPE_TAG == pCol->colType) {
+    } else if (COLUMN_TYPE_TAG == pCol->colType || COLUMN_TYPE_TBNAME == pCol->colType) {
       pCxt->hasTagCol = true;
     } else {
       pCxt->hasOtherCol = true;

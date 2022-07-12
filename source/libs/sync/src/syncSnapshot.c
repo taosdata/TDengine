@@ -153,8 +153,8 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshotParam snapsho
       // event log
       do {
         char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "snapshot sender update lcindex from %" PRId64 " to %" PRId64, oldLastConfigIndex,
-                 newLastConfigIndex);
+        snprintf(logBuf, sizeof(logBuf), "snapshot sender update lcindex from %" PRId64 " to %" PRId64,
+                 oldLastConfigIndex, newLastConfigIndex);
         char *eventLog = snapshotSender2SimpleStr(pSender, logBuf);
         syncNodeEventLog(pSender->pSyncNode, eventLog);
         taosMemoryFree(eventLog);
@@ -389,7 +389,9 @@ char *snapshotSender2SimpleStr(SSyncSnapshotSender *pSender, char *event) {
   syncUtilU642Addr(destId.addr, host, sizeof(host), &port);
 
   snprintf(s, len,
-           "%s {%p s-param:%" PRId64 " e-param:%" PRId64 " laindex:%" PRId64 " laterm:%" PRIu64 " lcindex:%" PRId64 " seq:%d ack:%d finish:%d pterm:%" PRIu64 " "
+           "%s {%p s-param:%" PRId64 " e-param:%" PRId64 " laindex:%" PRId64 " laterm:%" PRIu64 " lcindex:%" PRId64
+           " seq:%d ack:%d finish:%d pterm:%" PRIu64
+           " "
            "replica-index:%d %s:%d}",
            event, pSender, pSender->snapshotParam.start, pSender->snapshotParam.end, pSender->snapshot.lastApplyIndex,
            pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex, pSender->seq, pSender->ack,
@@ -692,7 +694,9 @@ char *snapshotReceiver2SimpleStr(SSyncSnapshotReceiver *pReceiver, char *event) 
   syncUtilU642Addr(fromId.addr, host, sizeof(host), &port);
 
   snprintf(s, len,
-           "%s {%p start:%d ack:%d term:%" PRIu64 " pterm:%" PRIu64 " from:%s:%d s-param:%" PRId64 " e-param:%" PRId64 " laindex:%" PRId64 " laterm:%" PRIu64 " "
+           "%s {%p start:%d ack:%d term:%" PRIu64 " pterm:%" PRIu64 " from:%s:%d s-param:%" PRId64 " e-param:%" PRId64
+           " laindex:%" PRId64 " laterm:%" PRIu64
+           " "
            "lcindex:%" PRId64 "}",
            event, pReceiver, pReceiver->start, pReceiver->ack, pReceiver->term, pReceiver->privateTerm, host, port,
            pReceiver->snapshotParam.start, pReceiver->snapshotParam.end, pReceiver->snapshot.lastApplyIndex,

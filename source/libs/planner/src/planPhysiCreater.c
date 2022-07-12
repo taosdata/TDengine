@@ -1519,6 +1519,7 @@ static SSubplan* makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubpl
 
 static int32_t buildInsertValuesSubplan(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode* pModify, SSubplan* pSubplan) {
   pSubplan->msgType = pModify->msgType;
+  pSubplan->execNode.nodeId = pModify->pVgDataBlocks->vg.vgId;
   pSubplan->execNode.epSet = pModify->pVgDataBlocks->vg.epSet;
   return createDataInserter(pCxt, pModify->pVgDataBlocks, &pSubplan->pDataSink);
 }
