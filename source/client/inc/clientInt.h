@@ -169,6 +169,7 @@ typedef struct SReqResultInfo {
   uint32_t       numOfRows;
   uint64_t       totalRows;
   uint32_t       current;
+  bool           localResultFetched;
   bool           completed;
   int32_t        precision;
   bool           convertUcs4;
