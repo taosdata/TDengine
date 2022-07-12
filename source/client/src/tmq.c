@@ -2074,7 +2074,7 @@ static char *processAlterStb(SMqMetaRsp *metaRsp){
   return string;
 }
 
-static char *buildCreateCTableJson(STag* pTag, char* sname, char* name, int64_t id){
+static char *buildCreateCTableJson(STag* pTag, char* sname, char* name, SArray* tagName, int64_t id){
   char*  string = NULL;
   SArray* pTagVals = NULL;
   cJSON* json = cJSON_CreateObject();
@@ -2112,8 +2112,9 @@ static char *buildCreateCTableJson(STag* pTag, char* sname, char* name, int64_t 
     cJSON* tag = cJSON_CreateObject();
     STagVal* pTagVal = taosArrayGet(pTagVals, 0);
 
-//    cJSON* tname = cJSON_CreateString(pTagVal->colName);
-//    cJSON_AddItemToObject(tag, "name", tname);
+    char*  ptname = taosArrayGet(tagName, 0);
+    cJSON* tname = cJSON_CreateString(ptname);
+    cJSON_AddItemToObject(tag, "name", tname);
 //    cJSON* cid_ = cJSON_CreateString("");
 //    cJSON_AddItemToObject(tag, "cid", cid_);
     cJSON* ttype = cJSON_CreateNumber(TSDB_DATA_TYPE_JSON);
@@ -2130,8 +2131,11 @@ static char *buildCreateCTableJson(STag* pTag, char* sname, char* name, int64_t 
 
     cJSON* tag = cJSON_CreateObject();
 
-    cJSON* cid = cJSON_CreateNumber(pTagVal->cid);
-    cJSON_AddItemToObject(tag, "cid", cid);
+    char*  ptname = taosArrayGet(tagName, i);
+    cJSON* tname = cJSON_CreateString(ptname);
+    cJSON_AddItemToObject(tag, "name", tname);
+//    cJSON* cid = cJSON_CreateNumber(pTagVal->cid);
+//    cJSON_AddItemToObject(tag, "cid", cid);
     cJSON* ttype = cJSON_CreateNumber(pTagVal->type);
     cJSON_AddItemToObject(tag, "type", ttype);
 
@@ -2175,7 +2179,7 @@ static char *processCreateTable(SMqMetaRsp *metaRsp){
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
     if(pCreateReq->type == TSDB_CHILD_TABLE){
-      string = buildCreateCTableJson((STag*)pCreateReq->ctb.pTag, pCreateReq->ctb.name, pCreateReq->name, pCreateReq->uid);
+      string = buildCreateCTableJson((STag*)pCreateReq->ctb.pTag, pCreateReq->ctb.name, pCreateReq->name, pCreateReq->ctb.tagName, pCreateReq->uid);
     }else if(pCreateReq->type == TSDB_NORMAL_TABLE){
       string = buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->name, pCreateReq->uid, TSDB_NORMAL_TABLE);
     }

@@ -4943,6 +4943,12 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
     if (tEncodeCStr(pCoder, pReq->ctb.name) < 0) return -1;
     if (tEncodeI64(pCoder, pReq->ctb.suid) < 0) return -1;
     if (tEncodeTag(pCoder, (const STag *)pReq->ctb.pTag) < 0) return -1;
+    int32_t len = taosArrayGetSize(pReq->ctb.tagName);
+    if (tEncodeI32(pCoder, len) < 0) return -1;
+    for (int32_t i = 0; i < len; i++){
+      char* name = taosArrayGet(pReq->ctb.tagName, i);
+      if (tEncodeCStr(pCoder, name) < 0) return -1;
+    }
   } else if (pReq->type == TSDB_NORMAL_TABLE) {
     if (tEncodeSSchemaWrapper(pCoder, &pReq->ntb.schemaRow) < 0) return -1;
   } else {
@@ -4973,6 +4979,15 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     if (tDecodeCStr(pCoder, &pReq->ctb.name) < 0) return -1;
     if (tDecodeI64(pCoder, &pReq->ctb.suid) < 0) return -1;
     if (tDecodeTag(pCoder, (STag **)&pReq->ctb.pTag) < 0) return -1;
+    int32_t len = 0;
+    if (tDecodeI32(pCoder, &len) < 0) return -1;
+    pReq->ctb.tagName = taosArrayInit(len, TSDB_COL_NAME_LEN);
+    if(pReq->ctb.tagName == NULL) return -1;
+    for (int32_t i = 0; i < len; i++){
+      char *name = NULL;
+      if (tDecodeCStr(pCoder, &name) < 0) return -1;
+      taosArrayPush(pReq->ctb.tagName, name);
+    }
   } else if (pReq->type == TSDB_NORMAL_TABLE) {
     if (tDecodeSSchemaWrapper(pCoder, &pReq->ntb.schemaRow) < 0) return -1;
   } else {

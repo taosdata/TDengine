@@ -341,7 +341,7 @@ static bool isValidateTag(char* input) {
   return true;
 }
 
-int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, void* pMsgBuf, const char* colName) {
+int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, void* pMsgBuf) {
   int32_t   retCode = TSDB_CODE_SUCCESS;
   cJSON*    root = NULL;
   SHashObj* keyHash = NULL;

@@ -1968,8 +1968,9 @@ typedef struct SVCreateTbReq {
   int8_t   type;
   union {
     struct {
-      char*    name;
+      char*    name;    // super table name
       tb_uid_t suid;
+      SArray*  tagName;
       uint8_t* pTag;
     } ctb;
     struct {
@@ -1987,6 +1988,7 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
   if (req->type == TSDB_CHILD_TABLE) {
     taosMemoryFreeClear(req->ctb.pTag);
     taosMemoryFreeClear(req->ctb.name);
+    taosArrayDestroy(req->ctb.tagName);
   } else if (req->type == TSDB_NORMAL_TABLE) {
     taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
   }
