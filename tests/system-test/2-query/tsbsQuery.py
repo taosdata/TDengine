@@ -10,8 +10,9 @@ from util.cases import *
 class TDTestCase:
 
     clientCfgDict = {'queryproxy': '1','debugFlag': 135}
-    clientCfgDict["debugFlag"] = 143
+    clientCfgDict["debugFlag"] = 131
     updatecfgDict = {'clientCfg': {}}
+    updatecfgDict = {'debugFlag': 131}
     updatecfgDict["clientCfg"]  = clientCfgDict
 
     def init(self, conn, logSql):
@@ -60,9 +61,14 @@ class TDTestCase:
 
     def tsbsIotQuery(self):
         tdSql.execute("use db_tsbs")
+        
+        # test interval and partition
+        tdSql.query(" SELECT avg(velocity) as mean_velocity ,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet; ")
+        parRows=tdSql.queryRows
         tdSql.query(" SELECT avg(velocity) as mean_velocity ,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet interval(10m); ")
-        tdSql.checkRows(1)
-
+        tdSql.checkRows(parRows)
+        
+        
         # test insert into 
         tdSql.execute("create table testsnode (ts timestamp, c1 float,c2 binary(30),c3 binary(30),c4 binary(30)) ;")
         tdSql.query("insert into testsnode SELECT ts,avg(velocity) as mean_velocity,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet,ts interval(10m);")
