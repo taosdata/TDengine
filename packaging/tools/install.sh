@@ -229,9 +229,13 @@ function install_lib() {
   ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
   ${csudo}ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
 
+  ${csudo}ln -s ${lib_link_dir}/libtaosws.so ${lib_link_dir}/libtaosws.so || :
+
   if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
     ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
     ${csudo}ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so || :
+
+    ${csudo}ln -s ${lib64_link_dir}/libtaosws.so ${lib64_link_dir}/libtaosws.so || :
   fi
 
   ${csudo}ldconfig
@@ -315,10 +319,15 @@ function install_jemalloc() {
 
 function install_header() {
   ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h || :
+
+  ${csudo}rm -f ${inc_link_dir}/taosws.h || :
+
   ${csudo}cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/*
   ${csudo}ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
   ${csudo}ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
   ${csudo}ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
+
+  [ -f ${install_main_dir}/include/taosws.h ] && ${csudo}ln -s ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h || :
 }
 
 function add_newHostname_to_hosts() {
