@@ -39,9 +39,13 @@ title: 高效写入
 3. 模拟生成的总表数。默认为 1000。将会平分给各个读线程。
 4. 每批最大数据量。默认为 3000。
 
-```java title="主程序"
+<details>
+<summary>主程序</summary>
+```java
 {{#include docs/examples/java/src/main/java/com/taos/example/highvolume/FastWriteExample.java:main}}
 ```
+</details>
+
 
 队列容量(taskQueueCapacity)也是与性能有关的参数，可通过修改程序调节。一般来讲，队列容量越大，入队被阻塞的概率越小，队列的吞吐量越大，但是内存占用也会越大。
 
@@ -163,8 +167,78 @@ TDENGINE_JDBC_URL="jdbc:TAOS://localhost:6030?user=root&password=taosdata"
 
 ## Python 示例程序
 
-在 Python 示例程序中采用参数绑定的写入方式。(开发中)
+在 Python 示例程序中采用多进程的架构。写任务中同样采用拼装 SQL 的方式写入。
+### 主进程
 
-<!-- ```python title="Python 示例程序"
+<details>
 
-``` -->
+<summary>main 函数</summary>
+
+```python
+{{#include docs/examples/python/highvolume_example.py:main}}
+```
+
+</details>
+
+<details>
+<summary>DataBaseMonitor</summary>
+
+```python
+{{#include docs/examples/python/highvolume_example.py:DataBaseMonitor}}
+```
+
+</details>
+
+### 读进程
+
+<details>
+
+<summary>启动函数</summary>
+
+```python
+{{#include docs/examples/python/highvolume_example.py:read}}
+```
+
+</details>
+
+<details>
+
+<summary>MockDataSource</summary>
+
+```python
+{{#include docs/examples/python/highvolume_example.py:MockDataSource}}
+```
+
+</details>
+
+### 写进程
+
+
+<details>
+
+<summary>启动函数</summary>
+
+```python
+{{#include docs/examples/python/highvolume_example.py:write}}
+```
+
+</details>
+
+<details>
+
+<summary>SQLWriter</summary>
+
+```python
+{{#include docs/examples/python/highvolume_example.py:SQLWriter}}
+```
+
+</details>
+
+### 执行示例程序
+
+```
+git clone git@github.com:taosdata/TDengine.git
+git checkout -t 2.6
+cd docs/examples/python/
+python3  highvolume_example.py
+```

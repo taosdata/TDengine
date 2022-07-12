@@ -47,16 +47,12 @@ class DataBaseMonitor:
                 return int(r[1])
 
     def stat_and_print(self):
-        try:
-            last_count = 0
-            while True:
-                time.sleep(10)
-                count = self.get_count()
-                logging.info(f"count={count} speed={(count - last_count) / 10}")
-                last_count = count
-        except KeyboardInterrupt:
-            [p.terminate() for p in read_processes]
-            [p.terminate() for p in write_processes]
+        last_count = 0
+        while True:
+            time.sleep(10)
+            count = self.get_count()
+            logging.info(f"count={count} speed={(count - last_count) / 10}")
+            last_count = count
 
 
 # ANCHOR_END: DataBaseMonitor
@@ -154,6 +150,7 @@ class SQLWriter:
         self._buffered_count = 0
 
     def execute_sql(self, sql):
+        self.log.debug(sql)
         try:
             self._conn.execute(sql)
         except taos.Error as e:
@@ -258,7 +255,12 @@ def main():
         p.start()
         read_processes.append(p)
 
-    database_monitor.stat_and_print()
+    try:
+        database_monitor.stat_and_print()
+    except KeyboardInterrupt:
+        [p.terminate() for p in read_processes]
+        [p.terminate() for p in write_processes]
+        exit()
 
 
 # ANCHOR_END: main
