@@ -52,6 +52,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption);
  * @param pMnode The mnode object to close.
  */
 void mndClose(SMnode *pMnode);
+void mndPreClose(SMnode *pMnode);
 
 /**
  * @brief Start mnode
