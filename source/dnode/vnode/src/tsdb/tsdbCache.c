@@ -472,6 +472,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
 
     case SFSNEXTROW_FILESET: {
       SDFileSet *pFileSet = NULL;
+    _next_fileset:
       if (--state->iFileSet >= 0) {
         pFileSet = (SDFileSet *)taosArrayGet(state->aDFileSet, state->iFileSet);
       } else {
@@ -507,6 +508,10 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
        */
       state->pBlockIdx = taosArraySearch(state->aBlockIdx, state->pBlockIdxExp, tCmprBlockIdx, TD_EQ);
       if (code) goto _err;
+
+      if (!state->pBlockIdx) {
+        goto _next_fileset;
+      }
 
       tMapDataReset(&state->blockMap);
       code = tsdbReadBlock(state->pDataFReader, state->pBlockIdx, &state->blockMap, NULL);
