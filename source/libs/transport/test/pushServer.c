@@ -31,13 +31,12 @@ void processShellMsg() {
   STaosQall *qall;
   SRpcMsg *  pRpcMsg, rpcMsg;
   int        type;
-  void *     pvnode;
   SQueueInfo qinfo = {0};
 
   qall = taosAllocateQall();
 
   while (1) {
-    int numOfMsgs = taosReadAllQitemsFromQset(qset, qall, &pvnode, &qinfo);
+    int numOfMsgs = taosReadAllQitemsFromQset(qset, qall, &qinfo);
     tDebug("%d shell msgs are received", numOfMsgs);
     if (numOfMsgs <= 0) break;
 
