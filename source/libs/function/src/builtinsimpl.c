@@ -1631,10 +1631,14 @@ void setNullSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t 
 }
 
 void setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuplePos* pTuplePos, int32_t rowIndex) {
+  if (pCtx->subsidiaries.num <= 0) {
+    return;
+  }
+
   int32_t pageId = pTuplePos->pageId;
   int32_t offset = pTuplePos->offset;
 
-  if (pTuplePos->pageId != -1 && pCtx->subsidiaries.num > 0) {
+  if (pTuplePos->pageId != -1) {
     int32_t    numOfCols = pCtx->subsidiaries.num;
     SFilePage* pPage = getBufPage(pCtx->pBuf, pageId);
 
