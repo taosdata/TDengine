@@ -65,9 +65,12 @@ struct SRSmaInfo {
 
 static SRSmaInfo *tdGetRSmaInfoByItem(SRSmaInfoItem *pItem) {
   // adapt accordingly if definition of SRSmaInfo update
-  int32_t rsmaInfoHeadLen = sizeof(int64_t) + sizeof(STSchema *);
-  ASSERT(pItem->level == 0 || pItem->level == 1);
-  return (SRSmaInfo *)POINTER_SHIFT(pItem, -sizeof(SRSmaInfoItem) * pItem->level - rsmaInfoHeadLen);
+  SRSmaInfo *pResult = NULL;
+  int32_t    rsmaInfoHeadLen = sizeof(int64_t) + sizeof(STSchema *);
+  ASSERT(pItem->level == TSDB_RETENTION_L1 || pItem->level == TSDB_RETENTION_L2);
+  pResult = (SRSmaInfo *)POINTER_SHIFT(pItem, -(sizeof(SRSmaInfoItem) * (pItem->level - 1) + rsmaInfoHeadLen));
+  ASSERT(pResult->pTSchema->numOfCols > 1);
+  return pResult;
 }
 
 struct SRSmaQTaskInfoItem {
@@ -276,7 +279,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     if (pItem->maxDelay > TSDB_MAX_ROLLUP_MAX_DELAY) {
       pItem->maxDelay = TSDB_MAX_ROLLUP_MAX_DELAY;
     }
-    pItem->level = idx;
+    pItem->level = idx == 0 ? TSDB_RETENTION_L1 : TSDB_RETENTION_L2;
     smaInfo("vgId:%d table:%" PRIi64 " level:%" PRIi8 " maxdelay:%" PRIi64 " watermark:%" PRIi64
             ", finally maxdelay:%" PRIi32,
             SMA_VID(pSma), pRSmaInfo->suid, idx + 1, param->maxdelay[idx], param->watermark[idx], pItem->maxDelay);
@@ -1235,8 +1238,6 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   }
 
   SRSmaInfo *pRSmaInfo = tdGetRSmaInfoByItem(pItem);
-
-  ASSERT(pRSmaInfo->items[pItem->level].level == pItem->level);
 
   int8_t fetchTriggerStat =
       atomic_val_compare_exchange_8(&pItem->triggerStat, TASK_TRIGGER_STAT_ACTIVE, TASK_TRIGGER_STAT_INACTIVE);
