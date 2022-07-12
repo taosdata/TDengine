@@ -1315,24 +1315,26 @@ class TDTestCase:
         tdSql.error("select elapsed(tsv ,1s) from (select elapsed(ts,1s) tsv from regular_table_1);")
         tdSql.error("select elapsed(ts ,1s) from (select elapsed(ts,1s) ts from regular_table_1);")
         # # bug fix
-        # tdSql.error("select elapsed(tsc ,1s) from (select tscol tsc from regular_table_1) ;")
+        tdSql.error("select elapsed(tsc ,1s) from (select tscol tsc from regular_table_1) ;")
 
         # case TD-12276
-        # tdSql.error("select elapsed(ts,1s) from (select ts,tbname from regular_table_1 order by ts asc );")
+        tdSql.query("select elapsed(ts,1s) from (select ts,tbname from regular_table_1 order by ts asc );")
+        tdSql.checkData(0,0,90.000000000)
 
-        # tdSql.error("select elapsed(ts,1s) from (select ts,tbname  from regular_table_1 order by ts desc );")
+        tdSql.query("select elapsed(ts,1s) from (select ts,tbname  from regular_table_1 order by ts desc );")
+        tdSql.checkData(0,0,90.000000000)
 
-        # tdSql.error("select elapsed(ts,1s) from (select ts ,max(q_int),tbname  from regular_table_1 order by ts  ) interval(1s);")
+        tdSql.query("select elapsed(ts,1s) from (select ts ,max(q_int),tbname  from regular_table_1 order by ts  ) interval(1s);")
 
-        # tdSql.error("select elapsed(ts,1s) from (select ts ,q_int,tbname  from regular_table_1 order by ts  ) interval(1s);")
+        tdSql.query("select elapsed(ts,1s) from (select ts ,q_int,tbname  from regular_table_1 order by ts  ) interval(10s);")
 
         # sub table
 
         tdSql.query("select elapsed(ts,1s) from (select ts from sub_table1_1  );")
 
-        # tdSql.error("select elapsed(ts,1s) from (select ts ,max(q_int),tbname  from sub_table1_1 order by ts  ) interval(1s);")
+        tdSql.query("select elapsed(ts,1s) from (select ts ,max(q_int),tbname  from sub_table1_1 order by ts  ) interval(1s);")
 
-        # tdSql.error("select elapsed(ts,1s) from (select ts ,q_int,tbname  from sub_table1_1 order by ts  ) interval(1s);")
+        tdSql.query("select elapsed(ts,1s) from (select ts ,q_int,tbname  from sub_table1_1 order by ts  ) interval(10s);")
 
         tdSql.query("select elapsed(ts,1s) from (select ts ,tbname,top(q_int,3)  from sub_table1_1   ) interval(10s);")
 
@@ -1342,7 +1344,7 @@ class TDTestCase:
 
         tdSql.query("select elapsed(ts,1s) from (select ts ,tbname from sub_table1_1   ) interval(10s);")
 
-        # tdSql.error("select elapsed(ts,1s) from (select ts ,count(*),tbname  from sub_table1_1 order by ts  ) interval(1s);")
+        tdSql.error("select elapsed(ts,1s) from (select ts ,count(*),tbname  from sub_table1_1 order by ts  ) interval(1s);")
 
         querys = ["count(*)","avg(q_int)", "sum(q_double)","stddev(q_float)","LEASTSQUARES(q_int,0,1)","elapsed(ts,1s)"]
 
@@ -1488,8 +1490,8 @@ class TDTestCase:
 
         tdSql.query('select elapsed(ts,1s) from  ( select * from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000") session(ts,1w) ; ')
 
-        # tdSql.error('select elapsed(ts,1s) from  ( select ts ,q_int from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000") session(ts,1w) ; ')
-        # tdSql.error('select elapsed(ts,1s) from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000" interval(20s) fill (next) session(ts,1w) ; ')
+        tdSql.query('select elapsed(ts,1s) from  ( select ts ,q_int from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000") session(ts,1w) ; ')
+        # tdSql.query('select elapsed(ts,1s) from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000" interval(20s) fill (next) session(ts,1w) ; ')
 
         tdSql.query('select elapsed(ts,1s) from sub_empty_1  where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000"  session(ts,1w) ; ')
         tdSql.checkRows(0)
@@ -1506,14 +1508,14 @@ class TDTestCase:
         tdSql.checkRows(10)
         tdSql.checkData(0,0,0)
 
-        # tdSql.error('select elapsed(ts,1s) from  ( select * from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000") state_window(q_int) ; ')
+        tdSql.query('select elapsed(ts,1s) from  ( select * from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000") state_window(q_int) ; ')
 
-        # tdSql.error('select elapsed(ts,1s) from  ( select ts ,q_int from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000") state_window(q_int) ; ')
+        tdSql.query('select elapsed(ts,1s) from  ( select ts ,q_int from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000") state_window(q_int) ; ')
 
-        # tdSql.error('select elapsed(ts,1s) from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000" interval(20s) fill (next) state_window(q_int) ; ')
+        tdSql.error('select elapsed(ts,1s) from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000" interval(20s) fill (next) state_window(q_int) ; ')
 
-        # tdSql.query('select elapsed(ts,1s) from sub_empty_1  where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000"  state_window(q_int); ')
-        # tdSql.checkRows(0)
+        tdSql.query('select elapsed(ts,1s) from sub_empty_1  where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000"  state_window(q_int); ')
+        tdSql.checkRows(0)
 
 
     def continuous_query(self):

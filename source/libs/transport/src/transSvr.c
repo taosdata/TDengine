@@ -316,7 +316,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
         memset(&conn->regArg, 0, sizeof(conn->regArg));
       }
     }
-    transUnrefSrvHandle(conn);
+    destroyConn(conn, true);
   }
 }
 void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
@@ -331,14 +331,7 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
 }
 
 void uvOnSendCb(uv_write_t* req, int status) {
-  STransReq* wreq = req && req->data ? req->data : NULL;
-  SSvrConn*  conn = req && req->handle ? req->handle->data : NULL;
-  if (wreq != NULL && conn != NULL) {
-    QUEUE_REMOVE(&wreq->q);
-    taosMemoryFree(wreq->data);
-    taosMemoryFree(wreq);
-  }
-
+  SSvrConn* conn = transReqQueueRemove(req);
   if (conn == NULL) return;
 
   if (status == 0) {
@@ -441,13 +434,7 @@ static void uvStartSendRespInternal(SSvrMsg* smsg) {
   uvPrepareSendData(smsg, &wb);
 
   transRefSrvHandle(pConn);
-
-  uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
-  STransReq*  wreq = taosMemoryCalloc(1, sizeof(STransReq));
-  wreq->data = req;
-  req->data = wreq;
-  QUEUE_PUSH(&pConn->wreqQueue, &wreq->q);
-
+  uv_write_t* req = transReqQueuePushReq(&pConn->wreqQueue);
   uv_write(req, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
 }
 static void uvStartSendResp(SSvrMsg* smsg) {
@@ -757,7 +744,7 @@ static SSvrConn* createConn(void* hThrd) {
 
   SSvrConn* pConn = (SSvrConn*)taosMemoryCalloc(1, sizeof(SSvrConn));
 
-  QUEUE_INIT(&pConn->wreqQueue);
+  transReqQueueInit(&pConn->wreqQueue);
   QUEUE_INIT(&pConn->queue);
 
   QUEUE_PUSH(&pThrd->conn, &pConn->queue);
@@ -792,9 +779,6 @@ static void destroyConn(SSvrConn* conn, bool clear) {
       tTrace("conn %p to be destroyed", conn);
       uv_close((uv_handle_t*)conn->pTcp, uvDestroyConn);
     }
-    //} else {
-    //  uvDestroyConn((uv_handle_t*)conn->pTcp);
-    //}
   }
 }
 static void destroyConnRegArg(SSvrConn* conn) {
@@ -834,13 +818,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
     destroySmsg(msg);
   }
 
-  while (!QUEUE_IS_EMPTY(&conn->wreqQueue)) {
-    queue* h = QUEUE_HEAD(&conn->wreqQueue);
-    QUEUE_REMOVE(h);
-    STransReq* req = QUEUE_DATA(h, STransReq, q);
-    taosMemoryFree(req->data);
-    taosMemoryFree(req);
-  }
+  transReqQueueClear(&conn->wreqQueue);
   transQueueDestroy(&conn->srvMsgs);
 
   QUEUE_REMOVE(&conn->queue);

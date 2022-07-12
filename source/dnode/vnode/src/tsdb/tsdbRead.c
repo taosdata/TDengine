@@ -400,7 +400,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
   pReader->idStr = (idstr != NULL) ? strdup(idstr) : NULL;
   pReader->verRange = getQueryVerRange(pVnode, pCond, level);
   pReader->type = pCond->type;
-  pReader->window = updateQueryTimeWindow(pVnode->pTsdb, &pCond->twindows);
+  pReader->window = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows);
 
   ASSERT(pCond->numOfCols > 0);
 
@@ -2203,15 +2203,15 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* ret
 
     if (level == TSDB_RETENTION_L0) {
       *pLevel = TSDB_RETENTION_L0;
-      tsdbDebug("vgId:%d, read handle %p rsma level %d is selected to query %s", vgId, TSDB_RETENTION_L0, str);
+      tsdbDebug("vgId:%d, rsma level %d is selected to query %s", vgId, TSDB_RETENTION_L0, str);
       return VND_RSMA0(pVnode);
     } else if (level == TSDB_RETENTION_L1) {
       *pLevel = TSDB_RETENTION_L1;
-      tsdbDebug("vgId:%d, read handle %p rsma level %d is selected to query %s", vgId, TSDB_RETENTION_L1, str);
+      tsdbDebug("vgId:%d, rsma level %d is selected to query %s", vgId, TSDB_RETENTION_L1, str);
       return VND_RSMA1(pVnode);
     } else {
       *pLevel = TSDB_RETENTION_L2;
-      tsdbDebug("vgId:%d, read handle %p rsma level %d is selected to query %s", vgId, TSDB_RETENTION_L2, str);
+      tsdbDebug("vgId:%d, rsma level %d is selected to query %s", vgId, TSDB_RETENTION_L2, str);
       return VND_RSMA2(pVnode);
     }
   }
