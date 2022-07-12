@@ -32,10 +32,9 @@ typedef struct SLastrowReader {
 
 static void saveOneRow(STSRow* pRow, SSDataBlock* pBlock, SLastrowReader* pReader, const int32_t* slotIds) {
   int32_t numOfRows = pBlock->info.rows;
-  size_t  numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 
   SColVal colVal = {0};
-  for (int32_t i = 0; i < numOfCols; ++i) {
+  for (int32_t i = 0; i < pReader->numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
     if (slotIds[i] == -1) {
@@ -60,8 +59,7 @@ static void saveOneRow(STSRow* pRow, SSDataBlock* pBlock, SLastrowReader* pReade
   pBlock->info.rows += 1;
 }
 
-int32_t tsdbLastRowReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList, int32_t* colId, int32_t numOfCols,
-                              void** pReader) {
+int32_t tsdbLastRowReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList, int32_t numOfCols, void** pReader) {
   SLastrowReader* p = taosMemoryCalloc(1, sizeof(SLastrowReader));
   if (p == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
