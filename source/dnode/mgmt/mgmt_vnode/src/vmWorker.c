@@ -206,9 +206,9 @@ int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   int32_t code = vmPutMsgToQueue(pMgmt, pMsg, qtype);
   if (code != 0) {
     dTrace("msg:%p, is freed", pMsg);
-    taosFreeQitem(pMsg);
     rpcFreeCont(pMsg->pCont);
     pRpc->pCont = NULL;
+    taosFreeQitem(pMsg);
   }
 
   return code;
@@ -237,8 +237,8 @@ int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
       default:
         break;
     }
+    vmReleaseVnode(pMgmt, pVnode);
   }
-  vmReleaseVnode(pMgmt, pVnode);
   return size;
 }
 
@@ -255,7 +255,11 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
     return -1;
   }
 
-  dDebug("vgId:%d, queue is alloced", pVnode->vgId);
+  dDebug("vgId:%d, write-queue:%p is alloced", pVnode->vgId, pVnode->pWriteQ);
+  dDebug("vgId:%d, sync-queue:%p is alloced", pVnode->vgId, pVnode->pSyncQ);
+  dDebug("vgId:%d, apply-queue:%p is alloced", pVnode->vgId, pVnode->pApplyQ);
+  dDebug("vgId:%d, query-queue:%p is alloced", pVnode->vgId, pVnode->pQueryQ);
+  dDebug("vgId:%d, fetch-queue:%p is alloced", pVnode->vgId, pVnode->pFetchQ);
   return 0;
 }
 
