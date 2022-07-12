@@ -2729,7 +2729,6 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
           }
         }
         pInfo->hasResult = true;
-        // DO_UPDATE_TAG_COLUMNS(pCtx, ts);
         pResInfo->numOfRes = 1;
         break;
       }
@@ -2826,7 +2825,6 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
         }
         pInfo->hasResult = true;
         pResInfo->numOfRes = 1;
-        // DO_UPDATE_TAG_COLUMNS(pCtx, ts);
       }
       break;
     }
@@ -5980,6 +5978,15 @@ int32_t lastrowFunction(SqlFunctionCtx* pCtx) {
 
       pInfo->hasResult = true;
       pResInfo->numOfRes = 1;
+
+      if (pCtx->subsidiaries.num > 0) {
+        STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
+        if (!pInfo->hasResult) {
+          saveTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+        } else {
+          copyTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
+        }
+      }
     }
   }
 
