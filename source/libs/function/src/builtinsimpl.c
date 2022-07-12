@@ -338,6 +338,104 @@ typedef struct SGroupKeyInfo {
     }                                                                    \
   } while (0)
 
+#define LIST_ADD_N(_res, _col, _start, _rows, _t, numOfElem)             \
+  do {                                                                   \
+    _t* d = (_t*)(_col->pData);                                          \
+    for (int32_t i = (_start); i < (_rows) + (_start); ++i) {            \
+      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) { \
+        continue;                                                        \
+      };                                                                 \
+      (_res) += (d)[i];                                                  \
+      (numOfElem)++;                                                     \
+    }                                                                    \
+  } while (0)
+
+#define LIST_SUB_N(_res, _col, _start, _rows, _t, numOfElem)             \
+  do {                                                                   \
+    _t* d = (_t*)(_col->pData);                                          \
+    for (int32_t i = (_start); i < (_rows) + (_start); ++i) {            \
+      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) { \
+        continue;                                                        \
+      };                                                                 \
+      (_res) -= (d)[i];                                                  \
+      (numOfElem)++;                                                     \
+    }                                                                    \
+  } while (0)
+
+#define LIST_AVG_N(sumT, T)                                               \
+  do {                                                                    \
+    T* plist = (T*)pCol->pData;                                           \
+    for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) { \
+      if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {        \
+        continue;                                                         \
+      }                                                                   \
+                                                                          \
+      numOfElem += 1;                                                     \
+      pAvgRes->count -= 1;                                                \
+      sumT -= plist[i];                                                   \
+    }                                                                     \
+  } while (0)
+
+#define LIST_STDDEV_SUB_N(sumT, T)                                 \
+  do {                                                             \
+    T* plist = (T*)pCol->pData;                                    \
+    for (int32_t i = start; i < numOfRows + start; ++i) {          \
+      if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) { \
+        continue;                                                  \
+      }                                                            \
+      numOfElem += 1;                                              \
+      pStddevRes->count -= 1;                                      \
+      sumT -= plist[i];                                            \
+      pStddevRes->quadraticISum -= plist[i] * plist[i];            \
+    }                                                              \
+  } while (0)
+
+#define LEASTSQR_CAL(p, x, y, index, step) \
+  do {                                     \
+    (p)[0][0] += (double)(x) * (x);        \
+    (p)[0][1] += (double)(x);              \
+    (p)[0][2] += (double)(x) * (y)[index]; \
+    (p)[1][2] += (y)[index];               \
+    (x) += step;                           \
+  } while (0)
+
+
+#define STATE_COMP(_op, _lval, _param) STATE_COMP_IMPL(_op, _lval, GET_STATE_VAL(_param))
+
+#define GET_STATE_VAL(param) ((param.nType == TSDB_DATA_TYPE_BIGINT) ? (param.i) : (param.d))
+
+#define STATE_COMP_IMPL(_op, _lval, _rval) \
+  do {                                     \
+    switch (_op) {                         \
+      case STATE_OPER_LT:                  \
+        return ((_lval) < (_rval));        \
+        break;                             \
+      case STATE_OPER_GT:                  \
+        return ((_lval) > (_rval));        \
+        break;                             \
+      case STATE_OPER_LE:                  \
+        return ((_lval) <= (_rval));       \
+        break;                             \
+      case STATE_OPER_GE:                  \
+        return ((_lval) >= (_rval));       \
+        break;                             \
+      case STATE_OPER_NE:                  \
+        return ((_lval) != (_rval));       \
+        break;                             \
+      case STATE_OPER_EQ:                  \
+        return ((_lval) == (_rval));       \
+        break;                             \
+      default:                             \
+        break;                             \
+    }                                      \
+  } while (0)
+
+#define INIT_INTP_POINT(_p, _k, _v) \
+  do {                              \
+    (_p).key = (_k);                \
+    (_p).val = (_v);                \
+  } while (0)
+
 bool dummyGetEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* UNUSED_PARAM(pEnv)) { return true; }
 
 bool dummyInit(SqlFunctionCtx* UNUSED_PARAM(pCtx), SResultRowEntryInfo* UNUSED_PARAM(pResultInfo)) { return true; }
@@ -498,30 +596,6 @@ int32_t combineFunction(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SET_VAL(pDResInfo, *((int64_t*)pDBuf), 1);
   return TSDB_CODE_SUCCESS;
 }
-
-#define LIST_ADD_N(_res, _col, _start, _rows, _t, numOfElem)             \
-  do {                                                                   \
-    _t* d = (_t*)(_col->pData);                                          \
-    for (int32_t i = (_start); i < (_rows) + (_start); ++i) {            \
-      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) { \
-        continue;                                                        \
-      };                                                                 \
-      (_res) += (d)[i];                                                  \
-      (numOfElem)++;                                                     \
-    }                                                                    \
-  } while (0)
-
-#define LIST_SUB_N(_res, _col, _start, _rows, _t, numOfElem)             \
-  do {                                                                   \
-    _t* d = (_t*)(_col->pData);                                          \
-    for (int32_t i = (_start); i < (_rows) + (_start); ++i) {            \
-      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) { \
-        continue;                                                        \
-      };                                                                 \
-      (_res) -= (d)[i];                                                  \
-      (numOfElem)++;                                                     \
-    }                                                                    \
-  } while (0)
 
 int32_t sumFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
@@ -919,20 +993,6 @@ int32_t avgFunctionMerge(SqlFunctionCtx* pCtx) {
 
   return TSDB_CODE_SUCCESS;
 }
-
-#define LIST_AVG_N(sumT, T)                                               \
-  do {                                                                    \
-    T* plist = (T*)pCol->pData;                                           \
-    for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) { \
-      if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {        \
-        continue;                                                         \
-      }                                                                   \
-                                                                          \
-      numOfElem += 1;                                                     \
-      pAvgRes->count -= 1;                                                \
-      sumT -= plist[i];                                                   \
-    }                                                                     \
-  } while (0)
 
 int32_t avgInvertFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
@@ -1884,20 +1944,6 @@ int32_t stddevFunctionMerge(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-#define LIST_STDDEV_SUB_N(sumT, T)                                 \
-  do {                                                             \
-    T* plist = (T*)pCol->pData;                                    \
-    for (int32_t i = start; i < numOfRows + start; ++i) {          \
-      if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) { \
-        continue;                                                  \
-      }                                                            \
-      numOfElem += 1;                                              \
-      pStddevRes->count -= 1;                                      \
-      sumT -= plist[i];                                            \
-      pStddevRes->quadraticISum -= plist[i] * plist[i];            \
-    }                                                              \
-  } while (0)
-
 int32_t stddevInvertFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
 
@@ -2045,15 +2091,6 @@ bool leastSQRFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInf
   pInfo->stepVal = IS_FLOAT_TYPE(pCtx->param[2].param.nType) ? pCtx->param[2].param.d : (double)pCtx->param[2].param.i;
   return true;
 }
-
-#define LEASTSQR_CAL(p, x, y, index, step) \
-  do {                                     \
-    (p)[0][0] += (double)(x) * (x);        \
-    (p)[0][1] += (double)(x);              \
-    (p)[0][2] += (double)(x) * (y)[index]; \
-    (p)[1][2] += (y)[index];               \
-    (x) += step;                           \
-  } while (0)
 
 int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
@@ -4477,36 +4514,6 @@ static int8_t getStateOpType(char* opStr) {
   return opType;
 }
 
-#define GET_STATE_VAL(param) ((param.nType == TSDB_DATA_TYPE_BIGINT) ? (param.i) : (param.d))
-
-#define STATE_COMP(_op, _lval, _param) STATE_COMP_IMPL(_op, _lval, GET_STATE_VAL(_param))
-
-#define STATE_COMP_IMPL(_op, _lval, _rval) \
-  do {                                     \
-    switch (_op) {                         \
-      case STATE_OPER_LT:                  \
-        return ((_lval) < (_rval));        \
-        break;                             \
-      case STATE_OPER_GT:                  \
-        return ((_lval) > (_rval));        \
-        break;                             \
-      case STATE_OPER_LE:                  \
-        return ((_lval) <= (_rval));       \
-        break;                             \
-      case STATE_OPER_GE:                  \
-        return ((_lval) >= (_rval));       \
-        break;                             \
-      case STATE_OPER_NE:                  \
-        return ((_lval) != (_rval));       \
-        break;                             \
-      case STATE_OPER_EQ:                  \
-        return ((_lval) == (_rval));       \
-        break;                             \
-      default:                             \
-        break;                             \
-    }                                      \
-  } while (0)
-
 static bool checkStateOp(int8_t op, SColumnInfoData* pCol, int32_t index, SVariant param) {
   char* data = colDataGetData(pCol, index);
   switch (pCol->info.type) {
@@ -5213,12 +5220,6 @@ static double twa_get_area(SPoint1 s, SPoint1 e) {
   double val = (s.val * (x - s.key) + e.val * (e.key - x)) / 2;
   return val;
 }
-
-#define INIT_INTP_POINT(_p, _k, _v) \
-  do {                              \
-    (_p).key = (_k);                \
-    (_p).val = (_v);                \
-  } while (0)
 
 int32_t twaFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
