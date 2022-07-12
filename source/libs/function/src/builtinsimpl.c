@@ -4397,11 +4397,13 @@ int32_t hllFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SHLLInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  int32_t   start = pInput->startRowIndex;
-  char*     data = colDataGetData(pCol, start);
-  SHLLInfo* pInputInfo = (SHLLInfo*)varDataVal(data);
+  int32_t start = pInput->startRowIndex;
 
-  hllTransferInfo(pInputInfo, pInfo);
+  for(int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    char* data = colDataGetData(pCol, i);
+    SHLLInfo* pInputInfo = (SHLLInfo*)varDataVal(data);
+    hllTransferInfo(pInputInfo, pInfo);
+  }
 
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);
   return TSDB_CODE_SUCCESS;
