@@ -189,12 +189,15 @@ void destroyTscObj(void *pObj) {
 
   SClientHbKey connKey = {.tscRid = pTscObj->id, .connType = pTscObj->connType};
   hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
-  int64_t connNum = atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
+
   destroyAllRequests(pTscObj->pRequests);
+  taosHashCleanup(pTscObj->pRequests);
+  
   schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
   tscDebug("connObj 0x%" PRIx64 " p:%p destroyed, remain inst totalConn:%" PRId64, pTscObj->id, pTscObj,
            pTscObj->pAppInfo->numOfConns);
 
+  int64_t connNum = atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   if (0 == connNum) {
     destroyAppInst(pTscObj->pAppInfo);
   }

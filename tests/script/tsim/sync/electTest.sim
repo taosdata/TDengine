@@ -140,11 +140,6 @@ endi
 sql create table ct1 using stb tags(1000)
 
 
-print ===> stop dnode4
-system sh/exec.sh -n dnode4 -s stop -x SIGINT
-sleep 3000
-
-
 print ===> write 100 records
 $N = 100
 $count = 0
@@ -161,10 +156,11 @@ endw
 sleep 3000
 
 
-print ===> stop dnode1 dnode2 dnode3
+print ===> stop dnode1 dnode2 dnode3 dnode4
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode4 -s stop -x SIGINT
 
 
 
@@ -187,84 +183,11 @@ if $rows != 100 then
   return -1
 endi
 
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
-system sh/exec.sh -n dnode3 -s stop -x SIGINT
-system sh/exec.sh -n dnode4 -s stop -x SIGINT
-########################################################
-
-
-########################################################
-print ===> start dnode1 dnode3 dnode4
-system sh/exec.sh -n dnode1 -s start
-#system sh/exec.sh -n dnode2 -s start
-system sh/exec.sh -n dnode3 -s start
-system sh/exec.sh -n dnode4 -s start
-
-sleep 7000
-
-print =============== query data 
-sql connect
-sql use db
-sql select * from ct1
-print rows: $rows
-print $data00 $data01 $data02
-if $rows != 100 then
-  return -1
-endi
-
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT
 #system sh/exec.sh -n dnode2 -s stop -x SIGINT
-system sh/exec.sh -n dnode3 -s stop -x SIGINT
-system sh/exec.sh -n dnode4 -s stop -x SIGINT
-########################################################
-
-
-########################################################
-print ===> start dnode1 dnode2 dnode4
-system sh/exec.sh -n dnode1 -s start
-system sh/exec.sh -n dnode2 -s start
-#system sh/exec.sh -n dnode3 -s start
-system sh/exec.sh -n dnode4 -s start
-
-sleep 3000
-
-print =============== query data 
-sql select * from ct1
-print rows: $rows
-print $data00 $data01 $data02
-if $rows != 100 then
-  return -1
-endi
-
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
 #system sh/exec.sh -n dnode3 -s stop -x SIGINT
-system sh/exec.sh -n dnode4 -s stop -x SIGINT
-########################################################
-
-
-########################################################
-print ===> start dnode1 dnode2 dnode3 
-system sh/exec.sh -n dnode1 -s start
-system sh/exec.sh -n dnode2 -s start
-system sh/exec.sh -n dnode3 -s start
-#system sh/exec.sh -n dnode4 -s start
-
-sleep 3000
-
-print =============== query data 
-sql select * from ct1
-print rows: $rows
-print $data00 $data01 $data02
-if $rows != 100 then
-  return -1
-endi
-
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
-system sh/exec.sh -n dnode3 -s stop -x SIGINT
 #system sh/exec.sh -n dnode4 -s stop -x SIGINT
-########################################################
+#########################################################
+
 
 

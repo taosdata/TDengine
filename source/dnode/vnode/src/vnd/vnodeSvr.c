@@ -417,7 +417,7 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *p
     goto _err;
   }
 
-  if (tdProcessRSmaCreate(pVnode, &req) < 0) {
+  if (tdProcessRSmaCreate(pVnode->pSma, &req) < 0) {
     pRsp->code = terrno;
     goto _err;
   }
@@ -569,6 +569,11 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pRe
 
   // process request
   if (metaDropSTable(pVnode->pMeta, version, &req) < 0) {
+    rcode = terrno;
+    goto _exit;
+  }
+
+  if (tdProcessRSmaDrop(pVnode->pSma, &req) < 0) {
     rcode = terrno;
     goto _exit;
   }

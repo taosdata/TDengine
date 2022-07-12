@@ -48,34 +48,13 @@ class TDTestCase:
             'col12': 'binary(20)',
             'col13': 'nchar(20)'
         }
-        
+
         self.param_list = [1,100]
     def insert_data(self,column_dict,tbname,row_num):
-        sql = ''
-        for k, v in column_dict.items():
-            if v.lower() == 'timestamp' or v.lower() == 'tinyint' or v.lower() == 'smallint' or v.lower() == 'int' or v.lower() == 'bigint' or \
-            v.lower() == 'tinyint unsigned' or v.lower() == 'smallint unsigned' or v.lower() == 'int unsigned' or v.lower() == 'bigint unsigned' or v.lower() == 'bool':
-                sql += '%d,'
-            elif v.lower() == 'float' or v.lower() == 'double':
-                sql += '%f,'
-            elif 'binary' in v.lower():
-                sql += f'"{self.binary_str}%d",'
-            elif 'nchar' in v.lower():
-                sql += f'"{self.nchar_str}%d",'
-        insert_sql = f'insert into {tbname} values({sql[:-1]})'
+        insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
         for i in range(row_num):
             insert_list = []
-            for k, v in column_dict.items():
-                if v.lower() in[ 'tinyint' , 'smallint' , 'int', 'bigint' , 'tinyint unsigned' , 'smallint unsigned' , 'int unsigned' , 'bigint unsigned'] or\
-                'binary' in v.lower() or 'nchar' in v.lower():
-                    insert_list.append(0 + i)
-                elif v.lower() == 'float' or v.lower() == 'double':
-                    insert_list.append(0.1 + i)
-                elif v.lower() == 'bool':
-                    insert_list.append(i % 2)
-                elif v.lower() == 'timestamp':
-                    insert_list.append(self.ts + i)
-            tdSql.execute(insert_sql%(tuple(insert_list)))
+            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
     def bottom_check_data(self,tbname,tb_type):
         new_column_dict = {}
         for param in self.param_list:
@@ -129,7 +108,7 @@ class TDTestCase:
         tdSql.execute(self.setsql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
         for i in range(self.tbnum):
             tdSql.execute(f"create table {stbname}_{i} using {stbname} tags({tag_values[0]})")
-            tdSql.execute(self.insert_data(self.column_dict,f'{stbname}_{i}',self.rowNum))
+            self.insert_data(self.column_dict,f'{stbname}_{i}',self.rowNum)
         tdSql.query('show tables')
         vgroup_list = []
         for i in range(len(tdSql.queryResult)):
@@ -146,11 +125,11 @@ class TDTestCase:
             self.bottom_check_data(f'{stbname}_{i}','child_table')
         self.bottom_check_data(f'{stbname}','stable')
         tdSql.execute(f'drop database {self.dbname}')
- 
+
     def run(self):
         self.bottom_check_ntb()
         self.bottom_check_stb()
-        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

@@ -76,7 +76,7 @@ if $data01 != 5 then
   goto loop1
 endi
 
-if $data02 != 14 then
+if $data02 != 38 then
   print =====data02=$data02
   goto loop1
 endi
@@ -134,7 +134,7 @@ if $data01 != 6 then
   goto loop2
 endi
 
-if $data02 != 18 then
+if $data02 != 42 then
   print =====data02=$data02
   goto loop2
 endi
@@ -192,7 +192,7 @@ if $data01 != 7 then
   goto loop3
 endi
 
-if $data02 != 22 then
+if $data02 != 46 then
   print =====data02=$data02
   goto loop3
 endi
@@ -231,61 +231,5 @@ if $data32 != 60 then
 endi
 
 print loop3 over
-
-$loop_count = 0
-loop4:
-sleep 1000
-sql select * from streamtST1;
-
-$loop_count = $loop_count + 1
-if $loop_count == 10 then
-  return -1
-endi
-
-# row 0
-if $data01 != 7 then
-  print =====data01=$data01
-  goto loop4
-endi
-
-if $data02 != 22 then
-  print =====data02=$data02
-  goto loop4
-endi
-
-# row 1
-if $data11 != 3 then
-  print =====data11=$data11
-  goto loop4
-endi
-
-if $data12 != 10 then
-  print =====data12=$data12
-  goto loop4
-endi
-
-#row2
-if $data21 != 3 then
-  print =====data21=$data21
-  goto loop4
-endi
-
-if $data22 != 11 then
-  print =====data22=$data22
-  goto loop4
-endi
-
-#row 3
-if $data31 != 5 then
-  print =====data31=$data31
-  goto loop4
-endi
-
-if $data32 != 60 then
-  print =====data32=$data32
-  goto loop4
-endi
-
-print loop4 over
 
 system sh/stop_dnodes.sh
