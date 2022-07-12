@@ -251,6 +251,9 @@ void syncStartStandBy(int64_t rid);
 bool syncNodeCanChange(SSyncNode* pSyncNode);
 bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pNewCfg);
 
+int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode);
+int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader);
+
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj);
 void syncNodePrint2(char* s, SSyncNode* pObj);
