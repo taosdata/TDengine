@@ -66,7 +66,6 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVa
   if (qStreamPrepareScan(task, pOffset) < 0) {
     ASSERT(pOffset->type == TMQ_OFFSET__LOG);
     pRsp->rspOffset = *pOffset;
-    pRsp->rspOffset.version--;
     return 0;
   }
 
