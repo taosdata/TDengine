@@ -907,11 +907,13 @@ int32_t avgFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SAvgRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  int32_t  start = pInput->startRowIndex;
-  char*    data = colDataGetData(pCol, start);
-  SAvgRes* pInputInfo = (SAvgRes*)varDataVal(data);
+  int32_t start = pInput->startRowIndex;
 
-  avgTransferInfo(pInputInfo, pInfo);
+  for(int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    char* data = colDataGetData(pCol, i);
+    SAvgRes* pInputInfo = (SAvgRes*)varDataVal(data);
+    avgTransferInfo(pInputInfo, pInfo);
+  }
 
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);
 
@@ -4164,10 +4166,10 @@ int32_t histogramFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  int32_t         start = pInput->startRowIndex;
+  int32_t start = pInput->startRowIndex;
 
   for(int32_t i = start; i < start + pInput->numOfRows; ++i) {
-    char*       data = colDataGetData(pCol, i);
+    char* data = colDataGetData(pCol, i);
     SHistoFuncInfo* pInputInfo = (SHistoFuncInfo*)varDataVal(data);
     histogramTransferInfo(pInputInfo, pInfo);
   }
