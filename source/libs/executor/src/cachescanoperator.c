@@ -46,7 +46,7 @@ SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pScanNode, SRead
   pInfo->pColMatchInfo = extractColMatchInfo(pScanNode->pScanCols, pScanNode->node.pOutputDataBlockDesc, &numOfCols,
                                              COL_MATCH_FROM_COL_ID);
   int32_t* pCols = taosMemoryMalloc(numOfCols * sizeof(int32_t));
-  for (int32_t i = 0; i < numOfCols; ++i) {
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pColMatchInfo); ++i) {
     SColMatchInfo* pColMatch = taosArrayGet(pInfo->pColMatchInfo, i);
     pCols[i] = pColMatch->colId;
   }
@@ -56,7 +56,7 @@ SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pScanNode, SRead
     goto _error;
   }
 
-  tsdbLastRowReaderOpen(readHandle->vnode, LASTROW_RETRIEVE_TYPE_ALL, pTableList, pCols, numOfCols,
+  tsdbLastRowReaderOpen(readHandle->vnode, LASTROW_RETRIEVE_TYPE_ALL, pTableList, taosArrayGetSize(pInfo->pColMatchInfo),
                         &pInfo->pLastrowReader);
   taosMemoryFree(pCols);
 
