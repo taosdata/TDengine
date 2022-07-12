@@ -2090,7 +2090,10 @@ static bool tagScanMayBeOptimized(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode) || (SCAN_TYPE_TAG == ((SScanLogicNode*)pNode)->scanType)) {
     return false;
   }
-
+  SScanLogicNode *pScan = (SScanLogicNode*)pNode;
+  if (NULL != pScan->pScanCols) {
+    return false;
+  }
   if (NULL == pNode->pParent || QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent) || 1 != LIST_LENGTH(pNode->pParent->pChildren)) {
     return false;
   }
