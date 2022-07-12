@@ -63,9 +63,6 @@ static int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, SGrantStatus *
 static int32_t tSerializeGrantMsg(void *buf, int32_t bufLen, SGrantMsg *pMsg);
 static int32_t tDeserializeGrantMsg(void *buf, int32_t bufLen, SGrantMsg *pMsg);
 
-#if 0
-// static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
-#endif
 static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextGrant(SMnode *pMnode, void *pIter);
 
@@ -178,7 +175,7 @@ static int32_t dmGenerateGrantMsg(SGrantMsg *pGrantMsg, SGrantStatus *pGrantStat
     grantStatus.lastReceived = curTime;
 
     COMPARE_SET_VAL(grantStatus.expireTimeSec, pGrantStatus->expireTimeSec, <);
-    COMPARE_SET_VAL(grantStatus.limitStorage, (int64_t)(pGrantStatus->limitStorage * (int64_t)1073741824), <);
+    COMPARE_SET_VAL(grantStatus.limitStorage, pGrantStatus->limitStorage, <);
     COMPARE_SET_VAL(grantStatus.limitSpeed, pGrantStatus->limitSpeed, <);
     COMPARE_SET_VAL(grantStatus.limitTimeSeries, pGrantStatus->limitTimeSeries, <);
     COMPARE_SET_VAL(grantStatus.limitQueryTime, pGrantStatus->limitQueryTime, <);
@@ -196,7 +193,7 @@ static int32_t dmGenerateGrantMsg(SGrantMsg *pGrantMsg, SGrantStatus *pGrantStat
     uInfo(
         "dnode send grant message, storage:%uGB, timeseries:%u, database:%u, user:%u, expire:%s %u, "
         "curtime:%u, set to grant state",
-        htonl(grantStatus.limitStorage), grantStatus.limitTimeSeries, grantStatus.limitDbs, grantStatus.limitUsers, ts,
+        (uint32_t)(grantStatus.limitStorage / (int64_t)1073741824), grantStatus.limitTimeSeries, grantStatus.limitDbs, grantStatus.limitUsers, ts,
         grantStatus.expireTimeSec, curTime);
     grantStatus.expired = false;
   } else {
@@ -210,7 +207,7 @@ static int32_t dmGenerateGrantMsg(SGrantMsg *pGrantMsg, SGrantStatus *pGrantStat
   pGrantMsg->updateForced = grantObj.updateForced;
   pGrantMsg->officialVersion = grantStatus.officialVersion;
   pGrantMsg->expireTimeSec = grantStatus.expireTimeSec;
-  pGrantMsg->limitStorage = grantStatus.limitStorage;
+  pGrantMsg->limitStorage = (uint32_t)(grantStatus.limitStorage / (int64_t)1073741824);
   pGrantMsg->limitSpeed = grantStatus.limitSpeed;
   pGrantMsg->limitTimeSeries = grantStatus.limitTimeSeries;
   pGrantMsg->limitQueryTime = grantStatus.limitQueryTime;
@@ -235,16 +232,6 @@ static int32_t dmGenerateGrantMsg(SGrantMsg *pGrantMsg, SGrantStatus *pGrantStat
  * @return int32_t
  */
 static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeEp *pDnodeEp) {
-#if 0
-  if (pDnodeEp->isMnode) {
-    // no need to send grant status, but should check the local grantObj
-    // TODO: check the local grantObj and update the grantStatus
-    // ...
-    uInfo("dnode id:%d, %s:%" PRIu16 " is mnode", pDnodeEp->id, pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
-    return TSDB_CODE_SUCCESS;
-  }
-#endif
-
   // step 1: send grant status to dnode
   int32_t contLen = tSerializeGrantStatus(NULL, 0, &grantStatus);
   void   *pCont = rpcMallocCont(contLen);
@@ -452,19 +439,16 @@ static uint32_t grantGetClusterCurDnodes() {
 }
 
 static void grantResetMaster(SMnode *pMnode) {
-  uint32_t curTime = taosGetTimestampSec();
   uint32_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
 
   grantStatus.expireTimeSec = clusterCreateTime + GRANT_DEFAULT;
-  grantStatus.expireTimeSec = grantStatus.expireTimeSec > curTime ? grantStatus.expireTimeSec : curTime;
+  grantStatus.expireTimeSec = grantStatus.expireTimeSec;
   grantStatus.expireTimeSec += GRANT_TOLERENCE;
   grantStatus.lastReceived = grantStatus.expireTimeSec;
   grantStatus.expired = false;
 
   grantStatus.curSpeed = grantGetClusterCurSpeed();
-#if 0
   grantStatus.curTimeSeries = grantGetClusterCurTimeSeries();
-#endif
   grantStatus.curQueryTime = grantGetClusterCurQueryTime();
 
   char *ts = grantSecondsToString(grantStatus.expireTimeSec);
@@ -668,10 +652,10 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SGrantMsg *pGrantMsg, SG
     pGrantStatus->officialVersion = pGrantMsg->officialVersion;
     pGrantStatus->lastReceived = curTime;
 
-    if (grantObj.granted) {
-      pGrantStatus->expireTimeSec = pGrantMsg->expireTimeSec;
-    } else {
+    if (pGrantMsg->expireTimeSec == 0) {
       grantResetMaster(pMnode);
+    } else {
+      pGrantStatus->expireTimeSec = pGrantMsg->expireTimeSec;
     }
     pGrantStatus->limitStorage = (int64_t)(pGrantMsg->limitStorage * (int64_t)1073741824);
     pGrantStatus->limitSpeed = pGrantMsg->limitSpeed;
@@ -685,24 +669,24 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SGrantMsg *pGrantMsg, SG
     pGrantStatus->limitDnodes = pGrantMsg->limitDnodes;
     pGrantStatus->limitCpuCores = pGrantMsg->limitCpuCores;
   } else {
-    if (pGrantStatus->usbDongle) {
-      pGrantStatus->usbDongle = pGrantStatus->usbDongle;
+    if (pGrantMsg->usbDongle) {
+      pGrantStatus->usbDongle = pGrantMsg->usbDongle;
     }
-    pGrantStatus->officialVersion = pGrantStatus->officialVersion;
+    pGrantStatus->officialVersion = pGrantMsg->officialVersion;
     pGrantStatus->lastReceived = curTime;
 
-    COMPARE_SET_VAL(pGrantStatus->expireTimeSec, pGrantStatus->expireTimeSec, <);
-    COMPARE_SET_VAL(pGrantStatus->limitStorage, (int64_t)(pGrantStatus->limitStorage * (int64_t)1073741824), <);
-    COMPARE_SET_VAL(pGrantStatus->limitSpeed, pGrantStatus->limitSpeed, <);
-    COMPARE_SET_VAL(pGrantStatus->limitTimeSeries, pGrantStatus->limitTimeSeries, <);
-    COMPARE_SET_VAL(pGrantStatus->limitQueryTime, pGrantStatus->limitQueryTime, <);
-    COMPARE_SET_VAL(pGrantStatus->limitDbs, pGrantStatus->limitDbs, <);
-    COMPARE_SET_VAL(pGrantStatus->limitUsers, pGrantStatus->limitUsers, <);
-    COMPARE_SET_VAL(pGrantStatus->limitConns, pGrantStatus->limitConns, <);
-    COMPARE_SET_VAL(pGrantStatus->limitStreams, pGrantStatus->limitStreams, <);
-    COMPARE_SET_VAL(pGrantStatus->limitAccts, pGrantStatus->limitAccts, <);
-    COMPARE_SET_VAL(pGrantStatus->limitDnodes, pGrantStatus->limitDnodes, <);
-    COMPARE_SET_VAL(pGrantStatus->limitCpuCores, pGrantStatus->limitCpuCores, <);
+    COMPARE_SET_VAL(pGrantStatus->expireTimeSec, pGrantMsg->expireTimeSec, <);
+    COMPARE_SET_VAL(pGrantStatus->limitStorage, (int64_t)(pGrantMsg->limitStorage * (int64_t)1073741824), <);
+    COMPARE_SET_VAL(pGrantStatus->limitSpeed, pGrantMsg->limitSpeed, <);
+    COMPARE_SET_VAL(pGrantStatus->limitTimeSeries, pGrantMsg->limitTimeSeries, <);
+    COMPARE_SET_VAL(pGrantStatus->limitQueryTime, pGrantMsg->limitQueryTime, <);
+    COMPARE_SET_VAL(pGrantStatus->limitDbs, pGrantMsg->limitDbs, <);
+    COMPARE_SET_VAL(pGrantStatus->limitUsers, pGrantMsg->limitUsers, <);
+    COMPARE_SET_VAL(pGrantStatus->limitConns, pGrantMsg->limitConns, <);
+    COMPARE_SET_VAL(pGrantStatus->limitStreams, pGrantMsg->limitStreams, <);
+    COMPARE_SET_VAL(pGrantStatus->limitAccts, pGrantMsg->limitAccts, <);
+    COMPARE_SET_VAL(pGrantStatus->limitDnodes, pGrantMsg->limitDnodes, <);
+    COMPARE_SET_VAL(pGrantStatus->limitCpuCores, pGrantMsg->limitCpuCores, <);
   }
 
   char *ts = grantSecondsToString(pGrantStatus->expireTimeSec);
@@ -710,7 +694,7 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SGrantMsg *pGrantMsg, SG
     uInfo(
         "grant message received from dnode, storage:%uGB, timeseries:%u, database:%u, user:%u, expire:%s %u, "
         "curtime:%u, set to grant state",
-        pGrantMsg->limitStorage, pGrantStatus->limitTimeSeries, pGrantStatus->limitDbs, pGrantStatus->limitUsers, ts,
+        (uint32_t)(pGrantStatus->limitStorage / (int64_t)1073741824), pGrantStatus->limitTimeSeries, pGrantStatus->limitDbs, pGrantStatus->limitUsers, ts,
         pGrantStatus->expireTimeSec, curTime);
     pGrantStatus->expired = false;
   } else {
@@ -757,7 +741,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     if ((uint32_t)(grantStatus.limitStorage / (int64_t)1073741824) != GRANT_STORAGE_LIMITS) {
-      sprintf(tmp1, "%u/%u", (uint32_t)(grantStatus.curStorage / (int64_t)1073741824),
+      sprintf(tmp1, "%" PRIu32 "/%" PRIu32, (uint32_t)(grantStatus.curStorage / (int64_t)1073741824),
               (uint32_t)(grantStatus.limitStorage / (int64_t)1073741824));
       src = tmp1;
     } else {
