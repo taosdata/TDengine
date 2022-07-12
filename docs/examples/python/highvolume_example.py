@@ -167,13 +167,13 @@ def main():
         task_queues.append(queue)
         p = Process(target=run_write_task, args=(i, queue))
         p.start()
-        logging.debug(f"WriteTask {i} started with pid {p.pid}")
+        logging.debug(f"WriteTask-{i} started with pid {p.pid}")
         write_processes.append(p)
 
     for i in range(READ_TASK_COUNT):
         p = Process(target=run_read_task, args=(i, task_queues))
         p.start()
-        logging.debug(f"ReadTask {i} started with pid {p.pid}")
+        logging.debug(f"ReadTask-{i} started with pid {p.pid}")
         read_processes.append(p)
 
     try:
