@@ -316,7 +316,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
         memset(&conn->regArg, 0, sizeof(conn->regArg));
       }
     }
-    transUnrefSrvHandle(conn);
+    destroyConn(conn, true);
   }
 }
 void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
@@ -434,7 +434,6 @@ static void uvStartSendRespInternal(SSvrMsg* smsg) {
   uvPrepareSendData(smsg, &wb);
 
   transRefSrvHandle(pConn);
-
   uv_write_t* req = transReqQueuePushReq(&pConn->wreqQueue);
   uv_write(req, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
 }
@@ -780,9 +779,6 @@ static void destroyConn(SSvrConn* conn, bool clear) {
       tTrace("conn %p to be destroyed", conn);
       uv_close((uv_handle_t*)conn->pTcp, uvDestroyConn);
     }
-    //} else {
-    //  uvDestroyConn((uv_handle_t*)conn->pTcp);
-    //}
   }
 }
 static void destroyConnRegArg(SSvrConn* conn) {
