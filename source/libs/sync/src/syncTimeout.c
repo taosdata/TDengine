@@ -20,7 +20,10 @@
 
 int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   syncNodeEventLog(ths, "timer routines ... ");
-  syncRespClean(ths->pSyncRespMgr);
+
+  if (ths->vgId != 1) {
+    syncRespClean(ths->pSyncRespMgr);
+  }
   return 0;
 }
 

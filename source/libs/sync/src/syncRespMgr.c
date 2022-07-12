@@ -146,6 +146,8 @@ void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl) {
       cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
       cbMeta.flag = 0;
 
+      pStub->rpcMsg.pCont = NULL;
+      pStub->rpcMsg.contLen = 0;
       pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &(pStub->rpcMsg), cbMeta);
     }
 
