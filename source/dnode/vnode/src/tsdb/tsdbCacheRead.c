@@ -70,6 +70,11 @@ int32_t tsdbLastRowReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList, 
   p->numOfCols = numOfCols;
   p->transferBuf = taosMemoryCalloc(p->numOfCols, POINTER_BYTES);
 
+  if (taosArrayGetSize(pTableIdList) == 0) {
+    *pReader = p;
+    return TSDB_CODE_SUCCESS;
+  }
+
   STableKeyInfo* pKeyInfo = taosArrayGet(pTableIdList, 0);
   p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, pKeyInfo->uid, -1);
   p->pTableList = pTableIdList;
