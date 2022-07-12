@@ -159,7 +159,7 @@ class TDTestCase:
             return tdSql.error(self.mavg_query_form(
                 sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                 table_expr=table_expr, condition=condition
-            ))                
+            ))
 
         if all(["group" in condition.lower(), "tbname" not in condition.lower()]):
             print(f"case in {line}: ", end='')
@@ -295,7 +295,7 @@ class TDTestCase:
                 pre_result = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
                 if (platform.system().lower() == 'windows' and pre_result.dtype == 'int32'):
                     pre_result = np.array(pre_result, dtype = 'int64')
-            
+
                 pre_mavg = pre_mavg = np.convolve(pre_result, np.ones(k), "valid")[offset_val:]/k
                 tdSql.query(self.mavg_query_form(
                     sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
@@ -669,7 +669,7 @@ class TDTestCase:
         tdSql.checkData(0,0,1.000000000)
         tdSql.checkData(1,0,1.000000000)
         tdSql.checkData(5,0,1.000000000)
-        
+
         tdSql.query("select mavg(abs(c1),1) from t1")
         tdSql.checkRows(4)
 
@@ -688,17 +688,17 @@ class TDTestCase:
         tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname")
         tdSql.checkRows(20)
 
-        # # bug need fix 
+        # # bug need fix
         # tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname slimit 1 ")
         # tdSql.checkRows(2)
         # tdSql.error("select mavg(st1+c1,3) from stb1 partition by tbname limit 1 ")
 
 
-        # bug need fix 
+        # bug need fix
         tdSql.query("select mavg(st1+c1,3) from stb1 partition by tbname")
         tdSql.checkRows(20)
 
-        # bug need fix 
+        # bug need fix
         # tdSql.query("select tbname , mavg(c1,3) from stb1 partition by tbname")
         # tdSql.checkRows(38)
         # tdSql.query("select tbname , mavg(st1,3) from stb1 partition by tbname")
@@ -706,7 +706,7 @@ class TDTestCase:
         # tdSql.query("select tbname , mavg(st1,3) from stb1 partition by tbname slimit 1")
         # tdSql.checkRows(2)
 
-        # partition by tags 
+        # partition by tags
         # tdSql.query("select st1 , mavg(c1,3) from stb1 partition by st1")
         # tdSql.checkRows(38)
         # tdSql.query("select mavg(c1,3) from stb1 partition by st1")
