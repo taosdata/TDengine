@@ -321,7 +321,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     if (fetchOffsetNew.type == TMQ_OFFSET__LOG) {
       fetchOffsetNew.version++;
     }
-    if (tqScan(pTq, &pHandle->execHandle, &dataRsp, &fetchOffsetNew) < 0) {
+    if (tqScan(pTq, pHandle, &dataRsp, &fetchOffsetNew) < 0) {
       ASSERT(0);
       code = -1;
       goto OVER;
@@ -480,30 +480,28 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
     pHandle->fetchMeta = req.withMeta;
 
     pHandle->pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
-    /*for (int32_t i = 0; i < 5; i++) {*/
-    /*pHandle->execHandle.pExecReader[i] = tqOpenReader(pTq->pVnode);*/
-    /*}*/
+
+    // TODO version should be assigned in preprocess
     int64_t ver = walGetCommittedVer(pTq->pVnode->pWal);
     if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       pHandle->execHandle.execCol.qmsg = req.qmsg;
+      pHandle->snapshotVer = ver;
       req.qmsg = NULL;
       for (int32_t i = 0; i < 5; i++) {
         SReadHandle handle = {
-            .tqReader = pHandle->execHandle.pExecReader[i],
             .meta = pTq->pVnode->pMeta,
             .vnode = pTq->pVnode,
             .initTableReader = true,
             .initTqReader = true,
             .version = ver,
         };
-        pHandle->execHandle.execCol.task[i] = qCreateStreamExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle);
+        pHandle->execHandle.execCol.task[i] = qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle);
         ASSERT(pHandle->execHandle.execCol.task[i]);
         void* scanner = NULL;
         qExtractStreamScanner(pHandle->execHandle.execCol.task[i], &scanner);
         ASSERT(scanner);
         pHandle->execHandle.pExecReader[i] = qExtractReaderFromStreamScanner(scanner);
         ASSERT(pHandle->execHandle.pExecReader[i]);
-        pHandle->execHandle.tsdbEndVer = ver;
       }
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
       for (int32_t i = 0; i < 5; i++) {

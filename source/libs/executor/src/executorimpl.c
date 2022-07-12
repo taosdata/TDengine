@@ -576,14 +576,15 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
   int32_t numOfRows = 0;
 
   for (int32_t k = 0; k < numOfOutput; ++k) {
-    int32_t         outputSlotId = pExpr[k].base.resSchema.slotId;
-    SqlFunctionCtx* pfCtx = &pCtx[k];
+    int32_t               outputSlotId = pExpr[k].base.resSchema.slotId;
+    SqlFunctionCtx*       pfCtx = &pCtx[k];
     SInputColumnInfoData* pInputData = &pfCtx->input;
 
     if (pExpr[k].pExpr->nodeType == QUERY_NODE_COLUMN) {  // it is a project query
       SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
       if (pResult->info.rows > 0 && !createNewColModel) {
-        colDataMergeCol(pColInfoData, pResult->info.rows, &pResult->info.capacity, pInputData->pData[0], pInputData->numOfRows);
+        colDataMergeCol(pColInfoData, pResult->info.rows, &pResult->info.capacity, pInputData->pData[0],
+                        pInputData->numOfRows);
       } else {
         colDataAssign(pColInfoData, pInputData->pData[0], pInputData->numOfRows, &pResult->info);
       }
@@ -641,11 +642,11 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       } else if (fmIsAggFunc(pfCtx->functionId)) {
         // _group_key function for "partition by tbname" + csum(col_name) query
         SColumnInfoData* pOutput = taosArrayGet(pResult->pDataBlock, outputSlotId);
-        int32_t slotId = pfCtx->param[0].pCol->slotId;
+        int32_t          slotId = pfCtx->param[0].pCol->slotId;
 
         // todo handle the json tag
         SColumnInfoData* pInput = taosArrayGet(pSrcBlock->pDataBlock, slotId);
-        for(int32_t f = 0; f < pSrcBlock->info.rows; ++f) {
+        for (int32_t f = 0; f < pSrcBlock->info.rows; ++f) {
           bool isNull = colDataIsNull_s(pInput, f);
           if (isNull) {
             colDataAppendNULL(pOutput, pResult->info.rows + f);
@@ -3250,6 +3251,10 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (pOperator->status == OP_EXEC_DONE) {
+    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
+      pOperator->status = OP_OPENED;
+      return NULL;
+    }
     return NULL;
   }
 
@@ -3283,11 +3288,15 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
   while (1) {
     // The downstream exec may change the value of the newgroup, so use a local variable instead.
+    qDebug("projection call next");
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
-      // TODO optimize
-      /*if (pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM) {*/
+      qDebug("projection get null");
+
+      /*if (pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH) {*/
       doSetOperatorCompleted(pOperator);
+      /*} else if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {*/
+      /*pOperator->status = OP_RES_TO_RETURN;*/
       /*}*/
       break;
     }
@@ -3819,7 +3828,8 @@ _error:
   return NULL;
 }
 
-static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOperatorInfo* downstream, SExecTaskInfo* pTaskInfo) {
+static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOperatorInfo* downstream,
+                              SExecTaskInfo* pTaskInfo) {
   int32_t order = 0;
   int32_t scanFlag = 0;
 
@@ -3874,9 +3884,9 @@ static SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
-  while(1) {
+  while (1) {
     // here we need to handle the existsed group results
-    if (pIndefInfo->pNextGroupRes != NULL) { // todo extract method
+    if (pIndefInfo->pNextGroupRes != NULL) {  // todo extract method
       for (int32_t k = 0; k < pSup->numOfExprs; ++k) {
         SqlFunctionCtx* pCtx = &pSup->pCtx[k];
 
@@ -3974,15 +3984,15 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
 
   setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfExpr);
 
-  pInfo->binfo.pRes    = pResBlock;
-  pInfo->pCondition    = pPhyNode->node.pConditions;
-  pInfo->pPseudoColInfo= setRowTsColumnOutputInfo(pSup->pCtx, numOfExpr);
+  pInfo->binfo.pRes = pResBlock;
+  pInfo->pCondition = pPhyNode->node.pConditions;
+  pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pSup->pCtx, numOfExpr);
 
-  pOperator->name      = "IndefinitOperator";
+  pOperator->name = "IndefinitOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC;
-  pOperator->blocking  = false;
-  pOperator->status    = OP_NOT_OPENED;
-  pOperator->info      = pInfo;
+  pOperator->blocking = false;
+  pOperator->status = OP_NOT_OPENED;
+  pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doApplyIndefinitFunction, NULL, NULL,
@@ -4047,8 +4057,8 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   pInfo->primaryTsCol = ((SColumnNode*)pPhyFillNode->pWStartTs)->slotId;
 
   int32_t numOfOutputCols = 0;
-  SArray* pColMatchColInfo =
-      extractColMatchInfo(pPhyFillNode->pTargets, pPhyFillNode->node.pOutputDataBlockDesc, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
+  SArray* pColMatchColInfo = extractColMatchInfo(pPhyFillNode->pTargets, pPhyFillNode->node.pOutputDataBlockDesc,
+                                                 &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
 
   int32_t code = initFillInfo(pInfo, pExprInfo, num, (SNodeListNode*)pPhyFillNode->pValues, pPhyFillNode->timeRange,
                               pResultInfo->capacity, pTaskInfo->id.str, pInterval, type);
@@ -4056,18 +4066,18 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
     goto _error;
   }
 
-  pInfo->pRes                    = pResBlock;
-  pInfo->multigroupResult        = multigroupResult;
-  pInfo->pCondition              = pPhyFillNode->node.pConditions;
-  pInfo->pColMatchColInfo        = pColMatchColInfo;
-  pOperator->name                = "FillOperator";
-  pOperator->blocking            = false;
-  pOperator->status              = OP_NOT_OPENED;
-  pOperator->operatorType        = QUERY_NODE_PHYSICAL_PLAN_FILL;
-  pOperator->exprSupp.pExprInfo  = pExprInfo;
+  pInfo->pRes = pResBlock;
+  pInfo->multigroupResult = multigroupResult;
+  pInfo->pCondition = pPhyFillNode->node.pConditions;
+  pInfo->pColMatchColInfo = pColMatchColInfo;
+  pOperator->name = "FillOperator";
+  pOperator->blocking = false;
+  pOperator->status = OP_NOT_OPENED;
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_FILL;
+  pOperator->exprSupp.pExprInfo = pExprInfo;
   pOperator->exprSupp.numOfExprs = num;
-  pOperator->info                = pInfo;
-  pOperator->pTaskInfo           = pTaskInfo;
+  pOperator->info = pInfo;
+  pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, doFill, NULL, NULL, destroySFillOperatorInfo, NULL, NULL, NULL);

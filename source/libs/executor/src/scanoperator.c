@@ -1208,6 +1208,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   /*return NULL;*/
   /*}*/
 
+  qDebug("stream scan called");
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__LOG) {
     while (1) {
       SFetchRet ret = {0};
@@ -1229,6 +1230,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       } else if (ret.fetchType == FETCH_TYPE__NONE) {
         pTaskInfo->streamInfo.lastStatus = ret.offset;
         ASSERT(pTaskInfo->streamInfo.lastStatus.version + 1 >= pTaskInfo->streamInfo.prepareStatus.version);
+        qDebug("stream scan return null");
         return NULL;
       } else {
         ASSERT(0);
@@ -1257,6 +1259,9 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     // TODO move into scan
     blockDataUpdateTsWindow(pBlock, 0);
     switch (pBlock->info.type) {
+      case STREAM_NORMAL:
+      case STREAM_GET_ALL:
+        return pBlock;
       case STREAM_RETRIEVE: {
         pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
         pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RETRIEVE;
@@ -1286,6 +1291,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     }
     return pBlock;
   } else if (pInfo->blockType == STREAM_INPUT__DATA_SUBMIT) {
+    qInfo("scan mode %d", pInfo->scanMode);
     if (pInfo->scanMode == STREAM_SCAN_FROM_RES) {
       blockDataDestroy(pInfo->pUpdateRes);
       pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
@@ -1380,7 +1386,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         }
       }
     }
-
+    qInfo("scan rows: %d", pBlockInfo->rows);
     return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
 
 #if 0

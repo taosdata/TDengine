@@ -5476,6 +5476,11 @@ bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
       ASSERT(0);
       // TODO
       return pLeft->uid == pRight->uid && pLeft->ts == pRight->ts;
+    } else {
+      ASSERT(0);
+      /*ASSERT(pLeft->type == TMQ_OFFSET__RESET_NONE || pLeft->type == TMQ_OFFSET__RESET_EARLIEAST ||*/
+      /*pLeft->type == TMQ_OFFSET__RESET_LATEST);*/
+      /*return true;*/
     }
   }
   return false;

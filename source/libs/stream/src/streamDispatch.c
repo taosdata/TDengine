@@ -303,7 +303,7 @@ int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
   }
   ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK);
 
-  qDebug("stream continue dispatching: task %d", pTask->taskId);
+  qInfo("stream continue dispatching: task %d", pTask->taskId);
 
   SRpcMsg dispatchMsg = {0};
   SEpSet* pEpSet = NULL;
