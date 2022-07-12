@@ -420,8 +420,8 @@ static bool setTimeWindowInterpolationEndTs(SIntervalAggOperatorInfo* pInfo, SEx
 }
 
 bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pBlockInfo) {
-  if (pInterval->interval != pInterval->sliding && (pWin->ekey < pBlockInfo->calWin.skey ||
-      pWin->skey > pBlockInfo->calWin.ekey) ) {
+  if (pInterval->interval != pInterval->sliding &&
+      (pWin->ekey < pBlockInfo->calWin.skey || pWin->skey > pBlockInfo->calWin.ekey)) {
     return false;
   }
   return true;
@@ -813,7 +813,8 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
 
   STimeWindow win = getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, ts, &pInfo->interval, pInfo->order);
   int32_t     ret = TSDB_CODE_SUCCESS;
-  if ((!pInfo->ignoreExpiredData || !isCloseWindow(&win, &pInfo->twAggSup)) && inSlidingWindow(&pInfo->interval, &win, &pBlock->info)) {
+  if ((!pInfo->ignoreExpiredData || !isCloseWindow(&win, &pInfo->twAggSup)) &&
+      inSlidingWindow(&pInfo->interval, &win, &pBlock->info)) {
     ret = setTimeWindowOutputBuf(pResultRowInfo, &win, (scanFlag == MAIN_SCAN), &pResult, tableGroupId, pSup->pCtx,
                                  numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
     if (ret != TSDB_CODE_SUCCESS || pResult == NULL) {
@@ -846,7 +847,8 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
     doWindowBorderInterpolation(pInfo, pBlock, pResult, &win, startPos, forwardRows, pSup);
   }
 
-  if ((!pInfo->ignoreExpiredData || !isCloseWindow(&win, &pInfo->twAggSup)) && inSlidingWindow(&pInfo->interval, &win, &pBlock->info)) {
+  if ((!pInfo->ignoreExpiredData || !isCloseWindow(&win, &pInfo->twAggSup)) &&
+      inSlidingWindow(&pInfo->interval, &win, &pBlock->info)) {
     updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &win, true);
     doApplyFunctions(pTaskInfo, pSup->pCtx, &win, &pInfo->twAggSup.timeWindowData, startPos, forwardRows, tsCols,
                      pBlock->info.rows, numOfOutput, pInfo->order);
@@ -928,7 +930,7 @@ int64_t* extractTsCol(SSDataBlock* pBlock, const SIntervalAggOperatorInfo* pInfo
     tsCols = (int64_t*)pColDataInfo->pData;
 
     if (tsCols != NULL) {
-       blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);
+      blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);
     }
   }
 
@@ -1290,15 +1292,16 @@ static void doClearWindows(SAggSupporter* pAggSup, SExprSupp* pSup1, SInterval* 
     SColumnInfoData* pGpCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
     pGpDatas = (uint64_t*)pGpCol->pData;
   }
-  int32_t step = 0;
-  int32_t startPos = 0;
+  int32_t        step = 0;
+  int32_t        startPos = 0;
   SResultRowInfo dumyInfo;
   dumyInfo.cur.pageId = -1;
   STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, tsCols[0], pInterval, TSDB_ORDER_ASC);
   while (1) {
-    step = getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, win.ekey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
+    step =
+        getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, win.ekey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
     uint64_t winGpId = pGpDatas ? pGpDatas[startPos] : pBlock->info.groupId;
-    bool     res = doClearWindow(pAggSup, pSup1, (char*)&win.skey, sizeof(TKEY), winGpId, numOfOutput);
+    bool     res = doClearWindow(pAggSup, pSup1, (char*)&win.skey, sizeof(TSKEY), winGpId, numOfOutput);
     if (pUpWins && res) {
       SWinRes winRes = {.ts = win.skey, .groupId = winGpId};
       taosArrayPush(pUpWins, &winRes);

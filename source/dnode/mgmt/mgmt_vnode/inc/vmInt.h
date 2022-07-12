@@ -31,7 +31,7 @@ typedef struct SVnodeMgmt {
   const char    *path;
   const char    *name;
   SQWorkerPool   queryPool;
-  SQWorkerPool   fetchPool;
+  SWWorkerPool   fetchPool;
   SWWorkerPool   syncPool;
   SWWorkerPool   writePool;
   SWWorkerPool   applyPool;
