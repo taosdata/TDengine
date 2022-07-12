@@ -140,7 +140,10 @@ int32_t tsdbLastRowReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, 
                               void **pReader);
 int32_t tsdbRetrieveLastRow(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds);
 int32_t tsdbLastrowReaderClose(void *pReader);
-int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid);
+int32_t tsdbGetTableSchema(SVnode *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);
+
+void   tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
+size_t tsdbCacheGetCapacity(SVnode *pVnode);
 
 // tq
 
@@ -210,11 +213,13 @@ struct SVnodeCfg {
   int32_t  vgId;
   char     dbname[TSDB_DB_FNAME_LEN];
   uint64_t dbId;
+  int32_t  cacheLastSize;
   int32_t  szPage;
   int32_t  szCache;
   uint64_t szBuf;
   bool     isHeap;
   bool     isWeak;
+  int8_t   cacheLast;
   int8_t   isTsma;
   int8_t   isRsma;
   int8_t   hashMethod;

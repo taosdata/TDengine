@@ -4098,7 +4098,7 @@ bool histogramFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultIn
   return true;
 }
 
-int32_t histogramFunction(SqlFunctionCtx* pCtx) {
+static int32_t histogramFunctionImpl(SqlFunctionCtx* pCtx, bool isPartial) {
   SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   SInputColumnInfoData* pInput = &pCtx->input;
@@ -4130,8 +4130,20 @@ int32_t histogramFunction(SqlFunctionCtx* pCtx) {
     }
   }
 
-  SET_VAL(GET_RES_INFO(pCtx), numOfElems, pInfo->numOfBins);
+  if (!isPartial) {
+    SET_VAL(GET_RES_INFO(pCtx), numOfElems, pInfo->numOfBins);
+  } else {
+    SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
+  }
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t histogramFunction(SqlFunctionCtx* pCtx) {
+  return histogramFunctionImpl(pCtx, false);
+}
+
+int32_t histogramFunctionPartial(SqlFunctionCtx* pCtx) {
+  return histogramFunctionImpl(pCtx, true);
 }
 
 static void histogramTransferInfo(SHistoFuncInfo* pInput, SHistoFuncInfo* pOutput) {
@@ -4153,10 +4165,12 @@ int32_t histogramFunctionMerge(SqlFunctionCtx* pCtx) {
   SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   int32_t         start = pInput->startRowIndex;
-  char*           data = colDataGetData(pCol, start);
-  SHistoFuncInfo* pInputInfo = (SHistoFuncInfo*)varDataVal(data);
 
-  histogramTransferInfo(pInputInfo, pInfo);
+  for(int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    char*       data = colDataGetData(pCol, i);
+    SHistoFuncInfo* pInputInfo = (SHistoFuncInfo*)varDataVal(data);
+    histogramTransferInfo(pInputInfo, pInfo);
+  }
 
   SET_VAL(GET_RES_INFO(pCtx), pInfo->numOfBins, pInfo->numOfBins);
   return TSDB_CODE_SUCCESS;
@@ -4199,6 +4213,7 @@ int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 }
 
 int32_t histogramPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   int32_t         resultBytes = getHistogramInfoSize();
   char*           res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
@@ -4212,7 +4227,7 @@ int32_t histogramPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   colDataAppend(pCol, pBlock->info.rows, res, false);
 
   taosMemoryFree(res);
-  return 1;
+  return pResInfo->numOfRes;
 }
 
 int32_t histogramCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
