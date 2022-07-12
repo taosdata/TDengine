@@ -114,7 +114,7 @@ int32_t tsMinSlidingTime = 10;
 // the maxinum number of distict query result
 int32_t tsMaxNumOfDistinctResults = 1000 * 10000;
 
-// 1 us for interval time range, changed accordingly
+// 1 database precision unit for interval time range, changed accordingly
 int32_t tsMinIntervalTime = 1;
 
 // 20sec, the maximum value of stream computing delay, changed accordingly

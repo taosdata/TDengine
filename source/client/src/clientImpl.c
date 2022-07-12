@@ -1905,6 +1905,10 @@ int32_t appendTbToReq(SArray* pList, int32_t pos1, int32_t len1, int32_t pos2, i
     tbLen = len1;
   }
 
+  if (dbLen <= 0 || tbLen <= 0) {
+    return -1;
+  }
+
   if (tNameSetDbName(&name, acctId, dbName, dbLen)) {
     return -1;
   }

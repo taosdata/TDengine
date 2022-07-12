@@ -2173,14 +2173,28 @@ static int64_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char uni
   return -1;
 }
 
+static const char* getPrecisionStr(uint8_t precision) {
+  switch (precision) {
+    case TSDB_TIME_PRECISION_MILLI:
+      return TSDB_TIME_PRECISION_MILLI_STR;
+    case TSDB_TIME_PRECISION_MICRO:
+      return TSDB_TIME_PRECISION_MICRO_STR;
+    case TSDB_TIME_PRECISION_NANO:
+      return TSDB_TIME_PRECISION_NANO_STR;
+    default:
+      break;
+  }
+  return "unknown";
+}
+
 static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
   uint8_t precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
 
   SValueNode* pInter = (SValueNode*)pInterval->pInterval;
   bool        valInter = TIME_IS_VAR_DURATION(pInter->unit);
-  if (pInter->datum.i <= 0 ||
-      (!valInter && convertTimePrecision(pInter->datum.i, precision, TSDB_TIME_PRECISION_MICRO) < tsMinIntervalTime)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL, tsMinIntervalTime);
+  if (pInter->datum.i <= 0 || (!valInter && pInter->datum.i < tsMinIntervalTime)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL, tsMinIntervalTime,
+                                getPrecisionStr(precision));
   }
 
   if (NULL != pInterval->pOffset) {
@@ -2754,6 +2768,11 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
     }
   }
 
+  if (NULL == pPrimaryKeyExpr) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                   "Primary timestamp column can not be null");
+  }
+
   return addOrderByPrimaryKeyToQuery(pCxt, pPrimaryKeyExpr, pInsert->pQuery);
 }
 
@@ -2998,8 +3017,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
   int32_t code =
       checkRangeOption(pCxt, "buffer", pOptions->buffer, TSDB_MIN_BUFFER_PER_VNODE, TSDB_MAX_BUFFER_PER_VNODE);
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkRangeOption(pCxt, "cacheLast", pOptions->cacheLast, TSDB_MIN_DB_CACHE_LAST,
-                            TSDB_MAX_DB_CACHE_LAST);
+    code = checkRangeOption(pCxt, "cacheLast", pOptions->cacheLast, TSDB_MIN_DB_CACHE_LAST, TSDB_MAX_DB_CACHE_LAST);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkRangeOption(pCxt, "cacheLastSize", pOptions->cacheLastSize, TSDB_MIN_DB_CACHE_LAST_SIZE,

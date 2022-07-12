@@ -852,23 +852,33 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   }
 
   // all data has returned to App already, no need to try again
-  if ((pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) && pResultInfo->completed) {
+  if (pResultInfo->completed && (pRequest->body.queryJob != 0)) {
     pResultInfo->numOfRows = 0;
     pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
     return;
   }
 
   // it is a local executed query, no need to do async fetch
-  if (pResultInfo->current < pResultInfo->numOfRows && pRequest->body.queryJob == 0) {
-    pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
+  if (pRequest->body.queryJob == 0) {
+    ASSERT(pResultInfo->completed && pResultInfo->numOfRows >= 0);
+    if (pResultInfo->localResultFetched) {
+      pResultInfo->numOfRows = 0;
+      pResultInfo->current = 0;
+      pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
+    } else {
+      pResultInfo->localResultFetched = true;
+      pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
+    }
     return;
   }
+
 
   SSchedulerReq req = {
     .syncReq = false,
     .fetchFp = fetchCallback,
     .cbParam = pRequest,
   };
+
   schedulerFetchRows(pRequest->body.queryJob, &req);
 }
 
@@ -880,10 +890,10 @@ void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
 
   // set the current block is all consumed
-  pResultInfo->current = pResultInfo->numOfRows;
   pResultInfo->convertUcs4 = false;
 
-  taos_fetch_rows_a(res, fp, param);
+  // it is a local executed query, no need to do async fetch
+  taos_fetch_rows_a(pRequest, fp, param);
 }
 
 const void *taos_get_raw_block(TAOS_RES *res) {

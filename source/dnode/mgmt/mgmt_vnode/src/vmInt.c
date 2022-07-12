@@ -76,10 +76,11 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
 void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   char path[TSDB_FILENAME_LEN] = {0};
 
+  vnodePreClose(pVnode->pImpl);
+
   taosThreadRwlockWrlock(&pMgmt->lock);
   taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t));
   taosThreadRwlockUnlock(&pMgmt->lock);
-
   vmReleaseVnode(pMgmt, pVnode);
 
   dTrace("vgId:%d, wait for vnode ref become 0", pVnode->vgId);

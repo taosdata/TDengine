@@ -51,6 +51,7 @@ void    vnodeCleanup();
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
 void    vnodeDestroy(const char *path, STfs *pTfs);
 SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
+void    vnodePreClose(SVnode *pVnode);
 void    vnodeClose(SVnode *pVnode);
 
 int32_t vnodeStart(SVnode *pVnode);
