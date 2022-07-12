@@ -80,8 +80,10 @@ typedef struct STopBotRes {
 } STopBotRes;
 
 typedef struct SFirstLastRes {
-  bool    hasResult;
-  bool    isNull;  // used for last_row function only
+  bool hasResult;
+  // used for last_row function only, isNullRes in SResultRowEntry can not be passed to downstream.So,
+  // this attribute is required
+  bool isNull;
   int32_t bytes;
   char    buf[];
 } SFirstLastRes;
@@ -2900,7 +2902,7 @@ int32_t firstLastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
 
   SFirstLastRes* pRes = GET_ROWCELL_INTERBUF(pResInfo);
-  colDataAppend(pCol, pBlock->info.rows, pRes->buf, pResInfo->isNullRes);
+  colDataAppend(pCol, pBlock->info.rows, pRes->buf, pRes->isNull||pResInfo->isNullRes);
   // handle selectivity
   STuplePos* pTuplePos = (STuplePos*)(pRes->buf + pRes->bytes + sizeof(TSKEY));
   setSelectivityValue(pCtx, pBlock, pTuplePos, pBlock->info.rows);
@@ -5956,24 +5958,28 @@ int32_t lastrowFunction(SqlFunctionCtx* pCtx) {
 
   int32_t type = pInputCol->info.type;
   int32_t bytes = pInputCol->info.bytes;
+
   pInfo->bytes = bytes;
 
+  // last_row function does not ignore the null value
   for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
-    if (pInputCol->hasNull && colDataIsNull_s(pInputCol, i)) {
-      continue;
-    }
-
     numOfElems++;
 
     char* data = colDataGetData(pInputCol, i);
     TSKEY cts = getRowPTs(pInput->pPTS, i);
     if (pResInfo->numOfRes == 0 || *(TSKEY*)(pInfo->buf + bytes) < cts) {
-      if (IS_VAR_DATA_TYPE(type)) {
-        bytes = varDataTLen(data);
-        pInfo->bytes = bytes;
+
+      if (colDataIsNull_s(pInputCol, i)) {
+        pInfo->isNull = true;
+      } else {
+        if (IS_VAR_DATA_TYPE(type)) {
+          bytes = varDataTLen(data);
+          pInfo->bytes = bytes;
+        }
+
+        memcpy(pInfo->buf, data, bytes);
       }
 
-      memcpy(pInfo->buf, data, bytes);
       *(TSKEY*)(pInfo->buf + bytes) = cts;
 
       pInfo->hasResult = true;
