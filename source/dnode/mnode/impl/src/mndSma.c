@@ -204,6 +204,8 @@ _OVER:
     mError("sma:%s, failed to decode from raw:%p since %s", pSma->name, pRaw, terrstr());
     taosMemoryFreeClear(pSma->expr);
     taosMemoryFreeClear(pSma->tagsFilter);
+    taosMemoryFreeClear(pSma->sql);
+    taosMemoryFreeClear(pSma->ast);
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -221,6 +223,8 @@ static int32_t mndSmaActionDelete(SSdb *pSdb, SSmaObj *pSma) {
   mTrace("sma:%s, perform delete action, row:%p", pSma->name, pSma);
   taosMemoryFreeClear(pSma->tagsFilter);
   taosMemoryFreeClear(pSma->expr);
+  taosMemoryFreeClear(pSma->sql);
+  taosMemoryFreeClear(pSma->ast);
   return 0;
 }
 

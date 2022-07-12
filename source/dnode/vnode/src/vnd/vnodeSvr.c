@@ -27,6 +27,7 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t version, void
 static int32_t vnodeProcessAlterHashRangeReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
@@ -173,9 +174,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
     case TDMT_VND_DROP_TTL_TABLE:
       if (vnodeProcessDropTtlTbReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
-    case TDMT_VND_CREATE_SMA: {
+    case TDMT_VND_TRIM:
+      if (vnodeProcessTrimReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
+      break;
+    case TDMT_VND_CREATE_SMA:
       if (vnodeProcessCreateTSmaReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
-    } break;
+      break;
     /* TSDB */
     case TDMT_VND_SUBMIT:
       if (vnodeProcessSubmitReq(pVnode, version, pMsg->pCont, pMsg->contLen, pRsp) < 0) goto _err;
@@ -347,13 +351,38 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
   pMetaRsp->precision = pVnode->config.tsdbCfg.precision;
 }
 
+static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  int32_t     code = 0;
+  SVTrimDbReq trimReq = {0};
+
+  vInfo("vgId:%d, trim vnode request will be processed, time:%d", pVnode->config.vgId, trimReq.timestamp);
+
+  // decode
+  if (tDeserializeSVTrimDbReq(pReq, len, &trimReq) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  // process
+  code = tsdbDoRetention(pVnode->pTsdb, trimReq.timestamp);
+  if (code) goto _exit;
+
+_exit:
+  return code;
+}
+
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SArray *tbUids = taosArrayInit(8, sizeof(int64_t));
   if (tbUids == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  int32_t t = ntohl(*(int32_t *)pReq);
-  vDebug("rec ttl time:%d", t);
-  int32_t ret = metaTtlDropTable(pVnode->pMeta, t, tbUids);
+  SVDropTtlTableReq ttlReq = {0};
+  if (tDeserializeSVDropTtlTableReq(pReq, len, &ttlReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto end;
+  }
+
+  vInfo("vgId:%d, drop ttl table req will be processed, time:%d", pVnode->config.vgId, ttlReq.timestamp);
+  int32_t ret = metaTtlDropTable(pVnode->pMeta, ttlReq.timestamp, tbUids);
   if (ret != 0) {
     goto end;
   }
@@ -388,7 +417,7 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *p
     goto _err;
   }
 
-  if (tdProcessRSmaCreate(pVnode, &req) < 0) {
+  if (tdProcessRSmaCreate(pVnode->pSma, &req) < 0) {
     pRsp->code = terrno;
     goto _err;
   }
@@ -540,6 +569,11 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pRe
 
   // process request
   if (metaDropSTable(pVnode->pMeta, version, &req) < 0) {
+    rcode = terrno;
+    goto _exit;
+  }
+
+  if (tdProcessRSmaDrop(pVnode->pSma, &req) < 0) {
     rcode = terrno;
     goto _exit;
   }
@@ -907,6 +941,11 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
 
   vInfo("vgId:%d, start to alter vnode config, cacheLast:%d cacheLastSize:%d", TD_VID(pVnode), alterReq.cacheLast,
         alterReq.cacheLastSize);
+  if (pVnode->config.cacheLastSize != alterReq.cacheLastSize) {
+    pVnode->config.cacheLastSize = alterReq.cacheLastSize;
+    // TODO: save config
+    tsdbCacheSetCapacity(pVnode, (size_t)pVnode->config.cacheLastSize * 1024 * 1024);
+  }
   return 0;
 }
 

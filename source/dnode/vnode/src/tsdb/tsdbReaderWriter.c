@@ -1913,3 +1913,114 @@ _err:
   taosArrayDestroy(aBlockCol);
   return code;
 }
+
+int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
+  int32_t   code = 0;
+  int64_t   n;
+  int64_t   size;
+  TdFilePtr pOutFD = NULL;  // TODO
+  TdFilePtr PInFD = NULL;   // TODO
+  char      fNameFrom[TSDB_FILENAME_LEN];
+  char      fNameTo[TSDB_FILENAME_LEN];
+
+  // head
+  tsdbDataFileName(pTsdb, pSetFrom, TSDB_HEAD_FILE, fNameFrom);
+  tsdbDataFileName(pTsdb, pSetTo, TSDB_HEAD_FILE, fNameTo);
+
+  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  if (pOutFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  PInFD = taosOpenFile(fNameFrom, TD_FILE_READ);
+  if (PInFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosFSendFile(pOutFD, PInFD, 0, pSetFrom->fHead.size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  taosCloseFile(&pOutFD);
+  taosCloseFile(&PInFD);
+
+  // data
+  tsdbDataFileName(pTsdb, pSetFrom, TSDB_DATA_FILE, fNameFrom);
+  tsdbDataFileName(pTsdb, pSetTo, TSDB_DATA_FILE, fNameTo);
+
+  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  if (pOutFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  PInFD = taosOpenFile(fNameFrom, TD_FILE_READ);
+  if (PInFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosFSendFile(pOutFD, PInFD, 0, pSetFrom->fData.size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  taosCloseFile(&pOutFD);
+  taosCloseFile(&PInFD);
+
+  // last
+  tsdbDataFileName(pTsdb, pSetFrom, TSDB_LAST_FILE, fNameFrom);
+  tsdbDataFileName(pTsdb, pSetTo, TSDB_LAST_FILE, fNameTo);
+  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  if (pOutFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  PInFD = taosOpenFile(fNameFrom, TD_FILE_READ);
+  if (PInFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosFSendFile(pOutFD, PInFD, 0, pSetFrom->fLast.size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  taosCloseFile(&pOutFD);
+  taosCloseFile(&PInFD);
+
+  // sma
+  tsdbDataFileName(pTsdb, pSetFrom, TSDB_SMA_FILE, fNameFrom);
+  tsdbDataFileName(pTsdb, pSetTo, TSDB_SMA_FILE, fNameTo);
+
+  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  if (pOutFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  PInFD = taosOpenFile(fNameFrom, TD_FILE_READ);
+  if (PInFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosFSendFile(pOutFD, PInFD, 0, pSetFrom->fSma.size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  taosCloseFile(&pOutFD);
+  taosCloseFile(&PInFD);
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb DFileSet copy failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  return code;
+}

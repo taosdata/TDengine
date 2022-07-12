@@ -4504,7 +4504,6 @@ static SSDataBlock* doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
   }
 
   size_t rows = pRes->info.rows;
-  blockDataUpdateTsWindow(pRes, iaInfo->primaryTsIndex);
   pOperator->resultInfo.totalRows += rows;
   return (rows == 0) ? NULL : pRes;
 }
