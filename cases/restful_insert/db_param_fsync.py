@@ -35,7 +35,7 @@ class Testfsync(TDCase):
         dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'create database if not exists {dbname} wal 2')
         self.tdRest.request('show databases')
-        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         # default
         self.tdSql.checkEqual(db_field, self.cfg["default"])
         # !bug TD-
@@ -48,7 +48,7 @@ class Testfsync(TDCase):
             dbname = self.tdCom.get_long_name()
             self.tdRest.request(f'create database if not exists {dbname} wal 2 {test_param} {param_value}')
             self.tdRest.request('show databases')
-            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
             self.tdSql.checkEqual(db_field, param_value)
             # !bug TD-
             # self.tdRest.request(f'show {dbname}.vgroups')

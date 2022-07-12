@@ -62,9 +62,9 @@ class TestNull(TDCase):
         self.tdRest.request(f'insert into {dbname}.tb values (now, null)')
         self.tdRest.error(f'insert into {dbname}.tb values (null, 1)')
         self.tdRest.request(f'select tag_ts, t1, c1 from {dbname}.stb')
-        # self.tdSql.checkEqual(self.tdSql.query_data[0][0], None)
-        self.tdSql.checkEqual(self.tdRest.resp[0][1], 1)
-        self.tdSql.checkEqual(self.tdRest.resp[0][2], None)
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], None)
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0][1], None)
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0][2], None)
         self.tdRest.request(f'drop database if exists {dbname}')
 
     def tb_null_check(self):
@@ -77,7 +77,7 @@ class TestNull(TDCase):
         self.tdRest.request(f'insert into {dbname}.tb values (now, null)')
         self.tdRest.error(f'insert into {dbname}.tb values (null, 1)')
         self.tdRest.request(f'select c1 from {dbname}.tb')
-        self.tdSql.checkEqual(self.tdRest.resp[0][0], None)
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], None)
         self.tdRest.request(f'drop database if exists {dbname}')
 
     def polling_insert_check(self):
@@ -100,7 +100,7 @@ class TestNull(TDCase):
         self.tdRest.request(f'insert into {dbname}.tb (col_ts, c3 , c7, c9, c11, c13) values (now+2h, null, null, null, null, null)')
         self.tdRest.request(f'insert into {dbname}.tb (col_ts, c3 , c7, c9, c11, c13) values (now+3h, 3, null, 7, null, False)')
         self.tdRest.request(f'select count(*) from {dbname}.stb')
-        self.tdSql.checkEqual(int(self.tdRest.resp[0][0]), 7)
+        self.tdSql.checkEqual(int(self.tdRest.resp['data'][0][0]), 7)
         self.tdRest.request(f'drop database if exists {dbname}')
 
     def run(self):

@@ -36,7 +36,7 @@ class TestBuffer(TDCase):
         dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.query('show databases')
-        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         # default
         self.tdSql.checkEqual(db_field, self.cfg["default"])
         self.tdRest.request(f'show {dbname}.vgroups')
@@ -49,7 +49,7 @@ class TestBuffer(TDCase):
             dbname = self.tdCom.get_long_name()
             self.tdRest.request(f'create database if not exists {dbname} vgroups {self.vgroup_cfg["boundary"][0]} {test_param} {param_value} ')
             self.tdRest.request('show databases')
-            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
             self.tdSql.checkEqual(db_field, param_value)
             self.tdRest.request(f'show {dbname}.vgroups')
             print('==============',self.tdRest.resp)

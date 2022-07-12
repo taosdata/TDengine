@@ -36,7 +36,7 @@ class TestPagesize(TDCase):
         dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.request('show databases')
-        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         # default
         self.tdSql.checkEqual(db_field, self.cfg["default"])
         self.tdRest.request(f'show {dbname}.vgroups')
@@ -49,7 +49,7 @@ class TestPagesize(TDCase):
             dbname = self.tdCom.get_long_name()
             self.tdRest.request(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdRest.request('show databases')
-            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
             self.tdSql.checkEqual(db_field, param_value)
             self.tdRest.request(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdRest.getOneRow(1, dbname)
@@ -63,9 +63,9 @@ class TestPagesize(TDCase):
         self.tdRest.request(f'create database if not exists {dbname}')
         
         for i in [self.cfg["boundary"][0]+1,self.cfg["boundary"][-1]+1,100.5,'abc']:
-            self.tdSql.error(f'alter database  {dbname} {test_param} {i}')
+            self.tdRest.error(f'alter database  {dbname} {test_param} {i}')
         
-        self.tdSql.execute(f'drop database {dbname}')
+        self.tdRest.request(f'drop database {dbname}')
     def run(self) -> bool:
         self.pagesize_check()
 
