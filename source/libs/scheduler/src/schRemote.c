@@ -35,7 +35,7 @@ int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
         SCH_TASK_ELOG("rsp msg type mis-match, last sent msgType:%s, rspType:%s", TMSG_INFO(lastMsgType),
                       TMSG_INFO(msgType));
         SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
-      }    
+      }
       if (taskStatus != JOB_TASK_STATUS_PART_SUCC) {
         SCH_TASK_ELOG("rsp msg conflicted with task status, status:%s, rspType:%s", jobTaskStatusStr(taskStatus),
                       TMSG_INFO(msgType));
@@ -75,7 +75,7 @@ int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
 // Note: no more task error processing, handled in function internal
 int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDataBuf *pMsg, int32_t rspCode) {
   int32_t code = 0;
-  char *msg = pMsg->pData;
+  char   *msg = pMsg->pData;
   int32_t msgSize = pMsg->len;
   int32_t msgType = pMsg->msgType;
 
@@ -253,15 +253,15 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
       rsp->sversion = ntohl(rsp->sversion);
       rsp->tversion = ntohl(rsp->tversion);
       rsp->affectedRows = be64toh(rsp->affectedRows);
-      
+
       SCH_ERR_JRET(rsp->code);
 
       SCH_ERR_JRET(schSaveJobQueryRes(pJob, rsp));
 
       atomic_add_fetch_32(&pJob->resNumOfRows, rsp->affectedRows);
 
-      taosMemoryFreeClear(msg);              
-      
+      taosMemoryFreeClear(msg);
+
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
 
       break;
@@ -375,7 +375,8 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   SSchTask              *pTask = NULL;
   SSchJob               *pJob = NULL;
 
-  qDebug("begin to handle rsp msg, type:%s, handle:%p, code:%s", TMSG_INFO(pMsg->msgType), pMsg->handle, tstrerror(rspCode));
+  qDebug("begin to handle rsp msg, type:%s, handle:%p, code:%s", TMSG_INFO(pMsg->msgType), pMsg->handle,
+         tstrerror(rspCode));
 
   SCH_ERR_RET(schProcessOnCbBegin(&pJob, &pTask, pParam->queryId, pParam->refId, pParam->taskId));
 
@@ -387,7 +388,8 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   taosMemoryFreeClear(pMsg->pData);
   taosMemoryFreeClear(param);
 
-  qDebug("end to handle rsp msg, type:%s, handle:%p, code:%s", TMSG_INFO(pMsg->msgType), pMsg->handle, tstrerror(rspCode));
+  qDebug("end to handle rsp msg, type:%s, handle:%p, code:%s", TMSG_INFO(pMsg->msgType), pMsg->handle,
+         tstrerror(rspCode));
 
   SCH_RET(code);
 }
@@ -424,7 +426,7 @@ int32_t schHandleCommitCallback(void *param, SDataBuf *pMsg, int32_t code) {
 }
 
 int32_t schHandleHbCallback(void *param, SDataBuf *pMsg, int32_t code) {
-  SSchedulerHbRsp rsp = {0};
+  SSchedulerHbRsp        rsp = {0};
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
 
   if (code) {
@@ -453,8 +455,8 @@ _return:
   SCH_RET(code);
 }
 
-
-int32_t schMakeCallbackParam(SSchJob *pJob, SSchTask *pTask, int32_t msgType, bool isHb, SSchTrans *trans, void **pParam) {
+int32_t schMakeCallbackParam(SSchJob *pJob, SSchTask *pTask, int32_t msgType, bool isHb, SSchTrans *trans,
+                             void **pParam) {
   if (!isHb) {
     SSchTaskCallbackParam *param = taosMemoryCalloc(1, sizeof(SSchTaskCallbackParam));
     if (NULL == param) {
@@ -940,7 +942,8 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
   if (NULL == addr) {
     addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
     isCandidateAddr = true;
-    SCH_TASK_DLOG("target candidateIdx %d, epInUse %d/%d", pTask->candidateIdx, addr->epSet.inUse, addr->epSet.numOfEps);
+    SCH_TASK_DLOG("target candidateIdx %d, epInUse %d/%d", pTask->candidateIdx, addr->epSet.inUse,
+                  addr->epSet.numOfEps);
   }
 
   switch (msgType) {

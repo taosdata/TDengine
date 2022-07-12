@@ -207,7 +207,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.buffer = pDb->cfg.buffer;
   createReq.pageSize = pDb->cfg.pageSize;
   createReq.pages = pDb->cfg.pages;
-  createReq.lastRowMem = pDb->cfg.lastRowMem;
+  createReq.cacheLastSize = pDb->cfg.cacheLastSize;
   createReq.daysPerFile = pDb->cfg.daysPerFile;
   createReq.daysToKeep0 = pDb->cfg.daysToKeep0;
   createReq.daysToKeep1 = pDb->cfg.daysToKeep1;
@@ -219,7 +219,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.precision = pDb->cfg.precision;
   createReq.compression = pDb->cfg.compression;
   createReq.strict = pDb->cfg.strict;
-  createReq.cacheLastRow = pDb->cfg.cacheLastRow;
+  createReq.cacheLast = pDb->cfg.cacheLast;
   createReq.replica = pVgroup->replica;
   createReq.selfIndex = -1;
   createReq.hashBegin = pVgroup->hashBegin;
@@ -277,7 +277,7 @@ void *mndBuildAlterVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_
   alterReq.buffer = pDb->cfg.buffer;
   alterReq.pageSize = pDb->cfg.pageSize;
   alterReq.pages = pDb->cfg.pages;
-  alterReq.lastRowMem = pDb->cfg.lastRowMem;
+  alterReq.cacheLastSize = pDb->cfg.cacheLastSize;
   alterReq.daysPerFile = pDb->cfg.daysPerFile;
   alterReq.daysToKeep0 = pDb->cfg.daysToKeep0;
   alterReq.daysToKeep1 = pDb->cfg.daysToKeep1;
@@ -285,7 +285,7 @@ void *mndBuildAlterVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_
   alterReq.fsyncPeriod = pDb->cfg.fsyncPeriod;
   alterReq.walLevel = pDb->cfg.walLevel;
   alterReq.strict = pDb->cfg.strict;
-  alterReq.cacheLastRow = pDb->cfg.cacheLastRow;
+  alterReq.cacheLast = pDb->cfg.cacheLast;
   alterReq.replica = pVgroup->replica;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
@@ -307,7 +307,7 @@ void *mndBuildAlterVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  contLen += +sizeof(SMsgHead);
+  contLen += sizeof(SMsgHead);
 
   void *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
@@ -742,8 +742,8 @@ int64_t mndGetVgroupMemory(SMnode *pMnode, SDbObj *pDbInput, SVgObj *pVgroup) {
   int64_t vgroupMemroy = 0;
   if (pDb != NULL) {
     vgroupMemroy = (int64_t)pDb->cfg.buffer * 1024 * 1024 + (int64_t)pDb->cfg.pages * pDb->cfg.pageSize * 1024;
-    if (pDb->cfg.cacheLastRow > 0) {
-      vgroupMemroy += (int64_t)pDb->cfg.lastRowMem * 1024 * 1024;
+    if (pDb->cfg.cacheLast > 0) {
+      vgroupMemroy += (int64_t)pDb->cfg.cacheLastSize * 1024 * 1024;
     }
   }
 

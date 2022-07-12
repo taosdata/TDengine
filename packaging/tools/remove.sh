@@ -114,6 +114,7 @@ function clean_header() {
   ${csudo}rm -f ${inc_link_dir}/taos.h || :
   ${csudo}rm -f ${inc_link_dir}/taosdef.h || :
   ${csudo}rm -f ${inc_link_dir}/taoserror.h || :
+  ${csudo}rm -f ${inc_link_dir}/taosudf.h || :
 
   ${csudo}rm -f ${inc_link_dir}/taosws.h || :
 }

@@ -106,8 +106,8 @@ int32_t taosMkDir(const char *dirname) {
 
 int32_t taosMulMkDir(const char *dirname) {
   if (dirname == NULL) return -1;
-  char temp[1024];
-  char *  pos = temp;
+  char    temp[1024];
+  char   *pos = temp;
   int32_t code = 0;
 #ifdef WINDOWS
   taosRealPath(dirname, temp, sizeof(temp));
@@ -127,11 +127,11 @@ int32_t taosMulMkDir(const char *dirname) {
   for (; *pos != '\0'; pos++) {
     if (*pos == TD_DIRSEP[0]) {
       *pos = '\0';
-    #ifdef WINDOWS
+#ifdef WINDOWS
       code = _mkdir(temp, 0755);
-    #else
+#else
       code = mkdir(temp, 0755);
-    #endif
+#endif
       if (code < 0 && errno != EEXIST) {
         return code;
       }
@@ -140,11 +140,11 @@ int32_t taosMulMkDir(const char *dirname) {
   }
 
   if (*(pos - 1) != TD_DIRSEP[0]) {
-  #ifdef WINDOWS
+#ifdef WINDOWS
     code = _mkdir(temp, 0755);
-  #else
+#else
     code = mkdir(temp, 0755);
-  #endif
+#endif
     if (code < 0 && errno != EEXIST) {
       return code;
     }
@@ -267,7 +267,7 @@ char *taosDirName(char *name) {
   } else {
     name[0] = 0;
   }
-  return name; 
+  return name;
 #else
   return dirname(name);
 #endif
@@ -334,9 +334,9 @@ bool taosDirEntryIsDir(TdDirEntryPtr pDirEntry) {
 }
 
 char *taosGetDirEntryName(TdDirEntryPtr pDirEntry) {
-  if (pDirEntry == NULL) {
-    return NULL;
-  }
+  /*if (pDirEntry == NULL) {*/
+  /*return NULL;*/
+  /*}*/
 #ifdef WINDOWS
   return pDirEntry->findFileData.cFileName;
 #else

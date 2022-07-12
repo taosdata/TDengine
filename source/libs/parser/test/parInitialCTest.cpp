@@ -76,8 +76,8 @@ TEST_F(ParserInitialCTest, createDatabase) {
     expect.db[len] = '\0';
     expect.ignoreExist = igExists;
     expect.buffer = TSDB_DEFAULT_BUFFER_PER_VNODE;
-    expect.cacheLastRow = TSDB_DEFAULT_CACHE_LAST_ROW;
-    expect.lastRowMem = TSDB_DEFAULT_LAST_ROW_MEM;
+    expect.cacheLast = TSDB_DEFAULT_CACHE_LAST;
+    expect.cacheLastSize = TSDB_DEFAULT_CACHE_LAST_SIZE;
     expect.compression = TSDB_DEFAULT_COMP_LEVEL;
     expect.daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
     expect.fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
@@ -98,8 +98,8 @@ TEST_F(ParserInitialCTest, createDatabase) {
   };
 
   auto setDbBufferFunc = [&](int32_t buffer) { expect.buffer = buffer; };
-  auto setDbCachelastFunc = [&](int8_t cachelast) { expect.cacheLastRow = cachelast; };
-  auto setDbCachelastSize = [&](int8_t cachelastSize) { expect.lastRowMem = cachelastSize; };
+  auto setDbCachelastFunc = [&](int8_t cachelast) { expect.cacheLast = cachelast; };
+  auto setDbCachelastSize = [&](int8_t cachelastSize) { expect.cacheLastSize = cachelastSize; };
   auto setDbCompressionFunc = [&](int8_t compressionLevel) { expect.compression = compressionLevel; };
   auto setDbDaysFunc = [&](int32_t daysPerFile) { expect.daysPerFile = daysPerFile; };
   auto setDbFsyncFunc = [&](int32_t fsyncPeriod) { expect.fsyncPeriod = fsyncPeriod; };
@@ -155,8 +155,8 @@ TEST_F(ParserInitialCTest, createDatabase) {
     ASSERT_EQ(req.compression, expect.compression);
     ASSERT_EQ(req.replications, expect.replications);
     ASSERT_EQ(req.strict, expect.strict);
-    ASSERT_EQ(req.cacheLastRow, expect.cacheLastRow);
-    ASSERT_EQ(req.lastRowMem, expect.lastRowMem);
+    ASSERT_EQ(req.cacheLast, expect.cacheLast);
+    ASSERT_EQ(req.cacheLastSize, expect.cacheLastSize);
     // ASSERT_EQ(req.schemaless, expect.schemaless);
     ASSERT_EQ(req.ignoreExist, expect.ignoreExist);
     ASSERT_EQ(req.numOfRetensions, expect.numOfRetensions);
