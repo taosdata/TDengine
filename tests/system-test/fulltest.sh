@@ -11,6 +11,8 @@ python3 ./test.py -f 0-others/udfTest.py
 python3 ./test.py -f 0-others/udf_create.py
 python3 ./test.py -f 0-others/udf_restart_taosd.py
 python3 ./test.py -f 0-others/cachelast.py
+python3 ./test.py -f 0-others/udf_cfg1.py
+python3 ./test.py -f 0-others/udf_cfg2.py
 
 python3 ./test.py -f 0-others/user_control.py
 python3 ./test.py -f 0-others/fsync.py
