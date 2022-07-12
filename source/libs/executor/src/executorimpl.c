@@ -4013,10 +4013,12 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
   w = getFirstQualifiedTimeWindow(win.skey, &w, pInterval, TSDB_ORDER_ASC);
 
   int32_t order = TSDB_ORDER_ASC;
-  pInfo->pFillInfo = taosCreateFillInfo(order, w.skey, 0, capacity, numOfCols, pInterval, fillType, pColInfo, id);
+  pInfo->pFillInfo = taosCreateFillInfo(order, w.skey, 0, capacity, numOfCols, pInterval,
+      fillType, pColInfo, pInfo->primaryTsCol, id);
 
   pInfo->win = win;
   pInfo->p = taosMemoryCalloc(numOfCols, POINTER_BYTES);
+
   if (pInfo->pFillInfo == NULL || pInfo->p == NULL) {
     taosMemoryFree(pInfo->pFillInfo);
     taosMemoryFree(pInfo->p);
