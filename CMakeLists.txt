@@ -11,6 +11,9 @@ SET(TD_ENTERPRISE_DIR ${PROJECT_SOURCE_DIR}/enterprise)
 MESSAGE(STATUS "Community source directory: " ${TD_COMMUNITY_DIR})
 MESSAGE(STATUS "Enterprise source directory: " ${TD_ENTERPRISE_DIR})
 
+set( TD_SOURCE_DIR ${PROJECT_SOURCE_DIR} )
+add_subdirectory(enterprise/contrib)
+
 set( TD_SOURCE_DIR ${TD_COMMUNITY_DIR} )
 
 SET(TD_ACCOUNT TRUE)

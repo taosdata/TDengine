@@ -1,4 +1,0 @@
-[submodule "community"]
-	path = community
-	url = git@github.com:taosdata/TDengine.git
-	branch = 3.0
