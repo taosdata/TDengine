@@ -16,7 +16,7 @@ from tmqCommon import *
 
 class TDTestCase:
     def __init__(self):
-        self.vgroups    = 1
+        self.vgroups    = 2
         self.ctbNum     = 100
         self.rowsPerTbl = 10000
         
@@ -29,7 +29,7 @@ class TDTestCase:
         paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
                     'event':      '',
-                    'vgroups':    1,
+                    'vgroups':    3,
                     'stbName':    'stb',
                     'colPrefix':  'c',
                     'tagPrefix':  't',
@@ -37,9 +37,9 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
-                    'ctbNum':     1,
-                    'rowsPerTbl': 100000,
-                    'batchNum':   100,
+                    'ctbNum':     500,
+                    'rowsPerTbl': 1000,
+                    'batchNum':   500,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  3,
                     'showMsg':    1,
@@ -73,7 +73,7 @@ class TDTestCase:
         paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
                     'event':      '',
-                    'vgroups':    1,
+                    'vgroups':    4,
                     'stbName':    'stb',
                     'colPrefix':  'c',
                     'tagPrefix':  't',
@@ -81,18 +81,18 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
-                    'ctbNum':     1,
-                    'rowsPerTbl': 10000,
-                    'batchNum':   100,
+                    'ctbNum':     1000,
+                    'rowsPerTbl': 1000,
+                    'batchNum':   400,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  5,
                     'showMsg':    1,
                     'showRow':    1,
-                    'snapshot':   0}
+                    'snapshot':   1}
 
-        paraDict['vgroups'] = self.vgroups
-        paraDict['ctbNum'] = self.ctbNum
-        paraDict['rowsPerTbl'] = self.rowsPerTbl
+        # paraDict['vgroups'] = self.vgroups
+        # paraDict['ctbNum'] = self.ctbNum
+        # paraDict['rowsPerTbl'] = self.rowsPerTbl
         
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
@@ -107,9 +107,12 @@ class TDTestCase:
                                                startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
 
         tdLog.info("create topics from stb1")
-        topicFromStb1 = 'topic_stb1'
+        topicFromStb1 = 'topic_stb1'                
+        queryString = "select ts, c1, c2 from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
+        sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
+        tdLog.info("create topic sql: %s"%sqlString)
+        tdSql.execute(sqlString)
         
-        tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(topicFromStb1, paraDict['dbName'], paraDict['stbName']))
         consumerId     = 0
         expectrowcnt   = paraDict["rowsPerTbl"] * paraDict["ctbNum"]
         topicList      = topicFromStb1
@@ -117,7 +120,7 @@ class TDTestCase:
         ifManualCommit = 0
         keyList        = 'group.id:cgrp1,\
                         enable.auto.commit:true,\
-                        auto.commit.interval.ms:1000,\
+                        auto.commit.interval.ms:500,\
                         auto.offset.reset:earliest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
@@ -137,9 +140,12 @@ class TDTestCase:
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
+
+        tdSql.query(queryString)
+        totalRowsInserted = tdSql.getRows()
         
-        if totalConsumeRows != expectrowcnt:
-            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
+        if totalConsumeRows != totalRowsInserted:
+            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, totalRowsInserted))
             tdLog.exit("tmq consume rows error!")
 
         tdSql.query("drop topic %s"%topicFromStb1)
@@ -151,7 +157,7 @@ class TDTestCase:
         paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
                     'event':      '',
-                    'vgroups':    1,
+                    'vgroups':    4,
                     'stbName':    'stb',
                     'colPrefix':  'c',
                     'tagPrefix':  't',
@@ -159,18 +165,18 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
-                    'ctbNum':     1,
-                    'rowsPerTbl': 10000,
-                    'batchNum':   100,
+                    'ctbNum':     1000,
+                    'rowsPerTbl': 1000,
+                    'batchNum':   1000,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  3,
+                    'pollDelay':  5,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   1}
 
-        paraDict['vgroups'] = self.vgroups
-        paraDict['ctbNum'] = self.ctbNum
-        paraDict['rowsPerTbl'] = self.rowsPerTbl
+        # paraDict['vgroups'] = self.vgroups
+        # paraDict['ctbNum'] = self.ctbNum
+        # paraDict['rowsPerTbl'] = self.rowsPerTbl
         
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
@@ -184,9 +190,12 @@ class TDTestCase:
                                                ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
                                                startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
         tdLog.info("create topics from stb1")
-        topicFromStb1 = 'topic_stb1'
+        topicFromStb1 = 'topic_stb1'                
+        queryString = "select ts, c1, c2 from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
+        sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
+        tdLog.info("create topic sql: %s"%sqlString)
+        tdSql.execute(sqlString)
         
-        tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(topicFromStb1, paraDict['dbName'], paraDict['stbName']))
         consumerId     = 0
         expectrowcnt   = paraDict["rowsPerTbl"] * paraDict["ctbNum"] * 2
         topicList      = topicFromStb1
@@ -202,9 +211,8 @@ class TDTestCase:
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
         tdLog.info("create some new child table and insert data ")
-        paraDict['batchNum'] = 100
         tmqCom.insert_data_with_autoCreateTbl(tdSql,paraDict["dbName"],paraDict["stbName"],"ctb",paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"])
-
+        
         tmqCom.getStartCommitNotifyFromTmqsim()
         tdLog.info("================= restart dnode ===========================")
         tdDnodes.stop(1)
@@ -217,9 +225,12 @@ class TDTestCase:
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
+
+        tdSql.query(queryString)
+        totalRowsInserted = tdSql.getRows()
         
-        if totalConsumeRows != expectrowcnt:
-            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
+        if totalConsumeRows != totalRowsInserted:
+            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, totalRowsInserted))
             tdLog.exit("tmq consume rows error!")
 
         tdSql.query("drop topic %s"%topicFromStb1)
@@ -232,7 +243,7 @@ class TDTestCase:
         paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
                     'event':      '',
-                    'vgroups':    1,
+                    'vgroups':    4,
                     'stbName':    'stb',
                     'colPrefix':  'c',
                     'tagPrefix':  't',
@@ -240,14 +251,14 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
-                    'ctbNum':     1,
-                    'rowsPerTbl': 10000,
-                    'batchNum':   100,
+                    'ctbNum':     1000,
+                    'rowsPerTbl': 1000,
+                    'batchNum':   400,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  3,
+                    'pollDelay':  5,
                     'showMsg':    1,
                     'showRow':    1,
-                    'snapshot':   0}
+                    'snapshot':   1}
 
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
@@ -261,9 +272,12 @@ class TDTestCase:
         tmqCom.insert_data_with_autoCreateTbl(tdSql,paraDict["dbName"],paraDict["stbName"],"ctb",paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"])
 
         tdLog.info("create topics from stb1")
-        topicFromStb1 = 'topic_stb1'
+        topicFromStb1 = 'topic_stb1'                
+        queryString = "select ts, c1, c2 from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
+        sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
+        tdLog.info("create topic sql: %s"%sqlString)
+        tdSql.execute(sqlString)        
         
-        tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(topicFromStb1, paraDict['dbName'], paraDict['stbName']))
         consumerId     = 0
         expectrowcnt   = paraDict["rowsPerTbl"] * paraDict["ctbNum"]
         topicList      = topicFromStb1
@@ -289,9 +303,12 @@ class TDTestCase:
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
+
+        tdSql.query(queryString)
+        totalRowsInserted = tdSql.getRows()
         
-        if totalConsumeRows != expectrowcnt:
-            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
+        if totalConsumeRows != totalRowsInserted:
+            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, totalRowsInserted))
             tdLog.exit("tmq consume rows error!")
 
         tdSql.query("drop topic %s"%topicFromStb1)
