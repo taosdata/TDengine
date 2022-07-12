@@ -729,6 +729,7 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
 
   if (colDataIsNull_s(output.columnData, 0)) {
     res->node.resType.type = TSDB_DATA_TYPE_NULL;
+    res->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;    
   } else {
     res->node.resType.type = output.columnData->info.type;
     res->node.resType.bytes = output.columnData->info.bytes;
@@ -819,6 +820,7 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
   if (colDataIsNull_s(output.columnData, 0)) {
     if(node->node.resType.type != TSDB_DATA_TYPE_JSON){
       res->node.resType.type = TSDB_DATA_TYPE_NULL;
+      res->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
     }else{
       res->node.resType = node->node.resType;
       res->isNull = true;

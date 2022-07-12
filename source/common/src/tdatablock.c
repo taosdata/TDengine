@@ -320,7 +320,9 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
     memcpy(pColumnInfoData->pData, pSource->pData, pSource->varmeta.length);
   } else {
     memcpy(pColumnInfoData->nullbitmap, pSource->nullbitmap, BitmapLen(numOfRows));
-    memcpy(pColumnInfoData->pData, pSource->pData, pSource->info.bytes * numOfRows);
+    if (pSource->pData) {
+      memcpy(pColumnInfoData->pData, pSource->pData, pSource->info.bytes * numOfRows);
+    }
   }
 
   pColumnInfoData->hasNull = pSource->hasNull;
