@@ -201,7 +201,7 @@ system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode3 -s start
 system sh/exec.sh -n dnode4 -s start
 
-sleep 3000
+sleep 7000
 
 print =============== query data 
 sql connect
