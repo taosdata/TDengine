@@ -59,4 +59,6 @@ TEST_F(PlanPartitionByTest, withGroupBy) {
   useDb("root", "test");
 
   run("select count(*) from t1 partition by c1 group by c2");
+
+  run("SELECT TBNAME, c1 FROM st1 PARTITION BY TBNAME GROUP BY c1");
 }

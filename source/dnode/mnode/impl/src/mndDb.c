@@ -42,6 +42,7 @@ static int32_t  mndProcessAlterDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessUseDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessCompactDbReq(SRpcMsg *pReq);
+static int32_t  mndProcessTrimDbReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity);
 static void     mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 static int32_t  mndProcessGetDbCfgReq(SRpcMsg *pReq);
@@ -62,6 +63,7 @@ int32_t mndInitDb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_DB, mndProcessDropDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_USE_DB, mndProcessUseDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_COMPACT_DB, mndProcessCompactDbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TRIM_DB, mndProcessTrimDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_DB_CFG, mndProcessGetDbCfgReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_DB, mndRetrieveDbs);
@@ -93,7 +95,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.buffer, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.pageSize, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.pages, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.lastRowMem, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.cacheLastSize, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysPerFile, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep0, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep1, _OVER)
@@ -106,7 +108,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.compression, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.replications, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.strict, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.cacheLastRow, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.cacheLast, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.hashMethod, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfRetensions, _OVER)
   for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
@@ -166,7 +168,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.buffer, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.pageSize, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.pages, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.lastRowMem, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.cacheLastSize, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysPerFile, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep0, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep1, _OVER)
@@ -179,7 +181,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.compression, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.replications, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.strict, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.cacheLastRow, _OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.cacheLast, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.hashMethod, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.numOfRetensions, _OVER)
   if (pDb->cfg.numOfRetensions > 0) {
@@ -234,7 +236,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.buffer = pNew->cfg.buffer;
   pOld->cfg.pageSize = pNew->cfg.pageSize;
   pOld->cfg.pages = pNew->cfg.pages;
-  pOld->cfg.lastRowMem = pNew->cfg.lastRowMem;
+  pOld->cfg.cacheLastSize = pNew->cfg.cacheLastSize;
   pOld->cfg.daysPerFile = pNew->cfg.daysPerFile;
   pOld->cfg.daysToKeep0 = pNew->cfg.daysToKeep0;
   pOld->cfg.daysToKeep1 = pNew->cfg.daysToKeep1;
@@ -242,7 +244,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.fsyncPeriod = pNew->cfg.fsyncPeriod;
   pOld->cfg.walLevel = pNew->cfg.walLevel;
   pOld->cfg.strict = pNew->cfg.strict;
-  pOld->cfg.cacheLastRow = pNew->cfg.cacheLastRow;
+  pOld->cfg.cacheLast = pNew->cfg.cacheLast;
   pOld->cfg.replications = pNew->cfg.replications;
   taosWUnLockLatch(&pOld->lock);
   return 0;
@@ -291,7 +293,7 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->buffer < TSDB_MIN_BUFFER_PER_VNODE || pCfg->buffer > TSDB_MAX_BUFFER_PER_VNODE) return -1;
   if (pCfg->pageSize < TSDB_MIN_PAGESIZE_PER_VNODE || pCfg->pageSize > TSDB_MAX_PAGESIZE_PER_VNODE) return -1;
   if (pCfg->pages < TSDB_MIN_PAGES_PER_VNODE || pCfg->pages > TSDB_MAX_PAGES_PER_VNODE) return -1;
-  if (pCfg->lastRowMem < TSDB_MIN_DB_LAST_ROW_MEM || pCfg->lastRowMem > TSDB_MAX_DB_LAST_ROW_MEM) return -1;
+  if (pCfg->cacheLastSize < TSDB_MIN_DB_CACHE_LAST_SIZE || pCfg->cacheLastSize > TSDB_MAX_DB_CACHE_LAST_SIZE) return -1;
   if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return -1;
   if (pCfg->daysToKeep0 < TSDB_MIN_KEEP || pCfg->daysToKeep0 > TSDB_MAX_KEEP) return -1;
   if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > TSDB_MAX_KEEP) return -1;
@@ -310,7 +312,7 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->replications != 1 && pCfg->replications != 3) return -1;
   if (pCfg->strict < TSDB_DB_STRICT_OFF || pCfg->strict > TSDB_DB_STRICT_ON) return -1;
   if (pCfg->schemaless < TSDB_DB_SCHEMALESS_OFF || pCfg->schemaless > TSDB_DB_SCHEMALESS_ON) return -1;
-  if (pCfg->cacheLastRow < TSDB_MIN_DB_CACHE_LAST_ROW || pCfg->cacheLastRow > TSDB_MAX_DB_CACHE_LAST_ROW) return -1;
+  if (pCfg->cacheLast < TSDB_MIN_DB_CACHE_LAST || pCfg->cacheLast > TSDB_MAX_DB_CACHE_LAST) return -1;
   if (pCfg->hashMethod != 1) return -1;
   if (pCfg->replications > mndGetDnodeSize(pMnode)) {
     terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
@@ -339,8 +341,8 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->compression < 0) pCfg->compression = TSDB_DEFAULT_COMP_LEVEL;
   if (pCfg->replications < 0) pCfg->replications = TSDB_DEFAULT_DB_REPLICA;
   if (pCfg->strict < 0) pCfg->strict = TSDB_DEFAULT_DB_STRICT;
-  if (pCfg->cacheLastRow < 0) pCfg->cacheLastRow = TSDB_DEFAULT_CACHE_LAST_ROW;
-  if (pCfg->lastRowMem <= 0) pCfg->lastRowMem = TSDB_DEFAULT_LAST_ROW_MEM;
+  if (pCfg->cacheLast < 0) pCfg->cacheLast = TSDB_DEFAULT_CACHE_LAST;
+  if (pCfg->cacheLastSize <= 0) pCfg->cacheLastSize = TSDB_DEFAULT_CACHE_LAST_SIZE;
   if (pCfg->numOfRetensions < 0) pCfg->numOfRetensions = 0;
   if (pCfg->schemaless < 0) pCfg->schemaless = TSDB_DB_SCHEMALESS_OFF;
 }
@@ -439,7 +441,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .buffer = pCreate->buffer,
       .pageSize = pCreate->pageSize,
       .pages = pCreate->pages,
-      .lastRowMem = pCreate->lastRowMem,
+      .cacheLastSize = pCreate->cacheLastSize,
       .daysPerFile = pCreate->daysPerFile,
       .daysToKeep0 = pCreate->daysToKeep0,
       .daysToKeep1 = pCreate->daysToKeep1,
@@ -452,7 +454,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .compression = pCreate->compression,
       .replications = pCreate->replications,
       .strict = pCreate->strict,
-      .cacheLastRow = pCreate->cacheLastRow,
+      .cacheLast = pCreate->cacheLast,
       .hashMethod = 1,
       .schemaless = pCreate->schemaless,
   };
@@ -623,13 +625,13 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
 #endif
   }
 
-  if (pAlter->cacheLastRow >= 0 && pAlter->cacheLastRow != pDb->cfg.cacheLastRow) {
-    pDb->cfg.cacheLastRow = pAlter->cacheLastRow;
+  if (pAlter->cacheLast >= 0 && pAlter->cacheLast != pDb->cfg.cacheLast) {
+    pDb->cfg.cacheLast = pAlter->cacheLast;
     terrno = 0;
   }
 
-  if (pAlter->lastRowMem > 0 && pAlter->lastRowMem != pDb->cfg.lastRowMem) {
-    pDb->cfg.lastRowMem = pAlter->lastRowMem;
+  if (pAlter->cacheLastSize > 0 && pAlter->cacheLastSize != pDb->cfg.cacheLastSize) {
+    pDb->cfg.cacheLastSize = pAlter->cacheLastSize;
     terrno = 0;
   }
 
@@ -801,7 +803,7 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
   cfgRsp.compression = pDb->cfg.compression;
   cfgRsp.replications = pDb->cfg.replications;
   cfgRsp.strict = pDb->cfg.strict;
-  cfgRsp.cacheLastRow = pDb->cfg.cacheLastRow;
+  cfgRsp.cacheLast = pDb->cfg.cacheLast;
   cfgRsp.numOfRetensions = pDb->cfg.numOfRetensions;
   cfgRsp.pRetensions = pDb->cfg.pRetensions;
   cfgRsp.schemaless = pDb->cfg.schemaless;
@@ -1268,6 +1270,8 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
   return 0;
 }
 
+static int32_t mndCompactDb(SMnode *pMnode, SDbObj *pDb) { return 0; }
+
 static int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   int32_t       code = -1;
@@ -1279,7 +1283,7 @@ static int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("db:%s, start to sync", compactReq.db);
+  mDebug("db:%s, start to compact", compactReq.db);
 
   pDb = mndAcquireDb(pMnode, compactReq.db);
   if (pDb == NULL) {
@@ -1290,11 +1294,80 @@ static int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // code = mndCompactDb();
+  code = mndCompactDb(pMnode, pDb);
 
 _OVER:
   if (code != 0) {
     mError("db:%s, failed to process compact db req since %s", compactReq.db, terrstr());
+  }
+
+  mndReleaseDb(pMnode, pDb);
+  return code;
+}
+
+static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
+  SSdb       *pSdb = pMnode->pSdb;
+  SVgObj     *pVgroup = NULL;
+  void       *pIter = NULL;
+  SVTrimDbReq trimReq = {.timestamp = taosGetTimestampSec()};
+  int32_t     reqLen = tSerializeSVTrimDbReq(NULL, 0, &trimReq);
+  int32_t     contLen = reqLen + sizeof(SMsgHead);
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    SMsgHead *pHead = rpcMallocCont(contLen);
+    if (pHead == NULL) {
+      sdbCancelFetch(pSdb, pVgroup);
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+    pHead->contLen = htonl(contLen);
+    pHead->vgId = htonl(pVgroup->vgId);
+    tSerializeSVTrimDbReq((char *)pHead + sizeof(SMsgHead), contLen, &trimReq);
+
+    SRpcMsg rpcMsg = {.msgType = TDMT_VND_TRIM, .pCont = pHead, .contLen = contLen};
+    SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    int32_t code = tmsgSendReq(&epSet, &rpcMsg);
+    if (code != 0) {
+      mError("vgId:%d, failed to send vnode-trim request to vnode since 0x%x", pVgroup->vgId, code);
+    } else {
+      mDebug("vgId:%d, send vnode-trim request to vnode, time:%d", pVgroup->vgId, trimReq.timestamp);
+    }
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return 0;
+}
+
+static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
+  SMnode    *pMnode = pReq->info.node;
+  int32_t    code = -1;
+  SDbObj    *pDb = NULL;
+  STrimDbReq trimReq = {0};
+
+  if (tDeserializeSTrimDbReq(pReq->pCont, pReq->contLen, &trimReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  mDebug("db:%s, start to trim", trimReq.db);
+
+  pDb = mndAcquireDb(pMnode, trimReq.db);
+  if (pDb == NULL) {
+    goto _OVER;
+  }
+
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb) != 0) {
+    goto _OVER;
+  }
+
+  code = mndTrimDb(pMnode, pDb);
+
+_OVER:
+  if (code != 0) {
+    mError("db:%s, failed to process trim db req since %s", trimReq.db, terrstr());
   }
 
   mndReleaseDb(pMnode, pDb);
@@ -1467,7 +1540,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.cacheLastRow, false);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.cacheLast, false);
 
     const char *precStr = NULL;
     switch (pDb->cfg.precision) {

@@ -578,6 +578,7 @@ static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
     taosArrayDestroy(pTableScanInfo->pColMatchInfo);
   }
 
+  cleanupExprSupp(&pTableScanInfo->pseudoSup);
   taosMemoryFreeClear(param);
 }
 
@@ -1134,17 +1135,17 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   pInfo->pRes->info.type = STREAM_NORMAL;
   pInfo->pRes->info.capacity = pBlock->info.rows;
 
-  // for generating rollup SMA result, each time is an independent time serie.
-  // TODO temporarily used, when the statement of "partition by tbname" is ready, remove this
-  if (pInfo->assignBlockUid) {
-    pInfo->pRes->info.groupId = pBlock->info.uid;
-  }
-
   uint64_t* groupIdPre = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
   if (groupIdPre) {
     pInfo->pRes->info.groupId = *groupIdPre;
   } else {
     pInfo->pRes->info.groupId = 0;
+  }
+
+  // for generating rollup SMA result, each time is an independent time serie.
+  // TODO temporarily used, when the statement of "partition by tbname" is ready, remove this
+  if (pInfo->assignBlockUid) {
+    pInfo->pRes->info.groupId = pBlock->info.uid;
   }
 
   // todo extract method

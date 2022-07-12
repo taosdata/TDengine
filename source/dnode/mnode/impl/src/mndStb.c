@@ -813,16 +813,18 @@ int32_t mndAddStbToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
 }
 
 static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
-  SVgObj *pVgroup = NULL;
-  void   *pIter = NULL;
+  SMnode           *pMnode = pReq->info.node;
+  SSdb             *pSdb = pMnode->pSdb;
+  SVgObj           *pVgroup = NULL;
+  void             *pIter = NULL;
+  SVDropTtlTableReq ttlReq = {.timestamp = taosGetTimestampSec()};
+  int32_t           reqLen = tSerializeSVDropTtlTableReq(NULL, 0, &ttlReq);
+  int32_t           contLen = reqLen + sizeof(SMsgHead);
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    int32_t   contLen = sizeof(SMsgHead) + sizeof(int32_t);
     SMsgHead *pHead = rpcMallocCont(contLen);
     if (pHead == NULL) {
       sdbCancelFetch(pSdb, pVgroup);
@@ -831,17 +833,15 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
     }
     pHead->contLen = htonl(contLen);
     pHead->vgId = htonl(pVgroup->vgId);
-
-    int32_t t = taosGetTimestampSec();
-    *(int32_t *)((char *)pHead + sizeof(SMsgHead)) = htonl(t);
+    tSerializeSVDropTtlTableReq((char *)pHead + sizeof(SMsgHead), contLen, &ttlReq);
 
     SRpcMsg rpcMsg = {.msgType = TDMT_VND_DROP_TTL_TABLE, .pCont = pHead, .contLen = contLen};
     SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
     int32_t code = tmsgSendReq(&epSet, &rpcMsg);
     if (code != 0) {
-      mError("failed to send ttl time seed, code:0x%x", code);
+      mError("vgId:%d, failed to send drop ttl table request to vnode since 0x%x", pVgroup->vgId, code);
     } else {
-      mDebug("send ttl time seed success, time:%d", t);
+      mDebug("vgId:%d, send drop ttl table request to vnode, time:%d", pVgroup->vgId, ttlReq.timestamp);
     }
     sdbRelease(pSdb, pVgroup);
   }

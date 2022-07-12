@@ -311,6 +311,17 @@ void  transCtxMerge(STransCtx* dst, STransCtx* src);
 void* transCtxDumpVal(STransCtx* ctx, int32_t key);
 void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType);
 
+// request list
+typedef struct STransReq {
+  queue q;
+  void* data;
+} STransReq;
+
+void  transReqQueueInit(queue* q);
+void* transReqQueuePushReq(queue* q);
+void* transReqQueueRemove(void* arg);
+void  transReqQueueClear(queue* q);
+
 // queue sending msgs
 typedef struct {
   SArray* q;
