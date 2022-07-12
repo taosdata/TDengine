@@ -288,7 +288,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
   if (!tOffsetEqual(pOffset, &pTaskInfo->streamInfo.lastStatus)) {
     while (1) {
       uint8_t type = pOperator->operatorType;
-      /*pOperator->status = OP_OPENED;*/
+      pOperator->status = OP_OPENED;
       if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
         SStreamScanInfo* pInfo = pOperator->info;
         if (pOffset->type == TMQ_OFFSET__LOG) {
@@ -326,6 +326,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
             if (pTableInfo->uid == uid) {
               found = true;
               pTableScanInfo->currentTable = i;
+              break;
             }
           }
 
