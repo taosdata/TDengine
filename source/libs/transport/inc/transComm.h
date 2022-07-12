@@ -317,6 +317,11 @@ typedef struct STransReq {
   void* data;
 } STransReq;
 
+void  transReqQueueInit(queue* q);
+void* transReqQueuePushReq(queue* q);
+void* transReqQueueRemove(void* arg);
+void  transReqQueueClear(queue* q);
+
 // queue sending msgs
 typedef struct {
   SArray* q;
