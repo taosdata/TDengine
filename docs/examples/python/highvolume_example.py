@@ -9,6 +9,7 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format="%(asctime)s 
 
 READ_TASK_COUNT = 1
 WRITE_TASK_COUNT = 1
+QUEUE_SIZE = 1000
 TABLE_COUNT = 1000
 MAX_BATCH_SIZE = 3000
 
@@ -145,11 +146,14 @@ def set_global_config():
         global WRITE_TASK_COUNT
         WRITE_TASK_COUNT = int(sys.argv[2])
     if argc > 3:
-        global TABLE_COUNT
-        TABLE_COUNT = int(sys.argv[3])
+        global QUEUE_SIZE
+        QUEUE_SIZE = int(sys.argv[3])
     if argc > 4:
+        global TABLE_COUNT
+        TABLE_COUNT = int(sys.argv[4])
+    if argc > 5:
         global MAX_BATCH_SIZE
-        MAX_BATCH_SIZE = int(sys.argv[4])
+        MAX_BATCH_SIZE = int(sys.argv[5])
 
 
 # ANCHOR: main
@@ -163,7 +167,7 @@ def main():
     task_queues: List[Queue] = []
 
     for i in range(WRITE_TASK_COUNT):
-        queue = Queue(maxsize=100)
+        queue = Queue(maxsize=QUEUE_SIZE)
         task_queues.append(queue)
         p = Process(target=run_write_task, args=(i, queue))
         p.start()
