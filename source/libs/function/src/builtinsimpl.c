@@ -3879,11 +3879,13 @@ int32_t elapsedFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  int32_t       start = pInput->startRowIndex;
-  char*         data = colDataGetData(pCol, start);
-  SElapsedInfo* pInputInfo = (SElapsedInfo*)varDataVal(data);
+  int32_t start = pInput->startRowIndex;
 
-  elapsedTransferInfo(pInputInfo, pInfo);
+  for(int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    char* data = colDataGetData(pCol, i);
+    SElapsedInfo* pInputInfo = (SElapsedInfo*)varDataVal(data);
+    elapsedTransferInfo(pInputInfo, pInfo);
+  }
 
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);
   return TSDB_CODE_SUCCESS;
