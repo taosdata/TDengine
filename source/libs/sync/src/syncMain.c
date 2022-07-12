@@ -1563,8 +1563,8 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     char logBuf[256 + 256];
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(logBuf, sizeof(logBuf),
-               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", fristindex:%" PRId64 ", lastindex:%" PRId64
-               ", lastsnapshot:%" PRId64
+               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", first:%" PRId64 ", last:%" PRId64
+               ", snapshot:%" PRId64
                ", standby:%d, "
                "strategy:%d, batch:%d, "
                "replica-num:%d, "
@@ -1584,8 +1584,8 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     char* s = (char*)taosMemoryMalloc(len);
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(s, len,
-               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", fristindex:%" PRId64 ", lastindex:%" PRId64
-               ", lastsnapshot:%" PRId64
+               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", first:%" PRId64 ", last:%" PRId64
+               ", snapshot:%" PRId64
                ", standby:%d, "
                "strategy:%d, batch:%d, "
                "replica-num:%d, "
@@ -1630,8 +1630,8 @@ void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
     char logBuf[256 + 256];
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(logBuf, sizeof(logBuf),
-               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", fristindex:%" PRId64 ", lastindex:%" PRId64
-               ", lastsnapshot:%" PRId64
+               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", first:%" PRId64 ", last:%" PRId64
+               ", snapshot:%" PRId64
                ", standby:%d, "
                "replica-num:%d, "
                "lconfig:%" PRId64 ", changing:%d, restore:%d, %s",
@@ -1649,8 +1649,8 @@ void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
     char* s = (char*)taosMemoryMalloc(len);
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(s, len,
-               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", fristindex:%" PRId64 ", lastindex:%" PRId64
-               ", lastsnapshot:%" PRId64
+               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", first:%" PRId64 ", last:%" PRId64
+               ", snapshot:%" PRId64
                ", standby:%d, "
                "replica-num:%d, "
                "lconfig:%" PRId64 ", changing:%d, restore:%d, %s",
@@ -1680,8 +1680,8 @@ char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
   SyncIndex logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
 
   snprintf(s, len,
-           "vgId:%d, sync %s, term:%" PRIu64 ", commit:%" PRId64 ", fristindex:%" PRId64 ", lastindex:%" PRId64
-           ", lastsnapshot:%" PRId64
+           "vgId:%d, sync %s, term:%" PRIu64 ", commit:%" PRId64 ", first:%" PRId64 ", last:%" PRId64
+           ", snapshot:%" PRId64
            ", standby:%d, "
            "replica-num:%d, "
            "lconfig:%" PRId64 ", changing:%d, restore:%d",
