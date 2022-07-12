@@ -204,7 +204,10 @@ mod tests {
         let c9 = col!(UBigInt);
         let c10 = col!(Float);
         let c11 = col!(Double);
-        let c12 = col!(Timestamp);
+        let c12 = Column::Timestamp(
+            nulls.clone(),
+            (0..N).map(|ts| ts as i64 + 1_500_000_000_000).collect(),
+        );
         let c13 = Column::Binary(
             (0..N)
                 .map(|_| Some(String::from("abc").into_bytes()))
@@ -329,8 +332,8 @@ mod tests {
             .expect("there's no database")
             .expect("");
         dbg!(&data);
-        assert!(
-            data == Row {
+        assert_eq!(
+            data, Row {
                 ts: 1500000000000,
                 v: "hello".to_string(),
                 c1: true,

@@ -1,9 +1,8 @@
-use taos_query::common::{Block, Field, Precision, RawBlock};
+use taos_query::common::{Block, Field, Precision, Raw, RawBlock};
 use taos_query::{DeError, Dsn, DsnError, Fetchable, IntoDsn, Queryable};
 use thiserror::Error;
-use websocket::sync::Writer;
-use websocket::{stream::sync::TcpStream, sync::Client};
-use websocket::{ClientBuilder, Message};
+use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::Message;
 
 use crate::{infra::*, WsInfo};
 
@@ -11,6 +10,7 @@ use std::any;
 use std::fmt::Debug;
 use std::sync::atomic::AtomicU64;
 use std::sync::{mpsc::Sender, Arc, Mutex};
+use std::time::Duration;
 
 use scc::HashMap;
 
@@ -22,7 +22,13 @@ type QuerySender = std::sync::mpsc::SyncSender<WsQueryResult>;
 type FetchSender = std::sync::mpsc::SyncSender<WsFetchResult>;
 type FetchReceiver = std::sync::mpsc::Receiver<WsFetchResult>;
 
-type MsgSender = std::sync::mpsc::Sender<WsSend>;
+// type MsgSender = std::sync::mpsc::SyncSender<WsSend>;
+
+type MsgSender = tokio::sync::mpsc::Sender<WsSend>;
+
+pub struct MsgReceiver(std::sync::mpsc::Receiver<WsSend>);
+unsafe impl Send for MsgReceiver {}
+unsafe impl Sync for MsgReceiver {}
 
 pub struct WsAuth {
     user: Option<String>,
@@ -35,6 +41,7 @@ pub struct WsClient {
     sender: MsgSender,
     queries: Arc<HashMap<ReqId, QuerySender>>,
     fetches: Arc<HashMap<ResId, FetchSender>>,
+    rt: tokio::runtime::Runtime,
 }
 
 pub struct ResultSet {
@@ -61,11 +68,11 @@ pub enum Error {
     #[error("{0}")]
     Dsn(#[from] DsnError),
     #[error("{0}")]
-    WsParse(#[from] websocket::client::ParseError),
-    #[error("{0}")]
-    WsConn(#[from] websocket::WebSocketError),
-    #[error("{0}")]
     DeError(#[from] DeError),
+    #[error(transparent)]
+    TungsteniteError(#[from] tokio_tungstenite::tungstenite::Error),
+    #[error(transparent)]
+    SendMessageError(#[from] tokio::sync::mpsc::error::SendError<WsSend>),
     #[error("{0}")]
     TaosError(#[from] taos_error::Error),
     #[error("{0}")]
@@ -101,10 +108,17 @@ impl WsClient {
         let info = WsInfo::from_dsn(dsn)?;
         Self::from_wsinfo(&info)
     }
-    pub(crate) fn from_wsinfo(info: &WsInfo) -> Result<Self> {
-        let mut ws = ClientBuilder::new(&info.to_query_url())?;
 
-        let client = ws.connect_insecure()?;
+    pub(crate) fn from_wsinfo(info: &WsInfo) -> Result<Self> {
+        use futures::SinkExt;
+        use futures::StreamExt;
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let (ws, _) = rt.block_on(connect_async(info.to_query_url()))?;
+        let (mut async_sender, mut async_reader) = ws.split();
 
         let req_id = 0;
         let login = WsSend::Conn {
@@ -112,124 +126,131 @@ impl WsClient {
             req: info.to_conn_request(),
         };
 
-        let (mut receiver, mut sender) = client.split().unwrap();
+        // let (mut receiver, mut sender) = client.split().unwrap();
 
-        sender.send_message(&login.to_message()).unwrap();
-
-        let recv = receiver.recv_message()?;
-
-        // connect
-        let _ = match recv {
-            websocket::OwnedMessage::Text(text) => {
-                let v: WsRecv = serde_json::from_str(&text).unwrap();
-                let (_, data, ok) = v.ok();
-                match data {
-                    WsRecvData::Conn => ok?,
-                    _ => unreachable!(),
+        rt.block_on(async_sender.send(login.to_msg()))?;
+        if let Some(Ok(message)) = rt.block_on(async_reader.next()) {
+            match message {
+                Message::Text(text) => {
+                    let v: WsRecv = serde_json::from_str(&text).unwrap();
+                    let (_, data, ok) = v.ok();
+                    match data {
+                        WsRecvData::Conn => ok?,
+                        _ => unreachable!(),
+                    }
                 }
+                _ => unreachable!(),
             }
-            _ => unreachable!(),
-        };
-
-        // let sender = Arc::new(Mutex::new(sender));
-
-        // let tx2recv = sender.clone();
+        }
 
         use std::collections::hash_map::RandomState;
 
         let queries = Arc::new(HashMap::<ReqId, QuerySender>::new(100, RandomState::new()));
-
-        let (msg_sender, msg_receiver) = std::sync::mpsc::channel();
-        let tx2recv = msg_sender.clone();
 
         let fetches = Arc::new(HashMap::<ResId, FetchSender>::new(100, RandomState::new()));
 
         let queries_sender = queries.clone();
         let fetches_sender = fetches.clone();
 
-        let handler = std::thread::spawn(move || 'recv: loop {
-            let ws_send = msg_receiver.recv().unwrap();
-            match ws_send {
-                WsSend::Pong(bytes) => {
-                    if let Err(err) = sender.send_message(&Message::pong(bytes)) {
-                        log::error!("send websocket message packet error: {}", err);
-                        break 'recv;
-                    } else {
+        // let msg_receiver = Arc::new(tokio::sync::Mutex::new(msg_receiver));
+        let (msg_sender, mut msg_receiver) = tokio::sync::mpsc::channel(100);
+        let tx2recv = msg_sender.clone();
+        // let msg_receiver = MsgReceiver(msg_receiver);
+
+        rt.spawn(async move {
+            'recv: loop {
+                match msg_receiver.recv().await {
+                    Some(WsSend::Pong(bytes)) => {
+                        if let Err(err) = async_sender.send(Message::Pong(bytes)).await {
+                            log::error!("send websocket message packet error: {}", err);
+                            break 'recv;
+                        } else {
+                        }
                     }
-                }
-                msg => {
-                    if let Err(err) = sender.send_message(&msg.to_message()) {
-                        log::error!("send websocket message packet error: {}", err);
-                        break;
-                    } else {
+                    Some(msg) => {
+                        if let Err(err) = async_sender.send(msg.to_msg()).await {
+                            log::error!("send websocket message packet error: {}", err);
+                            break 'recv;
+                        } else {
+                        }
+                    }
+                    None => {
+                        break 'recv;
                     }
                 }
             }
         });
 
         // message handler for query/fetch/fetch_block
-        std::thread::spawn(move || {
-            for message in receiver.incoming_messages() {
-                if let Ok(message) = message {
-                    match message {
-                        websocket::OwnedMessage::Text(text) => {
-                            // dbg!(&text);
-                            let v: WsRecv = serde_json::from_str(&text).unwrap();
-                            let (req_id, data, ok) = v.ok();
-                            match data {
-                                WsRecvData::Conn => todo!(),
-                                WsRecvData::Query(query) => {
-                                    if let Some(sender) = queries_sender.remove(&req_id) {
-                                        sender.1.send(ok.map(|_| query)).unwrap();
+        rt.spawn(async move {
+            loop {
+                for message in async_reader.next().await {
+                    if let Ok(message) = message {
+                        match message {
+                            Message::Text(text) => {
+                                // dbg!(&text);
+                                let v: WsRecv = serde_json::from_str(&text).unwrap();
+                                let (req_id, data, ok) = v.ok();
+                                match data {
+                                    WsRecvData::Conn => todo!(),
+                                    WsRecvData::Query(query) => {
+                                        if let Some(sender) = queries_sender.remove(&req_id) {
+                                            sender.1.send(ok.map(|_| query)).unwrap();
+                                        }
                                     }
+                                    WsRecvData::Fetch(fetch) => {
+                                        log::info!("fetch result: {:?}", fetch);
+                                        if let Some(sender) = fetches_sender
+                                            .read(&fetch.id, |_, sender| sender.clone())
+                                        {
+                                            sender
+                                                .send(ok.map(|_| WsFetchData::Fetch(fetch)))
+                                                .unwrap();
+                                        }
+                                    }
+                                    // Block type is for binary.
+                                    _ => unreachable!(),
                                 }
-                                WsRecvData::Fetch(fetch) => {
-                                    log::info!("fetch result: {:?}", fetch);
-                                    if let Some(sender) =
-                                        fetches_sender.read(&fetch.id, |_, sender| sender.clone())
+                            }
+                            Message::Binary(block) => {
+                                log::debug!("fetch block with {} bytes.", block.len());
+                                let mut slice = block.as_slice();
+                                use taos_query::util::InlinableRead;
+                                let res_id = slice.read_u64().unwrap();
+                                let len = (&block[8..12]).read_u32().unwrap();
+                                if block.len() == len as usize + 8 {
+                                    // v3
+                                    if let Some(v) = fetches_sender.read(&res_id, |_, v| v.clone())
                                     {
-                                        sender.send(ok.map(|_| WsFetchData::Fetch(fetch))).unwrap();
+                                        log::info!("send data to fetches with id {}", res_id);
+                                        // let raw = slice.read_inlinable::<RawBlock>().unwrap();
+                                        v.send(Ok(WsFetchData::Block(block[8..].to_vec()).clone()))
+                                            .unwrap();
+                                    }
+                                } else {
+                                    // v2
+                                    log::warn!("the block is in format v2");
+                                    if let Some(v) = fetches_sender.read(&res_id, |_, v| v.clone())
+                                    {
+                                        log::info!("send data to fetches with id {}", res_id);
+                                        v.send(Ok(WsFetchData::BlockV2(block[8..].to_vec())))
+                                            .unwrap();
                                     }
                                 }
-                                // Block type is for binary.
-                                _ => unreachable!(),
+                            }
+                            Message::Close(_) => break,
+                            Message::Ping(bytes) => {
+                                // let mut writer = tx2recv.lock().unwrap();
+                                tx2recv.send(WsSend::Pong(bytes)).await.unwrap()
+                            }
+                            _ => {
+                                // do nothing
                             }
                         }
-                        websocket::OwnedMessage::Binary(block) => {
-                            log::debug!("fetch block with {} bytes.", block.len());
-                            let mut slice = block.as_slice();
-                            use taos_query::util::InlinableRead;
-                            let res_id = slice.read_u64().unwrap();
-                            let len = (&block[8..12]).read_u32().unwrap();
-                            if block.len() == len as usize + 8 {
-                                // v3
-                                if let Some(v) = fetches_sender.read(&res_id, |_, v| v.clone()) {
-                                    log::info!("send data to fetches with id {}", res_id);
-                                    let raw = slice.read_inlinable::<RawBlock>().unwrap();
-                                    v.send(Ok(WsFetchData::Block(raw).clone())).unwrap();
-                                }
-                            } else {
-                                // v2
-                                log::warn!("the block is in format v2");
-                                if let Some(v) = fetches_sender.read(&res_id, |_, v| v.clone()) {
-                                    log::info!("send data to fetches with id {}", res_id);
-                                    v.send(Ok(WsFetchData::BlockV2(block[8..].to_vec())))
-                                        .unwrap();
-                                }
-                            }
-                        }
-                        websocket::OwnedMessage::Close(_) => break,
-                        websocket::OwnedMessage::Ping(bytes) => {
-                            // let mut writer = tx2recv.lock().unwrap();
-                            tx2recv.send(WsSend::Pong(bytes)).unwrap()
-                        }
-                        websocket::OwnedMessage::Pong(_) => {
-                            // do nothing
-                        }
+                    } else {
+                        let err = message.unwrap_err();
+                        dbg!(err);
                     }
-                } else {
-                    let err = message.unwrap_err();
-                    dbg!(err);
                 }
             }
         });
@@ -239,6 +260,7 @@ impl WsClient {
             queries,
             fetches,
             sender: msg_sender,
+            rt,
         })
     }
 
@@ -247,17 +269,20 @@ impl WsClient {
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
     }
 
+    // todo: add server version getter.
+    // pub fn server_version(&self) -> String {
+    // }
+
     pub fn s_query(&self, sql: &str) -> Result<ResultSet> {
         let req_id = self.req_id();
         let action = WsSend::Query {
             req_id,
             sql: sql.to_string(),
         };
-        let message = action.to_message();
         let (tx, rx) = std::sync::mpsc::sync_channel(2);
         {
             self.queries.insert(req_id, tx).unwrap();
-            self.sender.send(action).unwrap();
+            self.sender.blocking_send(action).unwrap();
         }
         let resp = rx.recv()??;
 
@@ -273,7 +298,7 @@ impl WsClient {
                 .collect();
             let (tx, rx) = std::sync::mpsc::sync_channel(100);
             {
-                self.fetches.insert(resp.id, tx);
+                self.fetches.insert(resp.id, tx).unwrap();
             }
             Ok(ResultSet {
                 sender: self.sender.clone(),
@@ -314,7 +339,7 @@ impl WsClient {
         let (tx, rx) = std::sync::mpsc::sync_channel(2);
         {
             self.queries.insert(req_id, tx).unwrap();
-            self.sender.send(action).unwrap();
+            self.sender.blocking_send(action).unwrap();
         }
         let resp = rx.recv()??;
         Ok(resp.affected_rows)
@@ -322,17 +347,14 @@ impl WsClient {
 }
 
 impl ResultSet {
-    pub fn fetch_block(&mut self) -> Result<Option<Block>> {
+    pub fn fetch_block(&mut self) -> Result<Option<Raw>> {
         if self.receiver.is_none() {
             return Ok(None);
         }
         let rx = self.receiver.as_mut().unwrap();
         let fetch = WsSend::Fetch(self.args);
-        {
-            // prepare for receiving.
-            self.sender.send(fetch).unwrap();
-            // unlock mutex when out of scope.
-        }
+
+        self.sender.blocking_send(fetch)?;
 
         let fetch_resp = if let WsFetchData::Fetch(fetch) = rx.recv()?? {
             fetch
@@ -346,40 +368,50 @@ impl ResultSet {
 
         let fetch_block = WsSend::FetchBlock(self.args);
 
-        {
-            // prepare for receiving.
-            self.sender.send(fetch_block).unwrap();
-            // unlock mutex when out of scope.
-        }
+        self.sender.blocking_send(fetch_block)?;
 
         match rx.recv()?? {
-            WsFetchData::Block(mut raw) => {
-                raw.with_rows(fetch_resp.rows)
-                    .with_cols(self.fields_count)
-                    .with_precision(self.precision);
+            WsFetchData::Block(raw) => {
+                let mut raw = Raw::parse_from_raw_block(
+                    raw,
+                    fetch_resp.rows,
+                    self.fields_count,
+                    self.precision,
+                );
 
-                let mut block = Block::from_raw_block(raw);
-                block.with_fields(self.fields.as_ref().unwrap().to_vec());
-                Ok(Some(block))
+                for row in 0..raw.nrows() {
+                    for col in 0..raw.ncols() {
+                        let v = unsafe { raw.get_ref_unchecked(row, col) };
+                        log::debug!("({}, {}): {:?}", row, col, v);
+                    }
+                }
+                raw.with_fields(self.fields.as_ref().unwrap().to_vec());
+                Ok(Some(raw))
             }
             WsFetchData::BlockV2(raw) => {
-                let raw = RawBlock::from_v2(
-                    &raw,
+                let mut raw = Raw::parse_from_raw_block_v2(
+                    raw,
                     self.fields.as_ref().unwrap(),
                     fetch_resp.lengths.as_ref().unwrap(),
                     fetch_resp.rows,
                     self.precision,
                 );
-                let mut block = Block::from_raw_block(raw);
-                block.with_fields(self.fields.as_ref().unwrap().to_vec());
-                Ok(Some(block))
+
+                for row in 0..raw.nrows() {
+                    for col in 0..raw.ncols() {
+                        let v = unsafe { raw.get_ref_unchecked(row, col) };
+                        log::debug!("({}, {}): {:?}", row, col, v);
+                    }
+                }
+                raw.with_fields(self.fields.as_ref().unwrap().to_vec());
+                Ok(Some(raw))
             }
             _ => Ok(None),
         }
     }
 }
 impl Iterator for ResultSet {
-    type Item = Block;
+    type Item = Raw;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.fetch_block().unwrap_or_default()
@@ -396,7 +428,11 @@ impl Fetchable for ResultSet {
     }
 
     fn fields(&self) -> &[Field] {
-        self.fields.as_ref().unwrap()
+        static EMPTY: Vec<Field> = Vec::new();
+        self.fields
+            .as_ref()
+            .map(|v| v.as_slice())
+            .unwrap_or(EMPTY.as_slice())
     }
 
     fn summary(&self) -> (usize, usize) {
@@ -420,7 +456,7 @@ impl<'q> Queryable<'q> for WsClient {
 
 #[test]
 fn test_client() -> anyhow::Result<()> {
-    std::env::set_var("RUST_LOG", "debug");
+    std::env::set_var("RUST_LOG", "taos-query=trace,main=trace");
     pretty_env_logger::init();
     let client = WsClient::from_dsn("ws://localhost:6041/")?;
     assert_eq!(client.exec("create database if not exists abc")?, 0);

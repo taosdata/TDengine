@@ -6,10 +6,10 @@ use super::{BorrowedValue, Column, Field, Precision};
 
 use crate::{util::*, BlockExt};
 
-pub mod inner_v2;
-
 pub use inner::*;
-pub use inner_v2::*;
+
+pub mod raw;
+pub use raw::Raw;
 
 use bitflags::bitflags;
 use once_cell::unsync::OnceCell;

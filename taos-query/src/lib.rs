@@ -224,6 +224,8 @@ where
     fn query<T: AsRef<str>>(&'q self, sql: T) -> Result<Self::ResultSet, Self::Error>;
 
     fn exec<T: AsRef<str>>(&'q self, sql: T) -> Result<usize, Self::Error> {
+        log::info!("execute sql: {}", sql.as_ref());
+
         self.query(sql).map(|res| res.affected_rows() as _)
     }
 

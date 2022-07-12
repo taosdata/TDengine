@@ -734,6 +734,7 @@ async fn test_with_transformer(taos: &Taos, databases: &[&str]) -> Result<(), Er
 
     let mut rs = taos2.query("select * from p_stb1")?;
     let values = rs.to_rows_vec();
+    assert_eq!(values.len(), 4);
     dbg!(values);
 
     let mut rs = taos2.query("select * from p_tb1")?;

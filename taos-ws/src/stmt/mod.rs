@@ -78,10 +78,6 @@ pub enum Error {
     #[error("{0}")]
     Dsn(#[from] DsnError),
     #[error("{0}")]
-    WsParse(#[from] websocket::client::ParseError),
-    #[error("{0}")]
-    WsConn(#[from] websocket::WebSocketError),
-    #[error("{0}")]
     FetchError(#[from] oneshot::error::RecvError),
     #[error("{0}")]
     SendError(#[from] tokio::sync::mpsc::error::SendError<Message>),
