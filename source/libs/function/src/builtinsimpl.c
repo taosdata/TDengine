@@ -1144,16 +1144,15 @@ static void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBl
 
 static int32_t findRowIndex(int32_t start, int32_t num, SColumnInfoData* pCol, const char* tval) {
   // the data is loaded, not only the block SMA value
-  for(int32_t i = start; i < num + start; ++i) {
+  for (int32_t i = start; i < num + start; ++i) {
     char* p = colDataGetData(pCol, i);
-    if (memcpy((void*)tval, p, pCol->info.bytes) == 0)  {
+    if (memcpy((void*)tval, p, pCol->info.bytes) == 0) {
       return i;
     }
   }
 
   ASSERT(0);
 }
-
 
 int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
   int32_t numOfElems = 0;
@@ -1938,7 +1937,7 @@ int32_t stddevFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SStddevRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  for(int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+  for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
     char*       data = colDataGetData(pCol, i);
     SStddevRes* pInputInfo = (SStddevRes*)varDataVal(data);
     stddevTransferInfo(pInputInfo, pInfo);
@@ -3512,8 +3511,7 @@ void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
   setBufPageDirty(pPage, true);
   releaseBufPage(pCtx->pBuf, pPage);
 #ifdef BUF_PAGE_DEBUG
-  qDebug("page_saveTuple pos:%p,pageId:%d, offset:%d\n", pPos, pPos->pageId,
-           pPos->offset);
+  qDebug("page_saveTuple pos:%p,pageId:%d, offset:%d\n", pPos, pPos->pageId, pPos->offset);
 #endif
 }
 
@@ -3814,7 +3812,7 @@ bool elapsedFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo
 
   SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
   pInfo->result = 0;
-  pInfo->min = MAX_TS_KEY;
+  pInfo->min = TSKEY_MAX;
   pInfo->max = 0;
 
   if (pCtx->numOfParams > 1) {
@@ -3841,7 +3839,7 @@ int32_t elapsedFunction(SqlFunctionCtx* pCtx) {
   }
 
   if (pInput->colDataAggIsSet) {
-    if (pInfo->min == MAX_TS_KEY) {
+    if (pInfo->min == TSKEY_MAX) {
       pInfo->min = GET_INT64_VAL(&pAgg->min);
       pInfo->max = GET_INT64_VAL(&pAgg->max);
     } else {
