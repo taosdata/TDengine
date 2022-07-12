@@ -15,11 +15,15 @@
 
 #include "tsdb.h"
 
+typedef struct {
+  TSKEY   ts;
+  SColVal colVal;
+} SLastCol;
+
 int32_t tsdbOpenCache(STsdb *pTsdb) {
   int32_t    code = 0;
   SLRUCache *pCache = NULL;
-  // TODO: get cfg from vnode config: pTsdb->pVnode->config.lruCapacity
-  size_t cfgCapacity = 1024 * 1024;
+  size_t     cfgCapacity = pTsdb->pVnode->config.cacheLastSize * 1024 * 1024;
 
   pCache = taosLRUCacheInit(cfgCapacity, -1, .5);
   if (pCache == NULL) {
@@ -61,10 +65,11 @@ static void deleteTableCacheLastrow(const void *key, size_t keyLen, void *value)
 
 static void deleteTableCacheLast(const void *key, size_t keyLen, void *value) { taosArrayDestroy(value); }
 
-static int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
+int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
   int32_t code = 0;
-  char    key[32] = {0};
-  int     keyLen = 0;
+
+  char key[32] = {0};
+  int  keyLen = 0;
 
   // getTableCacheKey(uid, "lr", key, &keyLen);
   getTableCacheKey(uid, 0, key, &keyLen);
@@ -83,18 +88,79 @@ static int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKe
   return code;
 }
 
-static int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
+int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
   int32_t code = 0;
-  char    key[32] = {0};
-  int     keyLen = 0;
+
+  char key[32] = {0};
+  int  keyLen = 0;
 
   // getTableCacheKey(uid, "l", key, &keyLen);
   getTableCacheKey(uid, 1, key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
-    // clear last cache anyway, no matter where eKey ends.
-    taosLRUCacheRelease(pCache, h, true);
+    SArray *pLast = (SArray *)taosLRUCacheValue(pCache, h);
+    bool    invalidate = false;
+    int16_t nCol = taosArrayGetSize(pLast);
 
+    for (int16_t iCol = 0; iCol < nCol; ++iCol) {
+      SLastCol *tTsVal = (SLastCol *)taosArrayGet(pLast, iCol);
+      if (eKey >= tTsVal->ts) {
+        invalidate = true;
+        break;
+      }
+    }
+
+    if (invalidate) {
+      taosLRUCacheRelease(pCache, h, true);
+    } else {
+      taosLRUCacheRelease(pCache, h, false);
+    }
+    // void taosLRUCacheErase(SLRUCache * cache, const void *key, size_t keyLen);
+  }
+
+  return code;
+}
+
+int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
+  int32_t code = 0;
+  char    key[32] = {0};
+  int     keyLen = 0;
+
+  // getTableCacheKey(uid, "lr", key, &keyLen);
+  getTableCacheKey(uid, 0, key, &keyLen);
+  LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
+  if (h) {
+    STSRow *pRow = (STSRow *)taosLRUCacheValue(pCache, h);
+    if (pRow->ts <= eKey) {
+      taosLRUCacheRelease(pCache, h, true);
+    } else {
+      taosLRUCacheRelease(pCache, h, false);
+    }
+
+    // void taosLRUCacheErase(SLRUCache * cache, const void *key, size_t keyLen);
+  }
+
+  // getTableCacheKey(uid, "l", key, &keyLen);
+  getTableCacheKey(uid, 1, key, &keyLen);
+  h = taosLRUCacheLookup(pCache, key, keyLen);
+  if (h) {
+    SArray *pLast = (SArray *)taosLRUCacheValue(pCache, h);
+    bool    invalidate = false;
+    int16_t nCol = taosArrayGetSize(pLast);
+
+    for (int16_t iCol = 0; iCol < nCol; ++iCol) {
+      SLastCol *tTsVal = (SLastCol *)taosArrayGet(pLast, iCol);
+      if (eKey >= tTsVal->ts) {
+        invalidate = true;
+        break;
+      }
+    }
+
+    if (invalidate) {
+      taosLRUCacheRelease(pCache, h, true);
+    } else {
+      taosLRUCacheRelease(pCache, h, false);
+    }
     // void taosLRUCacheErase(SLRUCache * cache, const void *key, size_t keyLen);
   }
 
@@ -172,11 +238,6 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, ST
 
   return code;
 }
-
-typedef struct {
-  TSKEY   ts;
-  SColVal colVal;
-} SLastCol;
 
 int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb *pTsdb) {
   int32_t code = 0;
@@ -405,7 +466,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
     case SFSNEXTROW_FS:
       state->aDFileSet = state->pTsdb->fs->cState->aDFileSet;
       state->nFileSet = taosArrayGetSize(state->aDFileSet);
-      state->iFileSet = state->nFileSet - 1;
+      state->iFileSet = state->nFileSet;
 
       state->pBlockData = NULL;
 
@@ -1679,52 +1740,6 @@ int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHand
   return code;
 }
 
-int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
-  int32_t code = 0;
-  char    key[32] = {0};
-  int     keyLen = 0;
-
-  // getTableCacheKey(uid, "lr", key, &keyLen);
-  getTableCacheKey(uid, 0, key, &keyLen);
-  LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
-  if (h) {
-    STSRow *pRow = (STSRow *)taosLRUCacheValue(pCache, h);
-    if (pRow->ts <= eKey) {
-      taosLRUCacheRelease(pCache, h, true);
-    } else {
-      taosLRUCacheRelease(pCache, h, false);
-    }
-
-    // void taosLRUCacheErase(SLRUCache * cache, const void *key, size_t keyLen);
-  }
-
-  // getTableCacheKey(uid, "l", key, &keyLen);
-  getTableCacheKey(uid, 1, key, &keyLen);
-  h = taosLRUCacheLookup(pCache, key, keyLen);
-  if (h) {
-    SArray *pLast = (SArray *)taosLRUCacheValue(pCache, h);
-    bool    invalidate = false;
-    int16_t nCol = taosArrayGetSize(pLast);
-
-    for (int16_t iCol = 0; iCol < nCol; ++iCol) {
-      SLastCol *tTsVal = (SLastCol *)taosArrayGet(pLast, iCol);
-      if (eKey >= tTsVal->ts) {
-        invalidate = true;
-        break;
-      }
-    }
-
-    if (invalidate) {
-      taosLRUCacheRelease(pCache, h, true);
-    } else {
-      taosLRUCacheRelease(pCache, h, false);
-    }
-    // void taosLRUCacheErase(SLRUCache * cache, const void *key, size_t keyLen);
-  }
-
-  return code;
-}
-
 int32_t tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h) {
   int32_t code = 0;
 
@@ -1732,3 +1747,9 @@ int32_t tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h) {
 
   return code;
 }
+
+void tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity) {
+  taosLRUCacheSetCapacity(pVnode->pTsdb->lruCache, capacity);
+}
+
+size_t tsdbCacheGetCapacity(SVnode *pVnode) { return taosLRUCacheGetCapacity(pVnode->pTsdb->lruCache); }
