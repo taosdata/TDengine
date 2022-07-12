@@ -319,7 +319,7 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        # self.tmqCase1()
+        self.tmqCase1()
         # self.tmqCase2() 
         self.tmqCase3()
 
