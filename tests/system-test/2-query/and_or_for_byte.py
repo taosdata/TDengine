@@ -47,7 +47,7 @@ class TDTestCase:
                 c9 = "'nchar_val'"
                 c10 = ts
                 tdSql.execute(f" insert into  {tbname} values ({ts},{c1},{c2},{c3},{c4},{c5},{c6},{c7},{c8},{c9},{c10})")
-        
+
         tdSql.execute("use test")
         tbnames = ["stb", "sub_tb_1"]
         support_types = ["BIGINT", "SMALLINT", "TINYINT", "FLOAT", "DOUBLE", "INT"]
@@ -62,7 +62,7 @@ class TDTestCase:
             cols = random.sample(colnames,3)
             self.check_function("&",False,tbname,cols[0],cols[1],cols[2])
             self.check_function("|",False,tbname,cols[0],cols[1],cols[2])
-                    
+
 
     def prepare_datas(self):
         tdSql.execute(
@@ -215,14 +215,14 @@ class TDTestCase:
                 "abs value check pass , it work as expected ,sql is \"%s\"   " % abs_query)
 
     def check_function(self, opera ,agg, tbname ,  *args):
-    
+
         if opera =="&":
             pass
         elif opera =="|":
             pass
         else:
             pass
-        work_sql = " select " 
+        work_sql = " select "
         for ind , arg in enumerate(args):
             if ind ==len(args)-1:
                 work_sql += f"cast({arg} as bigint) "
@@ -235,7 +235,7 @@ class TDTestCase:
             work_sql+= f" from {tbname} "
         tdSql.query(work_sql)
         work_result = tdSql.queryResult
-      
+
         origin_sql = " select "
         for ind , arg in enumerate(args):
             if ind ==len(args)-1:
@@ -323,7 +323,7 @@ class TDTestCase:
         tdSql.checkData(0,0,None)
         tdSql.checkData(1,0,640)
         tdSql.checkData(10,0,0)
-       
+
         # used for regular table
         tdSql.query("select abs(c1)&c3&c3 from t1")
         tdSql.checkData(0, 0, None)
@@ -349,7 +349,7 @@ class TDTestCase:
         self.check_function("&",False,"stb1","c1","floor(t1)","abs(c1+c2)","t1+1")
         self.check_function("&",True,"stb1","max(c1)","min(floor(t1))","sum(abs(c1+c2))","last(t1)+1")
         self.check_function("&",False,"stb1","abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(c1))))))))))","floor(t1)","abs(c1+c2)","t1+1")
-      
+
         # mix with common col
         tdSql.query("select c1&abs(c1)&c2&c3 ,c1,c2, t1 from ct1")
         tdSql.checkData(0, 0, 8)
@@ -388,7 +388,7 @@ class TDTestCase:
         # agg functions mix with agg functions
 
         tdSql.query("select sum(c1&abs(c1)&c2&c3) ,max(c5), count(c5) from stb1")
-    
+
         tdSql.query("select max(c1)&max(c2)|first(ts), count(c5) from ct1")
 
         # bug fix for compute
@@ -409,7 +409,7 @@ class TDTestCase:
         tdSql.checkData(1, 2, 894.900000000)
 
 
-    
+
 
     def check_boundary_values(self):
 
@@ -490,7 +490,7 @@ class TDTestCase:
         self.check_function("&", False ,"ct4","123","abs(c1)","t1","abs(t2)","abs(t3)","abs(t4)","t5")
         self.check_function("&", False ,"ct4","c1+2","abs(t2+2)","t3","abs(t4)","abs(t5)","abs(c1)","t5")
 
-        tdSql.query(" select sum(c1) from stb1 where t1+10 >1; ")  
+        tdSql.query(" select sum(c1) from stb1 where t1+10 >1; ")
         tdSql.query("select c1 ,t1 from stb1 where t1 =0 ")
         tdSql.checkRows(13)
         self.check_function("&", False ,"t1","c1+2","abs(c2)")
@@ -534,7 +534,7 @@ class TDTestCase:
         self.support_super_table_test()
         self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step)
 
-        
+
 
     def stop(self):
         tdSql.close()

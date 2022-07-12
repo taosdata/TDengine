@@ -48,7 +48,7 @@ class TDTestCase:
             'col12': 'binary(20)',
             'col13': 'nchar(20)'
         }
-        
+
         self.param_list = [1,100]
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
@@ -125,11 +125,11 @@ class TDTestCase:
             self.bottom_check_data(f'{stbname}_{i}','child_table')
         self.bottom_check_data(f'{stbname}','stable')
         tdSql.execute(f'drop database {self.dbname}')
- 
+
     def run(self):
         self.bottom_check_ntb()
         self.bottom_check_stb()
-        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
