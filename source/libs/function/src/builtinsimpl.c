@@ -2514,11 +2514,13 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SAPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  int32_t           start = pInput->startRowIndex;
-  char*             data = colDataGetData(pCol, start);
-  SAPercentileInfo* pInputInfo = (SAPercentileInfo*)varDataVal(data);
+  int32_t start = pInput->startRowIndex;
 
-  apercentileTransferInfo(pInputInfo, pInfo);
+  for(int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    char* data = colDataGetData(pCol, i);
+    SAPercentileInfo* pInputInfo = (SAPercentileInfo*)varDataVal(data);
+    apercentileTransferInfo(pInputInfo, pInfo);
+  }
 
   SET_VAL(pResInfo, 1, 1);
   return TSDB_CODE_SUCCESS;
