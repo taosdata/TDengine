@@ -36,7 +36,7 @@ int64_t st, et;
 char hostName[128];
 char dbName[128];
 char tbName[128];
-int32_t runTimes = 10000;
+int32_t runTimes = 1000;
 
 typedef struct {
   int       id;
@@ -88,6 +88,7 @@ static void sqExecSQLE(TAOS *taos, char *command) {
 
 void sqExit(char* prefix, const char* errMsg) {
   fprintf(stderr, "%s error: %s\n", prefix, errMsg);
+  sleep(10000);
   exit(1);
 }
 
@@ -141,16 +142,20 @@ void sqCloseFetchCb(void *param, TAOS_RES *pRes, int numOfRows) {
   taos_close(qParam->taos);
 
   *qParam->end = 1;
+  
+  taos_free_result(pRes);
 }
 
 void sqCloseQueryCb(void *param, TAOS_RES *pRes, int code) {
   SSP_CB_PARAM *qParam = (SSP_CB_PARAM *)param;
   if (code == 0 && pRes) {
     if (qParam->fetch) {
-      taos_fetch_rows_a(pRes, sqFreeFetchCb, param);
+      taos_fetch_rows_a(pRes, sqCloseFetchCb, param);
     } else {
       taos_close(qParam->taos);
       *qParam->end = 1;
+      
+      taos_free_result(pRes);
     }
   } else {
     sqExit("select", taos_errstr(pRes));
@@ -358,6 +363,7 @@ int sqCloseSyncQuery(bool fetch) {
     }
     
     taos_close(taos);
+    taos_free_result(pRes);
   }
   CASE_LEAVE();  
 }
@@ -382,7 +388,7 @@ int sqCloseAsyncQuery(bool fetch) {
     SSP_CB_PARAM param = {0};
     param.fetch = fetch;
     param.end = &qEnd;
-    taos_query_a(taos, sql, sqFreeQueryCb, &param);
+    taos_query_a(taos, sql, sqCloseQueryCb, &param);
     while (0 == qEnd) {
       usleep(5000);
     }
@@ -640,7 +646,7 @@ void sqRunAllCase(void) {
   int32_t l = 5;
   while (l) {
     printf("%d\n", l--);
-    sleep(1);
+    sleep(1000);
   }
 }
 
