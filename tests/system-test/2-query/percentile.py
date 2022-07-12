@@ -134,10 +134,15 @@ class TDTestCase:
                         tdSql.query(f'select percentile({k}, {param}) from {self.stbname}_{i}')
                         tdSql.checkData(0, 0, np.percentile(floatData, param))
             
-            #!bug TD-17119
-            # for k,v in self.tag_dict.items():
-            #     for param in self.param:
-            #         tdSql.error(f'select percentile({k},{param}) from {self.stbname}_{i}')
+            for k,v in self.tag_dict.items():
+                for param in self.param:
+                    if v.lower() in ['timestamp','bool'] or 'binary' in v.lower() or 'nchar' in v.lower():
+                        tdSql.error(f'select percentile({k},{param}) from {self.stbname}_{i}')
+                    else:
+                        tdSql.query(f'select {k} from {self.stbname}_{i}')
+                        data_num = tdSql.queryResult[0][0]
+                        tdSql.query(f'select percentile({k},{param}) from {self.stbname}_{i}')
+                        tdSql.checkData(0,0,data_num)
                     
     def run(self):
         self.function_check_ntb()
