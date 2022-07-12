@@ -1274,8 +1274,8 @@ typedef struct SchedArg {
   SEpSet* pEpset;
 } SchedArg;
 
-void doProcessMsgFromServer(SSchedMsg* schedMsg) {
-  SchedArg* arg = (SchedArg*)schedMsg->ahandle;
+int32_t doProcessMsgFromServer(void* param) {
+  SchedArg* arg = (SchedArg*)param;
   SRpcMsg*  pMsg = &arg->msg;
   SEpSet*   pEpSet = arg->pEpset;
 
@@ -1328,11 +1328,10 @@ void doProcessMsgFromServer(SSchedMsg* schedMsg) {
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
   taosMemoryFree(arg);
+  return TSDB_CODE_SUCCESS;
 }
 
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
-  SSchedMsg schedMsg = {0};
-
   SEpSet* tEpSet = NULL;
   if (pEpSet != NULL) {
     tEpSet = taosMemoryCalloc(1, sizeof(SEpSet));
@@ -1343,9 +1342,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   arg->msg = *pMsg;
   arg->pEpset = tEpSet;
 
-  schedMsg.fp = doProcessMsgFromServer;
-  schedMsg.ahandle = arg;
-  taosScheduleTask(tscQhandle, &schedMsg);
+  taosAsyncExec(doProcessMsgFromServer, arg, NULL);
 }
 
 TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, const char* db, uint16_t port) {
