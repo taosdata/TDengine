@@ -578,6 +578,8 @@ int sqConKillSyncQuery(bool fetch) {
     
     pthread_join(qid, NULL);
     pthread_join(cid, NULL);
+
+    taos_close(param.taos);
   }
   CASE_LEAVE();  
 }
@@ -593,6 +595,8 @@ int sqConKillAsyncQuery(bool fetch) {
     
     pthread_join(qid, NULL);
     pthread_join(cid, NULL);
+
+    taos_close(param.taos);
   }
   CASE_LEAVE();  
 }
@@ -600,7 +604,6 @@ int sqConKillAsyncQuery(bool fetch) {
 
 
 void sqRunAllCase(void) {
-/*
   sqStopSyncQuery(false);
   sqStopSyncQuery(true);
   sqStopAsyncQuery(false);
@@ -620,17 +623,14 @@ void sqRunAllCase(void) {
   sqConCloseSyncQuery(true);
   sqConCloseAsyncQuery(false);
   sqConCloseAsyncQuery(true);
-*/
 
-#if 0  
 
   sqKillSyncQuery(false);
   sqKillSyncQuery(true);
   sqKillAsyncQuery(false);
   sqKillAsyncQuery(true);
-#endif  
 
-  //sqConKillSyncQuery(false);
+  sqConKillSyncQuery(false);
   sqConKillSyncQuery(true);
 #if 0  
   sqConKillAsyncQuery(false);
