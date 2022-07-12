@@ -44,8 +44,8 @@ class TestNumericBoundary(TDCase):
             self.tdRest.request(f'select t1, c1 from {dbname}.tb2')
             self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][0]), data_value[0])
             self.tdSql.checkEqual(int(self.tdRest.resp["data"][0][1]), data_value[1])
-            # self.tdRest.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({data_value[1]+1})')
-            # self.tdRest.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({data_value[1]-1})')
+            self.tdRest.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({data_value[1]+1})')
+            self.tdRest.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({data_value[1]-1})')
             self.tdRest.error(f'insert into {dbname}.tb1 values (now-1h, {data_value[1]+1})')
             self.tdRest.error(f'insert into {dbname}.tb2 values (now-1h, {data_value[0]-1})')
 

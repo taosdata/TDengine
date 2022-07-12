@@ -39,14 +39,13 @@ class TestDuration(TDCase):
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.request('show databases')
          # TODO
-        db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
         # default
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
+        self.tdSql.checkEqual(db_field, self.cfg["default"])
         self.tdRest.request(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdRest.getOneRow(1, dbname)
         data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
-       
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{data["config"][self.cfg["vnode_json_key"]]}m')
+        self.tdSql.checkEqual(db_field, f'{data["config"][self.cfg["vnode_json_key"]]}m')
         self.tdRest.request(f'drop database {dbname}')
         # without unit
         for param_value in self.cfg["boundary"]:
@@ -54,23 +53,23 @@ class TestDuration(TDCase):
             self.tdRest.request(f'create database if not exists {dbname}  {test_param} {param_value}')
             self.tdRest.request('show databases')
             #TODO
-            db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
             if param_value == 1 or param_value == 3650: # days
-                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param_value*60*24}m')
+                self.tdSql.checkEqual(db_field, f'{param_value*60*24}m')
             elif param_value == '60m' or param_value == '5256000m': # minutes
                 trans_value = int(re.sub('\D','', param_value))
-                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{trans_value}m')
+                self.tdSql.checkEqual(db_field, f'{trans_value}m')
             elif param_value == '1h' or param_value =='87600h': # hours
                 trans_value = int(re.sub('\D','', param_value))
-                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{trans_value * 60}m')
+                self.tdSql.checkEqual(db_field, f'{trans_value * 60}m')
             elif param_value == '1d' or param_value == '3650d':
                 trans_value = int(re.sub('\D','', param_value))
-                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{trans_value * 60 *24}m')
+                self.tdSql.checkEqual(db_field, f'{trans_value * 60 *24}m')
             self.tdRest.request(f'show {dbname}.vgroups')
              # TODO
-            db_vnode_kv_dict = self.tdSql.getOneRow(1, dbname)
+            db_vnode_kv_dict = self.tdRest.getOneRow(1, dbname)
             data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
-            self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{data["config"][self.cfg["vnode_json_key"]]}m')
+            self.tdSql.checkEqual(db_field, f'{data["config"][self.cfg["vnode_json_key"]]}m')
             self.tdRest.request(f'drop database {dbname}')
         for error_value in self.error_value_list:
             self.tdRest.error(f'create database if not exists {dbname} {test_param} {error_value}')

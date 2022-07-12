@@ -18,11 +18,14 @@
             "dbinfo": {
                 "name": "db",
                 "drop": "yes",
+		"blocks": 1,
+		"cache": 16,
                 "vgroups": VGROUPS 
             },
             "super_tables": [
                 {
                     "name": "stb",
+		    "no_check_for_affected_rows": "yes",
                     "child_table_exists": "no",
                     "childtable_count": CHILDTABLECOUNT,
                     "childtable_prefix": "stb_",

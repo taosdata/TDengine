@@ -300,7 +300,7 @@ class TDTestQuery(TDCase):
                         interval_fill = ' where ts between 1630000001000 and 1630100001000 '
                         interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
                         
-                        for i in (1,2,3,4,21,22,):  #21,                      
+                        for i in (1,2,3,4,21,22,):                       
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)
@@ -1436,8 +1436,8 @@ class TDTestQuery(TDCase):
         self.right_case_1_groupby()
         self.right_case_1_tbname()
         self.right_case_1()       
-        self.right_case_1_interval()
-        self.right_case_1_tbname_interval()
+        # self.right_case_1_interval()
+        # self.right_case_1_tbname_interval()
         endTime1 = time.time()       
         self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     

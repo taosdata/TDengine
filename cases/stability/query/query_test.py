@@ -30,10 +30,10 @@ class TestQuery(TDCase):
     query_tmpl_file_param="query-tmpl-file"
 
     def init(self):
-        insert_cfg_file = None
-        insert_tmpl_file = None
-        query_cfg_file = None
-        query_tmpl_file = None
+        self.insert_cfg_file = None
+        self.insert_tmpl_file = None
+        self.query_cfg_file = None
+        self.query_tmpl_file = None
 
     def help(self):
         print("case parameters:")

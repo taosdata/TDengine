@@ -128,19 +128,20 @@ class TestTimestamp(TDCase):
                     step = 10000000
                 else:
                     step = 1
-                # ! TD-16217
-                # self.tdRest.request(f'create table if not exists {dbname}.{ts_unit}{step}_add using {dbname}.stb tags (now+{step}{ts_unit}, 1)')
-                # self.tdRest.request(f'create table if not exists {dbname}.{ts_unit}{step}_sub using {dbname}.stb tags (now-{step}{ts_unit}, 1)')
+                self.tdRest.request(f'create table if not exists {dbname}.{ts_unit}{step}_add using {dbname}.stb tags (now+{step}{ts_unit}, 1)')
+                self.tdRest.request(f'create table if not exists {dbname}.{ts_unit}{step}_sub using {dbname}.stb tags (now-{step}{ts_unit}, 1)')
                 self.tdRest.request(f'insert into {dbname}.ctb values (now+{step}{ts_unit}, 1)')
                 self.tdRest.request(f'insert into {dbname}.ctb values (now-{step}{ts_unit}, 1)')
                 self.tdRest.request(f'insert into {dbname}.tb values (now+{step}{ts_unit}, 1)')
                 self.tdRest.request(f'insert into {dbname}.tb values (now-{step}{ts_unit}, 1)')
             for tbname in [f"{dbname}.ctb", f"{dbname}.stb", f"{dbname}.tb"]:
                 self.tdRest.request(f'select count(*) from {tbname}')
-                self.tdSql.checkEqual(self.tdRest.resp[0][0], 16)
-            # ! TD-16217
-            # self.tdRest.request(f'show {dbname}.stables')
-            # self.tdSql.checkEqual(self.tdRest.resp[0][4], 17)
+                if tbname == f"{dbname}.stb":
+                    self.tdSql.checkEqual(self.tdRest.resp[0][0], 48)
+                else:
+                    self.tdSql.checkEqual(self.tdRest.resp[0][0], 16)
+            self.tdRest.request(f'show {dbname}.stables')
+            self.tdSql.checkEqual(self.tdRest.resp[0][4], 18)
             self.tdRest.request(f'drop database if exists {dbname}')
 
     def epoch_check(self):
@@ -160,15 +161,18 @@ class TestTimestamp(TDCase):
                     step = 10000000
                 else:
                     step = 1
-                self.tdRest.error(f'create table if not exists {dbname}.tb_error using {dbname}.stb tags ({timestamp}+1{ts_unit}, 1)')
-                self.tdRest.error(f'create table if not exists {dbname}.tb_error using {dbname}.stb tags ({timestamp}-1{ts_unit}, 1)')
+                self.tdRest.request(f'create table if not exists {dbname}.tb_error using {dbname}.stb tags ({timestamp}+1{ts_unit}, 1)')
+                self.tdRest.request(f'create table if not exists {dbname}.tb_error using {dbname}.stb tags ({timestamp}-1{ts_unit}, 1)')
                 self.tdRest.request(f'insert into {dbname}.ctb values ({timestamp}+{step}{ts_unit}, 1)')
                 self.tdRest.request(f'insert into {dbname}.tb values ({timestamp}+{step}{ts_unit}, 1)')
                 self.tdRest.request(f'insert into {dbname}.ctb values ({timestamp}-{step}{ts_unit}, 1)')
                 self.tdRest.request(f'insert into {dbname}.tb values ({timestamp}-{step}{ts_unit}, 1)')
             for tbname in [f"{dbname}.ctb", f"{dbname}.stb", f"{dbname}.tb"]:
                 self.tdRest.request(f'select count(*) from {tbname}')
-                self.tdSql.checkEqual(self.tdRest.resp[0][0], 16)
+                if tbname == f"{dbname}.stb":
+                    self.tdSql.checkEqual(self.tdRest.resp[0][0], 48)
+                else:
+                    self.tdSql.checkEqual(self.tdRest.resp[0][0], 16)
             self.tdRest.request(f'drop database if exists {dbname}')
 
     def error_check(self):
@@ -188,8 +192,6 @@ class TestTimestamp(TDCase):
             precision_list_tmp = copy.deepcopy(precision_list)
             precision_list_tmp.remove(ts)
             for illegal_ts in precision_list_tmp:
-                # TODO confirm
-                # tdRest.error(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({tdCom.genTs(illegal_ts)[0]}, 1)')
                 self.tdRest.error(f'insert into {dbname}.ctb values ({self.tdCom.genTs(illegal_ts)[0]}, 1)')
                 self.tdRest.error(f'insert into {dbname}.tb values ({self.tdCom.genTs(illegal_ts)[0]}, 1)')
 

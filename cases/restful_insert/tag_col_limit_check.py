@@ -24,9 +24,8 @@ class TestTagColLimit(TDCase):
         """
         tag_str_exceed = self.tdCom.gen_tag_col_str("tag", "int", self.tdCom.Boundary.MAX_TAG_COUNT+1)
         tag_str = self.tdCom.gen_tag_col_str("tag", "int", self.tdCom.Boundary.MAX_TAG_COUNT)
-        dbname = self.tdCom.get_long_name(length=5, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'create database if not exists {dbname} precision "ms"')
-        print(tag_str_exceed)
         self.tdRest.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags ({tag_str_exceed})')
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags ({tag_str})')
         tag_value_str = '1, ' * (self.tdCom.Boundary.MAX_TAG_COUNT - 1) + '1'
@@ -40,13 +39,13 @@ class TestTagColLimit(TDCase):
         """
         max col count: 4096
         """
-        col_str_exceed = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.Boundary.MAX_TAG_COL_COUNT)
-        col_str = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.Boundary.MAX_TAG_COL_COUNT-1)
-        dbname = self.tdCom.get_long_name(length=5, mode="letters")
+        col_str_exceed = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.Boundary.MAX_TAG_COL_COUNT-1)
+        col_str = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.Boundary.MAX_TAG_COL_COUNT-2)
+        dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'create database if not exists {dbname} precision "ms"')
         self.tdRest.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, {col_str_exceed}) tags (t1 int)')
         self.tdRest.request(f'create stable if not exists {dbname}.stb (col_ts timestamp, {col_str}) tags (t1 int)')
-        col_value_str = '1, ' * (self.tdCom.Boundary.MAX_TAG_COL_COUNT - 2) + '1'
+        col_value_str = '1, ' * (self.tdCom.Boundary.MAX_TAG_COL_COUNT - 3) + '1'
         self.tdRest.request(f'create table if not exists {dbname}.tb using {dbname}.stb tags (1)')
         self.tdRest.request(f'insert into {dbname}.tb values (now, {col_value_str})')
         self.tdRest.request(f'select col4093 from {dbname}.stb')
@@ -59,7 +58,7 @@ class TestTagColLimit(TDCase):
         """
         col_str_exceed = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.Boundary.MAX_TAG_COL_COUNT)
         col_str = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.Boundary.MAX_TAG_COL_COUNT-1)
-        dbname = self.tdCom.get_long_name(length=5, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'create database if not exists {dbname} precision "ms"')
         self.tdRest.error(f'create table if not exists {dbname}.tb (col_ts timestamp, {col_str_exceed})')
         self.tdRest.request(f'create table if not exists {dbname}.tb (col_ts timestamp, {col_str})')
@@ -74,7 +73,7 @@ class TestTagColLimit(TDCase):
         tag_key/col_key sensitive
         """
         for test_type in ['binary', 'nchar']:
-            dbname = self.tdCom.get_long_name(length=5, mode="letters")
+            dbname = self.tdCom.get_long_name()
             self.tdRest.request(f'create database if not exists {dbname}')
             self.tdRest.request(f'create stable if not exists {dbname}.stb (Col_ts timestamp, CC1 {test_type}(16), Cc2 {test_type}(16), `3Cc%3` {test_type}(16)) tags (`1Tag_ts^` timestamp, TT1 {test_type}(16), Tt2 {test_type}(16), `3Tt%3` {test_type}(16))')
             self.tdRest.request(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, "TT1", "Tt2", "3Tt%3")')
@@ -94,7 +93,7 @@ class TestTagColLimit(TDCase):
         col_key sensitive
         """
         for test_type in ['binary', 'nchar']:
-            dbname = self.tdCom.get_long_name(length=5, mode="letters")
+            dbname = self.tdCom.get_long_name()
             self.tdRest.request(f'create database if not exists {dbname}')
             self.tdRest.request(f'create table if not exists {dbname}.tb (Col_ts timestamp, CC1 {test_type}(16), Cc2 {test_type}(16), `3Cc%3` {test_type}(16))')
             self.tdRest.request(f'insert into {dbname}.tb values (now, "TT1", "Tt2", "3Tt%3")')
@@ -111,7 +110,7 @@ class TestTagColLimit(TDCase):
         """
         max tag key length:
         """
-        dbname = self.tdCom.get_long_name(length=5, mode="letters")
+        dbname = self.tdCom.get_long_name()
         tag_key_name = self.tdCom.get_long_name(length=self.tdCom.Boundary.TAG_KEY_MAX_LENGTH, mode="letters")
         col_key_name = self.tdCom.get_long_name(length=self.tdCom.Boundary.TAG_KEY_MAX_LENGTH, mode="letters")
         self.tdRest.request(f'create database if not exists {dbname}')

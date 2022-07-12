@@ -33,22 +33,22 @@ class TestBool(TDCase):
                 self.tdRest.request(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({true_value})')
                 self.tdRest.request(f'insert into {dbname}.tb1 values (now, {true_value})')
                 self.tdRest.request(f'select t1, c1 from {dbname}.tb1')
-                self.tdSql.checkEqual(self.tdRest.resp[0][0], True)
-                self.tdSql.checkEqual(self.tdRest.resp[0][1], True)
+                self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], True)
+                self.tdSql.checkEqual(self.tdRest.resp['data'][0][1], True)
                 self.tdRest.request(f'insert into {dbname}.t1 values (now, {true_value})')
                 self.tdRest.request(f'select c1 from {dbname}.t1')
-                self.tdSql.checkEqual(self.tdRest.resp[0][0], True)
+                self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], True)
 
         for false_generator in [self.tdCom.str_trans("false"), (x for x in [0])]:
             for false_value in false_generator:
                 self.tdRest.request(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags ({false_value})')
                 self.tdRest.request(f'insert into {dbname}.tb2 values (now, {false_value})')
                 self.tdRest.request(f'select t1, c1 from {dbname}.tb2')
-                self.tdSql.checkEqual(self.tdRest.resp[0][0], False)
-                self.tdSql.checkEqual(self.tdRest.resp[0][1], False)
+                self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], False)
+                self.tdSql.checkEqual(self.tdRest.resp['data'][0][1], False)
                 self.tdRest.request(f'insert into {dbname}.t2 values (now, {false_value})')
                 self.tdRest.request(f'select c1 from {dbname}.t2')
-                self.tdSql.checkEqual(self.tdRest.resp[0][0], False)
+                self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], False)
 
         self.tdRest.request(f'drop database if exists {dbname}')
 
