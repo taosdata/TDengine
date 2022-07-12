@@ -3707,11 +3707,13 @@ int32_t spreadFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  int32_t      start = pInput->startRowIndex;
-  char*        data = colDataGetData(pCol, start);
-  SSpreadInfo* pInputInfo = (SSpreadInfo*)varDataVal(data);
+  int32_t start = pInput->startRowIndex;
 
-  spreadTransferInfo(pInputInfo, pInfo);
+  for(int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    char* data = colDataGetData(pCol, i);
+    SSpreadInfo* pInputInfo = (SSpreadInfo*)varDataVal(data);
+    spreadTransferInfo(pInputInfo, pInfo);
+  }
 
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);
 
