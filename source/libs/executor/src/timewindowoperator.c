@@ -653,11 +653,11 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag) {
   if (pBlock == NULL) {
-    qDebug("======printDataBlock Block is Null");
+    qInfo("======printDataBlock Block is Null");
     return;
   }
   char* pBuf = NULL;
-  qDebug("%s", dumpBlockData(pBlock, flag, &pBuf));
+  qInfo("%s", dumpBlockData(pBlock, flag, &pBuf));
   taosMemoryFree(pBuf);
 }
 
