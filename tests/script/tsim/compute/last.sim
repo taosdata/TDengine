@@ -1,14 +1,11 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-sleep 2000
 sql connect
 
-$dbPrefix = m_ma_db
-$tbPrefix = m_ma_tb
-$mtPrefix = m_ma_mt
+$dbPrefix = m_la_db
+$tbPrefix = m_la_tb
+$mtPrefix = m_la_mt
 $tbNum = 10
 $rowNum = 20
 $totalNum = 200
@@ -33,7 +30,7 @@ while $i < $tbNum
   while $x < $rowNum
     $cc = $x * 60000
     $ms = 1601481600000 + $cc
-    
+
     sql insert into $tb values ($ms , $x ) 
     $x = $x + 1
   endw 
@@ -47,7 +44,7 @@ print =============== step2
 $i = 1
 $tb = $tbPrefix . $i
 
-sql select max(tbcol) from $tb
+sql select last(tbcol) from $tb
 print ===> $data00
 if $data00 != 19 then 
   return -1
@@ -57,27 +54,27 @@ print =============== step3
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
 
-sql select max(tbcol) from $tb where ts <= $ms
+sql select last(tbcol) from $tb where ts <= $ms
 print ===> $data00
 if $data00 != 4 then 
   return -1
 endi
 
 print =============== step4
-sql select max(tbcol) as b from $tb
+sql select last(tbcol) as b from $tb
 print ===> $data00
 if $data00 != 19 then 
   return -1
 endi
 
 print =============== step5
-sql select max(tbcol) as b from $tb interval(1m)
+sql select last(tbcol) as b from $tb interval(1m)
 print ===> $data11
 if $data11 != 1 then 
   return -1
 endi
 
-sql select max(tbcol) as b from $tb interval(1d)
+sql select last(tbcol) as b from $tb interval(1d)
 print ===> $data01
 if $data01 != 19 then 
   return -1
@@ -87,7 +84,7 @@ print =============== step6
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
 
-sql select max(tbcol) as b from $tb where ts <= $ms interval(1m)
+sql select last(tbcol) as b from $tb where ts <= $ms interval(1m)
 print ===> $data11
 if $data11 != 1 then 
   return -1
@@ -97,7 +94,7 @@ if $rows != 5 then
 endi
 
 print =============== step7
-sql select max(tbcol) from $mt
+sql select last(tbcol) from $mt
 print ===> $data00
 if $data00 != 19 then 
   return -1
@@ -107,13 +104,13 @@ print =============== step8
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
 
-sql select max(tbcol) as c from $mt where ts <= $ms
+sql select last(tbcol) as c from $mt where ts <= $ms
 print ===> $data00
 if $data00 != 4 then 
   return -1
 endi
 
-sql select max(tbcol) as c from $mt where tgcol < 5
+sql select last(tbcol) as c from $mt where tgcol < 5
 print ===> $data00
 if $data00 != 19 then 
   return -1
@@ -122,27 +119,27 @@ endi
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
 
-sql select max(tbcol) as c from $mt where tgcol < 5 and ts <= $ms
+sql select last(tbcol) as c from $mt where tgcol < 5 and ts <= $ms
 print ===> $data00
 if $data00 != 4 then 
   return -1
 endi
 
 print =============== step9
-sql select max(tbcol) as b from $mt interval(1m)
+sql select last(tbcol) as b from $mt interval(1m)
 print ===> $data11
 if $data11 != 1 then 
   return -1
 endi
 
-sql select max(tbcol) as b from $mt interval(1d)
+sql select last(tbcol) as b from $mt interval(1d)
 print ===> $data01
 if $data01 != 19 then 
   return -1
 endi
 
 print =============== step10
-sql select max(tbcol) as b from $mt group by tgcol
+sql select last(tbcol) as b from $mt group by tgcol
 print ===> $data00
 if $data00 != 19 then 
   return -1
@@ -156,7 +153,7 @@ print =============== step11
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
 
-sql select max(tbcol) as b from $mt  where ts <= $ms interval(1m) group by tgcol
+sql select last(tbcol) as b from $mt  where ts <= $ms interval(1m) group by tgcol
 print ===> $data11
 if $data11 != 1 then 
   return -1
@@ -169,7 +166,7 @@ endi
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 

@@ -225,6 +225,26 @@
 ./test.sh -f tsim/compress/compress.sim
 ./test.sh -f tsim/compress/uncompress.sim
 
+# ---- compute
+#./test.sh -f tsim/compute/avg.sim
+#./test.sh -f tsim/compute/block_dist.sim
+#./test.sh -f tsim/compute/bottom.sim
+#./test.sh -f tsim/compute/count.sim
+#./test.sh -f tsim/compute/diff.sim
+#./test.sh -f tsim/compute/diff2.sim
+#./test.sh -f tsim/compute/first.sim
+#./test.sh -f tsim/compute/interval.sim
+#./test.sh -f tsim/compute/last_row.sim
+#./test.sh -f tsim/compute/last.sim
+#./test.sh -f tsim/compute/leastsquare.sim
+#./test.sh -f tsim/compute/max.sim
+#./test.sh -f tsim/compute/min.sim
+#./test.sh -f tsim/compute/null.sim
+./test.sh -f tsim/compute/percentile.sim
+./test.sh -f tsim/compute/stddev.sim
+./test.sh -f tsim/compute/sum.sim
+./test.sh -f tsim/compute/top.sim
+
 # ---- field
 ./test.sh -f tsim/field/2.sim
 ./test.sh -f tsim/field/3.sim

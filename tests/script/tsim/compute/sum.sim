@@ -1,14 +1,11 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-sleep 2000
 sql connect
 
-$dbPrefix = m_fi_db
-$tbPrefix = m_fi_tb
-$mtPrefix = m_fi_mt
+$dbPrefix = m_su_db
+$tbPrefix = m_su_tb
+$mtPrefix = m_su_mt
 $tbNum = 10
 $rowNum = 20
 $totalNum = 200
@@ -47,47 +44,49 @@ print =============== step2
 $i = 1
 $tb = $tbPrefix . $i
 
-sql select first(tbcol) from $tb
+sql select sum(tbcol) from $tb
 print ===> $data00
-if $data00 != 0 then 
+if $data00 != 190 then 
   return -1
 endi
 
 print =============== step3
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
-sql select first(tbcol) from $tb where ts <= $ms
+
+sql select sum(tbcol) from $tb where ts <= $ms
 print ===> $data00
-if $data00 != 0 then 
+if $data00 != 10 then 
   return -1
 endi
 
 print =============== step4
-sql select first(tbcol) as b from $tb
+sql select sum(tbcol) as b from $tb
 print ===> $data00
-if $data00 != 0 then 
+if $data00 != 190 then 
   return -1
 endi
 
 print =============== step5
-sql select first(tbcol) as b from $tb interval(1m)
-print ===> $data01
-if $data01 != 0 then 
+sql select sum(tbcol) as b from $tb interval(1m)
+print ===> $data10
+if $data10 != 1 then 
   return -1
 endi
 
-sql select first(tbcol) as b from $tb interval(1d)
-print ===> $data01
-if $data01 != 0 then 
+sql select sum(tbcol) as b from $tb interval(1d)
+print ===> $data00
+if $data00 != 190 then 
   return -1
 endi
 
 print =============== step6
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
-sql select first(tbcol) as b from $tb where ts <= $ms interval(1m)
-print ===> $data01
-if $data41 != 4 then 
+
+sql select sum(tbcol) as b from $tb where ts <= $ms interval(1m)
+print ===> $data10
+if $data10 != 1 then 
   return -1
 endi
 if $rows != 5 then 
@@ -95,53 +94,54 @@ if $rows != 5 then
 endi
 
 print =============== step7
-sql select first(tbcol) from $mt
+sql select sum(tbcol) from $mt
 print ===> $data00
-if $data00 != 0 then 
+if $data00 != 1900 then 
   return -1
 endi
 
 print =============== step8
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
-sql select first(tbcol) as c from $mt where ts <= $ms
+
+sql select sum(tbcol) as c from $mt where ts <= $ms
 print ===> $data00
-if $data00 != 0 then 
+if $data00 != 100 then 
   return -1
 endi
 
-sql select first(tbcol) as c from $mt where tgcol < 5
+sql select sum(tbcol) as c from $mt where tgcol < 5
 print ===> $data00
-if $data00 != 0 then 
+if $data00 != 950 then 
   return -1
 endi
 
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
-sql select first(tbcol) as c from $mt where tgcol < 5 and ts <= $ms
+
+sql select sum(tbcol) as c from $mt where tgcol < 5 and ts <= $ms
 print ===> $data00
-if $data00 != 0 then 
+if $data00 != 50 then 
   return -1
 endi
 
 print =============== step9
-sql select first(tbcol) as b from $mt interval(1m)
-print select first(tbcol) as b from $mt interval(1m)
-print ===> $data11
-if $data11 != 1 then 
+sql select sum(tbcol) as b from $mt interval(1m)
+print ===> $data10
+if $data10 < 5 then 
   return -1
 endi
 
-sql select first(tbcol) as b from $mt interval(1d)
-print ===> $data01
-if $data01 != 0 then 
+sql select sum(tbcol) as b from $mt interval(1d)
+print ===> $data00
+if $data00 != 1900 then 
   return -1
 endi
 
 print =============== step10
-sql select first(tbcol) as b from $mt group by tgcol
+sql select sum(tbcol) as b from $mt group by tgcol
 print ===> $data00
-if $data00 != 0 then 
+if $data00 != 190 then 
   return -1
 endi
 
@@ -152,20 +152,21 @@ endi
 print =============== step11
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
-sql select first(tbcol) as b from $mt  where ts <= $ms interval(1m) group by tgcol
-print ===> $data11
-if $data11 != 1 then 
+
+sql select sum(tbcol) as b from $mt  where ts <= $ms group by tgcol
+print select sum(tbcol) as b from $mt  where ts <= $ms group by tgcol
+print ===> $data00
+if $data00 != 10 then 
   return -1
 endi
-print ===> $rows
-if $rows != 50 then 
+if $rows != 10 then 
   return -1
 endi
 
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 

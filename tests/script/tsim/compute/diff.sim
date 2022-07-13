@@ -1,14 +1,11 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-sleep 2000
 sql connect
 
-$dbPrefix = m_bo_db
-$tbPrefix = m_bo_tb
-$mtPrefix = m_bo_mt
+$dbPrefix = m_di_db
+$tbPrefix = m_di_tb
+$mtPrefix = m_di_mt
 $tbNum = 10
 $rowNum = 20
 $totalNum = 200
@@ -33,7 +30,6 @@ while $i < $tbNum
   while $x < $rowNum
     $cc = $x * 60000
     $ms = 1601481600000 + $cc
-
     sql insert into $tb values ($ms , $x ) 
     $x = $x + 1
   endw 
@@ -47,58 +43,52 @@ print =============== step2
 $i = 1
 $tb = $tbPrefix . $i
 
-sql select bottom(tbcol, 1) from $tb
-print ===> $data01
-if $data01 != 0 then 
+sql select diff(tbcol) from $tb
+print ===> $data11
+if $data11 != 1 then 
   return -1
 endi
 
 print =============== step3
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
-sql select bottom(tbcol, 1) from $tb where ts > $ms
-print ===> $data01
-if $data01 != 5 then 
-  return -1
-endi
-
-print =============== step4
-sql select bottom(tbcol, 1) as b from $tb
-print ===> $data01
-if $data01 != 0 then 
-  return -1
-endi
-
-print =============== step5
-sql select bottom(tbcol, 2) as b from $tb 
-print ===> $data01  $data11
-if $data01 != 0 then 
-  return -1
-endi
+sql select diff(tbcol) from $tb where ts > $ms
+print ===> $data11
 if $data11 != 1 then 
   return -1
 endi
 
-print =============== step6
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
-sql select bottom(tbcol, 2) as b from $tb where ts > $ms
-print ===> $data01  $data11
-if $data01 != 5 then 
-  return -1
-endi
-if $data11 != 6 then 
+sql select diff(tbcol) from $tb where ts <= $ms
+print ===> $data11
+if $data11 != 1 then 
   return -1
 endi
 
-sql select bottom(tbcol, 122) as b from $tb -x step6
-	return -1
+print =============== step4
+sql select diff(tbcol) as b from $tb
+print ===> $data11
+if $data11 != 1 then 
+  return -1
+endi
+
+print =============== step5
+sql select diff(tbcol) as b from $tb interval(1m) -x step5
+  return -1
+step5:
+
+print =============== step6
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select diff(tbcol) as b from $tb where ts <= $ms interval(1m) -x step6
+  return -1
 step6:
 
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 
