@@ -32,6 +32,7 @@ pNode will be freed in API;
 *pRes need to freed in caller
 */
 int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes);
+int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes);
 
 /*
 pDst need to freed in caller
