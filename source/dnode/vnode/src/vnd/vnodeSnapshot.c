@@ -55,9 +55,13 @@ _err:
 int32_t vnodeSnapReaderClose(SVSnapReader *pReader) {
   int32_t code = 0;
 
-  // tFree(pReader->pData);
-  // if (pReader->pTsdbReader) tsdbSnapReaderClose(&pReader->pTsdbReader);
-  // if (pReader->pMetaReader) metaSnapReaderClose(&pReader->pMetaReader);
+  if (pReader->pTsdbReader) {
+    tsdbSnapReaderClose(&pReader->pTsdbReader);
+  }
+
+  if (pReader->pMetaReader) {
+    metaSnapReaderClose(&pReader->pMetaReader);
+  }
 
   vInfo("vgId:%d vnode snapshot reader closed", TD_VID(pReader->pVnode));
   taosMemoryFree(pReader);
@@ -85,8 +89,6 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
         pReader->metaDone = 1;
         code = metaSnapReaderClose(&pReader->pMetaReader);
         if (code) goto _err;
-
-        vInfo("vgId:%d vnode snapshot meta data read end, index:%" PRId64, TD_VID(pReader->pVnode), pReader->index);
       }
     }
   }
@@ -94,23 +96,23 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   // TSDB ==============
   if (!pReader->tsdbDone) {
     // open if not
-    // if (pReader->pTsdbReader == NULL) {
-    //   code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, &pReader->pTsdbReader);
-    //   if (code) goto _err;
-    // }
+    if (pReader->pTsdbReader == NULL) {
+      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, &pReader->pTsdbReader);
+      if (code) goto _err;
+    }
 
-    // code = tsdbSnapRead(pReader->pTsdbReader, &pReader->pData);
-    // if (code) {
-    //   if (code == TSDB_CODE_VND_READ_END) {
-    //     pReader->tsdbDone = 1;
-    //   } else {
-    //     goto _err;
-    //   }
-    // } else {
-    //   *ppData = pReader->pData;
-    //   *nData = sizeof(SSnapDataHdr) + ((SSnapDataHdr *)pReader->pData)->size;
-    //   goto _exit;
-    // }
+    code = tsdbSnapRead(pReader->pTsdbReader, ppData);
+    if (code) {
+      goto _err;
+    } else {
+      if (*ppData) {
+        goto _exit;
+      } else {
+        pReader->tsdbDone = 1;
+        code = tsdbSnapReaderClose(&pReader->pTsdbReader);
+        if (code) goto _err;
+      }
+    }
   }
 
   *ppData = NULL;
@@ -130,7 +132,7 @@ _exit:
   return code;
 
 _err:
-  vError("vgId:% snapshot read failed since %s", TD_VID(pReader->pVnode), tstrerror(code));
+  vError("vgId:% vnode snapshot read failed since %s", TD_VID(pReader->pVnode), tstrerror(code));
   return code;
 }
 
