@@ -41,6 +41,8 @@ void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
   if (pTask->execNodes) {
     taosHashCleanup(pTask->execNodes);
   }
+
+  taosMemoryFree(pTask->profile.execTime);
 }
 
 int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel, int32_t levelNum) {

@@ -282,7 +282,7 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
       }
 
       *str = '"';
-      int32_t length = taosUcs4ToMbs((TdUcs4 *)buf, bufSize, str + 1);
+      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize, str + 1);
       if (length <= 0) {
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
@@ -310,15 +310,15 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
       return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  if(len) *len = n;
+  if (len) *len = n;
 
   return TSDB_CODE_SUCCESS;
 }
 
 char* parseTagDatatoJson(void* p) {
-  char*  string = NULL;
+  char*   string = NULL;
   SArray* pTagVals = NULL;
-  cJSON* json = NULL;
+  cJSON*  json = NULL;
   if (tTagToValArray((const STag*)p, &pTagVals) != 0) {
     goto end;
   }
@@ -327,7 +327,7 @@ char* parseTagDatatoJson(void* p) {
   if (nCols == 0) {
     goto end;
   }
-  char    tagJsonKey[256] = {0};
+  char tagJsonKey[256] = {0};
   json = cJSON_CreateObject();
   if (json == NULL) {
     goto end;
@@ -390,7 +390,7 @@ char* parseTagDatatoJson(void* p) {
 end:
   cJSON_Delete(json);
   taosArrayDestroy(pTagVals);
-  if(string == NULL){
+  if (string == NULL) {
     string = strdup(TSDB_DATA_NULL_STR_L);
   }
   return string;
