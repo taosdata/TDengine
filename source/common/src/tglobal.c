@@ -1117,10 +1117,44 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
   if (strncasecmp(option, "debugFlag", 9) == 0) {
     int32_t flag = atoi(value);
     taosSetAllDebugFlag(flag);
+    return;
   }
 
   if (strcasecmp(option, "resetlog") == 0) {
     taosResetLog();
     cfgDumpCfg(tsCfg, 0, false);
+    return;
   }
+
+  if (strcasecmp(option, "monitor") == 0) {
+    int32_t monitor = atoi(value);
+    uInfo("monitor set from %d to %d", tsEnableMonitor, monitor);
+    tsEnableMonitor = monitor;
+    return;
+  }
+
+  const char *options[] = {
+      "dDebugFlag",  "vDebugFlag",   "mDebugFlag",   "wDebugFlag",   "sDebugFlag",   "tsdbDebugFlag",
+      "tqDebugFlag", "fsDebugFlag",  "udfDebugFlag", "smaDebugFlag", "idxDebugFlag", "tmrDebugFlag",
+      "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",
+  };
+  int32_t *optionVars[] = {
+      &dDebugFlag,  &vDebugFlag,   &mDebugFlag,   &wDebugFlag,   &sDebugFlag,   &tsdbDebugFlag,
+      &tqDebugFlag, &fsDebugFlag,  &udfDebugFlag, &smaDebugFlag, &idxDebugFlag, &tmrDebugFlag,
+      &uDebugFlag,  &smaDebugFlag, &rpcDebugFlag, &qDebugFlag,
+  };
+
+  int32_t optionSize = tListLen(options);
+  for (int32_t d = 0; d < optionSize; ++d) {
+    const char *optName = options[d];
+    int32_t     optLen = strlen(optName);
+    if (strncasecmp(option, optName, optLen) != 0) continue;
+
+    int32_t flag = atoi(value);
+    uInfo("%s set from %d to %d", optName, *optionVars[d], flag);
+    *optionVars[d] = flag;
+    return;
+  }
+
+  uError("failed to cfg dynamic option:%s value:%s", option, value);
 }
