@@ -85,10 +85,12 @@ static void sqExecSQLE(TAOS *taos, char *command) {
   taos_free_result(pSql);
 }
 
+void sqError(char* prefix, const char* errMsg) {
+  fprintf(stderr, "%s error: %s\n", prefix, errMsg);
+}
 
 void sqExit(char* prefix, const char* errMsg) {
-  fprintf(stderr, "%s error: %s\n", prefix, errMsg);
-  sleep(10000);
+  sqError(prefix, errMsg);
   exit(1);
 }
 
@@ -208,7 +210,9 @@ void sqAsyncQueryCb(void *param, TAOS_RES *pRes, int code) {
       *qParam->end = 1;
     }
   } else {
-    sqExit("select", taos_errstr(pRes));
+    sqError("select", taos_errstr(pRes));
+    *qParam->end = 1;
+    taos_free_result(pRes);
   }
 }
 
@@ -463,8 +467,6 @@ void *closeThreadFp(void *arg) {
   }
 }
 
-
-
 void *killThreadFp(void *arg) {
   SSP_CB_PARAM* qParam = (SSP_CB_PARAM*)arg;
   while (true) {
@@ -476,6 +478,19 @@ void *killThreadFp(void *arg) {
     usleep(1);
   }
 }
+
+void *cleanupThreadFp(void *arg) {
+  SSP_CB_PARAM* qParam = (SSP_CB_PARAM*)arg;
+  while (true) {
+    if (qParam->taos) {
+      usleep(rand() % 10000);
+      taos_cleanup();
+      break;
+    }
+    usleep(1);
+  }
+}
+
 
 
 
@@ -607,9 +622,40 @@ int sqConKillAsyncQuery(bool fetch) {
   CASE_LEAVE();  
 }
 
+int sqConCleanupSyncQuery(bool fetch) {
+  CASE_ENTER();  
+  pthread_t qid, cid;
+  for (int32_t i = 0; i < runTimes; ++i) {
+    SSP_CB_PARAM param = {0};
+    param.fetch = fetch;
+    pthread_create(&qid, NULL, syncQueryThreadFp, (void*)&param);
+    pthread_create(&cid, NULL, cleanupThreadFp, (void*)&param);
+    
+    pthread_join(qid, NULL);
+    pthread_join(cid, NULL);
+  }
+  CASE_LEAVE();  
+}
+
+int sqConCleanupAsyncQuery(bool fetch) {
+  CASE_ENTER();  
+  pthread_t qid, cid;
+  for (int32_t i = 0; i < runTimes; ++i) {
+    SSP_CB_PARAM param = {0};
+    param.fetch = fetch;
+    pthread_create(&qid, NULL, asyncQueryThreadFp, (void*)&param);
+    pthread_create(&cid, NULL, cleanupThreadFp, (void*)&param);
+    
+    pthread_join(qid, NULL);
+    pthread_join(cid, NULL);
+  }
+  CASE_LEAVE();  
+}
+
 
 
 void sqRunAllCase(void) {
+#if 0
   sqStopSyncQuery(false);
   sqStopSyncQuery(true);
   sqStopAsyncQuery(false);
@@ -638,10 +684,15 @@ void sqRunAllCase(void) {
 
   sqConKillSyncQuery(false);
   sqConKillSyncQuery(true);
-#if 0  
   sqConKillAsyncQuery(false);
   sqConKillAsyncQuery(true);
 #endif
+
+  sqConCleanupSyncQuery(false);
+  sqConCleanupSyncQuery(true);
+  sqConCleanupAsyncQuery(false);
+  sqConCleanupAsyncQuery(true);
+
 
   int32_t l = 5;
   while (l) {

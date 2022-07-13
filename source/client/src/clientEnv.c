@@ -42,7 +42,7 @@ volatile int32_t    tscInitRes = 0;
 
 void initTscQhandle() {
   // init handle
-  tscQhandle = taosInitScheduler(4096, 5, "tsc");
+  tscQhandle = taosInitScheduler(4096, 5, "tscQ");
 }
 
 void cleanupTscQhandle() {

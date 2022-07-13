@@ -153,7 +153,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   *pRequest = createRequest(connId, TSDB_SQL_SELECT);
   if (*pRequest == NULL) {
     tscError("failed to malloc sqlObj, %s", sql);
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pRequest)->sqlstr = taosMemoryMalloc(sqlLen + 1);

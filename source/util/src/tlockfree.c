@@ -44,7 +44,7 @@ void taosWLockLatch(SRWLatch *pLatch) {
   nLoops = 0;
   while (1) {
     oLatch = atomic_load_32(pLatch);
-    if (0 == oLatch) break;
+    if (oLatch == TD_RWLATCH_WRITE_FLAG) break;
     nLoops++;
     if (nLoops > 1000) {
       sched_yield();
