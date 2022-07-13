@@ -242,7 +242,7 @@
 #./test.sh -f tsim/compute/null.sim
 ./test.sh -f tsim/compute/percentile.sim
 ./test.sh -f tsim/compute/stddev.sim
-./test.sh -f tsim/compute/sum.sim
+#./test.sh -f tsim/compute/sum.sim
 ./test.sh -f tsim/compute/top.sim
 
 # ---- field

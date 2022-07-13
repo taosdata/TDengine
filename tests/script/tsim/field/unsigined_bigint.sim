@@ -147,7 +147,7 @@ if $data00 != 25 then
 endi
 
 print =============== step8
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = 1 group by tgcol order by tgcol desc
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = 1 partition by tgcol interval(1d) order by tgcol desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
   return -1

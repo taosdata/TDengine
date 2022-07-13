@@ -675,25 +675,25 @@ if $data00 != 25 then
 endi
 
 print =============== step24
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 group by tgcol1 order by tgcol1 desc
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 partition by tgcol1 interval(1d) order by tgcol1 desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 group by tgcol2 order by tgcol2 desc
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 partition by tgcol2 interval(1d) order by tgcol2 desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 group by tgcol3 order by tgcol3 desc
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 partition by tgcol3 interval(1d) order by tgcol3 desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 group by tgcol4 order by tgcol4 desc
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 partition by tgcol4 interval(1d) order by tgcol4 desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
   return -1

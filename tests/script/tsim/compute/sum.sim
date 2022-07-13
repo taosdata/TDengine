@@ -153,9 +153,9 @@ print =============== step11
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
 
-sql select sum(tbcol) as b from $mt  where ts <= $ms group by tgcol
-print select sum(tbcol) as b from $mt  where ts <= $ms group by tgcol
-print ===> $data00
+sql select sum(tbcol) as b from $mt  where ts <= $ms partition by tgcol interval(1d)
+print select sum(tbcol) as b from $mt  where ts <= $ms partition by tgcol interval(1d)
+print ===> $data00 $rows 
 if $data00 != 10 then 
   return -1
 endi
