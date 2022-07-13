@@ -22,11 +22,11 @@ typedef struct SLastrowReader {
   SVnode*   pVnode;
   STSchema* pSchema;
   uint64_t  uid;
-  char**  transferBuf;  // todo remove it soon
-  int32_t numOfCols;
-  int32_t type;
-  int32_t tableIndex;  // currently returned result tables
-  SArray* pTableList;  // table id list
+  char**    transferBuf;  // todo remove it soon
+  int32_t   numOfCols;
+  int32_t   type;
+  int32_t   tableIndex;  // currently returned result tables
+  SArray*   pTableList;  // table id list
 } SLastrowReader;
 
 static void saveOneRow(STSRow* pRow, SSDataBlock* pBlock, SLastrowReader* pReader, const int32_t* slotIds) {
@@ -94,12 +94,15 @@ int32_t tsdbLastRowReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList, 
 int32_t tsdbLastrowReaderClose(void* pReader) {
   SLastrowReader* p = pReader;
 
-  for (int32_t i = 0; i < p->pSchema->numOfCols; ++i) {
-    taosMemoryFreeClear(p->transferBuf[i]);
+  if (p->pSchema != NULL) {
+    for (int32_t i = 0; i < p->pSchema->numOfCols; ++i) {
+      taosMemoryFreeClear(p->transferBuf[i]);
+    }
+
+    taosMemoryFree(p->transferBuf);
+    taosMemoryFree(p->pSchema);
   }
 
-  taosMemoryFree(p->pSchema);
-  taosMemoryFree(p->transferBuf);
   taosMemoryFree(pReader);
   return TSDB_CODE_SUCCESS;
 }

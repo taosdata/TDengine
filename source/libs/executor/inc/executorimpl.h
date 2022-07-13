@@ -39,6 +39,7 @@ extern "C" {
 #include "tmsg.h"
 #include "tpagedbuf.h"
 #include "tstreamUpdate.h"
+#include "tstream.h"
 
 #include "vnode.h"
 #include "executorInt.h"
@@ -139,12 +140,14 @@ typedef struct STaskIdInfo {
 } STaskIdInfo;
 
 typedef struct {
+  //TODO remove prepareStatus
   STqOffsetVal   prepareStatus; // for tmq
   STqOffsetVal   lastStatus;    // for tmq
   void*          metaBlk;       // for tmq fetching meta
   SSDataBlock*   pullOverBlk;   // for streaming
   SWalFilterCond cond;
   int64_t        lastScanUid;
+  SStreamQueue*  inputQueue;
 } SStreamTaskInfo;
 
 typedef struct SExecTaskInfo {
