@@ -56,20 +56,22 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     sdbSetApplyInfo(pMnode->pSdb, cbMeta.index, cbMeta.term, cbMeta.lastConfigIndex);
   }
 
-  if (pMgmt->transId == transId) {
+  if (pMgmt->transId == transId && transId != 0) {
     if (pMgmt->errCode != 0) {
       mError("trans:%d, failed to propose since %s", transId, tstrerror(pMgmt->errCode));
     }
     pMgmt->transId = 0;
     tsem_post(&pMgmt->syncSem);
   } else {
+#if 1
+    mError("trans:%d, invalid commit msg since trandId not match with %d", transId, pMgmt->transId);
+#else
     STrans *pTrans = mndAcquireTrans(pMnode, transId);
     if (pTrans != NULL) {
       mndTransExecute(pMnode, pTrans);
       mndReleaseTrans(pMnode, pTrans);
     }
-#if 0
-    sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
+    // sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
 #endif
   }
 }
