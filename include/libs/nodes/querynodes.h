@@ -248,6 +248,7 @@ typedef struct SSelectStmt {
   SNodeList*  pOrderByList;  // SOrderByExprNode
   SLimitNode* pLimit;
   SLimitNode* pSlimit;
+  STimeWindow timeRange;
   char        stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t     precision;
   int32_t     selectFuncNum;

@@ -2786,31 +2786,31 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_qstart",
     .type = FUNCTION_TYPE_QSTART,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_CLIENT_PC_FUNC,
     .translateFunc = translateTimePseudoColumn,
-    .getEnvFunc   = getTimePseudoFuncEnv,
+    .getEnvFunc   = NULL,
     .initFunc     = NULL,
-    .sprocessFunc = qStartTsFunction, // todo
+    .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
   {
     .name = "_qend",
     .type = FUNCTION_TYPE_QEND,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_CLIENT_PC_FUNC,
     .translateFunc = translateTimePseudoColumn,
-    .getEnvFunc   = getTimePseudoFuncEnv,
+    .getEnvFunc   = NULL,
     .initFunc     = NULL,
-    .sprocessFunc = qEndTsFunction, // todo
+    .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
   {
     .name = "_qduration",
     .type = FUNCTION_TYPE_QDURATION,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_CLIENT_PC_FUNC,
     .translateFunc = translateWduration,
-    .getEnvFunc   = getTimePseudoFuncEnv,
+    .getEnvFunc   = NULL,
     .initFunc     = NULL,
-    .sprocessFunc = winDurFunction, // todo
+    .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
   {

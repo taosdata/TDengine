@@ -1692,6 +1692,11 @@ int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots) {
 }
 
 void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
+  if (pNode->isNull) {
+    pVal->nType = TSDB_DATA_TYPE_NULL;
+    pVal->nLen = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
+    return;
+  }
   pVal->nType = pNode->node.resType.type;
   pVal->nLen = pNode->node.resType.bytes;
   switch (pNode->node.resType.type) {
