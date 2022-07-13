@@ -96,8 +96,7 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes =
-      taos_query(pConn, "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 nchar(8), t4 bool)");
+  pRes = taos_query(pConn, "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 nchar(8), t4 bool)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -261,6 +260,20 @@ int32_t init_env() {
   pRes = taos_query(pConn, "create table jt2 using jt tags('')");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table jt2, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 nchar(8), t4 bool)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "drop table st1");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to drop super table st1, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);
