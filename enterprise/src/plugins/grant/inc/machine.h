@@ -54,12 +54,16 @@
 #define GRANT_CPU_LIMITS           4102416000
 
 typedef struct {
+  char     machine[GRANT_MACHINE_KEY_LEN + 1];
+  char     active[GRANT_ACTIVE_KEY_LEN + 1];
+  bool     granted;
+  bool     updateForced;
   uint32_t usbDongle;
   uint32_t officialVersion;
   uint32_t expireTimeSec;
   uint32_t limitStorage;
   uint32_t limitSpeed;
-  uint32_t limitTimeSeries;
+  uint64_t limitTimeSeries;
   uint32_t limitQueryTime;
   uint32_t limitDbs;
   uint32_t limitUsers;
@@ -70,10 +74,6 @@ typedef struct {
   uint32_t limitCpuCores;
   uint32_t reserveKey1;
   uint32_t reserveKey2;
-  char     machine[GRANT_MACHINE_KEY_LEN + 1];
-  char     active[GRANT_ACTIVE_KEY_LEN + 1];
-  bool     granted;
-  bool     updateForced;
 } SGrantObj;
 
 typedef struct {
@@ -81,32 +81,36 @@ typedef struct {
   bool     officialVersion;
   bool     expired;
   uint32_t expireTimeSec;
-  uint32_t lastReceived;
   uint64_t curStorage;
   uint64_t limitStorage;
+  uint64_t curTimeSeries;
+  uint64_t limitTimeSeries;
+  uint32_t lastReceived;
   uint32_t curSpeed;
   uint32_t limitSpeed;
-  uint32_t curTimeSeries;
-  uint32_t limitTimeSeries;
   uint32_t curQueryTime;
   uint32_t limitQueryTime;
+  uint32_t curDbs;
   uint32_t limitDbs;
+  uint32_t curUsers;
   uint32_t limitUsers;
   uint32_t limitConns;
   uint32_t limitStreams;
+  uint32_t curAccts;
   uint32_t limitAccts;
+  uint32_t curDnodes;
   uint32_t limitDnodes;
   uint32_t limitCpuCores;
 } SGrantStatus;
 
 typedef struct {
   bool     updateForced;
-  uint32_t usbDongle;
-  uint32_t officialVersion;
+  bool     usbDongle;
+  bool     officialVersion;
   uint32_t expireTimeSec;
   uint32_t limitStorage;
   uint32_t limitSpeed;
-  uint32_t limitTimeSeries;
+  uint64_t limitTimeSeries;
   uint32_t limitQueryTime;
   uint32_t limitDbs;
   uint32_t limitUsers;
