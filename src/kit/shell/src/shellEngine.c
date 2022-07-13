@@ -75,8 +75,8 @@ void shellInit(SShellArguments *_args) {
   if (_args->restful || _args->cloud) {
 
     args.ws_conn = ws_connect_with_dsn(args.dsn);
-    if (ws_connect_errno(args.ws_conn)) {
-      fprintf(stderr, "failed to connect %s, reason: %s\n", args.dsn, ws_connect_errstr(args.ws_conn));
+    if (args.ws_conn == NULL) {
+      fprintf(stderr, "failed to connect %s, reason: %s\n", args.dsn, ws_errstr(NULL));
       exit(EXIT_FAILURE);
     }
     fprintf(stdout, "successfully connect to %s\n\n", args.dsn);
@@ -274,14 +274,43 @@ void freeResultWithRid(int64_t rid) {
 #ifdef WEBSOCKET
 void shellRunCommandOnWebsocket(char command[]) {
   int64_t   st, et;
+  wordexp_t full_path;
+  char *    sptr = NULL;
+  char *    cptr = NULL;
+  char *    fname = NULL;
+  bool      printMode = false;
+
+  if ((sptr = tstrstr(command, ">>", true)) != NULL) {
+    cptr = tstrstr(command, ";", true);
+    if (cptr != NULL) {
+      *cptr = '\0';
+    }
+
+    if (wordexp(sptr + 2, &full_path, 0) != 0) {
+      fprintf(stderr, "ERROR: invalid filename: %s\n", sptr + 2);
+      return;
+    }
+    *sptr = '\0';
+    fname = full_path.we_wordv[0];
+  }
+
+  if ((sptr = tstrstr(command, "\\G", true)) != NULL) {
+    cptr = tstrstr(command, ";", true);
+    if (cptr != NULL) {
+      *cptr = '\0';
+    }
+
+    *sptr = '\0';
+    printMode = true;  // When output to a file, the switch does not work.
+  }
 
   st = taosGetTimestampUs();
 
   WS_RES* res = ws_query(args.ws_conn, command);
 
-  if (ws_query_errno(res)) {
+  if (ws_errno(res)) {
     et = taosGetTimestampUs();
-    fprintf(stderr, "\nDB error: %s (%.6fs)\n", ws_query_errstr(res), (et - st)/1E6);
+    fprintf(stderr, "\nDB error: %s (%.6fs)\n", ws_errstr(res), (et - st)/1E6);
     ws_free_result(res);
     return;
   }
@@ -292,53 +321,31 @@ void shellRunCommandOnWebsocket(char command[]) {
     return;
   }
 
-  int num_fields = ws_num_of_fields(res);
-  int precision = ws_result_precision(res);
-  int width[TSDB_MAX_COLUMNS];
-  TAOS_FIELD* fields = (TAOS_FIELD*)ws_fetch_fields_v2(res);
-  for (int col = 0; col < num_fields; col++) {
-    width[col] = calcColWidth(fields + col, precision);
-  }
-  
-
-  // int numOfRows = ws_affected_rows(res);
-
   int numOfRows = 0;
-  bool print_header = true;
-  while (!stop_fetch) {
-    int rows = 0;
-    const void* data = NULL;
-    ws_fetch_block(res, &data, &rows);
-    if (rows == 0) {
-      break;
+  if (ws_is_update_query(res)) {
+    numOfRows = ws_affected_rows(res);
+    et = taosGetTimestampUs();
+    printf("Query Ok, %d of %d row(s) in database (%.6fs)\n", numOfRows, numOfRows, (et - st)/1E6);
+  } else {
+    int error_no = 0;
+    numOfRows = shellDumpWebsocket(res, fname, &error_no, printMode);
+    if (numOfRows < 0) {
+      ws_free_result(res);
+      return;
     }
-    if (print_header) {
-      printHeader(fields, width, num_fields);
-      print_header = false;
-    }
-    uint8_t ty;
-    uint32_t len;
-    numOfRows += rows;
-    for (int i = 0; i < rows; i++) {
-      for (int j = 0; j < num_fields; j++) {
-        putchar(' ');
-        const void *value = ws_get_value_in_block(res, i, j, &ty, &len);
-        printField((const char*)value, fields + j, width[j], len, precision);
-        putchar(' ');
-        putchar('|');
-      }
-      putchar('\n');
+    et = taosGetTimestampUs();
+    if (error_no == 0) {
+      printf("Query OK, %d row(s) in set (%.6fs)\n", numOfRows, (et - st)/1E6);
+    } else {
+      printf("Query interrupted, %d row(s) in set (%.6fs)\n", numOfRows, (et - st) / 1E6);
     }
   }
-  et = taosGetTimestampUs();
-  if (stop_fetch) {
-    printf("Query interrupted, %d row(s) in set (%.6fs)\n", numOfRows, (et - st) / 1E6);
-    stop_fetch = false;
-  } else {
-    printf("Query OK, %d row(s) in set (%.6fs)\n", numOfRows, (et - st)/1E6);
+  printf("\n");
+
+  if (fname != NULL) {
+    wordfree(&full_path);
   }
   ws_free_result(res);
-  printf("\n");
 }
 #endif
 
@@ -614,6 +621,59 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
   }
 }
 
+static int dumpWebsocketToFile(const char* fname, WS_RES* wres) {
+  wordexp_t full_path;
+
+  if (wordexp((char *)fname, &full_path, 0) != 0) {
+    fprintf(stderr, "ERROR: invalid file name: %s\n", fname);
+    return -1;
+  }
+
+  FILE* fp = fopen(full_path.we_wordv[0], "w");
+  if (fp == NULL) {
+    fprintf(stderr, "ERROR: failed to open file: %s\n", full_path.we_wordv[0]);
+    wordfree(&full_path);
+    return -1;
+  }
+
+  wordfree(&full_path);
+  int numOfRows = 0;
+  TAOS_FIELD* fields = (TAOS_FIELD*)ws_fetch_fields_v2(wres);
+  int num_fields = ws_num_of_fields(wres);
+  int precision = ws_result_precision(wres);
+  for (int col = 0; col < num_fields; col++) {
+    if (col > 0) {
+      fprintf(fp, ",");
+    }
+    fprintf(fp, "%s", fields[col].name);
+  }
+  fputc('\n', fp);
+  stop_fetch = false;
+  while (!stop_fetch) {
+    int rows = 0;
+    const void* data = NULL;
+    ws_fetch_block(wres, &data, &rows);
+    if (rows == 0) {
+      break;
+    }
+    uint8_t ty;
+    uint32_t len;
+    numOfRows += rows;
+    for (int i = 0; i < rows; i++) {
+      for (int j = 0; j < num_fields; j++) {
+        if (j > 0) {
+          fputc(',', fp);
+        }
+        const void *value = ws_get_value_in_block(wres, i, j, &ty, &len);
+        dumpFieldToFile(fp, (const char*)value, fields + j, len, precision);
+      }
+      fputc('\n', fp);
+    }
+  }
+  fclose(fp);
+  return numOfRows;
+}
+
 static int dumpResultToFile(const char* fname, TAOS_RES* tres) {
   TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
@@ -817,6 +877,45 @@ bool isSelectQuery(TAOS_RES* tres) {
   return false;
 }
 
+static int verticalPrintWebsocket(WS_RES* wres) {
+  int num_fields = ws_num_of_fields(wres);
+  TAOS_FIELD* fields = (TAOS_FIELD*)ws_fetch_fields_v2(wres);
+  int precision = ws_result_precision(wres);
+
+  int maxColNameLen = 0;
+  for (int col = 0; col < num_fields; col++) {
+    int len = (int)strlen(fields[col].name);
+    if (len > maxColNameLen) {
+      maxColNameLen = len;
+    }
+  }
+  int numOfRows = 0;
+  stop_fetch = false;
+  while (!stop_fetch) {
+    int rows = 0;
+    const void* data = NULL;
+    ws_fetch_block(wres, &data, &rows);
+    if (rows == 0) {
+      break;
+    }
+    uint8_t ty;
+    uint32_t len;
+    for (int i = 0; i < rows; i++) {
+      printf("*************************** %d.row ***************************\n", numOfRows + 1);
+      for (int j = 0; j < num_fields; j++) {
+        TAOS_FIELD* field = fields + j;
+        int padding = (int)(maxColNameLen - strlen(field->name));
+        printf("%*.s%s: ", padding, " ", field->name);
+        const void *value = ws_get_value_in_block(wres, i, j, &ty, &len);
+        printField((const char*)value, field, 0, len, precision);
+        putchar('\n');
+      }
+      numOfRows++;
+    }
+  }
+  return numOfRows;
+}
+
 
 static int verticalPrintResult(TAOS_RES* tres) {
   TAOS_ROW row = taos_fetch_row(tres);
@@ -959,6 +1058,44 @@ static void printHeader(TAOS_FIELD* fields, int* width, int num_fields) {
   putchar('\n');
 }
 
+static int horizontalPrintWebsocket(WS_RES* wres) {
+  int num_fields = ws_num_of_fields(wres);
+  TAOS_FIELD* fields = (TAOS_FIELD*)ws_fetch_fields_v2(wres);
+  int precision = ws_result_precision(wres);
+
+  int width[TSDB_MAX_COLUMNS];
+  for (int col = 0; col < num_fields; col++) {
+    width[col] = calcColWidth(fields + col, precision);
+  }
+
+  printHeader(fields, width, num_fields);
+
+  int numOfRows = 0;
+  stop_fetch = false;
+  while (!stop_fetch) {
+    int rows = 0;
+    const void* data = NULL;
+    ws_fetch_block(wres, &data, &rows);
+    if (rows == 0) {
+      break;
+    }
+    numOfRows += rows;
+    uint8_t ty;
+    uint32_t len;
+    for (int i = 0; i < rows; i++) {
+      for (int j = 0; j < num_fields; j++) {
+        putchar(' ');
+        const void *value = ws_get_value_in_block(wres, i, j, &ty, &len);
+        printField((const char*)value, fields+j, width[j], len, precision);
+        putchar(' ');
+        putchar('|');
+      }
+      putchar('\n');
+    }
+  }
+  return numOfRows;
+}
+
 
 static int horizontalPrintResult(TAOS_RES* tres) {
   TAOS_ROW row = taos_fetch_row(tres);
@@ -1014,6 +1151,22 @@ static int horizontalPrintResult(TAOS_RES* tres) {
   return numOfRows;
 }
 
+int shellDumpWebsocket(WS_RES *wres, char *fname, int *error_no, bool vertical) {
+  int numOfRows = 0;
+  if (fname != NULL) {
+    numOfRows = dumpWebsocketToFile(fname, wres);
+  } else if (vertical) {
+    numOfRows = verticalPrintWebsocket(wres);
+  } else {
+    numOfRows = horizontalPrintWebsocket(wres);
+  }
+  if (stop_fetch) {
+    *error_no = -1;
+  } else {
+    *error_no = ws_errno(wres);
+  }
+  return numOfRows;
+}
 
 int shellDumpResult(TAOS_RES *tres, char *fname, int *error_no, bool vertical) {
   int numOfRows = 0;

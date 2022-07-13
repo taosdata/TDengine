@@ -99,6 +99,9 @@ void get_history_path(char* history);
 void shellCheck(TAOS* con, SShellArguments* args);
 void cleanup_handler(void* arg);
 void exitShell();
+#ifdef WEBSOCKET
+int shellDumpWebsocket(WS_RES *wres, char *fname, int *error_no, bool vertical);
+#endif
 int shellDumpResult(TAOS_RES* con, char* fname, int* error_no, bool printMode);
 void shellGetGrantInfo(void* con);
 int isCommentLine(char* line);
