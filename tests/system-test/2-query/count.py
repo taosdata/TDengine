@@ -108,6 +108,7 @@ class TDTestCase:
         for i in range(self.tbnum):
             self.insert_data(self.column_dict,f'{self.stbname}_{i}',self.rowNum)
         self.count_query_stb(self.column_dict,self.tag_dict,self.stbname,self.tbnum,self.rowNum)
+        self.count_query_ctb(self.column_dict,self.tag_dict,self.stbname,self.tbnum,self.rowNum)
         tdSql.execute('flush database db')
         self.count_query_stb(self.column_dict,self.tag_dict,self.stbname,self.tbnum,self.rowNum)
         self.count_query_ctb(self.column_dict,self.tag_dict,self.stbname,self.tbnum,self.rowNum)
