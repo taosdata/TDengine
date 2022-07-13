@@ -1688,10 +1688,10 @@ int32_t rpcUnusedSession(void * rpcInfo, bool bLock) {
   return taosIdPoolNumOfFree(info->idPool, bLock);
 }
 
-
-static void doRpcSendProbe(SRpcConn *pConn) {
+bool doRpcSendProbe(SRpcConn *pConn) {
   char       msg[RPC_MSG_OVERHEAD];
   SRpcHead  *pHead;
+  int code = 0;
 
   // set msg header
   memset(msg, 0, sizeof(SRpcHead));
@@ -1708,8 +1708,10 @@ static void doRpcSendProbe(SRpcConn *pConn) {
   memcpy(pHead->user, pConn->user, tListLen(pHead->user));
   pHead->code = htonl(code);
 
-  rpcSendMsgToPeer(pConn, msg, sizeof(SRpcHead));
+  bool ret = rpcSendMsgToPeer(pConn, msg, sizeof(SRpcHead));
   pConn->secured = 1; // connection shall be secured
+
+  return ret;
 }
 
 // send server syn
@@ -1748,7 +1750,7 @@ bool rpcSendProbe(int64_t rpcRid, void* pPrevContext, void* pPrevConn, void* pPr
   // fd same
   int32_t fd = taosGetFdID(pContext->pConn->chandle);
   if (fd != prevFd) {
-    tError("ACK rpcRid=%" PRId64 " connect fd diff.fd=%d prevFd=%p", rpcRid, fd, prevFd);
+    tError("ACK rpcRid=%" PRId64 " connect fd diff.fd=%d prevFd=%d", rpcRid, fd, prevFd);
     goto _END;
   }
 
@@ -1761,6 +1763,7 @@ _END:
   return ret;
 }
 
-bool saveSendInfo(int64_t rpcRid, void** ppContext, void** ppConn, void** ppFdObj, int32_t* pFd) {
 
+bool saveSendInfo(int64_t rpcRid, void** ppContext, void** ppConn, void** ppFdObj, int32_t* pFd) {
+ return true;
 }
