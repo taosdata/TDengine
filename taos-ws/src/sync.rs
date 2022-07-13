@@ -339,7 +339,7 @@ impl WsClient {
     }
 
     pub fn close(&self) {
-        let _ = self.close_signal.send(true).unwrap();
+        let _ = self.close_signal.send(true);
     }
 
     fn req_id(&self) -> u64 {
