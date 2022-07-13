@@ -1902,6 +1902,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSumFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = sumFunction,
+    .sprocessFunc = sumScalarFunction,
     .finalizeFunc = functionFinalize,
     .invertFunc   = sumInvertFunction,
     .combineFunc  = sumCombine,

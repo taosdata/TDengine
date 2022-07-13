@@ -1758,3 +1758,33 @@ int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
   pOutput->numOfRows = pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t sumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataAppendNULL(pOutputData, i);
+      break;
+    }
+
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      int64_t *in  = (int64_t *)pInputData->pData;
+      int64_t *out = (int64_t *)pOutputData->pData;
+      *out += in[i];
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      uint64_t *in  = (uint64_t *)pInputData->pData;
+      uint64_t *out = (uint64_t *)pOutputData->pData;
+      *out += in[i];
+    } else if (IS_FLOAT_TYPE(type)) {
+      double *in  = (double *)pInputData->pData;
+      double *out = (double *)pOutputData->pData;
+      *out += in[i];
+    }
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
