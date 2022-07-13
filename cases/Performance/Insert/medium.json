@@ -16,15 +16,15 @@
         {
             "dbinfo": {
                 "name": "DBNAME",
-                "drop": "yes",
+                "drop": "DROPENABLE",
                 "vgroups": VGROUPS 
             },
             "super_tables": [
                 {
-                    "name": "stb",
+                    "name": "STABLENAME",
                     "child_table_exists": "no",
                     "childtable_count": CHILDTABLECOUNT,
-                    "childtable_prefix": "stb_",
+                    "childtable_prefix": "CHILDTABLEPREFIX",
                     "auto_create_table": "no",
                     "batch_create_tbl_num": 50000,
                     "data_source": "rand",

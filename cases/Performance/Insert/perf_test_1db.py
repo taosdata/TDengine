@@ -26,6 +26,12 @@ class TestPerf(TDCase):
     host_field_name = "HOST"
     port_field_name = "PORT"
     dbname_field_name = "DBNAME"
+    vgroups_field_name = "VGROUPS"
+    drop_field_name = "DROPENABLE"
+    default_dbname = "db"
+    default_vgroups = "24"
+    stable_field_name = "STABLENAME"
+    childtable_prefix_field_name = "CHILDTABLEPREFIX"
     resultfile_field_name = "RESULTFILE"
     insert_cfg_file_param = "insert-cfg-file"
     insert_tmpl_file_param = "insert-tmpl-file"
@@ -161,9 +167,9 @@ class TestPerf(TDCase):
         taosd_nodes = self.get_component_by_name("taosd")
         self.logger.debug(str(taosd_nodes))
         taosd_fqdn = []
-        self.replace_keys.insert(0, f"CHILDTABLEPREFIX=stb_")
-        self.replace_keys.insert(0, f"STABLENAME=stb")
-        self.replace_keys.insert(0, f"DROPENABLE=yes")
+        host = ""
+        port = ""
+        vgroups = TestPerf.default_vgroups
         for node in taosd_nodes:
             if not node["fqdn"] is None:
                 taosd_fqdn = node["fqdn"]
@@ -178,8 +184,21 @@ class TestPerf(TDCase):
         # read config file and generate config dict
         insert_config_dict = self.parse_config_file(self.insert_cfg_file, self.replace_keys)
 
+        if not insert_config_dict[TestPerf.vgroups_field_name] is None:
+            vgroups = insert_config_dict[TestPerf.vgroups_field_name]
+
         if (not TestPerf.host_field_name in insert_config_dict) or (not TestPerf.port_field_name in insert_config_dict):
             self.logger.error("firstEP not specified in env file")
+
+        # TODO create database
+        ret = os.system(f"taos -h {host} -P {port} -s \"drop database if exists {TestPerf.default_dbname};\"")
+        if ret != 0:
+            self.logger.error("drop database failed")
+            return False
+        ret = os.system(f"taos -h {host} -P {port} -s \"create database if not exists {TestPerf.default_dbname} vgroups {vgroups};\"")
+        if ret != 0:
+            self.logger.error("create database failed")
+            return False
 
         # create tmp dir
         tmp_dir = self.make_tmp_dir()
@@ -192,7 +211,10 @@ class TestPerf(TDCase):
             # copy query json template to a tmp directory
             os.system("cp -f {} {}".format(self.insert_tmpl_file, insert_json_file))
 
-            insert_config_dict[TestPerf.dbname_field_name] = f"db{i}"
+            insert_config_dict[TestPerf.dbname_field_name] = TestPerf.default_dbname
+            insert_config_dict[TestPerf.drop_field_name] = "no"
+            insert_config_dict[TestPerf.stable_field_name] = f"stb{i}"
+            insert_config_dict[TestPerf.childtable_prefix_field_name] = f"stb{i}_"
             insert_config_dict[TestPerf.resultfile_field_name] = f"\/tmp\/result_{i}.txt"
             self.envMgr._remote.cmd(insert_config_dict[TestPerf.host_field_name], f"rm -rf /tmp/result_{i}.txt")
             # os.system(f"rm -rf /tmp/result_{i}.txt")
