@@ -620,7 +620,7 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
       break;
   }
 }
-
+#ifdef WEBSOCKET
 static int dumpWebsocketToFile(const char* fname, WS_RES* wres) {
   wordexp_t full_path;
 
@@ -673,6 +673,7 @@ static int dumpWebsocketToFile(const char* fname, WS_RES* wres) {
   fclose(fp);
   return numOfRows;
 }
+#endif
 
 static int dumpResultToFile(const char* fname, TAOS_RES* tres) {
   TAOS_ROW row = taos_fetch_row(tres);
@@ -877,6 +878,7 @@ bool isSelectQuery(TAOS_RES* tres) {
   return false;
 }
 
+#ifdef WEBSOCKET
 static int verticalPrintWebsocket(WS_RES* wres) {
   int num_fields = ws_num_of_fields(wres);
   TAOS_FIELD* fields = (TAOS_FIELD*)ws_fetch_fields_v2(wres);
@@ -915,7 +917,7 @@ static int verticalPrintWebsocket(WS_RES* wres) {
   }
   return numOfRows;
 }
-
+#endif
 
 static int verticalPrintResult(TAOS_RES* tres) {
   TAOS_ROW row = taos_fetch_row(tres);
@@ -1058,6 +1060,7 @@ static void printHeader(TAOS_FIELD* fields, int* width, int num_fields) {
   putchar('\n');
 }
 
+#ifdef WEBSOCKET
 static int horizontalPrintWebsocket(WS_RES* wres) {
   int num_fields = ws_num_of_fields(wres);
   TAOS_FIELD* fields = (TAOS_FIELD*)ws_fetch_fields_v2(wres);
@@ -1095,7 +1098,7 @@ static int horizontalPrintWebsocket(WS_RES* wres) {
   }
   return numOfRows;
 }
-
+#endif
 
 static int horizontalPrintResult(TAOS_RES* tres) {
   TAOS_ROW row = taos_fetch_row(tres);
@@ -1151,6 +1154,7 @@ static int horizontalPrintResult(TAOS_RES* tres) {
   return numOfRows;
 }
 
+#ifdef WEBSOCKET
 int shellDumpWebsocket(WS_RES *wres, char *fname, int *error_no, bool vertical) {
   int numOfRows = 0;
   if (fname != NULL) {
@@ -1167,6 +1171,7 @@ int shellDumpWebsocket(WS_RES *wres, char *fname, int *error_no, bool vertical) 
   }
   return numOfRows;
 }
+#endif
 
 int shellDumpResult(TAOS_RES *tres, char *fname, int *error_no, bool vertical) {
   int numOfRows = 0;
