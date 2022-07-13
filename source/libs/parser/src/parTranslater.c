@@ -5846,7 +5846,6 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
     return pCxt->errCode;
   }
 
-  pReq->isNull = (TSDB_DATA_TYPE_NULL == pStmt->pVal->node.resType.type);
   pReq->tagType = targetDt.type;
   if (targetDt.type == TSDB_DATA_TYPE_JSON) {
     if (pStmt->pVal->literal &&
@@ -5876,6 +5875,7 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
     pReq->pTagVal = (uint8_t*)pTag;
     pStmt->pVal->datum.p = (char*)pTag;  // for free
   } else {
+    pReq->isNull = (TSDB_DATA_TYPE_NULL == pStmt->pVal->node.resType.type);
     pReq->nTagVal = pStmt->pVal->node.resType.bytes;
     pReq->pTagVal = nodesGetValueFromNode(pStmt->pVal);
 
