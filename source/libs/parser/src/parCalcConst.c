@@ -218,7 +218,7 @@ static SNode* createConstantValue() {
 static int32_t calcConstProjections(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
   SNode* pProj = NULL;
   WHERE_EACH(pProj, pSelect->pProjectionList) {
-    if (subquery && isUselessCol((SExprNode*)pProj)) {
+    if (subquery && !pSelect->isDistinct && isUselessCol((SExprNode*)pProj)) {
       ERASE_NODE(pSelect->pProjectionList);
       continue;
     }
