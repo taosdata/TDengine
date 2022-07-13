@@ -2,7 +2,7 @@
 title: 高效写入
 ---
 
-## 高效写入原理
+## 高效写入原理 {#principle}
 
 本节介绍如何高效地向 TDengine 写入数据。高效写入数据要考虑几个因素：数据在不同表（或子表）之间的分布，即要写入数据的相邻性；单次写入的数据量；并发连接数。一般来说，每批次只向同一张表（或子表）写入数据比向多张表（或子表）写入数据要更高效；每批次写入的数据量越大越高效（但超过一定阈值其优势会消失；同时写入数据的并发连接数越多写入越高效（但超过一定阈值反而会下降，取决于服务端处理能力）。
 
@@ -10,7 +10,7 @@ title: 高效写入
 
 为了使写入最高效，除了客户端程序的设计，服务端的配置也很重要。如果无论怎么调节客户端程序，taosd 进程的 CPU 使用率都很低，那很可能需要增加 vgroup 的数量。比如：数据库总表数是 1000 且 minTablesPerVnode 设置的也是 1000，那么这个数据至多有一个 vgroup。此时如果将 minTablesPerVnode 和 tablelncStepPerVnode 都设置成 100， 则这个数据库有可能用到 10 个 vgroup。更多性能调优参数请参考[配置参考](../../reference/config)性能调优部分。
 
-## 高效写入方案
+## 高效写入方案 {#scenario}
 
 下面的示例程序展示了如何高效写入数据：
 
@@ -25,11 +25,11 @@ title: 高效写入
 上图所示架构，每个写任务只负责写特定的表，体现了数据的相邻性原则。但是读任务所读的表，我们假设是随机的。这样一个队列有多个写入线程（或进程），队列内部可能产生锁的消耗。实际场景，如果能做到一个读任务对应一个写任务是最好的。
 :::
 
-## Java 示例程序
+## Java 示例程序 {#java-demo}
 
 在 Java 示例程序中采用拼接 SQL 的写入方式。
 
-### 主程序
+### 主程序 {#java-demo-main}
 
 主程序负责：
 
@@ -57,7 +57,7 @@ title: 高效写入
 
 队列容量(taskQueueCapacity)也是与性能有关的参数，可通过修改程序调节。一般来讲，队列容量越大，入队被阻塞的概率越小，队列的吞吐量越大，但是内存占用也会越大。
 
-### 读任务的实现
+### 读任务的实现 {#java-demo-read}
 
 读任务负责从数据源读数据。每个读任务都关联了一个模拟数据源。每个模拟数据源可生成一点数量表的数据。不同的模拟数据源生成不同表的数据。
 
@@ -72,7 +72,7 @@ title: 高效写入
 
 </details>
 
-### 写任务的实现
+### 写任务的实现 {#java-demo-write}
 
 <details>
 <summary>写任务的实现</summary>
@@ -83,7 +83,7 @@ title: 高效写入
 
 </details>
 
-### SQLWriter 类的实现
+### SQLWriter 类的实现 {#java-demo-sql-writer}
 
 SQLWriter 类封装了拼 SQL 和写数据的逻辑。注意，所有的表都没有提前创建，而是写入出错的时候，再以超级表为模板批量建表，然后重新执行 INSERT 语句。
 
@@ -96,7 +96,7 @@ SQLWriter 类封装了拼 SQL 和写数据的逻辑。注意，所有的表都�
 
 </details>
 
-### 执行示例程序
+### 执行示例程序 {#run-java-demo}
 
 <details>
 <summary>执行 Java 示例程序</summary>
@@ -108,7 +108,7 @@ SQLWriter 类封装了拼 SQL 和写数据的逻辑。注意，所有的表都�
 TDENGINE_JDBC_URL="jdbc:TAOS://localhost:6030?user=root&password=taosdata"
 ```
 
-#### 本地集成开发环境执行示例程序
+#### 本地集成开发环境执行示例程序 {#java-demo-local-run}
 
 1. clone TDengine 仓库
    ```
@@ -118,7 +118,7 @@ TDENGINE_JDBC_URL="jdbc:TAOS://localhost:6030?user=root&password=taosdata"
 3. 在开发环境中配置环境变量 `TDENGINE_JDBC_URL`。如果已配置了全局的环境变量 `TDENGINE_JDBC_URL` 可跳过这一步。
 4. 运行类 `com.taos.example.highvolume.FastWriteExample`。
 
-#### 远程服务器上执行示例程序
+#### 远程服务器上执行示例程序 {#java-demo-remote-run}
 
 若要在服务器上执行示例程序，可按照下面的步骤操作：
 
@@ -183,10 +183,10 @@ TDENGINE_JDBC_URL="jdbc:TAOS://localhost:6030?user=root&password=taosdata"
 
 </details>
 
-## Python 示例程序
+## Python 示例程序 {#python-demo}
 
 该 Python 示例程序中采用了多进程的架构，并使用了跨进程的队列通信。写任务采用拼装 SQL 的方式写入。
-### main 函数
+### main 函数 {#python-demo-main}
 
 main 函数负责创建消息队列和启动子进程，子进程有 3 类：
 
@@ -225,9 +225,9 @@ main 函数可以接收 5 个启动参数，依次是：
 
 </details>
 
-### 读进程
+### 读进程 {#python-read-process}
 
-#### 读进程主要逻辑
+#### 读进程主要逻辑 {#python-run-read-task}
 
 读进程，负责从其它数据系统读数据，并分发数据到各个写进程。
 
@@ -241,7 +241,7 @@ main 函数可以接收 5 个启动参数，依次是：
 
 </details>
 
-#### 模拟数据源
+#### 模拟数据源 {#python-mock-data-source}
 
 以下是模拟数据源的实现，我们假设数据源生成的每一条数据都带有目标表名信息。实际中你可能需要一定的规则确定目标表名。
 
@@ -254,7 +254,7 @@ main 函数可以接收 5 个启动参数，依次是：
 
 </details>
 
-### 写进程
+### 写进程 {#python-write-process}
 
 写进程每次从队列中取出尽量多的数据，并批量写入。
 
@@ -264,12 +264,12 @@ main 函数可以接收 5 个启动参数，依次是：
 ```python
 {{#include docs/examples/python/highvolume_faster_queue.py:write}}
 ```
+</details>
 
-### SQLWriter 类的实现
+### SQLWriter 类的实现 {#python-sql-writer}
 
 SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提前创建，而是写入出错的时候，再以超级表为模板批量建表，然后重新执行 INSERT 语句。这个类也对 SQL 是否超过最大长度限制做了检查，如果接近 SQL 最大长度限制（maxSQLLength），将会立即执行 SQL。为了减少 SQL 此时，建议将 maxSQLLength 适当调大。
 
-</details>
 <details>
 
 <summary>SQLWriter</summary>
@@ -280,7 +280,7 @@ SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提�
 
 </details>
 
-### 执行示例程序
+### 执行示例程序 {#run-python-demo}
 
 <details>
 
