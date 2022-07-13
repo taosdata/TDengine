@@ -45,8 +45,8 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
 
 static int32_t getSchemaBytes(const SSchema* pSchema) {
   switch (pSchema->type) {
-    case TSDB_DATA_TYPE_BINARY:
-      return (pSchema->bytes - VARSTR_HEADER_SIZE);
+    /* case TSDB_DATA_TYPE_BINARY: */
+    /*   return (pSchema->bytes - VARSTR_HEADER_SIZE); */
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
       return (pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
