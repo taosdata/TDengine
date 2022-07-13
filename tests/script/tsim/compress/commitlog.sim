@@ -1,14 +1,9 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
-system sh/cfg.sh -n dnode1 -c comp -v 1
 system sh/exec.sh -n dnode1 -s start
-
-sleep 2000
 sql connect
-print ============================ dnode1 start
 
+print ============================ dnode1 start
 $i = 0
 $dbPrefix = db
 $tbPrefix = tb
@@ -18,7 +13,6 @@ $tb = $tbPrefix . $i
 $N = 2000
 
 print =============== step1
-
 sql create database $db
 sql use $db
 sql create table $tb (ts timestamp, b bool, t tinyint, s smallint, i int, big bigint, str binary(256))
@@ -87,9 +81,7 @@ endi
 
 print =============== step4
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 3000
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
 
 print =============== step5
 
