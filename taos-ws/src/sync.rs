@@ -338,7 +338,7 @@ impl WsClient {
             self.queries.insert(req_id, tx).unwrap();
             self.sender.blocking_send(action).unwrap();
         }
-        let resp = rx.recv()??;
+        let resp = rx.recv_timeout(self.timeout)??;
 
         if resp.fields_count > 0 {
             let names = resp.fields_names.unwrap();
