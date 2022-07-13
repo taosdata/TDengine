@@ -40,10 +40,12 @@ struct STsdbSnapReader {
 
 static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
   int32_t code = 0;
+  STsdb*  pTsdb = pReader->pTsdb;
 
   while (true) {
     if (pReader->pDataFReader == NULL) {
       SDFileSet* pSet = NULL;
+      // taosArraySearch(pTsdb->fs->cState->aDFileSet, &(SDFileSet){.fid = pReader->fid}, tDFileSe)
 
       // search the next data file set to read (todo)
       if (0 /* TODO */) {
@@ -106,10 +108,13 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
   }
 
 _exit:
+  // if (*ppData) {
+  //   tsdbInfo("vgId:%d ");
+  // }
   return code;
 
 _err:
-  tsdbError("vgId:%d snap read data failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d vnode snapshot tsdb read data failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -209,14 +214,13 @@ int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapRe
   pReader->sver = sver;
   pReader->ever = ever;
 
+  pReader->fid = INT32_MIN;
   pReader->aBlockIdx = taosArrayInit(0, sizeof(SBlockIdx));
   if (pReader->aBlockIdx == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-
   pReader->mBlock = tMapDataInit();
-
   code = tBlockDataInit(&pReader->blkData);
   if (code) goto _err;
 
@@ -225,7 +229,6 @@ int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapRe
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-
   pReader->aDelData = taosArrayInit(0, sizeof(SDelData));
   if (pReader->aDelData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -246,37 +249,42 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
   int32_t          code = 0;
   STsdbSnapReader* pReader = *ppReader;
 
-  taosArrayDestroy(pReader->aDelData);
-  taosArrayDestroy(pReader->aDelIdx);
-  if (pReader->pDelFReader) {
-    tsdbDelFReaderClose(&pReader->pDelFReader);
-  }
-  tBlockDataClear(&pReader->blkData);
-  tMapDataClear(&pReader->mBlock);
-  taosArrayDestroy(pReader->aBlockIdx);
   if (pReader->pDataFReader) {
     tsdbDataFReaderClose(&pReader->pDataFReader);
   }
+  taosArrayDestroy(pReader->aBlockIdx);
+  tMapDataClear(&pReader->mBlock);
+  tBlockDataClear(&pReader->blkData);
+
+  if (pReader->pDelFReader) {
+    tsdbDelFReaderClose(&pReader->pDelFReader);
+  }
+  taosArrayDestroy(pReader->aDelIdx);
+  taosArrayDestroy(pReader->aDelData);
+
+  tsdbInfo("vgId:%d vnode snapshot tsdb reader closed", TD_VID(pReader->pTsdb->pVnode));
+
   taosMemoryFree(pReader);
   *ppReader = NULL;
-
   return code;
 }
 
 int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData) {
   int32_t code = 0;
 
+  *ppData = NULL;
+
   // read data file
   if (!pReader->dataDone) {
     code = tsdbSnapReadData(pReader, ppData);
     if (code) {
-      if (code == TSDB_CODE_VND_READ_END) {
-        pReader->dataDone = 1;
-      } else {
-        goto _err;
-      }
+      goto _err;
     } else {
-      goto _exit;
+      if (*ppData) {
+        goto _exit;
+      } else {
+        pReader->dataDone = 1;
+      }
     }
   }
 
@@ -284,23 +292,24 @@ int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData) {
   if (!pReader->delDone) {
     code = tsdbSnapReadDel(pReader, ppData);
     if (code) {
-      if (code == TSDB_CODE_VND_READ_END) {
-        pReader->delDone = 1;
-      } else {
-        goto _err;
-      }
+      goto _err;
     } else {
-      goto _exit;
+      if (*ppData) {
+        goto _exit;
+      } else {
+        pReader->delDone = 1;
+      }
     }
   }
 
-  code = TSDB_CODE_VND_READ_END;
-
 _exit:
+  if (*ppData) {
+  } else {
+  }
   return code;
 
 _err:
-  tsdbError("vgId:%d snapshot read failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d vnode snapshot tsdb read failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -520,7 +529,7 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
     if (code) goto _err;
 
     pWriter->fid = fid;
-    SDFileSet* pSet = tsdbFSStateGetDFileSet(pTsdb->fs->nState, fid);
+    SDFileSet* pSet = tsdbFSStateGetDFileSet(pTsdb->fs->nState, fid, TD_EQ);
     // reader
     if (pSet) {
       // open

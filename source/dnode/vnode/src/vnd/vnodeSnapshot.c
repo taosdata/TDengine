@@ -125,7 +125,8 @@ _exit:
     pReader->index++;
     *nData = sizeof(SSnapDataHdr) + pHdr->size;
     pHdr->index = pReader->index;
-    vInfo("vgId:%d vnode snapshot read data, nData:%d index:%" PRId64, TD_VID(pReader->pVnode), *nData, pReader->index);
+    vInfo("vgId:%d vnode snapshot read data,index:%" PRId64 " type:%d nData:%d ", TD_VID(pReader->pVnode),
+          pReader->index, pHdr->type, *nData);
   } else {
     vInfo("vgId:%d vnode snapshot read data end, index:%" PRId64, TD_VID(pReader->pVnode), pReader->index);
   }
@@ -236,8 +237,8 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
   // }
 
 _exit:
-  vInfo("vgId:%d vnode snapshot write data, type:%d index:%" PRId64 " nData:%d", TD_VID(pVnode), pHdr->type,
-        pHdr->index, nData);
+  vInfo("vgId:%d vnode snapshot write data, index:%" PRId64 " type:%d nData:%d", TD_VID(pVnode), pHdr->type, nData,
+        pHdr->index);
   return code;
 
 _err:

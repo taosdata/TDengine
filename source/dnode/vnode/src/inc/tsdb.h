@@ -202,7 +202,7 @@ int32_t    tsdbFSStateUpsertDelFile(STsdbFSState *pState, SDelFile *pDelFile);
 int32_t    tsdbFSStateUpsertDFileSet(STsdbFSState *pState, SDFileSet *pSet);
 void       tsdbFSStateDeleteDFileSet(STsdbFSState *pState, int32_t fid);
 SDelFile  *tsdbFSStateGetDelFile(STsdbFSState *pState);
-SDFileSet *tsdbFSStateGetDFileSet(STsdbFSState *pState, int32_t fid);
+SDFileSet *tsdbFSStateGetDFileSet(STsdbFSState *pState, int32_t fid, int32_t flag);
 // tsdbReaderWriter.c ==============================================================================================
 // SDataFWriter
 int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet);
