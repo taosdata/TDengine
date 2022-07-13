@@ -29,6 +29,8 @@ void *  dnodeAllocVFetchQueue(void *pVnode);
 void    dnodeFreeVQueryQueue(void *pQqueue);
 void    dnodeFreeVFetchQueue(void *pFqueue);
 
+
+
 #ifdef __cplusplus
 }
 #endif

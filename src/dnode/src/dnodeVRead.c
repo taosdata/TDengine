@@ -57,6 +57,13 @@ void dnodeDispatchToVReadQueue(SRpcMsg *pMsg) {
   int32_t code = TSDB_CODE_VND_INVALID_VGROUP_ID;
   char *  pCont = pMsg->pCont;
 
+  // check probe conn msg
+  if(pMsg->msgType == TSDB_MSG_TYPE_PROBE_CONN) {
+    SRpcMsg rpcRsp = {.handle = pMsg->handle, .code = 0, .msgType = TSDB_MSG_TYPE_PROBE_CONN_RSP};
+    rpcSendResponse(&rpcRsp);
+    return ;
+  }
+
   while (leftLen > 0) {
     SMsgHead *pHead = (SMsgHead *)pCont;
     pHead->vgId = htonl(pHead->vgId);

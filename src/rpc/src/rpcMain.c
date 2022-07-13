@@ -196,7 +196,7 @@ static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, SRecvInfo *pRecv);
 static void  rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext);
 static void  rpcSendQuickRsp(SRpcConn *pConn, int32_t code);
 static void  rpcSendErrorMsgToPeer(SRecvInfo *pRecv, int32_t code);
-static void  rpcSendMsgToPeer(SRpcConn *pConn, void *data, int dataLen);
+static bool  rpcSendMsgToPeer(SRpcConn *pConn, void *data, int dataLen);
 static void  rpcSendReqHead(SRpcConn *pConn);
 
 static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv);
@@ -1349,9 +1349,10 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   rpcUnlockConn(pConn);
 }
 
-static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
+static bool rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
   int        writtenLen = 0;
   SRpcHead  *pHead = (SRpcHead *)msg;
+  bool      ret    = true;
 
   msgLen = rpcAddAuthPart(pConn, msg, msgLen);
 
@@ -1371,9 +1372,11 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
 
   if (writtenLen != msgLen) {
     tError("%s, failed to send, msgLen:%d written:%d, reason:%s", pConn->info, msgLen, writtenLen, strerror(errno));
+    ret = false;
   }
  
   tDump(msg, msgLen);
+  return ret;
 }
 
 static void rpcProcessConnError(void *param, void *id) {
@@ -1683,4 +1686,81 @@ int32_t rpcUnusedSession(void * rpcInfo, bool bLock) {
   if(info == NULL)
      return 0;
   return taosIdPoolNumOfFree(info->idPool, bLock);
+}
+
+
+static void doRpcSendProbe(SRpcConn *pConn) {
+  char       msg[RPC_MSG_OVERHEAD];
+  SRpcHead  *pHead;
+
+  // set msg header
+  memset(msg, 0, sizeof(SRpcHead));
+  pHead = (SRpcHead *)msg;
+  pHead->version  = 1;
+  pHead->msgType  = TSDB_MSG_TYPE_PROBE_CONN;
+  pHead->spi      = pConn->spi;
+  pHead->encrypt  = 0;
+  pHead->tranId   = pConn->inTranId;
+  pHead->sourceId = pConn->ownId;
+  pHead->destId   = pConn->peerId;
+  pHead->linkUid  = pConn->linkUid;
+  pHead->ahandle  = (uint64_t)pConn->ahandle;
+  memcpy(pHead->user, pConn->user, tListLen(pHead->user));
+  pHead->code = htonl(code);
+
+  rpcSendMsgToPeer(pConn, msg, sizeof(SRpcHead));
+  pConn->secured = 1; // connection shall be secured
+}
+
+// send server syn
+bool rpcSendProbe(int64_t rpcRid, void* pPrevContext, void* pPrevConn, void* pPrevFdObj, int32_t prevFd) {
+  bool ret = false;
+  if(rpcRid < 0) {
+    tError("ACK rpcRid=%" PRId64 " less than zero, invalid.", rpcRid);
+    return false;
+  }
+
+  // get req content
+  SRpcReqContext *pContext = taosAcquireRef(tsRpcRefId, rpcRid);
+  if (pContext == NULL) {
+    tError("ACK rpcRid=%" PRId64 " get context NULL.", rpcRid);
+    return false;
+  }
+
+  // context same
+  if(pContext != pPrevContext) {
+    tError("ACK rpcRid=%" PRId64 " context diff. pContext=%p pPreContent=%p", rpcRid, pContext, pPrevContext);
+    goto _END;
+  }
+
+  // conn same
+  if (pContext->pConn != pPrevConn) {
+    tError("ACK rpcRid=%" PRId64 " connect obj diff. pContext->pConn=%p pPreConn=%p", rpcRid, pContext->pConn, pPrevConn);
+    goto _END;
+  }
+
+  // fdObj same
+  if (pContext->pConn->chandle != pPrevFdObj) {
+    tError("ACK rpcRid=%" PRId64 " connect fdObj diff. pContext->pConn->chandle=%p pPrevFdObj=%p", rpcRid, pContext->pConn->chandle, pPrevFdObj);
+    goto _END;
+  }
+
+  // fd same
+  int32_t fd = taosGetFdID(pContext->pConn->chandle);
+  if (fd != prevFd) {
+    tError("ACK rpcRid=%" PRId64 " connect fd diff.fd=%d prevFd=%p", rpcRid, fd, prevFd);
+    goto _END;
+  }
+
+  // send syn
+  ret = doRpcSendProbe(pContext->pConn);
+
+_END:
+  // put back req context
+  taosReleaseRef(tsRpcRefId, rpcRid);
+  return ret;
+}
+
+bool saveSendInfo(int64_t rpcRid, void** ppContext, void** ppConn, void** ppFdObj, int32_t* pFd) {
+
 }

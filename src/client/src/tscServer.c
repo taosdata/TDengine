@@ -281,6 +281,52 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   }
 }
 
+// pSql connection link is broken
+bool dealConnBroken(SSqlObj * pSql) {
+  return true;
+}
+
+// if return true, send probe connection msg to sever ok
+bool sendProbeConnMsg(SSqlObj* pSql) {
+  pSql->noAckCnt++;
+  tscDebug("0x%"PRIx64" sendProbeConnMsg noAckCnt:%d", pSql->self, pSql->noAckCnt);
+
+  // send
+  pSql->rpcRid
+
+  
+  
+
+  return true;
+}
+
+// check have broken link queries than killed
+void checkBrokenQueries(STscObj *pTscObj) {
+  // 
+  SSqlObj *pSql = pTscObj->sqlList;
+  while (pSql) {
+    int32_t numOfSub = pSql->subState.numOfSub;
+    if (numOfSub == 0) {
+      // no sub sql
+      if(!sendProbeConnMsg(pSql)) {
+        // send failed , connect already broken
+        dealConnBroken(pSql);
+      }
+
+      return ;
+    } 
+    
+    // have sub sql
+    for (int i = 0; i < numOfSub; i++) {
+      SSqlObj *pSubSql = pSql->pSubs[i];
+      if(!sendProbeConnMsg(pSubSql)) {
+        // send failed , connect already broken
+        dealConnBroken(pSubSql);
+      }
+    }
+  }
+} 
+
 void tscProcessActivityTimer(void *handle, void *tmrId) {
   int64_t rid = (int64_t) handle;
   STscObj *pObj = taosAcquireRef(tscRefId, rid);
@@ -296,6 +342,20 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 
   assert(pHB->self == pObj->hbrid);
 
+  // check queries already death
+  static int activetyTimerCnt = 0;
+  if (++activetyTimerCnt > 10) { // 1.5s * 10 = 15s interval call
+    activetyTimerCnt = 0;
+
+    // call check if have query doing
+    if(pObj->sqlList && pObj->sqlList->next) {
+      // have queries executing
+      checkBrokenQueies();
+    }
+  }
+
+
+  // send self connetion and queries
   pHB->retry = 0;
   int32_t code = tscBuildAndSendRequest(pHB, NULL);
   taosReleaseRef(tscObjRef, pObj->hbrid);
@@ -417,6 +477,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
 
+
+
   pSql->rpcRid = -1;
   if (pObj->signature != pObj) {
     tscDebug("0x%"PRIx64" DB connection is closed, cmd:%d pObj:%p signature:%p", pSql->self, pCmd->command, pObj, pObj->signature);
@@ -425,6 +487,14 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     taosReleaseRef(tscObjRef, handle);
     rpcFreeCont(rpcMsg->pCont);
     return;
+  }
+
+  // check msgtype
+  if(rpcMsg->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {
+    pSql->noAckCnt = 0;
+    pSql->lastUpdate = taosGetTimestampMs();
+    tscInfo(" recv sql probe msg. sql=%s", pSql->sqlstr);
+    return ;
   }
 
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
