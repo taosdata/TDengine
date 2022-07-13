@@ -85,7 +85,7 @@ class TDTestCase:
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         self.checkresult("select * from test.meters", "Query OK, 10000 row(s) in set")
-        self.checkresult("select * from test.meters","Notice: The result shows only the first 100 rows")
+        # self.checkresult("select * from test.meters","Notice: The result shows only the first 100 rows")
 
     def stop(self):
         tdSql.close()
