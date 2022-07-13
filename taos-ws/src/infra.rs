@@ -3,7 +3,6 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use serde_with::NoneAsEmptyString;
-use taos_query::common::RawBlock;
 use taos_query::common::{Precision, Ty};
 
 pub type ReqId = u64;
@@ -184,7 +183,6 @@ mod tests {
     // use websocket::ClientBuilder;
 
     use crate::*;
-    use taos_query::common::RawBlock;
 
     use super::*;
 

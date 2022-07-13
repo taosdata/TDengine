@@ -2,7 +2,7 @@ use futures::stream::SplitSink;
 use futures::{FutureExt, SinkExt, StreamExt};
 use scc::HashMap;
 // use std::sync::Mutex;
-use taos_query::common::{Block, Field, Precision, Raw, RawBlock};
+use taos_query::common::{Field, Precision, Raw};
 use taos_query::{AsyncFetchable, AsyncQueryable, DeError, DsnError, IntoDsn};
 use thiserror::Error;
 use tokio::net::TcpStream;

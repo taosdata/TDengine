@@ -228,3 +228,67 @@ fn test_tbname_tags() -> Result<(), Error> {
     // taos.query("drop database stt1")?;
     Ok(())
 }
+
+#[test]
+fn test_tbname_tags_json() -> Result<(), Error> {
+    use std::ptr::null;
+    let host = null();
+    let user = null();
+    let pass = null();
+    let db = null();
+    let port = 0;
+    let taos = RawTaos::connect(host, user, pass, db, port)?;
+    taos.query("drop database if exists stt2")?;
+    taos.query("create database if not exists stt2 keep 36500")?;
+    taos.query("use stt2")?;
+    taos.query(
+        "create stable if not exists st1(ts timestamp, v int) tags(jt json)"
+        // "create stable if not exists st1(ts timestamp, v int) tags(jt int, t1 float)",
+    )?;
+
+    let mut stmt = RawStmt::from_raw_taos(&taos);
+    let sql = "insert into ? using st1 tags(?) values(?, ?)";
+    stmt.prepare(sql)?;
+
+    let tags = vec![TaosBind::from_json(r#"{"name":"value"}"#)];
+    // let tags = vec![TaosBind::from(&0i32), TaosBind::from(&0.0f32)];
+    println!("tags: {tags:#?}");
+    let tbname = "tb1";
+    stmt.set_tbname(tbname)?;
+
+    stmt.set_tags(&tags)?;
+    // stmt.set_tbname_tags_v3(&tbname, &tags)?;
+    println!("bind");
+
+    // todo: get_param not implemented in taosc 3.0
+    // let p = stmt.get_param(0)?;
+    // dbg!(p);
+
+    let params = vec![TaosBind::from(&ITimestamp(0)), TaosBind::from(&0i32)];
+    stmt.bind_param(&params)?;
+    println!("add batch");
+
+    stmt.add_batch()?;
+    stmt.execute()?;
+
+    assert!(stmt.affected_rows() == 1);
+
+    // stmt.prepare("insert into tb1 values(?,?)")?;
+    // let params = vec![TaosBind::from(&ITimestamp(1)), TaosBind::from(&0i32)];
+    // stmt.bind_param(&params)?;
+    // println!("add batch");
+
+    // stmt.add_batch()?;
+    // stmt.execute()?;
+
+    // let res = taos.query("select * from st1")?;
+
+    // if let Some((_, rows, _)) = res.fetch_block()? {
+    //     assert_eq!(rows, 2);
+    // } else {
+    //     panic!("no data retrieved");
+    // }
+
+    // taos.query("drop database stt2")?;
+    Ok(())
+}

@@ -1,10 +1,12 @@
-use taos_query::common::{Block, Field, Precision, Raw, RawBlock};
+use once_cell::sync::{Lazy, OnceCell};
+use taos_query::common::{Field, Precision, Raw};
 use taos_query::{DeError, Dsn, DsnError, Fetchable, IntoDsn, Queryable};
 use thiserror::Error;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::{infra::*, WsInfo};
+use crate::stmt::sync::{WsSyncStmt, WsSyncStmtClient};
+use crate::{infra::*, stmt, WsInfo};
 
 use std::any;
 use std::fmt::Debug;
@@ -37,11 +39,13 @@ pub struct WsAuth {
 }
 
 pub struct WsClient {
+    info: WsInfo,
     req_id: Arc<AtomicU64>,
     sender: MsgSender,
     queries: Arc<HashMap<ReqId, QuerySender>>,
     fetches: Arc<HashMap<ResId, FetchSender>>,
-    rt: tokio::runtime::Runtime,
+    stmt: OnceCell<WsSyncStmtClient>,
+    rt: Arc<tokio::runtime::Runtime>,
 }
 
 pub struct ResultSet {
@@ -77,6 +81,9 @@ pub enum Error {
     TaosError(#[from] taos_error::Error),
     #[error("{0}")]
     RecvFetchError(#[from] std::sync::mpsc::RecvError),
+
+    #[error(transparent)]
+    StmtError(#[from] stmt::Error),
 }
 
 impl Error {
@@ -250,6 +257,7 @@ impl WsClient {
                     } else {
                         let err = message.unwrap_err();
                         dbg!(err);
+                        break;
                     }
                 }
             }
@@ -260,7 +268,9 @@ impl WsClient {
             queries,
             fetches,
             sender: msg_sender,
-            rt,
+            rt: Arc::new(rt),
+            stmt: OnceCell::<WsSyncStmtClient>::new(),
+            info: info.clone(),
         })
     }
 
@@ -344,6 +354,16 @@ impl WsClient {
         let resp = rx.recv()??;
         Ok(resp.affected_rows)
     }
+
+    pub fn stmt_init(&self) -> Result<WsSyncStmt> {
+        // let rt = rt.clone();
+        let client = self
+            .stmt
+            .get_or_try_init(|| WsSyncStmtClient::new(&self.info, self.rt.clone()))?;
+        Ok(client.stmt_init()?)
+    }
+
+    // pub fn s_stmt(&self) -> Result<>
 }
 
 impl ResultSet {

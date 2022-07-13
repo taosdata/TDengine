@@ -15,17 +15,16 @@ pub mod infra;
 
 #[cfg(feature = "async")]
 pub mod asyn;
-#[cfg(feature = "stmt")]
 pub mod stmt;
 pub mod sync; // todo: if use name `async`, rust-analyzer does not recognize the tests.
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum WsAuth {
     Token(String),
     Plain(String, String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WsInfo {
     scheme: &'static str, // ws or wss
     addr: String,
@@ -416,7 +415,9 @@ mod tests {
     #[test]
     fn ws_show_databases() -> anyhow::Result<()> {
         use taos_query::{Fetchable, Queryable};
-        let client = Ws::from_dsn("https://gw-aws.cloud.tdengine.com?token=8c7a628b568b7d32cc50f36b0f2d6273ffd060fc")?;
+        let client = Ws::from_dsn(
+            "https://gw-aws.cloud.tdengine.com?token=8c7a628b568b7d32cc50f36b0f2d6273ffd060fc",
+        )?;
         let mut rs = client.query("show databases")?;
         let values = rs.to_rows_vec();
 

@@ -1,6 +1,8 @@
 use std::{
+    any::TypeId,
     ffi::{c_void, CStr, CString},
     fmt::{Debug, Display},
+    ops::{Deref, DerefMut},
     os::raw::c_char,
     str::Utf8Error,
 };
@@ -14,7 +16,7 @@ use taos_query::{
 };
 use taos_ws::sync::*;
 
-use anyhow::Result;
+pub mod stmt;
 
 const EMPTY: &'static CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"\0") };
 static mut C_ERROR_CONTAINER: [u8; 4096] = [0; 4096];
@@ -29,11 +31,95 @@ pub type WS_TAOS = c_void;
 pub type WS_RES = c_void;
 
 #[derive(Debug)]
-struct WsError {
+pub struct WsError {
     code: Code,
     message: CString,
     source: Option<Box<dyn std::error::Error + 'static>>,
 }
+
+pub struct WsMaybeError<T> {
+    error: Option<WsError>,
+    data: Box<T>,
+    type_id: TypeId,
+}
+
+#[test]
+fn test_result() {
+    assert_eq!(
+        std::mem::size_of::<WsMaybeError<ResultSet>>(),
+        std::mem::size_of::<WsMaybeError<()>>()
+    );
+}
+
+impl<T> WsMaybeError<T> {
+    pub fn errno(&self) -> Option<i32> {
+        self.error.as_ref().map(|s| s.code.into())
+    }
+    pub fn errstr(&self) -> Option<*const c_char> {
+        self.error.as_ref().map(|s| s.message.as_ptr())
+    }
+}
+
+impl<T> Deref for WsMaybeError<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl<T> DerefMut for WsMaybeError<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
+}
+
+impl<T: 'static> From<T> for WsMaybeError<T> {
+    fn from(value: T) -> Self {
+        Self {
+            error: None,
+            data: Box::new(value),
+            type_id: std::any::TypeId::of::<T>(),
+        }
+    }
+}
+
+impl<T: 'static> From<Box<T>> for WsMaybeError<T> {
+    fn from(value: Box<T>) -> Self {
+        Self {
+            error: None,
+            data: value,
+            type_id: std::any::TypeId::of::<T>(),
+        }
+    }
+}
+
+impl<T: 'static, E> From<Result<T, E>> for WsMaybeError<T>
+where
+    E: Into<WsError>,
+{
+    fn from(value: Result<T, E>) -> Self {
+        match value {
+            Ok(value) => Self {
+                error: None,
+                data: Box::new(value),
+                type_id: std::any::TypeId::of::<T>(),
+            },
+            Err(err) => Self {
+                error: Some(err.into()),
+                data: unsafe { Box::from_raw(std::ptr::null_mut()) },
+                type_id: std::any::TypeId::of::<T>(),
+            },
+        }
+    }
+}
+
+#[test]
+fn test_ws_res() {
+    let v: Box<i32> = unsafe { Box::from_raw(std::ptr::null_mut()) };
+}
+
+pub type WsResult<T> = Result<T, WsError>;
 
 impl WsError {
     fn new(code: Code, message: &str) -> Self {
@@ -80,6 +166,16 @@ impl From<&WsError> for WsError {
         Self {
             code: e.code,
             message: e.message.clone(),
+            source: None,
+        }
+    }
+}
+
+impl From<taos_ws::stmt::Error> for WsError {
+    fn from(e: taos_ws::stmt::Error) -> Self {
+        Self {
+            code: e.errno(),
+            message: CString::new(e.errstr()).unwrap(),
             source: None,
         }
     }
@@ -174,14 +270,19 @@ impl From<&Field> for WS_FIELD {
 }
 
 struct WsResultSet {
-    rs: Result<ResultSet, WsError>,
+    rs: ResultSet,
     block: Option<Block>,
     fields: Vec<WS_FIELD>,
     fields_v2: Vec<WS_FIELD_V2>,
 }
 
+// impl Deref for WsResultSet {
+//     type Target = ResultSet;
+
+// }
+
 impl WsResultSet {
-    fn new(rs: Result<ResultSet, WsError>) -> Self {
+    fn new(rs: ResultSet) -> Self {
         Self {
             rs,
             block: None,
@@ -189,85 +290,49 @@ impl WsResultSet {
             fields_v2: Vec::new(),
         }
     }
-    fn errno(&self) -> i32 {
-        match self.rs.as_ref() {
-            Ok(_) => 0,
-            Err(err) => err.code.into(),
-        }
-    }
-    fn errstr(&self) -> *const c_char {
-        const EMPTY: &'static CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"\0") };
-        match self.rs.as_ref() {
-            Ok(_) => EMPTY.as_ptr() as _,
-            Err(err) => err.message.as_ptr() as _,
-        }
-    }
 
     fn precision(&self) -> Precision {
-        match self.rs.as_ref() {
-            Ok(rs) => rs.precision(),
-            Err(_) => Precision::Millisecond,
-        }
+        self.rs.precision()
     }
 
     fn affected_rows(&self) -> i32 {
-        match self.rs.as_ref() {
-            Ok(rs) => rs.affected_rows() as _,
-            Err(_) => 0,
-        }
+        self.rs.affected_rows() as _
     }
 
     fn num_of_fields(&self) -> i32 {
-        match self.rs.as_ref() {
-            Ok(rs) => rs.num_of_fields() as _,
-            Err(_) => 0,
-        }
+        self.rs.num_of_fields() as _
     }
 
     fn get_fields(&mut self) -> *const WS_FIELD {
-        match self.rs.as_ref() {
-            Ok(rs) => {
-                if self.fields.len() == rs.num_of_fields() {
-                    self.fields.as_ptr()
-                } else {
-                    self.fields.clear();
-                    self.fields.extend(rs.fields().iter().map(WS_FIELD::from));
-                    self.fields.as_ptr()
-                }
-            }
-            Err(_) => std::ptr::null(),
+        if self.fields.len() == self.rs.num_of_fields() {
+            self.fields.as_ptr()
+        } else {
+            self.fields.clear();
+            self.fields
+                .extend(self.rs.fields().iter().map(WS_FIELD::from));
+            self.fields.as_ptr()
         }
     }
     fn get_fields_v2(&mut self) -> *const WS_FIELD_V2 {
-        match self.rs.as_ref() {
-            Ok(rs) => {
-                if self.fields_v2.len() == rs.num_of_fields() {
-                    self.fields_v2.as_ptr()
-                } else {
-                    self.fields_v2.clear();
-                    self.fields_v2
-                        .extend(rs.fields().iter().map(WS_FIELD_V2::from));
-                    self.fields_v2.as_ptr()
-                }
-            }
-            Err(_) => std::ptr::null(),
+        if self.fields_v2.len() == self.rs.num_of_fields() {
+            self.fields_v2.as_ptr()
+        } else {
+            self.fields_v2.clear();
+            self.fields_v2
+                .extend(self.rs.fields().iter().map(WS_FIELD_V2::from));
+            self.fields_v2.as_ptr()
         }
     }
 
     unsafe fn fetch_block(&mut self, ptr: *mut *const c_void, rows: *mut i32) -> i32 {
-        match self.rs.as_mut() {
-            Ok(rs) => {
-                self.block = rs.next();
-                if let Some(block) = self.block.as_ref() {
-                    *ptr = block.as_raw_bytes().as_ptr() as _;
-                    *rows = block.nrows() as _;
-                } else {
-                    *rows = 0;
-                }
-                0
-            }
-            Err(err) => err.code.into(),
+        self.block = self.rs.next();
+        if let Some(block) = self.block.as_ref() {
+            *ptr = block.as_raw_bytes().as_ptr() as _;
+            *rows = block.nrows() as _;
+        } else {
+            *rows = 0;
         }
+        0
     }
 
     unsafe fn get_raw_value(&mut self, row: usize, col: usize) -> (Ty, u32, *const c_void) {
@@ -326,14 +391,14 @@ pub unsafe extern "C" fn ws_close(taos: *mut WS_TAOS) {
     let _ = Box::from_raw(taos as *mut WsClient);
 }
 
-unsafe fn query_with_sql(taos: *mut WS_TAOS, sql: *const c_char) -> Result<ResultSet, WsError> {
+unsafe fn query_with_sql(taos: *mut WS_TAOS, sql: *const c_char) -> WsResult<WsResultSet> {
     let client = (taos as *mut WsClient)
         .as_mut()
         .ok_or(WsError::new(Code::Failed, "client pointer it null"))?;
 
     let sql = CStr::from_ptr(sql as _).to_str()?;
     let rs = client.s_query(sql)?;
-    Ok(rs)
+    Ok(WsResultSet::new(rs))
 }
 
 #[no_mangle]
@@ -341,25 +406,31 @@ unsafe fn query_with_sql(taos: *mut WS_TAOS, sql: *const c_char) -> Result<Resul
 ///
 /// Please always use `ws_errno` to check it work and `ws_free_result` to free memory.
 pub unsafe extern "C" fn ws_query(taos: *mut WS_TAOS, sql: *const c_char) -> *mut WS_RES {
-    let res = query_with_sql(taos, sql);
-    Box::into_raw(Box::new(WsResultSet::new(res))) as _
+    let res: WsMaybeError<WsResultSet> = query_with_sql(taos, sql).into();
+    Box::into_raw(Box::new(res)) as _
 }
 
 #[no_mangle]
 /// Always use this to ensure that the query is executed correctly.
 pub unsafe extern "C" fn ws_errno(rs: *mut WS_RES) -> i32 {
-    match (rs as *mut WsResultSet).as_ref() {
-        Some(rs) => rs.errno(),
-        None => C_ERRNO.into(),
+    match (rs as *mut WsMaybeError<()>)
+        .as_ref()
+        .and_then(|s| s.errno())
+    {
+        Some(c) => c,
+        _ => C_ERRNO.into(),
     }
 }
 
 #[no_mangle]
 /// Use this method to get a formatted error string when query errno is not 0.
 pub unsafe extern "C" fn ws_errstr(rs: *mut WS_RES) -> *const c_char {
-    match (rs as *mut WsResultSet).as_ref() {
-        Some(rs) => rs.errstr(),
-        None => {
+    match (rs as *mut WsMaybeError<()>)
+        .as_ref()
+        .and_then(|s| s.errstr())
+    {
+        Some(e) => e,
+        _ => {
             if C_ERRNO.success() {
                 EMPTY.as_ptr()
             } else {
@@ -372,45 +443,45 @@ pub unsafe extern "C" fn ws_errstr(rs: *mut WS_RES) -> *const c_char {
 #[no_mangle]
 /// Works exactly the same to taos_affected_rows.
 pub unsafe extern "C" fn ws_affected_rows(rs: *const WS_RES) -> i32 {
-    match (rs as *mut WsResultSet).as_ref() {
+    match (rs as *mut WsMaybeError<WsResultSet>).as_ref() {
         Some(rs) => rs.affected_rows(),
-        None => 0,
+        _ => 0,
     }
 }
 
 #[no_mangle]
 /// Returns number of fields in current result set.
 pub unsafe extern "C" fn ws_num_of_fields(rs: *const WS_RES) -> i32 {
-    match (rs as *mut WsResultSet).as_ref() {
+    match (rs as *mut WsMaybeError<WsResultSet>).as_ref() {
         Some(rs) => rs.num_of_fields(),
-        None => 0,
+        _ => 0,
     }
 }
 
 #[no_mangle]
 /// If the query is update query or not
 pub unsafe extern "C" fn ws_is_update_query(rs: *const WS_RES) -> bool {
-    match (rs as *mut WsResultSet).as_ref() {
+    match (rs as *mut WsMaybeError<WsResultSet>).as_ref() {
         Some(rs) => rs.num_of_fields() == 0,
-        None => true,
+        _ => true,
     }
 }
 
 #[no_mangle]
 /// Works like taos_fetch_fields, users should use it along with a `num_of_fields`.
 pub unsafe extern "C" fn ws_fetch_fields(rs: *mut WS_RES) -> *const WS_FIELD {
-    match (rs as *mut WsResultSet).as_mut() {
+    match (rs as *mut WsMaybeError<WsResultSet>).as_mut() {
         Some(rs) => rs.get_fields(),
-        None => std::ptr::null(),
+        _ => std::ptr::null(),
     }
 }
 
 #[no_mangle]
 /// To fetch v2-compatible fields structs.
 pub unsafe extern "C" fn ws_fetch_fields_v2(rs: *mut WS_RES) -> *const WS_FIELD_V2 {
-    match (rs as *mut WsResultSet).as_mut() {
+    match (rs as *mut WsMaybeError<WsResultSet>).as_mut() {
         Some(rs) => rs.get_fields_v2(),
-        None => std::ptr::null(),
+        _ => std::ptr::null(),
     }
 }
 #[no_mangle]
@@ -420,9 +491,9 @@ pub unsafe extern "C" fn ws_fetch_block(
     ptr: *mut *const c_void,
     rows: *mut i32,
 ) -> i32 {
-    match (rs as *mut WsResultSet).as_mut() {
+    match (rs as *mut WsMaybeError<WsResultSet>).as_mut() {
         Some(rs) => rs.fetch_block(ptr, rows),
-        None => {
+        _ => {
             *rows = 0;
             0
         }
@@ -431,15 +502,15 @@ pub unsafe extern "C" fn ws_fetch_block(
 #[no_mangle]
 /// Same to taos_free_result. Every websocket result-set object should be freed with this method.
 pub unsafe extern "C" fn ws_free_result(rs: *mut WS_RES) {
-    let _ = Box::from_raw(rs as *mut WsResultSet);
+    let _ = Box::from_raw(rs as *mut WsMaybeError<WsResultSet>);
 }
 
 #[no_mangle]
 /// Same to taos_result_precision.
 pub unsafe extern "C" fn ws_result_precision(rs: *const WS_RES) -> i32 {
-    match (rs as *mut WsResultSet).as_mut() {
+    match (rs as *mut WsMaybeError<WsResultSet>).as_mut() {
         Some(rs) => rs.precision() as i32,
-        None => 0,
+        _ => 0,
     }
 }
 
@@ -467,14 +538,14 @@ pub unsafe extern "C" fn ws_get_value_in_block(
     ty: *mut u8,
     len: *mut u32,
 ) -> *const c_void {
-    match (rs as *mut WsResultSet).as_mut() {
+    match (rs as *mut WsMaybeError<WsResultSet>).as_mut() {
         Some(rs) => {
             let value = rs.get_raw_value(row as _, col as _);
             *ty = value.0 as u8;
             *len = value.1 as _;
             value.2
         }
-        None => {
+        _ => {
             *ty = Ty::Null as u8;
             *len = 0;
             std::ptr::null()
@@ -518,22 +589,22 @@ pub unsafe fn ws_print_row(rs: *mut WS_RES, row: i32) {
 }
 
 #[cfg(test)]
+pub fn init_env() {
+    static ONCE_INIT: std::sync::Once = std::sync::Once::new();
+    ONCE_INIT.call_once(|| {
+        pretty_env_logger::init();
+        std::env::set_var("RUST_DEBUG", "debug");
+    });
+}
+
+#[cfg(test)]
 mod tests {
     use std::{io::Read, num};
 
     use super::*;
-
-    fn init() {
-        static ONCE_INIT: std::sync::Once = std::sync::Once::new();
-        ONCE_INIT.call_once(|| {
-            pretty_env_logger::init();
-            std::env::set_var("RUST_DEBUG", "debug");
-        });
-    }
-
     #[test]
     fn dsn_error() {
-        init();
+        init_env();
         unsafe {
             let taos = ws_connect_with_dsn(b"ws://unknown-host:15237\0" as *const u8 as _);
             assert!(taos.is_null(), "connection return NULL when failed");
@@ -549,7 +620,7 @@ mod tests {
 
     #[test]
     fn query_error() {
-        init();
+        init_env();
         unsafe {
             let taos = ws_connect_with_dsn(b"ws://localhost:6041\0" as *const u8 as _);
             assert!(!taos.is_null(), "client pointer is not null when success");
@@ -567,7 +638,7 @@ mod tests {
 
     #[test]
     fn is_update_query() {
-        init();
+        init_env();
         unsafe {
             let taos = ws_connect_with_dsn(b"ws://localhost:6041\0" as *const u8 as _);
             assert!(!taos.is_null(), "client pointer is not null when success");
@@ -598,7 +669,7 @@ mod tests {
     }
     #[test]
     fn connect() {
-        init();
+        init_env();
         unsafe {
             let taos = ws_connect_with_dsn(b"ws://localhost:6041\0" as *const u8 as _);
             if taos.is_null() {
