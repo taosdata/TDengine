@@ -1886,6 +1886,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getCountFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = countFunction,
+    .sprocessFunc = countScalarFunction,
     .finalizeFunc = functionFinalize,
     .invertFunc   = countInvertFunction,
     .combineFunc  = combineFunction,
