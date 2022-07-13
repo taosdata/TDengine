@@ -583,11 +583,48 @@ static int32_t tsdbSnapWriteDataImpl(STsdbSnapWriter* pWriter, TABLEID id) {
       pWriter->pBlockIdxW = &pWriter->blockIdx;
       pWriter->pBlockIdxW->suid = id.suid;
       pWriter->pBlockIdxW->uid = id.uid;
+
+      pWriter->pBlockW = &pWriter->blockW;
+      tBlockReset(pWriter->pBlockW);
+
+      tBlockDataReset(&pWriter->bDataW);
+
+      tMapDataReset(&pWriter->mBlockW);
     }
 
+    // set block schema (todo)
+
+    // add rows
+    for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
+      TSDBROW* pRow = &tsdbRowFromBlockData(pBlockData, iRow);
+
+      code = tBlockDataAppendRow(&pWriter->bDataW, pRow, NULL);
+      if (code) goto _err;
+
+      if (pWriter->bDataW.nRow >= pWriter->maxRow * 4 / 5) {
+        // write the block to file
+        pWriter->pBlockW->last = 0;
+
+        code = tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataW, NULL, NULL, pWriter->pBlockIdxW,
+                                  pWriter->pBlockW, pWriter->cmprAlg);
+        if (code) goto _err;
+
+        code = tMapDataPutItem(&pWriter->mBlockW, pWriter->pBlockW, tPutBlock);
+        if (code) goto _err;
+
+        // reset
+        tBlockReset(pWriter->pBlockW);
+        tBlockDataReset(&pWriter->bDataW);
+      }
+    }
   } else {
   }
 
+  return code;
+
+_err:
+  tsdbError("vgId:%d vnode snapshot tsdb write data impl failed since %s", TD_VID(pWriter->pTsdb->pVnode),
+            tstrerror(code));
   return code;
 }
 
