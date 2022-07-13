@@ -389,6 +389,7 @@ typedef struct SStreamScanInfo {
   SSDataBlock*           pPullDataRes;    // pull data SSDataBlock
   SSDataBlock*           pDeleteDataRes;  // delete data SSDataBlock
   int32_t                deleteDataIndex;
+  STimeWindow            updateWin;
 
   // status for tmq
   // SSchemaWrapper schema;

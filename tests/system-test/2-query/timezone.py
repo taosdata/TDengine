@@ -18,24 +18,24 @@ class TDTestCase:
         self.arithmetic_operators = ['+','-','*','/']
         self.arithmetic_values = [0,1,100,15.5]
         # name of normal table
-        self.ntbname = 'ntb'    
+        self.ntbname = 'ntb'
         # name of stable
-        self.stbname = 'stb'    
+        self.stbname = 'stb'
         # structure of column
-        self.column_dict = {    
+        self.column_dict = {
             'ts':'timestamp',
             'c1':'int',
             'c2':'float',
             'c3':'double'
         }
         # structure of tag
-        self.tag_dict = {       
+        self.tag_dict = {
             't0':'int'
         }
         # number of child tables
-        self.tbnum = 2       
+        self.tbnum = 2
         # values of tag,the number of values should equal to tbnum
-        self.tag_values = [     
+        self.tag_values = [
             f'10',
             f'100'
         ]
@@ -62,7 +62,7 @@ class TDTestCase:
                 time_zone = time_zone_1 + " " + time_zone_2
         print("expected time zone: " + time_zone)
         return time_zone
-    
+
     def tb_type_check(self,tb_type):
         if tb_type in ['normal_table','child_table']:
             tdSql.checkRows(len(self.values_list))
@@ -115,7 +115,7 @@ class TDTestCase:
         timezone = self.get_system_timezone()
         self.timezone_check_ntb(timezone)
         self.timezone_check_stb(timezone)
-        
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

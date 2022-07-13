@@ -16,7 +16,7 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
-    
+
     def prepare_datas(self):
         tdSql.execute(
             '''create table stb1
@@ -24,7 +24,7 @@ class TDTestCase:
             tags (t1 int)
             '''
         )
-        
+
         tdSql.execute(
             '''
             create table t1
@@ -66,14 +66,14 @@ class TDTestCase:
             ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             '''
         )
-    
+
     def check_result_auto(self ,origin_query , floor_query):
         pass
         floor_result = tdSql.getResult(floor_query)
         origin_result = tdSql.getResult(origin_query)
 
         auto_result =[]
-        
+
         for row in origin_result:
             row_check = []
             for elem in row:
@@ -88,13 +88,13 @@ class TDTestCase:
         for row_index , row in enumerate(floor_result):
             for col_index , elem in enumerate(row):
                 if auto_result[row_index][col_index] != elem:
-                    check_status = False 
+                    check_status = False
         if not check_status:
             tdLog.notice("floor function value has not as expected , sql is \"%s\" "%floor_query )
             sys.exit(1)
         else:
             tdLog.info("floor value check pass , it work as expected ,sql is \"%s\"   "%floor_query )
-        
+
     def test_errors(self):
         error_sql_lists = [
             "select floor from t1",
@@ -128,42 +128,42 @@ class TDTestCase:
         ]
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
-    
+
     def support_types(self):
         type_error_sql_lists = [
-            "select floor(ts) from t1" , 
+            "select floor(ts) from t1" ,
             "select floor(c7) from t1",
             "select floor(c8) from t1",
             "select floor(c9) from t1",
-            "select floor(ts) from ct1" , 
+            "select floor(ts) from ct1" ,
             "select floor(c7) from ct1",
             "select floor(c8) from ct1",
             "select floor(c9) from ct1",
-            "select floor(ts) from ct3" , 
+            "select floor(ts) from ct3" ,
             "select floor(c7) from ct3",
             "select floor(c8) from ct3",
             "select floor(c9) from ct3",
-            "select floor(ts) from ct4" , 
+            "select floor(ts) from ct4" ,
             "select floor(c7) from ct4",
             "select floor(c8) from ct4",
             "select floor(c9) from ct4",
-            "select floor(ts) from stb1" , 
+            "select floor(ts) from stb1" ,
             "select floor(c7) from stb1",
             "select floor(c8) from stb1",
             "select floor(c9) from stb1" ,
 
-            "select floor(ts) from stbbb1" , 
+            "select floor(ts) from stbbb1" ,
             "select floor(c7) from stbbb1",
 
             "select floor(ts) from tbname",
             "select floor(c9) from tbname"
 
         ]
-        
+
         for type_sql in type_error_sql_lists:
             tdSql.error(type_sql)
-        
-        
+
+
         type_sql_lists = [
             "select floor(c1) from t1",
             "select floor(c2) from t1",
@@ -193,16 +193,16 @@ class TDTestCase:
             "select floor(c5) from stb1",
             "select floor(c6) from stb1",
 
-            "select floor(c6) as alisb from stb1", 
-            "select floor(c6) alisb from stb1", 
+            "select floor(c6) as alisb from stb1",
+            "select floor(c6) alisb from stb1",
         ]
 
         for type_sql in type_sql_lists:
             tdSql.query(type_sql)
-    
+
     def basic_floor_function(self):
 
-        # basic query 
+        # basic query
         tdSql.query("select c1 from ct3")
         tdSql.checkRows(0)
         tdSql.query("select c1 from t1")
@@ -222,7 +222,7 @@ class TDTestCase:
         tdSql.query("select floor(c5) from ct3")
         tdSql.checkRows(0)
         tdSql.query("select floor(c6) from ct3")
-        
+
         # used for regular table
         tdSql.query("select floor(c1) from t1")
         tdSql.checkData(0, 0, None)
@@ -240,7 +240,7 @@ class TDTestCase:
         tdSql.checkData(5, 5, None)
 
         self.check_result_auto( "select c1, c2, c3 , c4, c5 from t1", "select (c1), floor(c2) ,floor(c3), floor(c4), floor(c5) from t1")
-        
+
         # used for sub table
         tdSql.query("select floor(c1) from ct1")
         tdSql.checkData(0, 0, 8)
@@ -252,20 +252,20 @@ class TDTestCase:
         self.check_result_auto( "select c1, c2, c3 , c4, c5 from ct1", "select (c1), floor(c2) ,floor(c3), floor(c4), floor(c5) from ct1")
         self.check_result_auto("select floor(floor(floor(floor(floor(floor(floor(floor(floor(floor(c1)))))))))) nest_col_func from ct1;","select c1 from ct1" )
 
-        # used for stable table 
-        
+        # used for stable table
+
         tdSql.query("select floor(c1) from stb1")
         tdSql.checkRows(25)
         self.check_result_auto( "select c1, c2, c3 , c4, c5 from ct4 ", "select (c1), floor(c2) ,floor(c3), floor(c4), floor(c5) from ct4")
         self.check_result_auto("select floor(floor(floor(floor(floor(floor(floor(floor(floor(floor(c1)))))))))) nest_col_func from ct4;" , "select c1 from ct4" )
-        
+
 
         # used for not exists table
         tdSql.error("select floor(c1) from stbbb1")
         tdSql.error("select floor(c1) from tbname")
         tdSql.error("select floor(c1) from ct5")
 
-        # mix with common col 
+        # mix with common col
         tdSql.query("select c1, floor(c1) from ct1")
         tdSql.checkData(0 , 0 ,8)
         tdSql.checkData(0 , 1 ,8)
@@ -290,7 +290,7 @@ class TDTestCase:
         tdSql.checkData(0 , 1 ,None)
         tdSql.checkData(0 , 2 ,None)
         tdSql.checkData(0 , 3 ,None)
-        
+
         tdSql.checkData(3 , 0 , 6)
         tdSql.checkData(3 , 1 , 6)
         tdSql.checkData(3 , 2 ,6.66000)
@@ -311,7 +311,7 @@ class TDTestCase:
         tdSql.query("select max(c5), count(c5) from stb1")
         tdSql.query("select max(c5), count(c5) from ct1")
 
-        
+
         # bug fix for count
         tdSql.query("select count(c1) from ct4 ")
         tdSql.checkData(0,0,9)
@@ -322,7 +322,7 @@ class TDTestCase:
         tdSql.query("select count(*) from stb1 ")
         tdSql.checkData(0,0,25)
 
-        # bug fix for compute 
+        # bug fix for compute
         tdSql.query("select c1, abs(c1) -0 ,floor(c1)-0 from ct4 ")
         tdSql.checkData(0, 0, None)
         tdSql.checkData(0, 1, None)
@@ -373,10 +373,10 @@ class TDTestCase:
         tdSql.checkData(0,3,8.000000000)
         tdSql.checkData(0,4,7.900000000)
         tdSql.checkData(0,5,3.000000000)
-        
+
     def floor_Arithmetic(self):
         pass
-    
+
     def check_boundary_values(self):
 
         tdSql.execute("drop database if exists bound_test")
@@ -405,14 +405,14 @@ class TDTestCase:
         tdSql.execute(
                 f"insert into sub1_bound values ( now(), -2147483643, -9223372036854775803, -32763, -123, -3.39E+38, -1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        
+
         tdSql.error(
                 f"insert into sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         self.check_result_auto( "select c1, c2, c3 , c4, c5 ,c6 from sub1_bound ", "select floor(c1), floor(c2) ,floor(c3), floor(c4), floor(c5) ,floor(c6) from sub1_bound")
         self.check_result_auto( "select c1, c2, c3 , c3, c2 ,c1 from sub1_bound ", "select floor(c1), floor(c2) ,floor(c3), floor(c3), floor(c2) ,floor(c1) from sub1_bound")
         self.check_result_auto("select floor(floor(floor(floor(floor(floor(floor(floor(floor(floor(c1)))))))))) nest_col_func from sub1_bound;" , "select floor(c1) from sub1_bound" )
-        
+
         # check basic elem for table per row
         tdSql.query("select floor(c1+0.2) ,floor(c2) , floor(c3+0.3) , floor(c4-0.3), floor(c5/2), floor(c6/2) from sub1_bound ")
         tdSql.checkData(0, 0, 2147483647.000000000)
@@ -444,26 +444,26 @@ class TDTestCase:
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
-        
+
         self.prepare_datas()
 
-        tdLog.printNoPrefix("==========step2:test errors ==============")    
+        tdLog.printNoPrefix("==========step2:test errors ==============")
 
         self.test_errors()
-        
-        tdLog.printNoPrefix("==========step3:support types ============") 
+
+        tdLog.printNoPrefix("==========step3:support types ============")
 
         self.support_types()
 
-        tdLog.printNoPrefix("==========step4: floor basic query ============") 
+        tdLog.printNoPrefix("==========step4: floor basic query ============")
 
         self.basic_floor_function()
 
-        tdLog.printNoPrefix("==========step5: floor boundary query ============") 
+        tdLog.printNoPrefix("==========step5: floor boundary query ============")
 
         self.check_boundary_values()
 
-        tdLog.printNoPrefix("==========step6: floor filter query ============") 
+        tdLog.printNoPrefix("==========step6: floor filter query ============")
 
         self.abs_func_filter()
 

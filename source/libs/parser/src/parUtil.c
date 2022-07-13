@@ -60,7 +60,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_EXPRIE_STATEMENT:
       return "This statement is no longer supported";
     case TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL:
-      return "Interval cannot be less than %d us";
+      return "Interval cannot be less than %d %s";
     case TSDB_CODE_PAR_DB_NOT_SPECIFIED:
       return "Database not specified";
     case TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME:

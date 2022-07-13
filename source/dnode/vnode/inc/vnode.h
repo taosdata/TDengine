@@ -51,6 +51,7 @@ void    vnodeCleanup();
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
 void    vnodeDestroy(const char *path, STfs *pTfs);
 SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
+void    vnodePreClose(SVnode *pVnode);
 void    vnodeClose(SVnode *pVnode);
 
 int32_t vnodeStart(SVnode *pVnode);
@@ -136,8 +137,7 @@ int64_t tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
 void   *tsdbGetIdx(SMeta *pMeta);
 void   *tsdbGetIvtIdx(SMeta *pMeta);
 
-int32_t tsdbLastRowReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, int32_t *colId, int32_t numOfCols,
-                              void **pReader);
+int32_t tsdbLastRowReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, int32_t numOfCols, void **pReader);
 int32_t tsdbRetrieveLastRow(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds);
 int32_t tsdbLastrowReaderClose(void *pReader);
 int32_t tsdbGetTableSchema(SVnode *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);

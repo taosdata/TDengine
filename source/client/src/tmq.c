@@ -1149,11 +1149,10 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     tDecoderInit(&decoder, POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), pMsg->len - sizeof(SMqRspHead));
     tDecodeSMqDataRsp(&decoder, &pRspWrapper->dataRsp);
     memcpy(&pRspWrapper->dataRsp, pMsg->pData, sizeof(SMqRspHead));
-    /*tDecodeSMqDataBlkRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pRspWrapper->dataRsp);*/
   } else {
     ASSERT(rspType == TMQ_MSG_TYPE__POLL_META_RSP);
-    memcpy(&pRspWrapper->metaRsp, pMsg->pData, sizeof(SMqRspHead));
     tDecodeSMqMetaRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pRspWrapper->metaRsp);
+    memcpy(&pRspWrapper->metaRsp, pMsg->pData, sizeof(SMqRspHead));
   }
 
   taosMemoryFree(pMsg->pData);
@@ -2550,15 +2549,15 @@ static void destroyCreateTbReqBatch(void* data) {
   taosArrayDestroy(pTbBatch->req.pArray);
 }
 
-static int32_t taosCreateTable(TAOS *taos, void *meta, int32_t metaLen){
-  SVCreateTbBatchReq  req             = {0};
-  SDecoder            coder           = {0};
-  int32_t             code            = TSDB_CODE_SUCCESS;
-  SRequestObj        *pRequest        = NULL;
-  SQuery             *pQuery          = NULL;
-  SHashObj           *pVgroupHashmap  = NULL;
+static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
+  SVCreateTbBatchReq req = {0};
+  SDecoder           coder = {0};
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SRequestObj*       pRequest = NULL;
+  SQuery*            pQuery = NULL;
+  SHashObj*          pVgroupHashmap = NULL;
 
-  code = buildRequest(*(int64_t*) taos, "", 0, NULL, false, &pRequest);
+  code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
@@ -2579,8 +2578,8 @@ static int32_t taosCreateTable(TAOS *taos, void *meta, int32_t metaLen){
 
   STscObj* pTscObj = pRequest->pTscObj;
 
-  SVCreateTbReq     *pCreateReq = NULL;
-  SCatalog* pCatalog = NULL;
+  SVCreateTbReq* pCreateReq = NULL;
+  SCatalog*      pCatalog = NULL;
   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
@@ -2664,13 +2663,13 @@ static void destroyDropTbReqBatch(void* data) {
   taosArrayDestroy(pTbBatch->req.pArray);
 }
 
-static int32_t taosDropTable(TAOS *taos, void *meta, int32_t metaLen){
-  SVDropTbBatchReq    req             = {0};
-  SDecoder            coder           = {0};
-  int32_t             code            = TSDB_CODE_SUCCESS;
-  SRequestObj        *pRequest        = NULL;
-  SQuery             *pQuery          = NULL;
-  SHashObj           *pVgroupHashmap  = NULL;
+static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
+  SVDropTbBatchReq req = {0};
+  SDecoder         coder = {0};
+  int32_t          code = TSDB_CODE_SUCCESS;
+  SRequestObj*     pRequest = NULL;
+  SQuery*          pQuery = NULL;
+  SHashObj*        pVgroupHashmap = NULL;
 
   code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2692,8 +2691,8 @@ static int32_t taosDropTable(TAOS *taos, void *meta, int32_t metaLen){
 
   STscObj* pTscObj = pRequest->pTscObj;
 
-  SVDropTbReq     *pDropReq = NULL;
-  SCatalog        *pCatalog = NULL;
+  SVDropTbReq* pDropReq = NULL;
+  SCatalog*    pCatalog = NULL;
   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
@@ -2775,6 +2774,7 @@ static int32_t taosAlterTable(TAOS *taos, void *meta, int32_t metaLen){
   SVgDataBlocks      *pVgData         = NULL;
 
   code = buildRequest(*(int64_t*) taos, "", 0, NULL, false, &pRequest);
+
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
