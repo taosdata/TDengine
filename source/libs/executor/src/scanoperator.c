@@ -1183,7 +1183,10 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     for (int32_t j = 0; j < blockDataGetNumOfCols(pBlock); ++j) {
       SColumnInfoData* pResCol = bdGetColumnInfoData(pBlock, j);
       if (pResCol->info.colId == pColMatchInfo->colId) {
-        taosArraySet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId, pResCol);
+
+        SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId);
+        colDataAssign(pDst, pResCol, pBlock->info.rows, &pInfo->pRes->info);
+//        taosArraySet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId, pResCol);
         colExists = true;
         break;
       }
@@ -2590,9 +2593,11 @@ static SSDataBlock* getTableDataBlock(void* param) {
     SDataBlockInfo binfo = pBlock->info;
     tsdbRetrieveDataBlockInfo(reader, &binfo);
 
-    binfo.capacity = binfo.rows;
     blockDataEnsureCapacity(pBlock, binfo.capacity);
-    pBlock->info = binfo;
+    pBlock->info.type = binfo.type;
+    pBlock->info.uid = binfo.uid;
+    pBlock->info.window = binfo.window;
+    pBlock->info.rows = binfo.rows;
 
     uint32_t status = 0;
     int32_t  code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, readerIdx, pBlock, &status);
