@@ -1341,9 +1341,9 @@ static int32_t closeIntervalWindow(SHashObj* pHashMap, STimeWindowAggSupp* pSup,
     uint64_t groupId = *(uint64_t*)key;
     ASSERT(keyLen == GET_RES_WINDOW_KEY_LEN(sizeof(TSKEY)));
     TSKEY          ts = *(int64_t*)((char*)key + sizeof(uint64_t));
-    SResultRowInfo dumyInfo;
-    dumyInfo.cur.pageId = -1;
-    STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, ts, pInterval, TSDB_ORDER_ASC);
+    STimeWindow win;
+    win.skey = ts;
+    win.ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
     SWinRes     winRe = {
             .ts = win.skey,
             .groupId = groupId,
@@ -4507,13 +4507,14 @@ static SSDataBlock* doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
       setInputDataBlock(pOperator, pSup->pCtx, pBlock, iaInfo->order, scanFlag, true);
       doMergeAlignedIntervalAggImpl(pOperator, &iaInfo->binfo.resultRowInfo, pBlock, scanFlag, pRes);
       doFilter(miaInfo->pCondition, pRes);
-      if (pRes->info.rows > 0) {
+      if (pRes->info.rows >= pOperator->resultInfo.capacity) {
         break;
       }
     }
 
     pRes->info.groupId = miaInfo->groupId;
   }
+  miaInfo->hasGroupId = false;
 
   if (miaInfo->inputBlocksFinished) {
     doSetOperatorCompleted(pOperator);

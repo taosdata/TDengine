@@ -1,13 +1,34 @@
 
 #======================b1-start===============
 
+# ---- alter
+./test.sh -f tsim/alter/cached_schema_after_alter.sim
+./test.sh -f tsim/alter/dnode.sim
+#./test.sh -f tsim/alter/table.sim
+
 # ---- user
 ./test.sh -f tsim/user/basic.sim
 ./test.sh -f tsim/user/password.sim
 ./test.sh -f tsim/user/privilege_db.sim
 ./test.sh -f tsim/user/privilege_sysinfo.sim
 
-## ---- db
+# ---- cache
+./test.sh -f tsim/cache/new_metrics.sim
+./test.sh -f tsim/cache/restart_table.sim
+./test.sh -f tsim/cache/restart_metrics.sim
+
+# ---- column
+./test.sh -f tsim/column/commit.sim
+./test.sh -f tsim/column/metrics.sim
+./test.sh -f tsim/column/table.sim
+
+# ---- compress
+./test.sh -f tsim/compress/commitlog.sim
+./test.sh -f tsim/compress/compress2.sim
+./test.sh -f tsim/compress/compress.sim
+./test.sh -f tsim/compress/uncompress.sim
+
+# ---- db
 ./test.sh -f tsim/db/alter_option.sim
 # ./test.sh -f tsim/db/alter_replica_13.sim
 # ./test.sh -f tsim/db/alter_replica_31.sim
@@ -44,6 +65,12 @@
 # ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v2.sim
 # ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
 # ./test.sh -f tsim/dnode/vnode_clean.sim
+
+# ---- import
+./test.sh -f tsim/import/basic.sim
+./test.sh -f tsim/import/commit.sim
+./test.sh -f tsim/import/large.sim
+./test.sh -f tsim/import/replica1.sim
 
 # ---- insert
 ./test.sh -f tsim/insert/basic0.sim
@@ -197,5 +224,6 @@
 
 # --- scalar
 ./test.sh -f tsim/scalar/in.sim
+./test.sh -f tsim/scalar/scalar.sim
 
 #======================b1-end===============
