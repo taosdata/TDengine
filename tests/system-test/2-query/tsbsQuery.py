@@ -76,9 +76,19 @@ class TDTestCase:
         tdSql.query("insert into testsnode(ts,c1,c2,c3,c4)  SELECT ts,avg(velocity) as mean_velocity,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet,ts interval(10m);")
 
 
-       # test interval fill
-        tdSql.query("SELECT name,floor(avg(velocity)/10)/floor(avg(velocity)/10) AS mv FROM readings   WHERE name!='' AND ts > '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition by name interval(10m) fill(value,0) ;")
+        # test paitition interval fill
+        # tdSql.query("SELECT name,floor(avg(velocity)/10)/floor(avg(velocity)/10) AS mv FROM readings   WHERE name!='' AND ts > '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition by name interval(10m) fill(value,0) ;")
 
+
+        # # test partition interval limit 
+        # tdSql.query("SELECT ts,model,floor(2*(sum(nzs)/count(nzs)))/floor(2*(sum(nzs)/count(nzs))) AS broken_down FROM (SELECT ts,model, status/status AS nzs FROM diagnostics WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z' ) WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition BY model,ts interval(10m) limit 10;")
+        # tdSql.checkRows(10)
+
+        # test partition interval Pseudo time-column
+        tdSql.query("SELECT count(ms1)/144  FROM (SELECT _wstartts as ts1,model, fleet,avg(status) AS ms1 FROM diagnostics WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'  partition by model, fleet interval(10m)) WHERE ts1 >= '2016-01-01T00:00:00Z' AND ts1 < '2016-01-05T00:00:01Z' AND ms1<1;")
+
+
+        # test
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdLog.printNoPrefix("==========step1:create database and table,insert data  ==============")
         self.prepareData()
