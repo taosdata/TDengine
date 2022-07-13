@@ -148,7 +148,7 @@ python3 ./test.py -f 7-tmq/subscribeDb2.py
 python3 ./test.py -f 7-tmq/subscribeDb3.py
 #python3 ./test.py -f 7-tmq/subscribeDb4.py
 python3 ./test.py -f 7-tmq/subscribeStb.py
-#python3 ./test.py -f 7-tmq/subscribeStb0.py
+python3 ./test.py -f 7-tmq/subscribeStb0.py
 python3 ./test.py -f 7-tmq/subscribeStb1.py
 python3 ./test.py -f 7-tmq/subscribeStb2.py
 python3 ./test.py -f 7-tmq/subscribeStb3.py
