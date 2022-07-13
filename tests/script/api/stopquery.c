@@ -633,6 +633,7 @@ int sqConCleanupSyncQuery(bool fetch) {
     
     pthread_join(qid, NULL);
     pthread_join(cid, NULL);
+    break;
   }
   CASE_LEAVE();  
 }
@@ -648,6 +649,7 @@ int sqConCleanupAsyncQuery(bool fetch) {
     
     pthread_join(qid, NULL);
     pthread_join(cid, NULL);
+    break;   
   }
   CASE_LEAVE();  
 }
@@ -655,7 +657,7 @@ int sqConCleanupAsyncQuery(bool fetch) {
 
 
 void sqRunAllCase(void) {
-#if 0
+#if 1
   sqStopSyncQuery(false);
   sqStopSyncQuery(true);
   sqStopAsyncQuery(false);
@@ -688,16 +690,17 @@ void sqRunAllCase(void) {
   sqConKillAsyncQuery(true);
 #endif
 
+  /*  
   sqConCleanupSyncQuery(false);
   sqConCleanupSyncQuery(true);
   sqConCleanupAsyncQuery(false);
   sqConCleanupAsyncQuery(true);
-
+  */
 
   int32_t l = 5;
   while (l) {
     printf("%d\n", l--);
-    sleep(1000);
+    sleep(1);
   }
 }
 
