@@ -333,7 +333,8 @@ mod tests {
             .expect("");
         dbg!(&data);
         assert_eq!(
-            data, Row {
+            data,
+            Row {
                 ts: 1500000000000,
                 v: "hello".to_string(),
                 c1: true,

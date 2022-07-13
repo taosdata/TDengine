@@ -11,7 +11,7 @@ use taos_error::Code;
 use thiserror::Error;
 
 use taos_query::{common::*, Address, BlockExt, Dsn, DsnError, Fetchable, FromDsn, Queryable};
-use taos_sys::{DroppableRawRes, RawRes, ffi::TAOS_RES};
+use taos_sys::{ffi::TAOS_RES, DroppableRawRes, RawRes};
 
 use crate::{util::IntoCStr, Taos, TaosOptions};
 

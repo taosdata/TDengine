@@ -72,7 +72,7 @@ async fn main() -> Result<()> {
 
     let mut stdout = stdout();
 
-    print_events().await
+    print_events().await;
 
     disable_raw_mode()
 }

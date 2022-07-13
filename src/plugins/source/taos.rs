@@ -12,8 +12,9 @@ use std::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
     pin::Pin,
+    str::FromStr,
     sync::{Arc, Weak},
-    task::Poll, str::FromStr,
+    task::Poll,
 };
 
 use futures::{Sink, Stream, StreamExt, TryStreamExt};
@@ -368,7 +369,9 @@ async fn test(taos: &Taos, databases: &[&str]) -> anyhow::Result<()> {
 
     let db2 = databases[1];
     let transformers = vec![Action::from_str("add-tag:f1(10)=value1")?];
-    let mut sink = TaosSinkBuilder::from_dsn(format!("taos:///{db2}"))?.with_transformer(transformers).build_sink()?;
+    let mut sink = TaosSinkBuilder::from_dsn(format!("taos:///{db2}"))?
+        .with_transformer(transformers)
+        .build_sink()?;
 
     source.forward(&mut sink).await?;
 

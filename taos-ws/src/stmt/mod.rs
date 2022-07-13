@@ -413,6 +413,7 @@ async fn test_client() -> anyhow::Result<()> {
     assert_eq!(res, 2);
     Ok(())
 }
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
 async fn test_stmt_stable() -> anyhow::Result<()> {
     use crate::Ws;

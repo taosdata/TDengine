@@ -1,7 +1,7 @@
 mod inline_bytes;
-mod inline_str;
-mod inline_nchar;
 mod inline_json;
+mod inline_nchar;
+mod inline_str;
 
 use std::{
     io::{Read, Write},
@@ -9,9 +9,9 @@ use std::{
 };
 
 pub use inline_bytes::InlineBytes;
-pub use inline_str::InlineStr;
-pub use inline_nchar::InlineNChar;
 pub use inline_json::InlineJson;
+pub use inline_nchar::InlineNChar;
+pub use inline_str::InlineStr;
 
 pub trait InlinableWrite: Write {
     #[inline]

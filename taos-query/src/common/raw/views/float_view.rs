@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use crate::common::{Ty, BorrowedValue};
+use crate::common::{BorrowedValue, Ty};
 
 use super::{NullBits, NullsIter};
 
@@ -74,13 +74,11 @@ impl FloatView {
         }
     }
 
-
     pub unsafe fn get_value_unchecked(&self, row: usize) -> BorrowedValue {
         self.get_unchecked(row)
             .map(|v| BorrowedValue::Float(v))
             .unwrap_or(BorrowedValue::Null)
     }
-
 
     pub unsafe fn get_raw_value_unchecked(&self, row: usize) -> (Ty, u32, *const c_void) {
         if self.nulls.is_null_unchecked(row) {

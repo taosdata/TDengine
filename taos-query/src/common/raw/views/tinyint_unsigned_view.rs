@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use crate::common::{Ty, BorrowedValue};
+use crate::common::{BorrowedValue, Ty};
 
 use super::{NullBits, NullsIter};
 
@@ -82,7 +82,11 @@ impl UTinyIntView {
 
     pub unsafe fn get_raw_value_unchecked(&self, row: usize) -> (Ty, u32, *const c_void) {
         if self.nulls.is_null_unchecked(row) {
-            (Ty::Null, std::mem::size_of::<Target>() as _, std::ptr::null())
+            (
+                Ty::Null,
+                std::mem::size_of::<Target>() as _,
+                std::ptr::null(),
+            )
         } else {
             (
                 Ty::UTinyInt,

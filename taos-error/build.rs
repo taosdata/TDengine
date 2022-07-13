@@ -42,7 +42,12 @@ impl {NAME} {{
         .collect();
     for (name, code, reason) in &codes {
         writeln!(output, "    /// {}: {}", name, reason)?;
-        writeln!(output, "    pub const {}: {NAME} = {NAME}({});", name.to_upper_camel_case(), code)?;
+        writeln!(
+            output,
+            "    pub const {}: {NAME} = {NAME}({});",
+            name.to_upper_camel_case(),
+            code
+        )?;
     }
     writeln!(
         output,
@@ -82,10 +87,7 @@ impl {NAME} {{
             name.to_upper_camel_case()
         )?;
     }
-    writeln!(
-        output,
-        r#"            _ => "Unknown or common error","#
-    )?;
+    writeln!(output, r#"            _ => "Unknown or common error","#)?;
     writeln!(
         output,
         r#"        }}

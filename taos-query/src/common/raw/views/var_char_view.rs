@@ -1,7 +1,10 @@
-use std::{fmt::Debug, ops::Deref, ffi::c_void};
+use std::{ffi::c_void, fmt::Debug, ops::Deref};
 
 use super::Offsets;
-use crate::{util::InlineStr, common::{Ty, BorrowedValue}};
+use crate::{
+    common::{BorrowedValue, Ty},
+    util::InlineStr,
+};
 
 use bytes::Bytes;
 

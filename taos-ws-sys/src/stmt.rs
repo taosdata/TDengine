@@ -513,7 +513,7 @@ mod tests {
             execute!(b"drop database if exists ws_stmt_t\0");
             execute!(b"create database ws_stmt_t keep 36500\0");
             execute!(
-                b"create table ws_stmt_t.s1 (ts timestamp, v int, b binary(100)) tags(jt nchar(100))\0"
+                b"create table ws_stmt_t.s1 (ts timestamp, v int, b binary(100)) tags(jt json)\0"
             );
 
             let stmt = ws_stmt_init(taos);

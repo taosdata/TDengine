@@ -242,8 +242,7 @@ fn test_tbname_tags_json() -> Result<(), Error> {
     taos.query("create database if not exists stt2 keep 36500")?;
     taos.query("use stt2")?;
     taos.query(
-        "create stable if not exists st1(ts timestamp, v int) tags(jt json)"
-        // "create stable if not exists st1(ts timestamp, v int) tags(jt int, t1 float)",
+        "create stable if not exists st1(ts timestamp, v int) tags(jt json)", // "create stable if not exists st1(ts timestamp, v int) tags(jt int, t1 float)",
     )?;
 
     let mut stmt = RawStmt::from_raw_taos(&taos);

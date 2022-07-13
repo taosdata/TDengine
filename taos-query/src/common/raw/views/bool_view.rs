@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use crate::common::{Ty, BorrowedValue};
+use crate::common::{BorrowedValue, Ty};
 
 use super::{NullBits, NullsIter};
 

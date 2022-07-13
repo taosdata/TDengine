@@ -400,9 +400,7 @@ mod test {
         let topic = database;
         let gid = database;
 
-        let dsn = format!(
-            "taos:///{database}?topics={topic}&group.id={gid}&wait=2000"
-        );
+        let dsn = format!("taos:///{database}?topics={topic}&group.id={gid}&wait=2000");
         log::info!("subscribe with dsn: {dsn}");
         let consumer = TmqBuilder::from_dsn(&dsn)?
             .on_auto_commit(
@@ -449,7 +447,9 @@ mod test {
         drop_topic(&taos, &topic)?;
         taos.exec("drop database db2")?;
         if db2_rows != MAX_INSERTS {
-            anyhow::bail!("inserted rows not match: inserted {MAX_INSERTS}, select count is {db2_rows}");
+            anyhow::bail!(
+                "inserted rows not match: inserted {MAX_INSERTS}, select count is {db2_rows}"
+            );
         }
         println!("finished");
         Ok(())
