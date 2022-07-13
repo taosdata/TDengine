@@ -1853,8 +1853,8 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
       syncNodeBecomeLeader(pSyncNode, tmpbuf);
 
       // Raft 3.6.2 Committing entries from previous terms
-      syncNodeReplicate(pSyncNode);
       syncNodeAppendNoop(pSyncNode);
+      syncNodeReplicate(pSyncNode);
       syncMaybeAdvanceCommitIndex(pSyncNode);
 
     } else {
@@ -2029,8 +2029,8 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   syncNodeLog2("==state change syncNodeCandidate2Leader==", pSyncNode);
 
   // Raft 3.6.2 Committing entries from previous terms
-  syncNodeReplicate(pSyncNode);
   syncNodeAppendNoop(pSyncNode);
+  syncNodeReplicate(pSyncNode);
   syncMaybeAdvanceCommitIndex(pSyncNode);
 }
 
