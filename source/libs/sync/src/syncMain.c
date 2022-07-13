@@ -293,7 +293,7 @@ int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader) {
 
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
   if (pSyncNode->peersNum == 0) {
-    sError("only one replica, cannot leader transfer");
+    sDebug("only one replica, cannot leader transfer");
     terrno = TSDB_CODE_SYN_ONE_REPLICA;
     return -1;
   }
@@ -307,7 +307,7 @@ int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
   int32_t ret = 0;
 
   if (pSyncNode->replicaNum == 1) {
-    sError("only one replica, cannot leader transfer");
+    sDebug("only one replica, cannot leader transfer");
     terrno = TSDB_CODE_SYN_ONE_REPLICA;
     return -1;
   }

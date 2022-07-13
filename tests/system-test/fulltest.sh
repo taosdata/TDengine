@@ -148,7 +148,7 @@ python3 ./test.py -f 7-tmq/subscribeDb2.py
 python3 ./test.py -f 7-tmq/subscribeDb3.py
 #python3 ./test.py -f 7-tmq/subscribeDb4.py
 python3 ./test.py -f 7-tmq/subscribeStb.py
-python3 ./test.py -f 7-tmq/subscribeStb0.py
+#python3 ./test.py -f 7-tmq/subscribeStb0.py
 python3 ./test.py -f 7-tmq/subscribeStb1.py
 python3 ./test.py -f 7-tmq/subscribeStb2.py
 python3 ./test.py -f 7-tmq/subscribeStb3.py
@@ -179,7 +179,7 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
 python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
 #python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
 #python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
-#python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb.py
+python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb.py
 
 #------------querPolicy  2-----------
 
