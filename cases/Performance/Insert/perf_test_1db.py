@@ -146,7 +146,7 @@ class TestPerf(TDCase):
 
     def run_benchmark(self, node, config_file):
         self.logger.debug(f"thread: {node}, {config_file}")
-        cmd = ["ulimit -n 1048576", "taosBenchmark -f " + config_file]
+        cmd = ["ulimit -n 1048576", "sleep 5", "taosBenchmark -f " + config_file]
         result = self.envMgr._remote.cmd2(node, cmd)
         if result.failed:
             # self.logger.error(str(result))
