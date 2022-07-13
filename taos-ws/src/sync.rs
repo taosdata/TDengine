@@ -40,6 +40,7 @@ pub struct WsAuth {
 
 pub struct WsClient {
     info: WsInfo,
+    timeout: Duration,
     version: String,
     req_id: Arc<AtomicU64>,
     sender: MsgSender,
@@ -50,6 +51,8 @@ pub struct WsClient {
 }
 
 pub struct ResultSet {
+    rt: Arc<tokio::runtime::Runtime>,
+    timeout: Duration,
     sender: MsgSender,
     fetches: Arc<HashMap<ResId, FetchSender>>,
     receiver: Option<FetchReceiver>,
@@ -82,7 +85,10 @@ pub enum Error {
     TaosError(#[from] taos_error::Error),
     #[error("{0}")]
     RecvFetchError(#[from] std::sync::mpsc::RecvError),
-
+    #[error(transparent)]
+    RecvTimeout(#[from] std::sync::mpsc::RecvTimeoutError),
+    #[error(transparent)]
+    SendTimeoutError(#[from] tokio::sync::mpsc::error::SendTimeoutError<WsSend>),
     #[error(transparent)]
     StmtError(#[from] stmt::Error),
 }
@@ -300,6 +306,7 @@ impl WsClient {
         });
 
         Ok(Self {
+            timeout: Duration::from_secs(10),
             req_id: Arc::new(AtomicU64::new(req_id + 1)),
             queries,
             fetches,
@@ -348,6 +355,8 @@ impl WsClient {
                 self.fetches.insert(resp.id, tx).unwrap();
             }
             Ok(ResultSet {
+                rt: self.rt.clone(),
+                timeout: self.timeout.clone(),
                 sender: self.sender.clone(),
                 fetches: self.fetches.clone(),
                 receiver: Some(rx),
@@ -362,6 +371,8 @@ impl WsClient {
             })
         } else {
             Ok(ResultSet {
+                rt: self.rt.clone(),
+                timeout: self.timeout.clone(),
                 affected_rows: resp.affected_rows,
                 sender: self.sender.clone(),
                 fetches: self.fetches.clone(),
@@ -408,16 +419,16 @@ impl WsClient {
 }
 
 impl ResultSet {
-    pub fn fetch_block(&mut self) -> Result<Option<Raw>> {
+    async fn fetch_block_a(&mut self) -> Result<Option<Raw>> {
         if self.receiver.is_none() {
             return Ok(None);
         }
         let rx = self.receiver.as_mut().unwrap();
         let fetch = WsSend::Fetch(self.args);
 
-        self.sender.blocking_send(fetch)?;
+        self.sender.send_timeout(fetch, self.timeout).await?;
 
-        let fetch_resp = if let WsFetchData::Fetch(fetch) = rx.recv()?? {
+        let fetch_resp = if let WsFetchData::Fetch(fetch) = rx.recv_timeout(self.timeout)?? {
             fetch
         } else {
             unreachable!()
@@ -429,9 +440,9 @@ impl ResultSet {
 
         let fetch_block = WsSend::FetchBlock(self.args);
 
-        self.sender.blocking_send(fetch_block)?;
+        self.sender.send_timeout(fetch_block, self.timeout).await?;
 
-        match rx.recv()?? {
+        match rx.recv_timeout(self.timeout)?? {
             WsFetchData::Block(raw) => {
                 let mut raw = Raw::parse_from_raw_block(
                     raw,
@@ -469,6 +480,9 @@ impl ResultSet {
             }
             _ => Ok(None),
         }
+    }
+    pub fn fetch_block(&mut self) -> Result<Option<Raw>> {
+        self.rt.clone().block_on(self.fetch_block_a())
     }
 }
 impl Iterator for ResultSet {
