@@ -916,8 +916,6 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
   }
 
   if (TSDB_DATA_TYPE_NULL == pVal->node.resType.type) {
-    // TODO
-    // pVal->node.resType = targetDt;
     pVal->translate = true;
     pVal->isNull = true;
     return DEAL_RES_CONTINUE;
@@ -2409,21 +2407,10 @@ static int32_t translatePartitionBy(STranslateContext* pCxt, SNodeList* pPartiti
   return translateExprList(pCxt, pPartitionByList);
 }
 
-static bool isDataTable(int8_t tableType) {
-  return TSDB_SUPER_TABLE == tableType || TSDB_CHILD_TABLE == tableType || TSDB_NORMAL_TABLE == tableType;
-}
-
-static bool needCalcTimeRange(SSelectStmt* pSelect) {
-  if (QUERY_NODE_REAL_TABLE != nodeType(pSelect->pFromTable)) {
-    return false;
-  }
-  return isDataTable(((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType);
-}
-
 static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
   int32_t code = translateExpr(pCxt, &pSelect->pWhere);
-  if (TSDB_CODE_SUCCESS == code && needCalcTimeRange(pSelect)) {
+  if (TSDB_CODE_SUCCESS == code) {
     code = getQueryTimeRange(pCxt, pSelect->pWhere, &pSelect->timeRange);
   }
   return code;

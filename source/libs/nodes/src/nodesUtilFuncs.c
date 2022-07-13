@@ -1777,7 +1777,7 @@ static EDealRes classifyConditionImpl(SNode* pNode, void* pContext) {
   SClassifyConditionCxt* pCxt = (SClassifyConditionCxt*)pContext;
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
+    if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId && TSDB_SYSTEM_TABLE != pCol->tableType) {
       pCxt->hasPrimaryKey = true;
     } else if (pCol->hasIndex) {
       pCxt->hasTagIndexCol = true;
