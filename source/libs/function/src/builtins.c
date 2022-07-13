@@ -1918,6 +1918,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = minmaxFunctionSetup,
     .processFunc  = minFunction,
+    .sprocessFunc = minScalarFunction,
     .finalizeFunc = minmaxFunctionFinalize,
     .combineFunc  = minCombine,
     .pPartialFunc = "min",
