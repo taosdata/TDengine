@@ -2,6 +2,7 @@ use once_cell::sync::{Lazy, OnceCell};
 use taos_query::common::{Field, Precision, Raw};
 use taos_query::{DeError, Dsn, DsnError, Fetchable, IntoDsn, Queryable};
 use thiserror::Error;
+use tokio::sync::watch;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
@@ -48,6 +49,14 @@ pub struct WsClient {
     fetches: Arc<HashMap<ResId, FetchSender>>,
     stmt: OnceCell<WsSyncStmtClient>,
     rt: Arc<tokio::runtime::Runtime>,
+    close_signal: watch::Sender<bool>,
+}
+
+impl Drop for WsClient {
+    fn drop(&mut self) {
+        print!("dropping client");
+        // send close signal to reader/writer spawned tasks.
+    }
 }
 
 pub struct ResultSet {
@@ -206,34 +215,44 @@ impl WsClient {
         let tx2recv = msg_sender.clone();
         // let msg_receiver = MsgReceiver(msg_receiver);
 
+        let (close_signal, mut close_recv) = watch::channel(false);
         rt.spawn(async move {
-            'recv: loop {
-                match msg_receiver.recv().await {
-                    Some(WsSend::Pong(bytes)) => {
-                        if let Err(err) = async_sender.send(Message::Pong(bytes)).await {
-                            log::error!("send websocket message packet error: {}", err);
-                            break 'recv;
-                        } else {
+            loop {
+                tokio::select! {
+                    message = msg_receiver.recv() => match message {
+                        Some(WsSend::Pong(bytes)) => {
+                            if let Err(err) = async_sender.send(Message::Pong(bytes)).await {
+                                log::error!("send websocket message packet error: {}", err);
+                                break;
+                            } else {
+                            }
                         }
-                    }
-                    Some(msg) => {
-                        if let Err(err) = async_sender.send(msg.to_msg()).await {
-                            log::error!("send websocket message packet error: {}", err);
-                            break 'recv;
-                        } else {
+                        Some(msg) => {
+                            if let Err(err) = async_sender.send(msg.to_msg()).await {
+                                log::error!("send websocket message packet error: {}", err);
+                                break;
+                            } else {
+                            }
                         }
-                    }
-                    None => {
-                        break 'recv;
+                        None => {
+                            break;
+                        }
+                    },
+
+                    _ = close_recv.changed() => {
+                        println!("close all");
+                        log::info!("close sender task");
+                        break;
                     }
                 }
+                // match msg_receiver.recv().await {}
             }
         });
 
         // message handler for query/fetch/fetch_block
         rt.spawn(async move {
             loop {
-                for message in async_reader.next().await {
+                if let Some(message) = async_reader.next().await {
                     if let Ok(message) = message {
                         match message {
                             Message::Text(text) => {
@@ -298,7 +317,7 @@ impl WsClient {
                         }
                     } else {
                         let err = message.unwrap_err();
-                        dbg!(err);
+                        log::error!("connection seems closed: {}", err);
                         break;
                     }
                 }
@@ -315,7 +334,12 @@ impl WsClient {
             rt: Arc::new(rt),
             stmt: OnceCell::<WsSyncStmtClient>::new(),
             info: info.clone(),
+            close_signal,
         })
+    }
+
+    pub fn close(&self) {
+        let _ = self.close_signal.send(true).unwrap();
     }
 
     fn req_id(&self) -> u64 {

@@ -39,8 +39,16 @@ pub struct WsError {
 
 pub struct WsMaybeError<T> {
     error: Option<WsError>,
-    data: Box<T>,
+    data: *mut T,
     type_id: TypeId,
+}
+
+impl<T> Drop for WsMaybeError<T> {
+    fn drop(&mut self) {
+        if !self.data.is_null() {
+            let _ = unsafe { self.data.read() };
+        }
+    }
 }
 
 #[test]
@@ -64,13 +72,13 @@ impl<T> Deref for WsMaybeError<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.data
+        unsafe { self.data.as_ref().unwrap() }
     }
 }
 
 impl<T> DerefMut for WsMaybeError<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.data
+        unsafe { self.data.as_mut().unwrap() }
     }
 }
 
@@ -78,7 +86,7 @@ impl<T: 'static> From<T> for WsMaybeError<T> {
     fn from(value: T) -> Self {
         Self {
             error: None,
-            data: Box::new(value),
+            data: Box::into_raw(Box::new(value)),
             type_id: std::any::TypeId::of::<T>(),
         }
     }
@@ -88,7 +96,7 @@ impl<T: 'static> From<Box<T>> for WsMaybeError<T> {
     fn from(value: Box<T>) -> Self {
         Self {
             error: None,
-            data: value,
+            data: Box::into_raw(value),
             type_id: std::any::TypeId::of::<T>(),
         }
     }
@@ -102,12 +110,32 @@ where
         match value {
             Ok(value) => Self {
                 error: None,
-                data: Box::new(value),
+                data: Box::into_raw(Box::new(value)),
                 type_id: std::any::TypeId::of::<T>(),
             },
             Err(err) => Self {
                 error: Some(err.into()),
-                data: unsafe { Box::from_raw(std::ptr::null_mut()) },
+                data: std::ptr::null_mut(),
+                type_id: std::any::TypeId::of::<T>(),
+            },
+        }
+    }
+}
+
+impl<T: 'static, E> From<Result<Box<T>, E>> for WsMaybeError<T>
+where
+    E: Into<WsError>,
+{
+    fn from(value: Result<Box<T>, E>) -> Self {
+        match value {
+            Ok(value) => Self {
+                error: None,
+                data: Box::into_raw(value),
+                type_id: std::any::TypeId::of::<T>(),
+            },
+            Err(err) => Self {
+                error: Some(err.into()),
+                data: std::ptr::null_mut(),
                 type_id: std::any::TypeId::of::<T>(),
             },
         }
@@ -397,7 +425,9 @@ pub unsafe extern "C" fn ws_get_server_info(taos: *mut WS_TAOS) -> *const c_char
 #[no_mangle]
 /// Same to taos_close. This should always be called after everything done with the connection.
 pub unsafe extern "C" fn ws_close(taos: *mut WS_TAOS) {
-    let _ = Box::from_raw(taos as *mut WsClient);
+    let client = Box::from_raw(taos as *mut WsClient);
+    client.close();
+    drop(client);
 }
 
 unsafe fn query_with_sql(taos: *mut WS_TAOS, sql: *const c_char) -> WsResult<WsResultSet> {
@@ -687,7 +717,8 @@ mod tests {
     fn connect() {
         init_env();
         unsafe {
-            let taos = ws_connect_with_dsn(b"ws://localhost:6041\0" as *const u8 as _);
+            // export TDENGINE_CLOUD_DSN="http://gw-aws.cloud.tdengine.com:80?token=8c7a628b568b7d32cc50f36b0f2d6273ffd060fc"
+            let taos = ws_connect_with_dsn(b"http://gw-aws.cloud.tdengine.com:80?token=8c7a628b568b7d32cc50f36b0f2d6273ffd060fc\0" as *const u8 as _);
             if taos.is_null() {
                 let code = ws_errno(taos);
                 assert!(code != 0);
@@ -699,11 +730,19 @@ mod tests {
             let version = ws_get_server_info(taos);
             dbg!(CStr::from_ptr(version as _));
 
-            let sql = b"show databases\0" as *const u8 as _;
+            let sql = b"select avg(current) from test.meters\0" as *const u8 as _;
             let rs = ws_query(taos, sql);
 
             let code = ws_errno(rs);
-            assert!(code == 0);
+            let errstr = CStr::from_ptr(ws_errstr(rs));
+
+            if code != 0 {
+                dbg!(errstr);
+                ws_free_result(rs);
+                ws_close(taos);
+                return ;
+            }
+            assert_eq!(code, 0, "{errstr:?}");
 
             let affected_rows = ws_affected_rows(rs);
             assert!(affected_rows == 0);

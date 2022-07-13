@@ -29,6 +29,7 @@ type FetchReceiver = std::sync::mpsc::Receiver<WsFetchResult>;
 type WsSender = tokio::sync::mpsc::Sender<Message>;
 
 pub struct WsAsyncClient {
+    timeout: Duration,
     req_id: Arc<AtomicU64>,
     ws: WsSender,
     version: String,
@@ -40,6 +41,7 @@ pub struct WsAsyncClient {
 
 pub struct ResultSet {
     ws: WsSender,
+    timeout: Duration,
     fetches: Arc<HashMap<ResId, FetchSender>>,
     receiver: Option<FetchReceiver>,
     args: WsResArgs,
@@ -64,6 +66,7 @@ impl Debug for ResultSet {
 }
 pub struct ResultSetRef {
     ws: WsSender,
+    timeout: Duration,
     fetches: Arc<HashMap<ResId, FetchSender>>,
     receiver: Option<FetchReceiver>,
     args: WsResArgs,
@@ -106,6 +109,12 @@ pub enum Error {
     StdSendError(#[from] std::sync::mpsc::SendError<tokio_tungstenite::tungstenite::Message>),
     #[error("{0}")]
     RecvError(#[from] std::sync::mpsc::RecvError),
+    #[error(transparent)]
+    RecvTimeout(#[from] std::sync::mpsc::RecvTimeoutError),
+    #[error(transparent)]
+    SendTimeoutError(#[from] tokio::sync::mpsc::error::SendTimeoutError<Message>),
+    #[error("Query timed out with sql: {0}")]
+    QueryTimeout(String),
     #[error("{0}")]
     TaosError(#[from] taos_error::Error),
     #[error("{0}")]
@@ -238,9 +247,6 @@ impl WsAsyncClient {
 
         // message handler for query/fetch/fetch_block
         tokio::spawn(async move {
-            let mut bytes: Vec<u8> = Vec::new();
-            let mut len_requires = 0usize;
-            let mut full = false;
             loop {
                 tokio::select! {
                     Some(message) = reader.next() => {
@@ -336,6 +342,7 @@ impl WsAsyncClient {
         });
 
         Ok(Self {
+            timeout: Duration::from_secs(10),
             req_id: Arc::new(AtomicU64::new(req_id + 1)),
             queries,
             fetches,
@@ -359,9 +366,19 @@ impl WsAsyncClient {
         let (tx, rx) = oneshot::channel();
         {
             self.queries.insert(req_id, tx).unwrap();
-            self.ws.send(action.to_msg()).await?;
+            self.ws.send_timeout(action.to_msg(), self.timeout).await?;
         }
-        let resp = rx.await??;
+        let sleep = tokio::time::sleep(self.timeout);
+        tokio::pin!(sleep);
+        let resp = tokio::select! {
+            _ = &mut sleep, if !sleep.is_elapsed() => {
+               log::debug!("get server version timed out");
+               Err(Error::QueryTimeout(sql.to_string()))?
+            }
+            message = rx => {
+                message??
+            }
+        };
 
         if resp.fields_count > 0 {
             let names = resp.fields_names.unwrap();
@@ -377,6 +394,7 @@ impl WsAsyncClient {
             let (sender, receiver) = std::sync::mpsc::sync_channel(2);
             self.fetches.insert(resp.id, sender).unwrap();
             Ok(ResultSet {
+                timeout: self.timeout,
                 ws: self.ws.clone(),
                 fetches: self.fetches.clone(),
                 receiver: Some(receiver),
@@ -391,6 +409,7 @@ impl WsAsyncClient {
             })
         } else {
             Ok(ResultSet {
+                timeout: self.timeout,
                 affected_rows: resp.affected_rows,
                 ws: self.ws.clone(),
                 fetches: self.fetches.clone(),
@@ -415,7 +434,7 @@ impl WsAsyncClient {
         let (tx, rx) = oneshot::channel();
         {
             self.queries.insert(req_id, tx).unwrap();
-            self.ws.send(action.to_msg()).await?;
+            self.ws.send_timeout(action.to_msg(), self.timeout).await?;
         }
         let resp = rx.await??;
         Ok(resp.affected_rows)
@@ -535,6 +554,7 @@ impl AsyncFetchable for ResultSet {
 
     fn block_stream(&mut self) -> Self::BlockStream {
         ResultSetRef {
+            timeout: self.timeout,
             ws: self.ws.clone(),
             fetches: self.fetches.clone(),
             receiver: self.receiver.take(),
