@@ -2397,7 +2397,7 @@ void tmq_free_json_meta(char* jsonMeta){
   taosMemoryFreeClear(jsonMeta);
 }
 
-static int32_t taosCreateStb(TAOS *taos, void *meta, int32_t metaLen){
+static int32_t taosCreateStb(TAOS *taos, void *meta, int32_t metaLen, bool isCreate){
   SVCreateStbReq req = {0};
   SDecoder       coder;
   SMCreateStbReq pReq = {0};
@@ -2436,8 +2436,13 @@ static int32_t taosCreateStb(TAOS *taos, void *meta, int32_t metaLen){
     strcpy(field.name, pSchema->name);
     taosArrayPush(pReq.pTags, &field);
   }
-  pReq.colVer = req.schemaRow.version;
-  pReq.tagVer = req.schemaTag.version;
+  if(isCreate){
+    pReq.colVer = 1;
+    pReq.tagVer = 1;
+  }else{
+    pReq.colVer = req.schemaRow.version;
+    pReq.tagVer = req.schemaTag.version;
+  }
   pReq.numOfColumns = req.schemaRow.nCols;
   pReq.numOfTags = req.schemaTag.nCols;
   pReq.commentLen = -1;
@@ -2871,9 +2876,9 @@ int32_t taos_write_raw_meta(TAOS *taos, tmq_raw_data *raw_meta){
   }
 
   if(raw_meta->raw_meta_type == TDMT_VND_CREATE_STB) {
-    return taosCreateStb(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
+    return taosCreateStb(taos, raw_meta->raw_meta, raw_meta->raw_meta_len, true);
   }else if(raw_meta->raw_meta_type == TDMT_VND_ALTER_STB){
-    return taosCreateStb(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
+    return taosCreateStb(taos, raw_meta->raw_meta, raw_meta->raw_meta_len, false);
   }else if(raw_meta->raw_meta_type == TDMT_VND_DROP_STB){
     return taosDropStb(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
   }else if(raw_meta->raw_meta_type == TDMT_VND_CREATE_TABLE){

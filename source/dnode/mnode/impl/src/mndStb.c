@@ -710,8 +710,8 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->updateTime = pDst->createdTime;
   pDst->uid = (pCreate->source == TD_REQ_FROM_TAOX) ? pCreate->suid : mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
   pDst->dbUid = pDb->uid;
-  pDst->tagVer = (pCreate->source != TD_REQ_FROM_APP) ? pCreate->tagVer : 1;
-  pDst->colVer = (pCreate->source != TD_REQ_FROM_APP) ? pCreate->colVer : 1;
+  pDst->tagVer = (pCreate->source == TD_REQ_FROM_TAOX) ? pCreate->tagVer : 1;
+  pDst->colVer = (pCreate->source == TD_REQ_FROM_TAOX) ? pCreate->colVer : 1;
   pDst->smaVer = 1;
   pDst->nextColId = 1;
   pDst->maxdelay[0] = pCreate->delay1;
@@ -981,6 +981,14 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     }
   } else if (terrno != TSDB_CODE_MND_STB_NOT_EXIST) {
     goto _OVER;
+  } else if (createReq.source == TD_REQ_FROM_TAOX && (createReq.tagVer != 1 || createReq.colVer != 1)){
+    mInfo("stb:%s, alter table does not need to be done, because table is deleted", createReq.name);
+    code = 0;
+    goto _OVER;
+  } else if (createReq.source == TD_REQ_FROM_TAOX && (createReq.tagVer == 1 || createReq.colVer == 1)){ //metaSaveToSkmDb does not delete  pMeta->pSkmDb, if receivet tmq message is: create stable1 then delete stable1 then create stable1
+    mInfo("stb:%s, create table from taosx", createReq.name);
+    createReq.tagVer++;
+    createReq.colVer++;
   }
 
   pDb = mndAcquireDbByStb(pMnode, createReq.name);
