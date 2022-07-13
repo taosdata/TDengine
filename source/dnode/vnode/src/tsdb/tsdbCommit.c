@@ -284,16 +284,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
                        .fLast = {.commitID = pCommitter->commitID, .size = 0},
                        .fSma = pRSet->fSma};
   } else {
-    STfs   *pTfs = pTsdb->pVnode->pTfs;
-    SDiskID did = {.level = 0, .id = 0};
-
-    // TODO: alloc a new disk
-    // tfsAllocDisk(pTfs, 0, &did);
-
-    // create the directory
-    tfsMkdirRecurAt(pTfs, pTsdb->path, did);
-
-    wSet = (SDFileSet){.diskId = did,
+    wSet = (SDFileSet){.diskId = (SDiskID){.level = 0, .id = 0},
                        .fid = pCommitter->commitFid,
                        .fHead = {.commitID = pCommitter->commitID, .offset = 0, .size = 0},
                        .fData = {.commitID = pCommitter->commitID, .size = 0},
