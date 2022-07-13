@@ -2713,6 +2713,7 @@ static int32_t taosDropTable(TAOS *taos, void *meta, int32_t metaLen){
   // loop to create table
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pDropReq = req.pReqs + iReq;
+    pDropReq->igNotExists = true;
 
     SVgroupInfo pInfo = {0};
     SName pName;

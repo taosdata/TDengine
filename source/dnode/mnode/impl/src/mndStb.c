@@ -1849,8 +1849,8 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
     }
   }
 
-  if (dropReq.source != TD_REQ_FROM_APP && pStb->uid != dropReq.suid) {
-    terrno = TSDB_CODE_MND_STB_NOT_EXIST;
+  if (dropReq.source == TD_REQ_FROM_TAOX && pStb->uid != dropReq.suid) {
+    code = 0;
     goto _OVER;
   }
 
