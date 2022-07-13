@@ -115,7 +115,6 @@ int32_t tGetBlock(uint8_t *p, void *ph);
 int32_t tBlockCmprFn(const void *p1, const void *p2);
 bool    tBlockHasSma(SBlock *pBlock);
 // SBlockIdx
-void    tBlockIdxReset(SBlockIdx *pBlockIdx);
 int32_t tPutBlockIdx(uint8_t *p, void *ph);
 int32_t tGetBlockIdx(uint8_t *p, void *ph);
 int32_t tCmprBlockIdx(void const *lhs, void const *rhs);
@@ -361,10 +360,6 @@ struct TSDBROW {
 struct SBlockIdx {
   int64_t suid;
   int64_t uid;
-  TSKEY   minKey;
-  TSKEY   maxKey;
-  int64_t minVersion;
-  int64_t maxVersion;
   int64_t offset;
   int64_t size;
 };

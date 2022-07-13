@@ -189,25 +189,12 @@ static FORCE_INLINE int32_t tGetTSDBKEY(uint8_t *p, TSDBKEY *pKey) {
 }
 
 // SBlockIdx ======================================================
-void tBlockIdxReset(SBlockIdx *pBlockIdx) {
-  pBlockIdx->minKey = TSKEY_MAX;
-  pBlockIdx->maxKey = TSKEY_MIN;
-  pBlockIdx->minVersion = VERSION_MAX;
-  pBlockIdx->maxVersion = VERSION_MIN;
-  pBlockIdx->offset = -1;
-  pBlockIdx->size = -1;
-}
-
 int32_t tPutBlockIdx(uint8_t *p, void *ph) {
   int32_t    n = 0;
   SBlockIdx *pBlockIdx = (SBlockIdx *)ph;
 
   n += tPutI64(p ? p + n : p, pBlockIdx->suid);
   n += tPutI64(p ? p + n : p, pBlockIdx->uid);
-  n += tPutI64(p ? p + n : p, pBlockIdx->minKey);
-  n += tPutI64(p ? p + n : p, pBlockIdx->maxKey);
-  n += tPutI64v(p ? p + n : p, pBlockIdx->minVersion);
-  n += tPutI64v(p ? p + n : p, pBlockIdx->maxVersion);
   n += tPutI64v(p ? p + n : p, pBlockIdx->offset);
   n += tPutI64v(p ? p + n : p, pBlockIdx->size);
 
@@ -220,10 +207,6 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph) {
 
   n += tGetI64(p + n, &pBlockIdx->suid);
   n += tGetI64(p + n, &pBlockIdx->uid);
-  n += tGetI64(p + n, &pBlockIdx->minKey);
-  n += tGetI64(p + n, &pBlockIdx->maxKey);
-  n += tGetI64v(p + n, &pBlockIdx->minVersion);
-  n += tGetI64v(p + n, &pBlockIdx->maxVersion);
   n += tGetI64v(p + n, &pBlockIdx->offset);
   n += tGetI64v(p + n, &pBlockIdx->size);
 

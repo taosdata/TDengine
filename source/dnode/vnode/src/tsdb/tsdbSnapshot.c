@@ -383,13 +383,14 @@ struct STsdbSnapWriter {
   int32_t       iRow;
 
   SDataFWriter* pDataFWriter;
-  SArray*       aBlockIdxW;  // SArray<SBlockIdx>
   SBlockIdx*    pBlockIdxW;
   SBlockIdx     blockIdx;
-  SMapData      mBlockW;  // SMapData<SBlock>
   SBlock*       pBlockW;
   SBlock        blockW;
   SBlockData    bDataW;
+
+  SMapData mBlockW;     // SMapData<SBlock>
+  SArray*  aBlockIdxW;  // SArray<SBlockIdx>
 
   // for del file
   SDelFReader* pDelFReader;
@@ -460,6 +461,7 @@ static int32_t tsdbSnapWriteTableDataEnd(STsdbSnapWriter* pWrite) {
   return code;
 }
 
+#if 0
 static int32_t tsdbSnapWriteTableData(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t code = 0;
   TABLEID id = {0};  // TODO
@@ -556,6 +558,38 @@ _err:
   tsdbError("vgId:%d tsdb snapshot write table data failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
+#endif
+
+static int32_t tsdbSnapWriteDataImpl(STsdbSnapWriter* pWriter, TABLEID id) {
+  int32_t     code = 0;
+  SBlockData* pBlockData = &pWriter->bData;
+
+  if (pWriter->pDataFReader == NULL) {
+    // no old data
+
+    // end last table data commit if id not same
+    if (pWriter->pBlockIdxW) {
+      int32_t c = tTABLEIDCmprFn(pWriter->pBlockIdx, &id);
+      if (c < 0) {
+        // commit last table data and reset (todo)
+        pWriter->pBlockIdxW = NULL;
+      } else if (c > 0) {
+        ASSERT(0);
+      }
+    }
+
+    // start a new table data if need
+    if (pWriter->pBlockIdxW == NULL) {
+      pWriter->pBlockIdxW = &pWriter->blockIdx;
+      pWriter->pBlockIdxW->suid = id.suid;
+      pWriter->pBlockIdxW->uid = id.uid;
+    }
+
+  } else {
+  }
+
+  return code;
+}
 
 static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t       code = 0;
@@ -630,7 +664,8 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
     tBlockDataReset(&pWriter->bDataW);
   }
 
-  // write data block (todo)
+  code = tsdbSnapWriteDataImpl(pWriter, id);
+  if (code) goto _err;
 
   tsdbInfo("vgId:%d vnode snapshot tsdb write data, fid:%d suid:%" PRId64 " uid:%" PRId64 " nRow:%d",
            TD_VID(pTsdb->pVnode), fid, id.suid, id.suid, pBlockData->nRow);

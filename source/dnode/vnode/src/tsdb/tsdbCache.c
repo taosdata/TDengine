@@ -500,9 +500,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
       if (code) goto _err;
 
       /* if (state->pBlockIdx) { */
-      /*   tBlockIdxReset(state->blockIdx); */
       /* } */
-      /* tBlockIdxReset(state->blockIdx); */
       /* code = tMapDataSearch(&state->blockIdxMap, state->pBlockIdxExp, tGetBlockIdx, tCmprBlockIdx,
        * &state->blockIdx);
        */
