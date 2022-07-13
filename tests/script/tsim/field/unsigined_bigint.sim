@@ -1,13 +1,9 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-
-sleep 2000
 sql connect
 
 print ======================== dnode1 start
-
 $dbPrefix = db
 $tbPrefix = tb
 $mtPrefix = st
@@ -22,17 +18,21 @@ $mt = $mtPrefix . $i
 
 sql create database $db
 sql use $db
-sql create table $mt (ts timestamp, tbcol tinyint) TAGS(tgcol tinyint)
+sql create table $mt (ts timestamp, tbcol bigint unsigned) TAGS(tgcol bigint unsigned)
 
 $i = 0
 while $i < 5
   $tb = $tbPrefix . $i
   sql create table $tb using $mt tags( 0 )  
+  sql_error create table $tb using $mt tags( -111 )  
   $x = 0
   while $x < $rowNum
     $ms = $x . m 
     sql insert into $tb values (1626739200000 + $ms , 0 ) 
     $x = $x + 1
+    sql_error insert into $tb values (1626739200000 + $ms , -10) 
+    sql_error insert into $tb values (1626739200000 + $ms ,        -1000) 
+    sql_error insert into $tb values (1626739200000 + $ms ,        -10000000) 
   endw  
   $i = $i + 1
 endw 
@@ -133,7 +133,9 @@ endi
 print =============== step6
 sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = 1 group by tgcol
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data00 != 100 then 
+print $data10 $data11 $data12 $data13 $data14 $data15 $data16
+if $data00 != 100 then
+  print expect 100, actual $data00
   return -1
 endi
 
@@ -145,16 +147,16 @@ if $data00 != 25 then
 endi
 
 print =============== step8
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = 1 interval(1d) group by tgcol order by tgcol desc
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = 1 group by tgcol order by tgcol desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data01 != 100 then 
+if $data00 != 100 then 
   return -1
 endi
 
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 

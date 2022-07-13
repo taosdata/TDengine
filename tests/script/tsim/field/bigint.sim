@@ -1,9 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-
-sleep 2000
 sql connect
 print ======================== dnode1 start
 
@@ -21,7 +18,7 @@ $mt = $mtPrefix . $i
 
 sql create database $db
 sql use $db
-sql create table $mt (ts timestamp, tbcol smallint) TAGS(tgcol smallint)
+sql create table $mt (ts timestamp, tbcol bigint) TAGS(tgcol bigint)
 
 $i = 0
 while $i < 5
@@ -132,7 +129,9 @@ endi
 print =============== step6
 sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = 1 group by tgcol
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data00 != 100 then 
+print $data10 $data11 $data12 $data13 $data14 $data15 $data16
+if $data00 != 100 then
+  print expect 100, actual $data00
   return -1
 endi
 
@@ -144,16 +143,16 @@ if $data00 != 25 then
 endi
 
 print =============== step8
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = 1 interval(1d) group by tgcol order by tgcol desc
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = 1 group by tgcol order by tgcol desc
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data01 != 100 then 
+if $data00 != 100 then 
   return -1
 endi
 
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 

@@ -1,9 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-
-sleep 2000
 sql connect
 print ======================== dnode1 start
 
@@ -47,7 +44,6 @@ while $i < 10
   $i = $i + 1
 endw 
 
-
 print =============== step2
 
 sql select * from $mt where tbcol = '0' 
@@ -70,7 +66,7 @@ sql_error select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), f
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 
