@@ -5559,6 +5559,10 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
 
+  if (pData->totalRows == 0) {
+    pData->minRows = 0;
+  }
+
   int32_t row = 0;
   char    st[256] = {0};
   double  totalRawSize = pData->totalRows * pData->rowSize;
@@ -5570,10 +5574,14 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   varDataSetLen(st, len);
   colDataAppend(pColInfo, row++, st, false);
 
+  int64_t avgRows = 0;
+  if (pData->numOfBlocks > 0) {
+    avgRows = pData->totalRows / pData->numOfBlocks;
+  }
+
   len = sprintf(st + VARSTR_HEADER_SIZE,
                 "Total_Rows=[%" PRId64 "] Inmem_Rows=[%d] MinRows=[%d] MaxRows=[%d] Average_Rows=[%" PRId64 "]",
-                pData->totalRows, pData->numOfInmemRows, pData->minRows, pData->maxRows,
-                pData->totalRows / pData->numOfBlocks);
+                pData->totalRows, pData->numOfInmemRows, pData->minRows, pData->maxRows, avgRows);
 
   varDataSetLen(st, len);
   colDataAppend(pColInfo, row++, st, false);
