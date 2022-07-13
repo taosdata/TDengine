@@ -1001,10 +1001,10 @@ _exit:
 static void tsdbCommitDataEnd(SCommitter *pCommitter) {
   taosArrayDestroy(pCommitter->aBlockIdx);
   tMapDataClear(&pCommitter->oBlockMap);
-  tBlockDataClear(&pCommitter->oBlockData);
+  tBlockDataClear(&pCommitter->oBlockData, 1);
   taosArrayDestroy(pCommitter->aBlockIdxN);
   tMapDataClear(&pCommitter->nBlockMap);
-  tBlockDataClear(&pCommitter->nBlockData);
+  tBlockDataClear(&pCommitter->nBlockData, 1);
   tTSchemaDestroy(pCommitter->skmTable.pTSchema);
   tTSchemaDestroy(pCommitter->skmRow.pTSchema);
 }

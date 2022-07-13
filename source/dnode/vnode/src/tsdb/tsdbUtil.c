@@ -1032,11 +1032,11 @@ void tBlockDataReset(SBlockData *pBlockData) {
   taosArrayClear(pBlockData->aIdx);
 }
 
-void tBlockDataClear(SBlockData *pBlockData) {
+void tBlockDataClear(SBlockData *pBlockData, int8_t deepClear) {
   tFree((uint8_t *)pBlockData->aVersion);
   tFree((uint8_t *)pBlockData->aTSKEY);
   taosArrayDestroy(pBlockData->aIdx);
-  taosArrayDestroyEx(pBlockData->aColData, tColDataClear);
+  taosArrayDestroyEx(pBlockData->aColData, deepClear ? tColDataClear : NULL);
 }
 
 int32_t tBlockDataSetSchema(SBlockData *pBlockData, STSchema *pTSchema) {

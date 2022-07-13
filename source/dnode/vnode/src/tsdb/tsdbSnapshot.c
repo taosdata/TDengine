@@ -296,8 +296,8 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
   }
   taosArrayDestroy(pReader->aBlockIdx);
   tMapDataClear(&pReader->mBlock);
-  tBlockDataClear(&pReader->oBlockData);
-  tBlockDataClear(&pReader->nBlockData);
+  tBlockDataClear(&pReader->oBlockData, 1);
+  tBlockDataClear(&pReader->nBlockData, 1);
 
   if (pReader->pDelFReader) {
     tsdbDelFReaderClose(&pReader->pDelFReader);
@@ -555,11 +555,21 @@ _err:
 }
 
 static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
-  int32_t code = 0;
-  STsdb*  pTsdb = pWriter->pTsdb;
-  int64_t skey;  // todo
-  int64_t ekey;  // todo
+  int32_t       code = 0;
+  STsdb*        pTsdb = pWriter->pTsdb;
+  SSnapDataHdr* pHdr = (SSnapDataHdr*)pData;
+  TABLEID       id = *(TABLEID*)(&pHdr[1]);
+  int64_t       n;
+  SBlockData    bData = {0};
+  SBlockData*   pBlockData = &bData;
 
+  // decode
+  code = tBlockDataInit(pBlockData);
+  if (code) goto _err;
+  n = tGetBlockData(pData + sizeof(SSnapDataHdr) + sizeof(TABLEID), pBlockData);
+  ASSERT(n + sizeof(SSnapDataHdr) + sizeof(TABLEID) == nData);
+
+#if 0
   int32_t fid = tsdbKeyFid(skey, pWriter->minutes, pWriter->precision);
   ASSERT(fid == tsdbKeyFid(ekey, pWriter->minutes, pWriter->precision));
 
@@ -600,7 +610,10 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
 
   code = tsdbSnapWriteTableData(pWriter, pData, nData);
   if (code) goto _err;
+#endif
 
+  tsdbInfo("vgId:%d vnode snapshot tsdb write data, suid:%" PRId64 " uid:%" PRId64 " nRow:%d", TD_VID(pTsdb->pVnode),
+           id.suid, id.suid, pBlockData->nRow);
   return code;
 
 _err:
@@ -755,6 +768,12 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
   pWriter->sver = sver;
   pWriter->ever = ever;
 
+  pWriter->minutes = pTsdb->keepCfg.days;
+  pWriter->precision = pTsdb->keepCfg.precision;
+  pWriter->minRow = pTsdb->pVnode->config.tsdbCfg.minRows;
+  pWriter->maxRow = pTsdb->pVnode->config.tsdbCfg.maxRows;
+  pWriter->cmprAlg = pTsdb->pVnode->config.tsdbCfg.compression;
+
   *ppWriter = pWriter;
   return code;
 
@@ -793,24 +812,29 @@ _err:
 }
 
 int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
-  int32_t code = 0;
-  int8_t  type = pData[0];
+  int32_t       code = 0;
+  SSnapDataHdr* pHdr = (SSnapDataHdr*)pData;
 
   // ts data
-  if (type == 0) {
-    code = tsdbSnapWriteData(pWriter, pData + 1, nData - 1);
+  if (pHdr->type == 1) {
+    code = tsdbSnapWriteData(pWriter, pData, nData);
     if (code) goto _err;
+
+    goto _exit;
   } else {
-    code = tsdbSnapWriteDataEnd(pWriter);
-    if (code) goto _err;
+    if (pWriter->pDataFWriter) {
+      code = tsdbSnapWriteDataEnd(pWriter);
+      if (code) goto _err;
+    }
   }
 
   // del data
-  if (type == 1) {
+  if (pHdr->type == 2) {
     code = tsdbSnapWriteDel(pWriter, pData + 1, nData - 1);
     if (code) goto _err;
   }
 
+_exit:
   return code;
 
 _err:

@@ -176,7 +176,6 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
   pWriter->ever = ever;
 
   vInfo("vgId:%d vnode snapshot writer opened", TD_VID(pVnode));
-
   *ppWriter = pWriter;
   return code;
 
@@ -189,15 +188,15 @@ _err:
 int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback) {
   int32_t code = 0;
 
-  goto _exit;
+  // TODO
 
-  if (rollback) {
-    code = vnodeSnapRollback(pWriter);
-    if (code) goto _err;
-  } else {
-    code = vnodeSnapCommit(pWriter);
-    if (code) goto _err;
-  }
+  // if (rollback) {
+  //   code = vnodeSnapRollback(pWriter);
+  //   if (code) goto _err;
+  // } else {
+  //   code = vnodeSnapCommit(pWriter);
+  //   if (code) goto _err;
+  // }
 
 _exit:
   vInfo("vgId:%d vnode snapshot writer closed, rollback:%d", TD_VID(pWriter->pVnode), rollback);
@@ -214,34 +213,40 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
   SSnapDataHdr *pHdr = (SSnapDataHdr *)pData;
   SVnode       *pVnode = pWriter->pVnode;
 
-  // ASSERT(pHdr->size + sizeof(SSnapDataHdr) == nData);
+  ASSERT(pHdr->size + sizeof(SSnapDataHdr) == nData);
+  ASSERT(pHdr->index == pWriter->index + 1);
+  pWriter->index = pHdr->index;
 
-  // if (pHdr->type == 0) {
-  //   // meta
-  //   if (pWriter->pMetaSnapWriter == NULL) {
-  //     code = metaSnapWriterOpen(pVnode->pMeta, pWriter->sver, pWriter->ever, &pWriter->pMetaSnapWriter);
-  //     if (code) goto _err;
-  //   }
-
-  //   code = metaSnapWrite(pWriter->pMetaSnapWriter, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
-  //   if (code) goto _err;
-  // } else {
-  //   // tsdb
-  //   if (pWriter->pTsdbSnapWriter == NULL) {
-  //     code = tsdbSnapWriterOpen(pVnode->pTsdb, pWriter->sver, pWriter->ever, &pWriter->pTsdbSnapWriter);
-  //     if (code) goto _err;
-  //   }
-
-  //   code = tsdbSnapWrite(pWriter->pTsdbSnapWriter, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
-  //   if (code) goto _err;
-  // }
-
-_exit:
   vInfo("vgId:%d vnode snapshot write data, index:%" PRId64 " type:%d nData:%d", TD_VID(pVnode), pHdr->index,
         pHdr->type, nData);
+
+  if (pHdr->type == 0) {
+    // meta
+
+    // if (pWriter->pMetaSnapWriter == NULL) {
+    //   code = metaSnapWriterOpen(pVnode->pMeta, pWriter->sver, pWriter->ever, &pWriter->pMetaSnapWriter);
+    //   if (code) goto _err;
+    // }
+
+    // code = metaSnapWrite(pWriter->pMetaSnapWriter, pData , nData);
+    // if (code) goto _err;
+  } else {
+    // tsdb
+
+    if (pWriter->pTsdbSnapWriter == NULL) {
+      code = tsdbSnapWriterOpen(pVnode->pTsdb, pWriter->sver, pWriter->ever, &pWriter->pTsdbSnapWriter);
+      if (code) goto _err;
+    }
+
+    code = tsdbSnapWrite(pWriter->pTsdbSnapWriter, pData, nData);
+    if (code) goto _err;
+  }
+
+_exit:
   return code;
 
 _err:
-  vError("vgId:%d vnode snapshot write failed since %s", TD_VID(pVnode), tstrerror(code));
+  vError("vgId:%d vnode snapshot write failed since %s, index:%" PRId64 " type:%d nData:%d", TD_VID(pVnode),
+         tstrerror(code), pHdr->index, pHdr->type, nData);
   return code;
 }
