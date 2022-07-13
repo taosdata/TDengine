@@ -34,8 +34,8 @@ struct STsdbSnapReader {
   // for del file
   int8_t       delDone;
   SDelFReader* pDelFReader;
+  SArray*      aDelIdx;  // SArray<SDelIdx>
   int32_t      iDelIdx;
-  SArray*      aDelIdx;   // SArray<SDelIdx>
   SArray*      aDelData;  // SArray<SDelData>
 };
 
@@ -117,7 +117,8 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
           if (code) goto _err;
         }
 
-        // org data (todo)
+        // org data
+        // compress data (todo)
         int32_t size = sizeof(TABLEID) + tPutBlockData(NULL, &pReader->nBlockData);
 
         *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + size);
@@ -137,9 +138,10 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
         tPutBlockData((uint8_t*)(&pId[1]), &pReader->nBlockData);
 
         tsdbInfo("vgId:%d vnode snapshot read data, fid:%d suid:%" PRId64 " uid:%" PRId64
-                 " iBlock:%d minVersion:%d maxVersion:%d nRow:%d out of %d",
+                 " iBlock:%d minVersion:%d maxVersion:%d nRow:%d out of %d size:%d",
                  TD_VID(pTsdb->pVnode), pReader->fid, pReader->pBlockIdx->suid, pReader->pBlockIdx->uid,
-                 pReader->iBlock - 1, pBlock->minVersion, pBlock->maxVersion, pReader->nBlockData.nRow, pBlock->nRow);
+                 pReader->iBlock - 1, pBlock->minVersion, pBlock->maxVersion, pReader->nBlockData.nRow, pBlock->nRow,
+                 size);
 
         goto _exit;
       }
@@ -161,7 +163,6 @@ static int32_t tsdbSnapReadDel(STsdbSnapReader* pReader, uint8_t** ppData) {
 
   if (pReader->pDelFReader == NULL) {
     if (pDelFile == NULL) {
-      code = TSDB_CODE_VND_READ_END;
       goto _exit;
     }
 
@@ -176,15 +177,20 @@ static int32_t tsdbSnapReadDel(STsdbSnapReader* pReader, uint8_t** ppData) {
     pReader->iDelIdx = 0;
   }
 
-  while (pReader->iDelIdx < taosArrayGetSize(pReader->aDelIdx)) {
+  while (true) {
+    if (pReader->iDelIdx >= taosArrayGetSize(pReader->aDelIdx)) {
+      tsdbDelFReaderClose(&pReader->pDelFReader);
+      break;
+    }
+
     SDelIdx* pDelIdx = (SDelIdx*)taosArrayGet(pReader->aDelIdx, pReader->iDelIdx);
-    int32_t  size = 0;
 
     pReader->iDelIdx++;
 
     code = tsdbReadDelData(pReader->pDelFReader, pDelIdx, pReader->aDelData, NULL);
     if (code) goto _err;
 
+    int32_t size = 0;
     for (int32_t iDelData = 0; iDelData < taosArrayGetSize(pReader->aDelData); iDelData++) {
       SDelData* pDelData = (SDelData*)taosArrayGet(pReader->aDelData, iDelData);
 
@@ -193,46 +199,44 @@ static int32_t tsdbSnapReadDel(STsdbSnapReader* pReader, uint8_t** ppData) {
       }
     }
 
-    if (size > 0) {
-      int64_t n = 0;
+    if (size == 0) continue;
 
-      size = size + sizeof(SSnapDataHdr) + sizeof(TABLEID);
-      code = tRealloc(ppData, size);
-      if (code) goto _err;
-
-      // SSnapDataHdr
-      SSnapDataHdr* pSnapDataHdr = (SSnapDataHdr*)(*ppData + n);
-      pSnapDataHdr->type = 1;
-      pSnapDataHdr->size = size;  // TODO: size here may incorrect
-      n += sizeof(SSnapDataHdr);
-
-      // TABLEID
-      TABLEID* pId = (TABLEID*)(*ppData + n);
-      pId->suid = pDelIdx->suid;
-      pId->uid = pDelIdx->uid;
-      n += sizeof(*pId);
-
-      // DATA
-      for (int32_t iDelData = 0; iDelData < taosArrayGetSize(pReader->aDelData); iDelData++) {
-        SDelData* pDelData = (SDelData*)taosArrayGet(pReader->aDelData, iDelData);
-
-        if (pDelData->version >= pReader->sver && pDelData->version <= pReader->ever) {
-          n += tPutDelData(*ppData + n, pDelData);
-        }
-      }
-
-      goto _exit;
+    // org data
+    size = sizeof(TABLEID) + size;
+    *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + size);
+    if (*ppData == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
     }
-  }
 
-  code = TSDB_CODE_VND_READ_END;
-  tsdbDelFReaderClose(&pReader->pDelFReader);
+    SSnapDataHdr* pHdr = (SSnapDataHdr*)(*ppData);
+    pHdr->type = 2;
+    pHdr->size = size;
+
+    TABLEID* pId = (TABLEID*)(&pHdr[1]);
+    pId->suid = pDelIdx->suid;
+    pId->uid = pDelIdx->uid;
+    int32_t n = sizeof(SSnapDataHdr) + sizeof(TABLEID);
+    for (int32_t iDelData = 0; iDelData < taosArrayGetSize(pReader->aDelData); iDelData++) {
+      SDelData* pDelData = (SDelData*)taosArrayGet(pReader->aDelData, iDelData);
+
+      if (pDelData->version < pReader->sver) continue;
+      if (pDelData->version > pReader->ever) continue;
+
+      n += tPutDelData((*ppData) + n, pDelData);
+    }
+
+    tsdbInfo("vgId:%d vnode snapshot tsdb read del data, suid:%" PRId64 " uid:%d" PRId64 " size:%d",
+             TD_VID(pTsdb->pVnode), pDelIdx->suid, pDelIdx->uid, size);
+
+    break;
+  }
 
 _exit:
   return code;
 
 _err:
-  tsdbError("vgId:%d snap read del failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d vnode snapshot tsdb read del failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -342,9 +346,6 @@ int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData) {
   }
 
 _exit:
-  if (*ppData) {
-  } else {
-  }
   return code;
 
 _err:
