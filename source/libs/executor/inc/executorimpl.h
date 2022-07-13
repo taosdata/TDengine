@@ -389,6 +389,7 @@ typedef struct SStreamScanInfo {
   SSDataBlock*           pPullDataRes;    // pull data SSDataBlock
   SSDataBlock*           pDeleteDataRes;  // delete data SSDataBlock
   int32_t                deleteDataIndex;
+  STimeWindow            updateWin;
 
   // status for tmq
   // SSchemaWrapper schema;
@@ -540,6 +541,9 @@ typedef struct SIndefOperatorInfo {
   SArray*            pPseudoColInfo;
   SExprSupp          scalarSup;
   SNode*             pCondition;
+  uint64_t           groupId;
+
+  SSDataBlock*       pNextGroupRes;
 } SIndefOperatorInfo;
 
 typedef struct SFillOperatorInfo {
@@ -552,6 +556,7 @@ typedef struct SFillOperatorInfo {
   STimeWindow       win;
   SNode*            pCondition;
   SArray*           pColMatchColInfo;
+  int32_t           primaryTsCol;
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {
@@ -775,6 +780,8 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLo
                                   int32_t compLen, int32_t numOfOutput, int64_t startTs, uint64_t* total,
                                   SArray* pColList);
 void    getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, STimeWindow* win);
+STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInterval* pInterval, int32_t order);
+
 int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t *order, int32_t* scanFlag);
 int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaultBufsz);
 

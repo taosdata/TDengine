@@ -42,6 +42,7 @@ typedef struct SFillInfo {
   TSKEY     start;                // start timestamp
   TSKEY     end;                  // endKey for fill
   TSKEY     currentKey;           // current active timestamp, the value may be changed during the fill procedure.
+  int32_t   tsSlotId;             // primary time stamp slot id
   int32_t   order;                // order [TSDB_ORDER_ASC|TSDB_ORDER_DESC]
   int32_t   type;                 // fill type
   int32_t   numOfRows;            // number of rows in the input data block
@@ -74,8 +75,8 @@ struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, co
 bool taosFillHasMoreResults(struct SFillInfo* pFillInfo);
 
 SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
-                                     SInterval* pInterval, int32_t fillType,
-                                     struct SFillColInfo* pCol, const char* id);
+                              SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol, int32_t slotId,
+                              const char* id);
 
 void* taosDestroyFillInfo(struct SFillInfo *pFillInfo);
 int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity);

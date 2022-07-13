@@ -647,6 +647,8 @@ int32_t ctgEnqueue(SCatalog* pCtg, SCtgCacheOperation *operation) {
     CTG_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
+  bool syncOp = operation->syncOp;
+  char* opName = gCtgCacheOperation[operation->opId].name;
   if (operation->syncOp) {
     tsem_init(&operation->rspSem, 0, 0);
   }
@@ -664,14 +666,14 @@ int32_t ctgEnqueue(SCatalog* pCtg, SCtgCacheOperation *operation) {
   gCtgMgmt.queue.tail = node;
   CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
 
+  ctgDebug("action [%s] added into queue", opName);
+
   CTG_QUEUE_INC();
   CTG_RT_STAT_INC(numOfOpEnqueue, 1);
 
   tsem_post(&gCtgMgmt.queue.reqSem);
 
-  ctgDebug("action [%s] added into queue", gCtgCacheOperation[operation->opId].name);
-
-  if (operation->syncOp) {
+  if (syncOp) {
     tsem_wait(&operation->rspSem);
     taosMemoryFree(operation);
   }
@@ -840,6 +842,7 @@ _return:
 
   ctgFreeVgInfo(dbInfo);
   taosMemoryFreeClear(op->data);
+  taosMemoryFreeClear(op);
   CTG_RET(code);
 }
 
@@ -852,7 +855,7 @@ int32_t ctgUpdateTbMetaEnqueue(SCatalog* pCtg, STableMetaOutput *output, bool sy
   SCtgUpdateTbMetaMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateTbMetaMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateTbMetaMsg));
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   char *p = strchr(output->dbFName, '.');
@@ -870,6 +873,11 @@ int32_t ctgUpdateTbMetaEnqueue(SCatalog* pCtg, STableMetaOutput *output, bool sy
   return TSDB_CODE_SUCCESS;
   
 _return:
+
+  if (output) {
+    taosMemoryFree(output->tbMeta);
+    taosMemoryFree(output);
+  }
 
   taosMemoryFreeClear(msg);
   
@@ -1753,6 +1761,16 @@ int32_t ctgOpDropStbMeta(SCtgCacheOperation *operation) {
     CTG_CACHE_STAT_DEC(numOfStb, 1);
   }
 
+  SCtgTbCache* pTbCache = taosHashGet(dbCache->tbCache, msg->stbName, strlen(msg->stbName));
+  if (NULL == pTbCache) {
+    ctgDebug("stb %s already not in cache", msg->stbName);
+    goto _return;
+  }
+
+  CTG_LOCK(CTG_WRITE, &pTbCache->metaLock);
+  ctgFreeTbCacheImpl(pTbCache);
+  CTG_UNLOCK(CTG_WRITE, &pTbCache->metaLock);
+
   if (taosHashRemove(dbCache->tbCache, msg->stbName, strlen(msg->stbName))) {  
     ctgError("stb not exist in cache, dbFName:%s, stb:%s, suid:0x%"PRIx64, msg->dbFName, msg->stbName, msg->suid);
   } else {
@@ -1780,14 +1798,24 @@ int32_t ctgOpDropTbMeta(SCtgCacheOperation *operation) {
   SCtgDBCache *dbCache = NULL;
   ctgGetDBCache(pCtg, msg->dbFName, &dbCache);
   if (NULL == dbCache) {
-    return TSDB_CODE_SUCCESS;
+    goto _return;
   }
 
   if (dbCache->dbId != msg->dbId) {
     ctgDebug("dbId 0x%" PRIx64 " not match with curId 0x%"PRIx64", dbFName:%s, tbName:%s", msg->dbId, dbCache->dbId, msg->dbFName, msg->tbName);
-    return TSDB_CODE_SUCCESS;
+    goto _return;
   }
 
+  SCtgTbCache* pTbCache = taosHashGet(dbCache->tbCache, msg->tbName, strlen(msg->tbName));
+  if (NULL == pTbCache) {
+    ctgDebug("tb %s already not in cache", msg->tbName);
+    goto _return;
+  }
+
+  CTG_LOCK(CTG_WRITE, &pTbCache->metaLock);
+  ctgFreeTbCacheImpl(pTbCache);
+  CTG_UNLOCK(CTG_WRITE, &pTbCache->metaLock);
+  
   if (taosHashRemove(dbCache->tbCache, msg->tbName, strlen(msg->tbName))) {
     ctgError("tb %s not exist in cache, dbFName:%s", msg->tbName, msg->dbFName);
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
@@ -2063,6 +2091,8 @@ void* ctgUpdateThreadFunc(void* param) {
 
     if (operation->syncOp) {
       tsem_post(&operation->rspSem);
+    } else {
+      taosMemoryFreeClear(operation);
     }
 
     CTG_RT_STAT_INC(numOfOpDequeue, 1); 

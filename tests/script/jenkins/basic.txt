@@ -96,11 +96,11 @@
 ./test.sh -f tsim/stream/basic2.sim
 ./test.sh -f tsim/stream/drop_stream.sim
 ./test.sh -f tsim/stream/distributeInterval0.sim
-# ./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
+./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
 # ./test.sh -f tsim/stream/distributesession0.sim
 ./test.sh -f tsim/stream/session0.sim
 ./test.sh -f tsim/stream/session1.sim
-# ./test.sh -f tsim/stream/state0.sim
+./test.sh -f tsim/stream/state0.sim
 ./test.sh -f tsim/stream/triggerInterval0.sim
 # ./test.sh -f tsim/stream/triggerSession0.sim
 ./test.sh -f tsim/stream/partitionby.sim
@@ -164,12 +164,13 @@
 # --- sma
 ./test.sh -f tsim/sma/drop_sma.sim
 ./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
-#./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
-#./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
+./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
+./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
 
 # --- valgrind
 ./test.sh -f tsim/valgrind/checkError1.sim
 ./test.sh -f tsim/valgrind/checkError2.sim
+./test.sh -f tsim/valgrind/checkError3.sim
 
 # --- vnode
 # ./test.sh -f tsim/vnode/replica3_basic.sim

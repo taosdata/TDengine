@@ -204,6 +204,8 @@ _OVER:
     mError("sma:%s, failed to decode from raw:%p since %s", pSma->name, pRaw, terrstr());
     taosMemoryFreeClear(pSma->expr);
     taosMemoryFreeClear(pSma->tagsFilter);
+    taosMemoryFreeClear(pSma->sql);
+    taosMemoryFreeClear(pSma->ast);
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -221,6 +223,8 @@ static int32_t mndSmaActionDelete(SSdb *pSdb, SSmaObj *pSma) {
   mTrace("sma:%s, perform delete action, row:%p", pSma->name, pSma);
   taosMemoryFreeClear(pSma->tagsFilter);
   taosMemoryFreeClear(pSma->expr);
+  taosMemoryFreeClear(pSma->sql);
+  taosMemoryFreeClear(pSma->ast);
   return 0;
 }
 
@@ -527,9 +531,19 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.version = 1;
   streamObj.sql = pCreate->sql;
   streamObj.smaId = smaObj.uid;
-  streamObj.watermark = 0;
-  streamObj.trigger = STREAM_TRIGGER_AT_ONCE;
+  streamObj.watermark = pCreate->watermark;
+  streamObj.trigger = STREAM_TRIGGER_WINDOW_CLOSE;
+  streamObj.triggerParam = pCreate->maxDelay;
   streamObj.ast = strdup(smaObj.ast);
+
+  // check the maxDelay
+  if (streamObj.triggerParam < TSDB_MIN_ROLLUP_MAX_DELAY) {
+    int64_t msInterval = convertTimeFromPrecisionToUnit(pCreate->interval, pDb->cfg.precision, TIME_UNIT_MILLISECOND);
+    streamObj.triggerParam = msInterval > TSDB_MIN_ROLLUP_MAX_DELAY ? msInterval : TSDB_MIN_ROLLUP_MAX_DELAY;
+  }
+  if (streamObj.triggerParam > TSDB_MAX_ROLLUP_MAX_DELAY) {
+    streamObj.triggerParam = TSDB_MAX_ROLLUP_MAX_DELAY;
+  }
 
   if (mndAllocSmaVgroup(pMnode, pDb, &streamObj.fixedSinkVg) != 0) {
     mError("sma:%s, failed to create since %s", smaObj.name, terrstr());

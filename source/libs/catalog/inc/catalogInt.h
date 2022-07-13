@@ -480,8 +480,6 @@ typedef struct SCtgOperation {
 
 #define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
 
-#define CTG_IS_LOCKED(_lock) atomic_load_32((_lock))
-
 #define CTG_LOCK(type, _lock) do {   \
   if (CTG_READ == (type)) {          \
     assert(atomic_load_32((_lock)) >= 0);  \
@@ -644,6 +642,7 @@ void    ctgFreeSTableIndex(void *info);
 void    ctgClearSubTaskRes(SCtgSubRes *pRes);
 void    ctgFreeQNode(SCtgQNode *node);
 void    ctgClearHandle(SCatalog* pCtg);
+void    ctgFreeTbCacheImpl(SCtgTbCache *pCache);
 
 
 extern SCatalogMgmt gCtgMgmt;

@@ -723,7 +723,7 @@ typedef struct {
   int32_t buffer;        // MB
   int32_t pageSize;
   int32_t pages;
-  int32_t lastRowMem;
+  int32_t cacheLastSize;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -736,7 +736,7 @@ typedef struct {
   int8_t  compression;
   int8_t  replications;
   int8_t  strict;
-  int8_t  cacheLastRow;
+  int8_t  cacheLast;
   int8_t  schemaless;
   int8_t  ignoreExist;
   int32_t numOfRetensions;
@@ -752,7 +752,7 @@ typedef struct {
   int32_t buffer;
   int32_t pageSize;
   int32_t pages;
-  int32_t lastRowMem;
+  int32_t cacheLastSize;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -760,7 +760,7 @@ typedef struct {
   int32_t fsyncPeriod;
   int8_t  walLevel;
   int8_t  strict;
-  int8_t  cacheLastRow;
+  int8_t  cacheLast;
   int8_t  replications;
 } SAlterDbReq;
 
@@ -823,6 +823,20 @@ int32_t tSerializeSTrimDbReq(void* buf, int32_t bufLen, STrimDbReq* pReq);
 int32_t tDeserializeSTrimDbReq(void* buf, int32_t bufLen, STrimDbReq* pReq);
 
 typedef struct {
+  int32_t timestamp;
+} SVTrimDbReq;
+
+int32_t tSerializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
+int32_t tDeserializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
+
+typedef struct {
+  int32_t timestamp;
+} SVDropTtlTableReq;
+
+int32_t tSerializeSVDropTtlTableReq(void* buf, int32_t bufLen, SVDropTtlTableReq* pReq);
+int32_t tDeserializeSVDropTtlTableReq(void* buf, int32_t bufLen, SVDropTtlTableReq* pReq);
+
+typedef struct {
   int32_t numOfVgroups;
   int32_t numOfStables;
   int32_t buffer;
@@ -840,7 +854,7 @@ typedef struct {
   int8_t  compression;
   int8_t  replications;
   int8_t  strict;
-  int8_t  cacheLastRow;
+  int8_t  cacheLast;
   int32_t numOfRetensions;
   SArray* pRetensions;
   int8_t  schemaless;
@@ -1105,7 +1119,7 @@ typedef struct {
   int32_t  buffer;
   int32_t  pageSize;
   int32_t  pages;
-  int32_t  lastRowMem;
+  int32_t  cacheLastSize;
   int32_t  daysPerFile;
   int32_t  daysToKeep0;
   int32_t  daysToKeep1;
@@ -1120,7 +1134,7 @@ typedef struct {
   int8_t   precision;
   int8_t   compression;
   int8_t   strict;
-  int8_t   cacheLastRow;
+  int8_t   cacheLast;
   int8_t   isTsma;
   int8_t   standby;
   int8_t   replica;
@@ -1158,7 +1172,7 @@ typedef struct {
   int32_t  buffer;
   int32_t  pageSize;
   int32_t  pages;
-  int32_t  lastRowMem;
+  int32_t  cacheLastSize;
   int32_t  daysPerFile;
   int32_t  daysToKeep0;
   int32_t  daysToKeep1;
@@ -1166,7 +1180,7 @@ typedef struct {
   int32_t  fsyncPeriod;
   int8_t   walLevel;
   int8_t   strict;
-  int8_t   cacheLastRow;
+  int8_t   cacheLast;
   int8_t   selfIndex;
   int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];

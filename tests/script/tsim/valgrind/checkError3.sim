@@ -4,7 +4,7 @@ system sh/cfg.sh -n dnode1 -c debugflag -v 131
 system sh/exec.sh -n dnode1 -s start -v
 sql connect
 
-print =============== step1: show dnodes
+print =============== step1: create drop show dnodes
 $x = 0
 step1:
 	$x = $x + 1
@@ -22,124 +22,74 @@ if $data(1)[4] != ready then
   goto step1
 endi
 
-print =============== step2: create alter drop show user
-sql create user u1 pass 'taosdata'
-sql show users
-sql alter user u1 sysinfo 1
-sql alter user u1 enable 1
-sql alter user u1 pass 'taosdata'
-sql drop user u1
-sql_error alter user u2 sysinfo 0
-
-print =============== step3: create drop dnode
-sql create dnode $hostname port 7200
-sql drop dnode 2
-sql alter dnode 1 'debugflag 131'
-
-print =============== create database, stable, table
-sql create database db vgroups 3
-sql use db
-sql create table stb (ts timestamp, c int) tags (t int)
-sql create table t0 using stb tags (0)
-sql create table tba (ts timestamp, c1 binary(10), c2 nchar(10));
-
-print =============== run show xxxx
-sql show dnodes
-if $rows != 1 then 
-  return -1
-endi
-
-sql show mnodes
-if $rows != 1 then 
-  return -1
-endi
-
+print =============== step2: create db
+sql create database d1 vgroups 3 buffer 3
 sql show databases
-if $rows != 3 then
-  return -1
-endi
+sql use d1
+sql show vgroups
 
+print =============== step3: create show stable, include all type
+sql create table if not exists stb (ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 float, c7 double, c8 binary(16), c9 nchar(16), c10 timestamp, c11 tinyint unsigned, c12 smallint unsigned, c13 int unsigned, c14 bigint unsigned) tags (t1 bool, t2 tinyint, t3 smallint, t4 int, t5 bigint, t6 float, t7 double, t8 binary(16), t9 nchar(16), t10 timestamp, t11 tinyint unsigned, t12 smallint unsigned, t13 int unsigned, t14 bigint unsigned)
+sql create stable if not exists stb_1 (ts timestamp, c1 int) tags (j int)
+sql create table stb_2 (ts timestamp, c1 int) tags (t1 int)
+sql create stable stb_3 (ts timestamp, c1 int) tags (t1 int)
 sql show stables
-if $rows != 1 then 
+if $rows != 4 then 
   return -1
 endi
 
+print =============== step4: ccreate child table
+sql create table c1 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
+sql create table c2 using stb tags(false, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 2', 'child tbl 2', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
 sql show tables
 if $rows != 2 then 
   return -1
 endi
 
-sql show users
-if $rows != 1 then 
-  return -1
-endi
+print =============== step5: insert data
+sql insert into c1 values(now-1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
+sql insert into c1 values(now+0s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) (now+1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) (now+2s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
+sql insert into c2 values(now-1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
+sql insert into c2 values(now+0s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) (now+1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) (now+2s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
 
-print =============== run select * from information_schema.xxxx
-sql select * from information_schema.`dnodes`
-if $rows != 1 then 
-  return -1
-endi
+print =============== step6: alter insert
+sql insert into c3 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) values(now-1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) 
+sql insert into c3 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) values(now+0s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) 
 
-sql select * from information_schema.`mnodes`
-if $rows != 1 then 
-  return -1
-endi
+print =============== stepa: query data
+sql select * from c1
+sql select * from stb
+sql select * from stb_1
+sql select ts, c1, c2, c3 from c1
+sql select ts, c1, c2, c3 from stb
+sql select ts, c1 from stb_2
+sql select ts, c1, t1 from c1
+sql select ts, c1, t1 from stb
+sql select ts, c1, t1 from stb_2
 
-sql select * from information_schema.user_databases
-if $rows != 3 then
-  return -1
-endi
+print =============== stepb: count
+#sql select count(*) from c1;
+#sql select count(*) from stb;
+#sql select count(ts), count(c1), count(c2), count(c3) from c1
+#sql select count(ts), count(c1), count(c2), count(c3) from stb
 
-sql select * from information_schema.user_stables
-if $rows != 1 then 
-  return -1
-endi
+print =============== stepc: func
+#sql select first(ts), first(c1), first(c2), first(c3) from c1
+#sql select min(c1), min(c2), min(c3) from c1
+#sql select max(c1), max(c2), max(c3) from c1
+#sql select sum(c1), sum(c2), sum(c3) from c1
 
-sql select * from information_schema.user_tables
-if $rows != 31 then
-  return -1
-endi
-
-sql select * from information_schema.user_users
-if $rows != 1 then 
-  return -1
-endi
-
-sql select * from information_schema.`vgroups`
-if $rows != 3 then 
-  return -1
-endi
-
-sql show variables;
-if $rows != 4 then
-  return -1
-endi
-
-sql show dnode 1 variables;
-if $rows <= 0 then
-  return -1
-endi
-
-sql show local variables;
-if $rows <= 0 then
-  return -1
-endi
-
-print =============== stop
+_OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-
 print =============== check
-print ----> start to check if there are ERRORS in vagrind log file for each dnode
-system_content sh/checkValgrind.sh -n dnode1 
-
-print cmd return result ----> [ $system_content ]
-if $system_content <= 0 then
-  return 0
-endi 
-
 $null=
-if $system_content == $null then
-  return 0
+
+system_content sh/checkValgrind.sh -n dnode1 
+print cmd return result ----> [ $system_content ]
+if $system_content > 1 then
+  return -1
 endi 
 
-return -1
+if $system_content == $null then
+  return -1
+endi 

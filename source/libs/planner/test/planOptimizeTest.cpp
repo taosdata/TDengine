@@ -37,6 +37,8 @@ TEST_F(PlanOptimizeTest, pushDownCondition) {
 
   run("SELECT ts, c1 FROM st1 WHERE tag1 > 4");
 
+  run("SELECT ts, c1 FROM st1 WHERE TBNAME = 'st1s1'");
+
   run("SELECT ts, c1 FROM st1 WHERE tag1 > 4 or tag1 < 2");
 
   run("SELECT ts, c1 FROM st1 WHERE tag1 > 4 AND tag2 = 'hello'");

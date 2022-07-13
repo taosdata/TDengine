@@ -191,6 +191,7 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
 
   pBlock->info.blockId = pNode->dataBlockId;
   pBlock->info.type = STREAM_INVALID;
+  pBlock->info.calWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SSlotDescNode* pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
@@ -869,7 +870,7 @@ static STimeWindow doCalculateTimeWindow(int64_t ts, SInterval* pInterval) {
   return w;
 }
 
-static STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInterval* pInterval, int32_t order) {
+STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInterval* pInterval, int32_t order) {
   int32_t factor = (order == TSDB_ORDER_ASC)? -1:1;
 
   STimeWindow win = *pWindow;

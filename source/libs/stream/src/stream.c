@@ -173,7 +173,8 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
 }
 
 int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
-  qInfo("task %d receive dispatch req from node %d task %d", pTask->taskId, pReq->upstreamNodeId, pReq->upstreamTaskId);
+  qDebug("task %d receive dispatch req from node %d task %d", pTask->taskId, pReq->upstreamNodeId,
+         pReq->upstreamTaskId);
 
   // 1. handle input
   streamTaskEnqueue(pTask, pReq, pRsp);
@@ -208,7 +209,7 @@ int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, S
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp) {
   ASSERT(pRsp->inputStatus == TASK_OUTPUT_STATUS__NORMAL || pRsp->inputStatus == TASK_OUTPUT_STATUS__BLOCKED);
 
-  qInfo("task %d receive dispatch rsp", pTask->taskId);
+  qDebug("task %d receive dispatch rsp", pTask->taskId);
 
   int8_t old = atomic_exchange_8(&pTask->outputStatus, pRsp->inputStatus);
   ASSERT(old == TASK_OUTPUT_STATUS__WAIT);
@@ -242,7 +243,7 @@ int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp)
 }
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pRsp) {
-  qInfo("task %d receive retrieve req from node %d task %d", pTask->taskId, pReq->srcNodeId, pReq->srcTaskId);
+  qDebug("task %d receive retrieve req from node %d task %d", pTask->taskId, pReq->srcNodeId, pReq->srcTaskId);
 
   streamTaskEnqueueRetrieve(pTask, pReq, pRsp);
 

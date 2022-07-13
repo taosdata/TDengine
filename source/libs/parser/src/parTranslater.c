@@ -461,12 +461,10 @@ static bool isDistinctOrderBy(STranslateContext* pCxt) {
           ((SSelectStmt*)pCxt->pCurrStmt)->isDistinct);
 }
 
-static bool belongTable(const char* currentDb, const SColumnNode* pCol, const STableNode* pTable) {
+static bool belongTable(const SColumnNode* pCol, const STableNode* pTable) {
   int cmp = 0;
   if ('\0' != pCol->dbName[0]) {
     cmp = strcmp(pCol->dbName, pTable->dbName);
-  } else {
-    cmp = (QUERY_NODE_REAL_TABLE == nodeType(pTable) ? strcmp(currentDb, pTable->dbName) : 0);
   }
   if (0 == cmp) {
     cmp = strcmp(pCol->tableAlias, pTable->tableAlias);
@@ -630,7 +628,7 @@ static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode**
   bool    foundTable = false;
   for (size_t i = 0; i < nums; ++i) {
     STableNode* pTable = taosArrayGetP(pTables, i);
-    if (belongTable(pCxt->pParseCxt->db, (*pCol), pTable)) {
+    if (belongTable((*pCol), pTable)) {
       foundTable = true;
       bool foundCol = false;
       pCxt->errCode = findAndSetColumn(pCxt, pCol, pTable, &foundCol);
@@ -2175,14 +2173,28 @@ static int64_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char uni
   return -1;
 }
 
+static const char* getPrecisionStr(uint8_t precision) {
+  switch (precision) {
+    case TSDB_TIME_PRECISION_MILLI:
+      return TSDB_TIME_PRECISION_MILLI_STR;
+    case TSDB_TIME_PRECISION_MICRO:
+      return TSDB_TIME_PRECISION_MICRO_STR;
+    case TSDB_TIME_PRECISION_NANO:
+      return TSDB_TIME_PRECISION_NANO_STR;
+    default:
+      break;
+  }
+  return "unknown";
+}
+
 static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
   uint8_t precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
 
   SValueNode* pInter = (SValueNode*)pInterval->pInterval;
   bool        valInter = TIME_IS_VAR_DURATION(pInter->unit);
-  if (pInter->datum.i <= 0 ||
-      (!valInter && convertTimePrecision(pInter->datum.i, precision, TSDB_TIME_PRECISION_MICRO) < tsMinIntervalTime)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL, tsMinIntervalTime);
+  if (pInter->datum.i <= 0 || (!valInter && pInter->datum.i < tsMinIntervalTime)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL, tsMinIntervalTime,
+                                getPrecisionStr(precision));
   }
 
   if (NULL != pInterval->pOffset) {
@@ -2756,6 +2768,11 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
     }
   }
 
+  if (NULL == pPrimaryKeyExpr) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                   "Primary timestamp column can not be null");
+  }
+
   return addOrderByPrimaryKeyToQuery(pCxt, pPrimaryKeyExpr, pInsert->pQuery);
 }
 
@@ -2838,8 +2855,8 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->compression = pStmt->pOptions->compressionLevel;
   pReq->replications = pStmt->pOptions->replica;
   pReq->strict = pStmt->pOptions->strict;
-  pReq->cacheLastRow = pStmt->pOptions->cacheLast;
-  pReq->lastRowMem = pStmt->pOptions->cacheLastSize;
+  pReq->cacheLast = pStmt->pOptions->cacheLast;
+  pReq->cacheLastSize = pStmt->pOptions->cacheLastSize;
   pReq->schemaless = pStmt->pOptions->schemaless;
   pReq->ignoreExist = pStmt->ignoreExists;
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
@@ -3000,12 +3017,11 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
   int32_t code =
       checkRangeOption(pCxt, "buffer", pOptions->buffer, TSDB_MIN_BUFFER_PER_VNODE, TSDB_MAX_BUFFER_PER_VNODE);
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkRangeOption(pCxt, "cacheLast", pOptions->cacheLast, TSDB_MIN_DB_CACHE_LAST_ROW,
-                            TSDB_MAX_DB_CACHE_LAST_ROW);
+    code = checkRangeOption(pCxt, "cacheLast", pOptions->cacheLast, TSDB_MIN_DB_CACHE_LAST, TSDB_MAX_DB_CACHE_LAST);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkRangeOption(pCxt, "cacheLastSize", pOptions->cacheLastSize, TSDB_MIN_DB_LAST_ROW_MEM,
-                            TSDB_MAX_DB_LAST_ROW_MEM);
+    code = checkRangeOption(pCxt, "cacheLastSize", pOptions->cacheLastSize, TSDB_MIN_DB_CACHE_LAST_SIZE,
+                            TSDB_MAX_DB_CACHE_LAST_SIZE);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkRangeOption(pCxt, "compression", pOptions->compressionLevel, TSDB_MIN_COMP_LEVEL, TSDB_MAX_COMP_LEVEL);
@@ -3118,7 +3134,7 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->buffer = pStmt->pOptions->buffer;
   pReq->pageSize = -1;
   pReq->pages = pStmt->pOptions->pages;
-  pReq->lastRowMem = -1;
+  pReq->cacheLastSize = -1;
   pReq->daysPerFile = -1;
   pReq->daysToKeep0 = pStmt->pOptions->keep[0];
   pReq->daysToKeep1 = pStmt->pOptions->keep[1];
@@ -3126,8 +3142,8 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->fsyncPeriod = pStmt->pOptions->fsyncPeriod;
   pReq->walLevel = pStmt->pOptions->walLevel;
   pReq->strict = pStmt->pOptions->strict;
-  pReq->cacheLastRow = pStmt->pOptions->cacheLast;
-  pReq->lastRowMem = pStmt->pOptions->cacheLastSize;
+  pReq->cacheLast = pStmt->pOptions->cacheLast;
+  pReq->cacheLastSize = pStmt->pOptions->cacheLastSize;
   pReq->replications = pStmt->pOptions->replica;
   return;
 }
@@ -4017,8 +4033,15 @@ static int32_t buildCreateSmaReq(STranslateContext* pCxt, SCreateIndexStmt* pStm
       (NULL != pStmt->pOptions->pSliding ? ((SValueNode*)pStmt->pOptions->pSliding)->unit : pReq->intervalUnit);
   if (NULL != pStmt->pOptions->pStreamOptions) {
     SStreamOptions* pStreamOpt = (SStreamOptions*)pStmt->pOptions->pStreamOptions;
-    pReq->maxDelay = (NULL != pStreamOpt->pDelay ? ((SValueNode*)pStreamOpt->pDelay)->datum.i : 0);
-    pReq->watermark = (NULL != pStreamOpt->pWatermark ? ((SValueNode*)pStreamOpt->pWatermark)->datum.i : 0);
+    pReq->maxDelay = (NULL != pStreamOpt->pDelay ? ((SValueNode*)pStreamOpt->pDelay)->datum.i : -1);
+    pReq->watermark = (NULL != pStreamOpt->pWatermark ? ((SValueNode*)pStreamOpt->pWatermark)->datum.i
+                                                      : TSDB_DEFAULT_ROLLUP_WATERMARK);
+    if (pReq->watermark < TSDB_MIN_ROLLUP_WATERMARK) {
+      pReq->watermark = TSDB_MIN_ROLLUP_WATERMARK;
+    }
+    if (pReq->watermark > TSDB_MAX_ROLLUP_WATERMARK) {
+      pReq->watermark = TSDB_MAX_ROLLUP_WATERMARK;
+    }
   }
 
   int32_t code = getSmaIndexDstVgId(pCxt, pStmt->tableName, &pReq->dstVgId);
@@ -4734,8 +4757,13 @@ static int32_t extractQueryResultSchema(const SNodeList* pProjections, int32_t* 
   int32_t index = 0;
   FOREACH(pNode, pProjections) {
     SExprNode* pExpr = (SExprNode*)pNode;
-    (*pSchema)[index].type = pExpr->resType.type;
-    (*pSchema)[index].bytes = pExpr->resType.bytes;
+    if (TSDB_DATA_TYPE_NULL == pExpr->resType.type) {
+      (*pSchema)[index].type = TSDB_DATA_TYPE_VARCHAR;
+      (*pSchema)[index].bytes = 0;
+    } else {
+      (*pSchema)[index].type = pExpr->resType.type;
+      (*pSchema)[index].bytes = pExpr->resType.bytes;
+    }
     (*pSchema)[index].colId = index + 1;
     if ('\0' != pExpr->userAlias[0]) {
       strcpy((*pSchema)[index].name, pExpr->userAlias);

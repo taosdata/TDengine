@@ -14,6 +14,7 @@
  */
 
 #include "os.h"
+#include "query.h"
 #include "tdatablock.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
@@ -119,6 +120,7 @@ static FORCE_INLINE void* streamQueueCurItem(SStreamQueue* queue) { return queue
 static FORCE_INLINE void* streamQueueNextItem(SStreamQueue* queue) {
   int8_t dequeueFlag = atomic_exchange_8(&queue->status, STREAM_QUEUE__PROCESSING);
   if (dequeueFlag == STREAM_QUEUE__FAILED) {
+    ASSERT(0);
     ASSERT(queue->qItem != NULL);
     return streamQueueCurItem(queue);
   } else {
@@ -305,6 +307,7 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
       atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
       return -1;
     }
+    qInfo("task %d %p submit enqueue %p %p %p", pTask->taskId, pTask, pItem, pSubmitClone, pSubmitClone->data);
     taosWriteQitem(pTask->inputQueue->queue, pSubmitClone);
   } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);

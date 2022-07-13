@@ -40,7 +40,9 @@ void cleanup() { walCleanUp(); }
 void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==CommitCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64 ", term:%" PRIu64 " "
+           "==callback== ==CommitCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64
+           ", term:%" PRIu64
+           " "
            "currentTerm:%" PRIu64 " \n",
            pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
            cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
@@ -50,7 +52,9 @@ void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
 void PreCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==PreCommitCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64 ", term:%" PRIu64 " "
+           "==callback== ==PreCommitCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64
+           ", term:%" PRIu64
+           " "
            "currentTerm:%" PRIu64 " \n",
            pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
            cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
@@ -60,7 +64,9 @@ void PreCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) 
 void RollBackCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==RollBackCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64 ", term:%" PRIu64 " "
+           "==callback== ==RollBackCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64
+           ", term:%" PRIu64
+           " "
            "currentTerm:%" PRIu64 " \n",
            pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
            cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
@@ -128,7 +134,8 @@ int32_t SnapshotStopWrite(struct SSyncFSM* pFsm, void* pWriter, bool isApply) {
 
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==SnapshotStopWrite== pFsm:%p, pWriter:%p, isApply:%d, gSnapshotLastApplyIndex:%" PRId64 ", "
+           "==callback== ==SnapshotStopWrite== pFsm:%p, pWriter:%p, isApply:%d, gSnapshotLastApplyIndex:%" PRId64
+           ", "
            "gSnapshotLastApplyTerm:%" PRId64,
            pFsm, pWriter, isApply, gSnapshotLastApplyIndex, gSnapshotLastApplyTerm);
   sTrace("%s", logBuf);
@@ -148,7 +155,8 @@ void RestoreFinishCb(struct SSyncFSM* pFsm) { sTrace("==callback== ==RestoreFini
 
 void ReConfigCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMeta) {
   char* s = syncCfg2Str(&(cbMeta.newCfg));
-  sTrace("==callback== ==ReConfigCb== flag:0x%lX, index:%" PRId64 ", code:%d, currentTerm:%" PRIu64 ", term:%" PRIu64 ", newCfg:%s",
+  sTrace("==callback== ==ReConfigCb== flag:0x%lX, index:%" PRId64 ", code:%d, currentTerm:%" PRIu64 ", term:%" PRIu64
+         ", newCfg:%s",
          cbMeta.flag, cbMeta.index, cbMeta.code, cbMeta.currentTerm, cbMeta.term, s);
   taosMemoryFree(s);
 }
@@ -156,7 +164,9 @@ void ReConfigCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMe
 void LeaderTransferCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==LeaderTransferCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64 ", term:%" PRIu64 " "
+           "==callback== ==LeaderTransferCb== pFsm:%p, index:%" PRId64
+           ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64 ", term:%" PRIu64
+           " "
            "currentTerm:%" PRIu64 " \n",
            pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
            cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
@@ -300,7 +310,8 @@ SRpcMsg* createRpcMsg(int i, int count, int myIndex) {
   pMsg->msgType = TDMT_VND_SUBMIT;
   pMsg->contLen = 256;
   pMsg->pCont = rpcMallocCont(pMsg->contLen);
-  snprintf((char*)(pMsg->pCont), pMsg->contLen, "value-myIndex:%u-%d-%d-" PRId64, myIndex, i, count, taosGetTimestampMs());
+  snprintf((char*)(pMsg->pCont), pMsg->contLen, "value-myIndex:%u-%d-%d-" PRId64, myIndex, i, count,
+           taosGetTimestampMs());
   return pMsg;
 }
 

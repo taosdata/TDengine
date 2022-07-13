@@ -956,7 +956,8 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_SUBPLAN: {
       SSubplan* pSubplan = (SSubplan*)pNode;
-      nodesDestroyList(pSubplan->pChildren);
+      // nodesDestroyList(pSubplan->pChildren);
+      nodesClearList(pSubplan->pChildren);
       nodesDestroyNode((SNode*)pSubplan->pNode);
       nodesDestroyNode((SNode*)pSubplan->pDataSink);
       nodesDestroyNode((SNode*)pSubplan->pTagCond);
@@ -972,7 +973,7 @@ void nodesDestroyNode(SNode* pNode) {
         SNode* pElement = NULL;
         FOREACH(pElement, pPlan->pSubplans) {
           if (first) {
-            first = false;
+            // first = false;
             nodesDestroyNode(pElement);
           } else {
             nodesClearList(((SNodeListNode*)pElement)->pNodeList);
@@ -1793,7 +1794,7 @@ static EDealRes classifyConditionImpl(SNode* pNode, void* pContext) {
     } else if (pCol->hasIndex) {
       pCxt->hasTagIndexCol = true;
       pCxt->hasTagCol = true;
-    } else if (COLUMN_TYPE_TAG == pCol->colType) {
+    } else if (COLUMN_TYPE_TAG == pCol->colType || COLUMN_TYPE_TBNAME == pCol->colType) {
       pCxt->hasTagCol = true;
     } else {
       pCxt->hasOtherCol = true;

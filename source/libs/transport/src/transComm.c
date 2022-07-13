@@ -293,6 +293,48 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
   return ret;
 }
 
+void transReqQueueInit(queue* q) {
+  // init req queue
+  QUEUE_INIT(q);
+}
+void* transReqQueuePushReq(queue* q) {
+  uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
+  STransReq*  wreq = taosMemoryCalloc(1, sizeof(STransReq));
+  wreq->data = req;
+  req->data = wreq;
+  QUEUE_PUSH(q, &wreq->q);
+  return req;
+}
+void* transReqQueueRemove(void* arg) {
+  void*       ret = NULL;
+  uv_write_t* req = arg;
+  STransReq*  wreq = req && req->data ? req->data : NULL;
+
+  assert(wreq->data == req);
+  if (wreq == NULL || wreq->data == NULL) {
+    taosMemoryFree(wreq->data);
+    taosMemoryFree(wreq);
+    return req;
+  }
+
+  QUEUE_REMOVE(&wreq->q);
+
+  ret = req && req->handle ? req->handle->data : NULL;
+  taosMemoryFree(wreq->data);
+  taosMemoryFree(wreq);
+
+  return ret;
+}
+void transReqQueueClear(queue* q) {
+  while (!QUEUE_IS_EMPTY(q)) {
+    queue* h = QUEUE_HEAD(q);
+    QUEUE_REMOVE(h);
+    STransReq* req = QUEUE_DATA(h, STransReq, q);
+    taosMemoryFree(req->data);
+    taosMemoryFree(req);
+  }
+}
+
 void transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg)) {
   queue->q = taosArrayInit(2, sizeof(void*));
   queue->freeFunc = (void (*)(const void*))freeFunc;

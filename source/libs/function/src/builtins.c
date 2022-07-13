@@ -48,8 +48,8 @@ static int32_t validateTimeUnitParam(uint8_t dbPrec, const SValueNode* pVal) {
     return TIME_UNIT_INVALID;
   }
 
-  if (TSDB_TIME_PRECISION_MILLI == dbPrec && (0 == strcasecmp(pVal->literal, "1u") ||
-                                              0 == strcasecmp(pVal->literal, "1b"))) {
+  if (TSDB_TIME_PRECISION_MILLI == dbPrec &&
+      (0 == strcasecmp(pVal->literal, "1u") || 0 == strcasecmp(pVal->literal, "1b"))) {
     return TIME_UNIT_TOO_SMALL;
   }
 
@@ -57,10 +57,9 @@ static int32_t validateTimeUnitParam(uint8_t dbPrec, const SValueNode* pVal) {
     return TIME_UNIT_TOO_SMALL;
   }
 
-  if (pVal->literal[0] != '1' || (pVal->literal[1] != 'u' && pVal->literal[1] != 'a' &&
-                                  pVal->literal[1] != 's' && pVal->literal[1] != 'm' &&
-                                  pVal->literal[1] != 'h' && pVal->literal[1] != 'd' &&
-                                  pVal->literal[1] != 'w' && pVal->literal[1] != 'b')) {
+  if (pVal->literal[0] != '1' ||
+      (pVal->literal[1] != 'u' && pVal->literal[1] != 'a' && pVal->literal[1] != 's' && pVal->literal[1] != 'm' &&
+       pVal->literal[1] != 'h' && pVal->literal[1] != 'd' && pVal->literal[1] != 'w' && pVal->literal[1] != 'b')) {
     return TIME_UNIT_INVALID;
   }
 
@@ -678,9 +677,10 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if (TSDB_DATA_TYPE_TIMESTAMP != paraType) {
-    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  SNode* pPara1 = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN != nodeType(pPara1) || PRIMARYKEY_TIMESTAMP_COL_ID != ((SColumnNode*)pPara1)->colId) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "The first parameter of the ELAPSED function can only be the timestamp primary key");
   }
 
   // param1
@@ -694,8 +694,7 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
 
     pValue->notReserved = true;
 
-    paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
-    if (!IS_INTEGER_TYPE(paraType)) {
+    if (!IS_INTEGER_TYPE(pValue->node.resType.type)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
 
@@ -706,8 +705,9 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "ELAPSED function time unit parameter should be greater than db precision");
     } else if (ret == TIME_UNIT_INVALID) {
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "ELAPSED function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+      return buildFuncErrMsg(
+          pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+          "ELAPSED function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
     }
   }
 
@@ -1229,7 +1229,8 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
                              "STATEDURATION function time unit parameter should be greater than db precision");
     } else if (ret == TIME_UNIT_INVALID) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "STATEDURATION function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+                             "STATEDURATION function time unit parameter should be one of the following: [1b, 1u, 1a, "
+                             "1s, 1m, 1h, 1d, 1w]");
     }
   }
 
@@ -1426,9 +1427,12 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
 }
 
 static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  // first(col_list) will be rewritten as first(col)
-  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
-    return TSDB_CODE_SUCCESS;
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  for (int32_t i = 0; i < numOfParams; ++i) {
+    SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, i);
+    if (QUERY_NODE_VALUE == nodeType(pParamNode)) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+    }
   }
 
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
@@ -1740,8 +1744,9 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                            "TIMETRUNCATE function time unit parameter should be greater than db precision");
   } else if (ret == TIME_UNIT_INVALID) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "TIMETRUNCATE function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+    return buildFuncErrMsg(
+        pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+        "TIMETRUNCATE function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
   }
 
   addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
@@ -1779,8 +1784,9 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "TIMEDIFF function time unit parameter should be greater than db precision");
     } else if (ret == TIME_UNIT_INVALID) {
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "TIMEDIFF function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+      return buildFuncErrMsg(
+          pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+          "TIMEDIFF function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
     }
   }
 
@@ -1970,7 +1976,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "leastsquares",
     .type = FUNCTION_TYPE_LEASTSQUARES,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateLeastSQR,
     .getEnvFunc   = getLeastSQRFuncEnv,
     .initFunc     = leastSQRFunctionSetup,
@@ -2211,7 +2217,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "last_row",
     .type = FUNCTION_TYPE_LAST_ROW,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
     .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -2320,7 +2326,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateHistogramPartial,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
-    .processFunc  = histogramFunction,
+    .processFunc  = histogramFunctionPartial,
     .finalizeFunc = histogramPartialFinalize,
     .invertFunc   = NULL,
     .combineFunc  = histogramCombine,

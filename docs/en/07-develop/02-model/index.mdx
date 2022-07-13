@@ -9,15 +9,15 @@ The data model employed by TDengine is similar to that of a relational database.
 The [characteristics of time-series data](https://www.taosdata.com/blog/2019/07/09/86.html) from different data collection points may be different. Characteristics include collection frequency, retention policy and others which determine how you create and configure the database. For e.g. days to keep, number of replicas, data block size, whether data updates are allowed and other configurable parameters would be determined by the characteristics of your data and your business requirements. For TDengine to operate with the best performance, we strongly recommend that you create and configure different databases for data with different characteristics. This allows you, for example, to set up different storage and retention policies. When creating a database, there are a lot of parameters that can be configured such as, the days to keep data, the number of replicas, the number of memory blocks, time precision, the minimum and maximum number of rows in each data block, whether compression is enabled, the time range of the data in single data file and so on. Below is an example of the SQL statement to create a database.
 
 ```sql
-CREATE DATABASE power KEEP 365 DAYS 10 BLOCKS 6 UPDATE 1;
+CREATE DATABASE power KEEP 365 DURATION 10 BUFFER 16 VGROUPS 100 WAL 1;
 ```
 
 In the above SQL statement:
 - a database named "power" will be created
 - the data in it will be kept for 365 days, which means that data older than 365 days will be deleted automatically
 - a new data file will be created every 10 days
-- the number of memory blocks is 6
-- data is allowed to be updated
+- the size of memory cache for writing is 16 MB
+- data will be firstly written to WAL without FSYNC
 
 For more details please refer to [Database](/taos-sql/database).
 
@@ -30,7 +30,6 @@ USE power;
 :::note
 
 - Any table or STable must belong to a database. To create a table or STable, the database it belongs to must be ready.
-- JOIN operations can't be performed on tables from two different databases.
 - Timestamp needs to be specified when inserting rows or querying historical rows.
 
 :::
@@ -52,7 +51,7 @@ Similar to creating a regular table, when creating a STable, the name and schema
 
 For each kind of data collection point, a corresponding STable must be created. There may be many STables in an application. For electrical power system, we need to create a STable respectively for meters, transformers, busbars, switches. There may be multiple kinds of data collection points on a single device, for example there may be one data collection point for electrical data like current and voltage and another data collection point for environmental data like temperature, humidity and wind direction. Multiple STables are required for these kinds of devices.
 
-At most 4096 (or 1024 prior to version 2.1.7.0) columns are allowed in a STable. If there are more than 4096 of metrics to be collected for a data collection point, multiple STables are required. There can be multiple databases in a system, while one or more STables can exist in a database.
+At most 4096 columns are allowed in a STable. If there are more than 4096 of metrics to be collected for a data collection point, multiple STables are required. There can be multiple databases in a system, while one or more STables can exist in a database.
 
 ## Create Table
 
@@ -66,11 +65,10 @@ In the above SQL statement, "d1001" is the table name, "meters" is the STable na
 
 In the TDengine system, it's recommended to create a table for a data collection point via STable. A table created via STable is called subtable in some parts of the TDengine documentation. All SQL commands applied on regular tables can be applied on subtables.
 
-:::warning
-It's not recommended to create a table in a database while using a STable from another database as template.
-
 :::tip
 It's suggested to use the globally unique ID of a data collection point as the table name. For example the device serial number could be used as a unique ID. If a unique ID doesn't exist, multiple IDs that are not globally unique can be combined to form a globally unique ID. It's not recommended to use a globally unique ID as tag value.
+
+:::
 
 ## Create Table Automatically
 
