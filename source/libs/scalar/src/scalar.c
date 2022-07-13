@@ -700,9 +700,9 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
 EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode* tnode = NULL;
-  if (!fmIsScalarFunc(node->funcId)) {
-    return DEAL_RES_CONTINUE;
-  }
+  //if (!fmIsScalarFunc(node->funcId)) {
+  //  return DEAL_RES_CONTINUE;
+  //}
 
   FOREACH(tnode, node->pParameterList) {
     if (!SCL_IS_CONST_NODE(tnode)) {
@@ -728,8 +728,9 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
   res->translate = true;
 
   if (colDataIsNull_s(output.columnData, 0)) {
-    res->node.resType.type = TSDB_DATA_TYPE_NULL;
-    res->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;    
+    res->isNull = true;
+    //res->node.resType.type = TSDB_DATA_TYPE_NULL;
+    //res->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
   } else {
     res->node.resType.type = output.columnData->info.type;
     res->node.resType.bytes = output.columnData->info.bytes;
