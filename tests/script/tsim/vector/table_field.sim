@@ -1,10 +1,6 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-
-sleep 2000
 sql connect
 
 $dbPrefix = m_tf_db
@@ -95,17 +91,11 @@ if $data00 != 0.000000000 then
   return -1
 endi
 
-sql select g - f from $tb where a = 5 -x step21
-  return -1
-step21:
+sql select g - f from $tb where a = 5
 
-sql select h - f from $tb where a = 5 -x step22
-  return -1
-step22:
+sql select h - f from $tb where a = 5
 
-sql select ts - f from $tb where a = 5 -x step23
-  return -1
-step23:
+sql select ts - f from $tb where a = 5
 
 sql select a - e from $tb where a = 5
 print ===> $data00
@@ -612,7 +602,7 @@ step63:
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 

@@ -262,4 +262,17 @@
 ./test.sh -f tsim/field/tinyint.sim
 ./test.sh -f tsim/field/unsigined_bigint.sim
 
+# ---- vector
+./test.sh -f tsim/vector/metrics_field.sim
+./test.sh -f tsim/vector/metrics_mix.sim
+./test.sh -f tsim/vector/metrics_query.sim
+./test.sh -f tsim/vector/metrics_tag.sim
+./test.sh -f tsim/vector/metrics_time.sim
+./test.sh -f tsim/vector/multi.sim
+./test.sh -f tsim/vector/single.sim
+./test.sh -f tsim/vector/table_field.sim
+./test.sh -f tsim/vector/table_mix.sim
+./test.sh -f tsim/vector/table_query.sim
+./test.sh -f tsim/vector/table_time.sim
+
 #======================b1-end===============

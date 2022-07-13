@@ -1,10 +1,6 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-
-sleep 2000
 sql connect
 
 $dbPrefix = m_mu_db
@@ -71,9 +67,7 @@ sql select a + a from $tb where ts > now + 4m order by ts desc
 
 sql select a + c from $tb where ts < now + 4m order by ts asc
 
-sql select a + f from $tb where ts > now + 4m order by ts asc  -x step24
-  return -1
-step24:
+sql select a + f from $tb where ts > now + 4m order by ts asc
 
 print =============== step3
 $i = 1
@@ -150,17 +144,11 @@ endi
 print =============== step6
 $i = 1
 $tb = $tbPrefix . $i
-sql select a + ts from $tb -x step61
-  return -1
-step61:
+sql select a + ts from $tb 
 
-sql select a + f from $tb -x step62
-  return -1
-step62:
+sql select a + f from $tb
 
-sql select a + g from $tb -x step63
-  return -1
-step63:
+sql select a + g from $tb
 
 print =============== step7
 $i = 1
@@ -202,14 +190,12 @@ sql select a + a from $tb where e = 2 and ts > now + 4m order by ts desc
 
 sql select a + c from $tb where f = 2 and ts < now + 4m order by ts asc
 
-sql select a + f from $tb where g = 2 and ts > now + 4m order by ts asc  -x step74
-  return -1
-step74:
+sql select a + f from $tb where g = 2 and ts > now + 4m order by ts asc
 
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 

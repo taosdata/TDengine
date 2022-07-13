@@ -1,19 +1,11 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-
-sleep 2000
 sql connect
 
-$dbPrefix = m_mf_db
-$tbPrefix = m_mf_tb
-$mtPrefix = m_mf_mt
-
-$dbPrefix = db
-$tbPrefix = tb
-$mtPrefix = mt
+$dbPrefix = m_tt_db
+$tbPrefix = m_tt_tb
+$mtPrefix = m_tt_mt
 
 $tbNum = 10
 $rowNum = 21
@@ -51,127 +43,121 @@ print =============== step2
 $i = 1
 $tb = $tbPrefix . $i
 
-sql select a - f from $mt where a = 5
+sql select a - f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != -5.000000000 then 
   return -1
 endi
 
-sql select f - a from $mt where a = 5
+sql select f - a from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 5.000000000 then 
   return -1
 endi
 
-sql select b - f from $mt where a = 5
+sql select b - f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != -5.000000000 then 
   return -1
 endi
 
-sql select f - b from $mt where a = 5
+sql select f - b from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 5.000000000 then 
   return -1
 endi
 
-sql select c - f from $mt where a = 5
+sql select c - f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != -5.000000000 then 
   return -1
 endi
 
-sql select d - f from $mt where a = 5
+sql select d - f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != -5.000000000 then 
   return -1
 endi
 
-sql select e - f from $mt where a = 5
+sql select e - f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != -5.000000000 then 
   return -1
 endi
 
-sql select f - f from $mt where a = 5
+sql select f - f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.000000000 then 
   return -1
 endi
 
-sql select g - f from $mt where a = 5 -x step21
-  return -1
-step21:
+sql select g - f from $tb where ts > now + 4m and ts < now + 6m
 
-sql select h - f from $mt where a = 5 -x step22
-  return -1
-step22:
+sql select h - f from $tb where ts > now + 4m and ts < now + 6m
 
-sql select ts - f from $mt where a = 5 -x step23
-  return -1
-step23:
+sql select ts - f from $tb where ts > now + 4m and ts < now + 6m
 
-sql select a - e from $mt where a = 5
+sql select a - e from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.000000000 then 
   return -1
 endi
 
-sql select b - e from $mt where a = 5
+sql select b - e from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.000000000 then 
   return -1
 endi
 
-sql select c - e from $mt where a = 5
+sql select c - e from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.000000000 then 
   return -1
 endi
 
-sql select d - e from $mt where a = 5
+sql select d - e from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.000000000 then 
   return -1
 endi
 
-sql select a - d from $mt where a = 5
+sql select a - d from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.000000000 then 
   return -1
 endi
 
-sql select b - d from $mt where a = 5
+sql select b - d from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.000000000 then 
   return -1
 endi
 
-sql select c - d from $mt where a = 5
+sql select c - d from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.000000000 then 
   return -1
 endi
 
-sql select a - c from $mt where a = 5
+sql select a - c from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.000000000 then 
   return -1
 endi
 
-sql select b - c from $mt where a = 5
+sql select b - c from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.000000000 then 
   return -1
 endi
 
-sql select a - b from $mt where a = 5
+sql select a - b from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.000000000 then 
   return -1
 endi
 
-sql select b - a from $mt where a = 5
+sql select b - a from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.000000000 then 
   return -1
@@ -179,117 +165,117 @@ endi
 
 print =============== step3
 $i = 1
-$tb where tgcol = 5 and ts > now + 4m and ts < now + 6m = $tbPrefix . $i
+$tb where ts > now + 4m and ts < now + 6m = $tbPrefix . $i
 
-sql select a + f from $mt where a = 5
+sql select a + f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 15.000000000 then 
   return -1
 endi
 
-sql select f + a from $mt where a = 5
+sql select f + a from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 15.000000000 then 
   return -1
 endi
 
-sql select b + f from $mt where a = 5
+sql select b + f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 15.000000000 then 
   return -1
 endi
 
-sql select f + b from $mt where a = 5
+sql select f + b from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 15.000000000 then 
   return -1
 endi
 
-sql select c + f from $mt where a = 5
+sql select c + f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 15.000000000 then 
   return -1
 endi
 
-sql select d + f from $mt where a = 5
+sql select d + f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 15.000000000 then 
   return -1
 endi
 
-sql select e + f from $mt where a = 5
+sql select e + f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 15.000000000 then 
   return -1
 endi
 
-sql select f + f from $mt where a = 5
+sql select f + f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 20.000000000 then 
   return -1
 endi
 
-sql select a + e from $mt where a = 5
+sql select a + e from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 10.000000000 then 
   return -1
 endi
 
-sql select b + e from $mt where a = 5
+sql select b + e from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 10.000000000 then 
   return -1
 endi
 
-sql select c + e from $mt where a = 5
+sql select c + e from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 10.000000000 then 
   return -1
 endi
 
-sql select d + e from $mt where a = 5
+sql select d + e from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 10.000000000 then 
   return -1
 endi
 
-sql select a + d from $mt where a = 5
+sql select a + d from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 10.000000000 then 
   return -1
 endi
 
-sql select b + d from $mt where a = 5
+sql select b + d from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 10.000000000 then 
   return -1
 endi
 
-sql select c + d from $mt where a = 5
+sql select c + d from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 10.000000000 then 
   return -1
 endi
 
-sql select a + c from $mt where a = 5
+sql select a + c from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 10.000000000 then 
   return -1
 endi
 
-sql select b + c from $mt where a = 5
+sql select b + c from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 10.000000000 then 
   return -1
 endi
 
-sql select a + b from $mt where a = 5
+sql select a + b from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 10.000000000 then 
   return -1
 endi
 
-sql select b + a from $mt where a = 5
+sql select b + a from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 10.000000000 then 
   return -1
@@ -297,117 +283,117 @@ endi
 
 print =============== step4
 $i = 1
-$tb where tgcol = 5 and ts > now + 4m and ts < now + 6m = $tbPrefix . $i
+$tb where ts > now + 4m and ts < now + 6m = $tbPrefix . $i
 
-sql select a * f from $mt where a = 5
+sql select a * f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 50.000000000 then 
   return -1
 endi
 
-sql select f * a from $mt where a = 5
+sql select f * a from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 50.000000000 then 
   return -1
 endi
 
-sql select b * f from $mt where a = 5
+sql select b * f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 50.000000000 then 
   return -1
 endi
 
-sql select f * b from $mt where a = 5
+sql select f * b from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 50.000000000 then 
   return -1
 endi
 
-sql select c * f from $mt where a = 5
+sql select c * f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 50.000000000 then 
   return -1
 endi
 
-sql select d * f from $mt where a = 5
+sql select d * f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 50.000000000 then 
   return -1
 endi
 
-sql select e * f from $mt where a = 5
+sql select e * f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 50.000000000 then 
   return -1
 endi
 
-sql select f * f from $mt where a = 5
+sql select f * f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 100.000000000 then 
   return -1
 endi
 
-sql select a * e from $mt where a = 5
+sql select a * e from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 25.000000000 then 
   return -1
 endi
 
-sql select b * e from $mt where a = 5
+sql select b * e from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 25.000000000 then 
   return -1
 endi
 
-sql select c * e from $mt where a = 5
+sql select c * e from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 25.000000000 then 
   return -1
 endi
 
-sql select d * e from $mt where a = 5
+sql select d * e from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 25.000000000 then 
   return -1
 endi
 
-sql select a * d from $mt where a = 5
+sql select a * d from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 25.000000000 then 
   return -1
 endi
 
-sql select b * d from $mt where a = 5
+sql select b * d from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 25.000000000 then 
   return -1
 endi
 
-sql select c * d from $mt where a = 5
+sql select c * d from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 25.000000000 then 
   return -1
 endi
 
-sql select a * c from $mt where a = 5
+sql select a * c from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 25.000000000 then 
   return -1
 endi
 
-sql select b * c from $mt where a = 5
+sql select b * c from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 25.000000000 then 
   return -1
 endi
 
-sql select a * b from $mt where a = 5
+sql select a * b from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 25.000000000 then 
   return -1
 endi
 
-sql select b * a from $mt where a = 5
+sql select b * a from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 25.000000000 then 
   return -1
@@ -415,117 +401,117 @@ endi
 
 print =============== step5
 $i = 1
-$tb where tgcol = 5 and ts > now + 4m and ts < now + 6m = $tbPrefix . $i
+$tb where ts > now + 4m and ts < now + 6m = $tbPrefix . $i
 
-sql select a / f from $mt where a = 5
+sql select a / f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.500000000 then 
   return -1
 endi
 
-sql select f / a from $mt where a = 5
+sql select f / a from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 2.000000000 then 
   return -1
 endi
 
-sql select b / f from $mt where a = 5
+sql select b / f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.500000000 then 
   return -1
 endi
 
-sql select f / b from $mt where a = 5
+sql select f / b from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 2.000000000 then 
   return -1
 endi
 
-sql select c / f from $mt where a = 5
+sql select c / f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.500000000 then 
   return -1
 endi
 
-sql select d / f from $mt where a = 5
+sql select d / f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.500000000 then 
   return -1
 endi
 
-sql select e / f from $mt where a = 5
+sql select e / f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.500000000 then 
   return -1
 endi
 
-sql select f / f from $mt where a = 5
+sql select f / f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 1.000000000 then 
   return -1
 endi
 
-sql select a / e from $mt where a = 5
+sql select a / e from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 1.000000000 then 
   return -1
 endi
 
-sql select b / e from $mt where a = 5
+sql select b / e from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 1.000000000 then 
   return -1
 endi
 
-sql select c / e from $mt where a = 5
+sql select c / e from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 1.000000000 then 
   return -1
 endi
 
-sql select d / e from $mt where a = 5
+sql select d / e from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 1.000000000 then 
   return -1
 endi
 
-sql select a / d from $mt where a = 5
+sql select a / d from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 1.000000000 then 
   return -1
 endi
 
-sql select b / d from $mt where a = 5
+sql select b / d from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 1.000000000 then 
   return -1
 endi
 
-sql select c / d from $mt where a = 5
+sql select c / d from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 1.000000000 then 
   return -1
 endi
 
-sql select a / c from $mt where a = 5
+sql select a / c from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 1.000000000 then 
   return -1
 endi
 
-sql select b / c from $mt where a = 5
+sql select b / c from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 1.000000000 then 
   return -1
 endi
 
-sql select a / b from $mt where a = 5
+sql select a / b from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 1.000000000 then 
   return -1
 endi
 
-sql select b / a from $mt where a = 5
+sql select b / a from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 1.000000000 then 
   return -1
@@ -533,90 +519,90 @@ endi
 
 print =============== step6
 $i = 1
-$tb where tgcol = 5 and ts > now + 4m and ts < now + 6m = $tbPrefix . $i
+$tb where ts > now + 4m and ts < now + 6m = $tbPrefix . $i
 
-sql select (a+b+c+d+e) / f from $mt where a = 5
+sql select (a+b+c+d+e) / f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 2.500000000 then 
   return -1
 endi
 
-sql select f / (a+b+c+d+e) from $mt where a = 5
+sql select f / (a+b+c+d+e) from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 0.400000000 then 
   return -1
 endi
 
-sql select (a+b+c+d+e) * f from $mt where a = 5
+sql select (a+b+c+d+e) * f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 250.000000000 then 
   return -1
 endi
 
-sql select f * (a+b+c+d+e) from $mt where a = 5
+sql select f * (a+b+c+d+e) from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 250.000000000 then 
   return -1
 endi
 
-sql select (a+b+c+d+e) - f from $mt where a = 5
+sql select (a+b+c+d+e) - f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != 15.000000000 then 
   return -1
 endi
 
-sql select f - (a+b+c+d+e) from $mt where a = 5
+sql select f - (a+b+c+d+e) from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != -15.000000000 then 
   return -1
 endi
 
-sql select (f - (a+b+c+d+e)) / f from $mt where a = 5
+sql select (f - (a+b+c+d+e)) / f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != -1.500000000 then 
   return -1
 endi
 
-sql select (f - (a+b+c+d+e)) * f from $mt where a = 5
+sql select (f - (a+b+c+d+e)) * f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != -150.000000000 then 
   return -1
 endi
 
-sql select (f - (a+b+c+d+e)) + f from $mt where a = 5
+sql select (f - (a+b+c+d+e)) + f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != -5.000000000 then 
   return -1
 endi
 
-sql select (f - (a+b+c+d+e)) - f from $mt where a = 5
+sql select (f - (a+b+c+d+e)) - f from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != -25.000000000 then 
   return -1
 endi
 
-sql select (f - (a*b+c)*a + d + e) * f  as zz from $mt where a = 5
+sql select (f - (a*b+c)*a + d + e) * f  as zz from $tb where ts > now + 4m and ts < now + 6m
 print ===> $data00
 if $data00 != -1300.000000000 then 
   return -1
 endi
 
-sql select (f - (a*b+c)*a + d + e))) * f  as zz from $mt where a = 5 -x step61
+sql select (f - (a*b+c)*a + d + e))) * f  as zz from $tb where ts > now + 4m and ts < now + 6m -x step61
   return -1
 step61:
 
-sql select (f - (a*b+c)*a + d + e))) * 2f  as zz from $mt where a = 5 -x step62
+sql select (f - (a*b+c)*a + d + e))) * 2f  as zz from $tb where ts > now + 4m and ts < now + 6m -x step62
   return -1
 step62:
 
-sql select (f - (a*b+c)*a + d + e))) ** f  as zz from $mt where a = 5 -x step63
+sql select (f - (a*b+c)*a + d + e))) ** f  as zz from $tb where ts > now + 4m and ts < now + 6m -x step63
   return -1
 step63:
 
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 
