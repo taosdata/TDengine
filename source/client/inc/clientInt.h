@@ -181,6 +181,7 @@ typedef struct SRequestSendRecvBody {
   tsem_t            rspSem;  // not used now
   __taos_async_fn_t queryFp;
   __taos_async_fn_t fetchFp;
+  EQueryExecMode    execMode;
   void*             param;
   SDataBuf          requestMsg;
   int64_t           queryJob;  // query job, created according to sql query DAG.
