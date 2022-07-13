@@ -611,7 +611,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t version, void *pRe
 
   // process
   if (metaAlterTable(pVnode->pMeta, version, &vAlterTbReq, &vMetaRsp) < 0) {
-    vAlterTbRsp.code = TSDB_CODE_INVALID_MSG;
+    vAlterTbRsp.code = terrno;
     tDecoderClear(&dc);
     rcode = -1;
     goto _exit;
