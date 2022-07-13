@@ -80,7 +80,7 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
     while (1) {
       SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
       if (qItem == NULL) {
-        qInfo("stream exec over, queue empty");
+        qDebug("stream exec over, queue empty");
         break;
       }
       if (data == NULL) {
@@ -101,9 +101,9 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
     }
     if (data == NULL) break;
 
-    qInfo("stream task %d exec begin, batch msg: %d", pTask->taskId, cnt);
+    qDebug("stream task %d exec begin, batch msg: %d", pTask->taskId, cnt);
     streamTaskExecImpl(pTask, data, pRes);
-    qInfo("stream task %d exec end", pTask->taskId);
+    qDebug("stream task %d exec end", pTask->taskId);
 
     if (pTask->taskStatus == TASK_STATUS__DROPPING) {
       taosArrayDestroyEx(pRes, (FDelete)tDeleteSSDataBlock);
