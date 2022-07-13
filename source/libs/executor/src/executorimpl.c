@@ -3479,9 +3479,9 @@ static void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
       if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_COLUMN) {
         taosMemoryFreeClear(pExprInfo->base.pParam[j].pCol);
       }
-      taosMemoryFree(pExprInfo->base.pParam);
     }
 
+    taosMemoryFree(pExprInfo->base.pParam);
     taosMemoryFree(pExprInfo->pExpr);
   }
 }
