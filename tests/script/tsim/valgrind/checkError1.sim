@@ -36,7 +36,12 @@ sql create dnode $hostname port 7200
 sql drop dnode 2
 sql alter dnode 1 'debugflag 131'
 
-print =============== step4:
+print =============== create database, stable, table
+sql create database db vgroups 3
+sql use db
+sql create table stb (ts timestamp, c int) tags (t int)
+sql create table t0 using stb tags (0)
+sql create table tba (ts timestamp, c1 binary(10), c2 nchar(10));
 
 print =============== run show xxxx
 sql show dnodes
@@ -50,7 +55,17 @@ if $rows != 1 then
 endi
 
 sql show databases
-if $rows != 2 then
+if $rows != 3 then
+  return -1
+endi
+
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+sql show tables
+if $rows != 2 then 
   return -1
 endi
 
@@ -70,8 +85,28 @@ if $rows != 1 then
   return -1
 endi
 
+sql select * from information_schema.user_databases
+if $rows != 3 then
+  return -1
+endi
+
+sql select * from information_schema.user_stables
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from information_schema.user_tables
+if $rows != 30 then
+  return -1
+endi
+
 sql select * from information_schema.user_users
 if $rows != 1 then 
+  return -1
+endi
+
+sql select * from information_schema.`vgroups`
+if $rows != 3 then 
   return -1
 endi
 
