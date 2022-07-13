@@ -5872,9 +5872,6 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
-    if(pTag->nTag == 0){
-      pReq->isNull = true;
-    }
     pReq->nTagVal = pTag->len;
     pReq->pTagVal = (uint8_t*)pTag;
     pStmt->pVal->datum.p = (char*)pTag;  // for free

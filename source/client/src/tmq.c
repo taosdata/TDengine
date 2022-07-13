@@ -2269,7 +2269,12 @@ static char *processAlterTable(SMqMetaRsp *metaRsp){
       cJSON* tagName = cJSON_CreateString(vAlterTbReq.tagName);
       cJSON_AddItemToObject(json, "colName", tagName);
 
-      if (!vAlterTbReq.isNull){
+      bool isNull = vAlterTbReq.isNull;
+      if(vAlterTbReq.tagType == TSDB_DATA_TYPE_JSON){
+        STag *jsonTag = (STag *)vAlterTbReq.pTagVal;
+        if(jsonTag->nTag == 0) isNull = true;
+      }
+      if (!isNull){
         char* buf = NULL;
 
         if (vAlterTbReq.tagType == TSDB_DATA_TYPE_JSON) {
@@ -2285,8 +2290,8 @@ static char *processAlterTable(SMqMetaRsp *metaRsp){
         taosMemoryFree(buf);
       }
 
-      cJSON* isNull = cJSON_CreateBool(vAlterTbReq.isNull);
-      cJSON_AddItemToObject(json, "colValueNull", isNull);
+      cJSON* isNullCJson = cJSON_CreateBool(isNull);
+      cJSON_AddItemToObject(json, "colValueNull", isNullCJson);
       break;
     }
     default:
