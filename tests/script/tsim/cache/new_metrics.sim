@@ -1,11 +1,6 @@
 system sh/stop_dnodes.sh
-
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-
-sleep 2000
 sql connect
 
 $i = 0
@@ -38,7 +33,6 @@ while $i < 5
 endw 
 
 print =============== step2
-
 sql select * from $tb order by  ts desc
 print ===>rows $rows, data $data01
 if $rows != 20 then
@@ -67,7 +61,6 @@ if $data00 != 100 then
 endi  
 
 print =============== step3
-
 sql show stables
 if $rows != 1 then 
   return -1
@@ -75,12 +68,8 @@ endi
 if $data00 != $mt then 
   return -1
 endi
-if $data04 != 5 then 
-  return -1
-endi
 
 print =============== step4
-
 while $i < 10
   $tb = $tbPrefix . $i
   sql create table $tb using $mt tags( 1 )  
@@ -99,7 +88,6 @@ sql reset query cache
 sleep 1000
 
 print =============== step5
-
 sql select * from $tb order by  ts desc
 print ===>rows $rows, data $data01
 if $rows != 20 then
@@ -128,15 +116,11 @@ if $data00 != 200 then
 endi  
 
 print =============== step6
-
 sql show stables
 if $rows != 1 then 
   return -1
 endi
 if $data00 != $mt then 
-  return -1
-endi
-if $data04 != 10 then 
   return -1
 endi
 
