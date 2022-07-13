@@ -10,10 +10,18 @@ set(CONTRIB_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${TD_SOURCE_DIR}/enterprise/cmake/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
 # community
-cat("${TD_SOURCE_DIR}/enterprise/cmake/community_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+IF (NOT EXISTS ${TD_SOURCE_DIR}/community)
+        EXECUTE_PROCESS(
+        COMMAND  git rev-parse --abbrev-ref HEAD
+        RESULT_VARIABLE TD_VERSION
+        )
+        cat("${TD_SOURCE_DIR}/enterprise/cmake/community_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+ENDIF ()
 
 # grant-lib
-cat("${TD_SOURCE_DIR}/enterprise/cmake/grant-lib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+IF (NOT EXISTS ${TD_SOURCE_DIR}/enterprise/contrib/grant-lib)
+        cat("${TD_SOURCE_DIR}/enterprise/cmake/grant-lib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+ENDIF ()
 
 # download dependencies
 configure_file(${CONTRIB_TMP_FILE} "${TD_SOURCE_DIR}/enterprise/contrib/deps-download/CMakeLists.txt")

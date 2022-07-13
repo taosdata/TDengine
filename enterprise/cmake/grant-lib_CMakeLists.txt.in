@@ -10,4 +10,6 @@ ExternalProject_Add(grant-lib
         INSTALL_COMMAND ""
         TEST_COMMAND ""
         GIT_SHALLOW true
+        GIT_SUBMODULES ""
+        GIT_PROGRESS true
         )
