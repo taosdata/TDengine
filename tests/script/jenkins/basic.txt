@@ -203,6 +203,7 @@
 
 # --- scalar
 ./test.sh -f tsim/scalar/in.sim
+./test.sh -f tsim/scalar/scalar.sim
 
 # ---- alter
 ./test.sh -f tsim/alter/cached_schema_after_alter.sim
