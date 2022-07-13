@@ -394,10 +394,10 @@ impl Raw {
 
         let schema_end = SCHEMA_OFFSET + cols * std::mem::size_of::<ColSchema>();
         let schemas = Schemas::from(bytes.slice(SCHEMA_OFFSET..schema_end));
-        dbg!(&schemas);
+        // dbg!(&schemas);
         let lengths_end = schema_end + std::mem::size_of::<u32>() * cols;
         let lengths = Lengths::from(bytes.slice(schema_end..lengths_end));
-        dbg!(&lengths);
+        // dbg!(&lengths);
         let mut data_offset = lengths_end;
         let mut columns = Vec::with_capacity(cols);
         for col in 0..cols {
@@ -485,7 +485,7 @@ impl Raw {
             columns.push(column);
             debug_assert!(data_offset <= len);
         }
-        dbg!(&columns);
+        // dbg!(&columns);
         Raw {
             layout: Layout::Owned,
             data: bytes,

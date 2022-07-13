@@ -29,6 +29,8 @@ type StmtReceiver = std::sync::mpsc::Receiver<StmtResult>;
 
 type WsSender = tokio::sync::mpsc::Sender<Message>;
 
+pub mod sync;
+
 pub struct WsStmtClient {
     req_id: Arc<AtomicU64>,
     ws: WsSender,
@@ -38,6 +40,8 @@ pub struct WsStmtClient {
 }
 
 pub struct WsAsyncStmt {
+    /// Message sending timeout, default is 5min.
+    timeout: Duration,
     ws: WsSender,
     fetches: Arc<HashMap<StmtId, StmtSender>>,
     receiver: StmtReceiver,
@@ -59,9 +63,7 @@ impl Drop for WsAsyncStmt {
         self.fetches.remove(&self.args.stmt_id);
         let args = self.args;
         let ws = self.ws.clone();
-        tokio::spawn(async move {
-            let _ = ws.send(StmtSend::Close(args).to_msg()).await;
-        });
+        let _ = ws.blocking_send(StmtSend::Close(args).to_msg());
     }
 }
 
@@ -93,6 +95,21 @@ pub enum Error {
     WsError(#[from] WsError),
     #[error("{0}")]
     TaosError(#[from] taos_error::Error),
+}
+
+impl Error {
+    pub const fn errno(&self) -> taos_error::Code {
+        match self {
+            Error::TaosError(error) => error.code(),
+            _ => taos_error::Code::Failed,
+        }
+    }
+    pub fn errstr(&self) -> String {
+        match self {
+            Error::TaosError(error) => error.message().to_string(),
+            _ => format!("{}", self),
+        }
+    }
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -157,6 +174,7 @@ impl WsStmtClient {
                     }
                     Some(msg) = msg_recv.recv() => {
                         dbg!(&msg);
+                        // log::info!("send message: {}", msg.to_string());
                         sender.send(msg).await.unwrap();
                         log::info!("send done");
                     }
@@ -176,6 +194,7 @@ impl WsStmtClient {
                         match message {
                             Ok(message) => match message {
                                 Message::Text(text) => {
+                                    log::info!("json response: {}", text);
                                     dbg!(&text);
                                     let v: StmtRecv = serde_json::from_str(&text).unwrap();
                                     match dbg!(v.ok()) {
@@ -260,7 +279,7 @@ impl WsStmtClient {
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
     }
 
-    pub async fn s_stmt(&self, sql: &str) -> Result<WsAsyncStmt> {
+    pub async fn stmt_init(&self) -> Result<WsAsyncStmt> {
         let req_id = self.req_id();
         let action = StmtSend::Init { req_id };
         let (tx, rx) = oneshot::channel();
@@ -269,48 +288,67 @@ impl WsStmtClient {
             self.ws.send(action.to_msg()).await?;
         }
         let stmt_id = rx.await??; // 1. RecvError, 2. TaosError
-
-        // prepare
         let args = StmtArgs { req_id, stmt_id };
-        let prepare = StmtSend::Prepare {
-            args,
-            sql: sql.to_string(),
-        };
-        let (sender, receiver) = std::sync::mpsc::sync_channel(2);
-        {
-            self.fetches.insert(stmt_id, sender).unwrap();
-            self.ws.send(prepare.to_msg()).await?;
-        }
 
-        let _ = receiver.recv_timeout(Duration::from_secs(5))??;
+        let (sender, receiver) = std::sync::mpsc::sync_channel(2);
+
+        let _ = self.fetches.insert(stmt_id, sender);
 
         Ok(WsAsyncStmt {
+            timeout: Duration::from_secs(300),
             ws: self.ws.clone(),
             fetches: self.fetches.clone(),
             receiver: receiver,
             args,
         })
     }
+
+    pub async fn s_stmt(&self, sql: &str) -> Result<WsAsyncStmt> {
+        let stmt = self.stmt_init().await?;
+        stmt.prepare(sql).await?;
+        Ok(stmt)
+    }
 }
 
 impl WsAsyncStmt {
-    pub async fn bind(&self, columns: &[serde_json::Value]) -> Result<()> {
+    pub fn set_timeout(&mut self, timeout: Duration) -> &mut Self {
+        self.timeout = timeout;
+        self
+    }
+    pub async fn prepare(&self, sql: &str) -> Result<()> {
+        let prepare = StmtSend::Prepare {
+            args: self.args,
+            sql: sql.to_string(),
+        };
+        self.ws.send(prepare.to_msg()).await?;
+        let _ = self.receiver.recv_timeout(self.timeout)??;
+        Ok(())
+    }
+    pub async fn add_batch(&self) -> Result<()> {
+        log::info!("add batch");
+        let message = StmtSend::AddBatch(self.args);
+        self.ws.send(message.to_msg()).await?;
+        let _ = self.receiver.recv_timeout(self.timeout)??;
+        Ok(())
+    }
+    pub async fn bind(&self, columns: Vec<serde_json::Value>) -> Result<()> {
         let message = StmtSend::Bind {
             args: self.args,
-            columns: columns.to_vec(),
+            columns: columns,
         };
         {
             log::info!("bind");
             self.ws.send(message.to_msg()).await?;
         }
         log::info!("begin receive");
-        let _ = self.receiver.recv_timeout(Duration::from_secs(5))??;
-
-        log::info!("add batch");
-        let message = StmtSend::AddBatch(self.args);
-        self.ws.send(message.to_msg()).await?;
-        let _ = self.receiver.recv_timeout(Duration::from_secs(5))??;
+        let _ = self.receiver.recv_timeout(self.timeout)??;
         Ok(())
+    }
+
+    /// Call bind and add batch.
+    pub async fn bind_all(&self, columns: Vec<serde_json::Value>) -> Result<()> {
+        self.bind(columns).await?;
+        self.add_batch().await
     }
 
     pub async fn set_tbname(&self, name: &str) -> Result<()> {
@@ -319,7 +357,7 @@ impl WsAsyncStmt {
             name: name.to_string(),
         };
         self.ws.send(message.to_msg()).await?;
-        let _ = self.receiver.recv_timeout(Duration::from_secs(5))??;
+        let _ = self.receiver.recv_timeout(self.timeout)??;
         Ok(())
     }
 
@@ -329,7 +367,7 @@ impl WsAsyncStmt {
             tags: tags,
         };
         self.ws.send(message.to_msg()).await?;
-        let _ = dbg!(self.receiver.recv_timeout(Duration::from_secs(5))?)?;
+        let _ = dbg!(self.receiver.recv_timeout(self.timeout)?)?;
         Ok(())
     }
 
@@ -337,7 +375,7 @@ impl WsAsyncStmt {
         log::info!("exec");
         let message = StmtSend::Exec(self.args);
         self.ws.send(message.to_msg()).await?;
-        if let Some(affected) = self.receiver.recv_timeout(Duration::from_secs(5))?? {
+        if let Some(affected) = self.receiver.recv_timeout(self.timeout)?? {
             Ok(affected)
         } else {
             panic!("")
@@ -363,7 +401,7 @@ async fn test_client() -> anyhow::Result<()> {
     let client = WsStmtClient::from_dsn("taos+ws://localhost:6041/stmt").await?;
     let stmt = client.s_stmt("insert into stmt.ctb values(?, ?)").await?;
 
-    stmt.bind(&[
+    stmt.bind_all(vec![
         json!([
             "2022-06-07T11:02:44.022450088+08:00",
             "2022-06-07T11:02:45.022450088+08:00"
@@ -403,7 +441,7 @@ async fn test_stmt_stable() -> anyhow::Result<()> {
 
     stmt.set_tags(vec![json!(1)]).await?;
 
-    stmt.bind(&[
+    stmt.bind_all(vec![
         json!([
             "2022-06-07T11:02:44.022450088+08:00",
             "2022-06-07T11:02:45.022450088+08:00"

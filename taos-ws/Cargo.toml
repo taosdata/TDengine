@@ -34,8 +34,7 @@ anyhow = "1"
 pretty_env_logger = "*"
 
 [features]
-default = [ "async", "stmt", "tmq"]
+default = [ "async", "tmq"]
 async = ["async-trait", "taos-query/async"]
 sync = []
-stmt = ["async"]
 tmq = ["async"]
