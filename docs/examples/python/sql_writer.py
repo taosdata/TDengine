@@ -5,10 +5,10 @@ import taos
 class SQLWriter:
     log = logging.getLogger("SQLWriter")
 
-    def __init__(self):
+    def __init__(self, get_connection_func):
         self._tb_values = {}
         self._tb_tags = {}
-        self._conn = self.get_connection()
+        self._conn = get_connection_func()
         self._max_sql_length = self.get_max_sql_length()
         self._conn.execute("USE test")
 
@@ -18,10 +18,6 @@ class SQLWriter:
             name = r[0]
             if name == "maxSQLLength":
                 return int(r[1])
-
-    @staticmethod
-    def get_connection():
-        return taos.connect(host="localhost", user="root", password="taosdata", port=6030)
 
     def process_lines(self, lines: str):
         """

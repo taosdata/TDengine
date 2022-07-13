@@ -6,6 +6,7 @@
 import logging
 import sys
 import time
+import os
 from multiprocessing import Process
 from faster_fifo import Queue
 from queue import Empty
@@ -21,6 +22,22 @@ MAX_BATCH_SIZE = 3000
 
 read_processes = []
 write_processes = []
+
+
+def get_connection():
+    """
+    If variable TDENGINE_FIRST_EP is provided then it will be used. If not, firstEP in /etc/taos/taos.cfg will be used.
+    You can also override the default username and password by supply variable TDENGINE_USER and TDENGINE_PASSWORD
+    """
+    import taos
+    firstEP = os.environ.get("TDENGINE_FIRST_EP")
+    if firstEP:
+        host, port = firstEP.split(":")
+    else:
+        host, port = None, 0
+    user = os.environ.get("TDENGINE_USER", "root")
+    password = os.environ.get("TDENGINE_PASSWORD", "taosdata")
+    return taos.connect(host=host, port=int(port), user=user, password=password)
 
 
 # ANCHOR: MockDataSource
@@ -58,8 +75,7 @@ class MockDataSource:
             group_id = self.table_id % 5 if self.table_id % 5 == 0 else self.table_id % 5 + 1
             tb_name = self.table_name_prefix + '_' + str(self.table_id)
             ri = self.row % 5
-            rows.append(
-                f"{tb_name},{ts},{self.current[ri]},{self.voltage[ri]},{self.phase[ri]},{self.location[ri]},{group_id}")
+            rows.append(f"{tb_name},{ts},{self.current[ri]},{self.voltage[ri]},{self.phase[ri]},{self.location[ri]},{group_id}")
         return self.table_id, rows
 
 
@@ -71,7 +87,9 @@ def run_read_task(task_id: int, task_queues: List[Queue]):
     data_source = MockDataSource(f"tb{task_id}", table_count_per_task)
     try:
         for table_id, rows in data_source:
+            # hash data to different queue
             i = table_id % len(task_queues)
+            # block putting forever when the queue is full
             task_queues[i].put_many(rows, block=True, timeout=-1)
     except KeyboardInterrupt:
         pass
@@ -83,11 +101,12 @@ def run_read_task(task_id: int, task_queues: List[Queue]):
 def run_write_task(task_id: int, queue: Queue):
     from sql_writer import SQLWriter
     log = logging.getLogger(f"WriteTask-{task_id}")
-    writer = SQLWriter()
+    writer = SQLWriter(get_connection)
     lines = None
     try:
         while True:
             try:
+                # get as many as possible
                 lines = queue.get_many(block=False, max_messages_to_get=MAX_BATCH_SIZE)
                 writer.process_lines(lines)
             except Empty:
@@ -100,6 +119,7 @@ def run_write_task(task_id: int, queue: Queue):
 
 
 # ANCHOR_END: write
+
 def set_global_config():
     argc = len(sys.argv)
     if argc > 1:
@@ -119,11 +139,11 @@ def set_global_config():
         MAX_BATCH_SIZE = int(sys.argv[5])
 
 
-# ANCHOR: main
+# ANCHOR: monitor
 def run_monitor_process():
     import taos
     log = logging.getLogger("DataBaseMonitor")
-    conn = taos.connect(host="localhost", user="root", password="taosdata", port=6030)
+    conn = get_connection()
     conn.execute("DROP DATABASE IF EXISTS test")
     conn.execute("CREATE DATABASE test")
     conn.execute("CREATE STABLE test.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) "
@@ -142,6 +162,8 @@ def run_monitor_process():
         last_count = count
 
 
+# ANCHOR_END: monitor
+# ANCHOR: main
 def main():
     set_global_config()
     logging.info(f"READ_TASK_COUNT={READ_TASK_COUNT}, WRITE_TASK_COUNT={WRITE_TASK_COUNT}, "
@@ -149,7 +171,7 @@ def main():
 
     monitor_process = Process(target=run_monitor_process)
     monitor_process.start()
-    time.sleep(3)
+    time.sleep(3)  # waiting for database ready.
 
     task_queues: List[Queue] = []
     # create task queues
