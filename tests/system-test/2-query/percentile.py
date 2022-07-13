@@ -134,31 +134,16 @@ class TDTestCase:
                         tdSql.query(f'select percentile({k}, {param}) from {self.stbname}_{i}')
                         tdSql.checkData(0, 0, np.percentile(floatData, param))
             
-            #!bug TD-17119
-            # for k,v in self.tag_dict.items():
-            #     for param in self.param:
-            #         if v.lower() in ['timestamp','bool'] or 'binary' in v.lower() or 'nchar' in v.lower():
-            #             tdSql.error(f'select percentile({k},{param}) from {self.stbname}_{i}')
-            #         elif v.lower() == 'tinyint':
-            #             self.check_tags(k,param,i,self.tag_tinyint)
-            #         elif v.lower() == 'smallint':
-            #             self.check_tags(k,param,i,self.tag_smallint)
-            #         elif v.lower() == 'int':
-            #             self.check_tags(k,param,i,self.tag_int)
-            #         elif v.lower() == 'bigint':
-            #             self.check_tags(k,param,i,self.tag_bigint)
-            #         elif v.lower() == 'tinyint unsigned':
-            #             self.check_tags(k,param,i,self.tag_utint)
-            #         elif v.lower() == 'smallint unsigned':
-            #             self.check_tags(k,param,i,self.tag_usint)   
-            #         elif v.lower() == 'int unsigned':
-            #             self.check_tags(k,param,i,self.tag_uint) 
-            #         elif v.lower() == 'bigint unsigned':
-            #             self.check_tags(k,param,i,self.tag_ubint)
-            #         elif v.lower() == 'float':
-            #             self.check_tags(k,param,i,self.tag_float)
-            #         elif v.lower() == 'double':
-            #             self.check_tags(k,param,i,self.tag_double)
+            for k,v in self.tag_dict.items():
+                for param in self.param:
+                    if v.lower() in ['timestamp','bool'] or 'binary' in v.lower() or 'nchar' in v.lower():
+                        tdSql.error(f'select percentile({k},{param}) from {self.stbname}_{i}')
+                    else:
+                        tdSql.query(f'select {k} from {self.stbname}_{i}')
+                        data_num = tdSql.queryResult[0][0]
+                        tdSql.query(f'select percentile({k},{param}) from {self.stbname}_{i}')
+                        tdSql.checkData(0,0,data_num)
+                    
     def run(self):
         self.function_check_ntb()
         self.function_check_ctb()

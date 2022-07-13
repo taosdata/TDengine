@@ -594,10 +594,14 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
 
       int32_t offset = createNewColModel ? 0 : pResult->info.rows;
-      for (int32_t i = 0; i < pSrcBlock->info.rows; ++i) {
-        colDataAppend(pColInfoData, i + offset,
-                      taosVariantGet(&pExpr[k].base.pParam[0].param, pExpr[k].base.pParam[0].param.nType),
-                      TSDB_DATA_TYPE_NULL == pExpr[k].base.pParam[0].param.nType);
+
+      int32_t type = pExpr[k].base.pParam[0].param.nType;
+      if (TSDB_DATA_TYPE_NULL == type) {
+        colDataAppendNNULL(pColInfoData, offset, pSrcBlock->info.rows);
+      } else {
+        for (int32_t i = 0; i < pSrcBlock->info.rows; ++i) {
+          colDataAppend(pColInfoData, i + offset, taosVariantGet(&pExpr[k].base.pParam[0].param, type), false);
+        }
       }
 
       numOfRows = pSrcBlock->info.rows;
@@ -3235,6 +3239,10 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (pOperator->status == OP_EXEC_DONE) {
+    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
+      pOperator->status = OP_OPENED;
+      return NULL;
+    }
     return NULL;
   }
 
@@ -3268,11 +3276,15 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
   while (1) {
     // The downstream exec may change the value of the newgroup, so use a local variable instead.
+    qDebug("projection call next");
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
-      // TODO optimize
-      /*if (pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM) {*/
+      qDebug("projection get null");
+
+      /*if (pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH) {*/
       doSetOperatorCompleted(pOperator);
+      /*} else if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {*/
+      /*pOperator->status = OP_RES_TO_RETURN;*/
       /*}*/
       break;
     }

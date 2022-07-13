@@ -642,6 +642,7 @@ void    ctgFreeSTableIndex(void *info);
 void    ctgClearSubTaskRes(SCtgSubRes *pRes);
 void    ctgFreeQNode(SCtgQNode *node);
 void    ctgClearHandle(SCatalog* pCtg);
+void    ctgFreeTbCacheImpl(SCtgTbCache *pCache);
 
 
 extern SCatalogMgmt gCtgMgmt;

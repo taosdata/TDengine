@@ -4757,8 +4757,13 @@ static int32_t extractQueryResultSchema(const SNodeList* pProjections, int32_t* 
   int32_t index = 0;
   FOREACH(pNode, pProjections) {
     SExprNode* pExpr = (SExprNode*)pNode;
-    (*pSchema)[index].type = pExpr->resType.type;
-    (*pSchema)[index].bytes = pExpr->resType.bytes;
+    if (TSDB_DATA_TYPE_NULL == pExpr->resType.type) {
+      (*pSchema)[index].type = TSDB_DATA_TYPE_VARCHAR;
+      (*pSchema)[index].bytes = 0;
+    } else {
+      (*pSchema)[index].type = pExpr->resType.type;
+      (*pSchema)[index].bytes = pExpr->resType.bytes;
+    }
     (*pSchema)[index].colId = index + 1;
     if ('\0' != pExpr->userAlias[0]) {
       strcpy((*pSchema)[index].name, pExpr->userAlias);
