@@ -1202,15 +1202,6 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   taosArrayDestroy(pBlock->pDataBlock);
 
   ASSERT(pInfo->pRes->pDataBlock != NULL);
-#if 0
-  if (pInfo->pRes->pDataBlock == NULL) {
-    // TODO add log
-    updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
-    pOperator->status = OP_EXEC_DONE;
-    pTaskInfo->code = terrno;
-    return -1;
-  }
-#endif
 
   // currently only the tbname pseudo column
   if (pInfo->numOfPseudoExpr > 0) {
@@ -1230,11 +1221,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   // NOTE: this operator does never check if current status is done or not
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
   SStreamScanInfo* pInfo = pOperator->info;
-
-  /*pTaskInfo->code = pOperator->fpSet._openFn(pOperator);*/
-  /*if (pTaskInfo->code != TSDB_CODE_SUCCESS || pOperator->status == OP_EXEC_DONE) {*/
-  /*return NULL;*/
-  /*}*/
 
   qDebug("stream scan called");
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__LOG) {
@@ -1424,15 +1410,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     }
     qDebug("scan rows: %d", pBlockInfo->rows);
     return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
-
-#if 0
-  } else if (pInfo->blockType == STREAM_INPUT__TABLE_SCAN) {
-    ASSERT(0);
-    // check reader last status
-    // if not match, reset status
-    SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
-    return pResult && pResult->info.rows > 0 ? pResult : NULL;
-#endif
 
   } else {
     ASSERT(0);
