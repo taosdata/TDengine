@@ -158,7 +158,7 @@ impl WsAsyncClient {
         let version = WsSend::Version;
         sender.send(version.to_msg()).await?;
 
-        let duration = Duration::from_secs(5);
+        let duration = Duration::from_secs(2);
         let version = match tokio::time::timeout(duration, reader.next()).await {
             Ok(Some(Ok(message))) => match message {
                 Message::Text(text) => {

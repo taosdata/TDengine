@@ -18,7 +18,7 @@ int main() {
   }
 
   const char* version = ws_get_server_info(taos);
-  dprintf(2, "Server version: %s", version);
+  dprintf(2, "Server version: %s\n", version);
 
   WS_RES *rs = ws_query(taos, "show databases");
   int code = ws_errno(rs);
