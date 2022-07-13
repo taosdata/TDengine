@@ -70,27 +70,27 @@ void tQWorkerCleanup(SQWorkerPool *pool) {
 
 static void *tQWorkerThreadFp(SQWorker *worker) {
   SQWorkerPool *pool = worker->pool;
-  FItem         fp = NULL;
-
-  void   *msg = NULL;
-  void   *ahandle = NULL;
-  int32_t code = 0;
-  int64_t ts = 0;
+  SQueueInfo    qinfo = {0};
+  void         *msg = NULL;
+  int32_t       code = 0;
 
   taosBlockSIGPIPE();
   setThreadName(pool->name);
   uDebug("worker:%s:%d is running", pool->name, worker->id);
 
   while (1) {
-    if (taosReadQitemFromQset(pool->qset, (void **)&msg, &ts, &ahandle, &fp) == 0) {
+     if (taosReadQitemFromQset(pool->qset, (void **)&msg, &qinfo) == 0) {
       uDebug("worker:%s:%d qset:%p, got no message and exiting", pool->name, worker->id, pool->qset);
       break;
     }
 
-    if (fp != NULL) {
-      SQueueInfo info = {.ahandle = ahandle, .workerId = worker->id, .threadNum = pool->num, .timestamp = ts};
-      (*fp)(&info, msg);
+    if (qinfo.fp != NULL) {
+      qinfo.workerId = worker->id;
+      qinfo.threadNum = pool->num;
+      (*((FItem)qinfo.fp))(&qinfo, msg);
     }
+
+    taosUpdateItemSize(qinfo.queue, 1);
   }
 
   return NULL;
@@ -195,28 +195,28 @@ void tWWorkerCleanup(SWWorkerPool *pool) {
 
 static void *tWWorkerThreadFp(SWWorker *worker) {
   SWWorkerPool *pool = worker->pool;
-  FItems        fp = NULL;
-
-  void   *msg = NULL;
-  void   *ahandle = NULL;
-  int32_t numOfMsgs = 0;
-  int32_t qtype = 0;
+  SQueueInfo    qinfo = {0};
+  void         *msg = NULL;
+  int32_t       code = 0;
+  int32_t       numOfMsgs = 0;
 
   taosBlockSIGPIPE();
   setThreadName(pool->name);
   uDebug("worker:%s:%d is running", pool->name, worker->id);
 
   while (1) {
-    numOfMsgs = taosReadAllQitemsFromQset(worker->qset, worker->qall, &ahandle, &fp);
+    numOfMsgs = taosReadAllQitemsFromQset(worker->qset, worker->qall, &qinfo);
     if (numOfMsgs == 0) {
       uDebug("worker:%s:%d qset:%p, got no message and exiting", pool->name, worker->id, worker->qset);
       break;
     }
 
-    if (fp != NULL) {
-      SQueueInfo info = {.ahandle = ahandle, .workerId = worker->id, .threadNum = pool->num};
-      (*fp)(&info, worker->qall, numOfMsgs);
+    if (qinfo.fp != NULL) {
+      qinfo.workerId = worker->id;
+      qinfo.threadNum = pool->num;
+      (*((FItems)qinfo.fp))(&qinfo, worker->qall, numOfMsgs);
     }
+    taosUpdateItemSize(qinfo.queue, numOfMsgs);
   }
 
   return NULL;

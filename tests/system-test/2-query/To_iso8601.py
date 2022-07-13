@@ -16,18 +16,18 @@ class TDTestCase:
         self.rowNum = 10
         self.ts = 1640966400000  # 2022-1-1 00:00:00.000
     def check_customize_param_ms(self):
-        
+
         time_zone = time.strftime('%z')
         tdSql.execute('create database db1 precision "ms"')
         tdSql.execute('use db1')
         tdSql.execute('create table if not exists ntb(ts timestamp, c1 int, c2 timestamp)')
         for i in range(self.rowNum):
-            tdSql.execute("insert into ntb values(%d, %d, %d)" 
+            tdSql.execute("insert into ntb values(%d, %d, %d)"
                         % (self.ts + i, i + 1, self.ts + i))
         tdSql.query('select to_iso8601(ts) from ntb')
         for i in range(self.rowNum):
             tdSql.checkEqual(tdSql.queryResult[i][0],f'2022-01-01T00:00:00.00{i}{time_zone}')
-            
+
         timezone_list = ['+0000','+0100','+0200','+0300','+0330','+0400','+0500','+0530','+0600','+0700','+0800','+0900','+1000','+1100','+1200',\
                         '+00','+01','+02','+03','+04','+05','+06','+07','+08','+09','+10','+11','+12',\
                             '+00:00','+01:00','+02:00','+03:00','+03:30','+04:00','+05:00','+05:30','+06:00','+07:00','+08:00','+09:00','+10:00','+11:00','+12:00',\
@@ -39,7 +39,7 @@ class TDTestCase:
             tdSql.query(f'select to_iso8601(ts,"{j}") from ntb')
             for i in range(self.rowNum):
                 tdSql.checkEqual(tdSql.queryResult[i][0],f'2022-01-01T00:00:00.00{i}{j}')
-        
+
         error_param_list = [0,100.5,'a','!']
         for i in error_param_list:
             tdSql.error(f'select to_iso8601(ts,"{i}") from ntb')
@@ -47,7 +47,7 @@ class TDTestCase:
         error_timezone_param = ['+13','-13','+1300','-1300','+0001','-0001','-0330','-0530']
         for i in error_timezone_param:
             tdSql.error(f'select to_iso8601(ts,"{i}") from ntb')
-        
+
     def check_base_function(self):
         tdSql.prepare()
         tdLog.printNoPrefix("==========step1:create tables==========")
@@ -75,12 +75,12 @@ class TDTestCase:
         tdSql.query("select to_iso8601(ts) from ntb")
         tdSql.checkRows(3)
         tdSql.query("select to_iso8601(ts) from db.ntb")
-        
+
         tdSql.query("select to_iso8601(today()) from ntb")
         tdSql.checkRows(3)
         tdSql.query("select to_iso8601(now()) from ntb")
         tdSql.checkRows(3)
-        
+
         tdSql.error("select to_iso8601(timezone()) from ntb")
         tdSql.error("select to_iso8601('abc') from ntb")
 
@@ -104,7 +104,7 @@ class TDTestCase:
         for i in err_param:
             tdSql.error(f"select to_iso8601({i}) from ntb")
             tdSql.error(f"select to_iso8601({i}) from db.ntb")
-            
+
         tdSql.query("select to_iso8601(now) from stb")
         tdSql.checkRows(3)
         tdSql.query("select to_iso8601(now()) from stb")
@@ -126,7 +126,7 @@ class TDTestCase:
             tdSql.query(f"select to_iso8601(today()) {i}null from db.stb")
             tdSql.checkRows(3)
             tdSql.checkData(0,0,None)
-        
+
     def run(self):  # sourcery skip: extract-duplicate-method
         self.check_base_function()
         self.check_customize_param_ms()

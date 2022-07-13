@@ -884,6 +884,28 @@ static bool prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
   return true;
 }
 
+static STimeWindow getSlidingWindow(TSKEY* tsCol, SInterval* pInterval, SDataBlockInfo* pDataBlockInfo, int32_t* pRowIndex) {
+  SResultRowInfo   dumyInfo;
+  dumyInfo.cur.pageId = -1;
+  STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, tsCol[*pRowIndex], pInterval,
+      TSDB_ORDER_ASC);
+  STimeWindow endWin = win;
+  STimeWindow preWin = win;
+  while (1) {
+    (*pRowIndex) += getNumOfRowsInTimeWindow(pDataBlockInfo, tsCol, *pRowIndex, endWin.ekey,
+        binarySearchForKey, NULL, TSDB_ORDER_ASC);
+    do {
+      preWin = endWin;
+      getNextTimeWindow(pInterval, &endWin, TSDB_ORDER_ASC);
+    } while (tsCol[(*pRowIndex) - 1] >= endWin.skey);
+    endWin = preWin;
+    if (win.ekey == endWin.ekey || (*pRowIndex) == pDataBlockInfo->rows ) {
+      win.ekey = endWin.ekey;
+      return win;
+    }
+    win.ekey = endWin.ekey;
+  }
+}
 static bool prepareDataScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32_t tsColIndex, int32_t* pRowIndex) {
   STimeWindow win = {
       .skey = INT64_MIN,
@@ -905,10 +927,13 @@ static bool prepareDataScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32_t t
       setGroupId(pInfo, pSDB, GROUPID_COLUMN_INDEX, *pRowIndex);
       (*pRowIndex) += updateSessionWindowInfo(pCurWin, tsCols, NULL, pSDB->info.rows, *pRowIndex, gap, NULL);
     } else {
-      win = getActiveTimeWindow(NULL, &dumyInfo, tsCols[*pRowIndex], &pInfo->interval, TSDB_ORDER_ASC);
       setGroupId(pInfo, pSDB, GROUPID_COLUMN_INDEX, *pRowIndex);
-      (*pRowIndex) +=
-          getNumOfRowsInTimeWindow(&pSDB->info, tsCols, *pRowIndex, win.ekey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
+      pInfo->updateWin.skey = tsCols[*pRowIndex];
+      win = getSlidingWindow(tsCols, &pInfo->interval, &pSDB->info, pRowIndex);
+      pInfo->updateWin.ekey = tsCols[*pRowIndex - 1];
+      // win = getActiveTimeWindow(NULL, &dumyInfo, tsCols[*pRowIndex], &pInfo->interval, TSDB_ORDER_ASC);
+      // (*pRowIndex) +=
+      //     getNumOfRowsInTimeWindow(&pSDB->info, tsCols, *pRowIndex, win.ekey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
     }
     needRead = true;
   } else if (isStateWindow(pInfo)) {
@@ -974,10 +999,12 @@ static SSDataBlock* doDataScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32_
       }
     }
     if (!pResult) {
+      pInfo->updateWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
       return NULL;
     }
 
     if (pResult->info.groupId == pInfo->groupId) {
+      pResult->info.calWin = pInfo->updateWin;
       return pResult;
     }
   }
@@ -1209,6 +1236,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   /*return NULL;*/
   /*}*/
 
+  qDebug("stream scan called");
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__LOG) {
     while (1) {
       SFetchRet ret = {0};
@@ -1220,6 +1248,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         }
         // TODO clean data block
         if (pInfo->pRes->info.rows > 0) {
+          qDebug("stream scan log return %d rows", pInfo->pRes->info.rows);
           return pInfo->pRes;
         }
       } else if (ret.fetchType == FETCH_TYPE__META) {
@@ -1230,6 +1259,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       } else if (ret.fetchType == FETCH_TYPE__NONE) {
         pTaskInfo->streamInfo.lastStatus = ret.offset;
         ASSERT(pTaskInfo->streamInfo.lastStatus.version + 1 >= pTaskInfo->streamInfo.prepareStatus.version);
+        qDebug("stream scan log return null");
         return NULL;
       } else {
         ASSERT(0);
@@ -1237,7 +1267,12 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     }
   } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
-    return pResult && pResult->info.rows > 0 ? pResult : NULL;
+    if (pResult && pResult->info.rows > 0) {
+      qDebug("stream scan tsdb return %d rows", pResult->info.rows);
+      return pResult;
+    }
+    qDebug("stream scan tsdb return null");
+    return NULL;
   } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_META) {
     // TODO scan meta
     ASSERT(0);
@@ -1256,8 +1291,13 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     int32_t      current = pInfo->validBlockIndex++;
     SSDataBlock* pBlock = taosArrayGetP(pInfo->pBlockLists, current);
     // TODO move into scan
+    pBlock->info.calWin.skey = INT64_MIN;
+    pBlock->info.calWin.ekey = INT64_MAX;
     blockDataUpdateTsWindow(pBlock, 0);
     switch (pBlock->info.type) {
+      case STREAM_NORMAL:
+      case STREAM_GET_ALL:
+        return pBlock;
       case STREAM_RETRIEVE: {
         pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
         pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RETRIEVE;
@@ -1287,6 +1327,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     }
     return pBlock;
   } else if (pInfo->blockType == STREAM_INPUT__DATA_SUBMIT) {
+    qDebug("scan mode %d", pInfo->scanMode);
     if (pInfo->scanMode == STREAM_SCAN_FROM_RES) {
       blockDataDestroy(pInfo->pUpdateRes);
       pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
@@ -1381,7 +1422,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         }
       }
     }
-
+    qDebug("scan rows: %d", pBlockInfo->rows);
     return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
 
 #if 0
@@ -1533,6 +1574,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->pStreamScanOp = pOperator;
   pInfo->deleteDataIndex = 0;
   pInfo->pDeleteDataRes = createPullDataBlock();
+  pInfo->updateWin = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MAX};
 
   pOperator->name = "StreamScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
