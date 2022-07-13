@@ -294,7 +294,7 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
 }
 
 void transReqQueueInit(queue* q) {
-  // init  req queue
+  // init req queue
   QUEUE_INIT(q);
 }
 void* transReqQueuePushReq(queue* q) {

@@ -11,7 +11,7 @@ from util.sql import *
 from util.cases import *
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 , 
+    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
     "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
 
@@ -388,11 +388,11 @@ class TDTestCase:
         tdSql.execute(
                 f"insert into sub1_bound values ( now(), -2147483643, -9223372036854775803, -32763, -123, -3.39E+38, -1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        
+
         tdSql.error(
                 f"insert into sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        
+
         tdSql.query("select stateduration(c1,'GT',1,1s) from sub1_bound")
         tdSql.checkRows(5)
 
@@ -400,29 +400,29 @@ class TDTestCase:
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
-        
+
         self.prepare_datas()
 
-        tdLog.printNoPrefix("==========step2:test errors ==============")    
+        tdLog.printNoPrefix("==========step2:test errors ==============")
 
         self.test_errors()
-        
-        tdLog.printNoPrefix("==========step3:support types ============") 
+
+        tdLog.printNoPrefix("==========step3:support types ============")
 
         self.support_types()
 
-        tdLog.printNoPrefix("==========step4:support opers ============") 
+        tdLog.printNoPrefix("==========step4:support opers ============")
         self.support_opers()
 
-        tdLog.printNoPrefix("==========step5: stateduration basic query ============") 
+        tdLog.printNoPrefix("==========step5: stateduration basic query ============")
 
         self.basic_stateduration_function()
 
-        tdLog.printNoPrefix("==========step6: stateduration boundary query ============") 
+        tdLog.printNoPrefix("==========step6: stateduration boundary query ============")
 
         self.check_boundary_values()
 
-        tdLog.printNoPrefix("==========step6: stateduration unit time test ============") 
+        tdLog.printNoPrefix("==========step6: stateduration unit time test ============")
 
         self.check_unit_time()
 

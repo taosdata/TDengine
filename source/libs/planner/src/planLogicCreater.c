@@ -162,12 +162,11 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
   }
 
   if (NULL == pScanCols) {
-    // select count(*) from t
     return NULL == pScanPseudoCols
                ? SCAN_TYPE_TABLE
                : ((FUNCTION_TYPE_BLOCK_DIST_INFO == ((SFunctionNode*)nodesListGetNode(pScanPseudoCols, 0))->funcType)
                       ? SCAN_TYPE_BLOCK_INFO
-                      : SCAN_TYPE_TAG);
+                      : SCAN_TYPE_TABLE);
   }
 
   if (TSDB_SYSTEM_TABLE == tableType) {
@@ -181,7 +180,7 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
     }
   }
 
-  return SCAN_TYPE_TAG;
+  return SCAN_TYPE_TABLE;
 }
 
 static SNode* createPrimaryKeyCol(uint64_t tableId) {
