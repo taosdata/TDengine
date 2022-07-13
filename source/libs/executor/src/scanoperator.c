@@ -2593,7 +2593,7 @@ static SSDataBlock* getTableDataBlock(void* param) {
     SDataBlockInfo binfo = pBlock->info;
     tsdbRetrieveDataBlockInfo(reader, &binfo);
 
-    blockDataEnsureCapacity(pBlock, binfo.capacity);
+    blockDataEnsureCapacity(pBlock, binfo.rows);
     pBlock->info.type = binfo.type;
     pBlock->info.uid = binfo.uid;
     pBlock->info.window = binfo.window;
