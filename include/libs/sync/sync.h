@@ -26,6 +26,8 @@ extern "C" {
 
 extern bool gRaftDetailLog;
 
+#define SYNC_RESP_TTL_MS 5000
+
 #define SYNC_MAX_BATCH_SIZE 500
 #define SYNC_INDEX_BEGIN 0
 #define SYNC_INDEX_INVALID -1
