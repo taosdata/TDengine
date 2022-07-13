@@ -17,7 +17,7 @@ from tmqCommon import *
 class TDTestCase:
     def __init__(self):
         self.snapshot   = 0
-        self.vgroups    = 2
+        self.vgroups    = 4
         self.ctbNum     = 1
         self.rowsPerTbl = 100000
         
@@ -235,18 +235,18 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-        self.prepareTestEnv()
-        tdLog.printNoPrefix("=============================================")
-        tdLog.printNoPrefix("======== snapshot is 0: only consume from wal")
-        self.tmqCase1()
-        self.tmqCase2()
+        # self.prepareTestEnv()
+        # tdLog.printNoPrefix("=============================================")
+        # tdLog.printNoPrefix("======== snapshot is 0: only consume from wal")
+        # self.tmqCase1()
+        # self.tmqCase2()
         
         self.prepareTestEnv()
         tdLog.printNoPrefix("====================================================================")
         tdLog.printNoPrefix("======== snapshot is 1: firstly consume from tsbs, and then from wal")
         self.snapshot = 1
         self.tmqCase1()
-        self.tmqCase2()
+        # self.tmqCase2()
         
 
     def stop(self):
