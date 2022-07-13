@@ -869,7 +869,7 @@ static STimeWindow doCalculateTimeWindow(int64_t ts, SInterval* pInterval) {
   return w;
 }
 
-static STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInterval* pInterval, int32_t order) {
+STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInterval* pInterval, int32_t order) {
   int32_t factor = (order == TSDB_ORDER_ASC)? -1:1;
 
   STimeWindow win = *pWindow;

@@ -461,12 +461,10 @@ static bool isDistinctOrderBy(STranslateContext* pCxt) {
           ((SSelectStmt*)pCxt->pCurrStmt)->isDistinct);
 }
 
-static bool belongTable(const char* currentDb, const SColumnNode* pCol, const STableNode* pTable) {
+static bool belongTable(const SColumnNode* pCol, const STableNode* pTable) {
   int cmp = 0;
   if ('\0' != pCol->dbName[0]) {
     cmp = strcmp(pCol->dbName, pTable->dbName);
-  } else {
-    cmp = (QUERY_NODE_REAL_TABLE == nodeType(pTable) ? strcmp(currentDb, pTable->dbName) : 0);
   }
   if (0 == cmp) {
     cmp = strcmp(pCol->tableAlias, pTable->tableAlias);
@@ -630,7 +628,7 @@ static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode**
   bool    foundTable = false;
   for (size_t i = 0; i < nums; ++i) {
     STableNode* pTable = taosArrayGetP(pTables, i);
-    if (belongTable(pCxt->pParseCxt->db, (*pCol), pTable)) {
+    if (belongTable((*pCol), pTable)) {
       foundTable = true;
       bool foundCol = false;
       pCxt->errCode = findAndSetColumn(pCxt, pCol, pTable, &foundCol);
@@ -2838,8 +2836,8 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->compression = pStmt->pOptions->compressionLevel;
   pReq->replications = pStmt->pOptions->replica;
   pReq->strict = pStmt->pOptions->strict;
-  pReq->cacheLastRow = pStmt->pOptions->cacheLast;
-  pReq->lastRowMem = pStmt->pOptions->cacheLastSize;
+  pReq->cacheLast = pStmt->pOptions->cacheLast;
+  pReq->cacheLastSize = pStmt->pOptions->cacheLastSize;
   pReq->schemaless = pStmt->pOptions->schemaless;
   pReq->ignoreExist = pStmt->ignoreExists;
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
@@ -3000,12 +2998,12 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
   int32_t code =
       checkRangeOption(pCxt, "buffer", pOptions->buffer, TSDB_MIN_BUFFER_PER_VNODE, TSDB_MAX_BUFFER_PER_VNODE);
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkRangeOption(pCxt, "cacheLast", pOptions->cacheLast, TSDB_MIN_DB_CACHE_LAST_ROW,
-                            TSDB_MAX_DB_CACHE_LAST_ROW);
+    code = checkRangeOption(pCxt, "cacheLast", pOptions->cacheLast, TSDB_MIN_DB_CACHE_LAST,
+                            TSDB_MAX_DB_CACHE_LAST);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkRangeOption(pCxt, "cacheLastSize", pOptions->cacheLastSize, TSDB_MIN_DB_LAST_ROW_MEM,
-                            TSDB_MAX_DB_LAST_ROW_MEM);
+    code = checkRangeOption(pCxt, "cacheLastSize", pOptions->cacheLastSize, TSDB_MIN_DB_CACHE_LAST_SIZE,
+                            TSDB_MAX_DB_CACHE_LAST_SIZE);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkRangeOption(pCxt, "compression", pOptions->compressionLevel, TSDB_MIN_COMP_LEVEL, TSDB_MAX_COMP_LEVEL);
@@ -3118,7 +3116,7 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->buffer = pStmt->pOptions->buffer;
   pReq->pageSize = -1;
   pReq->pages = pStmt->pOptions->pages;
-  pReq->lastRowMem = -1;
+  pReq->cacheLastSize = -1;
   pReq->daysPerFile = -1;
   pReq->daysToKeep0 = pStmt->pOptions->keep[0];
   pReq->daysToKeep1 = pStmt->pOptions->keep[1];
@@ -3126,8 +3124,8 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->fsyncPeriod = pStmt->pOptions->fsyncPeriod;
   pReq->walLevel = pStmt->pOptions->walLevel;
   pReq->strict = pStmt->pOptions->strict;
-  pReq->cacheLastRow = pStmt->pOptions->cacheLast;
-  pReq->lastRowMem = pStmt->pOptions->cacheLastSize;
+  pReq->cacheLast = pStmt->pOptions->cacheLast;
+  pReq->cacheLastSize = pStmt->pOptions->cacheLastSize;
   pReq->replications = pStmt->pOptions->replica;
   return;
 }

@@ -28,7 +28,7 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   }
 
   // create vnode env
-  if (tfsMkdir(pTfs, path) < 0) {
+  if (tfsMkdirAt(pTfs, path, (SDiskID){0}) < 0) {
     vError("vgId:%d, failed to create vnode since: %s", pCfg->vgId, tstrerror(terrno));
     return -1;
   }
@@ -117,8 +117,13 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   // open wal
   sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
   taosRealPath(tdir, NULL, sizeof(tdir));
-  /*pVnode->config.walCfg.retentionSize = 2000;*/
-  /*pVnode->config.walCfg.segSize = 200;*/
+
+// for test tsdb snapshot
+#if 0
+  pVnode->config.walCfg.segSize = 200;
+  pVnode->config.walCfg.retentionSize = 2000;
+#endif
+
   pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
     vError("vgId:%d, failed to open vnode wal since %s", TD_VID(pVnode), tstrerror(terrno));

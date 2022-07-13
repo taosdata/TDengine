@@ -80,6 +80,23 @@ static void optResetParent(SLogicNode* pNode) {
   FOREACH(pChild, pNode->pChildren) { ((SLogicNode*)pChild)->pParent = pNode; }
 }
 
+static EDealRes optRebuildTbanme(SNode** pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(*pNode) && COLUMN_TYPE_TBNAME == ((SColumnNode*)*pNode)->colType) {
+    SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+    if (NULL == pFunc) {
+      *(int32_t*)pContext = TSDB_CODE_OUT_OF_MEMORY;
+      return DEAL_RES_ERROR;
+    }
+    strcpy(pFunc->functionName, "tbname");
+    pFunc->funcType = FUNCTION_TYPE_TBNAME;
+    pFunc->node.resType = ((SColumnNode*)*pNode)->node.resType;
+    nodesDestroyNode(*pNode);
+    *pNode = (SNode*)pFunc;
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 EDealRes scanPathOptHaveNormalColImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     // *((bool*)pContext) = (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType);
@@ -312,6 +329,12 @@ static int32_t pushDownCondOptCalcTimeRange(SOptimizeContext* pCxt, SScanLogicNo
   return code;
 }
 
+static int32_t pushDownCondOptRebuildTbanme(SNode** pTagCond) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  nodesRewriteExpr(pTagCond, optRebuildTbanme, &code);
+  return code;
+}
+
 static int32_t pushDownCondOptDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
   if (NULL == pScan->node.pConditions ||
       OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE) ||
@@ -323,6 +346,9 @@ static int32_t pushDownCondOptDealScan(SOptimizeContext* pCxt, SScanLogicNode* p
   SNode*  pOtherCond = NULL;
   int32_t code = nodesPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pScan->pTagIndexCond, &pScan->pTagCond,
                                     &pOtherCond);
+  if (TSDB_CODE_SUCCESS == code && NULL != pScan->pTagCond) {
+    code = pushDownCondOptRebuildTbanme(&pScan->pTagCond);
+  }
   if (TSDB_CODE_SUCCESS == code && NULL != pPrimaryKeyCond) {
     code = pushDownCondOptCalcTimeRange(pCxt, pScan, &pPrimaryKeyCond, &pOtherCond);
   }
@@ -1338,9 +1364,9 @@ static EDealRes partTagsOptHasColImpl(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static bool partTagsOptHasCol(SNodeList* pPartKeys) {
+static bool planOptNodeListHasCol(SNodeList* pKeys) {
   bool hasCol = false;
-  nodesWalkExprs(pPartKeys, partTagsOptHasColImpl, &hasCol);
+  nodesWalkExprs(pKeys, partTagsOptHasColImpl, &hasCol);
   return hasCol;
 }
 
@@ -1383,29 +1409,12 @@ static bool partTagsOptMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
 
-  return !partTagsOptHasCol(partTagsGetPartKeys(pNode)) && partTagsOptAreSupportedFuncs(partTagsGetFuncs(pNode));
-}
-
-static EDealRes partTagsOptRebuildTbanmeImpl(SNode** pNode, void* pContext) {
-  if (QUERY_NODE_COLUMN == nodeType(*pNode) && COLUMN_TYPE_TBNAME == ((SColumnNode*)*pNode)->colType) {
-    SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
-    if (NULL == pFunc) {
-      *(int32_t*)pContext = TSDB_CODE_OUT_OF_MEMORY;
-      return DEAL_RES_ERROR;
-    }
-    strcpy(pFunc->functionName, "tbname");
-    pFunc->funcType = FUNCTION_TYPE_TBNAME;
-    pFunc->node.resType = ((SColumnNode*)*pNode)->node.resType;
-    nodesDestroyNode(*pNode);
-    *pNode = (SNode*)pFunc;
-    return DEAL_RES_IGNORE_CHILD;
-  }
-  return DEAL_RES_CONTINUE;
+  return !planOptNodeListHasCol(partTagsGetPartKeys(pNode)) && partTagsOptAreSupportedFuncs(partTagsGetFuncs(pNode));
 }
 
 static int32_t partTagsOptRebuildTbanme(SNodeList* pPartKeys) {
   int32_t code = TSDB_CODE_SUCCESS;
-  nodesRewriteExprs(pPartKeys, partTagsOptRebuildTbanmeImpl, &code);
+  nodesRewriteExprs(pPartKeys, optRebuildTbanme, &code);
   return code;
 }
 
@@ -1977,7 +1986,8 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
 
   SNode* pFunc = NULL;
   FOREACH(pFunc, ((SAggLogicNode*)pNode)->pAggFuncs) {
-    if (FUNCTION_TYPE_LAST_ROW != ((SFunctionNode*)pFunc)->funcType) {
+    if (FUNCTION_TYPE_LAST_ROW != ((SFunctionNode*)pFunc)->funcType &&
+        FUNCTION_TYPE_SELECT_VALUE != ((SFunctionNode*)pFunc)->funcType) {
       return false;
     }
   }
@@ -2086,6 +2096,37 @@ static int32_t mergeProjectsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   return mergeProjectsOptimizeImpl(pCxt, pLogicSubplan, pProjectNode);
 }
 
+static bool tagScanMayBeOptimized(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode) || (SCAN_TYPE_TAG == ((SScanLogicNode*)pNode)->scanType)) {
+    return false;
+  }
+  SScanLogicNode *pScan = (SScanLogicNode*)pNode;
+  if (NULL != pScan->pScanCols) {
+    return false;
+  }
+  if (NULL == pNode->pParent || QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent) || 1 != LIST_LENGTH(pNode->pParent->pChildren)) {
+    return false;
+  }
+
+  SAggLogicNode* pAgg = (SAggLogicNode*)(pNode->pParent);
+  if (NULL == pAgg->pGroupKeys || NULL != pAgg->pAggFuncs || planOptNodeListHasCol(pAgg->pGroupKeys)) {
+    return false;
+  }
+
+  return true;
+}
+
+static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SScanLogicNode* pScanNode = (SScanLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, tagScanMayBeOptimized);
+  if (NULL == pScanNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pScanNode->scanType = SCAN_TYPE_TAG;
+  pCxt->optimized = true;
+  return TSDB_CODE_SUCCESS;
+}
+
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
@@ -2098,7 +2139,8 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "EliminateSetOperator",       .optimizeFunc = eliminateSetOpOptimize},
   {.pName = "RewriteTail",                .optimizeFunc = rewriteTailOptimize},
   {.pName = "RewriteUnique",              .optimizeFunc = rewriteUniqueOptimize},
-  {.pName = "LastRowScan",                .optimizeFunc = lastRowScanOptimize}
+  {.pName = "LastRowScan",               .optimizeFunc = lastRowScanOptimize},
+  {.pName = "TagScan",                   .optimizeFunc = tagScanOptimize}
 };
 // clang-format on
 

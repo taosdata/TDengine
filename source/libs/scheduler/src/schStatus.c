@@ -77,6 +77,7 @@ int32_t schHandleOpEndEvent(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq
   int32_t code = errCode;
   
   if (NULL == pJob) {
+    schDirectPostJobRes(pReq, errCode);
     SCH_RET(code);
   }
   

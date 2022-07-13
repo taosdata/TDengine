@@ -66,8 +66,8 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     char logBuf[128] = {0};
-    snprintf(logBuf, sizeof(logBuf), "syncNodeOnRequestVoteReplyCb error term, receive:%" PRIu64 " current:%" PRIu64, pMsg->term,
-             ths->pRaftStore->currentTerm);
+    snprintf(logBuf, sizeof(logBuf), "syncNodeOnRequestVoteReplyCb error term, receive:%" PRIu64 " current:%" PRIu64,
+             pMsg->term, ths->pRaftStore->currentTerm);
     syncNodePrint2(logBuf, ths);
     sError("%s", logBuf);
     return ret;
@@ -190,8 +190,9 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     char logBuf[128] = {0};
-    snprintf(logBuf, sizeof(logBuf), "recv SyncRequestVoteReply, error term, receive_term:%" PRIu64 " current_term:%" PRIu64,
-             pMsg->term, ths->pRaftStore->currentTerm);
+    snprintf(logBuf, sizeof(logBuf),
+             "recv SyncRequestVoteReply, error term, receive_term:%" PRIu64 " current_term:%" PRIu64, pMsg->term,
+             ths->pRaftStore->currentTerm);
     syncNodePrint2(logBuf, ths);
     sError("%s", logBuf);
     return ret;
