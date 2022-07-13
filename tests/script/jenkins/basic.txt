@@ -1,6 +1,11 @@
 
 #======================b1-start===============
 
+# ---- alter
+./test.sh -f tsim/alter/cached_schema_after_alter.sim
+./test.sh -f tsim/alter/dnode.sim
+#./test.sh -f tsim/alter/table.sim
+
 # ---- user
 ./test.sh -f tsim/user/basic.sim
 ./test.sh -f tsim/user/password.sim
