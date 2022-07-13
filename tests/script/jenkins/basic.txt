@@ -275,4 +275,7 @@
 ./test.sh -f tsim/vector/table_query.sim
 ./test.sh -f tsim/vector/table_time.sim
 
+# ---- wal
+./test.sh -f tsim/wal/kill.sim
+
 #======================b1-end===============
