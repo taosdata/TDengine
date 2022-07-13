@@ -66,6 +66,12 @@
 # ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
 # ./test.sh -f tsim/dnode/vnode_clean.sim
 
+# ---- import
+./test.sh -f tsim/import/basic.sim
+./test.sh -f tsim/import/commit.sim
+./test.sh -f tsim/import/large.sim
+./test.sh -f tsim/import/replica1.sim
+
 # ---- insert
 ./test.sh -f tsim/insert/basic0.sim
 ./test.sh -f tsim/insert/basic1.sim
