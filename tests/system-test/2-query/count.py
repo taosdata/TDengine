@@ -28,215 +28,93 @@ class TDTestCase:
             f'10',
             f'100'
         ]
-        self.values_list = [
-            f'now,1,2,3,4,5,6,7,8,9.9,10.1,true,"abcd","涛思数据"'
-        ]
-    # def count_query_stb(self,stbname,tbnum):
-    #     tdSql.query(f'select count(tbname) from {stbname}')
-    #     print(tdSql.queryResult)
-    #     tdSql.checkEqual(tdSql.queryResult[0],tbnum)
-
+    def query_stb(self,k,stbname,tbnum,rownum):
+        tdSql.query(f'select count({k}) from {stbname}')
+        tdSql.checkEqual(tdSql.queryResult[0][0],tbnum*rownum)
+        tdSql.query(f'select count({k}) from {stbname} where ts <={self.ts+self.rowNum-1}')
+        tdSql.checkEqual(tdSql.queryResult[0][0],tbnum*rownum)
+        tdSql.query(f'select count({k}) from {stbname} where ts <={self.ts+self.rowNum-2}')
+        tdSql.checkEqual(tdSql.queryResult[0][0],tbnum*(rownum-1))
+    def query_ctb(self,k,i,stbname,rownum):
+        tdSql.query(f'select count({k}) from {stbname}_{i}')
+        tdSql.checkEqual(tdSql.queryResult[0][0],rownum)
+        tdSql.query(f'select count({k}) from {stbname}_{i} where ts <={self.ts+self.rowNum-1}')
+        tdSql.checkEqual(tdSql.queryResult[0][0],rownum)
+        tdSql.query(f'select count({k}) from {stbname}_{i} where ts <={self.ts+self.rowNum-2}')
+        tdSql.checkEqual(tdSql.queryResult[0][0],rownum-1)
+    def query_ntb(self,k,ntbname,rownum):
+        tdSql.query(f'select count({k}) from {ntbname}')
+        tdSql.checkEqual(tdSql.queryResult[0][0],rownum)
+        tdSql.query(f'select count({k}) from {ntbname} where ts <={self.ts+self.rowNum-1}')
+        tdSql.checkEqual(tdSql.queryResult[0][0],rownum)
+        tdSql.query(f'select count({k}) from {ntbname} where ts <={self.ts+self.rowNum-2}')
+        tdSql.checkEqual(tdSql.queryResult[0][0],rownum-1)
+    def count_query_stb(self,column_dict,tag_dict,stbname,tbnum,rownum):
+        tdSql.query(f'select count(tbname) from {stbname}')
+        tdSql.checkEqual(tdSql.queryResult[0][0],tbnum*rownum)
+        tdSql.query(f'SELECT count(*) from (select distinct tbname from {stbname})')
+        tdSql.checkEqual(tdSql.queryResult[0][0],tbnum)
+        for k in column_dict.keys():
+            self.query_stb(k,stbname,tbnum,rownum)
+        for k in tag_dict.keys():
+            self.query_stb(k,stbname,tbnum,rownum)
+    def count_query_ctb(self,column_dict,tag_dict,stbname,tbnum,rownum):
+        for i in range(tbnum):
+            tdSql.query(f'select count(tbname) from {stbname}_{i}')
+            tdSql.checkEqual(tdSql.queryResult[0][0],rownum)
+            for k in column_dict.keys():
+                self.query_ctb(k,i,stbname,rownum)
+            for k in tag_dict.keys():
+                self.query_ctb(k,i,stbname,rownum)
+    def count_query_ntb(self,column_dict,ntbname,rownum):
+        tdSql.query(f'select count(tbname) from {ntbname}')
+        tdSql.checkEqual(tdSql.queryResult[0][0],rownum)
+        for k in column_dict.keys():
+            self.query_ntb(k,ntbname,rownum)
+    def insert_data(self,column_dict,tbname,row_num):
+        insert_sql = self.setsql.set_insertsql(column_dict,tbname)
+        for i in range(row_num):
+            insert_list = []
+            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
     def check_ntb(self):
         tdSql.prepare()
         tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
-
+        tdSql.query(f'select count(tbname) from {self.ntbname}')
+        tdSql.checkRows(0)
+        tdSql.execute('flush database db')
+        tdSql.query(f'select count(tbname) from {self.ntbname}')
+        tdSql.checkRows(0)
+        self.insert_data(self.column_dict,self.ntbname,self.rowNum)
+        self.count_query_ntb(self.column_dict,self.ntbname,self.rowNum)
+        tdSql.execute('flush database db')
+        self.count_query_ntb(self.column_dict,self.ntbname,self.rowNum)
+        tdSql.execute('drop database db')
     def check_stb(self):
         tdSql.prepare()
         tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
         for i in range(self.tbnum):
             tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[i]})')
+        #!TODO
+        # tdSql.query(f'SELECT count(*) from (select distinct tbname from {self.stbname})')
+        # tdSql.checkEqual(tdSql.queryResult[0][0],self.tbnum)
         tdSql.query(f'select count(tbname) from {self.stbname}')
         tdSql.checkRows(0)
         tdSql.execute('flush database db')
         tdSql.query(f'select count(tbname) from {self.stbname}')
         tdSql.checkRows(0)
+        #!TODO
+        # tdSql.query(f'SELECT count(*) from (select distinct tbname from {self.stbname})')
+        # tdSql.checkEqual(tdSql.queryResult[0][0],self.tbnum)
         for i in range(self.tbnum):
-            for j in self.values_list:
-                tdSql.execute(f'insert into {self.stbname}_{i} values({j})')
-        tdSql.query(f'select count(tbname) from {self.stbname}')
-        tdSql.checkRows(0)
+            self.insert_data(self.column_dict,f'{self.stbname}_{i}',self.rowNum)
+        self.count_query_stb(self.column_dict,self.tag_dict,self.stbname,self.tbnum,self.rowNum)
         tdSql.execute('flush database db')
-        tdSql.query(f'select count(tbname) from {self.stbname}')
-        tdSql.checkRows(0)
-        
+        self.count_query_stb(self.column_dict,self.tag_dict,self.stbname,self.tbnum,self.rowNum)
+        self.count_query_ctb(self.column_dict,self.tag_dict,self.stbname,self.tbnum,self.rowNum)
+        tdSql.execute('drop database db')
     def run(self):
         self.check_stb()
-        # tdSql.prepare()
-
-        # tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double,
-        #             col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
-        # tdSql.execute("create table stb_1 using stb tags('beijing')")
-        # tdSql.execute("create table stb_2 using stb tags('shanghai')")
-
-        # tdSql.execute('''create table ntb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double,
-        #             col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned)''')
-
-        # for i in range(self.rowNum):
-        #     tdSql.execute("insert into stb_1 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)"
-        #                 % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
-        #     tdSql.execute("insert into stb_2 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)"
-        #                 % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
-
-        # for i in range(self.rowNum):
-        #     tdSql.execute("insert into ntb values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)"
-        #                 % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
-
-        # tdSql.query("select count(*) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(*) from db.stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(ts) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(ts) from db.stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col1) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col1) from db.stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col2) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col2) from db.stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col3) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col3) from db.stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col4) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col4) from db.stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col5) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col5) from db.stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col6) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col6) from db.stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col7) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col7) from db.stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col8) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col8) from db.stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col9) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col9) from db.stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col11) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col11) from db.stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col12) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col12) from db.stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col13) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col13) from db.stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col14) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col14) from db.stb")
-        # tdSql.checkData(0,0,20)
-
-
-
-        # tdSql.query("select count(ts) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(ts) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col1) from stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col1) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col2) from stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col2) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col3) from stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col3) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col4) from stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col4) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col5) from stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col5) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col6) from stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col6) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col7) from stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col7) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col8) from stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col8) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col9) from stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col9) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col11) from stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col11) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col12) from stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col12) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col13) from stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col13) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col14) from stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col14) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col1) from stb_1 group by col7")
-        # tdSql.checkRows(2)
-
-        # tdSql.execute("insert into stb_1 values(now,null,null,null,null,null,null,null,null,null,null,null,null,null)")
-        # tdSql.query("select count(col1) from stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col1),count(ts) from stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.checkData(0,1,11)
-
-        # tdSql.query("select count(col1) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.query("select count(col1),count(ts) from db.stb_1")
-        # tdSql.checkData(0,0,10)
-        # tdSql.checkData(0,1,11)
-
-        # tdSql.query("select count(col1) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col1),count(ts) from stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.checkData(0,1,21)
-
-        # tdSql.query("select count(col1) from db.stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.query("select count(col1),count(ts) from db.stb")
-        # tdSql.checkData(0,0,20)
-        # tdSql.checkData(0,1,21)
-        # tdSql.query("select count(col1) from stb_1 group by col7")
-        # tdSql.checkRows(3)
-        # tdSql.query("select count(col1) from stb_2 group by col7")
-        # tdSql.checkRows(2)
-        # tdSql.query("select count(col1) from stb group by col7")
-        # tdSql.checkRows(3)
-
-
-
-
+        self.check_ntb()
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
