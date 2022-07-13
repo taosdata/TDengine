@@ -137,6 +137,12 @@ TEST_F(PlanBasicTest, sampleFunc) {
   run("SELECT SAMPLE(c1, 10) FROM st1 PARTITION BY TBNAME");
 }
 
+TEST_F(PlanBasicTest, pseudoColumn) {
+  useDb("root", "test");
+
+  run("SELECT _QSTART, _QEND, _QDURATION FROM t1");
+}
+
 TEST_F(PlanBasicTest, withoutFrom) {
   useDb("root", "test");
 

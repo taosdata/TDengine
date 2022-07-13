@@ -496,7 +496,7 @@ static bool isPrimaryKeyImpl(SNode* pExpr) {
     SFunctionNode* pFunc = (SFunctionNode*)pExpr;
     if (FUNCTION_TYPE_SELECT_VALUE == pFunc->funcType) {
       return isPrimaryKeyImpl(nodesListGetNode(pFunc->pParameterList, 0));
-    } else if (FUNCTION_TYPE_WSTARTTS == pFunc->funcType || FUNCTION_TYPE_WENDTS == pFunc->funcType) {
+    } else if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType) {
       return true;
     }
   }
@@ -3508,7 +3508,7 @@ static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, ch
     nodesDestroyNode((SNode*)pSelect);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  strcpy(pFunc->functionName, "_wstartts");
+  strcpy(pFunc->functionName, "_wstart");
   nodesListPushFront(pSelect->pProjectionList, (SNode*)pFunc);
   SNode* pProject = NULL;
   FOREACH(pProject, pSelect->pProjectionList) { sprintf(((SExprNode*)pProject)->aliasName, "#%p", pProject); }
@@ -4334,14 +4334,14 @@ static int32_t addWstartTsToCreateStreamQuery(SNode* pStmt) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt;
   SNode*       pProj = nodesListGetNode(pSelect->pProjectionList, 0);
   if (NULL == pSelect->pWindow ||
-      (QUERY_NODE_FUNCTION == nodeType(pProj) && 0 == strcmp("_wstartts", ((SFunctionNode*)pProj)->functionName))) {
+      (QUERY_NODE_FUNCTION == nodeType(pProj) && 0 == strcmp("_wstart", ((SFunctionNode*)pProj)->functionName))) {
     return TSDB_CODE_SUCCESS;
   }
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == pFunc) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  strcpy(pFunc->functionName, "_wstartts");
+  strcpy(pFunc->functionName, "_wstart");
   strcpy(pFunc->node.aliasName, pFunc->functionName);
   int32_t code = nodesListPushFront(pSelect->pProjectionList, (SNode*)pFunc);
   if (TSDB_CODE_SUCCESS != code) {

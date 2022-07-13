@@ -598,7 +598,7 @@ SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues) {
     nodesDestroyNode((SNode*)fill);
     CHECK_OUT_OF_MEM(fill->pWStartTs);
   }
-  strcpy(((SFunctionNode*)fill->pWStartTs)->functionName, "_wstartts");
+  strcpy(((SFunctionNode*)fill->pWStartTs)->functionName, "_wstart");
   return (SNode*)fill;
 }
 

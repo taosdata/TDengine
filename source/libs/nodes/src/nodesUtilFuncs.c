@@ -956,7 +956,6 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_SUBPLAN: {
       SSubplan* pSubplan = (SSubplan*)pNode;
-      // nodesDestroyList(pSubplan->pChildren);
       nodesClearList(pSubplan->pChildren);
       nodesDestroyNode((SNode*)pSubplan->pNode);
       nodesDestroyNode((SNode*)pSubplan->pDataSink);
@@ -965,25 +964,9 @@ void nodesDestroyNode(SNode* pNode) {
       nodesClearList(pSubplan->pParents);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN: {
-      SQueryPlan* pPlan = (SQueryPlan*)pNode;
-      if (NULL != pPlan->pSubplans) {
-        // only need to destroy the top-level subplans, because they will recurse to all the subplans below
-        bool   first = true;
-        SNode* pElement = NULL;
-        FOREACH(pElement, pPlan->pSubplans) {
-          if (first) {
-            // first = false;
-            nodesDestroyNode(pElement);
-          } else {
-            nodesClearList(((SNodeListNode*)pElement)->pNodeList);
-            taosMemoryFreeClear(pElement);
-          }
-        }
-        nodesClearList(pPlan->pSubplans);
-      }
+    case QUERY_NODE_PHYSICAL_PLAN:
+      nodesDestroyList(((SQueryPlan*)pNode)->pSubplans);
       break;
-    }
     default:
       break;
   }

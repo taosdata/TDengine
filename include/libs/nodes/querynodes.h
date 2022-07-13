@@ -228,7 +228,7 @@ typedef struct SFillNode {
   ENodeType   type;  // QUERY_NODE_FILL
   EFillMode   mode;
   SNode*      pValues;    // SNodeListNode
-  SNode*      pWStartTs;  // _wstartts pseudo column
+  SNode*      pWStartTs;  // _wstart pseudo column
   STimeWindow timeRange;
 } SFillNode;
 

@@ -2784,28 +2784,38 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "_qstartts",
-    .type = FUNCTION_TYPE_QSTARTTS,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
+    .name = "_qstart",
+    .type = FUNCTION_TYPE_QSTART,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC,
     .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
-    .sprocessFunc = qStartTsFunction,
+    .sprocessFunc = qStartTsFunction, // todo
     .finalizeFunc = NULL
   },
   {
-    .name = "_qendts",
-    .type = FUNCTION_TYPE_QENDTS,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
+    .name = "_qend",
+    .type = FUNCTION_TYPE_QEND,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC,
     .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
-    .sprocessFunc = qEndTsFunction,
+    .sprocessFunc = qEndTsFunction, // todo
     .finalizeFunc = NULL
   },
   {
-    .name = "_wstartts",
-    .type = FUNCTION_TYPE_WSTARTTS,
+    .name = "_qduration",
+    .type = FUNCTION_TYPE_QDURATION,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC,
+    .translateFunc = translateWduration,
+    .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = winDurFunction, // todo
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_wstart",
+    .type = FUNCTION_TYPE_WSTART,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
     .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
@@ -2814,8 +2824,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "_wendts",
-    .type = FUNCTION_TYPE_WENDTS,
+    .name = "_wend",
+    .type = FUNCTION_TYPE_WEND,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
     .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
