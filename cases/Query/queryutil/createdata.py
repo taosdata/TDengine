@@ -567,6 +567,8 @@ class TDCreateData():
        
         if  (list1 == list2) and len(list2)>0:
             self.logger.info(("===list=_===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
+        elif str(list1) == str(list2) :
+            self.logger.info(("===list=str_===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         elif abs(float(str(list1).replace("]","").replace("[","")) - float(str(list2).replace("]","").replace("[",""))) <= 0.5:
             #self.logger.info(("=====list_abs===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===list_abs===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))

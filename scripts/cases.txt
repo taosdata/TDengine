@@ -73,6 +73,10 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltyp
 
 
 # 150 seconds (at most)
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_avg.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_sum.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_max_min.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_spread.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_floor_ceil_round.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_interval.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_csum_1.py --keep --containers
