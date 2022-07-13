@@ -104,7 +104,7 @@ int32_t tsdbLastrowReaderClose(void* pReader) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t* slotIds) {
+int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t* slotIds, SArray* pTableUidList) {
   if (pReader == NULL || pResBlock == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -141,14 +141,15 @@ int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t
         // appended or not.
         if (internalResult) {
           pResBlock->info.rows -= 1;
+          taosArrayClear(pTableUidList);
         }
 
         saveOneRow(pRow, pResBlock, pr, slotIds);
+        taosArrayPush(pTableUidList, &pKeyInfo->uid);
         internalResult = true;
         lastKey = pRow->ts;
       }
 
-      // taosMemoryFree(pRow);
       tsdbCacheRelease(lruCache, h);
     }
   } else if (pr->type == LASTROW_RETRIEVE_TYPE_ALL) {
@@ -171,6 +172,7 @@ int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t
       // tsdbCacheLastArray2Row(pLast, &pRow, pr->pSchema);
 
       saveOneRow(pRow, pResBlock, pr, slotIds);
+      taosArrayPush(pTableUidList, &pKeyInfo->uid);
 
       // taosMemoryFree(pRow);
       tsdbCacheRelease(lruCache, h);
