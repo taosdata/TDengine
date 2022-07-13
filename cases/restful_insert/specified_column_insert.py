@@ -34,7 +34,7 @@ class TestSpecifiedColumnInsert(TDCase):
         self.tdRest.error(f'insert into {dbname}.tb (col_ts, c1, c2, c3, c4, c5, c6) values (now, 1, 2, 3, 4, 5, 6)')
         self.tdRest.error(f'insert into {dbname}.tb (col_ts, c1, c6) values (now, 1, 6)')
         self.tdRest.request(f'select count(*) from {dbname}.stb')
-        self.tdSql.checkEqual(int(self.tdRest.resp[0][0]), 3)
+        self.tdSql.checkEqual(int(self.tdRest.resp['data'][0][0]), 3)
         self.tdRest.request(f'drop database if exists {dbname}')
 
     def tb_specified_column_insert(self):
@@ -50,7 +50,7 @@ class TestSpecifiedColumnInsert(TDCase):
         self.tdRest.error(f'insert into {dbname}.tb (col_ts, c1, c2, c3, c4, c5, c6) values (now, 1, 2, 3, 4, 5, 6)')
         self.tdRest.error(f'insert into {dbname}.tb (col_ts, c1, c6) values (now, 1, 6)')
         self.tdRest.request(f'select count(*) from {dbname}.tb')
-        self.tdSql.checkEqual(int(self.tdRest.resp[0][0]), 3)
+        self.tdSql.checkEqual(int(self.tdRest.resp['data'][0][0]), 3)
         self.tdRest.request(f'drop database if exists {dbname}')
 
     def run(self):

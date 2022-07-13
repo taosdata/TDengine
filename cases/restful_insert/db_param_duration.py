@@ -39,7 +39,7 @@ class TestDuration(TDCase):
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.request('show databases')
          # TODO
-        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         # default
         self.tdSql.checkEqual(db_field, self.cfg["default"])
         self.tdRest.request(f'show {dbname}.vgroups')
@@ -53,7 +53,7 @@ class TestDuration(TDCase):
             self.tdRest.request(f'create database if not exists {dbname}  {test_param} {param_value}')
             self.tdRest.request('show databases')
             #TODO
-            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
             if param_value == 1 or param_value == 3650: # days
                 self.tdSql.checkEqual(db_field, f'{param_value*60*24}m')
             elif param_value == '60m' or param_value == '5256000m': # minutes

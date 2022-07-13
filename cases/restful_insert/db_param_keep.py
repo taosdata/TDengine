@@ -39,7 +39,7 @@ class TestKeep(TDCase):
         dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.request('show databases')
-        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         # default
         self.tdSql.checkEqual(db_field, self.cfg["default"])
         self.tdRest.request(f'show {dbname}.vgroups')
@@ -53,7 +53,7 @@ class TestKeep(TDCase):
             self.tdRest.request(f'create database if not exists {dbname} duration {self.common_days_value} {test_param} {param_value}')
             self.tdRest.request('show databases')
             
-            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
             if param_value==1 or param_value ==365000:
                 self.tdSql.checkEqual(db_field, f'{param_value*24*60}m,{param_value*24*60}m,{param_value*24*60}m')
             elif param_value == '1d' or param_value == '365000d':
@@ -84,7 +84,7 @@ class TestKeep(TDCase):
         self.tdRest.request(f'create database if not exists {dbname} {test_param} 36500,36501,36502')
         self.tdRest.request('show databases')
         #TODO
-        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         self.tdSql.checkEqual(db_field, "52560000m,52561440m,52562880m")
         self.tdRest.request(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdRest.getOneRow(1,dbname)
@@ -95,7 +95,7 @@ class TestKeep(TDCase):
         dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'create database if not exists {dbname} {test_param} 36500,36501')
         self.tdRest.request('show databases')
-        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         self.tdSql.checkEqual(db_field, "52560000m,52561440m,52561440m")
         self.tdRest.request(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdRest.getOneRow(1,dbname)
@@ -107,7 +107,7 @@ class TestKeep(TDCase):
         self.tdRest.request(f'create database if not exists {dbname} duration 10 {test_param} 10,10,10')
         self.tdRest.request('show databases')
         #TODO
-        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         self.tdSql.checkEqual(db_field, "14400m,14400m,14400m")
         self.tdRest.request(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdRest.getOneRow(1,dbname)

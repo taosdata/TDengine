@@ -19,6 +19,7 @@ class TestDisorderInsert(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest(env_setting=self.env_setting)
+        self.row_num = 100
     def stb_disorder_insert(self):
         """
         stb_disorder_insert
@@ -29,7 +30,7 @@ class TestDisorderInsert(TDCase):
         self.tdRest.request(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
         timestamp = self.tdCom.genTs("ms")[0]
         ts_list = list()
-        for i in range(1, 101):
+        for i in range(1, self.row_num+1):
             ts = timestamp - 1000 + i
             ts_list.append(ts)
         random.shuffle(ts_list)
@@ -37,7 +38,7 @@ class TestDisorderInsert(TDCase):
             sql = f'insert into {dbname}.tb values ({ts}, 1, 1)'
             self.tdRest.request(sql)
         self.tdRest.request(f'select count(*) from {dbname}.tb')
-        self.tdSql.checkEqual(self.tdRest.resp[0][0], 100)
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], self.row_num)
 
     def tb_disorder_insert(self):
         """
@@ -48,7 +49,7 @@ class TestDisorderInsert(TDCase):
         self.tdRest.request(f'create table {dbname}.tb (ts timestamp, c11 int, c12 float )')
         timestamp = self.tdCom.genTs("ms")[0]
         ts_list = list()
-        for i in range(1, 101):
+        for i in range(1, self.row_num+1):
             ts = timestamp - 1000 + i
             ts_list.append(ts)
         random.shuffle(ts_list)
@@ -56,7 +57,7 @@ class TestDisorderInsert(TDCase):
             sql = f'insert into {dbname}.tb values ({ts}, 1, 1)'
             self.tdRest.request(sql)
         self.tdRest.request(f'select count(*) from {dbname}.tb')
-        self.tdSql.checkEqual(self.tdRest.resp[0][0], 100)
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], self.row_num)
 
     def run(self):
         self.stb_disorder_insert()
