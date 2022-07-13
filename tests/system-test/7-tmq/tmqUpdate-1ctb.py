@@ -19,7 +19,7 @@ class TDTestCase:
         self.snapshot   = 0
         self.vgroups    = 4
         self.ctbNum     = 1
-        self.rowsPerTbl = 100000
+        self.rowsPerTbl = 10000
         
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
