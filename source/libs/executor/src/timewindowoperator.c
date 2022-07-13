@@ -4507,13 +4507,14 @@ static SSDataBlock* doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
       setInputDataBlock(pOperator, pSup->pCtx, pBlock, iaInfo->order, scanFlag, true);
       doMergeAlignedIntervalAggImpl(pOperator, &iaInfo->binfo.resultRowInfo, pBlock, scanFlag, pRes);
       doFilter(miaInfo->pCondition, pRes);
-      if (pRes->info.rows > 0) {
+      if (pRes->info.rows >= pOperator->resultInfo.capacity) {
         break;
       }
     }
 
     pRes->info.groupId = miaInfo->groupId;
   }
+  miaInfo->hasGroupId = false;
 
   if (miaInfo->inputBlocksFinished) {
     doSetOperatorCompleted(pOperator);
