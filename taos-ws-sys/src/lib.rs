@@ -324,15 +324,15 @@ impl WsResultSet {
         }
     }
 
-    unsafe fn fetch_block(&mut self, ptr: *mut *const c_void, rows: *mut i32) -> i32 {
-        self.block = self.rs.next();
+    unsafe fn fetch_block(&mut self, ptr: *mut *const c_void, rows: *mut i32) -> Result<(), Error> {
+        self.block = self.rs.fetch_block()?;
         if let Some(block) = self.block.as_ref() {
             *ptr = block.as_raw_bytes().as_ptr() as _;
             *rows = block.nrows() as _;
         } else {
             *rows = 0;
         }
-        0
+        Ok(())
     }
 
     unsafe fn get_raw_value(&mut self, row: usize, col: usize) -> (Ty, u32, *const c_void) {
@@ -501,7 +501,14 @@ pub unsafe extern "C" fn ws_fetch_block(
     rows: *mut i32,
 ) -> i32 {
     match (rs as *mut WsMaybeError<WsResultSet>).as_mut() {
-        Some(rs) => rs.fetch_block(ptr, rows),
+        Some(rs) => match rs.fetch_block(ptr, rows) {
+            Ok(()) => 0,
+            Err(err) => {
+                let code = err.errno();
+                rs.error = Some(err.into());
+                code.into()
+            }
+        },
         _ => {
             *rows = 0;
             0
