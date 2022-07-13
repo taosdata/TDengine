@@ -419,6 +419,14 @@ static bool setTimeWindowInterpolationEndTs(SIntervalAggOperatorInfo* pInfo, SEx
   return true;
 }
 
+bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pBlockInfo) {
+  if (pInterval->interval != pInterval->sliding &&
+      (pWin->ekey < pBlockInfo->calWin.skey || pWin->skey > pBlockInfo->calWin.ekey)) {
+    return false;
+  }
+  return true;
+}
+
 static int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
                                       TSKEY* primaryKeys, int32_t prevPosition, int32_t order) {
   bool ascQuery = (order == TSDB_ORDER_ASC);
@@ -429,6 +437,10 @@ static int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, 
   // next time window is not in current block
   if ((pNext->skey > pDataBlockInfo->window.ekey && order == TSDB_ORDER_ASC) ||
       (pNext->ekey < pDataBlockInfo->window.skey && order == TSDB_ORDER_DESC)) {
+    return -1;
+  }
+
+  if (!inSlidingWindow(pInterval, pNext, pDataBlockInfo) && order == TSDB_ORDER_ASC) {
     return -1;
   }
 
@@ -801,7 +813,8 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
 
   STimeWindow win = getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, ts, &pInfo->interval, pInfo->order);
   int32_t     ret = TSDB_CODE_SUCCESS;
-  if (!pInfo->ignoreExpiredData || !isCloseWindow(&win, &pInfo->twAggSup)) {
+  if ((!pInfo->ignoreExpiredData || !isCloseWindow(&win, &pInfo->twAggSup)) &&
+      inSlidingWindow(&pInfo->interval, &win, &pBlock->info)) {
     ret = setTimeWindowOutputBuf(pResultRowInfo, &win, (scanFlag == MAIN_SCAN), &pResult, tableGroupId, pSup->pCtx,
                                  numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
     if (ret != TSDB_CODE_SUCCESS || pResult == NULL) {
@@ -834,7 +847,8 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
     doWindowBorderInterpolation(pInfo, pBlock, pResult, &win, startPos, forwardRows, pSup);
   }
 
-  if (!pInfo->ignoreExpiredData || !isCloseWindow(&win, &pInfo->twAggSup)) {
+  if ((!pInfo->ignoreExpiredData || !isCloseWindow(&win, &pInfo->twAggSup)) &&
+      inSlidingWindow(&pInfo->interval, &win, &pBlock->info)) {
     updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &win, true);
     doApplyFunctions(pTaskInfo, pSup->pCtx, &win, &pInfo->twAggSup.timeWindowData, startPos, forwardRows, tsCols,
                      pBlock->info.rows, numOfOutput, pInfo->order);
@@ -1278,17 +1292,24 @@ static void doClearWindows(SAggSupporter* pAggSup, SExprSupp* pSup1, SInterval* 
     SColumnInfoData* pGpCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
     pGpDatas = (uint64_t*)pGpCol->pData;
   }
-  int32_t step = 0;
-  for (int32_t i = 0; i < pBlock->info.rows; i += step) {
-    SResultRowInfo dumyInfo;
-    dumyInfo.cur.pageId = -1;
-    STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, tsCols[i], pInterval, TSDB_ORDER_ASC);
-    step = getNumOfRowsInTimeWindow(&pBlock->info, tsCols, i, win.ekey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
-    uint64_t winGpId = pGpDatas ? pGpDatas[i] : pBlock->info.groupId;
-    bool     res = doClearWindow(pAggSup, pSup1, (char*)&win.skey, sizeof(TKEY), winGpId, numOfOutput);
+  int32_t        step = 0;
+  int32_t        startPos = 0;
+  SResultRowInfo dumyInfo;
+  dumyInfo.cur.pageId = -1;
+  STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, tsCols[0], pInterval, TSDB_ORDER_ASC);
+  while (1) {
+    step =
+        getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, win.ekey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
+    uint64_t winGpId = pGpDatas ? pGpDatas[startPos] : pBlock->info.groupId;
+    bool     res = doClearWindow(pAggSup, pSup1, (char*)&win.skey, sizeof(TSKEY), winGpId, numOfOutput);
     if (pUpWins && res) {
       SWinRes winRes = {.ts = win.skey, .groupId = winGpId};
       taosArrayPush(pUpWins, &winRes);
+    }
+    int32_t prevEndPos = step - 1 + startPos;
+    startPos = getNextQualifiedWindow(pInterval, &win, &pBlock->info, tsCols, prevEndPos, TSDB_ORDER_ASC);
+    if (startPos < 0) {
+      break;
     }
   }
 }
@@ -1332,13 +1353,13 @@ static int32_t closeIntervalWindow(SHashObj* pHashMap, STimeWindowAggSupp* pSup,
       if (chIds && pPullDataMap) {
         SArray* chAy = *(SArray**)chIds;
         int32_t size = taosArrayGetSize(chAy);
-        qInfo("window %" PRId64 " wait child size:%d", win.skey, size);
+        qDebug("window %" PRId64 " wait child size:%d", win.skey, size);
         for (int32_t i = 0; i < size; i++) {
-          qInfo("window %" PRId64 " wait chid id:%d", win.skey, *(int32_t*)taosArrayGet(chAy, i));
+          qDebug("window %" PRId64 " wait chid id:%d", win.skey, *(int32_t*)taosArrayGet(chAy, i));
         }
         continue;
       } else if (pPullDataMap) {
-        qInfo("close window %" PRId64, win.skey);
+        qDebug("close window %" PRId64, win.skey);
       }
       SResultRowPosition* pPos = (SResultRowPosition*)pIte;
       if (pSup->calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
@@ -2434,7 +2455,7 @@ static void doHashInterval(SOperatorInfo* pOperatorInfo, SSDataBlock* pSDataBloc
   }
   while (1) {
     bool isClosed = isCloseWindow(&nextWin, &pInfo->twAggSup);
-    if (pInfo->ignoreExpiredData && isClosed) {
+    if ((pInfo->ignoreExpiredData && isClosed) || !inSlidingWindow(&pInfo->interval, &nextWin, &pSDataBlock->info)) {
       startPos = getNexWindowPos(&pInfo->interval, &pSDataBlock->info, tsCols, startPos, nextWin.ekey, &nextWin);
       if (startPos < 0) {
         break;
@@ -2491,8 +2512,8 @@ static void doHashInterval(SOperatorInfo* pOperatorInfo, SSDataBlock* pSDataBloc
     if (IS_FINAL_OP(pInfo)) {
       forwardRows = 1;
     } else {
-      forwardRows = getNumOfRowsInTimeWindow(&pSDataBlock->info, tsCols, startPos, nextWin.ekey, binarySearchForKey, NULL,
-                                           TSDB_ORDER_ASC);
+      forwardRows = getNumOfRowsInTimeWindow(&pSDataBlock->info, tsCols, startPos, nextWin.ekey, binarySearchForKey,
+                                             NULL, TSDB_ORDER_ASC);
     }
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE && pUpdated) {
       saveResultRow(pResult, tableGroupId, pUpdated);
@@ -2609,6 +2630,8 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
 
   SExprSupp* pSup = &pOperator->exprSupp;
 
+  qDebug("interval status %d %s", pOperator->status, IS_FINAL_OP(pInfo) ? "interval Final" : "interval  Semi");
+
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   } else if (pOperator->status == OP_RES_TO_RETURN) {
@@ -2659,7 +2682,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       clearSpecialDataBlock(pInfo->pUpdateRes);
       removeDeleteResults(pUpdated, pInfo->pDelWins);
       pOperator->status = OP_RES_TO_RETURN;
-      qInfo("%s return data", IS_FINAL_OP(pInfo) ? "interval Final" : "interval  Semi");
+      qDebug("%s return data", IS_FINAL_OP(pInfo) ? "interval Final" : "interval  Semi");
       break;
     }
     printDataBlock(pBlock, IS_FINAL_OP(pInfo) ? "interval Final recv" : "interval  Semi recv");
@@ -3101,12 +3124,7 @@ int64_t getSessionWindowEndkey(void* data, int32_t index) {
 }
 
 bool isInTimeWindow(STimeWindow* pWin, TSKEY ts, int64_t gap) {
-  int64_t sGap = ts - pWin->skey + gap;
-  int64_t eGap = pWin->ekey - ts + gap;
-  // if ((sGap < 0 && sGap >= -gap) || (eGap < 0 && eGap >= -gap) || (sGap >= 0 && eGap >= 0)) {
-  //   return true;
-  // }
-  if (sGap >= 0 && eGap >= 0) {
+  if (ts + gap >= pWin->skey && ts - gap <= pWin->ekey) {
     return true;
   }
   return false;

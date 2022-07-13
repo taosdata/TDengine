@@ -168,7 +168,7 @@ typedef struct {
 
 // N.B. If without STSchema, getExtendedRowSize() is used to get the rowMaxBytes and
 // (int32_t)ceil((double)nCols/TD_VTYPE_PARTS) should be added if TD_SUPPORT_BITMAP defined.
-#define TD_ROW_MAX_BYTES_FROM_SCHEMA(s) (schemaTLen(s) + TD_ROW_HEAD_LEN)
+#define TD_ROW_MAX_BYTES_FROM_SCHEMA(s) ((s)->tlen + TD_ROW_HEAD_LEN)
 
 #define TD_ROW_SET_INFO(r, i)  (TD_ROW_INFO(r) = (i))
 #define TD_ROW_SET_TYPE(r, t)  (TD_ROW_TYPE(r) = (t))
@@ -223,9 +223,10 @@ int32_t                     tdSetBitmapValTypeN(void *pBitmap, int16_t nEle, TDR
 static FORCE_INLINE int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValType,
                                                int8_t bitmapMode);
 bool                        tdIsBitmapBlkNorm(const void *pBitmap, int32_t numOfBits, int8_t bitmapMode);
-int32_t tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int32_t numOfRows, int32_t maxPoints,
-                             int8_t bitmapMode, bool isMerge);
-int32_t tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool isMerge);
+// int32_t tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int32_t numOfRows, int32_t
+// maxPoints,
+//                              int8_t bitmapMode, bool isMerge);
+// int32_t tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool isMerge);
 
 int32_t tdGetBitmapValTypeII(const void *pBitmap, int16_t colIdx, TDRowValT *pValType);
 int32_t tdSetBitmapValTypeI(void *pBitmap, int16_t colIdx, TDRowValT valType);
@@ -318,12 +319,9 @@ bool    tdSTSRowGetVal(STSRowIter *pIter, col_id_t colId, col_type_t colType, SC
 bool    tdGetTpRowDataOfCol(STSRowIter *pIter, col_type_t colType, int32_t offset, SCellVal *pVal);
 bool    tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId, col_type_t colType, col_id_t *nIdx, SCellVal *pVal);
 bool    tdSTSRowIterNext(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal);
-STSRow *mergeTwoRows(void *buffer, STSRow *row1, STSRow *row2, STSchema *pSchema1, STSchema *pSchema2);
-int32_t tdGetColDataOfRow(SCellVal *pVal, SDataCol *pCol, int32_t row, int8_t bitmapMode);
 bool    tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t colType, int32_t flen, uint32_t offset, col_id_t colIdx,
                        SCellVal *pVal);
 bool    tdSKvRowGetVal(STSRow *pRow, col_id_t colId, col_id_t colIdx, SCellVal *pVal);
-int32_t dataColGetNEleLen(SDataCol *pDataCol, int32_t rows, int8_t bitmapMode);
 void    tdSCellValPrint(SCellVal *pVal, int8_t colType);
 void    tdSRowPrint(STSRow *row, STSchema *pSchema, const char *tag);
 
