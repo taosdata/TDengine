@@ -35,6 +35,7 @@ typedef struct SStmtCallback {
 
 typedef struct SParseContext {
   uint64_t         requestId;
+  int64_t          requestRid;
   int32_t          acctId;
   const char*      db;
   bool             topicQuery;
@@ -50,10 +51,12 @@ typedef struct SParseContext {
   bool             isSuperUser;
   bool             async;
   int8_t           schemalessType;
+  const char*      svrVer;
+  bool             nodeOffline;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
-bool    qIsInsertSql(const char* pStr, size_t length);
+bool    qIsInsertValuesSql(const char* pStr, size_t length);
 
 // for async mode
 int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq);
@@ -63,7 +66,8 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
 void qDestroyQuery(SQuery* pQueryNode);
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
-int32_t qSetSTableIdForRSma(SNode* pStmt, int64_t uid);
+int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid);
+void    qCleanupKeywordsTable();
 
 int32_t     qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash);
 int32_t     qResetStmtDataBlock(void* block, bool keepBuf);
@@ -92,6 +96,9 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
                     char* tableName, char* msgBuf, int16_t msgBufLen);
 int32_t smlBuildOutput(void* handle, SHashObj* pVgHash);
 
+int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
+SArray* serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap);
+SArray* serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap);
 #ifdef __cplusplus
 }
 #endif

@@ -11,7 +11,7 @@ from util.cases import *
 class TDTestCase:
     updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 , 
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
-    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143}
+    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
     def init(self, conn, powSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
@@ -476,6 +476,19 @@ class TDTestCase:
             tdSql.execute('insert into tb3 values (now()+{}s, {}, {})'.format(i,PI*(5+i)/2 ,PI*(5+i)/2))
 
         self.check_result_auto_sin("select num1,num2 from tb3;" , "select sin(num1),sin(num2) from tb3")
+
+    def support_super_table_test(self):
+        tdSql.execute(" use db ")
+        self.check_result_auto_sin( " select c5 from stb1 order by ts " , "select sin(c5) from stb1 order by ts" )
+        self.check_result_auto_sin( " select c5 from stb1 order by tbname " , "select sin(c5) from stb1 order by tbname" )
+        self.check_result_auto_sin( " select c5 from stb1 where c1 > 0 order by tbname  " , "select sin(c5) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_sin( " select c5 from stb1 where c1 > 0 order by tbname  " , "select sin(c5) from stb1 where c1 > 0 order by tbname" )
+
+        self.check_result_auto_sin( " select t1,c5 from stb1 order by ts " , "select sin(t1), sin(c5) from stb1 order by ts" )
+        self.check_result_auto_sin( " select t1,c5 from stb1 order by tbname " , "select sin(t1) ,sin(c5) from stb1 order by tbname" )
+        self.check_result_auto_sin( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select sin(t1) ,sin(c5) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_sin( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select sin(t1) , sin(c5) from stb1 where c1 > 0 order by tbname" )
+        pass
     
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
@@ -508,6 +521,10 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step7: sin filter query ============") 
 
         self.abs_func_filter()
+
+        tdLog.printNoPrefix("==========step8: check sin result of  stable query ============")
+
+        self.support_super_table_test()
 
         
 

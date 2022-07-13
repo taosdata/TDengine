@@ -57,6 +57,9 @@ int  metaRemoveTableFromIdx(SMeta* pMeta, tb_uid_t uid);
 // metaCommit ==================
 static FORCE_INLINE tb_uid_t metaGenerateUid(SMeta* pMeta) { return tGenIdPI64(); }
 
+// metaTable ==================
+int metaHandleEntry(SMeta* pMeta, const SMetaEntry* pME);
+
 struct SMeta {
   TdThreadRwlock lock;
 
@@ -69,6 +72,7 @@ struct SMeta {
   TTB*    pUidIdx;
   TTB*    pNameIdx;
   TTB*    pCtbIdx;
+  TTB*    pSuidIdx;
   // ivt idx and idx
   void* pTagIvtIdx;
   TTB*  pTagIdx;

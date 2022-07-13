@@ -66,6 +66,7 @@ if $rows != 0 then
   return -1
 endi
 sql select * from tb1 where null;
+print $rows
 if $rows != 0 then
   return -1
 endi
@@ -87,6 +88,11 @@ endi
 
 #TODO: MOVE IT TO NORMAL CASE
 sql_error select * from tb1 where not (null);
+
+sql select sum(1/0) from tb1;
+if $rows != 1 then
+  return -1
+endi
 
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

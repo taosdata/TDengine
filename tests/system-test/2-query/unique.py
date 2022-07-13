@@ -11,14 +11,14 @@ from util.sql import *
 from util.cases import *
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 , 
+    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
-    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143}
+    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
-    
+
     def prepare_datas(self):
         tdSql.execute(
             '''create table stb1
@@ -26,7 +26,7 @@ class TDTestCase:
             tags (t1 int)
             '''
         )
-        
+
         tdSql.execute(
             '''
             create table t1
@@ -68,7 +68,7 @@ class TDTestCase:
             ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             '''
         )
-    
+
     def test_errors(self):
         error_sql_lists = [
             "select unique from t1",
@@ -93,8 +93,8 @@ class TDTestCase:
             "select unique(c1) , min(c1) from t1",
             "select unique(c1) , spread(c1) from t1",
             "select unique(c1) , diff(c1) from t1",
-            "select unique(c1) , abs(c1) from t1",
-            "select unique(c1) , c1 from t1",
+            #"select unique(c1) , abs(c1) from t1",  # support
+            #"select unique(c1) , c1 from t1",
             "select unique from stb1 partition by tbname",
             "select unique(123--123)==1 from stb1 partition by tbname",
             "select unique(123) from stb1 partition by tbname",
@@ -104,55 +104,55 @@ class TDTestCase:
             "select unique(c1 ,c2 ) from stb1 partition by tbname",
             "select unique(c1 ,NULL) from stb1 partition by tbname",
             "select unique(,) from stb1 partition by tbname;",
-            "select unique(floor(c1) ab from stb1 partition by tbname)",
-            "select unique(c1) as int from stb1 partition by tbname",
+            #"select unique(floor(c1) ab from stb1 partition by tbname)",  # support
+            #"select unique(c1) as int from stb1 partition by tbname",
             "select unique('c1') from stb1 partition by tbname",
             "select unique(NULL) from stb1 partition by tbname",
             "select unique('') from stb1 partition by tbname",
             "select unique(c%) from stb1 partition by tbname",
-            #"select unique(t1) from stb1 partition by tbname",
+            #"select unique(t1) from stb1 partition by tbname",  # support
             "select unique(True) from stb1 partition by tbname",
             "select unique(c1) , count(c1) from stb1 partition by tbname",
             "select unique(c1) , avg(c1) from stb1 partition by tbname",
             "select unique(c1) , min(c1) from stb1 partition by tbname",
             "select unique(c1) , spread(c1) from stb1 partition by tbname",
             "select unique(c1) , diff(c1) from stb1 partition by tbname",
-            "select unique(c1) , abs(c1) from stb1 partition by tbname",
-            "select unique(c1) , c1 from stb1 partition by tbname"
-          
+            #"select unique(c1) , abs(c1) from stb1 partition by tbname", # support
+            #"select unique(c1) , c1 from stb1 partition by tbname" # support
+
         ]
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
             pass
-    
+
     def support_types(self):
         other_no_value_types = [
-            "select unique(ts) from t1" , 
+            "select unique(ts) from t1" ,
             "select unique(c7) from t1",
             "select unique(c8) from t1",
             "select unique(c9) from t1",
-            "select unique(ts) from ct1" , 
+            "select unique(ts) from ct1" ,
             "select unique(c7) from ct1",
             "select unique(c8) from ct1",
             "select unique(c9) from ct1",
-            "select unique(ts) from ct3" , 
+            "select unique(ts) from ct3" ,
             "select unique(c7) from ct3",
             "select unique(c8) from ct3",
             "select unique(c9) from ct3",
-            "select unique(ts) from ct4" , 
+            "select unique(ts) from ct4" ,
             "select unique(c7) from ct4",
             "select unique(c8) from ct4",
             "select unique(c9) from ct4",
-            "select unique(ts) from stb1 partition by tbname" , 
+            "select unique(ts) from stb1 partition by tbname" ,
             "select unique(c7) from stb1 partition by tbname",
             "select unique(c8) from stb1 partition by tbname",
-            "select unique(c9) from stb1 partition by tbname" 
+            "select unique(c9) from stb1 partition by tbname"
         ]
-        
+
         for type_sql in other_no_value_types:
             tdSql.query(type_sql)
             tdLog.info("support type ok ,  sql is : %s"%type_sql)
-        
+
         type_sql_lists = [
             "select unique(c1) from t1",
             "select unique(c2) from t1",
@@ -182,8 +182,8 @@ class TDTestCase:
             "select unique(c5) from stb1 partition by tbname",
             "select unique(c6) from stb1 partition by tbname",
 
-            "select unique(c6) as alisb from stb1 partition by tbname", 
-            "select unique(c6) alisb from stb1 partition by tbname", 
+            "select unique(c6) as alisb from stb1 partition by tbname",
+            "select unique(c6) alisb from stb1 partition by tbname",
         ]
 
         for type_sql in type_sql_lists:
@@ -194,24 +194,25 @@ class TDTestCase:
         origin_sql = unique_sql.replace("unique(","").replace(")","")
         tdSql.query(unique_sql)
         unique_result = tdSql.queryResult
-        
+
         unique_datas = []
         for elem in unique_result:
             unique_datas.append(elem[0])
-        
-        
+        unique_datas.sort(key=lambda x: (x is None, x))
+
         tdSql.query(origin_sql)
         origin_result = tdSql.queryResult
         origin_datas = []
         for elem in origin_result:
             origin_datas.append(elem[0])
-        
+
         pre_unique = []
         for elem in origin_datas:
             if elem in pre_unique:
                 continue
             else:
                 pre_unique.append(elem)
+        pre_unique.sort(key=lambda x: (x is None, x))
 
         if pre_unique == unique_datas:
             tdLog.info(" unique query check pass , unique sql is: %s" %unique_sql)
@@ -220,7 +221,7 @@ class TDTestCase:
 
     def basic_unique_function(self):
 
-        # basic query 
+        # basic query
         tdSql.query("select c1 from ct3")
         tdSql.checkRows(0)
         tdSql.query("select c1 from t1")
@@ -241,19 +242,19 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query("select unique(c6) from ct3")
 
-        # will support _rowts mix with 
+        # will support _rowts mix with
         # tdSql.query("select unique(c6),_rowts from ct3")
-        
+
         # auto check for t1 table
         # used for regular table
         tdSql.query("select unique(c1) from t1")
-        
+
         tdSql.query("desc t1")
         col_lists_rows = tdSql.queryResult
         col_lists = []
         for col_name in col_lists_rows:
             col_lists.append(col_name[0])
- 
+
         for col in col_lists:
             self.check_unique_table(f"select unique({col}) from t1")
 
@@ -265,20 +266,20 @@ class TDTestCase:
         tdSql.query("select unique(c1) from ct4")
         tdSql.checkRows(10)
 
-        tdSql.error("select unique(c1),tbname from ct1")
-        tdSql.error("select unique(c1),t1 from ct1")
+        #tdSql.error("select unique(c1),tbname from ct1") #support
+        #tdSql.error("select unique(c1),t1 from ct1")    #support
 
-        # unique with common col 
-        tdSql.error("select unique(c1) ,ts  from ct1")
-        tdSql.error("select unique(c1) ,c1  from ct1")
+        # unique with common col
+        #tdSql.error("select unique(c1) ,ts  from ct1")
+        #tdSql.error("select unique(c1) ,c1  from ct1")
 
-        # unique with scalar function 
-        tdSql.error("select unique(c1) ,abs(c1)  from ct1")
+        # unique with scalar function
+        #tdSql.error("select unique(c1) ,abs(c1)  from ct1")
         tdSql.error("select unique(c1) , unique(c2) from ct1")
-        tdSql.error("select unique(c1) , abs(c2)+2 from ct1")
-  
+        #tdSql.error("select unique(c1) , abs(c2)+2 from ct1")
 
-        # unique with aggregate function 
+
+        # unique with aggregate function
         tdSql.error("select unique(c1) ,sum(c1)  from ct1")
         tdSql.error("select unique(c1) ,max(c1)  from ct1")
         tdSql.error("select unique(c1) ,csum(c1)  from ct1")
@@ -288,13 +289,13 @@ class TDTestCase:
         tdSql.query("select unique(c1) from ct4 where c1 is null")
         tdSql.checkData(0, 0, None)
 
-        tdSql.query("select unique(c1) from ct4 where c1 >2 ")
-        tdSql.checkData(0, 0, 8)
-        tdSql.checkData(1, 0, 7)
-        tdSql.checkData(2, 0, 6)
-        tdSql.checkData(5, 0, 3)
+        tdSql.query("select unique(c1) from ct4 where c1 >2 order by 1")
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(1, 0, 4)
+        tdSql.checkData(2, 0, 5)
+        tdSql.checkData(5, 0, 8)
 
-        tdSql.query("select unique(c1) from ct4  where c2 between 0  and   99999")
+        tdSql.query("select unique(c1) from ct4  where c2 between 0  and   99999 order by 1 desc")
         tdSql.checkData(0, 0, 8)
         tdSql.checkData(1, 0, 7)
         tdSql.checkData(2, 0, 6)
@@ -305,7 +306,7 @@ class TDTestCase:
         tdSql.checkData(7, 0, 1)
         tdSql.checkData(8, 0, 0)
 
-        # unique with union all 
+        # unique with union all
         tdSql.query("select unique(c1) from ct4 union all select c1 from ct1")
         tdSql.checkRows(23)
         tdSql.query("select unique(c1) from ct4 union all select distinct(c1) from ct4")
@@ -313,8 +314,8 @@ class TDTestCase:
         tdSql.query("select unique(c2) from ct4 union all select abs(c2)/2 from ct4")
         tdSql.checkRows(22)
 
-        # unique with join 
-        # prepare join datas with same ts 
+        # unique with join
+        # prepare join datas with same ts
 
         tdSql.execute(" use db ")
         tdSql.execute(" create stable st1 (ts timestamp , num int) tags(ind int)")
@@ -335,23 +336,23 @@ class TDTestCase:
             tdSql.execute(f" insert into ttb1 values({ts_value} , {i})")
             tdSql.execute(f" insert into ttb2 values({ts_value} , {i})")
 
-        tdSql.query("select unique(tb2.num)  from tb1, tb2 where tb1.ts=tb2.ts ")
+        tdSql.query("select unique(tb2.num)  from tb1, tb2 where tb1.ts=tb2.ts order by 1")
         tdSql.checkRows(10)
         tdSql.checkData(0,0,0)
         tdSql.checkData(1,0,1)
         tdSql.checkData(2,0,2)
         tdSql.checkData(9,0,9)
 
-        tdSql.query("select unique(tb2.num)  from tb1, tb2 where tb1.ts=tb2.ts union all select unique(tb1.num)  from tb1, tb2 where tb1.ts=tb2.ts ")
+        tdSql.query("select unique(tb2.num)  from tb1, tb2 where tb1.ts=tb2.ts union all select unique(tb1.num)  from tb1, tb2 where tb1.ts=tb2.ts order by 1")
         tdSql.checkRows(20)
         tdSql.checkData(0,0,0)
-        tdSql.checkData(1,0,1)
-        tdSql.checkData(2,0,2)
-        tdSql.checkData(9,0,9)
+        tdSql.checkData(2,0,1)
+        tdSql.checkData(4,0,2)
+        tdSql.checkData(18,0,9)
 
         # nest query
         # tdSql.query("select unique(c1) from (select c1 from ct1)")
-        tdSql.query("select c1 from (select unique(c1) c1 from ct4)")
+        tdSql.query("select c1 from (select unique(c1) c1 from ct4) order by 1 desc nulls first")
         tdSql.checkRows(10)
         tdSql.checkData(0, 0, None)
         tdSql.checkData(1, 0, 8)
@@ -366,11 +367,11 @@ class TDTestCase:
         tdSql.checkData(0, 0, 45)
         tdSql.checkData(1, 0, 45)
 
-        tdSql.query("select 1-abs(c1) from (select unique(c1) c1 from ct4)")
+        tdSql.query("select 1-abs(c1) from (select unique(c1) c1 from ct4) order by 1 nulls first")
         tdSql.checkRows(10)
         tdSql.checkData(0, 0, None)
         tdSql.checkData(1, 0, -7.000000000)
-        
+
 
         # bug for stable
         #partition by tbname
@@ -379,16 +380,66 @@ class TDTestCase:
 
         # tdSql.query(" select unique(c1) from stb1 partition by tbname ")
         # tdSql.checkRows(21)
-        
-        # group by 
+
+        # group by
         tdSql.error("select unique(c1) from ct1 group by c1")
         tdSql.error("select unique(c1) from ct1 group by tbname")
 
         # super table
-        
+
+        # super table
+        tdSql.error("select tbname , tail(c1,2) from stb1 group by tbname")
+        tdSql.query("select tail(c1,2) from stb1 partition by tbname")
+        tdSql.checkRows(4)
 
 
-    
+        # bug need fix
+        # tdSql.query("select tbname , tail(c1,2) from stb1 partition by tbname")
+        # tdSql.checkRows(4)
+
+        # tdSql.query("select tbname , tail(c1,2) from stb1 partition by tbname order by tbname")
+        # tdSql.checkRows(4)
+
+        # tdSql.query(" select tbname , count(c1) from stb1 partition by tbname order by tbname ")
+        # tdSql.checkRows(2)
+        # tdSql.query(" select tbname , max(c1) ,c1 from stb1 partition by tbname order by tbname ")
+        # tdSql.checkRows(2)
+        # tdSql.query(" select tbname ,first(c1) from stb1 partition by tbname order by tbname ")
+        # tdSql.checkRows(2)
+
+        tdSql.query("select tail(c1,2) from stb1 partition by tbname")
+        tdSql.checkRows(4)
+
+
+        # # bug need fix
+        # tdSql.query(" select tbname , unique(c1) from stb1  where t1 = 0 partition by tbname ")
+        # tdSql.checkRows(2)
+        # tdSql.query(" select tbname , unique(c1) from stb1  where t1 = 0 partition by tbname order by tbname ")
+        # tdSql.checkRows(2)
+        # tdSql.query(" select tbname , unique(c1) from stb1  where c1 = 0 partition by tbname order by tbname ")
+        # tdSql.checkRows(3)
+        # tdSql.query(" select tbname , unique(c1) from stb1  where c1 = 0 partition by tbname ")
+        # tdSql.checkRows(3)
+
+        tdSql.query(" select unique(t1) from stb1  ")
+        tdSql.checkRows(2)
+        tdSql.query(" select unique(t1+c1) from stb1 ")
+        tdSql.checkRows(13)
+        tdSql.query(" select unique(t1+c1) from stb1 partition by tbname ")
+        tdSql.checkRows(13)
+        tdSql.query(" select unique(t1) from stb1 partition by tbname ")
+        tdSql.checkRows(2)
+
+        # nest query
+        tdSql.query(" select  unique(c1) from (select _rowts , t1 ,c1 , tbname from stb1 ) ")
+        tdSql.checkRows(11)
+        tdSql.checkData(0,0,6)
+        tdSql.checkData(10,0,3)
+        tdSql.query("select  unique(t1) from (select _rowts , t1 , tbname from stb1 )")
+        tdSql.checkRows(2)
+        tdSql.checkData(0,0,4)
+        tdSql.checkData(1,0,1)
+
     def check_boundary_values(self):
 
         tdSql.execute("drop database if exists bound_test")
@@ -416,12 +467,12 @@ class TDTestCase:
         tdSql.execute(
                 f"insert into sub1_bound values ( now(), -2147483643, -9223372036854775803, -32763, -123, -3.39E+38, -1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        
+
         tdSql.error(
                 f"insert into sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        
-        tdSql.query("select unique(c2) from sub1_bound")
+
+        tdSql.query("select unique(c2) from sub1_bound order by 1 desc")
         tdSql.checkRows(5)
         tdSql.checkData(0,0,9223372036854775807)
 
@@ -429,22 +480,22 @@ class TDTestCase:
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
-        
+
         self.prepare_datas()
 
-        tdLog.printNoPrefix("==========step2:test errors ==============")    
+        tdLog.printNoPrefix("==========step2:test errors ==============")
 
         self.test_errors()
-        
-        tdLog.printNoPrefix("==========step3:support types ============") 
+
+        tdLog.printNoPrefix("==========step3:support types ============")
 
         self.support_types()
 
-        tdLog.printNoPrefix("==========step4: floor basic query ============") 
+        tdLog.printNoPrefix("==========step4: floor basic query ============")
 
         self.basic_unique_function()
 
-        tdLog.printNoPrefix("==========step5: floor boundary query ============") 
+        tdLog.printNoPrefix("==========step5: floor boundary query ============")
 
         self.check_boundary_values()
 

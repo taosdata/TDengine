@@ -58,7 +58,6 @@ typedef struct SFileBlockInfo {
   int32_t numBlocksOfStep;
 } SFileBlockInfo;
 
-#define TSDB_BLOCK_DIST_STEP_ROWS 8
 #define MAX_INTERVAL_TIME_WINDOW  1000000  // maximum allowed time windows in final results
 
 #define TOP_BOTTOM_QUERY_LIMIT    100
@@ -68,7 +67,7 @@ typedef struct SResultRowEntryInfo {
   bool     initialized:1;     // output buffer has been initialized
   bool     complete:1;        // query has completed
   uint8_t  isNullRes:6;       // the result is null
-  uint8_t  numOfRes;          // num of output result in current buffer
+  uint16_t numOfRes;          // num of output result in current buffer
 } SResultRowEntryInfo;
 
 // determine the real data need to calculated the result
@@ -133,7 +132,6 @@ typedef struct SqlFunctionCtx {
   char                  *pOutput;       // final result output buffer, point to sdata->data
   int32_t                numOfParams;
   SFunctParam           *param;         // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
-  int64_t               *ptsList;       // corresponding timestamp array list, todo remove it
   SColumnInfoData       *pTsOutput;     // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
   int32_t                offset;
   struct  SResultRowEntryInfo *resultInfo;
@@ -146,27 +144,24 @@ typedef struct SqlFunctionCtx {
   struct SDiskbasedBuf  *pBuf;
   struct SSDataBlock    *pSrcBlock;
   int32_t                curBufPage;
+  bool                   increase;
 
   char                   udfName[TSDB_FUNC_NAME_LEN];
 } SqlFunctionCtx;
 
 enum {
-  TEXPR_NODE_DUMMY     = 0x0,
   TEXPR_BINARYEXPR_NODE= 0x1,
   TEXPR_UNARYEXPR_NODE = 0x2,
-  TEXPR_FUNCTION_NODE  = 0x3,
-  TEXPR_COL_NODE       = 0x4,
-  TEXPR_VALUE_NODE     = 0x8,
 };
 
 typedef struct tExprNode {
   int32_t nodeType;
   union {
     struct {// function node
-      char              functionName[FUNCTIONS_NAME_MAX_LENGTH];  // todo refactor
-      int32_t           functionId;
-      int32_t           num;
-      struct SFunctionNode    *pFunctNode;
+      char     functionName[FUNCTIONS_NAME_MAX_LENGTH];  // todo refactor
+      int32_t  functionId;
+      int32_t  num;
+      struct SFunctionNode  *pFunctNode;
     } _function;
 
     struct {
@@ -177,26 +172,16 @@ typedef struct tExprNode {
 
 void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *));
 
-typedef struct SAggFunctionInfo {
-  char      name[FUNCTIONS_NAME_MAX_LENGTH];
-  int8_t    type;         // Scalar function or aggregation function
-  uint32_t  functionId;   // Function Id
-  int8_t    sFunctionId;  // Transfer function for super table query
-  uint16_t  status;
-
-  bool (*init)(SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);  // setup the execute environment
-  void (*addInput)(SqlFunctionCtx *pCtx);
-
-  // finalizer must be called after all exec has been executed to generated final result.
-  void (*finalize)(SqlFunctionCtx *pCtx);
-  void (*combine)(SqlFunctionCtx *pCtx);
-
-  int32_t (*dataReqFunc)(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId);
-} SAggFunctionInfo;
+typedef enum {
+  SHOULD_FREE_COLDATA    = 0x1,   // the newly created column data needs to be destroyed.
+  DELEGATED_MGMT_COLDATA = 0x2,   // input column data should not be released.
+} ECOLDATA_MGMT_TYPE_E;
 
 struct SScalarParam {
+  ECOLDATA_MGMT_TYPE_E type;
   SColumnInfoData *columnData;
   SHashObj        *pHashFilter;
+  int32_t          hashValueType;
   void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
   int32_t          numOfRows;
 };

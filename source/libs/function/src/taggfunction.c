@@ -161,13 +161,13 @@ typedef struct SRateInfo {
   bool    isIRate;    // true for IRate functions, false for Rate functions
 } SRateInfo;
 
-typedef struct SDerivInfo {
-  double   prevValue;     // previous value
-  TSKEY    prevTs;        // previous timestamp
-  bool     ignoreNegative;// ignore the negative value
-  int64_t  tsWindow;      // time window for derivative
-  bool     valueSet;      // the value has been set already
-} SDerivInfo;
+//typedef struct SDerivInfo {
+//  double   prevValue;     // previous value
+//  TSKEY    prevTs;        // previous timestamp
+//  bool     ignoreNegative;// ignore the negative value
+//  int64_t  tsWindow;      // time window for derivative
+//  bool     valueSet;      // the value has been set already
+//} SDerivInfo;
 
 typedef struct SResPair {
   TSKEY  key;
@@ -1887,10 +1887,10 @@ static void top_bottom_func_finalizer(SqlFunctionCtx *pCtx) {
   // user specify the order of output by sort the result according to timestamp
   if (pCtx->param[1].param.i == PRIMARYKEY_TIMESTAMP_COL_ID) {
     __compar_fn_t comparator = (pCtx->param[2].param.i == TSDB_ORDER_ASC) ? resAscComparFn : resDescComparFn;
-    qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
+    taosSort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
   } else /*if (pCtx->param[1].param.i > PRIMARYKEY_TIMESTAMP_COL_ID)*/ {
     __compar_fn_t comparator = (pCtx->param[2].param.i == TSDB_ORDER_ASC) ? resDataAscComparFn : resDataDescComparFn;
-    qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
+    taosSort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
   }
   
   GET_TRUE_DATA_TYPE();
@@ -3684,7 +3684,7 @@ static void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDi
   pDist->totalRows   = tbufReadUint64(&br);
   pDist->maxRows     = tbufReadInt32(&br);
   pDist->minRows     = tbufReadInt32(&br);
-  pDist->numOfRowsInMemTable = tbufReadUint32(&br);
+  pDist->numOfInmemRows = tbufReadUint32(&br);
   pDist->numOfSmallBlocks = tbufReadUint32(&br);
   int64_t numSteps = tbufReadUint64(&br);
 
@@ -3732,7 +3732,7 @@ static void mergeTableBlockDist(SResultRowEntryInfo* pResInfo, const STableBlock
   assert(pDist != NULL && pSrc != NULL);
 
   pDist->numOfTables += pSrc->numOfTables;
-  pDist->numOfRowsInMemTable += pSrc->numOfRowsInMemTable;
+  pDist->numOfInmemRows += pSrc->numOfInmemRows;
   pDist->numOfSmallBlocks += pSrc->numOfSmallBlocks;
   pDist->numOfFiles += pSrc->numOfFiles;
   pDist->totalSize += pSrc->totalSize;
@@ -3862,7 +3862,7 @@ void generateBlockDistResult(STableBlockDistInfo *pTableBlockDist, char* result)
                    percentiles[6], percentiles[7], percentiles[8], percentiles[9], percentiles[10], percentiles[11],
                    min, max, avg, stdDev,
                    totalRows, totalBlocks, smallBlocks, totalLen/1024.0, compRatio,
-                   pTableBlockDist->numOfRowsInMemTable);
+                   pTableBlockDist->numOfInmemRows);
   varDataSetLen(result, sz);
   UNUSED(sz);
 }

@@ -32,7 +32,7 @@ class TDTestCase:
 
         print("==============step1")
         tdSql.execute("create database if not exists demo keep 36500;");
-        print("==============create db demo keep 365000 days")
+        print("==============create db demo keep 365000 duration")
         tdSql.execute("use demo;")
         tdSql.execute("CREATE table if not exists test (ts timestamp, f1 int);")
         print("==============create table test")

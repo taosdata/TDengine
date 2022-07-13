@@ -131,6 +131,7 @@ if $data[0][1] != $consumerId then
   return -1
 endi
 if $data[0][2] != $expectmsgcnt then
+  print expect $expectmsgcnt , actual $data02
   return -1
 endi
 if $data[0][3] != $expectmsgcnt then

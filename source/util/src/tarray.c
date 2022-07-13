@@ -174,7 +174,11 @@ void taosArrayRemoveDuplicate(SArray* pArray, __compar_fn_t comparFn, void (*fp)
 }
 
 void* taosArrayAddAll(SArray* pArray, const SArray* pInput) {
-  return taosArrayAddBatch(pArray, pInput->pData, (int32_t)taosArrayGetSize(pInput));
+  if (pInput) {
+    return taosArrayAddBatch(pArray, pInput->pData, (int32_t)taosArrayGetSize(pInput));
+  } else {
+    return NULL;
+  }
 }
 
 void* taosArrayPop(SArray* pArray) {
@@ -369,7 +373,7 @@ void taosArraySort(SArray* pArray, __compar_fn_t compar) {
   assert(pArray != NULL);
   assert(compar != NULL);
 
-  qsort(pArray->pData, pArray->size, pArray->elemSize, compar);
+  taosSort(pArray->pData, pArray->size, pArray->elemSize, compar);
 }
 
 void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn, int32_t flags) {
@@ -386,7 +390,7 @@ int32_t taosArraySearchIdx(const SArray* pArray, const void* key, __compar_fn_t 
 
 void taosArraySortString(SArray* pArray, __compar_fn_t comparFn) {
   assert(pArray != NULL);
-  qsort(pArray->pData, pArray->size, pArray->elemSize, comparFn);
+  taosSort(pArray->pData, pArray->size, pArray->elemSize, comparFn);
 }
 
 char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn, int32_t flags) {
@@ -458,6 +462,9 @@ static void taosArrayInsertSort(SArray* pArray, __ext_compar_fn_t fn, const void
 }
 
 SArray* taosArrayDeepCopy(const SArray* pSrc, FCopy deepCopy) {
+  if (NULL == pSrc) {
+    return NULL;
+  }
   ASSERT(pSrc->elemSize == sizeof(void*));
   SArray* pArray = taosArrayInit(pSrc->size, sizeof(void*));
   for (int32_t i = 0; i < pSrc->size; i++) {

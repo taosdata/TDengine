@@ -353,8 +353,8 @@ tmq_list_t* build_topic_list() {
 void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   static const int MIN_COMMIT_COUNT = 1000;
 
-  int            msg_count = 0;
-  tmq_resp_err_t err;
+  int     msg_count = 0;
+  int32_t err;
 
   if ((err = tmq_subscribe(tmq, topics))) {
     fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(err));
@@ -379,7 +379,7 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
 }
 
 void perf_loop(tmq_t* tmq, tmq_list_t* topics, int32_t totalMsgs, int64_t walLogSize) {
-  tmq_resp_err_t err;
+  int32_t err;
 
   if ((err = tmq_subscribe(tmq, topics))) {
     fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(err));

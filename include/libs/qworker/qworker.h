@@ -20,9 +20,9 @@
 extern "C" {
 #endif
 
+#include "executor.h"
 #include "tmsgcb.h"
 #include "trpc.h"
-#include "executor.h"
 
 enum {
   NODE_TYPE_VNODE = 1,
@@ -30,13 +30,6 @@ enum {
   NODE_TYPE_SNODE,
   NODE_TYPE_MNODE,
 };
-
-typedef struct SDeleteRes {
-  uint64_t uid;
-  SArray*  uidList;
-  int64_t  skey;
-  int64_t  ekey;
-} SDeleteRes;
 
 typedef struct SQWorkerCfg {
   uint32_t maxSchedulerNum;
@@ -46,23 +39,25 @@ typedef struct SQWorkerCfg {
 
 typedef struct {
   uint64_t cacheDataSize;
-  
+
   uint64_t queryProcessed;
   uint64_t cqueryProcessed;
   uint64_t fetchProcessed;
   uint64_t dropProcessed;
   uint64_t hbProcessed;
   uint64_t deleteProcessed;
-  
+
   uint64_t numOfQueryInQueue;
   uint64_t numOfFetchInQueue;
   uint64_t timeInQueryQueue;
   uint64_t timeInFetchQueue;
-  
+
   uint64_t numOfErrors;
 } SQWorkerStat;
 
 int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, const SMsgCb *pMsgCb);
+
+int32_t qWorkerAbortPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg);
 
 int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg);
 
@@ -72,7 +67,7 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
 
 int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
-int32_t qWorkerProcessFetchRsp(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
+int32_t qWorkerProcessRspMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
 int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
@@ -80,7 +75,7 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int6
 
 int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
-int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SRpcMsg *pRsp, SDeleteRes *pRes);
+int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SDeleteRes *pRes);
 
 void qWorkerDestroy(void **qWorkerMgmt);
 

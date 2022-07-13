@@ -78,6 +78,26 @@ void test5() {
   syncTimeoutDestroy(pMsg2);
 }
 
+void test6() {
+  SyncTimeout *pMsg = createMsg();
+  char *       jsonStr = syncTimeout2Str(pMsg);
+  sTrace("jsonStr: %s", jsonStr);
+
+  syncUtilJson2Line(jsonStr);
+  sTrace("jsonStr: %s", jsonStr);
+
+  char str[10];
+  snprintf(str, sizeof(str), "%s", "{}");
+  sTrace("str: %s", str);
+  syncUtilJson2Line(str);
+  sTrace("str: %s", str);
+
+  snprintf(str, sizeof(str), "%s", "");
+  sTrace("str: %s", str);
+  syncUtilJson2Line(str);
+  sTrace("str: %s", str);
+}
+
 int main() {
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
@@ -88,6 +108,7 @@ int main() {
   test3();
   test4();
   test5();
+  test6();
 
   return 0;
 }

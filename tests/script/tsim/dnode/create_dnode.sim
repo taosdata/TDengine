@@ -182,16 +182,5 @@ if $rows != 15 then
   return -1
 endi
 
-print =============== drop dnode
-#sql drop dnode 2;
-#sql show dnodes;
-#if $rows != 1 then 
-#  return -1
-#endi
-
-#if $data00 != 1 then 
-#  return -1
-#endi
-
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT

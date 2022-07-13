@@ -16,6 +16,16 @@
 #include "syncTimeout.h"
 #include "syncElection.h"
 #include "syncReplication.h"
+#include "syncRespMgr.h"
+
+int32_t syncNodeTimerRoutine(SSyncNode* ths) {
+  syncNodeEventLog(ths, "timer routines ... ");
+
+  if (ths->vgId != 1) {
+    syncRespClean(ths->pSyncRespMgr);
+  }
+  return 0;
+}
 
 int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
   int32_t ret = 0;
@@ -24,8 +34,11 @@ int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
   if (pMsg->timeoutType == SYNC_TIMEOUT_PING) {
     if (atomic_load_64(&ths->pingTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->pingTimerCounter);
+
       // syncNodePingAll(ths);
-      syncNodePingPeers(ths);
+      // syncNodePingPeers(ths);
+
+      syncNodeTimerRoutine(ths);
     }
 
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_ELECTION) {
@@ -40,7 +53,7 @@ int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
       syncNodeReplicate(ths);
     }
   } else {
-    sTrace("unknown timeoutType:%d", pMsg->timeoutType);
+    sError("vgId:%d, unknown timeout-type:%d", ths->vgId, pMsg->timeoutType);
   }
 
   return ret;

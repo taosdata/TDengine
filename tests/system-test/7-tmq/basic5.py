@@ -13,6 +13,12 @@ from util.dnodes import *
 
 class TDTestCase:
     hostname = socket.gethostname()
+    if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):
+        try:
+            config = eval(tdDnodes.dnodes[0].remoteIP)
+            hostname = config["host"]
+        except Exception:
+            hostname = tdDnodes.dnodes[0].remoteIP
     #rpcDebugFlagVal = '143'
     #clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
     #clientCfgDict["rpcDebugFlag"]  = rpcDebugFlagVal
@@ -34,7 +40,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
@@ -128,7 +134,7 @@ class TDTestCase:
         parameterDict['cfg'] = cfgPath
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
-        time.sleep(2)
+        prepareEnvThread.join()
         
         # wait stb ready
         while 1:
@@ -186,18 +192,23 @@ class TDTestCase:
                 time.sleep(1)
         
         tdLog.info("start consume processor")
-        pollDelay = 100
+        pollDelay = 20
         showMsg   = 1
         showRow   = 1
         
-        shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
-        shellCmd += "> /dev/null 2>&1 &"        
+        if (platform.system().lower() == 'windows'):
+            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
+            shellCmd += "> nul 2>&1 &"   
+        else:
+            shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
+            shellCmd += "> /dev/null 2>&1 &"  
         tdLog.info(shellCmd)
         os.system(shellCmd)        
 
         # wait for data ready
-        prepareEnvThread.join()
+        # prepareEnvThread.join()
         
         tdLog.info("insert process end, and start to check consume result")
         while 1:
@@ -234,13 +245,31 @@ class TDTestCase:
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
+        prepareEnvThread.join()
         
         # wait db ready
         while 1:
             tdSql.query("show databases")
-            if tdSql.getRows() == 4: 
-                print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0),)           
-                break
+            if tdSql.getRows() == 4:
+                print ('==================================================')
+                print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0))   
+                index = 0
+                if tdSql.getData(0,0) == parameterDict['dbName']:
+                    index = 0
+                elif tdSql.getData(1,0) == parameterDict['dbName']:
+                    index = 1
+                elif tdSql.getData(2,0) == parameterDict['dbName']:
+                    index = 2
+                elif tdSql.getData(3,0) == parameterDict['dbName']:
+                    index = 3
+                else:
+                    continue
+                
+                if tdSql.getData(index,19) == 'ready':
+                    print("******************** index: %d"%index)
+                    break
+
+                continue
             else:
                 time.sleep(1)
         
@@ -303,10 +332,14 @@ class TDTestCase:
         pollDelay = 100
         showMsg   = 1
         showRow   = 1
-        
-        shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
-        shellCmd += "> /dev/null 2>&1 &"        
+        if (platform.system().lower() == 'windows'):
+            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
+            shellCmd += "> nul 2>&1 &" 
+        else:
+            shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
+            shellCmd += "> /dev/null 2>&1 &"  
         tdLog.info(shellCmd)
         os.system(shellCmd)        
 
@@ -356,13 +389,33 @@ class TDTestCase:
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
+        prepareEnvThread.join()
         
         # wait db ready
         while 1:
             tdSql.query("show databases")
             if tdSql.getRows() == 5: 
-                print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0),)           
-                break
+                print ('==================================================')
+                print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0),tdSql.getData(3,0),tdSql.getData(4,0))   
+                index = 0
+                if tdSql.getData(0,0) == parameterDict['dbName']:
+                    index = 0
+                elif tdSql.getData(1,0) == parameterDict['dbName']:
+                    index = 1
+                elif tdSql.getData(2,0) == parameterDict['dbName']:
+                    index = 2
+                elif tdSql.getData(3,0) == parameterDict['dbName']:
+                    index = 3
+                elif tdSql.getData(4,0) == parameterDict['dbName']:
+                    index = 4
+                else:
+                    continue
+                
+                if tdSql.getData(index,19) == 'ready':
+                    print("******************** index: %d"%index)
+                    break
+
+                continue
             else:
                 time.sleep(1)
         
@@ -436,9 +489,14 @@ class TDTestCase:
         showMsg   = 1
         showRow   = 1
         
-        shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
-        shellCmd += "> /dev/null 2>&1 &"        
+        if (platform.system().lower() == 'windows'):
+            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
+            shellCmd += "> nul 2>&1 &"   
+        else:
+            shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
+            shellCmd += "> /dev/null 2>&1 &"        
         tdLog.info(shellCmd)
         os.system(shellCmd)        
 

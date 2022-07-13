@@ -41,12 +41,3 @@ void streamQueueClose(SStreamQueue* queue) {
       return;
   }
 }
-
-void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) {
-  int32_t ref = atomic_sub_fetch_32(pDataSubmit->dataRef, 1);
-  ASSERT(ref >= 0);
-  if (ref == 0) {
-    taosMemoryFree(pDataSubmit->data);
-    taosMemoryFree(pDataSubmit->dataRef);
-  }
-}

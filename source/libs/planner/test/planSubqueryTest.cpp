@@ -28,6 +28,14 @@ TEST_F(PlanSubqeuryTest, basic) {
   run("SELECT LAST(c1) FROM (SELECT * FROM t1)");
 
   run("SELECT c1 FROM (SELECT TODAY() AS c1 FROM t1)");
+
+  run("SELECT NOW() FROM t1");
+
+  run("SELECT NOW() FROM (SELECT * FROM t1)");
+
+  run("SELECT * FROM (SELECT NOW() FROM t1)");
+
+  run("SELECT NOW() FROM (SELECT * FROM t1) ORDER BY ts");
 }
 
 TEST_F(PlanSubqeuryTest, doubleGroupBy) {

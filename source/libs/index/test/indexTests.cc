@@ -20,7 +20,6 @@
 #include "index.h"
 #include "indexCache.h"
 #include "indexFst.h"
-#include "indexFstCountingWriter.h"
 #include "indexFstUtil.h"
 #include "indexInt.h"
 #include "indexTfile.h"
@@ -51,7 +50,7 @@ class DebugInfo {
 class FstWriter {
  public:
   FstWriter() {
-    _wc = writerCtxCreate(TFile, TD_TMP_DIR_PATH "tindex", false, 64 * 1024 * 1024);
+    _wc = idxFileCtxCreate(TFile, TD_TMP_DIR_PATH "tindex", false, 64 * 1024 * 1024);
     _b = fstBuilderCreate(NULL, 0);
   }
   bool Put(const std::string& key, uint64_t val) {
@@ -64,25 +63,25 @@ class FstWriter {
     fstBuilderFinish(_b);
     fstBuilderDestroy(_b);
 
-    writerCtxDestroy(_wc, false);
+    idxFileCtxDestroy(_wc, false);
   }
 
  private:
   FstBuilder* _b;
-  WriterCtx*  _wc;
+  IFileCtx*   _wc;
 };
 
 class FstReadMemory {
  public:
   FstReadMemory(size_t size) {
-    _wc = writerCtxCreate(TFile, TD_TMP_DIR_PATH "tindex", true, 64 * 1024);
-    _w = fstCountingWriterCreate(_wc);
+    _wc = idxFileCtxCreate(TFile, TD_TMP_DIR_PATH "tindex", true, 64 * 1024);
+    _w = idxFileCreate(_wc);
     _size = size;
     memset((void*)&_s, 0, sizeof(_s));
   }
   bool init() {
     char* buf = (char*)taosMemoryCalloc(1, sizeof(char) * _size);
-    int   nRead = fstCountingWriterRead(_w, (uint8_t*)buf, _size);
+    int   nRead = idxFileRead(_w, (uint8_t*)buf, _size);
     if (nRead <= 0) {
       return false;
     }
@@ -106,17 +105,17 @@ class FstReadMemory {
     return ok;
   }
   // add later
-  bool Search(AutomationCtx* ctx, std::vector<uint64_t>& result) {
-    FstStreamBuilder*      sb = fstSearch(_fst, ctx);
-    StreamWithState*       st = streamBuilderIntoStream(sb);
-    StreamWithStateResult* rt = NULL;
+  bool Search(FAutoCtx* ctx, std::vector<uint64_t>& result) {
+    FStmBuilder* sb = fstSearch(_fst, ctx);
+    FStmSt*      st = stmBuilderIntoStm(sb);
+    FStmStRslt*  rt = NULL;
 
-    while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
+    while ((rt = stmStNextWith(st, NULL)) != NULL) {
       result.push_back((uint64_t)(rt->out.out));
     }
     return true;
   }
-  bool SearchWithTimeCostUs(AutomationCtx* ctx, std::vector<uint64_t>& result) {
+  bool SearchWithTimeCostUs(FAutoCtx* ctx, std::vector<uint64_t>& result) {
     int64_t s = taosGetTimestampUs();
     bool    ok = this->Search(ctx, result);
     int64_t e = taosGetTimestampUs();
@@ -124,18 +123,18 @@ class FstReadMemory {
   }
 
   ~FstReadMemory() {
-    fstCountingWriterDestroy(_w);
+    idxFileDestroy(_w);
     fstDestroy(_fst);
     fstSliceDestroy(&_s);
-    writerCtxDestroy(_wc, true);
+    idxFileCtxDestroy(_wc, true);
   }
 
  private:
-  FstCountingWriter* _w;
-  Fst*               _fst;
-  FstSlice           _s;
-  WriterCtx*         _wc;
-  size_t             _size;
+  IdxFstFile* _w;
+  Fst*        _fst;
+  FstSlice    _s;
+  IFileCtx*   _wc;
+  size_t      _size;
 };
 
 #define L 100
@@ -220,7 +219,7 @@ void checkFstPrefixSearch() {
   // prefix search
   std::vector<uint64_t> result;
 
-  AutomationCtx* ctx = automCtxCreate((void*)"ab", AUTOMATION_PREFIX);
+  FAutoCtx* ctx = automCtxCreate((void*)"ab", AUTOMATION_PREFIX);
   m->Search(ctx, result);
   assert(result.size() == count);
   for (int i = 0; i < result.size(); i++) {
@@ -392,13 +391,13 @@ class TFileObj {
 
     fileName_ = path;
 
-    WriterCtx* ctx = writerCtxCreate(TFile, path.c_str(), false, 64 * 1024 * 1024);
+    IFileCtx* ctx = idxFileCtxCreate(TFile, path.c_str(), false, 64 * 1024 * 1024);
 
     writer_ = tfileWriterCreate(ctx, &header);
     return writer_ != NULL ? true : false;
   }
   bool InitReader() {
-    WriterCtx* ctx = writerCtxCreate(TFile, fileName_.c_str(), true, 64 * 1024 * 1024);
+    IFileCtx* ctx = idxFileCtxCreate(TFile, fileName_.c_str(), true, 64 * 1024 * 1024);
     reader_ = tfileReaderCreate(ctx);
     return reader_ != NULL ? true : false;
   }
@@ -521,10 +520,10 @@ class CacheObj {
  public:
   CacheObj() {
     // TODO
-    cache = indexCacheCreate(NULL, 0, "voltage", TSDB_DATA_TYPE_BINARY);
+    cache = idxCacheCreate(NULL, 0, "voltage", TSDB_DATA_TYPE_BINARY);
   }
   int Put(SIndexTerm* term, int16_t colId, int32_t version, uint64_t uid) {
-    int ret = indexCachePut(cache, term, uid);
+    int ret = idxCachePut(cache, term, uid);
     if (ret != 0) {
       //
       std::cout << "failed to put into cache: " << ret << std::endl;
@@ -533,12 +532,12 @@ class CacheObj {
   }
   void Debug() {
     //
-    indexCacheDebug(cache);
+    idxCacheDebug(cache);
   }
   int Get(SIndexTermQuery* query, int16_t colId, int32_t version, SArray* result, STermValueType* s) {
     SIdxTRslt* tr = idxTRsltCreate();
 
-    int ret = indexCacheSearch(cache, query, tr, s);
+    int ret = idxCacheSearch(cache, query, tr, s);
     idxTRsltMergeTo(tr, result);
     idxTRsltDestroy(tr);
 
@@ -549,7 +548,7 @@ class CacheObj {
   }
   ~CacheObj() {
     // TODO
-    indexCacheDestroy(cache);
+    idxCacheDestroy(cache);
   }
 
  private:

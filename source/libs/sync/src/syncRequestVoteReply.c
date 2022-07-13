@@ -15,6 +15,7 @@
 
 #include "syncRequestVoteReply.h"
 #include "syncInt.h"
+#include "syncRaftCfg.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
@@ -39,8 +40,74 @@
 int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg) {
   int32_t ret = 0;
 
+  // print log
   char logBuf[128] = {0};
-  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnRequestVoteReplyCb== term:%lu", ths->pRaftStore->currentTerm);
+  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnRequestVoteReplyCb== term:%" PRIu64, ths->pRaftStore->currentTerm);
+  syncRequestVoteReplyLog2(logBuf, pMsg);
+
+  // if already drop replica, do not process
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
+    sInfo("recv SyncRequestVoteReply, maybe replica already dropped");
+    return ret;
+  }
+
+  // drop stale response
+  if (pMsg->term < ths->pRaftStore->currentTerm) {
+    sTrace("recv SyncRequestVoteReply, drop stale response, receive_term:%" PRIu64 " current_term:%" PRIu64, pMsg->term,
+           ths->pRaftStore->currentTerm);
+    return ret;
+  }
+
+  // ASSERT(!(pMsg->term > ths->pRaftStore->currentTerm));
+  //  no need this code, because if I receive reply.term, then I must have sent for that term.
+  //   if (pMsg->term > ths->pRaftStore->currentTerm) {
+  //     syncNodeUpdateTerm(ths, pMsg->term);
+  //   }
+
+  if (pMsg->term > ths->pRaftStore->currentTerm) {
+    char logBuf[128] = {0};
+    snprintf(logBuf, sizeof(logBuf), "syncNodeOnRequestVoteReplyCb error term, receive:%" PRIu64 " current:%" PRIu64,
+             pMsg->term, ths->pRaftStore->currentTerm);
+    syncNodePrint2(logBuf, ths);
+    sError("%s", logBuf);
+    return ret;
+  }
+
+  ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
+
+  // This tallies votes even when the current state is not Candidate,
+  // but they won't be looked at, so it doesn't matter.
+  if (ths->state == TAOS_SYNC_STATE_CANDIDATE) {
+    votesRespondAdd(ths->pVotesRespond, pMsg);
+    if (pMsg->voteGranted) {
+      // add vote
+      voteGrantedVote(ths->pVotesGranted, pMsg);
+
+      // maybe to leader
+      if (voteGrantedMajority(ths->pVotesGranted)) {
+        if (!ths->pVotesGranted->toLeader) {
+          syncNodeCandidate2Leader(ths);
+
+          // prevent to leader again!
+          ths->pVotesGranted->toLeader = true;
+        }
+      }
+    } else {
+      ;
+      // do nothing
+      // UNCHANGED <<votesGranted, voterLog>>
+    }
+  }
+
+  return ret;
+}
+
+#if 0
+int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg) {
+  int32_t ret = 0;
+
+  char logBuf[128] = {0};
+  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnRequestVoteReplyCb== term:%" PRIu64, ths->pRaftStore->currentTerm);
   syncRequestVoteReplyLog2(logBuf, pMsg);
 
   if (pMsg->term < ths->pRaftStore->currentTerm) {
@@ -49,7 +116,7 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
     return ret;
   }
 
-  // assert(!(pMsg->term > ths->pRaftStore->currentTerm));
+  // ASSERT(!(pMsg->term > ths->pRaftStore->currentTerm));
   //  no need this code, because if I receive reply.term, then I must have sent for that term.
   //   if (pMsg->term > ths->pRaftStore->currentTerm) {
   //     syncNodeUpdateTerm(ths, pMsg->term);
@@ -57,14 +124,81 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     char logBuf[128] = {0};
-    snprintf(logBuf, sizeof(logBuf), "syncNodeOnRequestVoteReplyCb error term, receive:%lu current:%lu", pMsg->term,
+    snprintf(logBuf, sizeof(logBuf), "syncNodeOnRequestVoteReplyCb error term, receive:%" PRIu64 " current:%" PRIu64, pMsg->term,
              ths->pRaftStore->currentTerm);
     syncNodePrint2(logBuf, ths);
     sError("%s", logBuf);
     return ret;
   }
 
-  assert(pMsg->term == ths->pRaftStore->currentTerm);
+  ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
+
+  // This tallies votes even when the current state is not Candidate,
+  // but they won't be looked at, so it doesn't matter.
+  if (ths->state == TAOS_SYNC_STATE_CANDIDATE) {
+    votesRespondAdd(ths->pVotesRespond, pMsg);
+    if (pMsg->voteGranted) {
+      // add vote
+      voteGrantedVote(ths->pVotesGranted, pMsg);
+
+      // maybe to leader
+      if (voteGrantedMajority(ths->pVotesGranted)) {
+        if (!ths->pVotesGranted->toLeader) {
+          syncNodeCandidate2Leader(ths);
+
+          // prevent to leader again!
+          ths->pVotesGranted->toLeader = true;
+        }
+      }
+    } else {
+      ;
+      // do nothing
+      // UNCHANGED <<votesGranted, voterLog>>
+    }
+  }
+
+  return ret;
+}
+#endif
+
+int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteReply* pMsg) {
+  int32_t ret = 0;
+
+  // print log
+  char logBuf[128] = {0};
+  snprintf(logBuf, sizeof(logBuf), "recv SyncRequestVoteReply, term:%" PRIu64, ths->pRaftStore->currentTerm);
+  syncRequestVoteReplyLog2(logBuf, pMsg);
+
+  // if already drop replica, do not process
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
+    sInfo("recv SyncRequestVoteReply, maybe replica already dropped");
+    return ret;
+  }
+
+  // drop stale response
+  if (pMsg->term < ths->pRaftStore->currentTerm) {
+    sTrace("recv SyncRequestVoteReply, drop stale response, receive_term:%" PRIu64 " current_term:%" PRIu64, pMsg->term,
+           ths->pRaftStore->currentTerm);
+    return ret;
+  }
+
+  // ASSERT(!(pMsg->term > ths->pRaftStore->currentTerm));
+  //  no need this code, because if I receive reply.term, then I must have sent for that term.
+  //   if (pMsg->term > ths->pRaftStore->currentTerm) {
+  //     syncNodeUpdateTerm(ths, pMsg->term);
+  //   }
+
+  if (pMsg->term > ths->pRaftStore->currentTerm) {
+    char logBuf[128] = {0};
+    snprintf(logBuf, sizeof(logBuf),
+             "recv SyncRequestVoteReply, error term, receive_term:%" PRIu64 " current_term:%" PRIu64, pMsg->term,
+             ths->pRaftStore->currentTerm);
+    syncNodePrint2(logBuf, ths);
+    sError("%s", logBuf);
+    return ret;
+  }
+
+  ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
 
   // This tallies votes even when the current state is not Candidate,
   // but they won't be looked at, so it doesn't matter.

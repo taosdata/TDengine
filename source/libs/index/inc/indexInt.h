@@ -43,8 +43,9 @@ extern "C" {
 #define indexTrace(...) do { if (idxDebugFlag & DEBUG_TRACE) { taosPrintLog("IDX", DEBUG_TRACE, idxDebugFlag, __VA_ARGS__);} } while (0)
 // clang-format on
 
-typedef enum { LT, LE, GT, GE, CONTAINS } RangeType;
+typedef enum { LT, LE, GT, GE, CONTAINS, EQ } RangeType;
 typedef enum { kTypeValue, kTypeDeletion } STermValueType;
+typedef enum { kRebuild, kFinished } SIdxStatus;
 
 typedef struct SIndexStat {
   int32_t totalAdded;    //
@@ -65,6 +66,7 @@ struct SIndex {
 
   char* path;
 
+  int8_t        status;
   SIndexStat    stat;
   TdThreadMutex mtx;
   tsem_t        sem;
@@ -131,26 +133,26 @@ typedef struct TFileCacheKey {
   char*    colName;
   int32_t  nColName;
 } ICacheKey;
-int indexFlushCacheToTFile(SIndex* sIdx, void*, bool quit);
+int idxFlushCacheToTFile(SIndex* sIdx, void*, bool quit);
 
-int64_t indexAddRef(void* p);
-int32_t indexRemoveRef(int64_t ref);
-void    indexAcquireRef(int64_t ref);
-void    indexReleaseRef(int64_t ref);
+int64_t idxAddRef(void* p);
+int32_t idxRemoveRef(int64_t ref);
+void    idxAcquireRef(int64_t ref);
+void    idxReleaseRef(int64_t ref);
 
-int32_t indexSerialCacheKey(ICacheKey* key, char* buf);
+int32_t idxSerialCacheKey(ICacheKey* key, char* buf);
 // int32_t indexSerialKey(ICacheKey* key, char* buf);
 // int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
 
-#define INDEX_TYPE_CONTAIN_EXTERN_TYPE(ty, exTy) (((ty >> 4) & (exTy)) != 0)
+#define IDX_TYPE_CONTAIN_EXTERN_TYPE(ty, exTy) (((ty >> 4) & (exTy)) != 0)
 
-#define INDEX_TYPE_GET_TYPE(ty) (ty & 0x0F)
+#define IDX_TYPE_GET_TYPE(ty) (ty & 0x0F)
 
-#define INDEX_TYPE_ADD_EXTERN_TYPE(ty, exTy) \
-  do {                                       \
-    uint8_t oldTy = ty;                      \
-    ty = (ty >> 4) | exTy;                   \
-    ty = (ty << 4) | oldTy;                  \
+#define IDX_TYPE_ADD_EXTERN_TYPE(ty, exTy) \
+  do {                                     \
+    uint8_t oldTy = ty;                    \
+    ty = (ty >> 4) | exTy;                 \
+    ty = (ty << 4) | oldTy;                \
   } while (0)
 
 #ifdef __cplusplus

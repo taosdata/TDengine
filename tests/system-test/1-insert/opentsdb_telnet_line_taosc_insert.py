@@ -22,6 +22,10 @@ from util.sql import *
 from util.common import tdCom
 from util.types import TDSmlProtocolType, TDSmlTimestampType
 import threading
+import platform
+import io
+if platform.system().lower() == 'windows':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf8') 
 
 class TDTestCase:
     def init(self, conn, logSql):

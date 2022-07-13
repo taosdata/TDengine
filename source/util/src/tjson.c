@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+
 #include "tjson.h"
 #include "cJSON.h"
 #include "taoserror.h"
@@ -138,6 +139,23 @@ int32_t tjsonAddArray(SJson* pJson, const char* pName, FToJson func, const void*
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tjsonAddTArray(SJson* pJson, const char* pName, FToJson func, const SArray* pArray) {
+  int32_t num = taosArrayGetSize(pArray);
+  if (num > 0) {
+    SJson* pJsonArray = tjsonAddArrayToObject(pJson, pName);
+    if (NULL == pJsonArray) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    for (int32_t i = 0; i < num; ++i) {
+      int32_t code = tjsonAddItem(pJsonArray, func, taosArrayGet(pArray, i));
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 char* tjsonToString(const SJson* pJson) { return cJSON_Print((cJSON*)pJson); }
 
 char* tjsonToUnformattedString(const SJson* pJson) { return cJSON_PrintUnformatted((cJSON*)pJson); }
@@ -184,9 +202,8 @@ int32_t tjsonGetBigIntValue(const SJson* pJson, const char* pName, int64_t* pVal
     return TSDB_CODE_FAILED;
   }
 #ifdef WINDOWS
-  sscanf(p,"%lld",pVal);
+  sscanf(p, "%" PRId64, pVal);
 #else
-  // sscanf(p,"%ld",pVal);
   *pVal = taosStr2Int64(p, NULL, 10);
 #endif
   return TSDB_CODE_SUCCESS;
@@ -219,9 +236,8 @@ int32_t tjsonGetUBigIntValue(const SJson* pJson, const char* pName, uint64_t* pV
     return TSDB_CODE_FAILED;
   }
 #ifdef WINDOWS
-  sscanf(p,"%llu",pVal);
+  sscanf(p, "%" PRIu64, pVal);
 #else
-  // sscanf(p,"%ld",pVal);
   *pVal = taosStr2UInt64(p, NULL, 10);
 #endif
   return TSDB_CODE_SUCCESS;
@@ -299,24 +315,43 @@ int32_t tjsonToArray(const SJson* pJson, const char* pName, FToObject func, void
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tjsonToTArray(const SJson* pJson, const char* pName, FToObject func, SArray** pArray, int32_t itemSize) {
+  const cJSON* jArray = tjsonGetObjectItem(pJson, pName);
+  int32_t      size = tjsonGetArraySize(jArray);
+  if (size > 0) {
+    *pArray = taosArrayInit(size, itemSize);
+    if (NULL == *pArray) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    taosArraySetSize(*pArray, size);
+    for (int32_t i = 0; i < size; ++i) {
+      int32_t code = func(tjsonGetArrayItem(jArray, i), taosArrayGet(*pArray, i));
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 SJson* tjsonParse(const char* pStr) { return cJSON_Parse(pStr); }
 
-bool tjsonValidateJson(const char *jIn) {
-  if (!jIn){
+bool tjsonValidateJson(const char* jIn) {
+  if (!jIn) {
     return false;
   }
 
   // set json real data
-  cJSON *root = cJSON_Parse(jIn);
-  if (root == NULL){
+  cJSON* root = cJSON_Parse(jIn);
+  if (root == NULL) {
     return false;
   }
 
-  if(!cJSON_IsObject(root)){
+  if (!cJSON_IsObject(root)) {
     return false;
   }
   int size = cJSON_GetArraySize(root);
-  for(int i = 0; i < size; i++) {
+  for (int i = 0; i < size; i++) {
     cJSON* item = cJSON_GetArrayItem(root, i);
     if (!item) {
       return false;

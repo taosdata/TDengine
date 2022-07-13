@@ -73,7 +73,7 @@ class TDTestCase:
                     f"select sum(ceil( {un_num_col} )) from {tbanme} ",
                 )
             )
-            sqls.extend( f"select sum( {un_num_col} + {un_num_col_2} ) from {tbanme} " for un_num_col_2 in UN_NUM_COL )
+            # sqls.extend( f"select sum( {un_num_col} + {un_num_col_2} ) from {tbanme} " for un_num_col_2 in UN_NUM_COL )
 
         sqls.extend( f"select sum( {num_col} + {ts_col} ) from {tbanme} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
         sqls.extend(

@@ -34,13 +34,13 @@ int32_t metaCreateTSma(SMeta *pMeta, int64_t version, SSmaCfg *pCfg) {
   SMetaReader mr = {0};
 
   // validate req
+  // save smaIndex
   metaReaderInit(&mr, pMeta, 0);
   if (metaGetTableEntryByUid(&mr, pCfg->indexUid) == 0) {
-// TODO: just for pass case
 #if 1
-    terrno = TSDB_CODE_TDB_TSMA_ALREADY_EXIST;
+    terrno = TSDB_CODE_TSMA_ALREADY_EXIST;
     metaReaderClear(&mr);
-    return -1;
+    return -1;  // don't goto _err;
 #else
     metaReaderClear(&mr);
     return 0;

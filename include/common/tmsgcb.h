@@ -34,7 +34,7 @@ typedef enum {
   WRITE_QUEUE,
   APPLY_QUEUE,
   SYNC_QUEUE,
-  MERGE_QUEUE,
+  STREAM_QUEUE,
   QUEUE_MAX,
 } EQueueType;
 

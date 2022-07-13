@@ -19,6 +19,8 @@
 #include "tmsg.h"
 #include "trpc.h"
 #include "tsched.h"
+// clang-format off
+#include "cJSON.h"
 
 #define VALIDNUMOFCOLS(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
 #define VALIDNUMOFTAGS(x) ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
@@ -146,15 +148,17 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   }
 
   memcpy(pMsg, pInfo->msgInfo.pData, pInfo->msgInfo.len);
-  SRpcMsg rpcMsg = {.msgType = pInfo->msgType,
-                    .pCont = pMsg,
-                    .contLen = pInfo->msgInfo.len,
-                    .info.ahandle = (void*)pInfo,
-                    .info.handle = pInfo->msgInfo.handle,
-                    .info.persistHandle = persistHandle,
-                    .code = 0};
+  SRpcMsg rpcMsg = {
+    .msgType = pInfo->msgType,
+    .pCont = pMsg,
+    .contLen = pInfo->msgInfo.len,
+    .info.ahandle = (void*)pInfo,
+    .info.handle = pInfo->msgInfo.handle,
+    .info.persistHandle = persistHandle, 
+    .code = 0
+  };
   assert(pInfo->fp != NULL);
-
+  TRACE_SET_ROOTID(&rpcMsg.info.traceId, pInfo->requestId);
   rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);
   return TSDB_CODE_SUCCESS;
 }
@@ -167,21 +171,17 @@ char* jobTaskStatusStr(int32_t status) {
   switch (status) {
     case JOB_TASK_STATUS_NULL:
       return "NULL";
-    case JOB_TASK_STATUS_NOT_START:
-      return "NOT_START";
-    case JOB_TASK_STATUS_EXECUTING:
+    case JOB_TASK_STATUS_INIT:
+      return "INIT";
+    case JOB_TASK_STATUS_EXEC:
       return "EXECUTING";
-    case JOB_TASK_STATUS_PARTIAL_SUCCEED:
+    case JOB_TASK_STATUS_PART_SUCC:
       return "PARTIAL_SUCCEED";
-    case JOB_TASK_STATUS_SUCCEED:
+    case JOB_TASK_STATUS_SUCC:
       return "SUCCEED";
-    case JOB_TASK_STATUS_FAILED:
+    case JOB_TASK_STATUS_FAIL:
       return "FAILED";
-    case JOB_TASK_STATUS_CANCELLING:
-      return "CANCELLING";
-    case JOB_TASK_STATUS_CANCELLED:
-      return "CANCELLED";
-    case JOB_TASK_STATUS_DROPPING:
+    case JOB_TASK_STATUS_DROP:
       return "DROPPING";
     default:
       break;
@@ -200,7 +200,7 @@ SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* nam
   return s;
 }
 
-void destroyQueryExecRes(SQueryExecRes* pRes) {
+void destroyQueryExecRes(SExecResult* pRes) {
   if (NULL == pRes || NULL == pRes->res) {
     return;
   }
@@ -208,15 +208,16 @@ void destroyQueryExecRes(SQueryExecRes* pRes) {
   switch (pRes->msgType) {
     case TDMT_VND_ALTER_TABLE:
     case TDMT_MND_ALTER_STB: {
-      tFreeSTableMetaRsp((STableMetaRsp *)pRes->res);
+      tFreeSTableMetaRsp((STableMetaRsp*)pRes->res);
       taosMemoryFreeClear(pRes->res);
       break;
     }
     case TDMT_VND_SUBMIT: {
       tFreeSSubmitRsp((SSubmitRsp*)pRes->res);
       break;
-    } 
-    case TDMT_VND_QUERY: {
+    }
+    case TDMT_SCH_QUERY: 
+    case TDMT_SCH_MERGE_QUERY: {
       taosArrayDestroy((SArray*)pRes->res);
       break;
     }
@@ -224,5 +225,227 @@ void destroyQueryExecRes(SQueryExecRes* pRes) {
       qError("invalid exec result for request type %d", pRes->msgType);
   }
 }
+// clang-format on
 
+int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t* len) {
+  int32_t n = 0;
 
+  switch (type) {
+    case TSDB_DATA_TYPE_NULL:
+      n = sprintf(str, "null");
+      break;
+
+    case TSDB_DATA_TYPE_BOOL:
+      n = sprintf(str, (*(int8_t*)buf) ? "true" : "false");
+      break;
+
+    case TSDB_DATA_TYPE_TINYINT:
+      n = sprintf(str, "%d", *(int8_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_SMALLINT:
+      n = sprintf(str, "%d", *(int16_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_INT:
+      n = sprintf(str, "%d", *(int32_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      n = sprintf(str, "%" PRId64, *(int64_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_FLOAT:
+      n = sprintf(str, "%e", GET_FLOAT_VAL(buf));
+      break;
+
+    case TSDB_DATA_TYPE_DOUBLE:
+      n = sprintf(str, "%e", GET_DOUBLE_VAL(buf));
+      break;
+
+    case TSDB_DATA_TYPE_BINARY:
+      if (bufSize < 0) {
+        //        tscError("invalid buf size");
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
+
+      *str = '"';
+      memcpy(str + 1, buf, bufSize);
+      *(str + bufSize + 1) = '"';
+      n = bufSize + 2;
+      break;
+    case TSDB_DATA_TYPE_NCHAR:
+      if (bufSize < 0) {
+        //        tscError("invalid buf size");
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
+
+      *str = '"';
+      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize, str + 1);
+      if (length <= 0) {
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
+      *(str + length + 1) = '"';
+      n = length + 2;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      n = sprintf(str, "%d", *(uint8_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_USMALLINT:
+      n = sprintf(str, "%d", *(uint16_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_UINT:
+      n = sprintf(str, "%u", *(uint32_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_UBIGINT:
+      n = sprintf(str, "%" PRIu64, *(uint64_t*)buf);
+      break;
+
+    default:
+      //      tscError("unsupported type:%d", type);
+      return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  if (len) *len = n;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+char* parseTagDatatoJson(void* p) {
+  char*   string = NULL;
+  SArray* pTagVals = NULL;
+  cJSON*  json = NULL;
+  if (tTagToValArray((const STag*)p, &pTagVals) != 0) {
+    goto end;
+  }
+
+  int16_t nCols = taosArrayGetSize(pTagVals);
+  if (nCols == 0) {
+    goto end;
+  }
+  char tagJsonKey[256] = {0};
+  json = cJSON_CreateObject();
+  if (json == NULL) {
+    goto end;
+  }
+  for (int j = 0; j < nCols; ++j) {
+    STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
+    // json key  encode by binary
+    memset(tagJsonKey, 0, sizeof(tagJsonKey));
+    memcpy(tagJsonKey, pTagVal->pKey, strlen(pTagVal->pKey));
+    // json value
+    char type = pTagVal->type;
+    if (type == TSDB_DATA_TYPE_NULL) {
+      cJSON* value = cJSON_CreateNull();
+      if (value == NULL) {
+        goto end;
+      }
+      cJSON_AddItemToObject(json, tagJsonKey, value);
+    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+      cJSON* value = NULL;
+      if (pTagVal->nData > 0) {
+        char*   tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
+        int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue);
+        if (length < 0) {
+          qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+                 pTagVal->pData);
+          taosMemoryFree(tagJsonValue);
+          goto end;
+        }
+        value = cJSON_CreateString(tagJsonValue);
+        taosMemoryFree(tagJsonValue);
+        if (value == NULL) {
+          goto end;
+        }
+      } else if (pTagVal->nData == 0) {
+        value = cJSON_CreateString("");
+      } else {
+        ASSERT(0);
+      }
+
+      cJSON_AddItemToObject(json, tagJsonKey, value);
+    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+      double jsonVd = *(double*)(&pTagVal->i64);
+      cJSON* value = cJSON_CreateNumber(jsonVd);
+      if (value == NULL) {
+        goto end;
+      }
+      cJSON_AddItemToObject(json, tagJsonKey, value);
+    } else if (type == TSDB_DATA_TYPE_BOOL) {
+      char   jsonVd = *(char*)(&pTagVal->i64);
+      cJSON* value = cJSON_CreateBool(jsonVd);
+      if (value == NULL) {
+        goto end;
+      }
+      cJSON_AddItemToObject(json, tagJsonKey, value);
+    } else {
+      ASSERT(0);
+    }
+  }
+  string = cJSON_PrintUnformatted(json);
+end:
+  cJSON_Delete(json);
+  taosArrayDestroy(pTagVals);
+  if (string == NULL) {
+    string = strdup(TSDB_DATA_NULL_STR_L);
+  }
+  return string;
+}
+
+int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
+  if (NULL == pSrc) {
+    *pDst = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t metaSize = (pSrc->tableInfo.numOfColumns + pSrc->tableInfo.numOfTags) * sizeof(SSchema);
+  *pDst = taosMemoryMalloc(metaSize);
+  if (NULL == *pDst) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  memcpy(*pDst, pSrc, metaSize);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
+  if (NULL == pSrc) {
+    *pDst = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *pDst = taosMemoryMalloc(sizeof(*pSrc));
+  if (NULL == *pDst) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  memcpy(*pDst, pSrc, sizeof(*pSrc));
+  if (pSrc->vgHash) {
+    (*pDst)->vgHash = taosHashInit(taosHashGetSize(pSrc->vgHash), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true,
+                                   HASH_ENTRY_LOCK);
+    if (NULL == (*pDst)->vgHash) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+
+    SVgroupInfo* vgInfo = NULL;
+    void*        pIter = taosHashIterate(pSrc->vgHash, NULL);
+    while (pIter) {
+      vgInfo = pIter;
+      int32_t* vgId = taosHashGetKey(pIter, NULL);
+
+      if (0 != taosHashPut((*pDst)->vgHash, vgId, sizeof(*vgId), vgInfo, sizeof(*vgInfo))) {
+        qError("taosHashPut failed, vgId:%d", vgInfo->vgId);
+        taosHashCancelIterate(pSrc->vgHash, pIter);
+        taosHashCleanup((*pDst)->vgHash);
+        taosMemoryFreeClear(*pDst);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+
+      pIter = taosHashIterate(pSrc->vgHash, pIter);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}

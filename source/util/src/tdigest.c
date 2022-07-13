@@ -124,7 +124,7 @@ void tdigestCompress(TDigest *t) {
     t->num_buffered_pts = 0;
     t->total_weight += unmerged_weight;
 
-    qsort(unmerged_centroids, num_unmerged, sizeof(SCentroid), cmpCentroid);
+    taosSort(unmerged_centroids, num_unmerged, sizeof(SCentroid), cmpCentroid);
     memset(&args, 0, sizeof(SMergeArgs));
     args.centroids = (SCentroid*)taosMemoryMalloc((size_t)(sizeof(SCentroid) * t->size));
     memset(args.centroids, 0, (size_t)(sizeof(SCentroid) * t->size));

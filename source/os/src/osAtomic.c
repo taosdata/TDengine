@@ -19,23 +19,19 @@
 #ifdef WINDOWS
 
 // add
-int8_t interlocked_add_fetch_8(int8_t volatile* ptr, int8_t val) {
-  return _InterlockedExchangeAdd8(ptr, val) + val;
-}
+int8_t interlocked_add_fetch_8(int8_t volatile* ptr, int8_t val) { return _InterlockedExchangeAdd8(ptr, val) + val; }
 
 int16_t interlocked_add_fetch_16(int16_t volatile* ptr, int16_t val) {
   return _InterlockedExchangeAdd16(ptr, val) + val;
 }
 
-int32_t interlocked_add_fetch_32(int32_t volatile* ptr, int32_t val) {
-  return _InterlockedExchangeAdd(ptr, val) + val;
-}
+int32_t interlocked_add_fetch_32(int32_t volatile* ptr, int32_t val) { return _InterlockedExchangeAdd(ptr, val) + val; }
 
 int64_t interlocked_add_fetch_64(int64_t volatile* ptr, int64_t val) {
   return InterlockedExchangeAdd64(ptr, val) + val;
 }
 
-void* interlocked_add_fetch_ptr(void* volatile* ptr, void*  val) {
+void* interlocked_add_fetch_ptr(void* volatile* ptr, void* val) {
 #ifdef WINDOWS
   return (void*)(_InterlockedExchangeAdd((int32_t volatile*)(ptr), (int32_t)val) + (int32_t)val);
 #else
@@ -43,17 +39,11 @@ void* interlocked_add_fetch_ptr(void* volatile* ptr, void*  val) {
 #endif
 }
 
-int8_t interlocked_and_fetch_8(int8_t volatile* ptr, int8_t val) {
-  return _InterlockedAnd8(ptr, val) & val;
-}
+int8_t interlocked_and_fetch_8(int8_t volatile* ptr, int8_t val) { return _InterlockedAnd8(ptr, val) & val; }
 
-int16_t interlocked_and_fetch_16(int16_t volatile* ptr, int16_t val) {
-  return _InterlockedAnd16(ptr, val) & val;
-}
+int16_t interlocked_and_fetch_16(int16_t volatile* ptr, int16_t val) { return _InterlockedAnd16(ptr, val) & val; }
 
-int32_t interlocked_and_fetch_32(int32_t volatile* ptr, int32_t val) {
-  return _InterlockedAnd(ptr, val) & val;
-}
+int32_t interlocked_and_fetch_32(int32_t volatile* ptr, int32_t val) { return _InterlockedAnd(ptr, val) & val; }
 
 int64_t interlocked_and_fetch_64(int64_t volatile* ptr, int64_t val) {
 #ifdef WINDOWS
@@ -96,17 +86,11 @@ void* interlocked_fetch_and_ptr(void* volatile* ptr, void* val) {
 #endif
 }
 
-int8_t interlocked_or_fetch_8(int8_t volatile* ptr, int8_t val) {
-  return _InterlockedOr8(ptr, val) | val;
-}
+int8_t interlocked_or_fetch_8(int8_t volatile* ptr, int8_t val) { return _InterlockedOr8(ptr, val) | val; }
 
-int16_t interlocked_or_fetch_16(int16_t volatile* ptr, int16_t val) {
-  return _InterlockedOr16(ptr, val) | val;
-}
+int16_t interlocked_or_fetch_16(int16_t volatile* ptr, int16_t val) { return _InterlockedOr16(ptr, val) | val; }
 
-int32_t interlocked_or_fetch_32(int32_t volatile* ptr, int32_t val) {
-  return _InterlockedOr(ptr, val) | val;
-}
+int32_t interlocked_or_fetch_32(int32_t volatile* ptr, int32_t val) { return _InterlockedOr(ptr, val) | val; }
 
 int64_t interlocked_or_fetch_64(int64_t volatile* ptr, int64_t val) {
 #ifdef WINDOWS
@@ -114,7 +98,7 @@ int64_t interlocked_or_fetch_64(int64_t volatile* ptr, int64_t val) {
   do {
     old = *ptr;
     res = old | val;
-  } while(_InterlockedCompareExchange64(ptr, res, old) != old);
+  } while (_InterlockedCompareExchange64(ptr, res, old) != old);
   return res;
 #else
   return _InterlockedOr64(ptr, val) & val;
@@ -134,7 +118,7 @@ int64_t interlocked_fetch_or_64(int64_t volatile* ptr, int64_t val) {
   int64_t old;
   do {
     old = *ptr;
-  } while(_InterlockedCompareExchange64(ptr, old | val, old) != old);
+  } while (_InterlockedCompareExchange64(ptr, old | val, old) != old);
   return old;
 #else
   return _InterlockedOr64((int64_t volatile*)(ptr), (int64_t)(val));
@@ -149,17 +133,11 @@ void* interlocked_fetch_or_ptr(void* volatile* ptr, void* val) {
 #endif
 }
 
-int8_t interlocked_xor_fetch_8(int8_t volatile* ptr, int8_t val) {
-  return _InterlockedXor8(ptr, val) ^ val;
-}
+int8_t interlocked_xor_fetch_8(int8_t volatile* ptr, int8_t val) { return _InterlockedXor8(ptr, val) ^ val; }
 
-int16_t interlocked_xor_fetch_16(int16_t volatile* ptr, int16_t val) {
-  return _InterlockedXor16(ptr, val) ^ val;
-}
+int16_t interlocked_xor_fetch_16(int16_t volatile* ptr, int16_t val) { return _InterlockedXor16(ptr, val) ^ val; }
 
-int32_t interlocked_xor_fetch_32(int32_t volatile* ptr, int32_t val) {
-  return _InterlockedXor(ptr, val) ^ val;
-}
+int32_t interlocked_xor_fetch_32(int32_t volatile* ptr, int32_t val) { return _InterlockedXor(ptr, val) ^ val; }
 
 int64_t interlocked_xor_fetch_64(int64_t volatile* ptr, int64_t val) {
 #ifdef WINDOWS
@@ -167,7 +145,7 @@ int64_t interlocked_xor_fetch_64(int64_t volatile* ptr, int64_t val) {
   do {
     old = *ptr;
     res = old ^ val;
-  } while(_InterlockedCompareExchange64(ptr, res, old) != old);
+  } while (_InterlockedCompareExchange64(ptr, res, old) != old);
   return res;
 #else
   return _InterlockedXor64(ptr, val) ^ val;
@@ -202,13 +180,9 @@ void* interlocked_fetch_xor_ptr(void* volatile* ptr, void* val) {
 #endif
 }
 
-int32_t interlocked_sub_fetch_32(int32_t volatile* ptr, int32_t val) {
-  return interlocked_add_fetch_32(ptr, -val);
-}
+int32_t interlocked_sub_fetch_32(int32_t volatile* ptr, int32_t val) { return interlocked_add_fetch_32(ptr, -val); }
 
-int64_t interlocked_sub_fetch_64(int64_t volatile* ptr, int64_t val) {
-  return interlocked_add_fetch_64(ptr, -val);
-}
+int64_t interlocked_sub_fetch_64(int64_t volatile* ptr, int64_t val) { return interlocked_add_fetch_64(ptr, -val); }
 
 void* interlocked_sub_fetch_ptr(void* volatile* ptr, void* val) {
 #ifdef WINDOWS
@@ -217,13 +191,9 @@ void* interlocked_sub_fetch_ptr(void* volatile* ptr, void* val) {
   return (void*)interlocked_add_fetch_64((int64_t volatile*)ptr, (int64_t)val);
 #endif
 }
-int32_t interlocked_fetch_sub_32(int32_t volatile* ptr, int32_t val) {
-  return _InterlockedExchangeAdd(ptr, -val);
-}
+int32_t interlocked_fetch_sub_32(int32_t volatile* ptr, int32_t val) { return _InterlockedExchangeAdd(ptr, -val); }
 
-int64_t interlocked_fetch_sub_64(int64_t volatile* ptr, int64_t val) {
-  return _InterlockedExchangeAdd64(ptr, -val);
-}
+int64_t interlocked_fetch_sub_64(int64_t volatile* ptr, int64_t val) { return _InterlockedExchangeAdd64(ptr, -val); }
 
 void* interlocked_fetch_sub_ptr(void* volatile* ptr, void* val) {
 #ifdef WINDOWS
@@ -236,45 +206,44 @@ void* interlocked_fetch_sub_ptr(void* volatile* ptr, void* val) {
 #endif
 
 #ifdef _TD_NINGSI_60
-void* atomic_exchange_ptr_impl(void** ptr, void* val ) {
-  void *old;
+void* atomic_exchange_ptr_impl(void** ptr, void* val) {
+  void* old;
   do {
     old = *ptr;
-  } while( !__sync_bool_compare_and_swap(ptr, old, val) );
+  } while (!__sync_bool_compare_and_swap(ptr, old, val));
   return old;
 }
-int8_t atomic_exchange_8_impl(int8_t* ptr, int8_t val ) {
+int8_t atomic_exchange_8_impl(int8_t* ptr, int8_t val) {
   int8_t old;
   do {
     old = *ptr;
-  } while( !__sync_bool_compare_and_swap(ptr, old, val) );
+  } while (!__sync_bool_compare_and_swap(ptr, old, val));
   return old;
 }
-int16_t atomic_exchange_16_impl(int16_t* ptr, int16_t val ) {
+int16_t atomic_exchange_16_impl(int16_t* ptr, int16_t val) {
   int16_t old;
   do {
     old = *ptr;
-  } while( !__sync_bool_compare_and_swap(ptr, old, val) );
+  } while (!__sync_bool_compare_and_swap(ptr, old, val));
   return old;
 }
-int32_t atomic_exchange_32_impl(int32_t* ptr, int32_t val ) {
+int32_t atomic_exchange_32_impl(int32_t* ptr, int32_t val) {
   int32_t old;
   do {
     old = *ptr;
-  } while( !__sync_bool_compare_and_swap(ptr, old, val) );
+  } while (!__sync_bool_compare_and_swap(ptr, old, val));
   return old;
 }
-int64_t atomic_exchange_64_impl(int64_t* ptr, int64_t val ) {
+int64_t atomic_exchange_64_impl(int64_t* ptr, int64_t val) {
   int64_t old;
   do {
     old = *ptr;
-  } while( !__sync_bool_compare_and_swap(ptr, old, val) );
+  } while (!__sync_bool_compare_and_swap(ptr, old, val));
   return old;
 }
 #endif
 
-
-int8_t atomic_load_8(int8_t volatile *ptr) {
+int8_t atomic_load_8(int8_t volatile* ptr) {
 #ifdef WINDOWS
   return (*(int8_t volatile*)(ptr));
 #elif defined(_TD_NINGSI_60)
@@ -284,7 +253,7 @@ int8_t atomic_load_8(int8_t volatile *ptr) {
 #endif
 }
 
-int16_t atomic_load_16(int16_t volatile *ptr) {
+int16_t atomic_load_16(int16_t volatile* ptr) {
 #ifdef WINDOWS
   return (*(int16_t volatile*)(ptr));
 #elif defined(_TD_NINGSI_60)
@@ -294,7 +263,7 @@ int16_t atomic_load_16(int16_t volatile *ptr) {
 #endif
 }
 
-int32_t atomic_load_32(int32_t volatile *ptr) {
+int32_t atomic_load_32(int32_t volatile* ptr) {
 #ifdef WINDOWS
   return (*(int32_t volatile*)(ptr));
 #elif defined(_TD_NINGSI_60)
@@ -304,7 +273,7 @@ int32_t atomic_load_32(int32_t volatile *ptr) {
 #endif
 }
 
-int64_t atomic_load_64(int64_t volatile *ptr) {
+int64_t atomic_load_64(int64_t volatile* ptr) {
 #ifdef WINDOWS
   return (*(int64_t volatile*)(ptr));
 #elif defined(_TD_NINGSI_60)
@@ -314,7 +283,7 @@ int64_t atomic_load_64(int64_t volatile *ptr) {
 #endif
 }
 
-void* atomic_load_ptr(void *ptr) {
+void* atomic_load_ptr(void* ptr) {
 #ifdef WINDOWS
   return (*(void* volatile*)(ptr));
 #elif defined(_TD_NINGSI_60)
@@ -324,57 +293,57 @@ void* atomic_load_ptr(void *ptr) {
 #endif
 }
 
-void atomic_store_8(int8_t volatile *ptr, int8_t val) {
+void atomic_store_8(int8_t volatile* ptr, int8_t val) {
 #ifdef WINDOWS
   ((*(int8_t volatile*)(ptr)) = (int8_t)(val));
 #elif defined(_TD_NINGSI_60)
-  (*(ptr)=(val));
+  (*(ptr) = (val));
 #else
   __atomic_store_n((ptr), (val), __ATOMIC_SEQ_CST);
 #endif
 }
 
-void atomic_store_16(int16_t volatile *ptr, int16_t val) {
+void atomic_store_16(int16_t volatile* ptr, int16_t val) {
 #ifdef WINDOWS
   ((*(int16_t volatile*)(ptr)) = (int16_t)(val));
 #elif defined(_TD_NINGSI_60)
-  (*(ptr)=(val));
+  (*(ptr) = (val));
 #else
   __atomic_store_n((ptr), (val), __ATOMIC_SEQ_CST);
 #endif
 }
 
-void atomic_store_32(int32_t volatile *ptr, int32_t val) {
+void atomic_store_32(int32_t volatile* ptr, int32_t val) {
 #ifdef WINDOWS
   ((*(int32_t volatile*)(ptr)) = (int32_t)(val));
 #elif defined(_TD_NINGSI_60)
-  (*(ptr)=(val));
+  (*(ptr) = (val));
 #else
   __atomic_store_n((ptr), (val), __ATOMIC_SEQ_CST);
 #endif
 }
 
-void atomic_store_64(int64_t volatile *ptr, int64_t val) {
+void atomic_store_64(int64_t volatile* ptr, int64_t val) {
 #ifdef WINDOWS
   ((*(int64_t volatile*)(ptr)) = (int64_t)(val));
 #elif defined(_TD_NINGSI_60)
-  (*(ptr)=(val));
+  (*(ptr) = (val));
 #else
   __atomic_store_n((ptr), (val), __ATOMIC_SEQ_CST);
 #endif
 }
 
-void atomic_store_ptr(void *ptr, void *val) {
+void atomic_store_ptr(void* ptr, void* val) {
 #ifdef WINDOWS
   ((*(void* volatile*)(ptr)) = (void*)(val));
 #elif defined(_TD_NINGSI_60)
-  (*(ptr)=(val));
+  (*(ptr) = (val));
 #else
-  __atomic_store_n((void **)(ptr), (val), __ATOMIC_SEQ_CST);
+  __atomic_store_n((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
 }
 
-int8_t atomic_exchange_8(int8_t volatile *ptr, int8_t val) {
+int8_t atomic_exchange_8(int8_t volatile* ptr, int8_t val) {
 #ifdef WINDOWS
   return _InterlockedExchange8((int8_t volatile*)(ptr), (int8_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -384,7 +353,7 @@ int8_t atomic_exchange_8(int8_t volatile *ptr, int8_t val) {
 #endif
 }
 
-int16_t atomic_exchange_16(int16_t volatile *ptr, int16_t val) {
+int16_t atomic_exchange_16(int16_t volatile* ptr, int16_t val) {
 #ifdef WINDOWS
   return _InterlockedExchange16((int16_t volatile*)(ptr), (int16_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -394,7 +363,7 @@ int16_t atomic_exchange_16(int16_t volatile *ptr, int16_t val) {
 #endif
 }
 
-int32_t atomic_exchange_32(int32_t volatile *ptr, int32_t val) {
+int32_t atomic_exchange_32(int32_t volatile* ptr, int32_t val) {
 #ifdef WINDOWS
   return _InterlockedExchange((int32_t volatile*)(ptr), (int32_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -404,7 +373,7 @@ int32_t atomic_exchange_32(int32_t volatile *ptr, int32_t val) {
 #endif
 }
 
-int64_t atomic_exchange_64(int64_t volatile *ptr, int64_t val) {
+int64_t atomic_exchange_64(int64_t volatile* ptr, int64_t val) {
 #ifdef WINDOWS
   return _InterlockedExchange64((int64_t volatile*)(ptr), (int64_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -414,21 +383,21 @@ int64_t atomic_exchange_64(int64_t volatile *ptr, int64_t val) {
 #endif
 }
 
-void* atomic_exchange_ptr(void *ptr, void *val) {
+void* atomic_exchange_ptr(void* ptr, void* val) {
 #ifdef WINDOWS
-  #ifdef _WIN64 
+#ifdef _WIN64
   return _InterlockedExchangePointer((void* volatile*)(ptr), (void*)(val));
-  #else
-  return _InlineInterlockedExchangePointer((void* volatile*)(ptr), (void*)(val));
-  #endif
-#elif defined(_TD_NINGSI_60)
-  return atomic_exchange_ptr_impl((void *)ptr, (void*)val);
 #else
-  return __atomic_exchange_n((void **)(ptr), (val), __ATOMIC_SEQ_CST);
+  return _InlineInterlockedExchangePointer((void* volatile*)(ptr), (void*)(val));
+#endif
+#elif defined(_TD_NINGSI_60)
+  return atomic_exchange_ptr_impl((void*)ptr, (void*)val);
+#else
+  return __atomic_exchange_n((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
 }
 
-int8_t atomic_val_compare_exchange_8(int8_t volatile *ptr, int8_t oldval, int8_t newval) {
+int8_t atomic_val_compare_exchange_8(int8_t volatile* ptr, int8_t oldval, int8_t newval) {
 #ifdef WINDOWS
   return _InterlockedCompareExchange8((int8_t volatile*)(ptr), (int8_t)(newval), (int8_t)(oldval));
 #elif defined(_TD_NINGSI_60)
@@ -438,7 +407,7 @@ int8_t atomic_val_compare_exchange_8(int8_t volatile *ptr, int8_t oldval, int8_t
 #endif
 }
 
-int16_t atomic_val_compare_exchange_16(int16_t volatile *ptr, int16_t oldval, int16_t newval) {
+int16_t atomic_val_compare_exchange_16(int16_t volatile* ptr, int16_t oldval, int16_t newval) {
 #ifdef WINDOWS
   return _InterlockedCompareExchange16((int16_t volatile*)(ptr), (int16_t)(newval), (int16_t)(oldval));
 #elif defined(_TD_NINGSI_60)
@@ -448,7 +417,7 @@ int16_t atomic_val_compare_exchange_16(int16_t volatile *ptr, int16_t oldval, in
 #endif
 }
 
-int32_t atomic_val_compare_exchange_32(int32_t volatile *ptr, int32_t oldval, int32_t newval) {
+int32_t atomic_val_compare_exchange_32(int32_t volatile* ptr, int32_t oldval, int32_t newval) {
 #ifdef WINDOWS
   return _InterlockedCompareExchange((int32_t volatile*)(ptr), (int32_t)(newval), (int32_t)(oldval));
 #elif defined(_TD_NINGSI_60)
@@ -458,7 +427,7 @@ int32_t atomic_val_compare_exchange_32(int32_t volatile *ptr, int32_t oldval, in
 #endif
 }
 
-int64_t atomic_val_compare_exchange_64(int64_t volatile *ptr, int64_t oldval, int64_t newval) {
+int64_t atomic_val_compare_exchange_64(int64_t volatile* ptr, int64_t oldval, int64_t newval) {
 #ifdef WINDOWS
   return _InterlockedCompareExchange64((int64_t volatile*)(ptr), (int64_t)(newval), (int64_t)(oldval));
 #elif defined(_TD_NINGSI_60)
@@ -468,17 +437,17 @@ int64_t atomic_val_compare_exchange_64(int64_t volatile *ptr, int64_t oldval, in
 #endif
 }
 
-void* atomic_val_compare_exchange_ptr(void *ptr, void *oldval, void *newval) {
+void* atomic_val_compare_exchange_ptr(void* ptr, void* oldval, void* newval) {
 #ifdef WINDOWS
   return _InterlockedCompareExchangePointer((void* volatile*)(ptr), (void*)(newval), (void*)(oldval));
 #elif defined(_TD_NINGSI_60)
   return __sync_val_compare_and_swap(ptr, oldval, newval);
 #else
-  return __sync_val_compare_and_swap((void **)ptr, oldval, newval);
+  return __sync_val_compare_and_swap((void**)ptr, oldval, newval);
 #endif
 }
 
-int8_t atomic_add_fetch_8(int8_t volatile *ptr, int8_t val) {
+int8_t atomic_add_fetch_8(int8_t volatile* ptr, int8_t val) {
 #ifdef WINDOWS
   return interlocked_add_fetch_8((int8_t volatile*)(ptr), (int8_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -488,7 +457,7 @@ int8_t atomic_add_fetch_8(int8_t volatile *ptr, int8_t val) {
 #endif
 }
 
-int16_t atomic_add_fetch_16(int16_t volatile *ptr, int16_t val) {
+int16_t atomic_add_fetch_16(int16_t volatile* ptr, int16_t val) {
 #ifdef WINDOWS
   return interlocked_add_fetch_16((int16_t volatile*)(ptr), (int16_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -498,7 +467,7 @@ int16_t atomic_add_fetch_16(int16_t volatile *ptr, int16_t val) {
 #endif
 }
 
-int32_t atomic_add_fetch_32(int32_t volatile *ptr, int32_t val) {
+int32_t atomic_add_fetch_32(int32_t volatile* ptr, int32_t val) {
 #ifdef WINDOWS
   return interlocked_add_fetch_32((int32_t volatile*)(ptr), (int32_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -508,7 +477,7 @@ int32_t atomic_add_fetch_32(int32_t volatile *ptr, int32_t val) {
 #endif
 }
 
-int64_t atomic_add_fetch_64(int64_t volatile *ptr, int64_t val) {
+int64_t atomic_add_fetch_64(int64_t volatile* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_add_fetch_64((int64_t volatile*)(ptr), (int64_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -518,17 +487,17 @@ int64_t atomic_add_fetch_64(int64_t volatile *ptr, int64_t val) {
 #endif
 }
 
-void* atomic_add_fetch_ptr(void *ptr, void *val) {
+void* atomic_add_fetch_ptr(void* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_add_fetch_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
   return __sync_add_and_fetch((ptr), (val));
 #else
-  return __atomic_add_fetch((void **)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
+  return __atomic_add_fetch((void**)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #endif
 }
 
-int8_t atomic_fetch_add_8(int8_t volatile *ptr, int8_t val) {
+int8_t atomic_fetch_add_8(int8_t volatile* ptr, int8_t val) {
 #ifdef WINDOWS
   return _InterlockedExchangeAdd8((int8_t volatile*)(ptr), (int8_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -538,7 +507,7 @@ int8_t atomic_fetch_add_8(int8_t volatile *ptr, int8_t val) {
 #endif
 }
 
-int16_t atomic_fetch_add_16(int16_t volatile *ptr, int16_t val) {
+int16_t atomic_fetch_add_16(int16_t volatile* ptr, int16_t val) {
 #ifdef WINDOWS
   return _InterlockedExchangeAdd16((int16_t volatile*)(ptr), (int16_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -548,7 +517,7 @@ int16_t atomic_fetch_add_16(int16_t volatile *ptr, int16_t val) {
 #endif
 }
 
-int32_t atomic_fetch_add_32(int32_t volatile *ptr, int32_t val) {
+int32_t atomic_fetch_add_32(int32_t volatile* ptr, int32_t val) {
 #ifdef WINDOWS
   return _InterlockedExchangeAdd((int32_t volatile*)(ptr), (int32_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -558,7 +527,7 @@ int32_t atomic_fetch_add_32(int32_t volatile *ptr, int32_t val) {
 #endif
 }
 
-int64_t atomic_fetch_add_64(int64_t volatile *ptr, int64_t val) {
+int64_t atomic_fetch_add_64(int64_t volatile* ptr, int64_t val) {
 #ifdef WINDOWS
   return _InterlockedExchangeAdd64((int64_t volatile*)(ptr), (int64_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -568,17 +537,17 @@ int64_t atomic_fetch_add_64(int64_t volatile *ptr, int64_t val) {
 #endif
 }
 
-void* atomic_fetch_add_ptr(void *ptr, void *val) {
+void* atomic_fetch_add_ptr(void* ptr, void* val) {
 #ifdef WINDOWS
   return _InterlockedExchangePointer((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
   return __sync_fetch_and_add((ptr), (val));
 #else
-  return __atomic_fetch_add((void **)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
+  return __atomic_fetch_add((void**)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #endif
 }
 
-int8_t atomic_sub_fetch_8(int8_t volatile *ptr, int8_t val) {
+int8_t atomic_sub_fetch_8(int8_t volatile* ptr, int8_t val) {
 #ifdef WINDOWS
   return interlocked_add_fetch_8((int8_t volatile*)(ptr), -(int8_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -588,7 +557,7 @@ int8_t atomic_sub_fetch_8(int8_t volatile *ptr, int8_t val) {
 #endif
 }
 
-int16_t atomic_sub_fetch_16(int16_t volatile *ptr, int16_t val) {
+int16_t atomic_sub_fetch_16(int16_t volatile* ptr, int16_t val) {
 #ifdef WINDOWS
   return interlocked_add_fetch_16((int16_t volatile*)(ptr), -(int16_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -598,7 +567,7 @@ int16_t atomic_sub_fetch_16(int16_t volatile *ptr, int16_t val) {
 #endif
 }
 
-int32_t atomic_sub_fetch_32(int32_t volatile *ptr, int32_t val) {
+int32_t atomic_sub_fetch_32(int32_t volatile* ptr, int32_t val) {
 #ifdef WINDOWS
   return interlocked_sub_fetch_32(ptr, val);
 #elif defined(_TD_NINGSI_60)
@@ -608,7 +577,7 @@ int32_t atomic_sub_fetch_32(int32_t volatile *ptr, int32_t val) {
 #endif
 }
 
-int64_t atomic_sub_fetch_64(int64_t volatile *ptr, int64_t val) {
+int64_t atomic_sub_fetch_64(int64_t volatile* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_sub_fetch_64(ptr, val);
 #elif defined(_TD_NINGSI_60)
@@ -618,17 +587,19 @@ int64_t atomic_sub_fetch_64(int64_t volatile *ptr, int64_t val) {
 #endif
 }
 
-void* atomic_sub_fetch_ptr(void *ptr, void* val) {
+void* atomic_sub_fetch_ptr(void* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_sub_fetch_ptr(ptr, val);
 #elif defined(_TD_NINGSI_60)
   return __sync_sub_and_fetch((ptr), (val));
+#elif defined(_TD_DARWIN_64)
+  return __atomic_sub_fetch((void**)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #else
-  return __atomic_sub_fetch((void **)(ptr), (val), __ATOMIC_SEQ_CST);
+  return __atomic_sub_fetch((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
 }
 
-int8_t atomic_fetch_sub_8(int8_t volatile *ptr, int8_t val) {
+int8_t atomic_fetch_sub_8(int8_t volatile* ptr, int8_t val) {
 #ifdef WINDOWS
   return _InterlockedExchangeAdd8((int8_t volatile*)(ptr), -(int8_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -638,7 +609,7 @@ int8_t atomic_fetch_sub_8(int8_t volatile *ptr, int8_t val) {
 #endif
 }
 
-int16_t atomic_fetch_sub_16(int16_t volatile *ptr, int16_t val) {
+int16_t atomic_fetch_sub_16(int16_t volatile* ptr, int16_t val) {
 #ifdef WINDOWS
   return _InterlockedExchangeAdd16((int16_t volatile*)(ptr), -(int16_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -648,7 +619,7 @@ int16_t atomic_fetch_sub_16(int16_t volatile *ptr, int16_t val) {
 #endif
 }
 
-int32_t atomic_fetch_sub_32(int32_t volatile *ptr, int32_t val) {
+int32_t atomic_fetch_sub_32(int32_t volatile* ptr, int32_t val) {
 #ifdef WINDOWS
   return interlocked_fetch_sub_32(ptr, val);
 #elif defined(_TD_NINGSI_60)
@@ -658,7 +629,7 @@ int32_t atomic_fetch_sub_32(int32_t volatile *ptr, int32_t val) {
 #endif
 }
 
-int64_t atomic_fetch_sub_64(int64_t volatile *ptr, int64_t val) {
+int64_t atomic_fetch_sub_64(int64_t volatile* ptr, int64_t val) {
 #ifdef WINDOWS
   return _InterlockedExchangeAdd64((int64_t volatile*)(ptr), -(int64_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -668,17 +639,19 @@ int64_t atomic_fetch_sub_64(int64_t volatile *ptr, int64_t val) {
 #endif
 }
 
-void* atomic_fetch_sub_ptr(void *ptr, void* val) {
+void* atomic_fetch_sub_ptr(void* ptr, void* val) {
 #ifdef WINDOWS
   return interlocked_fetch_sub_ptr(ptr, val);
 #elif defined(_TD_NINGSI_60)
   return __sync_fetch_and_sub((ptr), (val));
+#elif defined(_TD_DARWIN_64)
+  return __atomic_fetch_sub((void**)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #else
-  return __atomic_fetch_sub((void **)(ptr), (val), __ATOMIC_SEQ_CST);
+  return __atomic_fetch_sub((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
 }
 
-int8_t atomic_and_fetch_8(int8_t volatile *ptr, int8_t val) {
+int8_t atomic_and_fetch_8(int8_t volatile* ptr, int8_t val) {
 #ifdef WINDOWS
   return interlocked_and_fetch_8((int8_t volatile*)(ptr), (int8_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -688,7 +661,7 @@ int8_t atomic_and_fetch_8(int8_t volatile *ptr, int8_t val) {
 #endif
 }
 
-int16_t atomic_and_fetch_16(int16_t volatile *ptr, int16_t val) {
+int16_t atomic_and_fetch_16(int16_t volatile* ptr, int16_t val) {
 #ifdef WINDOWS
   return interlocked_and_fetch_16((int16_t volatile*)(ptr), (int16_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -698,7 +671,7 @@ int16_t atomic_and_fetch_16(int16_t volatile *ptr, int16_t val) {
 #endif
 }
 
-int32_t atomic_and_fetch_32(int32_t volatile *ptr, int32_t val) {
+int32_t atomic_and_fetch_32(int32_t volatile* ptr, int32_t val) {
 #ifdef WINDOWS
   return interlocked_and_fetch_32((int32_t volatile*)(ptr), (int32_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -708,7 +681,7 @@ int32_t atomic_and_fetch_32(int32_t volatile *ptr, int32_t val) {
 #endif
 }
 
-int64_t atomic_and_fetch_64(int64_t volatile *ptr, int64_t val) {
+int64_t atomic_and_fetch_64(int64_t volatile* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_and_fetch_64((int64_t volatile*)(ptr), (int64_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -718,17 +691,19 @@ int64_t atomic_and_fetch_64(int64_t volatile *ptr, int64_t val) {
 #endif
 }
 
-void* atomic_and_fetch_ptr(void *ptr, void *val) {
+void* atomic_and_fetch_ptr(void* ptr, void* val) {
 #ifdef WINDOWS
   return interlocked_and_fetch_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
   return __sync_and_and_fetch((ptr), (val));
+#elif defined(_TD_DARWIN_64)
+  return (void*)__atomic_and_fetch((size_t*)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #else
-  return __atomic_and_fetch((void **)(ptr), (val), __ATOMIC_SEQ_CST);
+  return __atomic_and_fetch((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
 }
 
-int8_t atomic_fetch_and_8(int8_t volatile *ptr, int8_t val) {
+int8_t atomic_fetch_and_8(int8_t volatile* ptr, int8_t val) {
 #ifdef WINDOWS
   return _InterlockedAnd8((int8_t volatile*)(ptr), (int8_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -738,7 +713,7 @@ int8_t atomic_fetch_and_8(int8_t volatile *ptr, int8_t val) {
 #endif
 }
 
-int16_t atomic_fetch_and_16(int16_t volatile *ptr, int16_t val) {
+int16_t atomic_fetch_and_16(int16_t volatile* ptr, int16_t val) {
 #ifdef WINDOWS
   return _InterlockedAnd16((int16_t volatile*)(ptr), (int16_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -748,7 +723,7 @@ int16_t atomic_fetch_and_16(int16_t volatile *ptr, int16_t val) {
 #endif
 }
 
-int32_t atomic_fetch_and_32(int32_t volatile *ptr, int32_t val) {
+int32_t atomic_fetch_and_32(int32_t volatile* ptr, int32_t val) {
 #ifdef WINDOWS
   return _InterlockedAnd((int32_t volatile*)(ptr), (int32_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -758,7 +733,7 @@ int32_t atomic_fetch_and_32(int32_t volatile *ptr, int32_t val) {
 #endif
 }
 
-int64_t atomic_fetch_and_64(int64_t volatile *ptr, int64_t val) {
+int64_t atomic_fetch_and_64(int64_t volatile* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_fetch_and_64((int64_t volatile*)(ptr), (int64_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -768,17 +743,19 @@ int64_t atomic_fetch_and_64(int64_t volatile *ptr, int64_t val) {
 #endif
 }
 
-void* atomic_fetch_and_ptr(void *ptr, void *val) {
+void* atomic_fetch_and_ptr(void* ptr, void* val) {
 #ifdef WINDOWS
   return interlocked_fetch_and_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
   return __sync_fetch_and_and((ptr), (val));
+#elif defined(_TD_DARWIN_64)
+  return (void*)__atomic_fetch_and((size_t*)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #else
-  return __atomic_fetch_and((void **)(ptr), (val), __ATOMIC_SEQ_CST);
+  return __atomic_fetch_and((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
 }
 
-int8_t atomic_or_fetch_8(int8_t volatile *ptr, int8_t val) {
+int8_t atomic_or_fetch_8(int8_t volatile* ptr, int8_t val) {
 #ifdef WINDOWS
   return interlocked_or_fetch_8((int8_t volatile*)(ptr), (int8_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -788,7 +765,7 @@ int8_t atomic_or_fetch_8(int8_t volatile *ptr, int8_t val) {
 #endif
 }
 
-int16_t atomic_or_fetch_16(int16_t volatile *ptr, int16_t val) {
+int16_t atomic_or_fetch_16(int16_t volatile* ptr, int16_t val) {
 #ifdef WINDOWS
   return interlocked_or_fetch_16((int16_t volatile*)(ptr), (int16_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -798,7 +775,7 @@ int16_t atomic_or_fetch_16(int16_t volatile *ptr, int16_t val) {
 #endif
 }
 
-int32_t atomic_or_fetch_32(int32_t volatile *ptr, int32_t val) {
+int32_t atomic_or_fetch_32(int32_t volatile* ptr, int32_t val) {
 #ifdef WINDOWS
   return interlocked_or_fetch_32((int32_t volatile*)(ptr), (int32_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -808,7 +785,7 @@ int32_t atomic_or_fetch_32(int32_t volatile *ptr, int32_t val) {
 #endif
 }
 
-int64_t atomic_or_fetch_64(int64_t volatile *ptr, int64_t val) {
+int64_t atomic_or_fetch_64(int64_t volatile* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_or_fetch_64((int64_t volatile*)(ptr), (int64_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -818,17 +795,19 @@ int64_t atomic_or_fetch_64(int64_t volatile *ptr, int64_t val) {
 #endif
 }
 
-void* atomic_or_fetch_ptr(void *ptr, void *val) {
+void* atomic_or_fetch_ptr(void* ptr, void* val) {
 #ifdef WINDOWS
   return interlocked_or_fetch_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
   return __sync_or_and_fetch((ptr), (val));
+#elif defined(_TD_DARWIN_64)
+  return (void*)__atomic_or_fetch((size_t*)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #else
-  return __atomic_or_fetch((void **)(ptr), (val), __ATOMIC_SEQ_CST);
+  return __atomic_or_fetch((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
 }
 
-int8_t atomic_fetch_or_8(int8_t volatile *ptr, int8_t val) {
+int8_t atomic_fetch_or_8(int8_t volatile* ptr, int8_t val) {
 #ifdef WINDOWS
   return _InterlockedOr8((int8_t volatile*)(ptr), (int8_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -838,7 +817,7 @@ int8_t atomic_fetch_or_8(int8_t volatile *ptr, int8_t val) {
 #endif
 }
 
-int16_t atomic_fetch_or_16(int16_t volatile *ptr, int16_t val) {
+int16_t atomic_fetch_or_16(int16_t volatile* ptr, int16_t val) {
 #ifdef WINDOWS
   return _InterlockedOr16((int16_t volatile*)(ptr), (int16_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -848,7 +827,7 @@ int16_t atomic_fetch_or_16(int16_t volatile *ptr, int16_t val) {
 #endif
 }
 
-int32_t atomic_fetch_or_32(int32_t volatile *ptr, int32_t val) {
+int32_t atomic_fetch_or_32(int32_t volatile* ptr, int32_t val) {
 #ifdef WINDOWS
   return _InterlockedOr((int32_t volatile*)(ptr), (int32_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -858,7 +837,7 @@ int32_t atomic_fetch_or_32(int32_t volatile *ptr, int32_t val) {
 #endif
 }
 
-int64_t atomic_fetch_or_64(int64_t volatile *ptr, int64_t val) {
+int64_t atomic_fetch_or_64(int64_t volatile* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_fetch_or_64((int64_t volatile*)(ptr), (int64_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -868,17 +847,19 @@ int64_t atomic_fetch_or_64(int64_t volatile *ptr, int64_t val) {
 #endif
 }
 
-void* atomic_fetch_or_ptr(void *ptr, void *val) {
+void* atomic_fetch_or_ptr(void* ptr, void* val) {
 #ifdef WINDOWS
   return interlocked_fetch_or_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
   return __sync_fetch_and_or((ptr), (val));
+#elif defined(_TD_DARWIN_64)
+  return (void*)__atomic_fetch_or((size_t*)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #else
-  return __atomic_fetch_or((void **)(ptr), (val), __ATOMIC_SEQ_CST);
+  return __atomic_fetch_or((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
 }
 
-int8_t atomic_xor_fetch_8(int8_t volatile *ptr, int8_t val) {
+int8_t atomic_xor_fetch_8(int8_t volatile* ptr, int8_t val) {
 #ifdef WINDOWS
   return interlocked_xor_fetch_8((int8_t volatile*)(ptr), (int8_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -888,7 +869,7 @@ int8_t atomic_xor_fetch_8(int8_t volatile *ptr, int8_t val) {
 #endif
 }
 
-int16_t atomic_xor_fetch_16(int16_t volatile *ptr, int16_t val) {
+int16_t atomic_xor_fetch_16(int16_t volatile* ptr, int16_t val) {
 #ifdef WINDOWS
   return interlocked_xor_fetch_16((int16_t volatile*)(ptr), (int16_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -898,7 +879,7 @@ int16_t atomic_xor_fetch_16(int16_t volatile *ptr, int16_t val) {
 #endif
 }
 
-int32_t atomic_xor_fetch_32(int32_t volatile *ptr, int32_t val) {
+int32_t atomic_xor_fetch_32(int32_t volatile* ptr, int32_t val) {
 #ifdef WINDOWS
   return interlocked_xor_fetch_32((int32_t volatile*)(ptr), (int32_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -908,7 +889,7 @@ int32_t atomic_xor_fetch_32(int32_t volatile *ptr, int32_t val) {
 #endif
 }
 
-int64_t atomic_xor_fetch_64(int64_t volatile *ptr, int64_t val) {
+int64_t atomic_xor_fetch_64(int64_t volatile* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_xor_fetch_64((int64_t volatile*)(ptr), (int64_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -918,17 +899,19 @@ int64_t atomic_xor_fetch_64(int64_t volatile *ptr, int64_t val) {
 #endif
 }
 
-void* atomic_xor_fetch_ptr(void *ptr, void *val) {
+void* atomic_xor_fetch_ptr(void* ptr, void* val) {
 #ifdef WINDOWS
   return interlocked_xor_fetch_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
   return __sync_xor_and_fetch((ptr), (val));
+#elif defined(_TD_DARWIN_64)
+  return (void*)__atomic_xor_fetch((size_t*)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #else
-  return __atomic_xor_fetch((void **)(ptr), (val), __ATOMIC_SEQ_CST);
+  return __atomic_xor_fetch((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
 }
 
-int8_t atomic_fetch_xor_8(int8_t volatile *ptr, int8_t val) {
+int8_t atomic_fetch_xor_8(int8_t volatile* ptr, int8_t val) {
 #ifdef WINDOWS
   return _InterlockedXor8((int8_t volatile*)(ptr), (int8_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -938,7 +921,7 @@ int8_t atomic_fetch_xor_8(int8_t volatile *ptr, int8_t val) {
 #endif
 }
 
-int16_t atomic_fetch_xor_16(int16_t volatile *ptr, int16_t val) {
+int16_t atomic_fetch_xor_16(int16_t volatile* ptr, int16_t val) {
 #ifdef WINDOWS
   return _InterlockedXor16((int16_t volatile*)(ptr), (int16_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -948,7 +931,7 @@ int16_t atomic_fetch_xor_16(int16_t volatile *ptr, int16_t val) {
 #endif
 }
 
-int32_t atomic_fetch_xor_32(int32_t volatile *ptr, int32_t val) {
+int32_t atomic_fetch_xor_32(int32_t volatile* ptr, int32_t val) {
 #ifdef WINDOWS
   return _InterlockedXor((int32_t volatile*)(ptr), (int32_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -958,7 +941,7 @@ int32_t atomic_fetch_xor_32(int32_t volatile *ptr, int32_t val) {
 #endif
 }
 
-int64_t atomic_fetch_xor_64(int64_t volatile *ptr, int64_t val) {
+int64_t atomic_fetch_xor_64(int64_t volatile* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_fetch_xor_64((int64_t volatile*)(ptr), (int64_t)(val));
 #elif defined(_TD_NINGSI_60)
@@ -968,13 +951,14 @@ int64_t atomic_fetch_xor_64(int64_t volatile *ptr, int64_t val) {
 #endif
 }
 
-void* atomic_fetch_xor_ptr(void *ptr, void *val) {
+void* atomic_fetch_xor_ptr(void* ptr, void* val) {
 #ifdef WINDOWS
   return interlocked_fetch_xor_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
   return __sync_fetch_and_xor((ptr), (val));
+#elif defined(_TD_DARWIN_64)
+  return (void*)__atomic_fetch_xor((size_t*)(ptr), (size_t)(val), __ATOMIC_SEQ_CST);
 #else
-  return __atomic_fetch_xor((void **)(ptr), (val), __ATOMIC_SEQ_CST);
+  return __atomic_fetch_xor((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
 }
-

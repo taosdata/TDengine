@@ -15,7 +15,7 @@ $tb = $tbPrefix . $i
 
 print =============== step1
 # quorum  presicion 
-sql create database $db vgroups 8 replica 1 days 2 keep 10 minrows 80 maxrows 10000 wal 2 fsync 1000 comp 0 cachelast 2 precision 'us'
+sql create database $db vgroups 8 replica 1 duration 2 keep 10 minrows 80 maxrows 10000 wal 2 fsync 1000 comp 0 cachelast 2 precision 'us'
 sql show databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 
@@ -34,10 +34,10 @@ endi
 if $data24 != 1 then
   return -1
 endi
-if $data26 != 2880 then
+if $data26 != 2880m then
   return -1
 endi
-if $data27 != 14400,14400,14400 then
+if $data27 != 14400m,14400m,14400m then
   return -1
 endi
 #if $data28 != 32 then
@@ -66,7 +66,7 @@ print =============== step4
 sql_error drop database $db
 
 print =============== step5
-sql create database $db replica 1 days 15 keep 1500
+sql create database $db replica 1 duration 15 keep 1500
 sql show databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
 if $data20 != $db then
@@ -78,7 +78,7 @@ endi
 if $data24 != 1 then
   return -1
 endi
-if $data26 != 21600 then
+if $data26 != 21600m then
   return -1
 endi
 

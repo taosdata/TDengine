@@ -41,7 +41,7 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
-#add_test(
-#        NAME smlTest
-#        COMMAND smlTest
-#)
+add_test(
+        NAME smlTest
+        COMMAND smlTest
+)

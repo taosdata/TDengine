@@ -23,6 +23,7 @@ SyncAppendEntries *createMsg() {
   pMsg->prevLogIndex = 11;
   pMsg->prevLogTerm = 22;
   pMsg->commitIndex = 33;
+  pMsg->privateTerm = 44;
   strcpy(pMsg->data, "hello world");
   return pMsg;
 }

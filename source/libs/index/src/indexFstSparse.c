@@ -15,14 +15,24 @@
 
 #include "indexFstSparse.h"
 
+static void sparSetUtil(int32_t *buf, int32_t cap) {
+  for (int32_t i = 0; i < cap; i++) {
+    buf[i] = -1;
+  }
+}
 FstSparseSet *sparSetCreate(int32_t sz) {
   FstSparseSet *ss = taosMemoryCalloc(1, sizeof(FstSparseSet));
-  if (ss = NULL) {
+  if (ss == NULL) {
     return NULL;
   }
 
-  ss->dense = (uint32_t *)taosMemoryCalloc(sz, sizeof(uint32_t));
-  ss->sparse = (uint32_t *)taosMemoryCalloc(sz, sizeof(uint32_t));
+  ss->dense = (int32_t *)taosMemoryMalloc(sz * sizeof(int32_t));
+  ss->sparse = (int32_t *)taosMemoryMalloc(sz * sizeof(int32_t));
+  sparSetUtil(ss->dense, sz);
+  sparSetUtil(ss->sparse, sz);
+
+  ss->cap = sz;
+
   ss->size = 0;
   return ss;
 }
@@ -38,23 +48,39 @@ uint32_t sparSetLen(FstSparseSet *ss) {
   // Get occupied size
   return ss == NULL ? 0 : ss->size;
 }
-uint32_t sparSetAdd(FstSparseSet *ss, uint32_t ip) {
+bool sparSetAdd(FstSparseSet *ss, int32_t ip, int32_t *idx) {
   if (ss == NULL) {
-    return 0;
+    return false;
+  }
+  if (ip >= ss->cap || ip < 0) {
+    return false;
   }
   uint32_t i = ss->size;
   ss->dense[i] = ip;
   ss->sparse[ip] = i;
   ss->size += 1;
-  return i;
+
+  if (idx != NULL) *idx = i;
+
+  return true;
 }
-uint32_t sparSetGet(FstSparseSet *ss, uint32_t i) {
-  // check later
-  return ss->dense[i];
+bool sparSetGet(FstSparseSet *ss, int32_t idx, int32_t *ip) {
+  if (idx >= ss->cap || idx >= ss->size || idx < 0) {
+    return false;
+  }
+  int32_t val = ss->dense[idx];
+  if (ip != NULL) {
+    *ip = val;
+  }
+  return val == -1 ? false : true;
 }
-bool sparSetContains(FstSparseSet *ss, uint32_t ip) {
-  uint32_t i = ss->sparse[ip];
-  if (i < ss->size && ss->dense[i] == ip) {
+bool sparSetContains(FstSparseSet *ss, int32_t ip) {
+  if (ip >= ss->cap || ip < 0) {
+    return false;
+  }
+  int32_t i = ss->sparse[ip];
+
+  if (i >= 0 && i < ss->cap && i < ss->size && ss->dense[i] == ip) {
     return true;
   } else {
     return false;
@@ -64,5 +90,7 @@ void sparSetClear(FstSparseSet *ss) {
   if (ss == NULL) {
     return;
   }
+  sparSetUtil(ss->dense, ss->cap);
+  sparSetUtil(ss->sparse, ss->cap);
   ss->size = 0;
 }

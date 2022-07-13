@@ -26,7 +26,7 @@ system sh/exec.sh -n dnode2 -s start
 sleep 2000
 
 print ======== step1 create db
-sql create database keepdb replica 1 keep 30 days 7
+sql create database keepdb replica 1 keep 30 duration 7
 sql use keepdb
 sql create table tb (ts timestamp, i int)
 
@@ -201,7 +201,7 @@ sql alter database keepdb keep 0 -x error2
   return -1
 error2:
 
-sql alter database keepdb days 1 -x error3
+sql alter database keepdb duration 1 -x error3
   return -1
 error3:
 

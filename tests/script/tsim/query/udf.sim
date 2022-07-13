@@ -19,8 +19,14 @@ sql show databases;
 sql create table t (ts timestamp, f int);
 sql insert into t values(now, 1)(now+1s, 2);
 
-sql create function udf1 as '/tmp/udf/libudf1.so' outputtype int bufSize 8;
-sql create aggregate function udf2 as '/tmp/udf/libudf2.so' outputtype double bufSize 8;
+system_content printf %OS%
+if $system_content == Windows_NT then
+  sql create function udf1 as 'C:\\Windows\\Temp\\udf1.dll' outputtype int bufSize 8;
+  sql create aggregate function udf2 as 'C:\\Windows\\Temp\\udf2.dll' outputtype double bufSize 8;
+else
+  sql create function udf1 as '/tmp/udf/libudf1.so' outputtype int bufSize 8;
+  sql create aggregate function udf2 as '/tmp/udf/libudf2.so' outputtype double bufSize 8;
+endi
 sql show functions;
 if $rows != 2 then
   return -1
@@ -38,6 +44,7 @@ endi
 
 sql select udf2(f) from t;
 if $rows != 1 then
+  print expect 1, actual $rows
   return -1
 endi
 if $data00 != 2.236067977 then

@@ -14,7 +14,11 @@
  */
 
 #define ALLOW_FORBID_FUNC
+#ifdef _TD_DARWIN_64
+#include <malloc/malloc.h>
+#else
 #include <malloc.h>
+#endif
 #include "os.h"
 
 #if defined(USE_TD_MEMORY) || defined(USE_ADDR2LINE)
@@ -278,14 +282,14 @@ void *taosMemoryRealloc(void *ptr, int32_t size) {
 #endif
 }
 
-void *taosMemoryStrDup(void *ptr) {
+void *taosMemoryStrDup(const char *ptr) {
 #ifdef USE_TD_MEMORY
   if (ptr == NULL) return NULL;
 
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
   assert(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
 
-  void *tmp = tstrdup((const char *)pTdMemoryInfo);
+  void *tmp = tstrdup(pTdMemoryInfo);
   if (tmp == NULL) return NULL;
 
   memcpy(tmp, pTdMemoryInfo, sizeof(TdMemoryInfo));
@@ -293,7 +297,7 @@ void *taosMemoryStrDup(void *ptr) {
 
   return (char *)tmp + sizeof(TdMemoryInfo);
 #else
-  return tstrdup((const char *)ptr);
+  return tstrdup(ptr);
 #endif
 }
 
@@ -323,6 +327,8 @@ int32_t taosMemorySize(void *ptr) {
 #else
 #ifdef WINDOWS
   return _msize(ptr);
+#elif defined(_TD_DARWIN_64)
+  return malloc_size(ptr);
 #else
   return malloc_usable_size(ptr);
 #endif

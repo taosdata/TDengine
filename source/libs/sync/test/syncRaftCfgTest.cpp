@@ -26,6 +26,15 @@ SRaftCfg* createRaftCfg() {
     snprintf(((pCfg->cfg.nodeInfo)[i]).nodeFqdn, sizeof(((pCfg->cfg.nodeInfo)[i]).nodeFqdn), "100.200.300.%d", i);
   }
   pCfg->isStandBy = taosGetTimestampSec() % 100;
+  pCfg->batchSize = taosGetTimestampSec() % 100;
+
+  pCfg->configIndexCount = 5;
+  for (int i = 0; i < MAX_CONFIG_INDEX_COUNT; ++i) {
+    (pCfg->configIndexArr)[i] = -1;
+  }
+  for (int i = 0; i < pCfg->configIndexCount; ++i) {
+    (pCfg->configIndexArr)[i] = i * 100;
+  }
 
   return pCfg;
 }
@@ -47,6 +56,8 @@ SSyncCfg* createSyncCfg() {
 void test1() {
   SSyncCfg* pCfg = createSyncCfg();
   syncCfgLog2((char*)__FUNCTION__, pCfg);
+  syncCfgLog3((char*)__FUNCTION__, pCfg);
+
   taosMemoryFree(pCfg);
 }
 
@@ -71,7 +82,12 @@ void test3() {
   if (taosCheckExistFile(s)) {
     printf("%s file: %s already exist! \n", (char*)__FUNCTION__, s);
   } else {
-    raftCfgCreateFile(pCfg, 7, s);
+    SRaftCfgMeta meta;
+    meta.isStandBy = 7;
+    meta.snapshotStrategy = 9;
+    meta.batchSize = 10;
+    meta.lastConfigIndex = 789;
+    raftCfgCreateFile(pCfg, meta, s);
     printf("%s create json file: %s \n", (char*)__FUNCTION__, s);
   }
 
@@ -94,6 +110,18 @@ void test5() {
 
   pCfg->cfg.myIndex = taosGetTimestampSec();
   pCfg->isStandBy += 2;
+  pCfg->snapshotStrategy += 3;
+  pCfg->batchSize += 4;
+  pCfg->lastConfigIndex += 1000;
+
+  pCfg->configIndexCount = 5;
+  for (int i = 0; i < MAX_CONFIG_INDEX_COUNT; ++i) {
+    (pCfg->configIndexArr)[i] = -1;
+  }
+  for (int i = 0; i < pCfg->configIndexCount; ++i) {
+    (pCfg->configIndexArr)[i] = i * 100;
+  }
+
   raftCfgPersist(pCfg);
 
   printf("%s update json file: %s myIndex->%d \n", (char*)__FUNCTION__, "./test3_raft_cfg.json", pCfg->cfg.myIndex);

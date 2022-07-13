@@ -39,13 +39,26 @@ void simLogSql(char *sql, bool useSharp) {
 
 char *simParseArbitratorName(char *varName) {
   static char hostName[140];
+#ifdef WINDOWS
+  taosGetFqdn(hostName);
+  sprintf(&hostName[strlen(hostName)], ":%d", 8000);
+#else
   sprintf(hostName, "%s:%d", "localhost", 8000);
+#endif
   return hostName;
 }
 
 char *simParseHostName(char *varName) {
   static char hostName[140];
+#ifdef WINDOWS
+  hostName[0] = '\"';
+  taosGetFqdn(&hostName[1]);
+  int strEndIndex = strlen(hostName);
+  hostName[strEndIndex] = '\"';
+  hostName[strEndIndex + 1] = '\0';
+#else
   sprintf(hostName, "%s", "localhost");
+#endif
   return hostName;
 }
 
@@ -399,7 +412,8 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   sprintf(buf, "cd %s; ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
 #else
-  sprintf(buf, "%s%s", simScriptDir, option);
+  sprintf(buf, "%s", simScriptDir);
+  simVisuallizeOption(script, option, buf + strlen(buf));
   simReplaceStr(buf, ".sh", ".bat");
 #endif
 
@@ -458,11 +472,17 @@ bool simExecuteSystemContentCmd(SScript *script, char *option) {
   char buf[4096] = {0};
   char buf1[4096 + 512] = {0};
   char filename[400] = {0};
-  sprintf(filename, "%s/%s.tmp", simScriptDir, script->fileName);
+  sprintf(filename, "%s" TD_DIRSEP "%s.tmp", simScriptDir, script->fileName);
 
+#ifdef WINDOWS
+  sprintf(buf, "cd %s && ", simScriptDir);
+  simVisuallizeOption(script, option, buf + strlen(buf));
+  sprintf(buf1, "%s > %s 2>nul", buf, filename);
+#else
   sprintf(buf, "cd %s; ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
   sprintf(buf1, "%s > %s 2>/dev/null", buf, filename);
+#endif
 
   sprintf(script->system_exit_code, "%d", system(buf1));
   simStoreSystemContentResult(script, filename);

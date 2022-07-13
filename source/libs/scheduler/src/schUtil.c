@@ -16,11 +16,39 @@
 #include "catalog.h"
 #include "command.h"
 #include "query.h"
-#include "schedulerInt.h"
+#include "schInt.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
 
+FORCE_INLINE SSchJob *schAcquireJob(int64_t refId) { 
+  qDebug("sch acquire jobId:0x%"PRIx64, refId); 
+  return (SSchJob *)taosAcquireRef(schMgmt.jobRef, refId); 
+}
+
+FORCE_INLINE int32_t schReleaseJob(int64_t refId) { 
+  if (0 == refId) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  qDebug("sch release jobId:0x%"PRIx64, refId); 
+  return taosReleaseRef(schMgmt.jobRef, refId); 
+}
+
+char* schGetOpStr(SCH_OP_TYPE type) {
+  switch (type) {
+    case SCH_OP_NULL:
+      return "NULL";
+    case SCH_OP_EXEC:
+      return "EXEC";
+    case SCH_OP_FETCH:
+      return "FETCH";
+    case SCH_OP_GET_STATUS:
+      return "GET STATUS";
+    default:
+      return "UNKNOWN";
+  }
+}
 
 void schCleanClusterHb(void* pTrans) {
   SCH_LOCK(SCH_WRITE, &schMgmt.hbLock);
@@ -67,7 +95,7 @@ int32_t schAddHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *epId,
   int32_t     code = 0;
   SSchHbTrans hb = {0};
 
-  hb.trans.pTrans = pJob->pTrans;
+  hb.trans.pTrans = pJob->conn.pTrans;
   hb.taskNum = 1;
 
   SCH_ERR_RET(schMakeHbRpcCtx(pJob, pTask, &hb.rpcCtx));
@@ -188,7 +216,7 @@ int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchTrans *trans) {
   SCH_UNLOCK(SCH_WRITE, &hb->lock);
   SCH_UNLOCK(SCH_READ, &schMgmt.hbLock);
 
-  qDebug("hb connection updated, sId:%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, pTrans:%p, pHandle:%p", schMgmt.sId,
+  qDebug("hb connection updated, sId:0x%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, pTrans:%p, pHandle:%p", schMgmt.sId,
          epId->nodeId, epId->ep.fqdn, epId->ep.port, trans->pTrans, trans->pHandle);
 
   return TSDB_CODE_SUCCESS;
@@ -261,4 +289,30 @@ void schFreeRpcCtx(SRpcCtx *pCtx) {
     (*pCtx->freeFunc)(pCtx->brokenVal.val);
   }
 }
+
+void schFreeSMsgSendInfo(SMsgSendInfo *msgSendInfo) {
+  if (NULL == msgSendInfo) {
+    return;
+  }
+
+  taosMemoryFree(msgSendInfo->param);
+  taosMemoryFree(msgSendInfo);
+}
+
+int32_t schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask) {
+  int32_t s = taosHashGetSize(pTaskList);
+  if (s <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSchTask **task = taosHashGet(pTaskList, &taskId, sizeof(taskId));
+  if (NULL == task || NULL == (*task)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *pTask = *task;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 

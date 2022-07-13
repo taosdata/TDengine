@@ -22,24 +22,24 @@ extern "C" {
 #include "indexFstUtil.h"
 #include "indexInt.h"
 
-typedef struct AutomationCtx AutomationCtx;
+typedef struct FAutoCtx FAutoCtx;
 
 typedef enum AutomationType { AUTOMATION_ALWAYS, AUTOMATION_PREFIX, AUTMMATION_MATCH } AutomationType;
 
 typedef struct StartWith {
-  AutomationCtx* autoSelf;
+  FAutoCtx* autoSelf;
 } StartWith;
 
 typedef struct Complement {
-  AutomationCtx* autoSelf;
+  FAutoCtx* autoSelf;
 } Complement;
 
 // automation
-typedef struct AutomationCtx {
+typedef struct FAutoCtx {
   AutomationType type;
   void*          stdata;
   char*          data;
-} AutomationCtx;
+} FAutoCtx;
 
 typedef enum ValueType { FST_INT, FST_CHAR, FST_ARRAY } ValueType;
 typedef enum StartWithStateKind { Done, Running } StartWithStateKind;
@@ -60,16 +60,16 @@ StartWithStateValue* startWithStateValueDump(StartWithStateValue* sv);
 void                 startWithStateValueDestroy(void* sv);
 
 typedef struct AutomationFunc {
-  void* (*start)(AutomationCtx* ctx);
-  bool (*isMatch)(AutomationCtx* ctx, void*);
-  bool (*canMatch)(AutomationCtx* ctx, void* data);
-  bool (*willAlwaysMatch)(AutomationCtx* ctx, void* state);
-  void* (*accept)(AutomationCtx* ctx, void* state, uint8_t byte);
-  void* (*acceptEof)(AutomationCtx* ct, void* state);
+  void* (*start)(FAutoCtx* ctx);
+  bool (*isMatch)(FAutoCtx* ctx, void*);
+  bool (*canMatch)(FAutoCtx* ctx, void* data);
+  bool (*willAlwaysMatch)(FAutoCtx* ctx, void* state);
+  void* (*accept)(FAutoCtx* ctx, void* state, uint8_t byte);
+  void* (*acceptEof)(FAutoCtx* ct, void* state);
 } AutomationFunc;
 
-AutomationCtx* automCtxCreate(void* data, AutomationType atype);
-void           automCtxDestroy(AutomationCtx* ctx);
+FAutoCtx* automCtxCreate(void* data, AutomationType atype);
+void      automCtxDestroy(FAutoCtx* ctx);
 
 extern AutomationFunc automFuncs[];
 #ifdef __cplusplus

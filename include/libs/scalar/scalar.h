@@ -25,11 +25,14 @@ extern "C" {
 
 typedef struct SFilterInfo SFilterInfo;
 
+int32_t scalarGetOperatorResultType(SOperatorNode* pOp);
+
 /*
 pNode will be freed in API;
 *pRes need to freed in caller
 */
 int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes);
+int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes);
 
 /*
 pDst need to freed in caller
@@ -40,7 +43,7 @@ int32_t scalarGetOperatorParamNum(EOperatorType type);
 int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type);
 
 int32_t vectorGetConvertType(int32_t type1, int32_t type2);
-int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut);
+int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut, int32_t* overflow);
 
 /* Math functions */
 int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);

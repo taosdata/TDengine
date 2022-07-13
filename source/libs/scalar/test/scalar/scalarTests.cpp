@@ -84,30 +84,29 @@ void scltInitLogFile() {
 
 void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *slotId, bool newBlock, int32_t rows, SColumnInfo *colInfo) {
  if (newBlock) {
-   SSDataBlock *res = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
-   res->info.numOfCols = 1;
-   res->info.rows = rows;
-   res->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+   SSDataBlock *res = createDataBlock();
+
    SColumnInfoData idata = {0};
-   idata.info  = *colInfo;
+   idata.info = *colInfo;
+   colInfoDataEnsureCapacity(&idata, rows);
 
-   taosArrayPush(res->pDataBlock, &idata);
+   blockDataAppendColInfo(res, &idata);
+
+   res->info.capacity = rows;
+   res->info.rows = rows;
+   SColumnInfoData* p = static_cast<SColumnInfoData *>(taosArrayGet(res->pDataBlock, 0));
+   ASSERT(p->pData != NULL && p->nullbitmap != NULL);
+
    taosArrayPush(pBlockList, &res);
-
-   blockDataEnsureCapacity(res, rows);
-
    *dataBlockId = taosArrayGetSize(pBlockList) - 1;
    res->info.blockId = *dataBlockId;
    *slotId = 0;
  } else {
    SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(pBlockList);
-   res->info.numOfCols++;
    SColumnInfoData idata = {0};
    idata.info  = *colInfo;
-
-   colInfoDataEnsureCapacity(&idata, 0, rows);
-
-   taosArrayPush(res->pDataBlock, &idata);
+   colInfoDataEnsureCapacity(&idata, rows);
+   blockDataAppendColInfo(res, &idata);
 
    *dataBlockId = taosArrayGetSize(pBlockList) - 1;
    *slotId = taosArrayGetSize(res->pDataBlock) - 1;
@@ -144,29 +143,19 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
  }
 
  if (NULL == *block) {
-   SSDataBlock *res = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
-   res->info.numOfCols = 3;
-   res->info.rows = rowNum;
-   res->pDataBlock = taosArrayInit(3, sizeof(SColumnInfoData));
+   SSDataBlock *res = createDataBlock();
    for (int32_t i = 0; i < 2; ++i) {
-     SColumnInfoData idata = {{0}};
-     idata.info.type  = TSDB_DATA_TYPE_NULL;
-     idata.info.bytes = 10;
-     idata.info.colId = i + 1;
-
-     int32_t size = idata.info.bytes * rowNum;
-     idata.pData = (char *)taosMemoryCalloc(1, size);
-     taosArrayPush(res->pDataBlock, &idata);
+     SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_INT, 10, i + 1);
+     colInfoDataEnsureCapacity(&idata, rowNum);
+     blockDataAppendColInfo(res, &idata);
    }
 
-   SColumnInfoData idata = {{0}};
-   idata.info.type  = dataType;
-   idata.info.bytes = dataBytes;
-   idata.info.colId = 3;
-   int32_t size = idata.info.bytes * rowNum;
-   idata.pData = (char *)taosMemoryCalloc(1, size);
-   colInfoDataEnsureCapacity(&idata, 0, rowNum);
-   taosArrayPush(res->pDataBlock, &idata);
+   SColumnInfoData idata = createColumnInfoData(dataType, dataBytes, 3);
+   colInfoDataEnsureCapacity(&idata, rowNum);
+   blockDataAppendColInfo(res, &idata);
+   res->info.capacity = rowNum;
+
+   res->info.rows = rowNum;
    SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
    for (int32_t i = 0; i < rowNum; ++i) {
      colDataAppend(pColumn, i, (const char *)value, false);
@@ -185,17 +174,13 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
    SSDataBlock *res = *block;
 
    int32_t idx = taosArrayGetSize(res->pDataBlock);
-   SColumnInfoData idata = {{0}};
-   idata.info.type  = dataType;
-   idata.info.bytes = dataBytes;
-   idata.info.colId = 1 + idx;
-   int32_t size = idata.info.bytes * rowNum;
-   idata.pData = (char *)taosMemoryCalloc(1, size);
-   taosArrayPush(res->pDataBlock, &idata);
-   res->info.numOfCols++;
-   SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+   SColumnInfoData idata = createColumnInfoData(dataType, dataBytes, 1 + idx);
+   colInfoDataEnsureCapacity(&idata, rowNum);
 
-   colInfoDataEnsureCapacity(pColumn, 0, rowNum);
+   res->info.capacity = rowNum;
+   blockDataAppendColInfo(res, &idata);
+
+   SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
 
    for (int32_t i = 0; i < rowNum; ++i) {
      colDataAppend(pColumn, i, (const char *)value, false);
@@ -279,9 +264,6 @@ void scltMakeTargetNode(SNode **pNode, int16_t dataBlockId, int16_t slotId, SNod
 
  *pNode = (SNode *)onode;
 }
-
-
-
 }
 
 TEST(constantTest, bigint_add_bigint) {
@@ -1110,7 +1092,7 @@ void makeCalculate(void *json, void *key, int32_t rightType, void *rightData, do
    printf("op:%s,1result:%f,except:%f\n", gOptrStr[opType].str, *((double *)colDataGetData(column, 0)), exceptValue);
    ASSERT_TRUE(fabs(*((double *)colDataGetData(column, 0)) - exceptValue) < 0.0001);
  }else if(opType == OP_TYPE_BIT_AND || opType == OP_TYPE_BIT_OR){
-   printf("op:%s,2result:%ld,except:%f\n", gOptrStr[opType].str, *((int64_t *)colDataGetData(column, 0)), exceptValue);
+   printf("op:%s,2result:%" PRId64 ",except:%f\n", gOptrStr[opType].str, *((int64_t *)colDataGetData(column, 0)), exceptValue);
    ASSERT_EQ(*((int64_t *)colDataGetData(column, 0)), exceptValue);
  }else if(opType == OP_TYPE_GREATER_THAN || opType == OP_TYPE_GREATER_EQUAL || opType == OP_TYPE_LOWER_THAN ||
             opType == OP_TYPE_LOWER_EQUAL || opType == OP_TYPE_EQUAL || opType == OP_TYPE_NOT_EQUAL ||
@@ -1310,11 +1292,11 @@ TEST(columnTest, json_column_logic_op) {
  printf("--------------------json string--0 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
  key = "k2";
- bool eRes1[len+len1] = {false, false, true, true, false, false, false, true, false, true, false, true, true};
+ bool eRes1[len+len1] = {false, false, false, false, false, false, false, true, false, true, false, true, true};
  for(int i = 0; i < len; i++){
    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes1[i], op[i], false);
  }
- bool eRes_1[len0] = {true, true, false, false, false, false};
+ bool eRes_1[len0] = {false, false, false, false, false, false};
  for(int i = 0; i < len0; i++){
    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_1[i], op[i], true);
  }
@@ -1346,11 +1328,11 @@ TEST(columnTest, json_column_logic_op) {
  printf("--------------------json bool--1 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
  key = "k4";
- bool eRes3[len+len1] = {false, false, true, true, false, true, false, true, true, false, false, false, false};
+ bool eRes3[len+len1] = {false, false, false, false, false, false, false, true, true, false, false, false, false};
  for(int i = 0; i < len; i++){
    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes3[i], op[i], false);
  }
- bool eRes_3[len0] = {false, true, false, false, false, true};
+ bool eRes_3[len0] = {false, false, false, false, false, false};
  for(int i = 0; i < len0; i++){
    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_3[i], op[i], true);
  }
@@ -1419,11 +1401,11 @@ TEST(columnTest, json_column_logic_op) {
  printf("--------------------json bool--  0 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
  key = "k8";
- bool eRes7[len+len1] = {false, false, true, true, false, false, false, true, false, false, false, false, false};
+ bool eRes7[len+len1] = {false, false, false, false, false, false, false, true, false, false, false, false, false};
  for(int i = 0; i < len; i++){
    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes7[i], op[i], false);
  }
- bool eRes_7[len0] = {true, true, false, false, false, false};
+ bool eRes_7[len0] = {false, false, false, false, false, false};
  for(int i = 0; i < len0; i++) {
    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_7[i], op[i], true);
  }
@@ -1438,11 +1420,11 @@ TEST(columnTest, json_column_logic_op) {
  printf("--------------------json string--  6.6hello {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
  key = "k9";
- bool eRes8[len+len1] = {true, false, false, false, false, true, false, true, true, false, true, false, true};
+ bool eRes8[len+len1] = {false, false, false, false, false, false, false, true, true, false, true, false, true};
  for(int i = 0; i < len; i++){
    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes8[i], op[i], false);
  }
- bool eRes_8[len0] = {false, true, true, true, false, true};
+ bool eRes_8[len0] = {false, false, false, false, false, false};
  for(int i = 0; i < len0; i++) {
    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_8[i], op[i], true);
  }
@@ -1529,6 +1511,7 @@ TEST(columnTest, bigint_column_multi_binary_column) {
 
  SArray *blockList = taosArrayInit(1, POINTER_BYTES);
  taosArrayPush(blockList, &src);
+
  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
  int16_t dataBlockId = 0, slotId = 0;
  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
@@ -2033,7 +2016,7 @@ void scltMakeDataBlock(SScalarParam **pInput, int32_t type, void *pVal, int32_t 
  input->numOfRows = num;
 
  input->columnData->info = createColumnInfo(0, type, bytes);
- colInfoDataEnsureCapacity(input->columnData, 0, num);
+ colInfoDataEnsureCapacity(input->columnData, num);
 
  if (setVal) {
    for (int32_t i = 0; i < num; ++i) {

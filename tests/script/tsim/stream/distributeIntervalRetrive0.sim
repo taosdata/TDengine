@@ -1,0 +1,235 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+
+system sh/exec.sh -n dnode1 -s start 
+sleep 50
+sql connect
+
+sql create dnode $hostname2 port 7200
+
+system sh/exec.sh -n dnode2 -s start
+
+print ===== step1
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql show dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+
+print ===== step2
+
+sql create database test  vgroups 4;
+sql use test;
+sql create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);
+sql create table ts1 using st tags(1,1,1);
+sql create table ts2 using st tags(2,2,2);
+sql create table ts3 using st tags(3,2,2);
+sql create table ts4 using st tags(4,2,2);
+sql create stream stream_t1 trigger at_once into streamtST1 as select  _wstartts, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s);
+
+sleep 1000
+
+sql insert into ts1 values(1648791213001,1,12,3,1.0);
+sql insert into ts2 values(1648791213001,1,12,3,1.0);
+sql insert into ts1 values(1648791213002,NULL,NULL,NULL,NULL);
+sql insert into ts2 values(1648791213002,NULL,NULL,NULL,NULL);
+
+sql insert into ts1 values(1648791223002,2,2,3,1.1);
+sql insert into ts1 values(1648791233003,3,2,3,2.1);
+sql insert into ts2 values(1648791243004,4,2,43,73.1);
+
+sql insert into ts1 values(1648791213002,24,22,23,4.1) (1648791243005,4,20,3,3.1);
+
+sleep 1000
+
+sql insert into ts3 values(1648791213001,12,12,13,14.1) (1648791243005,14,30,30,30.1);
+
+$loop_count = 0
+loop1:
+sleep 1000
+sql select * from streamtST1;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $data01 != 5 then
+  print =====data01=$data01
+  goto loop1
+endi
+
+if $data02 != 38 then
+  print =====data02=$data02
+  goto loop1
+endi
+
+# row 1
+if $data11 != 1 then
+  print =====data11=$data11
+  goto loop1
+endi
+
+if $data12 != 2 then
+  print =====data12=$data12
+  goto loop1
+endi
+
+#row2
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop1
+endi
+
+if $data22 != 3 then
+  print =====data22=$data22
+  goto loop1
+endi
+
+#row 3
+if $data31 != 3 then
+  print =====data31=$data31
+  goto loop1
+endi
+
+if $data32 != 22 then
+  print =====data32=$data32
+  goto loop1
+endi
+
+print loop1 over
+
+sql insert into ts1 values(1648791223008,4,2,30,3.1) (1648791213009,4,2,3,3.1)  (1648791233010,4,2,3,3.1) (1648791243011,4,2,3,3.1)(1648791243012,34,32,33,3.1);
+
+$loop_count = 0
+loop2:
+sleep 1000
+sql select * from streamtST1;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $data01 != 6 then
+  print =====data01=$data01
+  goto loop2
+endi
+
+if $data02 != 42 then
+  print =====data02=$data02
+  goto loop2
+endi
+
+# row 1
+if $data11 != 2 then
+  print =====data11=$data11
+  goto loop2
+endi
+
+if $data12 != 6 then
+  print =====data12=$data12
+  goto loop2
+endi
+
+#row2
+if $data21 != 2 then
+  print =====data21=$data21
+  goto loop2
+endi
+
+if $data22 != 7 then
+  print =====data22=$data22
+  goto loop2
+endi
+
+#row 3
+if $data31 != 5 then
+  print =====data31=$data31
+  goto loop2
+endi
+
+if $data32 != 60 then
+  print =====data32=$data32
+  goto loop2
+endi
+
+print loop2 over
+
+sql insert into ts4 values(1648791223008,4,2,30,3.1) (1648791213009,4,2,3,3.1)  (1648791233010,4,2,3,3.1);
+
+$loop_count = 0
+loop3:
+sleep 1000
+sql select * from streamtST1;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $data01 != 7 then
+  print =====data01=$data01
+  goto loop3
+endi
+
+if $data02 != 46 then
+  print =====data02=$data02
+  goto loop3
+endi
+
+# row 1
+if $data11 != 3 then
+  print =====data11=$data11
+  goto loop3
+endi
+
+if $data12 != 10 then
+  print =====data12=$data12
+  goto loop3
+endi
+
+#row2
+if $data21 != 3 then
+  print =====data21=$data21
+  goto loop3
+endi
+
+if $data22 != 11 then
+  print =====data22=$data22
+  goto loop3
+endi
+
+#row 3
+if $data31 != 5 then
+  print =====data31=$data31
+  goto loop3
+endi
+
+if $data32 != 60 then
+  print =====data32=$data32
+  goto loop3
+endi
+
+print loop3 over
+
+system sh/stop_dnodes.sh

@@ -105,7 +105,7 @@ endi
 sql  select sum(c1) ,count(c1) from ct4 group by c1 having count(c7)  < 1  or  sum(c1) > 2 ;
 print ====> sql : select sum(c1) ,count(c1) from ct4 group by c1 having count(c7)  < 1  or  sum(c1) > 2 ;
 print ====> rows: $rows
-if $rows != 7 then
+if $rows != 8 then
     return -1
 endi
 
@@ -214,9 +214,9 @@ print =================== count all rows
 sql select count(c1) from stb1
 print ====> sql : select count(c1) from stb1
 print ====> rows: $data00
-if $data00 != 20 then
-  print expect 20, actual: $data00
-    return -1
+if $data00 != 17 then
+  print expect 17, actual: $data00
+  return -1
 endi
 
 #=================================================
@@ -246,7 +246,7 @@ print =================== count all rows
 sql select count(c1) from stb1
 print ====> sql : select count(c1) from stb1
 print ====> rows: $data00
-if $data00 != 20 then
+if $data00 != 17 then
   return -1
 endi
 
@@ -279,7 +279,7 @@ endi
 sql  select sum(c1) ,count(c1) from ct4 group by c1 having count(c7)  < 1  or  sum(c1) > 2 ;
 print ====> sql : select sum(c1) ,count(c1) from ct4 group by c1 having count(c7)  < 1  or  sum(c1) > 2 ;
 print ====> rows: $rows
-if $rows != 7 then
+if $rows != 8 then
     return -1
 endi
 

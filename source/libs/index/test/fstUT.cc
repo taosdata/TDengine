@@ -8,7 +8,6 @@
 #include "index.h"
 #include "indexCache.h"
 #include "indexFst.h"
-#include "indexFstCountingWriter.h"
 #include "indexFstUtil.h"
 #include "indexInt.h"
 #include "indexTfile.h"
@@ -40,7 +39,7 @@ static void EnvCleanup() {}
 class FstWriter {
  public:
   FstWriter() {
-    _wc = writerCtxCreate(TFile, tindex, false, 64 * 1024 * 1024);
+    _wc = idxFileCtxCreate(TFile, tindex, false, 64 * 1024 * 1024);
     _b = fstBuilderCreate(_wc, 0);
   }
   bool Put(const std::string& key, uint64_t val) {
@@ -58,25 +57,25 @@ class FstWriter {
     fstBuilderFinish(_b);
     fstBuilderDestroy(_b);
 
-    writerCtxDestroy(_wc, false);
+    idxFileCtxDestroy(_wc, false);
   }
 
  private:
   FstBuilder* _b;
-  WriterCtx*  _wc;
+  IFileCtx*   _wc;
 };
 
 class FstReadMemory {
  public:
   FstReadMemory(size_t size) {
-    _wc = writerCtxCreate(TFile, tindex, true, 64 * 1024);
-    _w = fstCountingWriterCreate(_wc);
+    _wc = idxFileCtxCreate(TFile, tindex, true, 64 * 1024);
+    _w = idxFileCreate(_wc);
     _size = size;
     memset((void*)&_s, 0, sizeof(_s));
   }
   bool init() {
     char* buf = (char*)taosMemoryCalloc(1, sizeof(char) * _size);
-    int   nRead = fstCountingWriterRead(_w, (uint8_t*)buf, _size);
+    int   nRead = idxFileRead(_w, (uint8_t*)buf, _size);
     if (nRead <= 0) {
       return false;
     }
@@ -106,11 +105,11 @@ class FstReadMemory {
     return ok;
   }
   // add later
-  bool Search(AutomationCtx* ctx, std::vector<uint64_t>& result) {
-    FstStreamBuilder*      sb = fstSearch(_fst, ctx);
-    StreamWithState*       st = streamBuilderIntoStream(sb);
-    StreamWithStateResult* rt = NULL;
-    while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
+  bool Search(FAutoCtx* ctx, std::vector<uint64_t>& result) {
+    FStmBuilder* sb = fstSearch(_fst, ctx);
+    FStmSt*      st = stmBuilderIntoStm(sb);
+    FStmStRslt*  rt = NULL;
+    while ((rt = stmStNextWith(st, NULL)) != NULL) {
       // result.push_back((uint64_t)(rt->out.out));
       FstSlice*   s = &rt->data;
       int32_t     sz = 0;
@@ -122,7 +121,7 @@ class FstReadMemory {
     std::cout << std::endl;
     return true;
   }
-  bool SearchWithTimeCostUs(AutomationCtx* ctx, std::vector<uint64_t>& result) {
+  bool SearchWithTimeCostUs(FAutoCtx* ctx, std::vector<uint64_t>& result) {
     int64_t s = taosGetTimestampUs();
     bool    ok = this->Search(ctx, result);
     int64_t e = taosGetTimestampUs();
@@ -130,18 +129,18 @@ class FstReadMemory {
   }
 
   ~FstReadMemory() {
-    fstCountingWriterDestroy(_w);
+    idxFileDestroy(_w);
     fstDestroy(_fst);
     fstSliceDestroy(&_s);
-    writerCtxDestroy(_wc, false);
+    idxFileCtxDestroy(_wc, false);
   }
 
  private:
-  FstCountingWriter* _w;
-  Fst*               _fst;
-  FstSlice           _s;
-  WriterCtx*         _wc;
-  size_t             _size;
+  IdxFstFile* _w;
+  Fst*        _fst;
+  FstSlice    _s;
+  IFileCtx*   _wc;
+  size_t      _size;
 };
 
 class FstWriterEnv : public ::testing::Test {
@@ -192,7 +191,7 @@ class TFst {
     }
     return fr->Get(k, v);
   }
-  bool Search(AutomationCtx* ctx, std::vector<uint64_t>& result) {
+  bool Search(FAutoCtx* ctx, std::vector<uint64_t>& result) {
     // add more
     return fr->Search(ctx, result);
   }
@@ -231,7 +230,7 @@ TEST_F(FstEnv, writeNormal) {
   assert(val == 0);
 
   std::vector<uint64_t> rlt;
-  AutomationCtx*        ctx = automCtxCreate((void*)"ab", AUTOMATION_ALWAYS);
+  FAutoCtx*             ctx = automCtxCreate((void*)"ab", AUTOMATION_ALWAYS);
   assert(fst->Search(ctx, rlt) == true);
 }
 TEST_F(FstEnv, WriteMillonrRecord) {}

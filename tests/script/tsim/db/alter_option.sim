@@ -43,8 +43,16 @@ print ===> $data20 $data21 $data22 $data23 $data24 $data25
 if $data00 != 1 then
   return -1
 endi
-if $data01 != localhost:7100 then
-  return -1
+system_content printf %OS%
+if $system_content == Windows_NT then
+  system_content printf %COMPUTERNAME%:7100
+  if $data01 != $system_content then
+    return -1
+  endi
+else
+  if $data01 != localhost:7100 then
+    return -1
+  endi
 endi
 if $data04 != ready then
   goto check_dnode_ready_1
@@ -62,11 +70,11 @@ print ============= create database
 #  | PAGES value        [64~16384, default: 256]
 #  | CACHELAST value    [0, 1, 2, 3]
 #  | FSYNC value        [0 ~ 180000 ms]
-#  | KEEP value         [days, 365000]
+#  | KEEP value         [duration, 365000]
 #  | REPLICA value      [1 | 3]
 #  | WAL value          [1 | 2]
 
-sql create database db CACHELAST 3 COMP 0 DAYS 240 FSYNC 1000 MAXROWS 8000 MINROWS 10 KEEP 1000 PRECISION 'ns' REPLICA 3 WAL 2 VGROUPS 6 SINGLE_STABLE 1
+sql create database db CACHELAST 3 COMP 0 DURATION 240 FSYNC 1000 MAXROWS 8000 MINROWS 10 KEEP 1000 PRECISION 'ns' REPLICA 3 WAL 2 VGROUPS 6 SINGLE_STABLE 1
 sql show databases
 print rows: $rows
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
@@ -92,10 +100,10 @@ endi
 if $data5_db != no_strict then  # strict
   return -1
 endi
-if $data6_db != 345600 then  # days
+if $data6_db != 345600m then  # duration
   return -1
 endi
-if $data7_db != 1440000,1440000,1440000 then # keep
+if $data7_db != 1440000m,1440000m,1440000m then # keep
   return -1
 endi
 if $data8_db != 96 then  # buffer
@@ -222,17 +230,17 @@ sql_error alter database db replica 0
 #sql_error alter database db quorum 4
 #sql_error alter database db quorum 5
 
-#print ============== modify days
-sql_error alter database db days 480
-sql_error alter database db days 360
-sql_error alter database db days 0
-sql_error alter database db days 14400  # set over than keep
+#print ============== modify duration
+sql_error alter database db duration 480
+sql_error alter database db duration 360
+sql_error alter database db duration 0
+sql_error alter database db duration 14400  # set over than keep
 
 print ============== modify keep
 sql alter database db keep 2400
 sql show databases
 print keep $data7_db
-if $data7_db != 3456000,3456000,3456000 then
+if $data7_db != 3456000m,3456000m,3456000m then
   return -1
 endi
 

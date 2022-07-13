@@ -17,16 +17,17 @@
 #define _TD_UTIL_JSON_H_
 
 #include "os.h"
+#include "tarray.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define tjsonGetNumberValue(pJson, pName, val, code)  \
-  do {                                                \
-    uint64_t _tmp = 0;                                \
+#define tjsonGetNumberValue(pJson, pName, val, code) \
+  do {                                               \
+    uint64_t _tmp = 0;                               \
     code = tjsonGetBigIntValue(pJson, pName, &_tmp); \
-    val = _tmp;                                       \
+    val = _tmp;                                      \
   } while (0)
 
 typedef void SJson;
@@ -66,18 +67,20 @@ typedef int32_t (*FToJson)(const void* pObj, SJson* pJson);
 int32_t tjsonAddObject(SJson* pJson, const char* pName, FToJson func, const void* pObj);
 int32_t tjsonAddItem(SJson* pJson, FToJson func, const void* pObj);
 int32_t tjsonAddArray(SJson* pJson, const char* pName, FToJson func, const void* pArray, int32_t itemSize, int32_t num);
+int32_t tjsonAddTArray(SJson* pJson, const char* pName, FToJson func, const SArray* pArray);
 
 typedef int32_t (*FToObject)(const SJson* pJson, void* pObj);
 
 int32_t tjsonToObject(const SJson* pJson, const char* pName, FToObject func, void* pObj);
 int32_t tjsonMakeObject(const SJson* pJson, const char* pName, FToObject func, void** pObj, int32_t objSize);
 int32_t tjsonToArray(const SJson* pJson, const char* pName, FToObject func, void* pArray, int32_t itemSize);
+int32_t tjsonToTArray(const SJson* pJson, const char* pName, FToObject func, SArray** pArray, int32_t itemSize);
 
 char* tjsonToString(const SJson* pJson);
 char* tjsonToUnformattedString(const SJson* pJson);
 
-SJson* tjsonParse(const char* pStr);
-bool   tjsonValidateJson(const char* pJson);
+SJson*      tjsonParse(const char* pStr);
+bool        tjsonValidateJson(const char* pJson);
 const char* tjsonGetError();
 
 #ifdef __cplusplus

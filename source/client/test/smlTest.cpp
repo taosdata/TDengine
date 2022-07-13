@@ -476,21 +476,39 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(sql);
 }
 
+TEST(testCase, smlGetTimestampLen_Test) {
+  uint8_t len = smlGetTimestampLen(0);
+  ASSERT_EQ(len, 1);
+
+  len = smlGetTimestampLen(1);
+  ASSERT_EQ(len, 1);
+
+  len = smlGetTimestampLen(10);
+  ASSERT_EQ(len, 2);
+
+  len = smlGetTimestampLen(390);
+  ASSERT_EQ(len, 3);
+
+  len = smlGetTimestampLen(-1);
+  ASSERT_EQ(len, 1);
+
+  len = smlGetTimestampLen(-10);
+  ASSERT_EQ(len, 2);
+
+  len = smlGetTimestampLen(-390);
+  ASSERT_EQ(len, 3);
+}
+
+/*
 TEST(testCase, smlProcess_influx_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES* pRes = taos_query(taos, "create database if not exists inflx_db");
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists inflx_db schemaless 1");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use inflx_db");
   taos_free_result(pRes);
-
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
-  ASSERT_NE(request, nullptr);
-
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  ASSERT_NE(info, nullptr);
 
   const char *sql[] = {
     "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0 1451606401000000000",
@@ -505,19 +523,20 @@ TEST(testCase, smlProcess_influx_Test) {
     "stable,t1=t1,t2=t2,t3=t3 c1=1,c2=2,c3=\"kk\",c4=4 1451629501000000000",
     "stable,t2=t2,t1=t1,t3=t3 c1=1,c3=\"\",c4=4 1451629602000000000",
   };
-  int ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
-  ASSERT_EQ(ret, 0);
+  pRes = taos_schemaless_insert(taos, (char**)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
+  ASSERT_EQ(taos_errno(pRes), 0);
+  taos_free_result(pRes);
 
   // case 1
-  TAOS_RES *res = taos_query(taos, "select * from t_91e0b182be80332b5c530cbf872f760e");
-  ASSERT_NE(res, nullptr);
-  int fieldNum = taos_field_count(res);
+  pRes = taos_query(taos, "select * from t_91e0b182be80332b5c530cbf872f760e");
+  ASSERT_NE(pRes, nullptr);
+  int fieldNum = taos_field_count(pRes);
   ASSERT_EQ(fieldNum, 11);
   printf("fieldNum:%d\n", fieldNum);
 
   TAOS_ROW row = NULL;
   int32_t rowIndex = 0;
-  while((row = taos_fetch_row(res)) != NULL) {
+  while((row = taos_fetch_row(pRes)) != NULL) {
     int64_t ts = *(int64_t*)row[0];
     double load_capacity = *(double*)row[1];
     double fuel_capacity = *(double*)row[2];
@@ -546,18 +565,18 @@ TEST(testCase, smlProcess_influx_Test) {
     }
     rowIndex++;
   }
-  taos_free_result(res);
+  taos_free_result(pRes);
 
   // case 2
-  res = taos_query(taos, "select * from t_6885c584b98481584ee13dac399e173d");
-  ASSERT_NE(res, nullptr);
-  fieldNum = taos_field_count(res);
+  pRes = taos_query(taos, "select * from t_6885c584b98481584ee13dac399e173d");
+  ASSERT_NE(pRes, nullptr);
+  fieldNum = taos_field_count(pRes);
   ASSERT_EQ(fieldNum, 5);
   printf("fieldNum:%d\n", fieldNum);
 
   rowIndex = 0;
-  while((row = taos_fetch_row(res)) != NULL) {
-    int *length = taos_fetch_lengths(res);
+  while((row = taos_fetch_row(pRes)) != NULL) {
+    int *length = taos_fetch_lengths(pRes);
 
     int64_t ts = *(int64_t*)row[0];
     double c1 = *(double*)row[1];
@@ -580,20 +599,16 @@ TEST(testCase, smlProcess_influx_Test) {
     }
     rowIndex++;
   }
-  taos_free_result(res);
+  taos_free_result(pRes);
 
   // case 2
-  res = taos_query(taos, "show tables");
-  ASSERT_NE(res, nullptr);
+  pRes = taos_query(taos, "show tables");
+  ASSERT_NE(pRes, nullptr);
 
-  row = taos_fetch_row(res);
-  int rowNum = taos_affected_rows(res);
+  row = taos_fetch_row(pRes);
+  int rowNum = taos_affected_rows(pRes);
   ASSERT_EQ(rowNum, 5);
-  taos_free_result(res);
-
-
-  destroyRequest(request);
-  smlDestroyInfo(info);
+  taos_free_result(pRes);
 }
 
 // different types
@@ -601,66 +616,30 @@ TEST(testCase, smlParseLine_error_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
-  ASSERT_NE(request, nullptr);
-
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  ASSERT_NE(info, nullptr);
-
   const char *sql[] = {
       "measure,t1=3 c1=8",
       "measure,t2=3 c1=8u8"
   };
-  int ret = smlProcess(info, (char **)sql, sizeof(sql)/sizeof(sql[0]));
-  ASSERT_NE(ret, 0);
-  destroyRequest(request);
-  smlDestroyInfo(info);
-}
-
-TEST(testCase, smlGetTimestampLen_Test) {
-  uint8_t len = smlGetTimestampLen(0);
-  ASSERT_EQ(len, 1);
-
-  len = smlGetTimestampLen(1);
-  ASSERT_EQ(len, 1);
-
-  len = smlGetTimestampLen(10);
-  ASSERT_EQ(len, 2);
-
-  len = smlGetTimestampLen(390);
-  ASSERT_EQ(len, 3);
-
-  len = smlGetTimestampLen(-1);
-  ASSERT_EQ(len, 1);
-
-  len = smlGetTimestampLen(-10);
-  ASSERT_EQ(len, 2);
-
-  len = smlGetTimestampLen(-390);
-  ASSERT_EQ(len, 3);
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(taos_errno(pRes), 0);
+  taos_free_result(pRes);
 }
 
 TEST(testCase, smlProcess_telnet_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES* pRes = taos_query(taos, "create database if not exists telnet_db");
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists telnet_db schemaless 1");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use telnet_db");
   taos_free_result(pRes);
-
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
-  ASSERT_NE(request, nullptr);
-
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  ASSERT_NE(info, nullptr);
 
   const char *sql[] = {
      "sys.if.bytes.out  1479496100 1.3E0 host=web01 interface=eth0",
@@ -668,55 +647,48 @@ TEST(testCase, smlProcess_telnet_Test) {
      "sys.if.bytes.out  1479496102 1.3E3 network=tcp",
      " sys.procs.running   1479496100 42 host=web01   "
   };
-  int ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
-  ASSERT_EQ(ret, 0);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_EQ(taos_errno(pRes), 0);
+  taos_free_result(pRes);
 
   // case 1
-  TAOS_RES *res = taos_query(taos, "select * from t_8c30283b3c4131a071d1e16cf6d7094a");
-  ASSERT_NE(res, nullptr);
-  int fieldNum = taos_field_count(res);
+  pRes = taos_query(taos, "select * from t_8c30283b3c4131a071d1e16cf6d7094a");
+  ASSERT_NE(pRes, nullptr);
+  int fieldNum = taos_field_count(pRes);
   ASSERT_EQ(fieldNum, 2);
 
-  TAOS_ROW row = taos_fetch_row(res);
+  TAOS_ROW row = taos_fetch_row(pRes);
   int64_t ts = *(int64_t*)row[0];
   double c1 = *(double*)row[1];
   ASSERT_EQ(ts, 1479496100000);
   ASSERT_EQ(c1, 42);
 
-  int rowNum = taos_affected_rows(res);
+  int rowNum = taos_affected_rows(pRes);
   ASSERT_EQ(rowNum, 1);
-  taos_free_result(res);
+  taos_free_result(pRes);
 
   // case 2
-  res = taos_query(taos, "show tables");
-  ASSERT_NE(res, nullptr);
+  pRes = taos_query(taos, "show tables");
+  ASSERT_NE(pRes, nullptr);
 
-  row = taos_fetch_row(res);
-  rowNum = taos_affected_rows(res);
+  row = taos_fetch_row(pRes);
+  rowNum = taos_affected_rows(pRes);
   ASSERT_EQ(rowNum, 3);
-  taos_free_result(res);
-
-  destroyRequest(request);
-  smlDestroyInfo(info);
+  taos_free_result(pRes);
 }
 
 TEST(testCase, smlProcess_json1_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists json_db");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists json_db schemaless 1");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use json_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, TSDB_SQL_INSERT);
-  ASSERT_NE(request, nullptr);
-
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  ASSERT_NE(info, nullptr);
-
-  const char *sql =
+  const char *sql[] = {
      "[\n"
      "    {\n"
      "        \"metric\": \"sys.cpu.nice\",\n"
@@ -724,6 +696,7 @@ TEST(testCase, smlProcess_json1_Test) {
      "        \"value\": 18,\n"
      "        \"tags\": {\n"
      "           \"host\": \"web01\",\n"
+     "           \"id\": \"t1\",\n"
      "           \"dc\": \"lga\"\n"
      "        }\n"
      "    },\n"
@@ -736,55 +709,48 @@ TEST(testCase, smlProcess_json1_Test) {
      "           \"dc\": \"lga\"\n"
      "        }\n"
      "    }\n"
-     "]";
-  int ret = smlProcess(info, (char **)(&sql), 1);
-  ASSERT_EQ(ret, 0);
+     "]"};
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_EQ(taos_errno(pRes), 0);
+  taos_free_result(pRes);
 
   // case 1
-  TAOS_RES *res = taos_query(taos, "select * from t_cb27a7198d637b4f1c6464bd73f756a7");
-  ASSERT_NE(res, nullptr);
-  int fieldNum = taos_field_count(res);
+  pRes = taos_query(taos, "select * from t1");
+  ASSERT_NE(pRes, nullptr);
+  int fieldNum = taos_field_count(pRes);
   ASSERT_EQ(fieldNum, 2);
 
-  TAOS_ROW row = taos_fetch_row(res);
+  TAOS_ROW row = taos_fetch_row(pRes);
   int64_t ts = *(int64_t*)row[0];
   double c1 = *(double*)row[1];
   ASSERT_EQ(ts, 1346846400000);
   ASSERT_EQ(c1, 18);
 
-  int rowNum = taos_affected_rows(res);
+  int rowNum = taos_affected_rows(pRes);
   ASSERT_EQ(rowNum, 1);
-  taos_free_result(res);
+  taos_free_result(pRes);
 
   // case 2
-  res = taos_query(taos, "show tables");
-  ASSERT_NE(res, nullptr);
+  pRes = taos_query(taos, "show tables");
+  ASSERT_NE(pRes, nullptr);
 
-  row = taos_fetch_row(res);
-  rowNum = taos_affected_rows(res);
+  row = taos_fetch_row(pRes);
+  rowNum = taos_affected_rows(pRes);
   ASSERT_EQ(rowNum, 2);
-  taos_free_result(res);
-
-  destroyRequest(request);
-  smlDestroyInfo(info);
+  taos_free_result(pRes);
 }
 
 TEST(testCase, smlProcess_json2_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, TSDB_SQL_INSERT);
-  ASSERT_NE(request, nullptr);
-
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  ASSERT_NE(info, nullptr);
-  const char *sql =
+  const char *sql[] = {
      "{\n"
      "    \"metric\": \"meter_current0\",\n"
      "    \"timestamp\": {\n"
@@ -806,29 +772,23 @@ TEST(testCase, smlProcess_json2_Test) {
      "       },\n"
      "       \"id\": \"d1001\"\n"
      "    }\n"
-     "}";
-  int32_t ret = smlProcess(info, (char **)(&sql), -1);
-  ASSERT_EQ(ret, 0);
-  destroyRequest(request);
-  smlDestroyInfo(info);
+     "}"};
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_EQ(taos_errno(pRes), 0);
+  taos_free_result(pRes);
 }
 
 TEST(testCase, smlProcess_json3_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, TSDB_SQL_INSERT);
-  ASSERT_NE(request, nullptr);
-
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  ASSERT_NE(info, nullptr);
-  const char *sql =
+  const char *sql[] ={
      "{\n"
      "    \"metric\": \"meter_current1\",\n"
      "    \"timestamp\": {\n"
@@ -878,29 +838,23 @@ TEST(testCase, smlProcess_json3_Test) {
      "       },\n"
      "       \"id\": \"d1001\"\n"
      "    }\n"
-     "}";
-  int32_t ret = smlProcess(info, (char **)(&sql), -1);
-  ASSERT_EQ(ret, 0);
-  destroyRequest(request);
-  smlDestroyInfo(info);
+     "}"};
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_EQ(taos_errno(pRes), 0);
+  taos_free_result(pRes);
 }
 
 TEST(testCase, smlProcess_json4_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
-  ASSERT_NE(request, nullptr);
-
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  ASSERT_NE(info, nullptr);
-  const char *sql = "{\n"
+  const char *sql[] = {"{\n"
      "    \"metric\": \"meter_current2\",\n"
      "    \"timestamp\": {\n"
      "        \"value\"  : 1346846500000,\n"
@@ -940,18 +894,17 @@ TEST(testCase, smlProcess_json4_Test) {
      "       \"t9\": false,\n"
      "       \"id\": \"d1001\"\n"
      "    }\n"
-     "}";
-  int32_t ret = smlProcess(info, (char**)(&sql), -1);
-  ASSERT_EQ(ret, 0);
-  destroyRequest(request);
-  smlDestroyInfo(info);
+     "}"};
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_EQ(taos_errno(pRes), 0);
+  taos_free_result(pRes);
 }
 
 TEST(testCase, smlParseTelnetLine_error_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
@@ -1000,34 +953,27 @@ TEST(testCase, smlParseTelnetLine_diff_type_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
-  ASSERT_NE(request, nullptr);
-
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  ASSERT_NE(info, nullptr);
-
   const char *sql[2] = {
       "sys.procs.running 1479496104000 42 host=web01",
       "sys.procs.running 1479496104000 42u8 host=web01"
   };
-  int32_t ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
-  ASSERT_NE(ret, 0);
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(taos_errno(pRes), 0);
+  taos_free_result(pRes);
 
-  destroyRequest(request);
-  smlDestroyInfo(info);
 }
 
 TEST(testCase, smlParseTelnetLine_json_error_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
@@ -1095,19 +1041,13 @@ TEST(testCase, smlParseTelnetLine_diff_json_type1_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
-  ASSERT_NE(request, nullptr);
-
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  ASSERT_NE(info, nullptr);
-
-  const char *sql[2] = {
+  const char *sql[] = {
       "[\n"
       "    {\n"
       "        \"metric\": \"sys.cpu.nice\",\n"
@@ -1129,30 +1069,22 @@ TEST(testCase, smlParseTelnetLine_diff_json_type1_Test) {
       "    },\n"
       "]",
   };
-  int32_t ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
-  ASSERT_NE(ret, 0);
-
-  destroyRequest(request);
-  smlDestroyInfo(info);
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(taos_errno(pRes), 0);
+  taos_free_result(pRes);
 }
 
 TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
-  ASSERT_NE(request, nullptr);
-
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  ASSERT_NE(info, nullptr);
-
-  const char *sql[2] = {
+  const char *sql[] = {
       "[\n"
       "    {\n"
       "        \"metric\": \"sys.cpu.nice\",\n"
@@ -1174,90 +1106,64 @@ TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
       "    },\n"
       "]",
   };
-  int32_t ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
-  ASSERT_NE(ret, 0);
-
-  destroyRequest(request);
-  smlDestroyInfo(info);
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(taos_errno(pRes), 0);
+  taos_free_result(pRes);
 }
 
 TEST(testCase, sml_TD15662_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists db_15662 precision 'ns'");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists db_15662 precision 'ns' schemaless 1");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use db_15662");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, TSDB_SQL_INSERT);
-  ASSERT_NE(request, nullptr);
-
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
-  ASSERT_NE(info, nullptr);
-
   const char *sql[] = {
       "hetrey c0=f,c1=127i8 1626006833639",
       "hetrey,t1=r c0=f,c1=127i8 1626006833640",
   };
-  int ret = smlProcess(info, (char **)sql, sizeof(sql) / sizeof(sql[0]));
-  ASSERT_EQ(ret, 0);
-
-  destroyRequest(request);
-  smlDestroyInfo(info);
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  ASSERT_EQ(taos_errno(pRes), 0);
+  taos_free_result(pRes);
 }
 
 TEST(testCase, sml_TD15735_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
-  ASSERT_NE(request, nullptr);
-
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
-  ASSERT_NE(info, nullptr);
-
   const char *sql[1] = {
       "{'metric': 'pekoiw', 'timestamp': {'value': 1626006833639000000, 'type': 'ns'}, 'value': {'value': False, 'type': 'bool'}, 'tags': {'t0': {'value': True, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {'value': 9223372036854775807, 'type': 'bigint'}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'binaryTagValue', 'type': 'binary'}, 't8': {'value': 'ncharTagValue', 'type': 'nchar'}}}",
   };
-  int32_t ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
-  ASSERT_NE(ret, 0);
-
-  destroyRequest(request);
-  smlDestroyInfo(info);
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  ASSERT_NE(taos_errno(pRes), 0);
+  taos_free_result(pRes);
 }
 
 TEST(testCase, sml_TD15742_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES* pRes = taos_query(taos, "create database if not exists TD15742");
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists TD15742 schemaless 1");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use TD15742");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
-  ASSERT_NE(request, nullptr);
-
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
-  ASSERT_NE(info, nullptr);
-
   const char *sql[] = {
       "test_ms,t0=t c0=f 1626006833641",
   };
-  int ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
-  ASSERT_EQ(ret, 0);
-
-  destroyRequest(request);
-  smlDestroyInfo(info);
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  ASSERT_EQ(taos_errno(pRes), 0);
+  taos_free_result(pRes);
 }
 
 TEST(testCase, sml_params_Test) {
@@ -1272,14 +1178,40 @@ TEST(testCase, sml_params_Test) {
   };
   TAOS_RES* res = taos_schemaless_insert(taos, (char**)sql, 1, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
   ASSERT_EQ(taos_errno(res), TSDB_CODE_PAR_DB_NOT_SPECIFIED);
-  taos_free_result(pRes);
+  taos_free_result(res);
 
   pRes = taos_query(taos, "use param");
-  taos_free_result(pRes);
+  taos_free_result(res);
 
   res = taos_schemaless_insert(taos, (char**)sql, 1, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
   ASSERT_EQ(taos_errno(res), TSDB_CODE_SML_INVALID_DB_CONF);
+  taos_free_result(res);
+}
+
+TEST(testCase, sml_16384_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists d16384 schemaless 1");
   taos_free_result(pRes);
+
+  const char *sql[] = {
+      "qelhxo,id=pnnqhsa,t0=t,t1=127i8 c0=t,c1=127i8 1626006833639000000",
+  };
+
+  pRes = taos_query(taos, "use d16384");
+  taos_free_result(pRes);
+
+  TAOS_RES* res = taos_schemaless_insert(taos, (char**)sql, 1, TSDB_SML_LINE_PROTOCOL, 0);
+  ASSERT_EQ(taos_errno(res), 0);
+  taos_free_result(res);
+
+  const char *sql1[] = {
+      "qelhxo,id=pnnqhsa,t0=t,t1=127i8 c0=f,c1=127i8,c11=L\"ncharColValue\",c10=t 1626006833639000000",
+  };
+  TAOS_RES* res1 = taos_schemaless_insert(taos, (char**)sql1, 1, TSDB_SML_LINE_PROTOCOL, 0);
+  ASSERT_EQ(taos_errno(res1), 0);
+  taos_free_result(res1);
 }
 
 TEST(testCase, sml_oom_Test) {
@@ -1299,7 +1231,263 @@ TEST(testCase, sml_oom_Test) {
   pRes = taos_query(taos, "use oom");
   taos_free_result(pRes);
 
-  TAOS_RES* res = taos_schemaless_insert(taos, (char**)sql, 100, TSDB_SML_LINE_PROTOCOL, 0);
-  ASSERT_EQ(taos_errno(res), 0);
+  pRes = taos_schemaless_insert(taos, (char**)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
+  ASSERT_EQ(taos_errno(pRes), 0);
   taos_free_result(pRes);
 }
+
+TEST(testCase, sml_16368_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists d16368 schemaless 1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use d16368");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "[{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833639000, \"type\": \"us\"}, \"value\": 1, \"tags\": {\"t1\": 3, \"t2\": {\"value\": 4, \"type\": \"double\"}, \"t3\": {\"value\": \"t3\", \"type\": \"binary\"}}},\n"
+      "{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833739000, \"type\": \"us\"}, \"value\": 2, \"tags\": {\"t1\": {\"value\": 4, \"type\": \"double\"}, \"t3\": {\"value\": \"t4\", \"type\": \"binary\"}, \"t2\": {\"value\": 5, \"type\": \"double\"}, \"t4\": {\"value\": 5, \"type\": \"double\"}}},\n"
+      "{\"metric\": \"stb_name\", \"timestamp\": {\"value\": 1626006833639100, \"type\": \"us\"}, \"value\": 3, \"tags\": {\"t2\": {\"value\": 5, \"type\": \"double\"}, \"t3\": {\"value\": \"ste\", \"type\": \"nchar\"}}},\n"
+      "{\"metric\": \"stf567890\", \"timestamp\": {\"value\": 1626006833639200, \"type\": \"us\"}, \"value\": 4, \"tags\": {\"t1\": {\"value\": 4, \"type\": \"bigint\"}, \"t3\": {\"value\": \"t4\", \"type\": \"binary\"}, \"t2\": {\"value\": 5, \"type\": \"double\"}, \"t4\": {\"value\": 5, \"type\": \"double\"}}},\n"
+      "{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833639300, \"type\": \"us\"}, \"value\": {\"value\": 5, \"type\": \"double\"}, \"tags\": {\"t1\": {\"value\": 4, \"type\": \"double\"}, \"t2\": 5.0, \"t3\": {\"value\": \"t4\", \"type\": \"binary\"}}},\n"
+      "{\"metric\": \"stb_name\", \"timestamp\": {\"value\": 1626006833639400, \"type\": \"us\"}, \"value\": {\"value\": 6, \"type\": \"double\"}, \"tags\": {\"t2\": 5.0, \"t3\": {\"value\": \"ste2\", \"type\": \"nchar\"}}},\n"
+      "{\"metric\": \"stb_name\", \"timestamp\": {\"value\": 1626006834639400, \"type\": \"us\"}, \"value\": {\"value\": 7, \"type\": \"double\"}, \"tags\": {\"t2\": {\"value\": 5.0, \"type\": \"double\"}, \"t3\": {\"value\": \"ste2\", \"type\": \"nchar\"}}},\n"
+      "{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833839006, \"type\": \"us\"}, \"value\": {\"value\": 8, \"type\": \"double\"}, \"tags\": {\"t1\": {\"value\": 4, \"type\": \"double\"}, \"t3\": {\"value\": \"t4\", \"type\": \"binary\"}, \"t2\": {\"value\": 5, \"type\": \"double\"}, \"t4\": {\"value\": 5, \"type\": \"double\"}}},\n"
+      "{\"metric\": \"st123456\", \"timestamp\": {\"value\": 1626006833939007, \"type\": \"us\"}, \"value\": {\"value\": 9, \"type\": \"double\"}, \"tags\": {\"t1\": 4, \"t3\": {\"value\": \"t4\", \"type\": \"binary\"}, \"t2\": {\"value\": 5, \"type\": \"double\"}, \"t4\": {\"value\": 5, \"type\": \"double\"}}}]"
+  };
+  pRes = taos_schemaless_insert(taos, (char**)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_MICRO_SECONDS);
+  ASSERT_EQ(taos_errno(pRes), 0);
+  taos_free_result(pRes);
+}
+
+TEST(testCase, sml_dup_time_Test) {
+ TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+ ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists dup_time schemaless 1");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+     //"test_ms,t0=t c0=f 1626006833641",
+     "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=false,c1=1i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"xcxvwjvf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+     "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=T,c1=2i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"fixrzcuq\",c8=L\"ncharColValue\",c9=7u64 1626006834639000000",
+     "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=t,c1=3i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"iupzdqub\",c8=L\"ncharColValue\",c9=7u64 1626006835639000000",
+     "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=t,c1=4i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"yvvtzzof\",c8=L\"ncharColValue\",c9=7u64 1626006836639000000",
+     "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=t,c1=5i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"vbxpilkj\",c8=L\"ncharColValue\",c9=7u64 1626006837639000000"
+  };
+  pRes = taos_query(taos, "use dup_time");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char**)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
+  ASSERT_EQ(taos_errno(pRes), 0);
+  taos_free_result(pRes);
+}
+
+
+TEST(testCase, sml_16960_Test) {
+TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+ASSERT_NE(taos, nullptr);
+
+TAOS_RES* pRes = taos_query(taos, "create database if not exists d16368 schemaless 1");
+taos_free_result(pRes);
+
+pRes = taos_query(taos, "use d16368");
+taos_free_result(pRes);
+
+const char *sql[] = {
+    "[\n"
+    "{\n"
+    "\"timestamp\":\n"
+    "\n"
+    "{ \"value\": 1349020800000, \"type\": \"ms\" }\n"
+    ",\n"
+    "\"value\":\n"
+    "\n"
+    "{ \"value\": 830525384, \"type\": \"int\" }\n"
+    ",\n"
+    "\"tags\": {\n"
+    "\"id\": \"stb00_0\",\n"
+    "\"t0\":\n"
+    "\n"
+    "{ \"value\": 83972721, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t1\":\n"
+    "\n"
+    "{ \"value\": 539147525, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t2\":\n"
+    "\n"
+    "{ \"value\": 618258572, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t3\":\n"
+    "\n"
+    "{ \"value\": -10536201, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t4\":\n"
+    "\n"
+    "{ \"value\": 349227409, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t5\":\n"
+    "\n"
+    "{ \"value\": 249347042, \"type\": \"int\" }\n"
+    "},\n"
+    "\"metric\": \"stb0\"\n"
+    "},\n"
+    "{\n"
+    "\"timestamp\":\n"
+    "\n"
+    "{ \"value\": 1349020800001, \"type\": \"ms\" }\n"
+    ",\n"
+    "\"value\":\n"
+    "\n"
+    "{ \"value\": -588348364, \"type\": \"int\" }\n"
+    ",\n"
+    "\"tags\": {\n"
+    "\"id\": \"stb00_0\",\n"
+    "\"t0\":\n"
+    "\n"
+    "{ \"value\": 83972721, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t1\":\n"
+    "\n"
+    "{ \"value\": 539147525, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t2\":\n"
+    "\n"
+    "{ \"value\": 618258572, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t3\":\n"
+    "\n"
+    "{ \"value\": -10536201, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t4\":\n"
+    "\n"
+    "{ \"value\": 349227409, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t5\":\n"
+    "\n"
+    "{ \"value\": 249347042, \"type\": \"int\" }\n"
+    "},\n"
+    "\"metric\": \"stb0\"\n"
+    "},\n"
+    "{\n"
+    "\"timestamp\":\n"
+    "\n"
+    "{ \"value\": 1349020800002, \"type\": \"ms\" }\n"
+    ",\n"
+    "\"value\":\n"
+    "\n"
+    "{ \"value\": -370310823, \"type\": \"int\" }\n"
+    ",\n"
+    "\"tags\": {\n"
+    "\"id\": \"stb00_0\",\n"
+    "\"t0\":\n"
+    "\n"
+    "{ \"value\": 83972721, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t1\":\n"
+    "\n"
+    "{ \"value\": 539147525, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t2\":\n"
+    "\n"
+    "{ \"value\": 618258572, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t3\":\n"
+    "\n"
+    "{ \"value\": -10536201, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t4\":\n"
+    "\n"
+    "{ \"value\": 349227409, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t5\":\n"
+    "\n"
+    "{ \"value\": 249347042, \"type\": \"int\" }\n"
+    "},\n"
+    "\"metric\": \"stb0\"\n"
+    "},\n"
+    "{\n"
+    "\"timestamp\":\n"
+    "\n"
+    "{ \"value\": 1349020800003, \"type\": \"ms\" }\n"
+    ",\n"
+    "\"value\":\n"
+    "\n"
+    "{ \"value\": -811250191, \"type\": \"int\" }\n"
+    ",\n"
+    "\"tags\": {\n"
+    "\"id\": \"stb00_0\",\n"
+    "\"t0\":\n"
+    "\n"
+    "{ \"value\": 83972721, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t1\":\n"
+    "\n"
+    "{ \"value\": 539147525, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t2\":\n"
+    "\n"
+    "{ \"value\": 618258572, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t3\":\n"
+    "\n"
+    "{ \"value\": -10536201, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t4\":\n"
+    "\n"
+    "{ \"value\": 349227409, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t5\":\n"
+    "\n"
+    "{ \"value\": 249347042, \"type\": \"int\" }\n"
+    "},\n"
+    "\"metric\": \"stb0\"\n"
+    "},\n"
+    "{\n"
+    "\"timestamp\":\n"
+    "\n"
+    "{ \"value\": 1349020800004, \"type\": \"ms\" }\n"
+    ",\n"
+    "\"value\":\n"
+    "\n"
+    "{ \"value\": -330340558, \"type\": \"int\" }\n"
+    ",\n"
+    "\"tags\": {\n"
+    "\"id\": \"stb00_0\",\n"
+    "\"t0\":\n"
+    "\n"
+    "{ \"value\": 83972721, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t1\":\n"
+    "\n"
+    "{ \"value\": 539147525, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t2\":\n"
+    "\n"
+    "{ \"value\": 618258572, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t3\":\n"
+    "\n"
+    "{ \"value\": -10536201, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t4\":\n"
+    "\n"
+    "{ \"value\": 349227409, \"type\": \"int\" }\n"
+    ",\n"
+    "\"t5\":\n"
+    "\n"
+    "{ \"value\": 249347042, \"type\": \"int\" }\n"
+    "},\n"
+    "\"metric\": \"stb0\"\n"
+    "}\n"
+    "]"
+};
+
+pRes = taos_schemaless_insert(taos, (char**)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+ASSERT_EQ(taos_errno(pRes), 0);
+taos_free_result(pRes);
+}
+*/

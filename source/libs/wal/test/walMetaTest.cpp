@@ -148,7 +148,7 @@ TEST_F(WalCleanEnv, createNew) {
   walRollFileInfo(pWal);
   ASSERT(pWal->fileInfoSet != NULL);
   ASSERT_EQ(pWal->fileInfoSet->size, 1);
-  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGetLast(pWal->fileInfoSet);
+  SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet);
   ASSERT_EQ(pInfo->firstVer, 0);
   ASSERT_EQ(pInfo->lastVer, -1);
   ASSERT_EQ(pInfo->closeTs, -1);
@@ -292,8 +292,8 @@ TEST_F(WalCleanDeleteEnv, roll) {
 
 TEST_F(WalKeepEnv, readHandleRead) {
   walResetEnv();
-  int             code;
-  SWalReadHandle* pRead = walOpenReadHandle(pWal);
+  int         code;
+  SWalReader* pRead = walOpenReader(pWal, NULL);
   ASSERT(pRead != NULL);
 
   int i;
@@ -306,7 +306,7 @@ TEST_F(WalKeepEnv, readHandleRead) {
   }
   for (int i = 0; i < 1000; i++) {
     int ver = taosRand() % 100;
-    code = walReadWithHandle(pRead, ver);
+    code = walReadVer(pRead, ver);
     ASSERT_EQ(code, 0);
 
     // printf("rrbody: \n");
@@ -325,7 +325,7 @@ TEST_F(WalKeepEnv, readHandleRead) {
       EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
     }
   }
-  walCloseReadHandle(pRead);
+  walCloseReader(pRead);
 }
 
 TEST_F(WalRetentionEnv, repairMeta1) {
@@ -354,12 +354,12 @@ TEST_F(WalRetentionEnv, repairMeta1) {
 
   ASSERT_EQ(pWal->vers.lastVer, 99);
 
-  SWalReadHandle* pRead = walOpenReadHandle(pWal);
+  SWalReader* pRead = walOpenReader(pWal, NULL);
   ASSERT(pRead != NULL);
 
   for (int i = 0; i < 1000; i++) {
     int ver = taosRand() % 100;
-    code = walReadWithHandle(pRead, ver);
+    code = walReadVer(pRead, ver);
     ASSERT_EQ(code, 0);
 
     // printf("rrbody: \n");
@@ -389,7 +389,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
 
   for (int i = 0; i < 1000; i++) {
     int ver = taosRand() % 200;
-    code = walReadWithHandle(pRead, ver);
+    code = walReadVer(pRead, ver);
     ASSERT_EQ(code, 0);
 
     // printf("rrbody: \n");

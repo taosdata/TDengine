@@ -40,9 +40,9 @@ void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
       STableComInfo *c = &p->tableInfo;
       
       if (TSDB_CHILD_TABLE == p->tableType) {
-        qDebug("table meta: type:%d, vgId:%d, uid:%" PRIx64 ",suid:%" PRIx64, p->tableType, p->vgId, p->uid, p->suid);
+        qDebug("table meta: type:%d, vgId:%d, uid:0x%" PRIx64 ",suid:0x%" PRIx64, p->tableType, p->vgId, p->uid, p->suid);
       } else {
-        qDebug("table meta: type:%d, vgId:%d, uid:%" PRIx64 ",suid:%" PRIx64 ",sv:%d, tv:%d, tagNum:%d, precision:%d, colNum:%d, rowSize:%d",
+        qDebug("table meta: type:%d, vgId:%d, uid:0x%" PRIx64 ",suid:0x%" PRIx64 ",sv:%d, tv:%d, tagNum:%d, precision:%d, colNum:%d, rowSize:%d",
          p->tableType, p->vgId, p->uid, p->suid, p->sversion, p->tversion, c->numOfTags, c->precision, c->numOfColumns, c->rowSize);
       }
       
@@ -64,7 +64,7 @@ void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
       qDebug("db %d vgInfo:", i);
       for (int32_t j = 0; j < vgNum; ++j) {
         SVgroupInfo* pInfo = taosArrayGet(pDb, j);
-        qDebug("vg %d info: vgId:%d", j, pInfo->vgId);
+        qDebug("vg :%d info: vgId:%d", j, pInfo->vgId);
       }
     }
   } else {
@@ -75,7 +75,7 @@ void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
     num = taosArrayGetSize(pResult->pDbInfo);
     for (int32_t i = 0; i < num; ++i) {
       SDbInfo *pDb = taosArrayGet(pResult->pDbInfo, i);
-      qDebug("db %d dbInfo: vgVer:%d, tbNum:%d, dbId:%" PRIx64, i, pDb->vgVer, pDb->tbNum, pDb->dbId);
+      qDebug("db %d dbInfo: vgVer:%d, tbNum:%d, dbId:0x%" PRIx64, i, pDb->vgVer, pDb->tbNum, pDb->dbId);
     }
   } else {
     qDebug("empty db info");
@@ -147,7 +147,7 @@ grant write on db2.* to user1;
 create function udf1 as '/tmp/libudf1.so' outputtype int;
 create aggregate function udf2 as '/tmp/libudf2.so' outputtype int;
 */
-int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, uint64_t reqId, bool forceUpdate) {
+int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, SRequestConnInfo* pConn, uint64_t reqId, bool forceUpdate) {
   int32_t code = 0;
   SCatalogReq req = {0};
   req.pTableMeta = taosArrayInit(2, sizeof(SName));
@@ -209,7 +209,8 @@ int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps
   *param = 1;
   
   int64_t jobId = 0;
-  CTG_ERR_JRET(catalogAsyncGetAllMeta(pCtg, pTrans, pMgmtEps, reqId, &req, ctgdUserCallback, param, &jobId));
+
+  CTG_ERR_JRET(catalogAsyncGetAllMeta(pCtg, pConn, &req, ctgdUserCallback, param, &jobId));
 
 _return:
 
@@ -254,8 +255,8 @@ int32_t ctgdEnableDebug(char *option) {
 }
 
 int32_t ctgdGetStatNum(char *option, void *res) {
-  if (0 == strcasecmp(option, "runtime.qDoneNum")) {
-    *(uint64_t *)res = atomic_load_64(&gCtgMgmt.stat.runtime.qDoneNum);
+  if (0 == strcasecmp(option, "runtime.numOfOpDequeue")) {
+    *(uint64_t *)res = atomic_load_64(&gCtgMgmt.stat.runtime.numOfOpDequeue);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -265,11 +266,11 @@ int32_t ctgdGetStatNum(char *option, void *res) {
 }
 
 int32_t ctgdGetTbMetaNum(SCtgDBCache *dbCache) {
-  return dbCache->tbCache.metaCache ? (int32_t)taosHashGetSize(dbCache->tbCache.metaCache) : 0;
+  return dbCache->tbCache ? (int32_t)taosHashGetSize(dbCache->tbCache) : 0;
 }
 
 int32_t ctgdGetStbNum(SCtgDBCache *dbCache) {
-  return dbCache->tbCache.stbCache ? (int32_t)taosHashGetSize(dbCache->tbCache.stbCache) : 0;
+  return dbCache->stbCache ? (int32_t)taosHashGetSize(dbCache->stbCache) : 0;
 }
 
 int32_t ctgdGetRentNum(SCtgRentMgmt *rent) {
@@ -332,10 +333,10 @@ void ctgdShowTableMeta(SCatalog* pCtg, const char *tbName, STableMeta* p) {
   STableComInfo *c = &p->tableInfo;
 
   if (TSDB_CHILD_TABLE == p->tableType) {
-    ctgDebug("table [%s] meta: type:%d, vgId:%d, uid:%" PRIx64 ",suid:%" PRIx64, tbName, p->tableType, p->vgId, p->uid, p->suid);
+    ctgDebug("table [%s] meta: type:%d, vgId:%d, uid:0x%" PRIx64 ",suid:0x%" PRIx64, tbName, p->tableType, p->vgId, p->uid, p->suid);
     return;
   } else {
-    ctgDebug("table [%s] meta: type:%d, vgId:%d, uid:%" PRIx64 ",suid:%" PRIx64 ",sv:%d, tv:%d, tagNum:%d, precision:%d, colNum:%d, rowSize:%d",
+    ctgDebug("table [%s] meta: type:%d, vgId:%d, uid:0x%" PRIx64 ",suid:0x%" PRIx64 ",sv:%d, tv:%d, tagNum:%d, precision:%d, colNum:%d, rowSize:%d",
      tbName, p->tableType, p->vgId, p->uid, p->suid, p->sversion, p->tversion, c->numOfTags, c->precision, c->numOfColumns, c->rowSize);
   }
 
@@ -362,21 +363,21 @@ void ctgdShowDBCache(SCatalog* pCtg, SHashObj *dbHash) {
 
     dbFName = taosHashGetKey(pIter, &len);
 
-    int32_t metaNum = dbCache->tbCache.metaCache ? taosHashGetSize(dbCache->tbCache.metaCache) : 0;
-    int32_t stbNum = dbCache->tbCache.stbCache ? taosHashGetSize(dbCache->tbCache.stbCache) : 0;
+    int32_t metaNum = dbCache->tbCache ? taosHashGetSize(dbCache->tbCache) : 0;
+    int32_t stbNum = dbCache->stbCache ? taosHashGetSize(dbCache->stbCache) : 0;
     int32_t vgVersion = CTG_DEFAULT_INVALID_VERSION;
     int32_t hashMethod = -1;
     int32_t vgNum = 0;
 
-    if (dbCache->vgInfo) {
-      vgVersion = dbCache->vgInfo->vgVersion;
-      hashMethod = dbCache->vgInfo->hashMethod;
-      if (dbCache->vgInfo->vgHash) {
-        vgNum = taosHashGetSize(dbCache->vgInfo->vgHash);
+    if (dbCache->vgCache.vgInfo) {
+      vgVersion = dbCache->vgCache.vgInfo->vgVersion;
+      hashMethod = dbCache->vgCache.vgInfo->hashMethod;
+      if (dbCache->vgCache.vgInfo->vgHash) {
+        vgNum = taosHashGetSize(dbCache->vgCache.vgInfo->vgHash);
       }
     }
     
-    ctgDebug("[%d] db [%.*s][%"PRIx64"] %s: metaNum:%d, stbNum:%d, vgVersion:%d, hashMethod:%d, vgNum:%d",
+    ctgDebug("[%d] db [%.*s][0x%"PRIx64"] %s: metaNum:%d, stbNum:%d, vgVersion:%d, hashMethod:%d, vgNum:%d",
       i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted?"deleted":"", metaNum, stbNum, vgVersion, hashMethod, vgNum);
 
     pIter = taosHashIterate(dbHash, pIter);
@@ -391,13 +392,13 @@ void ctgdShowClusterCache(SCatalog* pCtg) {
     return;
   }
 
-  ctgDebug("## cluster %"PRIx64" %p cache Info BEGIN ##", pCtg->clusterId, pCtg);
+  ctgDebug("## cluster 0x%"PRIx64" %p cache Info BEGIN ##", pCtg->clusterId, pCtg);
   ctgDebug("db:%d meta:%d stb:%d dbRent:%d stbRent:%d", ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM),
     ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM));    
   
   ctgdShowDBCache(pCtg, pCtg->dbCache);
 
-  ctgDebug("## cluster %"PRIx64" %p cache Info END ##", pCtg->clusterId, pCtg);
+  ctgDebug("## cluster 0x%"PRIx64" %p cache Info END ##", pCtg->clusterId, pCtg);
 }
 
 int32_t ctgdShowCacheInfo(void) {
@@ -406,6 +407,8 @@ int32_t ctgdShowCacheInfo(void) {
   }
 
   CTG_API_ENTER();
+
+  qDebug("# total catalog cluster number %d #", taosHashGetSize(gCtgMgmt.pCluster));
   
   SCatalog *pCtg = NULL;
   void *pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);

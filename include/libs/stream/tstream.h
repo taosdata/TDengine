@@ -13,7 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "executor.h"
 #include "os.h"
+#include "query.h"
 #include "tdatablock.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
@@ -30,9 +32,14 @@ extern "C" {
 typedef struct SStreamTask SStreamTask;
 
 enum {
-  TASK_STATUS__IDLE = 1,
-  TASK_STATUS__EXECUTING,
-  TASK_STATUS__CLOSING,
+  TASK_STATUS__NORMAL = 0,
+  TASK_STATUS__DROPPING,
+};
+
+enum {
+  TASK_EXEC_STATUS__IDLE = 1,
+  TASK_EXEC_STATUS__EXECUTING,
+  TASK_EXEC_STATUS__CLOSING,
 };
 
 enum {
@@ -50,17 +57,6 @@ enum {
   TASK_OUTPUT_STATUS__BLOCKED,
 };
 
-enum {
-  STREAM_CREATED_BY__USER = 1,
-  STREAM_CREATED_BY__SMA,
-};
-
-enum {
-  STREAM_INPUT__DATA_SUBMIT = 1,
-  STREAM_INPUT__DATA_BLOCK,
-  STREAM_INPUT__CHECKPOINT,
-};
-
 typedef struct {
   int8_t type;
 } SStreamQueueItem;
@@ -75,7 +71,7 @@ typedef struct {
 typedef struct {
   int8_t type;
 
-  int32_t sourceVg;
+  int32_t srcVgId;
   int64_t sourceVer;
 
   SArray* blocks;  // SArray<SSDataBlock*>
@@ -84,6 +80,11 @@ typedef struct {
 typedef struct {
   int8_t type;
 } SStreamCheckpoint;
+
+typedef struct {
+  int8_t       type;
+  SSDataBlock* pBlock;
+} SStreamTrigger;
 
 enum {
   STREAM_QUEUE__SUCESS = 1,
@@ -97,6 +98,9 @@ typedef struct {
   void*       qItem;
   int8_t      status;
 } SStreamQueue;
+
+int32_t streamInit();
+void    streamCleanUp();
 
 SStreamQueue* streamQueueOpen();
 void          streamQueueClose(SStreamQueue* queue);
@@ -135,22 +139,11 @@ void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit);
 
 SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit);
 
-#if 0
-int32_t streamDataBlockEncode(void** buf, const SStreamDataBlock* pOutput);
-void*   streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput);
-#endif
-
 typedef struct {
-  int8_t parallelizable;
-  char*  qmsg;
+  char* qmsg;
   // followings are not applicable to encoder and decoder
-  void* inputHandle;
   void* executor;
 } STaskExec;
-
-typedef struct {
-  int32_t taskId;
-} STaskDispatcherInplace;
 
 typedef struct {
   int32_t taskId;
@@ -204,7 +197,6 @@ enum {
 
 enum {
   TASK_DISPATCH__NONE = 1,
-  TASK_DISPATCH__INPLACE,
   TASK_DISPATCH__FIXED,
   TASK_DISPATCH__SHUFFLE,
 };
@@ -221,27 +213,42 @@ enum {
   TASK_INPUT_TYPE__DATA_BLOCK,
 };
 
-struct SStreamTask {
+enum {
+  TASK_TRIGGER_STATUS__IN_ACTIVE = 1,
+  TASK_TRIGGER_STATUS__ACTIVE,
+};
+
+typedef struct {
+  int32_t nodeId;
+  int32_t childId;
+  int32_t taskId;
+  SEpSet  epSet;
+} SStreamChildEpInfo;
+
+typedef struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
-  int8_t  inputType;
-  int8_t  status;
-
-  int8_t  sourceType;
+  int8_t  isDataScan;
   int8_t  execType;
   int8_t  sinkType;
   int8_t  dispatchType;
   int16_t dispatchMsgType;
 
+  int8_t taskStatus;
+  int8_t execStatus;
+
   // node info
-  int32_t childId;
+  int32_t selfChildId;
   int32_t nodeId;
   SEpSet  epSet;
+
+  // children info
+  SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
 
   // exec
   STaskExec exec;
 
-  // TODO: merge sink and dispatch
+  // TODO: unify sink and dispatch
 
   //  local sink
   union {
@@ -250,9 +257,8 @@ struct SStreamTask {
     STaskSinkFetch fetchSink;
   };
 
-  // dispatch
+  // remote dispatcher
   union {
-    STaskDispatcherInplace inplaceDispatcher;
     STaskDispatcherFixedEp fixedEpDispatcher;
     STaskDispatcherShuffle shuffleDispatcher;
   };
@@ -263,16 +269,28 @@ struct SStreamTask {
   SStreamQueue* inputQueue;
   SStreamQueue* outputQueue;
 
+  // trigger
+  int8_t  triggerStatus;
+  int64_t triggerParam;
+  void*   timer;
+
   // application storage
   // void* ahandle;
-};
 
-SStreamTask* tNewSStreamTask(int64_t streamId, int32_t childId);
+  // msg handle
+  SMsgCb* pMsgCb;
+} SStreamTask;
+
+int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
+int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo);
+
+SStreamTask* tNewSStreamTask(int64_t streamId);
 int32_t      tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t      tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeSStreamTask(SStreamTask* pTask);
 
 static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem) {
+#if 0
   while (1) {
     int8_t inputStatus =
         atomic_val_compare_exchange_8(&pTask->inputStatus, TASK_INPUT_STATUS__NORMAL, TASK_INPUT_STATUS__PROCESSING);
@@ -281,6 +299,7 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
     }
     ASSERT(0);
   }
+#endif
 
   if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit*)pItem);
@@ -288,15 +307,28 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
       atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
       return -1;
     }
+    qDebug("task %d %p submit enqueue %p %p %p", pTask->taskId, pTask, pItem, pSubmitClone, pSubmitClone->data);
     taosWriteQitem(pTask->inputQueue->queue, pSubmitClone);
-  } else if (pItem->type == STREAM_INPUT__DATA_BLOCK) {
+    // qStreamInput(pTask->exec.executor, pSubmitClone);
+  } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
+    // qStreamInput(pTask->exec.executor, pItem);
   } else if (pItem->type == STREAM_INPUT__CHECKPOINT) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
+    // qStreamInput(pTask->exec.executor, pItem);
+  } else if (pItem->type == STREAM_INPUT__TRIGGER) {
+    taosWriteQitem(pTask->inputQueue->queue, pItem);
+    // qStreamInput(pTask->exec.executor, pItem);
   }
 
+  if (pItem->type != STREAM_INPUT__TRIGGER && pItem->type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
+    atomic_val_compare_exchange_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__IN_ACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
+  }
+
+#if 0
   // TODO: back pressure
   atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__NORMAL);
+#endif
   return 0;
 }
 
@@ -308,9 +340,13 @@ static FORCE_INLINE int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBloc
   if (pTask->sinkType == TASK_SINK__TABLE) {
     ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
     pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
+    taosArrayDestroyEx(pBlock->blocks, (FDelete)tDeleteSSDataBlock);
+    taosFreeQitem(pBlock);
   } else if (pTask->sinkType == TASK_SINK__SMA) {
     ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
     pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
+    taosArrayDestroyEx(pBlock->blocks, (FDelete)tDeleteSSDataBlock);
+    taosFreeQitem(pBlock);
   } else {
     ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
     taosWriteQitem(pTask->outputQueue->queue, pBlock);
@@ -336,9 +372,10 @@ typedef struct {
 typedef struct {
   int64_t streamId;
   int32_t taskId;
-  int32_t sourceTaskId;
-  int32_t sourceVg;
-  int32_t sourceChildId;
+  int32_t dataSrcVgId;
+  int32_t upstreamTaskId;
+  int32_t upstreamChildId;
+  int32_t upstreamNodeId;
 #if 0
   int64_t sourceVer;
 #endif
@@ -354,6 +391,23 @@ typedef struct {
 } SStreamDispatchRsp;
 
 typedef struct {
+  int64_t            streamId;
+  int32_t            srcTaskId;
+  int32_t            srcNodeId;
+  int32_t            dstTaskId;
+  int32_t            dstNodeId;
+  int32_t            retrieveLen;
+  SRetrieveTableRsp* pRetrieve;
+} SStreamRetrieveReq;
+
+typedef struct {
+  int64_t streamId;
+  int32_t childId;
+  int32_t rspFromTaskId;
+  int32_t rspToTaskId;
+} SStreamRetrieveRsp;
+
+typedef struct {
   int64_t streamId;
   int32_t taskId;
   int32_t sourceTaskId;
@@ -367,16 +421,19 @@ typedef struct {
 } SStreamTaskRecoverRsp;
 
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
+int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq);
 
-int32_t streamTriggerByWrite(SStreamTask* pTask, int32_t vgId, SMsgCb* pMsgCb);
+int32_t streamLaunchByWrite(SStreamTask* pTask, int32_t vgId);
+int32_t streamSetupTrigger(SStreamTask* pTask);
 
-int32_t streamTaskRun(SStreamTask* pTask);
-
-int32_t streamTaskProcessRunReq(SStreamTask* pTask, SMsgCb* pMsgCb);
-int32_t streamProcessDispatchReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
-int32_t streamProcessDispatchRsp(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchRsp* pRsp);
-int32_t streamProcessRecoverReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamTaskRecoverReq* pReq, SRpcMsg* pMsg);
+int32_t streamProcessRunReq(SStreamTask* pTask);
+int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
+int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp);
+int32_t streamProcessRecoverReq(SStreamTask* pTask, SStreamTaskRecoverReq* pReq, SRpcMsg* pMsg);
 int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp);
+
+int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
+int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp);
 
 #ifdef __cplusplus
 }

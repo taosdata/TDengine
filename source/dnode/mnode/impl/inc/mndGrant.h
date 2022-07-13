@@ -20,6 +20,8 @@
 "C" {
 #endif
 
+#include "mndInt.h"
+
 typedef enum {
   TSDB_GRANT_ALL,
   TSDB_GRANT_TIME,

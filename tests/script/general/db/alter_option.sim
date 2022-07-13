@@ -9,7 +9,7 @@ sleep 2000
 sql connect
 
 print ============= create database
-sql create database db cache 2 blocks 4 days 10 keep 20 minRows 300 maxRows 400 ctime 120 precision 'ms' comp 2 wal 1 replica 1
+sql create database db cache 2 blocks 4 duration 10 keep 20 minRows 300 maxRows 400 ctime 120 precision 'ms' comp 2 wal 1 replica 1
 sql show databases
 if $data00 != db then 
   return -1
@@ -87,13 +87,13 @@ sql_error alter database db quorum 4
 sql_error alter database db quorum 5
 sql_error alter database db quorum -1
 
-print ============== step days
-sql_error alter database db days 0
-sql_error alter database db days 1
-sql_error alter database db days 2
-sql_error alter database db days 10
-sql_error alter database db days 50
-sql_error alter database db days 100
+print ============== step duration
+sql_error alter database db duration 0
+sql_error alter database db duration 1
+sql_error alter database db duration 2
+sql_error alter database db duration 10
+sql_error alter database db duration 50
+sql_error alter database db duration 100
 
 print ============== step keep
 sql show databases
