@@ -2876,6 +2876,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     case TSDB_FUNC_TWA:
     case TSDB_FUNC_MIN:
     case TSDB_FUNC_MAX:
+    case TSDB_FUNC_MIN_ROW:
+    case TSDB_FUNC_MAX_ROW:
     case TSDB_FUNC_DIFF:
     case TSDB_FUNC_DERIVATIVE:
     case TSDB_FUNC_CSUM:
@@ -2962,6 +2964,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       } else if (IS_UNSIGNED_NUMERIC_TYPE(pSchema->type) &&
                  (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
+      } else if (!IS_NUMERIC_TYPE(pSchema->type) && (functionId == TSDB_FUNC_MIN_ROW || functionId == TSDB_FUNC_MAX_ROW)) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
       int16_t resultType = 0;
@@ -7768,10 +7772,20 @@ int32_t validateSqlFunctionInStreamSql(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
 
 int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   bool        isProjectionFunction = false;
+  bool        minMaxRowExists = false;
   const char* msg1 = "functions not compatible with interval";
 
   // multi-output set/ todo refactor
   size_t size = taosArrayGetSize(pQueryInfo->exprList);
+
+  for (int32_t k = 0; k < size; ++k) {
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, k);
+
+    if (pExpr->base.functionId == TSDB_FUNC_MIN_ROW || pExpr->base.functionId == TSDB_FUNC_MAX_ROW) {
+      minMaxRowExists = true;
+      break;
+    }
+  }
   
   for (int32_t k = 0; k < size; ++k) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, k);
@@ -7792,7 +7806,7 @@ int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQu
     }
 
     // projection query on primary timestamp, the selectivity function needs to be present.
-    if (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+    if (minMaxRowExists || (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX)) {
       bool hasSelectivity = false;
       for (int32_t j = 0; j < size; ++j) {
         SExprInfo* pEx = tscExprGet(pQueryInfo, j);
@@ -8296,13 +8310,14 @@ void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex, SSqlC
   pInfo->visible = false;
 }
 
-static void doUpdateSqlFunctionForTagPrj(SQueryInfo* pQueryInfo) {
+static void doUpdateSqlFunctionForColTagPrj(SQueryInfo* pQueryInfo) {
   int32_t tagLength = 0;
   size_t size = taosArrayGetSize(pQueryInfo->exprList);
 
-//todo is 0??
+  //todo is 0??
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
+  bool minMaxRowExists = false;
 
   for (int32_t i = 0; i < size; ++i) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
@@ -8312,6 +8327,20 @@ static void doUpdateSqlFunctionForTagPrj(SQueryInfo* pQueryInfo) {
     } else if (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
       pExpr->base.functionId = TSDB_FUNC_TS_DUMMY;  // ts_select ts,top(col,2)
       tagLength += pExpr->base.resBytes;
+    } else if (pExpr->base.functionId == TSDB_FUNC_MIN_ROW || pExpr->base.functionId == TSDB_FUNC_MAX_ROW) {
+      minMaxRowExists = true;
+    }
+  }
+
+  if (minMaxRowExists) {
+    for (int32_t i = 0; i < size; ++i) {
+      SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+      if (pExpr->base.functionId == TSDB_FUNC_MIN_ROW || pExpr->base.functionId == TSDB_FUNC_MAX_ROW) {
+        continue;
+      } else if (pExpr->base.functionId == TSDB_FUNC_PRJ) {
+        pExpr->base.functionId = TSDB_FUNC_COL_DUMMY;
+        tagLength += pExpr->base.resBytes;
+      }
     }
   }
 
@@ -8323,8 +8352,9 @@ static void doUpdateSqlFunctionForTagPrj(SQueryInfo* pQueryInfo) {
       continue;
     }
 
-    if ((pExpr->base.functionId != TSDB_FUNC_TAG_DUMMY && pExpr->base.functionId != TSDB_FUNC_TS_DUMMY) &&
-       !(pExpr->base.functionId == TSDB_FUNC_PRJ && TSDB_COL_IS_UD_COL(pExpr->base.colInfo.flag))) {
+    if ((pExpr->base.functionId != TSDB_FUNC_TAG_DUMMY && pExpr->base.functionId != TSDB_FUNC_TS_DUMMY &&
+         pExpr->base.functionId != TSDB_FUNC_COL_DUMMY)
+        && !(pExpr->base.functionId == TSDB_FUNC_PRJ && TSDB_COL_IS_UD_COL(pExpr->base.colInfo.flag))) {
       SSchema* pColSchema = &pSchema[pExpr->base.colInfo.colIndex];
       getResultDataInfo(pColSchema->type, pColSchema->bytes, pExpr->base.functionId, (int32_t)pExpr->base.param[0].i64, &pExpr->base.resType,
                         &pExpr->base.resBytes, &pExpr->base.interBytes, tagLength, isSTable, NULL);
@@ -8453,10 +8483,14 @@ static bool check_expr_in_groupby_colum(SGroupbyExpr* pGroupbyExpr, SExprInfo* p
  * 2. if selectivity function and tagprj function both exist, there should be only
  *    one selectivity function exists.
  */
-static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
+static int32_t checkUpdateColTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
   const char* msg1 = "only one selectivity function allowed in presence of tags function";
   const char* msg2 = "aggregation function should not be mixed up with projection";
+  const char* msg3 = "min_row should not be mixed up with max_row";
+  const char* msg4 = "only one selectivity function allowed in presence of min_row or max_row function";
 
+  bool    minRowExists   = false;
+  bool    maxRowExists   = false;
   bool    tagTsColExists = false;
   int16_t numOfScalar = 0;
   int16_t numOfSelectivity = 0;
@@ -8473,7 +8507,15 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
         tagTsColExists = true;  // selectivity + ts/tag column
         break;
       }
+    } else if (pExpr->base.functionId == TSDB_FUNC_MIN_ROW) {
+      minRowExists = true;
+    } else if (pExpr->base.functionId == TSDB_FUNC_MAX_ROW) {
+      maxRowExists = true;
     }
+  }
+
+  if (minRowExists && maxRowExists) {
+    return invalidOperationMsg(msg, msg3);
   }
 
   for (int32_t i = 0; i < numOfExprs; ++i) {
@@ -8514,7 +8556,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
     }
   }
 
-  if (tagTsColExists) {  // check if the selectivity function exists
+  if (tagTsColExists || minRowExists || maxRowExists) {  // check if the selectivity function exists
     // When the tag projection function on tag column that is not in the group by clause, aggregation function and
     // selectivity function exist in select clause is not allowed.
     if (numOfAggregation > 0) {
@@ -8525,7 +8567,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
      *  if numOfSelectivity equals to 0, it is a super table projection query
      */
     if (numOfSelectivity == 1) {
-      doUpdateSqlFunctionForTagPrj(pQueryInfo);
+      doUpdateSqlFunctionForColTagPrj(pQueryInfo);
       int32_t code = doUpdateSqlFunctionForColPrj(pQueryInfo);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -8551,11 +8593,17 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
              (functionId == TSDB_FUNC_LAST_DST && (pExpr->base.colInfo.flag & TSDB_COL_NULL) != 0)) {
           // do nothing
         } else {
-          return invalidOperationMsg(msg, msg1);
+          if (tagTsColExists) {
+            return invalidOperationMsg(msg, msg1);
+          }
+
+          if (minRowExists || maxRowExists) {
+            return invalidOperationMsg(msg, msg4);
+          }
         }
       }
 
-      doUpdateSqlFunctionForTagPrj(pQueryInfo);
+      doUpdateSqlFunctionForColTagPrj(pQueryInfo);
       int32_t code = doUpdateSqlFunctionForColPrj(pQueryInfo);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -8779,7 +8827,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
       }
     }
 
-    if (checkUpdateTagPrjFunctions(pQueryInfo, msg) != TSDB_CODE_SUCCESS) {
+    if (checkUpdateColTagPrjFunctions(pQueryInfo, msg) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
@@ -8794,7 +8842,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
 
     return TSDB_CODE_SUCCESS;
   } else {
-    return checkUpdateTagPrjFunctions(pQueryInfo, msg);
+    return checkUpdateColTagPrjFunctions(pQueryInfo, msg);
   }
 }
 

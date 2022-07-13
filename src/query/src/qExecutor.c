@@ -413,7 +413,7 @@ static bool isSelectivityWithTagsQuery(SQLFunctionCtx *pCtx, int32_t numOfOutput
       continue;
     }
 
-    if (functId == TSDB_FUNC_TAG_DUMMY || functId == TSDB_FUNC_TS_DUMMY) {
+    if (functId == TSDB_FUNC_TAG_DUMMY || functId == TSDB_FUNC_TS_DUMMY || functId == TSDB_FUNC_COL_DUMMY) {
       hasTags = true;
       continue;
     }
@@ -437,7 +437,7 @@ static bool isScalarWithTagsQuery(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
       continue;
     }
 
-    if (functId == TSDB_FUNC_TAG_DUMMY || functId == TSDB_FUNC_TS_DUMMY) {
+    if (functId == TSDB_FUNC_TAG_DUMMY || functId == TSDB_FUNC_TS_DUMMY || functId == TSDB_FUNC_COL_DUMMY) {
       hasTags = true;
       continue;
     }
@@ -945,6 +945,10 @@ void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t 
 static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, STimeWindow* pWin, int32_t offset,
                              int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput) {
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
+  int16_t minRowIndex = -1, maxRowIndex = -1;
+  bool    updateIndex = false;
+  int32_t minMaxRowColIndex = -1;
+  int16_t minMaxRowType = FUNC_NOT_VAL;
 
   for (int32_t k = 0; k < numOfOutput; ++k) {
     bool hasAggregates = pCtx[k].preAggVals.isSet;
@@ -977,7 +981,39 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
         SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
         doInvokeUdf(pUdfInfo, &pCtx[k], 0, TSDB_UDF_FUNC_NORMAL);
       } else if (!TSDB_FUNC_IS_SCALAR(functionId)){
+        if (functionId == TSDB_FUNC_MIN_ROW || functionId == TSDB_FUNC_MAX_ROW) {
+          if (minMaxRowColIndex == -1) {
+            minMaxRowColIndex = k;
+          }
+
+          if (functionId == TSDB_FUNC_MIN_ROW) {
+            minMaxRowType = FUNC_MIN_ROW;
+          } else {
+            minMaxRowType = FUNC_MAX_ROW;
+          }
+
+          pCtx[k].updateIndex = false;
+        } else {
+          pCtx[k].minRowIndex = minRowIndex;
+          pCtx[k].maxRowIndex = maxRowIndex;
+          pCtx[k].updateIndex = updateIndex;
+          pCtx[k].minMaxRowType = minMaxRowType;
+        }
+
         aAggs[functionId].xFunction(&pCtx[k]);
+
+        if (functionId == TSDB_FUNC_MIN_ROW || functionId == TSDB_FUNC_MAX_ROW) {
+          updateIndex = pCtx[k].updateIndex;
+
+          // find the minIndex or maxIndex of this column to detemine the index of other columns
+          if (functionId == TSDB_FUNC_MIN_ROW) {
+            minRowIndex = pCtx[k].preAggVals.statis.minIndex;
+          }
+
+          if (functionId == TSDB_FUNC_MAX_ROW) {
+            maxRowIndex = pCtx[k].preAggVals.statis.maxIndex;
+          }
+        }
       } else {
         assert(0);
       }
@@ -991,6 +1027,58 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
     // restore it
     pCtx[k].preAggVals.isSet = hasAggregates;
     pCtx[k].pInput = start;
+  }
+
+  // update the indices of columns before the one in min_row/max_row
+  if (updateIndex) {
+    for (int32_t k = 0; k < minMaxRowColIndex; ++k) {
+      bool hasAggregates = pCtx[k].preAggVals.isSet;
+
+      pCtx[k].size    = forwardStep;
+      pCtx[k].startTs = pWin->skey;
+      pCtx[k].endTs   = pWin->ekey;
+
+      // keep it temporarialy
+      char* start = pCtx[k].pInput;
+
+      int32_t pos = (QUERY_IS_ASC_QUERY(pQueryAttr)) ? offset : offset - (forwardStep - 1);
+      if (pCtx[k].pInput != NULL) {
+        pCtx[k].pInput = (char *)pCtx[k].pInput + pos * pCtx[k].inputBytes;
+      }
+
+      if (tsCol != NULL) {
+        pCtx[k].ptsList = &tsCol[pos];
+      }
+
+      // not a whole block involved in query processing, statistics data can not be used
+      // NOTE: the original value of isSet have been changed here
+      if (pCtx[k].preAggVals.isSet && forwardStep < numOfTotal) {
+        pCtx[k].preAggVals.isSet = false;
+      }
+
+      if (functionNeedToExecute(pRuntimeEnv, &pCtx[k])) {
+        int32_t functionId = pCtx[k].functionId;
+        if (functionId != TSDB_FUNC_COL_DUMMY) {
+          continue;
+        }
+
+        pCtx[k].minRowIndex = minRowIndex;
+        pCtx[k].maxRowIndex = maxRowIndex;
+        pCtx[k].updateIndex = updateIndex;
+        pCtx[k].minMaxRowType = minMaxRowType;
+
+        aAggs[functionId].xFunction(&pCtx[k]);
+
+        pCtx[k].minRowIndex = -1;
+        pCtx[k].maxRowIndex = -1;
+        pCtx[k].updateIndex = false;
+        pCtx[k].minMaxRowType = FUNC_NOT_VAL;
+      }
+
+      // restore it
+      pCtx[k].preAggVals.isSet = hasAggregates;
+      pCtx[k].pInput = start;
+    }
   }
 }
 
@@ -1233,6 +1321,10 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
 
 static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SQLFunctionCtx* pCtx, SSDataBlock* pSDataBlock) {
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
+  int16_t minRowIndex = -1, maxRowIndex = -1;
+  bool    updateIndex = false;
+  int32_t minMaxRowColIndex = -1;
+  int16_t minMaxRowType = FUNC_NOT_VAL;
 
   for (int32_t k = 0; k < pOperator->numOfOutput; ++k) {
     if (functionNeedToExecute(pRuntimeEnv, &pCtx[k])) {
@@ -1243,7 +1335,39 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SQLFunction
         SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
         doInvokeUdf(pUdfInfo, &pCtx[k], 0, TSDB_UDF_FUNC_NORMAL);
       } else if (!TSDB_FUNC_IS_SCALAR(functionId)){
+        if (functionId == TSDB_FUNC_MIN_ROW || functionId == TSDB_FUNC_MAX_ROW) {
+          if (minMaxRowColIndex == -1) {
+            minMaxRowColIndex = k;
+          }
+
+          if (functionId == TSDB_FUNC_MIN_ROW) {
+            minMaxRowType = FUNC_MIN_ROW;
+          } else {
+            minMaxRowType = FUNC_MAX_ROW;
+          }
+
+          pCtx[k].updateIndex = false;
+        } else {
+          pCtx[k].minRowIndex = minRowIndex;
+          pCtx[k].maxRowIndex = maxRowIndex;
+          pCtx[k].updateIndex = updateIndex;
+          pCtx[k].minMaxRowType = minMaxRowType;
+        }
+
         aAggs[functionId].xFunction(&pCtx[k]);
+
+        if (functionId == TSDB_FUNC_MIN_ROW || functionId == TSDB_FUNC_MAX_ROW) {
+          updateIndex = pCtx[k].updateIndex;
+
+          // find the minIndex or maxIndex of this column to detemine the index of other columns
+          if (functionId == TSDB_FUNC_MIN_ROW) {
+            minRowIndex = pCtx[k].preAggVals.statis.minIndex;
+          }
+
+          if (functionId == TSDB_FUNC_MAX_ROW) {
+            maxRowIndex = pCtx[k].preAggVals.statis.maxIndex;
+          }
+        }
       } else {
         assert(0);
       }
@@ -1251,6 +1375,32 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SQLFunction
       if (GET_RES_INFO(&(pCtx[k]))->numOfRes == -1){
         qError("Mode inner result num is too large");
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_RESULT_TOO_LARGE);
+      }
+    }
+  }
+
+  // update the indices of columns before the one in min_row/max_row
+  if (updateIndex) {
+    for (int32_t k = 0; k < minMaxRowColIndex; ++k) {
+      if (functionNeedToExecute(pRuntimeEnv, &pCtx[k])) {
+        pCtx[k].startTs = startTs;
+
+        int32_t functionId = pCtx[k].functionId;
+        if (functionId != TSDB_FUNC_COL_DUMMY) {
+          continue;
+        }
+
+        pCtx[k].minRowIndex = minRowIndex;
+        pCtx[k].maxRowIndex = maxRowIndex;
+        pCtx[k].updateIndex = updateIndex;
+        pCtx[k].minMaxRowType = minMaxRowType;
+
+        aAggs[functionId].xFunction(&pCtx[k]);
+
+        pCtx[k].minRowIndex = -1;
+        pCtx[k].maxRowIndex = -1;
+        pCtx[k].updateIndex = false;
+        pCtx[k].minMaxRowType = FUNC_NOT_VAL;
       }
     }
   }
@@ -1949,7 +2099,7 @@ static int32_t setCtxTagColumnInfo(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
       continue;
     }
 
-    if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) { //ts_select ts,top(col,2)
+    if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_COL_DUMMY) { //ts_select ts,top(col,2)
       tagLen += pCtx[i].outputBytes;
       pTagCtx[num++] = &pCtx[i];
     } else if ((aAggs[functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
@@ -2023,6 +2173,9 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     pCtx->start.key    = INT64_MIN;
     pCtx->end.key      = INT64_MIN;
     pCtx->startTs      = INT64_MIN;
+
+    pCtx->minRowIndex  = -1;
+    pCtx->maxRowIndex  = -1;
 
     pCtx->qWindow      = pQueryAttr->window;
     pCtx->allocRows    = numOfRows;
