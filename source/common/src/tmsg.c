@@ -4984,8 +4984,10 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     pReq->ctb.tagName = taosArrayInit(len, TSDB_COL_NAME_LEN);
     if(pReq->ctb.tagName == NULL) return -1;
     for (int32_t i = 0; i < len; i++){
-      char *name = NULL;
-      if (tDecodeCStr(pCoder, &name) < 0) return -1;
+      char name[TSDB_COL_NAME_LEN] = {0};
+      char *tmp = NULL;
+      if (tDecodeCStr(pCoder, &tmp) < 0) return -1;
+      strcpy(name, tmp);
       taosArrayPush(pReq->ctb.tagName, name);
     }
   } else if (pReq->type == TSDB_NORMAL_TABLE) {

@@ -494,8 +494,6 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
     taosArrayPush(rsp.pArray, &cRsp);
   }
 
-  tDecoderClear(&decoder);
-
   tqUpdateTbUidList(pVnode->pTq, tbUids, true);
   tdUpdateTbUidList(pVnode->pSma, pStore);
   tdUidStoreFree(pStore);
@@ -512,9 +510,12 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
   }
   tEncoderInit(&encoder, pRsp->pCont, pRsp->contLen);
   tEncodeSVCreateTbBatchRsp(&encoder, &rsp);
-  tEncoderClear(&encoder);
 
 _exit:
+  for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
+    pCreateReq = req.pReqs + iReq;
+    taosArrayDestroy(pCreateReq->ctb.tagName);
+  }
   taosArrayDestroy(rsp.pArray);
   taosArrayDestroy(tbUids);
   tDecoderClear(&decoder);
@@ -795,6 +796,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
       if (tDecodeSVCreateTbReq(&decoder, &createTbReq) < 0) {
         pRsp->code = TSDB_CODE_INVALID_MSG;
         tDecoderClear(&decoder);
+        taosArrayDestroy(createTbReq.ctb.tagName);
         goto _exit;
       }
 
@@ -802,6 +804,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
         if (terrno != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
           submitBlkRsp.code = terrno;
           tDecoderClear(&decoder);
+          taosArrayDestroy(createTbReq.ctb.tagName);
           goto _exit;
         }
       }
@@ -822,6 +825,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
       vnodeDebugPrintSingleSubmitMsg(pVnode->pMeta, pBlock, &msgIter, "real uid");
 #endif
       tDecoderClear(&decoder);
+      taosArrayDestroy(createTbReq.ctb.tagName);
     } else {
       submitBlkRsp.tblFName = taosMemoryMalloc(TSDB_TABLE_FNAME_LEN);
       sprintf(submitBlkRsp.tblFName, "%s.", pVnode->config.dbname);
