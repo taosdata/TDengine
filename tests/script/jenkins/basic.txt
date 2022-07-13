@@ -197,5 +197,6 @@
 
 # --- scalar
 ./test.sh -f tsim/scalar/in.sim
+./test.sh -f tsim/scalar/scalar.sim
 
 #======================b1-end===============
