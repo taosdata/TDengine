@@ -513,8 +513,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   // check msgtype
   if(rpcMsg->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {
-    pSql->noAckCnt = 0;
-    pSql->lastUpdate = taosGetTimestampMs();
+    pSql->noAckCnt  = 0;
+    pSql->lastAlive = taosGetTimestampMs();
     tscInfo(" recv sql probe msg. sql=%s", pSql->sqlstr);
     return ;
   }
