@@ -40,6 +40,8 @@ else
 fi
 cat ../script/jenkins/basic.txt |grep -v "^#"|grep -v "^$"|sed "s/^/,,script,/" >>$case_file
 grep "^python" ../system-test/fulltest.sh |sed "s/^/,,system-test,/" >>$case_file
+grep "^python" ../system-test/fulltest-tools.sh |sed "s/^/,,system-test,/" >>$case_file
+grep "^python" ../develop-test/fulltest-tools.sh |sed "s/^/,,system-test,/" >>$case_file
 
 # tar source code for run.sh to use
 # if [ $ent -eq 0 ]; then

@@ -1,0 +1,429 @@
+{
+  "filetype": "query",
+  "cfgdir": "/etc/taos",
+  "host": "127.0.0.1",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "confirm_parameter_prompt": "no",
+  "databases": "db",
+  "query_times": 2,
+  "specified_table_query": {
+      "query_interval": 1,
+      "threads": 3,
+      "sqls": [
+        {    
+            "sql": "select last_row(*) from stb00_0",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_1",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_2",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_3",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_4",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_5",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_6",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_7",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_8",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_9",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_10 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_11 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_12 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_13 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_14 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_15 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_16 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_17 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_18 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_19 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_20 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_21 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_22 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_23 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_24 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_25 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_26 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_27 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_28 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_29 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_30 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_31 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_32 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_33 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_34 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_35 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_36 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_37 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_38 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_39 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_40 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_41 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_42 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_43 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_44 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_45 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_46 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_47 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_48 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_49 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_50 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_51 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_52 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_53 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_54 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_55 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_56 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_57 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_58 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_59 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_60",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_61",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_62",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_63",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_64",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_65",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_66",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_67",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_68",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_69",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_70 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_71 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_72 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_73 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_74 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_75 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_76 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_77 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_78 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_79 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_80 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_81 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_82 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_83 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_84 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_85 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_86 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_87 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_88 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_89 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_90 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_91 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_92 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_93 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_94 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_95 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_96 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_97 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_98 ",
+            "result": "./query_res0.txt"
+        },
+        {
+            "sql": "select last_row(*) from stb00_99 ",
+            "result": "./query_res0.txt"
+
+        }]
+    },
+    "super_table_query": {
+        "stblname": "stb1",
+        "query_interval": 1,
+        "threads": 3,
+        "sqls": [
+          {
+            "sql": "select last_row(ts) from xxxx",
+            "result": "./query_res2.txt"
+          }
+        ]
+      }
+}
+  
