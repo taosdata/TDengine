@@ -94,17 +94,14 @@ print =============== stop
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
 print =============== check
-print ----> start to check if there are ERRORS in vagrind log file for each dnode
-system_content sh/checkValgrind.sh -n dnode1 
-
-print cmd return result ----> [ $system_content ]
-if $system_content <= 0 then
-  return 0
-endi 
-
 $null=
-if $system_content == $null then
-  return 0
+
+system_content sh/checkValgrind.sh -n dnode1 
+print cmd return result ----> [ $system_content ]
+if $system_content > 1 then
+  return -1
 endi 
 
-return -1
+if $system_content == $null then
+  return -1
+endi 
