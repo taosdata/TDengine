@@ -1153,10 +1153,11 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   SOperatorInfo*  pOperator = pInfo->pStreamScanOp;
   SExecTaskInfo*  pTaskInfo = pInfo->pStreamScanOp->pTaskInfo;
 
+  blockDataEnsureCapacity(pInfo->pRes, pBlock->info.rows);
+
   pInfo->pRes->info.rows = pBlock->info.rows;
   pInfo->pRes->info.uid = pBlock->info.uid;
   pInfo->pRes->info.type = STREAM_NORMAL;
-  pInfo->pRes->info.capacity = pBlock->info.rows;
 
   uint64_t* groupIdPre = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
   if (groupIdPre) {
@@ -2415,6 +2416,7 @@ int32_t createScanTableListInfo(STableScanPhysiNode* pTableScanNode, SReadHandle
     qDebug("no table qualified for query, TID:0x%" PRIx64 ", QID:0x%" PRIx64, taskId, queryId);
     return TSDB_CODE_SUCCESS;
   }
+
   pTableListInfo->needSortTableByGroupId = pTableScanNode->groupSort;
   code = generateGroupIdMap(pTableListInfo, pHandle, pTableScanNode->pGroupTags);
   if (code != TSDB_CODE_SUCCESS) {
