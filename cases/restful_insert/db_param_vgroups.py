@@ -30,6 +30,12 @@ class TestVgroups(TDCase):
         self.endpoint = self.taosd_setting["spec"]["config"]["firstEP"]
         self.api_type = 'restful'
     def get_vnode_count(self):
+        self.tdRest.request('show databases')
+        for i in range(len(self.tdRest.resp['data'])):
+            if self.tdRest.resp['data'][i][0] == 'log':
+                return int(self._remote.cmd(self.fqdn, [f'ls {self.vnode_dir} | grep -v vnodes.json | grep -v shmfile | wc -l'])) -2
+            else:
+                continue
         return int(self._remote.cmd(self.fqdn, [f'ls {self.vnode_dir} | grep -v vnodes.json | grep -v shmfile | wc -l']))
 
     def vgroups_check(self):
@@ -42,9 +48,10 @@ class TestVgroups(TDCase):
         dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.request('show databases')
-        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         # default
         self.tdSql.checkEqual(db_field, self.cfg["default"])
+        self.tdSql.checkEqual(self.get_vnode_count(),db_field)
         self.tdRest.request(f'drop database {dbname}')
         # boundary
         for param_value in self.cfg["boundary"]:
@@ -52,8 +59,9 @@ class TestVgroups(TDCase):
             self.tdRest.request(f'create database if not exists {dbname} {test_param} {param_value}  buffer {self.buffer_min}')
             self.tdRest.request('show databases')
             #TODO
-            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param)
+            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
             self.tdSql.checkEqual(db_field, param_value)
+            self.tdSql.checkEqual(self.get_vnode_count(),db_field)
             if param_value == self.cfg["boundary"][-1]:
                 self.tdRest.error(f'create database if not exists {dbname}_error {test_param} 1 buffer {self.buffer_min}')
             self.tdRest.request(f'drop database {dbname}')

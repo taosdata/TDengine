@@ -32,7 +32,7 @@ class TestTagColLimit(TDCase):
         self.tdRest.request(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({tag_value_str})')
         self.tdRest.request(f'insert into {dbname}.tb values (now, 1)')
         self.tdRest.request(f'select tag127 from {dbname}.stb')
-        self.tdSql.checkEqual(int(self.tdRest.resp[0][0]), 1)
+        self.tdSql.checkEqual(int(self.tdRest.resp['data'][0][0]), 1)
         self.tdRest.request(f'drop database if exists {dbname}')
 
     def stb_col_max_count_check(self):
@@ -49,7 +49,7 @@ class TestTagColLimit(TDCase):
         self.tdRest.request(f'create table if not exists {dbname}.tb using {dbname}.stb tags (1)')
         self.tdRest.request(f'insert into {dbname}.tb values (now, {col_value_str})')
         self.tdRest.request(f'select col4093 from {dbname}.stb')
-        self.tdSql.checkEqual(int(self.tdRest.resp[0][0]), 1)
+        self.tdSql.checkEqual(int(self.tdRest.resp['data'][0][0]), 1)
         self.tdRest.request(f'drop database if exists {dbname}')
 
     def tb_col_max_count_check(self):
@@ -65,7 +65,7 @@ class TestTagColLimit(TDCase):
         col_value_str = '1, ' * (self.tdCom.Boundary.MAX_TAG_COL_COUNT - 2) + '1'
         self.tdRest.request(f'insert into {dbname}.tb values (now, {col_value_str})')
         self.tdRest.request(f'select col4094 from {dbname}.tb')
-        self.tdSql.checkEqual(int(self.tdRest.resp[0][0]), 1)
+        self.tdSql.checkEqual(int(self.tdRest.resp['data'][0][0]), 1)
         self.tdRest.request(f'drop database if exists {dbname}')
 
     def stb_sensitive_check(self):
@@ -79,10 +79,11 @@ class TestTagColLimit(TDCase):
             self.tdRest.request(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, "TT1", "Tt2", "3Tt%3")')
             self.tdRest.request(f'insert into {dbname}.tb values (now, "TT1", "Tt2", "3Tt%3")')
             self.tdRest.request(f"describe {dbname}.stb")
-            col_key_list = self.tdSql.getColNameList(True)[0]
+            print(self.tdRest.getColNameList(True))
+            col_key_list = self.tdRest.getColNameList(True)[0]
             self.tdSql.checkEqual(col_key_list, ['col_ts', 'cc1', 'cc2', '3Cc%3', '1Tag_ts^', 'tt1', 'tt2', '3Tt%3'])
             self.tdRest.request(f'select * from {dbname}.stb')
-            lres = list(self.tdRest.resp[0])
+            lres = list(self.tdRest.resp['data'][0])
             lres.pop(0)
             lres.pop(3)
             self.tdSql.checkEqual(lres, ['TT1', 'Tt2', '3Tt%3', 'TT1', 'Tt2', '3Tt%3'])
@@ -98,10 +99,10 @@ class TestTagColLimit(TDCase):
             self.tdRest.request(f'create table if not exists {dbname}.tb (Col_ts timestamp, CC1 {test_type}(16), Cc2 {test_type}(16), `3Cc%3` {test_type}(16))')
             self.tdRest.request(f'insert into {dbname}.tb values (now, "TT1", "Tt2", "3Tt%3")')
             self.tdRest.request(f"describe {dbname}.tb")
-            col_key_list = self.tdSql.getColNameList(True)[0]
+            col_key_list = self.tdRest.getColNameList(True)[0]
             self.tdSql.checkEqual(col_key_list, ['col_ts', 'cc1', 'cc2', '3Cc%3'])
             self.tdRest.request(f'select * from {dbname}.tb')
-            lres = list(self.tdRest.resp[0])
+            lres = list(self.tdRest.resp['data'][0])
             lres.pop(0)
             self.tdSql.checkEqual(lres, ['TT1', 'Tt2', '3Tt%3'])
             self.tdRest.request(f'drop database if exists {dbname}')
@@ -124,7 +125,7 @@ class TestTagColLimit(TDCase):
         self.tdRest.request(f'insert into {dbname}.tb values (now, 1)')
         for tbname in [f"{dbname}.stb", f"{dbname}.ctb", f"{dbname}.tb"]:
             self.tdRest.request(f"describe {tbname}")
-            col_key_list = self.tdSql.getColNameList(True)[0]
+            col_key_list = self.tdRest.getColNameList(True)[0]
             if tbname == f"{dbname}.tb":
                 self.tdSql.checkEqual(col_key_list, ['col_ts', col_key_name])
             else:
