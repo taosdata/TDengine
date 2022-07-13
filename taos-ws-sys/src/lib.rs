@@ -387,6 +387,15 @@ pub unsafe extern "C" fn ws_connect_with_dsn(dsn: *const c_char) -> *mut WS_TAOS
 
 #[no_mangle]
 /// Same to taos_close. This should always be called after everything done with the connection.
+pub unsafe extern "C" fn ws_get_server_info(taos: *mut WS_TAOS) -> *const c_char {
+    (taos as *mut WsClient)
+        .as_mut()
+        .map(|taos| taos.version().as_ptr() as *const c_char)
+        .unwrap_or(std::ptr::null())
+}
+
+#[no_mangle]
+/// Same to taos_close. This should always be called after everything done with the connection.
 pub unsafe extern "C" fn ws_close(taos: *mut WS_TAOS) {
     let _ = Box::from_raw(taos as *mut WsClient);
 }
@@ -679,6 +688,9 @@ mod tests {
                 dbg!(CStr::from_ptr(str));
             }
             assert!(!taos.is_null());
+
+            let version = ws_get_server_info(taos);
+            dbg!(CStr::from_ptr(version as _));
 
             let sql = b"show databases\0" as *const u8 as _;
             let rs = ws_query(taos, sql);

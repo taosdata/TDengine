@@ -40,6 +40,7 @@ pub struct WsAuth {
 
 pub struct WsClient {
     info: WsInfo,
+    version: String,
     req_id: Arc<AtomicU64>,
     sender: MsgSender,
     queries: Arc<HashMap<ReqId, QuerySender>>,
@@ -126,6 +127,30 @@ impl WsClient {
 
         let (ws, _) = rt.block_on(connect_async(info.to_query_url()))?;
         let (mut async_sender, mut async_reader) = ws.split();
+
+        rt.block_on(async_sender.send(WsSend::Version.to_msg()))?;
+        let version = if let Some(Ok(message)) = rt.block_on(async_reader.next()) {
+            match message {
+                Message::Text(text) => {
+                    let v: WsRecv = serde_json::from_str(&text).unwrap();
+                    let (_, data, ok) = v.ok();
+                    match data {
+                        WsRecvData::Version { version } => {
+                            ok?;
+                            version
+                        }
+                        _ => "version undetermined".to_string(),
+                    }
+                }
+                Message::Ping(bytes) => {
+                    rt.block_on(async_sender.send(Message::Pong(bytes)))?;
+                    "version undetermined".to_string()
+                }
+                _ => "version undetermined".to_string(),
+            }
+        } else {
+            "version undetermined".to_string()
+        };
 
         let req_id = 0;
         let login = WsSend::Conn {
@@ -267,6 +292,7 @@ impl WsClient {
             req_id: Arc::new(AtomicU64::new(req_id + 1)),
             queries,
             fetches,
+            version,
             sender: msg_sender,
             rt: Arc::new(rt),
             stmt: OnceCell::<WsSyncStmtClient>::new(),
@@ -353,6 +379,10 @@ impl WsClient {
         }
         let resp = rx.recv()??;
         Ok(resp.affected_rows)
+    }
+
+    pub fn version(&self) -> &str {
+        &self.version
     }
 
     pub fn stmt_init(&self) -> Result<WsSyncStmt> {
@@ -479,6 +509,9 @@ fn test_client() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "taos-query=trace,main=trace");
     pretty_env_logger::init();
     let client = WsClient::from_dsn("ws://localhost:6041/")?;
+    let version = client.version();
+    dbg!(version);
+
     assert_eq!(client.exec("create database if not exists abc")?, 0);
     assert_eq!(
         client.exec("create table if not exists abc.tb1(ts timestamp, v int)")?,

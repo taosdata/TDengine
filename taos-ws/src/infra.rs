@@ -43,6 +43,7 @@ pub struct WsResArgs {
 #[serde(tag = "action", content = "args")]
 #[serde(rename_all = "snake_case")]
 pub enum WsSend {
+    Version,
     Pong(Vec<u8>),
     Conn {
         req_id: ReqId,
@@ -120,6 +121,7 @@ pub enum WsFetchData {
 #[serde(rename_all = "snake_case")]
 pub enum WsRecvData {
     Conn,
+    Version { version: String },
     Query(WsQueryResp),
     Fetch(WsFetchResp),
     Block(Vec<u32>),
@@ -131,6 +133,7 @@ pub struct WsRecv {
     pub code: i32,
     #[serde_as(as = "NoneAsEmptyString")]
     pub message: Option<String>,
+    #[serde(default)]
     pub req_id: ReqId,
     #[serde(flatten)]
     pub data: WsRecvData,
