@@ -2054,11 +2054,11 @@ static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
                      ((SExprNode*)*pNode)->aliasName);
             nodesDestroyNode(*pNode);
             *pNode = pExpr;
+            return DEAL_RES_IGNORE_CHILD;
           }
         }
       }
     }
-    return DEAL_RES_IGNORE_CHILD;
   }
   return DEAL_RES_CONTINUE;
 }
