@@ -26,7 +26,7 @@ In the Telegraf configuration file (default location `/etc/telegraf/telegraf.con
 ```
 
 <!-- exclude -->
-You are expected to replace <url\> and <token\> with TDengine cloud URL and token. To obtain the real value of TDengine URL and token, please log in [TDengine Cloud](https://cloud.tdengine.com)
+You are expected to replace `<url>` and `<token>` with real TDengine cloud URL and token. To obtain the real values, please log in [TDengine Cloud](https://cloud.tdengine.com).
 <!-- exclude-end -->
 
 In above configuration example, all data will be written to database `telegraf`, but you can change it to any database you prefer. The database will be created automatically if it dose not exists in advance.
