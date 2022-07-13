@@ -15,14 +15,22 @@ Please refer to the [official documentation](https://docs.influxdata.com/telegra
 
 In the Telegraf configuration file (default location `/etc/telegraf/telegraf.conf`) add an `outputs.http` section.
 
-```
+
+```conf
 [[outputs.http]]
-  url = "<url>/influxdb/v1/write?db=<database name>&token=<token>"
+  url = "<url>/influxdb/v1/write?db=telegraf&token=<token>"
   method = "POST"
   timeout = "5s"
   data_format = "influx"
   influx_max_line_bytes = 250
 ```
+
+<!-- exclude -->
+You are expected to replace <url\> and <token\> with TDengine cloud URL and token. To obtain the real value of TDengine URL and token, please log in [TDengine Cloud](https://cloud.tdengine.com)
+<!-- exclude-end -->
+
+In above configuration example, all data will be written to database `telegraf`, but you can change it to any database you prefer. The database will be created automatically if it dose not exists in advance.
+
 
 ## Verification plugin
 
