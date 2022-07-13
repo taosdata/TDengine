@@ -198,7 +198,7 @@ main 函数可以接收 5 个启动参数，依次是：
 
 1. 读任务（进程）数, 默认为 1
 2. 写任务（进程）数, 默认为 1
-3. 总表数据，默认为 1000
+3. 模拟生成的总表数，默认为 1000
 4. 队列大小（单位字节），默认为 1000000
 5. 每批最多写入记录数量， 默认为 3000
 
@@ -307,36 +307,35 @@ SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提�
 下面是一次实际运行的输出：
 
 ```
-[testuser@vm95 python]$ python3 highvolume_faster_queue.py 10 10 1000 1000000 3000
-2022-07-12 21:53:07,147 [root] - READ_TASK_COUNT=10, WRITE_TASK_COUNT=10, TABLE_COUNT=1000, QUEUE_SIZE=1000000, MAX_BATCH_SIZE=3000
-2022-07-12 21:53:10,168 [root] - WriteTask-0 started with pid 6228
-2022-07-12 21:53:10,168 [root] - WriteTask-1 started with pid 6229
-2022-07-12 21:53:10,169 [root] - WriteTask-2 started with pid 6230
-2022-07-12 21:53:10,169 [root] - WriteTask-3 started with pid 6231
-2022-07-12 21:53:10,170 [root] - WriteTask-4 started with pid 6232
-2022-07-12 21:53:10,171 [root] - WriteTask-5 started with pid 6233
-2022-07-12 21:53:10,171 [root] - WriteTask-6 started with pid 6234
-2022-07-12 21:53:10,172 [root] - WriteTask-7 started with pid 6235
-2022-07-12 21:53:10,172 [root] - WriteTask-8 started with pid 6236
-2022-07-12 21:53:10,173 [root] - WriteTask-9 started with pid 6237
-2022-07-12 21:53:10,174 [root] - ReadTask-0 started with pid 6238
-2022-07-12 21:53:10,175 [root] - ReadTask-1 started with pid 6239
-2022-07-12 21:53:10,176 [root] - ReadTask-2 started with pid 6240
-2022-07-12 21:53:10,177 [root] - ReadTask-3 started with pid 6241
-2022-07-12 21:53:10,178 [root] - ReadTask-4 started with pid 6242
-2022-07-12 21:53:10,179 [root] - ReadTask-5 started with pid 6243
-2022-07-12 21:53:10,180 [root] - ReadTask-6 started with pid 6244
-2022-07-12 21:53:10,181 [root] - ReadTask-7 started with pid 6245
-2022-07-12 21:53:10,181 [root] - ReadTask-8 started with pid 6246
-2022-07-12 21:53:10,182 [root] - ReadTask-9 started with pid 6247
-2022-07-12 21:53:17,375 [DataBaseMonitor] - count=3333857 speed=333385.7
-2022-07-12 21:53:27,564 [DataBaseMonitor] - count=8883905 speed=555004.8
-2022-07-12 21:53:37,742 [DataBaseMonitor] - count=14233135 speed=534923.0
-2022-07-12 21:53:47,926 [DataBaseMonitor] - count=19759409 speed=552627.4
-2022-07-12 21:53:58,275 [DataBaseMonitor] - count=25245406 speed=548599.7
-2022-07-12 21:54:08,478 [DataBaseMonitor] - count=30644263 speed=539885.7
-2022-07-12 21:54:18,772 [DataBaseMonitor] - count=36110956 speed=546669.3
-2022-07-12 21:54:29,031 [DataBaseMonitor] - count=41456746 speed=534579.0
+[testuser@vm95 python]$ python3.6 highvolume_faster_queue.py 9 9 1000 5000000 3000
+2022-07-13 10:05:50,504 [root] - READ_TASK_COUNT=9, WRITE_TASK_COUNT=9, TABLE_COUNT=1000, QUEUE_SIZE=5000000, MAX_BATCH_SIZE=3000
+2022-07-13 10:05:53,542 [root] - WriteTask-0 started with pid 5475
+2022-07-13 10:05:53,542 [root] - WriteTask-1 started with pid 5476
+2022-07-13 10:05:53,543 [root] - WriteTask-2 started with pid 5477
+2022-07-13 10:05:53,543 [root] - WriteTask-3 started with pid 5478
+2022-07-13 10:05:53,544 [root] - WriteTask-4 started with pid 5479
+2022-07-13 10:05:53,544 [root] - WriteTask-5 started with pid 5480
+2022-07-13 10:05:53,545 [root] - WriteTask-6 started with pid 5481
+2022-07-13 10:05:53,546 [root] - WriteTask-7 started with pid 5482
+2022-07-13 10:05:53,546 [root] - WriteTask-8 started with pid 5483
+2022-07-13 10:05:53,547 [root] - ReadTask-0 started with pid 5484
+2022-07-13 10:05:53,548 [root] - ReadTask-1 started with pid 5485
+2022-07-13 10:05:53,549 [root] - ReadTask-2 started with pid 5486
+2022-07-13 10:05:53,550 [root] - ReadTask-3 started with pid 5487
+2022-07-13 10:05:53,551 [root] - ReadTask-4 started with pid 5488
+2022-07-13 10:05:53,552 [root] - ReadTask-5 started with pid 5489
+2022-07-13 10:05:53,552 [root] - ReadTask-6 started with pid 5490
+2022-07-13 10:05:53,553 [root] - ReadTask-7 started with pid 5491
+2022-07-13 10:05:53,554 [root] - ReadTask-8 started with pid 5492
+2022-07-13 10:06:00,842 [DataBaseMonitor] - count=6612939 speed=661293.9
+2022-07-13 10:06:11,151 [DataBaseMonitor] - count=14765739 speed=815280.0
+2022-07-13 10:06:21,677 [DataBaseMonitor] - count=23282163 speed=851642.4
+2022-07-13 10:06:31,985 [DataBaseMonitor] - count=31673139 speed=839097.6
+2022-07-13 10:06:42,343 [DataBaseMonitor] - count=39819439 speed=814630.0
+2022-07-13 10:06:52,830 [DataBaseMonitor] - count=48146339 speed=832690.0
+2022-07-13 10:07:03,396 [DataBaseMonitor] - count=56385039 speed=823870.0
+2022-07-13 10:07:14,341 [DataBaseMonitor] - count=64848739 speed=846370.0
+2022-07-13 10:07:24,877 [DataBaseMonitor] - count=73654566 speed=880582.7
 ```
 
 </details>
