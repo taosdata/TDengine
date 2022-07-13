@@ -60,8 +60,6 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         taosArrayAddAll(p->pDataBlock, pDataBlock->pDataBlock);
         taosArrayPush(pInfo->pBlockLists, &p);
       }
-      /*} else if (type == STREAM_INPUT__TABLE_SCAN) {*/
-      /*ASSERT(pInfo->blockType == STREAM_INPUT__TABLE_SCAN);*/
     } else {
       ASSERT(0);
     }
