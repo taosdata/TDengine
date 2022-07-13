@@ -173,7 +173,7 @@ impl WsStmtClient {
                         // println!("10ms passed");
                     }
                     Some(msg) = msg_recv.recv() => {
-                        dbg!(&msg);
+                        // dbg!(&msg);
                         // log::info!("send message: {}", msg.to_string());
                         sender.send(msg).await.unwrap();
                         log::info!("send done");
@@ -195,9 +195,8 @@ impl WsStmtClient {
                             Ok(message) => match message {
                                 Message::Text(text) => {
                                     log::info!("json response: {}", text);
-                                    dbg!(&text);
                                     let v: StmtRecv = serde_json::from_str(&text).unwrap();
-                                    match dbg!(v.ok()) {
+                                    match v.ok() {
                                         StmtOk::Conn(_) => {
                                             log::warn!("[{req_id}] received connected response in message loop");
                                         },
@@ -367,7 +366,7 @@ impl WsAsyncStmt {
             tags: tags,
         };
         self.ws.send(message.to_msg()).await?;
-        let _ = dbg!(self.receiver.recv_timeout(self.timeout)?)?;
+        let _ = self.receiver.recv_timeout(self.timeout)?;
         Ok(())
     }
 

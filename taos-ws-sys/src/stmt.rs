@@ -102,12 +102,7 @@ impl TaosMultiBind {
     }
 
     pub fn first_to_json(&self) -> serde_json::Value {
-        dbg!(dbg!(self.to_json())
-            .as_array()
-            .unwrap()
-            .first()
-            .unwrap()
-            .clone())
+        self.to_json().as_array().unwrap().first().unwrap().clone()
     }
 
     pub fn to_json(&self) -> serde_json::Value {
@@ -278,7 +273,6 @@ impl TaosMultiBind {
                 nulls[i] = true;
             }
         }
-        dbg!(&nulls);
         let buffer_size = buffer_length * values.len();
         let mut buffer: ManuallyDrop<Vec<u8>> = ManuallyDrop::new(Vec::with_capacity(buffer_size));
         unsafe { buffer.set_len(buffer_size) };
@@ -304,10 +298,7 @@ impl TaosMultiBind {
     pub(crate) fn from_string_vec(values: &[Option<impl AsRef<str>>]) -> Self {
         let values: Vec<_> = values
             .iter()
-            .map(|f| {
-                f.as_ref()
-                    .map(|s| dbg!(s.as_ref().to_string()).into_bytes())
-            })
+            .map(|f| f.as_ref().map(|s| s.as_ref().as_bytes()))
             .collect();
         let mut s = Self::from_binary_vec(&values);
         s.buffer_type = Ty::NChar as _;
@@ -509,7 +500,7 @@ mod tests {
             }
             assert!(!taos.is_null());
 
-            macro_rules! query {
+            macro_rules! execute {
                 ($sql:expr) => {
                     let sql = $sql as *const u8 as _;
                     let rs = ws_query(taos, sql);
@@ -519,9 +510,9 @@ mod tests {
                 };
             }
 
-            query!(b"drop database if exists ws_stmt_t\0");
-            query!(b"create database ws_stmt_t keep 36500\0");
-            query!(
+            execute!(b"drop database if exists ws_stmt_t\0");
+            execute!(b"create database ws_stmt_t keep 36500\0");
+            execute!(
                 b"create table ws_stmt_t.s1 (ts timestamp, v int, b binary(100)) tags(jt nchar(100))\0"
             );
 
@@ -555,6 +546,8 @@ mod tests {
 
             assert_eq!(rows, 2);
             ws_stmt_close(stmt);
+
+            ws_close(taos)
         }
     }
 }
