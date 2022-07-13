@@ -126,6 +126,8 @@ void    tColDataClear(void *ph);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 int32_t tColDataGetValue(SColData *pColData, int32_t iRow, SColVal *pColVal);
 int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest);
+int32_t tPutColData(uint8_t *p, SColData *pColData);
+int32_t tGetColData(uint8_t *p, SColData *pColData);
 // SBlockData
 #define tBlockDataFirstRow(PBLOCKDATA) tsdbRowFromBlockData(PBLOCKDATA, 0)
 #define tBlockDataLastRow(PBLOCKDATA)  tsdbRowFromBlockData(PBLOCKDATA, (PBLOCKDATA)->nRow - 1)
@@ -142,6 +144,8 @@ int32_t   tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlo
 int32_t   tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest);
 SColData *tBlockDataGetColDataByIdx(SBlockData *pBlockData, int32_t idx);
 void      tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData);
+int32_t   tPutBlockData(uint8_t *p, SBlockData *pBlockData);
+int32_t   tGetBlockData(uint8_t *p, SBlockData *pBlockData);
 // SDelIdx
 int32_t tPutDelIdx(uint8_t *p, void *ph);
 int32_t tGetDelIdx(uint8_t *p, void *ph);

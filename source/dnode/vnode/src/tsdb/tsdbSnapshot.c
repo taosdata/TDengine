@@ -29,7 +29,8 @@ struct STsdbSnapReader {
   SBlockIdx*    pBlockIdx;
   SMapData      mBlock;  // SMapData<SBlock>
   int32_t       iBlock;
-  SBlockData    blkData;
+  SBlockData    oBlockData;
+  SBlockData    nBlockData;
   // for del file
   int8_t       delDone;
   SDelFReader* pDelFReader;
@@ -44,16 +45,11 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
 
   while (true) {
     if (pReader->pDataFReader == NULL) {
-      SDFileSet* pSet = NULL;
-      // taosArraySearch(pTsdb->fs->cState->aDFileSet, &(SDFileSet){.fid = pReader->fid}, tDFileSe)
+      SDFileSet* pSet = tsdbFSStateGetDFileSet(pTsdb->fs->cState, pReader->fid, TD_GT);
 
-      // search the next data file set to read (todo)
-      if (0 /* TODO */) {
-        code = TSDB_CODE_VND_READ_END;
-        goto _exit;
-      }
+      if (pSet == NULL) goto _exit;
 
-      // open
+      pReader->fid = pSet->fid;
       code = tsdbDataFReaderOpen(&pReader->pDataFReader, pReader->pTsdb, pSet);
       if (code) goto _err;
 
@@ -63,6 +59,8 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
 
       pReader->iBlockIdx = 0;
       pReader->pBlockIdx = NULL;
+
+      tsdbInfo("vgId:%d vnode snapshot tsdb open data file to read, fid:%d", TD_VID(pTsdb->pVnode), pReader->fid);
     }
 
     while (true) {
@@ -75,17 +73,15 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
         pReader->pBlockIdx = (SBlockIdx*)taosArrayGet(pReader->aBlockIdx, pReader->iBlockIdx);
         pReader->iBlockIdx++;
 
-        // SBlock
         code = tsdbReadBlock(pReader->pDataFReader, pReader->pBlockIdx, &pReader->mBlock, NULL);
         if (code) goto _err;
 
         pReader->iBlock = 0;
       }
 
+      SBlock  block;
+      SBlock* pBlock = &block;
       while (true) {
-        SBlock  block;
-        SBlock* pBlock = &block;
-
         if (pReader->iBlock >= pReader->mBlock.nItem) {
           pReader->pBlockIdx = NULL;
           break;
@@ -94,23 +90,63 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
         tMapDataGetItemByIdx(&pReader->mBlock, pReader->iBlock, pBlock, tGetBlock);
         pReader->iBlock++;
 
-        if ((pBlock->minVersion >= pReader->sver && pBlock->minVersion <= pReader->ever) ||
-            (pBlock->maxVersion >= pReader->sver && pBlock->maxVersion <= pReader->ever)) {
-          // overlap (todo)
+        if (pBlock->minVersion > pReader->ever || pBlock->maxVersion < pReader->sver) continue;
 
-          code = tsdbReadBlockData(pReader->pDataFReader, pReader->pBlockIdx, pBlock, &pReader->blkData, NULL, NULL);
+        code = tsdbReadBlockData(pReader->pDataFReader, pReader->pBlockIdx, pBlock, &pReader->oBlockData, NULL, NULL);
+        if (code) goto _err;
+
+        // filter
+        tBlockDataReset(&pReader->nBlockData);
+        for (int32_t iColData = 0; iColData < taosArrayGetSize(pReader->oBlockData.aIdx); iColData++) {
+          SColData* pColDataO = tBlockDataGetColDataByIdx(&pReader->oBlockData, iColData);
+          SColData* pColDataN = NULL;
+
+          code = tBlockDataAddColData(&pReader->nBlockData, taosArrayGetSize(pReader->nBlockData.aIdx), &pColDataN);
           if (code) goto _err;
 
-          goto _exit;
+          tColDataInit(pColDataN, pColDataO->cid, pColDataO->type, pColDataO->smaOn);
         }
+
+        for (int32_t iRow = 0; iRow < pReader->oBlockData.nRow; iRow++) {
+          TSDBROW row = tsdbRowFromBlockData(&pReader->oBlockData, iRow);
+          int64_t version = TSDBROW_VERSION(&row);
+
+          if (version < pReader->sver || version > pReader->ever) continue;
+
+          code = tBlockDataAppendRow(&pReader->nBlockData, &row, NULL);
+          if (code) goto _err;
+        }
+
+        // org data (todo)
+        int32_t size = sizeof(TABLEID) + tPutBlockData(NULL, &pReader->nBlockData);
+
+        *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + size);
+        if (*ppData == NULL) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          goto _err;
+        }
+
+        SSnapDataHdr* pHdr = (SSnapDataHdr*)(*ppData);
+        pHdr->type = 1;
+        pHdr->size = size;
+
+        TABLEID* pId = (TABLEID*)(&pHdr[1]);
+        pId->suid = pReader->pBlockIdx->suid;
+        pId->uid = pReader->pBlockIdx->uid;
+
+        tPutBlockData((uint8_t*)(&pId[1]), &pReader->nBlockData);
+
+        tsdbInfo("vgId:%d vnode snapshot read data, fid:%d suid:%" PRId64 " uid:%" PRId64
+                 " iBlock:%d minVersion:%d maxVersion:%d nRow:%d out of %d",
+                 TD_VID(pTsdb->pVnode), pReader->fid, pReader->pBlockIdx->suid, pReader->pBlockIdx->uid,
+                 pReader->iBlock - 1, pBlock->minVersion, pBlock->maxVersion, pReader->nBlockData.nRow, pBlock->nRow);
+
+        goto _exit;
       }
     }
   }
 
 _exit:
-  // if (*ppData) {
-  //   tsdbInfo("vgId:%d ");
-  // }
   return code;
 
 _err:
@@ -221,7 +257,9 @@ int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapRe
     goto _err;
   }
   pReader->mBlock = tMapDataInit();
-  code = tBlockDataInit(&pReader->blkData);
+  code = tBlockDataInit(&pReader->oBlockData);
+  if (code) goto _err;
+  code = tBlockDataInit(&pReader->nBlockData);
   if (code) goto _err;
 
   pReader->aDelIdx = taosArrayInit(0, sizeof(SDelIdx));
@@ -254,7 +292,8 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
   }
   taosArrayDestroy(pReader->aBlockIdx);
   tMapDataClear(&pReader->mBlock);
-  tBlockDataClear(&pReader->blkData);
+  tBlockDataClear(&pReader->oBlockData);
+  tBlockDataClear(&pReader->nBlockData);
 
   if (pReader->pDelFReader) {
     tsdbDelFReaderClose(&pReader->pDelFReader);
