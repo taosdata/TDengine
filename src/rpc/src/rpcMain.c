@@ -193,7 +193,7 @@ static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc);
 static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv);
 static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, SRecvInfo *pRecv);
 
-static void  rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext);
+static bool  rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext);
 static void  rpcSendQuickRsp(SRpcConn *pConn, int32_t code);
 static void  rpcSendErrorMsgToPeer(SRecvInfo *pRecv, int32_t code);
 static bool  rpcSendMsgToPeer(SRpcConn *pConn, void *data, int dataLen);
@@ -385,7 +385,7 @@ void *rpcReallocCont(void *ptr, int contLen) {
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
 }
 
-void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64_t *pRid) {
+bool rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64_t *pRid) {
   SRpcInfo       *pRpc = (SRpcInfo *)shandle;
   SRpcReqContext *pContext;
 
@@ -415,7 +415,7 @@ void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64
   pContext->rid = taosAddRef(tsRpcRefId, pContext);
   if (pRid) *pRid = pContext->rid;
 
-  rpcSendReqToServer(pRpc, pContext);
+  return rpcSendReqToServer(pRpc, pContext);
 }
 
 void rpcSendResponse(const SRpcMsg *pRsp) {
@@ -1302,7 +1302,7 @@ static void rpcSendErrorMsgToPeer(SRecvInfo *pRecv, int32_t code) {
   return; 
 }
 
-static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
+static bool rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   SRpcHead  *pHead = rpcHeadFromCont(pContext->pCont);
   char      *msg = (char *)pHead;
   int        msgLen = rpcMsgLenFromCont(pContext->contLen);
@@ -1313,7 +1313,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   if (pConn == NULL) {
     pContext->code = terrno;
     taosTmrStart(rpcProcessConnError, 1, pContext, pRpc->tmrCtrl);
-    return;
+    return false;
   }
 
   pContext->pConn = pConn;
@@ -1342,11 +1342,12 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   pConn->reqMsgLen = msgLen;
   pConn->pContext = pContext;
 
-  rpcSendMsgToPeer(pConn, msg, msgLen);
+  bool ret = rpcSendMsgToPeer(pConn, msg, msgLen);
   if (pConn->connType != RPC_CONN_TCPC)
     taosTmrReset(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl, &pConn->pTimer);
 
   rpcUnlockConn(pConn);
+  return ret;
 }
 
 static bool rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
@@ -1763,7 +1764,28 @@ _END:
   return ret;
 }
 
-
+// after sql request send , save conn info
 bool saveSendInfo(int64_t rpcRid, void** ppContext, void** ppConn, void** ppFdObj, int32_t* pFd) {
- return true;
+  if(rpcRid < 0) {
+    tError("ACK saveSendInfo rpcRid=%" PRId64 " less than zero, invalid.", rpcRid);
+    return false;
+  }  
+  // get req content
+  SRpcReqContext *pContext = taosAcquireRef(tsRpcRefId, rpcRid);
+  if (pContext == NULL) {
+    tError("ACK rpcRid=%" PRId64 " get context NULL.", rpcRid);
+    return false;
+  }
+
+  if (ppContext)
+    *ppContext = pContext;
+  if (ppConn)
+    *ppConn    = pContext->pConn;
+  if (ppFdObj)
+    *ppFdObj   = pContext->pConn->chandle;
+  if (pFd)
+    *pFd       = taosGetFdID(pContext->pConn->chandle);
+
+  taosReleaseRef(tsRpcRefId, rpcRid);
+  return true;
 }

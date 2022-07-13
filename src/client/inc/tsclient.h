@@ -397,9 +397,15 @@ typedef struct SSqlObj {
   int32_t          retryReason;  // previous error code
   struct SSqlObj  *prev, *next;
   int64_t          self;
+  
   // connect alive
-  int64_t          lastUpdate;
+  int64_t          lastProbe;    
+  int64_t          lastAlive;
   char             noAckCnt; // no recevie ack from sever count
+  void *           pPrevContext;
+  void *           pPrevConn;
+  void *           pPrevFdObj;
+  int32_t          prevFd;
 } SSqlObj;
 
 typedef struct SSqlStream {

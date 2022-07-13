@@ -85,7 +85,7 @@ void  rpcClose(void *);
 void *rpcMallocCont(int contLen);
 void  rpcFreeCont(void *pCont);
 void *rpcReallocCont(void *ptr, int contLen);
-void  rpcSendRequest(void *thandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
+bool  rpcSendRequest(void *thandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
 void  rpcSendResponse(const SRpcMsg *pMsg);
 void  rpcSendRedirectRsp(void *pConn, const SRpcEpSet *pEpSet); 
 int   rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
@@ -93,7 +93,10 @@ void  rpcSendRecv(void *shandle, SRpcEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp
 int   rpcReportProgress(void *pConn, char *pCont, int contLen);
 void  rpcCancelRequest(int64_t rid);
 int32_t rpcUnusedSession(void * rpcInfo, bool bLock);
-
+// send rpc Refid connection probe alive message 
+bool rpcSendProbe(int64_t rpcRid, void* pPrevContext, void* pPrevConn, void* pPrevFdObj, int32_t prevFd);
+// after sql request send , save conn info
+bool saveSendInfo(int64_t rpcRid, void** ppContext, void** ppConn, void** ppFdObj, int32_t* pFd);
 
 #ifdef __cplusplus
 }

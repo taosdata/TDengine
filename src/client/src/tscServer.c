@@ -283,21 +283,40 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
 
 // pSql connection link is broken
 bool dealConnBroken(SSqlObj * pSql) {
+  // TODO
+
   return true;
 }
 
 // if return true, send probe connection msg to sever ok
 bool sendProbeConnMsg(SSqlObj* pSql) {
+  // check time out
+  int32_t probeTimeout = 60*1000;   // over this value send probe msg
+  int32_t killTimeout  = 3*60*1000; // over this value query can be killed
+  int64_t stime = MAX(pSql->stime, pSql->lastAlive);
+  int32_t diff = (int32_t)(taosGetTimestampMs() - stime);
+  if (diff < probeTimeout) {
+    // exec time short , need not probe alive
+    return true;
+  }
+
+  if (diff > killTimeout) {
+    // need kill query
+    tscDebug("PROBE 0x%"PRIx64" need killed, noAckCnt:%d diff=%d", pSql->self, pSql->noAckCnt, diff);
+    return false;
+  }
+
+  if (pSql->pPrevContext == NULL || pSql->pPrevConn == NULL ||  pSql->pPrevFdObj == NULL || pSql->prevFd <= 0) {
+    // last connect info save uncompletely, so can't probe
+    return true;
+  }
+
+  // It's long time from lastAlive, so need probe
   pSql->noAckCnt++;
-  tscDebug("0x%"PRIx64" sendProbeConnMsg noAckCnt:%d", pSql->self, pSql->noAckCnt);
+  pSql->lastProbe = taosGetTimestampMs();
+  tscDebug("0x%"PRIx64" sendProbeConnMsg noAckCnt:%d diff=%d", pSql->self, pSql->noAckCnt, diff);
 
-  // send
-  pSql->rpcRid
-
-  
-  
-
-  return true;
+  return rpcSendProbe(pSql->rpcRid, pSql->pPrevContext, pSql->pPrevConn, pSql->pPrevFdObj, pSql->prevFd);
 }
 
 // check have broken link queries than killed
@@ -350,10 +369,9 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     // call check if have query doing
     if(pObj->sqlList && pObj->sqlList->next) {
       // have queries executing
-      checkBrokenQueies();
+      checkBrokenQueies(pObj);
     }
   }
-
 
   // send self connetion and queries
   pHB->retry = 0;
@@ -398,8 +416,12 @@ int tscSendMsgToServer(SSqlObj *pSql) {
     return TSDB_CODE_FAILED;
   }
 
-  rpcSendRequest(pObj->pRpcObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid);
-  return TSDB_CODE_SUCCESS;
+  if(rpcSendRequest(pObj->pRpcObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid)) {
+    saveSendInfo(pSql->rpcRid, &pSql->pPrevContext, &pSql->pPrevConn, &pSql->pPrevFdObj, &pSql->prevFd);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return TSDB_CODE_FAILED;
 }
 
 // handle three situation
