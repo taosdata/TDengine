@@ -262,7 +262,7 @@ class TDTestCase:
         sqlString = "select * from " + newDbName + ".ctb0"    
         tdSql.query(sqlString)
         tdSql.checkData(0, 0, '2021-04-01 08:00:00.000')
-        tdSql.checkData(0, 1, 10)
+        tdSql.checkData(0, 1, 11)
         tdSql.checkData(1, 0, '2021-04-01 08:00:01.000')
         tdSql.checkData(1, 1, 20)
         sqlString = "select * from " + newDbName + ".ctb1"    
