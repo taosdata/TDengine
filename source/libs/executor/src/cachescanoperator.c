@@ -45,20 +45,20 @@ SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pScanNode, SRead
   int32_t numOfCols = 0;
   pInfo->pColMatchInfo = extractColMatchInfo(pScanNode->pScanCols, pScanNode->node.pOutputDataBlockDesc, &numOfCols,
                                              COL_MATCH_FROM_COL_ID);
-  int32_t* pCols = taosMemoryMalloc(numOfCols * sizeof(int32_t));
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pColMatchInfo); ++i) {
-    SColMatchInfo* pColMatch = taosArrayGet(pInfo->pColMatchInfo, i);
-    pCols[i] = pColMatch->colId;
-  }
-
   int32_t code = extractTargetSlotId(pInfo->pColMatchInfo, pTaskInfo, &pInfo->pSlotIds);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 
-  tsdbLastRowReaderOpen(readHandle->vnode, LASTROW_RETRIEVE_TYPE_ALL, pTableList, taosArrayGetSize(pInfo->pColMatchInfo),
+  tsdbLastRowReaderOpen(readHandle->vnode, LASTROW_RETRIEVE_TYPE_SINGLE, pTableList, taosArrayGetSize(pInfo->pColMatchInfo),
                         &pInfo->pLastrowReader);
-  taosMemoryFree(pCols);
+
+  if (pScanNode->pScanPseudoCols != NULL) {
+    SExprSupp* pPseudoExpr = &pInfo->pseudoExprSup;
+
+    pPseudoExpr->pExprInfo = createExprInfo(pScanNode->pScanPseudoCols, NULL, &pPseudoExpr->numOfExprs);
+    pPseudoExpr->pCtx = createSqlFunctionCtx(pPseudoExpr->pExprInfo, pPseudoExpr->numOfExprs, &pPseudoExpr->rowEntryInfoOffset);
+  }
 
   pOperator->name = "LastrowScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN;
@@ -100,7 +100,20 @@ SSDataBlock* doScanLastrow(SOperatorInfo* pOperator) {
   // check if it is a group by tbname
   if (size == taosArrayGetSize(pInfo->pTableList)) {
     blockDataCleanup(pInfo->pRes);
-    tsdbRetrieveLastRow(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds);
+    SArray* pUidList = taosArrayInit(1, sizeof(tb_uid_t));
+    int32_t code = tsdbRetrieveLastRow(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pUidList);
+    if (code != TSDB_CODE_SUCCESS)  {
+      longjmp(pTaskInfo->env, code);
+    }
+
+    // check for tag values
+    if (pInfo->pRes->info.rows > 0 && pInfo->pseudoExprSup.numOfExprs > 0) {
+      SExprSupp* pSup = &pInfo->pseudoExprSup;
+      pInfo->pRes->info.uid = *(tb_uid_t*) taosArrayGet(pUidList, 0);
+      addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes, GET_TASKID(pTaskInfo));
+    }
+
+    doSetOperatorCompleted(pOperator);
     return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
   } else {
     // todo fetch the result for each group

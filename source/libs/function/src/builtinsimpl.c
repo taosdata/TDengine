@@ -80,11 +80,12 @@ typedef struct STopBotRes {
 } STopBotRes;
 
 typedef struct SFirstLastRes {
-  bool hasResult;
+  bool    hasResult;
   // used for last_row function only, isNullRes in SResultRowEntry can not be passed to downstream.So,
   // this attribute is required
-  bool isNull;
+  bool    isNull;
   int32_t bytes;
+  int64_t ts;
   char    buf[];
 } SFirstLastRes;
 
@@ -2951,6 +2952,7 @@ int32_t firstLastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   SFirstLastRes* pRes = GET_ROWCELL_INTERBUF(pResInfo);
   colDataAppend(pCol, pBlock->info.rows, pRes->buf, pRes->isNull||pResInfo->isNullRes);
+
   // handle selectivity
   STuplePos* pTuplePos = (STuplePos*)(pRes->buf + pRes->bytes + sizeof(TSKEY));
   setSelectivityValue(pCtx, pBlock, pTuplePos, pBlock->info.rows);
@@ -5988,7 +5990,7 @@ int32_t lastrowFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
-  int32_t type = pInputCol->info.type;
+  int32_t type  = pInputCol->info.type;
   int32_t bytes = pInputCol->info.bytes;
 
   pInfo->bytes = bytes;
@@ -5999,7 +6001,7 @@ int32_t lastrowFunction(SqlFunctionCtx* pCtx) {
 
     char* data = colDataGetData(pInputCol, i);
     TSKEY cts = getRowPTs(pInput->pPTS, i);
-    if (pResInfo->numOfRes == 0 || *(TSKEY*)(pInfo->buf + bytes) < cts) {
+    if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
 
       if (colDataIsNull_s(pInputCol, i)) {
         pInfo->isNull = true;
@@ -6012,8 +6014,7 @@ int32_t lastrowFunction(SqlFunctionCtx* pCtx) {
         memcpy(pInfo->buf, data, bytes);
       }
 
-      *(TSKEY*)(pInfo->buf + bytes) = cts;
-
+      pInfo->ts = cts;
       pInfo->hasResult = true;
       pResInfo->numOfRes = 1;
 
