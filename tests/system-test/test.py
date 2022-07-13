@@ -49,7 +49,7 @@ def checkRunTimeError():
             os.system("TASKKILL /F /IM taosd.exe")
 
 if __name__ == "__main__":
-    
+
     fileName = "all"
     deployPath = ""
     masterIp = ""
@@ -86,11 +86,11 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-M create mnode numbers in clusters')
             tdLog.printNoPrefix('-Q set queryPolicy in one dnode')
             tdLog.printNoPrefix('-C create Dnode Numbers in one cluster')
-            
+
 
             sys.exit(0)
 
-        if key in ['-r', '--restart']: 
+        if key in ['-r', '--restart']:
             restart = True
 
         if key in ['-f', '--file']:
@@ -184,7 +184,7 @@ if __name__ == "__main__":
             time.sleep(2)
 
         tdLog.info('stop All dnodes')
-    
+
     if masterIp == "":
         host = socket.gethostname()
     else:
@@ -298,7 +298,7 @@ if __name__ == "__main__":
                 config=tdDnodes.getSimCfgPath())
                 tdSql.init(conn.cursor())
                 tdSql.execute("create qnode on dnode 1")
-                tdSql.execute('alter local "queryPolicy" "%d"'%queryPolicy)     
+                tdSql.execute('alter local "queryPolicy" "%d"'%queryPolicy)
                 tdSql.query("show local variables;")
                 for i in range(tdSql.queryRows):
                     if tdSql.queryResult[i][0] == "queryPolicy" :
@@ -306,7 +306,7 @@ if __name__ == "__main__":
                             tdLog.success('alter queryPolicy to %d successfully'%queryPolicy)
                         else :
                             tdLog.debug(tdSql.queryResult)
-                            tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy)      
+                            tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy)
         else :
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
             dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums,mnodeNums=mnodeNums)
@@ -334,8 +334,8 @@ if __name__ == "__main__":
                     print("check dnode ready")
             except Exception as r:
                 print(r)
-            
-            
+
+
         if testCluster:
             tdLog.info("Procedures for testing cluster")
             if fileName == "all":
@@ -347,21 +347,21 @@ if __name__ == "__main__":
             conn = taos.connect(
                 host,
                 config=tdDnodes.getSimCfgPath())
-                
+
             if fileName == "all":
                 tdCases.runAllLinux(conn)
             else:
                 tdCases.runOneLinux(conn, fileName)
-            
+
         if restart:
             if fileName == "all":
                 tdLog.info("not need to query ")
-            else:    
+            else:
                 sp = fileName.rsplit(".", 1)
                 if len(sp) == 2 and sp[1] == "py":
                     tdDnodes.stopAll()
                     tdDnodes.start(1)
-                    time.sleep(1)            
+                    time.sleep(1)
                     conn = taos.connect( host, config=tdDnodes.getSimCfgPath())
                     tdLog.info("Procedures for tdengine deployed in %s" % (host))
                     tdLog.info("query test after taosd restart")
