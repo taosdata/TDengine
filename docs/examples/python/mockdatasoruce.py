@@ -22,9 +22,7 @@ class MockDataSource:
         data = []
         for i in range(self.table_count):
             table_name = self.table_name_prefix + str(i)
-            # tbName,current,voltage,phase,location,groupId
-            row = table_name + ',' + lines[i]
-            data.append((i, row))  # tableId, row
+            data.append((i, table_name, lines[i]))  # tableId, row
         return data
 
     def __iter__(self):
@@ -38,8 +36,10 @@ class MockDataSource:
         """
         self.row += 1
         ts = self.start_ms + 100 * self.row
+
         # just add timestamp to each row
-        return map(lambda t: (t[0], str(ts) + "," + t[1]), self.data)
+        # (tableId, "tableName,ts,current,voltage,phase,location,groupId")
+        return map(lambda t: (t[0], t[1] + str(ts) + "," + t[2]), self.data)
 
 
 if __name__ == '__main__':
@@ -54,7 +54,8 @@ if __name__ == '__main__':
     def consume():
         global count
         for data in MockDataSource("1", 1000):
-            count += len(data)
+            for _ in data:
+                count += 1
 
 
     Thread(target=consume).start()
