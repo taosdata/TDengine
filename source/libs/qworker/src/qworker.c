@@ -469,7 +469,7 @@ int32_t qwAbortPrerocessQuery(QW_FPARAMS_DEF) {
 }
 
 
-int32_t qwPrerocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
+int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   int32_t        code = 0;
   bool           queryRsped = false;
   SSubplan      *plan = NULL;

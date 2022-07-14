@@ -129,6 +129,7 @@ void taos_close(TAOS *taos) {
 
   STscObj *pObj = acquireTscObj(*(int64_t *)taos);
   if (NULL == pObj) {
+    taosMemoryFree(taos);
     return;
   }
 

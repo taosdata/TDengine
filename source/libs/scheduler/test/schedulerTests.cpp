@@ -477,7 +477,7 @@ void* schtRunJobThread(void *aa) {
   schtInitLogFile();
 
   
-  int32_t code = schedulerInit(NULL);
+  int32_t code = schedulerInit();
   assert(code == 0);
 
 

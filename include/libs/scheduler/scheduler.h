@@ -26,8 +26,10 @@ extern "C" {
 extern tsem_t schdRspSem;
 
 typedef struct SSchedulerCfg {
-  uint32_t maxJobNum;
-  int32_t  maxNodeTableNum;
+  uint32_t   maxJobNum;
+  int32_t    maxNodeTableNum;
+  SCH_POLICY schPolicy;
+  bool       enableReSchedule;
 } SSchedulerCfg;
 
 typedef struct SQueryProfileSummary {
@@ -96,6 +98,8 @@ int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub);
 
 void schedulerStopQueryHb(void *pTrans);
 
+int32_t schedulerUpdatePolicy(int32_t policy);
+int32_t schedulerEnableReSchedule(bool enableResche);
 
 /**
  * Cancel query job

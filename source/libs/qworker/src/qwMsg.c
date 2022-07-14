@@ -318,7 +318,7 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg) {
   SQWMsg qwMsg = {.msg = msg->msg + msg->sqlLen, .msgLen = msg->phyLen, .connInfo = pMsg->info};
 
   QW_SCH_TASK_DLOG("prerocessQuery start, handle:%p", pMsg->info.handle);
-  QW_ERR_RET(qwPrerocessQuery(QW_FPARAMS(), &qwMsg));
+  QW_ERR_RET(qwPreprocessQuery(QW_FPARAMS(), &qwMsg));
   QW_SCH_TASK_DLOG("prerocessQuery end, handle:%p", pMsg->info.handle);
 
   return TSDB_CODE_SUCCESS;
