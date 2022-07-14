@@ -40,10 +40,10 @@ SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pScanNode, SRead
 
   pInfo->pTableList = pTableList;
   pInfo->readHandle = *readHandle;
-  pInfo->pRes = createResDataBlock(pScanNode->node.pOutputDataBlockDesc);
+  pInfo->pRes = createResDataBlock(pScanNode->scan.node.pOutputDataBlockDesc);
 
   int32_t numOfCols = 0;
-  pInfo->pColMatchInfo = extractColMatchInfo(pScanNode->pScanCols, pScanNode->node.pOutputDataBlockDesc, &numOfCols,
+  pInfo->pColMatchInfo = extractColMatchInfo(pScanNode->scan.pScanCols, pScanNode->scan.node.pOutputDataBlockDesc, &numOfCols,
                                              COL_MATCH_FROM_COL_ID);
   int32_t code = extractTargetSlotId(pInfo->pColMatchInfo, pTaskInfo, &pInfo->pSlotIds);
   if (code != TSDB_CODE_SUCCESS) {
@@ -53,10 +53,10 @@ SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pScanNode, SRead
   tsdbLastRowReaderOpen(readHandle->vnode, LASTROW_RETRIEVE_TYPE_SINGLE, pTableList, taosArrayGetSize(pInfo->pColMatchInfo),
                         &pInfo->pLastrowReader);
 
-  if (pScanNode->pScanPseudoCols != NULL) {
+  if (pScanNode->scan.pScanPseudoCols != NULL) {
     SExprSupp* pPseudoExpr = &pInfo->pseudoExprSup;
 
-    pPseudoExpr->pExprInfo = createExprInfo(pScanNode->pScanPseudoCols, NULL, &pPseudoExpr->numOfExprs);
+    pPseudoExpr->pExprInfo = createExprInfo(pScanNode->scan.pScanPseudoCols, NULL, &pPseudoExpr->numOfExprs);
     pPseudoExpr->pCtx = createSqlFunctionCtx(pPseudoExpr->pExprInfo, pPseudoExpr->numOfExprs, &pPseudoExpr->rowEntryInfoOffset);
   }
 
