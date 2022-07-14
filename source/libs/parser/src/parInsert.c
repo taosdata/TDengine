@@ -1178,6 +1178,13 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
       TSKEY tsKey = TD_ROW_KEY(row);
       checkTimestamp(pDataBlocks, (const char*)&tsKey);
     }
+
+    if (i < spd->numOfBound - 1) {
+      NEXT_VALID_TOKEN(pCxt->pSql, sToken);
+      if (TK_NK_COMMA != sToken.type) {
+        return buildSyntaxErrMsg(&pCxt->msg, ", expected", sToken.z);
+      }
+    }
   }
 
   if (!isParseBindParam) {

@@ -4444,21 +4444,21 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       //        return NULL;
       //      }
 
-      int32_t code = extractTableSchemaInfo(pHandle, pScanNode->uid, pTaskInfo);
+      int32_t code = extractTableSchemaInfo(pHandle, pScanNode->scan.uid, pTaskInfo);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
         return NULL;
       }
 
       pTableListInfo->pTableList = taosArrayInit(4, sizeof(STableKeyInfo));
-      if (pScanNode->tableType == TSDB_SUPER_TABLE) {
-        code = vnodeGetAllTableList(pHandle->vnode, pScanNode->uid, pTableListInfo->pTableList);
+      if (pScanNode->scan.tableType == TSDB_SUPER_TABLE) {
+        code = vnodeGetAllTableList(pHandle->vnode, pScanNode->scan.uid, pTableListInfo->pTableList);
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = terrno;
           return NULL;
         }
       } else {  // Create one table group.
-        STableKeyInfo info = {.lastKey = 0, .uid = pScanNode->uid, .groupId = 0};
+        STableKeyInfo info = {.lastKey = 0, .uid = pScanNode->scan.uid, .groupId = 0};
         taosArrayPush(pTableListInfo->pTableList, &info);
       }
 
