@@ -147,7 +147,6 @@ typedef struct {
   SSDataBlock*   pullOverBlk;   // for streaming
   SWalFilterCond cond;
   int64_t        lastScanUid;
-  SStreamQueue*  inputQueue;
 } SStreamTaskInfo;
 
 typedef struct SExecTaskInfo {
@@ -561,6 +560,7 @@ typedef struct SFillOperatorInfo {
   SNode*            pCondition;
   SArray*           pColMatchColInfo;
   int32_t           primaryTsCol;
+  uint64_t          curGroupId;       // current handled group id
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {

@@ -47,8 +47,6 @@ while $x < $rowNum
     $x = $x + 1  
 endw
 
-sleep 100
-
 print =============== step2
 $i = 0
 $tb = $tbPrefix . $i
