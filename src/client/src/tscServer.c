@@ -293,6 +293,11 @@ bool sendProbeConnMsg(SSqlObj* pSql) {
   // check time out
   int32_t probeTimeout = 60*1000;   // over this value send probe msg
   int32_t killTimeout  = 3*60*1000; // over this value query can be killed
+  if(pSql->stime == 0) {
+    // not start , no need probe
+    return true;
+  }
+
   int64_t stime = MAX(pSql->stime, pSql->lastAlive);
   int32_t diff = (int32_t)(taosGetTimestampMs() - stime);
   if (diff < probeTimeout) {
@@ -308,6 +313,11 @@ bool sendProbeConnMsg(SSqlObj* pSql) {
 
   if (pSql->pPrevContext == NULL || pSql->pPrevConn == NULL ||  pSql->pPrevFdObj == NULL || pSql->prevFd <= 0) {
     // last connect info save uncompletely, so can't probe
+    return true;
+  }
+
+  if(pSql->rpcRid == -1) {
+    // cancel or reponse ok from server, so need not probe
     return true;
   }
 
