@@ -1183,6 +1183,10 @@ void destroySqlNode(SSqlNode *pSqlNode) {
   pSqlNode->fillType = NULL;
 
   tSqlExprDestroy(pSqlNode->pHaving);
+
+  tSqlExprDestroy(pSqlNode->pRange.start);
+  tSqlExprDestroy(pSqlNode->pRange.end);
+
   free(pSqlNode);
 }
 
