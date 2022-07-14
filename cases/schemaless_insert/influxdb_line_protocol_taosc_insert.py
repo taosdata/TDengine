@@ -160,14 +160,13 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         for input_sql in [self.tdCom.gen_long_sql(self.tdCom.boundary_config["MAX_TAG_COUNT"]-1, 1)[0], self.tdCom.gen_long_sql(1, self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-3)[0]]:
             self.tdCom.cleanTb()
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        # ! TD-16721
-        # for input_sql in [self.tdCom.gen_long_sql(self.tdCom.boundary_config["MAX_TAG_COUNT"], 1)[0], self.tdCom.gen_long_sql(1, self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-2)[0]]:
-        #     self.tdCom.cleanTb()
-        #     try:
-        #         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        #         raise Exception("should not reach here")
-        #     except SchemalessError as err:
-        #         self.tdSql.checkNotEqual(err.errno, 0)
+        for input_sql in [self.tdCom.gen_long_sql(self.tdCom.boundary_config["MAX_TAG_COUNT"], 1)[0], self.tdCom.gen_long_sql(1, self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-2)[0]]:
+            self.tdCom.cleanTb()
+            try:
+                self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+                raise Exception("should not reach here")
+            except SchemalessError as err:
+                self.tdSql.checkNotEqual(err.errno, 0)
 
     def stb_tb_name_check(self):
         """
@@ -1008,12 +1007,12 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def test(self):
-        self.tag_value_length_check()
+        self.batch_insert_check()
         return
 
     def run(self):
-        # self.test()
-        # return
+        self.test()
+        return
         
         if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
             if self.taospy_setting["spec"]["config"]["smlChildTableName"].upper() == "ID":

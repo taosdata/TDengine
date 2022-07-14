@@ -1018,7 +1018,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def test(self):
-        self.table_id_check()
+        self.spell_check()
 
     def run(self):
         # self.test()
