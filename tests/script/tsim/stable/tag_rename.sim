@@ -83,7 +83,7 @@ endi
 if $data[4][1] != VARCHAR then
   return -1
 endi
-if $data[4][2] != 4 then
+if $data[4][2] != 6 then
   return -1
 endi
 
@@ -113,7 +113,7 @@ endi
 if $data[4][1] != VARCHAR then
   return -1
 endi
-if $data[4][2] != 4 then
+if $data[4][2] != 6 then
   return -1
 endi
 

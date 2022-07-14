@@ -62,7 +62,7 @@ endi
 if $data[2][1] != VARCHAR then
   return -1
 endi
-if $data[2][2] != 5 then
+if $data[2][2] != 7 then
   return -1
 endi
 if $data[3][0] != t1 then

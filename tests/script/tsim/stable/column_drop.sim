@@ -195,7 +195,7 @@ endi
 if $data[4][1] != VARCHAR then
   return -1
 endi
-if $data[4][2] != 13 then
+if $data[4][2] != 15 then
   return -1
 endi
 if $data[5][0] != t1 then
