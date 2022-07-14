@@ -40,7 +40,6 @@ enum {
   || x == TDMT_VND_CREATE_TABLE   \
   || x == TDMT_VND_ALTER_TABLE    \
   || x == TDMT_VND_DROP_TABLE     \
-  || x == TDMT_VND_DROP_TTL_TABLE \
 )
 // clang-format on
 
@@ -108,6 +107,7 @@ typedef struct SDataBlockInfo {
   // TODO: optimize and remove following
   int32_t     childId;  // used for stream, do not serialize
   EStreamType type;     // used for stream, do not serialize
+  STimeWindow calWin;   // used for stream, do not serialize
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {

@@ -179,7 +179,6 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (code != 0) {
     terrno = code;
     if (output.dbVgroup) taosHashCleanup(output.dbVgroup->vgHash);
-    taosMemoryFreeClear(output.dbVgroup);
 
     tscError("0x%" PRIx64 " failed to build use db output since %s", pRequest->requestId, terrstr());
   } else if (output.dbVgroup && output.dbVgroup->vgHash) {
@@ -189,11 +188,13 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     if (code1 != TSDB_CODE_SUCCESS) {
       tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pRequest->pTscObj->pAppInfo->clusterId,
               tstrerror(code1));
-      taosMemoryFreeClear(output.dbVgroup);
     } else {
       catalogUpdateDBVgInfo(pCatalog, output.db, output.dbId, output.dbVgroup);
+      output.dbVgroup = NULL;
     }
   }
+
+  taosMemoryFreeClear(output.dbVgroup);
 
   tFreeSUsedbRsp(&usedbRsp);
 

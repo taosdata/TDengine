@@ -570,10 +570,14 @@ int32_t buildSelectResultDataBlock(SNodeList* pProjects, SSDataBlock* pBlock) {
   int32_t index = 0;
   SNode*  pProj = NULL;
   FOREACH(pProj, pProjects) {
-    if (((SValueNode*)pProj)->isNull) {
-      colDataAppend(taosArrayGet(pBlock->pDataBlock, index++), 0, NULL, true);
+    if (QUERY_NODE_VALUE != nodeType(pProj)) {
+      return TSDB_CODE_PAR_INVALID_SELECTED_EXPR;
     } else {
-      colDataAppend(taosArrayGet(pBlock->pDataBlock, index++), 0, nodesGetValueFromNode((SValueNode*)pProj), false);
+      if (((SValueNode*)pProj)->isNull) {
+        colDataAppend(taosArrayGet(pBlock->pDataBlock, index++), 0, NULL, true);
+      } else {
+        colDataAppend(taosArrayGet(pBlock->pDataBlock, index++), 0, nodesGetValueFromNode((SValueNode*)pProj), false);
+      }
     }
   }
 

@@ -308,7 +308,7 @@ static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex) {
   int32_t index = 0;
   SNode*  pFunc = NULL;
   FOREACH(pFunc, pFuncs) {
-    if (FUNCTION_TYPE_WSTARTTS == ((SFunctionNode*)pFunc)->funcType) {
+    if (FUNCTION_TYPE_WSTART == ((SFunctionNode*)pFunc)->funcType) {
       *pIndex = index;
       return TSDB_CODE_SUCCESS;
     }
@@ -319,7 +319,7 @@ static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex) {
   if (NULL == pWStart) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  strcpy(pWStart->functionName, "_wstartts");
+  strcpy(pWStart->functionName, "_wstart");
   snprintf(pWStart->node.aliasName, sizeof(pWStart->node.aliasName), "%s.%p", pWStart->functionName, pWStart);
   int32_t code = fmGetFuncInfo(pWStart, NULL, 0);
   if (TSDB_CODE_SUCCESS == code) {
@@ -333,7 +333,7 @@ static int32_t stbSplAppendWEnd(SWindowLogicNode* pWin, int32_t* pIndex) {
   int32_t index = 0;
   SNode*  pFunc = NULL;
   FOREACH(pFunc, pWin->pFuncs) {
-    if (FUNCTION_TYPE_WENDTS == ((SFunctionNode*)pFunc)->funcType) {
+    if (FUNCTION_TYPE_WEND == ((SFunctionNode*)pFunc)->funcType) {
       *pIndex = index;
       return TSDB_CODE_SUCCESS;
     }
@@ -344,7 +344,7 @@ static int32_t stbSplAppendWEnd(SWindowLogicNode* pWin, int32_t* pIndex) {
   if (NULL == pWEnd) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  strcpy(pWEnd->functionName, "_wendts");
+  strcpy(pWEnd->functionName, "_wend");
   snprintf(pWEnd->node.aliasName, sizeof(pWEnd->node.aliasName), "%s.%p", pWEnd->functionName, pWEnd);
   int32_t code = fmGetFuncInfo(pWEnd, NULL, 0);
   if (TSDB_CODE_SUCCESS == code) {

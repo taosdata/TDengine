@@ -44,6 +44,8 @@ typedef struct STaosQset  STaosQset;
 typedef struct STaosQall  STaosQall;
 typedef struct {
   void   *ahandle;
+  void   *fp;
+  void   *queue;
   int32_t workerId;
   int32_t threadNum;
   int64_t timestamp;
@@ -65,6 +67,7 @@ void        taosFreeQitem(void *pItem);
 void        taosWriteQitem(STaosQueue *queue, void *pItem);
 int32_t     taosReadQitem(STaosQueue *queue, void **ppItem);
 bool        taosQueueEmpty(STaosQueue *queue);
+void        taosUpdateItemSize(STaosQueue *queue, int32_t items);
 int32_t     taosQueueItemSize(STaosQueue *queue);
 int64_t     taosQueueMemorySize(STaosQueue *queue);
 
@@ -81,8 +84,8 @@ int32_t    taosAddIntoQset(STaosQset *qset, STaosQueue *queue, void *ahandle);
 void       taosRemoveFromQset(STaosQset *qset, STaosQueue *queue);
 int32_t    taosGetQueueNumber(STaosQset *qset);
 
-int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, int64_t *ts, void **ahandle, FItem *itemFp);
-int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, void **ahandle, FItems *itemsFp);
+int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, SQueueInfo *qinfo);
+int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *qinfo);
 void    taosResetQsetThread(STaosQset *qset, void *pItem);
 
 extern int64_t tsRpcQueueMemoryAllowed;

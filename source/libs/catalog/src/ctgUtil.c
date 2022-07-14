@@ -152,6 +152,7 @@ void ctgFreeStbMetaCache(SCtgDBCache *dbCache) {
 }
 
 void ctgFreeTbCacheImpl(SCtgTbCache *pCache) {
+  qDebug("tbMeta freed, p:%p", pCache->pMeta);
   taosMemoryFreeClear(pCache->pMeta);
   if (pCache->pIndex) {
     taosArrayDestroyEx(pCache->pIndex->pIndex, tFreeSTableIndexInfo);
@@ -831,6 +832,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput *output, STableMetaOutput **pOutput)
   if (output->tbMeta) {
     int32_t metaSize = CTG_META_SIZE(output->tbMeta);
     (*pOutput)->tbMeta = taosMemoryMalloc(metaSize);
+    qDebug("tbMeta cloned, size:%d, p:%p", metaSize, (*pOutput)->tbMeta);
     if (NULL == (*pOutput)->tbMeta) {
       qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
       taosMemoryFreeClear(*pOutput);

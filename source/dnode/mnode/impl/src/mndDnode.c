@@ -787,7 +787,13 @@ _OVER:
 }
 
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
+  SMnode     *pMnode = pReq->info.node;
+  const char *options[] = {
+      "debugFlag",     "dDebugFlag",  "vDebugFlag",   "mDebugFlag",   "wDebugFlag",   "sDebugFlag",
+      "tsdbDebugFlag", "tqDebugFlag", "fsDebugFlag",  "udfDebugFlag", "smaDebugFlag", "idxDebugFlag",
+      "tmrDebugFlag",  "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",
+  };
+  int32_t optionSize = tListLen(options);
 
   SMCfgDnodeReq cfgReq = {0};
   if (tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq) != 0) {
@@ -808,27 +814,52 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   SEpSet epSet = mndGetDnodeEpset(pDnode);
   mndReleaseDnode(pMnode, pDnode);
 
+
   SDCfgDnodeReq dcfgReq = {0};
-  if (strncasecmp(cfgReq.config, "debugFlag", 9) == 0) {
+  if (strcasecmp(cfgReq.config, "resetlog") == 0) {
+    strcpy(dcfgReq.config, "resetlog");
+  } else if (strncasecmp(cfgReq.config, "monitor", 7) == 0) {
     const char *value = cfgReq.value;
     int32_t     flag = atoi(value);
     if (flag <= 0) {
-      flag = atoi(cfgReq.config + 10);
+      flag = atoi(cfgReq.config + 8);
     }
-    if (flag <= 0 || flag > 255) {
-      mError("dnode:%d, failed to config debugFlag since value:%d", cfgReq.dnodeId, flag);
+    if (flag < 0 || flag > 2) {
+      mError("dnode:%d, failed to config monitor since value:%d", cfgReq.dnodeId, flag);
       terrno = TSDB_CODE_INVALID_CFG;
       return -1;
     }
 
-    strcpy(dcfgReq.config, "debugFlag");
+    strcpy(dcfgReq.config, "monitor");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
-  } else if (strcasecmp(cfgReq.config, "resetlog") == 0) {
-    strcpy(dcfgReq.config, "resetlog");
   } else {
-    terrno = TSDB_CODE_INVALID_CFG;
-    mError("dnode:%d, failed to config since %s", cfgReq.dnodeId, terrstr());
-    return -1;
+    bool findOpt = false;
+    for (int32_t d = 0; d < optionSize; ++d) {
+      const char *optName = options[d];
+      int32_t     optLen = strlen(optName);
+      if (strncasecmp(cfgReq.config, optName, optLen) != 0) continue;
+
+      const char *value = cfgReq.value;
+      int32_t flag = atoi(value);
+      if (flag <= 0) {
+        flag = atoi(cfgReq.config + optLen + 1);
+      }
+      if (flag <= 0 || flag > 255) {
+        mError("dnode:%d, failed to config %s since value:%d", cfgReq.dnodeId, optName, flag);
+        terrno = TSDB_CODE_INVALID_CFG;
+        return -1;
+      }
+
+      tstrncpy(dcfgReq.config, optName, optLen + 1);
+      snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+      findOpt = true;
+    }
+
+    if (!findOpt) {
+      terrno = TSDB_CODE_INVALID_CFG;
+      mError("dnode:%d, failed to config since %s", cfgReq.dnodeId, terrstr());
+      return -1;
+    }
   }
 
   int32_t bufLen = tSerializeSDCfgDnodeReq(NULL, 0, &dcfgReq);
@@ -837,13 +868,14 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   if (pBuf == NULL) return -1;
   tSerializeSDCfgDnodeReq(pBuf, bufLen, &dcfgReq);
 
-  mDebug("dnode:%d, send config req to dnode, app:%p", cfgReq.dnodeId, pReq->info.ahandle);
+  mInfo("dnode:%d, send config req to dnode, app:%p config:%s value:%s", cfgReq.dnodeId, pReq->info.ahandle,
+        dcfgReq.config, dcfgReq.value);
   SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
   return tmsgSendReq(&epSet, &rpcMsg);
 }
 
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp) {
-  mDebug("config rsp from dnode, app:%p", pRsp->info.ahandle);
+  mInfo("config rsp from dnode, app:%p", pRsp->info.ahandle);
   return 0;
 }
 

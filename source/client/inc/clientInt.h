@@ -169,6 +169,7 @@ typedef struct SReqResultInfo {
   uint32_t       numOfRows;
   uint64_t       totalRows;
   uint32_t       current;
+  bool           localResultFetched;
   bool           completed;
   int32_t        precision;
   bool           convertUcs4;
@@ -180,6 +181,7 @@ typedef struct SRequestSendRecvBody {
   tsem_t            rspSem;  // not used now
   __taos_async_fn_t queryFp;
   __taos_async_fn_t fetchFp;
+  EQueryExecMode    execMode;
   void*             param;
   SDataBuf          requestMsg;
   int64_t           queryJob;  // query job, created according to sql query DAG.
@@ -222,8 +224,8 @@ typedef struct SRequestObj {
   SArray*              tableList;
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
-  bool                 stableQuery;  // todo refactor
-  bool                 validateOnly; // todo refactor
+  bool                 stableQuery;   // todo refactor
+  bool                 validateOnly;  // todo refactor
 
   bool     killed;
   uint32_t prevCode;  // previous error code: todo refactor, add update flag for catalog
@@ -324,7 +326,8 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList);
 
-int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, bool validateSql, SRequestObj** pRequest);
+int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, bool validateSql,
+                     SRequestObj** pRequest);
 
 void taos_close_internal(void* taos);
 
@@ -357,9 +360,6 @@ void         doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
 int32_t      removeMeta(STscObj* pTscObj, SArray* tbList);  // todo move to clientImpl.c and become a static function
 int32_t      handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);  // todo move to xxx
 bool         qnodeRequired(SRequestObj* pRequest);
-
-void initTscQhandle();
-void cleanupTscQhandle();
 
 #ifdef __cplusplus
 }

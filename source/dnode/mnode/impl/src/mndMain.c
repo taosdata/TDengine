@@ -380,6 +380,12 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   return pMnode;
 }
 
+void mndPreClose(SMnode *pMnode) {
+  if (pMnode != NULL) {
+    syncLeaderTransfer(pMnode->syncMgmt.sync);
+  }
+}
+
 void mndClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     mDebug("start to close mnode");

@@ -97,7 +97,7 @@ int32_t streamLaunchByWrite(SStreamTask* pTask, int32_t vgId) {
         .pCont = pRunReq,
         .contLen = sizeof(SStreamTaskRunReq),
     };
-    tmsgPutToQueue(pTask->pMsgCb, FETCH_QUEUE, &msg);
+    tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &msg);
   }
   return 0;
 }
@@ -173,7 +173,8 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
 }
 
 int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
-  qInfo("task %d receive dispatch req from node %d task %d", pTask->taskId, pReq->upstreamNodeId, pReq->upstreamTaskId);
+  qDebug("task %d receive dispatch req from node %d task %d", pTask->taskId, pReq->upstreamNodeId,
+         pReq->upstreamTaskId);
 
   // 1. handle input
   streamTaskEnqueue(pTask, pReq, pRsp);
