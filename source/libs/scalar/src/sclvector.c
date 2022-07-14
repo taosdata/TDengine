@@ -1477,7 +1477,8 @@ void vectorAssign(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut,
 
   pOut->numOfRows = pLeft->numOfRows;
 
-  if (IS_HELPER_NULL(pRight->columnData, 0)) {
+//  if (IS_HELPER_NULL(pRight->columnData, 0)) {
+  if(colDataIsNull_s(pRight->columnData, 0)){
     for (int32_t i = 0; i < pOut->numOfRows; ++i) {
       colDataAppend(pOutputCol, i, NULL, true);
     }

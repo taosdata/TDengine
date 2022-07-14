@@ -624,7 +624,7 @@ void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp) {
 }
 
 // Note: uid 0 is reserved
-int64_t mndGenerateUid(char *name, int32_t len) {
+int64_t mndGenerateUid(const char *name, int32_t len) {
   int32_t hashval = MurmurHash3_32(name, len);
   do {
     int64_t us = taosGetTimestampUs();

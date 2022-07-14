@@ -275,7 +275,12 @@ typedef struct SScanPhysiNode {
 
 typedef SScanPhysiNode STagScanPhysiNode;
 typedef SScanPhysiNode SBlockDistScanPhysiNode;
-typedef SScanPhysiNode SLastRowScanPhysiNode;
+
+typedef struct SLastRowScanPhysiNode {
+  SScanPhysiNode scan;
+  SNodeList*     pGroupTags;
+  bool           groupSort;
+} SLastRowScanPhysiNode;
 
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;

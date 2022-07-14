@@ -38,8 +38,6 @@ while $i < $tbNum
   $i = $i + 1
 endw 
 
-sleep 100
-
 print =============== step2
 $i = 1
 $tb = $tbPrefix . $i
@@ -68,14 +66,14 @@ endi
 
 print =============== step5
 sql select first(tbcol) as b from $tb interval(1m)
-print ===> $data01
-if $data01 != 0 then 
+print ===> $data00
+if $data00 != 0 then 
   return -1
 endi
 
 sql select first(tbcol) as b from $tb interval(1d)
-print ===> $data01
-if $data01 != 0 then 
+print ===> $data00
+if $data00 != 0 then 
   return -1
 endi
 
@@ -83,8 +81,8 @@ print =============== step6
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
 sql select first(tbcol) as b from $tb where ts <= $ms interval(1m)
-print ===> $data01
-if $data41 != 4 then 
+print ===> $data00
+if $data40 != 4 then 
   return -1
 endi
 if $rows != 5 then 
@@ -124,14 +122,14 @@ endi
 print =============== step9
 sql select first(tbcol) as b from $mt interval(1m)
 print select first(tbcol) as b from $mt interval(1m)
-print ===> $data11
-if $data11 != 1 then 
+print ===> $data10
+if $data10 != 1 then 
   return -1
 endi
 
 sql select first(tbcol) as b from $mt interval(1d)
-print ===> $data01
-if $data01 != 0 then 
+print ===> $data00
+if $data00 != 0 then 
   return -1
 endi
 
@@ -149,9 +147,9 @@ endi
 print =============== step11
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
-sql select first(tbcol) as b from $mt  where ts <= $ms interval(1m) group by tgcol
-print ===> $data11
-if $data11 != 1 then 
+sql select first(tbcol) as b from $mt  where ts <= $ms partition by tgcol interval(1m)
+print ===> $data10
+if $data10 != 1 then 
   return -1
 endi
 print ===> $rows

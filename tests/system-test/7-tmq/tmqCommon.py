@@ -428,7 +428,7 @@ class TMQCom:
         pThread.start()
         return pThread
 
-    def checkFileContent(self, consumerId, queryString):
+    def checkFileContent(self, consumerId, queryString, skipRowsOfCons=0):
         buildPath = tdCom.getBuildPath()
         cfgPath = tdCom.getClientCfgPath()
         dstFile = '%s/../log/dstrows_%d.txt'%(cfgPath, consumerId)
@@ -444,6 +444,10 @@ class TMQCom:
         
         # skip first line for it is schema
         queryFile.readline()
+        
+        # skip offset for consumer
+        for i in range(0,skipRowsOfCons):
+            consumeFile.readline()            
         
         lines = 0
         while True:
