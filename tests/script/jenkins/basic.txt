@@ -78,7 +78,7 @@
 ./test.sh -f tsim/insert/query_block2_memory.sim
 ./test.sh -f tsim/insert/query_file_memory.sim
 ./test.sh -f tsim/insert/query_multi_file.sim
-#./test.sh -f tsim/insert/tcp.sim
+./test.sh -f tsim/insert/tcp.sim
 ./test.sh -f tsim/insert/update0.sim
 
 # ---- parser
