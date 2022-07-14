@@ -18,6 +18,7 @@ class SQLWriter:
             name = r[0]
             if name == "maxSQLLength":
                 return int(r[1])
+        return 1024 * 1024
 
     def process_lines(self, lines: str):
         """
