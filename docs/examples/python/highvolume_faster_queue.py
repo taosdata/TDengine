@@ -65,11 +65,15 @@ def run_write_task(task_id: int, queue: Queue):
     writer = SQLWriter(get_connection)
     lines = None
     try:
+        count = 0
         while True:
             try:
                 # get as many as possible
                 lines = queue.get_many(block=False, max_messages_to_get=MAX_BATCH_SIZE)
-                writer.process_lines(lines)
+                count += len(lines)
+                if count % 1000000 == 0:
+                    log.info(count)
+                # writer.process_lines(lines)
             except Empty:
                 time.sleep(0.01)
     except KeyboardInterrupt:
