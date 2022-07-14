@@ -542,8 +542,10 @@ int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock) {
 }
 
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
-  pBlock->info.rows = *(int32_t*)buf;
+  int32_t numOfRows = *(int32_t*) buf;
+  blockDataEnsureCapacity(pBlock, numOfRows);
 
+  pBlock->info.rows = numOfRows;
   size_t      numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   const char* pStart = buf + sizeof(uint32_t);
 
@@ -589,6 +591,7 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
   return TSDB_CODE_SUCCESS;
 }
 
+// todo remove this
 int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity) {
   pBlock->info.rows = *(int32_t*)buf;
   pBlock->info.groupId = *(uint64_t*)(buf + sizeof(int32_t));
