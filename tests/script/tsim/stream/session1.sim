@@ -17,7 +17,7 @@ sql use test
 
 
 sql create table t1(ts timestamp, a int, b int , c int, d double,id int);
-sql create stream streams2 trigger at_once  into streamt as select  _wstartts, count(*) c1,  sum(a), min(b), max(id) s from t1 session(ts,10s);
+sql create stream streams2 trigger at_once  into streamt as select  _wstart, count(*) c1,  sum(a), min(b), max(id) s from t1 session(ts,10s);
 sql insert into t1 values(1648791210000,1,1,1,1.1,1);
 sql insert into t1 values(1648791220000,2,2,2,2.1,2);
 sql insert into t1 values(1648791230000,3,3,3,3.1,3);

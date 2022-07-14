@@ -18,7 +18,7 @@ sql create stable st(ts timestamp, a int) tags(t int);
 sql create table tu1 using st tags(1);
 sql create table tu2 using st tags(2);
 
-sql create stream stream1 trigger window_close into streamt as select  _wstartts, sum(a) from st interval(10s);
+sql create stream stream1 trigger window_close into streamt as select  _wstart, sum(a) from st interval(10s);
 
 sql insert into tu1 values(now, 1);
 

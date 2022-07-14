@@ -234,6 +234,7 @@ static void destroyBlockScanInfo(SHashObj* pTableMap) {
     }
 
     taosArrayDestroy(p->delSkyline);
+    taosArrayDestroy(p->pBlockList);
     p->delSkyline = NULL;
   }
 
@@ -302,9 +303,9 @@ static bool filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader) {
   STimeWindow win = {0};
 
   while (1) {
-//    if (pReader->pFileReader != NULL) {
-//      tsdbDataFReaderClose(&pReader->pFileReader);
-//    }
+    if (pReader->pFileReader != NULL) {
+      tsdbDataFReaderClose(&pReader->pFileReader);
+    }
 
     pReader->status.pCurrentFileset = (SDFileSet*)taosArrayGet(pIter->pFileList, pIter->index);
 
@@ -696,12 +697,14 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, uint32_
 
       void* p = taosArrayPush(pScanInfo->pBlockList, &block);
       if (p == NULL) {
+        tMapDataClear(&mapData);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
       (*numOfBlocks) += 1;
     }
 
+    tMapDataClear(&mapData);
     if (pScanInfo->pBlockList != NULL && taosArrayGetSize(pScanInfo->pBlockList) > 0) {
       (*numOfValidTables) += 1;
     }
@@ -1308,6 +1311,8 @@ static int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIte
               pReader->idStr);
 
     pBlockIter->index = asc ? 0 : (numOfBlocks - 1);
+
+    cleanupBlockOrderSupporter(&sup);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1990,6 +1995,7 @@ static TSDBKEY getCurrentKeyInBuf(SDataBlockIter* pBlockIter, STsdbReader* pRead
 
 static int32_t moveToNextFile(STsdbReader* pReader, int32_t* numOfBlocks) {
   SReaderStatus* pStatus = &pReader->status;
+  SArray* pIndexList = taosArrayInit(4, sizeof(SBlockIdx));
 
   while (1) {
     bool hasNext = filesetIteratorNext(&pStatus->fileIter, pReader);
@@ -1997,9 +2003,10 @@ static int32_t moveToNextFile(STsdbReader* pReader, int32_t* numOfBlocks) {
       break;
     }
 
-    SArray* pIndexList = taosArrayInit(4, sizeof(SBlockIdx));
+    taosArrayClear(pIndexList);
     int32_t code = doLoadBlockIndex(pReader, pReader->pFileReader, pIndexList);
     if (code != TSDB_CODE_SUCCESS) {
+      taosArrayDestroy(pIndexList);
       return code;
     }
 
@@ -2007,6 +2014,7 @@ static int32_t moveToNextFile(STsdbReader* pReader, int32_t* numOfBlocks) {
       uint32_t numOfValidTable = 0;
       code = doLoadFileBlock(pReader, pIndexList, &numOfValidTable, numOfBlocks);
       if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(pIndexList);
         return code;
       }
 
@@ -2014,10 +2022,10 @@ static int32_t moveToNextFile(STsdbReader* pReader, int32_t* numOfBlocks) {
         break;
       }
     }
-
     // no blocks in current file, try next files
   }
 
+  taosArrayDestroy(pIndexList);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3081,10 +3089,13 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
 
   SDataBlockIter* pBlockIter = &pStatus->blockIter;
   pTableBlockInfo->numOfFiles += pStatus->fileIter.numOfFiles;
-  pTableBlockInfo->numOfBlocks += pBlockIter->numOfBlocks;
+
+  if (pBlockIter->numOfBlocks > 0) {
+    pTableBlockInfo->numOfBlocks += pBlockIter->numOfBlocks;
+  }
 
   pTableBlockInfo->numOfTables = numOfTables;
-  bool hasNext = true;
+  bool hasNext = (pBlockIter->numOfBlocks > 0);
 
   while (true) {
     if (hasNext) {
