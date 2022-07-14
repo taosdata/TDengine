@@ -196,12 +196,6 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
     pCost->skipBlocks += 1;
 
-    // clear all data in pBlock that are set when handing the previous block
-    for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
-      SColumnInfoData* pcol = taosArrayGet(pBlock->pDataBlock, i);
-      pcol->pData = NULL;
-    }
-
     return TSDB_CODE_SUCCESS;
   } else if (*status == FUNC_DATA_REQUIRED_STATIS_LOAD) {
     pCost->loadBlockStatis += 1;

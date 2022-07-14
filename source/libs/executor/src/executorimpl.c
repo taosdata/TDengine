@@ -3475,9 +3475,12 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
 static void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
   for (int32_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* pExprInfo = &pExpr[i];
-    if (pExprInfo->pExpr->nodeType == QUERY_NODE_COLUMN) {
-      taosMemoryFree(pExprInfo->base.pParam[0].pCol);
+    for(int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
+      if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_COLUMN) {
+        taosMemoryFreeClear(pExprInfo->base.pParam[j].pCol);
+      }
     }
+
     taosMemoryFree(pExprInfo->base.pParam);
     taosMemoryFree(pExprInfo->pExpr);
   }
@@ -3685,10 +3688,20 @@ void destroyBasicOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFreeClear(param);
 }
 
+
+static void freeItem(void* pItem) {
+  void** p = pItem;
+  if (*p != NULL) {
+    taosMemoryFreeClear(*p);
+  }
+}
+
 void destroyAggOperatorInfo(void* param, int32_t numOfOutput) {
   SAggOperatorInfo* pInfo = (SAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
 
+  cleanupAggSup(&pInfo->aggSup);
+  taosArrayDestroyEx(pInfo->groupResInfo.pRows, freeItem);
   taosMemoryFreeClear(param);
 }
 
