@@ -19,15 +19,12 @@
 ./test.sh -f tsim/db/basic6.sim
 # nojira ./test.sh -f tsim/db/commit.sim
 ./test.sh -f tsim/db/create_all_options.sim
-#./test.sh -f tsim/db/delete_part.sim
-#./test.sh -f tsim/db/delete_reuse1.sim
-#./test.sh -f tsim/db/delete_reuse2.sim
-#./test.sh -f tsim/db/delete_reusevnode.sim
-#./test.sh -f tsim/db/delete_reusevnode2.sim
-#./test.sh -f tsim/db/delete_writing1.sim
-#./test.sh -f tsim/db/delete_writing2.sim
-#./test.sh -f tsim/db/delete.sim
-#./test.sh -f tsim/db/delete2.sim
+./test.sh -f tsim/db/delete_reuse1.sim
+./test.sh -f tsim/db/delete_reuse2.sim
+./test.sh -f tsim/db/delete_reusevnode.sim
+./test.sh -f tsim/db/delete_reusevnode2.sim
+./test.sh -f tsim/db/delete_writing1.sim
+./test.sh -f tsim/db/delete_writing2.sim
 # unsupport ./test.sh -f tsim/db/dropdnodes.sim
 ./test.sh -f tsim/db/error1.sim
 # nojira ./test.sh -f tsim/db/keep.sim
@@ -81,7 +78,7 @@
 ./test.sh -f tsim/insert/query_block2_memory.sim
 ./test.sh -f tsim/insert/query_file_memory.sim
 ./test.sh -f tsim/insert/query_multi_file.sim
-#./test.sh -f tsim/insert/tcp.sim
+./test.sh -f tsim/insert/tcp.sim
 ./test.sh -f tsim/insert/update0.sim
 
 # ---- parser
