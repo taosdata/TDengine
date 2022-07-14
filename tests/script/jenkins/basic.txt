@@ -298,11 +298,11 @@
 #./test.sh -f tsim/tag/delete.sim
 #./test.sh -f tsim/tag/double.sim
 #./test.sh -f tsim/tag/filter.sim
-./test.sh -f tsim/tag/float.sim
+#./test.sh -f tsim/tag/float.sim
 ./test.sh -f tsim/tag/int_binary.sim
 ./test.sh -f tsim/tag/int_float.sim
 ./test.sh -f tsim/tag/int.sim
-./test.sh -f tsim/tag/set.sim
+#./test.sh -f tsim/tag/set.sim
 ./test.sh -f tsim/tag/smallint.sim
 ./test.sh -f tsim/tag/tinyint.sim
 
