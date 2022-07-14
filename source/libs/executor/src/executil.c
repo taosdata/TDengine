@@ -347,23 +347,23 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       terrno = code;
       return code;
     }
-
-    if (pTagCond) {
-      int32_t i = 0;
-      while (i < taosArrayGetSize(pListInfo->pTableList)) {
-        STableKeyInfo* info = taosArrayGet(pListInfo->pTableList, i);
-        bool           isOk = isTableOk(info, pTagCond, metaHandle);
-        if (terrno) return terrno;
-        if (!isOk) {
-          taosArrayRemove(pListInfo->pTableList, i);
-          continue;
-        }
-        i++;
-      }
-    }
   } else {  // Create one table group.
     STableKeyInfo info = {.lastKey = 0, .uid = tableUid, .groupId = 0};
     taosArrayPush(pListInfo->pTableList, &info);
+  }
+
+  if (pTagCond) {
+    int32_t i = 0;
+    while (i < taosArrayGetSize(pListInfo->pTableList)) {
+      STableKeyInfo* info = taosArrayGet(pListInfo->pTableList, i);
+      bool           isOk = isTableOk(info, pTagCond, metaHandle);
+      if (terrno) return terrno;
+      if (!isOk) {
+        taosArrayRemove(pListInfo->pTableList, i);
+        continue;
+      }
+      i++;
+    }
   }
 
   pListInfo->pGroupList = taosArrayInit(4, POINTER_BYTES);
