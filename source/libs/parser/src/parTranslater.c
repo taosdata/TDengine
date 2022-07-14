@@ -5939,7 +5939,8 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
 
   pReq->type = pStmt->dataType.type;
   pReq->flags = COL_SMA_ON;
-  pReq->bytes = pStmt->dataType.bytes;
+  // pReq->bytes = pStmt->dataType.bytes;
+  pReq->bytes = calcTypeBytes(pStmt->dataType);
   return TSDB_CODE_SUCCESS;
 }
 
