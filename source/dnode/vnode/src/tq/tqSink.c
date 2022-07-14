@@ -50,6 +50,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
 
       SVCreateTbReq createTbReq = {0};
       createTbReq.name = buildCtbNameByGroupId(stbFullName, pDataBlock->info.groupId);
+      createTbReq.ctb.name = strdup(stbFullName);
       createTbReq.flags = 0;
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
@@ -146,7 +147,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
         const STColumn*  pColumn = &pTSchema->columns[k];
         SColumnInfoData* pColData = taosArrayGet(pDataBlock->pDataBlock, k);
         if (colDataIsNull_s(pColData, j)) {
-          tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NONE, NULL, false, pColumn->offset, k);
+          tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, pColumn->offset, k);
         } else {
           void* data = colDataGetData(pColData, j);
           tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, data, true, pColumn->offset, k);

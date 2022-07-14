@@ -24,7 +24,7 @@ for /F "usebackq tokens=*" %%i in (!caseFile!) do (
         )
     )
 )
-exit !exitNum!
+exit /b !exitNum!
 
 :colorEcho
 set timeNow=%time%

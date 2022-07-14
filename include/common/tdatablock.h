@@ -226,8 +226,12 @@ int32_t blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
 
 int32_t      assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
 int32_t      copyDataBlock(SSDataBlock* dst, const SSDataBlock* src);
-SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
+
 SSDataBlock* createDataBlock();
+void*        blockDataDestroy(SSDataBlock* pBlock);
+void         blockDataFreeRes(SSDataBlock* pBlock);
+SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
+
 int32_t      blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColInfoData);
 
 SColumnInfoData  createColumnInfoData(int16_t type, int32_t bytes, int16_t colId);
