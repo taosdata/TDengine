@@ -11,7 +11,10 @@
 
 # -*- coding: utf-8 -*-
 
+import datetime
 import json
+import time
+import numpy as np
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
@@ -37,10 +40,9 @@ class TestComp(TDCase):
         dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.request('show databases')
-        #TODO
-        db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
         # default
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
+        self.tdSql.checkEqual(db_field, self.cfg["default"])
         self.tdRest.request(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdRest.getOneRow(1, dbname)
         data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
@@ -50,7 +52,7 @@ class TestComp(TDCase):
             precision_data == 'us'
         elif int(data['config']['precision']) == 2:
             precision_data == 'ns'
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], precision_data)
+        self.tdSql.checkEqual(db_field, precision_data)
         self.tdRest.request(f'drop database {dbname}')
         # boundary
         for param_value in self.cfg["boundary"]:
@@ -58,8 +60,8 @@ class TestComp(TDCase):
             self.tdRest.request(
                 f'create database if not exists {dbname} {test_param} "{param_value}"')
             self.tdRest.request('show databases')
-            db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-            self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
+            self.tdSql.checkEqual(db_field, param_value)
             self.tdRest.request(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdRest.getOneRow(1, dbname)
             data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
@@ -69,7 +71,7 @@ class TestComp(TDCase):
                 precision_data = 'us'
             elif int(data['config']['precision']) == 2:
                 precision_data = 'ns'
-            self.tdSql.checkEqual(db_field_kv_dict[test_param], precision_data)
+            self.tdSql.checkEqual(db_field, precision_data)
             self.tdRest.request(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name()
         self.tdRest.error(
@@ -83,42 +85,44 @@ class TestComp(TDCase):
         dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'drop database if exists {dbname}')
         self.tdRest.request(f'create database if not exists {dbname} ')
-        self.tdRest.request(f'use {dbname}')
-        ms_ts, ms_dt = self.tdCom.genTs()
-        self.tdRest.request('create table ntb (ts timestamp, c0 int)')
-        self.tdRest.request(f'insert into ntb values({ms_ts}, 1)')
-        self.tdRest.request("select * from ntb")
-        self.tdSql.checkData(0, 0, ms_dt)
+        ms_ts, ms_dt = self.tdCom.genTs("ms",None,'restful')
+        self.tdRest.request(f'create table {dbname}.ntb (ts timestamp, c0 int)')
+        self.tdRest.request(f'insert into {dbname}.ntb values({ms_ts}, 1)')
+        self.tdRest.request(f"select * from {dbname}.ntb")
+        
+        
+        ts_ms = self.tdCom.delete_end_zero(ms_dt).replace(' ','T')+ "Z"
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], ts_ms)
         # TD-15674
-        self.tdRest.error(f'insert into ntb values({self.tdCom.genTs("us")[0]}, 1)')
-        self.tdRest.error(f'insert into ntb values({self.tdCom.genTs("ns")[0]}, 1)')
+        self.tdRest.error(f'insert into {dbname}.ntb values({self.tdCom.genTs("us")[0]}, 1)')
+        self.tdRest.error(f'insert into {dbname}.ntb values({self.tdCom.genTs("ns")[0]}, 1)')
 
         dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'drop database if exists {dbname}')
         self.tdRest.request(
             f'create database if not exists {dbname} precision "us"')
         self.tdRest.request(f'use {dbname}')
-        us_ts, us_dt = self.tdCom.genTs("us")
-        self.tdRest.request('create table ntb (ts timestamp,c0 int)')
-        self.tdRest.request(f'insert into ntb values({us_ts}, 1)')
-        self.tdRest.request("select * from ntb")
-        self.tdSql.checkData(0, 0, us_dt)
-
+        us_ts, us_dt = self.tdCom.genTs("us",None,'restful')
+        self.tdRest.request(f'create table {dbname}.ntb (ts timestamp,c0 int)')
+        self.tdRest.request(f'insert into {dbname}.ntb values({us_ts}, 1)')
+        self.tdRest.request(f"select * from {dbname}.ntb")
+        ts_us = self.tdCom.delete_end_zero(us_dt).replace(' ','T') + "Z"
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], ts_us)
         # TD-15674
-        self.tdRest.error('insert into ntb values({self.tdCom.genTs("ms")[0]}, 1)')
-        self.tdRest.error('insert into ntb values({self.tdCom.genTs("ns")[0]}, 1)')
+        self.tdRest.error(f'insert into {dbname}.ntb values({self.tdCom.genTs("ms")[0]}, 1)')
+        self.tdRest.error(f'insert into {dbname}.ntb values({self.tdCom.genTs("ns")[0]}, 1)')
         dbname = self.tdCom.get_long_name()
         self.tdRest.request(f'drop database if exists {dbname}')
         self.tdRest.request(
             f'create database if not exists {dbname} precision "ns"')
-        self.tdRest.request(f'use {dbname}')
-        ns_ts, ns_dt = self.tdCom.genTs("ns")
-        self.tdRest.request('create table ntb (ts timestamp, c0 int)')
-        self.tdRest.request(f'insert into ntb values({ns_ts}, 1)')
-        self.tdRest.request("select * from ntb")
-        self.tdSql.checkData(0, 0, ns_dt)
-        self.tdRest.error(f'insert into ntb values({self.tdCom.genTs("ms")[0]}, 1)')
-        self.tdRest.error(f'insert into ntb values({self.tdCom.genTs("us")[0]}, 1)')
+        ns_ts, ns_dt = self.tdCom.genTs("ns",None,'restful')
+        self.tdRest.request(f'create table {dbname}.ntb (ts timestamp, c0 int)')
+        self.tdRest.request(f'insert into {dbname}.ntb values({ns_ts}, 1)')
+        self.tdRest.request(f"select * from {dbname}.ntb")
+        ts_ns = self.tdCom.delete_end_zero(ns_dt).replace(' ','T') + "Z"
+        self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], ts_ns)
+        self.tdRest.error(f'insert into {dbname}.ntb values({self.tdCom.genTs("ms")[0]}, 1)')
+        self.tdRest.error(f'insert into {dbname}.ntb values({self.tdCom.genTs("us")[0]}, 1)')
         self.tdRest.request(f'drop database {dbname}')
 
         # bug TD-15897
