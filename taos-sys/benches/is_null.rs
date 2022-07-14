@@ -21,7 +21,7 @@ unsafe fn is_null(ptr: *const u8, row: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test::Bencher;
+    use test::{Bencher, black_box};
 
     #[test]
     fn test() {
@@ -38,7 +38,7 @@ mod tests {
 
     #[bench]
     fn bench_bit_slice(b: &mut Bencher) {
-        let slice = [0b1010101; 6];
+        let slice = black_box([0b1010101; 6]);
         b.iter(|| {
             for i in 0..8 {
                 let _ = unsafe { is_null_bit_slice(slice.as_ptr(), i) };
@@ -48,7 +48,7 @@ mod tests {
 
     #[bench]
     fn bench_macro(b: &mut Bencher) {
-        let slice = [0b1010101; 6];
+        let slice = black_box([0b1010101; 6]);
         b.iter(|| {
             for i in 0..8 {
                 let _ = unsafe { is_null(slice.as_ptr(), i) };

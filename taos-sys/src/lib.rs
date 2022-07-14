@@ -2,12 +2,20 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use std::{ffi::CStr, marker::PhantomData, ops::Deref, os::raw::*, sync::Arc};
+use std::{
+    ffi::CStr,
+    future::Future,
+    marker::PhantomData,
+    ops::Deref,
+    os::raw::*,
+    process::Output,
+    sync::{Arc, Mutex},
+};
 
 use into_c_str::IntoCStr;
 use once_cell::sync::OnceCell;
 use taos_error::{Code, Error};
-use taos_query::common::{Field, Ty};
+use taos_query::common::{Field, Raw, Ty};
 
 pub(crate) mod types;
 pub use types::*;
@@ -223,6 +231,9 @@ impl Drop for DroppableRawRes {
     }
 }
 
+mod result_set;
+pub use result_set::BlockStream;
+
 impl RawRes {
     #[inline]
     pub fn as_ptr(&self) -> *mut TAOS_RES {
@@ -311,15 +322,6 @@ impl RawRes {
         } else {
             Ok(None)
         }
-        // err_or!(
-        //     self,
-        //     taos_fetch_block_s(self.as_ptr(), &mut num, block),
-        //     if num > 0 {
-        //         Some((*block, num, self.fetch_lengths_raw()))
-        //     } else {
-        //         None
-        //     }
-        // )
     }
 
     #[inline]
@@ -336,6 +338,57 @@ impl RawRes {
             taos_fetch_raw_block(self.as_ptr(), &mut num as _, block),
             (*block as _, num as _)
         )
+    }
+
+    #[inline]
+    pub fn fetch_raw_block_v3(&self) -> Result<Option<Raw>, Error> {
+        let mut block: *mut c_void = std::ptr::null_mut();
+        let mut num = 0;
+        err_or!(
+            self,
+            taos_fetch_raw_block(self.as_ptr(), &mut num as _, &mut block as _),
+            if num > 0 {
+                let mut raw = Raw::parse_from_ptr(
+                    block as _,
+                    num as usize,
+                    self.num_fields(),
+                    self.precision(),
+                );
+                raw.with_fields(self.fields().to_vec());
+                Some(raw)
+            } else {
+                None
+            }
+        )
+    }
+    #[inline]
+    pub fn fetch_raw_block_v2(&self) -> Result<Option<Raw>, Error> {
+        let mut block: *mut *mut c_void = std::ptr::null_mut();
+        let mut num = 0;
+        let lengths = self.fetch_lengths();
+        let cols = self.num_fields();
+        let lengths = unsafe { std::slice::from_raw_parts(lengths as *const u32, cols) };
+        err_or!(
+            self,
+            taos_fetch_block_s(self.as_ptr(), &mut num as _, &mut block as _),
+            if num > 0 {
+                let raw = Raw::parse_from_ptr_v2(
+                    block as _,
+                    self.fields(),
+                    lengths,
+                    num as usize,
+                    self.precision(),
+                );
+                Some(raw)
+            } else {
+                None
+            }
+        )
+    }
+
+    // #[inline]
+    pub fn fetch_raw_block_async(&self) -> BlockStream {
+        BlockStream::new(self.as_ptr(), self.fields(), self.precision())
     }
 
     #[inline]
@@ -442,57 +495,3 @@ impl RawRes {
 
 pub mod into_c_str;
 pub mod stmt;
-
-// #[derive(Debug, Clone, Copy)]
-// #[repr(C)]
-// enum BlockVer {
-//     V2 = 0,
-//     V3,
-// }
-// #[derive(Debug, Clone, Copy)]
-// #[repr(C)]
-
-// enum BlockCodec {
-//     Bytes,
-// }
-
-// #[derive(Debug)]
-// enum BlockType<'a> {
-//     V2(*mut *mut c_void),
-//     Bytes(Cow<'a, [u8]>),
-// }
-
-// struct RawCodec<'a> {
-//     version: BlockVer,
-//     method: BlockCodec,
-//     precision: Precision,
-//     fields: Cow<'a, [Field]>,
-// }
-
-// #[derive(Debug)]
-// pub struct RawBlock<'a> {
-//     version: BlockVer,
-//     codec: BlockCodec,
-//     precision: Precision,
-//     fields: Cow<'a, [Field]>,
-//     num_of_rows: usize,
-//     data: BlockType<'a>,
-// }
-
-// impl<'a> RawBlock<'a> {
-//     fn precision(&self) -> Precision {
-//         self.precision
-//     }
-
-//     fn to_bytes(&self) -> Cow<[u8]> {
-//         todo!()
-//     }
-
-//     fn write<T: Write>(&self, mut wtr: T) -> std::io::Result<usize> {
-//         wtr.write(&self.to_bytes())
-//     }
-
-//     fn write_all<T: Write>(&self, mut wtr: T) -> std::io::Result<usize> {
-//         wtr.write(&self.to_bytes())
-//     }
-// }

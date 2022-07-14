@@ -328,28 +328,22 @@ impl Fetchable for ResultSet {
 }
 
 impl Iterator for ResultSet {
-    type Item = SyncBlock;
+    type Item = Raw;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Ok(Some((data, num_of_rows, lengths))) = self.raw.fetch_block() {
-            log::debug!("fetch block with {num_of_rows} rows");
-            self.append_num_of_rows(num_of_rows);
-            let fields = if self.independent {
-                Some(self.raw.fetch_fields())
-            } else {
-                None
-            };
-
-            Some(SyncBlock {
-                raw: self.raw.raw(),
-                fields,
-                precision: self.precision(),
-                data,
-                lengths,
-                num_of_rows: num_of_rows as _,
-            })
-        } else {
-            None
+        match self.raw.fetch_raw_block() {
+            Ok((ptr, rows)) if rows > 0 => Some(unsafe {
+                let mut raw = Raw::parse_from_ptr(
+                    ptr as _,
+                    rows as usize,
+                    self.raw.num_fields(),
+                    self.raw.precision(),
+                );
+                raw.with_fields(self.raw.fields().to_vec());
+                raw
+            }),
+            Ok(_) => None,
+            Err(_) => None,
         }
     }
 }

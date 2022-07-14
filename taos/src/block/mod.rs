@@ -6,7 +6,7 @@ use std::{
     task::{Poll, Waker},
 };
 
-use futures::Stream;
+use futures::{FutureExt, Stream, StreamExt};
 
 use taos_sys::ffi::*;
 use taos_sys::*;
@@ -18,6 +18,7 @@ use crate::impls::SyncBlock;
 #[derive(Debug)]
 pub struct BlockStream {
     raw: Arc<RawRes>,
+    block: taos_sys::BlockStream,
     summary: Arc<(AtomicU64, AtomicU64)>,
     state: Arc<Mutex<BlockState>>,
 }
@@ -32,6 +33,7 @@ impl BlockStream {
         }));
 
         Self {
+            block: raw.fetch_raw_block_async(),
             raw,
             state,
             summary,
@@ -58,84 +60,72 @@ struct BlockState {
 
 impl Stream for BlockStream {
     // type Item = (*mut TAOS_RES, i32);
-    type Item = SyncBlock;
+    type Item = Raw;
 
     fn poll_next(
-        self: std::pin::Pin<&mut Self>,
+        mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         // todo(3.0): remove these line to use taos_query_a in async/await impl.
         if crate::client_info().starts_with("3") {
-            let block = if let Ok(Some((data, num_of_rows, lengths))) = self.raw.fetch_block() {
-                log::trace!("fetch block: {num_of_rows}");
-
-                self.append_num_of_rows(num_of_rows);
-
-                Some(SyncBlock {
-                    raw: self.raw.clone(),
-                    fields: None,
-                    precision: self.raw.precision(),
-                    data,
-                    lengths,
-                    num_of_rows: num_of_rows as _,
-                })
-            } else {
-                None
-            };
-            return Poll::Ready(block);
+            return self
+                .block
+                .poll_next_unpin(cx)
+                .map(|res| res.and_then(|res| res.ok()));
         }
+        todo!("v2 to be implemented")
 
-        let mut s = self.state.lock().unwrap();
-        unsafe extern "C" fn async_fetch_callback(
-            param: *mut c_void,
-            res: *mut TAOS_RES,
-            num_of_rows: c_int,
-        ) {
-            let param = param as *const Arc<Mutex<BlockState>>;
-            let state = param.read();
-            let mut s = state.lock().unwrap();
+        // let mut s = self.state.lock().unwrap();
+        // unsafe extern "C" fn async_fetch_callback(
+        //     param: *mut c_void,
+        //     res: *mut TAOS_RES,
+        //     num_of_rows: c_int,
+        // ) {
+        //     let param = param as *const Arc<Mutex<BlockState>>;
+        //     let state = param.read();
+        //     let mut s = state.lock().unwrap();
 
-            (*s).completed = true;
-            (*s).result = res;
-            (*s).num_of_rows = num_of_rows;
-            if let Some(waker) = s.waker.take() {
-                waker.wake()
-            }
-        }
+        //     (*s).completed = true;
+        //     (*s).result = res;
+        //     (*s).num_of_rows = num_of_rows;
+        //     if let Some(waker) = s.waker.take() {
+        //         waker.wake()
+        //     }
+        // }
 
-        if s.completed && s.num_of_rows != 0 {
-            let num_of_rows = s.num_of_rows;
-            s.completed = false;
-            s.num_of_rows = 0;
-            drop(s);
+        // if s.completed && s.num_of_rows != 0 {
+        //     let num_of_rows = s.num_of_rows;
+        //     s.completed = false;
+        //     s.num_of_rows = 0;
+        //     drop(s);
 
-            self.append_num_of_rows(num_of_rows);
+        //     self.append_num_of_rows(num_of_rows);
 
-            // Wake up poll.
-            Poll::Ready(Self::Item::from_async_query(
-                self.raw.clone(),
-                self.raw.block(),
-                num_of_rows,
-            ))
-        } else if s.completed && s.num_of_rows == 0 {
-            Poll::Ready(None)
-        } else {
-            let res = if s.result.is_null() {
-                self.raw.as_ptr()
-            } else {
-                s.result
-            };
-            s.waker = Some(cx.waker().clone());
-            drop(s);
+        //     // Wake up poll.
+        //     Poll::Ready(Self::Item::from_async_query(
+        //         self.raw.clone(),
+        //         self.raw.block(),
+        //         num_of_rows,
+        //     ))
+        // } else if s.completed && s.num_of_rows == 0 {
+        //     Poll::Ready(None)
+        // } else {
+        //     let res = if s.result.is_null() {
+        //         self.raw.as_ptr()
+        //     } else {
+        //         s.result
+        //     };
+        //     s.waker = Some(cx.waker().clone());
+        //     drop(s);
 
-            unsafe {
-                taos_fetch_rows_a(
-                    res,
-                    async_fetch_callback as _,
-                    Box::into_raw(Box::new(self.state.clone())) as *mut _,
-                );
-            }
-            Poll::Pending
-        }
+        //     unsafe {
+        //         taos_fetch_raw_block_a(
+        //             res,
+        //             async_fetch_callback as _,
+        //             Box::into_raw(Box::new(self.state.clone())) as *mut _,
+        //         );
+        //     }
+        //     Poll::Pending
+        // }
     }
 }

@@ -157,11 +157,11 @@ pub trait BlockExt: Debug + Sized {
     }
 }
 
-pub trait Fetchable
-where
-    Self: Sized,
-    for<'r> &'r mut Self: Iterator,
-    for<'b, 'r> <&'r mut Self as Iterator>::Item: BlockExt,
+pub trait Fetchable: Sized + Iterator<Item = Raw>
+// where
+//     Self: Sized,
+//     for<'r> &'r mut Self: Iterator,
+//     for<'b, 'r> <&'r mut Self as Iterator>::Item: BlockExt,
 {
     // type Block: for<'b> BlockExt;
 
@@ -187,13 +187,9 @@ where
             .collect()
     }
 
-    fn rows_iter<'r>(
-        &'r mut self,
-    ) -> std::iter::FlatMap<
-        &'r mut Self,
-        IntoRowsIter<<&'r mut Self as Iterator>::Item>,
-        fn(<&'r mut Self as Iterator>::Item) -> IntoRowsIter<<&'r mut Self as Iterator>::Item>,
-    > {
+    fn rows_iter(
+        &mut self,
+    ) -> std::iter::FlatMap<&mut Self, IntoRowsIter<Raw>, fn(Raw) -> IntoRowsIter<Raw>> {
         self.flat_map(|block| block.into_iter_rows())
     }
 
@@ -212,13 +208,9 @@ where
 }
 
 /// The synchronous query trait for TDengine connection.
-pub trait Queryable<'q>: Debug
-where
-    for<'r> &'r mut Self::ResultSet: Iterator,
-    for<'b, 'r> <&'r mut Self::ResultSet as Iterator>::Item: BlockExt,
-{
+pub trait Queryable<'q>: Debug {
     type Error: Debug + From<serde::de::value::Error>;
-    // type B: for<'b> BlockExt<'b, 'b>;
+
     type ResultSet: Fetchable;
 
     fn query<T: AsRef<str>>(&'q self, sql: T) -> Result<Self::ResultSet, Self::Error>;
@@ -309,8 +301,7 @@ where
 pub trait AsyncFetchable
 where
     Self: Sized + Send,
-    Self::BlockStream: futures::stream::Stream + Send,
-    <Self::BlockStream as futures::stream::Stream>::Item: BlockExt + Send,
+    Self::BlockStream: futures::stream::Stream<Item = Raw> + Send,
 {
     type BlockStream;
     // type Block: for<'b> BlockExt;
@@ -732,15 +723,35 @@ mod tests {
         }
     }
 
-    impl<'r, 'q> Iterator for &'r mut MyResultSet<'q> {
-        type Item = Block<'r, 'q>;
+    // impl<'r, 'q> Iterator for &'r mut MyResultSet<'q> {
+    //     type Item = Block<'r, 'q>;
+
+    //     fn next(&mut self) -> Option<Self::Item> {
+    //         static mut AVAILABLE: bool = true;
+    //         if unsafe { AVAILABLE } {
+    //             unsafe { AVAILABLE = false };
+
+    //             Some(Block(PhantomData))
+    //         } else {
+    //             None
+    //         }
+    //     }
+    // }
+    impl<'q> Iterator for MyResultSet<'q> {
+        type Item = Raw;
 
         fn next(&mut self) -> Option<Self::Item> {
             static mut AVAILABLE: bool = true;
             if unsafe { AVAILABLE } {
                 unsafe { AVAILABLE = false };
 
-                Some(Block(PhantomData))
+                Some(Raw::parse_from_raw_block_v2(
+                    [1].as_slice(),
+                    &[Field::new("a", Ty::TinyInt, 1)],
+                    &[1],
+                    1,
+                    Precision::Millisecond,
+                ))
             } else {
                 None
             }
