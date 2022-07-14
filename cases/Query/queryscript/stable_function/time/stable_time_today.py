@@ -135,17 +135,17 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where  %s %s %s group by tbname;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        #rows = self.tdSql.query(sql1).row_count #分组之后数量减少不固定，先考虑用1行
-                        self.time_check_row(sql1,sql2,1)
-                        self.np_check_row(sql1,sql2,1)
+                        rows = self.tdSql.query(sql2).row_count 
+                        self.time_check_row(sql1,sql2,rows)
+                        self.np_check_row(sql1,sql2,rows)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where %s %s %s group by tbname);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        #rows = self.tdSql.query(sql1).row_count 
-                        self.time_check_row(sql1,sql2,1)
-                        self.np_check_row(sql1,sql2,1)
+                        rows = self.tdSql.query(sql2).row_count 
+                        self.time_check_row(sql1,sql2,rows)
+                        self.np_check_row(sql1,sql2,rows)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -189,17 +189,17 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        #rows = self.tdSql.query(sql1).row_count 
-                        self.time_check_row(sql1,sql2,1)
-                        self.np_check_row(sql1,sql2,1)
+                        rows = self.tdSql.query(sql2).row_count 
+                        self.time_check_row(sql1,sql2,rows)
+                        self.np_check_row(sql1,sql2,rows)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        #rows = self.tdSql.query(sql1).row_count 
-                        self.time_check_row(sql1,sql2,1)
-                        self.np_check_row(sql1,sql2,1)
+                        rows = self.tdSql.query(sql2).row_count 
+                        self.time_check_row(sql1,sql2,rows)
+                        self.np_check_row(sql1,sql2,rows)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -209,19 +209,17 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s; " %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        #rows = self.tdSql.query(sql1).row_count 
-                        self.time_check_row(sql1,sql2,1)
-                        self.np_check_row(sql1,sql2,1)
-                        cur1.execute(sql2)
+                        self.time_check(sql1,sql2)
                         self.np_check(sql1,sql2)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2       
                         
                         sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s );" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        #rows = self.tdSql.query(sql1).row_count 
-                        self.time_check_row(sql1,sql2,1)
-                        self.np_check_row(sql1,sql2,1)
+                        self.time_check(sql1,sql2)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and %s %s %s; " %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
