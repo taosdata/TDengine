@@ -292,8 +292,9 @@ class IndexEnv : public ::testing::Test {
   virtual void SetUp() {
     initLog();
     taosRemoveDir(path);
-    SIndexOpts opts = {.cacheSize = 1024 * 1024 * 4};
-    int        ret = indexOpen(&opts, path, &index);
+    SIndexOpts opts;
+    opts.cacheSize = 1024 * 1024 * 4;
+    int ret = indexOpen(&opts, path, &index);
     assert(ret == 0);
   }
   virtual void TearDown() { indexClose(index); }
@@ -697,8 +698,10 @@ class IndexObj {
       taosMkDir(dir.c_str());
     }
     taosMkDir(dir.c_str());
-    SIndexOpts opts = {.cacheSize = 1024 * 1024 * 4};
-    int        ret = indexOpen(&opts, dir.c_str(), &idx);
+    SIndexOpts opts;
+    opts.cacheSize = 1024 * 1024 * 4;
+
+    int ret = indexOpen(&opts, dir.c_str(), &idx);
     if (ret != 0) {
       // opt
       std::cout << "failed to open index: %s" << dir << std::endl;
