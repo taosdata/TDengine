@@ -1011,13 +1011,14 @@ int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockL
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) {
+int32_t sclCalcConstants(SNode *pNode, bool dual, SNode **pRes) {
   if (NULL == pNode) {
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
   int32_t code = 0;
   SScalarCtx ctx = {0};
+  ctx.dual = dual;
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == ctx.pRes) {
     sclError("taosHashInit failed, num:%d", SCL_DEFAULT_OP_NUM);
@@ -1029,8 +1030,86 @@ int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) {
   *pRes = pNode;
 
 _return:
+
   sclFreeRes(ctx.pRes);
   return code;
+}
+
+static int32_t sclGetMinusOperatorResType(SOperatorNode* pOp) {
+  if (!IS_MATHABLE_TYPE(((SExprNode*)(pOp->pLeft))->resType.type)) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+  pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sclGetMathOperatorResType(SOperatorNode* pOp) {
+  SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
+  SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
+  if ((TSDB_DATA_TYPE_TIMESTAMP == ldt.type && TSDB_DATA_TYPE_TIMESTAMP == rdt.type) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == ldt.type && (IS_VAR_DATA_TYPE(rdt.type) || IS_FLOAT_TYPE(rdt.type))) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && (IS_VAR_DATA_TYPE(ldt.type) || IS_FLOAT_TYPE(ldt.type)))) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  if ((TSDB_DATA_TYPE_TIMESTAMP == ldt.type && IS_INTEGER_TYPE(rdt.type)) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && IS_INTEGER_TYPE(ldt.type)) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == ldt.type && TSDB_DATA_TYPE_BOOL == rdt.type) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && TSDB_DATA_TYPE_BOOL == ldt.type)) {
+    pOp->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+  } else {
+    pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+    pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sclGetCompOperatorResType(SOperatorNode* pOp) {
+  SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
+  if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
+    ((SExprNode*)(pOp->pRight))->resType = ldt;
+  } else if (nodesIsRegularOp(pOp)) {
+    SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
+    if (!IS_VAR_DATA_TYPE(ldt.type) || QUERY_NODE_VALUE != nodeType(pOp->pRight) ||
+        (!IS_STR_DATA_TYPE(rdt.type) && (rdt.type != TSDB_DATA_TYPE_NULL))) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+  }
+  pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sclGetJsonOperatorResType(SOperatorNode* pOp) {
+  SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
+  SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
+  if (TSDB_DATA_TYPE_JSON != ldt.type || !IS_STR_DATA_TYPE(rdt.type)) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+  if (pOp->opType == OP_TYPE_JSON_GET_VALUE) {
+    pOp->node.resType.type = TSDB_DATA_TYPE_JSON;
+  } else if (pOp->opType == OP_TYPE_JSON_CONTAINS) {
+    pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  }
+  pOp->node.resType.bytes = tDataTypes[pOp->node.resType.type].bytes;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sclGetBitwiseOperatorResType(SOperatorNode* pOp) {
+  pOp->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) {
+  return sclCalcConstants(pNode, false, pRes);
+}
+
+int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes) {
+  return sclCalcConstants(pNode, true, pRes);
 }
 
 int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
@@ -1076,74 +1155,6 @@ _return:
   return code;
 }
 
-static int32_t getMinusOperatorResultType(SOperatorNode* pOp) {
-  if (!IS_MATHABLE_TYPE(((SExprNode*)(pOp->pLeft))->resType.type)) {
-    return TSDB_CODE_TSC_INVALID_OPERATION;
-  }
-  pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
-  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t getArithmeticOperatorResultType(SOperatorNode* pOp) {
-  SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
-  SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
-  if ((TSDB_DATA_TYPE_TIMESTAMP == ldt.type && TSDB_DATA_TYPE_TIMESTAMP == rdt.type) ||
-      (TSDB_DATA_TYPE_TIMESTAMP == ldt.type && (IS_VAR_DATA_TYPE(rdt.type) || IS_FLOAT_TYPE(rdt.type))) ||
-      (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && (IS_VAR_DATA_TYPE(ldt.type) || IS_FLOAT_TYPE(ldt.type)))) {
-    return TSDB_CODE_TSC_INVALID_OPERATION;
-  }
-
-  if ((TSDB_DATA_TYPE_TIMESTAMP == ldt.type && IS_INTEGER_TYPE(rdt.type)) ||
-      (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && IS_INTEGER_TYPE(ldt.type)) ||
-      (TSDB_DATA_TYPE_TIMESTAMP == ldt.type && TSDB_DATA_TYPE_BOOL == rdt.type) ||
-      (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && TSDB_DATA_TYPE_BOOL == ldt.type)) {
-    pOp->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
-    pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
-  } else {
-    pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
-    pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t getComparisonOperatorResultType(SOperatorNode* pOp) {
-  SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
-  if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
-    ((SExprNode*)(pOp->pRight))->resType = ldt;
-  } else if (nodesIsRegularOp(pOp)) {
-    SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
-    if (!IS_VAR_DATA_TYPE(ldt.type) || QUERY_NODE_VALUE != nodeType(pOp->pRight) ||
-        (!IS_STR_DATA_TYPE(rdt.type) && (rdt.type != TSDB_DATA_TYPE_NULL))) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-  }
-  pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
-  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t getJsonOperatorResultType(SOperatorNode* pOp) {
-  SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
-  SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
-  if (TSDB_DATA_TYPE_JSON != ldt.type || !IS_STR_DATA_TYPE(rdt.type)) {
-    return TSDB_CODE_TSC_INVALID_OPERATION;
-  }
-  if (pOp->opType == OP_TYPE_JSON_GET_VALUE) {
-    pOp->node.resType.type = TSDB_DATA_TYPE_JSON;
-  } else if (pOp->opType == OP_TYPE_JSON_CONTAINS) {
-    pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
-  }
-  pOp->node.resType.bytes = tDataTypes[pOp->node.resType.type].bytes;
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t getBitwiseOperatorResultType(SOperatorNode* pOp) {
-  pOp->node.resType.type = TSDB_DATA_TYPE_BIGINT;
-  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t scalarGetOperatorResultType(SOperatorNode* pOp) {
   if (TSDB_DATA_TYPE_BLOB == ((SExprNode*)(pOp->pLeft))->resType.type ||
       (NULL != pOp->pRight && TSDB_DATA_TYPE_BLOB == ((SExprNode*)(pOp->pRight))->resType.type)) {
@@ -1156,15 +1167,15 @@ int32_t scalarGetOperatorResultType(SOperatorNode* pOp) {
     case OP_TYPE_MULTI:
     case OP_TYPE_DIV:
     case OP_TYPE_REM:
-      return getArithmeticOperatorResultType(pOp);
+      return sclGetMathOperatorResType(pOp);
     case OP_TYPE_MINUS:
-      return getMinusOperatorResultType(pOp);
+      return sclGetMinusOperatorResType(pOp);
     case OP_TYPE_ASSIGN:
       pOp->node.resType = ((SExprNode*)(pOp->pLeft))->resType;
       break;
     case OP_TYPE_BIT_AND:
     case OP_TYPE_BIT_OR:
-      return getBitwiseOperatorResultType(pOp);
+      return sclGetBitwiseOperatorResType(pOp);
     case OP_TYPE_GREATER_THAN:
     case OP_TYPE_GREATER_EQUAL:
     case OP_TYPE_LOWER_THAN:
@@ -1185,10 +1196,10 @@ int32_t scalarGetOperatorResultType(SOperatorNode* pOp) {
     case OP_TYPE_NMATCH:
     case OP_TYPE_IN:
     case OP_TYPE_NOT_IN:
-      return getComparisonOperatorResultType(pOp);
+      return sclGetCompOperatorResType(pOp);
     case OP_TYPE_JSON_GET_VALUE:
     case OP_TYPE_JSON_CONTAINS:
-      return getJsonOperatorResultType(pOp);
+      return sclGetJsonOperatorResType(pOp);
     default:
       break;
   }

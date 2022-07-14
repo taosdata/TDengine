@@ -81,7 +81,7 @@ sql use $dbNamme
 
 # session(ts,5a)
 print ====> select count(*) from dev_001 session(ts,5a)
-sql select _wstartts, count(*) from dev_001 session(ts,5a)
+sql select _wstart, count(*) from dev_001 session(ts,5a)
 print ====> rows: $rows
 print ====> $data00 $data01 $data02 $data03 $data04 $data05
 print ====> $data10 $data11 $data12 $data13 $data14 $data15
@@ -102,7 +102,7 @@ endi
 
 #
 #print ====> select count(*) from (select * from dev_001) session(ts,5a)
-#sql select _wstartts, count(*) from (select * from dev_001) session(ts,5a)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,5a)
 #if $rows != 15 then
 #  return -1
 #endi
@@ -111,7 +111,7 @@ endi
 #endi
 
 print ====> select count(*) from dev_001 session(ts,1s)
-sql select _wstartts, count(*) from dev_001 session(ts,1s)
+sql select _wstart, count(*) from dev_001 session(ts,1s)
 if $rows != 12 then
   return -1
 endi
@@ -120,7 +120,7 @@ if $data01 != 5 then
 endi
 
 #print ====> select count(*) from (select * from dev_001) session(ts,1s)
-#sql select _wstartts, count(*) from (select * from dev_001) session(ts,1s)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,1s)
 #if $rows != 12 then
 #  return -1
 #endi
@@ -129,7 +129,7 @@ endi
 #endi
 
 print ====> select count(*) from dev_001 session(ts,1000a)
-sql select _wstartts, count(*) from dev_001 session(ts,1000a)
+sql select _wstart, count(*) from dev_001 session(ts,1000a)
 if $rows != 12 then
   return -1
 endi
@@ -138,7 +138,7 @@ if $data01 != 5 then
 endi
 
 #print ====> select count(*) from  (select * from dev_001) session(ts,1000a)
-#sql select _wstartts, count(*) from  (select * from dev_001) session(ts,1000a)
+#sql select _wstart, count(*) from  (select * from dev_001) session(ts,1000a)
 #if $rows != 12 then
 #  return -1
 #endi
@@ -147,7 +147,7 @@ endi
 #endi
 
 print ====> select count(*) from dev_001 session(ts,1m)
-sql select _wstartts, count(*) from dev_001 session(ts,1m)
+sql select _wstart, count(*) from dev_001 session(ts,1m)
 if $rows != 9 then
   return -1
 endi
@@ -156,7 +156,7 @@ if $data01 != 8 then
 endi
 
 #print ====> select count(*) from (select * from dev_001) session(ts,1m)
-#sql select _wstartts, count(*) from (select * from dev_001) session(ts,1m)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,1m)
 #if $rows != 9 then
 #  return -1
 #endi
@@ -165,7 +165,7 @@ endi
 #endi
 
 print ====> select count(*) from dev_001 session(ts,1h)
-sql select _wstartts, count(*) from dev_001 session(ts,1h)
+sql select _wstart, count(*) from dev_001 session(ts,1h)
 if $rows != 6 then
   return -1
 endi
@@ -174,7 +174,7 @@ if $data01 != 11 then
 endi
 
 #print ====> select count(*) from (select * from dev_001) session(ts,1h)
-#sql select _wstartts, count(*) from (select * from dev_001) session(ts,1h)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,1h)
 #if $rows != 6 then
 #  return -1
 #endi
@@ -183,7 +183,7 @@ endi
 #endi
 
 print ====> select count(*) from dev_001 session(ts,1d)
-sql select _wstartts, count(*) from dev_001 session(ts,1d)
+sql select _wstart, count(*) from dev_001 session(ts,1d)
 if $rows != 4 then
   return -1
 endi
@@ -192,7 +192,7 @@ if $data01 != 13 then
 endi
 
 #print ====> select count(*) from (select * from dev_001) session(ts,1d)
-#sql select _wstartts, count(*) from (select * from dev_001) session(ts,1d)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,1d)
 #if $rows != 4 then
 #  return -1
 #endi
@@ -201,7 +201,7 @@ endi
 #endi
 
 print ====> select count(*) from dev_001 session(ts,1w)
-sql select _wstartts, count(*) from dev_001 session(ts,1w)
+sql select _wstart, count(*) from dev_001 session(ts,1w)
 if $rows != 2 then
   return -1
 endi
@@ -210,7 +210,7 @@ if $data01 != 15 then
 endi
 
 #print ====> select count(*) from (select * from dev_001) session(ts,1w)
-#sql select _wstartts, count(*) from (select * from dev_001) session(ts,1w)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,1w)
 #if $rows != 2 then
 #  return -1
 #endi
@@ -298,7 +298,7 @@ sql_error select count(*) from dev_001 session(i,1y)
 sql_error select count(*) from dev_001 session(ts,1d) where ts <'2020-05-20 0:0:0'
 
 #print ====> select count(*) from dev_001 session(ts,1u)
-#sql select _wstartts, count(*) from dev_001 session(ts,1u)
+#sql select _wstart, count(*) from dev_001 session(ts,1u)
 #print rows: $rows
 #print $data00 $data01 $data02 $data03
 #print $data10 $data11 $data12 $data13

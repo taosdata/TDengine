@@ -1055,7 +1055,7 @@ static void vectorMathAddHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRig
   }
 }
 
-static void vectorMathBigintAddHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRightCol, SColumnInfoData* pOutputCol, int32_t numOfRows, int32_t step, int32_t i) {
+static void vectorMathTsAddHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRightCol, SColumnInfoData* pOutputCol, int32_t numOfRows, int32_t step, int32_t i) {
   _getBigintValue_fn_t getVectorBigintValueFnLeft  = getVectorBigintValueFn(pLeftCol->info.type);
   _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRightCol->info.type);
 
@@ -1069,7 +1069,8 @@ static void vectorMathBigintAddHelper(SColumnInfoData* pLeftCol, SColumnInfoData
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
-      *output = getVectorBigintValueFnLeft(pLeftCol->pData, i) + getVectorBigintValueFnRight(pRightCol->pData, 0);
+      *output = taosTimeAdd(getVectorBigintValueFnLeft(pLeftCol->pData, i), getVectorBigintValueFnRight(pRightCol->pData, 0),
+                            pRightCol->info.scale, pRightCol->info.precision);
     }
   }
 }
@@ -1116,7 +1117,17 @@ void vectorMathAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
     _getBigintValue_fn_t getVectorBigintValueFnLeft  = getVectorBigintValueFn(pLeftCol->info.type);
     _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRightCol->info.type);
 
-    if (pLeft->numOfRows == pRight->numOfRows) {
+    if (pLeft->numOfRows == 1 && pRight->numOfRows == 1) {
+      if (GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP) {
+        vectorMathTsAddHelper(pLeftCol, pRightCol, pOutputCol, pRight->numOfRows, step, i);
+      } else {
+        vectorMathTsAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);
+      }
+    } else if (pLeft->numOfRows == 1) {
+      vectorMathTsAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);
+    } else if (pRight->numOfRows == 1) {
+      vectorMathTsAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i);
+    } else if (pLeft->numOfRows == pRight->numOfRows) {
       for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
         if (IS_NULL) {
           colDataAppendNULL(pOutputCol, i);
@@ -1124,11 +1135,7 @@ void vectorMathAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
         }
         *output = getVectorBigintValueFnLeft(pLeftCol->pData, i) + getVectorBigintValueFnRight(pRightCol->pData, i);
       }
-    } else if (pLeft->numOfRows == 1) {
-      vectorMathBigintAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);
-    } else if (pRight->numOfRows == 1) {
-      vectorMathBigintAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i);
-    }
+    } 
   } else {
     double *output = (double *)pOutputCol->pData;
     _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
@@ -1174,7 +1181,7 @@ static void vectorMathSubHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRig
   }
 }
 
-static void vectorMathBigintSubHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRightCol, SColumnInfoData* pOutputCol, int32_t numOfRows, int32_t step, int32_t factor, int32_t i) {
+static void vectorMathTsSubHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRightCol, SColumnInfoData* pOutputCol, int32_t numOfRows, int32_t step, int32_t factor, int32_t i) {
   _getBigintValue_fn_t getVectorBigintValueFnLeft  = getVectorBigintValueFn(pLeftCol->info.type);
   _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRightCol->info.type);
 
@@ -1188,7 +1195,9 @@ static void vectorMathBigintSubHelper(SColumnInfoData* pLeftCol, SColumnInfoData
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
-      *output = (getVectorBigintValueFnLeft(pLeftCol->pData, i) - getVectorBigintValueFnRight(pRightCol->pData, 0)) * factor;
+      *output = taosTimeSub(getVectorBigintValueFnLeft(pLeftCol->pData, i), getVectorBigintValueFnRight(pRightCol->pData, 0),
+                            pRightCol->info.scale, pRightCol->info.precision);
+      
     }
   }
 }
@@ -1211,7 +1220,13 @@ void vectorMathSub(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
     _getBigintValue_fn_t getVectorBigintValueFnLeft  = getVectorBigintValueFn(pLeftCol->info.type);
     _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRightCol->info.type);
 
-    if (pLeft->numOfRows == pRight->numOfRows) {
+    if (pLeft->numOfRows == 1 && pRight->numOfRows == 1) {
+      vectorMathTsSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i);
+    } else if (pLeft->numOfRows == 1) {
+      vectorMathTsSubHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, -1, i);
+    } else if (pRight->numOfRows == 1) {
+      vectorMathTsSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i);
+    } else if (pLeft->numOfRows == pRight->numOfRows) {
       for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
         if (IS_NULL) {
           colDataAppendNULL(pOutputCol, i);
@@ -1219,10 +1234,6 @@ void vectorMathSub(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
         }
         *output = getVectorBigintValueFnLeft(pLeftCol->pData, i) - getVectorBigintValueFnRight(pRightCol->pData, i);
       }
-    } else if (pLeft->numOfRows == 1) {
-      vectorMathBigintSubHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, -1, i);
-    } else if (pRight->numOfRows == 1) {
-      vectorMathBigintSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i);
     }
   } else {
     double *output = (double *)pOutputCol->pData;
