@@ -75,7 +75,7 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
 
     if (h) {
       SDataBlock* blk = taosLRUCacheValue(ctx->lru, h);
-      nread = MIN(blkLeft, len);
+      nread = TMIN(blkLeft, len);
       memcpy(buf + total, blk->buf + blkOffset, nread);
       taosLRUCacheRelease(ctx->lru, h, false);
     } else {
@@ -85,7 +85,7 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
       blk->blockId = blkId;
       blk->nread = taosPReadFile(ctx->file.pFile, blk->buf, kBlockSize, blkId * kBlockSize);
       assert(blk->nread <= kBlockSize);
-      nread = MIN(blkLeft, len);
+      nread = TMIN(blkLeft, len);
 
       if (blk->nread < kBlockSize && blk->nread < len) {
         break;
