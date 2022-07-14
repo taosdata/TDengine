@@ -39,7 +39,7 @@ class MockDataSource:
 
         # just add timestamp to each row
         # (tableId, "tableName,ts,current,voltage,phase,location,groupId")
-        return map(lambda t: (t[0], t[1] + str(ts) + "," + t[2]), self.data)
+        return map(lambda t: (t[0], t[1] + ',' + str(ts) + "," + t[2]), self.data)
 
 
 if __name__ == '__main__':
