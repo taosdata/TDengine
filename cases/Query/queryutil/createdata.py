@@ -137,7 +137,7 @@ class TDCreateData():
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
 
             self.tdSql.execute('''insert into stable_1_2 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
-                        % (self.ts + i*1000, fake.random_int(min=0, max=2147483647, step=1), 
+                        % (self.ts + i*1000 -1, fake.random_int(min=0, max=2147483647, step=1), 
                         fake.random_int(min=0, max=9223372036854775807, step=1), 
                         fake.random_int(min=0, max=32767, step=1) , fake.random_int(min=0, max=127, step=1) , 
                         fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
