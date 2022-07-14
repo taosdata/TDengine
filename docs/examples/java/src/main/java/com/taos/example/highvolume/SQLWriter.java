@@ -7,8 +7,6 @@ import java.sql.*;
 import java.util.HashMap;
 import java.util.Map;
 
-// ANCHOR: SQLWriter
-
 /**
  * A helper class encapsulate the logic of writing using SQL.
  * <p>
@@ -205,4 +203,3 @@ public class SQLWriter {
         }
     }
 }
-// ANCHOR_END: SQLWriter

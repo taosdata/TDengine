@@ -5,7 +5,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.BlockingQueue;
 
-// ANCHOR: WriteTask
 class WriteTask implements Runnable {
     private final static Logger logger = LoggerFactory.getLogger(WriteTask.class);
     private final int maxBatchSize;
@@ -57,4 +56,3 @@ class WriteTask implements Runnable {
         this.active = false;
     }
 }
-// ANCHOR_END: WriteTask

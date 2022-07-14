@@ -10,7 +10,7 @@ import time
 import os
 from multiprocessing import Process
 from faster_fifo import Queue
-from mockdatasoruce import MockDataSource
+from mockdatasource import MockDataSource
 from queue import Empty
 from typing import List
 
