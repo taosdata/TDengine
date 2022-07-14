@@ -343,6 +343,9 @@ void checkBrokenQueries(STscObj *pTscObj) {
         dealConnBroken(pSubSql);
       }
     }
+
+    // move next
+    pSql = pSql->next;
   }
 } 
 
@@ -363,11 +366,11 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 
   // check queries already death
   static int activetyTimerCnt = 0;
-  if (++activetyTimerCnt > 10) { // 1.5s * 10 = 15s interval call
+  if (++activetyTimerCnt > 5) { // 1.5s * 10 = 15s interval call
     activetyTimerCnt = 0;
 
     // call check if have query doing
-    if(pObj->sqlList && pObj->sqlList->next) {
+    if(pObj->sqlList) {
       // have queries executing
       checkBrokenQueries(pObj);
     }
