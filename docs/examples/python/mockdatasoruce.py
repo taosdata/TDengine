@@ -60,9 +60,9 @@ if __name__ == '__main__':
 
     def consume():
         global count
-        for data in MockDataSource("1", 1000):
-            for _ in data:
-                count += 1
+        for data in MockDataSource("1", 100):
+            for _, rows in data:
+                count += len(rows)
 
 
     Thread(target=consume).start()
