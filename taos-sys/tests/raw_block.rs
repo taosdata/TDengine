@@ -1,5 +1,6 @@
 use std::slice;
 
+use futures::TryStreamExt;
 // todo: some const functions are not available for stable Rust.
 use taos_query::common::{Raw, Value};
 #[test]
@@ -33,6 +34,38 @@ fn raw_block() -> Result<(), taos_error::Error> {
             dbg!(v);
         }
     }
+    Ok(())
+}
+
+// #[tokio::test]
+
+#[test]
+fn raw_block_async() -> Result<(), taos_error::Error> {
+    use taos_sys::*;
+    let taos = RawTaos::connect(
+        std::ptr::null(),
+        std::ptr::null(),
+        std::ptr::null(),
+        std::ptr::null(),
+        0,
+    )?;
+    let rs = taos.query("show databases")?;
+    if let Some(inner) = futures::executor::block_on(rs.fetch_raw_block_async().try_next())? {
+        // let inner = unsafe { Raw::from_ptr(ptr, rows as _, field_count as _, precision) };
+        let gid = inner.group_id();
+        println!("group id: {gid}");
+
+        dbg!(inner.schemas());
+
+        for row in 0..dbg!(inner.nrows()) as usize {
+            for col in 0..inner.ncols() as usize {
+                println!("({row}, {col}): ");
+                let v = unsafe { inner.get_ref_unchecked(row, col) };
+                dbg!(v);
+            }
+        }
+    }
+
     Ok(())
 }
 

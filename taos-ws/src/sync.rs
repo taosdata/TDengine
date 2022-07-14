@@ -1,4 +1,5 @@
 use once_cell::sync::{Lazy, OnceCell};
+use taos_error::Code;
 use taos_query::common::{Field, Precision, Raw};
 use taos_query::{DeError, Dsn, DsnError, Fetchable, IntoDsn, Queryable};
 use thiserror::Error;
@@ -88,24 +89,36 @@ pub enum Error {
     DeError(#[from] DeError),
     #[error(transparent)]
     TungsteniteError(#[from] tokio_tungstenite::tungstenite::Error),
-    #[error(transparent)]
-    SendMessageError(#[from] tokio::sync::mpsc::error::SendError<WsSend>),
     #[error("{0}")]
     TaosError(#[from] taos_error::Error),
-    #[error("{0}")]
-    RecvFetchError(#[from] std::sync::mpsc::RecvError),
     #[error(transparent)]
     RecvTimeout(#[from] std::sync::mpsc::RecvTimeoutError),
     #[error(transparent)]
     SendTimeoutError(#[from] tokio::sync::mpsc::error::SendTimeoutError<WsSend>),
+    #[error("Connection reset or closed by server")]
+    ConnClosed,
     #[error(transparent)]
     StmtError(#[from] stmt::Error),
+}
+
+#[repr(C)]
+pub enum WS_ERROR_NO {
+    DSN_ERROR = 0xE000,
+    WEBSOCKET_ERROR = 0xE001,
+    CONN_CLOSED = 0xE002,
+    SEND_MESSAGE_TIMEOUT = 0xE003,
+    RECV_MESSAGE_TIMEOUT = 0xE004,
 }
 
 impl Error {
     pub const fn errno(&self) -> taos_error::Code {
         match self {
             Error::TaosError(error) => error.code(),
+            Error::Dsn(_) => Code::new(WS_ERROR_NO::DSN_ERROR as _),
+            Error::TungsteniteError(_) => Code::new(WS_ERROR_NO::WEBSOCKET_ERROR as _),
+            Error::SendTimeoutError(_) => Code::new(WS_ERROR_NO::SEND_MESSAGE_TIMEOUT as _),
+            Error::RecvTimeout(_) => Code::new(WS_ERROR_NO::RECV_MESSAGE_TIMEOUT as _),
+            // Error::RecvFetchError(_) => Code::new(WS_ERROR_NO::RECV_TIMEOUT_FETCH as _),
             _ => taos_error::Code::Failed,
         }
     }
@@ -249,6 +262,8 @@ impl WsClient {
             }
         });
 
+        let is_v3 = version.starts_with("3");
+
         // message handler for query/fetch/fetch_block
         rt.spawn(async move {
             loop {
@@ -285,13 +300,12 @@ impl WsClient {
                                 let mut slice = block.as_slice();
                                 use taos_query::util::InlinableRead;
                                 let res_id = slice.read_u64().unwrap();
-                                let len = (&block[8..12]).read_u32().unwrap();
-                                if block.len() == len as usize + 8 {
+                                if is_v3 {
                                     // v3
+                                    log::debug!("parse v3 raw block");
                                     if let Some(v) = fetches_sender.read(&res_id, |_, v| v.clone())
                                     {
                                         log::info!("send data to fetches with id {}", res_id);
-                                        // let raw = slice.read_inlinable::<RawBlock>().unwrap();
                                         v.send(Ok(WsFetchData::Block(block[8..].to_vec()).clone()))
                                             .unwrap();
                                     }
@@ -318,6 +332,24 @@ impl WsClient {
                     } else {
                         let err = message.unwrap_err();
                         log::error!("connection seems closed: {}", err);
+                        queries_sender
+                            .retain_async(|_, v| {
+                                let _ = v.send(Err(taos_error::Error::new(
+                                    Code::new(WS_ERROR_NO::CONN_CLOSED as _),
+                                    err.to_string(),
+                                )));
+                                false
+                            })
+                            .await;
+                        fetches_sender
+                            .retain_async(|_, v| {
+                                let _ = v.send(Err(taos_error::Error::new(
+                                    Code::new(WS_ERROR_NO::CONN_CLOSED as _),
+                                    err.to_string(),
+                                )));
+                                false
+                            })
+                            .await;
                         break;
                     }
                 }
@@ -325,7 +357,7 @@ impl WsClient {
         });
 
         Ok(Self {
-            timeout: Duration::from_secs(10),
+            timeout: Duration::from_secs(5),
             req_id: Arc::new(AtomicU64::new(req_id + 1)),
             queries,
             fetches,
@@ -352,6 +384,9 @@ impl WsClient {
     // }
 
     pub fn s_query(&self, sql: &str) -> Result<ResultSet> {
+        self.s_query_timeout(sql, self.timeout)
+    }
+    pub fn s_query_timeout(&self, sql: &str, timeout: Duration) -> Result<ResultSet> {
         let req_id = self.req_id();
         let action = WsSend::Query {
             req_id,
@@ -360,9 +395,10 @@ impl WsClient {
         let (tx, rx) = std::sync::mpsc::sync_channel(2);
         {
             self.queries.insert(req_id, tx).unwrap();
-            self.sender.blocking_send(action).unwrap();
+            self.rt
+                .block_on(self.sender.send_timeout(action, timeout))?;
         }
-        let resp = rx.recv_timeout(self.timeout)??;
+        let resp = rx.recv_timeout(timeout)??;
 
         if resp.fields_count > 0 {
             let names = resp.fields_names.unwrap();
@@ -413,6 +449,9 @@ impl WsClient {
     }
 
     pub fn s_exec(&self, sql: &str) -> Result<usize> {
+        self.s_exec_timeout(sql, self.timeout)
+    }
+    pub fn s_exec_timeout(&self, sql: &str, timeout: Duration) -> Result<usize> {
         let req_id = self.req_id();
         let action = WsSend::Query {
             req_id,
@@ -421,9 +460,10 @@ impl WsClient {
         let (tx, rx) = std::sync::mpsc::sync_channel(2);
         {
             self.queries.insert(req_id, tx).unwrap();
-            self.sender.blocking_send(action).unwrap();
+            self.rt
+                .block_on(self.sender.send_timeout(action, timeout))?;
         }
-        let resp = rx.recv()??;
+        let resp = rx.recv_timeout(timeout)??;
         Ok(resp.affected_rows)
     }
 

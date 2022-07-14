@@ -54,6 +54,17 @@ header = """
 #define TSDB_DATA_TYPE_BINARY     TSDB_DATA_TYPE_VARCHAR  // string
 #define TSDB_DATA_TYPE_MAX        20
 
+/**
+ * Websocket errors defnitions.
+ *
+ * Use error code prefix `E` to distinct from taosc error codes.
+ */
+#define TSDB_CODE_WS_DSN_ERROR        0xE000
+#define TSDB_CODE_WS_INTERNAL_ERRO    0xE001
+#define TSDB_CODE_WS_CLOSED           0xE002
+#define TSDB_CODE_WS_SEND_TIMEOUT     0xE003
+#define TSDB_CODE_WS_RECV_TIMEOUT     0xE004
+
 #endif
 """
 

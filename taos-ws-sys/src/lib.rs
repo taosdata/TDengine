@@ -5,6 +5,7 @@ use std::{
     ops::{Deref, DerefMut},
     os::raw::c_char,
     str::Utf8Error,
+    time::Duration,
 };
 
 use taos_error::Code;
@@ -15,6 +16,8 @@ use taos_query::{
     Fetchable,
 };
 use taos_ws::sync::*;
+
+pub use taos_ws::sync::WS_ERROR_NO;
 
 pub mod stmt;
 
@@ -382,6 +385,24 @@ unsafe fn connect_with_dsn(dsn: *const c_char) -> WsTaos {
     Ok(WsClient::from_dsn(dsn)?)
 }
 
+/// Enable inner log to stdout with environment RUST_LOG.
+///
+/// # Example
+///
+/// ```c
+/// ws_enable_log();
+/// ```
+///
+/// To show debug logs:
+///
+/// ```bash
+/// RUST_LOG=debug ./a.out
+/// ```
+#[no_mangle]
+pub unsafe extern "C" fn ws_enable_log() {
+    pretty_env_logger::init();
+}
+
 /// Connect via dsn string, returns NULL if failed.
 ///
 /// Remember to check the return pointer is null and get error details.
@@ -440,12 +461,40 @@ unsafe fn query_with_sql(taos: *mut WS_TAOS, sql: *const c_char) -> WsResult<WsR
     Ok(WsResultSet::new(rs))
 }
 
+unsafe fn query_with_sql_timeout(
+    taos: *mut WS_TAOS,
+    sql: *const c_char,
+    timeout: Duration,
+) -> WsResult<WsResultSet> {
+    let client = (taos as *mut WsClient)
+        .as_mut()
+        .ok_or(WsError::new(Code::Failed, "client pointer it null"))?;
+
+    let sql = CStr::from_ptr(sql as _).to_str()?;
+    let rs = client.s_query_timeout(sql, timeout)?;
+    Ok(WsResultSet::new(rs))
+}
+
 #[no_mangle]
 /// Query with a sql command, returns pointer to result set.
 ///
 /// Please always use `ws_errno` to check it work and `ws_free_result` to free memory.
 pub unsafe extern "C" fn ws_query(taos: *mut WS_TAOS, sql: *const c_char) -> *mut WS_RES {
     let res: WsMaybeError<WsResultSet> = query_with_sql(taos, sql).into();
+    Box::into_raw(Box::new(res)) as _
+}
+
+#[no_mangle]
+/// Query a sql with timeout.
+///
+/// Please always use `ws_errno` to check it work and `ws_free_result` to free memory.
+pub unsafe extern "C" fn ws_query_timeout(
+    taos: *mut WS_TAOS,
+    sql: *const c_char,
+    seconds: u32,
+) -> *mut WS_RES {
+    let res: WsMaybeError<WsResultSet> =
+        query_with_sql_timeout(taos, sql, Duration::from_secs(seconds as _)).into();
     Box::into_raw(Box::new(res)) as _
 }
 
@@ -717,8 +766,7 @@ mod tests {
     fn connect() {
         init_env();
         unsafe {
-            // export TDENGINE_CLOUD_DSN="http://gw-aws.cloud.tdengine.com:80?token=8c7a628b568b7d32cc50f36b0f2d6273ffd060fc"
-            let taos = ws_connect_with_dsn(b"http://gw-aws.cloud.tdengine.com:80?token=8c7a628b568b7d32cc50f36b0f2d6273ffd060fc\0" as *const u8 as _);
+            let taos = ws_connect_with_dsn(b"http://localhost:6041\0" as *const u8 as _);
             if taos.is_null() {
                 let code = ws_errno(taos);
                 assert!(code != 0);
@@ -730,7 +778,7 @@ mod tests {
             let version = ws_get_server_info(taos);
             dbg!(CStr::from_ptr(version as _));
 
-            let sql = b"select avg(current) from test.meters\0" as *const u8 as _;
+            let sql = b"select groupid from test.d0 limit 10\0" as *const u8 as _;
             let rs = ws_query(taos, sql);
 
             let code = ws_errno(rs);
@@ -740,7 +788,7 @@ mod tests {
                 dbg!(errstr);
                 ws_free_result(rs);
                 ws_close(taos);
-                return ;
+                return;
             }
             assert_eq!(code, 0, "{errstr:?}");
 

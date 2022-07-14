@@ -7,7 +7,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use taos::prelude::{SchemalessPrecision, SyncBlock, Taos, Value};
+use taos::prelude::{Raw, SchemalessPrecision, Taos, Value};
 
 use super::transformer::Action;
 
@@ -159,7 +159,7 @@ pub trait TaosxSink: Debug + Send {
         Ok(())
     }
 
-    fn consume_block(&mut self, _: &Taos, _: &SyncBlock) -> Result<(), Self::Error> {
+    fn consume_block(&mut self, _: &Taos, _: &Raw) -> Result<(), Self::Error> {
         unimplemented!()
     }
 
@@ -199,7 +199,7 @@ pub trait TaosxSinkItem: Send {
         Self::PROTOCOL
     }
 
-    fn as_block(&self) -> (&Taos, &SyncBlock) {
+    fn as_block(&self) -> (&Taos, &Raw) {
         unimplemented!()
     }
 
@@ -228,16 +228,16 @@ pub trait TaosxSinkItem: Send {
     }
 }
 
-impl TaosxSinkItem for (&Taos, SyncBlock) {
+impl TaosxSinkItem for (&Taos, Raw) {
     const PROTOCOL: SinkProtocol = SinkProtocol::Block;
-    fn as_block(&self) -> (&Taos, &SyncBlock) {
+    fn as_block(&self) -> (&Taos, &Raw) {
         (self.0, &self.1)
     }
 }
 
-impl TaosxSinkItem for (&Taos, &SyncBlock) {
+impl TaosxSinkItem for (&Taos, &Raw) {
     const PROTOCOL: SinkProtocol = SinkProtocol::Block;
-    fn as_block(&self) -> (&Taos, &SyncBlock) {
+    fn as_block(&self) -> (&Taos, &Raw) {
         (self.0, self.1)
     }
 }

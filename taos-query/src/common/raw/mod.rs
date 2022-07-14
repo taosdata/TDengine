@@ -563,6 +563,17 @@ impl Raw {
     }
 
     #[inline]
+    pub fn tmq_table_name(&self) -> Option<&str> {
+        self.table.as_ref().map(|s| s.as_str())
+    }
+
+    // todo: db name?
+    #[inline]
+    pub fn tmq_db_name(&self) -> Option<&str> {
+        self.table.as_ref().map(|s| s.as_str())
+    }
+
+    #[inline]
     pub fn schemas(&self) -> &[ColSchema] {
         &self.schemas
     }

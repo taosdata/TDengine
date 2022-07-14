@@ -21,6 +21,8 @@ bitflags! {
 
         /// If NChar decoded or not in data block.
         const NCHAR_IS_DECODED = 0b_0001_0000;
+        /// If Schema has been changed, eg. subset or added some columns.
+        const SCHEMA_CHANGED = 0b_0010_0000;
 
         // Inline layout types.
 
@@ -125,6 +127,15 @@ impl Layout {
         self.bitor_assign(precision);
         self
     }
+
+    pub fn with_schema_changed(&mut self) -> &mut Self {
+        self.set(Self::SCHEMA_CHANGED, true);
+        self
+    }
+
+    pub fn schema_changed(&self) -> bool {
+        self.contains(Self::SCHEMA_CHANGED)
+    }
 }
 
 #[test]
@@ -152,4 +163,7 @@ fn test_layout() {
     let mut a = Layout::INLINE_AS_DATA_ONLY;
     assert!(a.with_table_name().expect_table_name());
     assert!(a.with_field_names().expect_field_names());
+
+    assert!(!a.schema_changed());
+    assert!(a.with_schema_changed().schema_changed());
 }

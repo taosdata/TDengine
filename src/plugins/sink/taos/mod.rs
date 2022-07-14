@@ -13,7 +13,7 @@ use std::{
 
 use futures::{Sink, Stream, TryStreamExt};
 use taos::{
-    block::{itypes::IsValue, Describe, Ty},
+    block::{itypes::IsValue, Describe, Ty, Raw},
     helpers::{ColumnMeta, Described},
     query::Dsn,
     tmq::{Consumer, TmqBuilder},
@@ -337,7 +337,7 @@ pub fn sync_table_with_transformer(
     Ok(())
 }
 
-impl Sink<(&Taos, SyncBlock)> for TaosSink {
+impl Sink<(&Taos, Raw)> for TaosSink {
     type Error = Error;
 
     fn poll_ready(
@@ -349,7 +349,7 @@ impl Sink<(&Taos, SyncBlock)> for TaosSink {
 
     fn start_send(
         mut self: std::pin::Pin<&mut Self>,
-        item: (&Taos, SyncBlock),
+        item: (&Taos, Raw),
     ) -> Result<(), Self::Error> {
         self.consume_block(item.0, &item.1)
     }
@@ -380,7 +380,7 @@ impl TaosxSink for TaosSink {
         Ok(())
     }
 
-    fn consume_block(&mut self, taos: &Taos, block: &SyncBlock) -> Result<(), Self::Error> {
+    fn consume_block(&mut self, taos: &Taos, block: &Raw) -> Result<(), Self::Error> {
         let idx = self.id;
         let db = block.tmq_db_name().unwrap();
         taos.exec(format!("use {db}"))?;

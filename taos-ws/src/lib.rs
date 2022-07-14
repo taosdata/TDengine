@@ -418,7 +418,7 @@ mod tests {
         let client = Ws::from_dsn(
             "https://gw-aws.cloud.tdengine.com?token=8c7a628b568b7d32cc50f36b0f2d6273ffd060fc",
         )?;
-        let mut rs = client.query("show databases")?;
+        let mut rs = client.query("select groupid from test.d0")?;
         let values = rs.to_rows_vec();
 
         dbg!(values);

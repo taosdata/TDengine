@@ -9,6 +9,7 @@ int main() {
   if (dsn == NULL) {
     dsn = "ws://localhost:6041";
   }
+  ws_enable_log();
   WS_TAOS *taos = ws_connect_with_dsn(dsn);
   if (taos == NULL) {
     int code = ws_errno(NULL);
