@@ -84,12 +84,6 @@ option(
     )
 
 option(
-    TDENGINE_3
-    "TDengine 3.x"
-    ON
-    )
-
-option(
     BUILD_ADDR2LINE
     "If build addr2line"
     OFF
