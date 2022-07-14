@@ -1,7 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
-sleep 2000
 sql connect
 
 print =============== create database
@@ -73,7 +72,7 @@ endi
 print =============== drop stable
 sql drop table db.st
 sql show db.stables
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 
