@@ -307,7 +307,6 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   SNode* pTagIndexCond = (SNode*)pListInfo->pTagIndexCond;
   if (pScanNode->tableType == TSDB_SUPER_TABLE) {
     if (pTagIndexCond) {
-      ///<<<<<<< HEAD
       SIndexMetaArg metaArg = {
           .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = tsdbGetIvtIdx(metaHandle), .suid = tableUid};
 
@@ -315,20 +314,9 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       SIdxFltStatus status = SFLT_NOT_INDEX;
       code = doFilterTag(pTagIndexCond, &metaArg, res, &status);
       if (code != 0 || status == SFLT_NOT_INDEX) {
-        code = TSDB_CODE_INDEX_REBUILDING;
-      }
-      //=======
-      //      SArray* res = taosArrayInit(8, sizeof(uint64_t));
-      //      // code = doFilterTag(pTagIndexCond, &metaArg, res);
-      //      code = TSDB_CODE_INDEX_REBUILDING;
-      //>>>>>>> dvv
-      if (code == TSDB_CODE_INDEX_REBUILDING) {
+        qError("failed to get tableIds from index, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
+//        code = TSDB_CODE_INDEX_REBUILDING;
         code = vnodeGetAllTableList(pVnode, tableUid, pListInfo->pTableList);
-      } else if (code != TSDB_CODE_SUCCESS) {
-        qError("failed to get tableIds, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
-        taosArrayDestroy(res);
-        terrno = code;
-        return code;
       } else {
         qDebug("success to get tableIds, size:%d, suid:%" PRIu64, (int)taosArrayGetSize(res), tableUid);
       }
