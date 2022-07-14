@@ -39,7 +39,7 @@ class MockDataSource:
         ts = []
         for _ in range(1000):
             self.current_ts += 100
-            ts.append(self.current_ts)
+            ts.append(str(self.current_ts))
         # add timestamp to each row
         # [(tableId, ["tableName,ts,current,voltage,phase,location,groupId"])]
         result = []
