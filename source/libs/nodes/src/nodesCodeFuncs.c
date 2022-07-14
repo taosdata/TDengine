@@ -225,6 +225,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiBlockDistScan";
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
       return "PhysiLastRowScan";
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
+      return "PhysiTableMergeScan";
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return "PhysiProject";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
