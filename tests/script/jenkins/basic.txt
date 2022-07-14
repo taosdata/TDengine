@@ -374,7 +374,7 @@
 # ---- alter
 ./test.sh -f tsim/alter/cached_schema_after_alter.sim
 ./test.sh -f tsim/alter/dnode.sim
-#./test.sh -f tsim/alter/table.sim
+./test.sh -f tsim/alter/table.sim
 
 # ---- cache
 ./test.sh -f tsim/cache/new_metrics.sim
@@ -444,6 +444,12 @@
 
 # ---- wal
 ./test.sh -f tsim/wal/kill.sim
+
+# ---- issue
+#./test.sh -f tsim/issue/TD-2677.sim
+#./test.sh -f tsim/issue/TD-2680.sim
+#./test.sh -f tsim/issue/TD-2713.sim
+#./test.sh -f tsim/issue/TD-3300.sim
 
 # ---- tag
 ./test.sh -f tsim/tag/3.sim
