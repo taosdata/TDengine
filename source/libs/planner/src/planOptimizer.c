@@ -124,9 +124,11 @@ static bool scanPathOptMayBeOptimized(SLogicNode* pNode) {
                                  QUERY_NODE_LOGIC_PLAN_PARTITION != nodeType(pNode->pParent))) {
     return false;
   }
-  if ((QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent) && WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType) ||
+  if ((QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent) &&
+       WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType) ||
       (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode->pParent) && pNode->pParent->pParent &&
-       QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent->pParent) && WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType)) {
+       QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent->pParent) &&
+       WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType)) {
     return true;
   }
   if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode->pParent)) {
@@ -2010,7 +2012,10 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     int32_t        len = snprintf(pFunc->functionName, sizeof(pFunc->functionName), "_cache_last_row");
     pFunc->functionName[len] = '\0';
-    fmGetFuncInfo(pFunc, NULL, 0);
+    int32_t code = fmGetFuncInfo(pFunc, NULL, 0);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
   pAgg->hasLastRow = false;
 
