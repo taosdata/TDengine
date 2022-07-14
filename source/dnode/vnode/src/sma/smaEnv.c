@@ -255,7 +255,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
 
     // step 2: destroy the rsma info and associated fetch tasks
     // TODO: use taosHashSetFreeFp when taosHashSetFreeFp is ready.
-#if 0
+#if 1
     if (taosHashGetSize(RSMA_INFO_HASH(pStat)) > 0) {
       void *infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), NULL);
       while (infoHash) {
