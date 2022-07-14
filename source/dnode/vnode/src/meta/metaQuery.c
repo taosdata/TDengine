@@ -463,10 +463,16 @@ _err:
   return code;
 }
 
-int metaGetTbNum(SMeta *pMeta) {
+// N.B. Called by statusReq per second
+int64_t metaGetTbNum(SMeta *pMeta) {
   // TODO
-  // ASSERT(0);
-  return 0;
+  return 100;
+}
+
+// N.B. Called by statusReq per second
+int64_t metaGetTimeSeriesNum(SMeta *pMeta) { 
+  // TODO
+  return 400; 
 }
 
 typedef struct {

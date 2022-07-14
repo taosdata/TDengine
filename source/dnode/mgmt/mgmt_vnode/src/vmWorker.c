@@ -131,9 +131,14 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
 
   switch (qtype) {
     case QUERY_QUEUE:
-      vnodePreprocessQueryMsg(pVnode->pImpl, pMsg);
-      dGTrace("vgId:%d, msg:%p put into vnode-query queue", pVnode->vgId, pMsg);
-      taosWriteQitem(pVnode->pQueryQ, pMsg);
+      if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
+        dDebug("vgId:%d, msg:%p put into vnode-query queue failed since Grant expired", pVnode->vgId, pMsg);
+        code = TSDB_CODE_GRANT_EXPIRED;
+      } else {
+        vnodePreprocessQueryMsg(pVnode->pImpl, pMsg);
+        dGTrace("vgId:%d, msg:%p put into vnode-query queue", pVnode->vgId, pMsg);
+        taosWriteQitem(pVnode->pQueryQ, pMsg);
+      }
       break;
     case FETCH_QUEUE:
       dGTrace("vgId:%d, msg:%p put into vnode-fetch queue", pVnode->vgId, pMsg);

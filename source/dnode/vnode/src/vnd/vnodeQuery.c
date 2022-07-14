@@ -239,7 +239,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->vgId = TD_VID(pVnode);
   pLoad->syncState = syncGetMyRole(pVnode->sync);
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
-  pLoad->numOfTimeSeries = 400;
+  pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta);
   pLoad->totalStorage = 300;
   pLoad->compStorage = 200;
   pLoad->pointsWritten = 100;

@@ -22,26 +22,9 @@
 
 #include "mndInt.h"
 
-typedef enum {
-  TSDB_GRANT_ALL,
-  TSDB_GRANT_TIME,
-  TSDB_GRANT_USER,
-  TSDB_GRANT_DB,
-  TSDB_GRANT_TIMESERIES,
-  TSDB_GRANT_DNODE,
-  TSDB_GRANT_ACCT,
-  TSDB_GRANT_STORAGE,
-  TSDB_GRANT_SPEED,
-  TSDB_GRANT_QUERY_TIME,
-  TSDB_GRANT_CONNS,
-  TSDB_GRANT_STREAMS,
-  TSDB_GRANT_CPU_CORES,
-} EGrantType;
-
 int32_t mndInitGrant(SMnode *pMnode);
 void    mndCleanupGrant();
 void    grantParseParameter();
-int32_t grantCheck(EGrantType grant);
 void    grantReset(SMnode *pMnode, EGrantType grant, uint64_t value);
 void    grantAdd(EGrantType grant, uint64_t value);
 void    grantRestore(EGrantType grant, uint64_t value);
