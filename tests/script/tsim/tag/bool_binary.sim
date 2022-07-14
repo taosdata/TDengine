@@ -1,18 +1,13 @@
 system sh/stop_dnodes.sh
-
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-
-sleep 2000
 sql connect
 
 print ======================== dnode1 start
 
-$dbPrefix = ta_inb_db
-$tbPrefix = ta_inb_tb
-$mtPrefix = ta_inb_mt
+$dbPrefix = ta_bob_db
+$tbPrefix = ta_bob_tb
+$mtPrefix = ta_bob_mt
 $tbNum = 10
 $rowNum = 20
 $totalNum = 200
@@ -24,7 +19,7 @@ $mt = $mtPrefix . $i
 
 sql create database $db
 sql use $db
-sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int, tgcol2 binary(5))
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol bool, tgcol2 binary(5))
 
 $i = 0
 while $i < 5
@@ -90,19 +85,19 @@ sql select * from $mt where tgcol <> 1
 if $rows != 100 then 
   return -1
 endi
-sql select * from $mt where tgcol = 1
+sql select * from $mt where tgcol = true
 if $rows != 100 then 
   return -1
 endi
-sql select * from $mt where tgcol <> 1
+sql select * from $mt where tgcol <> true
 if $rows != 100 then 
   return -1
 endi
-sql select * from $mt where tgcol = 0
+sql select * from $mt where tgcol = false
 if $rows != 100 then 
   return -1
 endi
-sql select * from $mt where tgcol <> 0
+sql select * from $mt where tgcol <> false
 if $rows != 100 then 
   return -1
 endi
@@ -126,35 +121,35 @@ if $rows != 100 then
 endi
 
 print =============== step5
-sql select * from $mt where ts > now + 4m and tgcol = 1
+sql select * from $mt where ts > now + 4m and tgcol = true
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tgcol <> 1
+sql select * from $mt where ts > now + 4m and tgcol <> true
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tgcol = 0
+sql select * from $mt where ts < now + 4m and tgcol = false
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tgcol <> 0
+sql select * from $mt where ts < now + 4m and tgcol <> false
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tgcol = 0
+sql select * from $mt where ts <= now + 4m and tgcol = false
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tgcol <> 0
+sql select * from $mt where ts <= now + 4m and tgcol <> false
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tgcol <> 0
+sql select * from $mt where ts > now + 4m and ts < now + 5m and tgcol <> false
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tgcol <> 0 and ts < now + 5m
+sql select * from $mt where ts > now + 4m and tgcol <> false and ts < now + 5m
 if $rows != 5 then 
   return -1
 endi
@@ -194,35 +189,35 @@ if $rows != 5 then
 endi
 
 print =============== step7
-sql select * from $mt where ts > now + 4m and tgcol2 = '1' and tgcol = 1
+sql select * from $mt where ts > now + 4m and tgcol2 = '1' and tgcol = true
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tgcol2 <> '1' and tgcol <> 1
+sql select * from $mt where ts > now + 4m and tgcol2 <> '1' and tgcol <> true
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tgcol2 = '0' and tgcol = 0
+sql select * from $mt where ts < now + 4m and tgcol2 = '0' and tgcol = false
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tgcol2 <> '0' and tgcol <> 0
+sql select * from $mt where ts < now + 4m and tgcol2 <> '0' and tgcol <> false
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tgcol2 = '0' and tgcol = 0
+sql select * from $mt where ts <= now + 4m and tgcol2 = '0' and tgcol = false
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tgcol2 <> '0' and tgcol <> 0
+sql select * from $mt where ts <= now + 4m and tgcol2 <> '0' and tgcol <> false
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tgcol2 <> '0' and tgcol <> 0
+sql select * from $mt where ts > now + 4m and ts < now + 5m and tgcol2 <> '0' and tgcol <> false
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tgcol2 <> '0' and ts < now + 5m and ts < now + 5m and tgcol <> 0
+sql select * from $mt where ts > now + 4m and tgcol2 <> '0' and ts < now + 5m and ts < now + 5m and tgcol <> false
 if $rows != 5 then 
   return -1
 endi
@@ -235,7 +230,7 @@ if $data00 != 200 then
 endi
 
 print =============== step9
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol = 1
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol = true
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
   return -1
@@ -247,7 +242,7 @@ if $data00 != 100 then
   return -1
 endi
 
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol = 1 and tgcol2 = '1'
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol = true and tgcol2 = '1'
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
   return -1
@@ -268,7 +263,7 @@ if $data00 != 100 then
 endi
 
 print =============== step12
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol = 1 group by tgcol
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol = true group by tgcol
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
   return -1
@@ -280,7 +275,7 @@ if $data00 != 100 then
   return -1
 endi
 
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol = 1 and tgcol2 = '1' group by tgcol
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol = true and tgcol2 = '1' group by tgcol
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
   return -1
@@ -295,16 +290,16 @@ if $data00 != 25 then
 endi
 
 print =============== step14
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt interval(1d) group by tgcol
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt partition by tgcol interval(1d)
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data01 != 100 then 
+if $data00 != 100 then 
   return -1
 endi
 
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 

@@ -17,10 +17,10 @@ sql use test
 sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
-sql create stream streams1 trigger at_once  into streamt as select  _wstartts, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s) sliding (5s);
-sql create stream streams2 trigger at_once  watermark 1d into streamt2 as select  _wstartts, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s) sliding (5s);
-sql create stream stream_t1 trigger at_once  into streamtST as select  _wstartts, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s) sliding (5s);
-sql create stream stream_t2 trigger at_once watermark 1d into streamtST2 as select  _wstartts, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s) sliding (5s);
+sql create stream streams1 trigger at_once  into streamt as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s) sliding (5s);
+sql create stream streams2 trigger at_once  watermark 1d into streamt2 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s) sliding (5s);
+sql create stream stream_t1 trigger at_once  into streamtST as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s) sliding (5s);
+sql create stream stream_t2 trigger at_once watermark 1d into streamtST2 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s) sliding (5s);
 
 sql insert into t1 values(1648791210000,1,2,3,1.0);
 sql insert into t1 values(1648791216000,2,2,3,1.1);

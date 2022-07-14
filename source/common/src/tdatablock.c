@@ -542,8 +542,10 @@ int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock) {
 }
 
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
-  pBlock->info.rows = *(int32_t*)buf;
+  int32_t numOfRows = *(int32_t*) buf;
+  blockDataEnsureCapacity(pBlock, numOfRows);
 
+  pBlock->info.rows = numOfRows;
   size_t      numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   const char* pStart = buf + sizeof(uint32_t);
 
@@ -589,6 +591,7 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
   return TSDB_CODE_SUCCESS;
 }
 
+// todo remove this
 int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity) {
   pBlock->info.rows = *(int32_t*)buf;
   pBlock->info.groupId = *(uint64_t*)(buf + sizeof(int32_t));
@@ -1194,15 +1197,28 @@ int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
   return TSDB_CODE_SUCCESS;
 }
 
+void blockDataFreeRes(SSDataBlock* pBlock) {
+  int32_t numOfOutput = taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
+    colDataDestroy(pColInfoData);
+  }
+
+  taosArrayDestroy(pBlock->pDataBlock);
+  taosMemoryFreeClear(pBlock->pBlockAgg);
+  memset(&pBlock->info, 0, sizeof(SDataBlockInfo));
+}
+
 void* blockDataDestroy(SSDataBlock* pBlock) {
   if (pBlock == NULL) {
     return NULL;
   }
 
-  blockDestroyInner(pBlock);
+  blockDataFreeRes(pBlock);
   taosMemoryFreeClear(pBlock);
   return NULL;
 }
+
 int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
   ASSERT(src != NULL);
 
