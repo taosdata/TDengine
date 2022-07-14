@@ -98,8 +98,21 @@ STqReader* tqOpenReader(SVnode* pVnode) {
 
 void tqCloseReader(STqReader* pReader) {
   // close wal reader
+  if (pReader->pWalReader) {
+    walCloseReader(pReader->pWalReader);
+  }
   // free cached schema
+  if (pReader->pSchema) {
+    taosMemoryFree(pReader->pSchema);
+  }
+  if (pReader->pSchemaWrapper) {
+    tDeleteSSchemaWrapper(pReader->pSchemaWrapper);
+  }
+  if (pReader->pColIdList) {
+    taosArrayDestroy(pReader->pColIdList);
+  }
   // free hash
+  taosHashCleanup(pReader->tbIdHash);
   taosMemoryFree(pReader);
 }
 
