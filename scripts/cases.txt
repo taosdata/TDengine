@@ -14,6 +14,9 @@ taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/stable_q
 taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query_union.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query_null.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_now.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_today.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_zone.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_elapsed.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_to_iso8601.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_to_unixtimestamp.py --keep --containers
@@ -56,6 +59,7 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/t
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_abs.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_interval.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_histogram.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_leastsquares.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_pow_log.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_histogram.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_leastsquares.py --keep --containers
@@ -109,6 +113,10 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/t
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_hyperloglog.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_func_error.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_sample.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_count.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_first.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_last.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_last_row.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_sample.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_hyperloglog.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_count.py --keep --containers
@@ -180,16 +188,4 @@ taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_j
 #taostest --use=common_insert.yaml --group-dir=schemaless_insert --keep --containers
 # taostest --use=common_insert.yaml --case=taosc_insert/multi_threads_test.py --keep --containers
 # taostest --use=common_insert.yaml --case=taosc_insert/json_tag.py --keep --containers
-
-#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_leastsquares.py --keep --containers
-#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_now.py --keep --containers
-#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_today.py --keep --containers
-#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/time/stable_time_zone.py --keep --containers
-
-#new split:taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_rtrim.py --keep --containers
-#new split:taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_concat.py --keep --containers
-#new split:taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_cast.py --keep --containers
-#new split:taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_csum.py --keep --containers
-#new split:taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/stable_query_union.py --keep --containers
-#new split:taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/stable_query.py --keep --containers
 
