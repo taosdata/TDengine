@@ -47,10 +47,10 @@ print ===> $rows
 if $rows < $rowNum then 
   return -1
 endi
-if $data01 != 1 then 
+if $data00 != 1 then 
   return -1
 endi
-if $data05 != 1 then 
+if $data04 != 1 then 
   return -1
 endi
 
@@ -65,10 +65,10 @@ endi
 if $rows < 3 then 
   return -1
 endi
-if $data01 != 1 then 
+if $data00 != 1 then 
   return -1
 endi
-if $data05 != 1 then 
+if $data04 != 1 then 
   return -1
 endi
 
@@ -87,10 +87,10 @@ endi
 if $rows > 22 then 
   return -1
 endi
-if $data01 != 1 then 
+if $data00 != 1 then 
   return -1
 endi
-if $data05 != 1 then 
+if $data04 != 1 then 
   return -1
 endi
 
@@ -109,10 +109,10 @@ endi
 if $rows > 50 then 
   return -1
 endi
-if $data21 != 1 then 
+if $data20 != 1 then 
   return -1
 endi
-if $data25 != 1 then 
+if $data24 != 1 then 
   return -1
 endi
 
@@ -125,10 +125,10 @@ endi
 if $rows > 22 then 
   return -1
 endi
-if $data11 > 15 then 
+if $data10 > 15 then 
   return -1
 endi
-if $data11 < 5 then 
+if $data10 < 5 then 
   return -1
 endi
 
@@ -143,10 +143,10 @@ endi
 if $rows > 7 then 
   return -1
 endi
-if $data11 > 15 then 
+if $data10 > 15 then 
   return -1
 endi
-if $data11 < 5 then 
+if $data10 < 5 then 
   return -1
 endi
 
@@ -165,10 +165,10 @@ endi
 if $rows > 22 then 
   return -1
 endi
-if $data11 > 15 then 
+if $data10 > 15 then 
   return -1
 endi
-if $data11 < 5 then 
+if $data10 < 5 then 
   return -1
 endi
 
@@ -186,10 +186,10 @@ endi
 if $rows > 50 then 
   return -1
 endi
-if $data11 > 15 then 
+if $data10 > 15 then 
   return -1
 endi
-if $data11 < 5 then 
+if $data10 < 5 then 
   return -1
 endi
 

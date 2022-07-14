@@ -100,9 +100,10 @@ if $rows != 1 then
   return -1
 endi
 
-sql_error select * from $tb  where tbcol = NULL 
-
-return
+sql select * from $tb  where tbcol = NULL 
+if $rows != 0 then 
+  return -1
+endi
 
 print =============== step5
 sql create table tt using $mt tags( NULL )
