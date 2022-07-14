@@ -1,19 +1,13 @@
 system sh/stop_dnodes.sh
-
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-
-sleep 2000
 sql connect
-sql reset query cache
 
 print ======================== dnode1 start
 
-$dbPrefix = ta_6_db
-$tbPrefix = ta_6_tb
-$mtPrefix = ta_6_mt
+$dbPrefix = ta_5_db
+$tbPrefix = ta_5_tb
+$mtPrefix = ta_5_mt
 $tbNum = 10
 $rowNum = 20
 $totalNum = 200
@@ -25,12 +19,12 @@ $mt = $mtPrefix . $i
 
 sql create database $db
 sql use $db
-sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 binary(10), tgcol2 bigint, tgcol3 smallint, tgcol4 bigint, tgcol5 binary(30), tgcol6 binary(20))
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 tinyint, tgcol2 int, tgcol3 bigint, tgcol4 double, tgcol5 binary(20))
 
 $i = 0
 while $i < 5
   $tb = $tbPrefix . $i
-  sql create table $tb using $mt tags( '0', 0, 0, 0, '0', '0' )  
+  sql create table $tb using $mt tags( 0, 0, 0, 0, 0 )  
   $x = 0
   while $x < $rowNum
     $ms = $x . m 
@@ -41,7 +35,7 @@ while $i < 5
 endw 
 while $i < 10
   $tb = $tbPrefix . $i
-  sql create table $tb using $mt tags( '1', 1, 1, 1, '1', '1' )  
+  sql create table $tb using $mt tags( 1, 1, 1, 1, 1 )  
   $x = 0
   while $x < $rowNum
     $ms = $x . m 
@@ -181,24 +175,6 @@ if $rows != 100 then
 endi
 
 print =============== step8
-sql select * from $mt where tgcol6 = 0
-if $rows != 100 then 
-  return -1
-endi
-sql select * from $mt where tgcol6 <> 0
-if $rows != 100 then 
-  return -1
-endi
-sql select * from $mt where tgcol6 = 1
-if $rows != 100 then 
-  return -1
-endi
-sql select * from $mt where tgcol6 <> 1
-if $rows != 100 then 
-  return -1
-endi
-
-print =============== step9
 sql select * from $mt where ts > now + 4m and tgcol1 = 1
 if $rows != 75 then 
   return -1
@@ -232,7 +208,7 @@ if $rows != 5 then
   return -1
 endi
 
-print =============== step10
+print =============== step9
 sql select * from $mt where ts > now + 4m and tgcol2 = 1
 if $rows != 75 then 
   return -1
@@ -266,7 +242,7 @@ if $rows != 5 then
   return -1
 endi
 
-print =============== step11
+print =============== step10
 sql select * from $mt where ts > now + 4m and tgcol3 = 1
 if $rows != 75 then 
   return -1
@@ -300,7 +276,7 @@ if $rows != 5 then
   return -1
 endi
 
-print =============== step12
+print =============== step11
 sql select * from $mt where ts > now + 4m and tgcol4 = 1
 if $rows != 75 then 
   return -1
@@ -334,7 +310,7 @@ if $rows != 5 then
   return -1
 endi
 
-print =============== step13
+print =============== step12
 sql select * from $mt where ts > now + 4m and tgcol5 = 1
 if $rows != 75 then 
   return -1
@@ -368,41 +344,7 @@ if $rows != 5 then
   return -1
 endi
 
-print =============== step14
-sql select * from $mt where ts > now + 4m and tgcol6 = 1
-if $rows != 75 then 
-  return -1
-endi
-sql select * from $mt where ts > now + 4m and tgcol6 <> 1
-if $rows != 75 then 
-  return -1
-endi
-sql select * from $mt where ts < now + 4m and tgcol6 = 0
-if $rows != 25 then 
-  return -1
-endi
-sql select * from $mt where ts < now + 4m and tgcol6 <> 0
-if $rows != 25 then 
-  return -1
-endi
-sql select * from $mt where ts <= now + 4m and tgcol6 = 0
-if $rows != 25 then 
-  return -1
-endi
-sql select * from $mt where ts <= now + 4m and tgcol6 <> 0
-if $rows != 25 then 
-  return -1
-endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tgcol6 <> 0
-if $rows != 5 then 
-  return -1
-endi
-sql select * from $mt where ts > now + 4m and tgcol6 <> 0 and ts < now + 5m
-if $rows != 5 then 
-  return -1
-endi
-
-print =============== step15
+print =============== step13
 sql select * from $mt where ts > now + 4m and tgcol2 = 1 and tgcol1 = 1
 if $rows != 75 then 
   return -1
@@ -436,7 +378,7 @@ if $rows != 5 then
   return -1
 endi
 
-print =============== step16
+print =============== step14
 sql select * from $mt where ts > now + 4m and tgcol3 = 1 and tgcol2 = 1
 if $rows != 75 then 
   return -1
@@ -470,7 +412,7 @@ if $rows != 5 then
   return -1
 endi
 
-print =============== step17
+print =============== step15
 sql select * from $mt where ts > now + 4m and tgcol3 = 1 and tgcol4 = 1
 if $rows != 75 then 
   return -1
@@ -504,7 +446,7 @@ if $rows != 5 then
   return -1
 endi
 
-print =============== step18
+print =============== step16
 sql select * from $mt where ts > now + 4m and tgcol5 = 1 and tgcol4 = 1
 if $rows != 75 then 
   return -1
@@ -538,41 +480,7 @@ if $rows != 5 then
   return -1
 endi
 
-print =============== step19
-sql select * from $mt where ts > now + 4m and tgcol5 = 1 and tgcol6 = 1
-if $rows != 75 then 
-  return -1
-endi
-sql select * from $mt where ts > now + 4m and tgcol5 <> 1 and tgcol6 <> 1
-if $rows != 75 then 
-  return -1
-endi
-sql select * from $mt where ts < now + 4m and tgcol5 = 0 and tgcol6 = 0
-if $rows != 25 then 
-  return -1
-endi
-sql select * from $mt where ts < now + 4m and tgcol5 <> 0 and tgcol6 <> 0
-if $rows != 25 then 
-  return -1
-endi
-sql select * from $mt where ts <= now + 4m and tgcol5 = 0 and tgcol6 = 0
-if $rows != 25 then 
-  return -1
-endi
-sql select * from $mt where ts <= now + 4m and tgcol5 <> 0 and tgcol6 <> 0
-if $rows != 25 then 
-  return -1
-endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tgcol5 <> 0 and tgcol6 <> 0
-if $rows != 5 then 
-  return -1
-endi
-sql select * from $mt where ts > now + 4m and tgcol5 <> 0 and ts < now + 5m and ts < now + 5m and tgcol6 <> 0
-if $rows != 5 then 
-  return -1
-endi
-
-print =============== step20
+print =============== step17
 sql select * from $mt where ts > now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1
 if $rows != 75 then 
   return -1
@@ -606,7 +514,7 @@ if $rows != 5 then
   return -1
 endi
 
-print =============== step21
+print =============== step18
 sql select * from $mt where ts > now + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1
 if $rows != 75 then 
   return -1
@@ -640,7 +548,7 @@ if $rows != 5 then
   return -1
 endi
 
-print =============== step22
+print =============== step19
 sql select * from $mt where ts > now + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol1 = 1
 if $rows != 75 then 
   return -1
@@ -674,7 +582,7 @@ if $rows != 5 then
   return -1
 endi
 
-print =============== step23
+print =============== step20
 sql select * from $mt where ts > now + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol1 = 1 and tgcol5 = 1
 if $rows != 75 then 
   return -1
@@ -703,53 +611,19 @@ sql select * from $mt where ts > now + 4m and ts < now + 5m and tgcol4 <> 0 and 
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tgcol4 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0
+sql select * from $mt where ts > now + 4m and tgcol4 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0
 if $rows != 5 then 
   return -1
 endi
 
-print =============== step24
-sql select * from $mt where ts > now + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol1 = 1 and tgcol5 = 1 and tgcol6 = 1
-if $rows != 75 then 
-  return -1
-endi
-sql select * from $mt where ts > now + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1 and tgcol1 <> 1 and tgcol5 <> 1 and tgcol6 <> 1
-if $rows != 75 then 
-  return -1
-endi
-sql select * from $mt where ts < now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0 and tgcol5 = 0 and tgcol6 = 0
-if $rows != 25 then 
-  return -1
-endi
-sql select * from $mt where ts < now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0 and tgcol6 <> 0
-if $rows != 25 then 
-  return -1
-endi
-sql select * from $mt where ts <= now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0 and tgcol5 = 0 and tgcol6 = 0
-if $rows != 25 then 
-  return -1
-endi
-sql select * from $mt where ts <= now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0 and tgcol6 <> 0
-if $rows != 25 then 
-  return -1
-endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0 and tgcol6 <> 0
-if $rows != 5 then 
-  return -1
-endi
-sql select * from $mt where ts > now + 4m and tgcol4 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0 and tgcol6 <> 0
-if $rows != 5 then 
-  return -1
-endi
-
-print =============== step25
+print =============== step21
 sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 200 then 
   return -1
 endi
 
-print =============== step26
+print =============== step22
 sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = 1
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
@@ -780,13 +654,7 @@ if $data00 != 100 then
   return -1
 endi
 
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1  and tgcol4 = 1  and tgcol5 = 1 and tgcol6 = 1
-print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data00 != 100 then 
-  return -1
-endi
-
-print =============== step27
+print =============== step23
 sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where ts < now + 4m
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 50 then 
@@ -823,13 +691,7 @@ if $data00 != 25 then
   return -1
 endi
 
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 and tgcol5 = 1 and tgcol6 = 1
-print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data00 != 25 then 
-  return -1
-endi
-
-print =============== step28
+print =============== step24
 sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt group by tgcol1
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
@@ -860,13 +722,7 @@ if $data00 != 100 then
   return -1
 endi
 
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt group by tgcol6
-print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data00 != 100 then 
-  return -1
-endi
-
-print =============== step29
+print =============== step25
 sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = 1 group by tgcol1
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 100 then 
@@ -897,13 +753,7 @@ if $data00 != 100 then
   return -1
 endi
 
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 and tgcol5 = 1  and tgcol6 = 1 group by tgcol1
-print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data00 != 100 then 
-  return -1
-endi
-
-print =============== step30
+print =============== step26
 sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where ts < now + 4m group by tgcol2
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
@@ -940,53 +790,42 @@ if $data00 != 25 then
   return -1
 endi
 
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1  and tgcol5 = 1 and tgcol6 = 1 group by tgcol2
+
+print =============== step27
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 partition by tgcol1 interval(1d)
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data00 != 25 then 
+if $data00 != 100 then 
   return -1
 endi
 
-print =============== step31
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 interval(1d) group by tgcol1
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 partition by tgcol2 interval(1d)
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data01 != 100 then 
+if $data00 != 100 then 
   return -1
 endi
 
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 interval(1d) group by tgcol2
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 partition by tgcol3 interval(1d)
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data01 != 100 then 
+if $data00 != 100 then 
   return -1
 endi
 
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 interval(1d) group by tgcol3
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 partition by tgcol4 interval(1d)
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data01 != 100 then 
+if $data00 != 100 then 
   return -1
 endi
 
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 interval(1d) group by tgcol4
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1  and tgcol5 = 1 partition by tgcol5 interval(1d)
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data01 != 100 then 
-  return -1
-endi
-
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1  and tgcol5 = 1 interval(1d) group by tgcol5
-print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data01 != 100 then 
-  return -1
-endi
-
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1  and tgcol5 = 1  and tgcol6 = 1 interval(1d) group by tgcol6
-print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data01 != 100 then 
+if $data00 != 100 then 
   return -1
 endi
 
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 

@@ -444,6 +444,7 @@ class TMQCom:
         
         # skip first line for it is schema
         queryFile.readline()
+        
         lines = 0
         while True:
             dst = queryFile.readline()
