@@ -22,7 +22,7 @@ python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
 python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
 python3 ./test.py -f 1-insert/alter_stable.py
 python3 ./test.py -f 1-insert/alter_table.py
-python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
+#python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
 python3 ./test.py -f 1-insert/table_comment.py
 python3 ./test.py -f 1-insert/time_range_wise.py
 python3 ./test.py -f 1-insert/block_wise.py
@@ -120,7 +120,7 @@ python3 ./test.py -f 2-query/irate.py
 python3 ./test.py -f 2-query/and_or_for_byte.py
 python3 ./test.py -f 2-query/count_partition.py
 python3 ./test.py -f 2-query/function_null.py
-python3 ./test.py -f 2-query/queryQnode.py
+#python3 ./test.py -f 2-query/queryQnode.py
 python3 ./test.py -f 2-query/max_partition.py
 
 
