@@ -114,29 +114,29 @@ void processRequestMsg(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
 }
 
 int main(int argc, char *argv[]) {
-  SRpcInit rpcInit;
+  SRpcInit rpcInitial;
   char     dataName[20] = "server.data";
 
   taosBlockSIGPIPE();
 
-  memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localPort    = 7000;
-  rpcInit.label        = "SER";
-  rpcInit.numOfThreads = 1;
-  rpcInit.cfp          = processRequestMsg;
-  rpcInit.sessions     = 1000;
-  rpcInit.idleTime     = tsShellActivityTimer*1500; 
-  rpcInit.afp          = retrieveAuthInfo;
+  memset(&rpcInitial, 0, sizeof(rpcInitial));
+  rpcInitial.localPort    = 7000;
+  rpcInitial.label        = "SER";
+  rpcInitial.numOfThreads = 1;
+  rpcInitial.cfp          = processRequestMsg;
+  rpcInitial.sessions     = 1000;
+  rpcInitial.idleTime     = tsShellActivityTimer*1500; 
+  rpcInitial.afp          = retrieveAuthInfo;
 
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
-      rpcInit.localPort = atoi(argv[++i]);
+      rpcInitial.localPort = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-t")==0 && i < argc-1) {
-      rpcInit.numOfThreads = atoi(argv[++i]);
+      rpcInitial.numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m")==0 && i < argc-1) {
       msgSize = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-s")==0 && i < argc-1) {
-      rpcInit.sessions = atoi(argv[++i]);
+      rpcInitial.sessions = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-o")==0 && i < argc-1) {
       tsCompressMsgSize = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-w")==0 && i < argc-1) {
@@ -147,9 +147,9 @@ int main(int argc, char *argv[]) {
       uDebugFlag = rpcDebugFlag;
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
-      printf("  [-p port]: server port number, default is:%d\n", rpcInit.localPort);
-      printf("  [-t threads]: number of rpc threads, default is:%d\n", rpcInit.numOfThreads);
-      printf("  [-s sessions]: number of sessions, default is:%d\n", rpcInit.sessions);
+      printf("  [-p port]: server port number, default is:%d\n", rpcInitial.localPort);
+      printf("  [-t threads]: number of rpc threads, default is:%d\n", rpcInitial.numOfThreads);
+      printf("  [-s sessions]: number of sessions, default is:%d\n", rpcInitial.sessions);
       printf("  [-m msgSize]: message body size, default is:%d\n", msgSize);
       printf("  [-o compSize]: compression message size, default is:%d\n", tsCompressMsgSize);
       printf("  [-w write]: write received data to file(0, 1, 2), default is:%d\n", commit);
@@ -160,10 +160,10 @@ int main(int argc, char *argv[]) {
   } 
 
   tsAsyncLog = 0;
-  rpcInit.connType = TAOS_CONN_SERVER;
+  rpcInitial.connType = TAOS_CONN_SERVER;
   taosInitLog("server.log", 100000, 10);
 
-  void *pRpc = rpcOpen(&rpcInit);
+  void *pRpc = rpcOpen(&rpcInitial);
   if (pRpc == NULL) {
     tError("failed to start RPC server");
     return -1;

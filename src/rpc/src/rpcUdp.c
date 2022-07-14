@@ -97,11 +97,11 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
       break;
     }
 
-    struct sockaddr_in sin;
-    unsigned int addrlen = sizeof(sin);
-    if (getsockname(pConn->fd, (struct sockaddr *)&sin, &addrlen) == 0 && 
-        sin.sin_family == AF_INET && addrlen == sizeof(sin)) {
-      pConn->localPort = (uint16_t)ntohs(sin.sin_port);
+    struct sockaddr_in sockin;
+    unsigned int addrlen = sizeof(sockin);
+    if (getsockname(pConn->fd, (struct sockaddr *)&sockin, &addrlen) == 0 && 
+        sockin.sin_family == AF_INET && addrlen == sizeof(sockin)) {
+      pConn->localPort = (uint16_t)ntohs(sockin.sin_port);
     }
 
     tstrncpy(pConn->label, label, sizeof(pConn->label));

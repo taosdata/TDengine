@@ -975,7 +975,7 @@ int32_t filterAddUnitToGroup(SFilterGroup *group, uint32_t unitIdx) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterConvertSetFromBinary(void **q, const char *buf, int32_t len, uint32_t tType, bool tolower) {
+int32_t filterConvertSetFromBinary(void **q, const char *buf, int32_t len, uint32_t tType, bool bTolower) {
   SBufferReader br = tbufInitReader(buf, len, false); 
   uint32_t sType  = tbufReadUint32(&br);     
   SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(tType), true, false);
@@ -1158,7 +1158,7 @@ int32_t filterConvertSetFromBinary(void **q, const char *buf, int32_t len, uint3
         t = varDataLen(tmp);
         pvar = varDataVal(tmp);
         
-        if (tolower) {
+        if (bTolower) {
           strntolower_s(pvar, pvar, (int32_t)t);
         }
         break;
@@ -2746,7 +2746,7 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SDataStatis *pDataStatis, int32_t
   memset(info->blkUnitRes, 0, sizeof(*info->blkUnitRes) * info->unitNum);
   
   for (uint32_t k = 0; k < info->unitNum; ++k) {
-    int32_t index = -1;
+    int32_t idx = -1;
     SFilterComUnit *cunit = &info->cunits[k];
 
     if (FILTER_NO_MERGE_DATA_TYPE(cunit->dataType)) {
@@ -2755,16 +2755,16 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SDataStatis *pDataStatis, int32_t
 
     for(int32_t i = 0; i < numOfCols; ++i) {
       if (pDataStatis[i].colId == cunit->colId) {
-        index = i;
+        idx = i;
         break;
       }
     }
 
-    if (index == -1) {
+    if (idx == -1) {
       continue;
     }
 
-    if (pDataStatis[index].numOfNull <= 0) {
+    if (pDataStatis[idx].numOfNull <= 0) {
       if (cunit->optr == TSDB_RELATION_ISNULL) {
         info->blkUnitRes[k] = -1;
         rmUnit = 1;
@@ -2777,7 +2777,7 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SDataStatis *pDataStatis, int32_t
         continue;
       }
     } else {
-      if (pDataStatis[index].numOfNull == numOfRows) {
+      if (pDataStatis[idx].numOfNull == numOfRows) {
         if (cunit->optr == TSDB_RELATION_ISNULL) {
           info->blkUnitRes[k] = 1;
           rmUnit = 1;
@@ -2796,7 +2796,7 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SDataStatis *pDataStatis, int32_t
       continue;
     }
 
-    SDataStatis* pDataBlockst = &pDataStatis[index];
+    SDataStatis* pDataBlockst = &pDataStatis[idx];
     void *minVal, *maxVal;
     float minv = 0;
     float maxv = 0;
@@ -3586,17 +3586,17 @@ bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t num
   void *minVal, *maxVal;
   
   for (uint32_t k = 0; k < info->colRangeNum; ++k) {
-    int32_t index = -1;
+    int32_t idx = -1;
     SFilterRangeCtx *ctx = info->colRange[k];
     for(int32_t i = 0; i < numOfCols; ++i) {
       if (pDataStatis[i].colId == ctx->colId) {
-        index = i;
+        idx = i;
         break;
       }
     }
 
     // no statistics data, load the true data block
-    if (index == -1) {
+    if (idx == -1) {
       break;
     }
 
@@ -3605,13 +3605,13 @@ bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t num
       break;
     }
 
-    if (pDataStatis[index].numOfNull <= 0) {
+    if (pDataStatis[idx].numOfNull <= 0) {
       if (ctx->isnull && !ctx->notnull && !ctx->isrange) {
         ret = false;
         break;
       }
-    } else if (pDataStatis[index].numOfNull > 0) {
-      if (pDataStatis[index].numOfNull == numOfRows) {
+    } else if (pDataStatis[idx].numOfNull > 0) {
+      if (pDataStatis[idx].numOfNull == numOfRows) {
         if ((ctx->notnull || ctx->isrange) && (!ctx->isnull)) {
           ret = false;
           break;
@@ -3625,7 +3625,7 @@ bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t num
       }
     }
 
-    SDataStatis* pDataBlockst = &pDataStatis[index];
+    SDataStatis* pDataBlockst = &pDataStatis[idx];
 
     SFilterRangeNode *r = ctx->rs;
     float minv = 0;
