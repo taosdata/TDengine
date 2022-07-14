@@ -1947,6 +1947,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getStddevFuncEnv,
     .initFunc     = stddevFunctionSetup,
     .processFunc  = stddevFunction,
+    .sprocessFunc = stddevScalarFunction,
     .finalizeFunc = stddevFinalize,
     .invertFunc   = stddevInvertFunction,
     .combineFunc  = stddevCombine,

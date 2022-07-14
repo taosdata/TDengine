@@ -1903,3 +1903,115 @@ int32_t minScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 int32_t maxScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return doMinMaxScalarFunction(pInput, inputNum, pOutput, false);
 }
+
+int32_t stddevScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+  int64_t count = 0, sum = 0, qSum = 0;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      continue;
+    }
+    count++;
+#if 0
+    switch(type) {
+      case TSDB_DATA_TYPE_TINYINT: {
+        int8_t *in  = (int8_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_SMALLINT: {
+        int16_t *in  = (int16_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_INT: {
+        int32_t *in  = (int32_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_BIGINT: {
+        int64_t *in  = (int64_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_UTINYINT: {
+        uint8_t *in  = (uint8_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT: {
+        uint16_t *in  = (uint16_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_UINT: {
+        uint32_t *in  = (uint32_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_UBIGINT: {
+        uint64_t *in  = (uint64_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_FLOAT: {
+        float *in  = (float *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double *in  = (double *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+    }
+#endif
+  }
+
+  double *out  = (double *)pOutputData->pData;
+  if (count == 0) {
+    colDataAppendNULL(pOutputData, 0);
+  } else {
+    *out = 0;
+#if 0
+    double avg = 0;
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      avg = (int64_t)sum / (double)count;
+      *out =  sqrt(fabs((int64_t)qSum / ((double)count) - avg * avg));
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      avg = (uint64_t)sum / (double)count;
+      *out =  sqrt(fabs((uint64_t)qSum / ((double)count) - avg * avg));
+    } else if (IS_FLOAT_TYPE(type)) {
+      avg = (double)sum / (double)count;
+      *out =  sqrt(fabs((double)qSum / ((double)count) - avg * avg));
+    }
+#endif
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
