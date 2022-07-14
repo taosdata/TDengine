@@ -1197,15 +1197,28 @@ int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
   return TSDB_CODE_SUCCESS;
 }
 
+void blockDataFreeRes(SSDataBlock* pBlock) {
+  int32_t numOfOutput = taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
+    colDataDestroy(pColInfoData);
+  }
+
+  taosArrayDestroy(pBlock->pDataBlock);
+  taosMemoryFreeClear(pBlock->pBlockAgg);
+  memset(&pBlock->info, 0, sizeof(SDataBlockInfo));
+}
+
 void* blockDataDestroy(SSDataBlock* pBlock) {
   if (pBlock == NULL) {
     return NULL;
   }
 
-  blockDestroyInner(pBlock);
+  blockDataFreeRes(pBlock);
   taosMemoryFreeClear(pBlock);
   return NULL;
 }
+
 int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
   ASSERT(src != NULL);
 

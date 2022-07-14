@@ -209,10 +209,10 @@ static void resetDataBlockScanInfo(SHashObj* pTableMap) {
     p->iterInit = false;
     p->iiter.hasVal = false;
     if (p->iter.iter != NULL) {
-      tsdbTbDataIterDestroy(p->iter.iter);
+      p->iter.iter = tsdbTbDataIterDestroy(p->iter.iter);
     }
 
-    taosArrayDestroy(p->delSkyline);
+    p->delSkyline = taosArrayDestroy(p->delSkyline);
   }
 }
 
@@ -224,18 +224,15 @@ static void destroyBlockScanInfo(SHashObj* pTableMap) {
     p->iiter.hasVal = false;
 
     if (p->iter.iter != NULL) {
-      tsdbTbDataIterDestroy(p->iter.iter);
-      p->iter.iter = NULL;
+      p->iter.iter = tsdbTbDataIterDestroy(p->iter.iter);
     }
 
     if (p->iiter.iter != NULL) {
-      tsdbTbDataIterDestroy(p->iiter.iter);
-      p->iiter.iter = NULL;
+      p->iiter.iter = tsdbTbDataIterDestroy(p->iiter.iter);
     }
 
-    taosArrayDestroy(p->delSkyline);
-    taosArrayDestroy(p->pBlockList);
-    p->delSkyline = NULL;
+    p->delSkyline = taosArrayDestroy(p->delSkyline);
+    p->pBlockList = taosArrayDestroy(p->pBlockList);
   }
 
   taosHashCleanup(pTableMap);
