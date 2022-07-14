@@ -1746,16 +1746,21 @@ int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
   SColumnInfoData *pOutputData = pOutput->columnData;
 
   int64_t *out = (int64_t *)pOutputData->pData;
+  bool hasNull = false;
   *out = 0;
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
-      colDataAppendNULL(pOutputData, i);
+      hasNull = true;
       break;
     }
     (*out)++;
   }
 
-  pOutput->numOfRows = pInput->numOfRows;
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  }
+
+  pOutput->numOfRows = 1;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1764,9 +1769,10 @@ int32_t sumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
   SColumnInfoData *pOutputData = pOutput->columnData;
 
   int32_t type = GET_PARAM_TYPE(pInput);
+  bool hasNull = false;
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
-      colDataAppendNULL(pOutputData, i);
+      hasNull = true;
       break;
     }
 
@@ -1785,7 +1791,11 @@ int32_t sumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     }
   }
 
-  pOutput->numOfRows = pInput->numOfRows;
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  }
+
+  pOutput->numOfRows = 1;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1795,6 +1805,7 @@ static int32_t doMinMaxScalarFunction(SScalarParam *pInput, int32_t inputNum, SS
 
   int32_t type = GET_PARAM_TYPE(pInput);
 
+  bool hasNull = false;
   if (isMinFunc) {
     SET_TYPED_DATA_MAX(pOutputData->pData, type);
   } else {
@@ -1803,7 +1814,7 @@ static int32_t doMinMaxScalarFunction(SScalarParam *pInput, int32_t inputNum, SS
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
-      colDataAppendNULL(pOutputData, i);
+      hasNull = true;
       break;
     }
 
@@ -1892,7 +1903,11 @@ static int32_t doMinMaxScalarFunction(SScalarParam *pInput, int32_t inputNum, SS
     }
   }
 
-  pOutput->numOfRows = pInput->numOfRows;
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  }
+
+  pOutput->numOfRows = 1;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1909,13 +1924,14 @@ int32_t stddevScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   SColumnInfoData *pOutputData = pOutput->columnData;
 
   int32_t type = GET_PARAM_TYPE(pInput);
-  int64_t count = 0, sum = 0, qSum = 0;
+  //int64_t count = 0, sum = 0, qSum = 0;
+  bool hasNull = false;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
-      continue;
+      hasNull = true;
+      break;
     }
-    count++;
 #if 0
     switch(type) {
       case TSDB_DATA_TYPE_TINYINT: {
@@ -1993,7 +2009,7 @@ int32_t stddevScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   }
 
   double *out  = (double *)pOutputData->pData;
-  if (count == 0) {
+  if (hasNull) {
     colDataAppendNULL(pOutputData, 0);
   } else {
     *out = 0;
@@ -2012,6 +2028,6 @@ int32_t stddevScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
 #endif
   }
 
-  pOutput->numOfRows = pInput->numOfRows;
+  pOutput->numOfRows = 1;
   return TSDB_CODE_SUCCESS;
 }
