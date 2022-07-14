@@ -34,7 +34,7 @@ class TDTestCase:
             tag_sql += f"{k} {v},"
         create_stb_sql = f'create table {stbname} (ts timestamp,{column_sql[:-1]}) tags({tag_sql[:-1]})'
         return create_stb_sql
-    
+
     def last_check_stb_tb_base(self):
         tdSql.prepare()
         stbname = tdCom.getLongName(5, "letters")
@@ -201,7 +201,7 @@ class TDTestCase:
         tdSql.execute(f'use {dbname}')
 
         # build 20 child tables,every table insert 10 rows
-        tdSql.execute(f'''create table {stbname}(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
+        tdSql.execute(f'''create table {stbname}(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned,
                     col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20)) tags(loc nchar(20))''')
         for i in range(self.tbnum):
             tdSql.execute(

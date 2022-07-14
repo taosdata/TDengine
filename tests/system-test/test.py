@@ -409,3 +409,4 @@ if __name__ == "__main__":
 
     if conn is not None:
         conn.close()
+    sys.exit(0)

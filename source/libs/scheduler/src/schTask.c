@@ -41,6 +41,8 @@ void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
   if (pTask->execNodes) {
     taosHashCleanup(pTask->execNodes);
   }
+
+  taosMemoryFree(pTask->profile.execTime);
 }
 
 int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel, int32_t levelNum) {
@@ -503,6 +505,7 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
     return TSDB_CODE_SUCCESS;
   }
 
+/*
   if (SCH_IS_DATA_BIND_TASK(pTask)) {
     if ((pTask->execId + 1) >= SCH_TASK_NUM_OF_EPS(&pTask->plan->execNode)) {
       *needRetry = false;
@@ -520,6 +523,7 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
       return TSDB_CODE_SUCCESS;
     }
   }
+*/
 
   *needRetry = true;
   SCH_TASK_DLOG("task need the %dth retry, errCode:%x - %s", pTask->execId + 1, errCode, tstrerror(errCode));

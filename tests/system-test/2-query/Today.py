@@ -58,7 +58,7 @@ class TDTestCase:
             tag_sql += f"{k} {v},"
         create_stb_sql = f'create table {stbname} ({column_sql[:-1]}) tags({tag_sql[:-1]})'
         return create_stb_sql
-        
+
     def data_check(self,column_dict={},tbname = '',values_list = [],tb_num = 1,tb = 'tb',precision = 'ms'):
         for k,v in column_dict.items():
             num_up = 0
@@ -175,7 +175,7 @@ class TDTestCase:
             tdSql.execute('drop database db')
 
     def run(self):  # sourcery skip: extract-duplicate-method
-        
+
         self.today_check_ntb()
         self.today_check_stb_tb()
 

@@ -26,6 +26,7 @@ extern "C" {
 #include "syncInt.h"
 #include "syncMessage.h"
 #include "taosdef.h"
+#include "tskiplist.h"
 
 typedef struct SSyncRaftEntry {
   uint32_t  bytes;
@@ -58,29 +59,52 @@ void syncEntryLog(const SSyncRaftEntry* pObj);
 void syncEntryLog2(char* s, const SSyncRaftEntry* pObj);
 
 //-----------------------------------
-typedef struct SRaftEntryCache {
+typedef struct SRaftEntryHashCache {
   SHashObj*     pEntryHash;
+  int32_t       maxCount;
+  int32_t       currentCount;
+  TdThreadMutex mutex;
+  SSyncNode*    pSyncNode;
+} SRaftEntryHashCache;
+
+SRaftEntryHashCache* raftCacheCreate(SSyncNode* pSyncNode, int32_t maxCount);
+void                 raftCacheDestroy(SRaftEntryHashCache* pCache);
+int32_t              raftCachePutEntry(struct SRaftEntryHashCache* pCache, SSyncRaftEntry* pEntry);
+int32_t              raftCacheGetEntry(struct SRaftEntryHashCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry);
+int32_t              raftCacheGetEntryP(struct SRaftEntryHashCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry);
+int32_t              raftCacheDelEntry(struct SRaftEntryHashCache* pCache, SyncIndex index);
+int32_t              raftCacheGetAndDel(struct SRaftEntryHashCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry);
+int32_t              raftCacheClear(struct SRaftEntryHashCache* pCache);
+
+cJSON* raftCache2Json(SRaftEntryHashCache* pObj);
+char*  raftCache2Str(SRaftEntryHashCache* pObj);
+void   raftCachePrint(SRaftEntryHashCache* pObj);
+void   raftCachePrint2(char* s, SRaftEntryHashCache* pObj);
+void   raftCacheLog(SRaftEntryHashCache* pObj);
+void   raftCacheLog2(char* s, SRaftEntryHashCache* pObj);
+
+//-----------------------------------
+typedef struct SRaftEntryCache {
+  SSkipList*    pSkipList;
   int32_t       maxCount;
   int32_t       currentCount;
   TdThreadMutex mutex;
   SSyncNode*    pSyncNode;
 } SRaftEntryCache;
 
-SRaftEntryCache* raftCacheCreate(SSyncNode* pSyncNode, int32_t maxCount);
-void             raftCacheDestroy(SRaftEntryCache* pCache);
-int32_t          raftCachePutEntry(struct SRaftEntryCache* pCache, SSyncRaftEntry* pEntry);
-int32_t          raftCacheGetEntry(struct SRaftEntryCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry);
-int32_t          raftCacheGetEntryP(struct SRaftEntryCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry);
-int32_t          raftCacheDelEntry(struct SRaftEntryCache* pCache, SyncIndex index);
-int32_t          raftCacheGetAndDel(struct SRaftEntryCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry);
-int32_t          raftCacheClear(struct SRaftEntryCache* pCache);
+SRaftEntryCache* raftEntryCacheCreate(SSyncNode* pSyncNode, int32_t maxCount);
+void             raftEntryCacheDestroy(SRaftEntryCache* pCache);
+int32_t          raftEntryCachePutEntry(struct SRaftEntryCache* pCache, SSyncRaftEntry* pEntry);
+int32_t          raftEntryCacheGetEntry(struct SRaftEntryCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry);
+int32_t          raftEntryCacheGetEntryP(struct SRaftEntryCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry);
+int32_t          raftEntryCacheClear(struct SRaftEntryCache* pCache, int32_t count);
 
-cJSON* raftCache2Json(SRaftEntryCache* pObj);
-char*  raftCache2Str(SRaftEntryCache* pObj);
-void   raftCachePrint(SRaftEntryCache* pObj);
-void   raftCachePrint2(char* s, SRaftEntryCache* pObj);
-void   raftCacheLog(SRaftEntryCache* pObj);
-void   raftCacheLog2(char* s, SRaftEntryCache* pObj);
+cJSON* raftEntryCache2Json(SRaftEntryCache* pObj);
+char*  raftEntryCache2Str(SRaftEntryCache* pObj);
+void   raftEntryCachePrint(SRaftEntryCache* pObj);
+void   raftEntryCachePrint2(char* s, SRaftEntryCache* pObj);
+void   raftEntryCacheLog(SRaftEntryCache* pObj);
+void   raftEntryCacheLog2(char* s, SRaftEntryCache* pObj);
 
 #ifdef __cplusplus
 }
