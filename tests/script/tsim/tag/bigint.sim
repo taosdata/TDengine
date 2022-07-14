@@ -1,18 +1,13 @@
 system sh/stop_dnodes.sh
-
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-
-sleep 2000
 sql connect
 
 print ======================== dnode1 start
 
-$dbPrefix = ta_sm_db
-$tbPrefix = ta_sm_tb
-$mtPrefix = ta_sm_mt
+$dbPrefix = ta_bi_db
+$tbPrefix = ta_bi_tb
+$mtPrefix = ta_bi_mt
 $tbNum = 10
 $rowNum = 20
 $totalNum = 200
@@ -24,7 +19,7 @@ $mt = $mtPrefix . $i
 
 sql create database $db
 sql use $db
-sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol smallint)
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol bigint)
 
 $i = 0
 while $i < 5
@@ -77,15 +72,15 @@ if $rows != 1 then
   return -1
 endi
 sql select * from $tb where ts < now + 4m and ts > now + 5m
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 sql select * from $tb where ts > 100000 and ts < 100000
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 sql select * from $tb where ts > now + 4m and ts < now + 3m
-if $rows != 0 then 
+if $rows != 0 then
   return -1
 endi
 sql select * from $tb where ts > now + 4m and ts > now + 5m and ts < now + 6m
@@ -226,18 +221,17 @@ if $data00 != 25 then
   return -1
 endi
 
-
 print =============== step12
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt interval(1d) group by tgcol
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt partition by tgcol interval(1d)
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data01 != 100 then 
+if $data00 != 100 then 
   return -1
 endi
 
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 

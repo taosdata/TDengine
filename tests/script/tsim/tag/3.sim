@@ -1,9 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-
-sleep 2000
 sql connect
 
 print ======================== dnode1 start
@@ -494,28 +491,28 @@ if $data00 != 25 then
 endi
 
 print =============== step19
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = true and tgcol2 = 1 and tgcol3 = 1 interval(1d) group by tgcol1
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = true and tgcol2 = 1 and tgcol3 = 1 partition by tgcol1 interval(1d)
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data01 != 100 then 
+if $data00 != 100 then 
   return -1
 endi
 
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = true and tgcol2 = 1 and tgcol3 = 1 interval(1d) group by tgcol2
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = true and tgcol2 = 1 and tgcol3 = 1 partition by tgcol2 interval(1d)
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data01 != 100 then 
+if $data00 != 100 then 
   return -1
 endi
 
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = true and tgcol2 = 1 and tgcol3 = 1 interval(1d) group by tgcol3
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tgcol1 = true and tgcol2 = 1 and tgcol3 = 1 partition by tgcol3 interval(1d)
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data01 != 100 then 
+if $data00 != 100 then 
   return -1
 endi
 
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 
