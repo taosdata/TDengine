@@ -3330,7 +3330,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   return (rows > 0) ? pInfo->pRes : NULL;
 }
 
-static void doHandleRemainBlockForNewGroupImpl(SFillOperatorInfo* pInfo, SResultInfo* pResultInfo, bool* newgroup,
+static void doHandleRemainBlockForNewGroupImpl(SFillOperatorInfo* pInfo, SResultInfo* pResultInfo,
                                                SExecTaskInfo* pTaskInfo) {
   pInfo->totalInputRows = pInfo->existNewGroupBlock->info.rows;
 
@@ -3341,25 +3341,26 @@ static void doHandleRemainBlockForNewGroupImpl(SFillOperatorInfo* pInfo, SResult
   taosFillSetStartInfo(pInfo->pFillInfo, pInfo->existNewGroupBlock->info.rows, ekey);
   taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->existNewGroupBlock);
 
-  doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pInfo->pRes, pResultInfo->capacity);
+  int32_t numOfResultRows = pResultInfo->capacity - pInfo->pRes->info.rows;
+  taosFillResultDataBlock(pInfo->pFillInfo, pInfo->pRes, numOfResultRows);
+
   pInfo->curGroupId = pInfo->existNewGroupBlock->info.groupId;
   pInfo->existNewGroupBlock = NULL;
-//  *newgroup = true;
 }
 
-static void doHandleRemainBlockFromNewGroup(SFillOperatorInfo* pInfo, SResultInfo* pResultInfo, bool* newgroup,
+static void doHandleRemainBlockFromNewGroup(SFillOperatorInfo* pInfo, SResultInfo* pResultInfo,
                                             SExecTaskInfo* pTaskInfo) {
   if (taosFillHasMoreResults(pInfo->pFillInfo)) {
-//    *newgroup = false;
-    doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pInfo->pRes, (int32_t)pResultInfo->capacity);
-    if (pInfo->pRes->info.rows > pResultInfo->threshold || (!pInfo->multigroupResult)) {
+    int32_t numOfResultRows = pResultInfo->capacity - pInfo->pRes->info.rows;
+    taosFillResultDataBlock(pInfo->pFillInfo, pInfo->pRes, numOfResultRows);
+    if (pInfo->pRes->info.rows > pResultInfo->threshold) {
       return;
     }
   }
 
   // handle the cached new group data block
   if (pInfo->existNewGroupBlock) {
-    doHandleRemainBlockForNewGroupImpl(pInfo, pResultInfo, newgroup, pTaskInfo);
+    doHandleRemainBlockForNewGroupImpl(pInfo, pResultInfo, pTaskInfo);
   }
 }
 
@@ -3372,8 +3373,8 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
 
   blockDataCleanup(pResBlock);
 
-  doHandleRemainBlockFromNewGroup(pInfo, pResultInfo, NULL, pTaskInfo);
-  if (pResBlock->info.rows > pResultInfo->threshold || (!pInfo->multigroupResult && pResBlock->info.rows > 0)) {
+  doHandleRemainBlockFromNewGroup(pInfo, pResultInfo, pTaskInfo);
+  if (pResBlock->info.rows > pResultInfo->threshold || pResBlock->info.rows > 0) {
     return pResBlock;
   }
 
@@ -3407,7 +3408,9 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
     }
 
     blockDataEnsureCapacity(pResBlock, pOperator->resultInfo.capacity);
-    doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pResBlock, pOperator->resultInfo.capacity);
+
+    int32_t numOfResultRows = pOperator->resultInfo.capacity - pBlock->info.rows;
+    taosFillResultDataBlock(pInfo->pFillInfo, pBlock, numOfResultRows);
 
     // current group has no more result to return
     if (pResBlock->info.rows > 0) {
@@ -3417,13 +3420,13 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
         return pResBlock;
       }
 
-      doHandleRemainBlockFromNewGroup(pInfo, pResultInfo, NULL, pTaskInfo);
+      doHandleRemainBlockFromNewGroup(pInfo, pResultInfo, pTaskInfo);
       if (pResBlock->info.rows >= pOperator->resultInfo.threshold || pBlock == NULL) {
         return pResBlock;
       }
     } else if (pInfo->existNewGroupBlock) {  // try next group
       assert(pBlock != NULL);
-      doHandleRemainBlockForNewGroupImpl(pInfo, pResultInfo, NULL, pTaskInfo);
+      doHandleRemainBlockForNewGroupImpl(pInfo, pResultInfo, pTaskInfo);
       if (pResBlock->info.rows > pResultInfo->threshold) {
         return pResBlock;
       }
@@ -4032,8 +4035,7 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
   }
 }
 
-SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode, bool multigroupResult,
-                                      SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode, SExecTaskInfo* pTaskInfo) {
   SFillOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SFillOperatorInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -4065,7 +4067,6 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   }
 
   pInfo->pRes = pResBlock;
-  pInfo->multigroupResult = multigroupResult;
   pInfo->pCondition = pPhyFillNode->node.pConditions;
   pInfo->pColMatchColInfo = pColMatchColInfo;
   pOperator->name = "FillOperator";
@@ -4438,21 +4439,21 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       //        return NULL;
       //      }
 
-      int32_t code = extractTableSchemaInfo(pHandle, pScanNode->scan.uid, pTaskInfo);
+      int32_t code = extractTableSchemaInfo(pHandle, pScanNode->uid, pTaskInfo);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
         return NULL;
       }
 
       pTableListInfo->pTableList = taosArrayInit(4, sizeof(STableKeyInfo));
-      if (pScanNode->scan.tableType == TSDB_SUPER_TABLE) {
-        code = vnodeGetAllTableList(pHandle->vnode, pScanNode->scan.uid, pTableListInfo->pTableList);
+      if (pScanNode->tableType == TSDB_SUPER_TABLE) {
+        code = vnodeGetAllTableList(pHandle->vnode, pScanNode->uid, pTableListInfo->pTableList);
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = terrno;
           return NULL;
         }
       } else {  // Create one table group.
-        STableKeyInfo info = {.lastKey = 0, .uid = pScanNode->scan.uid, .groupId = 0};
+        STableKeyInfo info = {.lastKey = 0, .uid = pScanNode->uid, .groupId = 0};
         taosArrayPush(pTableListInfo->pTableList, &info);
       }
 
@@ -4605,7 +4606,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type) {
     pOptr = createMergeJoinOperatorInfo(ops, size, (SJoinPhysiNode*)pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_FILL == type) {
-    pOptr = createFillOperatorInfo(ops[0], (SFillPhysiNode*)pPhyNode, false, pTaskInfo);
+    pOptr = createFillOperatorInfo(ops[0], (SFillPhysiNode*)pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC == type) {
     pOptr = createIndefinitOutputOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC == type) {

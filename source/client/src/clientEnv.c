@@ -320,6 +320,10 @@ void doDestroyRequest(void *p) {
     deregisterRequest(pRequest);
   }
 
+  if (pRequest->syncQuery) {
+    taosMemoryFree(pRequest->body.param);
+  }
+
   taosMemoryFree(pRequest);
   tscTrace("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
 }
