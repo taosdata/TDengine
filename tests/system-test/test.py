@@ -370,3 +370,4 @@ if __name__ == "__main__":
                     tdLog.info("not need to query")
     if conn is not None:
         conn.close()
+    sys.exit(0)
