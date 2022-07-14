@@ -37,8 +37,6 @@ while $i < $tbNum
   $i = $i + 1
 endw 
 
-sleep 100
-
 print =============== step2
 $i = 1
 $tb = $tbPrefix . $i
@@ -65,21 +63,21 @@ endi
 
 print =============== step5
 sql select leastsquares(tbcol, 1, 1) as b from $tb interval(1m)
-print ===> $data01 
-if $data01 != @{slop:1.000000, intercept:1.000000}@ then
+print ===> $data00 
+if $data00 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 
 sql select leastsquares(tbcol, 1, 1) as b from $tb interval(1d)
-print ===> $data01
-if $data01 != @{slop:1.000000, intercept:1.000000}@ then
+print ===> $data00
+if $data00 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 
 print =============== step6
 sql select leastsquares(tbcol, 1, 1) as b from $tb where ts < now + 4m interval(1m)
-print ===> $data01
-if $data01 != @{slop:1.000000, intercept:1.000000}@ then
+print ===> $data00
+if $data00 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 print ===> $rows
