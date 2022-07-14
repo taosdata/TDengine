@@ -136,7 +136,7 @@ int32_t stmtRestoreQueryFields(STscStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, char* tbFName) {
+int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, char* tbFName, const char* sTableName) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
   strncpy(pStmt->bInfo.tbFName, tbFName, sizeof(pStmt->bInfo.tbFName) - 1);
@@ -147,6 +147,7 @@ int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, 
   pStmt->bInfo.tbType = pTableMeta->tableType;
   pStmt->bInfo.boundTags = tags;
   pStmt->bInfo.tagsCached = false;
+  strcpy(pStmt->bInfo.stbFName, sTableName);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -162,10 +163,10 @@ int32_t stmtUpdateExecInfo(TAOS_STMT* stmt, SHashObj* pVgHash, SHashObj* pBlockH
 }
 
 int32_t stmtUpdateInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, char* tbFName, bool autoCreateTbl,
-                       SHashObj* pVgHash, SHashObj* pBlockHash) {
+                       SHashObj* pVgHash, SHashObj* pBlockHash, const char* sTableName) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  STMT_ERR_RET(stmtUpdateBindInfo(stmt, pTableMeta, tags, tbFName));
+  STMT_ERR_RET(stmtUpdateBindInfo(stmt, pTableMeta, tags, tbFName, sTableName));
   STMT_ERR_RET(stmtUpdateExecInfo(stmt, pVgHash, pBlockHash, autoCreateTbl));
 
   pStmt->sql.autoCreateTbl = autoCreateTbl;
@@ -253,7 +254,7 @@ int32_t stmtCleanBindInfo(STscStmt* pStmt) {
     destroyBoundColumnInfo(pStmt->bInfo.boundTags);
     taosMemoryFreeClear(pStmt->bInfo.boundTags);
   }
-
+  memset(pStmt->bInfo.stbFName, 0, TSDB_TABLE_FNAME_LEN);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -592,7 +593,7 @@ int stmtSetTbTags(TAOS_STMT* stmt, TAOS_MULTI_BIND* tags) {
   }
 
   tscDebug("start to bind stmt tag values");
-  STMT_ERR_RET(qBindStmtTagsValue(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.tbSuid, pStmt->bInfo.sname.tname,
+  STMT_ERR_RET(qBindStmtTagsValue(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.tbSuid, pStmt->bInfo.stbFName, pStmt->bInfo.sname.tname,
                                   tags, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
 
   return TSDB_CODE_SUCCESS;

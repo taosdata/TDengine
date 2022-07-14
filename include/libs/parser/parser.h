@@ -29,7 +29,7 @@ struct SMetaData;
 typedef struct SStmtCallback {
   TAOS_STMT* pStmt;
   int32_t (*getTbNameFn)(TAOS_STMT*, char**);
-  int32_t (*setInfoFn)(TAOS_STMT*, STableMeta*, void*, char*, bool, SHashObj*, SHashObj*);
+  int32_t (*setInfoFn)(TAOS_STMT*, STableMeta*, void*, char*, bool, SHashObj*, SHashObj*, const char*);
   int32_t (*getExecInfoFn)(TAOS_STMT*, SHashObj**, SHashObj**);
 } SStmtCallback;
 
@@ -84,7 +84,7 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
                                 int32_t rowNum);
 int32_t qBuildStmtColFields(void* pDataBlock, int32_t* fieldNum, TAOS_FIELD_E** fields);
 int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TAOS_FIELD_E** fields);
-int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tName, TAOS_MULTI_BIND* bind,
+int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName, TAOS_MULTI_BIND* bind,
                            char* msgBuf, int32_t msgBufLen);
 void    destroyBoundColumnInfo(void* pBoundInfo);
 int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
@@ -93,7 +93,7 @@ int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char*
 void*   smlInitHandle(SQuery* pQuery);
 void    smlDestroyHandle(void* pHandle);
 int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols, bool format, STableMeta* pTableMeta,
-                    char* tableName, char* msgBuf, int16_t msgBufLen);
+                    char* tableName, const char* sTableName, int32_t sTableNameLen, char* msgBuf, int16_t msgBufLen);
 int32_t smlBuildOutput(void* handle, SHashObj* pVgHash);
 
 int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);

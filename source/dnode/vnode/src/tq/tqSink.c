@@ -50,6 +50,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
 
       SVCreateTbReq createTbReq = {0};
       createTbReq.name = buildCtbNameByGroupId(stbFullName, pDataBlock->info.groupId);
+      createTbReq.ctb.name = strdup(stbFullName);
       createTbReq.flags = 0;
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
