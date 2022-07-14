@@ -53,8 +53,8 @@ static void setNullRow(SSDataBlock* pBlock, int64_t ts, int32_t rowIndex) {
   // the first are always the timestamp column, so start from the second column.
   for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
     SColumnInfoData* p = taosArrayGet(pBlock->pDataBlock, i);
-    if (p->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-        colDataAppend(p, rowIndex, (const char*)&ts, false);
+    if (p->info.type == TSDB_DATA_TYPE_TIMESTAMP) {  // handle timestamp
+      colDataAppend(p, rowIndex, (const char*)&ts, false);
     } else {
       colDataAppendNULL(p, rowIndex);
     }
@@ -83,15 +83,20 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
   if (pFillInfo->type == TSDB_FILL_PREV) {
     SArray* p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->prev : pFillInfo->next;
 
-    for (int32_t i = 1; i < pFillInfo->numOfCols; ++i) {
+    for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
       SFillColInfo* pCol = &pFillInfo->pFillCol[i];
       if (TSDB_COL_IS_TAG(pCol->flag)) {
         continue;
       }
 
-      SGroupKeys*      pKey = taosArrayGet(p, i);
       SColumnInfoData* pDstColInfoData = taosArrayGet(pBlock->pDataBlock, GET_DEST_SLOT_ID(pCol));
-      doSetVal(pDstColInfoData, index, pKey);
+
+      if (pDstColInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        colDataAppend(pDstColInfoData, index, (const char*)&ts, false);
+      } else {
+        SGroupKeys* pKey = taosArrayGet(p, i);
+        doSetVal(pDstColInfoData, index, pKey);
+      }
     }
   } else if (pFillInfo->type == TSDB_FILL_NEXT) {
     SArray* p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->next : pFillInfo->prev;
@@ -264,9 +269,8 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
       assert(pFillInfo->currentKey == ts);
 
       if (pFillInfo->type == TSDB_FILL_NEXT && (pFillInfo->index + 1) < pFillInfo->numOfRows) {
-        ++pFillInfo->index;
-        copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, pFillInfo->next);
-        --pFillInfo->index;
+        int32_t nextRowIndex = pFillInfo->index + 1;
+        copyCurrentRowIntoBuf(pFillInfo, nextRowIndex, pFillInfo->next);
       }
 
       // assign rows to dst buffer
