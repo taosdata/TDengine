@@ -143,7 +143,11 @@ static void *dnodeProcessReadQueue(void *wparam) {
 
     int32_t code = vnodeProcessRead(pVnode, pRead);
 
-    if (qtype == TAOS_QTYPE_RPC && code != TSDB_CODE_QRY_NOT_READY) {
+    if(code == 9999) {
+      dInfo(" ******* doNotRsp Test **** msg:%p, app:%p type:%s will be processed in vquery queue, qtype:%d", pRead, pRead->rpcAhandle,taosMsg[pRead->msgType], qtype);
+      printf(" ******* doNotRsp Test **** msg:%p, app:%p type:%s will be processed in vquery queue, qtype:%d", pRead, pRead->rpcAhandle,taosMsg[pRead->msgType], qtype);
+
+    } else if (qtype == TAOS_QTYPE_RPC && code != TSDB_CODE_QRY_NOT_READY) {
       dnodeSendRpcVReadRsp(pVnode, pRead, code);
     } else {
       if (code == TSDB_CODE_QRY_HAS_RSP) {
@@ -158,4 +162,14 @@ static void *dnodeProcessReadQueue(void *wparam) {
   }
 
   return NULL;
+}
+
+// reponse probe connection msg 
+void dnodeResponseProbeMsg(SRpcMsg *pMsg) {
+  // check probe conn msg
+  if(pMsg->msgType == TSDB_MSG_TYPE_PROBE_CONN) {
+    SRpcMsg rpcRsp = {.handle = pMsg->handle, .code = 0, .msgType = TSDB_MSG_TYPE_PROBE_CONN_RSP};
+    rpcSendResponse(&rpcRsp);
+    return ;
+  }
 }

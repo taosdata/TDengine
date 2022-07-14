@@ -78,7 +78,7 @@ int32_t dnodeInitShell() {
 
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_NETWORK_TEST]   = dnodeSendStartupStep;
 
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_PROBE_CONN]     = dnodeDispatchToVReadQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_PROBE_CONN]     = dnodeResponseProbeMsg;
 
   int32_t numOfThreads = (int32_t)((tsNumOfCores * tsNumOfThreadsPerCore) / 2.0);
   if (numOfThreads < 1) {

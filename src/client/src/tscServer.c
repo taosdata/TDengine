@@ -291,7 +291,7 @@ bool dealConnBroken(SSqlObj * pSql) {
 // if return true, send probe connection msg to sever ok
 bool sendProbeConnMsg(SSqlObj* pSql) {
   // check time out
-  int32_t probeTimeout = 60*1000;   // over this value send probe msg
+  int32_t probeTimeout = 1*1000;   // over this value send probe msg
   int32_t killTimeout  = 3*60*1000; // over this value query can be killed
   if(pSql->stime == 0) {
     // not start , no need probe
@@ -430,7 +430,8 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   }
 
   if(rpcSendRequest(pObj->pRpcObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid)) {
-    saveSendInfo(pSql->rpcRid, &pSql->pPrevContext, &pSql->pPrevConn, &pSql->pPrevFdObj, &pSql->prevFd);
+    if(pSql->cmd.command != TSDB_SQL_HB)
+      rpcSaveSendInfo(pSql->rpcRid, &pSql->pPrevContext, &pSql->pPrevConn, &pSql->pPrevFdObj, &pSql->prevFd);
     return TSDB_CODE_SUCCESS;
   }
 

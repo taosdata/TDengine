@@ -1698,6 +1698,7 @@ bool doRpcSendProbe(SRpcConn *pConn) {
   memset(msg, 0, sizeof(SRpcHead));
   pHead = (SRpcHead *)msg;
   pHead->version  = 1;
+  pHead->msgVer   = htonl(tsVersion >> 8);
   pHead->msgType  = TSDB_MSG_TYPE_PROBE_CONN;
   pHead->spi      = pConn->spi;
   pHead->encrypt  = 0;
@@ -1765,7 +1766,7 @@ _END:
 }
 
 // after sql request send , save conn info
-bool saveSendInfo(int64_t rpcRid, void** ppContext, void** ppConn, void** ppFdObj, int32_t* pFd) {
+bool rpcSaveSendInfo(int64_t rpcRid, void** ppContext, void** ppConn, void** ppFdObj, int32_t* pFd) {
   if(rpcRid < 0) {
     tError("ACK saveSendInfo rpcRid=%" PRId64 " less than zero, invalid.", rpcRid);
     return false;

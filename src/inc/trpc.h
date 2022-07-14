@@ -96,7 +96,7 @@ int32_t rpcUnusedSession(void * rpcInfo, bool bLock);
 // send rpc Refid connection probe alive message 
 bool rpcSendProbe(int64_t rpcRid, void* pPrevContext, void* pPrevConn, void* pPrevFdObj, int32_t prevFd);
 // after sql request send , save conn info
-bool saveSendInfo(int64_t rpcRid, void** ppContext, void** ppConn, void** ppFdObj, int32_t* pFd);
+bool rpcSaveSendInfo(int64_t rpcRid, void** ppContext, void** ppConn, void** ppFdObj, int32_t* pFd);
 
 #ifdef __cplusplus
 }

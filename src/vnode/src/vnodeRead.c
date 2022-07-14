@@ -339,8 +339,9 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
 
         qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, freehandle);
       }
-
     }
+    // TEST CODE
+    //code = 9999;
   }
 
   return code;
