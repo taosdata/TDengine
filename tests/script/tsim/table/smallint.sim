@@ -25,12 +25,10 @@ if $data01 != NULL then
 endi
 
 print =============== step2
-sql insert into $tb values (now+1m, -32768) -x step2
-  return -1
-step2: 
-sql insert into $tb values (now+1m, NULL)
+sql insert into $tb values (now+1m, -32768)
+sql insert into $tb values (now+2m, NULL)
 sql select * from $tb order by ts desc
-if $rows != 2 then 
+if $rows != 3 then 
   return -1
 endi
 if $data01 != NULL then
@@ -38,9 +36,9 @@ if $data01 != NULL then
 endi
 
 print =============== step3
-sql insert into $tb values (now+2m, 32767)
+sql insert into $tb values (now+3m, 32767)
 sql select * from $tb order by ts desc
-if $rows != 3 then 
+if $rows != 4 then 
   return -1
 endi
 if $data01 != 32767 then 
@@ -48,12 +46,12 @@ if $data01 != 32767 then
 endi
 
 print =============== step4
-sql insert into $tb values (now+3m, 32768) -x step4
+sql insert into $tb values (now+4m, 32768) -x step4
   return -1
 step4: 
-sql insert into $tb values (now+3m, NULL)
+sql insert into $tb values (now+5m, NULL)
 sql select * from $tb order by ts desc
-if $rows != 4 then 
+if $rows != 5 then 
   return -1
 endi
 if $data01 != NULL then
@@ -61,10 +59,10 @@ if $data01 != NULL then
 endi
 
 print =============== step5
-sql_error insert into $tb values (now+4m, a2)
-sql insert into $tb values (now+4m, 0)
+sql_error insert into $tb values (now+6m, a2)
+sql insert into $tb values (now+7m, 0)
 sql select * from $tb order by ts desc
-if $rows != 5 then 
+if $rows != 6 then 
   return -1
 endi
 if $data01 != 0 then 
@@ -72,19 +70,8 @@ if $data01 != 0 then
 endi
 
 print =============== step6
-sql_error insert into $tb values (now+5m, 2a)
-sql insert into $tb values (now+5m, 2)
-sql select * from $tb order by ts desc
-if $rows != 6 then 
-  return -1
-endi
-if $data01 != 2 then 
-  return -1
-endi
-
-print =============== step7
-sql_error insert into $tb values (now+6m, 2a'1)
-sql insert into $tb values (now+6m, 2)
+sql_error insert into $tb values (now+8m, 2a)
+sql insert into $tb values (now+9m, 2)
 sql select * from $tb order by ts desc
 if $rows != 7 then 
   return -1
@@ -93,6 +80,17 @@ if $data01 != 2 then
   return -1
 endi
 
+print =============== step7
+sql_error insert into $tb values (now+10m, 2a'1)
+sql insert into $tb values (now+11m, 2)
+sql select * from $tb order by ts desc
+if $rows != 8 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+return
 sql drop database $db
 sql show databases
 if $rows != 2 then 

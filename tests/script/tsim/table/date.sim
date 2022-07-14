@@ -24,18 +24,18 @@ if $data00 != @17-01-01 08:00:00.001@ then
 endi
 
 print =============== step2
-sql insert into $tb values ('2017-08-28 00:23:46.429+ 1a', 2) 
-#sql insert into $tb values ('2017-08-28 00:23:46cd .429', 2) 
+sql_error insert into $tb values ('2017-08-28 00:23:46.429+ 1a', 2) 
+sql_error insert into $tb values ('2017-08-28 00:23:46cd .429', 2) 
 sql select ts from $tb
-if $rows != 2 then 
+if $rows != 1 then 
   return -1
 endi
 
 print =============== step3
-#sql insert into $tb values ('1970-01-01 08:00:00.000', 3)
-#sql insert into $tb values ('1970-01-01 08:00:00.000', 3)
+sql_error insert into $tb values ('1970-01-01 08:00:00.000', 3)
+sql_error insert into $tb values ('1970-01-01 08:00:00.000', 3)
 sql select ts from $tb
-if $rows != 2 then 
+if $rows != 1 then 
   return -1
 endi
 
@@ -54,7 +54,7 @@ print =============== step5
 sql_error insert into $tb values ('9999-12-31 213:59:59.999', 13)
 sql select ts from $tb
 print $rows
-if $rows != 8 then
+if $rows != 7 then
   return -1
 endi
 
@@ -62,7 +62,7 @@ print =============== step6
 sql_error insert into $tb values ('9999-12-99 23:59:59.999', 13)
 
 sql select ts from $tb
-if $rows != 8 then
+if $rows != 7 then
   return -1
 endi
 

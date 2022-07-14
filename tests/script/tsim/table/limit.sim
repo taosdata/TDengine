@@ -12,10 +12,10 @@ $db = $dbPrefix . $i
 $tb = $tbPrefix . $i
 
 print =================== step 0
-sql create database $db
+sql create database $db vgroups 8
 sql use $db
 sql show vgroups
-if $rows != 0 then 
+if $rows != 8 then 
   return -1
 endi
 

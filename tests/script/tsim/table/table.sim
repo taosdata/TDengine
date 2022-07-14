@@ -197,16 +197,15 @@ if $data01 != 7 then
 endi
 
 print =============== step10
-$i = 1
 $tb = $tbPrefix  . $i
-sql create table $tb (ts timestamp, val tinyint, val2 tinyint) 
+sql_error create table $tb (ts timestamp, val tinyint, val2 tinyint) 
 sql show tables
 if $rows != 7 then
   return -1
 endi
 
 print =============== step11
-sql create table $tb (ts timestamp, val float, val2 double)
+sql_error create table $tb (ts timestamp, val float, val2 double)
 sql show tables
 if $rows != 7 then
   return -1

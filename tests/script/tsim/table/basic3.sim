@@ -6,7 +6,7 @@ sql connect
 print =============== create database
 sql create database db
 sql show databases
-if $rows != 1 then 
+if $rows != 3 then 
   return -1
 endi
 
@@ -72,7 +72,7 @@ endi
 print =============== drop stable
 sql drop table db.st
 sql show db.stables
-if $rows != 2 then 
+if $rows != 0 then 
   return -1
 endi
 
