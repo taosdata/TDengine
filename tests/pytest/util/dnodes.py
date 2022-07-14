@@ -382,7 +382,7 @@ class TDDnode:
 
         if self.valgrind == 0:
             if platform.system().lower() == 'windows':
-                cmd = "mintty -h never -w hide %s -c %s" % (
+                cmd = "mintty -h never %s -c %s" % (
                     binPath, self.cfgDir)
             else:
                 cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
@@ -391,7 +391,7 @@ class TDDnode:
             valgrindCmdline = "valgrind --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
 
             if platform.system().lower() == 'windows':
-                cmd = "mintty -h never -w hide %s %s -c %s" % (
+                cmd = "mintty -h never %s %s -c %s" % (
                     valgrindCmdline, binPath, self.cfgDir)
             else:
                 cmd = "nohup %s %s -c %s 2>&1 & " % (
@@ -518,20 +518,20 @@ class TDDnode:
 
         if self.running != 0:
             if platform.system().lower() == 'windows':
-                os.system("wmic process where \"name='taosd.exe' and CommandLine like '%%dnode%d%%'\" get processId | xargs echo | awk '{print $2}' | xargs taskkill -f -pid"%self.index)
+                psCmd = "for /f %a in ('wmic process where \"name='taosd.exe' and CommandLine like '%%dnode%d%%'\" get processId ^| xargs echo ^| awk ^'{print $2}^'') do @(ps | grep %a | awk '{print $1}' | xargs kill -INT )" % (self.index)
             else:
                 psCmd = "ps -ef|grep -w %s| grep dnode%d|grep -v grep | awk '{print $2}'" % (toBeKilled,self.index)
+            processID = subprocess.check_output(
+                psCmd, shell=True).decode("utf-8")
+
+            while(processID):
+                killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+                os.system(killCmd)
+                time.sleep(1)
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8")
-
-                while(processID):
-                    killCmd = "kill -INT %s > /dev/null 2>&1" % processID
-                    os.system(killCmd)
-                    time.sleep(1)
-                    processID = subprocess.check_output(
-                        psCmd, shell=True).decode("utf-8")
-                if self.valgrind:
-                    time.sleep(2)
+            if self.valgrind:
+                time.sleep(2)
 
             self.running = 0
             tdLog.debug("dnode:%d is stopped by kill -INT" % (self.index))

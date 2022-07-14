@@ -38,12 +38,9 @@ while $i < $tbNum
   $i = $i + 1
 endw 
 
-sleep 100
-
 print =============== step2
 $i = 1
 $tb = $tbPrefix . $i
-
 
 sql select count(*) from $tb
 print ===> select count(*) from $tb => $data00
@@ -81,14 +78,14 @@ endi
 
 print =============== step5
 sql select count(tbcol) as b from $tb interval(1m)
-print ===> $data01
-if $data01 != 1 then 
+print ===> $data00
+if $data00 != 1 then 
   return -1
 endi
 
 sql select count(tbcol) as b from $tb interval(1d)
-print ===> $data01
-if $data01 != $rowNum then 
+print ===> $data00
+if $data00 != $rowNum then 
   return -1
 endi
 
@@ -96,8 +93,8 @@ print =============== step6
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
 sql select count(tbcol) as b from $tb where ts <= $ms interval(1m)
-print ===> $data01
-if $data01 != 1 then 
+print ===> $data00
+if $data00 != 1 then 
   return -1
 endi
 if $rows != 5 then 
@@ -149,17 +146,17 @@ endi
 
 print =============== step9
 sql select count(tbcol) as b from $mt interval(1m)
-print ===> $data01
-if $data01 != 10 then 
+print ===> $data00
+if $data00 != 10 then 
   return -1
 endi
-if $data11 != 10 then 
+if $data10 != 10 then 
   return -1
 endi
 
 sql select count(tbcol) as b from $mt interval(1d)
-print ===> $data01
-if $data01 != 200 then 
+print ===> $data00
+if $data00 != 200 then 
   return -1
 endi
 
@@ -177,9 +174,9 @@ endi
 print =============== step11
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
-sql select count(tbcol) as b from $mt  where ts <= $ms interval(1m) group by tgcol
+sql select count(tbcol) as b from $mt  where ts <= $ms partition by tgcol interval(1m)
 print ===> $data01
-if $data01 != 1 then 
+if $data00 != 1 then 
   return -1
 endi
 if $rows != 50 then 

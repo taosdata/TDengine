@@ -3460,9 +3460,16 @@ void doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSData
   }
 }
 
+/*
+ * +------------------------------------+--------------+--------------+
+ * |            null bitmap             |              |              |
+ * |(n columns, one bit for each column)| src column #1| src column #2|
+ * +------------------------------------+--------------+--------------+
+ */
 void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos) {
   SFilePage* pPage = NULL;
 
+  // todo refactor: move away
   int32_t completeRowSize = pCtx->subsidiaries.num * sizeof(bool);
   for (int32_t j = 0; j < pCtx->subsidiaries.num; ++j) {
     SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
@@ -3475,12 +3482,15 @@ void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
   } else {
     pPage = getBufPage(pCtx->pBuf, pCtx->curBufPage);
     if (pPage->num + completeRowSize > getBufPageSize(pCtx->pBuf)) {
+      // current page is all used, let's prepare a new buffer page
+      releaseBufPage(pCtx->pBuf, pPage);
       pPage = getNewBufPage(pCtx->pBuf, 0, &pCtx->curBufPage);
       pPage->num = sizeof(SFilePage);
     }
   }
 
   pPos->pageId = pCtx->curBufPage;
+  pPos->offset = pPage->num;
 
   // keep the current row data, extract method
   int32_t offset = 0;
@@ -3508,7 +3518,6 @@ void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
     offset += pCol->info.bytes;
   }
 
-  pPos->offset = pPage->num;
   pPage->num += completeRowSize;
 
   setBufPageDirty(pPage, true);
@@ -4834,7 +4843,7 @@ static void doReservoirSample(SqlFunctionCtx* pCtx, SSampleInfo* pInfo, char* da
   if (pInfo->numSampled < pInfo->samples) {
     sampleAssignResult(pInfo, data, pInfo->numSampled);
     if (pCtx->subsidiaries.num > 0) {
-      saveTupleData(pCtx, index, pCtx->pSrcBlock, pInfo->tuplePos + pInfo->numSampled * sizeof(STuplePos));
+      saveTupleData(pCtx, index, pCtx->pSrcBlock, &pInfo->tuplePos[pInfo->numSampled]);
     }
     pInfo->numSampled++;
   } else {
@@ -4842,7 +4851,7 @@ static void doReservoirSample(SqlFunctionCtx* pCtx, SSampleInfo* pInfo, char* da
     if (j < pInfo->samples) {
       sampleAssignResult(pInfo, data, j);
       if (pCtx->subsidiaries.num > 0) {
-        copyTupleData(pCtx, index, pCtx->pSrcBlock, pInfo->tuplePos + j * sizeof(STuplePos));
+        copyTupleData(pCtx, index, pCtx->pSrcBlock, &pInfo->tuplePos[j]);
       }
     }
   }
@@ -4880,7 +4889,7 @@ int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t currentRow = pBlock->info.rows;
   for (int32_t i = 0; i < pInfo->numSampled; ++i) {
     colDataAppend(pCol, currentRow + i, pInfo->data + i * pInfo->colBytes, false);
-    setSelectivityValue(pCtx, pBlock, pInfo->tuplePos + i * sizeof(STuplePos), currentRow + i);
+    setSelectivityValue(pCtx, pBlock, &pInfo->tuplePos[i], currentRow + i);
   }
 
   return pInfo->numSampled;
@@ -6017,8 +6026,6 @@ int32_t lastrowFunction(SqlFunctionCtx* pCtx) {
       }
 
       pInfo->ts = cts;
-      pResInfo->numOfRes = 1;
-
       if (pCtx->subsidiaries.num > 0) {
         STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
         if (!pInfo->hasResult) {
