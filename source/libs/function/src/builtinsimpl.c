@@ -6032,9 +6032,6 @@ int32_t lastrowFunction(SqlFunctionCtx* pCtx) {
       }
 
       pInfo->ts = cts;
-      pInfo->hasResult = true;
-      pResInfo->numOfRes = 1;
-
       if (pCtx->subsidiaries.num > 0) {
         STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
         if (!pInfo->hasResult) {
@@ -6043,6 +6040,8 @@ int32_t lastrowFunction(SqlFunctionCtx* pCtx) {
           copyTupleData(pCtx, i, pCtx->pSrcBlock, pTuplePos);
         }
       }
+
+      pInfo->hasResult = true;
     }
   }
 
