@@ -561,6 +561,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COL_JSON,           "Only tag can be jso
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_VALUE_TOO_LONG,             "Value too long for column/tag")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DELETE_WHERE,       "The DELETE statement must have a definite time window range")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG,    "The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SELECTED_EXPR,      "Invalid SELECTed expression")
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")

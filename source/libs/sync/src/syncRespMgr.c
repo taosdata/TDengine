@@ -122,54 +122,45 @@ void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl) {
   int        cnt = 0;
   SSyncNode *pSyncNode = pObj->data;
 
-  SArray *delIndexArray = taosArrayInit(0, sizeof(SyncIndex));
+  SArray *delIndexArray = taosArrayInit(0, sizeof(uint64_t));
   ASSERT(delIndexArray != NULL);
 
   while (pStub) {
-    size_t     len;
-    void *     key = taosHashGetKey(pStub, &len);
-    SyncIndex *pIndex = (SyncIndex *)key;
+    size_t    len;
+    void *    key = taosHashGetKey(pStub, &len);
+    uint64_t *pSeqNum = (uint64_t *)key;
 
     int64_t nowMS = taosGetTimestampMs();
     if (nowMS - pStub->createTime > ttl) {
-      taosArrayPush(delIndexArray, pIndex);
+      taosArrayPush(delIndexArray, pSeqNum);
       cnt++;
 
-      SSyncRaftEntry *pEntry = NULL;
-      int32_t         code = 0;
-      if (pSyncNode->pLogStore != NULL) {
-        code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, *pIndex, &pEntry);
-        if (code == 0 && pEntry != NULL) {
-          SFsmCbMeta cbMeta = {0};
-          cbMeta.index = pEntry->index;
-          cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(pSyncNode, cbMeta.index);
-          cbMeta.isWeak = pEntry->isWeak;
-          cbMeta.code = TSDB_CODE_SYN_TIMEOUT;
-          cbMeta.state = pSyncNode->state;
-          cbMeta.seqNum = pEntry->seqNum;
-          cbMeta.term = pEntry->term;
-          cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
-          cbMeta.flag = 0;
+      SFsmCbMeta cbMeta = {0};
+      cbMeta.index = SYNC_INDEX_INVALID;
+      cbMeta.lastConfigIndex = SYNC_INDEX_INVALID;
+      cbMeta.isWeak = false;
+      cbMeta.code = TSDB_CODE_SYN_TIMEOUT;
+      cbMeta.state = pSyncNode->state;
+      cbMeta.seqNum = *pSeqNum;
+      cbMeta.term = SYNC_TERM_INVALID;
+      cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
+      cbMeta.flag = 0;
 
-          SRpcMsg rpcMsg = pStub->rpcMsg;
-          rpcMsg.pCont = rpcMallocCont(pEntry->dataLen);
-          memcpy(rpcMsg.pCont, pEntry->data, pEntry->dataLen);
-          pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, cbMeta);
-
-          syncEntryDestory(pEntry);
-        }
-      }
+      pStub->rpcMsg.pCont = NULL;
+      pStub->rpcMsg.contLen = 0;
+      pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &(pStub->rpcMsg), cbMeta);
     }
 
     pStub = (SRespStub *)taosHashIterate(pObj->pRespHash, pStub);
   }
 
   int32_t arraySize = taosArrayGetSize(delIndexArray);
-  sDebug("vgId:%d, resp clean by ttl, cnt:%d, array-size:%d", pSyncNode->vgId, cnt, arraySize);
+  sDebug("vgId:%d, resp mgr clean by ttl, cnt:%d, array-size:%d", pSyncNode->vgId, cnt, arraySize);
 
   for (int32_t i = 0; i < arraySize; ++i) {
-    SyncIndex *pIndex = taosArrayGet(delIndexArray, i);
-    taosHashRemove(pObj->pRespHash, pIndex, sizeof(SyncIndex));
+    uint64_t *pSeqNum = taosArrayGet(delIndexArray, i);
+    taosHashRemove(pObj->pRespHash, pSeqNum, sizeof(uint64_t));
+    sDebug("vgId:%d, resp mgr clean by ttl, seq:%d", pSyncNode->vgId, *pSeqNum);
   }
   taosArrayDestroy(delIndexArray);
 }
