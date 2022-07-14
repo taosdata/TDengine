@@ -154,10 +154,14 @@ public class SQLWriter {
             if (errorCode == 0x362 || errorCode == 0x218) {
                 // Table does not exist
                 createTables();
-                stmt.executeUpdate(sql);
+                executeSQL(sql);
             } else {
+                logger.error("Error execute SQL: {}", sql);
                 throw e;
             }
+        } catch (Throwable throwable) {
+            logger.error("Error execute SQL: {}", sql);
+            throw throwable;
         }
     }
 
@@ -174,7 +178,12 @@ public class SQLWriter {
             sb.append("IF NOT EXISTS ").append(tbName).append(" USING meters TAGS ").append(tagValues).append(" ");
         }
         String sql = sb.toString();
-        stmt.executeUpdate(sql);
+        try {
+            stmt.executeUpdate(sql);
+        } catch (Throwable throwable) {
+            logger.error("Error execute SQL: {}", sql);
+            throw throwable;
+        }
     }
 
     public boolean hasBufferedValues() {

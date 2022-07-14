@@ -4,6 +4,7 @@
 #
 
 import logging
+import math
 import sys
 import time
 import os
@@ -42,6 +43,7 @@ def get_connection():
 
 
 # ANCHOR: read
+
 def run_read_task(task_id: int, task_queues: List[Queue]):
     table_count_per_task = TABLE_COUNT // READ_TASK_COUNT
     data_source = MockDataSource(f"tb{task_id}", table_count_per_task)
@@ -149,7 +151,8 @@ def main():
 
     # create read processes
     for i in range(READ_TASK_COUNT):
-        p = Process(target=run_read_task, args=(i, task_queues))
+        queues = assign_queues(i, task_queues)
+        p = Process(target=run_read_task, args=(i, queues))
         p.start()
         logging.debug(f"ReadTask-{i} started with pid {p.pid}")
         read_processes.append(p)
@@ -161,6 +164,16 @@ def main():
         [p.terminate() for p in read_processes]
         [p.terminate() for p in write_processes]
         [q.close() for q in task_queues]
+
+
+def assign_queues(read_task_id, task_queues):
+    """
+    Compute target queues for a specific read task.
+    """
+    ratio = WRITE_TASK_COUNT / READ_TASK_COUNT
+    from_index = math.floor(read_task_id * ratio)
+    end_index = math.ceil((read_task_id + 1) * ratio)
+    return task_queues[from_index:end_index]
 
 
 if __name__ == '__main__':
