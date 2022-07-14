@@ -17,10 +17,10 @@ sql use test
 sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
-sql create stream streams1 trigger at_once  into streamt as select  _wstartts, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s) sliding (5s);
-sql create stream streams2 trigger at_once  watermark 1d into streamt2 as select  _wstartts, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s) sliding (5s);
-sql create stream stream_t1 trigger at_once  into streamtST as select  _wstartts, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s) sliding (5s);
-sql create stream stream_t2 trigger at_once watermark 1d into streamtST2 as select  _wstartts, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s) sliding (5s);
+sql create stream streams1 trigger at_once  into streamt as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s) sliding (5s);
+sql create stream streams2 trigger at_once  watermark 1d into streamt2 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s) sliding (5s);
+sql create stream stream_t1 trigger at_once  into streamtST as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s) sliding (5s);
+sql create stream stream_t2 trigger at_once watermark 1d into streamtST2 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s) sliding (5s);
 
 sql insert into t1 values(1648791210000,1,2,3,1.0);
 sql insert into t1 values(1648791216000,2,2,3,1.1);
@@ -239,5 +239,131 @@ if $data32 != 6 then
   goto loop0
 endi
 
+print step 4
+
+sql create database test1 vgroups 1
+sql use test1
+sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+sql create stream streams11 trigger at_once  into streamt as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s, 5s);
+sql create stream streams12 trigger at_once  into streamt2 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s, 5s);
+
+sql insert into t1 values(1648791213000,1,2,3,1.0);
+sql insert into t1 values(1648791223001,2,2,3,1.1);
+sql insert into t1 values(1648791233002,3,2,3,2.1);
+sql insert into t1 values(1648791243003,4,2,3,3.1);
+sql insert into t1 values(1648791213004,4,2,3,4.1);
+
+sql insert into t2 values(1648791213000,1,2,3,1.0);
+sql insert into t2 values(1648791223001,2,2,3,1.1);
+sql insert into t2 values(1648791233002,3,2,3,2.1);
+sql insert into t2 values(1648791243003,4,2,3,3.1);
+sql insert into t2 values(1648791213004,4,2,3,4.1);
+
+$loop_count = 0
+
+loop1:
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt
+
+# row 0
+if $data01 != 2 then
+  print =====data01=$data01
+  goto loop1
+endi
+
+if $data02 != 5 then
+  print =====data02=$data02
+  goto loop1
+endi
+
+# row 1
+if $data11 != 1 then
+  print =====data11=$data11
+  goto loop1
+endi
+
+if $data12 != 2 then
+  print =====data12=$data12
+  goto loop1
+endi
+
+# row 2
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop1
+endi
+
+if $data22 != 3 then
+  print =====data22=$data22
+  goto loop1
+endi
+
+# row 3
+if $data31 != 1 then
+  print =====data31=$data31
+  goto loop1
+endi
+
+if $data32 != 4 then
+  print =====data32=$data32
+  goto loop1
+endi
+
+print step 5
+
+sql select * from streamt2
+
+# row 0
+if $data01 != 4 then
+  print =====data01=$data01
+  goto loop1
+endi
+
+if $data02 != 10 then
+  print =====data02=$data02
+  goto loop1
+endi
+
+# row 1
+if $data11 != 2 then
+  print =====data11=$data11
+  goto loop1
+endi
+
+if $data12 != 4 then
+  print =====data12=$data12
+  goto loop1
+endi
+
+# row 2
+if $data21 != 2 then
+  print =====data21=$data21
+  goto loop1
+endi
+
+if $data22 != 6 then
+  print =====data22=$data22
+  goto loop1
+endi
+
+# row 3
+if $data31 != 2 then
+  print =====data31=$data31
+  goto loop1
+endi
+
+if $data32 != 8 then
+  print =====data32=$data32
+  goto loop1
+endi
 
 system sh/stop_dnodes.sh

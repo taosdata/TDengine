@@ -22,7 +22,10 @@ extern "C" {
 
 #if defined(_TD_DARWIN_64)
   // specific
+#ifndef __COMPAR_FN_T
+#define __COMPAR_FN_T
   typedef int(*__compar_fn_t)(const void *, const void *);
+#endif
 
   // for send function in tsocket.c
   #if defined(MSG_NOSIGNAL)
@@ -41,7 +44,10 @@ extern "C" {
 #endif
 
 #if defined(_ALPINE)
+#ifndef __COMPAR_FN_T
+#define __COMPAR_FN_T
   typedef int(*__compar_fn_t)(const void *, const void *);
+#endif
   void  error (int, int, const char *);
   #ifndef PTHREAD_MUTEX_RECURSIVE_NP
     #define  PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
@@ -54,7 +60,10 @@ extern "C" {
   char *stpncpy (char *dest, const char *src, size_t n);
 
   // specific
+#ifndef __COMPAR_FN_T
+#define __COMPAR_FN_T
   typedef int (*__compar_fn_t)(const void *, const void *);
+#endif
   #define ssize_t int
   #define _SSIZE_T_
   #define bzero(ptr, size) memset((ptr), 0, (size))
@@ -69,7 +78,6 @@ extern "C" {
   char *     strsep(char **stringp, const char *delim);
   char *     getpass(const char *prefix);
   char *     strndup(const char *s, size_t n);
-  int        gettimeofday(struct timeval *ptv, void *pTimeZone);
 
   // for send function in tsocket.c
   #define MSG_NOSIGNAL             0

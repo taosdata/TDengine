@@ -38,8 +38,6 @@ while $i < $tbNum
   $i = $i + 1
 endw 
 
-sleep 100
-
 print =============== step2
 $i = 1
 $tb = $tbPrefix . $i
@@ -53,6 +51,7 @@ endi
 print =============== step3
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
+print select last_row(tbcol) from $tb where ts <= $ms
 sql select last_row(tbcol) from $tb where ts <= $ms
 print ===> $data00
 if $data00 != 4 then 
@@ -97,8 +96,6 @@ print ===> $data00
 if $data00 != 4 then 
   return -1
 endi
-
-
 
 print =============== step10
 sql select last_row(tbcol) as b from $mt group by tgcol
