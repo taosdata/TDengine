@@ -52,13 +52,22 @@
 ./test.sh -f tsim/import/replica1.sim
 
 # ---- insert
+./test.sh -f tsim/insert/backquote.sim
+./test.sh -f tsim/insert/basic.sim
 ./test.sh -f tsim/insert/basic0.sim
 ./test.sh -f tsim/insert/basic1.sim
-./test.sh -f tsim/insert/backquote.sim
-./test.sh -f tsim/insert/null.sim
-./test.sh -f tsim/insert/update0.sim
 ./test.sh -f tsim/insert/commit-merge0.sim
+./test.sh -f tsim/insert/insert_drop.sim
 ./test.sh -f tsim/insert/insert_select.sim
+./test.sh -f tsim/insert/null.sim
+./test.sh -f tsim/insert/query_block1_file.sim
+./test.sh -f tsim/insert/query_block1_memory.sim
+./test.sh -f tsim/insert/query_block2_file.sim
+./test.sh -f tsim/insert/query_block2_memory.sim
+./test.sh -f tsim/insert/query_file_memory.sim
+./test.sh -f tsim/insert/query_multi_file.sim
+#./test.sh -f tsim/insert/tcp.sim
+./test.sh -f tsim/insert/update0.sim
 
 # ---- parser
 ./test.sh -f tsim/parser/groupby-basic.sim
