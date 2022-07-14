@@ -18,7 +18,6 @@
             "name": "dbtest123",
             "drop": "yes",
             "replica": 1,
-            "days": 10,
             "cache": 50,
             "blocks": 8,
             "precision": "ms",

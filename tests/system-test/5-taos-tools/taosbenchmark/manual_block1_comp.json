@@ -17,7 +17,6 @@
             "name": "db",
             "drop": "no",                
             "replica": 1,
-            "days": 10,
             "cache": 16,
             "blocks": 3,
             "precision": "ms",
