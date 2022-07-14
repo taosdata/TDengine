@@ -120,6 +120,7 @@ class TestInsert(TDCase):
         if result.failed:
             # self.logger.error(str(result))
             self.logger.error("cmd [{}] failed on [{}]".format(cmd, config_dict["HOST"]))
+            self.logger.error("cmd [{}] exit code: [{}]".format(cmd, result.exited))
             return False
         else:
             self.logger.info("cmd [{}] succeed on [{}]".format(cmd, config_dict["HOST"]))
