@@ -1781,9 +1781,9 @@ bool saveSendInfo(int64_t rpcRid, void** ppContext, void** ppConn, void** ppFdOb
     *ppContext = pContext;
   if (ppConn)
     *ppConn    = pContext->pConn;
-  if (ppFdObj)
+  if (ppFdObj && pContext->pConn)
     *ppFdObj   = pContext->pConn->chandle;
-  if (pFd)
+  if (pFd && pContext->pConn && pContext->pConn->chandle)
     *pFd       = taosGetFdID(pContext->pConn->chandle);
 
   taosReleaseRef(tsRpcRefId, rpcRid);
