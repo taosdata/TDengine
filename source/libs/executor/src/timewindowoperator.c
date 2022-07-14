@@ -1537,7 +1537,6 @@ void destroyStreamFinalIntervalOperatorInfo(void* param, int32_t numOfOutput) {
     for (int32_t i = 0; i < size; i++) {
       SOperatorInfo* pChildOp = taosArrayGetP(pInfo->pChildren, i);
       destroyStreamFinalIntervalOperatorInfo(pChildOp->info, numOfOutput);
-      /*taosMemoryFreeClear(pChildOp->info);*/
       taosMemoryFreeClear(pChildOp);
     }
   }

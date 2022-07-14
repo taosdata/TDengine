@@ -39,7 +39,7 @@ static int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capac
 static int32_t buildDbTableInfoBlock(const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta, size_t size,
                                      const char* dbName);
 
-static bool    processBlockWithProbability(const SSampleExecInfo* pInfo);
+static bool processBlockWithProbability(const SSampleExecInfo* pInfo);
 
 bool processBlockWithProbability(const SSampleExecInfo* pInfo) {
 #if 0
@@ -1178,10 +1178,9 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     for (int32_t j = 0; j < blockDataGetNumOfCols(pBlock); ++j) {
       SColumnInfoData* pResCol = bdGetColumnInfoData(pBlock, j);
       if (pResCol->info.colId == pColMatchInfo->colId) {
-
         SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId);
         colDataAssign(pDst, pResCol, pBlock->info.rows, &pInfo->pRes->info);
-//        taosArraySet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId, pResCol);
+        //        taosArraySet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId, pResCol);
         colExists = true;
         break;
       }
@@ -1201,14 +1200,14 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     int32_t code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
                                           GET_TASKID(pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
-      blockDataFreeRes((SSDataBlock*) pBlock);
+      blockDataFreeRes((SSDataBlock*)pBlock);
       longjmp(pTaskInfo->env, code);
     }
   }
 
   doFilter(pInfo->pCondition, pInfo->pRes);
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
-  blockDataFreeRes((SSDataBlock*) pBlock);
+  blockDataFreeRes((SSDataBlock*)pBlock);
   return 0;
 }
 
@@ -1444,7 +1443,7 @@ SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
 
 static void destroyStreamScanOperatorInfo(void* param, int32_t numOfOutput) {
   SStreamScanInfo* pStreamScan = (SStreamScanInfo*)param;
-#if 0
+#if 1
   if (pStreamScan->pTableScanOp && pStreamScan->pTableScanOp->info) {
     STableScanInfo* pTableScanInfo = pStreamScan->pTableScanOp->info;
     destroyTableScanOperatorInfo(pTableScanInfo, 1);
@@ -1456,6 +1455,7 @@ static void destroyStreamScanOperatorInfo(void* param, int32_t numOfOutput) {
   if (pStreamScan->pColMatchInfo) {
     taosArrayDestroy(pStreamScan->pColMatchInfo);
   }
+  updateInfoDestroy(pStreamScan->pUpdateInfo);
   blockDataDestroy(pStreamScan->pRes);
   blockDataDestroy(pStreamScan->pUpdateRes);
   blockDataDestroy(pStreamScan->pPullDataRes);
