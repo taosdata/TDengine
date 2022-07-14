@@ -560,6 +560,7 @@ typedef struct SFillOperatorInfo {
   SNode*            pCondition;
   SArray*           pColMatchColInfo;
   int32_t           primaryTsCol;
+  uint64_t          curGroupId;       // current handled group id
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {

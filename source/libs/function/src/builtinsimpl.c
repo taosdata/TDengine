@@ -6026,8 +6026,6 @@ int32_t lastrowFunction(SqlFunctionCtx* pCtx) {
       }
 
       pInfo->ts = cts;
-      pResInfo->numOfRes = 1;
-
       if (pCtx->subsidiaries.num > 0) {
         STuplePos* pTuplePos = (STuplePos*)(pInfo->buf + bytes + sizeof(TSKEY));
         if (!pInfo->hasResult) {

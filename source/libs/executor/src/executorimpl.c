@@ -1637,8 +1637,6 @@ static int32_t compressQueryColData(SColumnInfoData* pColRes, int32_t numOfRows,
 
 int32_t doFillTimeIntervalGapsInResults(struct SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t capacity) {
   int32_t numOfRows = (int32_t)taosFillResultDataBlock(pFillInfo, pBlock, capacity - pBlock->info.rows);
-  pBlock->info.rows += numOfRows;
-
   return pBlock->info.rows;
 }
 
@@ -3344,14 +3342,15 @@ static void doHandleRemainBlockForNewGroupImpl(SFillOperatorInfo* pInfo, SResult
   taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->existNewGroupBlock);
 
   doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pInfo->pRes, pResultInfo->capacity);
+  pInfo->curGroupId = pInfo->existNewGroupBlock->info.groupId;
   pInfo->existNewGroupBlock = NULL;
-  *newgroup = true;
+//  *newgroup = true;
 }
 
 static void doHandleRemainBlockFromNewGroup(SFillOperatorInfo* pInfo, SResultInfo* pResultInfo, bool* newgroup,
                                             SExecTaskInfo* pTaskInfo) {
   if (taosFillHasMoreResults(pInfo->pFillInfo)) {
-    *newgroup = false;
+//    *newgroup = false;
     doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pInfo->pRes, (int32_t)pResultInfo->capacity);
     if (pInfo->pRes->info.rows > pResultInfo->threshold || (!pInfo->multigroupResult)) {
       return;
@@ -3373,10 +3372,7 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
 
   blockDataCleanup(pResBlock);
 
-  // todo handle different group data interpolation
-  bool  n = false;
-  bool* newgroup = &n;
-  doHandleRemainBlockFromNewGroup(pInfo, pResultInfo, newgroup, pTaskInfo);
+  doHandleRemainBlockFromNewGroup(pInfo, pResultInfo, NULL, pTaskInfo);
   if (pResBlock->info.rows > pResultInfo->threshold || (!pInfo->multigroupResult && pResBlock->info.rows > 0)) {
     return pResBlock;
   }
@@ -3384,31 +3380,29 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   SOperatorInfo* pDownstream = pOperator->pDownstream[0];
   while (1) {
     SSDataBlock* pBlock = pDownstream->fpSet.getNextFn(pDownstream);
-    if (*newgroup) {
-      assert(pBlock != NULL);
-    }
+    if (pBlock == NULL) {
+      if (pInfo->totalInputRows == 0) {
+        pOperator->status = OP_EXEC_DONE;
+        return NULL;
+      }
 
-    blockDataUpdateTsWindow(pBlock, pInfo->primaryTsCol);
-
-    if (*newgroup && pInfo->totalInputRows > 0) {  // there are already processed current group data block
-      pInfo->existNewGroupBlock = pBlock;
-      *newgroup = false;
-
-      // Fill the previous group data block, before handle the data block of new group.
-      // Close the fill operation for previous group data block
       taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
     } else {
-      if (pBlock == NULL) {
-        if (pInfo->totalInputRows == 0) {
-          pOperator->status = OP_EXEC_DONE;
-          return NULL;
-        }
+      blockDataUpdateTsWindow(pBlock, pInfo->primaryTsCol);
 
-        taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
-      } else {
+      if (pInfo->curGroupId == 0 || pInfo->curGroupId == pBlock->info.groupId) {
+        pInfo->curGroupId = pBlock->info.groupId;   // the first data block
+
         pInfo->totalInputRows += pBlock->info.rows;
+
         taosFillSetStartInfo(pInfo->pFillInfo, pBlock->info.rows, pBlock->info.window.ekey);
         taosFillSetInputDataBlock(pInfo->pFillInfo, pBlock);
+      } else if (pInfo->curGroupId != pBlock->info.groupId) { // the new group data block
+        pInfo->existNewGroupBlock = pBlock;
+
+        // Fill the previous group data block, before handle the data block of new group.
+        // Close the fill operation for previous group data block
+        taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
       }
     }
 
@@ -3419,17 +3413,17 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
     if (pResBlock->info.rows > 0) {
       // 1. The result in current group not reach the threshold of output result, continue
       // 2. If multiple group results existing in one SSDataBlock is not allowed, return immediately
-      if (pResBlock->info.rows > pResultInfo->threshold || pBlock == NULL || (!pInfo->multigroupResult)) {
+      if (pResBlock->info.rows > pResultInfo->threshold || pBlock == NULL || pInfo->existNewGroupBlock != NULL) {
         return pResBlock;
       }
 
-      doHandleRemainBlockFromNewGroup(pInfo, pResultInfo, newgroup, pTaskInfo);
-      if (pResBlock->info.rows > pOperator->resultInfo.threshold || pBlock == NULL) {
+      doHandleRemainBlockFromNewGroup(pInfo, pResultInfo, NULL, pTaskInfo);
+      if (pResBlock->info.rows >= pOperator->resultInfo.threshold || pBlock == NULL) {
         return pResBlock;
       }
     } else if (pInfo->existNewGroupBlock) {  // try next group
       assert(pBlock != NULL);
-      doHandleRemainBlockForNewGroupImpl(pInfo, pResultInfo, newgroup, pTaskInfo);
+      doHandleRemainBlockForNewGroupImpl(pInfo, pResultInfo, NULL, pTaskInfo);
       if (pResBlock->info.rows > pResultInfo->threshold) {
         return pResBlock;
       }
