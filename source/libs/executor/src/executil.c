@@ -191,6 +191,7 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
 
   pBlock->info.blockId = pNode->dataBlockId;
   pBlock->info.type = STREAM_INVALID;
+  pBlock->info.calWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SSlotDescNode* pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
@@ -306,7 +307,6 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   SNode* pTagIndexCond = (SNode*)pListInfo->pTagIndexCond;
   if (pScanNode->tableType == TSDB_SUPER_TABLE) {
     if (pTagIndexCond) {
-      ///<<<<<<< HEAD
       SIndexMetaArg metaArg = {
           .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = tsdbGetIvtIdx(metaHandle), .suid = tableUid};
 
@@ -314,20 +314,9 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       SIdxFltStatus status = SFLT_NOT_INDEX;
       code = doFilterTag(pTagIndexCond, &metaArg, res, &status);
       if (code != 0 || status == SFLT_NOT_INDEX) {
-        code = TSDB_CODE_INDEX_REBUILDING;
-      }
-      //=======
-      //      SArray* res = taosArrayInit(8, sizeof(uint64_t));
-      //      // code = doFilterTag(pTagIndexCond, &metaArg, res);
-      //      code = TSDB_CODE_INDEX_REBUILDING;
-      //>>>>>>> dvv
-      if (code == TSDB_CODE_INDEX_REBUILDING) {
+        qError("failed to get tableIds from index, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
+//        code = TSDB_CODE_INDEX_REBUILDING;
         code = vnodeGetAllTableList(pVnode, tableUid, pListInfo->pTableList);
-      } else if (code != TSDB_CODE_SUCCESS) {
-        qError("failed to get tableIds, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
-        taosArrayDestroy(res);
-        terrno = code;
-        return code;
       } else {
         qDebug("success to get tableIds, size:%d, suid:%" PRIu64, (int)taosArrayGetSize(res), tableUid);
       }
@@ -346,23 +335,23 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       terrno = code;
       return code;
     }
-
-    if (pTagCond) {
-      int32_t i = 0;
-      while (i < taosArrayGetSize(pListInfo->pTableList)) {
-        STableKeyInfo* info = taosArrayGet(pListInfo->pTableList, i);
-        bool           isOk = isTableOk(info, pTagCond, metaHandle);
-        if (terrno) return terrno;
-        if (!isOk) {
-          taosArrayRemove(pListInfo->pTableList, i);
-          continue;
-        }
-        i++;
-      }
-    }
   } else {  // Create one table group.
     STableKeyInfo info = {.lastKey = 0, .uid = tableUid, .groupId = 0};
     taosArrayPush(pListInfo->pTableList, &info);
+  }
+
+  if (pTagCond) {
+    int32_t i = 0;
+    while (i < taosArrayGetSize(pListInfo->pTableList)) {
+      STableKeyInfo* info = taosArrayGet(pListInfo->pTableList, i);
+      bool           isOk = isTableOk(info, pTagCond, metaHandle);
+      if (terrno) return terrno;
+      if (!isOk) {
+        taosArrayRemove(pListInfo->pTableList, i);
+        continue;
+      }
+      i++;
+    }
   }
 
   pListInfo->pGroupList = taosArrayInit(4, POINTER_BYTES);
@@ -852,6 +841,9 @@ static STimeWindow doCalculateTimeWindow(int64_t ts, SInterval* pInterval) {
     w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
   } else {
     int64_t st = w.skey;
+    if (pInterval->offset > 0) {
+      st = taosTimeAdd(st, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+    }
 
     if (st > ts) {
       st -= ((st - ts + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;

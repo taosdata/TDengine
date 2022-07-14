@@ -22,34 +22,35 @@ typedef struct SLastrowReader {
   SVnode*   pVnode;
   STSchema* pSchema;
   uint64_t  uid;
-  //  int32_t*  pSlotIds;
-  char**  transferBuf;  // todo remove it soon
-  int32_t numOfCols;
-  int32_t type;
-  int32_t tableIndex;  // currently returned result tables
-  SArray* pTableList;  // table id list
+  char**    transferBuf;  // todo remove it soon
+  int32_t   numOfCols;
+  int32_t   type;
+  int32_t   tableIndex;  // currently returned result tables
+  SArray*   pTableList;  // table id list
 } SLastrowReader;
 
 static void saveOneRow(STSRow* pRow, SSDataBlock* pBlock, SLastrowReader* pReader, const int32_t* slotIds) {
+  ASSERT(pReader->numOfCols <= taosArrayGetSize(pBlock->pDataBlock));
   int32_t numOfRows = pBlock->info.rows;
-  size_t  numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 
   SColVal colVal = {0};
-  for (int32_t i = 0; i < numOfCols; ++i) {
+  for (int32_t i = 0; i < pReader->numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
     if (slotIds[i] == -1) {
       colDataAppend(pColInfoData, numOfRows, (const char*)&pRow->ts, false);
     } else {
-      tTSRowGetVal(pRow, pReader->pSchema, slotIds[i], &colVal);
+      int32_t slotId = slotIds[i];
+
+      tTSRowGetVal(pRow, pReader->pSchema, slotId, &colVal);
 
       if (IS_VAR_DATA_TYPE(colVal.type)) {
         if (colVal.isNull || colVal.isNone) {
           colDataAppendNULL(pColInfoData, numOfRows);
         } else {
-          varDataSetLen(pReader->transferBuf[i], colVal.value.nData);
-          memcpy(varDataVal(pReader->transferBuf[i]), colVal.value.pData, colVal.value.nData);
-          colDataAppend(pColInfoData, numOfRows, pReader->transferBuf[i], false);
+          varDataSetLen(pReader->transferBuf[slotId], colVal.value.nData);
+          memcpy(varDataVal(pReader->transferBuf[slotId]), colVal.value.pData, colVal.value.nData);
+          colDataAppend(pColInfoData, numOfRows, pReader->transferBuf[slotId], false);
         }
       } else {
         colDataAppend(pColInfoData, numOfRows, (const char*)&colVal.value, colVal.isNull || colVal.isNone);
@@ -60,8 +61,7 @@ static void saveOneRow(STSRow* pRow, SSDataBlock* pBlock, SLastrowReader* pReade
   pBlock->info.rows += 1;
 }
 
-int32_t tsdbLastRowReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList, int32_t* colId, int32_t numOfCols,
-                              void** pReader) {
+int32_t tsdbLastRowReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList, int32_t numOfCols, void** pReader) {
   SLastrowReader* p = taosMemoryCalloc(1, sizeof(SLastrowReader));
   if (p == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -70,13 +70,18 @@ int32_t tsdbLastRowReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList, 
   p->type = type;
   p->pVnode = pVnode;
   p->numOfCols = numOfCols;
-  p->transferBuf = taosMemoryCalloc(p->numOfCols, POINTER_BYTES);
+
+  if (taosArrayGetSize(pTableIdList) == 0) {
+    *pReader = p;
+    return TSDB_CODE_SUCCESS;
+  }
 
   STableKeyInfo* pKeyInfo = taosArrayGet(pTableIdList, 0);
   p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, pKeyInfo->uid, -1);
   p->pTableList = pTableIdList;
 
-  for (int32_t i = 0; i < p->numOfCols; ++i) {
+  p->transferBuf = taosMemoryCalloc(p->pSchema->numOfCols, POINTER_BYTES);
+  for (int32_t i = 0; i < p->pSchema->numOfCols; ++i) {
     if (IS_VAR_DATA_TYPE(p->pSchema->columns[i].type)) {
       p->transferBuf[i] = taosMemoryMalloc(p->pSchema->columns[i].bytes);
     }
@@ -89,16 +94,20 @@ int32_t tsdbLastRowReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList, 
 int32_t tsdbLastrowReaderClose(void* pReader) {
   SLastrowReader* p = pReader;
 
-  for (int32_t i = 0; i < p->numOfCols; ++i) {
-    taosMemoryFreeClear(p->transferBuf[i]);
+  if (p->pSchema != NULL) {
+    for (int32_t i = 0; i < p->pSchema->numOfCols; ++i) {
+      taosMemoryFreeClear(p->transferBuf[i]);
+    }
+
+    taosMemoryFree(p->transferBuf);
+    taosMemoryFree(p->pSchema);
   }
 
-  taosMemoryFree(p->transferBuf);
   taosMemoryFree(pReader);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t* slotIds) {
+int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t* slotIds, SArray* pTableUidList) {
   if (pReader == NULL || pResBlock == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -135,14 +144,15 @@ int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t
         // appended or not.
         if (internalResult) {
           pResBlock->info.rows -= 1;
+          taosArrayClear(pTableUidList);
         }
 
         saveOneRow(pRow, pResBlock, pr, slotIds);
+        taosArrayPush(pTableUidList, &pKeyInfo->uid);
         internalResult = true;
         lastKey = pRow->ts;
       }
 
-      // taosMemoryFree(pRow);
       tsdbCacheRelease(lruCache, h);
     }
   } else if (pr->type == LASTROW_RETRIEVE_TYPE_ALL) {
@@ -165,6 +175,7 @@ int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t
       // tsdbCacheLastArray2Row(pLast, &pRow, pr->pSchema);
 
       saveOneRow(pRow, pResBlock, pr, slotIds);
+      taosArrayPush(pTableUidList, &pKeyInfo->uid);
 
       // taosMemoryFree(pRow);
       tsdbCacheRelease(lruCache, h);

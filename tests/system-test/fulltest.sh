@@ -11,7 +11,7 @@ python3 ./test.py -f 0-others/udfTest.py
 python3 ./test.py -f 0-others/udf_create.py
 python3 ./test.py -f 0-others/udf_restart_taosd.py
 python3 ./test.py -f 0-others/cachelast.py
-
+python3 ./test.py -f 0-others/sysinfo.py
 python3 ./test.py -f 0-others/user_control.py
 python3 ./test.py -f 0-others/fsync.py
 
@@ -21,7 +21,7 @@ python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
 python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
 python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
 python3 ./test.py -f 1-insert/alter_stable.py
-#python3 ./test.py -f 1-insert/alter_table.py
+python3 ./test.py -f 1-insert/alter_table.py
 python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
 python3 ./test.py -f 1-insert/table_comment.py
 python3 ./test.py -f 1-insert/time_range_wise.py
@@ -178,6 +178,9 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
 python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
 #python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
+#python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
+python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb.py
+#python3 ./test.py -f 7-tmq/tmqDelete-1ctb.py
 
 #------------querPolicy  2-----------
 

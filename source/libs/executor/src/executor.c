@@ -60,8 +60,6 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         taosArrayAddAll(p->pDataBlock, pDataBlock->pDataBlock);
         taosArrayPush(pInfo->pBlockLists, &p);
       }
-      /*} else if (type == STREAM_INPUT__TABLE_SCAN) {*/
-      /*ASSERT(pInfo->blockType == STREAM_INPUT__TABLE_SCAN);*/
     } else {
       ASSERT(0);
     }
@@ -104,6 +102,30 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
   }
 
   return code;
+}
+
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers) {
+  if (msg == NULL) {
+    // TODO create raw scan
+    return NULL;
+  }
+
+  struct SSubplan* plan = NULL;
+  int32_t          code = qStringToSubplan(msg, &plan);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return NULL;
+  }
+
+  qTaskInfo_t pTaskInfo = NULL;
+  code = qCreateExecTask(readers, 0, 0, plan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_QUEUE);
+  if (code != TSDB_CODE_SUCCESS) {
+    // TODO: destroy SSubplan & pTaskInfo
+    terrno = code;
+    return NULL;
+  }
+
+  return pTaskInfo;
 }
 
 qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers) {
@@ -186,7 +208,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
 }
 
 int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion,
-                                      int32_t* tversion) {
+                                    int32_t* tversion) {
   ASSERT(tinfo != NULL && dbName != NULL && tableName != NULL);
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 

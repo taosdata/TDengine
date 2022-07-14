@@ -371,7 +371,7 @@ class TMQCom:
             elif (i % 3 == 0):
                 tagBinaryValue = 'changsha'
                 
-            sql += " %s.%s_%d using %s.%s tags (%d, %d, %d, '%s', '%s') values "%(dbName,ctbPrefix,i+ctbStartIdx,dbName,stbName,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx,tagBinaryValue,tagBinaryValue)
+            sql += " %s.%s%d using %s.%s tags (%d, %d, %d, '%s', '%s') values "%(dbName,ctbPrefix,i+ctbStartIdx,dbName,stbName,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx,tagBinaryValue,tagBinaryValue)
             for j in range(rowsPerTbl):
                 sql += "(%d, %d, %d, %d, 'binary_%d', 'nchar_%d', now) "%(startTs+j, j,j, j,i+ctbStartIdx,rowsBatched)
                 rowsBatched += 1
@@ -379,7 +379,7 @@ class TMQCom:
                     tsql.execute(sql)
                     rowsBatched = 0
                     if j < rowsPerTbl - 1:
-                        sql = "insert into %s.%s_%d using %s.%s tags (%d, %d, %d, '%s', '%s') values " %(dbName,ctbPrefix,i+ctbStartIdx,dbName,stbName,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx,tagBinaryValue,tagBinaryValue)
+                        sql = "insert into %s.%s%d using %s.%s tags (%d, %d, %d, '%s', '%s') values " %(dbName,ctbPrefix,i+ctbStartIdx,dbName,stbName,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx,tagBinaryValue,tagBinaryValue)
                     else:
                         sql = "insert into "
         #end sql
@@ -444,6 +444,7 @@ class TMQCom:
         
         # skip first line for it is schema
         queryFile.readline()
+        
         lines = 0
         while True:
             dst = queryFile.readline()

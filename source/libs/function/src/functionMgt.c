@@ -183,6 +183,8 @@ bool fmIsSystemInfoFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, 
 
 bool fmIsImplicitTsFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_IMPLICIT_TS_FUNC); }
 
+bool fmIsClientPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CLIENT_PC_FUNC); }
+
 bool fmIsInterpFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
@@ -227,8 +229,8 @@ bool fmIsInvertible(int32_t funcId) {
     case FUNCTION_TYPE_SUM:
     case FUNCTION_TYPE_STDDEV:
     case FUNCTION_TYPE_AVG:
-    case FUNCTION_TYPE_WSTARTTS:
-    case FUNCTION_TYPE_WENDTS:
+    case FUNCTION_TYPE_WSTART:
+    case FUNCTION_TYPE_WEND:
     case FUNCTION_TYPE_WDURATION:
       res = true;
       break;

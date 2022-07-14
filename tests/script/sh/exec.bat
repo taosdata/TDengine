@@ -77,7 +77,10 @@ goto :eof
 :check_offline
 sleep 1
 for /f "tokens=2" %%C in ('wmic process where "name='taosd.exe' and CommandLine like '%%%NODE_NAME%%%'" get processId ^| xargs echo') do (
-  echo check taosd offline
-  goto :check_offline
+  for /f "tokens=1" %%D in ('ps ^| grep %%C') do (
+    echo kill -INT %%D
+    echo check taosd offline %NODE_NAME% %%C %%D
+    goto :check_offline
+  )
 )
 goto :eof

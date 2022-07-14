@@ -50,7 +50,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, None)
         tdSql.checkData(1, 0, None)
 
-        tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
+        tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double,
                     col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
         tdSql.execute("create table stb_1 using stb tags('beijing')")
         tdSql.execute(
@@ -115,7 +115,7 @@ class TDTestCase:
         tdSql.query("select diff(col6) from stb_1")
         tdSql.checkRows(10)
 
-        tdSql.execute('''create table stb1(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
+        tdSql.execute('''create table stb1(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double,
                     col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
         tdSql.execute("create table stb1_1 using stb tags('shanghai')")
 

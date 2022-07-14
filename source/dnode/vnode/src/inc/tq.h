@@ -89,8 +89,6 @@ typedef struct {
     STqExecTb  execTb;
     STqExecDb  execDb;
   };
-  // TODO remove it
-  int64_t tsdbEndVer;
 
 } STqExecHandle;
 
@@ -100,6 +98,8 @@ typedef struct {
   int64_t consumerId;
   int32_t epoch;
   int8_t  fetchMeta;
+
+  int64_t snapshotVer;
 
   // TODO remove
   SWalReader* pWalReader;
@@ -131,7 +131,7 @@ typedef struct {
 static STqMgmt tqMgmt = {0};
 
 // tqRead
-int64_t tqScan(STQ* pTq, const STqExecHandle* pExec, SMqDataRsp* pRsp, STqOffsetVal* offset);
+int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* offset);
 int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** pHeadWithCkSum);
 
 // tqExec
