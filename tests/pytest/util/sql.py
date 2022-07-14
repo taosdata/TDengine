@@ -283,16 +283,27 @@ class TDSql:
                 time.sleep(1)
                 continue
 
-    def execute(self, sql):
+    def execute(self, sql,queyTimes=10):
         self.sql = sql
-        try:
-            self.affectedRows = self.cursor.execute(sql)
-        except Exception as e:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, sql, repr(e))
-            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
-            raise Exception(repr(e))
-        return self.affectedRows
+        i=1
+        while i <= queyTimes:
+            try:
+                self.affectedRows = self.cursor.execute(sql)
+                return self.affectedRows
+            except Exception as e:
+                i+=1
+                tdLog.notice("Try to execute sql again, query times: %d "%i)
+                pass
+        else:               
+            try:
+                tdLog.notice("Try the last execute sql ")
+                self.affectedRows = self.cursor.execute(sql)
+                return self.affectedRows
+            except Exception as e:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                args = (caller.filename, caller.lineno, sql, repr(e))
+                tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+                raise Exception(repr(e))
 
     def checkAffectedRows(self, expectAffectedRows):
         if self.affectedRows != expectAffectedRows:
