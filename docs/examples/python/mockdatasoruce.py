@@ -3,11 +3,11 @@ import time
 
 class MockDataSource:
     samples = [
-        "LosAngeles,0,8.8,119,0.32",
-        "SanDiego,1,10.7,116,0.34",
-        "Hollywood,2,9.9,111,0.33",
-        "Compton,3,8.9,113,0.329",
-        "San Francisco,4,9.4,118,0.141"
+        "8.8,119,0.32,LosAngeles,0",
+        "10.7,116,0.34,SanDiego,1",
+        "9.9,111,0.33,Hollywood,2",
+        "8.9,113,0.329,Compton,3",
+        "9.4,118,0.141,San Francisco,4"
     ]
 
     def __init__(self, tb_name_prefix, table_count):
@@ -22,7 +22,7 @@ class MockDataSource:
         data = []
         for i in range(self.table_count):
             table_name = self.table_name_prefix + str(i)
-            # tbName,location,groupId,current,voltage,phase
+            # tbName,current,voltage,phase,location,groupId
             row = table_name + ',' + lines[i]
             data.append((i, row))  # tableId, row
         return data

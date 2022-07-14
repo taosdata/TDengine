@@ -139,12 +139,14 @@ def main():
     for i in range(WRITE_TASK_COUNT):
         queue = Queue(max_size_bytes=QUEUE_SIZE)
         task_queues.append(queue)
+
     # create write processes
     for i in range(WRITE_TASK_COUNT):
         p = Process(target=run_write_task, args=(i, task_queues[i]))
         p.start()
         logging.debug(f"WriteTask-{i} started with pid {p.pid}")
         write_processes.append(p)
+
     # create read processes
     for i in range(READ_TASK_COUNT):
         p = Process(target=run_read_task, args=(i, task_queues))
