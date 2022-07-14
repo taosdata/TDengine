@@ -853,6 +853,9 @@ static STimeWindow doCalculateTimeWindow(int64_t ts, SInterval* pInterval) {
     w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
   } else {
     int64_t st = w.skey;
+    if (pInterval->offset > 0) {
+      st = taosTimeAdd(st, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+    }
 
     if (st > ts) {
       st -= ((st - ts + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
