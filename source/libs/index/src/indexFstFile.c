@@ -106,12 +106,6 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
     blkLeft = kBlockSize - blkOffset;
 
   } while (len > 0);
-
-#ifdef USE_MMAP
-  int32_t last = ctx->file.size - offset;
-  nRead = last >= len ? len : last;
-  memcpy(buf, ctx->file.ptr + offset, nRead);
-#endif
   return total;
 }
 static int idxFileCtxGetSize(IFileCtx* ctx) {
@@ -146,8 +140,6 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
       ctx->file.pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
       taosFtruncateFile(ctx->file.pFile, 0);
       taosStatFile(path, &ctx->file.size, NULL);
-      // ctx->file.size = (int)size;
-
     } else {
       ctx->file.pFile = taosOpenFile(path, TD_FILE_READ);
 
@@ -166,6 +158,7 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
     ctx->mem.buf = taosMemoryCalloc(1, sizeof(char) * capacity);
     ctx->mem.cap = capacity;
   }
+
   ctx->write = idxFileCtxDoWrite;
   ctx->read = idxFileCtxDoRead;
   ctx->flush = idxFileCtxDoFlush;

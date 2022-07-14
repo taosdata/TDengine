@@ -753,6 +753,8 @@ static void cliHandleRelease(SCliMsg* pMsg, SCliThrd* pThrd) {
   SExHandle* exh = transAcquireExHandle(transGetRefMgt(), refId);
   if (exh == NULL) {
     tDebug("%" PRId64 " already release", refId);
+    destroyCmsg(pMsg);
+    return;
   }
 
   SCliConn* conn = exh->handle;

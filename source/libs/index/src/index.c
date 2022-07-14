@@ -113,7 +113,7 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
     ret = TSDB_CODE_OUT_OF_MEMORY;
     goto END;
   }
-  taosLRUCacheSetStrictCapacity(idx->lru, true);
+  taosLRUCacheSetStrictCapacity(idx->lru, false);
 
   idx->tindex = idxTFileCreate(idx, path);
   if (idx->tindex == NULL) {
