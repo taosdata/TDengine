@@ -5993,7 +5993,7 @@ int32_t interpFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t lastrowFunction(SqlFunctionCtx* pCtx) {
+int32_t cacheLastRowFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfElems = 0;
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
