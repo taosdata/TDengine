@@ -65,6 +65,7 @@ ulimit -c unlimited
 
 $TIMEOUT_CMD $cmd
 RET=$?
+echo "cmd exit code: $RET"
 
 if [ $RET -ne 0 ]; then
     pwd
