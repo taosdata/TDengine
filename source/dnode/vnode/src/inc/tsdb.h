@@ -135,6 +135,7 @@ int32_t tGetColData(uint8_t *p, SColData *pColData);
 int32_t   tBlockDataInit(SBlockData *pBlockData);
 void      tBlockDataReset(SBlockData *pBlockData);
 int32_t   tBlockDataSetSchema(SBlockData *pBlockData, STSchema *pTSchema);
+int32_t   tBlockDataCorrectSchema(SBlockData *pBlockData, SBlockData *pBlockDataFrom);
 void      tBlockDataClearData(SBlockData *pBlockData);
 void      tBlockDataClear(SBlockData *pBlockData, int8_t deepClear);
 int32_t   tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);

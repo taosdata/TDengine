@@ -1132,6 +1132,46 @@ _err:
   return code;
 }
 
+int32_t tBlockDataCorrectSchema(SBlockData *pBlockData, SBlockData *pBlockDataFrom) {
+  int32_t code = 0;
+
+  int32_t iColData = 0;
+  for (int32_t iColDataFrom = 0; iColDataFrom < taosArrayGetSize(pBlockDataFrom->aIdx); iColDataFrom++) {
+    SColData *pColDataFrom = tBlockDataGetColDataByIdx(pBlockDataFrom, iColDataFrom);
+
+    while (true) {
+      SColData *pColData;
+      if (iColData < taosArrayGetSize(pBlockData->aIdx)) {
+        pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
+      } else {
+        pColData = NULL;
+      }
+
+      if (pColData == NULL || pColData->cid > pColDataFrom->cid) {
+        code = tBlockDataAddColData(pBlockData, iColData, &pColData);
+        if (code) goto _exit;
+
+        tColDataInit(pColData, pColDataFrom->cid, pColData->type, pColData->smaOn);
+        for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
+          code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid, pColData->type));
+          if (code) goto _exit;
+        }
+
+        iColData++;
+        break;
+      } else if (pColData->cid == pColDataFrom->cid) {
+        iColData++;
+        break;
+      } else {
+        iColData++;
+      }
+    }
+  }
+
+_exit:
+  return code;
+}
+
 int32_t tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData) {
   int32_t code = 0;
 
