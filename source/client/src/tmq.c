@@ -1858,9 +1858,9 @@ const char* tmq_get_table_name(TAOS_RES* res) {
   return NULL;
 }
 
-tmq_raw_data* tmq_get_raw_meta(TAOS_RES* res) {
+tmq_raw_data *tmq_get_raw_meta(TAOS_RES* res) {
   if (TD_RES_TMQ_META(res)) {
-    tmq_raw_data*  raw = taosMemoryCalloc(1, sizeof(tmq_raw_data));
+    tmq_raw_data *raw = taosMemoryCalloc(1, sizeof(tmq_raw_data));
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
     raw->raw_meta = pMetaRspObj->metaRsp.metaRsp;
     raw->raw_meta_len = pMetaRspObj->metaRsp.metaRspLen;
@@ -1870,8 +1870,7 @@ tmq_raw_data* tmq_get_raw_meta(TAOS_RES* res) {
   return NULL;
 }
 
-static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, char* name, int64_t id,
-                                  int8_t t) {
+static char *buildCreateTableJson(SSchemaWrapper *schemaRow, SSchemaWrapper* schemaTag, char* name, int64_t id, int8_t t){
   char*  string = NULL;
   cJSON* json = cJSON_CreateObject();
   if (json == NULL) {
@@ -1880,32 +1879,32 @@ static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sch
   cJSON* type = cJSON_CreateString("create");
   cJSON_AddItemToObject(json, "type", type);
 
-  char uid[32] = {0};
-  sprintf(uid, "%" PRIi64, id);
-  cJSON* id_ = cJSON_CreateString(uid);
-  cJSON_AddItemToObject(json, "id", id_);
+//  char uid[32] = {0};
+//  sprintf(uid, "%"PRIi64, id);
+//  cJSON* id_ = cJSON_CreateString(uid);
+//  cJSON_AddItemToObject(json, "id", id_);
   cJSON* tableName = cJSON_CreateString(name);
   cJSON_AddItemToObject(json, "tableName", tableName);
   cJSON* tableType = cJSON_CreateString(t == TSDB_NORMAL_TABLE ? "normal" : "super");
   cJSON_AddItemToObject(json, "tableType", tableType);
-  //  cJSON* version = cJSON_CreateNumber(1);
-  //  cJSON_AddItemToObject(json, "version", version);
+//  cJSON* version = cJSON_CreateNumber(1);
+//  cJSON_AddItemToObject(json, "version", version);
 
   cJSON* columns = cJSON_CreateArray();
-  for (int i = 0; i < schemaRow->nCols; i++) {
-    cJSON*   column = cJSON_CreateObject();
-    SSchema* s = schemaRow->pSchema + i;
-    cJSON*   cname = cJSON_CreateString(s->name);
+  for(int i = 0; i < schemaRow->nCols; i++){
+    cJSON* column = cJSON_CreateObject();
+    SSchema *s = schemaRow->pSchema + i;
+    cJSON* cname = cJSON_CreateString(s->name);
     cJSON_AddItemToObject(column, "name", cname);
     cJSON* ctype = cJSON_CreateNumber(s->type);
     cJSON_AddItemToObject(column, "type", ctype);
-    if (s->type == TSDB_DATA_TYPE_BINARY) {
+    if(s->type == TSDB_DATA_TYPE_BINARY){
       int32_t length = s->bytes - VARSTR_HEADER_SIZE;
-      cJSON*  cbytes = cJSON_CreateNumber(length);
+      cJSON* cbytes = cJSON_CreateNumber(length);
       cJSON_AddItemToObject(column, "length", cbytes);
-    } else if (s->type == TSDB_DATA_TYPE_NCHAR) {
-      int32_t length = (s->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
-      cJSON*  cbytes = cJSON_CreateNumber(length);
+    }else if (s->type == TSDB_DATA_TYPE_NCHAR){
+      int32_t length = (s->bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
+      cJSON* cbytes = cJSON_CreateNumber(length);
       cJSON_AddItemToObject(column, "length", cbytes);
     }
     cJSON_AddItemToArray(columns, column);
@@ -1913,20 +1912,20 @@ static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sch
   cJSON_AddItemToObject(json, "columns", columns);
 
   cJSON* tags = cJSON_CreateArray();
-  for (int i = 0; schemaTag && i < schemaTag->nCols; i++) {
-    cJSON*   tag = cJSON_CreateObject();
-    SSchema* s = schemaTag->pSchema + i;
-    cJSON*   tname = cJSON_CreateString(s->name);
+  for(int i = 0; schemaTag && i < schemaTag->nCols; i++){
+    cJSON* tag = cJSON_CreateObject();
+    SSchema *s = schemaTag->pSchema + i;
+    cJSON* tname = cJSON_CreateString(s->name);
     cJSON_AddItemToObject(tag, "name", tname);
     cJSON* ttype = cJSON_CreateNumber(s->type);
     cJSON_AddItemToObject(tag, "type", ttype);
-    if (s->type == TSDB_DATA_TYPE_BINARY) {
+    if(s->type == TSDB_DATA_TYPE_BINARY){
       int32_t length = s->bytes - VARSTR_HEADER_SIZE;
-      cJSON*  cbytes = cJSON_CreateNumber(length);
+      cJSON* cbytes = cJSON_CreateNumber(length);
       cJSON_AddItemToObject(tag, "length", cbytes);
-    } else if (s->type == TSDB_DATA_TYPE_NCHAR) {
-      int32_t length = (s->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
-      cJSON*  cbytes = cJSON_CreateNumber(length);
+    }else if (s->type == TSDB_DATA_TYPE_NCHAR){
+      int32_t length = (s->bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
+      cJSON* cbytes = cJSON_CreateNumber(length);
       cJSON_AddItemToObject(tag, "length", cbytes);
     }
     cJSON_AddItemToArray(tags, tag);
@@ -1938,13 +1937,105 @@ static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sch
   return string;
 }
 
-static char* processCreateStb(SMqMetaRsp* metaRsp) {
+static char *buildAlterSTableJson(void* alterData, int32_t alterDataLen){
+  SMAlterStbReq  req = {0};
+  cJSON* json = NULL;
+  char*  string = NULL;
+
+  if (tDeserializeSMAlterStbReq(alterData, alterDataLen, &req) != 0) {
+    goto end;
+  }
+
+  json = cJSON_CreateObject();
+  if (json == NULL) {
+    goto end;
+  }
+  cJSON* type = cJSON_CreateString("alter");
+  cJSON_AddItemToObject(json, "type", type);
+//  cJSON* uid = cJSON_CreateNumber(id);
+//  cJSON_AddItemToObject(json, "uid", uid);
+  SName name = {0};
+  tNameFromString(&name, req.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  cJSON* tableName = cJSON_CreateString(name.tname);
+  cJSON_AddItemToObject(json, "tableName", tableName);
+  cJSON* tableType = cJSON_CreateString("super");
+  cJSON_AddItemToObject(json, "tableType", tableType);
+
+  cJSON* alterType = cJSON_CreateNumber(req.alterType);
+  cJSON_AddItemToObject(json, "alterType", alterType);
+  switch (req.alterType) {
+    case TSDB_ALTER_TABLE_ADD_TAG:
+    case TSDB_ALTER_TABLE_ADD_COLUMN: {
+      TAOS_FIELD *field = taosArrayGet(req.pFields, 0);
+      cJSON* colName = cJSON_CreateString(field->name);
+      cJSON_AddItemToObject(json, "colName", colName);
+      cJSON* colType = cJSON_CreateNumber(field->type);
+      cJSON_AddItemToObject(json, "colType", colType);
+
+      if(field->type == TSDB_DATA_TYPE_BINARY){
+        int32_t length = field->bytes - VARSTR_HEADER_SIZE;
+        cJSON* cbytes = cJSON_CreateNumber(length);
+        cJSON_AddItemToObject(json, "colLength", cbytes);
+      }else if (field->type == TSDB_DATA_TYPE_NCHAR){
+        int32_t length = (field->bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
+        cJSON* cbytes = cJSON_CreateNumber(length);
+        cJSON_AddItemToObject(json, "colLength", cbytes);
+      }
+      break;
+    }
+    case TSDB_ALTER_TABLE_DROP_TAG:
+    case TSDB_ALTER_TABLE_DROP_COLUMN:{
+      TAOS_FIELD *field = taosArrayGet(req.pFields, 0);
+      cJSON* colName = cJSON_CreateString(field->name);
+      cJSON_AddItemToObject(json, "colName", colName);
+      break;
+    }
+    case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:{
+      TAOS_FIELD *field = taosArrayGet(req.pFields, 0);
+      cJSON* colName = cJSON_CreateString(field->name);
+      cJSON_AddItemToObject(json, "colName", colName);
+      cJSON* colType = cJSON_CreateNumber(field->type);
+      cJSON_AddItemToObject(json, "colType", colType);
+      if(field->type == TSDB_DATA_TYPE_BINARY){
+        int32_t length = field->bytes - VARSTR_HEADER_SIZE;
+        cJSON* cbytes = cJSON_CreateNumber(length);
+        cJSON_AddItemToObject(json, "colLength", cbytes);
+      }else if (field->type == TSDB_DATA_TYPE_NCHAR){
+        int32_t length = (field->bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
+        cJSON* cbytes = cJSON_CreateNumber(length);
+        cJSON_AddItemToObject(json, "colLength", cbytes);
+      }
+      break;
+    }
+    case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:{
+      TAOS_FIELD *oldField = taosArrayGet(req.pFields, 0);
+      TAOS_FIELD *newField = taosArrayGet(req.pFields, 1);
+      cJSON* colName = cJSON_CreateString(oldField->name);
+      cJSON_AddItemToObject(json, "colName", colName);
+      cJSON* colNewName = cJSON_CreateString(newField->name);
+      cJSON_AddItemToObject(json, "colNewName", colNewName);
+      break;
+    }
+    default:
+      break;
+  }
+  string = cJSON_PrintUnformatted(json);
+
+  end:
+  cJSON_Delete(json);
+  tFreeSMAltertbReq(&req);
+  return string;
+}
+
+static char *processCreateStb(SMqMetaRsp *metaRsp){
   SVCreateStbReq req = {0};
   SDecoder       coder;
-  char*          string = NULL;
+  char*  string = NULL;
 
   // decode and process req
-  void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
+  void* data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
 
@@ -1955,68 +2046,95 @@ static char* processCreateStb(SMqMetaRsp* metaRsp) {
   tDecoderClear(&coder);
   return string;
 
-_err:
+  _err:
   tDecoderClear(&coder);
   return string;
 }
 
-static char* buildCreateCTableJson(STag* pTag, int64_t sid, char* name, int64_t id) {
+static char *processAlterStb(SMqMetaRsp *metaRsp){
+  SVCreateStbReq req = {0};
+  SDecoder       coder;
   char*  string = NULL;
+
+  // decode and process req
+  void* data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
+  int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
+  tDecoderInit(&coder, data, len);
+
+  if (tDecodeSVCreateStbReq(&coder, &req) < 0) {
+    goto _err;
+  }
+  string = buildAlterSTableJson(req.alterOriData, req.alterOriDataLen);
+  tDecoderClear(&coder);
+  return string;
+
+  _err:
+  tDecoderClear(&coder);
+  return string;
+}
+
+static char *buildCreateCTableJson(STag* pTag, char* sname, char* name, SArray* tagName, int64_t id){
+  char*  string = NULL;
+  SArray* pTagVals = NULL;
   cJSON* json = cJSON_CreateObject();
   if (json == NULL) {
     return string;
   }
   cJSON* type = cJSON_CreateString("create");
   cJSON_AddItemToObject(json, "type", type);
-  char cid[32] = {0};
-  sprintf(cid, "%" PRIi64, id);
-  cJSON* cid_ = cJSON_CreateString(cid);
-  cJSON_AddItemToObject(json, "id", cid_);
+//  char cid[32] = {0};
+//  sprintf(cid, "%"PRIi64, id);
+//  cJSON* cid_ = cJSON_CreateString(cid);
+//  cJSON_AddItemToObject(json, "id", cid_);
 
   cJSON* tableName = cJSON_CreateString(name);
   cJSON_AddItemToObject(json, "tableName", tableName);
   cJSON* tableType = cJSON_CreateString("child");
   cJSON_AddItemToObject(json, "tableType", tableType);
-
-  char sid_[32] = {0};
-  sprintf(sid_, "%" PRIi64, sid);
-  cJSON* using = cJSON_CreateString(sid_);
+  cJSON* using = cJSON_CreateString(sname);
   cJSON_AddItemToObject(json, "using", using);
-  //  cJSON* version = cJSON_CreateNumber(1);
-  //  cJSON_AddItemToObject(json, "version", version);
+//  cJSON* version = cJSON_CreateNumber(1);
+//  cJSON_AddItemToObject(json, "version", version);
 
   cJSON* tags = cJSON_CreateArray();
-
-  if (tTagIsJson(pTag)) {  // todo
-    char* pJson = parseTagDatatoJson(pTag);
-
-    cJSON* tag = cJSON_CreateObject();
-    cJSON* tname = cJSON_CreateString("unknown");  // todo
-    cJSON_AddItemToObject(tag, "name", tname);
-    cJSON* ttype = cJSON_CreateNumber(TSDB_DATA_TYPE_JSON);
-    cJSON_AddItemToObject(tag, "type", ttype);
-    cJSON* tvalue = cJSON_CreateString(pJson);
-    cJSON_AddItemToObject(tag, "value", tvalue);
-    cJSON_AddItemToArray(tags, tag);
-    cJSON_AddItemToObject(json, "tags", tags);
-
-    string = cJSON_PrintUnformatted(json);
-    goto end;
-  }
-
-  SArray* pTagVals = NULL;
   int32_t code = tTagToValArray(pTag, &pTagVals);
   if (code) {
     goto end;
   }
 
-  for (int i = 0; i < taosArrayGetSize(pTagVals); i++) {
+  if (tTagIsJson(pTag)) {
+    STag* p = (STag*)pTag;
+    if(p->nTag == 0){
+      goto end;
+    }
+    char* pJson = parseTagDatatoJson(pTag);
+    cJSON* tag = cJSON_CreateObject();
+    STagVal* pTagVal = taosArrayGet(pTagVals, 0);
+
+    char*  ptname = taosArrayGet(tagName, 0);
+    cJSON* tname = cJSON_CreateString(ptname);
+    cJSON_AddItemToObject(tag, "name", tname);
+//    cJSON* cid_ = cJSON_CreateString("");
+//    cJSON_AddItemToObject(tag, "cid", cid_);
+    cJSON* ttype = cJSON_CreateNumber(TSDB_DATA_TYPE_JSON);
+    cJSON_AddItemToObject(tag, "type", ttype);
+    cJSON* tvalue = cJSON_CreateString(pJson);
+    cJSON_AddItemToObject(tag, "value", tvalue);
+    cJSON_AddItemToArray(tags, tag);
+    taosMemoryFree(pJson);
+    goto end;
+  }
+
+  for(int i = 0; i < taosArrayGetSize(pTagVals); i++){
     STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, i);
 
     cJSON* tag = cJSON_CreateObject();
-    //    cJSON* tname = cJSON_CreateNumber(pTagVal->cid);
-    cJSON* tname = cJSON_CreateString("unkonwn");  // todo
+
+    char*  ptname = taosArrayGet(tagName, i);
+    cJSON* tname = cJSON_CreateString(ptname);
     cJSON_AddItemToObject(tag, "name", tname);
+//    cJSON* cid = cJSON_CreateNumber(pTagVal->cid);
+//    cJSON_AddItemToObject(tag, "cid", cid);
     cJSON* ttype = cJSON_CreateNumber(pTagVal->type);
     cJSON_AddItemToObject(tag, "type", ttype);
 
@@ -2034,22 +2152,22 @@ static char* buildCreateCTableJson(STag* pTag, int64_t sid, char* name, int64_t 
     cJSON_AddItemToObject(tag, "value", tvalue);
     cJSON_AddItemToArray(tags, tag);
   }
+
+  end:
   cJSON_AddItemToObject(json, "tags", tags);
   string = cJSON_PrintUnformatted(json);
-
-end:
-
   cJSON_Delete(json);
+  taosArrayDestroy(pTagVals);
   return string;
 }
 
-static char* processCreateTable(SMqMetaRsp* metaRsp) {
+static char *processCreateTable(SMqMetaRsp *metaRsp){
   SDecoder           decoder = {0};
   SVCreateTbBatchReq req = {0};
-  SVCreateTbReq*     pCreateReq;
-  char*              string = NULL;
+  SVCreateTbReq     *pCreateReq;
+  char              *string = NULL;
   // decode
-  void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
+  void* data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
   if (tDecodeSVCreateTbBatchReq(&decoder, &req) < 0) {
@@ -2059,29 +2177,27 @@ static char* processCreateTable(SMqMetaRsp* metaRsp) {
   // loop to create table
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
-    if (pCreateReq->type == TSDB_CHILD_TABLE) {
-      string =
-          buildCreateCTableJson((STag*)pCreateReq->ctb.pTag, pCreateReq->ctb.suid, pCreateReq->name, pCreateReq->uid);
-    } else if (pCreateReq->type == TSDB_NORMAL_TABLE) {
-      string =
-          buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->name, pCreateReq->uid, TSDB_NORMAL_TABLE);
+    if(pCreateReq->type == TSDB_CHILD_TABLE){
+      string = buildCreateCTableJson((STag*)pCreateReq->ctb.pTag, pCreateReq->ctb.name, pCreateReq->name, pCreateReq->ctb.tagName, pCreateReq->uid);
+    }else if(pCreateReq->type == TSDB_NORMAL_TABLE){
+      string = buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->name, pCreateReq->uid, TSDB_NORMAL_TABLE);
     }
   }
 
   tDecoderClear(&decoder);
 
-_exit:
+  _exit:
   tDecoderClear(&decoder);
   return string;
 }
 
-static char* processAlterTable(SMqMetaRsp* metaRsp) {
-  SDecoder     decoder = {0};
-  SVAlterTbReq vAlterTbReq = {0};
-  char*        string = NULL;
+static char *processAlterTable(SMqMetaRsp *metaRsp){
+  SDecoder           decoder = {0};
+  SVAlterTbReq       vAlterTbReq = {0};
+  char              *string = NULL;
 
   // decode
-  void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
+  void* data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
   if (tDecodeSVAlterTbReq(&decoder, &vAlterTbReq) < 0) {
@@ -2094,76 +2210,88 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
   }
   cJSON* type = cJSON_CreateString("alter");
   cJSON_AddItemToObject(json, "type", type);
-  //  cJSON* uid = cJSON_CreateNumber(id);
-  //  cJSON_AddItemToObject(json, "uid", uid);
+//  cJSON* uid = cJSON_CreateNumber(id);
+//  cJSON_AddItemToObject(json, "uid", uid);
   cJSON* tableName = cJSON_CreateString(vAlterTbReq.tbName);
   cJSON_AddItemToObject(json, "tableName", tableName);
   cJSON* tableType = cJSON_CreateString(vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ? "child" : "normal");
   cJSON_AddItemToObject(json, "tableType", tableType);
+  cJSON* alterType = cJSON_CreateNumber(vAlterTbReq.action);
+  cJSON_AddItemToObject(json, "alterType", alterType);
 
   switch (vAlterTbReq.action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN: {
-      cJSON* alterType = cJSON_CreateNumber(TSDB_ALTER_TABLE_ADD_COLUMN);
-      cJSON_AddItemToObject(json, "alterType", alterType);
       cJSON* colName = cJSON_CreateString(vAlterTbReq.colName);
       cJSON_AddItemToObject(json, "colName", colName);
       cJSON* colType = cJSON_CreateNumber(vAlterTbReq.type);
       cJSON_AddItemToObject(json, "colType", colType);
 
-      if (vAlterTbReq.type == TSDB_DATA_TYPE_BINARY) {
+      if(vAlterTbReq.type == TSDB_DATA_TYPE_BINARY){
         int32_t length = vAlterTbReq.bytes - VARSTR_HEADER_SIZE;
-        cJSON*  cbytes = cJSON_CreateNumber(length);
+        cJSON* cbytes = cJSON_CreateNumber(length);
         cJSON_AddItemToObject(json, "colLength", cbytes);
-      } else if (vAlterTbReq.type == TSDB_DATA_TYPE_NCHAR) {
-        int32_t length = (vAlterTbReq.bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
-        cJSON*  cbytes = cJSON_CreateNumber(length);
+      }else if (vAlterTbReq.type == TSDB_DATA_TYPE_NCHAR){
+        int32_t length = (vAlterTbReq.bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
+        cJSON* cbytes = cJSON_CreateNumber(length);
         cJSON_AddItemToObject(json, "colLength", cbytes);
       }
       break;
     }
-    case TSDB_ALTER_TABLE_DROP_COLUMN: {
-      cJSON* alterType = cJSON_CreateNumber(TSDB_ALTER_TABLE_DROP_COLUMN);
-      cJSON_AddItemToObject(json, "alterType", alterType);
+    case TSDB_ALTER_TABLE_DROP_COLUMN:{
       cJSON* colName = cJSON_CreateString(vAlterTbReq.colName);
       cJSON_AddItemToObject(json, "colName", colName);
       break;
     }
-    case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES: {
-      cJSON* alterType = cJSON_CreateNumber(TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES);
-      cJSON_AddItemToObject(json, "alterType", alterType);
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:{
       cJSON* colName = cJSON_CreateString(vAlterTbReq.colName);
       cJSON_AddItemToObject(json, "colName", colName);
-      cJSON* colType = cJSON_CreateNumber(vAlterTbReq.type);
+      cJSON* colType = cJSON_CreateNumber(vAlterTbReq.colModType);
       cJSON_AddItemToObject(json, "colType", colType);
-      if (vAlterTbReq.type == TSDB_DATA_TYPE_BINARY) {
-        int32_t length = vAlterTbReq.bytes - VARSTR_HEADER_SIZE;
-        cJSON*  cbytes = cJSON_CreateNumber(length);
+      if(vAlterTbReq.colModType == TSDB_DATA_TYPE_BINARY){
+        int32_t length = vAlterTbReq.colModBytes - VARSTR_HEADER_SIZE;
+        cJSON* cbytes = cJSON_CreateNumber(length);
         cJSON_AddItemToObject(json, "colLength", cbytes);
-      } else if (vAlterTbReq.type == TSDB_DATA_TYPE_NCHAR) {
-        int32_t length = (vAlterTbReq.bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
-        cJSON*  cbytes = cJSON_CreateNumber(length);
+      }else if (vAlterTbReq.colModType == TSDB_DATA_TYPE_NCHAR){
+        int32_t length = (vAlterTbReq.colModBytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
+        cJSON* cbytes = cJSON_CreateNumber(length);
         cJSON_AddItemToObject(json, "colLength", cbytes);
       }
       break;
     }
-    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME: {
-      cJSON* alterType = cJSON_CreateNumber(TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME);
-      cJSON_AddItemToObject(json, "alterType", alterType);
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:{
       cJSON* colName = cJSON_CreateString(vAlterTbReq.colName);
       cJSON_AddItemToObject(json, "colName", colName);
       cJSON* colNewName = cJSON_CreateString(vAlterTbReq.colNewName);
       cJSON_AddItemToObject(json, "colNewName", colNewName);
       break;
     }
-    case TSDB_ALTER_TABLE_UPDATE_TAG_VAL: {
-      cJSON* alterType = cJSON_CreateNumber(TSDB_ALTER_TABLE_UPDATE_TAG_VAL);
-      cJSON_AddItemToObject(json, "alterType", alterType);
+    case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:{
       cJSON* tagName = cJSON_CreateString(vAlterTbReq.tagName);
       cJSON_AddItemToObject(json, "colName", tagName);
-      cJSON* colValue = cJSON_CreateString("invalid, todo");  // todo
-      cJSON_AddItemToObject(json, "colValue", colValue);
-      cJSON* isNull = cJSON_CreateBool(vAlterTbReq.isNull);
-      cJSON_AddItemToObject(json, "colValueNull", isNull);
+
+      bool isNull = vAlterTbReq.isNull;
+      if(vAlterTbReq.tagType == TSDB_DATA_TYPE_JSON){
+        STag *jsonTag = (STag *)vAlterTbReq.pTagVal;
+        if(jsonTag->nTag == 0) isNull = true;
+      }
+      if (!isNull){
+        char* buf = NULL;
+
+        if (vAlterTbReq.tagType == TSDB_DATA_TYPE_JSON) {
+          ASSERT(tTagIsJson(vAlterTbReq.pTagVal) == true);
+          buf = parseTagDatatoJson(vAlterTbReq.pTagVal);
+        } else {
+          buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 1, 1);
+          dataConverToStr(buf, vAlterTbReq.tagType, vAlterTbReq.pTagVal, vAlterTbReq.nTagVal, NULL);
+        }
+
+        cJSON* colValue = cJSON_CreateString(buf);
+        cJSON_AddItemToObject(json, "colValue", colValue);
+        taosMemoryFree(buf);
+      }
+
+      cJSON* isNullCJson = cJSON_CreateBool(isNull);
+      cJSON_AddItemToObject(json, "colValueNull", isNullCJson);
       break;
     }
     default:
@@ -2171,18 +2299,18 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
   }
   string = cJSON_PrintUnformatted(json);
 
-_exit:
+  _exit:
   tDecoderClear(&decoder);
   return string;
 }
 
-static char* processDropSTable(SMqMetaRsp* metaRsp) {
-  SDecoder     decoder = {0};
-  SVDropStbReq req = {0};
-  char*        string = NULL;
+static char *processDropSTable(SMqMetaRsp *metaRsp){
+  SDecoder           decoder = {0};
+  SVDropStbReq       req = {0};
+  char              *string = NULL;
 
   // decode
-  void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
+  void* data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
   if (tDecodeSVDropStbReq(&decoder, &req) < 0) {
@@ -2195,10 +2323,6 @@ static char* processDropSTable(SMqMetaRsp* metaRsp) {
   }
   cJSON* type = cJSON_CreateString("drop");
   cJSON_AddItemToObject(json, "type", type);
-  char uid[32] = {0};
-  sprintf(uid, "%" PRIi64, req.suid);
-  cJSON* id = cJSON_CreateString(uid);
-  cJSON_AddItemToObject(json, "id", id);
   cJSON* tableName = cJSON_CreateString(req.name);
   cJSON_AddItemToObject(json, "tableName", tableName);
   cJSON* tableType = cJSON_CreateString("super");
@@ -2206,18 +2330,18 @@ static char* processDropSTable(SMqMetaRsp* metaRsp) {
 
   string = cJSON_PrintUnformatted(json);
 
-_exit:
+  _exit:
   tDecoderClear(&decoder);
   return string;
 }
 
-static char* processDropTable(SMqMetaRsp* metaRsp) {
-  SDecoder         decoder = {0};
-  SVDropTbBatchReq req = {0};
-  char*            string = NULL;
+static char *processDropTable(SMqMetaRsp *metaRsp){
+  SDecoder           decoder = {0};
+  SVDropTbBatchReq   req = {0};
+  char              *string = NULL;
 
   // decode
-  void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
+  void* data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
   if (tDecodeSVDropTbBatchReq(&decoder, &req) < 0) {
@@ -2230,67 +2354,71 @@ static char* processDropTable(SMqMetaRsp* metaRsp) {
   }
   cJSON* type = cJSON_CreateString("drop");
   cJSON_AddItemToObject(json, "type", type);
-  //  cJSON* uid = cJSON_CreateNumber(id);
-  //  cJSON_AddItemToObject(json, "uid", uid);
-  //  cJSON* tableType = cJSON_CreateString("normal");
-  //  cJSON_AddItemToObject(json, "tableType", tableType);
+//  cJSON* uid = cJSON_CreateNumber(id);
+//  cJSON_AddItemToObject(json, "uid", uid);
+//  cJSON* tableType = cJSON_CreateString("normal");
+//  cJSON_AddItemToObject(json, "tableType", tableType);
 
   cJSON* tableNameList = cJSON_CreateArray();
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     SVDropTbReq* pDropTbReq = req.pReqs + iReq;
 
-    cJSON* tableName = cJSON_CreateString(pDropTbReq->name);  // todo
+    cJSON* tableName = cJSON_CreateString(pDropTbReq->name);
     cJSON_AddItemToArray(tableNameList, tableName);
   }
   cJSON_AddItemToObject(json, "tableNameList", tableNameList);
 
   string = cJSON_PrintUnformatted(json);
 
-_exit:
+  _exit:
   tDecoderClear(&decoder);
   return string;
 }
 
-char* tmq_get_json_meta(TAOS_RES* res) {
+char *tmq_get_json_meta(TAOS_RES *res){
   if (!TD_RES_TMQ_META(res)) {
     return NULL;
   }
 
   SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
-  if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_CREATE_STB) {
+  if(pMetaRspObj->metaRsp.resMsgType == TDMT_VND_CREATE_STB){
     return processCreateStb(&pMetaRspObj->metaRsp);
-  } else if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_ALTER_STB) {
-    return processCreateStb(&pMetaRspObj->metaRsp);
-  } else if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_DROP_STB) {
+  }else if(pMetaRspObj->metaRsp.resMsgType == TDMT_VND_ALTER_STB){
+    return processAlterStb(&pMetaRspObj->metaRsp);
+  }else if(pMetaRspObj->metaRsp.resMsgType == TDMT_VND_DROP_STB){
     return processDropSTable(&pMetaRspObj->metaRsp);
-  } else if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_CREATE_TABLE) {
+  }else if(pMetaRspObj->metaRsp.resMsgType == TDMT_VND_CREATE_TABLE){
     return processCreateTable(&pMetaRspObj->metaRsp);
-  } else if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_ALTER_TABLE) {
+  }else if(pMetaRspObj->metaRsp.resMsgType == TDMT_VND_ALTER_TABLE){
     return processAlterTable(&pMetaRspObj->metaRsp);
-  } else if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_DROP_TABLE) {
+  }else if(pMetaRspObj->metaRsp.resMsgType == TDMT_VND_DROP_TABLE){
     return processDropTable(&pMetaRspObj->metaRsp);
   }
   return NULL;
 }
 
-static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
+void tmq_free_json_meta(char* jsonMeta){
+  taosMemoryFreeClear(jsonMeta);
+}
+
+static int32_t taosCreateStb(TAOS *taos, void *meta, int32_t metaLen){
   SVCreateStbReq req = {0};
   SDecoder       coder;
   SMCreateStbReq pReq = {0};
-  int32_t        code = TSDB_CODE_SUCCESS;
-  SRequestObj*   pRequest = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  SRequestObj* pRequest = NULL;
 
   code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
 
-  if (!pRequest->pDb) {
+  if(!pRequest->pDb){
     code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     goto end;
   }
   // decode and process req
-  void*   data = POINTER_SHIFT(meta, sizeof(SMsgHead));
+  void* data = POINTER_SHIFT(meta, sizeof(SMsgHead));
   int32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
   if (tDecodeSVCreateStbReq(&coder, &req) < 0) {
@@ -2299,29 +2427,30 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   }
   // build create stable
   pReq.pColumns = taosArrayInit(req.schemaRow.nCols, sizeof(SField));
-  for (int32_t i = 0; i < req.schemaRow.nCols; i++) {
+  for(int32_t i = 0; i < req.schemaRow.nCols; i++){
     SSchema* pSchema = req.schemaRow.pSchema + i;
-    SField   field = {.type = pSchema->type, .bytes = pSchema->bytes};
+    SField   field   = {.type = pSchema->type, .bytes = pSchema->bytes};
     strcpy(field.name, pSchema->name);
     taosArrayPush(pReq.pColumns, &field);
   }
   pReq.pTags = taosArrayInit(req.schemaTag.nCols, sizeof(SField));
-  for (int32_t i = 0; i < req.schemaTag.nCols; i++) {
+  for(int32_t i = 0; i < req.schemaTag.nCols; i++){
     SSchema* pSchema = req.schemaTag.pSchema + i;
-    SField   field = {.type = pSchema->type, .bytes = pSchema->bytes};
+    SField   field   = {.type = pSchema->type, .bytes = pSchema->bytes};
     strcpy(field.name, pSchema->name);
     taosArrayPush(pReq.pTags, &field);
   }
+
   pReq.colVer = req.schemaRow.version;
   pReq.tagVer = req.schemaTag.version;
   pReq.numOfColumns = req.schemaRow.nCols;
   pReq.numOfTags = req.schemaTag.nCols;
   pReq.commentLen = -1;
   pReq.suid = req.suid;
-  pReq.source = 1;
+  pReq.source = TD_REQ_FROM_TAOX;
+  pReq.igExists = true;
 
   STscObj* pTscObj = pRequest->pTscObj;
-
   SName tableName;
   tNameExtractFullName(toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName), pReq.name);
 
@@ -2336,7 +2465,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   }
   tSerializeSMCreateStbReq(pCmdMsg.pMsg, pCmdMsg.msgLen, &pReq);
 
-  SQuery pQuery = {0};
+  SQuery      pQuery = {0};
   pQuery.execMode = QUERY_EXEC_MODE_RPC;
   pQuery.pCmdMsg = &pCmdMsg;
   pQuery.msgType = pQuery.pCmdMsg->msgType;
@@ -2346,18 +2475,18 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   code = pRequest->code;
   taosMemoryFree(pCmdMsg.pMsg);
 
-end:
+  end:
   destroyRequest(pRequest);
   tFreeSMCreateStbReq(&pReq);
   tDecoderClear(&coder);
   return code;
 }
 
-static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
+static int32_t taosDropStb(TAOS *taos, void *meta, int32_t metaLen){
   SVDropStbReq req = {0};
   SDecoder     coder;
   SMDropStbReq pReq = {0};
-  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS;
   SRequestObj* pRequest = NULL;
 
   code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest);
@@ -2365,12 +2494,12 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
 
-  if (!pRequest->pDb) {
+  if(!pRequest->pDb){
     code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     goto end;
   }
   // decode and process req
-  void*   data = POINTER_SHIFT(meta, sizeof(SMsgHead));
+  void* data = POINTER_SHIFT(meta, sizeof(SMsgHead));
   int32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
   if (tDecodeSVDropStbReq(&coder, &req) < 0) {
@@ -2380,11 +2509,10 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
 
   // build drop stable
   pReq.igNotExists = true;
-  pReq.source = 1;
+  pReq.source = TD_REQ_FROM_TAOX;
   pReq.suid = req.suid;
 
   STscObj* pTscObj = pRequest->pTscObj;
-
   SName tableName;
   tNameExtractFullName(toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName), pReq.name);
 
@@ -2399,7 +2527,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
   }
   tSerializeSMDropStbReq(pCmdMsg.pMsg, pCmdMsg.msgLen, &pReq);
 
-  SQuery pQuery = {0};
+  SQuery      pQuery = {0};
   pQuery.execMode = QUERY_EXEC_MODE_RPC;
   pQuery.pCmdMsg = &pCmdMsg;
   pQuery.msgType = pQuery.pCmdMsg->msgType;
@@ -2409,7 +2537,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
   code = pRequest->code;
   taosMemoryFree(pCmdMsg.pMsg);
 
-end:
+  end:
   destroyRequest(pRequest);
   tDecoderClear(&coder);
   return code;
@@ -2422,7 +2550,7 @@ typedef struct SVgroupCreateTableBatch {
 } SVgroupCreateTableBatch;
 
 static void destroyCreateTbReqBatch(void* data) {
-  SVgroupCreateTableBatch* pTbBatch = (SVgroupCreateTableBatch*)data;
+  SVgroupCreateTableBatch* pTbBatch = (SVgroupCreateTableBatch*) data;
   taosArrayDestroy(pTbBatch->req.pArray);
 }
 
@@ -2439,12 +2567,13 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
 
-  if (!pRequest->pDb) {
+
+  if(!pRequest->pDb){
     code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     goto end;
   }
   // decode and process req
-  void*   data = POINTER_SHIFT(meta, sizeof(SMsgHead));
+  void* data = POINTER_SHIFT(meta, sizeof(SMsgHead));
   int32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
   if (tDecodeSVCreateTbBatchReq(&coder, &req) < 0) {
@@ -2469,15 +2598,15 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
   taosHashSetFreeFp(pVgroupHashmap, destroyCreateTbReqBatch);
 
   SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
-                           .requestId = pRequest->requestId,
-                           .requestObjRefId = pRequest->self,
-                           .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+      .requestId = pRequest->requestId,
+      .requestObjRefId = pRequest->self,
+      .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
   // loop to create table
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
 
     SVgroupInfo pInfo = {0};
-    SName       pName;
+    SName pName;
     toName(pTscObj->acctId, pRequest->pDb, pCreateReq->name, &pName);
     code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &pInfo);
     if (code != TSDB_CODE_SUCCESS) {
@@ -2509,7 +2638,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->msgType = TDMT_VND_CREATE_TABLE;
   pQuery->stableQuery = false;
-  pQuery->pRoot = nodesMakeNode(QUERY_NODE_CREATE_TABLE_STMT);
+  pQuery->pRoot   = nodesMakeNode(QUERY_NODE_CREATE_TABLE_STMT);
 
   code = rewriteToVnodeModifyOpStmt(pQuery, pBufArray);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2517,10 +2646,10 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
   }
 
   launchQueryImpl(pRequest, pQuery, false, NULL);
-  pQuery = NULL;  // no need to free in the end
-  code = pRequest->code;
+  pQuery  = NULL;          // no need to free in the end
+  code    = pRequest->code;
 
-end:
+  end:
   taosHashCleanup(pVgroupHashmap);
   destroyRequest(pRequest);
   tDecoderClear(&coder);
@@ -2552,12 +2681,12 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
 
-  if (!pRequest->pDb) {
+  if(!pRequest->pDb){
     code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     goto end;
   }
   // decode and process req
-  void*   data = POINTER_SHIFT(meta, sizeof(SMsgHead));
+  void* data = POINTER_SHIFT(meta, sizeof(SMsgHead));
   int32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
   if (tDecodeSVDropTbBatchReq(&coder, &req) < 0) {
@@ -2582,15 +2711,16 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
   taosHashSetFreeFp(pVgroupHashmap, destroyDropTbReqBatch);
 
   SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
-                           .requestId = pRequest->requestId,
-                           .requestObjRefId = pRequest->self,
-                           .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+      .requestId = pRequest->requestId,
+      .requestObjRefId = pRequest->self,
+      .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
   // loop to create table
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pDropReq = req.pReqs + iReq;
+    pDropReq->igNotExists = true;
 
     SVgroupInfo pInfo = {0};
-    SName       pName;
+    SName pName;
     toName(pTscObj->acctId, pRequest->pDb, pDropReq->name, &pName);
     code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &pInfo);
     if (code != TSDB_CODE_SUCCESS) {
@@ -2620,7 +2750,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->msgType = TDMT_VND_DROP_TABLE;
   pQuery->stableQuery = false;
-  pQuery->pRoot = nodesMakeNode(QUERY_NODE_DROP_TABLE_STMT);
+  pQuery->pRoot   = nodesMakeNode(QUERY_NODE_DROP_TABLE_STMT);
 
   code = rewriteToVnodeModifyOpStmt(pQuery, pBufArray);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2628,10 +2758,10 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
   }
 
   launchQueryImpl(pRequest, pQuery, false, NULL);
-  pQuery = NULL;  // no need to free in the end
-  code = pRequest->code;
+  pQuery  = NULL;          // no need to free in the end
+  code    = pRequest->code;
 
-end:
+  end:
   taosHashCleanup(pVgroupHashmap);
   destroyRequest(pRequest);
   tDecoderClear(&coder);
@@ -2639,26 +2769,27 @@ end:
   return code;
 }
 
-static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
-  SVAlterTbReq   req = {0};
-  SDecoder       coder = {0};
-  int32_t        code = TSDB_CODE_SUCCESS;
-  SRequestObj*   pRequest = NULL;
-  SQuery*        pQuery = NULL;
-  SArray*        pArray = NULL;
-  SVgDataBlocks* pVgData = NULL;
+static int32_t taosAlterTable(TAOS *taos, void *meta, int32_t metaLen){
+  SVAlterTbReq        req             = {0};
+  SDecoder            coder           = {0};
+  int32_t             code            = TSDB_CODE_SUCCESS;
+  SRequestObj        *pRequest        = NULL;
+  SQuery             *pQuery          = NULL;
+  SArray             *pArray          = NULL;
+  SVgDataBlocks      *pVgData         = NULL;
 
-  code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest);
+  code = buildRequest(*(int64_t*) taos, "", 0, NULL, false, &pRequest);
+
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
 
-  if (!pRequest->pDb) {
+  if(!pRequest->pDb){
     code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     goto end;
   }
   // decode and process req
-  void*   data = POINTER_SHIFT(meta, sizeof(SMsgHead));
+  void* data = POINTER_SHIFT(meta, sizeof(SMsgHead));
   int32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
   if (tDecodeSVAlterTbReq(&coder, &req) < 0) {
@@ -2667,24 +2798,24 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   }
 
   // do not deal TSDB_ALTER_TABLE_UPDATE_OPTIONS
-  if (req.action == TSDB_ALTER_TABLE_UPDATE_OPTIONS) {
+  if(req.action == TSDB_ALTER_TABLE_UPDATE_OPTIONS){
     goto end;
   }
 
   STscObj*  pTscObj = pRequest->pTscObj;
-  SCatalog* pCatalog = NULL;
+  SCatalog        *pCatalog = NULL;
   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
 
   SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
-                           .requestId = pRequest->requestId,
-                           .requestObjRefId = pRequest->self,
-                           .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+      .requestId = pRequest->requestId,
+      .requestObjRefId = pRequest->self,
+      .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
 
   SVgroupInfo pInfo = {0};
-  SName       pName = {0};
+  SName pName = {0};
   toName(pTscObj->acctId, pRequest->pDb, req.tbName, &pName);
   code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &pInfo);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2718,7 +2849,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->msgType = TDMT_VND_ALTER_TABLE;
   pQuery->stableQuery = false;
-  pQuery->pRoot = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
+  pQuery->pRoot   = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
 
   code = rewriteToVnodeModifyOpStmt(pQuery, pArray);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2726,14 +2857,17 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   }
 
   launchQueryImpl(pRequest, pQuery, false, NULL);
-  pQuery = NULL;  // no need to free in the end
+  pQuery  = NULL;          // no need to free in the end
   pVgData = NULL;
-  pArray = NULL;
-  code = pRequest->code;
+  pArray  = NULL;
+  code    = pRequest->code;
+  if (code == TSDB_CODE_VND_TABLE_NOT_EXIST){
+    code = 0;
+  }
 
-end:
+  end:
   taosArrayDestroy(pArray);
-  if (pVgData) taosMemoryFreeClear(pVgData->pData);
+  if(pVgData) taosMemoryFreeClear(pVgData->pData);
   taosMemoryFreeClear(pVgData);
   destroyRequest(pRequest);
   tDecoderClear(&coder);
@@ -2741,25 +2875,29 @@ end:
   return code;
 }
 
-int32_t taos_write_raw_meta(TAOS* taos, tmq_raw_data* raw_meta) {
+int32_t taos_write_raw_meta(TAOS *taos, tmq_raw_data *raw_meta){
   if (!taos || !raw_meta) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if (raw_meta->raw_meta_type == TDMT_VND_CREATE_STB) {
+  if(raw_meta->raw_meta_type == TDMT_VND_CREATE_STB) {
     return taosCreateStb(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
-  } else if (raw_meta->raw_meta_type == TDMT_VND_ALTER_STB) {
+  }else if(raw_meta->raw_meta_type == TDMT_VND_ALTER_STB){
     return taosCreateStb(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
-  } else if (raw_meta->raw_meta_type == TDMT_VND_DROP_STB) {
+  }else if(raw_meta->raw_meta_type == TDMT_VND_DROP_STB){
     return taosDropStb(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
-  } else if (raw_meta->raw_meta_type == TDMT_VND_CREATE_TABLE) {
+  }else if(raw_meta->raw_meta_type == TDMT_VND_CREATE_TABLE){
     return taosCreateTable(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
-  } else if (raw_meta->raw_meta_type == TDMT_VND_ALTER_TABLE) {
+  }else if(raw_meta->raw_meta_type == TDMT_VND_ALTER_TABLE){
     return taosAlterTable(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
-  } else if (raw_meta->raw_meta_type == TDMT_VND_DROP_TABLE) {
+  }else if(raw_meta->raw_meta_type == TDMT_VND_DROP_TABLE){
     return taosDropTable(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
   }
   return TSDB_CODE_INVALID_PARA;
+}
+
+void tmq_free_raw_meta(tmq_raw_data *rawMeta){
+  taosMemoryFreeClear(rawMeta);
 }
 
 void tmq_commit_async(tmq_t* tmq, const TAOS_RES* msg, tmq_commit_cb* cb, void* param) {

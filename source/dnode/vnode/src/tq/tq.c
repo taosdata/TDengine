@@ -408,7 +408,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
         tqDebug("fetch meta msg, ver:%" PRId64 ", type:%d", pHead->version, pHead->msgType);
         SMqMetaRsp metaRsp = {0};
         /*metaRsp.reqOffset = pReq->reqOffset.version;*/
-        /*metaRsp.rspOffset = fetchVer;*/
+        metaRsp.rspOffset = fetchVer;
         /*metaRsp.rspOffsetNew.version = fetchVer;*/
         tqOffsetResetToLog(&metaRsp.reqOffsetNew, pReq->reqOffset.version);
         tqOffsetResetToLog(&metaRsp.rspOffsetNew, fetchVer);

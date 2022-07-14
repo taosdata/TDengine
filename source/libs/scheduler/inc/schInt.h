@@ -223,6 +223,7 @@ typedef struct SSchJobAttr {
 
 typedef struct {
   int32_t     op;
+  SRWLatch    lock;
   bool        syncReq;
 } SSchOpStatus;
 
@@ -473,6 +474,7 @@ int32_t schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTas
 int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel, int32_t levelNum);
 int32_t schSwitchTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask);
 void    schDirectPostJobRes(SSchedulerReq* pReq, int32_t errCode);
+bool    schChkCurrentOp(SSchJob *pJob, int32_t op, bool sync);
 
 extern SSchDebug gSCHDebug;
 

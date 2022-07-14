@@ -16,9 +16,14 @@
 #include "syncTimeout.h"
 #include "syncElection.h"
 #include "syncReplication.h"
+#include "syncRespMgr.h"
 
 int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   syncNodeEventLog(ths, "timer routines ... ");
+
+  if (ths->vgId != 1) {
+    syncRespClean(ths->pSyncRespMgr);
+  }
   return 0;
 }
 

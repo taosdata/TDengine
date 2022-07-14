@@ -321,6 +321,7 @@ typedef struct SLastrowScanInfo {
   void           *pLastrowReader;
   SArray         *pColMatchInfo;
   int32_t        *pSlotIds;
+  SExprSupp       pseudoExprSup;
 } SLastrowScanInfo;
 
 typedef enum EStreamScanMode {
@@ -789,6 +790,8 @@ int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaul
 
 void    doSetOperatorCompleted(SOperatorInfo* pOperator);
 void    doFilter(const SNode* pFilterNode, SSDataBlock* pBlock);
+int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
+                               SSDataBlock* pBlock, const char* idStr);
 
 void    cleanupAggSup(SAggSupporter* pAggSup);
 void    destroyBasicOperatorInfo(void* param, int32_t numOfOutput);
