@@ -589,7 +589,7 @@ int32_t convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec
       return TSDB_CODE_FAILED;
     }
     newColData[len] = 0;
-    int32_t ret = taosParseTime(newColData, timeVal, len + 1, (int32_t)timePrec, tsDaylight);
+    int32_t ret = taosParseTime(newColData, timeVal, len, (int32_t)timePrec, tsDaylight);
     if (ret != TSDB_CODE_SUCCESS) {
       taosMemoryFree(newColData);
       return ret;
@@ -709,6 +709,32 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
 
   return (int64_t)(taosMktime(&tm) * TSDB_TICK_PER_SECOND(precision));
 }
+
+int64_t taosTimeSub(int64_t t, int64_t duration, char unit, int32_t precision) {
+  if (duration == 0) {
+    return t;
+  }
+
+  if (unit != 'n' && unit != 'y') {
+    return t - duration;
+  }
+
+  // The following code handles the y/n time duration
+  int64_t numOfMonth = duration;
+  if (unit == 'y') {
+    numOfMonth *= 12;
+  }
+
+  struct tm tm;
+  time_t    tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
+  taosLocalTime(&tt, &tm);
+  int32_t mon = tm.tm_year * 12 + tm.tm_mon - (int32_t)numOfMonth;
+  tm.tm_year = mon / 12;
+  tm.tm_mon = mon % 12;
+
+  return (int64_t)(taosMktime(&tm) * TSDB_TICK_PER_SECOND(precision));
+}
+
 
 int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision) {
   if (ekey < skey) {

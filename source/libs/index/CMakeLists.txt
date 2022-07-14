@@ -36,6 +36,6 @@ endif(${BUILD_WITH_INVERTEDINDEX})
 
 
 if (${BUILD_TEST})
-  add_subdirectory(test)
+   add_subdirectory(test)
 endif(${BUILD_TEST})
 

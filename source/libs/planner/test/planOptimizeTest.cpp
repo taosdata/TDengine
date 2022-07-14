@@ -37,6 +37,8 @@ TEST_F(PlanOptimizeTest, pushDownCondition) {
 
   run("SELECT ts, c1 FROM st1 WHERE tag1 > 4");
 
+  run("SELECT ts, c1 FROM st1 WHERE TBNAME = 'st1s1'");
+
   run("SELECT ts, c1 FROM st1 WHERE tag1 > 4 or tag1 < 2");
 
   run("SELECT ts, c1 FROM st1 WHERE tag1 > 4 AND tag2 = 'hello'");
@@ -53,7 +55,7 @@ TEST_F(PlanOptimizeTest, sortPrimaryKey) {
 
   run("SELECT c1 FROM t1 ORDER BY ts DESC");
 
-  run("SELECT COUNT(*) FROM t1 INTERVAL(10S) ORDER BY _WSTARTTS DESC");
+  run("SELECT COUNT(*) FROM t1 INTERVAL(10S) ORDER BY _WSTART DESC");
 }
 
 TEST_F(PlanOptimizeTest, PartitionTags) {
@@ -68,6 +70,8 @@ TEST_F(PlanOptimizeTest, PartitionTags) {
   run("SELECT SUM(c1), tag1 FROM st1 GROUP BY tag1");
 
   run("SELECT SUM(c1), tag1 + 10 FROM st1 GROUP BY tag1 + 10");
+
+  run("SELECT SUM(c1), tbname FROM st1 GROUP BY tbname");
 }
 
 TEST_F(PlanOptimizeTest, eliminateProjection) {
@@ -78,4 +82,16 @@ TEST_F(PlanOptimizeTest, eliminateProjection) {
   run("SELECT * FROM st1");
   run("SELECT c1 FROM st1s3");
   // run("select 1-abs(c1) from (select unique(c1) c1 from st1s3) order by 1 nulls first");
+}
+
+TEST_F(PlanOptimizeTest, pushDownProjectCond) {
+  useDb("root", "test");
+  run("select 1-abs(c1) from (select unique(c1) c1 from st1s3) where 1-c1>5 order by 1 nulls first");
+}
+
+TEST_F(PlanOptimizeTest, tagScan) {
+  useDb("root", "test");
+  run("select tag1 from st1 group by tag1");
+  run("select distinct tag1 from st1");
+  run("select tag1*tag1 from st1 group by tag1*tag1");
 }

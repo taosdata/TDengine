@@ -30,17 +30,22 @@ void Testbase::InitLog(const char* path) {
   tsdbDebugFlag = 0;
   tsLogEmbedded = 1;
   tsAsyncLog = 0;
-  tsRpcQueueMemoryAllowed = 1024 * 1024 * 64;
-
+  
   taosRemoveDir(path);
   taosMkDir(path);
   tstrncpy(tsLogDir, path, PATH_MAX);
-  if (taosInitLog("taosdlog", 1) != 0) {
+
+  taosGetSystemInfo();
+  tsRpcQueueMemoryAllowed = tsTotalMemoryKB * 0.1;
+if (taosInitLog("taosdlog", 1) != 0) {
     printf("failed to init log file\n");
   }
 }
 
 void Testbase::Init(const char* path, int16_t port) {
+#ifdef _TD_DARWIN_64
+  osDefaultInit();
+#endif
   tsServerPort = port;
   strcpy(tsLocalFqdn, "localhost");
   snprintf(tsLocalEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);

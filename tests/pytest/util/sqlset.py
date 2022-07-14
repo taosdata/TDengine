@@ -41,6 +41,30 @@ class TDSetSql:
         create_stb_sql = f'create table {stbname} ({column_sql[:-1]}) tags({tag_sql[:-1]})'
         return create_stb_sql
     
+    def set_insertsql(self,column_dict,tbname,binary_str=None,nchar_str=None):
+        sql = ''
+        for k, v in column_dict.items():
+            if v.lower() == 'timestamp' or v.lower() == 'tinyint' or v.lower() == 'smallint' or v.lower() == 'int' or v.lower() == 'bigint' or \
+            v.lower() == 'tinyint unsigned' or v.lower() == 'smallint unsigned' or v.lower() == 'int unsigned' or v.lower() == 'bigint unsigned' or v.lower() == 'bool':
+                sql += '%d,'
+            elif v.lower() == 'float' or v.lower() == 'double':
+                sql += '%f,'
+            elif 'binary' in v.lower():
+                sql += f'"{binary_str}%d",'
+            elif 'nchar' in v.lower():
+                sql += f'"{nchar_str}%d",'
+        return (f'insert into {tbname} values({sql[:-1]})')
 
-
-    
+    def insert_values(self,column_dict,i,insert_sql,insert_list,ts):
+        for k, v in column_dict.items():
+            if v.lower() in[ 'tinyint' , 'smallint' , 'int', 'bigint' , 'tinyint unsigned' , 'smallint unsigned' , 'int unsigned' , 'bigint unsigned'] or\
+            'binary' in v.lower() or 'nchar' in v.lower():
+                insert_list.append(0 + i)
+            elif v.lower() == 'float' or v.lower() == 'double':
+                insert_list.append(0.1 + i)
+            elif v.lower() == 'bool':
+                insert_list.append(i % 2)
+            elif v.lower() == 'timestamp':
+                insert_list.append(ts + i)
+        tdSql.execute(insert_sql%(tuple(insert_list)))
+        

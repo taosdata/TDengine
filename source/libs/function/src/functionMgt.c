@@ -139,7 +139,7 @@ bool fmIsAggFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MG
 
 bool fmIsScalarFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SCALAR_FUNC); }
 
-bool fmIsVectorFunc(int32_t funcId) { return !fmIsScalarFunc(funcId); }
+bool fmIsVectorFunc(int32_t funcId) { return !fmIsScalarFunc(funcId) && !fmIsPseudoColumnFunc(funcId); }
 
 bool fmIsSelectFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SELECT_FUNC); }
 
@@ -180,6 +180,10 @@ bool fmIsForbidWindowFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId
 bool fmIsForbidGroupByFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_GROUP_BY_FUNC); }
 
 bool fmIsSystemInfoFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SYSTEM_INFO_FUNC); }
+
+bool fmIsImplicitTsFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_IMPLICIT_TS_FUNC); }
+
+bool fmIsClientPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CLIENT_PC_FUNC); }
 
 bool fmIsInterpFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
@@ -225,8 +229,8 @@ bool fmIsInvertible(int32_t funcId) {
     case FUNCTION_TYPE_SUM:
     case FUNCTION_TYPE_STDDEV:
     case FUNCTION_TYPE_AVG:
-    case FUNCTION_TYPE_WSTARTTS:
-    case FUNCTION_TYPE_WENDTS:
+    case FUNCTION_TYPE_WSTART:
+    case FUNCTION_TYPE_WEND:
     case FUNCTION_TYPE_WDURATION:
       res = true;
       break;
@@ -258,7 +262,7 @@ bool fmIsSameInOutType(int32_t funcId) {
 }
 
 static int32_t getFuncInfo(SFunctionNode* pFunc) {
-  char msg[64] = {0};
+  char msg[128] = {0};
   return fmGetFuncInfo(pFunc, msg, sizeof(msg));
 }
 

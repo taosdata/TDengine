@@ -43,26 +43,28 @@ void CommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
 
   if (cbMeta.index > beginIndex) {
     char logBuf[256];
-    snprintf(logBuf, sizeof(logBuf), "==callback== ==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n",
-             pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
+    snprintf(logBuf, sizeof(logBuf),
+             "==callback== ==CommitCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s \n", pFsm,
+             cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
     syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
   } else {
-    sTrace("==callback== ==CommitCb== do not apply again %ld", cbMeta.index);
+    sTrace("==callback== ==CommitCb== do not apply again %" PRId64, cbMeta.index);
   }
 }
 
 void PreCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n", pFsm, cbMeta.index,
-           cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
+           "==callback== ==PreCommitCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s \n", pFsm,
+           cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
   syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 }
 
 void RollBackCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256];
-  snprintf(logBuf, sizeof(logBuf), "==callback== ==RollBackCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n",
-           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
+  snprintf(logBuf, sizeof(logBuf),
+           "==callback== ==RollBackCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s \n", pFsm,
+           cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
   syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 }
 
@@ -172,7 +174,7 @@ int main(int argc, char **argv) {
   if (argc >= 2) {
     snapshotLastApplyIndex = atoi(argv[1]);
   }
-  sTrace("--snapshotLastApplyIndex : %ld \n", snapshotLastApplyIndex);
+  sTrace("--snapshotLastApplyIndex : %" PRId64 " \n", snapshotLastApplyIndex);
 
   int32_t ret = syncIOStart((char *)"127.0.0.1", ports[myIndex]);
   assert(ret == 0);

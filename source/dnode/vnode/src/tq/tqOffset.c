@@ -85,6 +85,7 @@ STqOffsetStore* tqOffsetOpen(STQ* pTq) {
 void tqOffsetClose(STqOffsetStore* pStore) {
   tqOffsetSnapshot(pStore);
   taosHashCleanup(pStore->pHash);
+  taosMemoryFree(pStore);
 }
 
 STqOffset* tqOffsetRead(STqOffsetStore* pStore, const char* subscribeKey) {
@@ -138,7 +139,7 @@ int32_t tqOffsetSnapshot(STqOffsetStore* pStore) {
     int64_t writeLen;
     if ((writeLen = taosWriteFile(pFile, buf, totLen)) != totLen) {
       ASSERT(0);
-      tqError("write offset incomplete, len %d, write len %ld", bodyLen, writeLen);
+      tqError("write offset incomplete, len %d, write len %" PRId64, bodyLen, writeLen);
       taosHashCancelIterate(pStore->pHash, pIter);
       return -1;
     }

@@ -9,14 +9,14 @@ from util.cases import *
 
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 , 
+    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
-    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143}
+    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
     def init(self, conn, powSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         self.PI =3.1415926
-    
+
     def prepare_datas(self):
         tdSql.execute(
             '''create table stb1
@@ -24,7 +24,7 @@ class TDTestCase:
             tags (t1 int)
             '''
         )
-        
+
         tdSql.execute(
             '''
             create table t1
@@ -66,14 +66,14 @@ class TDTestCase:
             ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             '''
         )
-    
+
     def check_result_auto_asin(self ,origin_query , pow_query):
 
         pow_result = tdSql.getResult(pow_query)
         origin_result = tdSql.getResult(origin_query)
 
         auto_result =[]
-        
+
         for row in origin_result:
             row_check = []
             for elem in row:
@@ -93,7 +93,7 @@ class TDTestCase:
                 if auto_result[row_index][col_index] == None  and not (auto_result[row_index][col_index] == None and elem == None):
                     check_status = False
                 elif auto_result[row_index][col_index] != None  and (auto_result[row_index][col_index] - elem > 0.00000001):
-                    check_status = False 
+                    check_status = False
                 else:
                     pass
         if not check_status:
@@ -101,7 +101,7 @@ class TDTestCase:
             sys.exit(1)
         else:
             tdLog.info("asin value check pass , it work as expected ,sql is \"%s\"   "%pow_query )
-        
+
     def test_errors(self):
         error_sql_lists = [
             "select asin from t1",
@@ -135,42 +135,42 @@ class TDTestCase:
         ]
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
-    
+
     def support_types(self):
         type_error_sql_lists = [
-            "select asin(ts) from t1" , 
+            "select asin(ts) from t1" ,
             "select asin(c7) from t1",
             "select asin(c8) from t1",
             "select asin(c9) from t1",
-            "select asin(ts) from ct1" , 
+            "select asin(ts) from ct1" ,
             "select asin(c7) from ct1",
             "select asin(c8) from ct1",
             "select asin(c9) from ct1",
-            "select asin(ts) from ct3" , 
+            "select asin(ts) from ct3" ,
             "select asin(c7) from ct3",
             "select asin(c8) from ct3",
             "select asin(c9) from ct3",
-            "select asin(ts) from ct4" , 
+            "select asin(ts) from ct4" ,
             "select asin(c7) from ct4",
             "select asin(c8) from ct4",
             "select asin(c9) from ct4",
-            "select asin(ts) from stb1" , 
+            "select asin(ts) from stb1" ,
             "select asin(c7) from stb1",
             "select asin(c8) from stb1",
             "select asin(c9) from stb1" ,
 
-            "select asin(ts) from stbbb1" , 
+            "select asin(ts) from stbbb1" ,
             "select asin(c7) from stbbb1",
 
             "select asin(ts) from tbname",
             "select asin(c9) from tbname"
 
         ]
-        
+
         for type_sql in type_error_sql_lists:
             tdSql.error(type_sql)
-        
-        
+
+
         type_sql_lists = [
             "select asin(c1) from t1",
             "select asin(c2) from t1",
@@ -200,16 +200,16 @@ class TDTestCase:
             "select asin(c5) from stb1",
             "select asin(c6) from stb1",
 
-            "select asin(c6) as alisb from stb1", 
-            "select asin(c6) alisb from stb1", 
+            "select asin(c6) as alisb from stb1",
+            "select asin(c6) alisb from stb1",
         ]
 
         for type_sql in type_sql_lists:
             tdSql.query(type_sql)
-    
+
     def basic_asin_function(self):
 
-        # basic query 
+        # basic query
         tdSql.query("select c1 from ct3")
         tdSql.checkRows(0)
         tdSql.query("select c1 from t1")
@@ -250,7 +250,7 @@ class TDTestCase:
         tdSql.checkData(5, 5, None)
 
         self.check_result_auto_asin( "select abs(c1), abs(c2), abs(c3) , abs(c4), abs(c5) from t1", "select asin(abs(c1)), asin(abs(c2)) ,asin(abs(c3)), asin(abs(c4)), asin(abs(c5)) from t1")
-        
+
         # used for sub table
         tdSql.query("select c2 ,asin(c2) from ct1")
         tdSql.checkData(0, 1, None)
@@ -266,7 +266,7 @@ class TDTestCase:
         tdSql.checkData(5 , 2, None)
 
         self.check_result_auto_asin( "select c1, c2, c3 , c4, c5 from ct1", "select asin(c1), asin(c2) ,asin(c3), asin(c4), asin(c5) from ct1")
-       
+
         # nest query for asin functions
         tdSql.query("select c4  , asin(c4) ,asin(asin(c4)) , asin(asin(asin(c4))) from ct1;")
         tdSql.checkData(0 , 0 , 88)
@@ -284,21 +284,21 @@ class TDTestCase:
         tdSql.checkData(11 , 2 , None)
         tdSql.checkData(11 , 3 , None)
 
-        # used for stable table 
-        
+        # used for stable table
+
         tdSql.query("select asin(c1) from stb1")
         tdSql.checkRows(25)
-      
+
 
         # used for not exists table
         tdSql.error("select asin(c1) from stbbb1")
         tdSql.error("select asin(c1) from tbname")
         tdSql.error("select asin(c1) from ct5")
 
-        # mix with common col 
+        # mix with common col
         tdSql.query("select c1, asin(c1) from ct1")
         tdSql.query("select c2, asin(c2) from ct4")
-        
+
 
         # mix with common functions
         tdSql.query("select c1, asin(c1),asin(c1), asin(asin(c1)) from ct4 ")
@@ -306,7 +306,7 @@ class TDTestCase:
         tdSql.checkData(0 , 1 ,None)
         tdSql.checkData(0 , 2 ,None)
         tdSql.checkData(0 , 3 ,None)
-        
+
         tdSql.checkData(3 , 0 , 6)
         tdSql.checkData(3 , 1 ,None)
         tdSql.checkData(3 , 2 ,None)
@@ -327,8 +327,8 @@ class TDTestCase:
         tdSql.query("select max(c5), count(c5) from stb1")
         tdSql.query("select max(c5), count(c5) from ct1")
 
-        
-        # # bug fix for compute 
+
+        # # bug fix for compute
         tdSql.query("select c1, asin(c1) -0 ,asin(c1-4)-0 from ct4 ")
         tdSql.checkData(0, 0, None)
         tdSql.checkData(0, 1, None)
@@ -397,10 +397,10 @@ class TDTestCase:
         tdSql.checkData(0,3,1.000000000)
         tdSql.checkData(0,4,0.900000000)
         tdSql.checkData(0,5,2)
-        
+
     def pow_Arithmetic(self):
         pass
-    
+
     def check_boundary_values(self):
 
         PI=3.1415926
@@ -429,11 +429,11 @@ class TDTestCase:
                 f"insert into sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         self.check_result_auto_asin( "select abs(c1), abs(c2), abs(c3) , abs(c4), abs(c5) from sub1_bound ", "select asin(abs(c1)), asin(abs(c2)) ,asin(abs(c3)), asin(abs(c4)), asin(abs(c5)) from sub1_bound")
-       
+
         self.check_result_auto_asin( "select c1, c2, c3 , c3, c2 ,c1 from sub1_bound ", "select asin(c1), asin(c2) ,asin(c3), asin(c3), asin(c2) ,asin(c1) from sub1_bound")
 
         self.check_result_auto_asin("select abs(abs(abs(abs(abs(abs(abs(abs(abs(c1)))))))))  nest_col_func from sub1_bound" , "select asin(abs(c1)) from sub1_bound" )
-        
+
         # check basic elem for table per row
         tdSql.query("select asin(abs(c1)) ,asin(abs(c2)) , asin(abs(c3)) , asin(abs(c4)), asin(abs(c5)), asin(abs(c6)) from sub1_bound ")
         tdSql.checkData(0,0,None)
@@ -492,37 +492,37 @@ class TDTestCase:
         self.check_result_auto_asin( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select asin(t1) ,asin(c5) from stb1 where c1 > 0 order by tbname" )
         self.check_result_auto_asin( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select asin(t1) , asin(c5) from stb1 where c1 > 0 order by tbname" )
         pass
-    
-    
+
+
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
-        
+
         self.prepare_datas()
 
-        tdLog.printNoPrefix("==========step2:test errors ==============")    
+        tdLog.printNoPrefix("==========step2:test errors ==============")
 
         self.test_errors()
-        
-        tdLog.printNoPrefix("==========step3:support types ============") 
+
+        tdLog.printNoPrefix("==========step3:support types ============")
 
         self.support_types()
 
-        tdLog.printNoPrefix("==========step4: asin basic query ============") 
+        tdLog.printNoPrefix("==========step4: asin basic query ============")
 
         self.basic_asin_function()
 
-        tdLog.printNoPrefix("==========step5: big number asin query ============") 
+        tdLog.printNoPrefix("==========step5: big number asin query ============")
 
         self.test_big_number()
 
 
-        tdLog.printNoPrefix("==========step6: asin boundary query ============") 
+        tdLog.printNoPrefix("==========step6: asin boundary query ============")
 
         self.check_boundary_values()
 
-        tdLog.printNoPrefix("==========step7: asin filter query ============") 
+        tdLog.printNoPrefix("==========step7: asin filter query ============")
 
         self.abs_func_filter()
 

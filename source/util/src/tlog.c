@@ -94,7 +94,7 @@ int32_t tdbDebugFlag = 131;
 int32_t tqDebugFlag = 135;
 int32_t fsDebugFlag = 135;
 int32_t metaDebugFlag = 135;
-int32_t fnDebugFlag = 135;
+int32_t udfDebugFlag = 135;
 int32_t smaDebugFlag = 135;
 int32_t idxDebugFlag = 135;
 
@@ -745,22 +745,21 @@ cmp_end:
 void taosSetAllDebugFlag(int32_t flag) {
   if (flag <= 0) return;
 
+  uDebugFlag = flag;
+  rpcDebugFlag = flag;
+  jniDebugFlag = flag;
+  qDebugFlag = flag;
+  cDebugFlag = flag;
   dDebugFlag = flag;
   vDebugFlag = flag;
   mDebugFlag = flag;
-  cDebugFlag = flag;
-  jniDebugFlag = flag;
-  uDebugFlag = flag;
-  rpcDebugFlag = flag;
-  qDebugFlag = flag;
   wDebugFlag = flag;
   sDebugFlag = flag;
   tsdbDebugFlag = flag;
   tqDebugFlag = flag;
   fsDebugFlag = flag;
-  fnDebugFlag = flag;
+  udfDebugFlag = flag;
   smaDebugFlag = flag;
   idxDebugFlag = flag;
-
   uInfo("all debug flag are set to %d", flag);
 }

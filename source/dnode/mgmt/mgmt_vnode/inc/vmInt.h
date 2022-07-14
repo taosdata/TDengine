@@ -31,7 +31,8 @@ typedef struct SVnodeMgmt {
   const char    *path;
   const char    *name;
   SQWorkerPool   queryPool;
-  SQWorkerPool   fetchPool;
+  SQWorkerPool   streamPool;
+  SWWorkerPool   fetchPool;
   SWWorkerPool   syncPool;
   SWWorkerPool   writePool;
   SWWorkerPool   applyPool;
@@ -61,6 +62,7 @@ typedef struct {
   STaosQueue *pSyncQ;
   STaosQueue *pApplyQ;
   STaosQueue *pQueryQ;
+  STaosQueue *pStreamQ;
   STaosQueue *pFetchQ;
 } SVnodeObj;
 
@@ -105,6 +107,7 @@ int32_t vmPutMsgToWriteQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToSyncQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToQueryQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmPutMsgToStreamQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMergeQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMonitorQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);

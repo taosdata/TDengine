@@ -264,15 +264,12 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
 
 static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   static int32_t emptyRspNum = 0;
-  if (code != 0) {
-    taosMemoryFreeClear(param);
-    return -1;
-  }
-
   char             *key = (char *)param;
   SClientHbBatchRsp pRsp = {0};
-  tDeserializeSClientHbBatchRsp(pMsg->pData, pMsg->len, &pRsp);
-
+  if (TSDB_CODE_SUCCESS == code) {
+    tDeserializeSClientHbBatchRsp(pMsg->pData, pMsg->len, &pRsp);
+  }
+  
   int32_t rspNum = taosArrayGetSize(pRsp.rsps);
 
   taosThreadMutexLock(&appInfo.mutex);
@@ -287,6 +284,10 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   }
 
   taosMemoryFreeClear(param);
+
+  if (code != 0) {
+    (*pInst)->onlineDnodes = 0;
+  }
 
   if (rspNum) {
     tscDebug("hb got %d rsp, %d empty rsp received before", rspNum,
@@ -670,8 +671,7 @@ static void *hbThreadFunc(void *param) {
   }
 #endif
   while (1) {
-    int8_t threadStop = atomic_val_compare_exchange_8(&clientHbMgr.threadStop, 1, 2);
-    if (1 == threadStop) {
+    if (1 == clientHbMgr.threadStop) {
       break;
     }
 
@@ -759,9 +759,7 @@ static void hbStopThread() {
     return;
   }
 
-  while (2 != atomic_load_8(&clientHbMgr.threadStop)) {
-    taosUsleep(10);
-  }
+  taosThreadJoin(clientHbMgr.thread, NULL);    
 
   tscDebug("hb thread stopped");
 }

@@ -12,7 +12,7 @@ import random
 class TDTestCase:
     updatecfgDict = {'debugFlag': 143, "cDebugFlag": 143, "uDebugFlag": 143, "rpcDebugFlag": 143, "tmrDebugFlag": 143,
                      "jniDebugFlag": 143, "simDebugFlag": 143, "dDebugFlag": 143, "dDebugFlag": 143, "vDebugFlag": 143, "mDebugFlag": 143, "qDebugFlag": 143,
-                     "wDebugFlag": 143, "sDebugFlag": 143, "tsdbDebugFlag": 143, "tqDebugFlag": 143, "fsDebugFlag": 143, "fnDebugFlag": 143}
+                     "wDebugFlag": 143, "sDebugFlag": 143, "tsdbDebugFlag": 143, "tqDebugFlag": 143, "fsDebugFlag": 143, "udfDebugFlag": 143}
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
@@ -47,7 +47,7 @@ class TDTestCase:
                 c9 = "'nchar_val'"
                 c10 = ts
                 tdSql.execute(f" insert into  {tbname} values ({ts},{c1},{c2},{c3},{c4},{c5},{c6},{c7},{c8},{c9},{c10})")
-        
+
         tdSql.execute("use test")
         tbnames = ["stb", "sub_tb_1"]
         support_types = ["BIGINT", "SMALLINT", "TINYINT", "FLOAT", "DOUBLE", "INT"]
@@ -60,7 +60,7 @@ class TDTestCase:
                 origin_sql = "select {} from {} order by tbname".format(colname, tbname)
                 if coltype[1] in support_types:
                     self.check_result_auto(origin_sql , abs_sql)
-                    
+
 
     def prepare_datas(self):
         tdSql.execute(
@@ -139,7 +139,7 @@ class TDTestCase:
         )
         for i in range(4):
             tdSql.execute(
-                f'create table ct{i+1} using stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
+                f'create table ct{i+1} using stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {1*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
 
         for i in range(9):
             tdSql.execute(
@@ -538,9 +538,9 @@ class TDTestCase:
         tdSql.query("select c1 ,t1 from stb1 where t1 =0 ")
         tdSql.checkRows(13)
         tdSql.query("select t1 from stb1 where t1 >0 ")
-        tdSql.checkRows(3)
+        tdSql.checkRows(12)
         tdSql.query("select t1 from stb1 where t1 =3 ")
-        tdSql.checkRows(1)
+        tdSql.checkRows(12)
         # tdSql.query("select sum(t1) from (select c1 ,t1 from stb1)")
         # tdSql.checkData(0,0,61)
         # tdSql.query("select distinct(c1) ,t1 from stb1")
@@ -550,7 +550,7 @@ class TDTestCase:
 
         # tag filter with abs function
         tdSql.query("select t1 from stb1 where abs(t1)=1")
-        tdSql.checkRows(1)
+        tdSql.checkRows(0)
         tdSql.query("select t1 from stb1 where abs(c1+t1)=1")
         tdSql.checkRows(1)
         tdSql.checkData(0,0,0)

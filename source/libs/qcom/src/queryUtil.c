@@ -171,17 +171,17 @@ char* jobTaskStatusStr(int32_t status) {
   switch (status) {
     case JOB_TASK_STATUS_NULL:
       return "NULL";
-    case JOB_TASK_STATUS_NOT_START:
-      return "NOT_START";
-    case JOB_TASK_STATUS_EXECUTING:
+    case JOB_TASK_STATUS_INIT:
+      return "INIT";
+    case JOB_TASK_STATUS_EXEC:
       return "EXECUTING";
-    case JOB_TASK_STATUS_PARTIAL_SUCCEED:
+    case JOB_TASK_STATUS_PART_SUCC:
       return "PARTIAL_SUCCEED";
-    case JOB_TASK_STATUS_SUCCEED:
+    case JOB_TASK_STATUS_SUCC:
       return "SUCCEED";
-    case JOB_TASK_STATUS_FAILED:
+    case JOB_TASK_STATUS_FAIL:
       return "FAILED";
-    case JOB_TASK_STATUS_DROPPING:
+    case JOB_TASK_STATUS_DROP:
       return "DROPPING";
     default:
       break;
@@ -200,7 +200,7 @@ SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* nam
   return s;
 }
 
-void destroyQueryExecRes(SQueryExecRes* pRes) {
+void destroyQueryExecRes(SExecResult* pRes) {
   if (NULL == pRes || NULL == pRes->res) {
     return;
   }
@@ -265,7 +265,6 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
       break;
 
     case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
       if (bufSize < 0) {
         //        tscError("invalid buf size");
         return TSDB_CODE_TSC_INVALID_VALUE;
@@ -276,7 +275,20 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
       *(str + bufSize + 1) = '"';
       n = bufSize + 2;
       break;
+    case TSDB_DATA_TYPE_NCHAR:
+      if (bufSize < 0) {
+        //        tscError("invalid buf size");
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
 
+      *str = '"';
+      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize, str + 1);
+      if (length <= 0) {
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
+      *(str + length + 1) = '"';
+      n = length + 2;
+      break;
     case TSDB_DATA_TYPE_UTINYINT:
       n = sprintf(str, "%d", *(uint8_t*)buf);
       break;
@@ -298,15 +310,15 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
       return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  *len = n;
+  if (len) *len = n;
 
   return TSDB_CODE_SUCCESS;
 }
 
 char* parseTagDatatoJson(void* p) {
-  char*  string = NULL;
+  char*   string = NULL;
   SArray* pTagVals = NULL;
-  cJSON* json = NULL;
+  cJSON*  json = NULL;
   if (tTagToValArray((const STag*)p, &pTagVals) != 0) {
     goto end;
   }
@@ -315,7 +327,7 @@ char* parseTagDatatoJson(void* p) {
   if (nCols == 0) {
     goto end;
   }
-  char    tagJsonKey[256] = {0};
+  char tagJsonKey[256] = {0};
   json = cJSON_CreateObject();
   if (json == NULL) {
     goto end;
@@ -378,7 +390,7 @@ char* parseTagDatatoJson(void* p) {
 end:
   cJSON_Delete(json);
   taosArrayDestroy(pTagVals);
-  if(string == NULL){
+  if (string == NULL) {
     string = strdup(TSDB_DATA_NULL_STR_L);
   }
   return string;

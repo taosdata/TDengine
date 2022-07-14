@@ -76,7 +76,8 @@ TEST_F(ParserInitialCTest, createDatabase) {
     expect.db[len] = '\0';
     expect.ignoreExist = igExists;
     expect.buffer = TSDB_DEFAULT_BUFFER_PER_VNODE;
-    expect.cacheLastRow = TSDB_DEFAULT_CACHE_LAST_ROW;
+    expect.cacheLast = TSDB_DEFAULT_CACHE_LAST;
+    expect.cacheLastSize = TSDB_DEFAULT_CACHE_LAST_SIZE;
     expect.compression = TSDB_DEFAULT_COMP_LEVEL;
     expect.daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
     expect.fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
@@ -97,7 +98,8 @@ TEST_F(ParserInitialCTest, createDatabase) {
   };
 
   auto setDbBufferFunc = [&](int32_t buffer) { expect.buffer = buffer; };
-  auto setDbCachelastFunc = [&](int8_t CACHELAST) { expect.cacheLastRow = CACHELAST; };
+  auto setDbCachelastFunc = [&](int8_t cachelast) { expect.cacheLast = cachelast; };
+  auto setDbCachelastSize = [&](int8_t cachelastSize) { expect.cacheLastSize = cachelastSize; };
   auto setDbCompressionFunc = [&](int8_t compressionLevel) { expect.compression = compressionLevel; };
   auto setDbDaysFunc = [&](int32_t daysPerFile) { expect.daysPerFile = daysPerFile; };
   auto setDbFsyncFunc = [&](int32_t fsyncPeriod) { expect.fsyncPeriod = fsyncPeriod; };
@@ -153,7 +155,8 @@ TEST_F(ParserInitialCTest, createDatabase) {
     ASSERT_EQ(req.compression, expect.compression);
     ASSERT_EQ(req.replications, expect.replications);
     ASSERT_EQ(req.strict, expect.strict);
-    ASSERT_EQ(req.cacheLastRow, expect.cacheLastRow);
+    ASSERT_EQ(req.cacheLast, expect.cacheLast);
+    ASSERT_EQ(req.cacheLastSize, expect.cacheLastSize);
     // ASSERT_EQ(req.schemaless, expect.schemaless);
     ASSERT_EQ(req.ignoreExist, expect.ignoreExist);
     ASSERT_EQ(req.numOfRetensions, expect.numOfRetensions);
@@ -179,6 +182,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
   setCreateDbReqFunc("wxy_db", 1);
   setDbBufferFunc(64);
   setDbCachelastFunc(2);
+  setDbCachelastSize(20);
   setDbCompressionFunc(1);
   setDbDaysFunc(100 * 1440);
   setDbFsyncFunc(100);
@@ -200,6 +204,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
       "BUFFER 64 "
       "CACHELAST 2 "
+      "CACHELASTSIZE 20 "
       "COMP 1 "
       "DURATION 100 "
       "FSYNC 100 "
@@ -359,11 +364,11 @@ TEST_F(ParserInitialCTest, createStable) {
     memset(&expect, 0, sizeof(SMCreateStbReq));
   };
 
-  auto setCreateStbReqFunc = [&](const char* pTbname, int8_t igExists = 0, int64_t delay1 = -1, int64_t delay2 = -1,
-                                 int64_t watermark1 = TSDB_DEFAULT_ROLLUP_WATERMARK,
+  auto setCreateStbReqFunc = [&](const char* pDbName, const char* pTbName, int8_t igExists = 0, int64_t delay1 = -1,
+                                 int64_t delay2 = -1, int64_t watermark1 = TSDB_DEFAULT_ROLLUP_WATERMARK,
                                  int64_t watermark2 = TSDB_DEFAULT_ROLLUP_WATERMARK,
                                  int32_t ttl = TSDB_DEFAULT_TABLE_TTL, const char* pComment = nullptr) {
-    int32_t len = snprintf(expect.name, sizeof(expect.name), "0.test.%s", pTbname);
+    int32_t len = snprintf(expect.name, sizeof(expect.name), "0.%s.%s", pDbName, pTbName);
     expect.name[len] = '\0';
     expect.igExists = igExists;
     expect.delay1 = delay1;
@@ -454,14 +459,14 @@ TEST_F(ParserInitialCTest, createStable) {
     tFreeSMCreateStbReq(&req);
   });
 
-  setCreateStbReqFunc("t1");
+  setCreateStbReqFunc("test", "t1");
   addFieldToCreateStbReqFunc(true, "ts", TSDB_DATA_TYPE_TIMESTAMP);
   addFieldToCreateStbReqFunc(true, "c1", TSDB_DATA_TYPE_INT);
   addFieldToCreateStbReqFunc(false, "id", TSDB_DATA_TYPE_INT);
   run("CREATE STABLE t1(ts TIMESTAMP, c1 INT) TAGS(id INT)");
   clearCreateStbReq();
 
-  setCreateStbReqFunc("t1", 1, 100 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_MINUTE, 10,
+  setCreateStbReqFunc("rollup_db", "t1", 1, 100 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_MINUTE, 10,
                       1 * MILLISECOND_PER_MINUTE, 100, "test create table");
   addFieldToCreateStbReqFunc(true, "ts", TSDB_DATA_TYPE_TIMESTAMP, 0, 0);
   addFieldToCreateStbReqFunc(true, "c1", TSDB_DATA_TYPE_INT);
@@ -493,7 +498,7 @@ TEST_F(ParserInitialCTest, createStable) {
   addFieldToCreateStbReqFunc(false, "a13", TSDB_DATA_TYPE_BOOL);
   addFieldToCreateStbReqFunc(false, "a14", TSDB_DATA_TYPE_NCHAR, 30 * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
   addFieldToCreateStbReqFunc(false, "a15", TSDB_DATA_TYPE_VARCHAR, 50 + VARSTR_HEADER_SIZE);
-  run("CREATE STABLE IF NOT EXISTS test.t1("
+  run("CREATE STABLE IF NOT EXISTS rollup_db.t1("
       "ts TIMESTAMP, c1 INT, c2 INT UNSIGNED, c3 BIGINT, c4 BIGINT UNSIGNED, c5 FLOAT, c6 DOUBLE, c7 BINARY(20), "
       "c8 SMALLINT, c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, "
       "c13 NCHAR(30), c14 VARCHAR(50)) "
@@ -507,12 +512,13 @@ TEST_F(ParserInitialCTest, createStable) {
 TEST_F(ParserInitialCTest, createStableSemanticCheck) {
   useDb("root", "test");
 
-  run("CREATE STABLE stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(CEIL)", TSDB_CODE_PAR_INVALID_ROLLUP_OPTION);
+  run("CREATE STABLE rollup_db.stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(CEIL)",
+      TSDB_CODE_PAR_INVALID_ROLLUP_OPTION);
 
-  run("CREATE STABLE stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(MAX) MAX_DELAY 0s WATERMARK 1m",
+  run("CREATE STABLE rollup_db.stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(MAX) MAX_DELAY 0s WATERMARK 1m",
       TSDB_CODE_PAR_INVALID_RANGE_OPTION);
 
-  run("CREATE STABLE stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(MAX) MAX_DELAY 10s WATERMARK 18m",
+  run("CREATE STABLE rollup_db.stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(MAX) MAX_DELAY 10s WATERMARK 18m",
       TSDB_CODE_PAR_INVALID_RANGE_OPTION);
 }
 
@@ -561,30 +567,33 @@ TEST_F(ParserInitialCTest, createStream) {
     tFreeSCMCreateStreamReq(&req);
   });
 
-  setCreateStreamReqFunc("s1", "test", "create stream s1 as select * from t1");
-  run("CREATE STREAM s1 AS SELECT * FROM t1");
+  setCreateStreamReqFunc("s1", "test", "create stream s1 as select count(*) from t1 interval(10s)");
+  run("CREATE STREAM s1 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
   clearCreateStreamReq();
 
-  setCreateStreamReqFunc("s1", "test", "create stream if not exists s1 as select * from t1", nullptr, 1);
-  run("CREATE STREAM IF NOT EXISTS s1 AS SELECT * FROM t1");
+  setCreateStreamReqFunc("s1", "test", "create stream if not exists s1 as select count(*) from t1 interval(10s)",
+                         nullptr, 1);
+  run("CREATE STREAM IF NOT EXISTS s1 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
   clearCreateStreamReq();
 
-  setCreateStreamReqFunc("s1", "test", "create stream s1 into st1 as select * from t1", "st1");
-  run("CREATE STREAM s1 INTO st1 AS SELECT * FROM t1");
+  setCreateStreamReqFunc("s1", "test", "create stream s1 into st1 as select count(*) from t1 interval(10s)", "st1");
+  run("CREATE STREAM s1 INTO st1 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
   clearCreateStreamReq();
 
-  setCreateStreamReqFunc(
-      "s1", "test",
-      "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired into st1 as select * from t1",
-      "st1", 1, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_SECOND, 1);
-  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED INTO st1 AS SELECT * FROM t1");
+  setCreateStreamReqFunc("s1", "test",
+                         "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired into st1 "
+                         "as select count(*) from t1 interval(10s)",
+                         "st1", 1, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_SECOND,
+                         1);
+  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED INTO st1 AS SELECT COUNT(*) "
+      "FROM t1 INTERVAL(10S)");
   clearCreateStreamReq();
 }
 
 TEST_F(ParserInitialCTest, createStreamSemanticCheck) {
   useDb("root", "test");
 
-  run("CREATE STREAM s1 AS SELECT PERCENTILE(c1, 30) FROM t1", TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC);
+  run("CREATE STREAM s1 AS SELECT PERCENTILE(c1, 30) FROM t1 INTERVAL(10S)", TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC);
 }
 
 TEST_F(ParserInitialCTest, createTable) {
@@ -598,7 +607,7 @@ TEST_F(ParserInitialCTest, createTable) {
       "c13 NCHAR(30), c15 VARCHAR(50)) "
       "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3)");
 
-  run("CREATE TABLE IF NOT EXISTS test.t1("
+  run("CREATE TABLE IF NOT EXISTS rollup_db.t1("
       "ts TIMESTAMP, c1 INT, c2 INT UNSIGNED, c3 BIGINT, c4 BIGINT UNSIGNED, c5 FLOAT, c6 DOUBLE, c7 BINARY(20), "
       "c8 SMALLINT, c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, "
       "c13 NCHAR(30), c14 VARCHAR(50)) "
@@ -615,6 +624,21 @@ TEST_F(ParserInitialCTest, createTable) {
       "IF NOT EXISTS test.t3 USING test.st1 (tag1, tag2) TAGS(3, 'abc') ");
 
   // run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', NOW + 1S)");
+}
+
+TEST_F(ParserInitialCTest, createTableSemanticCheck) {
+  useDb("root", "test");
+
+  string sql = "CREATE TABLE st1(ts TIMESTAMP, ";
+  for (int32_t i = 1; i < 4096; ++i) {
+    if (i > 1) {
+      sql.append(", ");
+    }
+    sql.append("c" + to_string(i) + " INT");
+  }
+  sql.append(") TAGS (t1 int)");
+
+  run(sql, TSDB_CODE_PAR_TOO_MANY_COLUMNS);
 }
 
 TEST_F(ParserInitialCTest, createTopic) {

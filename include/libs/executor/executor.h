@@ -30,34 +30,40 @@ struct SRpcMsg;
 struct SSubplan;
 
 typedef struct SReadHandle {
-  void*   reader;
+  void*   tqReader;
   void*   meta;
   void*   config;
   void*   vnode;
   void*   mnd;
   SMsgCb* pMsgCb;
-  bool    tqReader;
+  int64_t version;
+  bool    initMetaReader;
+  bool    initTableReader;
+  bool    initTqReader;
 } SReadHandle;
 
+// in queue mode, data streams are seperated by msg
 typedef enum {
   OPTR_EXEC_MODEL_BATCH = 0x1,
   OPTR_EXEC_MODEL_STREAM = 0x2,
+  OPTR_EXEC_MODEL_QUEUE = 0x3,
 } EOPTR_EXEC_MODEL;
 
 /**
- * Create the exec task for streaming mode
+ * Create the exec task for stream mode
  * @param pMsg
- * @param streamReadHandle
+ * @param SReadHandle
  * @return
  */
-qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle);
+qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers);
 
 /**
- * Switch the stream scan to snapshot mode
- * @param tinfo
+ * Create the exec task for queue mode
+ * @param pMsg
+ * @param SReadHandle
  * @return
  */
-int32_t qStreamScanSnapshot(qTaskInfo_t tinfo);
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers);
 
 /**
  * Set the input data block for the stream scan.
@@ -107,8 +113,8 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
  * @param tversion
  * @return
  */
-int32_t qGetQueriedTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion,
-                                      int32_t* tversion);
+int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion,
+                                    int32_t* tversion);
 
 /**
  * The main task execution function, including query on both table and multiple tables,
@@ -155,7 +161,7 @@ int64_t qGetQueriedTableUid(qTaskInfo_t tinfo);
  */
 int32_t qGetQualifiedTableIdList(void* pTableList, const char* tagCond, int32_t tagCondLen, SArray* pTableIdList);
 
-void qProcessFetchRsp(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
+void qProcessRspMsg(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
 int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, int32_t* resNum, SExplainExecInfo** pRes);
 
@@ -172,7 +178,19 @@ int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t le
  */
 int32_t qGetStreamScanStatus(qTaskInfo_t tinfo, uint64_t* uid, int64_t* ts);
 
-int32_t qStreamPrepareScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts);
+int32_t qStreamPrepareTsdbScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts);
+
+int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset);
+
+int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
+
+void* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
+
+void* qExtractReaderFromStreamScanner(void* scanner);
+
+int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
+
+int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem);
 
 #ifdef __cplusplus
 }

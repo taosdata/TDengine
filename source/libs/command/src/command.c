@@ -223,7 +223,7 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
                  "CREATE DATABASE `%s` BUFFER %d CACHELAST %d COMP %d DURATION %dm "
                  "FSYNC %d MAXROWS %d MINROWS %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
                  "STRICT %d WAL %d VGROUPS %d SINGLE_STABLE %d",
-                 dbFName, pCfg->buffer, pCfg->cacheLastRow, pCfg->compression, pCfg->daysPerFile, pCfg->fsyncPeriod,
+                 dbFName, pCfg->buffer, pCfg->cacheLast, pCfg->compression, pCfg->daysPerFile, pCfg->fsyncPeriod,
                  pCfg->maxRows, pCfg->minRows, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2, pCfg->pages,
                  pCfg->pageSize, prec, pCfg->replications, pCfg->strict, pCfg->walLevel, pCfg->numOfVgroups,
                  1 == pCfg->numOfStables);
@@ -548,40 +548,40 @@ static int32_t execShowLocalVariables(SRetrieveTableRsp** pRsp) {
 }
 
 static int32_t createSelectResultDataBlock(SNodeList* pProjects, SSDataBlock** pOutput) {
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  SSDataBlock* pBlock = createDataBlock();
   if (NULL == pBlock) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-
-  pBlock->pDataBlock = taosArrayInit(LIST_LENGTH(pProjects), sizeof(SColumnInfoData));
 
   SNode* pProj = NULL;
   FOREACH(pProj, pProjects) {
     SColumnInfoData infoData = {0};
     infoData.info.type = ((SExprNode*)pProj)->resType.type;
     infoData.info.bytes = ((SExprNode*)pProj)->resType.bytes;
-    taosArrayPush(pBlock->pDataBlock, &infoData);
+    blockDataAppendColInfo(pBlock, &infoData);
   }
   *pOutput = pBlock;
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t buildSelectResultDataBlock(SNodeList* pProjects, SSDataBlock* pBlock) {
-  int32_t numOfCols = LIST_LENGTH(pProjects);
   blockDataEnsureCapacity(pBlock, 1);
 
   int32_t index = 0;
   SNode*  pProj = NULL;
   FOREACH(pProj, pProjects) {
-    if (((SValueNode*)pProj)->isNull) {
-      colDataAppend(taosArrayGet(pBlock->pDataBlock, index++), 0, NULL, true);
+    if (QUERY_NODE_VALUE != nodeType(pProj)) {
+      return TSDB_CODE_PAR_INVALID_SELECTED_EXPR;
     } else {
-      colDataAppend(taosArrayGet(pBlock->pDataBlock, index++), 0, nodesGetValueFromNode((SValueNode*)pProj), false);
+      if (((SValueNode*)pProj)->isNull) {
+        colDataAppend(taosArrayGet(pBlock->pDataBlock, index++), 0, NULL, true);
+      } else {
+        colDataAppend(taosArrayGet(pBlock->pDataBlock, index++), 0, nodesGetValueFromNode((SValueNode*)pProj), false);
+      }
     }
   }
 
   pBlock->info.rows = 1;
-
   return TSDB_CODE_SUCCESS;
 }
 

@@ -96,12 +96,20 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
     return ret;
   }
 
-  if (pSyncNode->pRaftCfg->snapshotEnable) {
-    ret = syncNodeRequestVotePeersSnapshot(pSyncNode);
-  } else {
-    ret = syncNodeRequestVotePeers(pSyncNode);
-  }
+  switch (pSyncNode->pRaftCfg->snapshotStrategy) {
+    case SYNC_STRATEGY_NO_SNAPSHOT:
+      ret = syncNodeRequestVotePeers(pSyncNode);
+      break;
 
+    case SYNC_STRATEGY_STANDARD_SNAPSHOT:
+    case SYNC_STRATEGY_WAL_FIRST:
+      ret = syncNodeRequestVotePeersSnapshot(pSyncNode);
+      break;
+
+    default:
+      ret = syncNodeRequestVotePeers(pSyncNode);
+      break;
+  }
   ASSERT(ret == 0);
   syncNodeResetElectTimer(pSyncNode);
 
@@ -115,8 +123,9 @@ int32_t syncNodeRequestVote(SSyncNode* pSyncNode, const SRaftId* destRaftId, con
     char     host[128];
     uint16_t port;
     syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
-    sDebug("vgId:%d, send sync-request-vote to %s:%d, {term:%lu, last-index:%ld, last-term:%lu}", pSyncNode->vgId, host,
-           port, pMsg->term, pMsg->lastLogTerm, pMsg->lastLogIndex);
+    sDebug("vgId:%d, send sync-request-vote to %s:%d, {term:%" PRIu64 ", last-index:%" PRId64 ", last-term:%" PRIu64
+           "}",
+           pSyncNode->vgId, host, port, pMsg->term, pMsg->lastLogTerm, pMsg->lastLogIndex);
   } while (0);
 
   SRpcMsg rpcMsg;

@@ -67,7 +67,6 @@ typedef struct SSyncNode {
   char        path[TSDB_FILENAME_LEN];
   char        raftStorePath[TSDB_FILENAME_LEN * 2];
   char        configPath[TSDB_FILENAME_LEN * 2];
-  int32_t     batchSize;
 
   // sync io
   SWal*         pWal;
@@ -174,8 +173,9 @@ int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak);
 int32_t    syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_t arrSize);
 
 // option
-bool      syncNodeSnapshotEnable(SSyncNode* pSyncNode);
-SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapshotLastApplyIndex);
+bool          syncNodeSnapshotEnable(SSyncNode* pSyncNode);
+ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
+SyncIndex     syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapshotLastApplyIndex);
 
 // ping --------------
 int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg);
@@ -250,6 +250,9 @@ void syncStartStandBy(int64_t rid);
 
 bool syncNodeCanChange(SSyncNode* pSyncNode);
 bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pNewCfg);
+
+int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode);
+int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader);
 
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj);

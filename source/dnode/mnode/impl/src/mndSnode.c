@@ -273,6 +273,9 @@ _OVER:
 }
 
 static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
+#if 1
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#else
   SMnode          *pMnode = pReq->info.node;
   int32_t          code = -1;
   SSnodeObj       *pObj = NULL;
@@ -315,6 +318,7 @@ _OVER:
   mndReleaseSnode(pMnode, pObj);
   mndReleaseDnode(pMnode, pDnode);
   return code;
+#endif
 }
 
 static int32_t mndSetDropSnodeRedoLogs(STrans *pTrans, SSnodeObj *pObj) {
@@ -386,9 +390,12 @@ _OVER:
 }
 
 static int32_t mndProcessDropSnodeReq(SRpcMsg *pReq) {
-  SMnode        *pMnode = pReq->info.node;
-  int32_t        code = -1;
-  SSnodeObj     *pObj = NULL;
+#if 1
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#else
+  SMnode *pMnode = pReq->info.node;
+  int32_t code = -1;
+  SSnodeObj *pObj = NULL;
   SMDropSnodeReq dropReq = {0};
 
   if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
@@ -422,6 +429,7 @@ _OVER:
 
   mndReleaseSnode(pMnode, pObj);
   return code;
+#endif
 }
 
 static int32_t mndRetrieveSnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {

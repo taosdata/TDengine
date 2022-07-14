@@ -56,7 +56,7 @@ typedef struct SParseContext {
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
-bool    qIsInsertSql(const char* pStr, size_t length);
+bool    qIsInsertValuesSql(const char* pStr, size_t length);
 
 // for async mode
 int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq);
@@ -96,6 +96,9 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
                     char* tableName, char* msgBuf, int16_t msgBufLen);
 int32_t smlBuildOutput(void* handle, SHashObj* pVgHash);
 
+int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
+SArray* serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap);
+SArray* serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap);
 #ifdef __cplusplus
 }
 #endif

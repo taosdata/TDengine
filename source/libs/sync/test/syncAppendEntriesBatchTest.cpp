@@ -3,6 +3,7 @@
 #include "syncIO.h"
 #include "syncInt.h"
 #include "syncMessage.h"
+#include "syncRaftEntry.h"
 #include "syncUtil.h"
 #include "trpc.h"
 
@@ -15,30 +16,29 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
-SRpcMsg *createRpcMsg(int32_t i, int32_t dataLen) {
-  SRpcMsg *pRpcMsg = (SRpcMsg *)taosMemoryMalloc(sizeof(SRpcMsg));
-  memset(pRpcMsg, 0, sizeof(SRpcMsg));
-
-  pRpcMsg->msgType = TDMT_SYNC_PING;
-  pRpcMsg->contLen = dataLen;
-  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
-  pRpcMsg->code = 10 * i;
-  snprintf((char *)pRpcMsg->pCont, pRpcMsg->contLen, "value_%d", i);
-
-  return pRpcMsg;
+SSyncRaftEntry *createEntry(int i) {
+  SSyncRaftEntry *pEntry = syncEntryBuild(20);
+  assert(pEntry != NULL);
+  pEntry->msgType = 1;
+  pEntry->originalRpcType = 2;
+  pEntry->seqNum = 3;
+  pEntry->isWeak = true;
+  pEntry->term = 100;
+  pEntry->index = 200;
+  snprintf(pEntry->data, pEntry->dataLen, "value_%d", i);
+  return pEntry;
 }
 
 SyncAppendEntriesBatch *createMsg() {
-  SRpcMsg rpcMsgArr[5];
-  memset(rpcMsgArr, 0, sizeof(rpcMsgArr));
+  SSyncRaftEntry *entryPArr[5];
+  memset(entryPArr, 0, sizeof(entryPArr));
 
   for (int32_t i = 0; i < 5; ++i) {
-    SRpcMsg *pRpcMsg = createRpcMsg(i, 20);
-    rpcMsgArr[i] = *pRpcMsg;
-    taosMemoryFree(pRpcMsg);
+    SSyncRaftEntry *pEntry = createEntry(i);
+    entryPArr[i] = pEntry;
   }
 
-  SyncAppendEntriesBatch *pMsg = syncAppendEntriesBatchBuild(rpcMsgArr, 5, 1234);
+  SyncAppendEntriesBatch *pMsg = syncAppendEntriesBatchBuild(entryPArr, 5, 1234);
   pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1234);
   pMsg->srcId.vgId = 100;
   pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 5678);
@@ -52,17 +52,17 @@ SyncAppendEntriesBatch *createMsg() {
 
 void test1() {
   SyncAppendEntriesBatch *pMsg = createMsg();
-  syncAppendEntriesBatchLog2((char *)"test1:", pMsg);
+  syncAppendEntriesBatchLog2((char *)"==test1==", pMsg);
 
-  SRpcMsg rpcMsgArr[5];
-  int32_t retArrSize;
-  syncAppendEntriesBatch2RpcMsgArray(pMsg, rpcMsgArr, 5, &retArrSize);
-  for (int i = 0; i < retArrSize; ++i) {
-    char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "==test1 decode rpc msg %d: msgType:%d, code:%d, contLen:%d, pCont:%s \n", i,
-             rpcMsgArr[i].msgType, rpcMsgArr[i].code, rpcMsgArr[i].contLen, (char *)rpcMsgArr[i].pCont);
-    sTrace("%s", logBuf);
-  }
+  /*
+    SOffsetAndContLen *metaArr = syncAppendEntriesBatchMetaTableArray(pMsg);
+    int32_t            retArrSize = pMsg->dataCount;
+    for (int i = 0; i < retArrSize; ++i) {
+      SSyncRaftEntry *pEntry = (SSyncRaftEntry*)(pMsg->data + metaArr[i].offset);
+      ASSERT(pEntry->bytes == metaArr[i].contLen);
+      syncEntryPrint(pEntry);
+    }
+  */
 
   syncAppendEntriesBatchDestroy(pMsg);
 }

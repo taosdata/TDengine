@@ -12,7 +12,7 @@ import random
 class TDTestCase:
     updatecfgDict = {'debugFlag': 143, "cDebugFlag": 143, "uDebugFlag": 143, "rpcDebugFlag": 143, "tmrDebugFlag": 143,
                      "jniDebugFlag": 143, "simDebugFlag": 143, "dDebugFlag": 143, "dDebugFlag": 143, "vDebugFlag": 143, "mDebugFlag": 143, "qDebugFlag": 143,
-                     "wDebugFlag": 143, "sDebugFlag": 143, "tsdbDebugFlag": 143, "tqDebugFlag": 143, "fsDebugFlag": 143, "fnDebugFlag": 143}
+                     "wDebugFlag": 143, "sDebugFlag": 143, "tsdbDebugFlag": 143, "tqDebugFlag": 143, "fsDebugFlag": 143, "udfDebugFlag": 143}
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
@@ -58,8 +58,8 @@ class TDTestCase:
             for coltype in coltypes:
                 colname = coltype[0]
                 if coltype[1] in support_types and coltype[-1] != "TAG" :
-                    irate_sql = "select irate({}) from (select * from  {} order by tbname ) ".format(colname, tbname)
-                    origin_sql = "select ts , {} , cast(ts as bigint) from (select ts , {} from {} order by ts desc limit 2 offset 0 ) order by ts".format(colname,colname, tbname)
+                    irate_sql = "select irate({}) from {}".format(colname, tbname)
+                    origin_sql = "select tail({}, 2), cast(ts as bigint) from {} order by ts".format(colname, tbname)
 
                     tdSql.query(irate_sql)
                     irate_result = tdSql.queryResult
@@ -68,10 +68,10 @@ class TDTestCase:
                     irate_value = irate_result[0][0]
                     if origin_result[1][-1] - origin_result[0][-1] == 0:
                         comput_irate_value = 0
-                    elif (origin_result[1][1] - origin_result[0][1])<0:
-                        comput_irate_value = origin_result[1][1]*1000/( origin_result[1][-1] - origin_result[0][-1])
+                    elif (origin_result[1][0] - origin_result[0][0])<0:
+                        comput_irate_value = origin_result[1][0]*1000/( origin_result[1][-1] - origin_result[0][-1])
                     else:
-                        comput_irate_value = (origin_result[1][1] - origin_result[0][1])*1000/( origin_result[1][-1] - origin_result[0][-1])
+                        comput_irate_value = (origin_result[1][0] - origin_result[0][0])*1000/( origin_result[1][-1] - origin_result[0][-1])
                     if comput_irate_value ==irate_value:
                         tdLog.info(" irate work as expected , sql is %s "% irate_sql)
                     else:
@@ -97,7 +97,7 @@ class TDTestCase:
         )
         for i in range(4):
             tdSql.execute(
-                f'create table ct{i+1} using stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
+                f'create table ct{i+1} using stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {1*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
 
         for i in range(9):
             tdSql.execute(

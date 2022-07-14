@@ -106,7 +106,7 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode);
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
-int32_t  getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo* pListInfo);
+int32_t  getTableList(void* metaHandle, void* vnode, SScanPhysiNode* pScanNode, STableListInfo* pListInfo);
 SArray*  createSortInfo(SNodeList* pNodeList);
 SArray*  extractPartitionColInfo(SNodeList* pNodeList);
 SArray*  extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
@@ -125,5 +125,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
 void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 int32_t convertFillType(int32_t mode);
+
+int32_t resultrowComparAsc(const void* p1, const void* p2);
 
 #endif  // TDENGINE_QUERYUTIL_H

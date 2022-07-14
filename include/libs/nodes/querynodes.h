@@ -228,7 +228,7 @@ typedef struct SFillNode {
   ENodeType   type;  // QUERY_NODE_FILL
   EFillMode   mode;
   SNode*      pValues;    // SNodeListNode
-  SNode*      pWStartTs;  // _wstartts pseudo column
+  SNode*      pWStartTs;  // _wstart pseudo column
   STimeWindow timeRange;
 } SFillNode;
 
@@ -248,19 +248,23 @@ typedef struct SSelectStmt {
   SNodeList*  pOrderByList;  // SOrderByExprNode
   SLimitNode* pLimit;
   SLimitNode* pSlimit;
+  STimeWindow timeRange;
   char        stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t     precision;
+  int32_t     selectFuncNum;
   bool        isEmptyResult;
-  bool        isTimeOrderQuery;
+  bool        isTimeLineResult;
   bool        hasAggFuncs;
   bool        hasRepeatScanFuncs;
   bool        hasIndefiniteRowsFunc;
   bool        hasSelectFunc;
   bool        hasSelectValFunc;
+  bool        hasOtherVectorFunc;
   bool        hasUniqueFunc;
   bool        hasTailFunc;
   bool        hasInterpFunc;
   bool        hasLastRowFunc;
+  bool        hasTimeLineFunc;
   bool        groupSort;
 } SSelectStmt;
 
@@ -300,6 +304,14 @@ typedef struct SDeleteStmt {
   uint8_t     precision;
   bool        deleteZeroRows;
 } SDeleteStmt;
+
+typedef struct SInsertStmt {
+  ENodeType  type;  // QUERY_NODE_INSERT_STMT
+  SNode*     pTable;
+  SNodeList* pCols;
+  SNode*     pQuery;
+  uint8_t    precision;
+} SInsertStmt;
 
 typedef enum {
   PAYLOAD_TYPE_KV = 0,
@@ -375,6 +387,7 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
 typedef enum ECollectColType { COLLECT_COL_TYPE_COL = 1, COLLECT_COL_TYPE_TAG, COLLECT_COL_TYPE_ALL } ECollectColType;
 int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
                             SNodeList** pCols);
+int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, ECollectColType type, SNodeList** pCols);
 
 typedef bool (*FFuncClassifier)(int32_t funcId);
 int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, FFuncClassifier classifier, SNodeList** pFuncs);

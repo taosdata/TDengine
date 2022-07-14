@@ -126,6 +126,7 @@ class TDTestCase:
             tdSql.execute(f'alter table {self.ntbname} rename column {key} {rename_str}')
             tdSql.query(f'select {rename_str} from {self.ntbname}')
             tdSql.checkRows(1)
+            tdSql.error(f'select {key} from {self.ntbname}')
         
     def alter_check_tb(self):
         tag_tinyint = random.randint(constant.TINYINT_MIN,constant.TINYINT_MAX)
@@ -183,20 +184,37 @@ class TDTestCase:
         for k,v in self.tag_dict.items():
             if v.lower() == 'tinyint':
                 self.tag_check(i,k,tag_tinyint)
+                for error in [constant.TINYINT_MIN-1,constant.TINYINT_MAX+1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}')
             elif v.lower() == 'smallint':
                 self.tag_check(i,k,tag_smallint)
+                for error in [constant.SMALLINT_MIN-1,constant.SMALLINT_MAX+1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}')
             elif v.lower() == 'int':
                 self.tag_check(i,k,tag_int)
+                for error in [constant.INT_MIN-1,constant.INT_MAX+1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}')
             elif v.lower() == 'bigint':
                 self.tag_check(i,k,tag_bigint)
+                for error in [constant.BIGINT_MIN-1,constant.BIGINT_MAX+1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}')
             elif v.lower() == 'tinyint unsigned':
                 self.tag_check(i,k,tag_untinyint)
+                for error in [constant.TINYINT_UN_MIN-1,constant.TINYINT_UN_MAX+1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}')
             elif v.lower() == 'smallint unsigned':
                 self.tag_check(i,k,tag_unsmallint)
+                for error in [constant.SMALLINT_UN_MIN-1,constant.SMALLINT_UN_MAX+1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}')
             elif v.lower() == 'int unsigned':
-                self.tag_check(i,k,tag_unint)  
-            elif v.lower() == 'bigint unsigned':
-                self.tag_check(i,k,tag_unbigint)
+                self.tag_check(i,k,tag_unint)
+                for error in [constant.INT_UN_MIN-1,constant.INT_UN_MAX+1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}')  
+            #! bug TD-17106
+            # elif v.lower() == 'bigint unsigned':
+                # self.tag_check(i,k,tag_unbigint)
+                # for error in [constant.BIGINT_UN_MIN-1,constant.BIGINT_UN_MAX+1]:
+                #     tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}') 
             elif v.lower() == 'bool':     
                 self.tag_check(i,k,tag_bool)
             elif v.lower() == 'float':
@@ -206,6 +224,9 @@ class TDTestCase:
                     tdSql.checkEqual(tdSql.queryResult[0][0],tdSql.queryResult[0][0])
                 else:
                     tdLog.exit(f'select {k} from {self.stbname}_{i},data check failure')
+            #! bug TD-17106    
+                # for error in [constant.FLOAT_MIN*1.1,constant.FLOAT_MAX*1.1]:
+                #     tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}') 
             elif v.lower() == 'double':
                 tdSql.execute(f'alter table {self.stbname}_{i} set tag {k} = {tag_double}')
                 tdSql.query(f'select {k} from {self.stbname}_{i}')
@@ -213,11 +234,17 @@ class TDTestCase:
                     tdSql.checkEqual(tdSql.queryResult[0][0],tdSql.queryResult[0][0])
                 else:
                     tdLog.exit(f'select {k} from {self.stbname}_{i},data check failure')
+                for error in [constant.DOUBLE_MIN*1.1,constant.DOUBLE_MAX*1.1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}') 
             elif 'binary' in v.lower():
+                tag_binary_error = tdCom.getLongName(self.binary_length+1)
+                tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = "{tag_binary_error}"')
                 tdSql.execute(f'alter table {self.stbname}_{i} set tag {k} = "{tag_binary}"')
                 tdSql.query(f'select {k} from {self.stbname}_{i}')
                 tdSql.checkData(0,0,tag_binary)
             elif 'nchar' in v.lower():
+                tag_nchar_error = tdCom.getLongName(self.nchar_length+1)
+                tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = "{tag_nchar_error}"')
                 tdSql.execute(f'alter table {self.stbname}_{i} set tag {k} = "{tag_nchar}"')
                 tdSql.query(f'select {k} from {self.stbname}_{i}')
                 tdSql.checkData(0,0,tag_nchar)
@@ -277,7 +304,11 @@ class TDTestCase:
             else:
                 for v in self.column_dict.values():
                     tdSql.error(f'alter table {self.stbname} modify column {key} {v}')
-
+        for key,values in self.column_dict.items():
+            rename_str = f'{tdCom.getLongName(constant.COL_NAME_LENGTH_MAX,"letters")}'
+            tdSql.error(f'alter table {self.stbname} rename column {key} {rename_str}')
+            for i in range(self.tbnum):
+                tdSql.error(f'alter table {self.stbname}_{i} rename column {key} {rename_str}')
     def run(self):
         self.alter_check_ntb()
         self.alter_check_tb()

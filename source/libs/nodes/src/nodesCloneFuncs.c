@@ -127,6 +127,7 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
   COPY_SCALAR_FIELD(isDuration);
   COPY_SCALAR_FIELD(translate);
   COPY_SCALAR_FIELD(notReserved);
+  COPY_SCALAR_FIELD(isNull);
   COPY_SCALAR_FIELD(placeholderNo);
   COPY_SCALAR_FIELD(typeData);
   COPY_SCALAR_FIELD(unit);
@@ -165,7 +166,7 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
       memcpy(pDst->datum.p, pSrc->datum.p, len);
       break;
     }
-    case TSDB_DATA_TYPE_JSON:{
+    case TSDB_DATA_TYPE_JSON: {
       int32_t len = getJsonValueLen(pSrc->datum.p);
       pDst->datum.p = taosMemoryCalloc(1, len);
       if (NULL == pDst->datum.p) {
@@ -368,6 +369,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
 static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(joinType);
+  CLONE_NODE_FIELD(pMergeCondition);
   CLONE_NODE_FIELD(pOnConditions);
   COPY_SCALAR_FIELD(isSingleTableJoin);
   return TSDB_CODE_SUCCESS;
@@ -393,9 +395,12 @@ static int32_t logicVnodeModifCopy(const SVnodeModifyLogicNode* pSrc, SVnodeModi
   COPY_SCALAR_FIELD(msgType);
   CLONE_NODE_FIELD(pAffectedRows);
   COPY_SCALAR_FIELD(tableId);
+  COPY_SCALAR_FIELD(stableId);
   COPY_SCALAR_FIELD(tableType);
   COPY_CHAR_ARRAY_FIELD(tableFName);
   COPY_OBJECT_FIELD(deleteTimeRange, sizeof(STimeWindow));
+  CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
+  CLONE_NODE_LIST_FIELD(pInsertCols);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -591,6 +596,7 @@ static int32_t downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstre
   COPY_SCALAR_FIELD(taskId);
   COPY_SCALAR_FIELD(schedId);
   COPY_SCALAR_FIELD(execId);
+  COPY_SCALAR_FIELD(fetchMsgType);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -609,7 +615,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_CHAR_ARRAY_FIELD(stmtName);
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(isEmptyResult);
-  COPY_SCALAR_FIELD(isTimeOrderQuery);
+  COPY_SCALAR_FIELD(isTimeLineResult);
   COPY_SCALAR_FIELD(hasAggFuncs);
   COPY_SCALAR_FIELD(hasRepeatScanFuncs);
   return TSDB_CODE_SUCCESS;

@@ -29,9 +29,8 @@ char *strsep(char **stringp, const char *delim) {
   char *      s;
   const char *spanp;
   int32_t     c, sc;
-  char *tok;
-  if ((s = *stringp) == NULL)
-    return (NULL);
+  char *      tok;
+  if ((s = *stringp) == NULL) return (NULL);
   for (tok = s;;) {
     c = *s++;
     spanp = delim;
@@ -51,10 +50,10 @@ char *strsep(char **stringp, const char *delim) {
 /* Duplicate a string, up to at most size characters */
 char *strndup(const char *s, size_t size) {
   size_t l;
-  char *s2;
+  char * s2;
   l = strlen(s);
-  if (l > size) l=size;
-  s2 = malloc(l+1);
+  if (l > size) l = size;
+  s2 = malloc(l + 1);
   if (s2) {
     strncpy(s2, s, l);
     s2[l] = '\0';
@@ -63,13 +62,12 @@ char *strndup(const char *s, size_t size) {
 }
 /* Copy no more than N characters of SRC to DEST, returning the address of
    the terminating '\0' in DEST, if any, or else DEST + N.  */
-char *stpncpy (char *dest, const char *src, size_t n) {
-  size_t size = strnlen (src, n);
-  memcpy (dest, src, size);
+char *stpncpy(char *dest, const char *src, size_t n) {
+  size_t size = strnlen(src, n);
+  memcpy(dest, src, size);
   dest += size;
-  if (size == n)
-    return dest;
-  return memset (dest, '\0', n - size);
+  if (size == n) return dest;
+  return memset(dest, '\0', n - size);
 }
 #endif
 
@@ -113,10 +111,9 @@ int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes) {
 #endif
 }
 
-
-TdUcs4* tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4) {
-  assert(taosMemorySize(target_ucs4)>=len_ucs4*sizeof(TdUcs4));
-  return memcpy(target_ucs4, source_ucs4, len_ucs4*sizeof(TdUcs4));
+TdUcs4 *tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4) {
+  assert(taosMemorySize(target_ucs4) >= len_ucs4 * sizeof(TdUcs4));
+  return memcpy(target_ucs4, source_ucs4, len_ucs4 * sizeof(TdUcs4));
 }
 
 int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
@@ -137,7 +134,7 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs) {
 #endif
 }
 
-bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len) { 
+bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len) {
 #ifdef DISALLOW_NCHAR_WITHOUT_ICONV
   printf("Nchar cannot be read and written without iconv, please install iconv library and recompile TDengine.\n");
   return -1;
@@ -146,7 +143,7 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
   iconv_t cd = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
   size_t  ucs4_input_len = mbsLength;
   size_t  outLeft = ucs4_max_len;
-  if (iconv(cd, (char**)&mbs, &ucs4_input_len, (char**)&ucs4, &outLeft) == -1) {
+  if (iconv(cd, (char **)&mbs, &ucs4_input_len, (char **)&ucs4, &outLeft) == -1) {
     iconv_close(cd);
     return false;
   }
@@ -195,8 +192,8 @@ int32_t taosUcs4len(TdUcs4 *ucs4) {
   return n;
 }
 
-//dst buffer size should be at least 2*len + 1
-int32_t taosHexEncode(const char *src, char *dst, int32_t len) {
+// dst buffer size should be at least 2*len + 1
+int32_t taosHexEncode(const unsigned char *src, char *dst, int32_t len) {
   if (!dst) {
     return -1;
   }
@@ -214,7 +211,7 @@ int32_t taosHexDecode(const char *src, char *dst, int32_t len) {
   }
 
   uint8_t hn, ln, out;
-  for (int i = 0, j = 0; i < len * 2; i += 2, ++j ) {
+  for (int i = 0, j = 0; i < len * 2; i += 2, ++j) {
     hn = src[i] > '9' ? src[i] - 'a' + 10 : src[i] - '0';
     ln = src[i + 1] > '9' ? src[i + 1] - 'a' + 10 : src[i + 1] - '0';
 
@@ -238,25 +235,22 @@ int32_t taosWcharToMb(char *pStr, TdWchar wchar) { return wctomb(pStr, wchar); }
 int32_t taosWcharsToMbs(char *pStrs, TdWchar *pWchars, int32_t size) { return wcstombs(pStrs, pWchars, size); }
 
 char *taosStrCaseStr(const char *str, const char *pattern) {
-  size_t i; 
+  size_t i;
 
-  if (!*pattern) 
-    return (char*)str; 
+  if (!*pattern) return (char *)str;
 
-  for (; *str; str++) { 
-    if (toupper(*str) == toupper(*pattern)) { 
-    for (i = 1;; i++) { 
-      if (!pattern[i]) 
-      return (char*)str; 
-      if (toupper(str[i]) != toupper(pattern[i])) 
-      break; 
-    } 
-    } 
-  } 
-  return NULL; 
+  for (; *str; str++) {
+    if (toupper(*str) == toupper(*pattern)) {
+      for (i = 1;; i++) {
+        if (!pattern[i]) return (char *)str;
+        if (toupper(str[i]) != toupper(pattern[i])) break;
+      }
+    }
+  }
+  return NULL;
 }
 
-int64_t taosStr2Int64(const char *str, char** pEnd, int32_t radix) {
+int64_t taosStr2Int64(const char *str, char **pEnd, int32_t radix) {
   int64_t tmp = strtoll(str, pEnd, radix);
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);
@@ -265,7 +259,7 @@ int64_t taosStr2Int64(const char *str, char** pEnd, int32_t radix) {
   return tmp;
 }
 
-uint64_t taosStr2UInt64(const char *str, char** pEnd, int32_t radix) {
+uint64_t taosStr2UInt64(const char *str, char **pEnd, int32_t radix) {
   uint64_t tmp = strtoull(str, pEnd, radix);
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);
@@ -274,7 +268,7 @@ uint64_t taosStr2UInt64(const char *str, char** pEnd, int32_t radix) {
   return tmp;
 }
 
-int32_t taosStr2Int32(const char *str, char** pEnd, int32_t radix) {
+int32_t taosStr2Int32(const char *str, char **pEnd, int32_t radix) {
   int32_t tmp = strtol(str, pEnd, radix);
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);
@@ -283,7 +277,7 @@ int32_t taosStr2Int32(const char *str, char** pEnd, int32_t radix) {
   return tmp;
 }
 
-uint32_t taosStr2UInt32(const char *str, char** pEnd, int32_t radix) {
+uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
   uint32_t tmp = strtol(str, pEnd, radix);
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);
@@ -292,7 +286,7 @@ uint32_t taosStr2UInt32(const char *str, char** pEnd, int32_t radix) {
   return tmp;
 }
 
-int16_t taosStr2Int16(const char *str, char** pEnd, int32_t radix) {
+int16_t taosStr2Int16(const char *str, char **pEnd, int32_t radix) {
   int32_t tmp = strtol(str, pEnd, radix);
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);
@@ -303,7 +297,7 @@ int16_t taosStr2Int16(const char *str, char** pEnd, int32_t radix) {
   return (int16_t)tmp;
 }
 
-uint16_t taosStr2UInt16(const char *str, char** pEnd, int32_t radix) {
+uint16_t taosStr2UInt16(const char *str, char **pEnd, int32_t radix) {
   uint32_t tmp = strtoul(str, pEnd, radix);
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);
@@ -313,7 +307,7 @@ uint16_t taosStr2UInt16(const char *str, char** pEnd, int32_t radix) {
   return (uint16_t)tmp;
 }
 
-int8_t taosStr2Int8(const char *str, char** pEnd, int32_t radix) {
+int8_t taosStr2Int8(const char *str, char **pEnd, int32_t radix) {
   int32_t tmp = strtol(str, pEnd, radix);
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);
@@ -324,7 +318,7 @@ int8_t taosStr2Int8(const char *str, char** pEnd, int32_t radix) {
   return tmp;
 }
 
-uint8_t taosStr2UInt8(const char *str, char** pEnd, int32_t radix) {
+uint8_t taosStr2UInt8(const char *str, char **pEnd, int32_t radix) {
   uint32_t tmp = strtoul(str, pEnd, radix);
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);
@@ -334,7 +328,7 @@ uint8_t taosStr2UInt8(const char *str, char** pEnd, int32_t radix) {
   return tmp;
 }
 
-double taosStr2Double(const char *str, char** pEnd) {
+double taosStr2Double(const char *str, char **pEnd) {
   double tmp = strtod(str, pEnd);
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);
@@ -344,7 +338,7 @@ double taosStr2Double(const char *str, char** pEnd) {
   return tmp;
 }
 
-float taosStr2Float(const char *str, char** pEnd) {
+float taosStr2Float(const char *str, char **pEnd) {
   float tmp = strtof(str, pEnd);
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);

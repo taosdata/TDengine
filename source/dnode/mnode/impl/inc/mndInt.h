@@ -34,8 +34,6 @@ extern "C" {
 #endif
 
 // clang-format off
-
-
 #define mFatal(...) { if (mDebugFlag & DEBUG_FATAL) { taosPrintLog("MND FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }}
 #define mError(...) { if (mDebugFlag & DEBUG_ERROR) { taosPrintLog("MND ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }}
 #define mWarn(...)  { if (mDebugFlag & DEBUG_WARN)  { taosPrintLog("MND WARN ",  DEBUG_WARN,  255,        __VA_ARGS__); }}
@@ -49,7 +47,6 @@ extern "C" {
 #define mGInfo(param, ...)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); mInfo (param ", gtid:%s", __VA_ARGS__, buf);}
 #define mGDebug(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); mDebug(param ", gtid:%s", __VA_ARGS__, buf);}
 #define mGTrace(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); mTrace(param ", gtid:%s", __VA_ARGS__, buf);}
-
 // clang-format on
 
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
@@ -87,7 +84,7 @@ typedef struct {
 } STelemMgmt;
 
 typedef struct {
-  sem_t    syncSem;
+  tsem_t    syncSem;
   int64_t  sync;
   bool     standby;
   SReplica replica;

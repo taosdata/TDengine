@@ -132,38 +132,59 @@ int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode) {
     SyncIndex preLogIndex = syncNodeGetPreIndex(pSyncNode, nextIndex);
     SyncTerm  preLogTerm = syncNodeGetPreTerm(pSyncNode, nextIndex);
     if (preLogTerm == SYNC_TERM_INVALID) {
-      SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(pSyncNode, pDestId);
-      ASSERT(pSender != NULL);
-      ASSERT(!snapshotSenderIsStart(pSender));
-
       SyncIndex newNextIndex = syncNodeGetLastIndex(pSyncNode) + 1;
       syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, newNextIndex);
       syncIndexMgrSetIndex(pSyncNode->pMatchIndex, pDestId, SYNC_INDEX_INVALID);
-      sError("vgId:%d sync get pre term error, nextIndex:%ld, update next-index:%ld, match-index:%d, raftid:%ld",
+      sError("vgId:%d sync get pre term error, nextIndex:%" PRId64 ", update next-index:%" PRId64
+             ", match-index:%d, raftid:%" PRId64,
              pSyncNode->vgId, nextIndex, newNextIndex, SYNC_INDEX_INVALID, pDestId->addr);
 
       return -1;
     }
 
-    SRpcMsg rpcMsgArr[SYNC_MAX_BATCH_SIZE];
-    memset(rpcMsgArr, 0, sizeof(rpcMsgArr));
+    // entry pointer array
+    SSyncRaftEntry* entryPArr[SYNC_MAX_BATCH_SIZE];
+    memset(entryPArr, 0, sizeof(entryPArr));
 
-    int32_t getCount = 0;
-    for (int32_t i = 0; i < pSyncNode->batchSize; ++i) {
-      SSyncRaftEntry* pEntry;
-      int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, nextIndex, &pEntry);
+    // get entry batch
+    int32_t   getCount = 0;
+    SyncIndex getEntryIndex = nextIndex;
+    for (int32_t i = 0; i < pSyncNode->pRaftCfg->batchSize; ++i) {
+      SSyncRaftEntry* pEntry = NULL;
+      int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, getEntryIndex, &pEntry);
       if (code == 0) {
         ASSERT(pEntry != NULL);
-        // get rpc msg [i] from entry
-        syncEntryDestory(pEntry);
+        entryPArr[i] = pEntry;
         getCount++;
+        getEntryIndex++;
+
       } else {
         break;
       }
     }
 
-    SyncAppendEntriesBatch* pMsg = syncAppendEntriesBatchBuild(rpcMsgArr, getCount, pSyncNode->vgId);
+    // event log
+    do {
+      char     logBuf[128];
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pDestId->addr, host, sizeof(host), &port);
+      snprintf(logBuf, sizeof(logBuf), "build batch:%d for %s:%d", getCount, host, port);
+      syncNodeEventLog(pSyncNode, logBuf);
+    } while (0);
+
+    // build msg
+    SyncAppendEntriesBatch* pMsg = syncAppendEntriesBatchBuild(entryPArr, getCount, pSyncNode->vgId);
     ASSERT(pMsg != NULL);
+
+    // free entries
+    for (int32_t i = 0; i < pSyncNode->pRaftCfg->batchSize; ++i) {
+      SSyncRaftEntry* pEntry = entryPArr[i];
+      if (pEntry != NULL) {
+        syncEntryDestory(pEntry);
+        entryPArr[i] = NULL;
+      }
+    }
 
     // prepare msg
     pMsg->srcId = pSyncNode->myRaftId;
@@ -189,12 +210,6 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
   syncIndexMgrLog2("begin append entries peers pNextIndex:", pSyncNode->pNextIndex);
   syncIndexMgrLog2("begin append entries peers pMatchIndex:", pSyncNode->pMatchIndex);
   logStoreSimpleLog2("begin append entries peers LogStore:", pSyncNode->pLogStore);
-  if (gRaftDetailLog) {
-    SSnapshot snapshot;
-    pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
-    sTrace("begin append entries peers, snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
-           snapshot.lastApplyIndex, snapshot.lastApplyTerm);
-  }
 
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
@@ -210,14 +225,12 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
       SyncIndex newNextIndex = syncNodeGetLastIndex(pSyncNode) + 1;
       syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, newNextIndex);
       syncIndexMgrSetIndex(pSyncNode->pMatchIndex, pDestId, SYNC_INDEX_INVALID);
-      sError("vgId:%d sync get pre term error, nextIndex:%ld, update next-index:%ld, match-index:%d, raftid:%ld",
+      sError("vgId:%d sync get pre term error, nextIndex:%" PRId64 ", update next-index:%" PRId64
+             ", match-index:%d, raftid:%" PRId64,
              pSyncNode->vgId, nextIndex, newNextIndex, SYNC_INDEX_INVALID, pDestId->addr);
 
       return -1;
     }
-
-    // batch optimized
-    // SyncIndex lastIndex = syncUtilMinIndex(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore), nextIndex);
 
     // prepare entry
     SyncAppendEntries* pMsg = NULL;
@@ -275,11 +288,24 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
   // start replicate
   int32_t ret = 0;
 
-  if (pSyncNode->pRaftCfg->snapshotEnable) {
-    ret = syncNodeAppendEntriesPeersSnapshot(pSyncNode);
-  } else {
-    ret = syncNodeAppendEntriesPeers(pSyncNode);
+  switch (pSyncNode->pRaftCfg->snapshotStrategy) {
+    case SYNC_STRATEGY_NO_SNAPSHOT:
+      ret = syncNodeAppendEntriesPeers(pSyncNode);
+      break;
+
+    case SYNC_STRATEGY_STANDARD_SNAPSHOT:
+      ret = syncNodeAppendEntriesPeersSnapshot(pSyncNode);
+      break;
+
+    case SYNC_STRATEGY_WAL_FIRST:
+      ret = syncNodeAppendEntriesPeersSnapshot2(pSyncNode);
+      break;
+
+    default:
+      ret = syncNodeAppendEntriesPeers(pSyncNode);
+      break;
   }
+
   return ret;
 }
 
@@ -290,11 +316,12 @@ int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, c
     char     host[128];
     uint16_t port;
     syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
-    sDebug(
-        "vgId:%d, send sync-append-entries to %s:%d, {term:%lu, pre-index:%ld, pre-term:%lu, pterm:%lu, commit:%ld, "
-        "datalen:%d}",
-        pSyncNode->vgId, host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm,
-        pMsg->commitIndex, pMsg->dataLen);
+    sDebug("vgId:%d, send sync-append-entries to %s:%d, {term:%" PRIu64 ", pre-index:%" PRId64 ", pre-term:%" PRIu64
+           ", pterm:%" PRIu64 ", commit:%" PRId64
+           ", "
+           "datalen:%d}",
+           pSyncNode->vgId, host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm,
+           pMsg->commitIndex, pMsg->dataLen);
   } while (0);
 
   SRpcMsg rpcMsg;
@@ -309,12 +336,10 @@ int32_t syncNodeAppendEntriesBatch(SSyncNode* pSyncNode, const SRaftId* destRaft
     char     host[128];
     uint16_t port;
     syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
-    sDebug(
-        "vgId:%d, send sync-append-entries-batch to %s:%d, {term:%lu, pre-index:%ld, pre-term:%lu, pterm:%lu, "
-        "commit:%ld, "
-        "datalen:%d, dataCount:%d}",
-        pSyncNode->vgId, host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm,
-        pMsg->commitIndex, pMsg->dataLen, pMsg->dataCount);
+    sDebug("vgId:%d, send sync-append-entries-batch to %s:%d, {term:%" PRIu64 ", pre-index:%" PRId64
+           ", pre-term:%" PRIu64 ", pterm:%" PRIu64 ", commit:%" PRId64 ", datalen:%d, datacount:%d}",
+           pSyncNode->vgId, host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm,
+           pMsg->commitIndex, pMsg->dataLen, pMsg->dataCount);
   } while (0);
 
   SRpcMsg rpcMsg;

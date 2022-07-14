@@ -138,13 +138,13 @@ if $data00 != 25 then
 endi
 
 print =============== step4
-sql select _wstartts, count(tbcol) as b from $mt interval(1m)
+sql select _wstart, count(tbcol) as b from $mt interval(1m)
 print ===> $data01
 if $data01 != 10 then 
   return -1
 endi
 
-sql select _wstartts, count(tbcol) as b from $mt interval(1d)
+sql select _wstart, count(tbcol) as b from $mt interval(1d)
 print ===> $data01
 if $data01 != 200 then 
   return -1

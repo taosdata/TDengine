@@ -47,7 +47,9 @@ struct SSmaEnv {
 };
 
 typedef struct {
-  int32_t smaRef;
+  int8_t  inited;
+  int32_t rsetId;
+  void   *tmrHandle;  // shared by all fetch tasks
 } SSmaMgmt;
 
 #define SMA_ENV_LOCK(env) ((env)->lock)
@@ -62,12 +64,9 @@ struct STSmaStat {
 
 struct SRSmaStat {
   SSma     *pSma;
-  int64_t   refId;         // shared by persistence/fetch tasks
-  void     *tmrHandle;     // for persistence task
-  tmr_h     tmrId;         // for persistence task
-  int32_t   tmrSeconds;    // for persistence task
-  int8_t    triggerStat;   // for persistence task
-  int8_t    runningStat;   // for persistence task
+  int64_t   submitVer;
+  int64_t   refId;         // shared by fetch tasks
+  int8_t    triggerStat;   // shared by fetch tasks
   SHashObj *rsmaInfoHash;  // key: stbUid, value: SRSmaInfo;
 };
 
@@ -82,19 +81,19 @@ struct SSmaStat {
 #define SMA_TSMA_STAT(s)     (&(s)->tsmaStat)
 #define SMA_RSMA_STAT(s)     (&(s)->rsmaStat)
 #define RSMA_INFO_HASH(r)    ((r)->rsmaInfoHash)
-#define RSMA_TMR_ID(r)       ((r)->tmrId)
-#define RSMA_TMR_HANDLE(r)   ((r)->tmrHandle)
 #define RSMA_TRIGGER_STAT(r) (&(r)->triggerStat)
-#define RSMA_RUNNING_STAT(r) (&(r)->runningStat)
 #define RSMA_REF_ID(r)       ((r)->refId)
+#define RSMA_SUBMIT_VER(r)   ((r)->submitVer)
 
 enum {
   TASK_TRIGGER_STAT_INIT = 0,
   TASK_TRIGGER_STAT_ACTIVE = 1,
   TASK_TRIGGER_STAT_INACTIVE = 2,
-  TASK_TRIGGER_STAT_CANCELLED = 3,
-  TASK_TRIGGER_STAT_FINISHED = 4,
+  TASK_TRIGGER_STAT_PAUSED = 3,
+  TASK_TRIGGER_STAT_CANCELLED = 4,
+  TASK_TRIGGER_STAT_DROPPED = 5,
 };
+
 void  tdDestroySmaEnv(SSmaEnv *pSmaEnv);
 void *tdFreeSmaEnv(SSmaEnv *pSmaEnv);
 
@@ -104,6 +103,10 @@ int32_t tdInsertRSmaData(SSma *pSma, char *msg);
 
 int32_t tdRefSmaStat(SSma *pSma, SSmaStat *pStat);
 int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat);
+
+void   *tdAcquireSmaRef(int32_t rsetId, int64_t refId, const char *tags, int32_t ln);
+int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId, const char *tags, int32_t ln);
+
 int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType);
 
 int32_t tdLockSma(SSma *pSma);
@@ -183,10 +186,12 @@ static FORCE_INLINE void tdSmaStatSetDropped(STSmaStat *pTStat) {
 
 static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
-void          *tdFreeRSmaInfo(SRSmaInfo *pInfo);
+void          *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo);
+int32_t        tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat);
 
 int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
 int32_t tdProcessRSmaRestoreImpl(SSma *pSma);
+
 int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg);
 int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg);
 int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
@@ -208,31 +213,32 @@ struct STFInfo {
   // specific fields
   union {
     struct {
-      int64_t applyVer[2];
+      int64_t submitVer;
     } qTaskInfo;
   };
 };
 
-struct STFile {
-  STFInfo   info;
-  STfsFile  f;
-  TdFilePtr pFile;
-  uint8_t   state;
+enum {
+  TD_FTYPE_RSMA_QTASKINFO = 0,
 };
 
-#define TD_TFILE_F(tf)            (&((tf)->f))
+struct STFile {
+  uint8_t   state;
+  STFInfo   info;
+  char     *fname;
+  TdFilePtr pFile;
+};
+
 #define TD_TFILE_PFILE(tf)        ((tf)->pFile)
 #define TD_TFILE_OPENED(tf)       (TD_TFILE_PFILE(tf) != NULL)
-#define TD_TFILE_FULL_NAME(tf)    (TD_TFILE_F(tf)->aname)
-#define TD_TFILE_REL_NAME(tf)     (TD_TFILE_F(tf)->rname)
+#define TD_TFILE_FULL_NAME(tf)    ((tf)->fname)
 #define TD_TFILE_OPENED(tf)       (TD_TFILE_PFILE(tf) != NULL)
 #define TD_TFILE_CLOSED(tf)       (!TD_TFILE_OPENED(tf))
 #define TD_TFILE_SET_CLOSED(f)    (TD_TFILE_PFILE(f) = NULL)
 #define TD_TFILE_SET_STATE(tf, s) ((tf)->state = (s))
-#define TD_TFILE_DID(tf)          (TD_TFILE_F(tf)->did)
 
-int32_t tdInitTFile(STFile *pTFile, STfs *pTfs, const char *fname);
-int32_t tdCreateTFile(STFile *pTFile, STfs *pTfs, bool updateHeader, int8_t fType);
+int32_t tdInitTFile(STFile *pTFile, const char *dname, const char *fname);
+int32_t tdCreateTFile(STFile *pTFile, bool updateHeader, int8_t fType);
 int32_t tdOpenTFile(STFile *pTFile, int flags);
 int64_t tdReadTFile(STFile *pTFile, void *buf, int64_t nbyte);
 int64_t tdSeekTFile(STFile *pTFile, int64_t offset, int whence);
@@ -244,8 +250,10 @@ int32_t tdLoadTFileHeader(STFile *pTFile, STFInfo *pInfo);
 int32_t tdUpdateTFileHeader(STFile *pTFile);
 void    tdUpdateTFileMagic(STFile *pTFile, void *pCksm);
 void    tdCloseTFile(STFile *pTFile);
+void    tdDestroyTFile(STFile *pTFile);
 
-void tdGetVndFileName(int32_t vgId, const char *dname, const char *fname, char *outputName);
+void tdGetVndFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t version, char *outputName);
+void tdGetVndDirName(int32_t vgId,const char *pdname,  const char *dname, bool endWithSep, char *outputName);
 
 #ifdef __cplusplus
 }

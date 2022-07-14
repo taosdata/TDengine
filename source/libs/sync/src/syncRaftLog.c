@@ -32,6 +32,7 @@ static SyncTerm  raftLogLastTerm(struct SSyncLogStore* pLogStore);
 static int32_t   raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
 static int32_t   raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry);
 static int32_t   raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
+static bool      raftLogExist(struct SSyncLogStore* pLogStore, SyncIndex index);
 
 // private function
 static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** ppLastEntry);
@@ -61,7 +62,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   ASSERT(pData->pWal != NULL);
 
   taosThreadMutexInit(&(pData->mutex), NULL);
-  pData->pWalHandle = walOpenReadHandle(pData->pWal);
+  pData->pWalHandle = walOpenReader(pData->pWal, NULL);
   ASSERT(pData->pWalHandle != NULL);
 
   pLogStore->appendEntry = logStoreAppendEntry;
@@ -83,6 +84,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   pLogStore->syncLogGetEntry = raftLogGetEntry;
   pLogStore->syncLogTruncate = raftLogTruncate;
   pLogStore->syncLogWriteIndex = raftLogWriteIndex;
+  pLogStore->syncLogExist = raftLogExist;
 
   return pLogStore;
 }
@@ -93,7 +95,7 @@ void logStoreDestory(SSyncLogStore* pLogStore) {
 
     taosThreadMutexLock(&(pData->mutex));
     if (pData->pWalHandle != NULL) {
-      walCloseReadHandle(pData->pWalHandle);
+      walCloseReader(pData->pWalHandle);
       pData->pWalHandle = NULL;
     }
     taosThreadMutexUnlock(&(pData->mutex));
@@ -120,8 +122,8 @@ static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncI
 
     char logBuf[128];
     snprintf(logBuf, sizeof(logBuf),
-             "wal restore from snapshot error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", snapshotIndex, err,
-             err, errStr, sysErr, sysErrStr);
+             "wal restore from snapshot error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+             snapshotIndex, err, err, errStr, sysErr, sysErrStr);
     syncNodeErrorLog(pData->pSyncNode, logBuf);
 
     return -1;
@@ -168,6 +170,13 @@ static SyncIndex raftLogWriteIndex(struct SSyncLogStore* pLogStore) {
   return lastVer + 1;
 }
 
+static bool raftLogExist(struct SSyncLogStore* pLogStore, SyncIndex index) {
+  SSyncLogStoreData* pData = pLogStore->data;
+  SWal*              pWal = pData->pWal;
+  bool               b = walLogExist(pWal, index);
+  return b;
+}
+
 // if success, return last term
 // if not log, return 0
 // if error, return SYNC_TERM_INVALID
@@ -196,15 +205,52 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
 
+  SyncIndex    index = 0;
+  SWalSyncInfo syncMeta;
+  syncMeta.isWeek = pEntry->isWeak;
+  syncMeta.seqNum = pEntry->seqNum;
+  syncMeta.term = pEntry->term;
+  index = walAppendLog(pWal, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
+  if (index < 0) {
+    int32_t     err = terrno;
+    const char* errStr = tstrerror(err);
+    int32_t     sysErr = errno;
+    const char* sysErrStr = strerror(errno);
+
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "wal write error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+             pEntry->index, err, err, errStr, sysErr, sysErrStr);
+    syncNodeErrorLog(pData->pSyncNode, logBuf);
+
+    ASSERT(0);
+    return -1;
+  }
+  pEntry->index = index;
+
+  do {
+    char eventLog[128];
+    snprintf(eventLog, sizeof(eventLog), "write index:%" PRId64 ", type:%s,%d, type2:%s,%d", pEntry->index,
+             TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType);
+    syncNodeEventLog(pData->pSyncNode, eventLog);
+  } while (0);
+
+  return 0;
+}
+
+#if 0
+static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
+  SSyncLogStoreData* pData = pLogStore->data;
+  SWal*              pWal = pData->pWal;
+
   SyncIndex writeIndex = raftLogWriteIndex(pLogStore);
   if (pEntry->index != writeIndex) {
-    sError("vgId:%d wal write index error, entry-index:%ld update to %ld", pData->pSyncNode->vgId, pEntry->index,
-           writeIndex);
+    sError("vgId:%d wal write index error, entry-index:%" PRId64 " update to %" PRId64, pData->pSyncNode->vgId,
+           pEntry->index, writeIndex);
     pEntry->index = writeIndex;
   }
 
   int          code = 0;
-  SSyncLogMeta syncMeta;
+  SWalSyncInfo syncMeta;
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
@@ -216,7 +262,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
     const char* sysErrStr = strerror(errno);
 
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "wal write error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+    snprintf(logBuf, sizeof(logBuf), "wal write error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
              pEntry->index, err, err, errStr, sysErr, sysErrStr);
     syncNodeErrorLog(pData->pSyncNode, logBuf);
 
@@ -227,13 +273,14 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
 
   do {
     char eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "write index:%ld, type:%s,%d, type2:%s,%d", pEntry->index,
+    snprintf(eventLog, sizeof(eventLog), "write index:%" PRId64 ", type:%s,%d, type2:%s,%d", pEntry->index,
              TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType);
     syncNodeEventLog(pData->pSyncNode, eventLog);
   } while (0);
 
   return code;
 }
+#endif
 
 // entry found, return 0
 // entry not found, return -1, terrno = TSDB_CODE_WAL_LOG_NOT_EXIST
@@ -246,7 +293,7 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
   *ppEntry = NULL;
 
   // SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
-  SWalReadHandle* pWalHandle = pData->pWalHandle;
+  SWalReader* pWalHandle = pData->pWalHandle;
   if (pWalHandle == NULL) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
@@ -254,7 +301,7 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
 
   taosThreadMutexLock(&(pData->mutex));
 
-  code = walReadWithHandle(pWalHandle, index);
+  code = walReadVer(pWalHandle, index);
   if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
@@ -263,8 +310,8 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
 
     do {
       char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "wal read error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", index, err,
-               err, errStr, sysErr, sysErrStr);
+      snprintf(logBuf, sizeof(logBuf), "wal read error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+               index, err, err, errStr, sysErr, sysErrStr);
       if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
         syncNodeEventLog(pData->pSyncNode, logBuf);
       } else {
@@ -312,11 +359,19 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
     const char* sysErrStr = strerror(errno);
-    sError("vgId:%d wal truncate error, from-index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+    sError("vgId:%d wal truncate error, from-index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
            pData->pSyncNode->vgId, fromIndex, err, err, errStr, sysErr, sysErrStr);
 
     ASSERT(0);
   }
+
+  // event log
+  do {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "wal truncate, from-index:%" PRId64, fromIndex);
+    syncNodeEventLog(pData->pSyncNode, logBuf);
+  } while (0);
+
   return code;
 }
 
@@ -344,6 +399,8 @@ static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** pp
 
 //-------------------------------
 // log[0 .. n]
+
+#if 0
 int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -352,7 +409,7 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   ASSERT(pEntry->index == lastIndex + 1);
 
   int          code = 0;
-  SSyncLogMeta syncMeta;
+  SWalSyncInfo syncMeta;
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
@@ -364,7 +421,7 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
     const char* sysErrStr = strerror(errno);
 
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "wal write error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+    snprintf(logBuf, sizeof(logBuf), "wal write error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
              pEntry->index, err, err, errStr, sysErr, sysErrStr);
     syncNodeErrorLog(pData->pSyncNode, logBuf);
 
@@ -374,11 +431,49 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   // walFsync(pWal, true);
 
   char eventLog[128];
-  snprintf(eventLog, sizeof(eventLog), "old write index:%ld, type:%s,%d, type2:%s,%d", pEntry->index,
+  snprintf(eventLog, sizeof(eventLog), "old write index:%" PRId64 ", type:%s,%d, type2:%s,%d", pEntry->index,
            TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType);
   syncNodeEventLog(pData->pSyncNode, eventLog);
 
   return code;
+}
+#endif
+
+int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
+  SSyncLogStoreData* pData = pLogStore->data;
+  SWal*              pWal = pData->pWal;
+
+  SyncIndex    index = 0;
+  SWalSyncInfo syncMeta;
+  syncMeta.isWeek = pEntry->isWeak;
+  syncMeta.seqNum = pEntry->seqNum;
+  syncMeta.term = pEntry->term;
+
+  index = walAppendLog(pWal, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
+  if (index < 0) {
+    int32_t     err = terrno;
+    const char* errStr = tstrerror(err);
+    int32_t     sysErr = errno;
+    const char* sysErrStr = strerror(errno);
+
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "wal write error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+             pEntry->index, err, err, errStr, sysErr, sysErrStr);
+    syncNodeErrorLog(pData->pSyncNode, logBuf);
+
+    ASSERT(0);
+    return -1;
+  }
+  pEntry->index = index;
+
+  do {
+    char eventLog[128];
+    snprintf(eventLog, sizeof(eventLog), "write2 index:%" PRId64 ", type:%s,%d, type2:%s,%d", pEntry->index,
+             TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType);
+    syncNodeEventLog(pData->pSyncNode, eventLog);
+  } while (0);
+
+  return 0;
 }
 
 SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
@@ -389,10 +484,10 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
     taosThreadMutexLock(&(pData->mutex));
 
     // SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
-    SWalReadHandle* pWalHandle = pData->pWalHandle;
+    SWalReader* pWalHandle = pData->pWalHandle;
     ASSERT(pWalHandle != NULL);
 
-    int32_t code = walReadWithHandle(pWalHandle, index);
+    int32_t code = walReadVer(pWalHandle, index);
     if (code != 0) {
       int32_t     err = terrno;
       const char* errStr = tstrerror(err);
@@ -401,8 +496,8 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
 
       do {
         char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "wal read error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", index,
-                 err, err, errStr, sysErr, sysErrStr);
+        snprintf(logBuf, sizeof(logBuf), "wal read error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+                 index, err, err, errStr, sysErr, sysErrStr);
         if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
           syncNodeEventLog(pData->pSyncNode, logBuf);
         } else {
@@ -449,11 +544,19 @@ int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
     const char* sysErrStr = strerror(errno);
-    sError("vgId:%d wal truncate error, from-index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+    sError("vgId:%d wal truncate error, from-index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
            pData->pSyncNode->vgId, fromIndex, err, err, errStr, sysErr, sysErrStr);
 
     ASSERT(0);
   }
+
+  // event log
+  do {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "wal truncate, from-index:%" PRId64, fromIndex);
+    syncNodeEventLog(pData->pSyncNode, logBuf);
+  } while (0);
+
   return 0;
 }
 
@@ -484,7 +587,7 @@ int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
     const char* sysErrStr = strerror(errno);
-    sError("vgId:%d wal update commit index error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+    sError("vgId:%d wal update commit index error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
            pData->pSyncNode->vgId, index, err, err, errStr, sysErr, sysErrStr);
 
     ASSERT(0);
@@ -521,25 +624,25 @@ cJSON* logStore2Json(SSyncLogStore* pLogStore) {
     cJSON_AddStringToObject(pRoot, "pWal", u64buf);
 
     SyncIndex beginIndex = raftLogBeginIndex(pLogStore);
-    snprintf(u64buf, sizeof(u64buf), "%ld", beginIndex);
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, beginIndex);
     cJSON_AddStringToObject(pRoot, "beginIndex", u64buf);
 
     SyncIndex endIndex = raftLogEndIndex(pLogStore);
-    snprintf(u64buf, sizeof(u64buf), "%ld", endIndex);
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, endIndex);
     cJSON_AddStringToObject(pRoot, "endIndex", u64buf);
 
     int32_t count = raftLogEntryCount(pLogStore);
     cJSON_AddNumberToObject(pRoot, "entryCount", count);
 
-    snprintf(u64buf, sizeof(u64buf), "%ld", raftLogWriteIndex(pLogStore));
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, raftLogWriteIndex(pLogStore));
     cJSON_AddStringToObject(pRoot, "WriteIndex", u64buf);
 
     snprintf(u64buf, sizeof(u64buf), "%d", raftLogIsEmpty(pLogStore));
     cJSON_AddStringToObject(pRoot, "IsEmpty", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%ld", raftLogLastIndex(pLogStore));
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, raftLogLastIndex(pLogStore));
     cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%lu", raftLogLastTerm(pLogStore));
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, raftLogLastTerm(pLogStore));
     cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);
 
     cJSON* pEntries = cJSON_CreateArray();
@@ -578,25 +681,25 @@ cJSON* logStoreSimple2Json(SSyncLogStore* pLogStore) {
     cJSON_AddStringToObject(pRoot, "pWal", u64buf);
 
     SyncIndex beginIndex = raftLogBeginIndex(pLogStore);
-    snprintf(u64buf, sizeof(u64buf), "%ld", beginIndex);
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, beginIndex);
     cJSON_AddStringToObject(pRoot, "beginIndex", u64buf);
 
     SyncIndex endIndex = raftLogEndIndex(pLogStore);
-    snprintf(u64buf, sizeof(u64buf), "%ld", endIndex);
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, endIndex);
     cJSON_AddStringToObject(pRoot, "endIndex", u64buf);
 
     int32_t count = raftLogEntryCount(pLogStore);
     cJSON_AddNumberToObject(pRoot, "entryCount", count);
 
-    snprintf(u64buf, sizeof(u64buf), "%ld", raftLogWriteIndex(pLogStore));
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, raftLogWriteIndex(pLogStore));
     cJSON_AddStringToObject(pRoot, "WriteIndex", u64buf);
 
     snprintf(u64buf, sizeof(u64buf), "%d", raftLogIsEmpty(pLogStore));
     cJSON_AddStringToObject(pRoot, "IsEmpty", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%ld", raftLogLastIndex(pLogStore));
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, raftLogLastIndex(pLogStore));
     cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%lu", raftLogLastTerm(pLogStore));
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, raftLogLastTerm(pLogStore));
     cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);
   }
 
@@ -621,14 +724,14 @@ SyncIndex logStoreFirstIndex(SSyncLogStore* pLogStore) {
 // for debug -----------------
 void logStorePrint(SSyncLogStore* pLogStore) {
   char* serialized = logStore2Str(pLogStore);
-  printf("logStorePrint | len:%lu | %s \n", strlen(serialized), serialized);
+  printf("logStorePrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void logStorePrint2(char* s, SSyncLogStore* pLogStore) {
   char* serialized = logStore2Str(pLogStore);
-  printf("logStorePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("logStorePrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
@@ -636,7 +739,7 @@ void logStorePrint2(char* s, SSyncLogStore* pLogStore) {
 void logStoreLog(SSyncLogStore* pLogStore) {
   if (gRaftDetailLog) {
     char* serialized = logStore2Str(pLogStore);
-    sTraceLong("logStoreLog | len:%lu | %s", strlen(serialized), serialized);
+    sTraceLong("logStoreLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -644,7 +747,7 @@ void logStoreLog(SSyncLogStore* pLogStore) {
 void logStoreLog2(char* s, SSyncLogStore* pLogStore) {
   if (gRaftDetailLog) {
     char* serialized = logStore2Str(pLogStore);
-    sTraceLong("logStoreLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    sTraceLong("logStoreLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -652,28 +755,28 @@ void logStoreLog2(char* s, SSyncLogStore* pLogStore) {
 // for debug -----------------
 void logStoreSimplePrint(SSyncLogStore* pLogStore) {
   char* serialized = logStoreSimple2Str(pLogStore);
-  printf("logStoreSimplePrint | len:%lu | %s \n", strlen(serialized), serialized);
+  printf("logStoreSimplePrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void logStoreSimplePrint2(char* s, SSyncLogStore* pLogStore) {
   char* serialized = logStoreSimple2Str(pLogStore);
-  printf("logStoreSimplePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("logStoreSimplePrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void logStoreSimpleLog(SSyncLogStore* pLogStore) {
   char* serialized = logStoreSimple2Str(pLogStore);
-  sTrace("logStoreSimpleLog | len:%lu | %s", strlen(serialized), serialized);
+  sTrace("logStoreSimpleLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void logStoreSimpleLog2(char* s, SSyncLogStore* pLogStore) {
   if (gRaftDetailLog) {
     char* serialized = logStoreSimple2Str(pLogStore);
-    sTrace("logStoreSimpleLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    sTrace("logStoreSimpleLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }

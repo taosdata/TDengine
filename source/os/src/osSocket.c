@@ -49,6 +49,14 @@
 #define INVALID_SOCKET -1
 #endif
 
+typedef struct TdSocket {
+#if SOCKET_WITH_LOCK
+  TdThreadRwlock rwlock;
+#endif
+  int      refId;
+  SocketFd fd;
+} * TdSocketPtr, TdSocket;
+
 typedef struct TdSocketServer {
 #if SOCKET_WITH_LOCK
   TdThreadRwlock rwlock;
@@ -939,9 +947,9 @@ int32_t taosGetFqdn(char *fqdn) {
   hostname[1023] = '\0';
   if (gethostname(hostname, 1023) == -1) {
 #ifdef WINDOWS
-    printf("failed to get hostname, reason:%s", strerror(WSAGetLastError()));
+    printf("failed to get hostname, reason:%s\n", strerror(WSAGetLastError()));
 #else
-    printf("failed to get hostname, reason:%s", strerror(errno));
+    printf("failed to get hostname, reason:%s\n", strerror(errno));
 #endif
     assert(0);
     return -1;
@@ -960,7 +968,7 @@ int32_t taosGetFqdn(char *fqdn) {
 #endif  // __APPLE__
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
-    fprintf(stderr, "failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
+    fprintf(stderr, "failed to get fqdn, code:%d, reason:%s\n", ret, gai_strerror(ret));
     return -1;
   }
 
@@ -1029,60 +1037,6 @@ int32_t taosGetSocketName(TdSocketPtr pSocket, struct sockaddr *destAddr, int *a
   return getsockname(pSocket->fd, destAddr, addrLen);
 }
 
-TdEpollPtr taosCreateEpoll(int32_t size) {
-  EpollFd fd = -1;
-#ifdef WINDOWS
-  assert(0);
-#else
-  fd = epoll_create(size);
-#endif
-  if (fd < 0) {
-    return NULL;
-  }
-
-  TdEpollPtr pEpoll = (TdEpollPtr)taosMemoryMalloc(sizeof(TdEpoll));
-  if (pEpoll == NULL) {
-    taosCloseSocketNoCheck1(fd);
-    return NULL;
-  }
-  pEpoll->fd = fd;
-  pEpoll->refId = 0;
-  return pEpoll;
-}
-int32_t taosCtlEpoll(TdEpollPtr pEpoll, int32_t epollOperate, TdSocketPtr pSocket, struct epoll_event *event) {
-  int32_t code = -1;
-  if (pEpoll == NULL || pEpoll->fd < 0) {
-    return -1;
-  }
-#ifdef WINDOWS
-  assert(0);
-#else
-  code = epoll_ctl(pEpoll->fd, epollOperate, pSocket->fd, event);
-#endif
-  return code;
-}
-int32_t taosWaitEpoll(TdEpollPtr pEpoll, struct epoll_event *event, int32_t maxEvents, int32_t timeout) {
-  int32_t code = -1;
-  if (pEpoll == NULL || pEpoll->fd < 0) {
-    return -1;
-  }
-#ifdef WINDOWS
-  assert(0);
-#else
-  code = epoll_wait(pEpoll->fd, event, maxEvents, timeout);
-#endif
-  return code;
-}
-int32_t taosCloseEpoll(TdEpollPtr *ppEpoll) {
-  int32_t code;
-  if (ppEpoll == NULL || *ppEpoll == NULL || (*ppEpoll)->fd < 0) {
-    return -1;
-  }
-  code = taosCloseSocketNoCheck1((*ppEpoll)->fd);
-  (*ppEpoll)->fd = -1;
-  taosMemoryFree(*ppEpoll);
-  return code;
-}
 /*
  * Set TCP connection timeout per-socket level.
  * ref [https://github.com/libuv/help/issues/54]
@@ -1098,6 +1052,11 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
   }
 #if defined(WINDOWS)
   if (0 != setsockopt(fd, IPPROTO_TCP, TCP_MAXRT, (char *)&timeout, sizeof(timeout))) {
+    return -1;
+  }
+#elif defined(_TD_DARWIN_64)
+  uint32_t conn_timeout_ms = timeout * 1000;
+  if (0 != setsockopt(fd, IPPROTO_TCP, TCP_CONNECTIONTIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
     return -1;
   }
 #else  // Linux like systems

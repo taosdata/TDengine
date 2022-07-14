@@ -77,6 +77,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE,      "Out of memory in rpc 
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TIMESTAMP,            "Invalid timestamp format")
 TAOS_DEFINE_ERROR(TSDB_CODE_MSG_DECODE_ERROR,             "Msg decode error")
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_AVAIL_DISK,                "No available disk")
+TAOS_DEFINE_ERROR(TSDB_CODE_NOT_FOUND,                    "Not found")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NO_MEMORY,                "Ref out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_FULL,                     "too many Ref Objs")
@@ -177,6 +178,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_ALREADY_EXIST,      "Dnode already exists"
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_NOT_EXIST,          "Dnode does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_DNODES,          "Too many dnodes")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_ENOUGH_DNODES,         "Out of dnodes")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_ENOUGH_MEM_IN_DNODE,   "No enough memory in dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CLUSTER_CFG,      "Cluster cfg inconsistent")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CLUSTER_ID,       "Cluster id not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DNODE_CFG,        "Invalid dnode cfg")
@@ -249,6 +251,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_ALREADY_EXIST,     "Column already exists
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_NOT_EXIST,         "Column does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_CONFLICT_WITH_TOPIC,"Field used by topic")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SINGLE_STB_MODE_DB,       "Database is single stable mode")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SCHEMA_VER,       "Invalid schema version while alter stb")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STABLE_UID_NOT_MATCH,     "Invalid stable uid while alter stb")
 
 // mnode-infoSchema
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SYS_TABLENAME,    "Invalid system table name")
@@ -393,6 +397,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_DROPPING,            "Task dropping")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_DUPLICATTED_OPERATION,    "Duplicatted operation")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_MSG_ERROR,           "Task message error")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JOB_FREED,                "Job already freed")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JOB_NOT_EXIST,            "Job not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_STATUS_ERROR,        "Task status error")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_IN_ERROR,            "Json not support in in/notin operator")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR,   "Json not support in this place")
@@ -433,6 +438,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SYN_RECONFIG_NOT_READY,       "Sync not ready for re
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_PROPOSE_NOT_READY,        "Sync not ready for propose")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_STANDBY_NOT_READY,        "Sync not ready for standby")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_BATCH_ERROR,              "Sync batch error")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INTERNAL_ERROR,           "Sync internal error")
 
 // wal
@@ -555,6 +561,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COL_JSON,           "Only tag can be jso
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_VALUE_TOO_LONG,             "Value too long for column/tag")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DELETE_WHERE,       "The DELETE statement must have a definite time window range")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG,    "The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SELECTED_EXPR,      "Invalid SELECTed expression")
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")
@@ -590,12 +597,15 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_NO_INDEX_IN_CACHE,         "No tsma index in ca
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_ENV,               "Invalid rsma env")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_STAT,              "Invalid rsma state")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_QTASKINFO_CREATE,          "Rsma qtaskinfo creation error")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FILE_CORRUPTED,            "Rsma file corrupted")
+
 
 //tq
 TAOS_DEFINE_ERROR(TSDB_CODE_TQ_NO_COMMITTED_OFFSET,         "No committed offset")
 
 
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding")
+TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Invalid index file")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
 

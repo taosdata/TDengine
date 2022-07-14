@@ -29,7 +29,7 @@ TEST_F(PlanIntervalTest, basic) {
 TEST_F(PlanIntervalTest, pseudoCol) {
   useDb("root", "test");
 
-  run("SELECT _WSTARTTS, _WDURATION, _WENDTS, COUNT(*) FROM t1 INTERVAL(10s)");
+  run("SELECT _WSTART, _WDURATION, _WEND, COUNT(*) FROM t1 INTERVAL(10s)");
 }
 
 TEST_F(PlanIntervalTest, fill) {
@@ -59,7 +59,9 @@ TEST_F(PlanIntervalTest, stable) {
 
   run("SELECT COUNT(*) FROM st1 INTERVAL(10s)");
 
-  run("SELECT _WSTARTTS, COUNT(*) FROM st1 INTERVAL(10s)");
+  run("SELECT _WSTART, COUNT(*) FROM st1 INTERVAL(10s)");
 
-  run("SELECT _WSTARTTS, COUNT(*) FROM st1 PARTITION BY TBNAME INTERVAL(10s)");
+  run("SELECT _WSTART, COUNT(*) FROM st1 PARTITION BY TBNAME INTERVAL(10s)");
+
+  run("SELECT TBNAME, COUNT(*) FROM st1 PARTITION BY TBNAME INTERVAL(10s)");
 }

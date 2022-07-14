@@ -40,8 +40,8 @@ struct SBTree {
 #define TDB_BTREE_PAGE_IS_ROOT(PAGE)          (TDB_BTREE_PAGE_GET_FLAGS(PAGE) & TDB_BTREE_ROOT)
 #define TDB_BTREE_PAGE_IS_LEAF(PAGE)          (TDB_BTREE_PAGE_GET_FLAGS(PAGE) & TDB_BTREE_LEAF)
 #define TDB_BTREE_PAGE_IS_OVFL(PAGE)          (TDB_BTREE_PAGE_GET_FLAGS(PAGE) & TDB_BTREE_OVFL)
-#define TDB_BTREE_ASSERT_FLAG(flags)                                                 \
-  ASSERT(TDB_FLAG_IS(flags, TDB_BTREE_ROOT) || TDB_FLAG_IS(flags, TDB_BTREE_LEAF) || \
+#define TDB_BTREE_ASSERT_FLAG(flags)                                                     \
+  ASSERT(TDB_FLAG_IS(flags, TDB_BTREE_ROOT) || TDB_FLAG_IS(flags, TDB_BTREE_LEAF) ||     \
          TDB_FLAG_IS(flags, TDB_BTREE_ROOT | TDB_BTREE_LEAF) || TDB_FLAG_IS(flags, 0) || \
          TDB_FLAG_IS(flags, TDB_BTREE_OVFL))
 
@@ -58,7 +58,7 @@ typedef struct {
 
 static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
 static int tdbBtreeOpenImpl(SBTree *pBt);
-//static int tdbBtreeInitPage(SPage *pPage, void *arg, int init);
+// static int tdbBtreeInitPage(SPage *pPage, void *arg, int init);
 static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const void *pVal, int vLen, SCell *pCell,
                               int *szCell, TXN *pTxn, SBTree *pBt);
 static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pDecoder, TXN *pTxn, SBTree *pBt);
@@ -314,14 +314,13 @@ static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2
 
 static int tdbBtreeOpenImpl(SBTree *pBt) {
   // Try to get the root page of the an existing btree
-
   SPgno  pgno;
   SPage *pPage;
   int    ret;
 
   {
     // 1. TODO: Search the main DB to check if the DB exists
-    ret = tdbPagerOpenDB(pBt->pPager, &pgno, true);
+    ret = tdbPagerOpenDB(pBt->pPager, &pgno, true, pBt);
     ASSERT(ret == 0);
   }
 
@@ -721,7 +720,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
               int    szNewCell;
               SPgno  pgno;
               pgno = TDB_PAGE_PGNO(pNews[iNew]);
-              tdbBtreeEncodeCell(pParent, cd.pKey, cd.kLen, (void *)&pgno, sizeof(SPgno), pNewCell, &szNewCell, pTxn, pBt);
+              tdbBtreeEncodeCell(pParent, cd.pKey, cd.kLen, (void *)&pgno, sizeof(SPgno), pNewCell, &szNewCell, pTxn,
+                                 pBt);
               tdbPageInsertCell(pParent, sIdx++, pNewCell, szNewCell, 0);
               tdbOsFree(pNewCell);
             }
@@ -916,10 +916,10 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
     int surplus = minLocal + (nPayload + nHeader - minLocal) % (maxLocal - sizeof(SPgno));
     int nLocal = surplus <= maxLocal ? surplus : minLocal;
 
-    //int ofpCap = tdbPageCapacity(pBt->pageSize, sizeof(SIntHdr));
+    // int ofpCap = tdbPageCapacity(pBt->pageSize, sizeof(SIntHdr));
 
     // fetch a new ofp and make it dirty
-    SPgno pgno = 0;
+    SPgno  pgno = 0;
     SPage *ofp, *nextOfp;
 
     ret = tdbFetchOvflPage(&pgno, &ofp, pTxn, pBt);
@@ -942,8 +942,8 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
       nLeft -= kLen;
       // pack partial val to local if any space left
       if (nLocal > kLen + 4) {
-	memcpy(pCell + nHeader + kLen, pVal, nLocal - kLen - sizeof(SPgno));
-	nLeft -= nLocal - kLen - sizeof(SPgno);
+        memcpy(pCell + nHeader + kLen, pVal, nLocal - kLen - sizeof(SPgno));
+        nLeft -= nLocal - kLen - sizeof(SPgno);
       }
 
       // pack nextPgno
@@ -951,132 +951,132 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
 
       // pack left val data to ovpages
       do {
-	lastPage = 0;
-	if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
-	  bytes = nLeft;
-	  lastPage = 1;
-	} else {
-	  bytes = ofp->maxLocal - sizeof(SPgno);
-	}
+        lastPage = 0;
+        if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
+          bytes = nLeft;
+          lastPage = 1;
+        } else {
+          bytes = ofp->maxLocal - sizeof(SPgno);
+        }
 
-	// fetch next ofp if not last page
-	if (!lastPage) {
-	  // fetch a new ofp and make it dirty
-	  ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
-	  if (ret < 0) {
-	    tdbFree(pBuf);
-	    return -1;
-	  }
-	} else {
-	  pgno = 0;
-	}
+        // fetch next ofp if not last page
+        if (!lastPage) {
+          // fetch a new ofp and make it dirty
+          ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
+          if (ret < 0) {
+            tdbFree(pBuf);
+            return -1;
+          }
+        } else {
+          pgno = 0;
+        }
 
-	memcpy(pBuf, ((SCell *)pVal) + vLen - nLeft, bytes);
-	memcpy(pBuf + bytes, &pgno, sizeof(pgno));
+        memcpy(pBuf, ((SCell *)pVal) + vLen - nLeft, bytes);
+        memcpy(pBuf + bytes, &pgno, sizeof(pgno));
 
-	ret = tdbPageInsertCell(ofp, 0, pBuf, bytes + sizeof(pgno), 0);
-	if (ret < 0) {
-	  tdbFree(pBuf);
-	  return -1;
-	}
+        ret = tdbPageInsertCell(ofp, 0, pBuf, bytes + sizeof(pgno), 0);
+        if (ret < 0) {
+          tdbFree(pBuf);
+          return -1;
+        }
 
-	ofp = nextOfp;
-	nLeft -= bytes;
+        ofp = nextOfp;
+        nLeft -= bytes;
       } while (nLeft > 0);
     } else {
       int nLeftKey = kLen;
       // pack partial key and nextPgno
       memcpy(pCell + nHeader, pKey, nLocal - 4);
       nLeft -= nLocal - 4;
-      nLeftKey -= nLocal -4;
+      nLeftKey -= nLocal - 4;
 
       memcpy(pCell + nHeader + nLocal - 4, &pgno, sizeof(pgno));
 
       int lastKeyPageSpace = 0;
       // pack left key & val to ovpages
       do {
-	// cal key to cpy
-	int lastKeyPage = 0;
-	if (nLeftKey <= ofp->maxLocal - sizeof(SPgno)) {
-	  bytes = nLeftKey;
-	  lastKeyPage = 1;
-	  lastKeyPageSpace = ofp->maxLocal - sizeof(SPgno) - nLeftKey;
-	} else {
-	  bytes = ofp->maxLocal - sizeof(SPgno);
-	}
+        // cal key to cpy
+        int lastKeyPage = 0;
+        if (nLeftKey <= ofp->maxLocal - sizeof(SPgno)) {
+          bytes = nLeftKey;
+          lastKeyPage = 1;
+          lastKeyPageSpace = ofp->maxLocal - sizeof(SPgno) - nLeftKey;
+        } else {
+          bytes = ofp->maxLocal - sizeof(SPgno);
+        }
 
-	// cpy key
-	memcpy(pBuf, ((SCell *)pKey) + kLen - nLeftKey, bytes);
+        // cpy key
+        memcpy(pBuf, ((SCell *)pKey) + kLen - nLeftKey, bytes);
 
-	if (lastKeyPage) {
-	  if (lastKeyPageSpace >= vLen) {
-	    memcpy(pBuf + kLen -nLeftKey, pVal, vLen);
+        if (lastKeyPage) {
+          if (lastKeyPageSpace >= vLen) {
+            memcpy(pBuf + kLen - nLeftKey, pVal, vLen);
 
-	    nLeft -= vLen;
-	    pgno = 0;
-	  } else {
-	    memcpy(pBuf + kLen -nLeftKey, pVal, lastKeyPageSpace);
-	    nLeft -= lastKeyPageSpace;
+            nLeft -= vLen;
+            pgno = 0;
+          } else {
+            memcpy(pBuf + kLen - nLeftKey, pVal, lastKeyPageSpace);
+            nLeft -= lastKeyPageSpace;
 
-	    // fetch next ofp, a new ofp and make it dirty
-	    ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
-	    if (ret < 0) {
-	      return -1;
-	    }
-	  }
-	} else {
-	  // fetch next ofp, a new ofp and make it dirty
-	  ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
-	  if (ret < 0) {
-	    return -1;
-	  }
-	}
+            // fetch next ofp, a new ofp and make it dirty
+            ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
+            if (ret < 0) {
+              return -1;
+            }
+          }
+        } else {
+          // fetch next ofp, a new ofp and make it dirty
+          ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
+          if (ret < 0) {
+            return -1;
+          }
+        }
 
-	memcpy(pBuf + kLen - nLeft, &pgno, sizeof(pgno));
+        memcpy(pBuf + kLen - nLeft, &pgno, sizeof(pgno));
 
-	ret = tdbPageInsertCell(ofp, 0, pBuf, bytes + sizeof(pgno), 0);
-	if (ret < 0) {
-	  return -1;
-	}
+        ret = tdbPageInsertCell(ofp, 0, pBuf, bytes + sizeof(pgno), 0);
+        if (ret < 0) {
+          return -1;
+        }
 
-	ofp = nextOfp;
-	nLeftKey -= bytes;
-	nLeft -= bytes;
+        ofp = nextOfp;
+        nLeftKey -= bytes;
+        nLeft -= bytes;
       } while (nLeftKey > 0);
 
       while (nLeft > 0) {
-	// pack left val data to ovpages
-	lastPage = 0;
-	if (nLeft <= maxLocal - sizeof(SPgno)) {
-	  bytes = nLeft;
-	  lastPage = 1;
-	} else {
-	  bytes = maxLocal - sizeof(SPgno);
-	}
+        // pack left val data to ovpages
+        lastPage = 0;
+        if (nLeft <= maxLocal - sizeof(SPgno)) {
+          bytes = nLeft;
+          lastPage = 1;
+        } else {
+          bytes = maxLocal - sizeof(SPgno);
+        }
 
-	// fetch next ofp if not last page
-	if (!lastPage) {
-	  // fetch a new ofp and make it dirty
-	  ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
-	  if (ret < 0) {
-	    tdbFree(pBuf);
-	    return -1;
-	  }
-	} else {
-	  pgno = 0;
-	}
+        // fetch next ofp if not last page
+        if (!lastPage) {
+          // fetch a new ofp and make it dirty
+          ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
+          if (ret < 0) {
+            tdbFree(pBuf);
+            return -1;
+          }
+        } else {
+          pgno = 0;
+        }
 
-	memcpy(pBuf, ((SCell *)pVal) + vLen - nLeft, bytes);
-	memcpy(pBuf + bytes, &pgno, sizeof(pgno));
+        memcpy(pBuf, ((SCell *)pVal) + vLen - nLeft, bytes);
+        memcpy(pBuf + bytes, &pgno, sizeof(pgno));
 
-	ret = tdbPageInsertCell(ofp, 0, pBuf, bytes + sizeof(pgno), 0);
-	if (ret < 0) {
-	  tdbFree(pBuf);
-	  return -1;
-	}
+        ret = tdbPageInsertCell(ofp, 0, pBuf, bytes + sizeof(pgno), 0);
+        if (ret < 0) {
+          tdbFree(pBuf);
+          return -1;
+        }
 
-	ofp = nextOfp;
-	nLeft -= bytes;
+        ofp = nextOfp;
+        nLeft -= bytes;
       }
     }
 
@@ -1142,7 +1142,8 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
   return 0;
 }
 
-static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, SCellDecoder *pDecoder, TXN *pTxn, SBTree *pBt) {
+static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, SCellDecoder *pDecoder, TXN *pTxn,
+                                 SBTree *pBt) {
   int ret = 0;
   int nPayload;
   int maxLocal = pPage->maxLocal;
@@ -1171,149 +1172,149 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
     int surplus = minLocal + (nPayload + nHeader - minLocal) % (maxLocal - sizeof(SPgno));
     int nLocal = surplus <= maxLocal ? surplus : minLocal;
 
-    int nLeft = nPayload;
-    SPgno pgno = 0;
+    int    nLeft = nPayload;
+    SPgno  pgno = 0;
     SPage *ofp;
     SCell *ofpCell;
-    int bytes;
-    int lastPage = 0;
+    int    bytes;
+    int    lastPage = 0;
 
     if (nLocal >= pDecoder->kLen + 4) {
       pDecoder->pKey = (SCell *)pCell + nHeader;
       nLeft -= kLen;
       if (nLocal > kLen + 4) {
-	// read partial val to local
-	pDecoder->pVal = tdbRealloc(pDecoder->pVal, vLen);
-	if (pDecoder->pVal == NULL) {
-	  return -1;
-	}
-	TDB_CELLDECODER_SET_FREE_VAL(pDecoder);
+        // read partial val to local
+        pDecoder->pVal = tdbRealloc(pDecoder->pVal, vLen);
+        if (pDecoder->pVal == NULL) {
+          return -1;
+        }
+        TDB_CELLDECODER_SET_FREE_VAL(pDecoder);
 
-	memcpy(pDecoder->pVal, pCell + nHeader + kLen, nLocal - kLen - sizeof(SPgno));
+        memcpy(pDecoder->pVal, pCell + nHeader + kLen, nLocal - kLen - sizeof(SPgno));
 
-	nLeft -= nLocal - kLen - sizeof(SPgno);
+        nLeft -= nLocal - kLen - sizeof(SPgno);
       }
 
       memcpy(&pgno, pCell + nHeader + nPayload - nLeft, sizeof(pgno));
 
       // unpack left val data from ovpages
-      while (pgno != 0)  {
-	ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
-	if (ret < 0) {
-	  return -1;
-	}
+      while (pgno != 0) {
+        ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
+        if (ret < 0) {
+          return -1;
+        }
 
-	ofpCell = tdbPageGetCell(ofp, 0);
+        ofpCell = tdbPageGetCell(ofp, 0);
 
-	if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
-	  bytes = nLeft;
-	  lastPage = 1;
-	} else {
-	  bytes = ofp->maxLocal - sizeof(SPgno);
-	}
+        if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
+          bytes = nLeft;
+          lastPage = 1;
+        } else {
+          bytes = ofp->maxLocal - sizeof(SPgno);
+        }
 
-	memcpy(pDecoder->pVal + vLen - nLeft, ofpCell, bytes);
-	nLeft -= bytes;
+        memcpy(pDecoder->pVal + vLen - nLeft, ofpCell, bytes);
+        nLeft -= bytes;
 
-	memcpy(&pgno, ofpCell + bytes, sizeof(pgno));
+        memcpy(&pgno, ofpCell + bytes, sizeof(pgno));
       }
     } else {
       int nLeftKey = kLen;
       // load partial key and nextPgno
       pDecoder->pKey = tdbRealloc(pDecoder->pKey, kLen);
       if (pDecoder->pKey == NULL) {
-	return -1;
+        return -1;
       }
       TDB_CELLDECODER_SET_FREE_KEY(pDecoder);
 
       memcpy(pDecoder->pKey, pCell + nHeader, nLocal - 4);
       nLeft -= nLocal - 4;
-      nLeftKey -= nLocal -4;
+      nLeftKey -= nLocal - 4;
 
       memcpy(&pgno, pCell + nHeader + nLocal - 4, sizeof(pgno));
 
       int lastKeyPageSpace = 0;
       // load left key & val to ovpages
       while (pgno != 0) {
-	ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
-	if (ret < 0) {
-	  return -1;
-	}
+        ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
+        if (ret < 0) {
+          return -1;
+        }
 
-	ofpCell = tdbPageGetCell(ofp, 0);
+        ofpCell = tdbPageGetCell(ofp, 0);
 
-	int lastKeyPage = 0;
-	if (nLeftKey <= maxLocal - sizeof(SPgno)) {
-	  bytes = nLeftKey;
-	  lastKeyPage = 1;
-	  lastKeyPageSpace = ofp->maxLocal - sizeof(SPgno) - nLeftKey;
-	} else {
-	  bytes = ofp->maxLocal - sizeof(SPgno);
-	}
+        int lastKeyPage = 0;
+        if (nLeftKey <= maxLocal - sizeof(SPgno)) {
+          bytes = nLeftKey;
+          lastKeyPage = 1;
+          lastKeyPageSpace = ofp->maxLocal - sizeof(SPgno) - nLeftKey;
+        } else {
+          bytes = ofp->maxLocal - sizeof(SPgno);
+        }
 
-	// cpy key
-	memcpy(pDecoder->pKey + kLen - nLeftKey, ofpCell, bytes);
+        // cpy key
+        memcpy(pDecoder->pKey + kLen - nLeftKey, ofpCell, bytes);
 
-	if (lastKeyPage) {
-	  if (lastKeyPageSpace >= vLen) {
-	    pDecoder->pVal = ofpCell + kLen -nLeftKey;
+        if (lastKeyPage) {
+          if (lastKeyPageSpace >= vLen) {
+            pDecoder->pVal = ofpCell + kLen - nLeftKey;
 
-	    nLeft -= vLen;
-	    pgno = 0;
-	  } else {
-	    // read partial val to local
-	    pDecoder->pVal = tdbRealloc(pDecoder->pVal, vLen);
-	    if (pDecoder->pVal == NULL) {
-	      return -1;
-	    }
-	    TDB_CELLDECODER_SET_FREE_VAL(pDecoder);
+            nLeft -= vLen;
+            pgno = 0;
+          } else {
+            // read partial val to local
+            pDecoder->pVal = tdbRealloc(pDecoder->pVal, vLen);
+            if (pDecoder->pVal == NULL) {
+              return -1;
+            }
+            TDB_CELLDECODER_SET_FREE_VAL(pDecoder);
 
-	    memcpy(pDecoder->pVal, ofpCell + kLen -nLeftKey, lastKeyPageSpace);
-	    nLeft -= lastKeyPageSpace;
-	  }
-	}
+            memcpy(pDecoder->pVal, ofpCell + kLen - nLeftKey, lastKeyPageSpace);
+            nLeft -= lastKeyPageSpace;
+          }
+        }
 
-	memcpy(&pgno, ofpCell + bytes, sizeof(pgno));
+        memcpy(&pgno, ofpCell + bytes, sizeof(pgno));
 
-	nLeftKey -= bytes;
-	nLeft -= bytes;
+        nLeftKey -= bytes;
+        nLeft -= bytes;
       }
 
       while (nLeft > 0) {
-	ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
-	if (ret < 0) {
-	  return -1;
-	}
+        ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
+        if (ret < 0) {
+          return -1;
+        }
 
-	ofpCell = tdbPageGetCell(ofp, 0);
+        ofpCell = tdbPageGetCell(ofp, 0);
 
-	// load left val data to ovpages
-	lastPage = 0;
-	if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
-	  bytes = nLeft;
-	  lastPage = 1;
-	} else {
-	  bytes = ofp->maxLocal - sizeof(SPgno);
-	}
+        // load left val data to ovpages
+        lastPage = 0;
+        if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
+          bytes = nLeft;
+          lastPage = 1;
+        } else {
+          bytes = ofp->maxLocal - sizeof(SPgno);
+        }
 
-	if (lastPage) {
-	  pgno = 0;
-	}
+        if (lastPage) {
+          pgno = 0;
+        }
 
-	if (!pDecoder->pVal) {
-	    pDecoder->pVal = tdbRealloc(pDecoder->pVal, vLen);
-	    if (pDecoder->pVal == NULL) {
-	      return -1;
-	    }
-	    TDB_CELLDECODER_SET_FREE_VAL(pDecoder);
-	}
+        if (!pDecoder->pVal) {
+          pDecoder->pVal = tdbRealloc(pDecoder->pVal, vLen);
+          if (pDecoder->pVal == NULL) {
+            return -1;
+          }
+          TDB_CELLDECODER_SET_FREE_VAL(pDecoder);
+        }
 
-	memcpy(pDecoder->pVal, ofpCell + vLen - nLeft, bytes);
-	nLeft -= bytes;
+        memcpy(pDecoder->pVal, ofpCell + vLen - nLeft, bytes);
+        nLeft -= bytes;
 
-	memcpy(&pgno, ofpCell + vLen - nLeft + bytes, sizeof(pgno));
+        memcpy(&pgno, ofpCell + vLen - nLeft + bytes, sizeof(pgno));
 
-	nLeft -= bytes;
+        nLeft -= bytes;
       }
     }
   }
@@ -1404,31 +1405,31 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *
 
     // free ofp pages' cells
     if (dropOfp) {
-      int ret = 0;
-      SPgno pgno = *(SPgno *) (pCell + nHeader + nLocal - sizeof(SPgno));
-      int nLeft = nPayload - nLocal + sizeof(SPgno);
+      int    ret = 0;
+      SPgno  pgno = *(SPgno *)(pCell + nHeader + nLocal - sizeof(SPgno));
+      int    nLeft = nPayload - nLocal + sizeof(SPgno);
       SPage *ofp;
-      int bytes;
+      int    bytes;
 
       while (pgno != 0) {
-	ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
-	if (ret < 0) {
-	  return -1;
-	}
+        ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
+        if (ret < 0) {
+          return -1;
+        }
 
-	SCell *ofpCell = tdbPageGetCell(ofp, 0);
+        SCell *ofpCell = tdbPageGetCell(ofp, 0);
 
-	if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
-	  bytes = nLeft;
-	} else {
-	  bytes = ofp->maxLocal - sizeof(SPgno);
-	}
+        if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
+          bytes = nLeft;
+        } else {
+          bytes = ofp->maxLocal - sizeof(SPgno);
+        }
 
-	memcpy(&pgno, ofpCell + bytes, sizeof(pgno));
+        memcpy(&pgno, ofpCell + bytes, sizeof(pgno));
 
-	tdbPagerReturnPage(pPage->pPager, ofp, pTxn);
+        tdbPagerReturnPage(pPage->pPager, ofp, pTxn);
 
-	nLeft -= bytes;
+        nLeft -= bytes;
       }
     }
 
@@ -1932,7 +1933,7 @@ int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int 
 
   // alloc space
   szBuf = kLen + nData + 14;
-  pBuf =  tdbRealloc(pBtc->pBt->pBuf, pBtc->pBt->pageSize > szBuf ? szBuf : pBtc->pBt->pageSize);
+  pBuf = tdbRealloc(pBtc->pBt->pBuf, pBtc->pBt->pageSize > szBuf ? szBuf : pBtc->pBt->pageSize);
   if (pBuf == NULL) {
     ASSERT(0);
     return -1;
@@ -1991,6 +1992,7 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
   const void *pTKey;
   int         tkLen;
 
+  tdbTrace("ttl moveto, pager:%p, ipage:%d", pPager, pBtc->iPage);
   if (pBtc->iPage < 0) {
     // move from a clear cursor
     ret = tdbPagerFetchPage(pPager, &pBt->root, &(pBtc->pPage), tdbBtreeInitPage,

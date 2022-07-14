@@ -60,7 +60,7 @@ extern int32_t tsdbDebugFlag;
 extern int32_t tqDebugFlag;
 extern int32_t fsDebugFlag;
 extern int32_t metaDebugFlag;
-extern int32_t fnDebugFlag;
+extern int32_t udfDebugFlag;
 extern int32_t smaDebugFlag;
 extern int32_t idxDebugFlag;
 
@@ -94,7 +94,7 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
 #define pError(...) { taosPrintLog("APP ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }
 #define pPrint(...) { taosPrintLog("APP ", DEBUG_INFO, 255, __VA_ARGS__); }
 // clang-format on
-
+//#define BUF_PAGE_DEBUG
 #ifdef __cplusplus
 }
 #endif

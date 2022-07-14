@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "schedulerInt.h"
+#include "schInt.h"
 #include "tmsg.h"
 #include "query.h"
 #include "catalog.h"

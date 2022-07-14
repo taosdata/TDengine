@@ -35,6 +35,10 @@ TEST_F(PlanPartitionByTest, withAggFunc) {
 
   run("select count(*) from t1 partition by c1");
 
+  run("select count(*) from st1 partition by c1");
+
+  run("select sample(c1, 2) from st1 partition by c1");
+
   run("select count(*), c1 from t1 partition by c1");
 }
 
@@ -55,4 +59,6 @@ TEST_F(PlanPartitionByTest, withGroupBy) {
   useDb("root", "test");
 
   run("select count(*) from t1 partition by c1 group by c2");
+
+  run("SELECT TBNAME, c1 FROM st1 PARTITION BY TBNAME GROUP BY c1");
 }

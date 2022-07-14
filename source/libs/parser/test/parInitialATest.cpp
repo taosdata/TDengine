@@ -38,9 +38,9 @@ TEST_F(ParserInitialATest, alterDnode) {
 TEST_F(ParserInitialATest, alterDatabase) {
   useDb("root", "test");
 
-  run("ALTER DATABASE wxy_db CACHELAST 1 FSYNC 200 WAL 1");
+  run("ALTER DATABASE test CACHELAST 1 FSYNC 200 WAL 1");
 
-  run("ALTER DATABASE wxy_db KEEP 2400");
+  run("ALTER DATABASE test KEEP 2400");
 }
 
 TEST_F(ParserInitialATest, alterLocal) {
@@ -76,8 +76,6 @@ TEST_F(ParserInitialATest, alterLocal) {
   run("ALTER LOCAL 'querypolicy' '2'");
   clearAlterLocal();
 }
-
-// todo ALTER stable
 
 /*
  * ALTER TABLE [db_name.]tb_name alter_table_clause
@@ -157,7 +155,7 @@ TEST_F(ParserInitialATest, alterSTable) {
   };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_ALTER_TABLE_STMT);
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_ALTER_SUPER_TABLE_STMT);
     SMAlterStbReq req = {0};
     ASSERT_EQ(tDeserializeSMAlterStbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
     ASSERT_EQ(std::string(req.name), std::string(expect.name));
@@ -181,44 +179,44 @@ TEST_F(ParserInitialATest, alterSTable) {
   });
 
   //  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, nullptr, 10);
-  //  run("ALTER TABLE st1 TTL 10");
+  //  run("ALTER STABLE st1 TTL 10");
   //  clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, "test");
-  run("ALTER TABLE st1 COMMENT 'test'");
+  run("ALTER STABLE st1 COMMENT 'test'");
   clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_ADD_COLUMN, 1, "cc1", TSDB_DATA_TYPE_BIGINT);
-  run("ALTER TABLE st1 ADD COLUMN cc1 BIGINT");
+  run("ALTER STABLE st1 ADD COLUMN cc1 BIGINT");
   clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_DROP_COLUMN, 1, "c1");
-  run("ALTER TABLE st1 DROP COLUMN c1");
+  run("ALTER STABLE st1 DROP COLUMN c1");
   clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, 1, "c2", TSDB_DATA_TYPE_VARCHAR,
                      30 + VARSTR_HEADER_SIZE);
-  run("ALTER TABLE st1 MODIFY COLUMN c2 VARCHAR(30)");
+  run("ALTER STABLE st1 MODIFY COLUMN c2 VARCHAR(30)");
   clearAlterStbReq();
 
   // setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, 2, "c1", 0, 0, "cc1");
-  // run("ALTER TABLE st1 RENAME COLUMN c1 cc1");
+  // run("ALTER STABLE st1 RENAME COLUMN c1 cc1");
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_ADD_TAG, 1, "tag11", TSDB_DATA_TYPE_BIGINT);
-  run("ALTER TABLE st1 ADD TAG tag11 BIGINT");
+  run("ALTER STABLE st1 ADD TAG tag11 BIGINT");
   clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_DROP_TAG, 1, "tag1");
-  run("ALTER TABLE st1 DROP TAG tag1");
+  run("ALTER STABLE st1 DROP TAG tag1");
   clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_TAG_BYTES, 1, "tag2", TSDB_DATA_TYPE_VARCHAR,
                      30 + VARSTR_HEADER_SIZE);
-  run("ALTER TABLE st1 MODIFY TAG tag2 VARCHAR(30)");
+  run("ALTER STABLE st1 MODIFY TAG tag2 VARCHAR(30)");
   clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_TAG_NAME, 2, "tag1", 0, 0, "tag11");
-  run("ALTER TABLE st1 RENAME TAG tag1 tag11");
+  run("ALTER STABLE st1 RENAME TAG tag1 tag11");
   clearAlterStbReq();
 
   // todo
@@ -228,11 +226,11 @@ TEST_F(ParserInitialATest, alterSTable) {
 TEST_F(ParserInitialATest, alterSTableSemanticCheck) {
   useDb("root", "test");
 
-  run("ALTER TABLE st1 RENAME COLUMN c1 cc1", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  run("ALTER STABLE st1 RENAME COLUMN c1 cc1", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
 
-  run("ALTER TABLE st1 MODIFY COLUMN c2 NCHAR(10)", TSDB_CODE_PAR_INVALID_MODIFY_COL);
+  run("ALTER STABLE st1 MODIFY COLUMN c2 NCHAR(10)", TSDB_CODE_PAR_INVALID_MODIFY_COL);
 
-  run("ALTER TABLE st1 MODIFY TAG tag2 NCHAR(10)", TSDB_CODE_PAR_INVALID_MODIFY_COL);
+  run("ALTER STABLE st1 MODIFY TAG tag2 NCHAR(10)", TSDB_CODE_PAR_INVALID_MODIFY_COL);
 }
 
 TEST_F(ParserInitialATest, alterTable) {

@@ -260,13 +260,16 @@ enum tmq_res_t {
 };
 
 typedef enum tmq_res_t tmq_res_t;
+typedef struct tmq_raw_data tmq_raw_data;
 
-DLL_EXPORT tmq_res_t   tmq_get_res_type(TAOS_RES *res);
-DLL_EXPORT int32_t     tmq_get_raw_meta(TAOS_RES *res, void **raw_meta, int32_t *raw_meta_len);
-DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
-DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
-DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
-DLL_EXPORT const char *tmq_get_table_name(TAOS_RES *res);
+DLL_EXPORT tmq_res_t     tmq_get_res_type(TAOS_RES *res);
+DLL_EXPORT tmq_raw_data *tmq_get_raw_meta(TAOS_RES *res);
+DLL_EXPORT int32_t       taos_write_raw_meta(TAOS *taos, tmq_raw_data *raw_meta);
+DLL_EXPORT char         *tmq_get_json_meta(TAOS_RES *res);   // Returning null means error. Returned result need to be freed.
+DLL_EXPORT const char   *tmq_get_topic_name(TAOS_RES *res);
+DLL_EXPORT const char   *tmq_get_db_name(TAOS_RES *res);
+DLL_EXPORT int32_t       tmq_get_vgroup_id(TAOS_RES *res);
+DLL_EXPORT const char   *tmq_get_table_name(TAOS_RES *res);
 
 /* ------------------------------ TMQ END -------------------------------- */
 

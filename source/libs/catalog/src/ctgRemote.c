@@ -261,6 +261,8 @@ int32_t ctgHandleMsgCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
  
 _return:
 
+  taosMemoryFree(pMsg->pData);
+
   if (pJob) {
     taosReleaseRef(gCtgMgmt.jobPool, cbParam->refId);
   }

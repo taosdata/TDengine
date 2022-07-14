@@ -17,7 +17,7 @@ sql use test
 
 
 sql create table t1(ts timestamp, a int, b int , c int, d double,id int);
-sql create stream streams1 trigger at_once  into streamt as select  _wstartts, count(*) c1,  sum(a), max(a), min(d), stddev(a), last(a), first(d), max(id) s from t1 session(ts,10s);
+sql create stream streams1 trigger at_once  into streamt as select  _wstart, count(*) c1,  sum(a), max(a), min(d), stddev(a), last(a), first(d), max(id) s from t1 session(ts,10s);
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL,1);
 sql insert into t1 values(1648791223001,10,2,3,1.1,2);
 sql insert into t1 values(1648791233002,3,2,3,2.1,3);
@@ -141,7 +141,7 @@ if $data01 != 7 then
   goto loop1
 endi
 
-if $data02 != 9 then
+if $data02 != 18 then
   print =====data02=$data02
   goto loop1
 endi
@@ -151,22 +151,22 @@ if $data03 != 4 then
   goto loop1
 endi
 
-if $data04 != 1.100000000 then
+if $data04 != 1.000000000 then
   print ======$data04
   return -1
 endi
 
-if $data05 != 0.816496581 then
+if $data05 != 1.154700538 then
   print ======$data05
   return -1
 endi
 
-if $data06 != 3 then
+if $data06 != 4 then
   print ======$data06
   return -1
 endi
 
-if $data07 != 1.100000000 then
+if $data07 != 1.000000000 then
   print ======$data07
   return -1
 endi
@@ -179,7 +179,7 @@ endi
 sql create database test2 vgroups 1;
 sql use test2;
 sql create table t2(ts timestamp, a int, b int , c int, d double, id int);
-sql create stream streams2 trigger at_once  watermark 1d into streamt2 as select  _wstartts,apercentile(a,30) c1, apercentile(a,70), apercentile(a,20,"t-digest") c2, apercentile(a,60,"t-digest") c3, max(id) c4 from t2 session(ts,10s);
+sql create stream streams2 trigger at_once  watermark 1d into streamt2 as select  _wstart,apercentile(a,30) c1, apercentile(a,70), apercentile(a,20,"t-digest") c2, apercentile(a,60,"t-digest") c3, max(id) c4 from t2 session(ts,10s);
 sql insert into t2 values(1648791213001,1,1,3,1.0,1);
 sql insert into t2 values(1648791213002,2,2,6,3.4,2);
 sql insert into t2 values(1648791213003,4,9,3,4.8,3);
@@ -229,13 +229,13 @@ endi
 sql create database test3 vgroups 1;
 sql use test3;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
-sql create stream streams3 trigger at_once  watermark 1d into streamt3 as select  _wstartts, min(b), a,c from t1 session(ts,10s);
-sql create stream streams4 trigger at_once  watermark 1d into streamt4 as select  _wstartts, max(b), a,c from t1 session(ts,10s);
-# sql create stream streams5 trigger at_once  watermark 1d into streamt5 as select  _wstartts, top(b,3), a,c from t1 session(ts,10s);
-# sql create stream streams6 trigger at_once  watermark 1d into streamt6 as select  _wstartts, bottom(b,3), a,c from t1 session(ts,10s);
-# sql create stream streams7 trigger at_once  watermark 1d into streamt7 as select  _wstartts, spread(a), elapsed(ts), hyperloglog(a) from t1 session(ts,10s);
-sql create stream streams7 trigger at_once  watermark 1d into streamt7 as select  _wstartts, spread(a), hyperloglog(a) from t1 session(ts,10s);
-sql create stream streams8 trigger at_once  watermark 1d into streamt8 as select  _wstartts, histogram(a,"user_input", "[1,3,5,7]", 1), histogram(a,"user_input", "[1,3,5,7]", 0) from t1 session(ts,10s);
+sql create stream streams3 trigger at_once  watermark 1d into streamt3 as select  _wstart, min(b), a,c from t1 session(ts,10s);
+sql create stream streams4 trigger at_once  watermark 1d into streamt4 as select  _wstart, max(b), a,c from t1 session(ts,10s);
+# sql create stream streams5 trigger at_once  watermark 1d into streamt5 as select  _wstart, top(b,3), a,c from t1 session(ts,10s);
+# sql create stream streams6 trigger at_once  watermark 1d into streamt6 as select  _wstart, bottom(b,3), a,c from t1 session(ts,10s);
+# sql create stream streams7 trigger at_once  watermark 1d into streamt7 as select  _wstart, spread(a), elapsed(ts), hyperloglog(a) from t1 session(ts,10s);
+sql create stream streams7 trigger at_once  watermark 1d into streamt7 as select  _wstart, spread(a), hyperloglog(a) from t1 session(ts,10s);
+# sql create stream streams8 trigger at_once  watermark 1d into streamt8 as select  _wstart, histogram(a,"user_input", "[1,3,5,7]", 1), histogram(a,"user_input", "[1,3,5,7]", 0) from t1 session(ts,10s);
 sql insert into t1 values(1648791213001,1,1,1,1.0);
 sql insert into t1 values(1648791213002,2,3,2,3.4);
 sql insert into t1 values(1648791213003,4,9,3,4.8);
@@ -288,10 +288,10 @@ if $rows == 0 then
   goto loop3
 endi
 
-sql select * from streamt8;
-if $rows == 0 then
-  print ======$rows
-  goto loop3
-endi
+#sql select * from streamt8;
+#if $rows == 0 then
+#  print ======$rows
+#  goto loop3
+#endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

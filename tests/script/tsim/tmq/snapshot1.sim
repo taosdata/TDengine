@@ -25,7 +25,7 @@ $rowsPerCtb = 10
 $tstart     = 1640966400000  # 2022-01-01 00:00:00.000
 #---- global parameters end ----#
 
-$pullDelay    = 5
+$pullDelay    = 2
 $ifcheckdata  = 1
 $ifmanualcommit = 1
 $showMsg      = 1

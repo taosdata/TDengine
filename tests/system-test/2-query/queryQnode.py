@@ -17,6 +17,8 @@ import threading as thd
 import multiprocessing as mp
 from numpy.lib.function_base import insert
 import taos
+from util.dnodes import TDDnode
+from util.dnodes import *
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -30,8 +32,8 @@ class TDTestCase:
     #
     # --------------- main frame -------------------
     #
-    clientCfgDict = {'queryproxy': '1','debugFlag': 135}
-    clientCfgDict["queryproxy"] = '2'
+    clientCfgDict = {'queryPolicy': '1','debugFlag': 143}
+    clientCfgDict["queryPolicy"] = '1'
     clientCfgDict["debugFlag"] = 143
 
     updatecfgDict = {'clientCfg': {}}
@@ -43,7 +45,7 @@ class TDTestCase:
         case1: limit offset base function test
         case2: offset return valid
         '''
-        return 
+        return
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -62,14 +64,14 @@ class TDTestCase:
         return buildPath
 
     # init
-    def init(self, conn, logSql):
+    def init(self, conn, logSql=True):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
         # tdSql.prepare()
         # self.create_tables();
         self.ts = 1500000000000
 
-    # stop 
+    # stop
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
@@ -80,7 +82,7 @@ class TDTestCase:
     def newcur(self,host,cfg):
         user = "root"
         password = "taosdata"
-        port =6030 
+        port =6030
         con=taos.connect(host=host, user=user, password=password, config=cfg ,port=port)
         cur=con.cursor()
         print(cur)
@@ -90,7 +92,7 @@ class TDTestCase:
     def create_tables(self,host,dbname,stbname,count):
         buildPath = self.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
-        
+
         tsql=self.newcur(host,config)
         tsql.execute("use %s" %dbname)
 
@@ -109,7 +111,7 @@ class TDTestCase:
                 tsql.execute(sql)
                 sql = pre_create
         # print(time.time())
-        # end sql        
+        # end sql
         if sql != pre_create:
             # print(sql)
             tsql.execute(sql)
@@ -122,7 +124,7 @@ class TDTestCase:
     def mutiThread_create_tables(self,host,dbname,stbname,vgroups,threadNumbers,childcount):
         buildPath = self.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
-        
+
         tsql=self.newcur(host,config)
         tdLog.debug("create database %s"%dbname)
         tsql.execute("drop database if exists %s"%dbname)
@@ -132,7 +134,7 @@ class TDTestCase:
         threads = []
         for i in range(threadNumbers):
             tsql.execute("create stable %s%d(ts timestamp, c1 int, c2 binary(10)) tags(t1 int)"%(stbname,i))
-            threads.append(thd.Thread(target=self.create_tables, args=(host, dbname, stbname+"%d"%i, count,))) 
+            threads.append(thd.Thread(target=self.create_tables, args=(host, dbname, stbname+"%d"%i, count,)))
         start_time = time.time()
         for tr in threads:
             tr.start()
@@ -142,7 +144,7 @@ class TDTestCase:
         spendTime=end_time-start_time
         speedCreate=threadNumbers*count/spendTime
         tdLog.debug("spent %.2fs to create %d stable and %d table, create speed is %.2f table/s... [OK]"% (spendTime,threadNumbers,threadNumbers*count,speedCreate))
-        
+
         return
 
     # def create_tables(self,host,dbname,stbname,vgroups,tcountStart,tcountStop):
@@ -169,7 +171,7 @@ class TDTestCase:
                     # print(sql)
                     tsql.execute(sql)
                     sql = "insert into %s_%d values " %(stbname,i)
-        # end sql        
+        # end sql
         if sql != pre_insert:
             # print(sql)
             print(len(sql))
@@ -184,7 +186,7 @@ class TDTestCase:
     def mutiThread_insert_data(self, host, dbname, stbname, threadNumbers, chilCount, ts_start, childrowcount):
         buildPath = self.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
-        
+
         tsql=self.newcur(host,config)
         tdLog.debug("ready to inser data")
 
@@ -193,7 +195,7 @@ class TDTestCase:
         threads = []
         for i in range(threadNumbers):
             # tsql.execute("create stable %s%d(ts timestamp, c1 int, c2 binary(10)) tags(t1 int)"%(stbname,i))
-            threads.append(thd.Thread(target=self.insert_data, args=(host, dbname, stbname+"%d"%i, chilCount, ts_start, childrowcount,))) 
+            threads.append(thd.Thread(target=self.insert_data, args=(host, dbname, stbname+"%d"%i, chilCount, ts_start, childrowcount,)))
         start_time = time.time()
         for tr in threads:
             tr.start()
@@ -224,10 +226,10 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
         taosBenchbin = buildPath+ "/build/bin/taosBenchmark"
         os.system("%s -f %s -y " %(taosBenchbin,jsonFile))
-       
+
         return
     def taosBenchCreate(self,host,dropdb,dbname,stbname,vgroups,processNumbers,count):
-        
+
         # count=50000
         buildPath = self.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
@@ -241,7 +243,7 @@ class TDTestCase:
         # tsql.getResult("show databases")
         # print(tdSql.queryResult)
         tsql.execute("use %s" %dbname)
-    
+
         threads = []
         for i in range(processNumbers):
             jsonfile="1-insert/Vgroups%d%d.json"%(vgroups,i)
@@ -252,7 +254,7 @@ class TDTestCase:
             os.system("sed -i 's/\"childtable_count\": 10000,/\"childtable_count\": %d,/g' %s "%(count,jsonfile))
             os.system("sed -i 's/\"name\": \"stb1\",/\"name\":  \"%s%d\",/g' %s "%(stbname,i,jsonfile))
             os.system("sed -i 's/\"childtable_prefix\": \"stb1_\",/\"childtable_prefix\": \"%s%d_\",/g' %s "%(stbname,i,jsonfile))
-            threads.append(mp.Process(target=self.taosBench, args=("%s"%jsonfile,))) 
+            threads.append(mp.Process(target=self.taosBench, args=("%s"%jsonfile,)))
         start_time = time.time()
         for tr in threads:
             tr.start()
@@ -274,30 +276,16 @@ class TDTestCase:
         for i in range(stableCount):
             tdSql.query("select count(*) from %s%d"%(stbname,i))
             tdSql.checkData(0,0,rowsPerSTable)
-        return 
-     
-    # test case1 base 
-    def test_case1(self):
-        #stableCount=threadNumbersCtb
-        parameterDict = {'vgroups':        1,    \
-                         'threadNumbersCtb': 5,  \
-                         'threadNumbersIda': 5, \
-                         'stableCount':   5,      \
-                         'tablesPerStb':    50,  \
-                         'rowsPerTable':    10,  \
-                         'dbname':    'db',    \
-                         'stbname':    'stb',   \
-                         'host':  'localhost',    \
-                         'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
-        
-        tdLog.debug("-----create database and muti-thread create tables test------- ")
+        return
 
-    def test_case4(self):
+    # test case : Switch back and forth among the three queryPolicy（1\2\3）
+    def test_case1(self):
         self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 1, 2, 1*10)
         tdSql.execute("use db1;")
         tdSql.query("show dnodes;")
         dnodeId=tdSql.getData(0,0)
         print(dnodeId)
+        tdLog.debug("create qnode on dnode %s"%dnodeId)
         tdSql.execute("create qnode on dnode %s"%dnodeId)
         tdSql.query("select max(c1) from stb10;")
         maxQnode=tdSql.getData(0,0)
@@ -310,11 +298,12 @@ class TDTestCase:
 
         # tdSql.query("show qnodes;")
         # qnodeId=tdSql.getData(0,0)
+        tdLog.debug("drop qnode on dnode %s"%dnodeId)
         tdSql.execute("drop qnode on dnode %s"%dnodeId)
         tdSql.execute("reset query cache")
         tdSql.query("select max(c1) from stb10;")
         tdSql.checkData(0, 0, "%s"%maxQnode)
-        tdSql.query("select min(c1) from stb11;")     
+        tdSql.query("select min(c1) from stb11;")
         tdSql.checkData(0, 0, "%s"%minQnode)
         tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
         unionVnode=tdSql.queryResult
@@ -323,18 +312,170 @@ class TDTestCase:
         unionallVnode=tdSql.queryResult
         assert unionallQnode == unionallVnode
 
+        queryPolicy=2
+        simClientCfg="%s/taos.cfg"%tdDnodes.getSimCfgPath()
+        cmd='sed -i "s/^queryPolicy.*/queryPolicy 2/g" %s'%simClientCfg
+        os.system(cmd)
+        # tdDnodes.stop(1)
+        # tdDnodes.start(1)
+        tdSql.execute("reset query cache")
+        tdSql.execute('alter local  "queryPolicy" "%d"'%queryPolicy)
+        tdSql.query("show local variables;")
+        for i in range(tdSql.queryRows):
+            if tdSql.queryResult[i][0] == "queryPolicy" :
+                if int(tdSql.queryResult[i][1]) == int(queryPolicy):
+                    tdLog.success('alter queryPolicy to %d successfully'%queryPolicy)
+                else :
+                    tdLog.debug(tdSql.queryResult)
+                    tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy)
+        tdSql.execute("reset query cache")
+
+        tdSql.execute("use db1;")
+        tdSql.query("show dnodes;")
+        dnodeId=tdSql.getData(0,0)
+        tdLog.debug("create qnode on dnode %s"%dnodeId)
+
+        tdSql.execute("create qnode on dnode %s"%dnodeId)
+        tdSql.query("select max(c1) from stb10;")
+        assert maxQnode==tdSql.getData(0,0)
+        tdSql.query("select min(c1) from stb11;")
+        assert minQnode==tdSql.getData(0,0)
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        assert unionQnode==tdSql.queryResult
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        assert unionallQnode==tdSql.queryResult
+
+        # tdSql.query("show qnodes;")
+        # qnodeId=tdSql.getData(0,0)
+        tdLog.debug("drop qnode on dnode %s"%dnodeId)
+        tdSql.execute("drop qnode on dnode %s"%dnodeId)
+        tdSql.execute("reset query cache")
+        tdSql.query("select max(c1) from stb10;")
+        assert maxQnode==tdSql.getData(0,0)
+        tdSql.query("select min(c1) from stb11;")
+        assert minQnode==tdSql.getData(0,0)
+        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
 
         # tdSql.execute("create qnode on dnode %s"%dnodeId)
 
-    # run case   
+        queryPolicy=3
+        simClientCfg="%s/taos.cfg"%tdDnodes.getSimCfgPath()
+        cmd='sed -i "s/^queryPolicy.*/queryPolicy 2/g" %s'%simClientCfg
+        os.system(cmd)
+        # tdDnodes.stop(1)
+        # tdDnodes.start(1)
+        tdSql.execute("reset query cache")
+        tdSql.execute('alter local  "queryPolicy" "%d"'%queryPolicy)
+        tdSql.query("show local variables;")
+        for i in range(tdSql.queryRows):
+            if tdSql.queryResult[i][0] == "queryPolicy" :
+                if int(tdSql.queryResult[i][1]) == int(queryPolicy):
+                    tdLog.success('alter queryPolicy to %d successfully'%queryPolicy)
+                else :
+                    tdLog.debug(tdSql.queryResult)
+                    tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy)
+        tdSql.execute("reset query cache")
+
+        tdSql.execute("use db1;")
+        tdSql.query("show dnodes;")
+        dnodeId=tdSql.getData(0,0)
+        tdLog.debug("create qnode on dnode %s"%dnodeId)
+
+        tdSql.execute("create qnode on dnode %s"%dnodeId)
+        tdSql.query("select max(c1) from stb10;")
+        assert maxQnode==tdSql.getData(0,0)
+        tdSql.query("select min(c1) from stb11;")
+        assert minQnode==tdSql.getData(0,0)
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        assert unionQnode==tdSql.queryResult
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        assert unionallQnode==tdSql.queryResult
+
+    # test case : queryPolicy = 2
+    def test_case2(self):
+        self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 10, 2, 1*10)
+        tdSql.query("show qnodes")
+        if tdSql.queryRows == 1 :
+            tdLog.debug("drop qnode on dnode 1")
+            tdSql.execute("drop qnode on dnode 1")
+        queryPolicy=2
+        simClientCfg="%s/taos.cfg"%tdDnodes.getSimCfgPath()
+        cmd='sed -i "s/^queryPolicy.*/queryPolicy 2/g" %s'%simClientCfg
+        os.system(cmd)
+        # tdDnodes.stop(1)
+        # tdDnodes.start(1)
+        tdSql.execute("reset query cache")
+        tdSql.execute('alter local  "queryPolicy" "%d"'%queryPolicy)
+        tdSql.query("show local variables;")
+        for i in range(tdSql.queryRows):
+            if tdSql.queryResult[i][0] == "queryPolicy" :
+                if int(tdSql.queryResult[i][1]) == int(queryPolicy):
+                    tdLog.success('alter queryPolicy to %d successfully'%queryPolicy)
+                else :
+                    tdLog.debug(tdSql.queryResult)
+                    tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy)
+        tdSql.execute("use db1;")
+        tdSql.error("select max(c1) from stb10;")
+        tdSql.error("select min(c1) from stb11;")
+        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+
+        tdSql.query("select max(c1) from stb10_0;")
+        tdSql.query("select min(c1) from stb11_0;")
+
+    # test case : queryPolicy = 3
+
+    def test_case3(self):
+        tdSql.execute('alter local  "queryPolicy" "3"')
+        tdLog.debug("create qnode on dnode 1")
+        tdSql.execute("create qnode on dnode 1")
+        tdSql.execute("use db1;")
+        tdSql.query("show dnodes;")
+        dnodeId=tdSql.getData(0,0)
+        print(dnodeId)
+
+        tdSql.query("select max(c1) from stb10;")
+        maxQnode=tdSql.getData(0,0)
+        tdSql.query("select min(c1) from stb11;")
+        minQnode=tdSql.getData(0,0)
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        unionQnode=tdSql.queryResult
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        unionallQnode=tdSql.queryResult
+
+        # tdSql.query("show qnodes;")
+        # qnodeId=tdSql.getData(0,0)
+        tdLog.debug("drop qnode on dnode %s"%dnodeId)
+
+        tdSql.execute("drop qnode on dnode %s"%dnodeId)
+        tdSql.execute("reset query cache")
+
+        tdSql.error("select max(c1) from stb10;")
+        tdSql.error("select min(c1) from stb11;")
+        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+
+    # run case
     def run(self):
-
         # test qnode
-        self.test_case4()
-        tdLog.debug(" LIMIT test_case3 ............ [OK]")
+        tdLog.debug(" test_case1 ............ [start]")
+        self.test_case1()
+        tdLog.debug(" test_case1 ............ [OK]")
+        tdLog.debug(" test_case2 ............ [start]")
+        self.test_case2()
+        tdLog.debug(" test_case2 ............ [OK]")
+        tdLog.debug(" test_case3 ............ [start]")
+        self.test_case3()
+        tdLog.debug(" test_case3 ............ [OK]")
 
+        # tdLog.debug(" LIMIT test_case3 ............ [OK]")
 
-        return 
+    def stop(self):
+        tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")
+
+        return
 #
 # add case with filename
 #

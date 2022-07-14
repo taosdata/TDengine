@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDnode.h"
-#include "mndPrivilege.h"
 #include "mndMnode.h"
+#include "mndPrivilege.h"
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndSnode.h"
@@ -274,15 +274,14 @@ static void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
 
     SDnodeEp dnodeEp = {0};
     dnodeEp.id = pDnode->id;
-    dnodeEp.isMnode = 0;
     dnodeEp.ep.port = pDnode->port;
     memcpy(dnodeEp.ep.fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+    sdbRelease(pSdb, pDnode);
 
+    dnodeEp.isMnode = 0;
     if (mndIsMnode(pMnode, pDnode->id)) {
       dnodeEp.isMnode = 1;
     }
-
-    sdbRelease(pSdb, pDnode);
     taosArrayPush(pDnodeEps, &dnodeEp);
   }
 }
@@ -407,7 +406,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
 
     if (statusReq.dnodeId == 0) {
-      mInfo("dnode:%d, %s first access, set clusterId %" PRId64, pDnode->id, pDnode->ep, pMnode->clusterId);
+      mInfo("dnode:%d, %s first access, clusterId:%" PRId64, pDnode->id, pDnode->ep, pMnode->clusterId);
     } else {
       if (statusReq.clusterId != pMnode->clusterId) {
         if (pDnode != NULL) {
@@ -432,7 +431,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
 
     if (!online) {
-      mInfo("dnode:%d, from offline to online", pDnode->id);
+      mInfo("dnode:%d, from offline to online, memory avail:%" PRId64 " total:%" PRId64 " cores:%.2f", pDnode->id,
+            statusReq.memAvail, statusReq.memTotal, statusReq.numOfCores);
     } else {
       mDebug("dnode:%d, send dnode epset, online:%d dnodeVer:%" PRId64 ":%" PRId64 " reboot:%d", pDnode->id, online,
              statusReq.dnodeVer, dnodeVer, reboot);
@@ -441,6 +441,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->rebootTime = statusReq.rebootTime;
     pDnode->numOfCores = statusReq.numOfCores;
     pDnode->numOfSupportVnodes = statusReq.numOfSupportVnodes;
+    pDnode->memAvail = statusReq.memAvail;
+    pDnode->memTotal = statusReq.memTotal;
 
     SStatusRsp statusRsp = {0};
     statusRsp.dnodeVer = dnodeVer;
@@ -580,7 +582,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   strcpy(info.name, "timezone");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
   taosArrayPush(rsp.variables, &info);
-  
+
   strcpy(info.name, "locale");
   snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
   taosArrayPush(rsp.variables, &info);
@@ -758,6 +760,11 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     }
   }
 
+  if (numOfVnodes > 0) {
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    goto _OVER;
+  }
+
   code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -774,7 +781,13 @@ _OVER:
 }
 
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
+  SMnode     *pMnode = pReq->info.node;
+  const char *options[] = {
+      "debugFlag",     "dDebugFlag",  "vDebugFlag",   "mDebugFlag",   "wDebugFlag",   "sDebugFlag",
+      "tsdbDebugFlag", "tqDebugFlag", "fsDebugFlag",  "udfDebugFlag", "smaDebugFlag", "idxDebugFlag",
+      "tmrDebugFlag",  "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",
+  };
+  int32_t optionSize = tListLen(options);
 
   SMCfgDnodeReq cfgReq = {0};
   if (tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq) != 0) {
@@ -795,27 +808,52 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   SEpSet epSet = mndGetDnodeEpset(pDnode);
   mndReleaseDnode(pMnode, pDnode);
 
+
   SDCfgDnodeReq dcfgReq = {0};
-  if (strncasecmp(cfgReq.config, "debugFlag", 9) == 0) {
+  if (strcasecmp(cfgReq.config, "resetlog") == 0) {
+    strcpy(dcfgReq.config, "resetlog");
+  } else if (strncasecmp(cfgReq.config, "monitor", 7) == 0) {
     const char *value = cfgReq.value;
     int32_t     flag = atoi(value);
     if (flag <= 0) {
-      flag = atoi(cfgReq.config + 10);
+      flag = atoi(cfgReq.config + 8);
     }
-    if (flag <= 0 || flag > 255) {
-      mError("dnode:%d, failed to config debugFlag since value:%d", cfgReq.dnodeId, flag);
+    if (flag < 0 || flag > 2) {
+      mError("dnode:%d, failed to config monitor since value:%d", cfgReq.dnodeId, flag);
       terrno = TSDB_CODE_INVALID_CFG;
       return -1;
     }
 
-    strcpy(dcfgReq.config, "debugFlag");
+    strcpy(dcfgReq.config, "monitor");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
-  } else if (strcasecmp(cfgReq.config, "resetlog") == 0) {
-    strcpy(dcfgReq.config, "resetlog");
   } else {
-    terrno = TSDB_CODE_INVALID_CFG;
-    mError("dnode:%d, failed to config since %s", cfgReq.dnodeId, terrstr());
-    return -1;
+    bool findOpt = false;
+    for (int32_t d = 0; d < optionSize; ++d) {
+      const char *optName = options[d];
+      int32_t     optLen = strlen(optName);
+      if (strncasecmp(cfgReq.config, optName, optLen) != 0) continue;
+
+      const char *value = cfgReq.value;
+      int32_t flag = atoi(value);
+      if (flag <= 0) {
+        flag = atoi(cfgReq.config + optLen + 1);
+      }
+      if (flag <= 0 || flag > 255) {
+        mError("dnode:%d, failed to config %s since value:%d", cfgReq.dnodeId, optName, flag);
+        terrno = TSDB_CODE_INVALID_CFG;
+        return -1;
+      }
+
+      tstrncpy(dcfgReq.config, optName, optLen + 1);
+      snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+      findOpt = true;
+    }
+
+    if (!findOpt) {
+      terrno = TSDB_CODE_INVALID_CFG;
+      mError("dnode:%d, failed to config since %s", cfgReq.dnodeId, terrstr());
+      return -1;
+    }
   }
 
   int32_t bufLen = tSerializeSDCfgDnodeReq(NULL, 0, &dcfgReq);
@@ -824,13 +862,14 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   if (pBuf == NULL) return -1;
   tSerializeSDCfgDnodeReq(pBuf, bufLen, &dcfgReq);
 
-  mDebug("dnode:%d, send config req to dnode, app:%p", cfgReq.dnodeId, pReq->info.ahandle);
+  mInfo("dnode:%d, send config req to dnode, app:%p config:%s value:%s", cfgReq.dnodeId, pReq->info.ahandle,
+        dcfgReq.config, dcfgReq.value);
   SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
   return tmsgSendReq(&epSet, &rpcMsg);
 }
 
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp) {
-  mDebug("config rsp from dnode, app:%p", pRsp->info.ahandle);
+  mInfo("config rsp from dnode, app:%p", pRsp->info.ahandle);
   return 0;
 }
 

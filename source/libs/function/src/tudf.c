@@ -75,6 +75,10 @@ static int32_t udfSpawnUdfd(SUdfdData* pData) {
   #ifdef WINDOWS
     GetModuleFileName(NULL, path, PATH_MAX);
     taosDirName(path);
+  #elif defined(_TD_DARWIN_64)
+    uint32_t pathSize = sizeof(path);
+    _NSGetExecutablePath(path, &pathSize);
+    taosDirName(path);
   #endif
   } else {
     strncpy(path, tsProcPath, strlen(tsProcPath));
@@ -199,7 +203,7 @@ int32_t udfStartUdfd(int32_t startDnodeId) {
     uv_async_send(&pData->stopAsync);
     uv_thread_join(&pData->thread);
     pData->needCleanUp = false;
-    fnInfo("dnode udfd cleaned up after spawn err");
+    fnInfo("udfd is cleaned up after spawn err");
   } else {
     pData->needCleanUp = true;
   }
@@ -208,7 +212,7 @@ int32_t udfStartUdfd(int32_t startDnodeId) {
 
 int32_t udfStopUdfd() {
   SUdfdData *pData = &udfdGlobal;
-  fnInfo("dnode to stop udfd. need cleanup: %d, spawn err: %d",
+  fnInfo("udfd start to stop, need cleanup:%d, spawn err:%d",
         pData->needCleanUp, pData->spawnErr);
   if (!pData->needCleanUp || atomic_load_32(&pData->stopCalled)) {
     return 0;
@@ -221,7 +225,7 @@ int32_t udfStopUdfd() {
 #ifdef WINDOWS
   if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
 #endif
-  fnInfo("dnode udfd cleaned up");
+  fnInfo("udfd is cleaned up");
   return 0;
 }
 
@@ -463,7 +467,7 @@ int32_t getUdfdPipeName(char* pipeName, int32_t size) {
   size_t  dnodeIdSize = sizeof(dnodeId);
   int32_t err = uv_os_getenv(UDF_DNODE_ID_ENV_NAME, dnodeId, &dnodeIdSize);
   if (err != 0) {
-    fnError("get dnode id from env. error: %s.", uv_err_name(err));
+    fnError("failed to get dnodeId from env since %s", uv_err_name(err));
     dnodeId[0] = '1';
   }
 #ifdef _WIN32
@@ -471,7 +475,7 @@ int32_t getUdfdPipeName(char* pipeName, int32_t size) {
 #else
   snprintf(pipeName, size, "%s/%s%s", tsDataDir, UDF_LISTEN_PIPE_NAME_PREFIX, dnodeId);
 #endif
-  fnInfo("get dnode id from env. dnode id: %s. pipe path: %s", dnodeId, pipeName);
+  fnInfo("get dnodeId:%s from env, pipe path:%s", dnodeId, pipeName);
   return 0;
 }
 
@@ -1565,6 +1569,10 @@ void constructUdfService(void *argsThread) {
   //TODO return value of uv_run
   uv_run(&udfc->uvLoop, UV_RUN_DEFAULT);
   uv_loop_close(&udfc->uvLoop);
+
+  uv_walk(&udfc->uvLoop, udfUdfdCloseWalkCb, NULL);
+  uv_run(&udfc->uvLoop, UV_RUN_DEFAULT);
+  uv_loop_close(&udfc->uvLoop);
 }
 
 int32_t udfcOpen() {
@@ -1601,7 +1609,7 @@ int32_t udfcClose() {
   taosArrayDestroy(udfc->udfStubs);
   uv_mutex_destroy(&udfc->udfStubsMutex);
   udfc->udfcState = UDFC_STATE_INITAL;
-  fnInfo("udfc cleaned up");
+  fnInfo("udfc is cleaned up");
   return 0;
 }
 

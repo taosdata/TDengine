@@ -188,7 +188,7 @@ void *taosHashGetKey(void *data, size_t* keyLen);
 void *taosHashAcquire(SHashObj *pHashObj, const void *key, size_t keyLen);
 
 /**
- * release the prevous acquired obj
+ * release the previous acquired obj
  *
  * @param pHashObj
  * @param data

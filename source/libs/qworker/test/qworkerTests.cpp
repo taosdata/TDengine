@@ -214,7 +214,8 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
       rpcFreeCont(rsp);
       break;
     }
-    case TDMT_SCH_FETCH_RSP: {
+    case TDMT_SCH_FETCH_RSP:
+    case TDMT_SCH_MERGE_FETCH_RSP: {
       SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)pRsp->pCont;
   
       if (0 == pRsp->code && 0 == rsp->completed) {
@@ -331,7 +332,7 @@ void qwtEndPut(DataSinkHandle handle, uint64_t useconds) {
   qwtTestSinkQueryEnd = true;
 }
 
-void qwtGetDataLength(DataSinkHandle handle, int32_t* pLen, bool* pQueryEnd) {
+void qwtGetDataLength(DataSinkHandle handle, int64_t* pLen, bool* pQueryEnd) {
   static int32_t in = 0;
 
   if (in > 0) {
@@ -815,6 +816,7 @@ void *fetchQueueThread(void *param) {
 
     switch (fetchRpc->msgType) {
       case TDMT_SCH_FETCH:
+      case TDMT_SCH_MERGE_FETCH:
         qWorkerProcessFetchMsg(mockPointer, mgmt, fetchRpc, 0);
         break;
       case TDMT_SCH_CANCEL_TASK:

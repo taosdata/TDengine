@@ -42,7 +42,7 @@ static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
 
 static inline void dmSendRedirectRsp(SRpcMsg *pMsg, const SEpSet *pNewEpSet) {
   pMsg->info.hasEpSet = 1;
-  SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info};
+  SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info, .msgType = pMsg->msgType};
   int32_t contLen = tSerializeSEpSet(NULL, 0, pNewEpSet);
 
   rsp.pCont = rpcMallocCont(contLen);
@@ -71,9 +71,9 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
 }
 
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
-  SDnodeTrans * pTrans = &pDnode->trans;
+  SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
-  SRpcMsg *     pMsg = NULL;
+  SRpcMsg      *pMsg = NULL;
   SMgmtWrapper *pWrapper = NULL;
   SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
 
@@ -88,7 +88,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     case TDMT_MND_SYSTABLE_RETRIEVE_RSP:
     case TDMT_DND_SYSTABLE_RETRIEVE_RSP:
     case TDMT_SCH_FETCH_RSP:
-      qWorkerProcessFetchRsp(NULL, NULL, pRpc, 0);
+    case TDMT_SCH_MERGE_FETCH_RSP:
+    case TDMT_VND_SUBMIT_RSP:
+      qWorkerProcessRspMsg(NULL, NULL, pRpc, 0);
       return;
     case TDMT_MND_STATUS_RSP:
       if (pEpSet != NULL) {
@@ -185,6 +187,7 @@ _OVER:
       taosFreeQitem(pMsg);
     }
     rpcFreeCont(pRpc->pCont);
+    pRpc->pCont = NULL;
   }
 
   dmReleaseWrapper(pWrapper);
@@ -195,11 +198,11 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-    SArray *      pArray = (*pWrapper->func.getHandlesFp)();
+    SArray       *pArray = (*pWrapper->func.getHandlesFp)();
     if (pArray == NULL) return -1;
 
     for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
-      SMgmtHandle * pMgmt = taosArrayGet(pArray, i);
+      SMgmtHandle  *pMgmt = taosArrayGet(pArray, i);
       SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pMgmt->msgType)];
       if (pMgmt->needCheckVgId) {
         pHandle->needCheckVgId = pMgmt->needCheckVgId;
@@ -245,14 +248,14 @@ static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) {
     SRpcMsg msg = {.code = type, .info = *pHandle};
     dmPutToProcPQueue(&pWrapper->proc, &msg, DND_FUNC_RELEASE);
   } else {
-    rpcReleaseHandle(pHandle->handle, type);
+    rpcReleaseHandle(pHandle, type);
   }
 }
 
 static bool rpcRfp(int32_t code, tmsg_t msgType) {
   if (code == TSDB_CODE_RPC_REDIRECT || code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_NODE_NOT_DEPLOYED ||
       code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_APP_NOT_READY || code == TSDB_CODE_RPC_BROKEN_LINK) {
-    if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH) {
+    if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH || msgType == TDMT_SCH_MERGE_FETCH) {
       return false;
     }
     return true;

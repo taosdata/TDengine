@@ -35,12 +35,11 @@ int32_t sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode) {
   return TSDB_CODE_SUCCESS;
 }
 
-
-SColumnInfoData* sclCreateColumnInfoData(SDataType* pType, int32_t numOfRows) {
+int32_t sclCreateColumnInfoData(SDataType* pType, int32_t numOfRows, SScalarParam* pParam) {
   SColumnInfoData* pColumnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
   if (pColumnData == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    return terrno;
   }
 
   pColumnData->info.type      = pType->type;
@@ -52,19 +51,25 @@ SColumnInfoData* sclCreateColumnInfoData(SDataType* pType, int32_t numOfRows) {
   if (code != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pColumnData);
-    return NULL;
-  } else {
-    return pColumnData;
+    return terrno;
   }
+
+  pParam->columnData = pColumnData;
+  pParam->type = SHOULD_FREE_COLDATA;
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t doConvertDataType(SValueNode* pValueNode, SScalarParam* out) {
+int32_t doConvertDataType(SValueNode* pValueNode, SScalarParam* out, int32_t* overflow) {
   SScalarParam in = {.numOfRows = 1};
-  in.columnData = sclCreateColumnInfoData(&pValueNode->node.resType, 1);
+  int32_t code = sclCreateColumnInfoData(&pValueNode->node.resType, 1, &in);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
   colDataAppend(in.columnData, 0, nodesGetValueFromNode(pValueNode), false);
 
   colInfoDataEnsureCapacity(out->columnData, 1);
-  int32_t code = vectorConvertImpl(&in, out);
+  code = vectorConvertImpl(&in, out, overflow);
   sclFreeParam(&in);
 
   return code;
@@ -102,16 +107,21 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
         out.columnData->info.bytes = tDataTypes[type].bytes;
       }
 
-      code = doConvertDataType(valueNode, &out);
+      int32_t overflow = 0;
+      code = doConvertDataType(valueNode, &out, &overflow);
       if (code != TSDB_CODE_SUCCESS) {
 //        sclError("convert data from %d to %d failed", in.type, out.type);
         SCL_ERR_JRET(code);
       }
 
+      if (overflow) {
+        cell = cell->pNext;
+        continue;
+      }
+
       if (IS_VAR_DATA_TYPE(type)) {
-        char* data = colDataGetVarData(out.columnData, 0);
-        len = varDataLen(data);
-        buf = varDataVal(data);
+        buf = colDataGetVarData(out.columnData, 0);
+        len = varDataTLen(buf);
       } else {
         len = tDataTypes[type].bytes;
         buf = out.columnData->pData;
@@ -119,8 +129,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
     } else {
       buf = nodesGetValueFromNode(valueNode);
       if (IS_VAR_DATA_TYPE(type)) {
-        len = varDataLen(buf);
-        buf = varDataVal(buf);
+        len = varDataTLen(buf);
       } else {
         len = valueNode->node.resType.bytes;
       }
@@ -159,7 +168,7 @@ void sclFreeRes(SHashObj *res) {
 void sclFreeParam(SScalarParam *param) {
   if (param->columnData != NULL) {
     colDataDestroy(param->columnData);
-    taosMemoryFree(param->columnData);
+    taosMemoryFreeClear(param->columnData);
   }
 
   if (param->pHashFilter != NULL) {
@@ -192,9 +201,10 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     case QUERY_NODE_VALUE: {
       SValueNode *valueNode = (SValueNode *)node;
 
+      ASSERT(param->columnData == NULL);
       param->numOfRows = 1;
-      param->columnData = sclCreateColumnInfoData(&valueNode->node.resType, 1);
-      if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type) {
+      /*int32_t code = */sclCreateColumnInfoData(&valueNode->node.resType, 1, param);
+      if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type || valueNode->isNull) {
         colDataAppendNULL(param->columnData, 0);
       } else {
         colDataAppend(param->columnData, 0, nodesGetValueFromNode(valueNode), false);
@@ -345,7 +355,7 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx) {
     return -1;
   }
   
-  switch (nodeType(pNode)) {
+  switch ((int)nodeType(pNode)) {
     case QUERY_NODE_VALUE: {
       SValueNode *valueNode = (SValueNode *)pNode;
       return valueNode->node.resType.type;
@@ -431,10 +441,9 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
       SCL_ERR_JRET(code);
     }
   
-    output->columnData = sclCreateColumnInfoData(&node->node.resType, rowNum);
-    if (output->columnData == NULL) {
-      sclError("calloc %d failed", (int32_t)(rowNum * output->columnData->info.bytes));
-      SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    code = sclCreateColumnInfoData(&node->node.resType, rowNum, output);
+    if (code != TSDB_CODE_SUCCESS) {
+      SCL_ERR_JRET(code);
     }
 
     code = (*ffpSet.process)(params, paramNum, output);
@@ -484,10 +493,9 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
   output->numOfRows = rowNum;
 
   SDataType t = {.type = type, .bytes = tDataTypes[type].bytes};
-  output->columnData = sclCreateColumnInfoData(&t, rowNum);
-  if (output->columnData == NULL) {
-    sclError("calloc %d failed", (int32_t)(rowNum * sizeof(bool)));
-    SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  code = sclCreateColumnInfoData(&t, rowNum, output);
+  if (code != TSDB_CODE_SUCCESS) {
+    SCL_ERR_JRET(code);
   }
 
   bool value = false;
@@ -538,11 +546,20 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   int32_t rowNum = 0;
   int32_t code = 0;
 
+  // json not support in in operator
+  if (nodeType(node->pLeft) == QUERY_NODE_VALUE) {
+    SValueNode *valueNode = (SValueNode *)node->pLeft;
+    if (valueNode->node.resType.type == TSDB_DATA_TYPE_JSON && (node->opType == OP_TYPE_IN || node->opType == OP_TYPE_NOT_IN)) {
+      SCL_RET(TSDB_CODE_QRY_JSON_IN_ERROR);
+    }
+  }
+
   SCL_ERR_RET(sclInitOperatorParams(&params, node, ctx, &rowNum));
-  output->columnData = sclCreateColumnInfoData(&node->node.resType, rowNum);
   if (output->columnData == NULL) {
-    sclError("calloc failed, size:%d", (int32_t)rowNum * node->node.resType.bytes);
-    SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    code = sclCreateColumnInfoData(&node->node.resType, rowNum, output);
+    if (code != TSDB_CODE_SUCCESS) {
+      SCL_ERR_JRET(code);
+    }
   }
 
   _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(node->opType);
@@ -557,14 +574,17 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
 
 _return:
   for (int32_t i = 0; i < paramNum; ++i) {
-//    sclFreeParam(&params[i]);
+    if (params[i].type == SHOULD_FREE_COLDATA) {
+      colDataDestroy(params[i].columnData);
+      taosMemoryFreeClear(params[i].columnData);
+    }
   }
 
   taosMemoryFreeClear(params);
   SCL_RET(code);
 }
 
-EDealRes sclRewriteBasedOnOptr(SNode** pNode, SScalarCtx *ctx, EOperatorType opType) {
+EDealRes sclRewriteNullInOptr(SNode** pNode, SScalarCtx *ctx, EOperatorType opType) {
   if (opType <= OP_TYPE_CALC_MAX) {
     SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
     if (NULL == res) {
@@ -596,6 +616,24 @@ EDealRes sclRewriteBasedOnOptr(SNode** pNode, SScalarCtx *ctx, EOperatorType opT
   return DEAL_RES_CONTINUE;
 }
 
+EDealRes sclAggFuncWalker(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    *(bool*)pContext = fmIsAggFunc(pFunc->funcId);
+    if (*(bool*)pContext) {
+      return DEAL_RES_END;
+    }
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+
+bool sclContainsAggFuncNode(SNode* pNode) {
+  bool aggFunc = false;
+  nodesWalkExpr(pNode, sclAggFuncWalker, (void *)&aggFunc);
+  return aggFunc;
+}
 
 EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
   SOperatorNode *node = (SOperatorNode *)*pNode;
@@ -603,8 +641,9 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
 
   if (node->pLeft && (QUERY_NODE_VALUE == nodeType(node->pLeft))) {
     SValueNode *valueNode = (SValueNode *)node->pLeft;
-    if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)) {
-      return sclRewriteBasedOnOptr(pNode, ctx, node->opType);
+    if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL) 
+        && (!sclContainsAggFuncNode(node->pRight))) {
+      return sclRewriteNullInOptr(pNode, ctx, node->opType);
     }
 
     if (IS_STR_DATA_TYPE(valueNode->node.resType.type) && node->pRight && nodesIsExprNode(node->pRight) 
@@ -619,8 +658,9 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
 
   if (node->pRight && (QUERY_NODE_VALUE == nodeType(node->pRight))) {
     SValueNode *valueNode = (SValueNode *)node->pRight;
-    if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)) {
-      return sclRewriteBasedOnOptr(pNode, ctx, node->opType);
+    if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)
+       && (!sclContainsAggFuncNode(node->pLeft))) {
+      return sclRewriteNullInOptr(pNode, ctx, node->opType);
     }
 
     if (IS_STR_DATA_TYPE(valueNode->node.resType.type) && node->pLeft && nodesIsExprNode(node->pLeft) 
@@ -642,7 +682,7 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
           ERASE_NODE(listNode->pNodeList);
           continue;
         } else { //OP_TYPE_NOT_IN
-          return sclRewriteBasedOnOptr(pNode, ctx, node->opType);
+          return sclRewriteNullInOptr(pNode, ctx, node->opType);
         }
       }
 
@@ -650,7 +690,7 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
     }
 
     if (listNode->pNodeList->length <= 0) {
-      return sclRewriteBasedOnOptr(pNode, ctx, node->opType);
+      return sclRewriteNullInOptr(pNode, ctx, node->opType);
     }
   }
 
@@ -689,6 +729,7 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
 
   if (colDataIsNull_s(output.columnData, 0)) {
     res->node.resType.type = TSDB_DATA_TYPE_NULL;
+    res->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;    
   } else {
     res->node.resType.type = output.columnData->info.type;
     res->node.resType.bytes = output.columnData->info.bytes;
@@ -760,7 +801,7 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
     return sclRewriteNonConstOperator(pNode, ctx);
   }
 
-  SScalarParam output = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
+  SScalarParam output = {0};
   ctx->code = sclExecOperator(node, ctx, &output);
   if (ctx->code) {
     return DEAL_RES_ERROR;
@@ -777,7 +818,13 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
   res->translate = true;
 
   if (colDataIsNull_s(output.columnData, 0)) {
-    res->node.resType.type = TSDB_DATA_TYPE_NULL;
+    if(node->node.resType.type != TSDB_DATA_TYPE_JSON){
+      res->node.resType.type = TSDB_DATA_TYPE_NULL;
+      res->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
+    }else{
+      res->node.resType = node->node.resType;
+      res->isNull = true;
+    }
   } else {
     res->node.resType = node->node.resType;
     int32_t type = output.columnData->info.type;
@@ -823,6 +870,7 @@ EDealRes sclWalkFunction(SNode* pNode, SScalarCtx *ctx) {
     return DEAL_RES_ERROR;
   }
 
+  output.type = DELEGATED_MGMT_COLDATA;
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
     ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
@@ -857,6 +905,7 @@ EDealRes sclWalkOperator(SNode* pNode, SScalarCtx *ctx) {
     return DEAL_RES_ERROR;
   }
 
+  output.type = DELEGATED_MGMT_COLDATA;
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
     ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
@@ -961,13 +1010,14 @@ int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockL
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) {
+int32_t sclCalcConstants(SNode *pNode, bool dual, SNode **pRes) {
   if (NULL == pNode) {
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
   int32_t code = 0;
   SScalarCtx ctx = {0};
+  ctx.dual = dual;
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == ctx.pRes) {
     sclError("taosHashInit failed, num:%d", SCL_DEFAULT_OP_NUM);
@@ -979,8 +1029,86 @@ int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) {
   *pRes = pNode;
 
 _return:
+
   sclFreeRes(ctx.pRes);
   return code;
+}
+
+static int32_t sclGetMinusOperatorResType(SOperatorNode* pOp) {
+  if (!IS_MATHABLE_TYPE(((SExprNode*)(pOp->pLeft))->resType.type)) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+  pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sclGetMathOperatorResType(SOperatorNode* pOp) {
+  SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
+  SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
+  if ((TSDB_DATA_TYPE_TIMESTAMP == ldt.type && TSDB_DATA_TYPE_TIMESTAMP == rdt.type) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == ldt.type && (IS_VAR_DATA_TYPE(rdt.type) || IS_FLOAT_TYPE(rdt.type))) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && (IS_VAR_DATA_TYPE(ldt.type) || IS_FLOAT_TYPE(ldt.type)))) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  if ((TSDB_DATA_TYPE_TIMESTAMP == ldt.type && IS_INTEGER_TYPE(rdt.type)) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && IS_INTEGER_TYPE(ldt.type)) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == ldt.type && TSDB_DATA_TYPE_BOOL == rdt.type) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && TSDB_DATA_TYPE_BOOL == ldt.type)) {
+    pOp->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+  } else {
+    pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+    pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sclGetCompOperatorResType(SOperatorNode* pOp) {
+  SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
+  if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
+    ((SExprNode*)(pOp->pRight))->resType = ldt;
+  } else if (nodesIsRegularOp(pOp)) {
+    SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
+    if (!IS_VAR_DATA_TYPE(ldt.type) || QUERY_NODE_VALUE != nodeType(pOp->pRight) ||
+        (!IS_STR_DATA_TYPE(rdt.type) && (rdt.type != TSDB_DATA_TYPE_NULL))) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+  }
+  pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sclGetJsonOperatorResType(SOperatorNode* pOp) {
+  SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
+  SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
+  if (TSDB_DATA_TYPE_JSON != ldt.type || !IS_STR_DATA_TYPE(rdt.type)) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+  if (pOp->opType == OP_TYPE_JSON_GET_VALUE) {
+    pOp->node.resType.type = TSDB_DATA_TYPE_JSON;
+  } else if (pOp->opType == OP_TYPE_JSON_CONTAINS) {
+    pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  }
+  pOp->node.resType.bytes = tDataTypes[pOp->node.resType.type].bytes;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sclGetBitwiseOperatorResType(SOperatorNode* pOp) {
+  pOp->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) {
+  return sclCalcConstants(pNode, false, pRes);
+}
+
+int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes) {
+  return sclCalcConstants(pNode, true, pRes);
 }
 
 int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
@@ -1015,7 +1143,8 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
       colDataAssign(pDst->columnData, res->columnData, res->numOfRows, NULL);
       pDst->numOfRows = res->numOfRows;
     }
-    
+
+    sclFreeParam(res);
     taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
   }
 
@@ -1023,4 +1152,56 @@ _return:
   //nodesDestroyNode(pNode);
   sclFreeRes(ctx.pRes);
   return code;
+}
+
+int32_t scalarGetOperatorResultType(SOperatorNode* pOp) {
+  if (TSDB_DATA_TYPE_BLOB == ((SExprNode*)(pOp->pLeft))->resType.type ||
+      (NULL != pOp->pRight && TSDB_DATA_TYPE_BLOB == ((SExprNode*)(pOp->pRight))->resType.type)) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  switch (pOp->opType) {
+    case OP_TYPE_ADD:
+    case OP_TYPE_SUB:
+    case OP_TYPE_MULTI:
+    case OP_TYPE_DIV:
+    case OP_TYPE_REM:
+      return sclGetMathOperatorResType(pOp);
+    case OP_TYPE_MINUS:
+      return sclGetMinusOperatorResType(pOp);
+    case OP_TYPE_ASSIGN:
+      pOp->node.resType = ((SExprNode*)(pOp->pLeft))->resType;
+      break;
+    case OP_TYPE_BIT_AND:
+    case OP_TYPE_BIT_OR:
+      return sclGetBitwiseOperatorResType(pOp);
+    case OP_TYPE_GREATER_THAN:
+    case OP_TYPE_GREATER_EQUAL:
+    case OP_TYPE_LOWER_THAN:
+    case OP_TYPE_LOWER_EQUAL:
+    case OP_TYPE_EQUAL:
+    case OP_TYPE_NOT_EQUAL:
+    case OP_TYPE_IS_NULL:
+    case OP_TYPE_IS_NOT_NULL:
+    case OP_TYPE_IS_TRUE:
+    case OP_TYPE_IS_FALSE:
+    case OP_TYPE_IS_UNKNOWN:
+    case OP_TYPE_IS_NOT_TRUE:
+    case OP_TYPE_IS_NOT_FALSE:
+    case OP_TYPE_IS_NOT_UNKNOWN:
+    case OP_TYPE_LIKE:
+    case OP_TYPE_NOT_LIKE:
+    case OP_TYPE_MATCH:
+    case OP_TYPE_NMATCH:
+    case OP_TYPE_IN:
+    case OP_TYPE_NOT_IN:
+      return sclGetCompOperatorResType(pOp);
+    case OP_TYPE_JSON_GET_VALUE:
+    case OP_TYPE_JSON_CONTAINS:
+      return sclGetJsonOperatorResType(pOp);
+    default:
+      break;
+  }
+
+  return TSDB_CODE_SUCCESS;
 }

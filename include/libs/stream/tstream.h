@@ -13,7 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "executor.h"
 #include "os.h"
+#include "query.h"
 #include "tdatablock.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
@@ -223,7 +225,7 @@ typedef struct {
   SEpSet  epSet;
 } SStreamChildEpInfo;
 
-struct SStreamTask {
+typedef struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
   int8_t  isDataScan;
@@ -277,7 +279,7 @@ struct SStreamTask {
 
   // msg handle
   SMsgCb* pMsgCb;
-};
+} SStreamTask;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
 int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo);
@@ -288,6 +290,7 @@ int32_t      tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeSStreamTask(SStreamTask* pTask);
 
 static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem) {
+#if 0
   while (1) {
     int8_t inputStatus =
         atomic_val_compare_exchange_8(&pTask->inputStatus, TASK_INPUT_STATUS__NORMAL, TASK_INPUT_STATUS__PROCESSING);
@@ -296,6 +299,7 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
     }
     ASSERT(0);
   }
+#endif
 
   if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit*)pItem);
@@ -303,21 +307,28 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
       atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
       return -1;
     }
+    qDebug("task %d %p submit enqueue %p %p %p", pTask->taskId, pTask, pItem, pSubmitClone, pSubmitClone->data);
     taosWriteQitem(pTask->inputQueue->queue, pSubmitClone);
+    // qStreamInput(pTask->exec.executor, pSubmitClone);
   } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
+    // qStreamInput(pTask->exec.executor, pItem);
   } else if (pItem->type == STREAM_INPUT__CHECKPOINT) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
+    // qStreamInput(pTask->exec.executor, pItem);
   } else if (pItem->type == STREAM_INPUT__TRIGGER) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
+    // qStreamInput(pTask->exec.executor, pItem);
   }
 
   if (pItem->type != STREAM_INPUT__TRIGGER && pItem->type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
     atomic_val_compare_exchange_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__IN_ACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
   }
 
+#if 0
   // TODO: back pressure
   atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__NORMAL);
+#endif
   return 0;
 }
 

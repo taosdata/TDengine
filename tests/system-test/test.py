@@ -63,8 +63,10 @@ if __name__ == "__main__":
     mnodeNums = 0
     updateCfgDict = {}
     execCmd = ""
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums'])
+    queryPolicy = 1
+    createDnodeNums = 1
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -80,8 +82,11 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-d update cfg dict, base64 json str')
             tdLog.printNoPrefix('-k not kill valgrind processer')
             tdLog.printNoPrefix('-e eval str to run')
-            tdLog.printNoPrefix('-N create dnodes numbers in clusters')
+            tdLog.printNoPrefix('-N start dnodes numbers in clusters')
             tdLog.printNoPrefix('-M create mnode numbers in clusters')
+            tdLog.printNoPrefix('-Q set queryPolicy in one dnode')
+            tdLog.printNoPrefix('-C create Dnode Numbers in one cluster')
+            
 
             sys.exit(0)
 
@@ -137,6 +142,12 @@ if __name__ == "__main__":
 
         if key in ['-M', '--mnodeNums']:
             mnodeNums = value
+
+        if key in ['-Q', '--queryPolicy']:
+            queryPolicy = value
+
+        if key in ['-C', '--createDnodeNums']:
+            createDnodeNums = value
 
     if not execCmd == "":
         tdDnodes.init(deployPath)
@@ -234,7 +245,11 @@ if __name__ == "__main__":
                 host,
                 config=tdDnodes.getSimCfgPath())
             print(tdDnodes.getSimCfgPath(),host)
-            cluster.create_dnode(conn)
+            if createDnodeNums == 1:
+                createDnodeNums=dnodeNums
+            else:
+                createDnodeNums=createDnodeNums
+            cluster.create_dnode(conn,createDnodeNums)
             try:
                 if cluster.check_dnode(conn) :
                     print("check dnode ready")
@@ -276,6 +291,22 @@ if __name__ == "__main__":
             tdDnodes.deploy(1,updateCfgDict)
             tdDnodes.start(1)
             tdCases.logSql(logSql)
+            if queryPolicy != 1:
+                queryPolicy=int(queryPolicy)
+                conn = taos.connect(
+                host,
+                config=tdDnodes.getSimCfgPath())
+                tdSql.init(conn.cursor())
+                tdSql.execute("create qnode on dnode 1")
+                tdSql.execute('alter local "queryPolicy" "%d"'%queryPolicy)     
+                tdSql.query("show local variables;")
+                for i in range(tdSql.queryRows):
+                    if tdSql.queryResult[i][0] == "queryPolicy" :
+                        if int(tdSql.queryResult[i][1]) == int(queryPolicy):
+                            tdLog.success('alter queryPolicy to %d successfully'%queryPolicy)
+                        else :
+                            tdLog.debug(tdSql.queryResult)
+                            tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy)      
         else :
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
             dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums,mnodeNums=mnodeNums)
@@ -293,7 +324,11 @@ if __name__ == "__main__":
                 host,
                 config=tdDnodes.getSimCfgPath())
             print(tdDnodes.getSimCfgPath(),host)
-            cluster.create_dnode(conn)
+            if createDnodeNums == 1:
+                createDnodeNums=dnodeNums
+            else:
+                createDnodeNums=createDnodeNums
+            cluster.create_dnode(conn,createDnodeNums)
             try:
                 if cluster.check_dnode(conn) :
                     print("check dnode ready")
@@ -335,3 +370,4 @@ if __name__ == "__main__":
                     tdLog.info("not need to query")
     if conn is not None:
         conn.close()
+    sys.exit(0)

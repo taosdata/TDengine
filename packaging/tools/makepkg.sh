@@ -60,7 +60,7 @@ if [ "$pagMode" == "lite" ]; then
   strip ${build_dir}/bin/${serverName}
   strip ${build_dir}/bin/${clientName}
   # lite version doesn't include taosadapter,  which will lead to no restful interface
-  bin_files="${build_dir}/bin/${serverName} ${build_dir}/bin/${clientName} ${script_dir}/remove.sh ${script_dir}/startPre.sh ${build_dir}/bin/taosBenchmark"
+  bin_files="${build_dir}/bin/${serverName} ${build_dir}/bin/${clientName} ${script_dir}/remove.sh ${script_dir}/startPre.sh ${build_dir}/bin/taosBenchmark  ${build_dir}/bin/tmq_sim"
   taostools_bin_files=""
 else
 
@@ -78,6 +78,7 @@ else
 
   taostools_bin_files=" ${build_dir}/bin/taosdump \
       ${build_dir}/bin/taosBenchmark \
+      ${build_dir}/bin/tmq_sim \
       ${build_dir}/bin/TDinsight.sh \
       $tdinsight_caches"
 
@@ -92,7 +93,10 @@ else
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
+wslib_files="${build_dir}/lib/libtaosws.so."
 header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/libs/function/taosudf.h"
+
+wsheader_files="${code_dir}/inc/taosws.h"
 
 if [ "$dbName" != "taos" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
@@ -109,6 +113,9 @@ init_file_rpm=${script_dir}/../rpm/taosd
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
+
+${wsheader_files} ${install_dir}/inc || :
+
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
 
 if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
@@ -283,18 +290,17 @@ fi
 
 # Copy driver
 mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" >${install_dir}/driver/vercomp.txt
+[ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver || :
 
 # Copy connector
 if [ "$verMode" == "cluster" ]; then
     connector_dir="${code_dir}/connector"
     mkdir -p ${install_dir}/connector
     if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-        cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
-        if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
-            cp -r ${connector_dir}/go ${install_dir}/connector
-        else
-            echo "WARNING: go connector not found, please check if want to use it!"
-        fi
+        [ -f ${build_dir}/lib/*.jar ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
+        git clone --depth 1 https://github.com/taosdata/driver-go ${install_dir}/connector/go
+        rm -rf ${install_dir}/connector/go/.git ||:
+
         git clone --depth 1 https://github.com/taosdata/taos-connector-python ${install_dir}/connector/python
         rm -rf ${install_dir}/connector/python/.git ||:
 
@@ -306,6 +312,7 @@ if [ "$verMode" == "cluster" ]; then
 
         git clone --depth 1 https://github.com/taosdata/libtaos-rs ${install_dir}/connector/rust
         rm -rf ${install_dir}/connector/rust/.git ||:
+
         # cp -r ${connector_dir}/python ${install_dir}/connector
         # cp -r ${connector_dir}/nodejs ${install_dir}/connector
     fi

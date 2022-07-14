@@ -26,6 +26,7 @@ typedef int32_t (*FCreateLogicNode)(SLogicPlanContext*, void*, SLogicNode**);
 typedef int32_t (*FCreateSelectLogicNode)(SLogicPlanContext*, SSelectStmt*, SLogicNode**);
 typedef int32_t (*FCreateSetOpLogicNode)(SLogicPlanContext*, SSetOperator*, SLogicNode**);
 typedef int32_t (*FCreateDeleteLogicNode)(SLogicPlanContext*, SDeleteStmt*, SLogicNode**);
+typedef int32_t (*FCreateInsertLogicNode)(SLogicPlanContext*, SInsertStmt*, SLogicNode**);
 
 static int32_t doCreateLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SNode* pTable,
                                         SLogicNode** pLogicNode);
@@ -58,7 +59,7 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           strcpy(pCol->node.aliasName, pToBeRewrittenExpr->aliasName);
           strcpy(pCol->colName, ((SExprNode*)pExpr)->aliasName);
           if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
-            if (FUNCTION_TYPE_WSTARTTS == ((SFunctionNode*)pExpr)->funcType) {
+            if (FUNCTION_TYPE_WSTART == ((SFunctionNode*)pExpr)->funcType) {
               pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
             } else if (FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pExpr)->funcType) {
               pCol->colType = COLUMN_TYPE_TBNAME;
@@ -161,12 +162,11 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
   }
 
   if (NULL == pScanCols) {
-    // select count(*) from t
     return NULL == pScanPseudoCols
                ? SCAN_TYPE_TABLE
                : ((FUNCTION_TYPE_BLOCK_DIST_INFO == ((SFunctionNode*)nodesListGetNode(pScanPseudoCols, 0))->funcType)
                       ? SCAN_TYPE_BLOCK_INFO
-                      : SCAN_TYPE_TAG);
+                      : SCAN_TYPE_TABLE);
   }
 
   if (TSDB_SYSTEM_TABLE == tableType) {
@@ -180,7 +180,7 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
     }
   }
 
-  return SCAN_TYPE_TAG;
+  return SCAN_TYPE_TABLE;
 }
 
 static SNode* createPrimaryKeyCol(uint64_t tableId) {
@@ -475,17 +475,13 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   int32_t code = TSDB_CODE_SUCCESS;
 
   // set grouyp keys, agg funcs and having conditions
-  if (TSDB_CODE_SUCCESS == code && pSelect->hasAggFuncs) {
+  if (TSDB_CODE_SUCCESS == code) {
     code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, fmIsAggFunc, &pAgg->pAggFuncs);
   }
 
   // rewrite the expression in subsequent clauses
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pAgg->pAggFuncs) {
     code = rewriteExprsForSelect(pAgg->pAggFuncs, pSelect, SQL_CLAUSE_GROUP_BY);
-  }
-
-  if (NULL != pSelect->pPartitionByList) {
-    code = createGroupKeysFromPartKeys(pSelect->pPartitionByList, &pAgg->pGroupKeys);
   }
 
   if (NULL != pSelect->pGroupByList) {
@@ -542,6 +538,7 @@ static int32_t createIndefRowsFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt
 
   pIdfRowsFunc->isTailFunc = pSelect->hasTailFunc;
   pIdfRowsFunc->isUniqueFunc = pSelect->hasUniqueFunc;
+  pIdfRowsFunc->isTimeLineFunc = pSelect->hasTimeLineFunc;
 
   // indefinite rows functions and _select_values functions
   int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, fmIsVectorFunc, &pIdfRowsFunc->pFuncs);
@@ -727,6 +724,9 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   SFillNode* pFillNode = (SFillNode*)(((SIntervalWindowNode*)pSelect->pWindow)->pFill);
+  if (FILL_MODE_NONE == pFillNode->mode) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   SFillLogicNode* pFill = (SFillLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_FILL);
   if (NULL == pFill) {
@@ -840,8 +840,7 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
 }
 
 static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (NULL == pSelect->pPartitionByList || (pSelect->hasAggFuncs && NULL == pSelect->pWindow) ||
-      NULL != pSelect->pGroupByList) {
+  if (NULL == pSelect->pPartitionByList) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1133,6 +1132,8 @@ static int32_t getMsgType(ENodeType sqlType) {
       return TDMT_VND_DROP_TABLE;
     case QUERY_NODE_ALTER_TABLE_STMT:
       return TDMT_VND_ALTER_TABLE;
+    case QUERY_NODE_FLUSH_DATABASE_STMT:
+      return TDMT_VND_COMMIT;
     default:
       break;
   }
@@ -1258,6 +1259,53 @@ static int32_t createDeleteLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* pDele
   return code;
 }
 
+static int32_t creatInsertRootLogicNode(SLogicPlanContext* pCxt, SInsertStmt* pInsert, FCreateInsertLogicNode func,
+                                        SLogicNode** pRoot) {
+  return createRootLogicNode(pCxt, pInsert, pInsert->precision, (FCreateLogicNode)func, pRoot);
+}
+
+static int32_t createVnodeModifLogicNodeByInsert(SLogicPlanContext* pCxt, SInsertStmt* pInsert,
+                                                 SLogicNode** pLogicNode) {
+  SVnodeModifyLogicNode* pModify = (SVnodeModifyLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY);
+  if (NULL == pModify) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SRealTableNode* pRealTable = (SRealTableNode*)pInsert->pTable;
+
+  pModify->modifyType = MODIFY_TABLE_TYPE_INSERT;
+  pModify->tableId = pRealTable->pMeta->uid;
+  pModify->stableId = pRealTable->pMeta->suid;
+  pModify->tableType = pRealTable->pMeta->tableType;
+  snprintf(pModify->tableFName, sizeof(pModify->tableFName), "%d.%s.%s", pCxt->pPlanCxt->acctId,
+           pRealTable->table.dbName, pRealTable->table.tableName);
+  TSWAP(pModify->pVgroupList, pRealTable->pVgroupList);
+  pModify->pInsertCols = nodesCloneList(pInsert->pCols);
+  if (NULL == pModify->pInsertCols) {
+    nodesDestroyNode((SNode*)pModify);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  *pLogicNode = (SLogicNode*)pModify;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createInsertLogicNode(SLogicPlanContext* pCxt, SInsertStmt* pInsert, SLogicNode** pLogicNode) {
+  SLogicNode* pRoot = NULL;
+  int32_t     code = createQueryLogicNode(pCxt, pInsert->pQuery, &pRoot);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = creatInsertRootLogicNode(pCxt, pInsert, createVnodeModifLogicNodeByInsert, &pRoot);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pLogicNode = pRoot;
+  } else {
+    nodesDestroyNode((SNode*)pRoot);
+  }
+
+  return code;
+}
+
 static int32_t createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt, SLogicNode** pLogicNode) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SELECT_STMT:
@@ -1270,6 +1318,8 @@ static int32_t createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt, SLogi
       return createSetOperatorLogicNode(pCxt, (SSetOperator*)pStmt, pLogicNode);
     case QUERY_NODE_DELETE_STMT:
       return createDeleteLogicNode(pCxt, (SDeleteStmt*)pStmt, pLogicNode);
+    case QUERY_NODE_INSERT_STMT:
+      return createInsertLogicNode(pCxt, (SInsertStmt*)pStmt, pLogicNode);
     default:
       break;
   }
@@ -1283,6 +1333,17 @@ static void doSetLogicNodeParent(SLogicNode* pNode, SLogicNode* pParent) {
 }
 
 static void setLogicNodeParent(SLogicNode* pNode) { doSetLogicNodeParent(pNode, NULL); }
+
+static void setLogicSubplanType(SLogicSubplan* pSubplan) {
+  if (QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY != nodeType(pSubplan->pNode)) {
+    pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
+  } else {
+    SVnodeModifyLogicNode* pModify = (SVnodeModifyLogicNode*)pSubplan->pNode;
+    pSubplan->subplanType = (MODIFY_TABLE_TYPE_INSERT == pModify->modifyType && NULL != pModify->node.pChildren)
+                                ? SUBPLAN_TYPE_SCAN
+                                : SUBPLAN_TYPE_MODIFY;
+  }
+}
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
   SLogicPlanContext cxt = {.pPlanCxt = pCxt};
@@ -1298,11 +1359,7 @@ int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
   int32_t code = createQueryLogicNode(&cxt, pCxt->pAstRoot, &pSubplan->pNode);
   if (TSDB_CODE_SUCCESS == code) {
     setLogicNodeParent(pSubplan->pNode);
-    if (QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY == nodeType(pSubplan->pNode)) {
-      pSubplan->subplanType = SUBPLAN_TYPE_MODIFY;
-    } else {
-      pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
-    }
+    setLogicSubplanType(pSubplan);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

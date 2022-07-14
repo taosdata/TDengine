@@ -22,8 +22,8 @@ extern "C" {
 
 #include "tdef.h"
 
-#define nodeType(nodeptr)          (((const SNode*)(nodeptr))->type)
-#define setNodeType(nodeptr, type) (((SNode*)(nodeptr))->type = (type))
+#define nodeType(nodeptr)              (((const SNode*)(nodeptr))->type)
+#define setNodeType(nodeptr, nodetype) (((SNode*)(nodeptr))->type = (nodetype))
 
 #define LIST_LENGTH(l) (NULL != (l) ? (l)->length : 0)
 
@@ -111,6 +111,8 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_DATABASE_STMT,
   QUERY_NODE_DROP_DATABASE_STMT,
   QUERY_NODE_ALTER_DATABASE_STMT,
+  QUERY_NODE_FLUSH_DATABASE_STMT,
+  QUERY_NODE_TRIM_DATABASE_STMT,
   QUERY_NODE_CREATE_TABLE_STMT,
   QUERY_NODE_CREATE_SUBTABLE_CLAUSE,
   QUERY_NODE_CREATE_MULTI_TABLE_STMT,
@@ -118,6 +120,7 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_TABLE_STMT,
   QUERY_NODE_DROP_SUPER_TABLE_STMT,
   QUERY_NODE_ALTER_TABLE_STMT,
+  QUERY_NODE_ALTER_SUPER_TABLE_STMT,
   QUERY_NODE_CREATE_USER_STMT,
   QUERY_NODE_ALTER_USER_STMT,
   QUERY_NODE_DROP_USER_STMT,
@@ -193,6 +196,7 @@ typedef enum ENodeType {
   QUERY_NODE_KILL_QUERY_STMT,
   QUERY_NODE_KILL_TRANSACTION_STMT,
   QUERY_NODE_DELETE_STMT,
+  QUERY_NODE_INSERT_STMT,
   QUERY_NODE_QUERY,
 
   // logic plan node
@@ -246,6 +250,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC,
   QUERY_NODE_PHYSICAL_PLAN_DISPATCH,
   QUERY_NODE_PHYSICAL_PLAN_INSERT,
+  QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT,
   QUERY_NODE_PHYSICAL_PLAN_DELETE,
   QUERY_NODE_PHYSICAL_SUBPLAN,
   QUERY_NODE_PHYSICAL_PLAN

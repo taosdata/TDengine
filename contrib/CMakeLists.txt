@@ -118,6 +118,7 @@ execute_process(COMMAND "${CMAKE_COMMAND}" --build .
 # ================================================================================================
 # googletest
 if(${BUILD_TEST})
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     add_subdirectory(googletest EXCLUDE_FROM_ALL)
     target_include_directories(
         gtest
@@ -259,7 +260,7 @@ if(${BUILD_MSVCREGEX})
     SET_TARGET_PROPERTIES(msvcregex PROPERTIES OUTPUT_NAME msvcregex)
 endif(${BUILD_MSVCREGEX})
 
-# msvcregex
+# wcwidth
 if(${BUILD_WCWIDTH})
     add_library(wcwidth STATIC "")
     target_sources(wcwidth

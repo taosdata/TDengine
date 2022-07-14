@@ -58,7 +58,7 @@ static void *mndBuildTimerMsg(int32_t *pContLen) {
 
 static void mndPullupTrans(SMnode *pMnode) {
   int32_t contLen = 0;
-  void *  pReq = mndBuildTimerMsg(&contLen);
+  void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
@@ -67,14 +67,14 @@ static void mndPullupTrans(SMnode *pMnode) {
 
 static void mndTtlTimer(SMnode *pMnode) {
   int32_t contLen = 0;
-  void *  pReq = mndBuildTimerMsg(&contLen);
+  void   *pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TTL_TIMER, .pCont = pReq, .contLen = contLen};
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
 }
 
 static void mndCalMqRebalance(SMnode *pMnode) {
   int32_t contLen = 0;
-  void *  pReq = mndBuildTimerMsg(&contLen);
+  void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_MQ_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
@@ -83,7 +83,7 @@ static void mndCalMqRebalance(SMnode *pMnode) {
 
 static void mndPullupTelem(SMnode *pMnode) {
   int32_t contLen = 0;
-  void *  pReq = mndBuildTimerMsg(&contLen);
+  void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TELEM_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
@@ -366,6 +366,12 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   return pMnode;
 }
 
+void mndPreClose(SMnode *pMnode) {
+  if (pMnode != NULL) {
+    syncLeaderTransfer(pMnode->syncMgmt.sync);
+  }
+}
+
 void mndClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     mDebug("start to close mnode");
@@ -395,7 +401,7 @@ void mndStop(SMnode *pMnode) {
 }
 
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
-  SMnode *   pMnode = pMsg->info.node;
+  SMnode    *pMnode = pMsg->info.node;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   int32_t    code = 0;
 
@@ -413,7 +419,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   }
 
   do {
-    char *         syncNodeStr = sync2SimpleStr(pMgmt->sync);
+    char          *syncNodeStr = sync2SimpleStr(pMgmt->sync);
     static int64_t mndTick = 0;
     if (++mndTick % 10 == 1) {
       mTrace("vgId:%d, sync trace msg:%s, %s", syncGetVgId(pMgmt->sync), TMSG_INFO(pMsg->msgType), syncNodeStr);
@@ -427,7 +433,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   } while (0);
 
   // ToDo: ugly! use function pointer
-  if (syncNodeSnapshotEnable(pSyncNode)) {
+  if (syncNodeStrategy(pSyncNode) == SYNC_STRATEGY_STANDARD_SNAPSHOT) {
     if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
       SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
       code = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
@@ -519,6 +525,8 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
     }
   }
 
+  syncNodeRelease(pSyncNode);
+
   if (code != 0) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
   }
@@ -529,7 +537,7 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   if (!IsReq(pMsg)) return 0;
   if (pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_SCH_MERGE_QUERY ||
       pMsg->msgType == TDMT_SCH_QUERY_CONTINUE || pMsg->msgType == TDMT_SCH_QUERY_HEARTBEAT ||
-      pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_SCH_DROP_TASK) {
+      pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_SCH_MERGE_FETCH || pMsg->msgType == TDMT_SCH_DROP_TASK) {
     return 0;
   }
   if (mndAcquireRpcRef(pMsg->info.node) == 0) return 0;
@@ -579,7 +587,7 @@ static int32_t mndCheckMsgContent(SRpcMsg *pMsg) {
 }
 
 int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
-  SMnode *        pMnode = pMsg->info.node;
+  SMnode         *pMnode = pMsg->info.node;
   const STraceId *trace = &pMsg->info.traceId;
 
   MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(pMsg->msgType)];
@@ -632,7 +640,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
                           SMonStbInfo *pStbInfo, SMonGrantInfo *pGrantInfo) {
   if (mndAcquireRpcRef(pMnode) != 0) return -1;
 
-  SSdb *  pSdb = pMnode->pSdb;
+  SSdb   *pSdb = pMnode->pSdb;
   int64_t ms = taosGetTimestampMs();
 
   pClusterInfo->dnodes = taosArrayInit(sdbGetSize(pSdb, SDB_DNODE), sizeof(SMonDnodeDesc));
@@ -713,7 +721,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     pGrantInfo->timeseries_used += pVgroup->numOfTimeSeries;
     tstrncpy(desc.status, "unsynced", sizeof(desc.status));
     for (int32_t i = 0; i < pVgroup->replica; ++i) {
-      SVnodeGid *    pVgid = &pVgroup->vnodeGid[i];
+      SVnodeGid     *pVgid = &pVgroup->vnodeGid[i];
       SMonVnodeDesc *pVnDesc = &desc.vnodes[i];
       pVnDesc->dnode_id = pVgid->dnodeId;
       tstrncpy(pVnDesc->vnode_role, syncStr(pVgid->role), sizeof(pVnDesc->vnode_role));

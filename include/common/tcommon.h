@@ -32,6 +32,18 @@ enum {
   TMQ_CONF__RESET_OFFSET__LATEST = -1,
 };
 
+// clang-format off
+#define IS_META_MSG(x) ( \
+     x == TDMT_VND_CREATE_STB     \
+  || x == TDMT_VND_ALTER_STB      \
+  || x == TDMT_VND_DROP_STB       \
+  || x == TDMT_VND_CREATE_TABLE   \
+  || x == TDMT_VND_ALTER_TABLE    \
+  || x == TDMT_VND_DROP_TABLE     \
+  || x == TDMT_VND_DROP_TTL_TABLE \
+)
+// clang-format on
+
 enum {
   TMQ_MSG_TYPE__DUMMY = 0,
   TMQ_MSG_TYPE__POLL_RSP,
@@ -43,7 +55,8 @@ enum {
 enum {
   STREAM_INPUT__DATA_SUBMIT = 1,
   STREAM_INPUT__DATA_BLOCK,
-  STREAM_INPUT__DATA_SCAN,
+  // STREAM_INPUT__TABLE_SCAN,
+  STREAM_INPUT__TQ_SCAN,
   STREAM_INPUT__DATA_RETRIEVE,
   STREAM_INPUT__TRIGGER,
   STREAM_INPUT__CHECKPOINT,
@@ -56,7 +69,8 @@ typedef enum EStreamType {
   STREAM_CLEAR,
   STREAM_INVALID,
   STREAM_GET_ALL,
-  STREAM_DELETE,
+  STREAM_DELETE_RESULT,
+  STREAM_DELETE_DATA,
   STREAM_RETRIEVE,
   STREAM_PULL_DATA,
   STREAM_PULL_OVER,
@@ -72,15 +86,15 @@ typedef struct {
   uint64_t  suid;
 } STableListInfo;
 
+#pragma pack(push, 1)
 typedef struct SColumnDataAgg {
   int16_t colId;
-  int16_t maxIndex;
-  int16_t minIndex;
   int16_t numOfNull;
   int64_t sum;
   int64_t max;
   int64_t min;
 } SColumnDataAgg;
+#pragma pack(pop)
 
 typedef struct SDataBlockInfo {
   STimeWindow window;
@@ -94,6 +108,7 @@ typedef struct SDataBlockInfo {
   // TODO: optimize and remove following
   int32_t     childId;  // used for stream, do not serialize
   EStreamType type;     // used for stream, do not serialize
+  STimeWindow calWin;   // used for stream, do not serialize
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
@@ -101,6 +116,21 @@ typedef struct SSDataBlock {
   SArray*          pDataBlock;  // SArray<SColumnInfoData>
   SDataBlockInfo   info;
 } SSDataBlock;
+
+enum {
+  FETCH_TYPE__DATA = 1,
+  FETCH_TYPE__META,
+  FETCH_TYPE__NONE,
+};
+
+typedef struct {
+  int8_t       fetchType;
+  STqOffsetVal offset;
+  union {
+    SSDataBlock data;
+    void*       meta;
+  };
+} SFetchRet;
 
 typedef struct SVarColAttr {
   int32_t* offset;    // start position for each entry in the list
@@ -121,15 +151,13 @@ typedef struct SColumnInfoData {
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {
-  // STimeWindow  twindow;
   uint64_t     suid;
   int32_t      order;  // desc|asc order to iterate the data block
   int32_t      numOfCols;
   SColumnInfo* colList;
-  bool         loadExternalRows;  // load external rows or not
-  int32_t      type;              // data block load type:
-  int32_t      numOfTWindows;
-  STimeWindow* twindows;
+  int32_t      type;  // data block load type:
+//  int32_t      numOfTWindows;
+  STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;
 } SQueryTableDataCond;

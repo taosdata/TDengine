@@ -19,8 +19,8 @@
 #include "query.h"
 #include "querynodes.h"
 #include "taoserror.h"
-#include "tjson.h"
 #include "tdatablock.h"
+#include "tjson.h"
 
 static int32_t nodeToJson(const void* pObj, SJson* pJson);
 static int32_t jsonToNode(const SJson* pJson, void* pObj);
@@ -179,6 +179,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowVnodeStmt";
     case QUERY_NODE_DELETE_STMT:
       return "DeleteStmt";
+    case QUERY_NODE_INSERT_STMT:
+      return "InsertStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return "LogicScan";
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -223,6 +225,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiBlockDistScan";
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
       return "PhysiLastRowScan";
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
+      return "PhysiTableMergeScan";
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return "PhysiProject";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
@@ -271,6 +275,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiDispatch";
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
       return "PhysiInsert";
+    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
+      return "PhysiQueryInsert";
     case QUERY_NODE_PHYSICAL_PLAN_DELETE:
       return "PhysiDelete";
     case QUERY_NODE_PHYSICAL_SUBPLAN:
@@ -539,10 +545,39 @@ static int32_t jsonToLogicPlanNode(const SJson* pJson, void* pObj) {
 
 static const char* jkScanLogicPlanScanCols = "ScanCols";
 static const char* jkScanLogicPlanScanPseudoCols = "ScanPseudoCols";
-static const char* jkScanLogicPlanTableId = "TableId";
 static const char* jkScanLogicPlanTableType = "TableType";
+static const char* jkScanLogicPlanTableId = "TableId";
+static const char* jkScanLogicPlanStableId = "StableId";
+static const char* jkScanLogicPlanScanCount = "ScanCount";
+static const char* jkScanLogicPlanReverseScanCount = "ReverseScanCount";
 static const char* jkScanLogicPlanTagCond = "TagCond";
 static const char* jkScanLogicPlanGroupTags = "GroupTags";
+
+// typedef struct SScanLogicNode {
+//   uint64_t      stableId;
+//   SVgroupsInfo* pVgroupList;
+//   EScanType     scanType;
+//   uint8_t       scanSeq[2];  // first is scan count, and second is reverse scan count
+//   STimeWindow   scanRange;
+//   SName         tableName;
+//   bool          showRewrite;
+//   double        ratio;
+//   SNodeList*    pDynamicScanFuncs;
+//   int32_t       dataRequired;
+//   int64_t       interval;
+//   int64_t       offset;
+//   int64_t       sliding;
+//   int8_t        intervalUnit;
+//   int8_t        slidingUnit;
+//   SNode*        pTagCond;
+//   SNode*        pTagIndexCond;
+//   int8_t        triggerType;
+//   int64_t       watermark;
+//   int8_t        igExpired;
+//   SArray*       pSmaIndexes;
+//   SNodeList*    pGroupTags;
+//   bool          groupSort;
+// } SScanLogicNode;
 
 static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
   const SScanLogicNode* pNode = (const SScanLogicNode*)pObj;
@@ -555,10 +590,19 @@ static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
     code = nodeListToJson(pJson, jkScanLogicPlanScanPseudoCols, pNode->pScanPseudoCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanTableType, pNode->tableType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanTableId, pNode->tableId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanTableType, pNode->tableType);
+    code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanStableId, pNode->stableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanScanCount, pNode->scanSeq[0]);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanReverseScanCount, pNode->scanSeq[1]);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkScanLogicPlanTagCond, nodeToJson, pNode->pTagCond);
@@ -582,10 +626,19 @@ static int32_t jsonToLogicScanNode(const SJson* pJson, void* pObj) {
     code = jsonToNodeList(pJson, jkScanLogicPlanScanPseudoCols, &pNode->pScanPseudoCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkScanLogicPlanTableType, &pNode->tableType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetUBigIntValue(pJson, jkScanLogicPlanTableId, &pNode->tableId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkScanLogicPlanTableType, &pNode->tableType);
+    code = tjsonGetUBigIntValue(pJson, jkScanLogicPlanStableId, &pNode->stableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetUTinyIntValue(pJson, jkScanLogicPlanScanCount, &pNode->scanSeq[0]);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetUTinyIntValue(pJson, jkScanLogicPlanReverseScanCount, &pNode->scanSeq[1]);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkScanLogicPlanTagCond, &pNode->pTagCond);
@@ -1254,6 +1307,7 @@ static int32_t jsonToLogicPlan(const SJson* pJson, void* pObj) {
 
 static const char* jkJoinLogicPlanJoinType = "JoinType";
 static const char* jkJoinLogicPlanOnConditions = "OnConditions";
+static const char* jkJoinLogicPlanMergeCondition = "MergeConditions";
 
 static int32_t logicJoinNodeToJson(const void* pObj, SJson* pJson) {
   const SJoinLogicNode* pNode = (const SJoinLogicNode*)pObj;
@@ -1261,6 +1315,9 @@ static int32_t logicJoinNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = logicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkJoinLogicPlanJoinType, pNode->joinType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkJoinLogicPlanMergeCondition, nodeToJson, pNode->pMergeCondition);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkJoinLogicPlanOnConditions, nodeToJson, pNode->pOnConditions);
@@ -1617,6 +1674,7 @@ static int32_t jsonToPhysiProjectNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkJoinPhysiPlanJoinType = "JoinType";
+static const char* jkJoinPhysiPlanMergeCondition = "MergeCondition";
 static const char* jkJoinPhysiPlanOnConditions = "OnConditions";
 static const char* jkJoinPhysiPlanTargets = "Targets";
 
@@ -1626,6 +1684,9 @@ static int32_t physiJoinNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = physicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkJoinPhysiPlanJoinType, pNode->joinType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkJoinPhysiPlanMergeCondition, nodeToJson, pNode->pMergeCondition);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkJoinPhysiPlanOnConditions, nodeToJson, pNode->pOnConditions);
@@ -1647,6 +1708,9 @@ static int32_t jsonToPhysiJoinNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkJoinPhysiPlanOnConditions, &pNode->pOnConditions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkJoinPhysiPlanMergeCondition, &pNode->pMergeCondition);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkJoinPhysiPlanTargets, &pNode->pTargets);
@@ -2199,6 +2263,72 @@ static int32_t physiDispatchNodeToJson(const void* pObj, SJson* pJson) { return 
 
 static int32_t jsonToPhysiDispatchNode(const SJson* pJson, void* pObj) { return jsonToPhysicDataSinkNode(pJson, pObj); }
 
+static const char* jkQueryInsertPhysiPlanInsertCols = "InsertCols";
+static const char* jkQueryInsertPhysiPlanStableId = "StableId";
+static const char* jkQueryInsertPhysiPlanTableId = "TableId";
+static const char* jkQueryInsertPhysiPlanTableType = "TableType";
+static const char* jkQueryInsertPhysiPlanTableFName = "TableFName";
+static const char* jkQueryInsertPhysiPlanVgId = "VgId";
+static const char* jkQueryInsertPhysiPlanEpSet = "EpSet";
+
+static int32_t physiQueryInsertNodeToJson(const void* pObj, SJson* pJson) {
+  const SQueryInserterNode* pNode = (const SQueryInserterNode*)pObj;
+
+  int32_t code = physicDataSinkNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkQueryInsertPhysiPlanInsertCols, pNode->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkQueryInsertPhysiPlanStableId, pNode->stableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkQueryInsertPhysiPlanTableId, pNode->tableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkQueryInsertPhysiPlanTableType, pNode->tableType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkQueryInsertPhysiPlanTableFName, pNode->tableFName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkQueryInsertPhysiPlanVgId, pNode->vgId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkQueryInsertPhysiPlanEpSet, epSetToJson, &pNode->epSet);
+  }
+
+  return code;
+}
+
+static int32_t jsonToPhysiQueryInsertNode(const SJson* pJson, void* pObj) {
+  SQueryInserterNode* pNode = (SQueryInserterNode*)pObj;
+
+  int32_t code = jsonToPhysicDataSinkNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkQueryInsertPhysiPlanInsertCols, &pNode->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetUBigIntValue(pJson, jkQueryInsertPhysiPlanStableId, &pNode->stableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetUBigIntValue(pJson, jkQueryInsertPhysiPlanTableId, &pNode->tableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkQueryInsertPhysiPlanTableType, &pNode->tableType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkQueryInsertPhysiPlanTableFName, pNode->tableFName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkQueryInsertPhysiPlanVgId, &pNode->vgId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonToObject(pJson, jkQueryInsertPhysiPlanEpSet, jsonToEpSet, &pNode->epSet);
+  }
+
+  return code;
+}
+
 static const char* jkDeletePhysiPlanTableId = "TableId";
 static const char* jkDeletePhysiPlanTableType = "TableType";
 static const char* jkDeletePhysiPlanTableFName = "TableFName";
@@ -2353,7 +2483,6 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
   int32_t code = tjsonToObject(pJson, jkSubplanId, jsonToSubplanId, &pNode->id);
   if (TSDB_CODE_SUCCESS == code) {
     tjsonGetNumberValue(pJson, jkSubplanType, pNode->subplanType, code);
-    ;
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkSubplanMsgType, &pNode->msgType);
@@ -2585,6 +2714,7 @@ static const char* jkValueLiteral = "Literal";
 static const char* jkValueDuration = "Duration";
 static const char* jkValueTranslate = "Translate";
 static const char* jkValueNotReserved = "NotReserved";
+static const char* jkValueIsNull = "IsNull";
 static const char* jkValueDatum = "Datum";
 
 static int32_t datumToJson(const void* pObj, SJson* pJson) {
@@ -2630,9 +2760,9 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
     case TSDB_DATA_TYPE_VARBINARY:
       code = tjsonAddStringToObject(pJson, jkValueDatum, varDataVal(pNode->datum.p));
       break;
-    case TSDB_DATA_TYPE_JSON:{
+    case TSDB_DATA_TYPE_JSON: {
       int32_t len = getJsonValueLen(pNode->datum.p);
-      char* buf = taosMemoryCalloc( len * 2 + 1, sizeof(char));
+      char*   buf = taosMemoryCalloc(len * 2 + 1, sizeof(char));
       code = taosHexEncode(pNode->datum.p, buf, len);
       if (code != TSDB_CODE_SUCCESS) {
         taosMemoryFree(buf);
@@ -2670,6 +2800,9 @@ static int32_t valueNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkValueNotReserved, pNode->notReserved);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkValueIsNull, pNode->isNull);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->translate) {
     code = datumToJson(pNode, pJson);
@@ -2764,7 +2897,7 @@ static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
       }
       break;
     }
-    case TSDB_DATA_TYPE_JSON:{
+    case TSDB_DATA_TYPE_JSON: {
       pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes);
       if (NULL == pNode->datum.p) {
         code = TSDB_CODE_OUT_OF_MEMORY;
@@ -2817,6 +2950,9 @@ static int32_t jsonToValueNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkValueNotReserved, &pNode->notReserved);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkValueIsNull, &pNode->isNull);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->translate) {
     code = jsonToDatum(pJson, pNode);
@@ -3457,6 +3593,7 @@ static const char* jkDownstreamSourceAddr = "Addr";
 static const char* jkDownstreamSourceTaskId = "TaskId";
 static const char* jkDownstreamSourceSchedId = "SchedId";
 static const char* jkDownstreamSourceExecId = "ExecId";
+static const char* jkDownstreamSourceFetchMsgType = "FetchMsgType";
 
 static int32_t downstreamSourceNodeToJson(const void* pObj, SJson* pJson) {
   const SDownstreamSourceNode* pNode = (const SDownstreamSourceNode*)pObj;
@@ -3470,6 +3607,9 @@ static int32_t downstreamSourceNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceExecId, pNode->execId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDownstreamSourceFetchMsgType, pNode->fetchMsgType);
   }
 
   return code;
@@ -3487,6 +3627,9 @@ static int32_t jsonToDownstreamSourceNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkDownstreamSourceExecId, &pNode->execId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkDownstreamSourceFetchMsgType, &pNode->fetchMsgType);
   }
 
   return code;
@@ -3517,7 +3660,7 @@ static int32_t databaseOptionsToJson(const void* pObj, SJson* pJson) {
 
   int32_t code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsBuffer, pNode->buffer);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsCachelast, pNode->cachelast);
+    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsCachelast, pNode->cacheLast);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsCompressionLevel, pNode->compressionLevel);
@@ -3579,7 +3722,7 @@ static int32_t jsonToDatabaseOptions(const SJson* pJson, void* pObj) {
 
   int32_t code = tjsonGetIntValue(pJson, jkDatabaseOptionsBuffer, &pNode->buffer);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsCachelast, &pNode->cachelast);
+    code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsCachelast, &pNode->cacheLast);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsCompressionLevel, &pNode->compressionLevel);
@@ -4221,6 +4364,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return physiDispatchNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
+      return physiQueryInsertNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_DELETE:
       return physiDeleteNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_SUBPLAN:
@@ -4363,6 +4508,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToPhysiInterpFuncNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return jsonToPhysiDispatchNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
+      return jsonToPhysiQueryInsertNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_DELETE:
       return jsonToPhysiDeleteNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_SUBPLAN:

@@ -52,6 +52,7 @@ typedef struct {
   // char     autoOffsetRest[16];    // none, earliest, latest
 
   TdFilePtr pConsumeRowsFile;
+  TdFilePtr pConsumeMetaFile;  
   int32_t   ifCheckData;
   int64_t   expectMsgCnt;
 
@@ -90,6 +91,7 @@ typedef struct {
   int32_t     consumeDelay;  // unit s
   int32_t     numOfThread;
   int32_t     useSnapshot;
+  int64_t     nowTime;
   SThreadInfo stThreads[MAX_CONSUMER_THREAD_CNT];
 } SConfInfo;
 
@@ -197,6 +199,8 @@ void parseArgument(int32_t argc, char* argv[]) {
   g_stConfInfo.showRowFlag = 0;
   g_stConfInfo.saveRowFlag = 0;
   g_stConfInfo.consumeDelay = 5;
+
+  g_stConfInfo.nowTime = taosGetTimestampMs();
 
   for (int32_t i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
@@ -442,7 +446,7 @@ static void dumpToFileForCheck(TdFilePtr pFile, TAOS_ROW row, TAOS_FIELD* fields
   taosFprintfFile(pFile, "\n");
 }
 
-static int32_t msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIndex) {
+static int32_t data_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIndex) {
   char    buf[1024];
   int32_t totalRows = 0;
 
@@ -493,6 +497,52 @@ static int32_t msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIndex) 
   return totalRows;
 }
 
+
+static int32_t meta_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIndex) {
+  char    buf[1024];
+  int32_t totalRows = 0;
+
+  // printf("topic: %s\n", tmq_get_topic_name(msg));
+  int32_t     vgroupId = tmq_get_vgroup_id(msg);
+  const char* dbName = tmq_get_db_name(msg);
+
+  taosFprintfFile(g_fp, "consumerId: %d, msg index:%" PRId64 "\n", pInfo->consumerId, msgIndex);
+  taosFprintfFile(g_fp, "dbName: %s, topic: %s, vgroupId: %d\n", dbName != NULL ? dbName : "invalid table",
+                  tmq_get_topic_name(msg), vgroupId);
+
+  {
+    tmq_raw_data *raw = tmq_get_raw_meta(msg);
+	
+    if(raw){
+	  TAOS_RES* pRes = taos_query(pInfo->taos, "use metadb");
+	  if (taos_errno(pRes) != 0) {
+		pError("error when use metadb, reason:%s\n", taos_errstr(pRes));
+		taosFprintfFile(g_fp, "error when use metadb, reason:%s\n", taos_errstr(pRes));
+		taosCloseFile(&g_fp);
+		taos_free_result(pRes);
+		exit(-1);
+	  }	  
+	  taos_free_result(pRes);
+	  taosFprintfFile(g_fp, "raw:%p\n", raw);
+	
+      int32_t ret = taos_write_raw_meta(pInfo->taos, raw);
+      taosMemoryFree(raw);	  
+    }
+	
+    char* result = tmq_get_json_meta(msg);
+    if(result){
+  	  //printf("meta result: %s\n", result);
+  	  taosFprintfFile(pInfo->pConsumeMetaFile, "%s\n", result);
+  	  taosMemoryFree(result);
+    }
+  }
+
+  totalRows++;
+
+  return totalRows;
+}
+
+
 int queryDB(TAOS* taos, char* command) {
   TAOS_RES* pRes = taos_query(taos, command);
   int       code = taos_errno(pRes);
@@ -510,10 +560,8 @@ static void appNothing(void* param, TAOS_RES* res, int32_t numOfRows) {}
 int32_t notifyMainScript(SThreadInfo* pInfo, int32_t cmdId) {
   char sqlStr[1024] = {0};
 
-  int64_t now = taosGetTimestampMs();
-
   // schema: ts timestamp, consumerid int, consummsgcnt bigint, checkresult int
-  sprintf(sqlStr, "insert into %s.notifyinfo values (%" PRId64 ", %d, %d)", g_stConfInfo.cdbName, now, cmdId,
+  sprintf(sqlStr, "insert into %s.notifyinfo values (%" PRId64 ", %d, %d)", g_stConfInfo.cdbName, atomic_fetch_add_64(&g_stConfInfo.nowTime, 1), cmdId,
           pInfo->consumerId);
 
   taos_query_a(pInfo->taos, sqlStr, appNothing, NULL);
@@ -525,15 +573,15 @@ int32_t notifyMainScript(SThreadInfo* pInfo, int32_t cmdId) {
 
 static int32_t g_once_commit_flag = 0;
 static void    tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
-     pError("tmq_commit_cb_print() commit %d\n", code);
+  taosFprintfFile(g_fp, "tmq_commit_cb_print() commit %d\n", code);
 
-     if (0 == g_once_commit_flag) {
-       g_once_commit_flag = 1;
-       notifyMainScript((SThreadInfo*)param, (int32_t)NOTIFY_CMD_START_COMMIT);
+  if (0 == g_once_commit_flag) {
+    g_once_commit_flag = 1;
+    notifyMainScript((SThreadInfo*)param, (int32_t)NOTIFY_CMD_START_COMMIT);
   }
 
-     char tmpString[128];
-     taosFprintfFile(g_fp, "%s tmq_commit_cb_print() be called\n", getCurrentTimeString(tmpString));
+  char tmpString[128];
+  taosFprintfFile(g_fp, "%s tmq_commit_cb_print() be called\n", getCurrentTimeString(tmpString));
 }
 
 void build_consumer(SThreadInfo* pInfo) {
@@ -588,12 +636,10 @@ void build_topic_list(SThreadInfo* pInfo) {
 
 int32_t saveConsumeResult(SThreadInfo* pInfo) {
   char sqlStr[1024] = {0};
-
-  int64_t now = taosGetTimestampMs();
-
   // schema: ts timestamp, consumerid int, consummsgcnt bigint, checkresult int
   sprintf(sqlStr, "insert into %s.consumeresult values (%" PRId64 ", %d, %" PRId64 ", %" PRId64 ", %d)",
-          g_stConfInfo.cdbName, now, pInfo->consumerId, pInfo->consumeMsgCnt, pInfo->consumeRowCnt, pInfo->checkresult);
+          g_stConfInfo.cdbName, atomic_fetch_add_64(&g_stConfInfo.nowTime, 1), pInfo->consumerId, pInfo->consumeMsgCnt,
+          pInfo->consumeRowCnt, pInfo->checkresult);
 
   char tmpString[128];
   taosFprintfFile(g_fp, "%s, consume id %d result: %s\n", getCurrentTimeString(tmpString), pInfo->consumerId, sqlStr);
@@ -631,37 +677,45 @@ void loop_consume(SThreadInfo* pInfo) {
     // getCurrentTimeString(tmpString));
     sprintf(filename, "%s/../log/consumerid_%d.txt", configDir, pInfo->consumerId);
     pInfo->pConsumeRowsFile = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
-    if (pInfo->pConsumeRowsFile == NULL) {
-      taosFprintfFile(g_fp, "%s create file fail for save rows content\n", getCurrentTimeString(tmpString));
+
+	sprintf(filename, "%s/../log/meta_consumerid_%d.txt", configDir, pInfo->consumerId);
+	pInfo->pConsumeMetaFile = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+	
+    if (pInfo->pConsumeRowsFile == NULL || pInfo->pConsumeMetaFile == NULL) {
+      taosFprintfFile(g_fp, "%s create file fail for save rows or save meta\n", getCurrentTimeString(tmpString));
       return;
     }
   }
 
-  int64_t    lastTotalMsgs = 0;
-  uint64_t   lastPrintTime = taosGetTimestampMs();
-  uint64_t   startTs = taosGetTimestampMs();
+  int64_t  lastTotalMsgs = 0;
+  uint64_t lastPrintTime = taosGetTimestampMs();
+  uint64_t startTs = taosGetTimestampMs();
 
   int32_t consumeDelay = g_stConfInfo.consumeDelay == -1 ? -1 : (g_stConfInfo.consumeDelay * 1000);
   while (running) {
     TAOS_RES* tmqMsg = tmq_consumer_poll(pInfo->tmq, consumeDelay);
     if (tmqMsg) {
       if (0 != g_stConfInfo.showMsgFlag) {
-        totalRows += msg_process(tmqMsg, pInfo, totalMsgs);
+	  	tmq_res_t msgType = tmq_get_res_type(tmqMsg);
+		if (msgType == TMQ_RES_TABLE_META) {
+ 		  totalRows += meta_msg_process(tmqMsg, pInfo, totalMsgs);
+		} else if (msgType == TMQ_RES_DATA)
+          totalRows += data_msg_process(tmqMsg, pInfo, totalMsgs);
       }
 
       taos_free_result(tmqMsg);
 
       totalMsgs++;
-	  
-	  int64_t currentPrintTime = taosGetTimestampMs();
-	  if (currentPrintTime - lastPrintTime > 10 * 1000) {
-		  taosFprintfFile(g_fp,	
-		  	              "consumer id %d has currently poll total msgs: %" PRId64 ", period rate: %.3f msgs/second\n", 
-		  	              pInfo->consumerId, totalMsgs, (totalMsgs - lastTotalMsgs) * 1000.0/(currentPrintTime - lastPrintTime));
-		  lastPrintTime = currentPrintTime;
-		  lastTotalMsgs = totalMsgs;
-	  }
-	  
+
+      int64_t currentPrintTime = taosGetTimestampMs();
+      if (currentPrintTime - lastPrintTime > 10 * 1000) {
+        taosFprintfFile(
+            g_fp, "consumer id %d has currently poll total msgs: %" PRId64 ", period rate: %.3f msgs/second\n",
+            pInfo->consumerId, totalMsgs, (totalMsgs - lastTotalMsgs) * 1000.0 / (currentPrintTime - lastPrintTime));
+        lastPrintTime = currentPrintTime;
+        lastTotalMsgs = totalMsgs;
+      }
+
       if (0 == once_flag) {
         once_flag = 1;
         notifyMainScript(pInfo, NOTIFY_CMD_START_CONSUM);
@@ -678,7 +732,7 @@ void loop_consume(SThreadInfo* pInfo) {
       break;
     }
   }
-  
+
   if (0 == running) {
     taosFprintfFile(g_fp, "receive stop signal and not continue consume\n");
   }
@@ -696,6 +750,7 @@ void* consumeThreadFunc(void* param) {
   pInfo->taos = taos_connect(NULL, "root", "taosdata", NULL, 0);
   if (pInfo->taos == NULL) {
     taosFprintfFile(g_fp, "taos_connect() fail, can not notify and save consume result to main scripte\n");
+    ASSERT(0);
     return NULL;
   }
 
@@ -888,11 +943,11 @@ int main(int32_t argc, char* argv[]) {
 
   int64_t t = end - start;
   if (0 == t) t = 1;
-  
+
   double tInMs = (double)t / 1000000.0;
   taosFprintfFile(g_fp,
-				"Spent %.3f seconds to poll msgs: %" PRIu64 " with %d thread(s), throughput: %.3f msgs/second\n\n",
-				tInMs, totalMsgs, g_stConfInfo.numOfThread, (double)(totalMsgs / tInMs));
+                  "Spent %.3f seconds to poll msgs: %" PRIu64 " with %d thread(s), throughput: %.3f msgs/second\n\n",
+                  tInMs, totalMsgs, g_stConfInfo.numOfThread, (double)(totalMsgs / tInMs));
 
   taosFprintfFile(g_fp, "==== close tmqlog ====\n");
   taosCloseFile(&g_fp);

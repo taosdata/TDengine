@@ -7,9 +7,9 @@ import platform
 import math
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 , 
+    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
-    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143,
+    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143,
     "maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
 
     def init(self, conn, logSql):
@@ -24,7 +24,7 @@ class TDTestCase:
         stddev_sql = f"select stddev({col_name}) from {tbname};"
 
         same_sql = f"select {col_name} from {tbname} where {col_name} is not null "
-   
+
         tdSql.query(same_sql)
         pre_data = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
         if (platform.system().lower() == 'windows' and pre_data.dtype == 'int32'):
@@ -32,21 +32,21 @@ class TDTestCase:
         pre_avg = np.sum(pre_data)/len(pre_data)
 
         # Calculate variance
-        stddev_result = 0 
+        stddev_result = 0
         for num in tdSql.queryResult:
             stddev_result += (num-pre_avg)*(num-pre_avg)/len(tdSql.queryResult)
 
         stddev_result = math.sqrt(stddev_result)
 
         tdSql.query(stddev_sql)
-        
+
         if -0.0001 < tdSql.queryResult[0][0]-stddev_result < 0.0001:
             tdLog.info(" sql:%s; row:0 col:0 data:%d , expect:%d"%(stddev_sql,tdSql.queryResult[0][0],stddev_result))
         else:
             tdLog.exit(" sql:%s; row:0 col:0 data:%d , expect:%d"%(stddev_sql,tdSql.queryResult[0][0],stddev_result))
 
     def prepare_datas_of_distribute(self):
-        
+
         # prepate datas for  20 tables distributed at different vgroups
         tdSql.execute("create database if not exists testdb keep 3650 duration 1000 vgroups 5")
         tdSql.execute(" use testdb ")
@@ -64,7 +64,7 @@ class TDTestCase:
             '''
         )
         for i in range(20):
-            tdSql.execute(f'create table ct{i+1} using stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
+            tdSql.execute(f'create table ct{i+1} using stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {1*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
 
         for i in range(9):
             tdSql.execute(
@@ -117,17 +117,17 @@ class TDTestCase:
         vgroups = tdSql.queryResult
 
         vnode_tables={}
-        
+
         for vgroup_id in vgroups:
             vnode_tables[vgroup_id[0]]=[]
-        
+
 
         # check sub_table of per vnode ,make sure sub_table has been distributed
         tdSql.query("show tables like 'ct%'")
         table_names = tdSql.queryResult
         tablenames = []
         for table_name in table_names:
-            vnode_tables[table_name[6]].append(table_name[0]) 
+            vnode_tables[table_name[6]].append(table_name[0])
         self.vnode_disbutes = vnode_tables
 
         count = 0
@@ -138,14 +138,14 @@ class TDTestCase:
             tdLog.exit(" the datas of all not satisfy sub_table has been distributed ")
 
     def check_stddev_distribute_diff_vnode(self,col_name):
-    
+
         vgroup_ids = []
         for k ,v in self.vnode_disbutes.items():
             if len(v)>=2:
                 vgroup_ids.append(k)
-        
+
         distribute_tbnames = []
-        
+
         for vgroup_id in vgroup_ids:
             vnode_tables = self.vnode_disbutes[vgroup_id]
             distribute_tbnames.append(random.sample(vnode_tables,1)[0])
@@ -154,7 +154,7 @@ class TDTestCase:
             tbname_ins += "'%s' ,"%tbname
 
         tbname_filters = tbname_ins[:-1]
-        
+
         stddev_sql = f"select stddev({col_name}) from stb1 where tbname in ({tbname_filters});"
 
         same_sql = f"select {col_name}  from stb1 where tbname in ({tbname_filters}) and {col_name} is not null "
@@ -166,7 +166,7 @@ class TDTestCase:
         pre_avg = np.sum(pre_data)/len(pre_data)
 
         # Calculate variance
-        stddev_result = 0 
+        stddev_result = 0
         for num in tdSql.queryResult:
             stddev_result += (num-pre_avg)*(num-pre_avg)/len(tdSql.queryResult)
 
@@ -177,8 +177,8 @@ class TDTestCase:
 
 
     def check_stddev_status(self):
-        # check max function work status 
-        
+        # check max function work status
+
         tdSql.query("show tables like 'ct%'")
         table_names = tdSql.queryResult
         tablenames = []
@@ -187,31 +187,31 @@ class TDTestCase:
 
         tdSql.query("desc stb1")
         col_names = tdSql.queryResult
-        
+
         colnames = []
         for col_name in col_names:
             if col_name[1] in ["INT" ,"BIGINT" ,"SMALLINT" ,"TINYINT" , "FLOAT" ,"DOUBLE"]:
                 colnames.append(col_name[0])
-        
+
         for tablename in tablenames:
             for colname in colnames:
                 if colname.startswith("c"):
                     self.check_stddev_functions(tablename,colname)
                 else:
-                    # self.check_stddev_functions(tablename,colname) 
+                    # self.check_stddev_functions(tablename,colname)
                     pass
 
 
-        # check max function for different vnode 
+        # check max function for different vnode
 
         for colname in colnames:
             if colname.startswith("c"):
                 self.check_stddev_distribute_diff_vnode(colname)
             else:
-                # self.check_stddev_distribute_diff_vnode(colname) # bug for tag 
+                # self.check_stddev_distribute_diff_vnode(colname) # bug for tag
                 pass
 
-        
+
     def distribute_agg_query(self):
         # basic filter
         tdSql.query(" select stddev(c1) from stb1 ")
@@ -235,7 +235,7 @@ class TDTestCase:
         tdSql.query("select stddev(c1) from stb1 where t1> 4  partition by tbname")
         tdSql.checkRows(15)
 
-        # union all 
+        # union all
         tdSql.query("select stddev(c1) from stb1 union all select stddev(c1) from stb1 ")
         tdSql.checkRows(2)
         tdSql.checkData(0,0,6.694663959)
@@ -244,7 +244,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0,0,0.000000000)
 
-        # join 
+        # join
 
         tdSql.execute(" create database if not exists db ")
         tdSql.execute(" use db ")
@@ -252,7 +252,7 @@ class TDTestCase:
         tdSql.execute(" create table tb1 using st tags(1) ")
         tdSql.execute(" create table tb2 using st tags(2) ")
 
-        
+
         for i in range(10):
             ts = i*10 + self.ts
             tdSql.execute(f" insert into tb1 values({ts},{i},{i}.0)")
@@ -263,7 +263,7 @@ class TDTestCase:
         tdSql.checkData(0,0,2.872281323)
         tdSql.checkData(0,1,2.872281323)
 
-        # group by 
+        # group by
         tdSql.execute(" use testdb ")
 
         # partition by tbname or partition by tag
@@ -295,7 +295,7 @@ class TDTestCase:
         self.check_stddev_status()
         self.distribute_agg_query()
 
-    
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

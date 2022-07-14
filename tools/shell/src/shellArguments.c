@@ -13,6 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef _TD_DARWIN_64
+#include <pwd.h>
+#endif
+
 #include "shellInt.h"
 
 #define SHELL_HOST     "The auth string to use when connecting to the server."
@@ -40,27 +44,27 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg);
 
 void shellPrintHelp() {
   char indent[] = "  ";
-  printf("Usage: taos [OPTION...] \n\n");
-  printf("%s%s%s%s\n", indent, "-a,", indent, SHELL_AUTH);
-  printf("%s%s%s%s\n", indent, "-A,", indent, SHELL_GEN_AUTH);
-  printf("%s%s%s%s\n", indent, "-c,", indent, SHELL_CFG_DIR);
-  printf("%s%s%s%s\n", indent, "-C,", indent, SHELL_DMP_CFG);
-  printf("%s%s%s%s\n", indent, "-d,", indent, SHELL_DB);
-  printf("%s%s%s%s\n", indent, "-f,", indent, SHELL_FILE);
-  printf("%s%s%s%s\n", indent, "-h,", indent, SHELL_HOST);
-  printf("%s%s%s%s\n", indent, "-k,", indent, SHELL_CHECK);
-  printf("%s%s%s%s\n", indent, "-l,", indent, SHELL_PKG_LEN);
-  printf("%s%s%s%s\n", indent, "-n,", indent, SHELL_NET_ROLE);
-  printf("%s%s%s%s\n", indent, "-N,", indent, SHELL_PKT_NUM);
-  printf("%s%s%s%s\n", indent, "-p,", indent, SHELL_PASSWORD);
-  printf("%s%s%s%s\n", indent, "-P,", indent, SHELL_PORT);
-  printf("%s%s%s%s\n", indent, "-r,", indent, SHELL_RAW_TIME);
-  printf("%s%s%s%s\n", indent, "-s,", indent, SHELL_CMD);
-  printf("%s%s%s%s\n", indent, "-t,", indent, SHELL_STARTUP);
-  printf("%s%s%s%s\n", indent, "-u,", indent, SHELL_USER);
-  printf("%s%s%s%s\n", indent, "-w,", indent, SHELL_WIDTH);
-  printf("%s%s%s%s\n", indent, "-V,", indent, SHELL_VERSION);
-  printf("\n\nReport bugs to %s.\n", SHELL_EMAIL);
+  printf("Usage: taos [OPTION...] \r\n\r\n");
+  printf("%s%s%s%s\r\n", indent, "-a,", indent, SHELL_AUTH);
+  printf("%s%s%s%s\r\n", indent, "-A,", indent, SHELL_GEN_AUTH);
+  printf("%s%s%s%s\r\n", indent, "-c,", indent, SHELL_CFG_DIR);
+  printf("%s%s%s%s\r\n", indent, "-C,", indent, SHELL_DMP_CFG);
+  printf("%s%s%s%s\r\n", indent, "-d,", indent, SHELL_DB);
+  printf("%s%s%s%s\r\n", indent, "-f,", indent, SHELL_FILE);
+  printf("%s%s%s%s\r\n", indent, "-h,", indent, SHELL_HOST);
+  printf("%s%s%s%s\r\n", indent, "-k,", indent, SHELL_CHECK);
+  printf("%s%s%s%s\r\n", indent, "-l,", indent, SHELL_PKG_LEN);
+  printf("%s%s%s%s\r\n", indent, "-n,", indent, SHELL_NET_ROLE);
+  printf("%s%s%s%s\r\n", indent, "-N,", indent, SHELL_PKT_NUM);
+  printf("%s%s%s%s\r\n", indent, "-p,", indent, SHELL_PASSWORD);
+  printf("%s%s%s%s\r\n", indent, "-P,", indent, SHELL_PORT);
+  printf("%s%s%s%s\r\n", indent, "-r,", indent, SHELL_RAW_TIME);
+  printf("%s%s%s%s\r\n", indent, "-s,", indent, SHELL_CMD);
+  printf("%s%s%s%s\r\n", indent, "-t,", indent, SHELL_STARTUP);
+  printf("%s%s%s%s\r\n", indent, "-u,", indent, SHELL_USER);
+  printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
+  printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
+  printf("\r\n\r\nReport bugs to %s.\r\n", SHELL_EMAIL);
 }
 
 #ifdef LINUX
@@ -192,23 +196,23 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
     char   *key = argv[i];
     int32_t keyLen = strlen(key);
     if (keyLen != 2) {
-      fprintf(stderr, "invalid option %s\n", key);
+      fprintf(stderr, "invalid option %s\r\n", key);
       return -1;
     }
     if (key[0] != '-') {
-      fprintf(stderr, "invalid option %s\n", key);
+      fprintf(stderr, "invalid option %s\r\n", key);
       return -1;
     }
 
     if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u' || key[1] == 'a' || key[1] == 'c' || key[1] == 's' ||
         key[1] == 'f' || key[1] == 'd' || key[1] == 'w' || key[1] == 'n' || key[1] == 'l' || key[1] == 'N') {
       if (i + 1 >= argc) {
-        fprintf(stderr, "option %s requires an argument\n", key);
+        fprintf(stderr, "option %s requires an argument\r\n", key);
         return -1;
       }
       char *val = argv[i + 1];
       if (val[0] == '-') {
-        fprintf(stderr, "option %s requires an argument\n", key);
+        fprintf(stderr, "option %s requires an argument\r\n", key);
         return -1;
       }
       shellParseSingleOpt(key[1], val);
@@ -217,7 +221,7 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
                key[1] == 't' || key[1] == 'V' || key[1] == '?' || key[1] == 1) {
       shellParseSingleOpt(key[1], NULL);
     } else {
-      fprintf(stderr, "invalid option %s\n", key);
+      fprintf(stderr, "invalid option %s\r\n", key);
       return -1;
     }
   }
@@ -237,7 +241,7 @@ static void shellInitArgs(int argc, char *argv[]) {
         }
         taosSetConsoleEcho(true);
         if (EOF == getchar()) {
-          fprintf(stderr, "getchar() return EOF\n");
+          fprintf(stderr, "getchar() return EOF\r\n");
         }
       } else {
         tstrncpy(shell.args.password, (char *)(argv[i] + 2), sizeof(shell.args.password));
@@ -259,22 +263,22 @@ static void shellInitArgs(int argc, char *argv[]) {
 static int32_t shellCheckArgs() {
   SShellArgs *pArgs = &shell.args;
   if (pArgs->host != NULL && (strlen(pArgs->host) <= 0 || strlen(pArgs->host) > TSDB_FQDN_LEN)) {
-    printf("Invalid host:%s\n", pArgs->host);
+    printf("Invalid host:%s\r\n", pArgs->host);
     return -1;
   }
 
   if (pArgs->user != NULL && (strlen(pArgs->user) <= 0 || strlen(pArgs->user) > TSDB_USER_LEN)) {
-    printf("Invalid user:%s\n", pArgs->user);
+    printf("Invalid user:%s\r\n", pArgs->user);
     return -1;
   }
 
   if (pArgs->auth != NULL && (strlen(pArgs->auth) <= 0 || strlen(pArgs->auth) > TSDB_PASSWORD_LEN)) {
-    printf("Invalid auth:%s\n", pArgs->auth);
+    printf("Invalid auth:%s\r\n", pArgs->auth);
     return -1;
   }
 
   if (pArgs->database != NULL && (strlen(pArgs->database) <= 0 || strlen(pArgs->database) > TSDB_DB_NAME_LEN)) {
-    printf("Invalid database:%s\n", pArgs->database);
+    printf("Invalid database:%s\r\n", pArgs->database);
     return -1;
   }
 
@@ -287,7 +291,7 @@ static int32_t shellCheckArgs() {
 
   if (pArgs->cfgdir != NULL) {
     if (strlen(pArgs->cfgdir) <= 0 || strlen(pArgs->cfgdir) >= PATH_MAX) {
-      printf("Invalid cfgdir:%s\n", pArgs->cfgdir);
+      printf("Invalid cfgdir:%s\r\n", pArgs->cfgdir);
       return -1;
     } else {
       if (taosExpandDir(pArgs->cfgdir, configDir, PATH_MAX) != 0) {
@@ -297,37 +301,37 @@ static int32_t shellCheckArgs() {
   }
 
   if (pArgs->commands != NULL && (strlen(pArgs->commands) <= 0)) {
-    printf("Invalid commands:%s\n", pArgs->commands);
+    printf("Invalid commands:%s\r\n", pArgs->commands);
     return -1;
   }
 
   if (pArgs->netrole != NULL && !(strcmp(pArgs->netrole, "client") == 0 || strcmp(pArgs->netrole, "server") == 0)) {
-    printf("Invalid netrole:%s\n", pArgs->netrole);
+    printf("Invalid netrole:%s\r\n", pArgs->netrole);
     return -1;
   }
 
   if (pArgs->password != NULL && (strlen(pArgs->password) <= 0)) {
-    printf("Invalid password\n");
+    printf("Invalid password\r\n");
     return -1;
   }
 
   if (pArgs->port < 0 || pArgs->port > 65535) {
-    printf("Invalid port\n");
+    printf("Invalid port\r\n");
     return -1;
   }
 
   if (pArgs->pktLen < SHELL_MIN_PKG_LEN || pArgs->pktLen > SHELL_MAX_PKG_LEN) {
-    printf("Invalid pktLen:%d, range:[%d, %d]\n", pArgs->pktLen, SHELL_MIN_PKG_LEN, SHELL_MAX_PKG_LEN);
+    printf("Invalid pktLen:%d, range:[%d, %d]\r\n", pArgs->pktLen, SHELL_MIN_PKG_LEN, SHELL_MAX_PKG_LEN);
     return -1;
   }
 
   if (pArgs->pktNum < SHELL_MIN_PKG_NUM || pArgs->pktNum > SHELL_MAX_PKG_NUM) {
-    printf("Invalid pktNum:%d, range:[%d, %d]\n", pArgs->pktNum, SHELL_MIN_PKG_NUM, SHELL_MAX_PKG_NUM);
+    printf("Invalid pktNum:%d, range:[%d, %d]\r\n", pArgs->pktNum, SHELL_MIN_PKG_NUM, SHELL_MAX_PKG_NUM);
     return -1;
   }
 
   if (pArgs->displayWidth <= 0 || pArgs->displayWidth > 10 * 1024) {
-    printf("Invalid displayWidth:%d, range:[1, 10 * 1024]\n", pArgs->displayWidth);
+    printf("Invalid displayWidth:%d, range:[1, 10 * 1024]\r\n", pArgs->displayWidth);
     return -1;
   }
 
@@ -337,8 +341,8 @@ static int32_t shellCheckArgs() {
 int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shellInitArgs(argc, argv);
   shell.info.clientVersion =
-      "Welcome to the TDengine shell from %s, Client Version:%s\n"
-      "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\n\n";
+      "Welcome to the TDengine shell from %s, Client Version:%s\r\n"
+      "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\r\n\r\n";
   shell.info.promptHeader = TAOS_CONSOLE_PROMPT_HEADER;
   shell.info.promptContinue = TAOS_CONSOLE_PROMPT_CONTINUE;
   shell.info.promptSize = 6;

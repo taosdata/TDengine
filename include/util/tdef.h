@@ -287,7 +287,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MULTI_TABLEMETA_MAX_NUM 100000  // maximum batch size allowed to load table meta
 
 #define TSDB_MIN_VNODES_PER_DB          1
-#define TSDB_MAX_VNODES_PER_DB          4096
+#define TSDB_MAX_VNODES_PER_DB          1024
 #define TSDB_DEFAULT_VN_PER_DB          2
 #define TSDB_MIN_BUFFER_PER_VNODE       3      // unit MB
 #define TSDB_MAX_BUFFER_PER_VNODE       16384  // unit MB
@@ -331,9 +331,12 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_STRICT_OFF              0
 #define TSDB_DB_STRICT_ON               1
 #define TSDB_DEFAULT_DB_STRICT          0
-#define TSDB_MIN_DB_CACHE_LAST_ROW      0
-#define TSDB_MAX_DB_CACHE_LAST_ROW      3
-#define TSDB_DEFAULT_CACHE_LAST_ROW     0
+#define TSDB_MIN_DB_CACHE_LAST          0
+#define TSDB_MAX_DB_CACHE_LAST          3
+#define TSDB_DEFAULT_CACHE_LAST         0
+#define TSDB_MIN_DB_CACHE_LAST_SIZE     1  // MB
+#define TSDB_MAX_DB_CACHE_LAST_SIZE     65536
+#define TSDB_DEFAULT_CACHE_LAST_SIZE    1
 #define TSDB_DB_STREAM_MODE_OFF         0
 #define TSDB_DB_STREAM_MODE_ON          1
 #define TSDB_DEFAULT_DB_STREAM_MODE     0

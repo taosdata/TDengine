@@ -18,6 +18,7 @@
 #include <string.h>
 #include <time.h>
 #include "taos.h"
+#include <stdlib.h>
 
 static int  running = 1;
 static void msg_process(TAOS_RES* msg) {
@@ -27,11 +28,23 @@ static void msg_process(TAOS_RES* msg) {
   printf("db: %s\n", tmq_get_db_name(msg));
   printf("vg: %d\n", tmq_get_vgroup_id(msg));
   if (tmq_get_res_type(msg) == TMQ_RES_TABLE_META) {
-    void*   meta;
-    int32_t metaLen;
-    tmq_get_raw_meta(msg, &meta, &metaLen);
-
-    printf("meta, len is %d\n", metaLen);
+    tmq_raw_data *raw = tmq_get_raw_meta(msg);
+    if(raw){
+      TAOS* pConn = taos_connect("192.168.1.86", "root", "taosdata", "abc1", 0);
+      if (pConn == NULL) {
+        return;
+      }
+      int32_t ret = taos_write_raw_meta(pConn, raw);
+      printf("write raw data: %s\n", tmq_err2str(ret));
+      free(raw);
+      taos_close(pConn);
+    }
+    char* result = tmq_get_json_meta(msg);
+    if(result){
+      printf("meta result: %s\n", result);
+      free(result);
+    }
+    printf("meta:%p\n", raw);
     return;
   }
   while (1) {
@@ -119,6 +132,104 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
+  pRes = taos_query(pConn, "alter table st1 add column c4 bigint");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter super table st1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table st1 modify column c3 binary(64)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter super table st1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table st1 add tag t2 binary(64)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter super table st1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table ct3 set tag t1=5000");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to slter child table ct3, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "drop table ct3 ct1");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to drop child table ct3, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "drop table st1");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to drop super table st1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table if not exists n1(ts timestamp, c1 int, c2 nchar(4))");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create normal table n1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table n1 add column c3 bigint");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter normal table n1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table n1 modify column c2 nchar(8)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter normal table n1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table n1 rename column c3 cc3");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter normal table n1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "alter table n1 drop column c1");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to alter normal table n1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "drop table n1");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to drop normal table n1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table jt(ts timestamp, i int) tags(t json)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table jt, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table jt1 using jt tags('{\"k1\":1, \"k2\":\"hello\"}')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table jt, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
   return 0;
 }
 
@@ -137,8 +248,8 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-  /*pRes = taos_query(pConn, "create topic topic_ctb_column with meta as database abc1");*/
-  pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from st1");
+  pRes = taos_query(pConn, "create topic topic_ctb_column with meta as database abc1");
+  /*pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from st1");*/
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topic_ctb_column, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -199,7 +310,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set(conf, "enable.auto.commit", "true");
 
-  tmq_conf_set(conf, "experimental.snapshot.enable", "true");
+  /*tmq_conf_set(conf, "experimental.snapshot.enable", "true");*/
 
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);

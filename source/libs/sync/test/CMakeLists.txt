@@ -18,12 +18,14 @@ add_executable(syncIndexMgrTest "")
 add_executable(syncLogStoreTest "")
 add_executable(syncEntryTest "")
 add_executable(syncEntryCacheTest "")
+add_executable(syncHashCacheTest "")
 add_executable(syncRequestVoteTest "")
 add_executable(syncRequestVoteReplyTest "")
 add_executable(syncAppendEntriesTest "")
 add_executable(syncAppendEntriesBatchTest "")
 add_executable(syncAppendEntriesReplyTest "")
 add_executable(syncClientRequestTest "")
+add_executable(syncClientRequestBatchTest "")
 add_executable(syncTimeoutTest "")
 add_executable(syncPingTest "")
 add_executable(syncPingReplyTest "")
@@ -53,6 +55,7 @@ add_executable(syncRaftLogTest2 "")
 add_executable(syncRaftLogTest3 "")
 add_executable(syncLeaderTransferTest "")
 add_executable(syncReconfigFinishTest "")
+add_executable(syncRestoreFromSnapshot "")
 
 
 target_sources(syncTest
@@ -135,6 +138,10 @@ target_sources(syncEntryCacheTest
     PRIVATE
     "syncEntryCacheTest.cpp"
 )
+target_sources(syncHashCacheTest
+    PRIVATE
+    "syncHashCacheTest.cpp"
+)
 target_sources(syncRequestVoteTest
     PRIVATE
     "syncRequestVoteTest.cpp"
@@ -158,6 +165,10 @@ target_sources(syncAppendEntriesReplyTest
 target_sources(syncClientRequestTest
     PRIVATE
     "syncClientRequestTest.cpp"
+)
+target_sources(syncClientRequestBatchTest
+    PRIVATE
+    "syncClientRequestBatchTest.cpp"
 )
 target_sources(syncTimeoutTest
     PRIVATE
@@ -275,6 +286,10 @@ target_sources(syncReconfigFinishTest
     PRIVATE
     "syncReconfigFinishTest.cpp"
 )
+target_sources(syncRestoreFromSnapshot
+    PRIVATE
+    "syncRestoreFromSnapshot.cpp"
+)
 
 
 target_include_directories(syncTest
@@ -377,6 +392,11 @@ target_include_directories(syncEntryCacheTest
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncHashCacheTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 target_include_directories(syncRequestVoteTest
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
@@ -403,6 +423,11 @@ target_include_directories(syncAppendEntriesReplyTest
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncClientRequestTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncClientRequestBatchTest
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -552,6 +577,11 @@ target_include_directories(syncReconfigFinishTest
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncRestoreFromSnapshot
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 
 target_link_libraries(syncTest
@@ -634,6 +664,10 @@ target_link_libraries(syncEntryCacheTest
     sync
     gtest_main
 )
+target_link_libraries(syncHashCacheTest
+    sync
+    gtest_main
+)
 target_link_libraries(syncRequestVoteTest
     sync
     gtest_main
@@ -655,6 +689,10 @@ target_link_libraries(syncAppendEntriesReplyTest
     gtest_main
 )
 target_link_libraries(syncClientRequestTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncClientRequestBatchTest
     sync
     gtest_main
 )
@@ -771,6 +809,10 @@ target_link_libraries(syncLeaderTransferTest
     gtest_main
 )
 target_link_libraries(syncReconfigFinishTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncRestoreFromSnapshot
     sync
     gtest_main
 )

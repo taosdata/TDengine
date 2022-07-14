@@ -19,6 +19,7 @@
 #include "taoserror.h"
 #include "tchecksum.h"
 #include "tcoding.h"
+#include "tcommon.h"
 #include "tcompare.h"
 #include "wal.h"
 
@@ -145,12 +146,12 @@ int   walMetaDeserialize(SWal* pWal, const char* bytes);
 
 // seek section
 int walChangeWrite(SWal* pWal, int64_t ver);
-int walSetWrite(SWal* pWal);
+int walInitWriteFile(SWal* pWal);
 // seek section end
 
 int64_t walGetSeq();
 int     walSeekWriteVer(SWal* pWal, int64_t ver);
-int     walRoll(SWal* pWal);
+int32_t walRollImpl(SWal* pWal);
 
 #ifdef __cplusplus
 }

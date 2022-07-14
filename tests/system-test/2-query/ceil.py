@@ -9,14 +9,14 @@ from util.sql import *
 from util.cases import *
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 , 
+    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
-    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143}
+    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
-    
+
     def prepare_datas(self):
         tdSql.execute(
             '''create table stb1
@@ -24,7 +24,7 @@ class TDTestCase:
             tags (t1 int)
             '''
         )
-        
+
         tdSql.execute(
             '''
             create table t1
@@ -66,14 +66,14 @@ class TDTestCase:
             ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             '''
         )
-    
+
     def check_result_auto(self ,origin_query , ceil_query):
         pass
         ceil_result = tdSql.getResult(ceil_query)
         origin_result = tdSql.getResult(origin_query)
 
         auto_result =[]
-        
+
         for row in origin_result:
             row_check = []
             for elem in row:
@@ -88,13 +88,13 @@ class TDTestCase:
         for row_index , row in enumerate(ceil_result):
             for col_index , elem in enumerate(row):
                 if auto_result[row_index][col_index] != elem:
-                    check_status = False 
+                    check_status = False
         if not check_status:
             tdLog.notice("ceil function value has not as expected , sql is \"%s\" "%ceil_query )
             sys.exit(1)
         else:
             tdLog.info("ceil value check pass , it work as expected ,sql is \"%s\"   "%ceil_query )
-        
+
     def test_errors(self):
         error_sql_lists = [
             "select ceil from t1",
@@ -128,42 +128,42 @@ class TDTestCase:
         ]
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
-    
+
     def support_types(self):
         type_error_sql_lists = [
-            "select ceil(ts) from t1" , 
+            "select ceil(ts) from t1" ,
             "select ceil(c7) from t1",
             "select ceil(c8) from t1",
             "select ceil(c9) from t1",
-            "select ceil(ts) from ct1" , 
+            "select ceil(ts) from ct1" ,
             "select ceil(c7) from ct1",
             "select ceil(c8) from ct1",
             "select ceil(c9) from ct1",
-            "select ceil(ts) from ct3" , 
+            "select ceil(ts) from ct3" ,
             "select ceil(c7) from ct3",
             "select ceil(c8) from ct3",
             "select ceil(c9) from ct3",
-            "select ceil(ts) from ct4" , 
+            "select ceil(ts) from ct4" ,
             "select ceil(c7) from ct4",
             "select ceil(c8) from ct4",
             "select ceil(c9) from ct4",
-            "select ceil(ts) from stb1" , 
+            "select ceil(ts) from stb1" ,
             "select ceil(c7) from stb1",
             "select ceil(c8) from stb1",
             "select ceil(c9) from stb1" ,
 
-            "select ceil(ts) from stbbb1" , 
+            "select ceil(ts) from stbbb1" ,
             "select ceil(c7) from stbbb1",
 
             "select ceil(ts) from tbname",
             "select ceil(c9) from tbname"
 
         ]
-        
+
         for type_sql in type_error_sql_lists:
             tdSql.error(type_sql)
-        
-        
+
+
         type_sql_lists = [
             "select ceil(c1) from t1",
             "select ceil(c2) from t1",
@@ -193,16 +193,16 @@ class TDTestCase:
             "select ceil(c5) from stb1",
             "select ceil(c6) from stb1",
 
-            "select ceil(c6) as alisb from stb1", 
-            "select ceil(c6) alisb from stb1", 
+            "select ceil(c6) as alisb from stb1",
+            "select ceil(c6) alisb from stb1",
         ]
 
         for type_sql in type_sql_lists:
             tdSql.query(type_sql)
-    
+
     def basic_ceil_function(self):
 
-        # basic query 
+        # basic query
         tdSql.query("select c1 from ct3")
         tdSql.checkRows(0)
         tdSql.query("select c1 from t1")
@@ -222,7 +222,7 @@ class TDTestCase:
         tdSql.query("select ceil(c5) from ct3")
         tdSql.checkRows(0)
         tdSql.query("select ceil(c6) from ct3")
-        
+
         # used for regular table
         tdSql.query("select ceil(c1) from t1")
         tdSql.checkData(0, 0, None)
@@ -240,7 +240,7 @@ class TDTestCase:
         tdSql.checkData(5, 5, None)
 
         self.check_result_auto( "select c1, c2, c3 , c4, c5 from t1", "select (c1), ceil(c2) ,ceil(c3), ceil(c4), ceil(c5) from t1")
-        
+
         # used for sub table
         tdSql.query("select ceil(c1) from ct1")
         tdSql.checkData(0, 0, 8)
@@ -252,20 +252,20 @@ class TDTestCase:
         self.check_result_auto( "select c1, c2, c3 , c4, c5 from ct1", "select (c1), ceil(c2) ,ceil(c3), ceil(c4), ceil(c5) from ct1")
         self.check_result_auto("select ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(c1)))))))))) nest_col_func from ct1;","select c1 from ct1" )
 
-        # used for stable table 
-        
+        # used for stable table
+
         tdSql.query("select ceil(c1) from stb1")
         tdSql.checkRows(25)
         self.check_result_auto( "select c1, c2, c3 , c4, c5 from ct4 ", "select (c1), ceil(c2) ,ceil(c3), ceil(c4), ceil(c5) from ct4")
         self.check_result_auto("select ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(c1)))))))))) nest_col_func from ct4;" , "select c1 from ct4" )
-        
+
 
         # used for not exists table
         tdSql.error("select ceil(c1) from stbbb1")
         tdSql.error("select ceil(c1) from tbname")
         tdSql.error("select ceil(c1) from ct5")
 
-        # mix with common col 
+        # mix with common col
         tdSql.query("select c1, ceil(c1) from ct1")
         tdSql.checkData(0 , 0 ,8)
         tdSql.checkData(0 , 1 ,8)
@@ -290,7 +290,7 @@ class TDTestCase:
         tdSql.checkData(0 , 1 ,None)
         tdSql.checkData(0 , 2 ,None)
         tdSql.checkData(0 , 3 ,None)
-        
+
         tdSql.checkData(3 , 0 , 6)
         tdSql.checkData(3 , 1 , 6)
         tdSql.checkData(3 , 2 ,6.66000)
@@ -311,7 +311,7 @@ class TDTestCase:
         tdSql.query("select max(c5), count(c5) from stb1")
         tdSql.query("select max(c5), count(c5) from ct1")
 
-        
+
         # bug fix for count
         tdSql.query("select count(c1) from ct4 ")
         tdSql.checkData(0,0,9)
@@ -322,7 +322,7 @@ class TDTestCase:
         tdSql.query("select count(*) from stb1 ")
         tdSql.checkData(0,0,25)
 
-        # bug fix for compute 
+        # bug fix for compute
         tdSql.query("select c1, abs(c1) -0 ,ceil(c1)-0 from ct4 ")
         tdSql.checkData(0, 0, None)
         tdSql.checkData(0, 1, None)
@@ -373,10 +373,10 @@ class TDTestCase:
         tdSql.checkData(0,3,8.000000000)
         tdSql.checkData(0,4,7.900000000)
         tdSql.checkData(0,5,3.000000000)
-        
+
     def ceil_Arithmetic(self):
         pass
-    
+
     def check_boundary_values(self):
 
         tdSql.execute("drop database if exists bound_test")
@@ -405,14 +405,14 @@ class TDTestCase:
         tdSql.execute(
                 f"insert into sub1_bound values ( now(), -2147483643, -9223372036854775803, -32763, -123, -3.39E+38, -1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        
+
         tdSql.error(
                 f"insert into sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         self.check_result_auto( "select c1, c2, c3 , c4, c5 ,c6 from sub1_bound ", "select ceil(c1), ceil(c2) ,ceil(c3), ceil(c4), ceil(c5) ,ceil(c6) from sub1_bound")
         self.check_result_auto( "select c1, c2, c3 , c3, c2 ,c1 from sub1_bound ", "select ceil(c1), ceil(c2) ,ceil(c3), ceil(c3), ceil(c2) ,ceil(c1) from sub1_bound")
         self.check_result_auto("select ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(c1)))))))))) nest_col_func from sub1_bound;" , "select ceil(c1) from sub1_bound" )
-        
+
         # check basic elem for table per row
         tdSql.query("select ceil(c1+0.2) ,ceil(c2) , ceil(c3+0.3) , ceil(c4-0.3), ceil(c5/2), ceil(c6/2) from sub1_bound ")
         tdSql.checkData(0, 0, 2147483648.000000000)
@@ -426,7 +426,7 @@ class TDTestCase:
         tdSql.checkData(4, 4, -169499995645668991474575059260979281920.000000000)
 
         self.check_result_auto("select c1+1 ,c2 , c3*1 , c4/2, c5/2, c6 from sub1_bound" ,"select ceil(c1+1) ,ceil(c2) , ceil(c3*1) , ceil(c4/2), ceil(c5)/2, ceil(c6) from sub1_bound ")
-        
+
     def support_super_table_test(self):
         tdSql.execute(" use db ")
         self.check_result_auto( " select c5 from stb1 order by ts " , "select ceil(c5) from stb1 order by ts" )
@@ -444,26 +444,26 @@ class TDTestCase:
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
-        
+
         self.prepare_datas()
 
-        tdLog.printNoPrefix("==========step2:test errors ==============")    
+        tdLog.printNoPrefix("==========step2:test errors ==============")
 
         self.test_errors()
-        
-        tdLog.printNoPrefix("==========step3:support types ============") 
+
+        tdLog.printNoPrefix("==========step3:support types ============")
 
         self.support_types()
 
-        tdLog.printNoPrefix("==========step4: ceil basic query ============") 
+        tdLog.printNoPrefix("==========step4: ceil basic query ============")
 
         self.basic_ceil_function()
 
-        tdLog.printNoPrefix("==========step5: ceil boundary query ============") 
+        tdLog.printNoPrefix("==========step5: ceil boundary query ============")
 
         self.check_boundary_values()
 
-        tdLog.printNoPrefix("==========step6: ceil filter query ============") 
+        tdLog.printNoPrefix("==========step6: ceil filter query ============")
 
         self.abs_func_filter()
 

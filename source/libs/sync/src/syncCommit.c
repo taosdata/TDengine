@@ -57,8 +57,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     pSyncNode->commitIndex = snapshot.lastApplyIndex;
 
     char eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%ld to index:%ld", pSyncNode->commitIndex,
-             snapshot.lastApplyIndex);
+    snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%" PRId64 " to index:%" PRId64, commitBegin,
+             commitEnd);
     syncNodeEventLog(pSyncNode, eventLog);
   }
 
@@ -68,8 +68,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     bool agree = syncAgree(pSyncNode, index);
 
     if (gRaftDetailLog) {
-      sTrace("syncMaybeAdvanceCommitIndex syncAgree:%d, index:%ld, pSyncNode->commitIndex:%ld", agree, index,
-             pSyncNode->commitIndex);
+      sTrace("syncMaybeAdvanceCommitIndex syncAgree:%d, index:%" PRId64 ", pSyncNode->commitIndex:%" PRId64, agree,
+             index, pSyncNode->commitIndex);
     }
 
     if (agree) {
@@ -83,7 +83,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
         newCommitIndex = index;
 
         if (gRaftDetailLog) {
-          sTrace("syncMaybeAdvanceCommitIndex maybe to update, newCommitIndex:%ld commit, pSyncNode->commitIndex:%ld",
+          sTrace("syncMaybeAdvanceCommitIndex maybe to update, newCommitIndex:%" PRId64
+                 " commit, pSyncNode->commitIndex:%" PRId64,
                  newCommitIndex, pSyncNode->commitIndex);
         }
 
@@ -91,10 +92,9 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
         break;
       } else {
         if (gRaftDetailLog) {
-          sTrace(
-              "syncMaybeAdvanceCommitIndex can not commit due to term not equal, pEntry->term:%lu, "
-              "pSyncNode->pRaftStore->currentTerm:%lu",
-              pEntry->term, pSyncNode->pRaftStore->currentTerm);
+          sTrace("syncMaybeAdvanceCommitIndex can not commit due to term not equal, pEntry->term:%" PRIu64
+                 ", pSyncNode->pRaftStore->currentTerm:%" PRIu64,
+                 pEntry->term, pSyncNode->pRaftStore->currentTerm);
         }
       }
 
@@ -108,7 +108,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     SyncIndex endIndex = newCommitIndex;
 
     if (gRaftDetailLog) {
-      sTrace("syncMaybeAdvanceCommitIndex sync commit %ld", newCommitIndex);
+      sTrace("syncMaybeAdvanceCommitIndex sync commit %" PRId64, newCommitIndex);
     }
 
     // update commit index
