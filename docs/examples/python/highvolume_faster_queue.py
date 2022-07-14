@@ -104,7 +104,6 @@ def set_global_config():
 
 # ANCHOR: monitor
 def run_monitor_process():
-    import taos
     log = logging.getLogger("DataBaseMonitor")
     conn = get_connection()
     conn.execute("DROP DATABASE IF EXISTS test")
