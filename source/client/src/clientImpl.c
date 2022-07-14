@@ -834,6 +834,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
              pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
     pRequest->prevCode = code;
+    schedulerFreeJob(&pRequest->body.queryJob, 0);
     doAsyncQuery(pRequest, true);
     return;
   }

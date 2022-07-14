@@ -135,6 +135,13 @@ typedef struct SSchStatusFps {
   schStatusEventFp eventFp;
 } SSchStatusFps;
 
+typedef struct SSchedulerCfg {
+  uint32_t   maxJobNum;
+  int32_t    maxNodeTableNum;
+  SCH_POLICY schPolicy;
+  bool       enableReSchedule;
+} SSchedulerCfg;
+
 typedef struct SSchedulerMgmt {
   uint64_t        taskId; // sequential taksId
   uint64_t        sId;    // schedulerId
@@ -275,7 +282,7 @@ typedef struct SSchJob {
 
 extern SSchedulerMgmt schMgmt;
 
-#define SCH_TASK_TIMEOUT(_task) ((taosGetTimestampUs() - (_task)->profile.execTime[(_task)->execId % (_task)->maxExecTimes]) > (_task)->timeoutUsec)
+#define SCH_TASK_TIMEOUT(_task) ((taosGetTimestampUs() - *(int64_t*)taosArrayGet((_task)->profile.execTime, (_task)->execId)) > (_task)->timeoutUsec)
 
 #define SCH_TASK_READY_FOR_LAUNCH(readyNum, task) ((readyNum) >= taosArrayGetSize((task)->children))
 
@@ -479,9 +486,12 @@ void    schFreeTask(SSchJob *pJob, SSchTask *pTask);
 void    schDropTaskInHashList(SSchJob *pJob, SHashObj *list);
 int32_t schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level);
 int32_t schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask);
-int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel, int32_t levelNum);
+int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel);
 int32_t schSwitchTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask);
 void    schDirectPostJobRes(SSchedulerReq* pReq, int32_t errCode);
+int32_t schHandleJobFailure(SSchJob *pJob, int32_t errCode);
+int32_t schHandleJobDrop(SSchJob *pJob, int32_t errCode);
+
 
 extern SSchDebug gSCHDebug;
 

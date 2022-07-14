@@ -17,6 +17,8 @@
 #include "catalog.h"
 #include "tdatablock.h"
 #include "tglobal.h"
+#include "commandInt.h"
+#include "scheduler.h"
 
 extern SConfig* tsCfg;
 

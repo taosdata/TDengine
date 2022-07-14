@@ -154,7 +154,7 @@ void schedulerFreeJob(int64_t* jobId, int32_t errCode) {
     return;
   }
 
-  schSwitchJobStatus(pJob, JOB_TASK_STATUS_DROP, (void*)&errCode);
+  schHandleJobDrop(pJob, errCode);
   
   schReleaseJob(*jobId);
   *jobId = 0;

@@ -488,6 +488,8 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_INIT));
 
+  qwDbgResponseRedirect(qwMsg, ctx);
+
 _return:
 
   if (ctx) {
