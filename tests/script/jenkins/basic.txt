@@ -11,17 +11,41 @@
 ./test.sh -f tsim/db/alter_option.sim
 # ./test.sh -f tsim/db/alter_replica_13.sim
 # ./test.sh -f tsim/db/alter_replica_31.sim
+#./test.sh -f tsim/db/alter_tables_d2.sim
+#./test.sh -f tsim/db/alter_tables_v1.sim
+#./test.sh -f tsim/db/alter_tables_v4.sim
+#./test.sh -f tsim/db/alter_vgroups.sim
 ./test.sh -f tsim/db/basic1.sim
 ./test.sh -f tsim/db/basic2.sim
 ./test.sh -f tsim/db/basic3.sim
+#./test.sh -f tsim/db/basic4.sim
+#./test.sh -f tsim/db/basic5.sim
 ./test.sh -f tsim/db/basic6.sim
 ./test.sh -f tsim/db/basic7.sim
 #./test.sh -f tsim/db/commit.sim
 ./test.sh -f tsim/db/create_all_options.sim
 #./test.sh -f tsim/db/delete_part.sim
+#./test.sh -f tsim/db/delete_reuse1.sim
+#./test.sh -f tsim/db/delete_reuse2.sim
+#./test.sh -f tsim/db/delete_reusevnode.sim
+#./test.sh -f tsim/db/delete_reusevnode2.sim
+#./test.sh -f tsim/db/delete_writing1.sim
+#./test.sh -f tsim/db/delete_writing2.sim
 #./test.sh -f tsim/db/delete.sim
+#./test.sh -f tsim/db/delete2.sim
+#./test.sh -f tsim/db/dropvnodes.sim
 ./test.sh -f tsim/db/error1.sim
+#./test.sh -f tsim/db/keep.sim
+#./test.sh -f tsim/db/len.sim
+#./test.sh -f tsim/db/nosuchfile.sim
+#./test.sh -f tsim/db/repeat.sim
+#./test.sh -f tsim/db/show_create_db.sim
+#./test.sh -f tsim/db/show_create_table.sim
+#./test.sh -f tsim/db/tables.sim
 ./test.sh -f tsim/db/taosdlog.sim
+#./test.sh -f tsim/db/topic1.sim
+#./test.sh -f tsim/db/topic2.sim
+#./test.sh -f tsim/db/vnodes.sim
 
 # ---- dnode
 # ./test.sh -f tsim/dnode/balance_replica1.sim
