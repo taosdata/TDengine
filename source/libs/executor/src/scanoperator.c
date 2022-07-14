@@ -2595,11 +2595,19 @@ static SSDataBlock* getTableDataBlock(void* param) {
   return NULL;
 }
 
-SArray* generateSortByTsInfo(int32_t order) {
+SArray* generateSortByTsInfo(SArray* colMatchInfo, int32_t order) {
+  int32_t tsTargetSlotId = 0;
+  for (int32_t i = 0; i < taosArrayGetSize(colMatchInfo); ++i) {
+    SColMatchInfo* colInfo = taosArrayGet(colMatchInfo, i);
+    if (colInfo->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      tsTargetSlotId = colInfo->targetSlotId;
+    }
+  }
+
   SArray*         pList = taosArrayInit(1, sizeof(SBlockOrderInfo));
   SBlockOrderInfo bi = {0};
   bi.order = order;
-  bi.slotId = 0;
+  bi.slotId = tsTargetSlotId;
   bi.nullFirst = NULL_ORDER_FIRST;
 
   taosArrayPush(pList, &bi);
@@ -2848,7 +2856,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   pInfo->sortSourceParams = taosArrayInit(64, sizeof(STableMergeScanSortSourceParam));
 
-  pInfo->pSortInfo = generateSortByTsInfo(pInfo->cond.order);
+  pInfo->pSortInfo = generateSortByTsInfo(pInfo->pColMatchInfo, pInfo->cond.order);
   pInfo->pSortInputBlock = createOneDataBlock(pInfo->pResBlock, false);
 
   int32_t rowSize = pInfo->pResBlock->info.rowSize;

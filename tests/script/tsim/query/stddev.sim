@@ -103,29 +103,29 @@ if $rows != 1 then
   return -1
 endi
 
-print =====sql : select _wstartts, stddev(c1) as b from ct4 interval(1y)
-sql select _wstartts, stddev(c1) as b from ct4 interval(1y)
+print =====sql : select _wstart, stddev(c1) as b from ct4 interval(1y)
+sql select _wstart, stddev(c1) as b from ct4 interval(1y)
 print ===> $rows
 if $rows != 4 then
   return -1
 endi
 
-print =====sql : select _wstartts, stddev(c1) as b from t1 interval(1y)
-sql select _wstartts, stddev(c1) as b from t1 interval(1y)
+print =====sql : select _wstart, stddev(c1) as b from t1 interval(1y)
+sql select _wstart, stddev(c1) as b from t1 interval(1y)
 print ===> $rows
 if $rows != 3 then
   return -1
 endi
 
-print =====select _wstartts, stddev(c1) as b from ct4 where c1 <= 6 interval(180d)
-sql select _wstartts, stddev(c1) as b from ct4 where c1 <= 6 interval(180d)
+print =====select _wstart, stddev(c1) as b from ct4 where c1 <= 6 interval(180d)
+sql select _wstart, stddev(c1) as b from ct4 where c1 <= 6 interval(180d)
 # print ===> $rows
 # if $rows != 3 then
 #   return -1
 # endi
 
-print =====select _wstartts, stddev(c1) as b from t1 where c1 <= 6 interval(180d)
-sql select _wstartts, stddev(c1) as b from t1 where c1 <= 6 interval(180d)
+print =====select _wstart, stddev(c1) as b from t1 where c1 <= 6 interval(180d)
+sql select _wstart, stddev(c1) as b from t1 where c1 <= 6 interval(180d)
 # print ===> $rows
 # if $rows != 3 then
 #   return -1
@@ -281,29 +281,29 @@ if $rows != 1 then
   return -1
 endi
 
-print =====sql : select _wstartts, stddev(c1) as b from ct4 interval(1y)
-sql select _wstartts, stddev(c1) as b from ct4 interval(1y)
+print =====sql : select _wstart, stddev(c1) as b from ct4 interval(1y)
+sql select _wstart, stddev(c1) as b from ct4 interval(1y)
 print ===> $rows
 if $rows != 4 then
   return -1
 endi
 
-print =====sql : select _wstartts, stddev(c1) as b from t1 interval(1y)
-sql select _wstartts, stddev(c1) as b from t1 interval(1y)
+print =====sql : select _wstart, stddev(c1) as b from t1 interval(1y)
+sql select _wstart, stddev(c1) as b from t1 interval(1y)
 print ===> $rows
 if $rows != 3 then
   return -1
 endi
 
-print =====select _wstartts, stddev(c1) as b from ct4 where c1 <= 6 interval(180d)
-sql select _wstartts, stddev(c1) as b from ct4 where c1 <= 6 interval(180d)
+print =====select _wstart, stddev(c1) as b from ct4 where c1 <= 6 interval(180d)
+sql select _wstart, stddev(c1) as b from ct4 where c1 <= 6 interval(180d)
 print ===> $rows
 if $rows != 3 then
   return -1
 endi
 
-print =====select _wstartts, stddev(c1) as b from t1 where c1 <= 6 interval(180d)
-sql select _wstartts, stddev(c1) as b from t1 where c1 <= 6 interval(180d)
+print =====select _wstart, stddev(c1) as b from t1 where c1 <= 6 interval(180d)
+sql select _wstart, stddev(c1) as b from t1 where c1 <= 6 interval(180d)
 print ===> $rows
 if $rows != 3 then
   return -1
