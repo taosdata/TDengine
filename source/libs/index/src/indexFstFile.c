@@ -79,13 +79,14 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
       memcpy(buf + total, blk->buf + blkOffset, nread);
       taosLRUCacheRelease(ctx->lru, h, false);
     } else {
-      int32_t     cacheMemSize = sizeof(SDataBlock) + kBlockSize;
-      SDataBlock* blk = taosMemoryCalloc(1, cacheMemSize);
+      int32_t cacheMemSize = sizeof(SDataBlock) + kBlockSize;
 
+      SDataBlock* blk = taosMemoryCalloc(1, cacheMemSize);
       blk->blockId = blkId;
       blk->nread = taosPReadFile(ctx->file.pFile, blk->buf, kBlockSize, blkId * kBlockSize);
       assert(blk->nread <= kBlockSize);
       nread = MIN(blkLeft, len);
+
       if (blk->nread < kBlockSize && blk->nread < len) {
         break;
       }
