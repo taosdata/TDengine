@@ -79,22 +79,39 @@ class TDSql:
             self.queryResult = None
             tdLog.info("sql:%s, expect error occured" % (sql))
 
-    def query(self, sql, row_tag=None):
+    def query(self, sql, row_tag=None,queyTimes=10):
         self.sql = sql
-        try:
-            self.cursor.execute(sql)
-            self.queryResult = self.cursor.fetchall()
-            self.queryRows = len(self.queryResult)
-            self.queryCols = len(self.cursor.description)
-        except Exception as e:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, sql, repr(e))
-            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
-            traceback.print_exc()
-            raise Exception(repr(e))
-        if row_tag:
-            return self.queryResult
-        return self.queryRows
+        i=1
+        while i <= queyTimes:
+            try:
+                self.cursor.execute(sql)
+                self.queryResult = self.cursor.fetchall()
+                self.queryRows = len(self.queryResult)
+                self.queryCols = len(self.cursor.description)
+                if row_tag:
+                    return self.queryResult
+                return self.queryRows
+            except Exception as e:
+                i+=1
+                tdLog.notice("Try to query again, query times: %d "%i)
+                pass
+        else:
+            try:
+                tdLog.notice("Try the last query ")
+                self.cursor.execute(sql)
+                self.queryResult = self.cursor.fetchall()
+                self.queryRows = len(self.queryResult)
+                self.queryCols = len(self.cursor.description)
+                if row_tag:
+                    return self.queryResult
+                return self.queryRows
+            except Exception as e:    
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                args = (caller.filename, caller.lineno, sql, repr(e))
+                tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+                traceback.print_exc()
+                raise Exception(repr(e))
+
 
     def is_err_sql(self, sql):
         err_flag = True

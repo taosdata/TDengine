@@ -63,11 +63,11 @@ class TDTestCase:
         tdSql.execute("use db_tsbs")
         
         # test interval and partition
-        tdSql.queryt(" SELECT avg(velocity) as mean_velocity ,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet; ")
+        tdSql.query(" SELECT avg(velocity) as mean_velocity ,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet; ")
         print(tdSql.queryResult)
         parRows=tdSql.queryRows
         tdSql.query(" SELECT avg(velocity) as mean_velocity ,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet interval(10m); ")
-        # tdSql.checkRows(parRows)
+        tdSql.checkRows(parRows)
         
         
         # test insert into 
@@ -78,16 +78,19 @@ class TDTestCase:
 
 
         # test paitition interval fill
-        # tdSql.query("SELECT name,floor(avg(velocity)/10)/floor(avg(velocity)/10) AS mv FROM readings   WHERE name!='' AND ts > '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition by name interval(10m) fill(value,0) ;")
+        tdSql.query("SELECT name,floor(avg(velocity)/10)/floor(avg(velocity)/10) AS mv FROM readings   WHERE name!='' AND ts > '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition by name interval(10m) fill(value,0) ;")
 
 
-        # # test partition interval limit 
-        # tdSql.query("SELECT ts,model,floor(2*(sum(nzs)/count(nzs)))/floor(2*(sum(nzs)/count(nzs))) AS broken_down FROM (SELECT ts,model, status/status AS nzs FROM diagnostics WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z' ) WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition BY model,ts interval(10m) limit 10;")
+        # test partition interval limit  (PRcore-TD-17410)
+        # tdSql.query("select name,driver from (SELECT name,driver,fleet ,avg(velocity) as mean_velocity FROM readings partition BY name,driver,fleet interval (10m) limit 1);")
         # tdSql.checkRows(10)
 
         # test partition interval Pseudo time-column
-        tdSql.queryt("SELECT count(ms1)/144  FROM (SELECT _wstartts as ts1,model, fleet,avg(status) AS ms1 FROM diagnostics WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'  partition by model, fleet interval(10m)) WHERE ts1 >= '2016-01-01T00:00:00Z' AND ts1 < '2016-01-05T00:00:01Z' AND ms1<1;")
+        tdSql.query("SELECT count(ms1)/144  FROM (SELECT _wstart as ts1,model, fleet,avg(status) AS ms1 FROM diagnostics WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'  partition by model, fleet interval(10m)) WHERE ts1 >= '2016-01-01T00:00:00Z' AND ts1 < '2016-01-05T00:00:01Z' AND ms1<1;")
 
+        #PR TD-17413
+        tdSql.query("SELECT ms1  FROM (SELECT _wstart as ts1,model, fleet,avg(status) AS ms1 FROM diagnostics WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'  partition by model, fleet interval(10m)) WHERE ts1 >= '2016-01-01T00:00:00Z' AND ts1 < '2016-01-01T00:01:01Z';")
+        tdSql.checkRows(0)
 
         # test
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
