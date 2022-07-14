@@ -63,7 +63,8 @@ class TDTestCase:
         tdSql.execute("use db_tsbs")
         
         # test interval and partition
-        tdSql.query(" SELECT avg(velocity) as mean_velocity ,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet; ")
+        tdSql.queryt(" SELECT avg(velocity) as mean_velocity ,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet; ")
+        print(tdSql.queryResult)
         parRows=tdSql.queryRows
         tdSql.query(" SELECT avg(velocity) as mean_velocity ,name,driver,fleet FROM readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet interval(10m); ")
         # tdSql.checkRows(parRows)
@@ -85,7 +86,7 @@ class TDTestCase:
         # tdSql.checkRows(10)
 
         # test partition interval Pseudo time-column
-        tdSql.query("SELECT count(ms1)/144  FROM (SELECT _wstartts as ts1,model, fleet,avg(status) AS ms1 FROM diagnostics WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'  partition by model, fleet interval(10m)) WHERE ts1 >= '2016-01-01T00:00:00Z' AND ts1 < '2016-01-05T00:00:01Z' AND ms1<1;")
+        tdSql.queryt("SELECT count(ms1)/144  FROM (SELECT _wstartts as ts1,model, fleet,avg(status) AS ms1 FROM diagnostics WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'  partition by model, fleet interval(10m)) WHERE ts1 >= '2016-01-01T00:00:00Z' AND ts1 < '2016-01-05T00:00:01Z' AND ms1<1;")
 
 
         # test
