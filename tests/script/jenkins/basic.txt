@@ -52,13 +52,22 @@
 ./test.sh -f tsim/import/replica1.sim
 
 # ---- insert
+./test.sh -f tsim/insert/backquote.sim
+./test.sh -f tsim/insert/basic.sim
 ./test.sh -f tsim/insert/basic0.sim
 ./test.sh -f tsim/insert/basic1.sim
-./test.sh -f tsim/insert/backquote.sim
-./test.sh -f tsim/insert/null.sim
-./test.sh -f tsim/insert/update0.sim
 ./test.sh -f tsim/insert/commit-merge0.sim
+./test.sh -f tsim/insert/insert_drop.sim
 ./test.sh -f tsim/insert/insert_select.sim
+./test.sh -f tsim/insert/null.sim
+./test.sh -f tsim/insert/query_block1_file.sim
+./test.sh -f tsim/insert/query_block1_memory.sim
+./test.sh -f tsim/insert/query_block2_file.sim
+./test.sh -f tsim/insert/query_block2_memory.sim
+./test.sh -f tsim/insert/query_file_memory.sim
+./test.sh -f tsim/insert/query_multi_file.sim
+#./test.sh -f tsim/insert/tcp.sim
+./test.sh -f tsim/insert/update0.sim
 
 # ---- parser
 ./test.sh -f tsim/parser/groupby-basic.sim
@@ -94,7 +103,33 @@
 ./test.sh -f tsim/show/basic.sim
 
 # ---- table
+./test.sh -f tsim/table/autocreate.sim
 ./test.sh -f tsim/table/basic1.sim
+./test.sh -f tsim/table/basic2.sim
+./test.sh -f tsim/table/basic3.sim
+./test.sh -f tsim/table/bigint.sim
+./test.sh -f tsim/table/binary.sim
+./test.sh -f tsim/table/bool.sim
+./test.sh -f tsim/table/column_name.sim
+./test.sh -f tsim/table/column_num.sim
+./test.sh -f tsim/table/column_value.sim
+./test.sh -f tsim/table/column2.sim
+./test.sh -f tsim/table/createmulti.sim
+./test.sh -f tsim/table/date.sim
+./test.sh -f tsim/table/db.table.sim
+# ./test.sh -f tsim/table/delete_reuse1.sim
+# ./test.sh -f tsim/table/delete_reuse2.sim
+# ./test.sh -f tsim/table/delete_writing.sim
+./test.sh -f tsim/table/describe.sim
+./test.sh -f tsim/table/double.sim
+./test.sh -f tsim/table/float.sim
+./test.sh -f tsim/table/int.sim
+./test.sh -f tsim/table/limit.sim
+./test.sh -f tsim/table/smallint.sim
+./test.sh -f tsim/table/table_len.sim
+./test.sh -f tsim/table/table.sim
+./test.sh -f tsim/table/tinyint.sim
+./test.sh -f tsim/table/vgroup.sim
 
 # ---- stream
 ./test.sh -f tsim/stream/basic0.sim
@@ -114,6 +149,7 @@
 # ./test.sh -f tsim/stream/schedSnode.sim
 ./test.sh -f tsim/stream/windowClose.sim
 ./test.sh -f tsim/stream/ignoreExpiredData.sim
+./test.sh -f tsim/stream/sliding.sim
 
 # ---- transaction
  ./test.sh -f tsim/trans/lossdata1.sim
@@ -227,23 +263,23 @@
 ./test.sh -f tsim/compress/uncompress.sim
 
 # ---- compute
-#./test.sh -f tsim/compute/avg.sim
+./test.sh -f tsim/compute/avg.sim
 #./test.sh -f tsim/compute/block_dist.sim
-#./test.sh -f tsim/compute/bottom.sim
-#./test.sh -f tsim/compute/count.sim
-#./test.sh -f tsim/compute/diff.sim
-#./test.sh -f tsim/compute/diff2.sim
-#./test.sh -f tsim/compute/first.sim
-#./test.sh -f tsim/compute/interval.sim
+./test.sh -f tsim/compute/bottom.sim
+./test.sh -f tsim/compute/count.sim
+./test.sh -f tsim/compute/diff.sim
+./test.sh -f tsim/compute/diff2.sim
+./test.sh -f tsim/compute/first.sim
+./test.sh -f tsim/compute/interval.sim
 #./test.sh -f tsim/compute/last_row.sim
-#./test.sh -f tsim/compute/last.sim
-#./test.sh -f tsim/compute/leastsquare.sim
-#./test.sh -f tsim/compute/max.sim
-#./test.sh -f tsim/compute/min.sim
+./test.sh -f tsim/compute/last.sim
+./test.sh -f tsim/compute/leastsquare.sim
+./test.sh -f tsim/compute/max.sim
+./test.sh -f tsim/compute/min.sim
 #./test.sh -f tsim/compute/null.sim
 ./test.sh -f tsim/compute/percentile.sim
 ./test.sh -f tsim/compute/stddev.sim
-#./test.sh -f tsim/compute/sum.sim
+./test.sh -f tsim/compute/sum.sim
 ./test.sh -f tsim/compute/top.sim
 
 # ---- field
@@ -278,5 +314,33 @@
 
 # ---- wal
 ./test.sh -f tsim/wal/kill.sim
+
+# ---- tag
+./test.sh -f tsim/tag/3.sim
+./test.sh -f tsim/tag/4.sim
+./test.sh -f tsim/tag/5.sim
+#./test.sh -f tsim/tag/6.sim
+#./test.sh -f tsim/tag/add.sim
+./test.sh -f tsim/tag/bigint.sim
+./test.sh -f tsim/tag/binary_binary.sim
+./test.sh -f tsim/tag/binary.sim
+./test.sh -f tsim/tag/bool_binary.sim
+./test.sh -f tsim/tag/bool_int.sim
+./test.sh -f tsim/tag/bool.sim
+#./test.sh -f tsim/tag/change.sim
+#./test.sh -f tsim/tag/column.sim
+#./test.sh -f tsim/tag/commit.sim
+#./test.sh -f tsim/tag/create.sim
+#./test.sh -f tsim/tag/delete.sim
+#./test.sh -f tsim/tag/double.sim
+#./test.sh -f tsim/tag/filter.sim
+#./test.sh -f tsim/tag/float.sim
+./test.sh -f tsim/tag/int_binary.sim
+./test.sh -f tsim/tag/int_float.sim
+./test.sh -f tsim/tag/int.sim
+#./test.sh -f tsim/tag/set.sim
+./test.sh -f tsim/tag/smallint.sim
+./test.sh -f tsim/tag/tinyint.sim
+
 
 #======================b1-end===============

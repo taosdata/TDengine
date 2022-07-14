@@ -1193,8 +1193,6 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     }
   }
 
-  taosArrayDestroy(pBlock->pDataBlock);
-
   ASSERT(pInfo->pRes->pDataBlock != NULL);
 
   // currently only the tbname pseudo column
@@ -1202,12 +1200,14 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     int32_t code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
                                           GET_TASKID(pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
+      blockDataFreeRes((SSDataBlock*) pBlock);
       longjmp(pTaskInfo->env, code);
     }
   }
 
   doFilter(pInfo->pCondition, pInfo->pRes);
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
+  blockDataFreeRes((SSDataBlock*) pBlock);
   return 0;
 }
 

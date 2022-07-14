@@ -83,10 +83,6 @@ while $i < 10
   $i = $i + 1
 endw 
 
-print ==> sleep 1 seconds to renew cache
-sql reset query cache
-sleep 1000
-
 print =============== step5
 sql select * from $tb order by  ts desc
 print ===>rows $rows, data $data01

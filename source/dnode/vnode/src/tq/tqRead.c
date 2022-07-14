@@ -319,7 +319,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
   return 0;
 
 FAIL:
-  tDeleteSSDataBlock(pBlock);
+  blockDataFreeRes(pBlock);
   return -1;
 }
 
