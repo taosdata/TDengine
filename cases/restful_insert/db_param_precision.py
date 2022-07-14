@@ -29,7 +29,7 @@ class TestComp(TDCase):
             if env_setting["name"].lower() == "taosd":
                 self.taosd_setting = env_setting
                 self.fqdn = self.taosd_setting["fqdn"][0]
-                self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "vnode"
+                self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
         self.tdRest = TDRest(env_setting=self.env_setting)
     def precision_check(self):
         """
