@@ -104,8 +104,8 @@ class TestComp(TDCase):
         self.tdSql.checkData(0, 0, us_dt)
 
         # TD-15674
-        self.tdSql.error('insert into ntb values({self.tdCom.genTs("ms")[0]}, 1)')
-        self.tdSql.error('insert into ntb values({self.tdCom.genTs("ns")[0]}, 1)')
+        self.tdSql.error(f'insert into ntb values({self.tdCom.genTs("ms")[0]}, 1)')
+        self.tdSql.error(f'insert into ntb values({self.tdCom.genTs("ns")[0]}, 1)')
         dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'drop database if exists {dbname}')
         self.tdSql.execute(

@@ -131,7 +131,7 @@ class TestTb(TDCase):
         self.tdRest.request('show tables')
         #TODO
         print(self.tdRest.resp)
-        res = self.tdSql.get_db_field_kv(0, tbname)
+        res = self.tdRest.get_rest_db_field(0, tbname,self.dbname)
         self.tdSql.checkEqual(res["table_comment"], comment)
 
     def ttl_check(self):
