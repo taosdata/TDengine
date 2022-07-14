@@ -516,10 +516,16 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
     }
 
     SArray* tableList = taosArrayGetP(pTaskInfo->tableqinfoList.pGroupList, pInfo->currentGroupId);
-    tsdbReaderClose(pInfo->dataReader);
 
-    int32_t code = tsdbReaderOpen(pInfo->readHandle.vnode, &pInfo->cond, tableList, (STsdbReader**)&pInfo->dataReader,
-                                  GET_TASKID(pTaskInfo));
+    int32_t code;
+    if (pInfo->dataReader != NULL) {
+      code = tsdbReaderReset(pInfo->dataReader, &pInfo->cond);
+      ASSERT(code == 0);
+    } else {
+      code = tsdbReaderOpen(pInfo->readHandle.vnode, &pInfo->cond, tableList, (STsdbReader**)&pInfo->dataReader,
+                            GET_TASKID(pTaskInfo));
+      ASSERT(code == 0);
+    }
   }
 
   SSDataBlock* result = doTableScanGroup(pOperator);
@@ -871,6 +877,7 @@ static bool prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
   }
 
   resetTableScanInfo(pInfo->pTableScanOp->info, &win);
+  pInfo->pTableScanOp->status = OP_OPENED;
   return true;
 }
 
@@ -1192,8 +1199,6 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
       colDataAppendNNULL(pDst, 0, pBlockInfo->rows);
     }
   }
-
-  ASSERT(pInfo->pRes->pDataBlock != NULL);
 
   // currently only the tbname pseudo column
   if (pInfo->numOfPseudoExpr > 0) {
