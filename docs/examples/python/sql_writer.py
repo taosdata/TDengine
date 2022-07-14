@@ -38,7 +38,7 @@ class SQLWriter:
                 group_id = ps[-1]
                 tag_value = f"('{location}',{group_id})"
                 self._tb_tags[table_name] = tag_value
-        self.flush2()
+        self.flush()
 
     def flush(self):
         """
@@ -61,12 +61,6 @@ class SQLWriter:
             sql_len += len(q)
         sql += " ".join(buf)
         self.execute_sql(sql)
-        self._tb_values.clear()
-
-    def flush2(self):
-        for tb_name, values in self._tb_values.items():
-            q = "INSERT INTO " + tb_name + " VALUES " + values
-            self.execute_sql(q)
         self._tb_values.clear()
 
     def execute_sql(self, sql):
