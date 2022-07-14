@@ -44,8 +44,8 @@ $i = 1
 $tb = $tbPrefix . $i
 
 sql select diff(tbcol) from $tb
-print ===> $data11
-if $data11 != 1 then 
+print ===> $data10
+if $data10 != 1 then 
   return -1
 endi
 
@@ -53,23 +53,23 @@ print =============== step3
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
 sql select diff(tbcol) from $tb where ts > $ms
-print ===> $data11
-if $data11 != 1 then 
+print ===> $data10
+if $data10 != 1 then 
   return -1
 endi
 
 $cc = 4 * 60000
 $ms = 1601481600000 + $cc
 sql select diff(tbcol) from $tb where ts <= $ms
-print ===> $data11
-if $data11 != 1 then 
+print ===> $data10
+if $data10 != 1 then 
   return -1
 endi
 
 print =============== step4
 sql select diff(tbcol) as b from $tb
-print ===> $data11
-if $data11 != 1 then 
+print ===> $data10
+if $data10 != 1 then 
   return -1
 endi
 
