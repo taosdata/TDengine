@@ -47,25 +47,3 @@ class MockDataSource:
             rows = [table_name + ',' + t + ',' + values for t in ts]
             result.append((table_id, rows))
         return result
-
-
-if __name__ == '__main__':
-    """
-    Test performance of MockDataSource
-    """
-    from threading import Thread
-
-    count = 0
-
-
-    def consume():
-        global count
-        for data in MockDataSource("1", 100):
-            for _, rows in data:
-                count += len(rows)
-
-
-    Thread(target=consume).start()
-    while True:
-        time.sleep(1)
-        print(count)
