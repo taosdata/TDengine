@@ -235,7 +235,8 @@ static int32_t mndStreamGetPlanString(const char *ast, int8_t triggerType, int64
 }
 
 static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamReq *pCreate) {
-  SNode *pAst = NULL;
+  SNode      *pAst = NULL;
+  SQueryPlan *pPlan = NULL;
 
   mDebug("stream:%s to create", pCreate->name);
   memcpy(pObj->name, pCreate->name, TSDB_STREAM_FNAME_LEN);
@@ -293,7 +294,6 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     goto FAIL;
   }
 
-  SQueryPlan  *pPlan = NULL;
   SPlanContext cxt = {
       .pAstRoot = pAst,
       .topicQuery = false,
@@ -317,6 +317,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
 FAIL:
   if (pAst != NULL) nodesDestroyNode(pAst);
+  if (pPlan != NULL) qDestroyQueryPlan(pPlan);
   return 0;
 }
 
@@ -541,7 +542,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   // build stream obj from request
   SStreamObj streamObj = {0};
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
-    ASSERT(0);
+    /*ASSERT(0);*/
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
@@ -689,7 +690,14 @@ int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
         terrno = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
         return -1;
       } else {
-        // TODO drop all task on snode
+#if 0
+        if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
+          mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
+          sdbRelease(pMnode->pSdb, pStream);
+          sdbCancelFetch(pSdb, pIter);
+          return -1;
+        }
+#endif
         if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
           sdbRelease(pSdb, pStream);
           sdbCancelFetch(pSdb, pIter);

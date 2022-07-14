@@ -214,7 +214,6 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       }
       pRSmaStat->refId = refId;
 
-
       // init hash
       RSMA_INFO_HASH(pRSmaStat) = taosHashInit(
           RSMA_TASK_INFO_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
@@ -256,6 +255,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
 
     // step 2: destroy the rsma info and associated fetch tasks
     // TODO: use taosHashSetFreeFp when taosHashSetFreeFp is ready.
+#if 1
     if (taosHashGetSize(RSMA_INFO_HASH(pStat)) > 0) {
       void *infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), NULL);
       while (infoHash) {
@@ -264,6 +264,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
         infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), infoHash);
       }
     }
+#endif
     taosHashCleanup(RSMA_INFO_HASH(pStat));
 
     // step 3: wait all triggered fetch tasks finished

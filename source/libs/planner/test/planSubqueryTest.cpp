@@ -36,6 +36,8 @@ TEST_F(PlanSubqeuryTest, basic) {
   run("SELECT * FROM (SELECT NOW() FROM t1)");
 
   run("SELECT NOW() FROM (SELECT * FROM t1) ORDER BY ts");
+
+  run("SELECT * FROM (SELECT AVG(c1) a FROM st1 INTERVAL(10s)) WHERE a > 1");
 }
 
 TEST_F(PlanSubqeuryTest, doubleGroupBy) {
