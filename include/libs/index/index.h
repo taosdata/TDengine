@@ -173,7 +173,7 @@ void             indexMultiTermDestroy(SIndexMultiTerm* terms);
  * @param:
  * @param:
  */
-SIndexOpts* indexOptsCreate();
+SIndexOpts* indexOptsCreate(int32_t cacheSize);
 void        indexOptsDestroy(SIndexOpts* opts);
 
 /*

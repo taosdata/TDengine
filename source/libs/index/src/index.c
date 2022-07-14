@@ -103,44 +103,61 @@ static void indexWait(void* idx) {
 int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   int ret = TSDB_CODE_SUCCESS;
   taosThreadOnce(&isInit, indexInit);
-  SIndex* sIdx = taosMemoryCalloc(1, sizeof(SIndex));
-  if (sIdx == NULL) {
+  SIndex* idx = taosMemoryCalloc(1, sizeof(SIndex));
+  if (idx == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  sIdx->tindex = idxTFileCreate(path);
-  if (sIdx->tindex == NULL) {
+  idx->lru = taosLRUCacheInit(opts->cacheSize, -1, .5);
+  if (idx->lru == NULL) {
+    ret = TSDB_CODE_OUT_OF_MEMORY;
+    goto END;
+  }
+  taosLRUCacheSetStrictCapacity(idx->lru, true);
+
+  idx->tindex = idxTFileCreate(idx, path);
+  if (idx->tindex == NULL) {
     ret = TSDB_CODE_OUT_OF_MEMORY;
     goto END;
   }
 
-  sIdx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  sIdx->cVersion = 1;
-  sIdx->path = tstrdup(path);
-  taosThreadMutexInit(&sIdx->mtx, NULL);
-  tsem_init(&sIdx->sem, 0, 0);
+  idx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  idx->cVersion = 1;
+  idx->path = tstrdup(path);
+  taosThreadMutexInit(&idx->mtx, NULL);
+  tsem_init(&idx->sem, 0, 0);
 
-  sIdx->refId = idxAddRef(sIdx);
-  idxAcquireRef(sIdx->refId);
+  idx->refId = idxAddRef(idx);
+  idx->opts = opts;
+  idxAcquireRef(idx->refId);
 
-  *index = sIdx;
+  *index = idx;
   return ret;
 
 END:
-  if (sIdx != NULL) {
-    indexClose(sIdx);
+  if (idx != NULL) {
+    indexClose(idx);
   }
   *index = NULL;
   return ret;
 }
 
 void indexDestroy(void* handle) {
-  SIndex* sIdx = handle;
-  taosThreadMutexDestroy(&sIdx->mtx);
-  tsem_destroy(&sIdx->sem);
-  idxTFileDestroy(sIdx->tindex);
-  taosMemoryFree(sIdx->path);
-  taosMemoryFree(sIdx);
+  SIndex* idx = handle;
+  taosThreadMutexDestroy(&idx->mtx);
+  tsem_destroy(&idx->sem);
+  idxTFileDestroy(idx->tindex);
+  taosMemoryFree(idx->path);
+
+  SLRUCache* lru = idx->lru;
+  if (lru != NULL) {
+    taosLRUCacheEraseUnrefEntries(lru);
+    taosLRUCacheCleanup(lru);
+  }
+  idx->lru = NULL;
+
+  indexOptsDestroy(idx->opts);
+  taosMemoryFree(idx);
   return;
 }
 void indexClose(SIndex* sIdx) {
@@ -159,6 +176,7 @@ void indexClose(SIndex* sIdx) {
     taosHashCleanup(sIdx->colObj);
     sIdx->colObj = NULL;
   }
+
   idxReleaseRef(sIdx->refId);
   idxRemoveRef(sIdx->refId);
 }
@@ -234,8 +252,12 @@ int indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* result
 int indexDelete(SIndex* index, SIndexMultiTermQuery* query) { return 1; }
 // int indexRebuild(SIndex* index, SIndexOpts* opts) { return 0; }
 
-SIndexOpts* indexOptsCreate() { return NULL; }
-void        indexOptsDestroy(SIndexOpts* opts) { return; }
+SIndexOpts* indexOptsCreate(int32_t cacheSize) {
+  SIndexOpts* opts = taosMemoryCalloc(1, sizeof(SIndexOpts));
+  opts->cacheSize = cacheSize;
+  return opts;
+}
+void indexOptsDestroy(SIndexOpts* opts) { return taosMemoryFree(opts); }
 /*
  * @param: oper
  *
@@ -641,7 +663,7 @@ static int idxGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   }
   tfileWriterClose(tw);
 
-  TFileReader* reader = tfileReaderOpen(sIdx->path, cache->suid, version, cache->colName);
+  TFileReader* reader = tfileReaderOpen(sIdx, cache->suid, version, cache->colName);
   if (reader == NULL) {
     return -1;
   }
