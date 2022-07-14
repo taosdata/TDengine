@@ -930,6 +930,7 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
     res = translateNormalValue(pCxt, pVal, targetDt, strict);
   }
   pVal->node.resType = targetDt;
+  pVal->node.resType.scale = pVal->unit;
   pVal->translate = true;
   return res;
 }

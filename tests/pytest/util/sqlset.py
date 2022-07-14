@@ -41,7 +41,7 @@ class TDSetSql:
         create_stb_sql = f'create table {stbname} ({column_sql[:-1]}) tags({tag_sql[:-1]})'
         return create_stb_sql
     
-    def set_insertsql(self,column_dict,tbname,binary_str,nchar_str):
+    def set_insertsql(self,column_dict,tbname,binary_str=None,nchar_str=None):
         sql = ''
         for k, v in column_dict.items():
             if v.lower() == 'timestamp' or v.lower() == 'tinyint' or v.lower() == 'smallint' or v.lower() == 'int' or v.lower() == 'bigint' or \

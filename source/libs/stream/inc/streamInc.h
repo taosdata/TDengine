@@ -42,6 +42,9 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
 
 int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* pReq);
 
+int32_t streamAppendQueueItem(SStreamQueueItem* dst, SStreamQueueItem* elem);
+void    streamFreeQitem(SStreamQueueItem* data);
+
 #ifdef __cplusplus
 }
 #endif

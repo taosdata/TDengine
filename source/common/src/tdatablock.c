@@ -1174,8 +1174,6 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows) 
 
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
   int32_t code = 0;
-  // ASSERT(numOfRows > 0);
-
   if (numOfRows == 0) {
     return TSDB_CODE_SUCCESS;
   }
