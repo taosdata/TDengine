@@ -3409,8 +3409,8 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
 
     blockDataEnsureCapacity(pResBlock, pOperator->resultInfo.capacity);
 
-    int32_t numOfResultRows = pOperator->resultInfo.capacity - pBlock->info.rows;
-    taosFillResultDataBlock(pInfo->pFillInfo, pBlock, numOfResultRows);
+    int32_t numOfResultRows = pOperator->resultInfo.capacity - pResBlock->info.rows;
+    taosFillResultDataBlock(pInfo->pFillInfo, pResBlock, numOfResultRows);
 
     // current group has no more result to return
     if (pResBlock->info.rows > 0) {
@@ -4423,6 +4423,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         cond.twindows = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
         cond.suid = pBlockNode->suid;
         cond.type = BLOCK_LOAD_OFFSET_ORDER;
+        cond.startVersion = -1;
+        cond.endVersion  =  -1;
       }
 
       STsdbReader* pReader = NULL;

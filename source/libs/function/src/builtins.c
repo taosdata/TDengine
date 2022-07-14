@@ -1370,11 +1370,6 @@ static int32_t translateTail(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateLastRow(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  // todo
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t translateDerivative(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (3 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -2221,7 +2216,17 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
-    .processFunc  = lastrowFunction,
+    .processFunc  = lastRowFunction,
+    .finalizeFunc = firstLastFinalize
+  },
+  {
+    .name = "_cache_last_row",
+    .type = FUNCTION_TYPE_CACHE_LAST_ROW,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .translateFunc = translateFirstLast,
+    .getEnvFunc   = getFirstLastFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = cacheLastRowFunction,
     .finalizeFunc = firstLastFinalize
   },
   {
