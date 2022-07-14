@@ -39,8 +39,6 @@ static int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capac
 static int32_t buildDbTableInfoBlock(const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta, size_t size,
                                      const char* dbName);
 
-static int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
-                                      SSDataBlock* pBlock, const char* idStr);
 static bool    processBlockWithProbability(const SSampleExecInfo* pInfo);
 
 bool processBlockWithProbability(const SSampleExecInfo* pInfo) {
@@ -198,12 +196,6 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
     pCost->skipBlocks += 1;
 
-    // clear all data in pBlock that are set when handing the previous block
-    for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
-      SColumnInfoData* pcol = taosArrayGet(pBlock->pDataBlock, i);
-      pcol->pData = NULL;
-    }
-
     return TSDB_CODE_SUCCESS;
   } else if (*status == FUNC_DATA_REQUIRED_STATIS_LOAD) {
     pCost->loadBlockStatis += 1;
@@ -320,8 +312,6 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int
     int32_t dstSlotId = pExpr->base.resSchema.slotId;
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
-
-    colInfoDataEnsureCapacity(pColInfoData, pBlock->info.rows);
     colInfoDataCleanup(pColInfoData, pBlock->info.rows);
 
     int32_t functionId = pExpr->pExpr->_function.functionId;
@@ -1157,10 +1147,11 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   SOperatorInfo*  pOperator = pInfo->pStreamScanOp;
   SExecTaskInfo*  pTaskInfo = pInfo->pStreamScanOp->pTaskInfo;
 
+  blockDataEnsureCapacity(pInfo->pRes, pBlock->info.rows);
+
   pInfo->pRes->info.rows = pBlock->info.rows;
   pInfo->pRes->info.uid = pBlock->info.uid;
   pInfo->pRes->info.type = STREAM_NORMAL;
-  pInfo->pRes->info.capacity = pBlock->info.rows;
 
   uint64_t* groupIdPre = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
   if (groupIdPre) {
@@ -1186,7 +1177,10 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     for (int32_t j = 0; j < blockDataGetNumOfCols(pBlock); ++j) {
       SColumnInfoData* pResCol = bdGetColumnInfoData(pBlock, j);
       if (pResCol->info.colId == pColMatchInfo->colId) {
-        taosArraySet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId, pResCol);
+
+        SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId);
+        colDataAssign(pDst, pResCol, pBlock->info.rows, &pInfo->pRes->info);
+//        taosArraySet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId, pResCol);
         colExists = true;
         break;
       }
@@ -2396,6 +2390,7 @@ int32_t createScanTableListInfo(STableScanPhysiNode* pTableScanNode, SReadHandle
     qDebug("no table qualified for query, TID:0x%" PRIx64 ", QID:0x%" PRIx64, taskId, queryId);
     return TSDB_CODE_SUCCESS;
   }
+
   pTableListInfo->needSortTableByGroupId = pTableScanNode->groupSort;
   code = generateGroupIdMap(pTableListInfo, pHandle, pTableScanNode->pGroupTags);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2569,9 +2564,11 @@ static SSDataBlock* getTableDataBlock(void* param) {
     SDataBlockInfo binfo = pBlock->info;
     tsdbRetrieveDataBlockInfo(reader, &binfo);
 
-    binfo.capacity = binfo.rows;
-    blockDataEnsureCapacity(pBlock, binfo.capacity);
-    pBlock->info = binfo;
+    blockDataEnsureCapacity(pBlock, binfo.rows);
+    pBlock->info.type = binfo.type;
+    pBlock->info.uid = binfo.uid;
+    pBlock->info.window = binfo.window;
+    pBlock->info.rows = binfo.rows;
 
     uint32_t status = 0;
     int32_t  code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, readerIdx, pBlock, &status);
