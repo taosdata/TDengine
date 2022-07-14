@@ -163,7 +163,6 @@ typedef struct SSdbRow {
   ESdbType   type;
   ESdbStatus status;
   int32_t    refCount;
-  int64_t    forAlign;
   char       pObj[];
 } SSdbRow;
 

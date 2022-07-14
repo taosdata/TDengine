@@ -46,7 +46,6 @@ while $i < 10
 endw 
 
 print =============== step2
-sleep 100
 sql select * from $tb
 if $rows != $rowNum then 
   return -1
