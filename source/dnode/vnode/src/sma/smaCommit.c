@@ -18,6 +18,7 @@
 static int32_t tdProcessRSmaPreCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaPostCommitImpl(SSma *pSma);
+static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma);
 
 /**
  * @brief Only applicable to Rollup SMA
@@ -42,6 +43,14 @@ int32_t smaCommit(SSma *pSma) { return tdProcessRSmaCommitImpl(pSma); }
  * @return int32_t
  */
 int32_t smaPostCommit(SSma *pSma) { return tdProcessRSmaPostCommitImpl(pSma); }
+
+/**
+ * @brief Only applicable to Rollup SMA
+ *
+ * @param pSma
+ * @return int32_t
+ */
+int32_t smaAsyncCommit(SSma *pSma) { return tdProcessRSmaAsyncCommitImpl(pSma); }
 
 /**
  * @brief set rsma trigger stat active
@@ -222,5 +231,17 @@ static int32_t tdProcessRSmaPostCommitImpl(SSma *pSma) {
 
   taosCloseDir(&pDir);
   regfree(&regex);
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * @brief Rsma async commit implementation
+ *  1) Wait all running fetch task finish to fetch and put submitMsg into level 2/3 wQueue(blocking level 1 write)
+ *
+ * @param pSma
+ * @return int32_t
+ */
+static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma) { 
+  // TODO
   return TSDB_CODE_SUCCESS;
 }
