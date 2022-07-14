@@ -79,7 +79,11 @@ void shellInit(SShellArguments *_args) {
       fprintf(stderr, "failed to connect %s, reason: %s\n", args.dsn, ws_errstr(NULL));
       exit(EXIT_FAILURE);
     }
-    fprintf(stdout, "successfully connect to %s\n\n", args.dsn);
+    if (_args->restful) {
+      fprintf(stdout, "successfully connect to %s\n\n", args.host);
+    } else {
+      fprintf(stdout, "successfully connect to %s\n\n", args.cloudHost);
+    }
   } else {
 #endif
     // set options before initializing
@@ -307,8 +311,7 @@ void shellRunCommandOnWebsocket(char command[]) {
   st = taosGetTimestampUs();
 
   WS_RES* res = ws_query(args.ws_conn, command);
-
-  if (ws_errno(res)) {
+  if (ws_errno(res) != 0) {
     et = taosGetTimestampUs();
     fprintf(stderr, "\nDB error: %s (%.6fs)\n", ws_errstr(res), (et - st)/1E6);
     ws_free_result(res);
