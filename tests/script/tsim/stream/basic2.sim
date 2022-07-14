@@ -33,7 +33,7 @@ if $rows != 3 then
   return -1
 endi
 
-sql create stream s1 trigger at_once into outstb as select _wstartts, min(k), max(k), sum(k) as sum_alias from ct1 interval(10m)
+sql create stream s1 trigger at_once into outstb as select _wstart, min(k), max(k), sum(k) as sum_alias from ct1 interval(10m)
 
 sql show stables
 if $rows != 2 then 
@@ -48,7 +48,7 @@ sleep 100
 #===================================================================
 print =============== query data from child table
 
-sql select `_wstartts`,`min(k)`,`max(k)`,sum_alias from outstb
+sql select `_wstart`,`min(k)`,`max(k)`,sum_alias from outstb
 print rows: $rows 
 print $data00  $data01 $data02 $data03
 if $rows != 1 then
@@ -77,7 +77,7 @@ sleep 100
 #===================================================================
 print =============== query data from child table
 
-sql select `_wstartts`,`min(k)`,`max(k)`,sum_alias from outstb
+sql select `_wstart`,`min(k)`,`max(k)`,sum_alias from outstb
 print rows: $rows 
 print $data00  $data01 $data02 $data03
 print $data10  $data11 $data12 $data13

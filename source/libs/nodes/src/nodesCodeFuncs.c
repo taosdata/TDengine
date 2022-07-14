@@ -2712,6 +2712,7 @@ static const char* jkValueLiteral = "Literal";
 static const char* jkValueDuration = "Duration";
 static const char* jkValueTranslate = "Translate";
 static const char* jkValueNotReserved = "NotReserved";
+static const char* jkValueIsNull = "IsNull";
 static const char* jkValueDatum = "Datum";
 
 static int32_t datumToJson(const void* pObj, SJson* pJson) {
@@ -2797,6 +2798,9 @@ static int32_t valueNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkValueNotReserved, pNode->notReserved);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkValueIsNull, pNode->isNull);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->translate) {
     code = datumToJson(pNode, pJson);
@@ -2944,6 +2948,9 @@ static int32_t jsonToValueNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkValueNotReserved, &pNode->notReserved);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkValueIsNull, &pNode->isNull);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->translate) {
     code = jsonToDatum(pJson, pNode);
