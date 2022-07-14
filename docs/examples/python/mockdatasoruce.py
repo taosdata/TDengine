@@ -14,7 +14,8 @@ class MockDataSource:
         self.table_name_prefix = tb_name_prefix + "_"
         self.table_count = table_count
         self.max_rows = 10000000
-        self.start_ms = round(time.time() * 1000) - self.max_rows * 100
+        self.current_ts = round(time.time() * 1000) - self.max_rows * 100
+        # [(tableId, tableName, values),]
         self.data = self._init_data()
 
     def _init_data(self):
@@ -31,15 +32,21 @@ class MockDataSource:
 
     def __next__(self):
         """
-        next row for each table.
-        [(tableId, row),(tableId, row)]
+        next 1000 rows for each table.
+        return: {tableId:[row,...]}
         """
-        self.row += 1
-        ts = self.start_ms + 100 * self.row
-
-        # just add timestamp to each row
-        # (tableId, "tableName,ts,current,voltage,phase,location,groupId")
-        return map(lambda t: (t[0], t[1] + str(ts) + "," + t[2]), self.data)
+        # generate 1000 timestamps
+        ts = []
+        for _ in range(1000):
+            self.current_ts += 100
+            ts.append(self.current_ts)
+        # add timestamp to each row
+        # [(tableId, ["tableName,ts,current,voltage,phase,location,groupId"])]
+        result = []
+        for table_id, table_name, values in self.data:
+            rows = [table_name + ',' + t + ',' + values for t in ts]
+            result.append((table_id, rows))
+        return result
 
 
 if __name__ == '__main__':

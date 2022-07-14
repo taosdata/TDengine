@@ -47,11 +47,11 @@ def run_read_task(task_id: int, task_queues: List[Queue]):
     data_source = MockDataSource(f"tb{task_id}", table_count_per_task)
     try:
         for batch in data_source:
-            for table_id, row in batch:
+            for table_id, rows in batch:
                 # hash data to different queue
                 i = table_id % len(task_queues)
                 # block putting forever when the queue is full
-                task_queues[i].put(row, block=True, timeout=-1)
+                task_queues[i].put_many(rows, block=True, timeout=-1)
     except KeyboardInterrupt:
         pass
 
