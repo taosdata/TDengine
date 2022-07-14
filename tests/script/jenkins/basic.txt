@@ -123,6 +123,7 @@
 # ./test.sh -f tsim/stream/schedSnode.sim
 ./test.sh -f tsim/stream/windowClose.sim
 ./test.sh -f tsim/stream/ignoreExpiredData.sim
+./test.sh -f tsim/stream/sliding.sim
 
 # ---- transaction
  ./test.sh -f tsim/trans/lossdata1.sim

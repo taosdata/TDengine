@@ -1125,6 +1125,11 @@ static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME) {
   skmDbKey.uid = pME->uid;
   skmDbKey.sver = pSW->version;
 
+  // if receive tmq meta message is: create stable1 then delete stable1 then create stable1 with multi vgroups
+  if (tdbTbGet(pMeta->pSkmDb, &skmDbKey, sizeof(skmDbKey), NULL, NULL) == 0) {
+    return rcode;
+  }
+
   // encode schema
   int32_t ret = 0;
   tEncodeSize(tEncodeSSchemaWrapper, pSW, vLen, ret);

@@ -75,7 +75,7 @@ TEST_F(ParserSelectTest, condition) {
 TEST_F(ParserSelectTest, pseudoColumn) {
   useDb("root", "test");
 
-  run("SELECT _WSTARTTS, _WENDTS, COUNT(*) FROM t1 INTERVAL(10s)");
+  run("SELECT _WSTART, _WEND, COUNT(*) FROM t1 INTERVAL(10s)");
 }
 
 TEST_F(ParserSelectTest, pseudoColumnSemanticCheck) {
@@ -286,7 +286,7 @@ TEST_F(ParserSelectTest, intervalSemanticCheck) {
   run("SELECT HISTOGRAM(c1, 'log_bin', '{\"start\": -33,\"factor\": 55,\"count\": 5,\"infinity\": false}', 1) FROM t1 "
       "WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' INTERVAL(10s) FILL(NULL)",
       TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC);
-  run("SELECT _WSTARTTS, _WENDTS, _WDURATION, sum(c1) FROM t1", TSDB_CODE_PAR_INVALID_WINDOW_PC);
+  run("SELECT _WSTART, _WEND, _WDURATION, sum(c1) FROM t1", TSDB_CODE_PAR_INVALID_WINDOW_PC);
 }
 
 TEST_F(ParserSelectTest, interp) {
@@ -310,11 +310,11 @@ TEST_F(ParserSelectTest, subquery) {
 
   run("SELECT SUM(a) FROM (SELECT MAX(c1) a, ts FROM st1s1 INTERVAL(1m)) INTERVAL(1n)");
 
-  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstartts FROM st1s1 INTERVAL(1m)) INTERVAL(1n)");
+  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstart FROM st1s1 INTERVAL(1m)) INTERVAL(1n)");
 
   run("SELECT SUM(a) FROM (SELECT MAX(c1) a, ts FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
 
-  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstartts FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
+  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstart FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
 
   run("SELECT _C0 FROM (SELECT _ROWTS, ts FROM st1s1)");
 

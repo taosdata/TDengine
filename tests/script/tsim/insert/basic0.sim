@@ -32,7 +32,6 @@ if $rows != 3 then
   return -1
 endi
 
-
 print =============== insert data, mode1: one row one table in sql
 print =============== insert data, mode1: mulit rows one table in sql
 #print =============== insert data, mode1: one rows mulit table in sql
@@ -41,9 +40,6 @@ sql insert into ct1 values(now+0s, 10, 2.0, 3.0)
 sql insert into ct1 values(now+1s, 11, 2.1, 3.1)(now+2s, -12, -2.2, -3.2)(now+3s, -13, -2.3, -3.3)
 sql insert into ct2 values(now+0s, 10, 2.0, 3.0)
 sql insert into ct2 values(now+1s, 11, 2.1, 3.1)(now+2s, -12, -2.2, -3.2)(now+3s, -13, -2.3, -3.3)
-#sql insert into ct1 values(now+4s, -14, -2.4, -3.4) ct2 values(now+4s, -14, -2.4, -3.4)
-#sql insert into ct1 values(now+5s, -15, -2.5, -3.5)(now+6s, -16, -2.6, -3.6) ct2 values(now+5s, -15, -2.5, -3.5)(now+6s, -16, -2.6, -3.6)
-
 sql insert into ct3 values('2021-01-01 00:00:00.000', 10, 2.0, 3.0)
 
 #===================================================================
@@ -67,16 +63,6 @@ endi
 if $data03 != 3.000000000 then 
   return -1
 endi
-#if $data41 != -14 then 
-#  return -1
-#endi
-#if $data42 != -2.40000 then 
-#  return -1
-#endi
-#if $data43 != -3.400000000 then 
-#  return -1
-#endi
-
 
 print =============== select count(*) from child table
 sql select count(*) from ct1
@@ -107,10 +93,10 @@ if $data03 != 4 then
 endi
 
 #print =============== select first(*)/first(column) from child table
-#sql select first(*) from ct1
-#print ====> select first(*) from ct1
-#print rows: $rows 
-#print $data00  $data01 $data02 $data03
+sql select first(*) from ct1
+print ====> select first(*) from ct1
+print rows: $rows 
+print $data00  $data01 $data02 $data03
 
 sql select first(ts), first(c1), first(c2), first(c3) from ct1
 print ====> select first(ts), first(c1), first(c2), first(c3) from ct1
@@ -217,23 +203,23 @@ if $data32 != -3.300000000 then
   return -1
 endi
 #===================================================================
-#===================================================================
 
 #print =============== query data from stb
-#sql select * from stb
-#if $rows != 4 then 
-#  return -1
-#endi
+sql select * from stb
+print $rows
+if $rows != 9 then 
+  return -1
+endi
 
 #print =============== select count(*) from supter table
-#sql select count(*) from stb
-#print $data00 $data01 $data02
-#if $rows != 1 then 
-#  return -1
-#endi
-#if $data00 != 9 then 
-#  return -1
-#endi
+sql select count(*) from stb
+print $data00 $data01 $data02
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != 9 then 
+  return -1
+endi
 
 print =============== select count(column) from supter table
 sql select ts, c1, c2, c3 from stb
@@ -264,27 +250,23 @@ if $data03 != 3.000000000 then
 endi
 
 #print =============== select count(column) from supter table
-#sql select count(ts), count(c1), count(c2), count(c3) from stb
-#print rows: $rows
-#print $data00 $data01 $data02  $data03
-#print $data10 $data11 $data12  $data13
-#print $data20 $data21 $data22  $data23
-#print $data30 $data31 $data32  $data33
-#if $data00 != 9 then 
-#  return -1
-#endi
-#if $data01 != 8 then 
-#  return -1
-#endi
-#if $data02 != 8 then 
-#  return -1
-#endi
-#if $data03 != 8 then 
-#  return -1
-#endi
+sql select count(ts), count(c1), count(c2), count(c3) from stb
+print rows: $rows
+print $data00 $data01 $data02  $data03
+if $data00 != 9 then 
+  return -1
+endi
+if $data01 != 9 then 
+  return -1
+endi
+if $data02 != 9 then 
+  return -1
+endi
+if $data03 != 9 then 
+  return -1
+endi
 
 #===================================================================
-
 print =============== stop and restart taosd, then again do query above
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
@@ -308,16 +290,6 @@ endi
 if $data03 != 3.000000000 then 
   return -1
 endi
-#if $data41 != -14 then 
-#  return -1
-#endi
-#if $data42 != -2.40000 then 
-#  return -1
-#endi
-#if $data43 != -3.400000000 then 
-#  return -1
-#endi
-
 
 print =============== select count(*) from child table
 sql select count(*) from ct1
@@ -348,10 +320,10 @@ if $data03 != 4 then
 endi
 
 #print =============== select first(*)/first(column) from child table
-#sql select first(*) from ct1
-#print ====> select first(*) from ct1
-#print rows: $rows 
-#print $data00  $data01 $data02 $data03
+sql select first(*) from ct1
+print ====> select first(*) from ct1
+print rows: $rows 
+print $data00  $data01 $data02 $data03
 
 sql select first(ts), first(c1), first(c2), first(c3) from ct1
 print ====> select first(ts), first(c1), first(c2), first(c3) from ct1
@@ -456,24 +428,23 @@ endi
 if $data32 != -3.300000000 then 
   return -1
 endi
-#===================================================================
-#===================================================================
 
-#print =============== query data from stb
-#sql select * from stb
-#if $rows != 4 then 
-#  return -1
-#endi      
+#===================================================================
+print =============== query data from stb
+sql select * from stb
+if $rows != 9 then 
+  return -1
+endi      
 
-#print =============== select count(*) from supter table
-#sql select count(*) from stb
-#print $data00 $data01 $data02
-#if $rows != 1 then 
-#  return -1
-#endi
-#if $data00 != 9 then 
-#  return -1
-#endi
+print =============== select count(*) from supter table
+sql select count(*) from stb
+print $data00 $data01 $data02
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != 9 then 
+  return -1
+endi
 
 print =============== select count(column) from supter table
 sql select ts, c1, c2, c3 from stb
@@ -503,20 +474,19 @@ if $data03 != 3.000000000 then
 endi
 
 #print =============== select count(column) from supter table
-#sql select count(ts), count(c1), count(c2), count(c3) from stb
-#print $data00 $data01 $data02  $data03
-#if $data00 != 8 then 
-#  return -1
-#endi
-#if $data01 != 8 then 
-#  return -1
-#endi
-#if $data02 != 8 then 
-#  return -1
-#endi
-#if $data03 != 8 then 
-#  return -1
-#endi
-
+sql select count(ts), count(c1), count(c2), count(c3) from stb
+print $data00 $data01 $data02  $data03
+if $data00 != 9 then 
+  return -1
+endi
+if $data01 != 9 then 
+  return -1
+endi
+if $data02 != 9 then 
+  return -1
+endi
+if $data03 != 9 then 
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

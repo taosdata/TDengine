@@ -598,7 +598,7 @@ SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues) {
     nodesDestroyNode((SNode*)fill);
     CHECK_OUT_OF_MEM(fill->pWStartTs);
   }
-  strcpy(((SFunctionNode*)fill->pWStartTs)->functionName, "_wstartts");
+  strcpy(((SFunctionNode*)fill->pWStartTs)->functionName, "_wstart");
   return (SNode*)fill;
 }
 
@@ -740,6 +740,7 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
   select->pFromTable = pTable;
   sprintf(select->stmtName, "%p", select);
   select->isTimeLineResult = true;
+  select->timeRange = TSWINDOW_INITIALIZER;
   return (SNode*)select;
 }
 

@@ -79,8 +79,14 @@ ENDIF ()
 
 option(
     BUILD_SANITIZER
-    "If build addr2line"
+    "If build sanitizer"
     OFF
+    )
+
+option(
+    TDENGINE_3
+    "TDengine 3.x"
+    ON
     )
 
 option(
