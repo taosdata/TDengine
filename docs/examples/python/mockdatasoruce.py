@@ -35,6 +35,7 @@ class MockDataSource:
         next 1000 rows for each table.
         return: {tableId:[row,...]}
         """
+<<<<<<< HEAD
         # generate 1000 timestamps
         ts = []
         for _ in range(1000):
@@ -47,6 +48,14 @@ class MockDataSource:
             rows = [table_name + ',' + t + ',' + values for t in ts]
             result.append((table_id, rows))
         return result
+=======
+        self.row += 1
+        ts = self.start_ms + 100 * self.row
+
+        # just add timestamp to each row
+        # (tableId, "tableName,ts,current,voltage,phase,location,groupId")
+        return map(lambda t: (t[0], t[1] + ',' + str(ts) + "," + t[2]), self.data)
+>>>>>>> 8687dee8fddc27d6d10f009b0d2a12140e47de95
 
 
 if __name__ == '__main__':
