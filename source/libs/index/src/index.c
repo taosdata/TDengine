@@ -128,7 +128,7 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   tsem_init(&idx->sem, 0, 0);
 
   idx->refId = idxAddRef(idx);
-  idx->opts = opts;
+  idx->opts = *opts;
   idxAcquireRef(idx->refId);
 
   *index = idx;
@@ -155,8 +155,6 @@ void indexDestroy(void* handle) {
     taosLRUCacheCleanup(lru);
   }
   idx->lru = NULL;
-
-  indexOptsDestroy(idx->opts);
   taosMemoryFree(idx);
   return;
 }

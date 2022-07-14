@@ -28,7 +28,6 @@ extern "C" {
 
 typedef struct SIndex               SIndex;
 typedef struct SIndexTerm           SIndexTerm;
-typedef struct SIndexOpts           SIndexOpts;
 typedef struct SIndexMultiTermQuery SIndexMultiTermQuery;
 typedef struct SArray               SIndexMultiTerm;
 
@@ -62,6 +61,9 @@ typedef enum {
   QUERY_MAX
 } EIndexQueryType;
 
+typedef struct SIndexOpts {
+  int32_t cacheSize;  // MB
+} SIndexOpts;
 /*
  * create multi query
  * @param oper (input, relation between querys)

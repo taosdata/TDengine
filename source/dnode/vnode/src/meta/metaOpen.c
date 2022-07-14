@@ -103,8 +103,8 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   sprintf(indexFullPath, "%s/%s", pMeta->path, "invert");
   taosMkDir(indexFullPath);
 
-  SIndexOpts *opts = indexOptsCreate(8 * 1024 * 1024);
-  ret = indexOpen(opts, indexFullPath, (SIndex **)&pMeta->pTagIvtIdx);
+  SIndexOpts opts = {.cacheSize = 8 * 1024 * 1024};
+  ret = indexOpen(&opts, indexFullPath, (SIndex **)&pMeta->pTagIvtIdx);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta tag index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
