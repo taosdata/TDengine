@@ -389,6 +389,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
       continue;
     }
     STagVal val = {0};
+//    strcpy(val.colName, colName);
     val.pKey = jsonKey;
     taosHashPut(keyHash, jsonKey, keyLen, &keyLen,
                 CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless
