@@ -513,7 +513,11 @@ static int32_t createLastRowScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSu
     nodesDestroyNode((SNode*)pScan);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
   pScan->groupSort = pScanLogicNode->groupSort;
+  vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+
+  vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
 }

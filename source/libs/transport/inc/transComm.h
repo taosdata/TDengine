@@ -298,6 +298,8 @@ void transSendResponse(const STransMsg* msg);
 void transRegisterMsg(const STransMsg* msg);
 void transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
 
+int64_t transAllocHandle();
+
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
 void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
 

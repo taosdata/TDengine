@@ -688,8 +688,10 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
     tscDebug("0x%" PRIx64 " analysis semantics completed, start async query, reqId:0x%" PRIx64, pRequest->self,
              pRequest->requestId);
     launchAsyncQuery(pRequest, pQuery, pResultMeta);
+    qDestroyQuery(pQuery);
   } else {
     destorySqlParseWrapper(pWrapper);
+    qDestroyQuery(pQuery);
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
@@ -867,7 +869,7 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
     } else {
       pResultInfo->numOfRows = 0;
     }
-    
+
     pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
     return;
   }
