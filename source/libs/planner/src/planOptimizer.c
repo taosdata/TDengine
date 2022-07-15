@@ -2011,11 +2011,13 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   SNode* pNode = NULL;
   FOREACH(pNode, pAgg->pAggFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
-    int32_t        len = snprintf(pFunc->functionName, sizeof(pFunc->functionName), "_cache_last_row");
-    pFunc->functionName[len] = '\0';
-    int32_t code = fmGetFuncInfo(pFunc, NULL, 0);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
+    if (FUNCTION_TYPE_LAST_ROW == pFunc->funcType) {
+      int32_t len = snprintf(pFunc->functionName, sizeof(pFunc->functionName), "_cache_last_row");
+      pFunc->functionName[len] = '\0';
+      int32_t code = fmGetFuncInfo(pFunc, NULL, 0);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
     }
   }
   pAgg->hasLastRow = false;

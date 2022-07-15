@@ -334,11 +334,12 @@ class MockCatalogServiceImpl {
     dnode_.insert(std::make_pair(dnodeId, epSet));
   }
 
-  void createDatabase(const std::string& db, bool rollup) {
+  void createDatabase(const std::string& db, bool rollup, int8_t cacheLast) {
     SDbCfgInfo cfg = {0};
     if (rollup) {
       cfg.pRetensions = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SRetention));
     }
+    cfg.cacheLast = cacheLast;
     dbCfg_.insert(std::make_pair(db, cfg));
   }
 
@@ -627,7 +628,9 @@ void MockCatalogService::createDnode(int32_t dnodeId, const std::string& host, i
   impl_->createDnode(dnodeId, host, port);
 }
 
-void MockCatalogService::createDatabase(const std::string& db, bool rollup) { impl_->createDatabase(db, rollup); }
+void MockCatalogService::createDatabase(const std::string& db, bool rollup, int8_t cacheLast) {
+  impl_->createDatabase(db, rollup, cacheLast);
+}
 
 int32_t MockCatalogService::catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta) const {
   return impl_->catalogGetTableMeta(pTableName, pTableMeta);
