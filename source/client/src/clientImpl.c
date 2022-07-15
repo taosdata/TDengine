@@ -1478,7 +1478,7 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     tsem_wait(&pParam->sem);
   }
 
-  if (pResultInfo->numOfRows == 0  || pRequest->code != TSDB_CODE_SUCCESS) {
+  if (pResultInfo->numOfRows == 0 || pRequest->code != TSDB_CODE_SUCCESS) {
     return NULL;
   } else {
     if (setupOneRowPtr) {

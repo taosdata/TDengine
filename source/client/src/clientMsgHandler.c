@@ -52,6 +52,18 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   SConnectRsp connectRsp = {0};
   tDeserializeSConnectRsp(pMsg->pData, pMsg->len, &connectRsp);
+
+  int32_t now = taosGetTimestampSec();
+  int32_t delta = abs(now - connectRsp.svrTimestamp);
+  if (delta > timestampDeltaLimit) {
+    code = TSDB_CODE_TIME_UNSYNCED;
+    tscError("time diff: %" PRId64 "ms is too big", delta);
+    taosMemoryFree(pMsg->pData);
+    setErrno(pRequest, code);
+    tsem_post(&pRequest->body.rspSem);
+    return code;
+  }
+
   /*assert(connectRsp.epSet.numOfEps > 0);*/
   if (connectRsp.epSet.numOfEps == 0) {
     taosMemoryFree(pMsg->pData);
