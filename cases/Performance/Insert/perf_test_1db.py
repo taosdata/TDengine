@@ -62,6 +62,7 @@ class TestPerf(TDCase):
     def parse_case_param(self):
         try:
             if self.case_param is None:
+                self.set_error_msg("no case parameter specified")
                 return False
             self.logger.debug("case parameters: [{}]".format(self.case_param))
             param_array = self.case_param.split(" ")
@@ -82,16 +83,19 @@ class TestPerf(TDCase):
                     self.concurrency = int(val)
                 else:
                     self.logger.error("invalid case parameter: {}".format(key))
+                    self.set_error_msg("invalid case parameter: {}".format(key))
                     return False
             # check parameters
             if self.insert_tmpl_file is None:
                 self.logger.error(f"case parameter {self.insert_tmpl_file_param} not specified")
+                self.set_error_msg(f"case parameter {self.insert_tmpl_file_param} not specified")
                 return False
             # get full path
             self.insert_tmpl_file = os.path.join(os.environ["TEST_ROOT"], self.insert_tmpl_file)
             # check file existance
             if not os.path.isfile(self.insert_tmpl_file):
                 self.logger.error("{} not exist".format(self.insert_tmpl_file))
+                self.set_error_msg("{} not exist".format(self.insert_tmpl_file))
                 return False
             if not self.insert_cfg_file is None:
                 # get full path
@@ -99,9 +103,11 @@ class TestPerf(TDCase):
                 # check file existance
                 if not os.path.isfile(self.insert_cfg_file):
                     self.logger.error("{} not exist".format(self.insert_cfg_file))
+                    self.set_error_msg("{} not exist".format(self.insert_cfg_file))
                     return False
         except getopt.GetoptError:
             self.logger.error("parameter parse error [{}]".format(self.case_param))
+            self.set_error_msg("parameter parse error [{}]".format(self.case_param))
             return False
         return True
 
@@ -144,16 +150,23 @@ class TestPerf(TDCase):
         for key, value in config.items():
             os.system("sed -i \"s/\<{}\>/{}/g\" {}".format(key, value, filename))
 
-    def run_benchmark(self, node, config_file):
-        self.logger.debug(f"thread: {node}, {config_file}")
-        cmd = ["ulimit -n 1048576", "sleep 5", "taosBenchmark -f " + config_file]
-        result = self.envMgr._remote.cmd2(node, cmd)
-        if result.failed:
-            # self.logger.error(str(result))
-            self.logger.error("cmd [{}] failed on [{}]".format(cmd, node))
+    def run_benchmark(self, node, cmd):
+        self.logger.debug(f"thread: {node}, {cmd}")
+        result = {}
+        try:
+            result = self.envMgr._remote.cmd2(node, cmd)
+            if result.failed:
+                # self.logger.error(str(result))
+                self.logger.error("cmd [{}] failed on [{}]".format(cmd, node))
+                self.logger.error("cmd [{}] exit code: [{}]".format(cmd, result.exited))
+                self.set_error_msg("cmd [{}] failed on [{}]".format(cmd, node))
+                self.ret = False
+            else:
+                self.logger.info("cmd [{}] succeed on [{}]".format(cmd, node))
+        except Exception as e:
+            self.logger.error("cmd [{}] exception on [{}]".format(cmd, node))
+            self.set_error_msg("cmd [{}] exception on [{}]".format(cmd, node))
             self.ret = False
-        else:
-            self.logger.info("cmd [{}] succeed on [{}]".format(cmd, node))
 
     def run(self) -> bool:
         ret = self.parse_case_param()
@@ -194,10 +207,12 @@ class TestPerf(TDCase):
         ret = os.system(f"taos -h {host} -P {port} -s \"drop database if exists {TestPerf.default_dbname};\"")
         if ret != 0:
             self.logger.error("drop database failed")
+            self.set_error_msg("drop database failed")
             return False
         ret = os.system(f"taos -h {host} -P {port} -s \"create database if not exists {TestPerf.default_dbname} vgroups {vgroups};\"")
         if ret != 0:
             self.logger.error("create database failed")
+            self.set_error_msg("create database failed")
             return False
 
         # create tmp dir
@@ -228,14 +243,28 @@ class TestPerf(TDCase):
             self.result_files.append(insert_config_dict[TestPerf.resultfile_field_name])
             self.json_config_files.append(insert_json_file)
 
+        thread_interval = 0.25
+        stime = float(self.concurrency) * thread_interval
+        thread_sleep_time = []
         # run benchmark insert data
         for i in range (self.concurrency):
-            t = threading.Thread(target=self.run_benchmark, args=(insert_config_dict[TestPerf.host_field_name], os.path.join("/tmp", os.path.basename(self.json_config_files[i]))))
+            self.logger.debug(f"command delay {stime}")
+            config_file = os.path.join("/tmp", os.path.basename(self.json_config_files[i]))
+            cmd = ["ulimit -n 1048576", f"sleep {stime}", f"taosBenchmark -f {config_file}"]
+            t = threading.Thread(target=self.run_benchmark, args=(insert_config_dict[TestPerf.host_field_name], cmd))
             self.threads.append(t)
+            stime = stime - thread_interval
+        stime = thread_interval
         for t in self.threads:
+            self.logger.debug(f"thread delay {stime}")
+            time.sleep(stime)
             t.start()
+            stime = stime + thread_interval
         for t in self.threads:
             t.join()
+        if self.ret != True:
+            self.logger.error("run benchmark failed")
+            return self.ret
 
         if self.check_result_enabled:
             for insert_json_file in self.json_config_files:
@@ -272,6 +301,7 @@ class TestPerf(TDCase):
                 os.system(f"cat {local_result_file}")
             else:
                 self.logger.error(f"result file {local_result_file} not exist")
+                self.set_error_msg(f"result file {local_result_file} not exist")
                 self.ret = False
         if self.ret != True:
             return self.ret
@@ -296,6 +326,7 @@ class TestPerf(TDCase):
                         self.logger.debug(f"insert rows: {a}")
                         if a == "":
                             self.logger.error(f"insert rows: {a}")
+                            self.set_error_msg(f"error insert rows: {a}")
                             self.ret = False
                             break
                         a_int = int(a)
@@ -303,6 +334,7 @@ class TestPerf(TDCase):
                         b = self.get_number_before(line, "thread(s)")
                         if b == "":
                             self.logger.error(f"threads: {b}")
+                            self.set_error_msg(f"error threads: {b}")
                             self.ret = False
                             break
                         b_int = int(b)
@@ -312,6 +344,7 @@ class TestPerf(TDCase):
                         self.logger.debug(f"speed: {c}")
                         if c == "":
                             self.logger.error(f"speed: {c}")
+                            self.set_error_msg(f"error speed: {c}")
                             self.ret = False
                             break
                         c_float = float(c)
@@ -320,12 +353,14 @@ class TestPerf(TDCase):
                         self.logger.debug(f"Spent: {d}")
                         if d == "":
                             self.logger.error(f"Spent: {d}")
+                            self.set_error_msg(f"error Spent: {d}")
                             self.ret = False
                             break
                         d_float = float(d)
                         time_elapsed = max(time_elapsed, d_float)
                 if insert_rows_found == False:
-                    self.logger.error("key word insert row not found in {local_result_file}")
+                    self.logger.error(f"key word insert row not found in {local_result_file}")
+                    self.set_error_msg(f"error insert row not found in {local_result_file}")
                     self.ret = False
         if self.ret:
             taosd_count = len(taosd_fqdn)
