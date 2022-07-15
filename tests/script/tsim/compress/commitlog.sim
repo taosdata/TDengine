@@ -57,15 +57,7 @@ $tb = $tbPrefix . $i
 
 sql create database $db
 sql use $db
-
-$x = 0
-step3: 
-	$x = $x + 1
-	sleep 1000
-	if $x == 20 then 
-	  return -1
-	endi
-sql create table $tb (ts timestamp, b bool, t tinyint, s smallint, i int, big bigint, f float, d double, str binary(256)) -x step3
+sql create table $tb (ts timestamp, b bool, t tinyint, s smallint, i int, big bigint, f float, d double, str binary(256))
 
 $count = 0
 while $count < $N

@@ -37,8 +37,6 @@ while $i < $tbNum
   $i = $i + 1
 endw 
 
-sleep 100
-
 print =============== step2
 $i = 1
 $tb = $tbPrefix . $i

@@ -30,49 +30,59 @@ static SSDataBlock* doScanLastrow(SOperatorInfo* pOperator);
 static void destroyLastrowScanOperator(void* param, int32_t numOfOutput);
 static int32_t extractTargetSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds);
 
-SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandle* readHandle, SArray* pTableList,
-                                         SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandle* readHandle, SExecTaskInfo* pTaskInfo) {
   SLastrowScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SLastrowScanInfo));
   SOperatorInfo*    pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
 
-  pInfo->pTableList = pTableList;
   pInfo->readHandle = *readHandle;
-  pInfo->pRes = createResDataBlock(pScanNode->node.pOutputDataBlockDesc);
+  pInfo->pRes = createResDataBlock(pScanNode->scan.node.pOutputDataBlockDesc);
 
   int32_t numOfCols = 0;
-  pInfo->pColMatchInfo = extractColMatchInfo(pScanNode->pScanCols, pScanNode->node.pOutputDataBlockDesc, &numOfCols,
+  pInfo->pColMatchInfo = extractColMatchInfo(pScanNode->scan.pScanCols, pScanNode->scan.node.pOutputDataBlockDesc, &numOfCols,
                                              COL_MATCH_FROM_COL_ID);
   int32_t code = extractTargetSlotId(pInfo->pColMatchInfo, pTaskInfo, &pInfo->pSlotIds);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 
-  tsdbLastRowReaderOpen(readHandle->vnode, LASTROW_RETRIEVE_TYPE_SINGLE, pTableList, taosArrayGetSize(pInfo->pColMatchInfo),
-                        &pInfo->pLastrowReader);
-
-  if (pScanNode->pScanPseudoCols != NULL) {
-    SExprSupp* pPseudoExpr = &pInfo->pseudoExprSup;
-
-    pPseudoExpr->pExprInfo = createExprInfo(pScanNode->pScanPseudoCols, NULL, &pPseudoExpr->numOfExprs);
-    pPseudoExpr->pCtx = createSqlFunctionCtx(pPseudoExpr->pExprInfo, pPseudoExpr->numOfExprs, &pPseudoExpr->rowEntryInfoOffset);
-  }
-
-  pOperator->name = "LastrowScanOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
-  pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
+  STableListInfo* pTableList = &pTaskInfo->tableqinfoList;
 
   initResultSizeInfo(pOperator, 1024);
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
+  pInfo->pUidList = taosArrayInit(4, sizeof(int64_t));
+
+  // partition by tbname
+  if (taosArrayGetSize(pTableList->pGroupList) == taosArrayGetSize(pTableList->pTableList)) {
+    pInfo->retrieveType = LASTROW_RETRIEVE_TYPE_ALL;
+    tsdbLastRowReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pTableList->pTableList,
+                          taosArrayGetSize(pInfo->pColMatchInfo), &pInfo->pLastrowReader);
+    pInfo->pBufferredRes = createOneDataBlock(pInfo->pRes, false);
+    blockDataEnsureCapacity(pInfo->pBufferredRes, pOperator->resultInfo.capacity);
+  } else { // by tags
+    pInfo->retrieveType = LASTROW_RETRIEVE_TYPE_SINGLE;
+  }
+
+  if (pScanNode->scan.pScanPseudoCols != NULL) {
+    SExprSupp* pPseudoExpr = &pInfo->pseudoExprSup;
+
+    pPseudoExpr->pExprInfo = createExprInfo(pScanNode->scan.pScanPseudoCols, NULL, &pPseudoExpr->numOfExprs);
+    pPseudoExpr->pCtx = createSqlFunctionCtx(pPseudoExpr->pExprInfo, pPseudoExpr->numOfExprs, &pPseudoExpr->rowEntryInfoOffset);
+  }
+
+  pOperator->name         = "LastrowScanOperator";
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN;
+  pOperator->blocking     = false;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->info         = pInfo;
+  pOperator->pTaskInfo    = pTaskInfo;
+  pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
 
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, doScanLastrow, NULL, NULL, destroyLastrowScanOperator, NULL, NULL, NULL);
+
   pOperator->cost.openCost = 0;
   return pOperator;
 
@@ -90,43 +100,105 @@ SSDataBlock* doScanLastrow(SOperatorInfo* pOperator) {
 
   SLastrowScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*    pTaskInfo = pOperator->pTaskInfo;
-
-  int32_t size = taosArrayGetSize(pInfo->pTableList);
+  STableListInfo*   pTableList = &pTaskInfo->tableqinfoList;
+  int32_t           size = taosArrayGetSize(pTableList->pTableList);
   if (size == 0) {
-    setTaskStatus(pTaskInfo, TASK_COMPLETED);
+    doSetOperatorCompleted(pOperator);
     return NULL;
   }
 
+  blockDataCleanup(pInfo->pRes);
+
   // check if it is a group by tbname
-  if (size == taosArrayGetSize(pInfo->pTableList)) {
-    blockDataCleanup(pInfo->pRes);
-    SArray* pUidList = taosArrayInit(1, sizeof(tb_uid_t));
-    int32_t code = tsdbRetrieveLastRow(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pUidList);
-    if (code != TSDB_CODE_SUCCESS)  {
-      longjmp(pTaskInfo->env, code);
+  if (pInfo->retrieveType == LASTROW_RETRIEVE_TYPE_ALL) {
+    if (pInfo->indexOfBufferedRes >= pInfo->pBufferredRes->info.rows) {
+      blockDataCleanup(pInfo->pBufferredRes);
+      taosArrayClear(pInfo->pUidList);
+
+      int32_t code = tsdbRetrieveLastRow(pInfo->pLastrowReader, pInfo->pBufferredRes, pInfo->pSlotIds, pInfo->pUidList);
+      if (code != TSDB_CODE_SUCCESS) {
+        longjmp(pTaskInfo->env, code);
+      }
+
+      // check for tag values
+      int32_t resultRows = pInfo->pBufferredRes->info.rows;
+      ASSERT(resultRows == taosArrayGetSize(pInfo->pUidList));
+      pInfo->indexOfBufferedRes = 0;
     }
 
-    // check for tag values
-    if (pInfo->pRes->info.rows > 0 && pInfo->pseudoExprSup.numOfExprs > 0) {
-      SExprSupp* pSup = &pInfo->pseudoExprSup;
-      pInfo->pRes->info.uid = *(tb_uid_t*) taosArrayGet(pUidList, 0);
-      addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes, GET_TASKID(pTaskInfo));
+    if (pInfo->indexOfBufferedRes < pInfo->pBufferredRes->info.rows) {
+      for(int32_t i = 0; i < taosArrayGetSize(pInfo->pColMatchInfo); ++i) {
+        SColMatchInfo* pMatchInfo = taosArrayGet(pInfo->pColMatchInfo, i);
+        int32_t slotId = pMatchInfo->targetSlotId;
+
+        SColumnInfoData* pSrc = taosArrayGet(pInfo->pBufferredRes->pDataBlock, slotId);
+        SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, slotId);
+
+        char* p = colDataGetData(pSrc, pInfo->indexOfBufferedRes);
+        bool isNull = colDataIsNull_s(pSrc, pInfo->indexOfBufferedRes);
+        colDataAppend(pDst, 0, p, isNull);
+      }
+
+      if (pInfo->pseudoExprSup.numOfExprs > 0) {
+        SExprSupp* pSup = &pInfo->pseudoExprSup;
+        addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes,
+                               GET_TASKID(pTaskInfo));
+      }
+
+      pInfo->pRes->info.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, pInfo->indexOfBufferedRes);
+      int64_t* groupId = taosHashGet(pTableList->map, &pInfo->pRes->info.uid, sizeof(int64_t));
+      pInfo->pRes->info.groupId = *groupId;
+
+      pInfo->indexOfBufferedRes += 1;
+      pInfo->pRes->info.rows = 1;
+      return pInfo->pRes;
+    } else {
+      doSetOperatorCompleted(pOperator);
+      return NULL;
+    }
+  } else {
+    size_t totalGroups = taosArrayGetSize(pTableList->pGroupList);
+
+    while (pInfo->currentGroupIndex < totalGroups) {
+      SArray* pGroupTableList = taosArrayGetP(pTableList->pGroupList, pInfo->currentGroupIndex);
+
+      tsdbLastRowReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pGroupTableList,
+                            taosArrayGetSize(pInfo->pColMatchInfo), &pInfo->pLastrowReader);
+      taosArrayClear(pInfo->pUidList);
+
+      int32_t code = tsdbRetrieveLastRow(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pUidList);
+      if (code != TSDB_CODE_SUCCESS) {
+        longjmp(pTaskInfo->env, code);
+      }
+
+      pInfo->currentGroupIndex += 1;
+
+      // check for tag values
+      if (pInfo->pRes->info.rows > 0) {
+        if (pInfo->pseudoExprSup.numOfExprs > 0) {
+          SExprSupp* pSup = &pInfo->pseudoExprSup;
+          pInfo->pRes->info.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, 0);
+
+          STableKeyInfo* pKeyInfo = taosArrayGet(pGroupTableList, 0);
+          pInfo->pRes->info.groupId = pKeyInfo->groupId;
+
+          addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes,
+                                 GET_TASKID(pTaskInfo));
+        }
+
+        tsdbLastrowReaderClose(pInfo->pLastrowReader);
+        return pInfo->pRes;
+      }
     }
 
     doSetOperatorCompleted(pOperator);
-    return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
-  } else {
-    // todo fetch the result for each group
+    return NULL;
   }
-
-  return pInfo->pRes->info.rows == 0 ? NULL : pInfo->pRes;
 }
 
 void destroyLastrowScanOperator(void* param, int32_t numOfOutput) {
   SLastrowScanInfo* pInfo = (SLastrowScanInfo*)param;
   blockDataDestroy(pInfo->pRes);
-  tsdbLastrowReaderClose(pInfo->pLastrowReader);
-
   taosMemoryFreeClear(param);
 }
 

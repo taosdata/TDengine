@@ -444,14 +444,12 @@ int32_t schHandleHbCallback(void *param, SDataBuf *pMsg, int32_t code) {
   trans.pHandle = pMsg->handle;
 
   SCH_ERR_JRET(schUpdateHbConnection(&rsp.epId, &trans));
-
   SCH_ERR_JRET(schProcessOnTaskStatusRsp(&rsp.epId, rsp.taskStatus));
 
 _return:
-
   tFreeSSchedulerHbRsp(&rsp);
   taosMemoryFree(param);
-
+  taosMemoryFree(pMsg->pData);
   SCH_RET(code);
 }
 

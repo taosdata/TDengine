@@ -1,5 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c debugflag -v 131
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
@@ -39,91 +40,90 @@ while $i < $tbNum
   $i = $i + 1
 endw 
 
-sleep 100
-
 print =============== step2
 $i = 1
 $tb = $tbPrefix . $i
 
 sql select diff(c1) from $tb
-print ===> $data11
-if $data11 != 1 then 
+print ===> $data10
+if $data10 != 1 then 
   return -1
 endi
 sql select diff(c2) from $tb
-print ===> $data11
-if $data11 != 1.00000 then
+print ===> $data10
+if $data10 != 1.000000000 then
   return -1
 endi
 sql select diff(c3) from $tb
-print ===> $data11
-if $data11 != 1 then 
+print ===> $data10
+if $data10 != 1 then 
   return -1
 endi
 sql select diff(c4) from $tb
-print ===> $data11
-if $data11 != 1 then 
+print ===> $data10
+if $data10 != 1 then 
   return -1
 endi
 sql select diff(c5) from $tb
-print ===> $data11
-if $data11 != 0 then 
+print ===> $data10
+if $data10 != 0 then 
   return -1
 endi
 sql select diff(c6) from $tb
-print ===> $data11
-if $data11 != 1.000000000 then 
+print ===> $data10
+if $data10 != 1.000000000 then 
   return -1
 endi
-sql_error select diff(c7) from $tb
+
+sql select diff(c7) from $tb
 sql_error select diff(c8) from $tb
 sql_error select diff(c9) from $tb
 sql_error select diff(ts) from $tb
 sql_error select diff(c1), diff(c2) from $tb
-#sql_error select 2+diff(c1) from $tb
-sql_error select diff(c1+2) from $tb
+
+sql select 2+diff(c1) from $tb
+sql select diff(c1+2) from $tb
 sql_error select diff(c1) from $tb where ts > 0 and ts < now + 100m interval(10m)
-sql_error select diff(c1) from $mt
+sql select diff(c1) from $mt
 sql_error select diff(diff(c1)) from $tb
 sql_error select diff(c1) from m_di_tb1 where c2 like '2%'
 
-
 print =============== step3
 sql select diff(c1) from $tb where c1 > 5
-print ===> $data11
-if $data11 != 1 then 
+print ===> $data10
+if $data10 != 1 then 
   return -1
 endi
 sql select diff(c2) from $tb where c2 > 5
-print ===> $data11
-if $data11 != 1.00000 then
+print ===> $data10
+if $data10 != 1.000000000 then
   return -1
 endi
 sql select diff(c3) from $tb where c3 > 5
-print ===> $data11
-if $data11 != 1 then 
+print ===> $data10
+if $data10 != 1 then 
   return -1
 endi
 sql select diff(c4) from $tb where c4 > 5
-print ===> $data11
-if $data11 != 1 then 
+print ===> $data10
+if $data10 != 1 then 
   return -1
 endi
 sql select diff(c5) from $tb where c5 > 5
-print ===> $data11
-if $data11 != 0 then 
+print ===> $data10
+if $data10 != 0 then 
   return -1
 endi
 sql select diff(c6) from $tb where c6 > 5
-print ===> $data11
-if $data11 != 1.000000000 then 
+print ===> $data10
+if $data10 != 1.000000000 then 
   return -1
 endi
 
 print =============== step4
 sql select diff(c1) from $tb where c1 > 5 and c2 < $rowNum
-print ===> $data11
-if $data11 != 1 then 
+print ===> $data10
+if $data10 != 1 then 
   return -1
 endi
 
@@ -131,8 +131,8 @@ sql select diff(c1) from $tb where c9 like '%9' and c1 <= 20
 if $rows != 1 then 
   return -1
 endi
-print ===> $data11
-if $data01 != 10 then 
+print ===> $data10
+if $data00 != 10 then 
   return -1
 endi
 

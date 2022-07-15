@@ -209,10 +209,10 @@ static void resetDataBlockScanInfo(SHashObj* pTableMap) {
     p->iterInit = false;
     p->iiter.hasVal = false;
     if (p->iter.iter != NULL) {
-      tsdbTbDataIterDestroy(p->iter.iter);
+      p->iter.iter = tsdbTbDataIterDestroy(p->iter.iter);
     }
 
-    taosArrayDestroy(p->delSkyline);
+    p->delSkyline = taosArrayDestroy(p->delSkyline);
   }
 }
 
@@ -224,18 +224,15 @@ static void destroyBlockScanInfo(SHashObj* pTableMap) {
     p->iiter.hasVal = false;
 
     if (p->iter.iter != NULL) {
-      tsdbTbDataIterDestroy(p->iter.iter);
-      p->iter.iter = NULL;
+      p->iter.iter = tsdbTbDataIterDestroy(p->iter.iter);
     }
 
     if (p->iiter.iter != NULL) {
-      tsdbTbDataIterDestroy(p->iiter.iter);
-      p->iiter.iter = NULL;
+      p->iiter.iter = tsdbTbDataIterDestroy(p->iiter.iter);
     }
 
-    taosArrayDestroy(p->delSkyline);
-    taosArrayDestroy(p->pBlockList);
-    p->delSkyline = NULL;
+    p->delSkyline = taosArrayDestroy(p->delSkyline);
+    p->pBlockList = taosArrayDestroy(p->pBlockList);
   }
 
   taosHashCleanup(pTableMap);
@@ -833,9 +830,8 @@ static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockI
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
 
-  uint8_t *pb = NULL, *pb1 = NULL;
   int32_t  code = tsdbReadColData(pReader->pFileReader, &pBlockScanInfo->blockIdx, pBlock, pSupInfo->colIds, numOfCols,
-                                  pBlockData, &pb, &pb1);
+                                  pBlockData, NULL, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -3010,11 +3006,14 @@ SArray* tsdbRetrieveDataBlock(STsdbReader* pReader, SArray* pIdList) {
 
   code = doLoadFileBlockData(pReader, &pStatus->blockIter, pBlockScanInfo, &pStatus->fileBlockData);
   if (code != TSDB_CODE_SUCCESS) {
+    tBlockDataClear(&pStatus->fileBlockData);
+
     terrno = code;
     return NULL;
   }
 
   copyBlockDataToSDataBlock(pReader, pBlockScanInfo);
+  tBlockDataClear(&pStatus->fileBlockData);
   return pReader->pResBlock->pDataBlock;
 }
 
@@ -3130,14 +3129,11 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
       }
 
       pTableBlockInfo->numOfBlocks += pBlockIter->numOfBlocks;
+      hasNext = (pBlockIter->numOfBlocks > 0);
     }
 
-    /*
-        hasNext = blockIteratorNext(&pStatus->blockIter);
-    */
-
-    //         tsdbDebug("%p %d blocks found in file for %d table(s), fid:%d, %s", pReader, numOfBlocks, numOfTables,
-    //                   pReader->pFileGroup->fid, pReader->idStr);
+//    tsdbDebug("%p %d blocks found in file for %d table(s), fid:%d, %s", pReader, numOfBlocks, numOfTables,
+//              pReader->pFileGroup->fid, pReader->idStr);
   }
 
   return code;

@@ -525,6 +525,7 @@ typedef struct {
   int8_t   superUser;
   int8_t   connType;
   SEpSet   epSet;
+  int32_t  svrTimestamp;
   char     sVer[TSDB_VERSION_LEN];
   char     sDetailVer[128];
 } SConnectRsp;
@@ -1939,6 +1940,8 @@ typedef struct SVCreateStbReq {
   SSchemaWrapper schemaRow;
   SSchemaWrapper schemaTag;
   SRSmaParam     rsmaParam;
+  int32_t        alterOriDataLen;
+  void*          alterOriData;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);
@@ -1966,7 +1969,9 @@ typedef struct SVCreateTbReq {
   int8_t   type;
   union {
     struct {
+      char*    name;    // super table name
       tb_uid_t suid;
+      SArray*  tagName;
       uint8_t* pTag;
     } ctb;
     struct {
@@ -1983,6 +1988,9 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
   taosMemoryFreeClear(req->comment);
   if (req->type == TSDB_CHILD_TABLE) {
     taosMemoryFreeClear(req->ctb.pTag);
+    taosMemoryFreeClear(req->ctb.name);
+    taosArrayDestroy(req->ctb.tagName);
+    req->ctb.tagName = NULL;
   } else if (req->type == TSDB_NORMAL_TABLE) {
     taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
   }
@@ -2066,12 +2074,14 @@ typedef struct {
   int32_t bytes;
   // TSDB_ALTER_TABLE_DROP_COLUMN
   // TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES
+  int8_t  colModType;
   int32_t colModBytes;
   // TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME
   char* colNewName;
   // TSDB_ALTER_TABLE_UPDATE_TAG_VAL
   char*    tagName;
   int8_t   isNull;
+  int8_t   tagType;
   uint32_t nTagVal;
   uint8_t* pTagVal;
   // TSDB_ALTER_TABLE_UPDATE_OPTIONS
@@ -2224,6 +2234,7 @@ typedef struct {
 typedef struct {
   int64_t reqId;
   int64_t rspId;
+  int32_t svrTimestamp;
   SArray* rsps;  // SArray<SClientHbRsp>
 } SClientHbBatchRsp;
 
@@ -2858,8 +2869,8 @@ typedef struct {
 
 static FORCE_INLINE int32_t tEncodeSMqMetaRsp(void** buf, const SMqMetaRsp* pRsp) {
   int32_t tlen = 0;
-  // tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
-  // tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
+  tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
+  tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
   tlen += taosEncodeFixedI16(buf, pRsp->resMsgType);
   tlen += taosEncodeFixedI32(buf, pRsp->metaRspLen);
   tlen += taosEncodeBinary(buf, pRsp->metaRsp, pRsp->metaRspLen);
@@ -2867,8 +2878,7 @@ static FORCE_INLINE int32_t tEncodeSMqMetaRsp(void** buf, const SMqMetaRsp* pRsp
 }
 
 static FORCE_INLINE void* tDecodeSMqMetaRsp(const void* buf, SMqMetaRsp* pRsp) {
-  // buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
-  // buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
+  buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
   buf = taosDecodeFixedI16(buf, &pRsp->resMsgType);
   buf = taosDecodeFixedI32(buf, &pRsp->metaRspLen);
   buf = taosDecodeBinary(buf, &pRsp->metaRsp, pRsp->metaRspLen);

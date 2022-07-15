@@ -79,7 +79,7 @@ ENDIF ()
 
 option(
     BUILD_SANITIZER
-    "If build addr2line"
+    "If build sanitizer"
     OFF
     )
 
