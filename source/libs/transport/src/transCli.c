@@ -1206,7 +1206,13 @@ SCliThrd* transGetWorkThrd(STrans* trans, int64_t handle, bool* validHandle) {
     if (idx < 0) return NULL;
     return ((SCliObj*)trans->tcphandle)->pThreadObj[idx];
   }
-  return transGetWorkThrdFromHandle(handle, validHandle);
+  SCliThrd* pThrd = transGetWorkThrdFromHandle(handle, validHandle);
+  if (*validHandle == true && pThrd == NULL) {
+    int idx = cliRBChoseIdx(trans);
+    if (idx < 0) return NULL;
+    pThrd = ((SCliObj*)trans->tcphandle)->pThreadObj[idx];
+  }
+  return pThrd;
 }
 void transReleaseCliHandle(void* handle) {
   int  idx = -1;

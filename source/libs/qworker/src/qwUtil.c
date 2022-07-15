@@ -472,7 +472,7 @@ void qwDestroyImpl(void *pMgmt) {
     QW_GET_QTID(key, qId, tId, eId);
 
     qwFreeTaskCtx(ctx);
-    QW_TASK_DLOG("task ctx freed");
+    QW_TASK_DLOG_E("task ctx freed");
     pIter = taosHashIterate(mgmt->ctxHash, pIter);
   }
   taosHashCleanup(mgmt->ctxHash);
