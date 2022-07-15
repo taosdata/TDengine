@@ -20,7 +20,7 @@ CREATE DATABASE demo replica 3;
 
 ## Mnode 的高可用性
 
-TDengine 集群是由 mnode（taosd 的一个模块，管理节点）负责管理的，为保证 mnode 的高可用，可以配置多个 mnode 副本，在集群启动时只有一个 mnode，用户可以通过 `create mnode`来增加新的mnode。用户可以通过该命令自主决定哪几个 dnode 会承担 mnode 的角色。为保证元数据的强一致性，在有多个 mnode 时，mnode 副本之间是通过同步的方式进行数据复制的。
+TDengine 集群是由 mnode（taosd 的一个模块，管理节点）负责管理的，为保证 mnode 的高可用，可以配置多个 mnode 副本，在集群启动时只有一个 mnode，用户可以通过 `create mnode` 来增加新的 mnode。用户可以通过该命令自主决定哪几个 dnode 会承担 mnode 的角色。为保证元数据的强一致性，在有多个 mnode 时，mnode 副本之间是通过同步的方式进行数据复制的。
 
 一个集群有多个数据节点 dnode，但一个 dnode 至多运行一个 mnode 实例。用户可通过 CLI 程序 taos，在 TDengine 的 console 里，执行如下命令：
 
