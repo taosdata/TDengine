@@ -40,7 +40,6 @@ enum {
   || x == TDMT_VND_CREATE_TABLE   \
   || x == TDMT_VND_ALTER_TABLE    \
   || x == TDMT_VND_DROP_TABLE     \
-  || x == TDMT_VND_DROP_TTL_TABLE \
 )
 // clang-format on
 
@@ -108,6 +107,7 @@ typedef struct SDataBlockInfo {
   // TODO: optimize and remove following
   int32_t     childId;  // used for stream, do not serialize
   EStreamType type;     // used for stream, do not serialize
+  STimeWindow calWin;   // used for stream, do not serialize
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
@@ -161,26 +161,12 @@ typedef struct SQueryTableDataCond {
   int64_t      endVersion;
 } SQueryTableDataCond;
 
-void*   blockDataDestroy(SSDataBlock* pBlock);
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
 void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
 
 int32_t tEncodeDataBlocks(void** buf, const SArray* blocks);
 void*   tDecodeDataBlocks(const void* buf, SArray** blocks);
 void    colDataDestroy(SColumnInfoData* pColData);
-
-static FORCE_INLINE void blockDestroyInner(SSDataBlock* pBlock) {
-  int32_t numOfOutput = taosArrayGetSize(pBlock->pDataBlock);
-  for (int32_t i = 0; i < numOfOutput; ++i) {
-    SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
-    colDataDestroy(pColInfoData);
-  }
-
-  taosArrayDestroy(pBlock->pDataBlock);
-  taosMemoryFreeClear(pBlock->pBlockAgg);
-}
-
-static FORCE_INLINE void tDeleteSSDataBlock(SSDataBlock* pBlock) { blockDestroyInner(pBlock); }
 
 //======================================================================================================================
 // the following structure shared by parser and executor

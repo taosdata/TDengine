@@ -427,13 +427,22 @@ static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta c
          syncGetVgId(pVnode->sync), pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state,
          syncUtilState2String(cbMeta.state), pMsg->msgType, TMSG_INFO(pMsg->msgType));
 
-  SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
-  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
-  memcpy(rpcMsg.pCont, pMsg->pCont, pMsg->contLen);
-  syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &rpcMsg.info);
-  rpcMsg.info.conn.applyIndex = cbMeta.index;
-  rpcMsg.info.conn.applyTerm = cbMeta.term;
-  tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
+  if (cbMeta.code == 0) {
+    SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
+    rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
+    memcpy(rpcMsg.pCont, pMsg->pCont, pMsg->contLen);
+    syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &rpcMsg.info);
+    rpcMsg.info.conn.applyIndex = cbMeta.index;
+    rpcMsg.info.conn.applyTerm = cbMeta.term;
+    tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
+  } else {
+    SRpcMsg rsp = {.code = cbMeta.code, .info = pMsg->info};
+    vError("vgId:%d, sync commit error, msgtype:%d,%s, error:0x%X, errmsg:%s", syncGetVgId(pVnode->sync), pMsg->msgType,
+           TMSG_INFO(pMsg->msgType), cbMeta.code, tstrerror(cbMeta.code));
+    if (rsp.info.handle != NULL) {
+      tmsgSendRsp(&rsp);
+    }
+  }
 }
 
 static void vnodeSyncPreCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
@@ -569,7 +578,7 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
     return -1;
   }
 
-  setPingTimerMS(pVnode->sync, 3000);
+  setPingTimerMS(pVnode->sync, 5000);
   setElectTimerMS(pVnode->sync, 500);
   setHeartbeatTimerMS(pVnode->sync, 100);
   return 0;

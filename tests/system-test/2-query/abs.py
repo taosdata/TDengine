@@ -47,7 +47,7 @@ class TDTestCase:
                 c9 = "'nchar_val'"
                 c10 = ts
                 tdSql.execute(f" insert into  {tbname} values ({ts},{c1},{c2},{c3},{c4},{c5},{c6},{c7},{c8},{c9},{c10})")
-        
+
         tdSql.execute("use test")
         tbnames = ["stb", "sub_tb_1"]
         support_types = ["BIGINT", "SMALLINT", "TINYINT", "FLOAT", "DOUBLE", "INT"]
@@ -60,7 +60,7 @@ class TDTestCase:
                 origin_sql = "select {} from {} order by tbname".format(colname, tbname)
                 if coltype[1] in support_types:
                     self.check_result_auto(origin_sql , abs_sql)
-                    
+
 
     def prepare_datas(self):
         tdSql.execute(

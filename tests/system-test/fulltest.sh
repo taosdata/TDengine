@@ -14,6 +14,7 @@ python3 ./test.py -f 0-others/cachelast.py
 python3 ./test.py -f 0-others/udf_cfg1.py
 python3 ./test.py -f 0-others/udf_cfg2.py
 
+python3 ./test.py -f 0-others/sysinfo.py
 python3 ./test.py -f 0-others/user_control.py
 python3 ./test.py -f 0-others/fsync.py
 
@@ -23,7 +24,7 @@ python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
 python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
 python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
 python3 ./test.py -f 1-insert/alter_stable.py
-#python3 ./test.py -f 1-insert/alter_table.py
+python3 ./test.py -f 1-insert/alter_table.py
 python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
 python3 ./test.py -f 1-insert/table_comment.py
 python3 ./test.py -f 1-insert/time_range_wise.py
@@ -120,9 +121,11 @@ python3 ./test.py -f 2-query/distribute_agg_stddev.py
 python3 ./test.py -f 2-query/twa.py
 python3 ./test.py -f 2-query/irate.py
 python3 ./test.py -f 2-query/and_or_for_byte.py
-
+python3 ./test.py -f 2-query/count_partition.py
 python3 ./test.py -f 2-query/function_null.py
-#python3 ./test.py -f 2-query/queryQnode.py
+python3 ./test.py -f 2-query/queryQnode.py
+python3 ./test.py -f 2-query/max_partition.py
+
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py
 #BUG python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3
@@ -176,8 +179,11 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
-
-
+python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
+#python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
+#python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
+python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb.py
+#python3 ./test.py -f 7-tmq/tmqDelete-1ctb.py
 
 #------------querPolicy  2-----------
 
@@ -265,6 +271,8 @@ python3 ./test.py -f 2-query/distribute_agg_stddev.py  -Q 2
 python3 ./test.py -f 2-query/twa.py  -Q 2
 python3 ./test.py -f 2-query/irate.py  -Q 2
 python3 ./test.py -f 2-query/function_null.py  -Q 2
+python3 ./test.py -f 2-query/count_partition.py -Q 2
+python3 ./test.py -f 2-query/max_partition.py -Q 2
 
 #------------querPolicy  3-----------
 
@@ -350,3 +358,5 @@ python3 ./test.py -f 2-query/distribute_agg_stddev.py -Q  3
 python3 ./test.py -f 2-query/twa.py -Q  3
 python3 ./test.py -f 2-query/irate.py -Q  3
 python3 ./test.py -f 2-query/function_null.py -Q  3
+python3 ./test.py -f 2-query/count_partition.py -Q 3
+python3 ./test.py -f 2-query/max_partition.py -Q 3

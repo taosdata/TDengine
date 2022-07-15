@@ -41,7 +41,8 @@ print =============== show streams ================================
 sql show streams;
 print $data00 $data01 $data02
 
-if $data00 != d1 then
+if $data00 != sma_index_name1 then
+  print $data00
   return -1
 endi
 
@@ -58,7 +59,7 @@ if $rows != 5 then
 endi
 
 print =============== select * from stb from memory in designated vgroup
-sql select _wstartts, _wendts, min(c1),max(c2),max(c1) from stb interval(5m,10s) sliding(5m);
+sql select _wstart, _wend, min(c1),max(c2),max(c1) from stb interval(5m,10s) sliding(5m);
 print $data00 $data01 $data02 $data03 $data04
 if $rows != 1 then
   print rows $rows != 1
@@ -81,7 +82,7 @@ if $data04 != 20 then
 endi
 
 print =============== select * from stb from memory in common vgroups
-sql select _wstartts, _wendts, min(c1),max(c2),max(c1),max(c3) from stb interval(5m,10s) sliding(5m);
+sql select _wstart, _wend, min(c1),max(c2),max(c1),max(c3) from stb interval(5m,10s) sliding(5m);
 print $data00 $data01 $data02 $data03 $data04 $data05
 if $rows != 1 then
   print rows $rows != 1
@@ -128,7 +129,7 @@ if $rows != 5 then
 endi
 
 print =============== select * from stb from file in designated vgroup
-sql select _wstartts, _wendts, min(c1),max(c2),max(c1) from stb interval(5m,10s) sliding(5m);
+sql select _wstart, _wend, min(c1),max(c2),max(c1) from stb interval(5m,10s) sliding(5m);
 print $data00 $data01 $data02 $data03 $data04
 if $rows != 1 then
   print rows $rows != 1
@@ -151,7 +152,7 @@ if $data04 != 20 then
 endi
 
 print =============== select * from stb from file in common vgroups
-sql select _wstartts, _wendts, min(c1),max(c2),max(c1),max(c3) from stb interval(5m,10s) sliding(5m);
+sql select _wstart, _wend, min(c1),max(c2),max(c1),max(c3) from stb interval(5m,10s) sliding(5m);
 print $data00 $data01 $data02 $data03 $data04 $data05
 if $rows != 1 then
   print rows $rows != 1

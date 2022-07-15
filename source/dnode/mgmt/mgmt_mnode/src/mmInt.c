@@ -150,6 +150,7 @@ static void mmStop(SMnodeMgmt *pMgmt) {
   dDebug("mnode-mgmt start to stop");
   taosThreadRwlockWrlock(&pMgmt->lock);
   pMgmt->stopped = 1;
+  mndPreClose(pMgmt->pMnode);
   taosThreadRwlockUnlock(&pMgmt->lock);
 
   mndStop(pMgmt->pMnode);

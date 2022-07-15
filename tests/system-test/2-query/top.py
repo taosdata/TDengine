@@ -45,7 +45,7 @@ class TDTestCase:
             'col12': 'binary(20)',
             'col13': 'nchar(20)'
         }
-        
+
         self.param_list = [1,100]
 
     def insert_data(self,column_dict,tbname,row_num):
@@ -107,7 +107,7 @@ class TDTestCase:
         tdSql.execute(f"create database if not exists {dbname} vgroups 2")
         tdSql.execute(f'use {dbname}')
         tdSql.execute(self.setsql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
-        
+
         for i in range(self.tbnum):
             tdSql.execute(f"create table {stbname}_{i} using {stbname} tags({tag_values[0]})")
             self.insert_data(self.column_dict,f'{stbname}_{i}',self.rowNum)
@@ -141,7 +141,7 @@ class TDTestCase:
         self.top_check_ntb()
         self.top_check_stb()
 
-        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

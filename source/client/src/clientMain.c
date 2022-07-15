@@ -49,7 +49,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 }
 // this function may be called by user or system, or by both simultaneously.
 void taos_cleanup(void) {
-  tscInfo("start  to cleanup client environment");
+  tscDebug("start to cleanup client environment");
   if (atomic_val_compare_exchange_32(&sentinel, TSC_VAR_NOT_RELEASE, TSC_VAR_RELEASED) != TSC_VAR_NOT_RELEASE) {
     return;
   }
@@ -58,7 +58,10 @@ void taos_cleanup(void) {
   clientReqRefPool = -1;
   taosCloseRef(id);
 
-  cleanupTaskQueue();
+  hbMgrCleanUp();
+
+  catalogDestroy();
+  schedulerDestroy();
 
   fmFuncMgtDestroy();
   qCleanupKeywordsTable();
@@ -67,13 +70,11 @@ void taos_cleanup(void) {
   clientConnRefPool = -1;
   taosCloseRef(id);
 
-  hbMgrCleanUp();
-
-  catalogDestroy();
-  schedulerDestroy();
-
-  cleanupTscQhandle();
   rpcCleanup();
+  tscDebug("rpc cleanup");
+
+  cleanupTaskQueue();
+
   tscInfo("all local resources released");
   taosCleanupCfg();
   taosCloseLog();
@@ -242,7 +243,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
 #endif
 
   } else if (TD_RES_TMQ(res)) {
-    SMqRspObj *     msg = ((SMqRspObj *)res);
+    SMqRspObj      *msg = ((SMqRspObj *)res);
     SReqResultInfo *pResultInfo;
     if (msg->resIter == -1) {
       pResultInfo = tmqGetNextResInfo(res, true);
@@ -418,7 +419,7 @@ int taos_affected_rows(TAOS_RES *res) {
     return 0;
   }
 
-  SRequestObj *   pRequest = (SRequestObj *)res;
+  SRequestObj    *pRequest = (SRequestObj *)res;
   SReqResultInfo *pResInfo = &pRequest->body.resInfo;
   return pResInfo->numOfRows;
 }
@@ -601,7 +602,7 @@ int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
   }
 
   SReqResultInfo *pResInfo = tscGetCurResInfo(res);
-  TAOS_FIELD *    pField = &pResInfo->userFields[columnIndex];
+  TAOS_FIELD     *pField = &pResInfo->userFields[columnIndex];
   if (!IS_VAR_DATA_TYPE(pField->type)) {
     return 0;
   }
@@ -645,8 +646,8 @@ const char *taos_get_server_info(TAOS *taos) {
 typedef struct SqlParseWrapper {
   SParseContext *pCtx;
   SCatalogReq    catalogReq;
-  SRequestObj *  pRequest;
-  SQuery *       pQuery;
+  SRequestObj   *pRequest;
+  SQuery        *pQuery;
 } SqlParseWrapper;
 
 static void destorySqlParseWrapper(SqlParseWrapper *pWrapper) {
@@ -665,8 +666,8 @@ static void destorySqlParseWrapper(SqlParseWrapper *pWrapper) {
 
 void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
   SqlParseWrapper *pWrapper = (SqlParseWrapper *)param;
-  SQuery *         pQuery = pWrapper->pQuery;
-  SRequestObj *    pRequest = pWrapper->pRequest;
+  SQuery          *pQuery = pWrapper->pQuery;
+  SRequestObj     *pRequest = pWrapper->pRequest;
 
   if (code == TSDB_CODE_SUCCESS) {
     code = qAnalyseSqlSemantic(pWrapper->pCtx, &pWrapper->catalogReq, pResultMeta, pQuery);
@@ -684,10 +685,13 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
 
     destorySqlParseWrapper(pWrapper);
 
-    tscDebug("0x%"PRIx64" analysis semantics completed, start async query, reqId:0x%"PRIx64, pRequest->self, pRequest->requestId);
+    tscDebug("0x%" PRIx64 " analysis semantics completed, start async query, reqId:0x%" PRIx64, pRequest->self,
+             pRequest->requestId);
     launchAsyncQuery(pRequest, pQuery, pResultMeta);
+    qDestroyQuery(pQuery);
   } else {
     destorySqlParseWrapper(pWrapper);
+    qDestroyQuery(pQuery);
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
@@ -705,7 +709,7 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
 }
 
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
-  int64_t  connId = *(int64_t*)taos;
+  int64_t connId = *(int64_t *)taos;
   taosAsyncQueryImpl(connId, sql, fp, param, false);
 }
 
@@ -739,7 +743,7 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
 
 void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   SParseContext *pCxt = NULL;
-  STscObj *      pTscObj = pRequest->pTscObj;
+  STscObj       *pTscObj = pRequest->pTscObj;
   int32_t        code = 0;
 
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
@@ -852,23 +856,30 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   }
 
   // all data has returned to App already, no need to try again
-  if ((pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) && pResultInfo->completed) {
-    pResultInfo->numOfRows = 0;
-    pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
-    return;
-  }
+  if (pResultInfo->completed) {
+    // it is a local executed query, no need to do async fetch
+    if (QUERY_EXEC_MODE_LOCAL == pRequest->body.execMode) {
+      ASSERT(pResultInfo->numOfRows >= 0);
+      if (pResultInfo->localResultFetched) {
+        pResultInfo->numOfRows = 0;
+        pResultInfo->current = 0;
+      } else {
+        pResultInfo->localResultFetched = true;
+      }
+    } else {
+      pResultInfo->numOfRows = 0;
+    }
 
-  // it is a local executed query, no need to do async fetch
-  if (pResultInfo->current < pResultInfo->numOfRows && pRequest->body.queryJob == 0) {
     pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
     return;
   }
 
   SSchedulerReq req = {
-    .syncReq = false,
-    .fetchFp = fetchCallback,
-    .cbParam = pRequest,
+      .syncReq = false,
+      .fetchFp = fetchCallback,
+      .cbParam = pRequest,
   };
+
   schedulerFetchRows(pRequest->body.queryJob, &req);
 }
 
@@ -876,14 +887,14 @@ void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   ASSERT(res != NULL && fp != NULL);
   ASSERT(TD_RES_QUERY(res));
 
-  SRequestObj *pRequest = res;
+  SRequestObj    *pRequest = res;
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
 
   // set the current block is all consumed
-  pResultInfo->current = pResultInfo->numOfRows;
   pResultInfo->convertUcs4 = false;
 
-  taos_fetch_rows_a(res, fp, param);
+  // it is a local executed query, no need to do async fetch
+  taos_fetch_rows_a(pRequest, fp, param);
 }
 
 const void *taos_get_raw_block(TAOS_RES *res) {
@@ -918,7 +929,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   int64_t       connId = *(int64_t *)taos;
   const int32_t MAX_TABLE_NAME_LENGTH = 12 * 1024 * 1024;  // 12MB list
   int32_t       code = 0;
-  SRequestObj * pRequest = NULL;
+  SRequestObj  *pRequest = NULL;
   SCatalogReq   catalogReq = {0};
 
   if (NULL == tableNameList) {
@@ -940,7 +951,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     goto _return;
   }
 
-  STscObj* pTscObj = pRequest->pTscObj;
+  STscObj *pTscObj = pRequest->pTscObj;
   code = transferTableNameList(tableNameList, pTscObj->acctId, pTscObj->db, &catalogReq.pTableMeta);
   if (code) {
     goto _return;
@@ -962,7 +973,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     goto _return;
   }
 
-  SSyncQueryParam* pParam = pRequest->body.param;
+  SSyncQueryParam *pParam = pRequest->body.param;
   tsem_wait(&pParam->sem);
 
 _return:

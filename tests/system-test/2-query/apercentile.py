@@ -44,7 +44,7 @@ class TDTestCase:
             'col12': f'binary({self.binary_length})',
             'col13': f'nchar({self.nchar_length})'
         }
-        
+
         self.tag_dict = {
             'ts_tag'  : 'timestamp',
             't1': 'tinyint',
@@ -79,9 +79,9 @@ class TDTestCase:
         self.tag_values = [
             f'{self.tag_ts},{self.tag_tinyint},{self.tag_smallint},{self.tag_int},{self.tag_bigint},\
             {self.tag_utint},{self.tag_usint},{self.tag_uint},{self.tag_ubint},{self.tag_float},{self.tag_double},{self.tag_bool},"{self.binary_str}","{self.nchar_str}"'
-            
+
         ]
-        
+
         self.percent = [1,50,100]
         self.param_list = ['default','t-digest']
     def insert_data(self,column_dict,tbname,row_num):
@@ -90,7 +90,7 @@ class TDTestCase:
             insert_list = []
             self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
 
-        
+
     def function_check_ntb(self):
         tdSql.prepare()
         tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
@@ -126,7 +126,7 @@ class TDTestCase:
     def run(self):
         self.function_check_ntb()
         self.function_check_stb()
-        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

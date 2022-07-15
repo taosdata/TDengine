@@ -66,6 +66,7 @@ void walCloseReader(SWalReader *pRead) {
 }
 
 int32_t walNextValidMsg(SWalReader *pRead) {
+  wDebug("vgId:%d wal start to fetch", pRead->pWal->cfg.vgId);
   int64_t fetchVer = pRead->curVersion;
   int64_t endVer = pRead->cond.scanUncommited ? walGetLastVer(pRead->pWal) : walGetCommittedVer(pRead->pWal);
   while (fetchVer <= endVer) {
@@ -176,7 +177,7 @@ int32_t walReadSeekVerImpl(SWalReader *pRead, int64_t ver) {
     return -1;
   }
 
-  wDebug("wal version reset from %ld to %ld", pRead->curVersion, ver);
+  wDebug("wal version reset from %ld(invalid: %d) to %ld", pRead->curVersion, pRead->curInvalid, ver);
 
   pRead->curVersion = ver;
   return 0;
@@ -242,6 +243,7 @@ static int32_t walFetchHeadNew(SWalReader *pRead, int64_t fetchVer) {
       return -1;
     }
   }
+  pRead->curInvalid = 0;
   return 0;
 }
 
@@ -301,6 +303,7 @@ static int32_t walSkipFetchBodyNew(SWalReader *pRead) {
   int64_t code;
 
   ASSERT(pRead->curVersion == pRead->pHead->head.version);
+  ASSERT(pRead->curInvalid == 0);
 
   code = taosLSeekFile(pRead->pLogFile, pRead->pHead->head.bodyLen, SEEK_CUR);
   if (code < 0) {
@@ -404,6 +407,7 @@ int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead) {
 }
 
 int32_t walReadVer(SWalReader *pRead, int64_t ver) {
+  wDebug("vgId:%d wal start to read ver %ld", pRead->pWal->cfg.vgId, ver);
   int64_t contLen;
   bool    seeked = false;
 
