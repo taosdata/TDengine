@@ -147,7 +147,6 @@ typedef struct {
   SSDataBlock*   pullOverBlk;   // for streaming
   SWalFilterCond cond;
   int64_t        lastScanUid;
-  SStreamQueue*  inputQueue;
 } SStreamTaskInfo;
 
 typedef struct SExecTaskInfo {

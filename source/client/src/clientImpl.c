@@ -934,7 +934,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
   int32_t code = 0;
 
   pRequest->body.execMode = pQuery->execMode;
-  
+
   switch (pQuery->execMode) {
     case QUERY_EXEC_MODE_LOCAL:
       asyncExecLocalCmd(pRequest, pQuery);
@@ -1005,10 +1005,6 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       pRequest->body.queryFp(pRequest->body.param, pRequest, -1);
       break;
   }
-
-  //    if (!keepQuery) {
-  //      qDestroyQuery(pQuery);
-  //    }
 
   if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
     pRequest->code = terrno;
@@ -1270,13 +1266,8 @@ void updateTargetEpSet(SMsgSendInfo* pSendInfo, STscObj* pTscObj, SRpcMsg* pMsg,
   }
 }
 
-typedef struct SchedArg {
-  SRpcMsg msg;
-  SEpSet* pEpset;
-} SchedArg;
-
 int32_t doProcessMsgFromServer(void* param) {
-  SchedArg* arg = (SchedArg*)param;
+  AsyncArg* arg = (AsyncArg*)param;
   SRpcMsg*  pMsg = &arg->msg;
   SEpSet*   pEpSet = arg->pEpset;
 
@@ -1339,7 +1330,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     memcpy((void*)tEpSet, (void*)pEpSet, sizeof(SEpSet));
   }
 
-  SchedArg* arg = taosMemoryCalloc(1, sizeof(SchedArg));
+  AsyncArg* arg = taosMemoryCalloc(1, sizeof(AsyncArg));
   arg->msg = *pMsg;
   arg->pEpset = tEpSet;
 
@@ -1479,7 +1470,7 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     tsem_wait(&pParam->sem);
   }
 
-  if (pResultInfo->numOfRows == 0  || pRequest->code != TSDB_CODE_SUCCESS) {
+  if (pResultInfo->numOfRows == 0 || pRequest->code != TSDB_CODE_SUCCESS) {
     return NULL;
   } else {
     if (setupOneRowPtr) {
