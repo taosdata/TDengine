@@ -28,8 +28,9 @@ class TestTimestamp(TDCase):
             self.tdRest.request(f'create database if not exists {dbname} precision "{ts}"')
             self.tdRest.request('show databases')
             #TODO
-            res = self.tdSql.get_db_field_kv(0, dbname)
-            self.tdSql.checkEqual(res["precision"], ts)
+            print(self.tdRest.resp)
+            res = self.tdRest.get_rest_db_field(self.tdRest.resp,"precision",dbname)
+            self.tdSql.checkEqual(res, ts)
             self.tdRest.request(f'create table if not exists {dbname}.stb (ts timestamp, c1 int) tags (t1 int)')
             self.tdRest.request(f'create table if not exists {dbname}.tb using {dbname}.stb tags (1)')
             self.tdRest.request(f'create table if not exists {dbname}.{dbname} (ts timestamp, c1 int)')
@@ -38,7 +39,7 @@ class TestTimestamp(TDCase):
             self.tdRest.request(f'insert into {dbname}.{dbname} values ({timestamp}, 1)')
             for tbname in [f"{dbname}.{dbname}", f"{dbname}.stb", f"{dbname}.tb"]:
                 self.tdRest.request(f'select ts from {tbname}')
-                self.tdSql.checkEqual(str(self.tdRest.resp[0][0]), str(dt))
+                self.tdSql.checkEqual(str(self.tdRest.resp['data'][0][0]), self.tdCom.delete_end_zero(dt).replace(' ','T')+ "Z")
             self.tdRest.request(f'drop database if exists {dbname}')
 
     def h_m_s_check(self):
