@@ -82,11 +82,11 @@
 ./test.sh -f tsim/insert/update0.sim
 
 # ---- parser
-# ./test.sh -f tsim/parser/alter.sim
-# ./test.sh -f tsim/parser/alter1.sim
-## ./test.sh -f tsim/parser/alter__for_community_version.sim
-## ./test.sh -f tsim/parser/alter_column.sim
-# ./test.sh -f tsim/parser/alter_stable.sim
+./test.sh -f tsim/parser/alter.sim
+# nojira ./test.sh -f tsim/parser/alter1.sim
+./test.sh -f tsim/parser/alter__for_community_version.sim
+./test.sh -f tsim/parser/alter_column.sim
+./test.sh -f tsim/parser/alter_stable.sim
 # ./test.sh -f tsim/parser/auto_create_tb.sim
 # ./test.sh -f tsim/parser/auto_create_tb_drop_tb.sim
 # ./test.sh -f tsim/parser/between_and.sim

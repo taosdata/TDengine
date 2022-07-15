@@ -1,9 +1,6 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-sleep 100
 sql connect
 
 $dbPrefix = m_alt_db
@@ -23,10 +20,10 @@ sql drop database if exists $db
 sql create database $db duration 10 keep 20
 sql use $db
 sql show databases
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
-if $data07 != 20 then 
+if $data27 != 28800m,28800m,28800m then 
  return -1
 endi
 
@@ -47,44 +44,44 @@ sql_error alter database $db keep 20,19,18
 sql_error alter database $db keep 20,20,20,20
 sql_error alter database $db keep 365001,365001,365001
 sql_error alter database $db keep 365001
-sql alter database $db keep 20
+sql_error alter database $db keep 20
 sql show databases
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
-if $data07 != 20 then 
+if $data27 != 28800m,28800m,28800m then 
  return -1
 endi
 sql alter database $db keep 10
 sql show databases
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
-if $data07 != 10 then 
+if $data27 != 14400m,14400m,14400m then 
  return -1
 endi
 sql alter database $db keep 11
 sql show databases
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
-if $data07 != 11 then 
+if $data27 != 15840m,15840m,15840m then 
  return -1
 endi
 sql alter database $db keep 13
 sql show databases
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
-if $data07 != 13 then 
+if $data27 != 18720m,18720m,18720m then 
  return -1
 endi
 sql alter database $db keep 365000
 sql show databases
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
-if $data07 != 365000 then 
+if $data27 != 525600000m,525600000m,525600000m then 
  return -1
 endi
 
@@ -180,7 +177,6 @@ endi
 sql drop table tb
 sql drop table mt
 
-sleep 100
 ### ALTER TABLE WHILE STREAMING [TBASE271]
 #sql create table tb1 (ts timestamp, c1 int, c2 nchar(5), c3 int)
 #sql create table strm as select count(*), avg(c1), first(c2), sum(c3) from tb1 interval(2s)
@@ -188,9 +184,7 @@ sleep 100
 #if $rows != 0 then
 #  return -1
 #endi
-##sleep 12000
 #sql insert into tb1 values (now, 1, 'taos', 1)
-#sleep 20000
 #sql select * from strm
 #print rows = $rows
 #if $rows != 1 then
@@ -200,9 +194,7 @@ sleep 100
 #  return -1
 #endi
 #sql alter table tb1 drop column c3
-#sleep 500
 #sql insert into tb1 values (now, 2, 'taos')
-#sleep 30000
 #sql select * from strm
 #if $rows != 2 then
 #   return -1
@@ -211,9 +203,7 @@ sleep 100
 #  return -1
 #endi
 #sql alter table tb1 add column c3 int
-#sleep 500
 #sql insert into tb1 values (now, 3, 'taos', 3);
-#sleep 100
 #sql select * from strm
 #if $rows != 3 then
 #   return -1
@@ -252,7 +242,6 @@ sql create database $db
 sql use $db
 sql create table mt (ts timestamp, c1 int, c2 nchar(7), c3 int) tags (t1 int)
 sql create table tb using mt tags(1)
-sleep 100
 sql insert into tb values ('2018-11-01 16:30:00.000', 1, 'insert', 1)
 sql alter table mt drop column c3
 
