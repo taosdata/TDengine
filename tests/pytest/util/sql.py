@@ -217,9 +217,17 @@ class TDSql:
                 tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                             (self.sql, row, col, self.queryResult[row][col], data))
                 return
-            elif isinstance(data, float) and abs(self.queryResult[row][col] - data) <= 0.000001:
-                tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
+            elif isinstance(data, float):
+                if abs(data) >= 1 and abs((self.queryResult[row][col] - data) / data) <= 0.000001:
+                    tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
+                                (self.sql, row, col, self.queryResult[row][col], data))
+                elif abs(data) < 1 and abs(self.queryResult[row][col] - data) <= 0.000001:
+                    tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
+                                (self.sql, row, col, self.queryResult[row][col], data))
+                else:
+                    caller = inspect.getframeinfo(inspect.stack()[1][0])
+                    args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
+                    tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
                 return
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])

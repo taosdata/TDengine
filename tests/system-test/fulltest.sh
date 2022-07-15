@@ -29,6 +29,17 @@ python3 ./test.py -f 1-insert/block_wise.py
 python3 ./test.py -f 1-insert/create_retentions.py
 python3 ./test.py -f 1-insert/table_param_ttl.py
 
+python3 ./test.py -f 2-query/abs.py
+python3 ./test.py -f 2-query/abs.py -R
+python3 ./test.py -f 2-query/and_or_for_byte.py
+python3 ./test.py -f 2-query/and_or_for_byte.py -R
+python3 ./test.py -f 2-query/apercentile.py
+python3 ./test.py -f 2-query/apercentile.py -R
+python3 ./test.py -f 2-query/arccos.py
+python3 ./test.py -f 2-query/arccos.py -R
+
+
+
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
@@ -74,8 +85,6 @@ python3 ./test.py -f 2-query/json_tag.py
 python3 ./test.py -f 2-query/top.py
 python3 ./test.py -f 2-query/bottom.py
 python3 ./test.py -f 2-query/percentile.py
-python3 ./test.py -f 2-query/apercentile.py
-python3 ./test.py -f 2-query/abs.py
 python3 ./test.py -f 2-query/ceil.py
 python3 ./test.py -f 2-query/floor.py
 python3 ./test.py -f 2-query/round.py
@@ -86,7 +95,6 @@ python3 ./test.py -f 2-query/sin.py
 python3 ./test.py -f 2-query/cos.py
 python3 ./test.py -f 2-query/tan.py
 python3 ./test.py -f 2-query/arcsin.py
-python3 ./test.py -f 2-query/arccos.py
 python3 ./test.py -f 2-query/arctan.py
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py
 # python3 ./test.py -f 2-query/nestedQuery.py
@@ -117,7 +125,6 @@ python3 ./test.py -f 2-query/distribute_agg_avg.py
 python3 ./test.py -f 2-query/distribute_agg_stddev.py
 python3 ./test.py -f 2-query/twa.py
 python3 ./test.py -f 2-query/irate.py
-python3 ./test.py -f 2-query/and_or_for_byte.py
 python3 ./test.py -f 2-query/count_partition.py
 python3 ./test.py -f 2-query/function_null.py
 python3 ./test.py -f 2-query/queryQnode.py
@@ -137,7 +144,7 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py
 # python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
 # python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
-# BUG Redict python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5 
+# BUG Redict python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5
 # python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 5 -M 3
 
 python3 ./test.py -f 7-tmq/basic5.py
@@ -184,7 +191,7 @@ python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb.py
 
 #------------querPolicy  2-----------
 
-python3 ./test.py -f 2-query/between.py  -Q 2            
+python3 ./test.py -f 2-query/between.py  -Q 2
 python3 ./test.py -f 2-query/distinct.py -Q 2
 python3 ./test.py -f 2-query/varchar.py -Q 2
 python3 ./test.py -f 2-query/ltrim.py -Q 2
@@ -241,7 +248,7 @@ python3 ./test.py -f 2-query/arccos.py -Q 2
 python3 ./test.py -f 2-query/arctan.py -Q 2
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py  -Q 2
 
-# python3 ./test.py -f 2-query/nestedQuery.py  -Q 2 
+# python3 ./test.py -f 2-query/nestedQuery.py  -Q 2
 # python3 ./test.py -f 2-query/nestedQuery_str.py  -Q 2
 
 python3 ./test.py -f 2-query/avg.py   -Q 2

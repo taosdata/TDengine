@@ -380,9 +380,9 @@ class TDTestCase:
         tdSql.query("select count(*) from ct1")
         tdSql.checkData(0, 0, self.rows)
 
-        # tdSql.execute("flush database db")
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdSql.execute("flush database db")
+        # tdDnodes.stop(1)
+        # tdDnodes.start(1)
 
         tdSql.execute("use db")
         tdSql.query("select count(*) from ct1")
