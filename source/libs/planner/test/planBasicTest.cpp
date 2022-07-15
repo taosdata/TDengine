@@ -98,6 +98,24 @@ TEST_F(PlanBasicTest, interpFunc) {
 }
 
 TEST_F(PlanBasicTest, lastRowFunc) {
+  useDb("root", "cache_db");
+
+  run("SELECT LAST_ROW(c1) FROM t1");
+
+  run("SELECT LAST_ROW(*) FROM t1");
+
+  run("SELECT LAST_ROW(c1, c2) FROM t1");
+
+  run("SELECT LAST_ROW(c1), c2 FROM t1");
+
+  run("SELECT LAST_ROW(c1) FROM st1");
+
+  run("SELECT LAST_ROW(c1) FROM st1 PARTITION BY TBNAME");
+
+  run("SELECT LAST_ROW(c1), SUM(c3) FROM t1");
+}
+
+TEST_F(PlanBasicTest, lastRowFuncWithoutCache) {
   useDb("root", "test");
 
   run("SELECT LAST_ROW(c1) FROM t1");
@@ -106,7 +124,11 @@ TEST_F(PlanBasicTest, lastRowFunc) {
 
   run("SELECT LAST_ROW(c1, c2) FROM t1");
 
+  run("SELECT LAST_ROW(c1), c2 FROM t1");
+
   run("SELECT LAST_ROW(c1) FROM st1");
+
+  run("SELECT LAST_ROW(c1) FROM st1 PARTITION BY TBNAME");
 
   run("SELECT LAST_ROW(c1), SUM(c3) FROM t1");
 }
@@ -135,6 +157,17 @@ TEST_F(PlanBasicTest, sampleFunc) {
   run("SELECT SAMPLE(c1, 10) FROM st1");
 
   run("SELECT SAMPLE(c1, 10) FROM st1 PARTITION BY TBNAME");
+}
+
+TEST_F(PlanBasicTest, pseudoColumn) {
+  useDb("root", "test");
+
+  run("SELECT _QSTART, _QEND, _QDURATION FROM t1");
+
+  run("SELECT _QSTART, _QEND, _QDURATION FROM t1 WHERE ts BETWEEN '2017-7-14 18:00:00' AND '2017-7-14 19:00:00'");
+
+  run("SELECT _QSTART, _QEND, _QDURATION, _WSTART, _WEND, _WDURATION, COUNT(*) FROM t1 "
+      "WHERE ts BETWEEN '2017-7-14 18:00:00' AND '2017-7-14 19:00:00' INTERVAL(10S)");
 }
 
 TEST_F(PlanBasicTest, withoutFrom) {

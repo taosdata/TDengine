@@ -252,6 +252,15 @@ int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner) {
   }
 }
 
+#if 0
+int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
+  taosWriteQitem(pTaskInfo->streamInfo.inputQueue->queue, pItem);
+  return 0;
+}
+#endif
+
 void* qExtractReaderFromStreamScanner(void* scanner) {
   SStreamScanInfo* pInfo = scanner;
   return (void*)pInfo->tqReader;
@@ -269,13 +278,13 @@ const STqOffset* qExtractStatusFromStreamScanner(void* scanner) {
 
 void* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
   return pTaskInfo->streamInfo.metaBlk;
 }
 
 int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
   memcpy(pOffset, &pTaskInfo->streamInfo.lastStatus, sizeof(STqOffsetVal));
   return 0;
 }
@@ -283,35 +292,41 @@ int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
-  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
   pTaskInfo->streamInfo.prepareStatus = *pOffset;
-  // TODO: optimize
-  /*if (pTaskInfo->streamInfo.lastStatus.type != pOffset->type ||*/
-  /*pTaskInfo->streamInfo.prepareStatus.version != pTaskInfo->streamInfo.lastStatus.version) {*/
-  while (1) {
-    uint8_t type = pOperator->operatorType;
-    pOperator->status = OP_OPENED;
-    if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-      SStreamScanInfo* pInfo = pOperator->info;
-      if (pOffset->type == TMQ_OFFSET__LOG) {
-        if (tqSeekVer(pInfo->tqReader, pOffset->version) < 0) {
-          return -1;
-        }
-        ASSERT(pInfo->tqReader->pWalReader->curVersion == pOffset->version);
-      } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
-        /*pInfo->blockType = STREAM_INPUT__TABLE_SCAN;*/
-        int64_t uid = pOffset->uid;
-        int64_t ts = pOffset->ts;
-
-        if (uid == 0) {
-          if (taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList) != 0) {
-            STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, 0);
-            uid = pTableInfo->uid;
-            ts = INT64_MIN;
+  if (!tOffsetEqual(pOffset, &pTaskInfo->streamInfo.lastStatus)) {
+    while (1) {
+      uint8_t type = pOperator->operatorType;
+      pOperator->status = OP_OPENED;
+      if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+        SStreamScanInfo* pInfo = pOperator->info;
+        if (pOffset->type == TMQ_OFFSET__LOG) {
+#if 0
+          if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.lastStatus) &&
+              pInfo->tqReader->pWalReader->curVersion != pOffset->version) {
+            qError("prepare scan ver %ld actual ver %ld, last %ld", pOffset->version,
+                   pInfo->tqReader->pWalReader->curVersion, pTaskInfo->streamInfo.lastStatus.version);
+            ASSERT(0);
           }
-        }
-        if (pTaskInfo->streamInfo.lastStatus.type != TMQ_OFFSET__SNAPSHOT_DATA ||
-            pTaskInfo->streamInfo.lastStatus.uid != uid || pTaskInfo->streamInfo.lastStatus.ts != ts) {
+#endif
+          if (tqSeekVer(pInfo->tqReader, pOffset->version + 1) < 0) {
+            return -1;
+          }
+          ASSERT(pInfo->tqReader->pWalReader->curVersion == pOffset->version + 1);
+        } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+          /*pInfo->blockType = STREAM_INPUT__TABLE_SCAN;*/
+          int64_t uid = pOffset->uid;
+          int64_t ts = pOffset->ts;
+
+          if (uid == 0) {
+            if (taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList) != 0) {
+              STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, 0);
+              uid = pTableInfo->uid;
+              ts = INT64_MIN;
+            }
+          }
+          /*if (pTaskInfo->streamInfo.lastStatus.type != TMQ_OFFSET__SNAPSHOT_DATA ||*/
+          /*pTaskInfo->streamInfo.lastStatus.uid != uid || pTaskInfo->streamInfo.lastStatus.ts != ts) {*/
           STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
           int32_t         tableSz = taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList);
           bool            found = false;
@@ -320,6 +335,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
             if (pTableInfo->uid == uid) {
               found = true;
               pTableScanInfo->currentTable = i;
+              break;
             }
           }
 
@@ -335,18 +351,18 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
 
           qDebug("tsdb reader offset seek to uid %ld ts %ld, table cur set to %d , all table num %d", uid, ts,
                  pTableScanInfo->currentTable, tableSz);
-        }
+          /*}*/
 
+        } else {
+          ASSERT(0);
+        }
+        return 0;
       } else {
-        ASSERT(0);
+        ASSERT(pOperator->numOfDownstream == 1);
+        pOperator = pOperator->pDownstream[0];
       }
-      return 0;
-    } else {
-      ASSERT(pOperator->numOfDownstream == 1);
-      pOperator = pOperator->pDownstream[0];
     }
   }
-  /*}*/
   return 0;
 }
 

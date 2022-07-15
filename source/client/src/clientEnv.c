@@ -35,22 +35,10 @@ SAppInfo appInfo;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
 
-void *tscQhandle = NULL;
-
 static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t    tscInitRes = 0;
 
-void initTscQhandle() {
-  // init handle
-  tscQhandle = taosInitScheduler(4096, 5, "tsc");
-}
-
-void cleanupTscQhandle() {
-  // destroy handle
-  taosCleanUpScheduler(tscQhandle);
-}
-
-static int32_t registerRequest(SRequestObj *pRequest, STscObj* pTscObj) {
+static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
   // connection has been released already, abort creating request.
   pRequest->self = taosAddRef(clientReqRefPool, pRequest);
 
@@ -72,7 +60,7 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj* pTscObj) {
 static void deregisterRequest(SRequestObj *pRequest) {
   assert(pRequest != NULL);
 
-  STscObj *           pTscObj = pRequest->pTscObj;
+  STscObj            *pTscObj = pRequest->pTscObj;
   SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
 
   int32_t currentInst = atomic_sub_fetch_64((int64_t *)&pActivity->currentRequests, 1);
@@ -97,7 +85,8 @@ void closeTransporter(SAppInstInfo *pAppInfo) {
 
 static bool clientRpcRfp(int32_t code, tmsg_t msgType) {
   if (NEED_REDIRECT_ERROR(code)) {
-    if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH || msgType == TDMT_SCH_MERGE_FETCH) {
+    if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH ||
+        msgType == TDMT_SCH_MERGE_FETCH) {
       return false;
     }
     return true;
@@ -189,12 +178,15 @@ void destroyTscObj(void *pObj) {
 
   SClientHbKey connKey = {.tscRid = pTscObj->id, .connType = pTscObj->connType};
   hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
-  int64_t connNum = atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
+
   destroyAllRequests(pTscObj->pRequests);
+  taosHashCleanup(pTscObj->pRequests);
+  
   schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
   tscDebug("connObj 0x%" PRIx64 " p:%p destroyed, remain inst totalConn:%" PRId64, pTscObj->id, pTscObj,
            pTscObj->pAppInfo->numOfConns);
 
+  int64_t connNum = atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   if (0 == connNum) {
     destroyAppInst(pTscObj->pAppInfo);
   }
@@ -248,7 +240,7 @@ void *createRequest(uint64_t connId, int32_t type) {
     return NULL;
   }
 
-  STscObj* pTscObj = acquireTscObj(connId);
+  STscObj *pTscObj = acquireTscObj(connId);
   if (pTscObj == NULL) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
@@ -328,6 +320,10 @@ void doDestroyRequest(void *p) {
     deregisterRequest(pRequest);
   }
 
+  if (pRequest->syncQuery) {
+    taosMemoryFree(pRequest->body.param);
+  }
+
   taosMemoryFree(pRequest);
   tscTrace("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
 }
@@ -345,7 +341,6 @@ void taos_init_imp(void) {
   // In the APIs of other program language, taos_cleanup is not available yet.
   // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
   atexit(taos_cleanup);
-  initTscQhandle();
   errno = TSDB_CODE_SUCCESS;
   taosSeedRand(taosGetTimestampSec());
 
@@ -368,8 +363,7 @@ void taos_init_imp(void) {
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   catalogInit(&cfg);
 
-  SSchedulerCfg scfg = {.maxJobNum = 100};
-  schedulerInit(&scfg);
+  schedulerInit();
   tscDebug("starting to initialize TAOS driver");
 
   taosSetCoreDump(true);
@@ -404,7 +398,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
     return 0;
   }
 
-  SConfig *    pCfg = taosGetCfg();
+  SConfig     *pCfg = taosGetCfg();
   SConfigItem *pItem = NULL;
 
   switch (option) {

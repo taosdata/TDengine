@@ -153,7 +153,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   *pRequest = createRequest(connId, TSDB_SQL_SELECT);
   if (*pRequest == NULL) {
     tscError("failed to malloc sqlObj, %s", sql);
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pRequest)->sqlstr = taosMemoryMalloc(sqlLen + 1);
@@ -834,6 +834,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
              pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
     pRequest->prevCode = code;
+    schedulerFreeJob(&pRequest->body.queryJob, 0);
     doAsyncQuery(pRequest, true);
     return;
   }
@@ -933,6 +934,8 @@ SRequestObj* launchQuery(uint64_t connId, const char* sql, int sqlLen, bool vali
 void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta) {
   int32_t code = 0;
 
+  pRequest->body.execMode = pQuery->execMode;
+
   switch (pQuery->execMode) {
     case QUERY_EXEC_MODE_LOCAL:
       asyncExecLocalCmd(pRequest, pQuery);
@@ -1003,10 +1006,6 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       pRequest->body.queryFp(pRequest->body.param, pRequest, -1);
       break;
   }
-
-  //    if (!keepQuery) {
-  //      qDestroyQuery(pQuery);
-  //    }
 
   if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
     pRequest->code = terrno;
@@ -1149,7 +1148,6 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
   SRequestObj* pRequest = createRequest(pTscObj->id, TDMT_MND_CONNECT);
   if (pRequest == NULL) {
     destroyTscObj(pTscObj);
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -1269,13 +1267,8 @@ void updateTargetEpSet(SMsgSendInfo* pSendInfo, STscObj* pTscObj, SRpcMsg* pMsg,
   }
 }
 
-typedef struct SchedArg {
-  SRpcMsg msg;
-  SEpSet* pEpset;
-} SchedArg;
-
-void doProcessMsgFromServer(SSchedMsg* schedMsg) {
-  SchedArg* arg = (SchedArg*)schedMsg->ahandle;
+int32_t doProcessMsgFromServer(void* param) {
+  AsyncArg* arg = (AsyncArg*)param;
   SRpcMsg*  pMsg = &arg->msg;
   SEpSet*   pEpSet = arg->pEpset;
 
@@ -1328,24 +1321,21 @@ void doProcessMsgFromServer(SSchedMsg* schedMsg) {
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
   taosMemoryFree(arg);
+  return TSDB_CODE_SUCCESS;
 }
 
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
-  SSchedMsg schedMsg = {0};
-
   SEpSet* tEpSet = NULL;
   if (pEpSet != NULL) {
     tEpSet = taosMemoryCalloc(1, sizeof(SEpSet));
     memcpy((void*)tEpSet, (void*)pEpSet, sizeof(SEpSet));
   }
 
-  SchedArg* arg = taosMemoryCalloc(1, sizeof(SchedArg));
+  AsyncArg* arg = taosMemoryCalloc(1, sizeof(AsyncArg));
   arg->msg = *pMsg;
   arg->pEpset = tEpSet;
 
-  schedMsg.fp = doProcessMsgFromServer;
-  schedMsg.ahandle = arg;
-  taosScheduleTask(tscQhandle, &schedMsg);
+  taosAsyncExec(doProcessMsgFromServer, arg, NULL);
 }
 
 TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, const char* db, uint16_t port) {
@@ -1481,7 +1471,7 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     tsem_wait(&pParam->sem);
   }
 
-  if (pResultInfo->numOfRows == 0  || pRequest->code != TSDB_CODE_SUCCESS) {
+  if (pResultInfo->numOfRows == 0 || pRequest->code != TSDB_CODE_SUCCESS) {
     return NULL;
   } else {
     if (setupOneRowPtr) {
@@ -1905,6 +1895,10 @@ int32_t appendTbToReq(SArray* pList, int32_t pos1, int32_t len1, int32_t pos2, i
     tbLen = len1;
   }
 
+  if (dbLen <= 0 || tbLen <= 0) {
+    return -1;
+  }
+
   if (tNameSetDbName(&name, acctId, dbName, dbLen)) {
     return -1;
   }
@@ -2045,6 +2039,7 @@ void syncCatalogFn(SMetaData* pResult, void* param, int32_t code) {
 void syncQueryFn(void* param, void* res, int32_t code) {
   SSyncQueryParam* pParam = param;
   pParam->pRequest = res;
+
   if (pParam->pRequest) {
     pParam->pRequest->code = code;
   }
@@ -2091,6 +2086,8 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
 
   taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly);
   tsem_wait(&param->sem);
+
+  param->pRequest->syncQuery = true;
   return param->pRequest;
 #else
   size_t sqlLen = strlen(sql);

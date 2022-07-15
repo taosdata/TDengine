@@ -251,8 +251,8 @@ int32_t streamBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* data,
   ASSERT(vgId > 0 || vgId == SNODE_HANDLE);
   req.taskId = downstreamTaskId;
 
-  qInfo("dispatch from task %d (child id %d) to down stream task %d in vnode %d", pTask->taskId, pTask->selfChildId,
-        downstreamTaskId, vgId);
+  qDebug("dispatch from task %d (child id %d) to down stream task %d in vnode %d", pTask->taskId, pTask->selfChildId,
+         downstreamTaskId, vgId);
 
   // serialize
   int32_t tlen;
@@ -298,6 +298,7 @@ int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
 
   SStreamDataBlock* pBlock = streamQueueNextItem(pTask->outputQueue);
   if (pBlock == NULL) {
+    qDebug("stream stop dispatching since no output: task %d", pTask->taskId);
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     return 0;
   }
@@ -312,7 +313,7 @@ int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     return -1;
   }
-  taosArrayDestroyEx(pBlock->blocks, (FDelete)tDeleteSSDataBlock);
+  taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
   taosFreeQitem(pBlock);
 
   tmsgSendReq(pEpSet, &dispatchMsg);

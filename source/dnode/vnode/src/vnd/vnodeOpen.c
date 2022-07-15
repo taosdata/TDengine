@@ -175,6 +175,12 @@ _err:
   return NULL;
 }
 
+void vnodePreClose(SVnode *pVnode) {
+  if (pVnode) {
+    syncLeaderTransfer(pVnode->sync);
+  }
+}
+
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
     vnodeCommit(pVnode);

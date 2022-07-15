@@ -273,16 +273,8 @@ int32_t syncLeaderTransfer(int64_t rid) {
   }
   ASSERT(rid == pSyncNode->rid);
 
-  if (pSyncNode->peersNum == 0) {
-    taosReleaseRef(tsNodeRefId, pSyncNode->rid);
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    return -1;
-  }
-
-  SNodeInfo newLeader = (pSyncNode->peersNodeInfo)[0];
+  int32_t ret = syncNodeLeaderTransfer(pSyncNode);
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
-
-  int32_t ret = syncLeaderTransferTo(rid, newLeader);
   return ret;
 }
 
@@ -293,32 +285,15 @@ int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader) {
     return -1;
   }
   ASSERT(rid == pSyncNode->rid);
-  int32_t ret = 0;
 
-  if (pSyncNode->replicaNum == 1) {
-    sError("only one replica, cannot drop leader");
-    taosReleaseRef(tsNodeRefId, pSyncNode->rid);
-    terrno = TSDB_CODE_SYN_ONE_REPLICA;
-    return -1;
-  }
-
-  SyncLeaderTransfer* pMsg = syncLeaderTransferBuild(pSyncNode->vgId);
-  pMsg->newLeaderId.addr = syncUtilAddr2U64(newLeader.nodeFqdn, newLeader.nodePort);
-  pMsg->newLeaderId.vgId = pSyncNode->vgId;
-  pMsg->newNodeInfo = newLeader;
-  ASSERT(pMsg != NULL);
-  SRpcMsg rpcMsg = {0};
-  syncLeaderTransfer2RpcMsg(pMsg, &rpcMsg);
-  syncLeaderTransferDestroy(pMsg);
-
-  ret = syncNodePropose(pSyncNode, &rpcMsg, false);
+  int32_t ret = syncNodeLeaderTransferTo(pSyncNode, newLeader);
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return ret;
 }
 
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
   if (pSyncNode->peersNum == 0) {
-    sError("only one replica, cannot leader transfer");
+    sDebug("only one replica, cannot leader transfer");
     terrno = TSDB_CODE_SYN_ONE_REPLICA;
     return -1;
   }
@@ -332,10 +307,16 @@ int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
   int32_t ret = 0;
 
   if (pSyncNode->replicaNum == 1) {
-    sError("only one replica, cannot leader transfer");
+    sDebug("only one replica, cannot leader transfer");
     terrno = TSDB_CODE_SYN_ONE_REPLICA;
     return -1;
   }
+
+  do {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "begin leader transfer to %s:%u", newLeader.nodeFqdn, newLeader.nodePort);
+    syncNodeEventLog(pSyncNode, logBuf);
+  } while (0);
 
   SyncLeaderTransfer* pMsg = syncLeaderTransferBuild(pSyncNode->vgId);
   pMsg->newLeaderId.addr = syncUtilAddr2U64(newLeader.nodeFqdn, newLeader.nodePort);
@@ -1074,18 +1055,11 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   }
 
   // tools
-  pSyncNode->pSyncRespMgr = syncRespMgrCreate(pSyncNode, 0);
+  pSyncNode->pSyncRespMgr = syncRespMgrCreate(pSyncNode, SYNC_RESP_TTL_MS);
   ASSERT(pSyncNode->pSyncRespMgr != NULL);
 
   // restore state
   pSyncNode->restoreFinish = false;
-
-  // pSyncNode->pSnapshot = NULL;
-  // if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
-  //   pSyncNode->pSnapshot = taosMemoryMalloc(sizeof(SSnapshot));
-  //   pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, pSyncNode->pSnapshot);
-  // }
-  // tsem_init(&(pSyncNode->restoreSem), 0, 0);
 
   // snapshot senders
   for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
@@ -1118,19 +1092,13 @@ void syncNodeStart(SSyncNode* pSyncNode) {
     // Raft 3.6.2 Committing entries from previous terms
     syncNodeAppendNoop(pSyncNode);
     syncMaybeAdvanceCommitIndex(pSyncNode);
-
-    return;
+  } else {
+    syncNodeBecomeFollower(pSyncNode, "first start");
   }
 
-  syncNodeBecomeFollower(pSyncNode, "first start");
-
-  // int32_t ret = 0;
-  // ret = syncNodeStartPingTimer(pSyncNode);
-  // ASSERT(ret == 0);
-
-  if (gRaftDetailLog) {
-    syncNodeLog2("==state change become leader immediately==", pSyncNode);
-  }
+  int32_t ret = 0;
+  ret = syncNodeStartPingTimer(pSyncNode);
+  ASSERT(ret == 0);
 }
 
 void syncNodeStartStandBy(SSyncNode* pSyncNode) {
@@ -1146,8 +1114,6 @@ void syncNodeStartStandBy(SSyncNode* pSyncNode) {
 
 void syncNodeClose(SSyncNode* pSyncNode) {
   syncNodeEventLog(pSyncNode, "sync close");
-
-  // leader transfer
 
   int32_t ret;
   ASSERT(pSyncNode != NULL);
@@ -1182,14 +1148,6 @@ void syncNodeClose(SSyncNode* pSyncNode) {
     snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
     pSyncNode->pNewNodeReceiver = NULL;
   }
-
-  /*
-  if (pSyncNode->pSnapshot != NULL) {
-    taosMemoryFree(pSyncNode->pSnapshot);
-  }
-  */
-
-  // tsem_destroy(&pSyncNode->restoreSem);
 
   // free memory in syncFreeNode
   // taosMemoryFree(pSyncNode);
@@ -1255,7 +1213,7 @@ int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
                  &pSyncNode->pPingTimer);
     atomic_store_64(&pSyncNode->pingTimerLogicClock, pSyncNode->pingTimerLogicClockUser);
   } else {
-    sError("sync env is stop, syncNodeStartPingTimer");
+    sError("vgId:%d, start ping timer error, sync env is stop", pSyncNode->vgId);
   }
   return ret;
 }
@@ -1276,7 +1234,7 @@ int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
                  &pSyncNode->pElectTimer);
     atomic_store_64(&pSyncNode->electTimerLogicClock, pSyncNode->electTimerLogicClockUser);
   } else {
-    sError("sync env is stop, syncNodeStartElectTimer");
+    sError("vgId:%d, start elect timer error, sync env is stop", pSyncNode->vgId);
   }
   return ret;
 }
@@ -1316,7 +1274,7 @@ int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
                  &pSyncNode->pHeartbeatTimer);
     atomic_store_64(&pSyncNode->heartbeatTimerLogicClock, pSyncNode->heartbeatTimerLogicClockUser);
   } else {
-    sError("sync env is stop, syncNodeStartHeartbeatTimer");
+    sError("vgId:%d, start heartbeat timer error, sync env is stop", pSyncNode->vgId);
   }
   return ret;
 }
@@ -1895,8 +1853,8 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
       syncNodeBecomeLeader(pSyncNode, tmpbuf);
 
       // Raft 3.6.2 Committing entries from previous terms
-      syncNodeReplicate(pSyncNode);
       syncNodeAppendNoop(pSyncNode);
+      syncNodeReplicate(pSyncNode);
       syncMaybeAdvanceCommitIndex(pSyncNode);
 
     } else {
@@ -2071,8 +2029,8 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   syncNodeLog2("==state change syncNodeCandidate2Leader==", pSyncNode);
 
   // Raft 3.6.2 Committing entries from previous terms
-  syncNodeReplicate(pSyncNode);
   syncNodeAppendNoop(pSyncNode);
+  syncNodeReplicate(pSyncNode);
   syncMaybeAdvanceCommitIndex(pSyncNode);
 }
 
@@ -2643,7 +2601,7 @@ const char* syncStr(ESyncState state) {
 static int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry) {
   SyncLeaderTransfer* pSyncLeaderTransfer = syncLeaderTransferFromRpcMsg2(pRpcMsg);
 
-  syncNodeEventLog(ths, "begin leader transfer");
+  syncNodeEventLog(ths, "do leader transfer");
 
   bool sameId = syncUtilSameId(&(pSyncLeaderTransfer->newLeaderId), &(ths->myRaftId));
   bool sameNodeInfo = strcmp(pSyncLeaderTransfer->newNodeInfo.nodeFqdn, ths->myNodeInfo.nodeFqdn) == 0 &&

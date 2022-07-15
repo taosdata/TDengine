@@ -621,7 +621,9 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
       break;
     }
   }
-
+  if (pInfo->groupSort) {
+    pInfo->hasGroupId = false;
+  }
   if (p->info.rows > 0) {  // todo extract method
     blockDataEnsureCapacity(pDataBlock, p->info.rows);
     int32_t numOfCols = taosArrayGetSize(pColMatchInfo);

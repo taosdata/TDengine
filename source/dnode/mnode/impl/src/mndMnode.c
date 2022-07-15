@@ -218,6 +218,7 @@ bool mndIsMnode(SMnode *pMnode, int32_t dnodeId) {
 }
 
 void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
+#if 0  
   SSdb   *pSdb = pMnode->pSdb;
   int32_t totalMnodes = sdbGetSize(pSdb, SDB_MNODE);
   void   *pIter = NULL;
@@ -237,6 +238,9 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
     addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
     sdbRelease(pSdb, pObj);
   }
+#else
+  syncGetRetryEpSet(pMnode->syncMgmt.sync, pEpSet);
+#endif
 }
 
 static int32_t mndSetCreateMnodeRedoLogs(SMnode *pMnode, STrans *pTrans, SMnodeObj *pObj) {

@@ -23,6 +23,7 @@ SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId) {
   taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
   if (pVnode == NULL || pVnode->dropped) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
+    pVnode = NULL;
   } else {
     int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
     // dTrace("vgId:%d, acquire vnode, ref:%d", pVnode->vgId, refCount);
@@ -75,11 +76,14 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
 void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   char path[TSDB_FILENAME_LEN] = {0};
 
+  vnodePreClose(pVnode->pImpl);
+
   taosThreadRwlockWrlock(&pMgmt->lock);
   taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t));
   taosThreadRwlockUnlock(&pMgmt->lock);
-
   vmReleaseVnode(pMgmt, pVnode);
+
+  dTrace("vgId:%d, wait for vnode ref become 0", pVnode->vgId);
   while (pVnode->refCount > 0) taosMsleep(10);
   dTrace("vgId:%d, wait for vnode queue is empty", pVnode->vgId);
 
@@ -88,6 +92,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   while (!taosQueueEmpty(pVnode->pApplyQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
   while (!taosQueueEmpty(pVnode->pFetchQ)) taosMsleep(10);
+  while (!taosQueueEmpty(pVnode->pStreamQ)) taosMsleep(10);
   dTrace("vgId:%d, vnode queue is empty", pVnode->vgId);
 
   vmFreeQueue(pMgmt, pVnode);

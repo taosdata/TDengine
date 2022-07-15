@@ -124,12 +124,17 @@ static bool scanPathOptMayBeOptimized(SLogicNode* pNode) {
                                  QUERY_NODE_LOGIC_PLAN_PARTITION != nodeType(pNode->pParent))) {
     return false;
   }
-  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent) ||
+  if ((QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent) &&
+       WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType) ||
       (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode->pParent) && pNode->pParent->pParent &&
-       QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent->pParent))) {
+       QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent->pParent) &&
+       WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType)) {
     return true;
   }
-  return !scanPathOptHaveNormalCol(((SAggLogicNode*)pNode->pParent)->pGroupKeys);
+  if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode->pParent)) {
+    return !scanPathOptHaveNormalCol(((SAggLogicNode*)pNode->pParent)->pGroupKeys);
+  }
+  return false;
 }
 
 static SNodeList* scanPathOptGetAllFuncs(SLogicNode* pNode) {
@@ -792,15 +797,15 @@ static EDealRes rewriteAggGroupKeyCondForPushDownImpl(SNode** pNode, void* pCont
         if (0 == strcmp(((SExprNode*)pGroup)->aliasName, ((SColumnNode*)(*pNode))->colName)) {
           SNode* pExpr = nodesCloneNode(pGroup);
           if (pExpr == NULL) {
-            pCxt->errCode = terrno;
+            pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
             return DEAL_RES_ERROR;
           }
           nodesDestroyNode(*pNode);
           *pNode = pExpr;
+          return DEAL_RES_IGNORE_CHILD;
         }
       }
     }
-    return DEAL_RES_IGNORE_CHILD;
   }
   return DEAL_RES_CONTINUE;
 }
@@ -861,16 +866,16 @@ static EDealRes rewriteProjectCondForPushDownImpl(SNode** ppNode, void* pContext
           if (0 == strcmp(((SExprNode*)pProjection)->aliasName, ((SColumnNode*)(*ppNode))->colName)) {
             SNode* pExpr = nodesCloneNode(pProjection);
             if (pExpr == NULL) {
-              pCxt->errCode = terrno;
+              pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
               return DEAL_RES_ERROR;
             }
             nodesDestroyNode(*ppNode);
             *ppNode = pExpr;
+            return DEAL_RES_IGNORE_CHILD;
           }  // end if expr alias name equal column name
         }    // end for each project
       }      // end if target node equals cond column node
     }        // end for each targets
-    return DEAL_RES_IGNORE_CHILD;
   }
   return DEAL_RES_CONTINUE;
 }
@@ -1208,7 +1213,7 @@ static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNo
   int32_t    smaFuncIndex = -1;
   *pWStrartIndex = -1;
   FOREACH(pFunc, pFuncs) {
-    if (FUNCTION_TYPE_WSTARTTS == ((SFunctionNode*)pFunc)->funcType) {
+    if (FUNCTION_TYPE_WSTART == ((SFunctionNode*)pFunc)->funcType) {
       *pWStrartIndex = index;
     }
     smaFuncIndex = smaIndexOptFindSmaFunc(pFunc, pSmaFuncs);
@@ -1252,7 +1257,7 @@ static SNode* smaIndexOptCreateWStartTs() {
   if (NULL == pWStart) {
     return NULL;
   }
-  strcpy(pWStart->functionName, "_wstartts");
+  strcpy(pWStart->functionName, "_wstart");
   snprintf(pWStart->node.aliasName, sizeof(pWStart->node.aliasName), "%s.%p", pWStart->functionName, pWStart);
   if (TSDB_CODE_SUCCESS != fmGetFuncInfo(pWStart, NULL, 0)) {
     nodesDestroyNode((SNode*)pWStart);
@@ -1980,7 +1985,8 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || !(((SAggLogicNode*)pNode)->hasLastRow) ||
       NULL != ((SAggLogicNode*)pNode)->pGroupKeys || 1 != LIST_LENGTH(pNode->pChildren) ||
       QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0)) ||
-      NULL != ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->node.pConditions) {
+      NULL != ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->node.pConditions ||
+      0 == ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->cacheLastMode) {
     return false;
   }
 
@@ -2005,9 +2011,14 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   SNode* pNode = NULL;
   FOREACH(pNode, pAgg->pAggFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
-    int32_t        len = snprintf(pFunc->functionName, sizeof(pFunc->functionName), "_cache_last_row");
-    pFunc->functionName[len] = '\0';
-    fmGetFuncInfo(pFunc, NULL, 0);
+    if (FUNCTION_TYPE_LAST_ROW == pFunc->funcType) {
+      int32_t len = snprintf(pFunc->functionName, sizeof(pFunc->functionName), "_cache_last_row");
+      pFunc->functionName[len] = '\0';
+      int32_t code = fmGetFuncInfo(pFunc, NULL, 0);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+    }
   }
   pAgg->hasLastRow = false;
 
@@ -2054,11 +2065,11 @@ static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
                      ((SExprNode*)*pNode)->aliasName);
             nodesDestroyNode(*pNode);
             *pNode = pExpr;
+            return DEAL_RES_IGNORE_CHILD;
           }
         }
       }
     }
-    return DEAL_RES_IGNORE_CHILD;
   }
   return DEAL_RES_CONTINUE;
 }
@@ -2100,11 +2111,12 @@ static bool tagScanMayBeOptimized(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode) || (SCAN_TYPE_TAG == ((SScanLogicNode*)pNode)->scanType)) {
     return false;
   }
-  SScanLogicNode *pScan = (SScanLogicNode*)pNode;
+  SScanLogicNode* pScan = (SScanLogicNode*)pNode;
   if (NULL != pScan->pScanCols) {
     return false;
   }
-  if (NULL == pNode->pParent || QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent) || 1 != LIST_LENGTH(pNode->pParent->pChildren)) {
+  if (NULL == pNode->pParent || QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent) ||
+      1 != LIST_LENGTH(pNode->pParent->pChildren)) {
     return false;
   }
 

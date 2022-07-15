@@ -152,6 +152,7 @@ typedef struct SRealTableNode {
   char               qualDbName[TSDB_DB_NAME_LEN];  // SHOW qualDbName.TABLES
   double             ratio;
   SArray*            pSmaIndexes;
+  int8_t             cacheLastMode;
 } SRealTableNode;
 
 typedef struct STempTableNode {
@@ -228,7 +229,7 @@ typedef struct SFillNode {
   ENodeType   type;  // QUERY_NODE_FILL
   EFillMode   mode;
   SNode*      pValues;    // SNodeListNode
-  SNode*      pWStartTs;  // _wstartts pseudo column
+  SNode*      pWStartTs;  // _wstart pseudo column
   STimeWindow timeRange;
 } SFillNode;
 
@@ -248,6 +249,7 @@ typedef struct SSelectStmt {
   SNodeList*  pOrderByList;  // SOrderByExprNode
   SLimitNode* pLimit;
   SLimitNode* pSlimit;
+  STimeWindow timeRange;
   char        stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t     precision;
   int32_t     selectFuncNum;
