@@ -14,7 +14,7 @@ sql connect
 sql show mnodes
 print dnode1 ==> $data2_1
 print dnode2 ==> $data2_2
-if $data2_1 != master then
+if $data2_1 != leader then
   return -1
 endi
 
@@ -33,10 +33,10 @@ show2:
 sql show mnodes
 print dnode1 ==> $data2_1
 print dnode2 ==> $data2_2
-if $data2_1 != master then
+if $data2_1 != leader then
 	goto show2
 endi
-if $data2_2 != slave then
+if $data2_2 != follower then
 	goto show2
 endi
 
@@ -53,10 +53,10 @@ print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
 
-if $dnode1Role != master then
+if $dnode1Role != leader then
   return -1
 endi
-if $dnode2Role != slave then
+if $dnode2Role != follower then
   return -1
 endi
 if $dnode3Role != null then
@@ -82,13 +82,13 @@ print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
 
-if $dnode1Role != master then
+if $dnode1Role != leader then
   goto step4
 endi
 if $dnode2Role != null then
   goto step4
 endi
-if $dnode3Role != slave then
+if $dnode3Role != follower then
   goto step4
 endi
 
@@ -117,13 +117,13 @@ print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
 
-if $dnode1Role != master then
+if $dnode1Role != leader then
   goto step5
 endi
 if $dnode2Role != null then
   goto step5
 endi
-if $dnode3Role != slave then
+if $dnode3Role != follower then
   goto step5
 endi
 

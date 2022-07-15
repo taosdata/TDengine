@@ -407,10 +407,10 @@ bool taosCfgDynamicOptions(char *msg) {
   return false;
 }
 
-void taosAddDataDir(int index, char *v1, int level, int primary) {
-  tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
-  tsDiskCfg[index].level = level;
-  tsDiskCfg[index].primary = primary;
+void taosAddDataDir(int idx, char *v1, int level, int primary) {
+  tstrncpy(tsDiskCfg[idx].dir, v1, TSDB_FILENAME_LEN);
+  tsDiskCfg[idx].level = level;
+  tsDiskCfg[idx].primary = primary;
   uTrace("dataDir:%s, level:%d primary:%d is configured", v1, level, primary);
 }
 

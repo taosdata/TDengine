@@ -122,54 +122,54 @@ int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
   int64_t v = 0;
   GET_TYPED_DATA(v, int64_t, pBucket->type, value);
 
-  int32_t index = -1;
+  int32_t idx = -1;
 
   if (v > pBucket->range.i64MaxVal || v < pBucket->range.i64MinVal) {
-    return index;
+    return idx;
   }
   
   // divide the value range into 1024 buckets
   uint64_t span = pBucket->range.i64MaxVal - pBucket->range.i64MinVal;
   if (span < pBucket->numOfSlots) {
     int64_t delta = v - pBucket->range.i64MinVal;
-    index = (delta % pBucket->numOfSlots);
+    idx = (delta % pBucket->numOfSlots);
   } else {
     double slotSpan = (double)span / pBucket->numOfSlots;
-    index = (int32_t)(((double)v - pBucket->range.i64MinVal) / slotSpan);
-    if (index == pBucket->numOfSlots) {
-      index -= 1;
+    idx = (int32_t)(((double)v - pBucket->range.i64MinVal) / slotSpan);
+    if (idx == pBucket->numOfSlots) {
+      idx -= 1;
     }
   }
 
-  assert(index >= 0 && index < pBucket->numOfSlots);
-  return index;
+  assert(idx >= 0 && idx < pBucket->numOfSlots);
+  return idx;
 }
 
 int32_t tBucketUintHash(tMemBucket *pBucket, const void *value) {
   uint64_t v = 0;
   GET_TYPED_DATA(v, uint64_t, pBucket->type, value);
 
-  int32_t index = -1;
+  int32_t idx = -1;
 
   if (v > pBucket->range.u64MaxVal || v < pBucket->range.u64MinVal) {
-    return index;
+    return idx;
   }
   
   // divide the value range into 1024 buckets
   uint64_t span = pBucket->range.u64MaxVal - pBucket->range.u64MinVal;
   if (span < pBucket->numOfSlots) {
     int64_t delta = v - pBucket->range.u64MinVal;
-    index = (int32_t) (delta % pBucket->numOfSlots);
+    idx = (int32_t) (delta % pBucket->numOfSlots);
   } else {
     double slotSpan = (double)span / pBucket->numOfSlots;
-    index = (int32_t)(((double)v - pBucket->range.u64MinVal) / slotSpan);
-    if (index == pBucket->numOfSlots) {
-      index -= 1;
+    idx = (int32_t)(((double)v - pBucket->range.u64MinVal) / slotSpan);
+    if (idx == pBucket->numOfSlots) {
+      idx -= 1;
     }
   }
 
-  assert(index >= 0 && index < pBucket->numOfSlots);
-  return index;
+  assert(idx >= 0 && idx < pBucket->numOfSlots);
+  return idx;
 }
 
 int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value) {
@@ -180,27 +180,27 @@ int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value) {
     v = GET_DOUBLE_VAL(value);
   }
 
-  int32_t index = -1;
+  int32_t idx = -1;
 
   if (v > pBucket->range.dMaxVal || v < pBucket->range.dMinVal) {
-    return index;
+    return idx;
   }
 
   // divide a range of [dMinVal, dMaxVal] into 1024 buckets
   double span = pBucket->range.dMaxVal - pBucket->range.dMinVal;
   if (span < pBucket->numOfSlots) {
     int32_t delta = (int32_t)(v - pBucket->range.dMinVal);
-    index = (delta % pBucket->numOfSlots);
+    idx = (delta % pBucket->numOfSlots);
   } else {
     double slotSpan = span / pBucket->numOfSlots;
-    index = (int32_t)((v - pBucket->range.dMinVal) / slotSpan);
-    if (index == pBucket->numOfSlots) {
-      index -= 1;
+    idx = (int32_t)((v - pBucket->range.dMinVal) / slotSpan);
+    if (idx == pBucket->numOfSlots) {
+      idx -= 1;
     }
   }
 
-  assert(index >= 0 && index < pBucket->numOfSlots);
-  return index;
+  assert(idx >= 0 && idx < pBucket->numOfSlots);
+  return idx;
 }
 
 static __perc_hash_func_t getHashFunc(int32_t type) {
@@ -332,18 +332,18 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
   for (int32_t i = 0; i < size; ++i) {
     char *d = (char *) data + i * bytes;
 
-    int32_t index = (pBucket->hashFunc)(pBucket, d);
-    if (index < 0) {
+    int32_t idx = (pBucket->hashFunc)(pBucket, d);
+    if (idx < 0) {
       continue;
     }
 
     count += 1;
 
-    tMemBucketSlot *pSlot = &pBucket->pSlots[index];
+    tMemBucketSlot *pSlot = &pBucket->pSlots[idx];
     tMemBucketUpdateBoundingBox(&pSlot->range, d, pBucket->type);
 
     // ensure available memory pages to allocate
-    int32_t groupId = getGroupId(pBucket->numOfSlots, index, pBucket->times);
+    int32_t groupId = getGroupId(pBucket->numOfSlots, idx, pBucket->times);
     int32_t pageId = -1;
 
     if (pSlot->info.data == NULL || pSlot->info.data->num >= pBucket->elemPerPage) {
@@ -387,7 +387,7 @@ static MinMaxEntry getMinMaxEntryOfNextSlotWithData(tMemBucket *pMemBucket, int3
     return pMemBucket->pSlots[j].range;
 }
 
-static bool isIdenticalData(tMemBucket *pMemBucket, int32_t index);
+static bool isIdenticalData(tMemBucket *pMemBucket, int32_t idx);
 
 static double getIdenticalDataVal(tMemBucket* pMemBucket, int32_t slotIndex) {
   assert(isIdenticalData(pMemBucket, slotIndex));
@@ -532,8 +532,8 @@ double getPercentile(tMemBucket *pMemBucket, double percent) {
 /*
  * check if data in one slot are all identical only need to compare with the bounding box
  */
-bool isIdenticalData(tMemBucket *pMemBucket, int32_t index) {
-  tMemBucketSlot *pSeg = &pMemBucket->pSlots[index];
+bool isIdenticalData(tMemBucket *pMemBucket, int32_t idx) {
+  tMemBucketSlot *pSeg = &pMemBucket->pSlots[idx];
 
   if (IS_FLOAT_TYPE(pMemBucket->type)) {
     return fabs(pSeg->range.dMaxVal - pSeg->range.dMinVal) < DBL_EPSILON;

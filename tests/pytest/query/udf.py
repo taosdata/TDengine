@@ -32,13 +32,14 @@ class TDTestCase:
         os.system("gcc -g -O0 -fPIC -shared ../script/sh/abs_max.c -o /tmp/abs_max.so")
         os.system("gcc -g -O0 -fPIC -shared ../script/sh/add_one.c -o /tmp/add_one.so")
         os.system("gcc -g -O0 -fPIC -shared ../script/sh/sum_double.c -o /tmp/sum_double.so")
+        os.system("gcc -g -O0 -fPIC -shared ../script/sh/demo.c -o /tmp/demo.so")
         tdSql.execute("create table stb(ts timestamp ,c1 int, c2 bigint) tags(t1 int)") 
-        for i in range(50):
-            for j in range(200):
+        for i in range(5):
+            for j in range(20):
                 sql = "insert into t%d using stb tags(%d) values(%s,%d,%d)" % (i, i, self.ts + j, 1e2+j, 1e10+j)
                 tdSql.execute(sql)
-        for i in range(50):
-            for j in range(200):
+        for i in range(5):
+            for j in range(20):
                 sql = "insert into t%d using stb tags(%d) values(%s,%d,%d)" % (i, i, self.ts + j + 200 , -1e2-j, -j-1e10)
                 tdSql.execute(sql)
                 
@@ -73,13 +74,15 @@ class TDTestCase:
         tdSql.error(sql)
         sql = 'select abs_max(c2) from db.stb'
         tdSql.query(sql)
-        tdSql.checkData(0,0,10000000199)
+        tdSql.checkData(0,0,10000000019)
 
     def test_udf_values(self):
         tdSql.execute("drop function abs_max")        
         tdSql.execute("create function add_one as '/tmp/add_one.so' outputtype int")
         tdSql.execute("create aggregate function abs_max as '/tmp/abs_max.so' outputtype bigint;")
         tdSql.execute("create aggregate function sum_double as '/tmp/sum_double.so' outputtype bigint;")
+        tdSql.execute("create aggregate function  demo  as '/tmp/demo.so' outputtype float bufsize 128;")
+        
 
         # tdSql.error("create aggregate function max as '/tmp/abs_max.so' outputtype bigint ;")
         # tdSql.error("create aggregate function avg as '/tmp/abs_max.so' outputtype bigint ;")  
@@ -537,6 +540,29 @@ class TDTestCase:
         tdSql.query("select sum(sumdb) from (select sum_double(id) sumdb from tb1)")
         tdSql.checkData(0,0,20)   
 
+        # add test case for demo function of UDF examples
+        tdSql.query("select demo(number) from st")
+        tdSql.checkRows(1)
+        tdSql.query("select demo(number) from tb1")
+        tdSql.checkRows(1)
+        tdSql.query("select demo(number) from st where ts > 1604298064000 and ts < 1604298064020")
+        tdSql.checkRows(1)
+        tdSql.query("select demo(number) from tb1 where ts > 1604298064000  and id in (2,3)")
+        tdSql.checkRows(1)
+        tdSql.query("select demo(number) from tb1 where ts > 1604298064000  and id in (2,3)")
+        tdSql.checkRows(1)
+        tdSql.query("select demo(number) from st where ts < now and ind =1 interval(3s) sliding (1s) limit 2 ")
+        tdSql.checkRows(2)
+        tdSql.query("select demo(number) from tb1 union all select demo(number) from tb2")
+        tdSql.checkRows(2)
+        tdSql.query("select demo(number) from st group by ind")
+        tdSql.checkRows(2)
+        tdSql.query("select demo(tb1.number),demo(bound.number) from tb1,bound where tb1.ts=bound.ts")
+        tdSql.checkRows(1)
+        tdSql.query("select demo(number) from (select number from st)")
+        tdSql.checkRows(1)
+        tdSql.query("select max(number) from (select demo(number) number from st)")
+        tdSql.checkRows(1)
 
         tdLog.info(" =====================test illegal creation method =====================")
         
