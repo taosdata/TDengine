@@ -293,7 +293,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   taosMemoryFreeClear(param);
 
   if (code != 0) {
-    (*pInst)->onlineDnodes = 0;
+    (*pInst)->onlineDnodes = ((*pInst)->totalDnodes ? 0 : -1);
   }
 
   if (rspNum) {
