@@ -525,6 +525,7 @@ typedef struct {
   int8_t   superUser;
   int8_t   connType;
   SEpSet   epSet;
+  int32_t  svrTimestamp;
   char     sVer[TSDB_VERSION_LEN];
   char     sDetailVer[128];
 } SConnectRsp;
@@ -1968,7 +1969,7 @@ typedef struct SVCreateTbReq {
   int8_t   type;
   union {
     struct {
-      char*    name;    // super table name
+      char*    name;  // super table name
       tb_uid_t suid;
       SArray*  tagName;
       uint8_t* pTag;
@@ -2233,6 +2234,7 @@ typedef struct {
 typedef struct {
   int64_t reqId;
   int64_t rspId;
+  int32_t svrTimestamp;
   SArray* rsps;  // SArray<SClientHbRsp>
 } SClientHbBatchRsp;
 
@@ -2437,9 +2439,6 @@ typedef struct {
   int8_t igNotExists;
 } SMDropStreamReq;
 
-int32_t tSerializeSMDropStreamReq(void* buf, int32_t bufLen, const SMDropStreamReq* pReq);
-int32_t tDeserializeSMDropStreamReq(void* buf, int32_t bufLen, SMDropStreamReq* pReq);
-
 typedef struct {
   int8_t reserved;
 } SMDropStreamRsp;
@@ -2453,6 +2452,27 @@ typedef struct {
 typedef struct {
   int8_t reserved;
 } SVDropStreamTaskRsp;
+
+int32_t tSerializeSMDropStreamReq(void* buf, int32_t bufLen, const SMDropStreamReq* pReq);
+int32_t tDeserializeSMDropStreamReq(void* buf, int32_t bufLen, SMDropStreamReq* pReq);
+
+typedef struct {
+  char   name[TSDB_STREAM_FNAME_LEN];
+  int8_t igNotExists;
+} SMRecoverStreamReq;
+
+typedef struct {
+  int8_t reserved;
+} SMRecoverStreamRsp;
+
+typedef struct {
+  int64_t recoverObjUid;
+  int32_t taskId;
+  int32_t hasCheckPoint;
+} SMVStreamGatherInfoReq;
+
+int32_t tSerializeSMRecoverStreamReq(void* buf, int32_t bufLen, const SMRecoverStreamReq* pReq);
+int32_t tDeserializeSMRecoverStreamReq(void* buf, int32_t bufLen, SMRecoverStreamReq* pReq);
 
 typedef struct {
   int64_t leftForVer;
@@ -2876,7 +2896,8 @@ static FORCE_INLINE int32_t tEncodeSMqMetaRsp(void** buf, const SMqMetaRsp* pRsp
 }
 
 static FORCE_INLINE void* tDecodeSMqMetaRsp(const void* buf, SMqMetaRsp* pRsp) {
-  buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
+  buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
+  buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
   buf = taosDecodeFixedI16(buf, &pRsp->resMsgType);
   buf = taosDecodeFixedI32(buf, &pRsp->metaRspLen);
   buf = taosDecodeBinary(buf, &pRsp->metaRsp, pRsp->metaRspLen);

@@ -2685,6 +2685,8 @@ int main(int argc, char *argv[])
 
   runAll(taos);
 
+  taos_close(taos);
+
   return 0;
 }
 
