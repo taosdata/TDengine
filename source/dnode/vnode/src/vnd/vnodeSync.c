@@ -584,8 +584,8 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   }
 
   setPingTimerMS(pVnode->sync, 5000);
-  setElectTimerMS(pVnode->sync, 500);
-  setHeartbeatTimerMS(pVnode->sync, 100);
+  setElectTimerMS(pVnode->sync, 1300);
+  setHeartbeatTimerMS(pVnode->sync, 900);
   return 0;
 }
 
