@@ -62,26 +62,26 @@ system sh/exec.sh -n dnode1 -s start -v
 
 print =============== stepa: query data
 sql select * from c1
-#sql select * from stb
-#sql select * from stb_1
-#sql select ts, c1, c2, c3 from c1
-#sql select ts, c1, c2, c3 from stb
-#sql select ts, c1 from stb_2
-#sql select ts, c1, t1 from c1
-#sql select ts, c1, t1 from stb
-#sql select ts, c1, t1 from stb_2
+sql select * from stb
+sql select * from stb_1
+sql select ts, c1, c2, c3 from c1
+sql select ts, c1, c2, c3 from stb
+sql select ts, c1 from stb_2
+sql select ts, c1, t1 from c1
+sql select ts, c1, t1 from stb
+sql select ts, c1, t1 from stb_2
 
 print =============== stepb: count
-#sql select count(*) from c1;
-#sql select count(*) from stb;
-#sql select count(ts), count(c1), count(c2), count(c3) from c1
-#sql select count(ts), count(c1), count(c2), count(c3) from stb
+sql select count(*) from c1;
+sql select count(*) from stb;
+sql select count(ts), count(c1), count(c2), count(c3) from c1
+sql select count(ts), count(c1), count(c2), count(c3) from stb
 
 print =============== stepc: func
-#sql select first(ts), first(c1), first(c2), first(c3) from c1
-#sql select min(c2), min(c3), min(c4) from c1
-#sql select max(c2), max(c3), max(c4) from c1
-#sql select sum(c2), sum(c3), sum(c4) from c1
+sql select first(ts), first(c1), first(c2), first(c3) from c1
+sql select min(c2), min(c3), min(c4) from c1
+sql select max(c2), max(c3), max(c4) from c1
+sql select sum(c2), sum(c3), sum(c4) from c1
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
