@@ -9,7 +9,7 @@
 #include "tmsg.h"
 #include "tname.h"
 
-SQWDebug     gQWDebug = {.statusEnable = true, .dumpEnable = false, .tmp = false};
+SQWDebug     gQWDebug = {.statusEnable = true, .dumpEnable = true, .tmp = false};
 
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore) {
   if (!gQWDebug.statusEnable) {
@@ -175,29 +175,61 @@ int32_t qwDbgResponseRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx) {
   return TSDB_CODE_SUCCESS;
 }
 
+void qwDbgSimulateSleep() {
+  if (!gQWDebug.sleepSimulate) {
+    return;
+  }
+
+  taosSsleep(taosRand() % 10);
+}
+
+void qwDbgSimulateDead(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t msgType) {
+  if (!gQWDebug.deadSimulate) {
+    return;
+  }
+
+  //FETCH OR QUERY USE DIFFERENT CONNINFO
+  qwBuildAndSendErrorRsp(msgType + 1, ctx->dataConnInfo, TSDB_CODE_RPC_BROKEN_LINK);
+
+  qwDropTask(QW_FPARAMS());
+}
+
+
 
 int32_t qwDbgEnableDebug(char *option) {
   if (0 == strcasecmp(option, "lock")) {
     gQWDebug.lockEnable = true;
-    qDebug("qw lock debug enabled");
+    qError("qw lock debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
   if (0 == strcasecmp(option, "status")) {
     gQWDebug.statusEnable = true;
-    qDebug("qw status debug enabled");
+    qError("qw status debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
   if (0 == strcasecmp(option, "dump")) {
     gQWDebug.dumpEnable = true;
-    qDebug("qw dump debug enabled");
+    qError("qw dump debug enabled");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (0 == strcasecmp(option, "sleep")) {
+    gQWDebug.sleepSimulate = true;
+    qError("qw sleep debug enabled");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (0 == strcasecmp(option, "dead")) {
+    gQWDebug.sleepSimulate = true;
+    qError("qw dead debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
   if (0 == strcasecmp(option, "tmp")) {
     gQWDebug.tmp = true;
-    qDebug("qw tmp debug enabled");
+    qError("qw tmp debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 

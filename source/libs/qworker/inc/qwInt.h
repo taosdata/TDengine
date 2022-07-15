@@ -75,6 +75,8 @@ typedef struct SQWDebug {
   bool lockEnable;
   bool statusEnable;
   bool dumpEnable;
+  bool sleepSimulate;
+  bool deadSimulate;
   bool tmp;
 } SQWDebug;
 
