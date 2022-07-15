@@ -2379,9 +2379,9 @@ typedef struct STableMergeScanInfo {
   SSampleExecInfo sample;  // sample execution info
 } STableMergeScanInfo;
 
-int32_t createScanTableListInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
+int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId) {
-  int32_t code = getTableList(pHandle->meta, pHandle->vnode, &pTableScanNode->scan, pTableListInfo);
+  int32_t code = getTableList(pHandle->meta, pHandle->vnode, pScanNode, pTableListInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -2391,8 +2391,8 @@ int32_t createScanTableListInfo(STableScanPhysiNode* pTableScanNode, SReadHandle
     return TSDB_CODE_SUCCESS;
   }
 
-  pTableListInfo->needSortTableByGroupId = pTableScanNode->groupSort;
-  code = generateGroupIdMap(pTableListInfo, pHandle, pTableScanNode->pGroupTags);
+  pTableListInfo->needSortTableByGroupId = groupSort;
+  code = generateGroupIdMap(pTableListInfo, pHandle, pGroupTags);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
