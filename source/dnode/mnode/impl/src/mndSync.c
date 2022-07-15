@@ -56,23 +56,24 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     sdbSetApplyInfo(pMnode->pSdb, cbMeta.index, cbMeta.term, cbMeta.lastConfigIndex);
   }
 
-  if (pMgmt->transId == transId && transId != 0) {
+  if (transId <= 0) {
+    mError("trans:%d, invalid commit msg", transId);
+  } else if (transId == pMgmt->transId) {
     if (pMgmt->errCode != 0) {
       mError("trans:%d, failed to propose since %s", transId, tstrerror(pMgmt->errCode));
     }
     pMgmt->transId = 0;
     tsem_post(&pMgmt->syncSem);
   } else {
-#if 1
-    mError("trans:%d, invalid commit msg since trandId not match with %d", transId, pMgmt->transId);
-#else
     STrans *pTrans = mndAcquireTrans(pMnode, transId);
     if (pTrans != NULL) {
+      mDebug("trans:%d, execute in mnode which not leader", transId);
       mndTransExecute(pMnode, pTrans);
       mndReleaseTrans(pMnode, pTrans);
+      // sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
+    } else {
+      mError("trans:%d, not found while execute in mnode since %s", transId, terrstr());
     }
-    // sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
-#endif
   }
 }
 
