@@ -2682,7 +2682,7 @@ static void saveTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SqlFun
   }
 }
 
-static void doSaveCurrentVal(SqlFunctionCtx* pCtx, int32_t rowIndex, int32_t currentTs, int32_t type, char* pData) {
+static void doSaveCurrentVal(SqlFunctionCtx* pCtx, int32_t rowIndex, int64_t currentTs, int32_t type, char* pData) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SFirstLastRes*       pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
