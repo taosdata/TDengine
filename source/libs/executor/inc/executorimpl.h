@@ -139,6 +139,12 @@ typedef struct STaskIdInfo {
   char*    str;
 } STaskIdInfo;
 
+enum {
+  STREAM_RECOVER_STEP__NONE = 0,
+  STREAM_RECOVER_STEP__PREPARE,
+  STREAM_RECOVER_STEP__SCAN,
+};
+
 typedef struct {
   //TODO remove prepareStatus
   STqOffsetVal   prepareStatus; // for tmq
@@ -147,6 +153,10 @@ typedef struct {
   SSDataBlock*   pullOverBlk;   // for streaming
   SWalFilterCond cond;
   int64_t        lastScanUid;
+  int8_t         recoverStep;
+  SQueryTableDataCond tableCond;
+  int64_t recoverStartVer;
+  int64_t recoverEndVer;
 } SStreamTaskInfo;
 
 typedef struct SExecTaskInfo {

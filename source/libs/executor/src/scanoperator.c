@@ -517,14 +517,12 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
     SArray* tableList = taosArrayGetP(pTaskInfo->tableqinfoList.pGroupList, pInfo->currentGroupId);
 
-    int32_t code;
-    if (pInfo->dataReader != NULL) {
-      code = tsdbReaderReset(pInfo->dataReader, &pInfo->cond);
-      ASSERT(code == 0);
-    } else {
-      code = tsdbReaderOpen(pInfo->readHandle.vnode, &pInfo->cond, tableList, (STsdbReader**)&pInfo->dataReader,
-                            GET_TASKID(pTaskInfo));
-      ASSERT(code == 0);
+    tsdbReaderClose(pInfo->dataReader);
+
+    int32_t code = tsdbReaderOpen(pInfo->readHandle.vnode, &pInfo->cond, tableList, (STsdbReader**)&pInfo->dataReader,
+                                  GET_TASKID(pTaskInfo));
+    if (code != 0) {
+      // TODO
     }
   }
 
@@ -1264,6 +1262,24 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     return NULL;
   }
 
+  if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE) {
+    STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
+    memcpy(&pTSInfo->cond, &pTaskInfo->streamInfo.tableCond, sizeof(SQueryTableDataCond));
+    pTSInfo->scanTimes = 0;
+    pTSInfo->currentGroupId = -1;
+    pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__SCAN;
+  }
+
+  if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__SCAN) {
+    SSDataBlock* pBlock = doTableScan(pInfo->pTableScanOp);
+    if (pBlock != NULL) {
+      return pBlock;
+    }
+    // TODO fill in bloom filter
+    pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__NONE;
+    return NULL;
+  }
+
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
   // TODO: refactor
   if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
@@ -1556,6 +1572,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
       goto _error;
     }
     taosArrayDestroy(tableIdList);
+    memcpy(&pTaskInfo->streamInfo.tableCond, &pTSInfo->cond, sizeof(SQueryTableDataCond));
   }
 
   // create the pseduo columns info
