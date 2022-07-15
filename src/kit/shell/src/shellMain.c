@@ -76,7 +76,6 @@ SShellArguments args = {.host = NULL,
   .database = NULL,
   .timezone = NULL,
   .restful = false,
-  .token = NULL,
   .is_raw_time = false,
   .is_use_passwd = false,
   .dump_config = false,
@@ -87,7 +86,12 @@ SShellArguments args = {.host = NULL,
   .pktLen = 1000,
   .pktNum = 100,
   .pktType = "TCP",
-  .netTestRole = NULL};
+  .netTestRole = NULL,
+  .cloud = true,
+  .cloudHost = NULL,
+  .cloudPort = NULL,
+  .cloudToken = NULL,
+  };
 
 /*
  * Main function.
@@ -126,10 +130,17 @@ int main(int argc, char* argv[]) {
     exit(0);
   }
 
-  if (args.restful) {
-    if (convertHostToServAddr()) {
-      exit(EXIT_FAILURE);
-    }
+  if (args.cloud) {
+      if (parse_cloud_dsn()) {
+          exit(EXIT_FAILURE);
+      }
+      if (tcpConnect(args.cloudHost, atoi(args.cloudPort))) {
+          exit(EXIT_FAILURE);
+      }
+  } else if (args.restful) {
+      if (tcpConnect(args.host, args.port)) {
+          exit(EXIT_FAILURE);
+      }
   }
 
   /* Initialize the shell */

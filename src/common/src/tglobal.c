@@ -397,10 +397,10 @@ bool taosCfgDynamicOptions(char *msg) {
   return false;
 }
 
-void taosAddDataDir(int index, char *v1, int level, int primary) {
-  tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
-  tsDiskCfg[index].level = level;
-  tsDiskCfg[index].primary = primary;
+void taosAddDataDir(int idx, char *v1, int level, int primary) {
+  tstrncpy(tsDiskCfg[idx].dir, v1, TSDB_FILENAME_LEN);
+  tsDiskCfg[idx].level = level;
+  tsDiskCfg[idx].primary = primary;
   uTrace("dataDir:%s, level:%d primary:%d is configured", v1, level, primary);
 }
 
@@ -627,7 +627,7 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "tcpConnTimout";
+  cfg.option = "tcpConnTimeout";
   cfg.ptr = &tsTcpConnTimeout;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;

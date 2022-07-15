@@ -312,7 +312,7 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
 
     // 3. valid column names
     for (int32_t j = i + 1; j < numOfCols; ++j) {
-      if (strncasecmp(pSchema[i].name, pSchema[j].name, sizeof(pSchema[i].name) - 1) == 0) {
+      if (strncmp(pSchema[i].name, pSchema[j].name, sizeof(pSchema[i].name) - 1) == 0) {
         return false;
       }
     }
@@ -442,29 +442,29 @@ void tNameAssign(SName* dst, const SName* src) {
   memcpy(dst, src, sizeof(SName));
 }
 
-int32_t tNameSetDbName(SName* dst, const char* acct, SStrToken* dbToken) {
-  assert(dst != NULL && dbToken != NULL && acct != NULL);
+int32_t tNameSetDbName(SName* dst, const char* accnt, SStrToken* dbToken) {
+  assert(dst != NULL && dbToken != NULL && accnt != NULL);
 
   // too long account id or too long db name
-  if (strlen(acct) >= tListLen(dst->acctId) || dbToken->n >= tListLen(dst->dbname)) {
+  if (strlen(accnt) >= tListLen(dst->acctId) || dbToken->n >= tListLen(dst->dbname)) {
     return -1;
   }
 
   dst->type = TSDB_DB_NAME_T;
-  tstrncpy(dst->acctId, acct, tListLen(dst->acctId));
+  tstrncpy(dst->acctId, accnt, tListLen(dst->acctId));
   tstrncpy(dst->dbname, dbToken->z, dbToken->n + 1);
   return 0;
 }
 
-int32_t tNameSetAcctId(SName* dst, const char* acct) {
-  assert(dst != NULL && acct != NULL);
+int32_t tNameSetAcctId(SName* dst, const char* accnt) {
+  assert(dst != NULL && accnt != NULL);
 
   // too long account id or too long db name
-  if (strlen(acct) >= tListLen(dst->acctId)) {
+  if (strlen(accnt) >= tListLen(dst->acctId)) {
     return -1;
   }
 
-  tstrncpy(dst->acctId, acct, tListLen(dst->acctId));
+  tstrncpy(dst->acctId, accnt, tListLen(dst->acctId));
 
   assert(strlen(dst->acctId) > 0);
   

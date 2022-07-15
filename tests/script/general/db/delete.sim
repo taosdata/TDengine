@@ -57,7 +57,7 @@ step3:
 
 sql show mnodes
 print dnode1 role $data2_1
-if $data2_1 != master then
+if $data2_1 != leader then
   goto step3
 endi
 

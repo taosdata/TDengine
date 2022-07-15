@@ -257,6 +257,8 @@ typedef struct SInsertStatementParam {
   int32_t      batchSize;               // for parameter ('?') binding and batch processing
   int32_t      numOfParams;
 
+  int32_t      numOfFiles;
+
   char         msg[512];                // error message
   uint32_t     insertType;              // insert data from [file|sql statement| bound statement]
   uint64_t     objectId;                // sql object id
@@ -292,6 +294,7 @@ typedef struct {
   SQueryInfo  *active;         // current active query info
   int32_t      batchSize;      // for parameter ('?') binding and batch processing
   int32_t      resColumnId;
+  SArray      *hashedTableNames;
 } SSqlCmd;
 
 typedef struct {

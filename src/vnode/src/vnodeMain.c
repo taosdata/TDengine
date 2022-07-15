@@ -586,9 +586,9 @@ void vnodeCleanUp(SVnodeObj *pVnode) {
 
   // stop replication module
   if (pVnode->sync > 0) {
-    int64_t sync = pVnode->sync;
+    int64_t syncRid = pVnode->sync;
     pVnode->sync = -1;
-    syncStop(sync);
+    syncStop(syncRid);
   }
 
   vDebug("vgId:%d, vnode is cleaned, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);

@@ -293,6 +293,7 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
 
 #define SET_DOUBLE_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_DOUBLE_NULL)
 #define SET_TIMESTAMP_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_TIMESTAMP_NULL)
+#define SET_BIGINT_NULL(v) (*(int64_t *)(v) = TSDB_DATA_BIGINT_NULL)
 
 #ifdef __cplusplus
 }
