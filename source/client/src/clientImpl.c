@@ -2043,6 +2043,7 @@ void syncCatalogFn(SMetaData* pResult, void* param, int32_t code) {
 void syncQueryFn(void* param, void* res, int32_t code) {
   SSyncQueryParam* pParam = param;
   pParam->pRequest = res;
+
   if (pParam->pRequest) {
     pParam->pRequest->code = code;
   }
@@ -2089,6 +2090,8 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
 
   taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly);
   tsem_wait(&param->sem);
+
+  param->pRequest->syncQuery = true;
   return param->pRequest;
 #else
   size_t sqlLen = strlen(sql);

@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <common/ttime.h>
+#include "ttime.h"
 #include "function.h"
 #include "functionMgt.h"
 #include "index.h"
@@ -603,13 +603,15 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
   }
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
-    if (strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "_select_value") == 0 ||
-        strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "_group_key") == 0) {
+    const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
+    if ((strcmp(pName, "_select_value") == 0) ||
+        (strcmp(pName, "_group_key") == 0)) {
       pValCtx[num++] = &pCtx[i];
     } else if (fmIsSelectFunc(pCtx[i].functionId)) {
       p = &pCtx[i];
     }
   }
+
 #ifdef BUF_PAGE_DEBUG
   qDebug("page_setSelect num:%d", num);
 #endif
