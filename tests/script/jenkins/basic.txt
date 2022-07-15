@@ -88,23 +88,13 @@
 ./test.sh -f tsim/parser/alter_column.sim
 ./test.sh -f tsim/parser/alter_stable.sim
 # jira ./test.sh -f tsim/parser/auto_create_tb.sim
-# ./test.sh -f tsim/parser/auto_create_tb_drop_tb.sim
-# ./test.sh -f tsim/parser/between_and.sim
-# ./test.sh -f tsim/parser/binary_escapeCharacter.sim
-# ./test.sh -f tsim/parser/col_arithmetic_operation.sim                                                                                                                            
-## ./test.sh -f tsim/parser/col_arithmetic_query.sim
-## ./test.sh -f tsim/parser/columnValue.sim
-## ./test.sh -f tsim/parser/columnValue_bigint.sim
-## ./test.sh -f tsim/parser/columnValue_bool.sim
-## ./test.sh -f tsim/parser/columnValue_double.sim
-## ./test.sh -f tsim/parser/columnValue_float.sim
-## ./test.sh -f tsim/parser/columnValue_int.sim
-## ./test.sh -f tsim/parser/columnValue_smallint.sim
-## ./test.sh -f tsim/parser/columnValue_tinyint.sim
-## ./test.sh -f tsim/parser/columnValue_unsign.sim
+./test.sh -f tsim/parser/auto_create_tb_drop_tb.sim
+./test.sh -f tsim/parser/between_and.sim
+./test.sh -f tsim/parser/binary_escapeCharacter.sim
+# nojira ./test.sh -f tsim/parser/col_arithmetic_operation.sim     
+# nojira ./test.sh -f tsim/parser/columnValue.sim
 ## ./test.sh -f tsim/parser/commit.sim
 ## ./test.sh -f tsim/parser/condition.sim
-## ./test.sh -f tsim/parser/condition_query.sim
 ## ./test.sh -f tsim/parser/constCol.sim
 # ./test.sh -f tsim/parser/create_db.sim
 ## ./test.sh -f tsim/parser/create_db__for_community_version.sim
@@ -117,7 +107,6 @@
 # ./test.sh -f tsim/parser/fill_stb.sim
 ## ./test.sh -f tsim/parser/fill_us.sim
 # ./test.sh -f tsim/parser/first_last.sim
-## ./test.sh -f tsim/parser/first_last_query.sim
 ./test.sh -f tsim/parser/fourArithmetic-basic.sim
 ## ./test.sh -f tsim/parser/function.sim
 ./test.sh -f tsim/parser/groupby-basic.sim
@@ -132,24 +121,18 @@
 ## ./test.sh -f tsim/parser/insert_multiTbl.sim
 # ./test.sh -f tsim/parser/insert_tb.sim
 ## ./test.sh -f tsim/parser/interp.sim
-## ./test.sh -f tsim/parser/interp_test.sim
 # ./test.sh -f tsim/parser/join.sim
 # ./test.sh -f tsim/parser/join_manyblocks.sim
 ## ./test.sh -f tsim/parser/join_multitables.sim
 # ./test.sh -f tsim/parser/join_multivnode.sim
 # ./test.sh -f tsim/parser/last_cache.sim
-## ./test.sh -f tsim/parser/last_cache_query.sim
 ## ./test.sh -f tsim/parser/last_groupby.sim
 # ./test.sh -f tsim/parser/lastrow.sim
-## ./test.sh -f tsim/parser/lastrow_query.sim
 ## ./test.sh -f tsim/parser/like.sim
 # ./test.sh -f tsim/parser/limit.sim
 # ./test.sh -f tsim/parser/limit1.sim
-## ./test.sh -f tsim/parser/limit1_stb.sim
-## ./test.sh -f tsim/parser/limit1_tb.sim
 # ./test.sh -f tsim/parser/limit1_tblocks100.sim
 ## ./test.sh -f tsim/parser/limit2.sim
-## ./test.sh -f tsim/parser/limit2_query.sim
 ## ./test.sh -f tsim/parser/limit2_tblocks100.sim
 ## ./test.sh -f tsim/parser/limit_stb.sim
 ## ./test.sh -f tsim/parser/limit_tb.sim
@@ -169,20 +152,15 @@
 # ./test.sh -f tsim/parser/select_with_tags.sim
 # ./test.sh -f tsim/parser/set_tag_vals.sim
 # ./test.sh -f tsim/parser/single_row_in_tb.sim
-## ./test.sh -f tsim/parser/single_row_in_tb_query.sim
 # ./test.sh -f tsim/parser/sliding.sim
 # ./test.sh -f tsim/parser/slimit.sim
 # ./test.sh -f tsim/parser/slimit1.sim
-## ./test.sh -f tsim/parser/slimit1_query.sim
 # ./test.sh -f tsim/parser/slimit_alter_tags.sim
-## ./test.sh -f tsim/parser/slimit_query.sim
 # ./test.sh -f tsim/parser/stableOp.sim
 # ./test.sh -f tsim/parser/tags_dynamically_specifiy.sim
 # ./test.sh -f tsim/parser/tags_filter.sim
 # ./test.sh -f tsim/parser/tbnameIn.sim
-## ./test.sh -f tsim/parser/tbnameIn_query.sim
 # ./test.sh -f tsim/parser/timestamp.sim
-## ./test.sh -f tsim/parser/timestamp_query.sim
 ## ./test.sh -f tsim/parser/top_groupby.sim
 # ./test.sh -f tsim/parser/topbot.sim
 # ./test.sh -f tsim/parser/udf.sim
