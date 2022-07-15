@@ -48,20 +48,7 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables);
 static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma, int64_t *committed);
 static int32_t tdRSmaRestoreTSDataReload(SSma *pSma, int64_t committed);
 
-struct SRSmaInfoItem {
-  void   *taskInfo;  // qTaskInfo_t
-  int64_t refId;
-  tmr_h   tmrId;
-  int32_t maxDelay;
-  int8_t  level;
-  int8_t  triggerStat;
-};
 
-struct SRSmaInfo {
-  STSchema     *pTSchema;
-  int64_t       suid;
-  SRSmaInfoItem items[TSDB_RETENTION_L2];
-};
 
 static SRSmaInfo *tdGetRSmaInfoByItem(SRSmaInfoItem *pItem) {
   // adapt accordingly if definition of SRSmaInfo update
@@ -102,7 +89,7 @@ static FORCE_INLINE int32_t tdRSmaQTaskInfoContLen(int32_t lenWithHead) {
 
 static FORCE_INLINE void tdRSmaQTaskInfoIterDestroy(SRSmaQTaskInfoIter *pIter) { taosMemoryFreeClear(pIter->pBuf); }
 
-static FORCE_INLINE void tdFreeTaskHandle(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level) {
+void tdFreeQTaskInfo(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level) {
   // Note: free/kill may in RC
   qTaskInfo_t otaskHandle = atomic_load_ptr(taskHandle);
   if (otaskHandle && atomic_val_compare_exchange_ptr(taskHandle, otaskHandle, NULL)) {
@@ -123,7 +110,7 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo) {
                    i + 1);
           taosTmrStopA(&pItem->tmrId);
         }
-        tdFreeTaskHandle(&pItem->taskInfo, SMA_VID(pSma), i + 1);
+        tdFreeQTaskInfo(&pItem->taskInfo, SMA_VID(pSma), i + 1);
       } else {
         smaDebug("vgId:%d, table %" PRIi64 " no need to destroy rsma info level %d since empty taskInfo", SMA_VID(pSma),
                  pInfo->suid, i + 1);
@@ -257,22 +244,21 @@ int32_t tdFetchTbUidList(SSma *pSma, STbUidStore **ppStore, tb_uid_t suid, tb_ui
 
 static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat *pStat, SRSmaInfo *pRSmaInfo,
                                        int8_t idx) {
-  SRetention *pRetention = SMA_RETENTION(pSma);
-  STsdbCfg   *pTsdbCfg = SMA_TSDB_CFG(pSma);
+  if ((param->qmsgLen > 0) && param->qmsg[idx]) {
+    SRetention *pRetention = SMA_RETENTION(pSma);
+    STsdbCfg   *pTsdbCfg = SMA_TSDB_CFG(pSma);
+    SReadHandle handle = {
+        .meta = pSma->pVnode->pMeta,
+        .vnode = pSma->pVnode,
+        .initTqReader = 1,
+    };
 
-  SReadHandle handle = {
-      .meta = pSma->pVnode->pMeta,
-      .vnode = pSma->pVnode,
-      .initTqReader = 1,
-  };
-
-  if (param->qmsg[idx]) {
     SRSmaInfoItem *pItem = &(pRSmaInfo->items[idx]);
     pItem->refId = RSMA_REF_ID(pStat);
     pItem->taskInfo = qCreateStreamExecTaskInfo(param->qmsg[idx], &handle);
     if (!pItem->taskInfo) {
       terrno = TSDB_CODE_RSMA_QTASKINFO_CREATE;
-      goto _err;
+      return TSDB_CODE_FAILED;
     }
     pItem->triggerStat = TASK_TRIGGER_STAT_INACTIVE;
     if (param->maxdelay[idx] < TSDB_MIN_ROLLUP_MAX_DELAY) {
@@ -286,13 +272,11 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
       pItem->maxDelay = TSDB_MAX_ROLLUP_MAX_DELAY;
     }
     pItem->level = idx == 0 ? TSDB_RETENTION_L1 : TSDB_RETENTION_L2;
-    smaInfo("vgId:%d table:%" PRIi64 " level:%" PRIi8 " maxdelay:%" PRIi64 " watermark:%" PRIi64
+    smaInfo("vgId:%d, table:%" PRIi64 " level:%" PRIi8 " maxdelay:%" PRIi64 " watermark:%" PRIi64
             ", finally maxdelay:%" PRIi32,
             SMA_VID(pSma), pRSmaInfo->suid, idx + 1, param->maxdelay[idx], param->watermark[idx], pItem->maxDelay);
   }
   return TSDB_CODE_SUCCESS;
-_err:
-  return TSDB_CODE_FAILED;
 }
 
 /**
@@ -562,7 +546,9 @@ static int32_t tdRSmaFetchAndSubmitResult(SRSmaInfoItem *pItem, STSchema *pTSche
     SSDataBlock *output = NULL;
     uint64_t     ts;
     if (qExecTask(pItem->taskInfo, &output, &ts) < 0) {
-      ASSERT(false);
+      smaError("vgId:%d, qExecTask for rsma table %" PRIi64 "l evel %" PRIi8 " failed since %s", SMA_VID(pSma), suid,
+               pItem->level, terrstr());
+      goto _err;
     }
     if (!output) {
       break;
@@ -572,7 +558,7 @@ static int32_t tdRSmaFetchAndSubmitResult(SRSmaInfoItem *pItem, STSchema *pTSche
       pResult = taosArrayInit(1, sizeof(SSDataBlock));
       if (!pResult) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return TSDB_CODE_FAILED;
+        goto _err;
       }
     }
 
@@ -891,7 +877,7 @@ int32_t tdProcessRSmaRestoreImpl(SSma *pSma) {
 
   return TSDB_CODE_SUCCESS;
 _err:
-  smaError("vgId:%d failed to restore rsma task since %s", SMA_VID(pSma), terrstr());
+  smaError("vgId:%d, failed to restore rsma task since %s", SMA_VID(pSma), terrstr());
   return TSDB_CODE_FAILED;
 }
 
@@ -1217,6 +1203,10 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
       smaDebug("vgId:%d, not fetch rsma level %" PRIi8 " data since stat is %" PRIi8 ", rsetId rsetId:%" PRIi64
                " refId:%d",
                SMA_VID(pSma), pItem->level, rsmaTriggerStat, smaMgmt.rsetId, pItem->refId);
+      if (rsmaTriggerStat == TASK_TRIGGER_STAT_PAUSED) {
+        taosTmrReset(tdRSmaFetchTrigger, pItem->maxDelay > 5000 ? 5000 : pItem->maxDelay, pItem, smaMgmt.tmrHandle,
+                     &pItem->tmrId);
+      }
       return;
     }
     default:

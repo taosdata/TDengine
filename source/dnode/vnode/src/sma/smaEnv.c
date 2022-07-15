@@ -17,7 +17,6 @@
 
 typedef struct SSmaStat SSmaStat;
 
-#define RSMA_TASK_INFO_HASH_SLOT 8
 #define SMA_MGMT_REF_NUM         10240
 
 extern SSmaMgmt smaMgmt;
@@ -311,7 +310,6 @@ int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
       if (taosRemoveRef(smaMgmt.rsetId, RSMA_REF_ID(pRSmaStat)) < 0) {
         smaError("vgId:%d, remove refId:%" PRIi64 " from rsmaRef:%" PRIi32 " failed since %s", SMA_VID(pRSmaStat->pSma),
                  RSMA_REF_ID(pRSmaStat), smaMgmt.rsetId, terrstr());
-        ASSERT(0);
       } else {
         smaDebug("vgId:%d, remove refId:%" PRIi64 " from rsmaRef:%" PRIi32 " succeed", SMA_VID(pRSmaStat->pSma),
                  RSMA_REF_ID(pRSmaStat), smaMgmt.rsetId);
@@ -361,7 +359,7 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
       }
       break;
     default:
-      smaError("vgId:%d undefined smaType:%", SMA_VID(pSma), smaType);
+      smaError("vgId:%d, undefined smaType:%", SMA_VID(pSma), smaType);
       return TSDB_CODE_FAILED;
   }
 

@@ -233,7 +233,7 @@ int vnodeCommit(SVnode *pVnode) {
   walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
 
   // preCommit
-  smaPreCommit(pVnode->pSma);
+  smaSyncPreCommit(pVnode->pSma);
 
   // commit each sub-system
   if (metaCommit(pVnode->pMeta) < 0) {
@@ -276,7 +276,7 @@ int vnodeCommit(SVnode *pVnode) {
   pVnode->state.committed = info.state.committed;
 
   // postCommit
-  smaPostCommit(pVnode->pSma);
+  smaSyncPostCommit(pVnode->pSma);
 
   // apply the commit (TODO)
   walEndSnapshot(pVnode->pWal);

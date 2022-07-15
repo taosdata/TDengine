@@ -67,7 +67,9 @@ struct SRSmaStat {
   int64_t   submitVer;
   int64_t   refId;         // shared by fetch tasks
   int8_t    triggerStat;   // shared by fetch tasks
+  int8_t    commitStat;    // 0 not in committing, 1 in committing
   SHashObj *rsmaInfoHash;  // key: stbUid, value: SRSmaInfo;
+  SHashObj *iRsmaInfoHash;  // key: stbUid, value: SRSmaInfo; immutable rsmaInfoHash
 };
 
 struct SSmaStat {
@@ -78,12 +80,29 @@ struct SSmaStat {
   T_REF_DECLARE()
 };
 
-#define SMA_TSMA_STAT(s)     (&(s)->tsmaStat)
-#define SMA_RSMA_STAT(s)     (&(s)->rsmaStat)
-#define RSMA_INFO_HASH(r)    ((r)->rsmaInfoHash)
-#define RSMA_TRIGGER_STAT(r) (&(r)->triggerStat)
-#define RSMA_REF_ID(r)       ((r)->refId)
-#define RSMA_SUBMIT_VER(r)   ((r)->submitVer)
+#define SMA_TSMA_STAT(s)      (&(s)->tsmaStat)
+#define SMA_RSMA_STAT(s)      (&(s)->rsmaStat)
+#define RSMA_INFO_HASH(r)     ((r)->rsmaInfoHash)
+#define RSMA_IMU_INFO_HASH(r) ((r)->iRsmaInfoHash)
+#define RSMA_TRIGGER_STAT(r)  (&(r)->triggerStat)
+#define RSMA_COMMIT_STAT(r)   (&(r)->commitStat)
+#define RSMA_REF_ID(r)        ((r)->refId)
+#define RSMA_SUBMIT_VER(r)    ((r)->submitVer)
+
+struct SRSmaInfoItem {
+  void   *taskInfo;  // qTaskInfo_t
+  int64_t refId;
+  tmr_h   tmrId;
+  int32_t maxDelay;
+  int8_t  level;
+  int8_t  triggerStat;
+};
+
+struct SRSmaInfo {
+  STSchema     *pTSchema;
+  int64_t       suid;
+  SRSmaInfoItem items[TSDB_RETENTION_L2];
+};
 
 enum {
   TASK_TRIGGER_STAT_INIT = 0,
@@ -93,6 +112,8 @@ enum {
   TASK_TRIGGER_STAT_CANCELLED = 4,
   TASK_TRIGGER_STAT_DROPPED = 5,
 };
+
+#define RSMA_TASK_INFO_HASH_SLOT 8
 
 void  tdDestroySmaEnv(SSmaEnv *pSmaEnv);
 void *tdFreeSmaEnv(SSmaEnv *pSmaEnv);
@@ -183,7 +204,7 @@ static FORCE_INLINE void tdSmaStatSetDropped(STSmaStat *pTStat) {
     atomic_or_fetch_8(&pTStat->state, TSDB_SMA_STAT_DROPPED);
   }
 }
-
+void           tdFreeQTaskInfo(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level);
 static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo);

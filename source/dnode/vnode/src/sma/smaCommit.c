@@ -18,7 +18,8 @@
 static int32_t tdProcessRSmaPreCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaPostCommitImpl(SSma *pSma);
-static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma);
+static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma);
+static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma);
 
 /**
  * @brief Only applicable to Rollup SMA
@@ -26,7 +27,7 @@ static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma);
  * @param pSma
  * @return int32_t
  */
-int32_t smaPreCommit(SSma *pSma) { return tdProcessRSmaPreCommitImpl(pSma); }
+int32_t smaSyncPreCommit(SSma *pSma) { return tdProcessRSmaPreCommitImpl(pSma); }
 
 /**
  * @brief Only applicable to Rollup SMA
@@ -34,7 +35,7 @@ int32_t smaPreCommit(SSma *pSma) { return tdProcessRSmaPreCommitImpl(pSma); }
  * @param pSma
  * @return int32_t
  */
-int32_t smaCommit(SSma *pSma) { return tdProcessRSmaCommitImpl(pSma); }
+int32_t smaSyncCommit(SSma *pSma) { return tdProcessRSmaCommitImpl(pSma); }
 
 /**
  * @brief Only applicable to Rollup SMA
@@ -42,7 +43,7 @@ int32_t smaCommit(SSma *pSma) { return tdProcessRSmaCommitImpl(pSma); }
  * @param pSma
  * @return int32_t
  */
-int32_t smaPostCommit(SSma *pSma) { return tdProcessRSmaPostCommitImpl(pSma); }
+int32_t smaSyncPostCommit(SSma *pSma) { return tdProcessRSmaPostCommitImpl(pSma); }
 
 /**
  * @brief Only applicable to Rollup SMA
@@ -50,7 +51,15 @@ int32_t smaPostCommit(SSma *pSma) { return tdProcessRSmaPostCommitImpl(pSma); }
  * @param pSma
  * @return int32_t
  */
-int32_t smaAsyncCommit(SSma *pSma) { return tdProcessRSmaAsyncCommitImpl(pSma); }
+int32_t smaAsyncPreCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma); }
+
+/**
+ * @brief Only applicable to Rollup SMA
+ *
+ * @param pSma
+ * @return int32_t
+ */
+int32_t smaAsyncPostCommit(SSma *pSma) { return tdProcessRSmaAsyncPostCommitImpl(pSma); }
 
 /**
  * @brief set rsma trigger stat active
@@ -71,18 +80,17 @@ int32_t smaBegin(SSma *pSma) {
       atomic_val_compare_exchange_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_PAUSED, TASK_TRIGGER_STAT_ACTIVE);
   switch (rsmaTriggerStat) {
     case TASK_TRIGGER_STAT_PAUSED: {
-      smaDebug("vgId:%d rsma trigger stat from paused to active", SMA_VID(pSma));
+      smaDebug("vgId:%d, rsma trigger stat from paused to active", SMA_VID(pSma));
       break;
     }
     case TASK_TRIGGER_STAT_INIT: {
       atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_ACTIVE);
-      smaDebug("vgId:%d rsma trigger stat from init to active", SMA_VID(pSma));
+      smaDebug("vgId:%d, rsma trigger stat from init to active", SMA_VID(pSma));
       break;
     }
     default: {
       atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_ACTIVE);
-      smaWarn("vgId:%d rsma trigger stat %" PRIi8 " is unexpected", SMA_VID(pSma), rsmaTriggerStat);
-      ASSERT(0);
+      smaError("vgId:%d, rsma trigger stat %" PRIi8 " is unexpected", SMA_VID(pSma), rsmaTriggerStat);
       break;
     }
   }
@@ -90,7 +98,7 @@ int32_t smaBegin(SSma *pSma) {
 }
 
 /**
- * @brief pre-commit for rollup sma.
+ * @brief pre-commit for rollup sma(sync commit).
  *  1) set trigger stat of rsma timer TASK_TRIGGER_STAT_PAUSED.
  *  2) wait all triggered fetch tasks finished
  *  3) perform persist task for qTaskInfo
@@ -107,8 +115,7 @@ static int32_t tdProcessRSmaPreCommitImpl(SSma *pSma) {
   SSmaStat  *pStat = SMA_ENV_STAT(pSmaEnv);
   SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pStat);
 
-
-  // step 1: set persistence task paused
+  // step 1: set rsma stat paused
   atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_PAUSED);
 
   // step 2: wait all triggered fetch tasks finished
@@ -236,12 +243,101 @@ static int32_t tdProcessRSmaPostCommitImpl(SSma *pSma) {
 
 /**
  * @brief Rsma async commit implementation
- *  1) Wait all running fetch task finish to fetch and put submitMsg into level 2/3 wQueue(blocking level 1 write)
+ *  1) set rsma stat TASK_TRIGGER_STAT_PAUSED
+ *  2) Wait all running fetch task finish to fetch and put submitMsg into level 2/3 wQueue(blocking level 1 write)
+ *  3)
  *
  * @param pSma
  * @return int32_t
  */
-static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma) { 
-  // TODO
+static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
+  SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
+  if (!pSmaEnv) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSmaStat  *pStat = SMA_ENV_STAT(pSmaEnv);
+  SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pStat);
+
+  // step 1: set rsma stat paused
+  atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_PAUSED);
+
+  // step 2: wait all triggered fetch tasks finished
+  int32_t nLoops = 0;
+  while (1) {
+    if (T_REF_VAL_GET(pStat) == 0) {
+      smaDebug("vgId:%d, rsma fetch tasks all finished", SMA_VID(pSma));
+      break;
+    } else {
+      smaDebug("vgId:%d, rsma fetch tasks not all finished yet", SMA_VID(pSma));
+    }
+    ++nLoops;
+    if (nLoops > 1000) {
+      sched_yield();
+      nLoops = 0;
+    }
+  }
+
+  // step 3:  swap rsmaInfoHash and iRsmaInfoHash
+  ASSERT(!RSMA_IMU_INFO_HASH(pRSmaStat));
+  ASSERT(RSMA_INFO_HASH(pRSmaStat));
+
+  RSMA_IMU_INFO_HASH(pRSmaStat) = RSMA_INFO_HASH(pRSmaStat);
+  RSMA_INFO_HASH(pRSmaStat) =
+      taosHashInit(RSMA_TASK_INFO_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  if (!RSMA_INFO_HASH(pRSmaStat)) {
+    smaError("vgId:%d, rsma async commit failed since %s", SMA_VID(pSma), terrstr());
+    return TSDB_CODE_FAILED;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * @brief Migrate rsmaInfo from iRsmaInfo to rsmaInfo if rsmaInfoHash not empty.
+ * 
+ * @param pSma 
+ * @return int32_t 
+ */
+static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
+  SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
+  if (!pSmaEnv) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSmaStat  *pStat = SMA_ENV_STAT(pSmaEnv);
+  SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pStat);
+
+  // step 1: merge rsmaInfoHash and iRsmaInfoHash
+
+  if (taosHashGetSize(RSMA_INFO_HASH(pRSmaStat)) <= 0) {
+    // TODO:
+  }
+
+  void *pIter = taosHashIterate(RSMA_IMU_INFO_HASH(pRSmaStat), NULL);
+  while (pIter) {
+    tb_uid_t *pSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
+
+    if (!taosHashGet(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t))) {
+      taosHashPut(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t), pIter, sizeof(pIter));
+      smaDebug("vgId:%d, rsma async post commit, migrated from iRsmaInfoHash for table:%" PRIi64, SMA_VID(pSma), *pSuid);
+    } else {
+      SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)pIter;
+      for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
+        SRSmaInfoItem *pItem = &pRSmaInfo->items[i];
+        if (pItem->taskInfo) {
+          tdFreeQTaskInfo(pItem->taskInfo, SMA_VID(pSma), i + 1);
+        }
+      }
+      smaDebug("vgId:%d, rsma async post commit, free rsma info since already COW for table:%" PRIi64, SMA_VID(pSma),
+               *pSuid);
+    }
+
+    pIter = taosHashIterate(RSMA_IMU_INFO_HASH(pRSmaStat), pIter);
+  }
+
+  taosHashCleanup(RSMA_IMU_INFO_HASH(pRSmaStat));
+  RSMA_IMU_INFO_HASH(pRSmaStat) = NULL;
+
   return TSDB_CODE_SUCCESS;
 }
