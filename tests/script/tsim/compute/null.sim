@@ -113,7 +113,7 @@ sql create table tt using $mt tags( NULL )
 #step52:
 
 sql select * from $mt  where tgcol is NULL
-if $rows != 1 then 
+if $rows != 0 then 
   return -1
 endi
 

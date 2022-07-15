@@ -3127,14 +3127,11 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
       }
 
       pTableBlockInfo->numOfBlocks += pBlockIter->numOfBlocks;
+      hasNext = (pBlockIter->numOfBlocks > 0);
     }
 
-    /*
-        hasNext = blockIteratorNext(&pStatus->blockIter);
-    */
-
-    //         tsdbDebug("%p %d blocks found in file for %d table(s), fid:%d, %s", pReader, numOfBlocks, numOfTables,
-    //                   pReader->pFileGroup->fid, pReader->idStr);
+//    tsdbDebug("%p %d blocks found in file for %d table(s), fid:%d, %s", pReader, numOfBlocks, numOfTables,
+//              pReader->pFileGroup->fid, pReader->idStr);
   }
 
   return code;
