@@ -426,7 +426,7 @@ _return:
     qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_PART_SUCC);
   }
 
-  if (QW_PHASE_POST_QUERY == phase) {
+  if (QW_PHASE_POST_QUERY == phase && ctx) {
     ctx->queryRsped = true;
     qwBuildAndSendQueryRsp(input->msgType + 1, &ctx->ctrlConnInfo, code, ctx);
     QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, code, tstrerror(code));
@@ -730,11 +730,9 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   if (QW_QUERY_RUNNING(ctx)) {
     QW_ERR_JRET(qwKillTaskHandle(ctx));
     qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_DROP);
-  } else if (QW_GET_PHASE(ctx) > 0) {
+  } else {
     QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
     dropped = true;
-  } else {
-    // task not started
   }
 
   if (!dropped) {

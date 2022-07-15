@@ -1276,7 +1276,7 @@ int32_t doProcessMsgFromServer(void* param) {
   assert(pMsg->info.ahandle != NULL);
   STscObj* pTscObj = NULL;
 
-  tscDebug("processMsgFromServer message: %s, code: %s", TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code));
+  tscDebug("processMsgFromServer handle %p, message: %s, code: %s", pMsg->info.handle, TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code));
 
   if (pSendInfo->requestObjRefId != 0) {
     SRequestObj* pRequest = (SRequestObj*)taosAcquireRef(clientReqRefPool, pSendInfo->requestObjRefId);

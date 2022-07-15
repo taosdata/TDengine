@@ -125,8 +125,8 @@ int32_t schDropTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int32_
     SCH_TASK_DLOG("execId %d removed from execNodeList", execId);
   }
 
-  if (execId != pTask->execId) {  // ignore it
-    SCH_TASK_DLOG("execId %d is not current execId %d", execId, pTask->execId);
+  if ((execId != pTask->execId) || pTask->waitRetry) {  // ignore it
+    SCH_TASK_DLOG("execId %d is already not current execId %d, waitRetry %d", execId, pTask->execId, pTask->waitRetry);
     SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
   }
 
@@ -335,6 +335,7 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
     return TSDB_CODE_SUCCESS;
   }
 
+  pTask->waitRetry = true;
   schDropTaskOnExecNode(pJob, pTask);
   taosHashClear(pTask->execNodes);
   SCH_ERR_JRET(schRemoveTaskFromExecList(pJob, pTask));
@@ -790,6 +791,7 @@ int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
   atomic_add_fetch_32(&pTask->level->taskLaunchedNum, 1);
   pTask->execId++;
   pTask->retryTimes++;
+  pTask->waitRetry = false;
 
   SCH_TASK_DLOG("start to launch task, execId %d, retry %d", pTask->execId, pTask->retryTimes);
 

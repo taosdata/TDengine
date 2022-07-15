@@ -58,7 +58,7 @@ typedef enum {
 
 #define SCH_DEFAULT_TASK_TIMEOUT_USEC 10000000
 #define SCH_MAX_TASK_TIMEOUT_USEC 60000000
-#define SCH_MAX_CANDIDATE_EP_NUM TSDB_MAX_REPLICA
+#define SCH_MAX_CANDIDATE_EP_NUM (TSDB_MAX_REPLICA + 100)
 
 
 
@@ -211,6 +211,7 @@ typedef struct SSchTask {
   int32_t              maxExecTimes;    // task max exec times
   int32_t              maxRetryTimes;   // task max retry times
   int32_t              retryTimes;      // task retry times
+  bool                 waitRetry;       // wait for retry
   int32_t              execId;          // task current execute index
   SSchLevel           *level;           // level
   SRWLatch             planLock;        // task update plan lock
