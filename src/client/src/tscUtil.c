@@ -4191,9 +4191,20 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
 }
 
 int32_t doInitSubState(SSqlObj* pSql, int32_t numOfSubqueries) {
-  assert(pSql->subState.numOfSub == 0 && pSql->pSubs == NULL && pSql->subState.states == NULL);
+  //bug fix. Above doInitSubState level, the loop invocation with the same SSqlObj will be fail.
+  //assert(pSql->subState.numOfSub == 0 && pSql->pSubs == NULL && pSql->subState.states == NULL);  
+  if(pSql->pSubs) {
+    free(pSql->pSubs);
+    pSql->pSubs = NULL;
+  }
+  
+  if(pSql->subState.states) {
+    free(pSql->subState.states);
+    pSql->subState.states = NULL;
+  }
+  
   pSql->subState.numOfSub = numOfSubqueries;
-
+  
   pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
   pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(int8_t));
 

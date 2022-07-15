@@ -1,13 +1,22 @@
+<p>
+<p align="center">
+  <a href="https://tdengine.com" target="_blank">
+  <img
+    src="docs/assets/tdengine.svg"
+    alt="TDengine"
+    width="500"
+  />
+  </a>
+</p>
+<p>
+
 [![Build Status](https://cloud.drone.io/api/badges/taosdata/TDengine/status.svg?ref=refs/heads/master)](https://cloud.drone.io/taosdata/TDengine)
 [![Build status](https://ci.appveyor.com/api/projects/status/kf3pwh2or5afsgl9/branch/master?svg=true)](https://ci.appveyor.com/project/sangshuduo/tdengine-2n8ge/branch/master)
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 [![tdengine](https://snapcraft.io//tdengine/badge.svg)](https://snapcraft.io/tdengine)
 
-[![TDengine](TDenginelogo.png)](https://www.taosdata.com)
-
-English | [简体中文](./README-CN.md)
-We are hiring, check [here](https://www.taosdata.com/en/careers/)
+English | [简体中文](README-CN.md) | We are hiring, check [here](https://tdengine.com/careers)
 
 # What is TDengine？
 
@@ -47,7 +56,7 @@ To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in t
 ### Ubuntu 16.04 and above or Debian
 
 ```bash
-sudo apt-get install -y gcc cmake build-essential git
+sudo apt-get install -y gcc cmake build-essential git libssl-dev
 ```
 
 ### Ubuntu 14.04
@@ -79,15 +88,15 @@ By default, TDengine compiling does not include taosTools. You can use 'cmake ..
 To build the [taosTools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
 
 ```bash
-sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config libssl-dev
 ```
 
-### CentOS 7
+### CentOS 7/RHEL
 
 ```bash
 sudo yum install epel-release
 sudo yum update
-sudo yum install -y gcc gcc-c++ make cmake3 git
+sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
 sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
@@ -103,10 +112,10 @@ To install Apache Maven:
 sudo yum install -y maven
 ```
 
-### CentOS 8 & Fedora
+### CentOS 8/Fedora/Rocky Linux
 
 ```bash
-sudo dnf install -y gcc gcc-c++ make cmake epel-release git
+sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 ```
 
 To install openjdk-8:
@@ -126,7 +135,7 @@ sudo dnf install -y maven
 To build the [taosTools](https://github.com/taosdata/taos-tools) on CentOS, the following packages need to be installed.
 
 ```bash
-sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static
+sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
 ```
 
 Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/google/snappy/pull/86)), it lead a cmake prompt libsnappy not found. But snappy will works well.
@@ -141,6 +150,10 @@ Please use version 1.14+. For the user in China, we recommend using a proxy to a
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
 ```
+
+### Setup rust environment
+
+TDengine includees few compoments developed by Rust language. Please refer to rust-lang.org official documentation for rust environment setup.
 
 ## Get the source codes
 

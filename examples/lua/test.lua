@@ -147,14 +147,14 @@ else
    end 
 end
 
-res = driver.query(conn,"select count(*) count, avg(degree) as av, max(degree), min(degree) from thermometer where location='beijing' or location='tianjin' group by location, type")
+res = driver.query(conn,"select count(*) as cnt, avg(degree) as av, max(degree), min(degree) from thermometer where location='beijing' or location='tianjin' group by location, type")
 if res.code ~=0 then
    print("select from super table--- failed:"..res.error)
    return
 else
    print("select from super table--- pass")
    for i = 1, #(res.item) do
-      print("res:"..res.item[i].count)
+      print("res:"..res.item[i].cnt)
    end
 end
 

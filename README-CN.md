@@ -1,13 +1,22 @@
+<p>
+<p align="center">
+  <a href="https://tdengine.com" target="_blank">
+  <img
+    src="docs/assets/tdengine.svg"
+    alt="TDengine"
+    width="500"
+  />
+  </a>
+</p>
+<p>
+
 [![Build Status](https://travis-ci.org/taosdata/TDengine.svg?branch=master)](https://travis-ci.org/taosdata/TDengine)
 [![Build status](https://ci.appveyor.com/api/projects/status/kf3pwh2or5afsgl9/branch/master?svg=true)](https://ci.appveyor.com/project/sangshuduo/tdengine-2n8ge/branch/master)
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 [![tdengine](https://snapcraft.io//tdengine/badge.svg)](https://snapcraft.io/tdengine)
 
-[![TDengine](TDenginelogo.png)](https://www.taosdata.com)
-
-简体中文 | [English](./README.md)
-很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
+简体中文 | [English](README.md) | 很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
 
 # TDengine 简介
 
@@ -44,7 +53,7 @@ TDengine 目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后�
 ### Ubuntu 16.04 及以上版本 & Debian：
 
 ```bash
-sudo apt-get install -y gcc cmake build-essential git
+sudo apt-get install -y gcc cmake build-essential git libssl-dev
 ```
 
 ### Ubuntu 14.04：
@@ -77,13 +86,13 @@ taosTools 是用于 TDengine 的辅助工具软件集合。目前它包含 taosB
 为了在 Ubuntu/Debian 系统上编译 [taos-tools](https://github.com/taosdata/taos-tools) 需要安装如下软件：
 
 ```bash
-sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config libssl-dev
 ```
 
-### CentOS 7：
+### CentOS 7/RHEL
 
 ```bash
-sudo yum install -y gcc gcc-c++ make cmake git
+sudo yum install -y gcc gcc-c++ make cmake git openssl-devel
 ```
 
 安装 OpenJDK 8：
@@ -98,10 +107,10 @@ sudo yum install -y java-1.8.0-openjdk
 sudo yum install -y maven
 ```
 
-### CentOS 8 & Fedora
+### CentOS 8/Fedora/Rocky Linux
 
 ```bash
-sudo dnf install -y gcc gcc-c++ make cmake epel-release git
+sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 ```
 
 安装 OpenJDK 8：
@@ -121,12 +130,27 @@ sudo dnf install -y maven
 为了在 CentOS 上构建 [taosTools](https://github.com/taosdata/taos-tools) 需要安装如下依赖软件
 
 ```bash
-sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static
+sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
 ```
 
 注意：由于 snappy 缺乏 pkg-config 支持
 （参考 [链接](https://github.com/google/snappy/pull/86)），会导致
 cmake 提示无法发现 libsnappy，实际上工作正常。
+
+### 设置 golang 开发环境
+
+TDengine 包含数个使用 Go 语言开发的组件，请参考 golang.org 官方文档设置 go 开发环境。
+
+请使用 1.14 及以上版本。对于中国用户，我们建议使用代理来加速软件包下载。
+
+```
+go env -w GO111MODULE=on
+go env -w GOPROXY=https://goproxy.cn,direct
+```
+
+### 设置 rust 开发环境
+
+TDengine 包含数个使用 Rust 语言开发的组件. 请参考 rust-lang.org 官方文档设置 rust 开发环境。
 
 ## 获取源码
 

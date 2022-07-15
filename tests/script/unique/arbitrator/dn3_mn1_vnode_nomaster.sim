@@ -268,7 +268,7 @@ if $dnode3Vtatus != offline then
   sleep 2000
   goto wait_dnode2_vgroup_master
 endi
-if $dnode2Vtatus != master then
+if $dnode2Vtatus != leader then
   sleep 2000
   goto wait_dnode2_vgroup_master
 endi

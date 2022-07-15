@@ -5,7 +5,7 @@ set -e
 taosd >> /dev/null 2>&1 &
 taosadapter >> /dev/null 2>&1 &
 
-cd ../../docs-examples/c
+cd ../../docs/examples/c
 
 # 1
 gcc connect_example.c -o connect_example -ltaos

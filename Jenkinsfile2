@@ -7,7 +7,8 @@ def sync_source() {
     sh '''
         hostname
         date
-        '''
+        env
+    '''
     sh '''
         cd ${WKC}
         [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
@@ -35,6 +36,12 @@ def sync_source() {
                 cd ${WKC}
                 git clean -fxd
                 git checkout 2.4
+            '''
+        } else if (env.CHANGE_TARGET == '2.6') {
+            sh '''
+                cd ${WKC}
+                git clean -fxd
+                git checkout 2.6
             '''
         } else {
             sh '''
@@ -51,6 +58,7 @@ def sync_source() {
         [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
         git pull >/dev/null
         git clean -dfx
+        git log -5
     '''
     script {
         if (env.CHANGE_TARGET == 'master') {
@@ -68,6 +76,11 @@ def sync_source() {
                 cd ${WK}
                 git checkout 2.4
             '''
+        } else if (env.CHANGE_TARGET == '2.6') {
+            sh '''
+                cd ${WK}
+                git checkout 2.6
+            '''
         } else {
             sh '''
                 cd ${WK}
@@ -79,6 +92,7 @@ def sync_source() {
         cd ${WK}
         git pull >/dev/null
         git clean -dfx
+        git log -5
     '''
     script {
         if (env.CHANGE_URL =~ /\/TDengine\//) {
@@ -87,16 +101,13 @@ def sync_source() {
                 cd ${WKC}
                 git fetch origin +refs/pull/${CHANGE_ID}/merge
                 git checkout -qf FETCH_HEAD
-
-                if [ ! -d src/connector/python/.github ]; then
-                    rm -rf src/connector/python/* || :
-                    rm -rf src/connector/python/.* || :
-                    git clone --depth 1 https://github.com/taosdata/taos-connector-python src/connector/python || echo "failed to clone python connector"
-                else
-                    cd src/connector/python || echo "src/connector/python not exist"
-                    git pull || :
-                    cd ${WKC}
-                fi
+                git log -5
+            '''
+            sh '''
+                cd ${WKC}
+                rm -rf src/connector/python
+                mkdir -p src/connector/python
+                git clone --depth 1 https://github.com/taosdata/taos-connector-python src/connector/python || echo "failed to clone python connector"
             '''
         } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
             sh '''
@@ -104,16 +115,13 @@ def sync_source() {
                 cd ${WK}
                 git fetch origin +refs/pull/${CHANGE_ID}/merge
                 git checkout -qf FETCH_HEAD
-
-                if [ ! -d community/src/connector/python/.github ]; then
-                    rm -rf community/src/connector/python/* || :
-                    rm -rf community/src/connector/python/.* || :
-                    git clone --depth 1 https://github.com/taosdata/taos-connector-python community/src/connector/python || echo "failed to clone python connector"
-                else
-                    cd community/src/connector/python || echo "community/src/connector/python not exist"
-                    git pull || :
-                    cd ${WK}
-                fi
+                git log -5
+            '''
+            sh '''
+                cd ${WKC}
+                rm -rf src/connector/python
+                mkdir -p src/connector/python
+                git clone --depth 1 https://github.com/taosdata/taos-connector-python src/connector/python || echo "failed to clone python connector"
             '''
         } else {
             sh '''
@@ -136,6 +144,7 @@ def pre_test() {
         go env -w GO111MODULE=on
         cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true > /dev/null
         make -j8 >/dev/null
+        make install
     '''
     return 1
 }
@@ -152,8 +161,155 @@ def pre_test_mac() {
     '''
     return 1
 }
+def pre_test_win(){
+    bat '''
+        hostname
+        ipconfig
+        set
+        date /t
+        time /t
+        taskkill /f /t /im python.exe
+        taskkill /f /t /im bash.exe
+        taskkill /f /t /im taosd.exe
+        rd /s /Q %WIN_INTERNAL_ROOT%\\debug || echo "no debug folder"
+        echo "clean environment done"
+        exit 0
+    '''
+    bat '''
+        cd %WIN_INTERNAL_ROOT%
+        git reset --hard
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git reset --hard
+    '''
+    script {
+        if (env.CHANGE_TARGET == 'master') {
+            bat '''
+                cd %WIN_INTERNAL_ROOT%
+                git checkout master
+            '''
+            bat '''
+                cd %WIN_COMMUNITY_ROOT%
+                git checkout master
+            '''
+        } else if (env.CHANGE_TARGET == '2.0') {
+            bat '''
+                cd %WIN_INTERNAL_ROOT%
+                git checkout 2.0
+            '''
+            bat '''
+                cd %WIN_COMMUNITY_ROOT%
+                git checkout 2.0
+            '''
+        } else if (env.CHANGE_TARGET == '2.4') {
+            bat '''
+                cd %WIN_INTERNAL_ROOT%
+                git checkout 2.4
+            '''
+            bat '''
+                cd %WIN_COMMUNITY_ROOT%
+                git checkout 2.4
+            '''
+        } else if (env.CHANGE_TARGET == '2.6') {
+            bat '''
+                cd %WIN_INTERNAL_ROOT%
+                git checkout 2.6
+            '''
+            bat '''
+                cd %WIN_COMMUNITY_ROOT%
+                git checkout 2.6
+            '''
+        } else {
+            bat '''
+                cd %WIN_INTERNAL_ROOT%
+                git checkout develop
+            '''
+            bat '''
+                cd %WIN_COMMUNITY_ROOT%
+                git checkout develop
+            '''
+        }
+    }
+    bat '''
+        cd %WIN_INTERNAL_ROOT%
+        git pull
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git remote prune origin
+        git pull
+    '''
+    bat '''
+        cd %WIN_INTERNAL_ROOT%
+        git branch
+        git log -5
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git branch
+        git log -5
+    '''
+    script {
+        if (env.CHANGE_URL =~ /\/TDengine\//) {
+            bat '''
+                echo "match /TDengine/ repository"
+                cd %WIN_COMMUNITY_ROOT%
+                git fetch origin +refs/pull/%CHANGE_ID%/merge
+                git checkout -qf FETCH_HEAD
+                git log -5
+            '''
+        } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
+            bat '''
+                echo "match /TDinternal/ repository"
+                cd %WIN_INTERNAL_ROOT%
+                git fetch origin +refs/pull/%CHANGE_ID%/merge
+                git checkout -qf FETCH_HEAD
+                git log -5
+            '''
+        } else {
+            bat '''
+                echo "unmatched reposiotry %CHANGE_URL%"
+            '''
+        }
+    }
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git submodule update --init --recursive
+    '''
+    /*bat '''
+        cd %WIN_CONNECTOR_ROOT%
+        git branch
+        git reset --hard
+        git pull
+    '''
+    bat '''
+        cd %WIN_CONNECTOR_ROOT%
+        git log -5
+    '''*/
+}
+def pre_test_build_win() {
+    bat '''
+        echo "building ..."
+        time /t
+        cd %WIN_INTERNAL_ROOT%
+        mkdir debug
+        cd debug
+        time /t
+        call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" x64
+        set CL=/MP8
+        echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> cmake"
+        time /t
+        cmake .. -G "NMake Makefiles JOM" || exit 7
+        echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> jom -j 6"
+        time /t
+        jom -j 6 || exit 8
+        time /t
+    '''
+    return 1
+}
 pipeline {
-    agent {label " dispatcher "}
+    agent none
     options { skipDefaultCheckout() }
     environment{
         WK = '/var/data/jenkins/workspace/TDinternal'
@@ -161,69 +317,6 @@ pipeline {
         LOGDIR = '/var/data/jenkins/workspace/log'
     }
     stages {
-        stage ('pre_build') {
-            steps {
-                sh '''
-                    date
-                    pwd
-                    env
-                    hostname
-                '''
-            }
-        }
-        stage ('Parallel build stage') {
-            //only build pr
-            options { skipDefaultCheckout() }
-            when {
-                allOf {
-                    changeRequest()
-                    not { expression { env.CHANGE_BRANCH =~ /docs\// }}
-                }
-            }
-            parallel {
-                stage ('dispatcher sync source') {
-                    steps {
-                        timeout(time: 20, unit: 'MINUTES') {
-                            sync_source()
-                            script {
-                                sh '''
-                                    echo "dispatcher ready"
-                                    date
-                                '''
-                            }
-                        }
-                    }
-                }
-                stage ('build worker01') {
-                    agent {label " worker01 "}
-                    steps {
-                        timeout(time: 20, unit: 'MINUTES') {
-                            pre_test()
-                            script {
-                                sh '''
-                                    echo "worker01 build done"
-                                    date
-                                '''
-                            }
-                        }
-                    }
-                }
-                stage ('build worker02') {
-                    agent {label " worker02 "}
-                    steps {
-                        timeout(time: 20, unit: 'MINUTES') {
-                            pre_test()
-                            script {
-                                sh '''
-                                    echo "worker02 build done"
-                                    date
-                                '''
-                            }
-                        }
-                    }
-                }
-            }
-        }
         stage('run test') {
             options { skipDefaultCheckout() }
             when {
@@ -233,49 +326,102 @@ pipeline {
                 }
             }
             parallel {
-                stage ('build worker07_arm64') {
-                    agent {label " worker07_arm64 "}
+                stage ('build arm64') {
+                    agent {label " worker07_arm64 || worker09_arm64 "}
                     steps {
                         timeout(time: 20, unit: 'MINUTES') {
                             pre_test()
                             script {
                                 sh '''
-                                    echo "worker07_arm64 build done"
+                                    echo "arm64 build done"
                                     date
                                 '''
                             }
                         }
                     }
                 }
-                stage ('build Mac_catalina ') {
+                stage ('build Mac') {
                     agent {label " Mac_catalina "}
                     steps {
                         timeout(time: 20, unit: 'MINUTES') {
                             pre_test_mac()
                             script {
                                 sh '''
-                                    echo "Mac_catalina build done"
+                                    echo "Mac build done"
                                     date
                                 '''
                             }
                         }
                     }
                 }
+                stage('build win') {
+                    agent {label " windows10_05 || windows10_06 "}
+                    environment{
+                        WIN_INTERNAL_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal"
+                        WIN_COMMUNITY_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community"
+                        WIN_SYSTEM_TEST_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community\\tests\\system-test"
+                        WIN_CONNECTOR_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\taos-connector-python"
+                    }
+                    steps {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test_win()
+                            pre_test_build_win()
+                        }
+                    }
+                }
                 stage('run cases') {
+                    agent {label " worker01 || worker02 "}
                     steps {
                         sh '''
                             date
+                            pwd
                             hostname
                         '''
-                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 20, unit: 'MINUTES') {
+                        timeout(time: 15, unit: 'MINUTES') {
+                            pre_test()
+                            script {
                                 sh '''
+                                    echo "Linux build done"
                                     date
-                                    cd ${WKC}/tests/parallel_test
-                                    time ./run.sh -m m.json -t cases.task -l ${LOGDIR} -b ${BRANCH_NAME}
-                                    date
-                                    hostname
                                 '''
+                            }
+                        }
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            timeout(time: 60, unit: 'MINUTES') {
+                                script {
+                                    def extra_param = ""
+                                    def log_server_file = "/home/log_server.json"
+                                    def timeout_cmd = ""
+                                    if (fileExists(log_server_file)) {
+                                        def log_server_enabled = sh (
+                                            script: 'jq .enabled ' + log_server_file,
+                                            returnStdout: true
+                                        ).trim()
+                                        def timeout_param = sh (
+                                            script: 'jq .timeout ' + log_server_file,
+                                            returnStdout: true
+                                        ).trim()
+                                        if (timeout_param != "null" &&  timeout_param != "0") {
+                                            timeout_cmd = "timeout " + timeout_param
+                                        }
+                                        if (log_server_enabled == "1") {
+                                            def log_server = sh (
+                                                script: 'jq .server ' + log_server_file + ' | sed "s/\\\"//g"',
+                                                returnStdout: true
+                                            ).trim()
+                                            if (log_server != "null" && log_server != "") { 
+                                                extra_param = "-w " + log_server
+                                            }
+                                        }
+                                    }
+                                    sh '''
+                                        date
+                                        cd ${WKC}/tests/parallel_test
+                                        ''' + timeout_cmd + ''' time ./run.sh -m /home/m.json -t cases.task -l ${LOGDIR} -b ${BRANCH_NAME} ''' + extra_param + '''
+                                        date
+                                        hostname
+                                    '''
+                                }
                             }
                         }
                     }

@@ -37,4 +37,5 @@ if [ -f "${install_main_dir}/taosadapter.service" ]; then
 fi
 
 # there can not libtaos.so*, otherwise ln -s  error
-${csudo}rm -f ${install_main_dir}/driver/libtaos*   || :
+${csudo}rm -f ${install_main_dir}/driver/libtaos.*   || :
+${csudo}rm -f ${install_main_dir}/driver/libtaosws.*   || :
