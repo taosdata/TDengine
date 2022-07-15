@@ -7,16 +7,10 @@ class Telegraf(TDCase):
         pass
 
     def run(self):
-        # test run
-        self.logger.info("aaa")
-        self.logger.info("bbb")
-        self.logger.info("bbb")
-        self.logger.info("ccc")
-        self.logger.info("dd")
-        self.logger.info("aaa")
-        self.logger.info("aaa")
-        self.logger.info("aaa")
-        self.logger.info("axa")
+        TDENGINE_CLOUD_URL = self.env_setting["env"]["TDENGINE_CLOUD_URL"]
+        TDENGINE_CLOUD_TOKEN = self.env_setting["env"]["TDENGINE_CLOUD_TOKEN"]
+        url = f"{TDENGINE_CLOUD_URL}/influxdb/v1/write?db=telegraf&token={TDENGINE_CLOUD_TOKEN}"
+        print(url)
 
     def desc(self) -> str:
         return "Test connectivity between cloud and telegraf"
