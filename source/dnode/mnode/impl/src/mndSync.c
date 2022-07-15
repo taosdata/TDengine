@@ -153,6 +153,12 @@ int32_t mndSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *pBuf, int
   return sdbDoWrite(pMnode->pSdb, pWriter, pBuf, len);
 }
 
+void mndLeaderTransfer(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
+  SMnode *pMnode = pFsm->data;
+  atomic_store_8(&(pMnode->syncMgmt.leaderTransferFinish), 1);
+  mDebug("vgId:1, mnd leader transfer finish");
+}
+
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pMnode;
@@ -160,6 +166,7 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   pFsm->FpPreCommitCb = NULL;
   pFsm->FpRollBackCb = NULL;
   pFsm->FpRestoreFinishCb = mndRestoreFinish;
+  pFsm->FpLeaderTransferCb = mndLeaderTransfer;
   pFsm->FpReConfigCb = mndReConfig;
   pFsm->FpGetSnapshot = mndSyncGetSnapshot;
   pFsm->FpGetSnapshotInfo = mndSyncGetSnapshotInfo;
