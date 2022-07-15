@@ -367,17 +367,17 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 }
 
 void mndPreClose(SMnode *pMnode) {
-  mDebug("vgId:1, mnode pre-close");
   if (pMnode != NULL) {
     atomic_store_8(&(pMnode->syncMgmt.leaderTransferFinish), 0);
     syncLeaderTransfer(pMnode->syncMgmt.sync);
 
-    mDebug("vgId:1, wait for mnode leader transfer");
+    mDebug("vgId:1, mnode start leader transfer");
     // wait for leader transfer finish
     while (!atomic_load_8(&(pMnode->syncMgmt.leaderTransferFinish))) {
       taosMsleep(10);
+      mDebug("vgId:1, mnode waiting for leader transfer");
     }
-    mDebug("vgId:1, mnode leader transfer finish");
+    mDebug("vgId:1, mnode finish leader transfer");
   }
 }
 
