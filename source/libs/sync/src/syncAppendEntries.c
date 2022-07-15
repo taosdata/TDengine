@@ -477,6 +477,13 @@ static int32_t syncNodeDoMakeLogSame(SSyncNode* ths, SyncIndex FromIndex) {
 static int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   SRpcMsg rpcMsg;
   syncEntry2OriginalRpc(pEntry, &rpcMsg);
+
+  // leader transfer
+  if (pEntry->originalRpcType == TDMT_SYNC_LEADER_TRANSFER) {
+    int32_t code = syncDoLeaderTransfer(ths, &rpcMsg, pEntry);
+    ASSERT(code == 0);
+  }
+
   if (ths->pFsm != NULL) {
     if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
       SFsmCbMeta cbMeta = {0};

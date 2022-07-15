@@ -2598,7 +2598,7 @@ const char* syncStr(ESyncState state) {
   }
 }
 
-static int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry) {
+int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry) {
   SyncLeaderTransfer* pSyncLeaderTransfer = syncLeaderTransferFromRpcMsg2(pRpcMsg);
 
   syncNodeEventLog(ths, "do leader transfer");
@@ -2811,11 +2811,14 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
           ASSERT(code == 0);
         }
 
+#if 0
+        // execute in pre-commit
         // leader transfer
         if (pEntry->originalRpcType == TDMT_SYNC_LEADER_TRANSFER) {
           code = syncDoLeaderTransfer(ths, &rpcMsg, pEntry);
           ASSERT(code == 0);
         }
+#endif
 
         // restore finish
         // if only snapshot, a noop entry will be append, so syncLogLastIndex is always ok
