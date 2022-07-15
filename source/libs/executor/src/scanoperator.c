@@ -516,10 +516,14 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
     }
 
     SArray* tableList = taosArrayGetP(pTaskInfo->tableqinfoList.pGroupList, pInfo->currentGroupId);
+
     tsdbReaderClose(pInfo->dataReader);
 
     int32_t code = tsdbReaderOpen(pInfo->readHandle.vnode, &pInfo->cond, tableList, (STsdbReader**)&pInfo->dataReader,
                                   GET_TASKID(pTaskInfo));
+    if (code != 0) {
+      // TODO
+    }
   }
 
   SSDataBlock* result = doTableScanGroup(pOperator);
@@ -871,6 +875,7 @@ static bool prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
   }
 
   resetTableScanInfo(pInfo->pTableScanOp->info, &win);
+  pInfo->pTableScanOp->status = OP_OPENED;
   return true;
 }
 
@@ -1193,8 +1198,6 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     }
   }
 
-  ASSERT(pInfo->pRes->pDataBlock != NULL);
-
   // currently only the tbname pseudo column
   if (pInfo->numOfPseudoExpr > 0) {
     int32_t code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
@@ -1256,6 +1259,24 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_META) {
     // TODO scan meta
     ASSERT(0);
+    return NULL;
+  }
+
+  if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE) {
+    STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
+    memcpy(&pTSInfo->cond, &pTaskInfo->streamInfo.tableCond, sizeof(SQueryTableDataCond));
+    pTSInfo->scanTimes = 0;
+    pTSInfo->currentGroupId = -1;
+    pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__SCAN;
+  }
+
+  if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__SCAN) {
+    SSDataBlock* pBlock = doTableScan(pInfo->pTableScanOp);
+    if (pBlock != NULL) {
+      return pBlock;
+    }
+    // TODO fill in bloom filter
+    pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__NONE;
     return NULL;
   }
 
@@ -1551,6 +1572,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
       goto _error;
     }
     taosArrayDestroy(tableIdList);
+    memcpy(&pTaskInfo->streamInfo.tableCond, &pTSInfo->cond, sizeof(SQueryTableDataCond));
   }
 
   // create the pseduo columns info
