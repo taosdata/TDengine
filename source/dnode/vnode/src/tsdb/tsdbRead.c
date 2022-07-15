@@ -830,9 +830,8 @@ static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockI
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
 
-  uint8_t *pb = NULL, *pb1 = NULL;
   int32_t  code = tsdbReadColData(pReader->pFileReader, &pBlockScanInfo->blockIdx, pBlock, pSupInfo->colIds, numOfCols,
-                                  pBlockData, &pb, &pb1);
+                                  pBlockData, NULL, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -3007,11 +3006,14 @@ SArray* tsdbRetrieveDataBlock(STsdbReader* pReader, SArray* pIdList) {
 
   code = doLoadFileBlockData(pReader, &pStatus->blockIter, pBlockScanInfo, &pStatus->fileBlockData);
   if (code != TSDB_CODE_SUCCESS) {
+    tBlockDataClear(&pStatus->fileBlockData);
+
     terrno = code;
     return NULL;
   }
 
   copyBlockDataToSDataBlock(pReader, pBlockScanInfo);
+  tBlockDataClear(&pStatus->fileBlockData);
   return pReader->pResBlock->pDataBlock;
 }
 
