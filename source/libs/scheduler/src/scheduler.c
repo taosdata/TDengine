@@ -22,26 +22,19 @@ SSchedulerMgmt schMgmt = {
     .jobRef = -1,
 };
 
-int32_t schedulerInit(SSchedulerCfg *cfg) {
+int32_t schedulerInit() {
   if (schMgmt.jobRef >= 0) {
     qError("scheduler already initialized");
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
-  if (cfg) {
-    schMgmt.cfg = *cfg;
+  schMgmt.cfg.maxJobNum = SCHEDULE_DEFAULT_MAX_JOB_NUM;
+  schMgmt.cfg.maxNodeTableNum = SCHEDULE_DEFAULT_MAX_NODE_TABLE_NUM;
+  schMgmt.cfg.schPolicy = SCHEDULE_DEFAULT_POLICY;
+  schMgmt.cfg.enableReSchedule = true;
 
-    if (schMgmt.cfg.maxJobNum == 0) {
-      schMgmt.cfg.maxJobNum = SCHEDULE_DEFAULT_MAX_JOB_NUM;
-    }
-    if (schMgmt.cfg.maxNodeTableNum <= 0) {
-      schMgmt.cfg.maxNodeTableNum = SCHEDULE_DEFAULT_MAX_NODE_TABLE_NUM;
-    }
-  } else {
-    schMgmt.cfg.maxJobNum = SCHEDULE_DEFAULT_MAX_JOB_NUM;
-    schMgmt.cfg.maxNodeTableNum = SCHEDULE_DEFAULT_MAX_NODE_TABLE_NUM;
-  }
-
+  qDebug("schedule policy init to %d", schMgmt.cfg.schPolicy);
+  
   schMgmt.jobRef = taosOpenRef(schMgmt.cfg.maxJobNum, schFreeJobImpl);
   if (schMgmt.jobRef < 0) {
     qError("init schduler jobRef failed, num:%u", schMgmt.cfg.maxJobNum);
@@ -130,6 +123,26 @@ void schedulerStopQueryHb(void *pTrans) {
   schCleanClusterHb(pTrans);
 }
 
+int32_t schedulerUpdatePolicy(int32_t policy) {
+  switch (policy) {
+    case SCH_LOAD_SEQ:
+    case SCH_RANDOM:
+    case SCH_ALL:
+      schMgmt.cfg.schPolicy = policy;
+      qDebug("schedule policy updated to %d", schMgmt.cfg.schPolicy);
+      break;
+    default:
+      return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t schedulerEnableReSchedule(bool enableResche) {
+  schMgmt.cfg.enableReSchedule = enableResche;
+  return TSDB_CODE_SUCCESS;
+}
+
 void schedulerFreeJob(int64_t* jobId, int32_t errCode) {
   if (0 == *jobId) {
     return;
@@ -141,7 +154,7 @@ void schedulerFreeJob(int64_t* jobId, int32_t errCode) {
     return;
   }
 
-  schSwitchJobStatus(pJob, JOB_TASK_STATUS_DROP, (void*)&errCode);
+  schHandleJobDrop(pJob, errCode);
   
   schReleaseJob(*jobId);
   *jobId = 0;
