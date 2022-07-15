@@ -77,6 +77,10 @@ extern "C" {
 #define EXPLAIN_MODE_FORMAT "mode=%s"
 #define EXPLAIN_STRING_TYPE_FORMAT "%s"
 
+#define COMMAND_RESET_LOG "resetLog"
+#define COMMAND_SCHEDULE_POLICY "schedulePolicy"
+#define COMMAND_ENABLE_RESCHEDULE "enableReSchedule"
+
 typedef struct SExplainGroup {
   int32_t   nodeNum;
   int32_t   physiPlanExecNum;

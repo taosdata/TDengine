@@ -1,11 +1,6 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
-system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 system sh/exec.sh -n dnode1 -s start
-
-sleep 100
 sql connect
 
 $dbPrefix = wh_db
@@ -62,7 +57,7 @@ $i = 1
 $tb = $tbPrefix . $i
 
 ##
-sql_error select * from $tb where c7
+sql select * from $tb where c7
 
 # TBASE-654 : invalid filter expression cause server crashed
 sql select count(*) from $tb where c1<10 and c1<>2
@@ -72,7 +67,6 @@ endi
 if $data00 != 900 then
   return -1
 endi
-
 
 sql select * from $tb where c7 = false
 $val = $rowNum / 100

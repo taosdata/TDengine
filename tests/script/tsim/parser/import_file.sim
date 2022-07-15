@@ -1,11 +1,7 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-sleep 500
 sql connect
-sleep 500
 
 sql drop database if exists indb
 sql create database if not exists indb
@@ -13,7 +9,7 @@ sql use indb
 
 $inFileName = '~/data.csv'
 $numOfRows = 10000
-system general/parser/gendata.sh
+system tsim/parser/gendata.sh
 
 sql create table stbx (ts TIMESTAMP, collect_area NCHAR(12), device_id BINARY(16), imsi BINARY(16),  imei BINARY(16),  mdn BINARY(10), net_type BINARY(4), mno NCHAR(4), province NCHAR(10), city NCHAR(16), alarm BINARY(2)) tags(a int, b binary(12));
 
