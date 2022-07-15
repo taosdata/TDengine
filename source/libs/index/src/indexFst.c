@@ -772,6 +772,7 @@ void fstBuilderDestroy(FstBuilder* b) {
   if (b == NULL) {
     return;
   }
+  fstBuilderFinish(b);
 
   idxFileDestroy(b->wrt);
   fstUnFinishedNodesDestroy(b->unfinished);
@@ -1074,8 +1075,8 @@ FStmStBuilder* fstSearchWithState(Fst* fst, FAutoCtx* ctx) {
 }
 
 FstNode* fstGetRoot(Fst* fst) {
-  CompiledAddr rAddr = fstGetRootAddr(fst);
-  return fstGetNode(fst, rAddr);
+  CompiledAddr addr = fstGetRootAddr(fst);
+  return fstGetNode(fst, addr);
 }
 
 FstNode* fstGetNode(Fst* fst, CompiledAddr addr) {
