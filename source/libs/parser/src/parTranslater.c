@@ -1773,6 +1773,10 @@ static int32_t setTableIndex(STranslateContext* pCxt, SName* pName, SRealTableNo
 }
 
 static int32_t setTableCacheLastMode(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
+  if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SDbCfgInfo dbCfg = {0};
   int32_t    code = getDBCfg(pCxt, pRealTable->table.dbName, &dbCfg);
   if (TSDB_CODE_SUCCESS == code) {
