@@ -386,7 +386,7 @@ SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提�
    python3  fast_write_example.py <READ_TASK_COUNT> <WRITE_TASK_COUNT> <TABLE_COUNT> <QUEUE_SIZE> <MAX_BATCH_SIZE>
    ```
 
-   下面是一次实际运行的输出：
+   下面是一次实际运行的输出, 机器配置 16核 + 64G + 固态硬盘。
 
    ```
    root@vm85$ python3 fast_write_example.py  8 8
