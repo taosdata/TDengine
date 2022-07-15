@@ -205,7 +205,7 @@
 ./test.sh -f tsim/qnode/basic1.sim
 
 # ---- snode
-# ./test.sh -f tsim/snode/basic1.sim
+# unsupport ./test.sh -f tsim/snode/basic1.sim
 
 # ---- bnode
 ./test.sh -f tsim/bnode/basic1.sim
@@ -382,7 +382,7 @@
 
 # ---- compute
 ./test.sh -f tsim/compute/avg.sim
-# jira ./test.sh -f tsim/compute/block_dist.sim
+./test.sh -f tsim/compute/block_dist.sim
 ./test.sh -f tsim/compute/bottom.sim
 ./test.sh -f tsim/compute/count.sim
 ./test.sh -f tsim/compute/diff.sim
