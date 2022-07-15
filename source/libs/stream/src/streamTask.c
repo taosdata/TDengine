@@ -163,6 +163,6 @@ void tFreeSStreamTask(SStreamTask* pTask) {
   streamQueueClose(pTask->inputQueue);
   streamQueueClose(pTask->outputQueue);
   if (pTask->exec.qmsg) taosMemoryFree(pTask->exec.qmsg);
-  qDestroyTask(pTask->exec.executor);
+  if (pTask->exec.executor) qDestroyTask(pTask->exec.executor);
   taosMemoryFree(pTask);
 }

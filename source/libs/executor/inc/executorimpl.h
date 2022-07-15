@@ -147,7 +147,6 @@ typedef struct {
   SSDataBlock*   pullOverBlk;   // for streaming
   SWalFilterCond cond;
   int64_t        lastScanUid;
-  SStreamQueue*  inputQueue;
 } SStreamTaskInfo;
 
 typedef struct SExecTaskInfo {
@@ -561,6 +560,7 @@ typedef struct SFillOperatorInfo {
   SNode*            pCondition;
   SArray*           pColMatchColInfo;
   int32_t           primaryTsCol;
+  uint64_t          curGroupId;       // current handled group id
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {
@@ -857,8 +857,7 @@ SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* re
 SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle,
     STableScanPhysiNode* pTableScanNode, SExecTaskInfo* pTaskInfo, STimeWindowAggSupp* pTwSup, uint64_t queryId, uint64_t taskId);
 
-SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode, bool multigroupResult,
-                                      SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
                                              SSDataBlock* pResBlock, STimeWindowAggSupp *pTwAggSupp, int32_t tsSlotId,

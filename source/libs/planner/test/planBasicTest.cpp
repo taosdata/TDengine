@@ -106,7 +106,11 @@ TEST_F(PlanBasicTest, lastRowFunc) {
 
   run("SELECT LAST_ROW(c1, c2) FROM t1");
 
+  run("SELECT LAST_ROW(c1), c2 FROM t1");
+
   run("SELECT LAST_ROW(c1) FROM st1");
+
+  run("SELECT LAST_ROW(c1) FROM st1 PARTITION BY TBNAME");
 
   run("SELECT LAST_ROW(c1), SUM(c3) FROM t1");
 }

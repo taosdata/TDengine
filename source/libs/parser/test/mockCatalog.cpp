@@ -234,6 +234,8 @@ void generateDnodes(MockCatalogService* mcs) {
 }
 
 void generateDatabases(MockCatalogService* mcs) {
+  mcs->createDatabase(TSDB_INFORMATION_SCHEMA_DB);
+  mcs->createDatabase(TSDB_PERFORMANCE_SCHEMA_DB);
   mcs->createDatabase("test");
   mcs->createDatabase("rollup_db", true);
 }

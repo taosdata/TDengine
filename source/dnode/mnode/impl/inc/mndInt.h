@@ -125,7 +125,7 @@ typedef struct SMnode {
 } SMnode;
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
-int64_t mndGenerateUid(char *name, int32_t len);
+int64_t mndGenerateUid(const char *name, int32_t len);
 
 int32_t mndAcquireRpcRef(SMnode *pMnode);
 void    mndReleaseRpcRef(SMnode *pMnode);
