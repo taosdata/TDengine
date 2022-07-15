@@ -14,399 +14,399 @@
         "threads": 9,
         "sqls": [
           {    
-              "sql": "select last_row(*) from xxxx",
+              "sql": "select last(*) from xxxx",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx",
+              "sql": "select last(*) from xxxx",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx",
+              "sql": "select last(*) from xxxx",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx",
+              "sql": "select last(*) from xxxx",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx",
+              "sql": "select last(*) from xxxx",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx",
+              "sql": "select last(*) from xxxx",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx",
+              "sql": "select last(*) from xxxx",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx",
+              "sql": "select last(*) from xxxx",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx",
+              "sql": "select last(*) from xxxx",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx",
+              "sql": "select last(*) from xxxx",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx ",
+              "sql": "select last(*) from xxxx ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx ",
+              "sql": "select last(*) from xxxx ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx ",
+              "sql": "select last(*) from xxxx ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx ",
+              "sql": "select last(*) from xxxx ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx ",
+              "sql": "select last(*) from xxxx ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx ",
+              "sql": "select last(*) from xxxx ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx ",
+              "sql": "select last(*) from xxxx ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx ",
+              "sql": "select last(*) from xxxx ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx ",
+              "sql": "select last(*) from xxxx ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx ",
+              "sql": "select last(*) from xxxx ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {
-              "sql": "select last_row(*) from xxxx  ",
+              "sql": "select last(*) from xxxx  ",
               "result": "./query_res0.txt"
           },
           {

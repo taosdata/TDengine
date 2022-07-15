@@ -18,7 +18,7 @@
         "result": "./query_res0.txt"
       },
       {
-        "sql": "select last_row(*) from stb_1 ",
+        "sql": "select last(*) from stb_1 ",
         "result": "./query_res1.txt"
       },
       {

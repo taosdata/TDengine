@@ -14,7 +14,7 @@
     "threads": 3,
     "sqls": [
       {
-        "sql": "select last_row(*) from stb0 ",
+        "sql": "select last(*) from stb0 ",
         "result": "./query_res0.txt"
       },
       {
@@ -29,7 +29,7 @@
     "threads": 3,
     "sqls": [
       {
-        "sql": "select last_row(ts) from xxxx",
+        "sql": "select last(ts) from xxxx",
         "result": "./query_res2.txt"
       }
     ]

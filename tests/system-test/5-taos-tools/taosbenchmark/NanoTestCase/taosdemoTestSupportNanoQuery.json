@@ -67,7 +67,7 @@
 
         },
         {
-            "sql":"select last_row(*) from xxxx  ;",
+            "sql":"select last(*) from xxxx  ;",
             "result": "./query_res_tb4.txt"
 
         },
