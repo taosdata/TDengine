@@ -44,9 +44,9 @@ class TDTestCase:
         tdSql.query('select server_status()')
         tdSql.checkData(0,0,1)
         tdDnodes.stoptaosd(1)
+        sleep(10)
+        tdSql.error('select server_status()')
         
-        tdSql.query('select server_status()')
-        print(tdSql.queryResult)
     def run(self):
         self.get_database_info()
         self.check_version()
