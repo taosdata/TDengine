@@ -700,9 +700,9 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
 EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode* tnode = NULL;
-  if (!fmIsScalarFunc(node->funcId)) {
-    return DEAL_RES_CONTINUE;
-  }
+  //if (!fmIsScalarFunc(node->funcId)) {
+  //  return DEAL_RES_CONTINUE;
+  //}
 
   FOREACH(tnode, node->pParameterList) {
     if (!SCL_IS_CONST_NODE(tnode)) {
