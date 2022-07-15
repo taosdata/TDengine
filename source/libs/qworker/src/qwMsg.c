@@ -43,6 +43,20 @@ void qwFreeFetchRsp(void *msg) {
   }
 }
 
+int32_t qwBuildAndSendErrorRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code) {
+  SRpcMsg rpcRsp = {
+      .msgType = rspType,
+      .pCont = NULL,
+      .contLen = 0,
+      .code = code,
+      .info = *pConn,
+  };
+
+  tmsgSendRsp(&rpcRsp);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, SQWTaskCtx *ctx) {
   STbVerInfo* tbInfo = ctx ? &ctx->tbInfo : NULL;
   int64_t affectedRows = ctx ? ctx->affectedRows : 0;
