@@ -1166,7 +1166,7 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
     return TSDB_CODE_SUCCESS;
   }
   if (isSelectStmt(pCxt->pCurrStmt)) {
-    //select percentile() is also valid
+    //select percentile() without from clause is also valid
     if (NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) {
       return TSDB_CODE_SUCCESS;
     }
