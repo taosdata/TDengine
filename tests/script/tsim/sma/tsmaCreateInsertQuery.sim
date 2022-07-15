@@ -41,7 +41,8 @@ print =============== show streams ================================
 sql show streams;
 print $data00 $data01 $data02
 
-if $data00 != d1 then
+if $data00 != sma_index_name1 then
+  print $data00
   return -1
 endi
 

@@ -30,7 +30,7 @@ typedef struct SRSmaQTaskInfoIter SRSmaQTaskInfoIter;
 static int32_t    tdUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid);
 static int32_t    tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SArray *tbUids);
 static int32_t    tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat *pStat, SRSmaInfo *pRSmaInfo,
-                                          SReadHandle *handle, int8_t idx);
+                                          int8_t idx);
 static int32_t    tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t inputType, SRSmaInfoItem *rsmaItem,
                                     STSchema *pTSchema, tb_uid_t suid, int8_t level);
 static SRSmaInfo *tdGetRSmaInfoBySuid(SSma *pSma, int64_t suid);
@@ -256,14 +256,20 @@ int32_t tdFetchTbUidList(SSma *pSma, STbUidStore **ppStore, tb_uid_t suid, tb_ui
 }
 
 static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat *pStat, SRSmaInfo *pRSmaInfo,
-                                       SReadHandle *pReadHandle, int8_t idx) {
+                                       int8_t idx) {
   SRetention *pRetention = SMA_RETENTION(pSma);
   STsdbCfg   *pTsdbCfg = SMA_TSDB_CFG(pSma);
+
+  SReadHandle handle = {
+      .meta = pSma->pVnode->pMeta,
+      .vnode = pSma->pVnode,
+      .initTqReader = 1,
+  };
 
   if (param->qmsg[idx]) {
     SRSmaInfoItem *pItem = &(pRSmaInfo->items[idx]);
     pItem->refId = RSMA_REF_ID(pStat);
-    pItem->taskInfo = qCreateStreamExecTaskInfo(param->qmsg[idx], pReadHandle);
+    pItem->taskInfo = qCreateStreamExecTaskInfo(param->qmsg[idx], &handle);
     if (!pItem->taskInfo) {
       terrno = TSDB_CODE_RSMA_QTASKINFO_CREATE;
       goto _err;
@@ -299,10 +305,6 @@ _err:
  * @return int32_t
  */
 int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName) {
-  SVnode *pVnode = pSma->pVnode;
-  SMeta  *pMeta = pVnode->pMeta;
-  SMsgCb *pMsgCb = &pVnode->msgCb;
-
   if ((param->qmsgLen[0] == 0) && (param->qmsgLen[1] == 0)) {
     smaDebug("vgId:%d, no qmsg1/qmsg2 for rollup table %s %" PRIi64, SMA_VID(pSma), tbName, suid);
     return TSDB_CODE_SUCCESS;
@@ -331,19 +333,6 @@ int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
     return TSDB_CODE_FAILED;
   }
 
-  STqReader *pReader = tqOpenReader(pVnode);
-  if (!pReader) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
-
-  SReadHandle handle = {
-      .tqReader = pReader,
-      .meta = pMeta,
-      .pMsgCb = pMsgCb,
-      .vnode = pVnode,
-  };
-
   STSchema *pTSchema = metaGetTbTSchema(SMA_META(pSma), suid, -1);
   if (!pTSchema) {
     terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
@@ -352,11 +341,11 @@ int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
   pRSmaInfo->pTSchema = pTSchema;
   pRSmaInfo->suid = suid;
 
-  if (tdSetRSmaInfoItemParams(pSma, param, pStat, pRSmaInfo, &handle, 0) < 0) {
+  if (tdSetRSmaInfoItemParams(pSma, param, pStat, pRSmaInfo, 0) < 0) {
     goto _err;
   }
 
-  if (tdSetRSmaInfoItemParams(pSma, param, pStat, pRSmaInfo, &handle, 1) < 0) {
+  if (tdSetRSmaInfoItemParams(pSma, param, pStat, pRSmaInfo, 1) < 0) {
     goto _err;
   }
 
@@ -369,7 +358,6 @@ int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
   return TSDB_CODE_SUCCESS;
 _err:
   tdFreeRSmaInfo(pSma, pRSmaInfo);
-  taosMemoryFree(pReader);
   return TSDB_CODE_FAILED;
 }
 
@@ -404,7 +392,7 @@ int32_t tdProcessRSmaCreate(SSma *pSma, SVCreateStbReq *pReq) {
  * @param pReq
  * @return int32_t
  */
-int32_t tdProcessRSmaDrop(SSma *pSma,  SVDropStbReq *pReq) { 
+int32_t tdProcessRSmaDrop(SSma *pSma, SVDropStbReq *pReq) {
   SVnode *pVnode = pSma->pVnode;
   if (!VND_IS_RSMA(pVnode)) {
     smaTrace("vgId:%d, not create rsma for stable %s %" PRIi64 " since vnd is not rsma", TD_VID(pVnode), pReq->name,
@@ -412,11 +400,9 @@ int32_t tdProcessRSmaDrop(SSma *pSma,  SVDropStbReq *pReq) {
     return TSDB_CODE_SUCCESS;
   }
 
-  
-
   smaDebug("vgId:%d, drop rsma for table %" PRIi64 " succeed", TD_VID(pVnode), pReq->suid);
   return TSDB_CODE_SUCCESS;
- }
+}
 
 /**
  * @brief store suid/[uids], prefer to use array and then hash

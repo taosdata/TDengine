@@ -343,7 +343,7 @@ tmq_list_t* tmq_list_new() {
 
 int32_t tmq_list_append(tmq_list_t* list, const char* src) {
   SArray* container = &list->container;
-  char*   topic = strDupUnquo(src);
+  char*   topic = strdup(src);
   if (taosArrayPush(container, &topic) == NULL) return -1;
   return 0;
 }
