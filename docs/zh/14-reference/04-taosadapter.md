@@ -207,8 +207,8 @@ AllowWebSockets
 您可以使用任何支持 http 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 OpenTSDB 兼容格式的数据到 TDengine。EndPoint 如下：
 
 ```text
-/opentsdb/v1/put/json/:db
-/opentsdb/v1/put/telnet/:db
+/opentsdb/v1/put/json/<db>
+/opentsdb/v1/put/telnet/<db>
 ```
 
 ### collectd

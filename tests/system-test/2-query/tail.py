@@ -12,7 +12,7 @@ from util.cases import *
 class TDTestCase:
     updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 , 
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
-    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143}
+    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
@@ -92,8 +92,6 @@ class TDTestCase:
             "select tail(c1,1) , min(c1) from t1",
             "select tail(c1,1) , spread(c1) from t1",
             "select tail(c1,1) , diff(c1) from t1",
-            "select tail(c1,1) , abs(c1) from t1",
-            "select tail(c1,1) , c1 from t1",
             "select tail from stb1 partition by tbname",
             "select tail(123--123)==1 from stb1 partition by tbname",
             "select tail(123,123) from stb1 partition by tbname",
@@ -115,10 +113,7 @@ class TDTestCase:
             "select tail(c1,1) , avg(c1) from stb1 partition by tbname",
             "select tail(c1,1) , min(c1) from stb1 partition by tbname",
             "select tail(c1,1) , spread(c1) from stb1 partition by tbname",
-            "select tail(c1,1) , diff(c1) from stb1 partition by tbname",
-            "select tail(c1,1) , abs(c1) from stb1 partition by tbname",
-            "select tail(c1,1) , c1 from stb1 partition by tbname"
-          
+            "select tail(c1,1) , diff(c1) from stb1 partition by tbname",          
         ]
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
@@ -188,8 +183,8 @@ class TDTestCase:
 
     def check_tail_table(self , tbname , col_name , tail_rows , offset):
         tail_sql = f"select tail({col_name} , {tail_rows} , {offset}) from {tbname}"
-        equal_sql = f"select {col_name} from (select ts , {col_name} from {tbname} order by ts desc limit {tail_rows} offset {offset}) order by ts"
-        #equal_sql = f"select {col_name} from {tbname} order by ts desc limit {tail_rows} offset {offset}"
+        #equal_sql = f"select {col_name} from (select ts , {col_name} from {tbname} order by ts desc limit {tail_rows} offset {offset}) order by ts"
+        equal_sql = f"select {col_name} from {tbname} order by ts desc limit {tail_rows} offset {offset}"
         tdSql.query(tail_sql)
         tail_result = tdSql.queryResult
 
@@ -266,17 +261,17 @@ class TDTestCase:
         tdSql.query("select tail(c1,10,10) from ct1")
         tdSql.checkRows(3)
 
-        tdSql.error("select tail(c1,10,10),tbname from ct1")
-        tdSql.error("select tail(c1,10,10),t1 from ct1")
+        tdSql.query("select tail(c1,10,10),tbname from ct1")
+        tdSql.query("select tail(c1,10,10),t1 from ct1")
 
         # tail with common col 
-        tdSql.error("select tail(c1,10,10) ,ts  from ct1")
-        tdSql.error("select tail(c1,10,10) ,c1  from ct1")
+        tdSql.query("select tail(c1,10,10) ,ts  from ct1")
+        tdSql.query("select tail(c1,10,10) ,c1  from ct1")
 
         # tail with scalar function 
-        tdSql.error("select tail(c1,10,10) ,abs(c1)  from ct1")
+        tdSql.query("select tail(c1,10,10) ,abs(c1)  from ct1")
         tdSql.error("select tail(c1,10,10) , tail(c2,10,10) from ct1")
-        tdSql.error("select tail(c1,10,10) , abs(c2)+2 from ct1")
+        tdSql.query("select tail(c1,10,10) , abs(c2)+2 from ct1")
   
         # bug need fix for scalar value or compute again
         # tdSql.error(" select tail(c1,10,10) , 123 from ct1")
@@ -342,7 +337,7 @@ class TDTestCase:
         tdSql.checkData(2,0,5)
 
         # nest query
-        # tdSql.query("select tail(c1,2) from (select c1 from ct1)")
+        # tdSql.query("select tail(c1,2) from (select _rowts , c1 from ct1)")
         tdSql.query("select c1 from (select tail(c1,2) c1 from ct4) order by 1 nulls first")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, None)
@@ -368,10 +363,59 @@ class TDTestCase:
         tdSql.error("select tail(c1,2) from ct1 group by tbname")
 
         # super table
-        
+        tdSql.error("select tbname , tail(c1,2) from stb1 group by tbname")
+        tdSql.query("select tail(c1,2) from stb1 partition by tbname")
+        tdSql.checkRows(4)
 
 
-    
+        # bug need fix 
+        # tdSql.query("select tbname , tail(c1,2) from stb1 partition by tbname")
+        # tdSql.checkRows(4)
+
+        # tdSql.query("select tbname , tail(c1,2) from stb1 partition by tbname order by tbname")
+        # tdSql.checkRows(4)
+
+        # tdSql.query(" select tbname , count(c1) from stb1 partition by tbname order by tbname ")
+        # tdSql.checkRows(2)
+        # tdSql.query(" select tbname , max(c1) ,c1 from stb1 partition by tbname order by tbname ")
+        # tdSql.checkRows(2)
+        # tdSql.query(" select tbname ,first(c1) from stb1 partition by tbname order by tbname ")
+        # tdSql.checkRows(2)
+
+        tdSql.query("select tail(c1,2) from stb1 partition by tbname")
+        tdSql.checkRows(4)
+
+
+        # # bug need fix 
+        # tdSql.query(" select tbname , tail(c1,2) from stb1  where t1 = 0 partition by tbname ")
+        # tdSql.checkRows(2)
+        # tdSql.query(" select tbname , tail(c1,2) from stb1  where t1 = 0 partition by tbname order by tbname ")
+        # tdSql.checkRows(2)
+        # tdSql.query(" select tbname , tail(c1,2) from stb1  where c1 = 0 partition by tbname order by tbname ")
+        # tdSql.checkRows(3)
+        # tdSql.query(" select tbname , tail(c1,2) from stb1  where c1 = 0 partition by tbname ")
+        # tdSql.checkRows(3)
+        # tdSql.query(" select tbname , tail(c1,2) from stb1  where c1 = 0 partition by tbname ")
+        # tdSql.checkRows(3)
+        tdSql.query(" select tail(t1,2) from stb1  ")
+        tdSql.checkRows(2)
+        tdSql.query(" select tail(t1+c1,2) from stb1 ")
+        tdSql.checkRows(2)
+        tdSql.query(" select tail(t1+c1,2) from stb1 partition by tbname ")
+        tdSql.checkRows(4)
+        tdSql.query(" select tail(t1,2) from stb1 partition by tbname ")
+        tdSql.checkRows(4)
+
+        # nest query 
+        tdSql.query(" select  tail(c1,2) from (select _rowts , t1 ,c1 , tbname from stb1 ) ")
+        tdSql.checkRows(2)
+        tdSql.checkData(0,0,None)
+        tdSql.checkData(1,0,9)
+        tdSql.query("select  tail(t1,2) from (select _rowts , t1 , tbname from stb1 )")
+        tdSql.checkRows(2)
+        tdSql.checkData(0,0,4)
+        tdSql.checkData(1,0,1)
+
     def check_boundary_values(self):
 
         tdSql.execute("drop database if exists bound_test")
@@ -404,7 +448,7 @@ class TDTestCase:
                 f"insert into sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         
-        tdSql.query("select tail(c2,2) from sub1_bound")
+        tdSql.query("select tail(c2,2) from sub1_bound order by 1 desc")
         tdSql.checkRows(2)
         tdSql.checkData(0,0,9223372036854775803)
 

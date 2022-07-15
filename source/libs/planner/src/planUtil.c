@@ -107,6 +107,7 @@ int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList) {
 int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* pNew) {
   if (NULL == pOld->pParent) {
     pSubplan->pNode = (SLogicNode*)pNew;
+    pNew->pParent = NULL;
     return TSDB_CODE_SUCCESS;
   }
 

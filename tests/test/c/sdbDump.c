@@ -24,6 +24,7 @@
 #define TMP_MNODE_DIR           TD_TMP_DIR_PATH "dumpsdb" TD_DIRSEP "mnode"
 #define TMP_SDB_DATA_DIR        TD_TMP_DIR_PATH "dumpsdb" TD_DIRSEP "mnode" TD_DIRSEP "data"
 #define TMP_SDB_SYNC_DIR        TD_TMP_DIR_PATH "dumpsdb" TD_DIRSEP "mnode" TD_DIRSEP "sync"
+#define TMP_SDB_MNODE_JSON      TD_TMP_DIR_PATH "dumpsdb" TD_DIRSEP "mnode" TD_DIRSEP "mnode.json"
 #define TMP_SDB_DATA_FILE       TD_TMP_DIR_PATH "dumpsdb" TD_DIRSEP "mnode" TD_DIRSEP "data" TD_DIRSEP "sdb.data"
 #define TMP_SDB_RAFT_CFG_FILE   TD_TMP_DIR_PATH "dumpsdb" TD_DIRSEP "mnode" TD_DIRSEP "sync" TD_DIRSEP "raft_config.json"
 #define TMP_SDB_RAFT_STORE_FILE TD_TMP_DIR_PATH "dumpsdb" TD_DIRSEP "mnode" TD_DIRSEP "sync" TD_DIRSEP "raft_store.json"
@@ -71,6 +72,7 @@ void dumpDb(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "buffer", pObj->cfg.buffer);
     tjsonAddIntegerToObject(item, "pageSize", pObj->cfg.pageSize);
     tjsonAddIntegerToObject(item, "pages", pObj->cfg.pages);
+    tjsonAddIntegerToObject(item, "cacheLastSize", pObj->cfg.cacheLastSize);
     tjsonAddIntegerToObject(item, "daysPerFile", pObj->cfg.daysPerFile);
     tjsonAddIntegerToObject(item, "daysToKeep0", pObj->cfg.daysToKeep0);
     tjsonAddIntegerToObject(item, "daysToKeep1", pObj->cfg.daysToKeep1);
@@ -83,7 +85,7 @@ void dumpDb(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "compression", pObj->cfg.compression);
     tjsonAddIntegerToObject(item, "replications", pObj->cfg.replications);
     tjsonAddIntegerToObject(item, "strict", pObj->cfg.strict);
-    tjsonAddIntegerToObject(item, "cacheLastRow", pObj->cfg.cacheLastRow);
+    tjsonAddIntegerToObject(item, "cacheLast", pObj->cfg.cacheLast);
     tjsonAddIntegerToObject(item, "hashMethod", pObj->cfg.hashMethod);
     tjsonAddIntegerToObject(item, "numOfRetensions", pObj->cfg.numOfRetensions);
     tjsonAddIntegerToObject(item, "schemaless", pObj->cfg.schemaless);
@@ -114,8 +116,10 @@ void dumpStb(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "tagVer", pObj->tagVer);
     tjsonAddIntegerToObject(item, "colVer", pObj->colVer);
     tjsonAddIntegerToObject(item, "nextColId", pObj->nextColId);
-    tjsonAddIntegerToObject(item, "xFilesFactor", pObj->xFilesFactor * 10000);
-    tjsonAddIntegerToObject(item, "delay", pObj->delay);
+    tjsonAddIntegerToObject(item, "watermark1", pObj->watermark[0]);
+    tjsonAddIntegerToObject(item, "watermark2", pObj->watermark[1]);
+    tjsonAddIntegerToObject(item, "maxdelay1", pObj->maxdelay[0]);
+    tjsonAddIntegerToObject(item, "maxdelay2", pObj->maxdelay[1]);
     tjsonAddIntegerToObject(item, "ttl", pObj->ttl);
     tjsonAddIntegerToObject(item, "numOfColumns", pObj->numOfColumns);
     tjsonAddIntegerToObject(item, "numOfTags", pObj->numOfTags);
@@ -283,7 +287,8 @@ void dumpTrans(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "conflict", pObj->conflict);
     tjsonAddIntegerToObject(item, "exec", pObj->exec);
     tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime));
-    tjsonAddStringToObject(item, "dbname", pObj->dbname);
+    tjsonAddStringToObject(item, "dbname1", pObj->dbname1);
+    tjsonAddStringToObject(item, "dbname2", pObj->dbname2);
     tjsonAddIntegerToObject(item, "commitLogNum", taosArrayGetSize(pObj->commitActions));
     tjsonAddIntegerToObject(item, "redoActionNum", taosArrayGetSize(pObj->redoActions));
     tjsonAddIntegerToObject(item, "undoActionNum", taosArrayGetSize(pObj->undoActions));
@@ -294,8 +299,9 @@ void dumpTrans(SSdb *pSdb, SJson *json) {
 
 void dumpHeader(SSdb *pSdb, SJson *json) {
   tjsonAddIntegerToObject(json, "sver", 1);
-  tjsonAddStringToObject(json, "curVer", i642str(pSdb->curVer));
-  tjsonAddStringToObject(json, "curTerm", i642str(pSdb->curTerm));
+  tjsonAddStringToObject(json, "applyIndex", i642str(pSdb->applyIndex));
+  tjsonAddStringToObject(json, "applyTerm", i642str(pSdb->applyTerm));
+  tjsonAddStringToObject(json, "applyConfig", i642str(pSdb->applyConfig));
 
   SJson *maxIdsJson = tjsonCreateObject();
   tjsonAddItemToObject(json, "maxIds", maxIdsJson);
@@ -408,9 +414,11 @@ int32_t parseArgs(int32_t argc, char *argv[]) {
     return -1;
   }
 
+  char mnodeJson[PATH_MAX] = {0};
   char dataFile[PATH_MAX] = {0};
   char raftCfgFile[PATH_MAX] = {0};
   char raftStoreFile[PATH_MAX] = {0};
+  snprintf(mnodeJson, PATH_MAX, "%s" TD_DIRSEP "mnode" TD_DIRSEP "mnode.json", tsDataDir);
   snprintf(dataFile, PATH_MAX, "%s" TD_DIRSEP "mnode" TD_DIRSEP "data" TD_DIRSEP "sdb.data", tsDataDir);
   snprintf(raftCfgFile, PATH_MAX, "%s" TD_DIRSEP "mnode" TD_DIRSEP "sync" TD_DIRSEP "raft_config.json", tsDataDir);
   snprintf(raftStoreFile, PATH_MAX, "%s" TD_DIRSEP "mnode" TD_DIRSEP "sync" TD_DIRSEP "raft_store.json", tsDataDir);
@@ -421,6 +429,8 @@ int32_t parseArgs(int32_t argc, char *argv[]) {
 #ifdef WINDOWS
   taosMulMkDir(TMP_SDB_DATA_DIR);
   taosMulMkDir(TMP_SDB_SYNC_DIR);
+  snprintf(cmd, sizeof(cmd), "cp %s %s 2>nul", mnodeJson, TMP_SDB_MNODE_JSON);
+  system(cmd);
   snprintf(cmd, sizeof(cmd), "cp %s %s 2>nul", dataFile, TMP_SDB_DATA_FILE);
   system(cmd);
   snprintf(cmd, sizeof(cmd), "cp %s %s 2>nul", raftCfgFile, TMP_SDB_RAFT_CFG_FILE);
@@ -431,6 +441,8 @@ int32_t parseArgs(int32_t argc, char *argv[]) {
   snprintf(cmd, sizeof(cmd), "mkdir -p %s", TMP_SDB_DATA_DIR);
   system(cmd);
   snprintf(cmd, sizeof(cmd), "mkdir -p %s", TMP_SDB_SYNC_DIR);
+  system(cmd);
+  snprintf(cmd, sizeof(cmd), "cp %s %s 2>/dev/null", mnodeJson, TMP_SDB_MNODE_JSON);
   system(cmd);
   snprintf(cmd, sizeof(cmd), "cp %s %s 2>/dev/null", dataFile, TMP_SDB_DATA_FILE);
   system(cmd);

@@ -21,7 +21,7 @@ RESTful 接口不依赖于任何 TDengine 的库，因此客户端不需要安�
 下面示例是列出所有的数据库，请把 h1.taosdata.com 和 6041（缺省值）替换为实际运行的 TDengine 服务 FQDN 和端口号：
 
 ```html
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' h1.taosdata.com:6041/rest/sql
+curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "show databases;" h1.taosdata.com:6041/rest/sql
 ```
 
 返回值结果如下表示验证通过：
@@ -106,13 +106,13 @@ HTTP 请求的 BODY 里就是一个完整的 SQL 语句，SQL 语句中的数据
 使用 `curl` 通过自定义身份认证方式来发起一个 HTTP Request，语法如下：
 
 ```bash
-curl -H 'Authorization: Basic <TOKEN>' -d '<SQL>' <ip>:<PORT>/rest/sql/[db_name]
+curl -L -H "Authorization: Basic <TOKEN>" -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name]
 ```
 
 或者
 
 ```bash
-curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql/[db_name]
+curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name]
 ```
 
 其中，`TOKEN` 为 `{username}:{password}` 经过 Base64 编码之后的字符串，例如 `root:taosdata` 编码后为 `cm9vdDp0YW9zZGF0YQ==`
@@ -192,7 +192,7 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 - 在 demo 库里查询表 d1001 的所有记录：
 
   ```bash
-  curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sql
+  curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "select * from demo.d1001" 192.168.0.1:6041/rest/sql
   ```
 
   返回值：
@@ -218,7 +218,7 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 - 创建库 demo：
 
   ```bash
-  curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6041/rest/sql
+  curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "create database demo" 192.168.0.1:6041/rest/sql
   ```
 
   返回值：
@@ -240,7 +240,7 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 HTTP 请求 URL 采用 `/rest/sqlt` 时，返回结果集的时间戳将采用 Unix 时间戳格式表示，例如
 
 ```bash
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sqlt
+curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "select * from demo.d1001" 192.168.0.1:6041/rest/sqlt
 ```
 
 返回结果：
@@ -268,7 +268,7 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001
 HTTP 请求 URL 采用 `/rest/sqlutc` 时，返回结果集的时间戳将采用 UTC 时间字符串表示，例如
 
 ```bash
-  curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6041/rest/sqlutc
+  curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "select * from demo.t1" 192.168.0.1:6041/rest/sqlutc
 ```
 
 返回值：

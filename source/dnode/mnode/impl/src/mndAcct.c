@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndAcct.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 
@@ -212,18 +213,30 @@ static int32_t mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOld, SAcctObj *pNew) {
 }
 
 static int32_t mndProcessCreateAcctReq(SRpcMsg *pReq) {
+  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_CREATE_ACCT) != 0) {
+    return -1;
+  }
+
   terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   mError("failed to process create acct request since %s", terrstr());
   return -1;
 }
 
 static int32_t mndProcessAlterAcctReq(SRpcMsg *pReq) {
+  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_ALTER_ACCT) != 0) {
+    return -1;
+  }
+
   terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   mError("failed to process create acct request since %s", terrstr());
   return -1;
 }
 
 static int32_t mndProcessDropAcctReq(SRpcMsg *pReq) {
+  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_DROP_ACCT) != 0) {
+    return -1;
+  }
+
   terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   mError("failed to process create acct request since %s", terrstr());
   return -1;

@@ -196,16 +196,16 @@ class TDTestCase:
         auotCtbPrefix = 'autoCtb'
 
         # create and start thread
-        parameterDict = {'cfg':        '',       \
-                         'actionType': 0,        \
-                         'dbName':     'db1',    \
-                         'dropFlag':   1,        \
-                         'vgroups':    4,        \
-                         'replica':    1,        \
-                         'stbName':    'stb1',    \
-                         'ctbNum':     10,       \
-                         'rowsPerTbl': 10000,    \
-                         'batchNum':   100,      \
+        parameterDict = {'cfg':        '',
+                         'actionType': 0,
+                         'dbName':     'db1',
+                         'dropFlag':   1,
+                         'vgroups':    4,
+                         'replica':    1,
+                         'stbName':    'stb1',
+                         'ctbNum':     10,
+                         'rowsPerTbl': 10000,
+                         'batchNum':   100,
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
         
@@ -348,8 +348,6 @@ class TDTestCase:
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-event = threading.Event()
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())

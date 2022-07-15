@@ -90,6 +90,38 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
   return 0;
 }
 
+int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbName, STableCfgRsp *pRsp) {
+  if (NULL == pMnode->infosMeta) {
+    terrno = TSDB_CODE_MND_NOT_READY;
+    return -1;
+  }
+
+  STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, tbName, strlen(tbName));
+  if (NULL == pMeta) {
+    mError("invalid information schema table name:%s", tbName);
+    terrno = TSDB_CODE_MND_INVALID_SYS_TABLENAME;
+    return -1;
+  }
+
+  strcpy(pRsp->tbName, pMeta->tbName);
+  strcpy(pRsp->stbName, pMeta->stbName);
+  strcpy(pRsp->dbFName, pMeta->dbFName);
+  pRsp->numOfTags = pMeta->numOfTags;
+  pRsp->numOfColumns = pMeta->numOfColumns;
+  pRsp->tableType = pMeta->tableType;
+
+  pRsp->pSchemas = taosMemoryCalloc(pMeta->numOfColumns, sizeof(SSchema));
+  if (pRsp->pSchemas == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    pRsp->pSchemas = NULL;
+    return -1;
+  }
+
+  memcpy(pRsp->pSchemas, pMeta->pSchemas, pMeta->numOfColumns * sizeof(SSchema));
+  return 0;
+}
+
+
 int32_t mndInitInfos(SMnode *pMnode) {
   pMnode->infosMeta = taosHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
   if (pMnode->infosMeta == NULL) {

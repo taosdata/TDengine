@@ -3,215 +3,166 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 import numpy as np
-
-
+import time
+from datetime import datetime
+from util.gettime import *
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
-
-        self.rowNum = 10
-        self.ts = 1537146000000  # 2018-9-17 09:00:00.000
-        
+        self.get_time = GetTime()
+        self.ts_str = [
+            '2020-1-1',
+            '2020-2-1 00:00:01',
+            '2020-3-1 00:00:00.001',
+            '2020-4-1 00:00:00.001002',
+            '2020-5-1 00:00:00.001002001'
+        ]
+        self.db_param_precision = ['ms','us','ns']
+        self.time_unit = ['1w','1d','1h','1m','1s','1a','1u','1b']
+        self.error_unit = ['2w','2d','2h','2m','2s','2a','2u','1c','#1']
+        self.ntbname = 'ntb'
+        self.stbname = 'stb'
+        self.ctbname = 'ctb'
+    def check_ms_timestamp(self,unit,date_time):
+        if unit.lower() == '1a':
+            for i in range(len(self.ts_str)):
+                ts_result = self.get_time.get_ms_timestamp(str(tdSql.queryResult[i][0]))
+                tdSql.checkEqual(ts_result,int(date_time[i]))
+        elif unit.lower() == '1s':
+            for i in range(len(self.ts_str)):
+                ts_result = self.get_time.get_ms_timestamp(str(tdSql.queryResult[i][0]))
+                tdSql.checkEqual(ts_result,int(date_time[i]/1000)*1000)
+        elif unit.lower() == '1m':
+            for i in range(len(self.ts_str)):
+                ts_result = self.get_time.get_ms_timestamp(str(tdSql.queryResult[i][0]))
+                tdSql.checkEqual(ts_result,int(date_time[i]/1000/60)*60*1000)
+        elif unit.lower() == '1h':
+            for i in range(len(self.ts_str)):
+                ts_result = self.get_time.get_ms_timestamp(str(tdSql.queryResult[i][0]))
+                tdSql.checkEqual(ts_result,int(date_time[i]/1000/60/60)*60*60*1000  )
+        elif unit.lower() == '1d':
+            for i in range(len(self.ts_str)):
+                ts_result = self.get_time.get_ms_timestamp(str(tdSql.queryResult[i][0]))
+                tdSql.checkEqual(ts_result,int(date_time[i]/1000/60/60/24)*24*60*60*1000)  
+        elif unit.lower() == '1w':
+            for i in range(len(self.ts_str)):
+                ts_result = self.get_time.get_ms_timestamp(str(tdSql.queryResult[i][0]))
+                tdSql.checkEqual(ts_result,int(date_time[i]/1000/60/60/24/7)*7*24*60*60*1000)
+    def check_us_timestamp(self,unit,date_time):
+        if unit.lower() == '1u':
+            for i in range(len(self.ts_str)):
+                ts_result = self.get_time.get_us_timestamp(str(tdSql.queryResult[i][0]))
+                tdSql.checkEqual(ts_result,int(date_time[i]))
+        elif unit.lower() == '1a':
+            for i in range(len(self.ts_str)):
+                ts_result = self.get_time.get_us_timestamp(str(tdSql.queryResult[i][0]))
+                tdSql.checkEqual(ts_result,int(date_time[i]/1000)*1000)
+        elif unit.lower() == '1s':
+            for i in range(len(self.ts_str)):
+                ts_result = self.get_time.get_us_timestamp(str(tdSql.queryResult[i][0]))
+                tdSql.checkEqual(ts_result,int(date_time[i]/1000/1000)*1000*1000)
+        elif unit.lower() == '1m':
+            for i in range(len(self.ts_str)):
+                ts_result = self.get_time.get_us_timestamp(str(tdSql.queryResult[i][0]))
+                tdSql.checkEqual(ts_result,int(date_time[i]/1000/1000/60)*60*1000*1000)
+        elif unit.lower() == '1h':
+            for i in range(len(self.ts_str)):
+                ts_result = self.get_time.get_us_timestamp(str(tdSql.queryResult[i][0]))
+                tdSql.checkEqual(ts_result,int(date_time[i]/1000/1000/60/60)*60*60*1000*1000  )
+        elif unit.lower() == '1d':
+            for i in range(len(self.ts_str)):
+                ts_result = self.get_time.get_us_timestamp(str(tdSql.queryResult[i][0]))
+                tdSql.checkEqual(ts_result,int(date_time[i]/1000/1000/60/60/24)*24*60*60*1000*1000 ) 
+        elif unit.lower() == '1w':
+            for i in range(len(self.ts_str)):
+                ts_result = self.get_time.get_us_timestamp(str(tdSql.queryResult[i][0]))
+                tdSql.checkEqual(ts_result,int(date_time[i]/1000/1000/60/60/24/7)*7*24*60*60*1000*1000)
+    def check_ns_timestamp(self,unit,date_time):
+        if unit.lower() == '1b':
+            for i in range(len(self.ts_str)):
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]))
+        elif unit.lower() == '1u':
+            for i in range(len(self.ts_str)):
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000)*1000)
+        elif unit.lower() == '1a':
+            for i in range(len(self.ts_str)):
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000)*1000*1000)
+        elif unit.lower() == '1s':
+            for i in range(len(self.ts_str)):
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000)*1000*1000*1000)
+        elif unit.lower() == '1m':
+            for i in range(len(self.ts_str)):
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60)*60*1000*1000*1000)
+        elif unit.lower() == '1h':
+            for i in range(len(self.ts_str)):
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60/60)*60*60*1000*1000*1000  )
+        elif unit.lower() == '1d':
+            for i in range(len(self.ts_str)):
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60/60/24)*24*60*60*1000*1000*1000 ) 
+        elif unit.lower() == '1w':
+            for i in range(len(self.ts_str)):
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60/60/24/7)*7*24*60*60*1000*1000*1000)
+    def check_tb_type(self,unit,tb_type):
+        if tb_type.lower() == 'ntb': 
+            tdSql.query(f'select timetruncate(ts,{unit}) from {self.ntbname}')
+        elif tb_type.lower() == 'ctb':
+            tdSql.query(f'select timetruncate(ts,{unit}) from {self.ctbname}')
+        elif tb_type.lower() == 'stb':
+            tdSql.query(f'select timetruncate(ts,{unit}) from {self.stbname}')
+    def data_check(self,date_time,precision,tb_type):
+        for unit in self.time_unit:
+            if (unit.lower() == '1u' and precision.lower() == 'ms') or (unit.lower() == '1b' and precision.lower() == 'us') or (unit.lower() == '1b' and precision.lower() == 'ms'):
+                if tb_type.lower() == 'ntb': 
+                    tdSql.error(f'select timetruncate(ts,{unit}) from {self.ntbname}')
+                elif tb_type.lower() == 'ctb':
+                    tdSql.error(f'select timetruncate(ts,{unit}) from {self.ctbname}')
+                elif tb_type.lower() == 'stb':
+                    tdSql.error(f'select timetruncate(ts,{unit}) from {self.stbname}')
+            elif precision.lower() == 'ms':
+                self.check_tb_type(unit,tb_type)
+                tdSql.checkRows(len(self.ts_str))
+                self.check_ms_timestamp(unit,date_time)
+            elif precision.lower() == 'us':
+                self.check_tb_type(unit,tb_type)
+                tdSql.checkRows(len(self.ts_str))
+                self.check_us_timestamp(unit,date_time)
+            elif precision.lower() == 'ns':
+                self.check_tb_type(unit,tb_type)
+                tdSql.checkRows(len(self.ts_str))
+                self.check_ns_timestamp(unit,date_time)
+        for unit in self.error_unit:
+            if tb_type.lower() == 'ntb':
+                tdSql.error(f'select timetruncate(ts,{unit}) from {self.ntbname}')
+            elif tb_type.lower() == 'ctb':
+                tdSql.error(f'select timetruncate(ts,{unit}) from {self.ctbname}')
+            elif tb_type.lower() == 'stb':
+                tdSql.error(f'select timetruncate(ts,{unit}) from {self.stbname}')
+    def function_check_ntb(self):
+        for precision in self.db_param_precision:
+            tdSql.execute('drop database if exists db')
+            tdSql.execute(f'create database db precision "{precision}"')
+            tdSql.execute('use db')
+            tdSql.execute(f'create table {self.ntbname} (ts timestamp,c0 int)')
+            for ts in self.ts_str:
+                tdSql.execute(f'insert into {self.ntbname} values("{ts}",1)')
+            date_time = self.get_time.time_transform(self.ts_str,precision)
+            self.data_check(date_time,precision,'ntb')
+    def function_check_stb(self):
+        for precision in self.db_param_precision:
+            tdSql.execute('drop database if exists db')
+            tdSql.execute(f'create database db precision "{precision}"')
+            tdSql.execute('use db')
+            tdSql.execute(f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int)')
+            tdSql.execute(f'create table {self.ctbname} using {self.stbname} tags(1)')
+            for ts in self.ts_str:
+                tdSql.execute(f'insert into {self.ctbname} values("{ts}",1)')
+            date_time = self.get_time.time_transform(self.ts_str,precision)
+            self.data_check(date_time,precision,'ctb')
+            self.data_check(date_time,precision,'stb')
     def run(self):
-        tdSql.prepare()
-
-        intData = []        
-        floatData = []
-
-        tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
-                    col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
-        tdSql.execute("create table stb_1 using stb tags('beijing')")
-        tdSql.execute('''create table ntb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
-                    col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned)''')
-        for i in range(self.rowNum):
-            tdSql.execute("insert into ntb values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
-                        % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
-            intData.append(i + 1)            
-            floatData.append(i + 0.1)
-        for i in range(self.rowNum):
-            tdSql.execute("insert into stb_1 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
-                        % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
-            intData.append(i + 1)            
-            floatData.append(i + 0.1)  
-
-        tdSql.query("select timetruncate(1,1d) from ntb")
-        tdSql.checkRows(10)
-        tdSql.query("select timetruncate(1,1u) from ntb")
-        tdSql.checkRows(10)
-        tdSql.query("select timetruncate(1,1a) from ntb")
-        tdSql.checkRows(10)
-        tdSql.query("select timetruncate(1,1m) from ntb")
-        tdSql.checkRows(10)
-        tdSql.query("select timetruncate(1,1h) from ntb")
-        tdSql.checkRows(10)
-        tdSql.query("select timetruncate(ts,1d) from ntb")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,"2018-09-17 08:00:00.000")
-        tdSql.query("select timetruncate(ts,1h) from ntb")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,"2018-09-17 09:00:00.000")
-        tdSql.query("select timetruncate(ts,1m) from ntb")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,"2018-09-17 09:00:00.000")
-        tdSql.query("select timetruncate(ts,1s) from ntb")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,"2018-09-17 09:00:00.000")
-        tdSql.query("select timetruncate(ts,1a) from ntb")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,"2018-09-17 09:00:00.000")
-        tdSql.checkData(1,0,"2018-09-17 09:00:00.001")
-        tdSql.checkData(2,0,"2018-09-17 09:00:00.002")
-        tdSql.checkData(3,0,"2018-09-17 09:00:00.003")
-        tdSql.checkData(4,0,"2018-09-17 09:00:00.004")
-        tdSql.checkData(5,0,"2018-09-17 09:00:00.005")
-        tdSql.checkData(6,0,"2018-09-17 09:00:00.006")
-        tdSql.checkData(7,0,"2018-09-17 09:00:00.007")
-        tdSql.checkData(8,0,"2018-09-17 09:00:00.008")
-        tdSql.checkData(9,0,"2018-09-17 09:00:00.009")
-        # tdSql.query("select timetruncate(ts,1u) from ntb")
-        # tdSql.checkRows(10)
-        # tdSql.checkData(0,0,"2018-09-17 09:00:00.000000")
-        # tdSql.checkData(1,0,"2018-09-17 09:00:00.001000")
-        # tdSql.checkData(2,0,"2018-09-17 09:00:00.002000")
-        # tdSql.checkData(3,0,"2018-09-17 09:00:00.003000")
-        # tdSql.checkData(4,0,"2018-09-17 09:00:00.004000")
-        # tdSql.checkData(5,0,"2018-09-17 09:00:00.005000")
-        # tdSql.checkData(6,0,"2018-09-17 09:00:00.006000")
-        # tdSql.checkData(7,0,"2018-09-17 09:00:00.007000")
-        # tdSql.checkData(8,0,"2018-09-17 09:00:00.008000")
-        # tdSql.checkData(9,0,"2018-09-17 09:00:00.009000")
-        # tdSql.query("select timetruncate(ts,1b) from ntb")
-        # tdSql.checkRows(10)
-        # tdSql.checkData(0,0,"2018-09-17 09:00:00.000000000")
-        # tdSql.checkData(1,0,"2018-09-17 09:00:00.001000000")
-        # tdSql.checkData(2,0,"2018-09-17 09:00:00.002000000")
-        # tdSql.checkData(3,0,"2018-09-17 09:00:00.003000000")
-        # tdSql.checkData(4,0,"2018-09-17 09:00:00.004000000")
-        # tdSql.checkData(5,0,"2018-09-17 09:00:00.005000000")
-        # tdSql.checkData(6,0,"2018-09-17 09:00:00.006000000")
-        # tdSql.checkData(7,0,"2018-09-17 09:00:00.007000000")
-        # tdSql.checkData(8,0,"2018-09-17 09:00:00.008000000")
-        # tdSql.checkData(9,0,"2018-09-17 09:00:00.009000000")
-
-
-        tdSql.query("select timetruncate(1,1d) from stb")
-        tdSql.checkRows(10)
-        tdSql.query("select timetruncate(1,1u) from stb")
-        tdSql.checkRows(10)
-        tdSql.query("select timetruncate(1,1a) from stb")
-        tdSql.checkRows(10)
-        tdSql.query("select timetruncate(1,1m) from stb")
-        tdSql.checkRows(10)
-        tdSql.query("select timetruncate(1,1h) from stb")
-        tdSql.checkRows(10)
-        tdSql.query("select timetruncate(ts,1d) from stb")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,"2018-09-17 08:00:00.000")
-        tdSql.query("select timetruncate(ts,1h) from stb")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,"2018-09-17 09:00:00.000")
-        tdSql.query("select timetruncate(ts,1m) from stb")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,"2018-09-17 09:00:00.000")
-        tdSql.query("select timetruncate(ts,1s) from stb")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,"2018-09-17 09:00:00.000")
-        tdSql.query("select timetruncate(ts,1a) from stb")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,"2018-09-17 09:00:00.000")
-        tdSql.checkData(1,0,"2018-09-17 09:00:00.001")
-        tdSql.checkData(2,0,"2018-09-17 09:00:00.002")
-        tdSql.checkData(3,0,"2018-09-17 09:00:00.003")
-        tdSql.checkData(4,0,"2018-09-17 09:00:00.004")
-        tdSql.checkData(5,0,"2018-09-17 09:00:00.005")
-        tdSql.checkData(6,0,"2018-09-17 09:00:00.006")
-        tdSql.checkData(7,0,"2018-09-17 09:00:00.007")
-        tdSql.checkData(8,0,"2018-09-17 09:00:00.008")
-        tdSql.checkData(9,0,"2018-09-17 09:00:00.009")
-        # tdSql.query("select timetruncate(ts,1u) from stb")
-        # tdSql.checkRows(10)
-        # tdSql.checkData(0,0,"2018-09-17 09:00:00.000000")
-        # tdSql.checkData(1,0,"2018-09-17 09:00:00.001000")
-        # tdSql.checkData(2,0,"2018-09-17 09:00:00.002000")
-        # tdSql.checkData(3,0,"2018-09-17 09:00:00.003000")
-        # tdSql.checkData(4,0,"2018-09-17 09:00:00.004000")
-        # tdSql.checkData(5,0,"2018-09-17 09:00:00.005000")
-        # tdSql.checkData(6,0,"2018-09-17 09:00:00.006000")
-        # tdSql.checkData(7,0,"2018-09-17 09:00:00.007000")
-        # tdSql.checkData(8,0,"2018-09-17 09:00:00.008000")
-        # tdSql.checkData(9,0,"2018-09-17 09:00:00.009000")
-        # tdSql.query("select timetruncate(ts,1b) from stb")
-        # tdSql.checkRows(10)
-        # tdSql.checkData(0,0,"2018-09-17 09:00:00.000000000")
-        # tdSql.checkData(1,0,"2018-09-17 09:00:00.001000000")
-        # tdSql.checkData(2,0,"2018-09-17 09:00:00.002000000")
-        # tdSql.checkData(3,0,"2018-09-17 09:00:00.003000000")
-        # tdSql.checkData(4,0,"2018-09-17 09:00:00.004000000")
-        # tdSql.checkData(5,0,"2018-09-17 09:00:00.005000000")
-        # tdSql.checkData(6,0,"2018-09-17 09:00:00.006000000")
-        # tdSql.checkData(7,0,"2018-09-17 09:00:00.007000000")
-        # tdSql.checkData(8,0,"2018-09-17 09:00:00.008000000")
-        # tdSql.checkData(9,0,"2018-09-17 09:00:00.009000000")
-
-        tdSql.query("select timetruncate(1,1d) from stb_1")
-        tdSql.checkRows(10)
-        tdSql.query("select timetruncate(1,1u) from stb_1")
-        tdSql.checkRows(10)
-        tdSql.query("select timetruncate(1,1a) from stb_1")
-        tdSql.checkRows(10)
-        tdSql.query("select timetruncate(1,1m) from stb_1")
-        tdSql.checkRows(10)
-        tdSql.query("select timetruncate(1,1h) from stb_1")
-        tdSql.checkRows(10)
-        tdSql.query("select timetruncate(ts,1d) from stb_1")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,"2018-09-17 08:00:00.000")
-        tdSql.query("select timetruncate(ts,1h) from stb_1")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,"2018-09-17 09:00:00.000")
-        tdSql.query("select timetruncate(ts,1m) from stb_1")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,"2018-09-17 09:00:00.000")
-        tdSql.query("select timetruncate(ts,1s) from stb_1")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,"2018-09-17 09:00:00.000")
-        tdSql.query("select timetruncate(ts,1a) from stb_1")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,"2018-09-17 09:00:00.000")
-        tdSql.checkData(1,0,"2018-09-17 09:00:00.001")
-        tdSql.checkData(2,0,"2018-09-17 09:00:00.002")
-        tdSql.checkData(3,0,"2018-09-17 09:00:00.003")
-        tdSql.checkData(4,0,"2018-09-17 09:00:00.004")
-        tdSql.checkData(5,0,"2018-09-17 09:00:00.005")
-        tdSql.checkData(6,0,"2018-09-17 09:00:00.006")
-        tdSql.checkData(7,0,"2018-09-17 09:00:00.007")
-        tdSql.checkData(8,0,"2018-09-17 09:00:00.008")
-        tdSql.checkData(9,0,"2018-09-17 09:00:00.009")
-        # tdSql.query("select timetruncate(ts,1u) from stb_1")
-        # tdSql.checkRows(10)
-        # tdSql.checkData(0,0,"2018-09-17 09:00:00.000000")
-        # tdSql.checkData(1,0,"2018-09-17 09:00:00.001000")
-        # tdSql.checkData(2,0,"2018-09-17 09:00:00.002000")
-        # tdSql.checkData(3,0,"2018-09-17 09:00:00.003000")
-        # tdSql.checkData(4,0,"2018-09-17 09:00:00.004000")
-        # tdSql.checkData(5,0,"2018-09-17 09:00:00.005000")
-        # tdSql.checkData(6,0,"2018-09-17 09:00:00.006000")
-        # tdSql.checkData(7,0,"2018-09-17 09:00:00.007000")
-        # tdSql.checkData(8,0,"2018-09-17 09:00:00.008000")
-        # tdSql.checkData(9,0,"2018-09-17 09:00:00.009000")
-        # tdSql.query("select timetruncate(ts,1b) from stb_1")
-        # tdSql.checkRows(10)
-        # tdSql.checkData(0,0,"2018-09-17 09:00:00.000000000")
-        # tdSql.checkData(1,0,"2018-09-17 09:00:00.001000000")
-        # tdSql.checkData(2,0,"2018-09-17 09:00:00.002000000")
-        # tdSql.checkData(3,0,"2018-09-17 09:00:00.003000000")
-        # tdSql.checkData(4,0,"2018-09-17 09:00:00.004000000")
-        # tdSql.checkData(5,0,"2018-09-17 09:00:00.005000000")
-        # tdSql.checkData(6,0,"2018-09-17 09:00:00.006000000")
-        # tdSql.checkData(7,0,"2018-09-17 09:00:00.007000000")
-        # tdSql.checkData(8,0,"2018-09-17 09:00:00.008000000")
-        # tdSql.checkData(9,0,"2018-09-17 09:00:00.009000000")
+        self.function_check_ntb()
+        self.function_check_stb()
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

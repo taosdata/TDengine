@@ -39,8 +39,10 @@ typedef struct {
   int32_t   id;
   int32_t   errCode;
   int32_t   acceptableCode;
-  ETrnStage stage;
+  int32_t   retryCode;
   ETrnAct   actionType;
+  ETrnStage stage;
+  int8_t    reserved;
   int8_t    rawWritten;
   int8_t    msgSent;
   int8_t    msgReceived;
@@ -68,7 +70,7 @@ int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction);
 int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
 void    mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *param, int32_t paramLen);
-void    mndTransSetDbName(STrans *pTrans, const char *dbname);
+void    mndTransSetDbName(STrans *pTrans, const char *dbname1, const char *dbname2);
 void    mndTransSetSerial(STrans *pTrans);
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);

@@ -28,7 +28,6 @@ extern "C" {
 
 typedef struct SIndex               SIndex;
 typedef struct SIndexTerm           SIndexTerm;
-typedef struct SIndexOpts           SIndexOpts;
 typedef struct SIndexMultiTermQuery SIndexMultiTermQuery;
 typedef struct SArray               SIndexMultiTerm;
 
@@ -62,6 +61,9 @@ typedef enum {
   QUERY_MAX
 } EIndexQueryType;
 
+typedef struct SIndexOpts {
+  int32_t cacheSize;  // MB
+} SIndexOpts;
 /*
  * create multi query
  * @param oper (input, relation between querys)
@@ -127,7 +129,7 @@ int indexSearch(SIndex* index, SIndexMultiTermQuery* query, SArray* result);
  * @parma opt   (input, rebuild index opts)
  * @return error code
  */
-int indexRebuild(SIndex* index, SIndexOpts* opt);
+// int indexRebuild(SIndex* index, SIndexOpts* opt);
 
 /*
  * open index
@@ -173,7 +175,7 @@ void             indexMultiTermDestroy(SIndexMultiTerm* terms);
  * @param:
  * @param:
  */
-SIndexOpts* indexOptsCreate();
+SIndexOpts* indexOptsCreate(int32_t cacheSize);
 void        indexOptsDestroy(SIndexOpts* opts);
 
 /*
@@ -184,6 +186,25 @@ void        indexOptsDestroy(SIndexOpts* opts);
 SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn operType, uint8_t colType, const char* colName,
                             int32_t nColName, const char* colVal, int32_t nColVal);
 void        indexTermDestroy(SIndexTerm* p);
+
+/*
+ * rebuild index
+ */
+void indexRebuild(SIndexJson* idx, void* iter);
+
+/*
+ * check index json status
+ **/
+bool indexIsRebuild(SIndex* idx);
+/*
+ * rebuild index json
+ */
+void indexJsonRebuild(SIndexJson* idx, void* iter);
+
+/*
+ * check index json status
+ **/
+bool indexJsonIsRebuild(SIndexJson* idx);
 
 /*
  * init index env
@@ -203,12 +224,12 @@ typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltS
 
 SIdxFltStatus idxGetFltStatus(SNode* pFilterNode);
 
-int32_t doFilterTag(const SNode* pFilterNode, SIndexMetaArg* metaArg, SArray* result);
+int32_t doFilterTag(SNode* pFilterNode, SIndexMetaArg* metaArg, SArray* result, SIdxFltStatus* status);
 /*
  * destory index env
  *
  */
-void indexCleanUp();
+void indexCleanup();
 
 #ifdef __cplusplus
 }

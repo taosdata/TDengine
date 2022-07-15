@@ -36,9 +36,6 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   SColumnInfoData *pOutputData = pOutput->columnData;
 
   int32_t type = GET_PARAM_TYPE(pInput);
-  if (!IS_NUMERIC_TYPE(type)) {
-    return TSDB_CODE_FAILED;
-  }
 
   switch (type) {
     case TSDB_DATA_TYPE_FLOAT: {
@@ -119,8 +116,15 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
       break;
     }
 
+    case TSDB_DATA_TYPE_NULL: {
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        colDataAppendNULL(pOutputData, i);
+      }
+      break;
+    }
+
     default: {
-      colDataAssign(pOutputData, pInputData, pInput->numOfRows);
+      colDataAssign(pOutputData, pInputData, pInput->numOfRows, NULL);
     }
   }
 
@@ -130,9 +134,6 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 
 static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _double_fn valFn) {
   int32_t type = GET_PARAM_TYPE(pInput);
-  if (inputNum != 1 || !IS_NUMERIC_TYPE(type)) {
-    return TSDB_CODE_FAILED;
-  }
 
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -142,7 +143,7 @@ static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SS
   double *out = (double *)pOutputData->pData;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
-    if (colDataIsNull_s(pInputData, i)) {
+    if (colDataIsNull_s(pInputData, i) || IS_NULL_TYPE(type)) {
       colDataAppendNULL(pOutputData, i);
       continue;
     }
@@ -159,10 +160,6 @@ static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SS
 }
 
 static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _double_fn_2 valFn) {
-  if (inputNum != 2 || !IS_NUMERIC_TYPE(GET_PARAM_TYPE(&pInput[0])) || !IS_NUMERIC_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
-    return TSDB_CODE_FAILED;
-  }
-
   SColumnInfoData *pInputData[2];
   SColumnInfoData *pOutputData = pOutput->columnData;
   _getDoubleValue_fn_t getValueFn[2];
@@ -175,11 +172,15 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
   double *out = (double *)pOutputData->pData;
   double result;
 
+  bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+                      IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
+
   int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
   if (pInput[0].numOfRows == pInput[1].numOfRows) {
     for (int32_t i = 0; i < numOfRows; ++i) {
       if (colDataIsNull_s(pInputData[0], i) ||
-          colDataIsNull_s(pInputData[1], i)) {
+          colDataIsNull_s(pInputData[1], i) ||
+          hasNullType) {
         colDataAppendNULL(pOutputData, i);
         continue;
       }
@@ -191,7 +192,7 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
       }
     }
   } else if (pInput[0].numOfRows == 1) { //left operand is constant
-    if (colDataIsNull_s(pInputData[0], 0)) {
+    if (colDataIsNull_s(pInputData[0], 0) || hasNullType) {
       colDataAppendNNULL(pOutputData, 0, pInput[1].numOfRows);
     } else {
       for (int32_t i = 0; i < numOfRows; ++i) {
@@ -210,7 +211,7 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
       }
     }
   } else if (pInput[1].numOfRows == 1) {
-    if (colDataIsNull_s(pInputData[1], 0)) {
+    if (colDataIsNull_s(pInputData[1], 0) || hasNullType) {
       colDataAppendNNULL(pOutputData, 0, pInput[0].numOfRows);
     } else {
       for (int32_t i = 0; i < numOfRows; ++i) {
@@ -236,9 +237,6 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
 
 static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _float_fn f1, _double_fn d1) {
   int32_t type = GET_PARAM_TYPE(pInput);
-  if (inputNum != 1 || !IS_NUMERIC_TYPE(type)) {
-    return TSDB_CODE_FAILED;
-  }
 
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -272,8 +270,15 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
       break;
     }
 
+    case TSDB_DATA_TYPE_NULL: {
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        colDataAppendNULL(pOutputData, i);
+      }
+      break;
+    }
+
     default: {
-      colDataAssign(pOutputData, pInputData, pInput->numOfRows);
+      colDataAssign(pOutputData, pInputData, pInput->numOfRows, NULL);
     }
   }
 
@@ -355,9 +360,6 @@ static void trtrim(char *input, char *output, int32_t type, int32_t charLen) {
 
 static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, _len_fn lenFn) {
   int32_t type = GET_PARAM_TYPE(pInput);
-  if (inputNum != 1 || !IS_VAR_DATA_TYPE(type)) {
-    return TSDB_CODE_FAILED;
-  }
 
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -581,9 +583,6 @@ DONE:
 
 static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, _conv_fn convFn) {
   int32_t type = GET_PARAM_TYPE(pInput);
-  if (inputNum != 1 || !IS_VAR_DATA_TYPE(type)) {
-    return TSDB_CODE_FAILED;
-  }
 
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -623,9 +622,6 @@ static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScala
 
 static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, _trim_fn trimFn) {
   int32_t type = GET_PARAM_TYPE(pInput);
-  if (inputNum != 1 || !IS_VAR_DATA_TYPE(type)) {
-    return TSDB_CODE_FAILED;
-  }
 
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -659,16 +655,10 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
 int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t subPos = 0;
   GET_TYPED_DATA(subPos, int32_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
-  if (subPos == 0) { //subPos needs to be positive or negative values;
-    return TSDB_CODE_FAILED;
-  }
 
   int32_t subLen = INT16_MAX;
   if (inputNum == 3) {
     GET_TYPED_DATA(subLen, int32_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
-    if (subLen < 0 || subLen > INT16_MAX) { //subLen cannot be negative
-      return TSDB_CODE_FAILED;
-    }
     subLen = (GET_PARAM_TYPE(pInput) == TSDB_DATA_TYPE_VARCHAR) ? subLen : subLen * TSDB_NCHAR_SIZE;
   }
 
@@ -712,6 +702,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   return TSDB_CODE_SUCCESS;
 }
 
+/** Conversion functions **/
 int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int16_t inputType  = GET_PARAM_TYPE(&pInput[0]);
   int16_t inputLen   = GET_PARAM_BYTES(&pInput[0]);
@@ -730,6 +721,60 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
     char *input = colDataGetData(pInput[0].columnData, i);
 
     switch(outputType) {
+      case TSDB_DATA_TYPE_TINYINT: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          *(int8_t *)output = taosStr2Int8(varDataVal(input), NULL, 10);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          newBuf[len] = 0;
+          *(int8_t *)output = taosStr2Int8(newBuf, NULL, 10);
+          taosMemoryFree(newBuf);
+        } else {
+          GET_TYPED_DATA(*(int8_t *)output, int8_t, inputType, input);
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_SMALLINT: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          *(int16_t *)output = taosStr2Int16(varDataVal(input), NULL, 10);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          newBuf[len] = 0;
+          *(int16_t *)output = taosStr2Int16(newBuf, NULL, 10);
+          taosMemoryFree(newBuf);
+        } else {
+          GET_TYPED_DATA(*(int16_t *)output, int16_t, inputType, input);
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_INT: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          *(int32_t *)output = taosStr2Int32(varDataVal(input), NULL, 10);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          newBuf[len] = 0;
+          *(int32_t *)output = taosStr2Int32(newBuf, NULL, 10);
+          taosMemoryFree(newBuf);
+        } else {
+          GET_TYPED_DATA(*(int32_t *)output, int32_t, inputType, input);
+        }
+        break;
+      }
       case TSDB_DATA_TYPE_BIGINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
           *(int64_t *)output = taosStr2Int64(varDataVal(input), NULL, 10);
@@ -745,6 +790,60 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           taosMemoryFree(newBuf);
         } else {
           GET_TYPED_DATA(*(int64_t *)output, int64_t, inputType, input);
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_UTINYINT: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          *(uint8_t *)output = taosStr2UInt8(varDataVal(input), NULL, 10);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          newBuf[len] = 0;
+          *(uint8_t *)output = taosStr2UInt8(newBuf, NULL, 10);
+          taosMemoryFree(newBuf);
+        } else {
+          GET_TYPED_DATA(*(uint8_t *)output, uint8_t, inputType, input);
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          *(uint16_t *)output = taosStr2UInt16(varDataVal(input), NULL, 10);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          newBuf[len] = 0;
+          *(uint16_t *)output = taosStr2UInt16(newBuf, NULL, 10);
+          taosMemoryFree(newBuf);
+        } else {
+          GET_TYPED_DATA(*(uint16_t *)output, uint16_t, inputType, input);
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_UINT: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          *(uint32_t *)output = taosStr2UInt32(varDataVal(input), NULL, 10);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          newBuf[len] = 0;
+          *(uint32_t *)output = taosStr2UInt32(newBuf, NULL, 10);
+          taosMemoryFree(newBuf);
+        } else {
+          GET_TYPED_DATA(*(uint32_t *)output, uint32_t, inputType, input);
         }
         break;
       }
@@ -766,10 +865,71 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         }
         break;
       }
+      case TSDB_DATA_TYPE_FLOAT: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          *(float *)output = taosStr2Float(varDataVal(input), NULL);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          newBuf[len] = 0;
+          *(float *)output = taosStr2Float(newBuf, NULL);
+          taosMemoryFree(newBuf);
+        } else {
+          GET_TYPED_DATA(*(float *)output, float, inputType, input);
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          *(double *)output = taosStr2Double(varDataVal(input), NULL);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          newBuf[len] = 0;
+          *(double *)output = taosStr2Double(newBuf, NULL);
+          taosMemoryFree(newBuf);
+        } else {
+          GET_TYPED_DATA(*(double *)output, double, inputType, input);
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_BOOL: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          *(bool *)output = taosStr2Int8(varDataVal(input), NULL, 10);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          newBuf[len] = 0;
+          *(bool *)output = taosStr2Int8(newBuf, NULL, 10);
+          taosMemoryFree(newBuf);
+        } else {
+          GET_TYPED_DATA(*(bool *)output, bool, inputType, input);
+        }
+        break;
+      }
       case TSDB_DATA_TYPE_TIMESTAMP: {
+        int64_t timeVal;
         if (inputType == TSDB_DATA_TYPE_BINARY || inputType == TSDB_DATA_TYPE_NCHAR) {
-          //not support
-          return TSDB_CODE_FAILED;
+          int64_t timePrec;
+          GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
+          int32_t ret = convertStringToTimestamp(inputType, input, timePrec, &timeVal);
+          if (ret != TSDB_CODE_SUCCESS) {
+            *(int64_t *)output = 0;
+          } else {
+            *(int64_t *)output = timeVal;
+          }
         } else {
           GET_TYPED_DATA(*(int64_t *)output, int64_t, inputType, input);
         }
@@ -784,8 +944,16 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           len = sprintf(varDataVal(output), "%.*s", len, varDataVal(input));
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
-          //not support
-          return TSDB_CODE_FAILED;
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          len = TMIN(len, outputLen - VARSTR_HEADER_SIZE);
+          memcpy(varDataVal(output), newBuf, len);
+          varDataSetLen(output, len);
+          taosMemoryFree(newBuf);
         } else {
           char tmp[400] = {0};
           NUM_TO_STRING(inputType, input, sizeof(tmp), tmp);
@@ -856,10 +1024,13 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(pInput);
 
+  bool tzPresent = (inputNum == 2) ? true : false;
   char* tz;
   int32_t tzLen;
-  tz = varDataVal(pInput[1].columnData->pData);
-  tzLen = varDataLen(pInput[1].columnData->pData);
+  if (tzPresent) {
+    tz = varDataVal(pInput[1].columnData->pData);
+    tzLen = varDataLen(pInput[1].columnData->pData);
+  }
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
@@ -938,7 +1109,8 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
 int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(pInput);
-  int32_t timePrec = GET_PARAM_PRECISON(pInput);
+  int64_t timePrec;
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
@@ -963,64 +1135,48 @@ int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 
 int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(pInput);
-  if (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR) {
-    return TSDB_CODE_FAILED;
-  }
-
-  if (inputNum != 1) {
-    return TSDB_CODE_FAILED;
-  }
 
   char tmp[TSDB_MAX_JSON_TAG_LEN] = {0};
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
-    if (colDataIsNull_s(pInput[0].columnData, i)) {
-      colDataAppendNULL(pOutput->columnData, i);
-      continue;
-    }
-    char *input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[i];
+    SArray* pTagVals = taosArrayInit(8, sizeof(STagVal));
+    STag*   pTag = NULL;
 
-    if(type == TSDB_DATA_TYPE_NCHAR){
-      if (varDataTLen(input) > TSDB_MAX_JSON_TAG_LEN){
-        colDataAppendNULL(pOutput->columnData, i);
-        continue;
-      }
-      int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), tmp);
-      if (len < 0) {
-        colDataAppendNULL(pOutput->columnData, i);
-        continue;
-      }
-      tmp[len] = 0;
+    if (colDataIsNull_s(pInput[0].columnData, i)) {
+      tTagNew(pTagVals, 1, true, &pTag);
     }else{
+      char *input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[i];
       if (varDataLen(input) > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE){
-        colDataAppendNULL(pOutput->columnData, i);
-        continue;
+        taosArrayDestroy(pTagVals);
+        return TSDB_CODE_FAILED;
       }
       memcpy(tmp, varDataVal(input), varDataLen(input));
       tmp[varDataLen(input)] = 0;
+      if(parseJsontoTagData(tmp, pTagVals, &pTag, NULL)){
+        tTagNew(pTagVals, 1, true, &pTag);
+      }
     }
 
-    if(!tjsonValidateJson(tmp)){
-      colDataAppendNULL(pOutput->columnData, i);
-      continue;
-    }
-
-    colDataAppend(pOutput->columnData, i, input, false);
+    colDataAppend(pOutput->columnData, i, (const char*)pTag, false);
+    tTagFree(pTag);
+    taosArrayDestroy(pTagVals);
   }
 
   pOutput->numOfRows = pInput->numOfRows;
-
   return TSDB_CODE_SUCCESS;
 }
 
+/** Time functions **/
 int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(&pInput[0]);
-  int32_t timePrec = GET_PARAM_PRECISON(&pInput[0]);
 
-  int64_t timeUnit, timeVal = 0;
+  int64_t timeUnit, timePrec, timeVal = 0;
   GET_TYPED_DATA(timeUnit, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
 
   int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
                    (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
+
+  int64_t unit = timeUnit * 1000 / factor;
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
@@ -1054,14 +1210,15 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
     char buf[20] = {0};
     NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal, sizeof(buf), buf);
     int32_t tsDigits = (int32_t)strlen(buf);
-    timeUnit = timeUnit * 1000 / factor;
 
-    switch (timeUnit) {
-      case 0: { /* 1u */
+    switch (unit) {
+      case 0: { /* 1u or 1b */
         if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          timeVal = timeVal / 1000 * 1000;
-        //} else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-        //  //timeVal = timeVal / 1000;
+          if (timePrec == TSDB_TIME_PRECISION_NANO && timeUnit == 1) {
+            timeVal = timeVal * 1;
+          } else {
+            timeVal = timeVal / 1000 * 1000;
+          }
         } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
           timeVal = timeVal * factor;
         } else {
@@ -1202,11 +1359,16 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
 }
 
 int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t timePrec = GET_PARAM_PRECISON(&pInput[0]);
-  int64_t timeUnit = -1, timeVal[2] = {0};
-  if (inputNum == 3) {
+  int64_t timeUnit = -1, timePrec, timeVal[2] = {0};
+  if (inputNum == 4) {
     GET_TYPED_DATA(timeUnit, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
+    GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[3]), pInput[3].columnData->pData);
+  } else {
+    GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
   }
+
+  int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                   (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
 
   int32_t numOfRows = 0;
   for (int32_t i = 0; i < inputNum; ++i) {
@@ -1287,12 +1449,14 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
         }
       }
     } else {
-      int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
-                       (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
-      timeUnit = timeUnit * 1000 / factor;
-      switch(timeUnit) {
-        case 0: { /* 1u */
-          result = result / 1000;
+      int64_t unit = timeUnit * 1000 / factor;
+      switch(unit) {
+        case 0: { /* 1u or 1b */
+          if (timePrec == TSDB_TIME_PRECISION_NANO && timeUnit == 1) {
+            result = result / 1;
+          } else {
+            result = result / 1000;
+          }
           break;
         }
         case 1: { /* 1a */
@@ -1334,7 +1498,10 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 }
 
 int32_t nowFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int64_t ts = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
+  int64_t timePrec;
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[0]), pInput[0].columnData->pData);
+
+  int64_t ts = taosGetTimestamp(timePrec);
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     colDataAppendInt64(pOutput->columnData, i, &ts);
   }
@@ -1343,7 +1510,10 @@ int32_t nowFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 }
 
 int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int64_t ts = taosGetTimestampToday(TSDB_TIME_PRECISION_MILLI);
+  int64_t timePrec;
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[0]), pInput[0].columnData->pData);
+
+  int64_t ts = taosGetTimestampToday(timePrec);
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     colDataAppendInt64(pOutput->columnData, i, &ts);
   }
@@ -1415,11 +1585,19 @@ int32_t roundFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 }
 
 int32_t lowerFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+#ifdef WINDOWS
+  return doCaseConvFunction(pInput, inputNum, pOutput, towlower);
+#else
   return doCaseConvFunction(pInput, inputNum, pOutput, tolower);
+#endif
 }
 
 int32_t upperFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+#ifdef WINDOWS
+  return doCaseConvFunction(pInput, inputNum, pOutput, towupper);
+#else
   return doCaseConvFunction(pInput, inputNum, pOutput, toupper);
+#endif
 }
 
 int32_t ltrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
@@ -1560,3 +1738,404 @@ int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
   pOutput->numOfRows += pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
+
+
+/** Aggregation functions **/
+int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int64_t *out = (int64_t *)pOutputData->pData;
+  bool hasNull = false;
+  *out = 0;
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+    (*out)++;
+  }
+
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t sumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+  bool hasNull = false;
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      int64_t *in  = (int64_t *)pInputData->pData;
+      int64_t *out = (int64_t *)pOutputData->pData;
+      *out += in[i];
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      uint64_t *in  = (uint64_t *)pInputData->pData;
+      uint64_t *out = (uint64_t *)pOutputData->pData;
+      *out += in[i];
+    } else if (IS_FLOAT_TYPE(type)) {
+      double *in  = (double *)pInputData->pData;
+      double *out = (double *)pOutputData->pData;
+      *out += in[i];
+    }
+  }
+
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t doMinMaxScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, bool isMinFunc) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+
+  bool hasNull = false;
+  if (isMinFunc) {
+    SET_TYPED_DATA_MAX(pOutputData->pData, type);
+  } else {
+    SET_TYPED_DATA_MIN(pOutputData->pData, type);
+  }
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+
+    switch(type) {
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_TINYINT: {
+        int8_t *in  = (int8_t *)pInputData->pData;
+        int8_t *out = (int8_t *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_SMALLINT: {
+        int16_t *in  = (int16_t *)pInputData->pData;
+        int16_t *out = (int16_t *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_INT: {
+        int32_t *in  = (int32_t *)pInputData->pData;
+        int32_t *out = (int32_t *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_BIGINT: {
+        int64_t *in  = (int64_t *)pInputData->pData;
+        int64_t *out = (int64_t *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_UTINYINT: {
+        uint8_t *in  = (uint8_t *)pInputData->pData;
+        uint8_t *out = (uint8_t *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT: {
+        uint16_t *in  = (uint16_t *)pInputData->pData;
+        uint16_t *out = (uint16_t *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_UINT: {
+        uint32_t *in  = (uint32_t *)pInputData->pData;
+        uint32_t *out = (uint32_t *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_UBIGINT: {
+        uint64_t *in  = (uint64_t *)pInputData->pData;
+        uint64_t *out = (uint64_t *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_FLOAT: {
+        float *in  = (float *)pInputData->pData;
+        float *out = (float *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double *in  = (double *)pInputData->pData;
+        double *out = (double *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+    }
+  }
+
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t minScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doMinMaxScalarFunction(pInput, inputNum, pOutput, true);
+}
+
+int32_t maxScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doMinMaxScalarFunction(pInput, inputNum, pOutput, false);
+}
+
+int32_t avgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+  int64_t count = 0;
+  bool hasNull = false;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+
+    switch(type) {
+      case TSDB_DATA_TYPE_TINYINT: {
+        int8_t *in   = (int8_t *)pInputData->pData;
+        int64_t *out = (int64_t *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_SMALLINT: {
+        int16_t *in  = (int16_t *)pInputData->pData;
+        int64_t *out = (int64_t *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_INT: {
+        int32_t *in  = (int32_t *)pInputData->pData;
+        int64_t *out = (int64_t *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_BIGINT: {
+        int64_t *in  = (int64_t *)pInputData->pData;
+        int64_t *out = (int64_t *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_UTINYINT: {
+        uint8_t *in   = (uint8_t *)pInputData->pData;
+        uint64_t *out = (uint64_t *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT: {
+        uint16_t *in  = (uint16_t *)pInputData->pData;
+        uint64_t *out = (uint64_t *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_UINT: {
+        uint32_t *in  = (uint32_t *)pInputData->pData;
+        uint64_t *out = (uint64_t *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_UBIGINT: {
+        uint64_t *in  = (uint64_t *)pInputData->pData;
+        uint64_t *out = (uint64_t *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_FLOAT: {
+        float *in  = (float *)pInputData->pData;
+        float *out = (float *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double *in  = (double *)pInputData->pData;
+        double *out = (double *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+    }
+  }
+
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  } else {
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      int64_t *out   = (int64_t *)pOutputData->pData;
+      *(double *)out = *out / (double)count;
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      uint64_t *out  = (uint64_t *)pOutputData->pData;
+      *(double *)out = *out / (double)count;
+    } else if (IS_FLOAT_TYPE(type)) {
+      double *out    = (double *)pOutputData->pData;
+      *(double *)out = *out / (double)count;
+    }
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t stddevScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+  //int64_t count = 0, sum = 0, qSum = 0;
+  bool hasNull = false;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+#if 0
+    switch(type) {
+      case TSDB_DATA_TYPE_TINYINT: {
+        int8_t *in  = (int8_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_SMALLINT: {
+        int16_t *in  = (int16_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_INT: {
+        int32_t *in  = (int32_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_BIGINT: {
+        int64_t *in  = (int64_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_UTINYINT: {
+        uint8_t *in  = (uint8_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT: {
+        uint16_t *in  = (uint16_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_UINT: {
+        uint32_t *in  = (uint32_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_UBIGINT: {
+        uint64_t *in  = (uint64_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_FLOAT: {
+        float *in  = (float *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double *in  = (double *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+    }
+#endif
+  }
+
+  double *out  = (double *)pOutputData->pData;
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  } else {
+    *out = 0;
+#if 0
+    double avg = 0;
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      avg = (int64_t)sum / (double)count;
+      *out =  sqrt(fabs((int64_t)qSum / ((double)count) - avg * avg));
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      avg = (uint64_t)sum / (double)count;
+      *out =  sqrt(fabs((uint64_t)qSum / ((double)count) - avg * avg));
+    } else if (IS_FLOAT_TYPE(type)) {
+      avg = (double)sum / (double)count;
+      *out =  sqrt(fabs((double)qSum / ((double)count) - avg * avg));
+    }
+#endif
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+

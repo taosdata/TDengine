@@ -17,7 +17,7 @@
 #include "ttime.h"
 
 #define DEFAULT_FALSE_POSITIVE 0.01
-#define DEFAULT_BUCKET_SIZE    1024
+#define DEFAULT_BUCKET_SIZE    131072
 #define ROWS_PER_MILLISECOND   1
 #define MAX_NUM_SCALABLE_BF    100000
 #define MIN_NUM_SCALABLE_BF    10
@@ -119,6 +119,7 @@ SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t waterma
     taosArrayPush(pInfo->pTsBuckets, &dumy);
   }
   pInfo->numBuckets = DEFAULT_BUCKET_SIZE;
+  pInfo->pCloseWinSBF = NULL;
   return pInfo;
 }
 
@@ -154,6 +155,9 @@ bool updateInfoIsUpdated(SUpdateInfo *pInfo, tb_uid_t tableId, TSKEY ts) {
   TSKEY maxTs = *(TSKEY *)taosArrayGet(pInfo->pTsBuckets, index);
   if (ts < maxTs - pInfo->watermark) {
     // this window has been closed.
+    if (pInfo->pCloseWinSBF) {
+      return tScalableBfPut(pInfo->pCloseWinSBF, &ts, sizeof(TSKEY));
+    }
     return true;
   }
 
@@ -192,4 +196,20 @@ void updateInfoDestroy(SUpdateInfo *pInfo) {
 
   taosArrayDestroy(pInfo->pTsSBFs);
   taosMemoryFree(pInfo);
+}
+
+void updateInfoAddCloseWindowSBF(SUpdateInfo *pInfo) {
+  if (pInfo->pCloseWinSBF) {
+    return;
+  }
+  int64_t rows = adjustExpEntries(pInfo->interval * ROWS_PER_MILLISECOND);
+  pInfo->pCloseWinSBF = tScalableBfInit(rows, DEFAULT_FALSE_POSITIVE);
+}
+
+void updateInfoDestoryColseWinSBF(SUpdateInfo *pInfo) {
+  if (!pInfo || !pInfo->pCloseWinSBF) {
+    return;
+  }
+  tScalableBfDestroy(pInfo->pCloseWinSBF);
+  pInfo->pCloseWinSBF = NULL;
 }

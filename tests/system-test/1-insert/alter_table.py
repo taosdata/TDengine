@@ -16,258 +16,303 @@ import string
 from util.log import *
 from util.cases import *
 from util.sql import *
+from util import constant
+from util.common import *
+from util.sqlset import *
 
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
+        self.setsql = TDSetSql()
+        self.ntbname = 'ntb'
+        self.stbname = 'stb'
+        self.binary_length = 20 # the length of binary for column_dict
+        self.nchar_length = 20  # the length of nchar for column_dict
+        self.column_dict = {
+            'ts'  : 'timestamp',
+            'col1': 'tinyint',
+            'col2': 'smallint',
+            'col3': 'int',
+            'col4': 'bigint',
+            'col5': 'tinyint unsigned',
+            'col6': 'smallint unsigned',
+            'col7': 'int unsigned',
+            'col8': 'bigint unsigned',
+            'col9': 'float',
+            'col10': 'double',
+            'col11': 'bool',
+            'col12': f'binary({self.binary_length})',
+            'col13': f'nchar({self.nchar_length})'
+        }
+        self.tag_dict = {
+            'ts_tag'  : 'timestamp',
+            't1': 'tinyint',
+            't2': 'smallint',
+            't3': 'int',
+            't4': 'bigint',
+            't5': 'tinyint unsigned',
+            't6': 'smallint unsigned',
+            't7': 'int unsigned',
+            't8': 'bigint unsigned',
+            't9': 'float',
+            't10': 'double',
+            't11': 'bool',
+            't12': f'binary({self.binary_length})',
+            't13': f'nchar({self.nchar_length})'
+        }
+        self.tag_list = [
+            f'now,1,2,3,4,5,6,7,8,9.9,10.1,true,"abcd","涛思数据"'
+        ]
+        self.tbnum = 1
+        self.values_list = [
+            f'now,1,2,3,4,5,6,7,8,9.9,10.1,true,"abcd","涛思数据"'
+        ]
+        self.column_add_dict = {
+            'col_time'      : 'timestamp',
+            'col_tinyint'   : 'tinyint',
+            'col_smallint'  : 'smallint',
+            'col_int'       : 'int',
+            'col_bigint'    : 'bigint',
+            'col_untinyint' : 'tinyint unsigned',
+            'col_smallint'  : 'smallint unsigned',
+            'col_int'       : 'int unsigned',
+            'col_bigint'    : 'bigint unsigned',
+            'col_bool'      : 'bool',
+            'col_float'     : 'float',
+            'col_double'    : 'double',
+            'col_binary'    : f'binary({constant.BINARY_LENGTH_MAX})',
+            'col_nchar'     : f'nchar({constant.NCAHR_LENGTH_MAX})'
 
-    def get_long_name(self, length, mode="mixed"):
-        """
-        generate long name
-        mode could be numbers/letters/letters_mixed/mixed
-        """
-        if mode == "numbers":
-            population = string.digits
-        elif mode == "letters":
-            population = string.ascii_letters.lower()
-        elif mode == "letters_mixed":
-            population = string.ascii_letters.upper() + string.ascii_letters.lower()
-        else:
-            population = string.ascii_letters.lower() + string.digits
-        return "".join(random.choices(population, k=length))
-
-    def alter_tb_tag_check(self):
-        tag_tinyint = random.randint(-127,129)
-        tag_int = random.randint(-2147483648,2147483647)
-        tag_smallint = random.randint(-32768,32768)
-        tag_bigint = random.randint(-2147483648,2147483647)
-        tag_untinyint = random.randint(0,256)
-        tag_unsmallint = random.randint(0,65536)
-        tag_unint = random.randint(0,4294967296)
-        tag_unbigint = random.randint(0,2147483647)
-        tag_binary = self.get_long_name(length=10, mode="letters")
-        tag_nchar = self.get_long_name(length=10, mode="letters")
-        dbname = self.get_long_name(length=10, mode="letters")
-        tdSql.execute(f'create database if not exists {dbname}')
-        stbname = self.get_long_name(length=3, mode="letters")
-        tbname = self.get_long_name(length=3, mode="letters")
-        tdLog.info('--------------------------child table tag check--------------------------------------')
-        tdLog.info(f'-----------------create stable {stbname} and child table {tbname}-------------------')
-        tdSql.execute(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
-                t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t11 bool,t12 binary(20),t13 nchar(20))')
-        tdSql.execute(f'create table if not exists {dbname}.{tbname} using {dbname}.{stbname} tags(now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, True,"abc123","涛思数据")')
-        tdSql.execute(f'insert into {dbname}.{tbname} values(now, 1)')
-        tdSql.execute(f'alter table {dbname}.{tbname} set tag tag_ts = 1640966400000')
-        tdSql.execute(f'alter table {dbname}.{tbname} set tag `t1` = 11')
-        tdSql.query(f'select * from {dbname}.{stbname}')
-        tdSql.checkData(0,3,11)
-        tdSql.execute(f'alter table {dbname}.{tbname} set tag t1 = {tag_tinyint}')
-        tdSql.execute(f'alter table {dbname}.{tbname} set tag t2 = {tag_smallint}')
-        tdSql.execute(f'alter table {dbname}.{tbname} set tag t3 = {tag_int}')
-        tdSql.execute(f'alter table {dbname}.{tbname} set tag t4 = {tag_bigint}')
-        tdSql.execute(f'alter table {dbname}.{tbname} set tag t5 = {tag_untinyint}')
-        tdSql.execute(f'alter table {dbname}.{tbname} set tag t6 = {tag_unsmallint}')
-        tdSql.execute(f'alter table {dbname}.{tbname} set tag t7 = {tag_unint}')
-        tdSql.execute(f'alter table {dbname}.{tbname} set tag t8 = {tag_unbigint}')
-        tdSql.execute(f'alter table {dbname}.{tbname} set tag t11 = false')
-        tdSql.execute(f'alter table {dbname}.{tbname} set tag t12 = "{tag_binary}"')
-        tdSql.execute(f'alter table {dbname}.{tbname} set tag t13 = "{tag_nchar}"')
-        tdSql.query(f'select * from {dbname}.{stbname}')
-        # bug TD-15899
-        tdSql.checkData(0,2,'2022-01-01 00:00:00.000')
-        tdSql.checkData(0,3,tag_tinyint)
-        tdSql.checkData(0,4,tag_smallint)
-        tdSql.checkData(0,5,tag_int)
-        tdSql.checkData(0,6,tag_bigint)
-        tdSql.checkData(0,7,tag_untinyint)
-        tdSql.checkData(0,8,tag_unsmallint)
-        tdSql.checkData(0,9,tag_unint)
-        tdSql.checkData(0,10,tag_unbigint)
+        }
+    def alter_check_ntb(self):      
         
-        tdSql.checkData(0,13,False)
-        tdSql.checkData(0,14,tag_binary)
-        tdSql.checkData(0,15,tag_nchar)
-
-        # bug TD-16211 insert length more than setting binary and nchar
-        # tag_binary = self.get_long_name(length=21, mode="letters")
-        # tag_nchar = self.get_long_name(length=21, mode="letters")
-        # tdSql.error(f'alter table {dbname}.{tbname} set tag t12 = "{tag_binary}"')
-        # tdSql.error(f'alter table {dbname}.{tbname} set tag t13 = "{tag_nchar}"')
-
-        # bug TD-16210 modify binary to nchar
-        # tdSql.error(f'alter table {dbname}.{tbname} modify tag t12 nchar(10)')
-        tdSql.execute(f"drop database {dbname}")
-    def alter_ntb_column_check(self):
-        '''
-        alter ntb column check
-        '''
-        dbname = self.get_long_name(length=10, mode="letters")
-        tdSql.execute(f'create database if not exists {dbname}')
-        tbname = self.get_long_name(length=3, mode="letters")
-        tdLog.info('------------------normal table column check---------------------')
-        tdLog.info(f'-----------------create normal table {tbname}-------------------')
-        tdSql.execute(f'create table if not exists {dbname}.{tbname} (ts timestamp, c1 tinyint, c2 smallint, c3 int, \
-                c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 bool,c12 binary(20),c13 nchar(20))')
-        tdSql.execute(f'insert into {dbname}.{tbname} values (now,1,2,3,4,5,6,7,8,9.9,10.1,true,"abcd","涛思数据")')
-        # bug TD-15757
-        tdSql.execute(f'alter table {dbname}.{tbname} add column c14 int')
-        tdSql.query(f'select c14 from {dbname}.{tbname}')
-        tdSql.checkRows(1)
-        tdSql.execute(f'alter table {dbname}.{tbname} add column `c15` int')
-        tdSql.query(f'select c15 from {dbname}.{tbname}')
-        tdSql.checkRows(1)
-        tdSql.query(f'describe {dbname}.{tbname}')
-        tdSql.checkRows(16)
-        tdSql.execute(f'alter table {dbname}.{tbname} drop column c14')
-        tdSql.query(f'describe {dbname}.{tbname}')
-        tdSql.checkRows(15)
-        tdSql.execute(f'alter table {dbname}.{tbname} drop column `c15`')
-        tdSql.query(f'describe {dbname}.{tbname}')
-        tdSql.checkRows(14)
-        tdSql.execute(f'alter table {dbname}.{tbname} modify column c12 binary(30)')
-        tdSql.query(f'describe {dbname}.{tbname}')
-        tdSql.checkData(12,2,30)
-        tdSql.execute(f'alter table {dbname}.{tbname} modify column `c12` binary(35)')
-        tdSql.query(f'describe {dbname}.{tbname}')
-        tdSql.checkData(12,2,35)
-        tdSql.error(f'alter table {dbname}.{tbname} modify column c12 binary(34)')
-        tdSql.error(f'alter table {dbname}.{tbname} modify column c12 nchar(10)')
-        tdSql.error(f'alter table {dbname}.{tbname} modify column c12 int')
-        tdSql.execute(f'alter table {dbname}.{tbname} modify column c13 nchar(30)')
-        tdSql.query(f'describe {dbname}.{tbname}')
-        tdSql.checkData(13,2,30)
-        tdSql.execute(f'alter table {dbname}.{tbname} modify column `c13` nchar(35)')
-        tdSql.query(f'describe {dbname}.{tbname}')
-        tdSql.checkData(13,2,35)
-        tdSql.error(f'alter table {dbname}.{tbname} modify column c13 nchar(34)')
-        tdSql.error(f'alter table {dbname}.{tbname} modify column c13 binary(10)')
-        tdSql.execute(f'alter table {dbname}.{tbname} rename column c1 c21')
-        tdSql.query(f'describe {dbname}.{tbname}')
-        tdSql.checkData(1,0,'c21')
-        # !bug TD-16423
-        # tdSql.error(f'select c1 from {dbname}.{tbname}')
-        # tdSql.query(f'select c21 from {dbname}.{tbname}')
-        # tdSql.checkData(0,1,1)
-        tdSql.execute(f'alter table {dbname}.{tbname} rename column `c21` c1')
-        tdSql.query(f'describe {dbname}.{tbname}')
-        tdSql.checkData(1,0,'c1')
-        # !bug TD-16423
-        # tdSql.error(f'select c1 from {dbname}.{tbname}')
-        # tdSql.query(f'select c1 from {dbname}.{tbname}')
-        # tdSql.checkData(0,1,1)
-        tdSql.error(f'alter table {dbname}.{tbname} modify column c1 bigint')
-        tdSql.error(f'alter table {dbname}.{tbname} modify column c1 double')
-        tdSql.error(f'alter table {dbname}.{tbname} modify column c4 int')
-        tdSql.error(f'alter table {dbname}.{tbname} modify column `c1` double')
-        tdSql.error(f'alter table {dbname}.{tbname} modify column c9 double')
-        tdSql.error(f'alter table {dbname}.{tbname} modify column c10 float')
-        tdSql.error(f'alter table {dbname}.{tbname} modify column c1 bool')
-        tdSql.error(f'alter table {dbname}.{tbname} modify column c1 binary(10)')
-        tdSql.execute(f'drop database {dbname}')
-    def alter_stb_column_check(self):
-        dbname = self.get_long_name(length=10, mode="letters")
-        tdSql.execute(f'create database if not exists {dbname}')
-        stbname = self.get_long_name(length=3, mode="letters")
-        tbname = self.get_long_name(length=3, mode="letters")
-        tdSql.execute(f'create database if not exists {dbname}')
-        tdSql.execute(f'use {dbname}')
-        tdSql.execute(
-            f'create table {stbname} (ts timestamp, c1 tinyint, c2 smallint, c3 int, \
-                c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 bool,c12 binary(20),c13 nchar(20)) tags(t0 int) ')
-        tdSql.execute(f'create table {tbname} using {stbname} tags(1)')
-        tdSql.execute(f'insert into {tbname} values (now,1,2,3,4,5,6,7,8,9.9,10.1,true,"abcd","涛思数据")')
-        tdSql.execute(f'alter table {stbname} add column c14 int')
-        tdSql.query(f'select c14 from {stbname}')
-        tdSql.checkRows(1)
-        tdSql.execute(f'alter table {stbname} add column `c15` int')
-        tdSql.query(f'select c15 from {stbname}')
-        tdSql.checkRows(1)
-        tdSql.query(f'describe {stbname}')
-        tdSql.checkRows(17)
-        tdSql.execute(f'alter table {stbname} drop column c14')
-        tdSql.query(f'describe {stbname}')
-        tdSql.checkRows(16)
-        tdSql.execute(f'alter table {stbname} drop column `c15`')
-        tdSql.query(f'describe {stbname}')
-        tdSql.checkRows(15)
-        tdSql.execute(f'alter table {stbname} modify column c12 binary(30)')
-        tdSql.query(f'describe {stbname}')
-        tdSql.checkData(12,2,30)
-        tdSql.execute(f'alter table {stbname} modify column `c12` binary(35)')
-        tdSql.query(f'describe {stbname}')
-        tdSql.checkData(12,2,35)
-        tdSql.error(f'alter table {stbname} modify column `c12` binary(34)')
-        tdSql.execute(f'alter table {stbname} modify column c13 nchar(30)')
-        tdSql.query(f'describe {stbname}')
-        tdSql.checkData(13,2,30)
-        tdSql.error(f'alter table {stbname} modify column c13 nchar(29)')
-        tdSql.error(f'alter table {stbname} rename column c1 c21')
-        tdSql.error(f'alter table {stbname} modify column c1 int')
-        tdSql.error(f'alter table {stbname} modify column c4 int')
-        tdSql.error(f'alter table {stbname} modify column c8 int')
-        tdSql.error(f'alter table {stbname} modify column c1 unsigned int')
-        tdSql.error(f'alter table {stbname} modify column c9 double')
-        tdSql.error(f'alter table {stbname} modify column c10 float')
-        tdSql.error(f'alter table {stbname} modify column c11 int')
-        tdSql.execute(f'drop database {dbname}')
-    def alter_stb_tag_check(self):
-        dbname = self.get_long_name(length=10, mode="letters")
-        tdSql.execute(f'create database if not exists {dbname}')
-        stbname = self.get_long_name(length=3, mode="letters")
-        tbname = self.get_long_name(length=3, mode="letters")
-        tdSql.execute(f'create database if not exists {dbname}')
-        tdSql.execute(f'use {dbname}')
-        tdSql.execute(
-            f'create table {stbname} (ts timestamp, c1 int) tags(ts_tag timestamp, t1 tinyint, t2 smallint, t3 int, \
-                t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t11 bool,t12 binary(20),t13 nchar(20)) ')
-        tdSql.execute(f'create table {tbname} using {stbname} tags(now,1,2,3,4,5,6,7,8,9.9,10.1,true,"abcd","涛思数据")')
-        tdSql.execute(f'insert into {tbname} values(now,1)')
-
-        tdSql.execute(f'alter table {stbname} add tag t14 int')
-        tdSql.query(f'select t14 from {stbname}')
-        tdSql.checkRows(1)
-        tdSql.execute(f'alter table {stbname} add tag `t15` int')
-        tdSql.query(f'select t14 from {stbname}')
-        tdSql.checkRows(1)
-        tdSql.query(f'describe {stbname}')
-        tdSql.checkRows(18)
-        tdSql.execute(f'alter table {stbname} drop tag t14')
-        tdSql.query(f'describe {stbname}')
-        tdSql.checkRows(17)
-        tdSql.execute(f'alter table {stbname} drop tag `t15`')
-        tdSql.query(f'describe {stbname}')
-        tdSql.checkRows(16)
-        tdSql.execute(f'alter table {stbname} modify tag t12 binary(30)')
-        tdSql.query(f'describe {stbname}')
-        tdSql.checkData(14,2,30)
-        tdSql.execute(f'alter table {stbname} modify tag `t12` binary(35)')
-        tdSql.query(f'describe {stbname}')
-        tdSql.checkData(14,2,35)
-        tdSql.error(f'alter table {stbname} modify tag `t12` binary(34)')
-        tdSql.execute(f'alter table {stbname} modify tag t13 nchar(30)')
-        tdSql.query(f'describe {stbname}')
-        tdSql.checkData(15,2,30)
-        tdSql.error(f'alter table {stbname} modify tag t13 nchar(29)')
-        tdSql.execute(f'alter table {stbname} rename tag t1 t21')
-        tdSql.query(f'describe {stbname}')
-        tdSql.checkData(3,0,'t21')
-        tdSql.execute(f'alter table {stbname} rename tag `t21` t1')
-        tdSql.query(f'describe {stbname}')
-        tdSql.checkData(3,0,'t1')
-
-        for i in ['bigint','unsigned int','float','double','binary(10)','nchar(10)']:
-            for j in [1,2,3]:
-                tdSql.error(f'alter table {stbname} modify tag t{j} {i}')
-        for i in ['int','unsigned int','float','binary(10)','nchar(10)']:
-            tdSql.error(f'alter table {stbname} modify tag t8 {i}')
-        tdSql.error(f'alter table {stbname} modify tag t4 int')
-        tdSql.execute(f'drop database {dbname}')
+        tdSql.prepare()
+        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        for i in self.values_list:
+            tdSql.execute(f'insert into {self.ntbname} values({i})')
+        for key,values in self.column_add_dict.items():
+            tdSql.execute(f'alter table {self.ntbname} add column {key} {values}')
+            tdSql.query(f'describe {self.ntbname}')
+            tdSql.checkRows(len(self.column_dict)+1)
+            tdSql.query(f'select {key} from {self.ntbname}')
+            tdSql.checkRows(len(self.values_list))
+            tdSql.execute(f'alter table {self.ntbname} drop column {key}')
+            tdSql.query(f'describe {self.ntbname}')
+            tdSql.checkRows(len(self.column_dict))
+            tdSql.error(f'select {key} from {self.ntbname} ')
+        for key,values in self.column_dict.items():
+            if 'binary' in values.lower():
+                v = f'binary({self.binary_length+1})'
+                v_error = f'binary({self.binary_length-1})'
+                tdSql.error(f'alter table {self.ntbname} modify column {key} {v_error}')
+                tdSql.execute(f'alter table {self.ntbname} modify column {key} {v}')
+                tdSql.query(f'describe {self.ntbname}')
+                result = tdCom.getOneRow(1,'VARCHAR')
+                tdSql.checkEqual(result[0][2],self.binary_length+1)
+            elif 'nchar' in values.lower():
+                v = f'nchar({self.binary_length+1})'
+                v_error = f'nchar({self.binary_length-1})'
+                tdSql.error(f'alter table {self.ntbname} modify column {key} {v_error}')
+                tdSql.execute(f'alter table {self.ntbname} modify column {key} {v}')
+                tdSql.query(f'describe {self.ntbname}')
+                result = tdCom.getOneRow(1,'NCHAR')
+                tdSql.checkEqual(result[0][2],self.binary_length+1)
+            else:
+                for v in self.column_dict.values():
+                    tdSql.error(f'alter table {self.ntbname} modify column {key} {v}')
+        for key,values in self.column_dict.items():
+            rename_str = f'{tdCom.getLongName(constant.COL_NAME_LENGTH_MAX,"letters")}'
+            tdSql.execute(f'alter table {self.ntbname} rename column {key} {rename_str}')
+            tdSql.query(f'select {rename_str} from {self.ntbname}')
+            tdSql.checkRows(1)
+            tdSql.error(f'select {key} from {self.ntbname}')
+        
+    def alter_check_tb(self):
+        tag_tinyint = random.randint(constant.TINYINT_MIN,constant.TINYINT_MAX)
+        tag_smallint = random.randint(constant.SMALLINT_MIN,constant.SMALLINT_MAX)
+        tag_int = random.randint(constant.INT_MIN,constant.INT_MAX)
+        tag_bigint = random.randint(constant.BIGINT_MIN,constant.BIGINT_MAX)
+        tag_untinyint = random.randint(constant.TINYINT_UN_MIN,constant.TINYINT_UN_MAX)
+        tag_unsmallint = random.randint(constant.SMALLINT_UN_MIN,constant.SMALLINT_UN_MAX)
+        tag_unint = random.randint(constant.INT_UN_MIN,constant.INT_MAX)
+        tag_unbigint = random.randint(constant.BIGINT_UN_MIN,constant.BIGINT_UN_MAX)
+        tag_bool = random.randint(0,100)%2
+        tag_float = random.uniform(constant.FLOAT_MIN,constant.FLOAT_MAX)
+        tag_double = random.uniform(constant.DOUBLE_MIN*(1E-300),constant.DOUBLE_MAX*(1E-300))
+        tag_binary = tdCom.getLongName(self.binary_length)
+        tag_nchar = tdCom.getLongName(self.binary_length)
+        modify_column_dict = {
+            'ts1'  : 'timestamp',
+            'c1': 'tinyint',
+            'c2': 'smallint',
+            'c3': 'int',
+            'c4': 'bigint',
+            'c5': 'tinyint unsigned',
+            'c6': 'smallint unsigned',
+            'c7': 'int unsigned',
+            'c8': 'bigint unsigned',
+            'c9': 'float',
+            'c10': 'double',
+            'c11': 'bool',
+            'c12': f'binary({self.binary_length})',
+            'c13': f'nchar({self.nchar_length})'
+        }
+        tdSql.prepare()
+        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
+        for i in range(self.tbnum):
+            tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags({self.tag_list[i]})')
+            for j in self.values_list:
+                tdSql.execute(f'insert into {self.stbname}_{i} values({j})')
+        for i in range(self.tbnum):
+            for k,v in modify_column_dict.items():
+                tdSql.error(f'alter table {self.stbname}_{i} add column {k} {v}')
+            for k in self.column_dict.keys():
+                tdSql.error(f'alter table {self.stbname}_{i} drop column {k}')
+            for k,v in self.column_dict.items():
+                if 'binary' in v.lower():
+                    values = [f'binary({self.binary_length+1})', f'binary({self.binary_length-1})']
+                    for j in values:
+                        tdSql.error(f'alter table {self.stbname}_{i} modify {k} {j}')
+                elif 'nchar' in v.lower():
+                    values = [f'nchar({self.nchar_length+1})', f'binary({self.nchar_length-1})']
+                    for j in values:
+                        tdSql.error(f'alter table {self.stbname}_{i} modify {k} {j}')
+                else:
+                    for values in self.column_dict.values():
+                        tdSql.error(f'alter table {self.stbname}_{i} modify column {k} {values}')
+        for k,v in self.tag_dict.items():
+            if v.lower() == 'tinyint':
+                self.tag_check(i,k,tag_tinyint)
+                for error in [constant.TINYINT_MIN-1,constant.TINYINT_MAX+1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}')
+            elif v.lower() == 'smallint':
+                self.tag_check(i,k,tag_smallint)
+                for error in [constant.SMALLINT_MIN-1,constant.SMALLINT_MAX+1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}')
+            elif v.lower() == 'int':
+                self.tag_check(i,k,tag_int)
+                for error in [constant.INT_MIN-1,constant.INT_MAX+1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}')
+            elif v.lower() == 'bigint':
+                self.tag_check(i,k,tag_bigint)
+                for error in [constant.BIGINT_MIN-1,constant.BIGINT_MAX+1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}')
+            elif v.lower() == 'tinyint unsigned':
+                self.tag_check(i,k,tag_untinyint)
+                for error in [constant.TINYINT_UN_MIN-1,constant.TINYINT_UN_MAX+1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}')
+            elif v.lower() == 'smallint unsigned':
+                self.tag_check(i,k,tag_unsmallint)
+                for error in [constant.SMALLINT_UN_MIN-1,constant.SMALLINT_UN_MAX+1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}')
+            elif v.lower() == 'int unsigned':
+                self.tag_check(i,k,tag_unint)
+                for error in [constant.INT_UN_MIN-1,constant.INT_UN_MAX+1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}')  
+            #! bug TD-17106
+            # elif v.lower() == 'bigint unsigned':
+                # self.tag_check(i,k,tag_unbigint)
+                # for error in [constant.BIGINT_UN_MIN-1,constant.BIGINT_UN_MAX+1]:
+                #     tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}') 
+            elif v.lower() == 'bool':     
+                self.tag_check(i,k,tag_bool)
+            elif v.lower() == 'float':
+                tdSql.execute(f'alter table {self.stbname}_{i} set tag {k} = {tag_float}')
+                tdSql.query(f'select {k} from {self.stbname}_{i}')
+                if abs(tdSql.queryResult[0][0] - tag_float)/tag_float<=0.0001:
+                    tdSql.checkEqual(tdSql.queryResult[0][0],tdSql.queryResult[0][0])
+                else:
+                    tdLog.exit(f'select {k} from {self.stbname}_{i},data check failure')
+            #! bug TD-17106    
+                # for error in [constant.FLOAT_MIN*1.1,constant.FLOAT_MAX*1.1]:
+                #     tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}') 
+            elif v.lower() == 'double':
+                tdSql.execute(f'alter table {self.stbname}_{i} set tag {k} = {tag_double}')
+                tdSql.query(f'select {k} from {self.stbname}_{i}')
+                if abs(tdSql.queryResult[0][0] - tag_double)/tag_double<=0.0001:
+                    tdSql.checkEqual(tdSql.queryResult[0][0],tdSql.queryResult[0][0])
+                else:
+                    tdLog.exit(f'select {k} from {self.stbname}_{i},data check failure')
+                for error in [constant.DOUBLE_MIN*1.1,constant.DOUBLE_MAX*1.1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}') 
+            elif 'binary' in v.lower():
+                tag_binary_error = tdCom.getLongName(self.binary_length+1)
+                tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = "{tag_binary_error}"')
+                tdSql.execute(f'alter table {self.stbname}_{i} set tag {k} = "{tag_binary}"')
+                tdSql.query(f'select {k} from {self.stbname}_{i}')
+                tdSql.checkData(0,0,tag_binary)
+            elif 'nchar' in v.lower():
+                tag_nchar_error = tdCom.getLongName(self.nchar_length+1)
+                tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = "{tag_nchar_error}"')
+                tdSql.execute(f'alter table {self.stbname}_{i} set tag {k} = "{tag_nchar}"')
+                tdSql.query(f'select {k} from {self.stbname}_{i}')
+                tdSql.checkData(0,0,tag_nchar)
+    
+    def tag_check(self,tb_no,tag,values):
+        tdSql.execute(f'alter table {self.stbname}_{tb_no} set tag {tag} = {values}')
+        tdSql.query(f'select {tag} from {self.stbname}_{tb_no}')
+        tdSql.checkData(0,0,values)
+    def alter_check_stb(self):
+        tdSql.prepare()
+        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
+        for i in range(self.tbnum):
+            tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags({self.tag_list[i]})')
+            for j in self.values_list:
+                tdSql.execute(f'insert into {self.stbname}_{i} values({j})')
+        for key,values in self.column_add_dict.items():
+            tdSql.execute(f'alter table {self.stbname} add column {key} {values}')
+            tdSql.query(f'describe {self.stbname}')
+            tdSql.checkRows(len(self.column_dict)+len(self.tag_dict)+1)
+            for i in range(self.tbnum):
+                tdSql.query(f'describe {self.stbname}_{i}')
+                tdSql.checkRows(len(self.column_dict)+len(self.tag_dict)+1)
+                tdSql.query(f'select {key} from {self.stbname}_{i}')
+                tdSql.checkRows(len(self.values_list))
+            tdSql.execute(f'alter table {self.stbname} drop column {key}')
+            tdSql.query(f'describe {self.stbname}')
+            tdSql.checkRows(len(self.column_dict)+len(self.tag_dict))
+            for i in range(self.tbnum):
+                tdSql.query(f'describe {self.stbname}_{i}')
+                tdSql.checkRows(len(self.column_dict)+len(self.tag_dict))
+            tdSql.error(f'select {key} from {self.stbname} ')
+        for key,values in self.column_dict.items():
+            if 'binary' in values.lower():
+                v = f'binary({self.binary_length+1})'
+                v_error = f'binary({self.binary_length-1})'
+                tdSql.error(f'alter table {self.stbname} modify column {key} {v_error}')
+                tdSql.execute(f'alter table {self.stbname} modify column {key} {v}')
+                tdSql.query(f'describe {self.stbname}')
+                result = tdCom.getOneRow(1,'VARCHAR')
+                tdSql.checkEqual(result[0][2],self.binary_length+1)
+                for i in range(self.tbnum):
+                    tdSql.query(f'describe {self.stbname}_{i}')
+                    result = tdCom.getOneRow(1,'VARCHAR')
+                    tdSql.checkEqual(result[0][2],self.binary_length+1)
+            elif 'nchar' in values.lower():
+                v = f'nchar({self.binary_length+1})'
+                v_error = f'nchar({self.binary_length-1})'
+                tdSql.error(f'alter table {self.stbname} modify column {key} {v_error}')
+                tdSql.execute(f'alter table {self.stbname} modify column {key} {v}')
+                tdSql.query(f'describe {self.stbname}')
+                result = tdCom.getOneRow(1,'NCHAR')
+                tdSql.checkEqual(result[0][2],self.binary_length+1)
+                for i in range(self.tbnum):
+                    tdSql.query(f'describe {self.stbname}')
+                    result = tdCom.getOneRow(1,'NCHAR')
+                    tdSql.checkEqual(result[0][2],self.binary_length+1)
+            else:
+                for v in self.column_dict.values():
+                    tdSql.error(f'alter table {self.stbname} modify column {key} {v}')
+        for key,values in self.column_dict.items():
+            rename_str = f'{tdCom.getLongName(constant.COL_NAME_LENGTH_MAX,"letters")}'
+            tdSql.error(f'alter table {self.stbname} rename column {key} {rename_str}')
+            for i in range(self.tbnum):
+                tdSql.error(f'alter table {self.stbname}_{i} rename column {key} {rename_str}')
     def run(self):
-        self.alter_tb_tag_check()
-        self.alter_ntb_column_check()
-        self.alter_stb_column_check()
-        self.alter_stb_tag_check()
+        self.alter_check_ntb()
+        self.alter_check_tb()
+        self.alter_check_stb()
 
     def stop(self):
         tdSql.close()

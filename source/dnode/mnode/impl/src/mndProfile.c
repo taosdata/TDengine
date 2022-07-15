@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndProfile.h"
+#include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
@@ -70,6 +71,7 @@ static void      mndCancelGetNextQuery(SMnode *pMnode, void *pIter);
 static void      mndFreeApp(SAppObj *pApp);
 static int32_t   mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void      mndCancelGetNextApp(SMnode *pMnode, void *pIter);
+static int32_t   mndProcessSvrVerReq(SRpcMsg *pReq);
 
 int32_t mndInitProfile(SMnode *pMnode) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
@@ -94,6 +96,7 @@ int32_t mndInitProfile(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CONNECT, mndProcessConnectReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_QUERY, mndProcessKillQueryReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_CONN, mndProcessKillConnReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_SERVER_VERSION, mndProcessSvrVerReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndRetrieveConns);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndCancelGetNextConn);
@@ -122,30 +125,33 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
                                int32_t pid, const char *app, int64_t startTime) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
-  char    connStr[255] = {0};
-  int32_t len = snprintf(connStr, sizeof(connStr), "%s%d%d%d%s", user, ip, port, pid, app);
+  char     connStr[255] = {0};
+  int32_t  len = snprintf(connStr, sizeof(connStr), "%s%d%d%d%s", user, ip, port, pid, app);
   uint32_t connId = mndGenerateUid(connStr, len);
   if (startTime == 0) startTime = taosGetTimestampMs();
 
-  SConnObj connObj = {.id = connId,
-                      .connType = connType,
-                      .appStartTimeMs = startTime,
-                      .pid = pid,
-                      .ip = ip,
-                      .port = port,
-                      .killed = 0,
-                      .loginTimeMs = taosGetTimestampMs(),
-                      .lastAccessTimeMs = 0,
-                      .killId = 0,
-                      .numOfQueries = 0,
-                      .pQueries = NULL};
+  SConnObj connObj = {
+      .id = connId,
+      .connType = connType,
+      .appStartTimeMs = startTime,
+      .pid = pid,
+      .ip = ip,
+      .port = port,
+      .killed = 0,
+      .loginTimeMs = taosGetTimestampMs(),
+      .lastAccessTimeMs = 0,
+      .killId = 0,
+      .numOfQueries = 0,
+      .pQueries = NULL,
+  };
 
   connObj.lastAccessTimeMs = connObj.loginTimeMs;
   tstrncpy(connObj.user, user, TSDB_USER_LEN);
   tstrncpy(connObj.app, app, TSDB_APP_NAME_LEN);
 
   int32_t   keepTime = tsShellActivityTimer * 3;
-  SConnObj *pConn = taosCachePut(pMgmt->connCache, &connId, sizeof(uint32_t), &connObj, sizeof(connObj), keepTime * 1000);
+  SConnObj *pConn =
+      taosCachePut(pMgmt->connCache, &connId, sizeof(uint32_t), &connObj, sizeof(connObj), keepTime * 1000);
   if (pConn == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("conn:%d, failed to put into cache since %s, user:%s", connId, user, terrstr());
@@ -174,7 +180,6 @@ static SConnObj *mndAcquireConn(SMnode *pMnode, uint32_t connId) {
   }
 
   pConn->lastAccessTimeMs = taosGetTimestampMs();
-
   mTrace("conn:%u, acquired from cache, data:%p", pConn->id, pConn);
   return pConn;
 }
@@ -207,49 +212,59 @@ static void mndCancelGetNextConn(SMnode *pMnode, void *pIter) {
 }
 
 static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
-  SMnode     *pMnode = pReq->info.node;
-  SUserObj   *pUser = NULL;
-  SDbObj     *pDb = NULL;
-  SConnObj   *pConn = NULL;
-  int32_t     code = -1;
-  SConnectReq connReq = {0};
-  char        ip[30] = {0};
+  SMnode         *pMnode = pReq->info.node;
+  SUserObj       *pUser = NULL;
+  SDbObj         *pDb = NULL;
+  SConnObj       *pConn = NULL;
+  int32_t         code = -1;
+  SConnectReq     connReq = {0};
+  char            ip[24] = {0};
+  const STraceId *trace = &pReq->info.traceId;
 
   if (tDeserializeSConnectReq(pReq->pCont, pReq->contLen, &connReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    goto CONN_OVER;
+    goto _OVER;
   }
 
   taosIp2String(pReq->info.conn.clientIp, ip);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONNECT) != 0) {
+    mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, terrstr());
+    goto _OVER;
+  }
 
   pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
   if (pUser == NULL) {
-    mError("user:%s, failed to login while acquire user since %s", pReq->info.conn.user, terrstr());
-    goto CONN_OVER;
+    mGError("user:%s, failed to login from %s while acquire user since %s", pReq->info.conn.user, ip, terrstr());
+    goto _OVER;
   }
-  if (0 != strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1)) {
-    mError("user:%s, failed to auth while acquire user, input:%s", pReq->info.conn.user, connReq.passwd);
+
+  if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0) {
+    mGError("user:%s, failed to login from %s since invalid pass, input:%s", pReq->info.conn.user, ip, connReq.passwd);
     code = TSDB_CODE_RPC_AUTH_FAILURE;
-    goto CONN_OVER;
+    goto _OVER;
   }
 
   if (connReq.db[0]) {
-    char db[TSDB_DB_FNAME_LEN];
+    char db[TSDB_DB_FNAME_LEN] = {0};
     snprintf(db, TSDB_DB_FNAME_LEN, "%d%s%s", pUser->acctId, TS_PATH_DELIMITER, connReq.db);
     pDb = mndAcquireDb(pMnode, db);
     if (pDb == NULL) {
       terrno = TSDB_CODE_MND_INVALID_DB;
-      mError("user:%s, failed to login from %s while use db:%s since %s", pReq->info.conn.user, ip, connReq.db,
-             terrstr());
-      goto CONN_OVER;
+      mGError("user:%s, failed to login from %s while use db:%s since %s", pReq->info.conn.user, ip, connReq.db,
+              terrstr());
+      goto _OVER;
+    }
+
+    if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb) != 0) {
+      goto _OVER;
     }
   }
 
   pConn = mndCreateConn(pMnode, pReq->info.conn.user, connReq.connType, pReq->info.conn.clientIp,
                         pReq->info.conn.clientPort, connReq.pid, connReq.app, connReq.startTime);
   if (pConn == NULL) {
-    mError("user:%s, failed to login from %s while create connection since %s", pReq->info.conn.user, ip, terrstr());
-    goto CONN_OVER;
+    mGError("user:%s, failed to login from %s while create connection since %s", pReq->info.conn.user, ip, terrstr());
+    goto _OVER;
   }
 
   SConnectRsp connectRsp = {0};
@@ -260,24 +275,25 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.connType = connReq.connType;
   connectRsp.dnodeNum = mndGetDnodeSize(pMnode);
 
-  snprintf(connectRsp.sVersion, sizeof(connectRsp.sVersion), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
+  strcpy(connectRsp.sVer, version);
+  snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
            gitinfo);
   mndGetMnodeEpSet(pMnode, &connectRsp.epSet);
 
   int32_t contLen = tSerializeSConnectRsp(NULL, 0, &connectRsp);
-  if (contLen < 0) goto CONN_OVER;
+  if (contLen < 0) goto _OVER;
   void *pRsp = rpcMallocCont(contLen);
-  if (pRsp == NULL) goto CONN_OVER;
+  if (pRsp == NULL) goto _OVER;
   tSerializeSConnectRsp(pRsp, contLen, &connectRsp);
 
   pReq->info.rspLen = contLen;
   pReq->info.rsp = pRsp;
 
-  mDebug("user:%s, login from %s:%d, conn:%u, app:%s", pReq->info.conn.user, ip, pConn->port, pConn->id, connReq.app);
+  mGDebug("user:%s, login from %s:%d, conn:%u, app:%s", pReq->info.conn.user, ip, pConn->port, pConn->id, connReq.app);
 
   code = 0;
 
-CONN_OVER:
+_OVER:
 
   mndReleaseUser(pMnode, pUser);
   mndReleaseDb(pMnode, pDb);
@@ -302,7 +318,7 @@ static int32_t mndSaveQueryList(SConnObj *pConn, SQueryHbReqBasic *pBasic) {
   return TSDB_CODE_SUCCESS;
 }
 
-static SAppObj *mndCreateApp(SMnode *pMnode, uint32_t clientIp, SAppHbReq* pReq) {
+static SAppObj *mndCreateApp(SMnode *pMnode, uint32_t clientIp, SAppHbReq *pReq) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   SAppObj app;
@@ -314,22 +330,19 @@ static SAppObj *mndCreateApp(SMnode *pMnode, uint32_t clientIp, SAppHbReq* pReq)
   memcpy(&app.summary, &pReq->summary, sizeof(pReq->summary));
   app.lastAccessTimeMs = taosGetTimestampMs();
 
-  int32_t   keepTime = tsShellActivityTimer * 3;
+  const int32_t keepTime = tsShellActivityTimer * 3;
   SAppObj *pApp = taosCachePut(pMgmt->appCache, &pReq->appId, sizeof(pReq->appId), &app, sizeof(app), keepTime * 1000);
   if (pApp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to app %" PRIx64 " into cache since %s", pReq->appId, terrstr());
     return NULL;
   }
-  
+
   mTrace("app %" PRIx64 " is put into cache", pReq->appId);
   return pApp;
 }
 
-static void mndFreeApp(SAppObj *pApp) {
-  mTrace("app %" PRIx64 " is destroyed", pApp->appId);
-}
-
+static void mndFreeApp(SAppObj *pApp) { mTrace("app %" PRIx64 " is destroyed", pApp->appId); }
 
 static SAppObj *mndAcquireApp(SMnode *pMnode, int64_t appId) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
@@ -356,7 +369,7 @@ static void mndReleaseApp(SMnode *pMnode, SAppObj *pApp) {
 
 void *mndGetNextApp(SMnode *pMnode, SCacheIter *pIter) {
   SAppObj *pApp = NULL;
-  bool      hasNext = taosCacheIterNext(pIter);
+  bool     hasNext = taosCacheIterNext(pIter);
   if (hasNext) {
     size_t dataLen = 0;
     pApp = taosCacheIterGetData(pIter, &dataLen);
@@ -439,16 +452,16 @@ static SClientHbRsp *mndMqHbBuildRsp(SMnode *pMnode, SClientHbReq *pReq) {
 }
 
 static int32_t mndUpdateAppInfo(SMnode *pMnode, SClientHbReq *pHbReq, SRpcConnInfo *connInfo) {
-  SAppHbReq* pReq = &pHbReq->app;
-  SAppObj *pApp = mndAcquireApp(pMnode, pReq->appId);
+  SAppHbReq *pReq = &pHbReq->app;
+  SAppObj   *pApp = mndAcquireApp(pMnode, pReq->appId);
   if (pApp == NULL) {
     pApp = mndCreateApp(pMnode, connInfo->clientIp, pReq);
     if (pApp == NULL) {
       mError("failed to create new app %" PRIx64 " since %s", pReq->appId, terrstr());
       return -1;
     } else {
-      mDebug("a new app %" PRIx64 "created", pReq->appId);
-      mndReleaseApp(pMnode, pApp);      
+      mDebug("a new app %" PRIx64 " is created", pReq->appId);
+      mndReleaseApp(pMnode, pApp);
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -460,11 +473,32 @@ static int32_t mndUpdateAppInfo(SMnode *pMnode, SClientHbReq *pHbReq, SRpcConnIn
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t mndGetOnlineDnodeNum(SMnode *pMnode, int32_t *num) {
+  SSdb      *pSdb = pMnode->pSdb;
+  SDnodeObj *pDnode = NULL;
+  int64_t    curMs = taosGetTimestampMs();
+  void      *pIter = NULL;
+
+  while (true) {
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+
+    bool online = mndIsDnodeOnline(pDnode, curMs);
+    if (online) {
+      (*num)++;
+    }
+
+    sdbRelease(pSdb, pDnode);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHbReq *pHbReq,
                                         SClientHbBatchRsp *pBatchRsp) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
   SClientHbRsp  hbRsp = {.connKey = pHbReq->connKey, .status = 0, .info = NULL, .query = NULL};
-  SRpcConnInfo connInfo = pMsg->info.conn;
+  SRpcConnInfo  connInfo = pMsg->info.conn;
 
   mndUpdateAppInfo(pMnode, pHbReq, &connInfo);
 
@@ -503,7 +537,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
     rspBasic->connId = pConn->id;
     rspBasic->totalDnodes = mndGetDnodeSize(pMnode);
-    rspBasic->onlineDnodes = 1;  // TODO
+    mndGetOnlineDnodeNum(pMnode, &rspBasic->onlineDnodes);
     mndGetMnodeEpSet(pMnode, &rspBasic->epSet);
 
     mndCreateQnodeList(pMnode, &rspBasic->pQnodeList, -1);
@@ -621,15 +655,6 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
-  SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
-  if (pUser == NULL) return 0;
-  if (!pUser->superUser) {
-    mndReleaseUser(pMnode, pUser);
-    terrno = TSDB_CODE_MND_NO_RIGHTS;
-    return -1;
-  }
-  mndReleaseUser(pMnode, pUser);
-
   SKillQueryReq killReq = {0};
   if (tDeserializeSKillQueryReq(pReq->pCont, pReq->contLen, &killReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -637,9 +662,13 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
   }
 
   mInfo("kill query msg is received, queryId:%s", killReq.queryStrId);
-  int32_t connId = 0;
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_QUERY) != 0) {
+    return -1;
+  }
+
+  int32_t  connId = 0;
   uint64_t queryId = 0;
-  char* p = strchr(killReq.queryStrId, ':');
+  char    *p = strchr(killReq.queryStrId, ':');
   if (NULL == p) {
     mError("invalid query id %s", killReq.queryStrId);
     terrno = TSDB_CODE_MND_INVALID_QUERY_ID;
@@ -666,18 +695,13 @@ static int32_t mndProcessKillConnReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
-  SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
-  if (pUser == NULL) return 0;
-  if (!pUser->superUser) {
-    mndReleaseUser(pMnode, pUser);
-    terrno = TSDB_CODE_MND_NO_RIGHTS;
-    return -1;
-  }
-  mndReleaseUser(pMnode, pUser);
-
   SKillConnReq killReq = {0};
   if (tDeserializeSKillConnReq(pReq->pCont, pReq->contLen, &killReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_CONN) != 0) {
     return -1;
   }
 
@@ -692,6 +716,27 @@ static int32_t mndProcessKillConnReq(SRpcMsg *pReq) {
     taosCacheRelease(pMgmt->connCache, (void **)&pConn, false);
     return TSDB_CODE_SUCCESS;
   }
+}
+
+static int32_t mndProcessSvrVerReq(SRpcMsg *pReq) {
+  int32_t       code = -1;
+  SServerVerRsp rsp = {0};
+  strcpy(rsp.ver, version);
+
+  int32_t contLen = tSerializeSServerVerRsp(NULL, 0, &rsp);
+  if (contLen < 0) goto _over;
+  void *pRsp = rpcMallocCont(contLen);
+  if (pRsp == NULL) goto _over;
+  tSerializeSServerVerRsp(pRsp, contLen, &rsp);
+
+  pReq->info.rspLen = contLen;
+  pReq->info.rsp = pRsp;
+
+  code = 0;
+
+_over:
+
+  return code;
 }
 
 static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
@@ -853,12 +898,12 @@ static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 }
 
 static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode    *pMnode = pReq->info.node;
-  SSdb      *pSdb = pMnode->pSdb;
-  int32_t    numOfRows = 0;
-  int32_t    cols = 0;
-  SAppObj   *pApp = NULL;
-  
+  SMnode  *pMnode = pReq->info.node;
+  SSdb    *pSdb = pMnode->pSdb;
+  int32_t  numOfRows = 0;
+  int32_t  cols = 0;
+  SAppObj *pApp = NULL;
+
   if (pShow->pIter == NULL) {
     SProfileMgmt *pMgmt = &pMnode->profileMgmt;
     pShow->pIter = taosCacheCreateIter(pMgmt->appCache);
@@ -930,7 +975,6 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }
-
 
 static void mndCancelGetNextQuery(SMnode *pMnode, void *pIter) {
   if (pIter != NULL) {

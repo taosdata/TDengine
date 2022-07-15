@@ -417,8 +417,8 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
 
   if (pNode == NULL) {
     pushfrontNodeInEntryList(pe, pNode1);
-    atomic_add_fetch_64(&pCacheObj->numOfElems, 1);
-    atomic_add_fetch_64(&pCacheObj->sizeInBytes, pNode1->size);
+    atomic_add_fetch_ptr(&pCacheObj->numOfElems, 1);
+    atomic_add_fetch_ptr(&pCacheObj->sizeInBytes, pNode1->size);
     uDebug("cache:%s, key:%p, %p added into cache, added:%" PRIu64 ", expire:%" PRIu64
            ", totalNum:%d sizeInBytes:%" PRId64 "bytes size:%" PRId64 "bytes",
            pCacheObj->name, key, pNode1->data, pNode1->addedTime, pNode1->expireTime, (int32_t)pCacheObj->numOfElems,
@@ -667,7 +667,7 @@ void doTraverseElems(SCacheObj *pCacheObj, bool (*fp)(void *param, SCacheNode *p
         pEntry->next = next;
         pEntry->num -= 1;
 
-        atomic_sub_fetch_64(&pCacheObj->numOfElems, 1);
+        atomic_sub_fetch_ptr(&pCacheObj->numOfElems, 1);
         pNode = next;
       }
     }

@@ -19,6 +19,7 @@ static int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeCStr(pEncoder, pHandle->subKey) < 0) return -1;
   if (tEncodeI64(pEncoder, pHandle->consumerId) < 0) return -1;
+  if (tEncodeI64(pEncoder, pHandle->snapshotVer) < 0) return -1;
   if (tEncodeI32(pEncoder, pHandle->epoch) < 0) return -1;
   if (tEncodeI8(pEncoder, pHandle->execHandle.subType) < 0) return -1;
   if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
@@ -32,6 +33,7 @@ static int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pHandle->subKey) < 0) return -1;
   if (tDecodeI64(pDecoder, &pHandle->consumerId) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pHandle->snapshotVer) < 0) return -1;
   if (tDecodeI32(pDecoder, &pHandle->epoch) < 0) return -1;
   if (tDecodeI8(pDecoder, &pHandle->execHandle.subType) < 0) return -1;
   if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
@@ -77,19 +79,26 @@ int32_t tqMetaOpen(STQ* pTq) {
     STqHandle handle;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     tDecodeSTqHandle(&decoder, &handle);
-    handle.pWalReader = walOpenReadHandle(pTq->pVnode->pWal);
-    for (int32_t i = 0; i < 5; i++) {
-      handle.execHandle.pExecReader[i] = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
-    }
+    handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
+    /*for (int32_t i = 0; i < 5; i++) {*/
+    /*handle.execHandle.pExecReader[i] = tqOpenReader(pTq->pVnode);*/
+    /*}*/
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       for (int32_t i = 0; i < 5; i++) {
         SReadHandle reader = {
-            .reader = handle.execHandle.pExecReader[i],
             .meta = pTq->pVnode->pMeta,
-            .pMsgCb = &pTq->pVnode->msgCb,
+            .vnode = pTq->pVnode,
+            .initTableReader = true,
+            .initTqReader = true,
+            .version = handle.snapshotVer,
         };
-        handle.execHandle.execCol.task[i] = qCreateStreamExecTaskInfo(handle.execHandle.execCol.qmsg, &reader);
+        handle.execHandle.execCol.task[i] = qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader);
         ASSERT(handle.execHandle.execCol.task[i]);
+        void* scanner = NULL;
+        qExtractStreamScanner(handle.execHandle.execCol.task[i], &scanner);
+        ASSERT(scanner);
+        handle.execHandle.pExecReader[i] = qExtractReaderFromStreamScanner(scanner);
+        ASSERT(handle.execHandle.pExecReader[i]);
       }
     } else {
       handle.execHandle.execDb.pFilterOutTbUid =
@@ -98,6 +107,7 @@ int32_t tqMetaOpen(STQ* pTq) {
     taosHashPut(pTq->handles, pKey, kLen, &handle, sizeof(STqHandle));
   }
 
+  tdbTbcClose(pCur);
   if (tdbTxnClose(&txn) < 0) {
     ASSERT(0);
   }
@@ -105,6 +115,9 @@ int32_t tqMetaOpen(STQ* pTq) {
 }
 
 int32_t tqMetaClose(STQ* pTq) {
+  if (pTq->pExecStore) {
+    tdbTbClose(pTq->pExecStore);
+  }
   tdbClose(pTq->pMetaStore);
   return 0;
 }

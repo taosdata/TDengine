@@ -1,0 +1,63 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== create user and login
+sql create user sysinfo0 pass 'taosdata'
+sql create user sysinfo1 pass 'taosdata'
+sql alter user sysinfo0 sysinfo 0
+sql alter user sysinfo1 sysinfo 1
+sql create database db
+
+print user sysinfo0 login
+sql close
+sql connect sysinfo0
+
+print =============== check oper
+sql_error create user u1 pass 'u1'
+sql_error drop user sysinfo1
+sql_error alter user sysinfo1 pass '1'
+sql_error alter user sysinfo0 pass '1'
+
+sql_error create dnode $hostname port 7200
+sql_error drop dnode 1
+
+sql_error create qnode on dnode 1
+sql_error drop qnode on dnode 1
+
+sql_error create mnode on dnode 1
+sql_error drop mnode on dnode 1
+
+sql_error create snode on dnode 1
+sql_error drop snode on dnode 1
+
+sql_error redistribute vgroup 2 dnode 1 dnode 2
+sql_error balance vgroup
+
+sql_error kill transaction 1
+sql_error kill connection 1
+sql_error kill query 1
+
+print =============== check db
+sql_error create database d1
+sql_error drop database db
+sql_error use db
+sql_error alter database db replica 1;
+sql_error show db.vgroups
+sql_error show db.stables
+sql_error show db.tables
+
+print =============== check show
+sql_error show users
+sql_error show cluster
+sql_error show dnodes
+sql_error show mnodes
+sql_error show snodes
+sql_error show qnodes
+sql_error show bnodes
+sql_error show grants
+sql_error show dnode 1 variables;
+sql show variables;
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

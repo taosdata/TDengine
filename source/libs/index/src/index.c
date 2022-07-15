@@ -35,12 +35,12 @@
 #define INDEX_DATA_BOOL_NULL      0x02
 #define INDEX_DATA_TINYINT_NULL   0x80
 #define INDEX_DATA_SMALLINT_NULL  0x8000
-#define INDEX_DATA_INT_NULL       0x80000000L
-#define INDEX_DATA_BIGINT_NULL    0x8000000000000000L
+#define INDEX_DATA_INT_NULL       0x80000000LL
+#define INDEX_DATA_BIGINT_NULL    0x8000000000000000LL
 #define INDEX_DATA_TIMESTAMP_NULL TSDB_DATA_BIGINT_NULL
 
-#define INDEX_DATA_FLOAT_NULL    0x7FF00000           // it is an NAN
-#define INDEX_DATA_DOUBLE_NULL   0x7FFFFF0000000000L  // an NAN
+#define INDEX_DATA_FLOAT_NULL    0x7FF00000            // it is an NAN
+#define INDEX_DATA_DOUBLE_NULL   0x7FFFFF0000000000LL  // an NAN
 #define INDEX_DATA_NCHAR_NULL    0xFFFFFFFF
 #define INDEX_DATA_BINARY_NULL   0xFF
 #define INDEX_DATA_JSON_NULL     0xFFFFFFFF
@@ -63,11 +63,12 @@ static void indexDestroy(void* sIdx);
 void indexInit() {
   // refactor later
   indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, INDEX_NUM_OF_THREADS, "index");
-  indexRefMgt = taosOpenRef(10, indexDestroy);
+  indexRefMgt = taosOpenRef(1000, indexDestroy);
 }
-void indexCleanUp() {
+void indexCleanup() {
   // refacto later
   taosCleanUpScheduler(indexQhandle);
+  taosCloseRef(indexRefMgt);
 }
 
 typedef struct SIdxColInfo {
@@ -100,45 +101,61 @@ static void indexWait(void* idx) {
 }
 
 int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
+  int ret = TSDB_CODE_SUCCESS;
   taosThreadOnce(&isInit, indexInit);
-  SIndex* sIdx = taosMemoryCalloc(1, sizeof(SIndex));
-  if (sIdx == NULL) {
-    return -1;
+  SIndex* idx = taosMemoryCalloc(1, sizeof(SIndex));
+  if (idx == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  // sIdx->cache = (void*)idxCacheCreate(sIdx);
-  sIdx->tindex = idxTFileCreate(path);
-  if (sIdx->tindex == NULL) {
+  idx->lru = taosLRUCacheInit(opts->cacheSize, -1, .5);
+  if (idx->lru == NULL) {
+    ret = TSDB_CODE_OUT_OF_MEMORY;
+    goto END;
+  }
+  taosLRUCacheSetStrictCapacity(idx->lru, false);
+
+  idx->tindex = idxTFileCreate(idx, path);
+  if (idx->tindex == NULL) {
+    ret = TSDB_CODE_OUT_OF_MEMORY;
     goto END;
   }
 
-  sIdx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  sIdx->cVersion = 1;
-  sIdx->path = tstrdup(path);
-  taosThreadMutexInit(&sIdx->mtx, NULL);
-  tsem_init(&sIdx->sem, 0, 0);
+  idx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  idx->cVersion = 1;
+  idx->path = tstrdup(path);
+  taosThreadMutexInit(&idx->mtx, NULL);
+  tsem_init(&idx->sem, 0, 0);
 
-  sIdx->refId = idxAddRef(sIdx);
-  idxAcquireRef(sIdx->refId);
+  idx->refId = idxAddRef(idx);
+  idx->opts = *opts;
+  idxAcquireRef(idx->refId);
 
-  *index = sIdx;
-  return 0;
+  *index = idx;
+  return ret;
 
 END:
-  if (sIdx != NULL) {
-    indexClose(sIdx);
+  if (idx != NULL) {
+    indexClose(idx);
   }
   *index = NULL;
-  return -1;
+  return ret;
 }
 
 void indexDestroy(void* handle) {
-  SIndex* sIdx = handle;
-  taosThreadMutexDestroy(&sIdx->mtx);
-  tsem_destroy(&sIdx->sem);
-  idxTFileDestroy(sIdx->tindex);
-  taosMemoryFree(sIdx->path);
-  taosMemoryFree(sIdx);
+  SIndex* idx = handle;
+  taosThreadMutexDestroy(&idx->mtx);
+  tsem_destroy(&idx->sem);
+  idxTFileDestroy(idx->tindex);
+  taosMemoryFree(idx->path);
+
+  SLRUCache* lru = idx->lru;
+  if (lru != NULL) {
+    taosLRUCacheEraseUnrefEntries(lru);
+    taosLRUCacheCleanup(lru);
+  }
+  idx->lru = NULL;
+  taosMemoryFree(idx);
   return;
 }
 void indexClose(SIndex* sIdx) {
@@ -157,6 +174,7 @@ void indexClose(SIndex* sIdx) {
     taosHashCleanup(sIdx->colObj);
     sIdx->colObj = NULL;
   }
+
   idxReleaseRef(sIdx->refId);
   idxRemoveRef(sIdx->refId);
 }
@@ -230,10 +248,14 @@ int indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* result
 }
 
 int indexDelete(SIndex* index, SIndexMultiTermQuery* query) { return 1; }
-int indexRebuild(SIndex* index, SIndexOpts* opts) { return 0; }
+// int indexRebuild(SIndex* index, SIndexOpts* opts) { return 0; }
 
-SIndexOpts* indexOptsCreate() { return NULL; }
-void        indexOptsDestroy(SIndexOpts* opts) { return; }
+SIndexOpts* indexOptsCreate(int32_t cacheSize) {
+  SIndexOpts* opts = taosMemoryCalloc(1, sizeof(SIndexOpts));
+  opts->cacheSize = cacheSize;
+  return opts;
+}
+void indexOptsDestroy(SIndexOpts* opts) { return taosMemoryFree(opts); }
 /*
  * @param: oper
  *
@@ -272,33 +294,28 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
   tm->operType = oper;
   tm->colType = colType;
 
-#if 0
-  tm->colName = (char*)taosMemoryCalloc(1, nColName + 1);
-  memcpy(tm->colName, colName, nColName);
-  tm->nColName = nColName;
-
-  tm->colVal = (char*)taosMemoryCalloc(1, nColVal + 1);
-  memcpy(tm->colVal, colVal, nColVal);
-  tm->nColVal = nColVal;
-#endif
-
-#if 1
-
   tm->colName = (char*)taosMemoryCalloc(1, nColName + 1);
   memcpy(tm->colName, colName, nColName);
   tm->nColName = nColName;
 
   char*   buf = NULL;
-  int32_t len = idxConvertDataToStr((void*)colVal, IDX_TYPE_GET_TYPE(colType), (void**)&buf);
-  assert(len != -1);
-
+  int32_t len = 0;
+  if (colVal != NULL && nColVal != 0) {
+    len = idxConvertDataToStr((void*)colVal, IDX_TYPE_GET_TYPE(colType), (void**)&buf);
+  } else if (colVal == NULL) {
+    buf = strndup(INDEX_DATA_NULL_STR, (int32_t)strlen(INDEX_DATA_NULL_STR));
+    len = (int32_t)strlen(INDEX_DATA_NULL_STR);
+  } else {
+    const char* emptyStr = " ";
+    buf = strndup(emptyStr, (int32_t)strlen(emptyStr));
+    len = (int32_t)strlen(emptyStr);
+  }
   tm->colVal = buf;
   tm->nColVal = len;
 
-#endif
-
   return tm;
 }
+
 void indexTermDestroy(SIndexTerm* p) {
   taosMemoryFree(p->colName);
   taosMemoryFree(p->colVal);
@@ -317,6 +334,54 @@ void indexMultiTermDestroy(SIndexMultiTerm* terms) {
     indexTermDestroy(p);
   }
   taosArrayDestroy(terms);
+}
+
+/*
+ * rebuild index
+ */
+
+static void idxSchedRebuildIdx(SSchedMsg* msg) {
+  // TODO, no need rebuild index
+  SIndex* idx = msg->ahandle;
+
+  int8_t st = kFinished;
+  atomic_store_8(&idx->status, st);
+  idxReleaseRef(idx->refId);
+}
+void indexRebuild(SIndexJson* idx, void* iter) {
+  // set up rebuild status
+  int8_t st = kRebuild;
+  atomic_store_8(&idx->status, st);
+
+  // task put into BG thread
+  SSchedMsg schedMsg = {0};
+  schedMsg.fp = idxSchedRebuildIdx;
+  schedMsg.ahandle = idx;
+  idxAcquireRef(idx->refId);
+  taosScheduleTask(indexQhandle, &schedMsg);
+}
+
+/*
+ * check index json status
+ **/
+bool indexIsRebuild(SIndex* idx) {
+  // idx rebuild or not
+  return ((SIdxStatus)atomic_load_8(&idx->status)) == kRebuild ? true : false;
+}
+/*
+ * rebuild index
+ */
+void indexJsonRebuild(SIndexJson* idx, void* iter) {
+  // idx rebuild or not
+  indexRebuild(idx, iter);
+}
+
+/*
+ * check index json status
+ **/
+bool indexJsonIsRebuild(SIndexJson* idx) {
+  // load idx rebuild or not
+  return ((SIdxStatus)atomic_load_8(&idx->status)) == kRebuild ? true : false;
 }
 
 static int idxTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result) {
@@ -596,7 +661,7 @@ static int idxGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   }
   tfileWriterClose(tw);
 
-  TFileReader* reader = tfileReaderOpen(sIdx->path, cache->suid, version, cache->colName);
+  TFileReader* reader = tfileReaderOpen(sIdx, cache->suid, version, cache->colName);
   if (reader == NULL) {
     return -1;
   }
@@ -614,7 +679,7 @@ static int idxGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   return ret;
 END:
   if (tw != NULL) {
-    writerCtxDestroy(tw->ctx, true);
+    idxFileCtxDestroy(tw->ctx, true);
     taosMemoryFree(tw);
   }
   return -1;

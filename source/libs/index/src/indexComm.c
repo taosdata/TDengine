@@ -25,12 +25,12 @@
 #define INDEX_DATA_BOOL_NULL      0x02
 #define INDEX_DATA_TINYINT_NULL   0x80
 #define INDEX_DATA_SMALLINT_NULL  0x8000
-#define INDEX_DATA_INT_NULL       0x80000000L
-#define INDEX_DATA_BIGINT_NULL    0x8000000000000000L
+#define INDEX_DATA_INT_NULL       0x80000000LL
+#define INDEX_DATA_BIGINT_NULL    0x8000000000000000LL
 #define INDEX_DATA_TIMESTAMP_NULL TSDB_DATA_BIGINT_NULL
 
-#define INDEX_DATA_FLOAT_NULL    0x7FF00000           // it is an NAN
-#define INDEX_DATA_DOUBLE_NULL   0x7FFFFF0000000000L  // an NAN
+#define INDEX_DATA_FLOAT_NULL    0x7FF00000            // it is an NAN
+#define INDEX_DATA_DOUBLE_NULL   0x7FFFFF0000000000LL  // an NAN
 #define INDEX_DATA_NCHAR_NULL    0xFFFFFFFF
 #define INDEX_DATA_BINARY_NULL   0xFF
 #define INDEX_DATA_JSON_NULL     0xFFFFFFFF
@@ -374,6 +374,10 @@ int32_t idxConvertData(void* src, int8_t type, void** dst) {
   return tlen;
 }
 int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
+  if (src == NULL) {
+    *dst = strndup(INDEX_DATA_NULL_STR, (int)strlen(INDEX_DATA_NULL_STR));
+    return (int32_t)strlen(INDEX_DATA_NULL_STR);
+  }
   int     tlen = tDataTypes[type].bytes;
   int32_t bufSize = 64;
   switch (type) {

@@ -82,8 +82,8 @@ print =============== step4
 #$cc = 1 * 60000
 #$ms2 = 1601481600000 - $cc
 
-sql select _wstartts, _wendts, _wduration, _qstartts, _qendts, count(tbcol) from $tb  interval(1m)
-print ===> select _wstartts, _wendts, _wduration, _qstartts, _qendts, count(tbcol) from $tb  interval(1m)
+sql select _wstart, _wend, _wduration, _qstart, _qend, count(tbcol) from $tb  interval(1m)
+print ===> select _wstart, _wend, _wduration, _qstart, _qend, count(tbcol) from $tb  interval(1m)
 print ===> $rows $data01 $data05
 if $rows != $rowNum then
   return -1

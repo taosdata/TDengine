@@ -23,7 +23,7 @@ void syncRespMgrInsert(uint64_t count) {
     stub.rpcMsg.info.ahandle = (void *)(200 + i);
     stub.rpcMsg.info.handle = (void *)(300 + i);
     uint64_t ret = syncRespMgrAdd(pMgr, &stub);
-    printf("insert %lu \n", ret);
+    printf("insert: %" PRIu64 " \n", ret);
   }
 }
 
@@ -35,8 +35,8 @@ void syncRespMgrDelTest(uint64_t begin, uint64_t end) {
 }
 
 void printStub(SRespStub *p) {
-  printf("createTime:%ld, rpcMsg.code:%d rpcMsg.ahandle:%ld rpcMsg.handle:%ld \n", p->createTime, p->rpcMsg.code,
-         (int64_t)(p->rpcMsg.info.ahandle), (int64_t)(p->rpcMsg.info.handle));
+  printf("createTime:%" PRId64 ", rpcMsg.code:%d rpcMsg.ahandle:%" PRId64 " rpcMsg.handle:%" PRId64 " \n",
+         p->createTime, p->rpcMsg.code, (int64_t)(p->rpcMsg.info.ahandle), (int64_t)(p->rpcMsg.info.handle));
 }
 void syncRespMgrPrint() {
   printf("\n----------------syncRespMgrPrint--------------\n");
@@ -52,30 +52,36 @@ void syncRespMgrPrint() {
 }
 
 void syncRespMgrGetTest(uint64_t i) {
-  printf("------syncRespMgrGetTest------- %lu -- \n", i);
+  printf("------syncRespMgrGetTest-------: %" PRIu64 " -- \n", i);
   SRespStub stub;
   int32_t   ret = syncRespMgrGet(pMgr, i, &stub);
   if (ret == 1) {
     printStub(&stub);
   } else if (ret == 0) {
-    printf("%ld notFound \n", i);
+    printf("" PRId64 " notFound \n", i);
   }
 }
 
 void syncRespMgrGetAndDelTest(uint64_t i) {
-  printf("------syncRespMgrGetAndDelTest-------%lu-- \n", i);
+  printf("------syncRespMgrGetAndDelTest-------" PRIu64 "-- \n", i);
   SRespStub stub;
   int32_t   ret = syncRespMgrGetAndDel(pMgr, i, &stub);
   if (ret == 1) {
     printStub(&stub);
   } else if (ret == 0) {
-    printf("%ld notFound \n", i);
+    printf("" PRId64 " notFound \n", i);
   }
+}
+
+SSyncNode *createSyncNode() {
+  SSyncNode *pSyncNode = (SSyncNode *)taosMemoryMalloc(sizeof(SSyncNode));
+  memset(pSyncNode, 0, sizeof(SSyncNode));
+  return pSyncNode;
 }
 
 void test1() {
   printf("------- test1 ---------\n");
-  pMgr = syncRespMgrCreate(NULL, 0);
+  pMgr = syncRespMgrCreate(createSyncNode(), 0);
   assert(pMgr != NULL);
 
   syncRespMgrInsert(10);
@@ -100,7 +106,7 @@ void test1() {
 
 void test2() {
   printf("------- test2 ---------\n");
-  pMgr = syncRespMgrCreate(NULL, 0);
+  pMgr = syncRespMgrCreate(createSyncNode(), 0);
   assert(pMgr != NULL);
 
   syncRespMgrInsert(10);
@@ -117,7 +123,7 @@ void test2() {
 
 void test3() {
   printf("------- test3 ---------\n");
-  pMgr = syncRespMgrCreate(NULL, 0);
+  pMgr = syncRespMgrCreate(createSyncNode(), 0);
   assert(pMgr != NULL);
 
   syncRespMgrInsert(10);
@@ -132,13 +138,34 @@ void test3() {
   syncRespMgrDestroy(pMgr);
 }
 
+void test4() {
+  printf("------- test4 ---------\n");
+  pMgr = syncRespMgrCreate(createSyncNode(), 2);
+  assert(pMgr != NULL);
+
+  syncRespMgrInsert(5);
+  syncRespMgrPrint();
+
+  taosMsleep(3000);
+
+  syncRespMgrInsert(3);
+  syncRespMgrPrint();
+
+  printf("====== after clean ttl \n");
+  syncRespClean(pMgr);
+  syncRespMgrPrint();
+
+  syncRespMgrDestroy(pMgr);
+}
+
 int main() {
   tsAsyncLog = 0;
-  sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
+  sDebugFlag = DEBUG_DEBUG + DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
   logTest();
   test1();
   test2();
   test3();
+  test4();
 
   return 0;
 }

@@ -52,12 +52,12 @@ typedef struct {
   char     user[TSDB_UNI_LEN];  // meter ID
 
   void (*cfp)(void* parent, SRpcMsg*, SEpSet*);
-  bool (*retry)(int32_t code);
+  bool (*retry)(int32_t code, tmsg_t msgType);
   int index;
 
   void*         parent;
   void*         tcphandle;  // returned handle from TCP initialization
-  int32_t       refMgt;
+  int64_t       refId;
   TdThreadMutex mutex;
 } SRpcInfo;
 

@@ -13,8 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "pthread.h"
 
 #ifdef WINDOWS
 
@@ -111,289 +113,501 @@ int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
 
 // #define SEM_USE_PTHREAD
 // #define SEM_USE_POSIX
-#define SEM_USE_SEM
+// #define SEM_USE_SEM
 
-#ifdef SEM_USE_SEM
-#include <mach/mach_error.h>
-#include <mach/mach_init.h>
-#include <mach/semaphore.h>
-#include <mach/task.h>
+// #ifdef SEM_USE_SEM
+// #include <mach/mach_error.h>
+// #include <mach/mach_init.h>
+// #include <mach/semaphore.h>
+// #include <mach/task.h>
 
-static TdThread     sem_thread;
-static TdThreadOnce sem_once;
-static task_t       sem_port;
-static volatile int sem_inited = 0;
-static semaphore_t  sem_exit;
+// static TdThread     sem_thread;
+// static TdThreadOnce sem_once;
+// static task_t       sem_port;
+// static volatile int sem_inited = 0;
+// static semaphore_t  sem_exit;
 
-static void *sem_thread_routine(void *arg) {
-  (void)arg;
-  setThreadName("sem_thrd");
+// static void *sem_thread_routine(void *arg) {
+//   (void)arg;
+//   setThreadName("sem_thrd");
 
-  sem_port = mach_task_self();
-  kern_return_t ret = semaphore_create(sem_port, &sem_exit, SYNC_POLICY_FIFO, 0);
-  if (ret != KERN_SUCCESS) {
-    fprintf(stderr, "==%s[%d]%s()==failed to create sem_exit\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__);
-    sem_inited = -1;
-    return NULL;
-  }
-  sem_inited = 1;
-  semaphore_wait(sem_exit);
-  return NULL;
-}
+//   sem_port = mach_task_self();
+//   kern_return_t ret = semaphore_create(sem_port, &sem_exit, SYNC_POLICY_FIFO, 0);
+//   if (ret != KERN_SUCCESS) {
+//     fprintf(stderr, "==%s[%d]%s()==failed to create sem_exit\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__);
+//     sem_inited = -1;
+//     return NULL;
+//   }
+//   sem_inited = 1;
+//   semaphore_wait(sem_exit);
+//   return NULL;
+// }
 
-static void once_init(void) {
-  int r = 0;
-  r = taosThreadCreate(&sem_thread, NULL, sem_thread_routine, NULL);
-  if (r) {
-    fprintf(stderr, "==%s[%d]%s()==failed to create thread\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__);
-    return;
-  }
-  while (sem_inited == 0) {
-    ;
-  }
-}
-#endif
+// static void once_init(void) {
+//   int r = 0;
+//   r = taosThreadCreate(&sem_thread, NULL, sem_thread_routine, NULL);
+//   if (r) {
+//     fprintf(stderr, "==%s[%d]%s()==failed to create thread\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__);
+//     return;
+//   }
+//   while (sem_inited == 0) {
+//     ;
+//   }
+// }
+// #endif
 
-struct tsem_s {
-#ifdef SEM_USE_PTHREAD
-  TdThreadMutex    lock;
-  TdThreadCond     cond;
-  volatile int64_t val;
-#elif defined(SEM_USE_POSIX)
-  size_t        id;
-  sem_t        *sem;
-#elif defined(SEM_USE_SEM)
-  semaphore_t sem;
-#else   // SEM_USE_PTHREAD
-  dispatch_semaphore_t sem;
-#endif  // SEM_USE_PTHREAD
+// struct tsem_s {
+// #ifdef SEM_USE_PTHREAD
+//   TdThreadMutex    lock;
+//   TdThreadCond     cond;
+//   volatile int64_t val;
+// #elif defined(SEM_USE_POSIX)
+//   size_t        id;
+//   sem_t        *sem;
+// #elif defined(SEM_USE_SEM)
+//   semaphore_t sem;
+// #else   // SEM_USE_PTHREAD
+//   dispatch_semaphore_t sem;
+// #endif  // SEM_USE_PTHREAD
 
-  volatile unsigned int valid : 1;
-};
+//   volatile unsigned int valid : 1;
+// };
 
-int tsem_init(tsem_t *sem, int pshared, unsigned int value) {
-  // fprintf(stderr, "==%s[%d]%s():[%p]==creating\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
-  if (*sem) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==already initialized\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
-            sem);
-    abort();
-  }
-  struct tsem_s *p = (struct tsem_s *)taosMemoryCalloc(1, sizeof(*p));
-  if (!p) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==out of memory\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
-    abort();
-  }
+// int tsem_init(tsem_t *sem, int pshared, unsigned int value) {
+//   // fprintf(stderr, "==%s[%d]%s():[%p]==creating\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
+//   if (*sem) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==already initialized\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//             sem);
+//     abort();
+//   }
+//   struct tsem_s *p = (struct tsem_s *)taosMemoryCalloc(1, sizeof(*p));
+//   if (!p) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==out of memory\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
+//     abort();
+//   }
 
-#ifdef SEM_USE_PTHREAD
-  int r = taosThreadMutexInit(&p->lock, NULL);
-  do {
-    if (r) break;
-    r = taosThreadCondInit(&p->cond, NULL);
-    if (r) {
-      taosThreadMutexDestroy(&p->lock);
-      break;
+// #ifdef SEM_USE_PTHREAD
+//   int r = taosThreadMutexInit(&p->lock, NULL);
+//   do {
+//     if (r) break;
+//     r = taosThreadCondInit(&p->cond, NULL);
+//     if (r) {
+//       taosThreadMutexDestroy(&p->lock);
+//       break;
+//     }
+//     p->val = value;
+//   } while (0);
+//   if (r) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==not created\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
+//     abort();
+//   }
+// #elif defined(SEM_USE_POSIX)
+//   static size_t tick = 0;
+//   do {
+//     size_t id = atomic_add_fetch_64(&tick, 1);
+//     if (id == SEM_VALUE_MAX) {
+//       atomic_store_64(&tick, 0);
+//       id = 0;
+//     }
+//     char name[NAME_MAX - 4];
+//     snprintf(name, sizeof(name), "/t" PRId64, id);
+//     p->sem = sem_open(name, O_CREAT | O_EXCL, pshared, value);
+//     p->id = id;
+//     if (p->sem != SEM_FAILED) break;
+//     int e = errno;
+//     if (e == EEXIST) continue;
+//     if (e == EINTR) continue;
+//     fprintf(stderr, "==%s[%d]%s():[%p]==not created[%d]%s\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem,
+//             e, strerror(e));
+//     abort();
+//   } while (p->sem == SEM_FAILED);
+// #elif defined(SEM_USE_SEM)
+//   taosThreadOnce(&sem_once, once_init);
+//   if (sem_inited != 1) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==internal resource init failed\n", taosDirEntryBaseName(__FILE__), __LINE__,
+//             __func__, sem);
+//     errno = ENOMEM;
+//     return -1;
+//   }
+//   kern_return_t ret = semaphore_create(sem_port, &p->sem, SYNC_POLICY_FIFO, value);
+//   if (ret != KERN_SUCCESS) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==semophore_create failed\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//             sem);
+//     // we fail-fast here, because we have less-doc about semaphore_create for the moment
+//     abort();
+//   }
+// #else   // SEM_USE_PTHREAD
+//   p->sem = dispatch_semaphore_create(value);
+//   if (p->sem == NULL) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==not created\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
+//     abort();
+//   }
+// #endif  // SEM_USE_PTHREAD
+
+//   p->valid = 1;
+
+//   *sem = p;
+
+//   return 0;
+// }
+
+// int tsem_wait(tsem_t *sem) {
+//   if (!*sem) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==not initialized\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
+//     abort();
+//   }
+//   struct tsem_s *p = *sem;
+//   if (!p->valid) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==already destroyed\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
+//     abort();
+//   }
+// #ifdef SEM_USE_PTHREAD
+//   if (taosThreadMutexLock(&p->lock)) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//             sem);
+//     abort();
+//   }
+//   p->val -= 1;
+//   if (p->val < 0) {
+//     if (taosThreadCondWait(&p->cond, &p->lock)) {
+//       fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//               sem);
+//       abort();
+//     }
+//   }
+//   if (taosThreadMutexUnlock(&p->lock)) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//             sem);
+//     abort();
+//   }
+//   return 0;
+// #elif defined(SEM_USE_POSIX)
+//   return sem_wait(p->sem);
+// #elif defined(SEM_USE_SEM)
+//   return semaphore_wait(p->sem);
+// #else   // SEM_USE_PTHREAD
+//   return dispatch_semaphore_wait(p->sem, DISPATCH_TIME_FOREVER);
+// #endif  // SEM_USE_PTHREAD
+// }
+
+// int tsem_post(tsem_t *sem) {
+//   if (!*sem) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==not initialized\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
+//     abort();
+//   }
+//   struct tsem_s *p = *sem;
+//   if (!p->valid) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==already destroyed\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
+//     abort();
+//   }
+// #ifdef SEM_USE_PTHREAD
+//   if (taosThreadMutexLock(&p->lock)) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//             sem);
+//     abort();
+//   }
+//   p->val += 1;
+//   if (p->val <= 0) {
+//     if (taosThreadCondSignal(&p->cond)) {
+//       fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//               sem);
+//       abort();
+//     }
+//   }
+//   if (taosThreadMutexUnlock(&p->lock)) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//             sem);
+//     abort();
+//   }
+//   return 0;
+// #elif defined(SEM_USE_POSIX)
+//   return sem_post(p->sem);
+// #elif defined(SEM_USE_SEM)
+//   return semaphore_signal(p->sem);
+// #else   // SEM_USE_PTHREAD
+//   return dispatch_semaphore_signal(p->sem);
+// #endif  // SEM_USE_PTHREAD
+// }
+
+// int tsem_destroy(tsem_t *sem) {
+//   // fprintf(stderr, "==%s[%d]%s():[%p]==destroying\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
+//   if (!*sem) {
+//     // fprintf(stderr, "==%s[%d]%s():[%p]==not initialized\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
+//     // abort();
+//     return 0;
+//   }
+//   struct tsem_s *p = *sem;
+//   if (!p->valid) {
+//     // fprintf(stderr, "==%s[%d]%s():[%p]==already destroyed\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//     // sem); abort();
+//     return 0;
+//   }
+// #ifdef SEM_USE_PTHREAD
+//   if (taosThreadMutexLock(&p->lock)) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//             sem);
+//     abort();
+//   }
+//   p->valid = 0;
+//   if (taosThreadCondDestroy(&p->cond)) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//             sem);
+//     abort();
+//   }
+//   if (taosThreadMutexUnlock(&p->lock)) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//             sem);
+//     abort();
+//   }
+//   if (taosThreadMutexDestroy(&p->lock)) {
+//     fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
+//             sem);
+//     abort();
+//   }
+// #elif defined(SEM_USE_POSIX)
+//   char name[NAME_MAX - 4];
+//   snprintf(name, sizeof(name), "/t" PRId64, p->id);
+//   int r = sem_unlink(name);
+//   if (r) {
+//     int e = errno;
+//     fprintf(stderr, "==%s[%d]%s():[%p]==unlink failed[%d]%s\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem,
+//             e, strerror(e));
+//     abort();
+//   }
+// #elif defined(SEM_USE_SEM)
+//   semaphore_destroy(sem_port, p->sem);
+// #else   // SEM_USE_PTHREAD
+// #endif  // SEM_USE_PTHREAD
+
+//   p->valid = 0;
+//   taosMemoryFree(p);
+
+//   *sem = NULL;
+//   return 0;
+// }
+typedef struct
+{
+    pthread_mutex_t count_lock;
+    pthread_cond_t  count_bump;
+    unsigned int count;
+}bosal_sem_t;
+
+int tsem_init(tsem_t *psem, int flags, unsigned int count)
+{
+    bosal_sem_t *pnewsem;
+    int result;
+
+    pnewsem = (bosal_sem_t *)malloc(sizeof(bosal_sem_t));
+    if (! pnewsem)
+    {
+        return -1;
     }
-    p->val = value;
-  } while (0);
-  if (r) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==not created\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
-    abort();
-  }
-#elif defined(SEM_USE_POSIX)
-  static size_t tick = 0;
-  do {
-    size_t id = atomic_add_fetch_64(&tick, 1);
-    if (id == SEM_VALUE_MAX) {
-      atomic_store_64(&tick, 0);
-      id = 0;
+    result = pthread_mutex_init(&pnewsem->count_lock, NULL);
+    if (result)
+    {
+        free(pnewsem);
+        return result;
     }
-    char name[NAME_MAX - 4];
-    snprintf(name, sizeof(name), "/t%ld", id);
-    p->sem = sem_open(name, O_CREAT | O_EXCL, pshared, value);
-    p->id = id;
-    if (p->sem != SEM_FAILED) break;
-    int e = errno;
-    if (e == EEXIST) continue;
-    if (e == EINTR) continue;
-    fprintf(stderr, "==%s[%d]%s():[%p]==not created[%d]%s\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem,
-            e, strerror(e));
-    abort();
-  } while (p->sem == SEM_FAILED);
-#elif defined(SEM_USE_SEM)
-  taosThreadOnce(&sem_once, once_init);
-  if (sem_inited != 1) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==internal resource init failed\n", taosDirEntryBaseName(__FILE__), __LINE__,
-            __func__, sem);
-    errno = ENOMEM;
-    return -1;
-  }
-  kern_return_t ret = semaphore_create(sem_port, &p->sem, SYNC_POLICY_FIFO, value);
-  if (ret != KERN_SUCCESS) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==semophore_create failed\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
-            sem);
-    // we fail-fast here, because we have less-doc about semaphore_create for the moment
-    abort();
-  }
-#else   // SEM_USE_PTHREAD
-  p->sem = dispatch_semaphore_create(value);
-  if (p->sem == NULL) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==not created\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
-    abort();
-  }
-#endif  // SEM_USE_PTHREAD
-
-  p->valid = 1;
-
-  *sem = p;
-
-  return 0;
-}
-
-int tsem_wait(tsem_t *sem) {
-  if (!*sem) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==not initialized\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
-    abort();
-  }
-  struct tsem_s *p = *sem;
-  if (!p->valid) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==already destroyed\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
-    abort();
-  }
-#ifdef SEM_USE_PTHREAD
-  if (taosThreadMutexLock(&p->lock)) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
-            sem);
-    abort();
-  }
-  p->val -= 1;
-  if (p->val < 0) {
-    if (taosThreadCondWait(&p->cond, &p->lock)) {
-      fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
-              sem);
-      abort();
+    result = pthread_cond_init(&pnewsem->count_bump, NULL);
+    if (result)
+    {
+        pthread_mutex_destroy(&pnewsem->count_lock);
+        free(pnewsem);
+        return result;
     }
-  }
-  if (taosThreadMutexUnlock(&p->lock)) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
-            sem);
-    abort();
-  }
-  return 0;
-#elif defined(SEM_USE_POSIX)
-  return sem_wait(p->sem);
-#elif defined(SEM_USE_SEM)
-  return semaphore_wait(p->sem);
-#else   // SEM_USE_PTHREAD
-  return dispatch_semaphore_wait(p->sem, DISPATCH_TIME_FOREVER);
-#endif  // SEM_USE_PTHREAD
-}
-
-int tsem_post(tsem_t *sem) {
-  if (!*sem) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==not initialized\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
-    abort();
-  }
-  struct tsem_s *p = *sem;
-  if (!p->valid) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==already destroyed\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
-    abort();
-  }
-#ifdef SEM_USE_PTHREAD
-  if (taosThreadMutexLock(&p->lock)) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
-            sem);
-    abort();
-  }
-  p->val += 1;
-  if (p->val <= 0) {
-    if (taosThreadCondSignal(&p->cond)) {
-      fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
-              sem);
-      abort();
-    }
-  }
-  if (taosThreadMutexUnlock(&p->lock)) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
-            sem);
-    abort();
-  }
-  return 0;
-#elif defined(SEM_USE_POSIX)
-  return sem_post(p->sem);
-#elif defined(SEM_USE_SEM)
-  return semaphore_signal(p->sem);
-#else   // SEM_USE_PTHREAD
-  return dispatch_semaphore_signal(p->sem);
-#endif  // SEM_USE_PTHREAD
-}
-
-int tsem_destroy(tsem_t *sem) {
-  // fprintf(stderr, "==%s[%d]%s():[%p]==destroying\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
-  if (!*sem) {
-    // fprintf(stderr, "==%s[%d]%s():[%p]==not initialized\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem);
-    // abort();
+    pnewsem->count = count;
+    *psem = (tsem_t)pnewsem;
     return 0;
-  }
-  struct tsem_s *p = *sem;
-  if (!p->valid) {
-    // fprintf(stderr, "==%s[%d]%s():[%p]==already destroyed\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
-    // sem); abort();
+}
+
+int tsem_destroy(tsem_t *psem)
+{
+    bosal_sem_t *poldsem;
+
+    if (! psem)
+    {
+        return EINVAL;
+    }
+    poldsem = (bosal_sem_t *)*psem;
+
+    pthread_mutex_destroy(&poldsem->count_lock);
+    pthread_cond_destroy(&poldsem->count_bump);
+    free(poldsem);
     return 0;
-  }
-#ifdef SEM_USE_PTHREAD
-  if (taosThreadMutexLock(&p->lock)) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
-            sem);
-    abort();
-  }
-  p->valid = 0;
-  if (taosThreadCondDestroy(&p->cond)) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
-            sem);
-    abort();
-  }
-  if (taosThreadMutexUnlock(&p->lock)) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
-            sem);
-    abort();
-  }
-  if (taosThreadMutexDestroy(&p->lock)) {
-    fprintf(stderr, "==%s[%d]%s():[%p]==internal logic error\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__,
-            sem);
-    abort();
-  }
-#elif defined(SEM_USE_POSIX)
-  char name[NAME_MAX - 4];
-  snprintf(name, sizeof(name), "/t%ld", p->id);
-  int r = sem_unlink(name);
-  if (r) {
-    int e = errno;
-    fprintf(stderr, "==%s[%d]%s():[%p]==unlink failed[%d]%s\n", taosDirEntryBaseName(__FILE__), __LINE__, __func__, sem,
-            e, strerror(e));
-    abort();
-  }
-#elif defined(SEM_USE_SEM)
-  semaphore_destroy(sem_port, p->sem);
-#else   // SEM_USE_PTHREAD
-#endif  // SEM_USE_PTHREAD
-
-  p->valid = 0;
-  taosMemoryFree(p);
-
-  *sem = NULL;
-  return 0;
 }
 
-bool taosCheckPthreadValid(TdThread thread) {
-  uint64_t id = 0;
-  int      r = TdThreadhreadid_np(thread, &id);
-  return r ? false : true;
+int tsem_post(tsem_t *psem)
+{
+     bosal_sem_t *pxsem;
+    int result, xresult;
+
+    if (! psem)
+    {
+        return EINVAL;
+    }
+    pxsem = (bosal_sem_t *)*psem;
+
+    result = pthread_mutex_lock(&pxsem->count_lock);
+    if (result)
+    {
+        return result;
+    }
+    pxsem->count = pxsem->count + 1;
+
+    xresult = pthread_cond_signal(&pxsem->count_bump);
+
+    result = pthread_mutex_unlock(&pxsem->count_lock);
+    if (result)
+    {
+        return result;
+    }
+    if (xresult)
+    {
+        errno = xresult;
+        return -1;
+    }
+    return 0;
 }
+
+int tsem_trywait(tsem_t *psem)
+{
+    bosal_sem_t *pxsem;
+    int result, xresult;
+
+    if (! psem)
+    {
+        return EINVAL;
+    }
+    pxsem = (bosal_sem_t *)*psem;
+
+    result = pthread_mutex_lock(&pxsem->count_lock);
+    if (result)
+    {
+        return result;
+    }
+    xresult = 0;
+
+    if (pxsem->count > 0)
+    {
+        pxsem->count--;
+    }
+    else
+    {
+        xresult = EAGAIN;
+    }
+    result = pthread_mutex_unlock(&pxsem->count_lock);
+    if (result)
+    {
+        return result;
+    }
+    if (xresult)
+    {
+        errno = xresult;
+        return -1;
+    }
+    return 0;
+}
+
+int tsem_wait(tsem_t *psem)
+{
+    bosal_sem_t *pxsem;
+    int result, xresult;
+
+    if (! psem)
+    {
+        return EINVAL;
+    }
+    pxsem = (bosal_sem_t *)*psem;
+
+    result = pthread_mutex_lock(&pxsem->count_lock);
+    if (result)
+    {
+        return result;
+    }
+    xresult = 0;
+
+    if (pxsem->count == 0)
+    {
+        xresult = pthread_cond_wait(&pxsem->count_bump, &pxsem->count_lock);
+    }
+    if (! xresult)
+    {
+        if (pxsem->count > 0)
+        {
+            pxsem->count--;
+        }
+    }
+    result = pthread_mutex_unlock(&pxsem->count_lock);
+    if (result)
+    {
+        return result;
+    }
+    if (xresult)
+    {
+        errno = xresult;
+        return -1;
+    }
+    return 0;
+}
+
+int tsem_timewait(tsem_t *psem, int64_t nanosecs)
+{
+  struct timespec abstim = {
+      .tv_sec = 0,
+      .tv_nsec = nanosecs,
+  };
+
+    bosal_sem_t *pxsem;
+    int result, xresult;
+
+    if (! psem)
+    {
+        return EINVAL;
+    }
+    pxsem = (bosal_sem_t *)*psem;
+
+    result = pthread_mutex_lock(&pxsem->count_lock);
+    if (result)
+    {
+        return result;
+    }
+    xresult = 0;
+
+    if (pxsem->count == 0)
+    {
+        xresult = pthread_cond_timedwait(&pxsem->count_bump, &pxsem->count_lock, &abstim);
+    }
+    if (! xresult)
+    {
+        if (pxsem->count > 0)
+        {
+            pxsem->count--;
+        }
+    }
+    result = pthread_mutex_unlock(&pxsem->count_lock);
+    if (result)
+    {
+        return result;
+    }
+    if (xresult)
+    {
+        errno = xresult;
+        return -1;
+    }
+    return 0;
+}
+
+bool taosCheckPthreadValid(TdThread thread) { 
+  int32_t ret = taosThreadKill(thread, 0);
+  if (ret == ESRCH) return false;
+  if (ret == EINVAL) return false;
+  // alive
+  return true;
+ }
 
 int64_t taosGetSelfPthreadId() {
-  uint64_t id;
-  TdThreadhreadid_np(0, &id);
-  return (int64_t)id;
+  TdThread thread = taosThreadSelf();
+  return (int64_t)thread;
 }
 
 int64_t taosGetPthreadId(TdThread thread) { return (int64_t)thread; }

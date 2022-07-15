@@ -36,6 +36,7 @@ sql create database db vgroups 3
 sql use db
 sql create table stb (ts timestamp, c int) tags (t int)
 sql create table t0 using stb tags (0)
+sql create table tba (ts timestamp, c1 binary(10), c2 nchar(10));
 
 print =============== run show xxxx
 sql show dnodes
@@ -62,7 +63,7 @@ if $rows != 1 then
 endi
 #sql show streams, 
 sql show tables
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 #sql show user_table_distributed
@@ -98,7 +99,7 @@ if $rows != 1 then
 endi
 #sql select * from information_schema.`streams`
 sql select * from information_schema.user_tables
-if $rows != 29 then
+if $rows != 30 then
   return -1
 endi
 #sql select * from information_schema.user_table_distributed
@@ -160,7 +161,7 @@ if $rows != 1 then
 endi
 #sql show streams, 
 sql show tables
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 #sql show user_table_distributed
@@ -196,7 +197,7 @@ if $rows != 1 then
 endi
 #sql select * from performance_schema.`streams`
 sql select * from information_schema.user_tables
-if $rows != 29 then
+if $rows != 30 then
   return -1
 endi
 #sql select * from information_schema.user_table_distributed
@@ -206,6 +207,38 @@ if $rows != 1 then
 endi
 sql select * from information_schema.`vgroups`
 if $rows != 3 then 
+  return -1
+endi
+
+sql show create stable stb;
+if $rows != 1 then
+  return -1
+endi
+
+sql show create table t0;
+if $rows != 1 then
+  return -1
+endi
+
+sql show create table tba;
+if $rows != 1 then
+  return -1
+endi
+
+sql_error show create stable t0;
+
+sql show variables;
+if $rows != 4 then
+  return -1
+endi
+
+sql show dnode 1 variables;
+if $rows <= 0 then
+  return -1
+endi
+
+sql show local variables;
+if $rows <= 0 then
   return -1
 endi
 

@@ -39,7 +39,7 @@ static int32_t checkAuth(SAuthCxt* pCxt, const char* pDbName, AUTH_TYPE type) {
   if (NULL != pCxt->pMetaCache) {
     code = getUserAuthFromCache(pCxt->pMetaCache, pParseCxt->pUser, dbFname, type, &pass);
   } else {
-    SRequestConnInfo conn = {.pTrans = pParseCxt->pTransporter, 
+    SRequestConnInfo conn = {.pTrans = pParseCxt->pTransporter,
                              .requestId = pParseCxt->requestId,
                              .requestObjRefId = pParseCxt->requestRid,
                              .mgmtEps = pParseCxt->mgmtEpSet};
@@ -88,6 +88,14 @@ static int32_t authDelete(SAuthCxt* pCxt, SDeleteStmt* pDelete) {
   return checkAuth(pCxt, ((SRealTableNode*)pDelete->pFromTable)->table.dbName, AUTH_TYPE_WRITE);
 }
 
+static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
+  int32_t code = checkAuth(pCxt, ((SRealTableNode*)pInsert->pTable)->table.dbName, AUTH_TYPE_WRITE);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = authQuery(pCxt, pInsert->pQuery);
+  }
+  return code;
+}
+
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SET_OPERATOR:
@@ -98,6 +106,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authDropUser(pCxt, (SDropUserStmt*)pStmt);
     case QUERY_NODE_DELETE_STMT:
       return authDelete(pCxt, (SDeleteStmt*)pStmt);
+    case QUERY_NODE_INSERT_STMT:
+      return authInsert(pCxt, (SInsertStmt*)pStmt);
     default:
       break;
   }

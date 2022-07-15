@@ -4,7 +4,7 @@ echo Executing copy_udf.bat
 set SCRIPT_DIR=%cd%
 echo SCRIPT_DIR: %SCRIPT_DIR%
 
-cd ..\..\..
+echo %cd% | grep community > nul && cd ..\..\.. || cd ..\..
 set TAOS_DIR=%cd%
 echo find udf library in %TAOS_DIR%
 set UDF1_DIR=%TAOS_DIR%\debug\build\lib\udf1.dll

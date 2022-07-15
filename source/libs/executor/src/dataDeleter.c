@@ -75,7 +75,7 @@ static void toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* pInp
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
   pEntry->compressed = 0;
   pEntry->numOfRows = pInput->pData->info.rows;
-  pEntry->numOfCols = pInput->pData->info.numOfCols;
+  pEntry->numOfCols = taosArrayGetSize(pInput->pData->pDataBlock);
   pEntry->dataLen = sizeof(SDeleterRes);
 
   ASSERT(1 == pEntry->numOfRows);
@@ -86,7 +86,7 @@ static void toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* pInp
   SColumnInfoData* pColRes = (SColumnInfoData*)taosArrayGet(pInput->pData->pDataBlock, 0);
 
   SDeleterRes* pRes = (SDeleterRes*)pEntry->data;
-  pRes->uid = pHandle->pDeleter->tableId;
+  pRes->suid = pHandle->pParam->suid;
   pRes->uidList = pHandle->pParam->pUidList;
   pRes->skey = pHandle->pDeleter->deleteTimeRange.skey;
   pRes->ekey = pHandle->pDeleter->deleteTimeRange.ekey;
@@ -154,7 +154,7 @@ static void endPut(struct SDataSinkHandle* pHandle, uint64_t useconds) {
   taosThreadMutexUnlock(&pDeleter->mutex);
 }
 
-static void getDataLength(SDataSinkHandle* pHandle, int32_t* pLen, bool* pQueryEnd) {
+static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryEnd) {
   SDataDeleterHandle* pDeleter = (SDataDeleterHandle*)pHandle;
   if (taosQueueEmpty(pDeleter->pDataBlocks)) {
     *pQueryEnd = pDeleter->queryEnd;
@@ -168,7 +168,7 @@ static void getDataLength(SDataSinkHandle* pHandle, int32_t* pLen, bool* pQueryE
   taosFreeQitem(pBuf);
   *pLen = ((SDataCacheEntry*)(pDeleter->nextOutput.pData))->dataLen;
   *pQueryEnd = pDeleter->queryEnd;
-  qDebug("got data len %d, row num %d in sink", *pLen, ((SDataCacheEntry*)(pDeleter->nextOutput.pData))->numOfRows);
+  qDebug("got data len %" PRId64 ", row num %d in sink", *pLen, ((SDataCacheEntry*)(pDeleter->nextOutput.pData))->numOfRows);
 }
 
 static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {

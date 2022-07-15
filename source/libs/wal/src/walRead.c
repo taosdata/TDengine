@@ -16,66 +16,104 @@
 #include "taoserror.h"
 #include "walInt.h"
 
-SWalReadHandle *walOpenReadHandle(SWal *pWal) {
-  SWalReadHandle *pRead = taosMemoryMalloc(sizeof(SWalReadHandle));
+static int32_t walFetchHeadNew(SWalReader *pRead, int64_t fetchVer);
+static int32_t walFetchBodyNew(SWalReader *pRead);
+static int32_t walSkipFetchBodyNew(SWalReader *pRead);
+
+SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond) {
+  SWalReader *pRead = taosMemoryMalloc(sizeof(SWalReader));
   if (pRead == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
   pRead->pWal = pWal;
-  pRead->pReadIdxTFile = NULL;
-  pRead->pReadLogTFile = NULL;
+  pRead->pIdxFile = NULL;
+  pRead->pLogFile = NULL;
   pRead->curVersion = -1;
   pRead->curFileFirstVer = -1;
+  pRead->curInvalid = 1;
   pRead->capacity = 0;
-  pRead->status = 0;
+  if (cond) {
+    pRead->cond = *cond;
+  } else {
+    pRead->cond.scanMeta = 0;
+    pRead->cond.scanUncommited = 0;
+    pRead->cond.enableRef = 0;
+  }
 
   taosThreadMutexInit(&pRead->mutex, NULL);
 
-  pRead->pHead = taosMemoryMalloc(sizeof(SWalHead));
+  /*if (pRead->cond.enableRef) {*/
+  /*walOpenRef(pWal);*/
+  /*}*/
+
+  pRead->pHead = taosMemoryMalloc(sizeof(SWalCkHead));
   if (pRead->pHead == NULL) {
     terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
     taosMemoryFree(pRead);
     return NULL;
   }
+
   return pRead;
 }
 
-void walCloseReadHandle(SWalReadHandle *pRead) {
-  taosCloseFile(&pRead->pReadIdxTFile);
-  taosCloseFile(&pRead->pReadLogTFile);
+void walCloseReader(SWalReader *pRead) {
+  taosCloseFile(&pRead->pIdxFile);
+  taosCloseFile(&pRead->pLogFile);
   taosMemoryFreeClear(pRead->pHead);
   taosMemoryFree(pRead);
 }
 
-int32_t walRegisterRead(SWalReadHandle *pRead, int64_t ver) {
-  // TODO
-  return 0;
+int32_t walNextValidMsg(SWalReader *pRead) {
+  wDebug("vgId:%d wal start to fetch", pRead->pWal->cfg.vgId);
+  int64_t fetchVer = pRead->curVersion;
+  int64_t endVer = pRead->cond.scanUncommited ? walGetLastVer(pRead->pWal) : walGetCommittedVer(pRead->pWal);
+  while (fetchVer <= endVer) {
+    if (walFetchHeadNew(pRead, fetchVer) < 0) {
+      return -1;
+    }
+    if (pRead->pHead->head.msgType == TDMT_VND_SUBMIT ||
+        (IS_META_MSG(pRead->pHead->head.msgType) && pRead->cond.scanMeta)) {
+      if (walFetchBodyNew(pRead) < 0) {
+        return -1;
+      }
+      return 0;
+    } else {
+      if (walSkipFetchBodyNew(pRead) < 0) {
+        return -1;
+      }
+      fetchVer++;
+      ASSERT(fetchVer == pRead->curVersion);
+    }
+  }
+  return -1;
 }
 
-static int64_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, int64_t ver) {
+static int64_t walReadSeekFilePos(SWalReader *pRead, int64_t fileFirstVer, int64_t ver) {
   int64_t ret = 0;
 
-  TdFilePtr pIdxTFile = pRead->pReadIdxTFile;
-  TdFilePtr pLogTFile = pRead->pReadLogTFile;
+  TdFilePtr pIdxTFile = pRead->pIdxFile;
+  TdFilePtr pLogTFile = pRead->pLogFile;
 
   // seek position
   int64_t offset = (ver - fileFirstVer) * sizeof(SWalIdxEntry);
   ret = taosLSeekFile(pIdxTFile, offset, SEEK_SET);
   if (ret < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    wError("failed to seek idx file, ver %ld, pos: %ld, since %s", ver, offset, terrstr());
+    wError("vgId:%d, failed to seek idx file, index:%" PRId64 ", pos:%" PRId64 ", since %s", pRead->pWal->cfg.vgId, ver,
+           offset, terrstr());
     return -1;
   }
   SWalIdxEntry entry = {0};
   if ((ret = taosReadFile(pIdxTFile, &entry, sizeof(SWalIdxEntry))) != sizeof(SWalIdxEntry)) {
     if (ret < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
-      wError("failed to read idx file, since %s", terrstr());
+      wError("vgId:%d, failed to read idx file, since %s", pRead->pWal->cfg.vgId, terrstr());
     } else {
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
-      wError("read idx file incompletely, read bytes %ld, bytes should be %lu", ret, sizeof(SWalIdxEntry));
+      wError("vgId:%d, read idx file incompletely, read bytes %" PRId64 ", bytes should be %" PRIu64,
+             pRead->pWal->cfg.vgId, ret, sizeof(SWalIdxEntry));
     }
     return -1;
   }
@@ -84,52 +122,43 @@ static int64_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, i
   ret = taosLSeekFile(pLogTFile, entry.offset, SEEK_SET);
   if (ret < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    wError("failed to seek log file, ver %ld, pos: %ld, since %s", ver, entry.offset, terrstr());
+    wError("vgId:%d, failed to seek log file, index:%" PRId64 ", pos:%" PRId64 ", since %s", pRead->pWal->cfg.vgId, ver,
+           entry.offset, terrstr());
     return -1;
   }
   return ret;
 }
 
-static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
+static int32_t walReadChangeFile(SWalReader *pRead, int64_t fileFirstVer) {
   char fnameStr[WAL_FILE_LEN];
 
-  taosCloseFile(&pRead->pReadIdxTFile);
-  taosCloseFile(&pRead->pReadLogTFile);
+  taosCloseFile(&pRead->pIdxFile);
+  taosCloseFile(&pRead->pLogFile);
 
   walBuildLogName(pRead->pWal, fileFirstVer, fnameStr);
   TdFilePtr pLogTFile = taosOpenFile(fnameStr, TD_FILE_READ);
   if (pLogTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    terrno = TSDB_CODE_WAL_INVALID_VER;
-    wError("cannot open file %s, since %s", fnameStr, terrstr());
+    wError("vgId:%d, cannot open file %s, since %s", pRead->pWal->cfg.vgId, fnameStr, terrstr());
     return -1;
   }
+
+  pRead->pLogFile = pLogTFile;
 
   walBuildIdxName(pRead->pWal, fileFirstVer, fnameStr);
   TdFilePtr pIdxTFile = taosOpenFile(fnameStr, TD_FILE_READ);
   if (pIdxTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    wError("cannot open file %s, since %s", fnameStr, terrstr());
+    wError("vgId:%d, cannot open file %s, since %s", pRead->pWal->cfg.vgId, fnameStr, terrstr());
     return -1;
   }
 
-  pRead->pReadLogTFile = pLogTFile;
-  pRead->pReadIdxTFile = pIdxTFile;
+  pRead->pIdxFile = pIdxTFile;
   return 0;
 }
 
-static int32_t walReadSeekVer(SWalReadHandle *pRead, int64_t ver) {
+int32_t walReadSeekVerImpl(SWalReader *pRead, int64_t ver) {
   SWal *pWal = pRead->pWal;
-  if (ver == pRead->curVersion) {
-    return 0;
-  }
-  if (ver > pWal->vers.lastVer || ver < pWal->vers.firstVer) {
-    wError("invalid version: % " PRId64 ", first ver %ld, last ver %ld", ver, pWal->vers.firstVer, pWal->vers.lastVer);
-    terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
-    return -1;
-  }
-  if (ver < pWal->vers.snapshotVer) {
-  }
 
   SWalFileInfo tmpInfo;
   tmpInfo.firstVer = ver;
@@ -137,25 +166,160 @@ static int32_t walReadSeekVer(SWalReadHandle *pRead, int64_t ver) {
   SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
   ASSERT(pRet != NULL);
   if (pRead->curFileFirstVer != pRet->firstVer) {
-    // error code set inner
+    // error code was set inner
     if (walReadChangeFile(pRead, pRet->firstVer) < 0) {
       return -1;
     }
   }
 
-  // error code set inner
+  // error code was set inner
   if (walReadSeekFilePos(pRead, pRet->firstVer, ver) < 0) {
     return -1;
   }
 
+  wDebug("wal version reset from %ld(invalid: %d) to %ld", pRead->curVersion, pRead->curInvalid, ver);
+
   pRead->curVersion = ver;
+  return 0;
+}
+
+int32_t walReadSeekVer(SWalReader *pRead, int64_t ver) {
+  SWal *pWal = pRead->pWal;
+  if (!pRead->curInvalid && ver == pRead->curVersion) {
+    wDebug("wal version %ld match, no need to reset", ver);
+    return 0;
+  }
+
+  pRead->curInvalid = 1;
+  pRead->curVersion = ver;
+
+  if (ver > pWal->vers.lastVer || ver < pWal->vers.firstVer) {
+    wDebug("vgId:%d, invalid index:%" PRId64 ", first index:%" PRId64 ", last index:%" PRId64, pRead->pWal->cfg.vgId,
+           ver, pWal->vers.firstVer, pWal->vers.lastVer);
+    terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
+    return -1;
+  }
+  if (ver < pWal->vers.snapshotVer) {
+  }
+
+  if (walReadSeekVerImpl(pRead, ver) < 0) {
+    return -1;
+  }
 
   return 0;
 }
 
-void walSetReaderCapacity(SWalReadHandle *pRead, int32_t capacity) { pRead->capacity = capacity; }
+void walSetReaderCapacity(SWalReader *pRead, int32_t capacity) { pRead->capacity = capacity; }
 
-int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead) {
+static int32_t walFetchHeadNew(SWalReader *pRead, int64_t fetchVer) {
+  int64_t contLen;
+  bool    seeked = false;
+
+  if (pRead->curInvalid || pRead->curVersion != fetchVer) {
+    if (walReadSeekVer(pRead, fetchVer) < 0) {
+      ASSERT(0);
+      pRead->curVersion = fetchVer;
+      pRead->curInvalid = 1;
+      return -1;
+    }
+    seeked = true;
+  }
+  while (1) {
+    contLen = taosReadFile(pRead->pLogFile, pRead->pHead, sizeof(SWalCkHead));
+    if (contLen == sizeof(SWalCkHead)) {
+      break;
+    } else if (contLen == 0 && !seeked) {
+      walReadSeekVerImpl(pRead, fetchVer);
+      seeked = true;
+      continue;
+    } else {
+      if (contLen < 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+      } else {
+        terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+      }
+      ASSERT(0);
+      pRead->curInvalid = 1;
+      return -1;
+    }
+  }
+  pRead->curInvalid = 0;
+  return 0;
+}
+
+static int32_t walFetchBodyNew(SWalReader *pRead) {
+  SWalCont *pReadHead = &pRead->pHead->head;
+  int64_t   ver = pReadHead->version;
+
+  if (pRead->capacity < pReadHead->bodyLen) {
+    void *ptr = taosMemoryRealloc(pRead->pHead, sizeof(SWalCkHead) + pReadHead->bodyLen);
+    if (ptr == NULL) {
+      terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+      return -1;
+    }
+    pRead->pHead = ptr;
+    pReadHead = &pRead->pHead->head;
+    pRead->capacity = pReadHead->bodyLen;
+  }
+
+  if (pReadHead->bodyLen != taosReadFile(pRead->pLogFile, pReadHead->body, pReadHead->bodyLen)) {
+    if (pReadHead->bodyLen < 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64 ", since %s",
+             pRead->pWal->cfg.vgId, pRead->pHead->head.version, ver, tstrerror(terrno));
+    } else {
+      wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64 ", since file corrupted",
+             pRead->pWal->cfg.vgId, pRead->pHead->head.version, ver);
+      terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    }
+    pRead->curInvalid = 1;
+    ASSERT(0);
+    return -1;
+  }
+
+  if (pReadHead->version != ver) {
+    wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64, pRead->pWal->cfg.vgId,
+           pRead->pHead->head.version, ver);
+    pRead->curInvalid = 1;
+    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    ASSERT(0);
+    return -1;
+  }
+
+  if (walValidBodyCksum(pRead->pHead) != 0) {
+    wError("vgId:%d, wal fetch body error:%" PRId64 ", since body checksum not passed", pRead->pWal->cfg.vgId, ver);
+    pRead->curInvalid = 1;
+    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    ASSERT(0);
+    return -1;
+  }
+
+  pRead->curVersion = ver + 1;
+  wDebug("version advance to %ld, fetch body", pRead->curVersion);
+  return 0;
+}
+
+static int32_t walSkipFetchBodyNew(SWalReader *pRead) {
+  int64_t code;
+
+  ASSERT(pRead->curVersion == pRead->pHead->head.version);
+  ASSERT(pRead->curInvalid == 0);
+
+  code = taosLSeekFile(pRead->pLogFile, pRead->pHead->head.bodyLen, SEEK_CUR);
+  if (code < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    pRead->curInvalid = 1;
+    ASSERT(0);
+    return -1;
+  }
+
+  pRead->curVersion++;
+  wDebug("version advance to %ld, skip fetch", pRead->curVersion);
+
+  return 0;
+}
+
+int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead) {
   int64_t code;
 
   // TODO: valid ver
@@ -163,22 +327,22 @@ int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead) {
     return -1;
   }
 
-  if (pRead->curVersion != ver) {
+  if (pRead->curInvalid || pRead->curVersion != ver) {
     code = walReadSeekVer(pRead, ver);
     if (code < 0) return -1;
   }
 
-  ASSERT(taosValidFile(pRead->pReadLogTFile) == true);
+  ASSERT(taosValidFile(pRead->pLogFile) == true);
 
-  code = taosReadFile(pRead->pReadLogTFile, pHead, sizeof(SWalHead));
-  if (code != sizeof(SWalHead)) {
+  code = taosReadFile(pRead->pLogFile, pHead, sizeof(SWalCkHead));
+  if (code != sizeof(SWalCkHead)) {
     return -1;
   }
 
   code = walValidHeadCksum(pHead);
 
   if (code != 0) {
-    wError("unexpected wal log version: % " PRId64 ", since head checksum not passed", ver);
+    wError("vgId:%d, unexpected wal log index:%" PRId64 ", since head checksum not passed", pRead->pWal->cfg.vgId, ver);
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
@@ -186,15 +350,15 @@ int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead) {
   return 0;
 }
 
-int32_t walSkipFetchBody(SWalReadHandle *pRead, const SWalHead *pHead) {
+int32_t walSkipFetchBody(SWalReader *pRead, const SWalCkHead *pHead) {
   int64_t code;
 
   ASSERT(pRead->curVersion == pHead->head.version);
 
-  code = taosLSeekFile(pRead->pReadLogTFile, pHead->head.bodyLen, SEEK_CUR);
+  code = taosLSeekFile(pRead->pLogFile, pHead->head.bodyLen, SEEK_CUR);
   if (code < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    pRead->curVersion = -1;
+    pRead->curInvalid = 1;
     return -1;
   }
 
@@ -203,12 +367,12 @@ int32_t walSkipFetchBody(SWalReadHandle *pRead, const SWalHead *pHead) {
   return 0;
 }
 
-int32_t walFetchBody(SWalReadHandle *pRead, SWalHead **ppHead) {
-  SWalReadHead *pReadHead = &((*ppHead)->head);
-  int64_t       ver = pReadHead->version;
+int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead) {
+  SWalCont *pReadHead = &((*ppHead)->head);
+  int64_t   ver = pReadHead->version;
 
   if (pRead->capacity < pReadHead->bodyLen) {
-    void *ptr = taosMemoryRealloc(*ppHead, sizeof(SWalHead) + pReadHead->bodyLen);
+    void *ptr = taosMemoryRealloc(*ppHead, sizeof(SWalCkHead) + pReadHead->bodyLen);
     if (ptr == NULL) {
       terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
       return -1;
@@ -218,21 +382,22 @@ int32_t walFetchBody(SWalReadHandle *pRead, SWalHead **ppHead) {
     pRead->capacity = pReadHead->bodyLen;
   }
 
-  if (pReadHead->bodyLen != taosReadFile(pRead->pReadLogTFile, pReadHead->body, pReadHead->bodyLen)) {
+  if (pReadHead->bodyLen != taosReadFile(pRead->pLogFile, pReadHead->body, pReadHead->bodyLen)) {
     ASSERT(0);
     return -1;
   }
 
   if (pReadHead->version != ver) {
-    wError("wal fetch body error: %" PRId64 ", read request version:%" PRId64 "", pRead->pHead->head.version, ver);
-    pRead->curVersion = -1;
+    wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64, pRead->pWal->cfg.vgId,
+           pRead->pHead->head.version, ver);
+    pRead->curInvalid = 1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
 
   if (walValidBodyCksum(*ppHead) != 0) {
-    wError("wal fetch body error: % " PRId64 ", since body checksum not passed", ver);
-    pRead->curVersion = -1;
+    wError("vgId:%d, wal fetch body error:%" PRId64 ", since body checksum not passed", pRead->pWal->cfg.vgId, ver);
+    pRead->curInvalid = 1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
@@ -241,52 +406,59 @@ int32_t walFetchBody(SWalReadHandle *pRead, SWalHead **ppHead) {
   return 0;
 }
 
-int32_t walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **ppHead) {
-  taosThreadMutexLock(&pRead->mutex);
-  if (walReadWithHandle(pRead, ver) < 0) {
-    taosThreadMutexUnlock(&pRead->mutex);
-    return -1;
-  }
-  *ppHead = taosMemoryMalloc(sizeof(SWalReadHead) + pRead->pHead->head.bodyLen);
-  if (*ppHead == NULL) {
-    taosThreadMutexUnlock(&pRead->mutex);
-    return -1;
-  }
-  memcpy(*ppHead, &pRead->pHead->head, sizeof(SWalReadHead) + pRead->pHead->head.bodyLen);
-  taosThreadMutexUnlock(&pRead->mutex);
-  return 0;
-}
+int32_t walReadVer(SWalReader *pRead, int64_t ver) {
+  wDebug("vgId:%d wal start to read ver %ld", pRead->pWal->cfg.vgId, ver);
+  int64_t contLen;
+  bool    seeked = false;
 
-int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
-  int64_t code;
-  // TODO: check wal life
-  if (pRead->curVersion != ver) {
+  if (pRead->pWal->vers.firstVer == -1) {
+    terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
+    return -1;
+  }
+
+  if (ver > pRead->pWal->vers.lastVer || ver < pRead->pWal->vers.firstVer) {
+    wError("vgId:%d, invalid index:%" PRId64 ", first index:%" PRId64 ", last index:%" PRId64, pRead->pWal->cfg.vgId,
+           ver, pRead->pWal->vers.firstVer, pRead->pWal->vers.lastVer);
+    terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
+    return -1;
+  }
+
+  if (pRead->curInvalid || pRead->curVersion != ver) {
     if (walReadSeekVer(pRead, ver) < 0) {
-      wError("unexpected wal log version: % " PRId64 ", since %s", ver, terrstr());
+      wError("vgId:%d, unexpected wal log index:%" PRId64 ", since %s", pRead->pWal->cfg.vgId, ver, terrstr());
+      return -1;
+    }
+    seeked = true;
+  }
+
+  while (1) {
+    contLen = taosReadFile(pRead->pLogFile, pRead->pHead, sizeof(SWalCkHead));
+    if (contLen == sizeof(SWalCkHead)) {
+      break;
+    } else if (contLen == 0 && !seeked) {
+      walReadSeekVerImpl(pRead, ver);
+      seeked = true;
+      continue;
+    } else {
+      if (contLen < 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+      } else {
+        terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+      }
+      ASSERT(0);
       return -1;
     }
   }
 
-  ASSERT(taosValidFile(pRead->pReadLogTFile) == true);
-
-  code = taosReadFile(pRead->pReadLogTFile, pRead->pHead, sizeof(SWalHead));
-  if (code != sizeof(SWalHead)) {
-    if (code < 0)
-      terrno = TAOS_SYSTEM_ERROR(errno);
-    else
-      terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
-    return -1;
-  }
-
-  code = walValidHeadCksum(pRead->pHead);
-  if (code != 0) {
-    wError("unexpected wal log version: % " PRId64 ", since head checksum not passed", ver);
+  contLen = walValidHeadCksum(pRead->pHead);
+  if (contLen != 0) {
+    wError("vgId:%d, unexpected wal log index:%" PRId64 ", since head checksum not passed", pRead->pWal->cfg.vgId, ver);
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
 
   if (pRead->capacity < pRead->pHead->head.bodyLen) {
-    void *ptr = taosMemoryRealloc(pRead->pHead, sizeof(SWalHead) + pRead->pHead->head.bodyLen);
+    void *ptr = taosMemoryRealloc(pRead->pHead, sizeof(SWalCkHead) + pRead->pHead->head.bodyLen);
     if (ptr == NULL) {
       terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
       return -1;
@@ -295,27 +467,29 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
     pRead->capacity = pRead->pHead->head.bodyLen;
   }
 
-  if ((code = taosReadFile(pRead->pReadLogTFile, pRead->pHead->head.body, pRead->pHead->head.bodyLen)) !=
+  if ((contLen = taosReadFile(pRead->pLogFile, pRead->pHead->head.body, pRead->pHead->head.bodyLen)) !=
       pRead->pHead->head.bodyLen) {
-    if (code < 0)
+    if (contLen < 0)
       terrno = TAOS_SYSTEM_ERROR(errno);
-    else
+    else {
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+      ASSERT(0);
+    }
     return -1;
   }
 
   if (pRead->pHead->head.version != ver) {
-    wError("unexpected wal log version: %" PRId64 ", read request version:%" PRId64 "", pRead->pHead->head.version,
-           ver);
-    pRead->curVersion = -1;
+    wError("vgId:%d, unexpected wal log index:%" PRId64 ", read request index:%" PRId64, pRead->pWal->cfg.vgId,
+           pRead->pHead->head.version, ver);
+    pRead->curInvalid = 1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
 
-  code = walValidBodyCksum(pRead->pHead);
-  if (code != 0) {
-    wError("unexpected wal log version: % " PRId64 ", since body checksum not passed", ver);
-    pRead->curVersion = -1;
+  contLen = walValidBodyCksum(pRead->pHead);
+  if (contLen != 0) {
+    wError("vgId:%d, unexpected wal log index:%" PRId64 ", since body checksum not passed", pRead->pWal->cfg.vgId, ver);
+    pRead->curInvalid = 1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
@@ -323,46 +497,3 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
 
   return 0;
 }
-
-#if 0
-int32_t walRead(SWal *pWal, SWalHead **ppHead, int64_t ver) {
-  int code;
-  code = walSeekVer(pWal, ver);
-  if (code != 0) {
-    return code;
-  }
-  if (*ppHead == NULL) {
-    void *ptr = taosMemoryRealloc(*ppHead, sizeof(SWalHead));
-    if (ptr == NULL) {
-      return -1;
-    }
-    *ppHead = ptr;
-  }
-  if (tfRead(pWal->pWriteLogTFile, *ppHead, sizeof(SWalHead)) != sizeof(SWalHead)) {
-    return -1;
-  }
-  // TODO: endian compatibility processing after read
-  if (walValidHeadCksum(*ppHead) != 0) {
-    return -1;
-  }
-  void *ptr = taosMemoryRealloc(*ppHead, sizeof(SWalHead) + (*ppHead)->head.len);
-  if (ptr == NULL) {
-    taosMemoryFree(*ppHead);
-    *ppHead = NULL;
-    return -1;
-  }
-  if (tfRead(pWal->pWriteLogTFile, (*ppHead)->head.body, (*ppHead)->head.len) != (*ppHead)->head.len) {
-    return -1;
-  }
-  // TODO: endian compatibility processing after read
-  if (walValidBodyCksum(*ppHead) != 0) {
-    return -1;
-  }
-
-  return 0;
-}
-
-int32_t walReadWithFp(SWal *pWal, FWalWrite writeFp, int64_t verStart, int32_t readNum) {
-return 0;
-}
-#endif

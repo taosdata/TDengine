@@ -16,7 +16,7 @@ print $data00 $data01 $data02
 sql use test
 
 sql create table t1(ts timestamp, a int, b int , c int, d double, id int);
-sql create stream streams1 trigger at_once  into streamt1 as select  _wstartts, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
+sql create stream streams1 trigger at_once  into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
 
 sql insert into t1 values(1648791213000,1,2,3,1.0,1);
 sql insert into t1 values(1648791213000,1,2,3,1.0,2);
@@ -54,7 +54,7 @@ sql insert into t1 values(1648791213000,1,2,3,1.0,5);
 sql insert into t1 values(1648791214000,1,2,3,1.0,6);
 $loop_count = 0
 loop1:
-sql select * from streamt1 where c >=4 order by `_wstartts`;
+sql select * from streamt1 where c >=4 order by `_wstart`;
 sleep 300
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -163,7 +163,7 @@ sql insert into t1 values(1648791213011,1,2,3,1.0,7);
 
 $loop_count = 0
 loop2:
-sql select * from streamt1 where c in (5,4,7) order by `_wstartts`;
+sql select * from streamt1 where c in (5,4,7) order by `_wstart`;
 sleep 300
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -207,7 +207,7 @@ sql insert into t1 values(1648791213011,1,2,3,1.0,8);
 
 $loop_count = 0
 loop21:
-sql select * from streamt1 where c in (5,4,8) order by `_wstartts`;
+sql select * from streamt1 where c in (5,4,8) order by `_wstart`;
 sleep 300
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -227,7 +227,7 @@ sql insert into t1 values(1648791213011,10,20,10,10.0,12);
 
 $loop_count = 0
 loop3:
-sql select * from streamt1 where c in (5,4,10,11,12) order by `_wstartts`;
+sql select * from streamt1 where c in (5,4,10,11,12) order by `_wstart`;
 sleep 300
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -339,7 +339,7 @@ sql insert into t1 values(1648791213030,3,14,14,14.0,15) (1648791214020,15,15,15
 
 $loop_count = 0
 loop4:
-sql select * from streamt1 where c in (14,15,16) order by `_wstartts`;
+sql select * from streamt1 where c in (14,15,16) order by `_wstart`;
 sleep 300
 
 $loop_count = $loop_count + 1
@@ -447,6 +447,55 @@ endi
 if $data26 != 14 then
   print ======$data26
   return -1
+endi
+
+sql create database test1 vgroups 1
+sql show databases
+
+print $data00 $data01 $data02
+
+sql use test1
+
+sql create table t1(ts timestamp, a int, b int , c int, d double, id int);
+sql create stream streams2 trigger at_once  into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
+
+sql insert into t1 values(1648791212000,2,2,3,1.0,1);
+sql insert into t1 values(1648791213000,1,2,3,1.0,1);
+sql insert into t1 values(1648791213000,1,2,4,1.0,2);
+$loop_count = 0
+loop5:
+
+sleep 300
+sql select * from streamt1 order by c desc;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 2 then
+  print =====rows=$rows
+  goto loop5
+endi
+
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop5
+endi
+
+if $data05 != 4 then
+  print =====data05=$data05
+  goto loop5
+endi
+
+if $data11 != 1 then
+  print =====data11=$data11
+  goto loop5
+endi
+
+if $data15 != 3 then
+  print =====data15=$data15
+  goto loop5
 endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

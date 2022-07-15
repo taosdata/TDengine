@@ -36,6 +36,8 @@ There are two ways to install taosdump:
 :::tip
 - taosdump versions after 1.4.1 provide the `-I` argument for parsing Avro file schema and data. If users specify `-s` then only taosdump will parse schema.
 - Backups after taosdump 1.4.2 use the batch count specified by the `-B` parameter. The default value is 16384. If, in some environments, low network speed or disk performance causes "Error actual dump ... batch ...", then try changing the `-B` parameter to a smaller value.
+- The export of taosdump does not support resuming from an interruption. Therefore, if the taosdump process terminates unexpectedly, delete all related files that have been exported or generated.
+- The import of taosdump supports resuming from an interruption, but when the process resumes, you will receive some "table already exists" messages, which could be ignored.
 
 :::
 

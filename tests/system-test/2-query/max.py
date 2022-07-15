@@ -5,9 +5,9 @@ import numpy as np
 
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 , 
+    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
-    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143,
+    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143,
     "maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -19,15 +19,15 @@ class TDTestCase:
         self.nchar_str = '涛思数据'
     def max_check_stb_and_tb_base(self):
         tdSql.prepare()
-        intData = []        
+        intData = []
         floatData = []
-        tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
+        tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned,
                     col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20)) tags(loc nchar(20))''')
         tdSql.execute("create table stb_1 using stb tags('beijing')")
         for i in range(self.rowNum):
             tdSql.execute(f"insert into stb_1 values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
                           % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
-            intData.append(i + 1)            
+            intData.append(i + 1)
             floatData.append(i + 0.1)
         for i in ['ts','col11','col12','col13']:
             for j in ['db.stb','stb','db.stb_1','stb_1']:
@@ -45,17 +45,17 @@ class TDTestCase:
         tdSql.query("select max(col1) from stb where col2<=5")
         tdSql.checkData(0,0,5)
         tdSql.execute('drop database db')
-        
+
     def max_check_ntb_base(self):
         tdSql.prepare()
-        intData = []        
+        intData = []
         floatData = []
-        tdSql.execute('''create table ntb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
+        tdSql.execute('''create table ntb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned,
                     col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20))''')
         for i in range(self.rowNum):
             tdSql.execute(f"insert into ntb values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
                           % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
-            intData.append(i + 1)            
+            intData.append(i + 1)
             floatData.append(i + 0.1)
         for i in ['ts','col11','col12','col13']:
             for j in ['db.ntb','ntb']:
@@ -79,7 +79,7 @@ class TDTestCase:
         same_sql = f"select {col_name} from {tbname} order by {col_name} desc limit 1"
 
         tdSql.query(max_sql)
-        max_result = tdSql.queryResult 
+        max_result = tdSql.queryResult
 
         tdSql.query(same_sql)
         same_result = tdSql.queryResult
@@ -91,7 +91,7 @@ class TDTestCase:
 
 
     def support_distributed_aggregate(self):
-        
+
         # prepate datas for  20 tables distributed at different vgroups
         tdSql.execute("create database if not exists testdb keep 3650 duration 1000 vgroups 5")
         tdSql.execute(" use testdb ")
@@ -109,7 +109,7 @@ class TDTestCase:
             '''
         )
         for i in range(20):
-            tdSql.execute(f'create table ct{i+1} using stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
+            tdSql.execute(f'create table ct{i+1} using stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {1*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
 
         for i in range(9):
             tdSql.execute(
@@ -161,17 +161,17 @@ class TDTestCase:
         vgroups = tdSql.queryResult
 
         vnode_tables={}
-        
+
         for vgroup_id in vgroups:
             vnode_tables[vgroup_id[0]]=[]
-        
+
 
         # check sub_table of per vnode ,make sure sub_table has been distributed
         tdSql.query("show tables like 'ct%'")
         table_names = tdSql.queryResult
         tablenames = []
         for table_name in table_names:
-            vnode_tables[table_name[6]].append(table_name[0]) 
+            vnode_tables[table_name[6]].append(table_name[0])
 
         count = 0
         for k ,v in vnode_tables.items():
@@ -180,8 +180,8 @@ class TDTestCase:
         if count < 2:
             tdLog.exit(" the datas of all not satisfy sub_table has been distributed ")
 
-        # check max function work status 
-        
+        # check max function work status
+
         tdSql.query("show tables like 'ct%'")
         table_names = tdSql.queryResult
         tablenames = []
@@ -190,30 +190,28 @@ class TDTestCase:
 
         tdSql.query("desc stb1")
         col_names = tdSql.queryResult
-        
+
         colnames = []
         for col_name in col_names:
             if col_name[1] in ["INT" ,"BIGINT" ,"SMALLINT" ,"TINYINT" , "FLOAT" ,"DOUBLE"]:
                 colnames.append(col_name[0])
-        
+
         for tablename in tablenames:
             for colname in colnames:
                 self.check_max_functions(tablename,colname)
 
-        # max function with basic filter 
+        # max function with basic filter
         print(vnode_tables)
 
 
+    def run(self):
 
-    def run(self):                 
-
-        # max verifacation 
+        # max verifacation
         self.max_check_stb_and_tb_base()
         self.max_check_ntb_base()
 
         self.support_distributed_aggregate()
 
-    
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

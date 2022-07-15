@@ -29,39 +29,41 @@ TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/
 ### 安装 Grafana Plugin 并配置数据源
 
 <Tabs defaultValue="script">
+<TabItem value="gui" label="图形化界面安装">
+
+使用 Grafana 最新版本（8.5+），您可以在 Grafana 中[浏览和管理插件](https://grafana.com/docs/grafana/next/administration/plugin-management/#plugin-catalog)（对于 7.x 版本，请使用 **安装脚本** 或 **手动安装并配置** 方式）。在 Grafana 管理界面中的 **Configurations > Plugins** 页面直接搜索并按照提示安装 TDengine。
+
+![Search tdengine in grafana plugins](grafana-plugin-search-tdengine.png)
+
+如图示即安装完毕，按照指示 **Create a TDengine data source** 添加数据源。
+
+![Install and configure Grafana data source](grafana-install-and-config.png)
+
+输入 TDengine 相关配置，完成数据源配置。
+
+![TDengine Database Grafana plugin add data source](./grafana-data-source.png)
+
+配置完毕，现在可以使用 TDengine 创建 Dashboard 了。
+
+</TabItem>
 <TabItem value="script" label="使用安装脚本">
 
-将集群信息设置为环境变量；也可以使用 `.env` 文件，请参考 [dotenv](https://hexdocs.pm/dotenvy/dotenv-file-format.html)：
+对于使用 Grafana 7.x 版本或使用 [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) 配置的用户，可以在 Grafana 服务器上使用安装脚本自动安装插件即添加数据源 Provisioning 配置文件。
 
 ```sh
-export TDENGINE_API=http://tdengine.local:6041
-# user + password
-export TDENGINE_USER=user
-export TDENGINE_PASSWORD=password
-
-# 其他环境变量：
-# - 是否安装数据源，默认为 true，表示安装
-export TDENGINE_DS_ENABLED=false
-# - 数据源名称，默认为 TDengine
-export TDENGINE_DS_NAME=TDengine
-# - 数据源所属组织 ID，默认为 1
-export GF_ORG_ID=1
-# - 数据源是否可通过管理面板编辑，默认为 0，表示不可编辑
-export TDENGINE_EDITABLE=1
+bash -c "$(curl -fsSL \
+  https://raw.githubusercontent.com/taosdata/grafanaplugin/master/install.sh)" -- \
+  -a http://localhost:6041 \
+  -u root \
+  -p taosdata
 ```
 
-运行安装脚本：
-
-```sh
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/taosdata/grafanaplugin/master/install.sh)"
-```
-
-该脚本将自动安装 Grafana 插件并配置数据源。安装完毕后，需要重启 Grafana 服务后生效。
+安装完毕后，需要重启 Grafana 服务后方可生效。
 
 保存该脚本并执行 `./install.sh --help` 可查看详细帮助文档。
 
 </TabItem>
-<TabItem value="manual" label="手动安装并配置">
+<TabItem value="manual" label="手动安装">
 
 使用 [`grafana-cli` 命令行工具](https://grafana.com/docs/grafana/latest/administration/cli/) 进行插件[安装](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation)。
 
@@ -112,6 +114,73 @@ GF_INSTALL_PLUGINS=tdengine-datasource
 点击 `Save & Test` 进行测试，成功会有如下提示：
 
 ![TDengine Database Grafana plugin add data source](./add_datasource4.webp)
+
+</TabItem>
+<TabItem value="container" label="K8s/Docker 容器">
+
+参考 [Grafana 容器化安装说明](https://grafana.com/docs/grafana/next/setup-grafana/installation/docker/#install-plugins-in-the-docker-container)。使用如下命令启动一个容器，并自动安装 TDengine 插件：
+
+```bash
+docker run -d \
+  -p 3000:3000 \
+  --name=grafana \
+  -e "GF_INSTALL_PLUGINS=tdengine-datasource" \
+  grafana/grafana
+```
+
+使用 docker-compose，配置 Grafana Provisioning 自动化配置，体验 TDengine + Grafana 组合的零配置启动：
+
+1. 保存该文件为 `tdengine.yml`。
+
+    ```yml
+    apiVersion: 1
+    datasources:
+    - name: TDengine
+      type: tdengine-datasource
+      orgId: 1
+      url: "$TDENGINE_API"
+      isDefault: true
+      secureJsonData:
+        url: "$TDENGINE_URL"
+        basicAuth: "$TDENGINE_BASIC_AUTH"
+        token: "$TDENGINE_CLOUD_TOKEN"
+      version: 1
+      editable: true
+    ```
+
+2. 保存该文件为 `docker-compose.yml`。
+
+    ```yml
+    version: "3.7"
+
+    services:
+      tdengine:
+        image: tdengine/tdengine:2.6.0.2
+        environment:
+          TAOS_FQDN: tdengine
+        volumes:
+          - tdengine-data:/var/lib/taos/
+      grafana:
+        image: grafana/grafana:8.5.6
+        volumes:
+          - ./tdengine.yml/:/etc/grafana/provisioning/tdengine.yml
+          - grafana-data:/var/lib/grafana
+        environment:
+          # install tdengine plugin at start
+          GF_INSTALL_PLUGINS: "tdengine-datasource"
+          TDENGINE_URL: "http://tdengine:6041"
+          #printf "$TDENGINE_USER:$TDENGINE_PASSWORD" | base64
+          TDENGINE_BASIC_AUTH: "cm9vdDp0YmFzZTEyNQ=="
+        ports:
+          - 3000:3000
+    volumes:
+      grafana-data:
+      tdengine-data:
+    ```
+
+3. 使用 docker-compose 命令启动 TDengine + Grafana ：`docker-compose up -d`。
+
+打开 Grafana <http://localhost:3000>，现在可以添加 Dashboard 了。
 
 </TabItem>
 </Tabs>

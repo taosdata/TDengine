@@ -14,10 +14,10 @@
  */
 
 #include "mndStream.h"
-#include "mndAuth.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
+#include "mndPrivilege.h"
 #include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
@@ -54,9 +54,10 @@ int32_t mndInitStream(SMnode *pMnode) {
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
-  mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DEPLOY_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM_RSP, mndTransProcessRsp);
+
+  mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DEPLOY_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DROP_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndRetrieveStream);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndCancelGetNextStream);
@@ -234,7 +235,8 @@ static int32_t mndStreamGetPlanString(const char *ast, int8_t triggerType, int64
 }
 
 static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamReq *pCreate) {
-  SNode *pAst = NULL;
+  SNode      *pAst = NULL;
+  SQueryPlan *pPlan = NULL;
 
   mDebug("stream:%s to create", pCreate->name);
   memcpy(pObj->name, pCreate->name, TSDB_STREAM_FNAME_LEN);
@@ -246,8 +248,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->uid = mndGenerateUid(pObj->name, strlen(pObj->name));
   pObj->status = 0;
 
-  // TODO
-  pObj->dropPolicy = 0;
+  pObj->igExpired = pCreate->igExpired;
   pObj->trigger = pCreate->triggerType;
   pObj->triggerParam = pCreate->maxDelay;
   pObj->watermark = pCreate->watermark;
@@ -293,13 +294,13 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     goto FAIL;
   }
 
-  SQueryPlan  *pPlan = NULL;
   SPlanContext cxt = {
       .pAstRoot = pAst,
       .topicQuery = false,
       .streamQuery = true,
       .triggerType = pObj->trigger == STREAM_TRIGGER_MAX_DELAY ? STREAM_TRIGGER_WINDOW_CLOSE : pObj->trigger,
       .watermark = pObj->watermark,
+      .igExpired = pObj->igExpired,
   };
 
   // using ast and param to build physical plan
@@ -316,14 +317,66 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
 FAIL:
   if (pAst != NULL) nodesDestroyNode(pAst);
+  if (pPlan != NULL) qDestroyQueryPlan(pPlan);
+  return 0;
+}
+
+int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
+  ASSERT(pTask->isDataScan == 0 || pTask->isDataScan == 1);
+  if (pTask->isDataScan == 0 && pTask->sinkType == TASK_SINK__NONE) {
+    ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
+  }
+  SEncoder encoder;
+  tEncoderInit(&encoder, NULL, 0);
+  tEncodeSStreamTask(&encoder, pTask);
+  int32_t size = encoder.pos;
+  int32_t tlen = sizeof(SMsgHead) + size;
+  tEncoderClear(&encoder);
+  void *buf = taosMemoryCalloc(1, tlen);
+  if (buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  ((SMsgHead *)buf)->vgId = htonl(pTask->nodeId);
+  void *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  tEncoderInit(&encoder, abuf, size);
+  tEncodeSStreamTask(&encoder, pTask);
+  tEncoderClear(&encoder);
+
+  STransAction action = {0};
+  memcpy(&action.epSet, &pTask->epSet, sizeof(SEpSet));
+  action.pCont = buf;
+  action.contLen = tlen;
+  action.msgType = TDMT_STREAM_TASK_DEPLOY;
+  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFree(buf);
+    return -1;
+  }
+  return 0;
+}
+
+int32_t mndPersistStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
+  int32_t level = taosArrayGetSize(pStream->tasks);
+  for (int32_t i = 0; i < level; i++) {
+    SArray *pLevel = taosArrayGetP(pStream->tasks, i);
+    int32_t sz = taosArrayGetSize(pLevel);
+    for (int32_t j = 0; j < sz; j++) {
+      SStreamTask *pTask = taosArrayGetP(pLevel, j);
+      if (mndPersistTaskDeployReq(pTrans, pTask) < 0) {
+        return -1;
+      }
+    }
+  }
   return 0;
 }
 
 int32_t mndPersistStream(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
+  if (mndPersistStreamTasks(pMnode, pTrans, pStream) < 0) {
+    return -1;
+  }
   SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
     return -1;
   }
   sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
@@ -338,51 +391,6 @@ int32_t mndPersistDropStreamLog(SMnode *pMnode, STrans *pTrans, SStreamObj *pStr
     return -1;
   }
   sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
-  return 0;
-}
-
-int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, STrans *pTrans) {
-  SNode *pAst = NULL;
-
-  if (nodesStringToNode(ast, &pAst) < 0) {
-    return -1;
-  }
-
-  if (qExtractResultSchema(pAst, (int32_t *)&pStream->outputSchema.nCols, &pStream->outputSchema.pSchema) != 0) {
-    nodesDestroyNode(pAst);
-    return -1;
-  }
-  // free
-  nodesDestroyNode(pAst);
-
-#if 0
-  printf("|");
-  for (int i = 0; i < pStream->outputSchema.nCols; i++) {
-    printf(" %15s |", (char *)pStream->outputSchema.pSchema[i].name);
-  }
-  printf("\n=======================================================\n");
-
-#endif
-
-  if (TSDB_CODE_SUCCESS != mndStreamGetPlanString(ast, pStream->trigger, pStream->watermark, &pStream->physicalPlan)) {
-    mError("topic:%s, failed to get plan since %s", pStream->name, terrstr());
-    return -1;
-  }
-
-  if (mndScheduleStream(pMnode, pTrans, pStream) < 0) {
-    mError("stream:%ld, schedule stream since %s", pStream->uid, terrstr());
-    return -1;
-  }
-  mDebug("trans:%d, used to create stream:%s", pTrans->id, pStream->name);
-
-  SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-
   return 0;
 }
 
@@ -430,10 +438,6 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
     goto _OVER;
   }
 
-  if (mndCheckDbAuth(pMnode, user, MND_OPER_WRITE_DB, pDb) != 0) {
-    goto _OVER;
-  }
-
   int32_t numOfStbs = -1;
   if (mndGetNumOfStbs(pMnode, pDb->name, &numOfStbs) != 0) {
     goto _OVER;
@@ -477,7 +481,7 @@ static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
   memcpy(&action.epSet, &pTask->epSet, sizeof(SEpSet));
   action.pCont = pReq;
   action.contLen = sizeof(SVDropStreamTaskReq);
-  action.msgType = TDMT_VND_STREAM_TASK_DROP;
+  action.msgType = TDMT_STREAM_TASK_DROP;
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
     return -1;
@@ -487,7 +491,7 @@ static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
   return 0;
 }
 
-static int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
+int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
   int32_t lv = taosArrayGetSize(pStream->tasks);
   for (int32_t i = 0; i < lv; i++) {
     SArray *pTasks = taosArrayGetP(pStream->tasks, i);
@@ -499,65 +503,6 @@ static int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pS
       }
     }
   }
-  return 0;
-}
-
-static int32_t mndCreateStream(SMnode *pMnode, SRpcMsg *pReq, SCMCreateStreamReq *pCreate, SDbObj *pDb) {
-  mDebug("stream:%s to create", pCreate->name);
-  SStreamObj streamObj = {0};
-  tstrncpy(streamObj.name, pCreate->name, TSDB_STREAM_FNAME_LEN);
-  tstrncpy(streamObj.sourceDb, pDb->name, TSDB_DB_FNAME_LEN);
-  tstrncpy(streamObj.targetSTbName, pCreate->targetStbFullName, TSDB_TABLE_FNAME_LEN);
-  streamObj.createTime = taosGetTimestampMs();
-  streamObj.updateTime = streamObj.createTime;
-  streamObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
-  streamObj.targetStbUid = mndGenerateUid(pCreate->targetStbFullName, TSDB_TABLE_FNAME_LEN);
-  streamObj.sourceDbUid = pDb->uid;
-  streamObj.version = 1;
-  streamObj.sql = pCreate->sql;
-  // TODO
-  streamObj.fixedSinkVgId = 0;
-  streamObj.smaId = 0;
-  /*streamObj.physicalPlan = "";*/
-  streamObj.trigger = pCreate->triggerType;
-  streamObj.watermark = pCreate->watermark;
-  streamObj.triggerParam = pCreate->maxDelay;
-
-  if (streamObj.targetSTbName[0]) {
-    pDb = mndAcquireDbByStb(pMnode, streamObj.targetSTbName);
-    if (pDb == NULL) {
-      terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
-      return -1;
-    }
-    tstrncpy(streamObj.targetDb, pDb->name, TSDB_DB_FNAME_LEN);
-  }
-
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq);
-  if (pTrans == NULL) {
-    mError("stream:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
-  }
-  mDebug("trans:%d, used to create stream:%s", pTrans->id, pCreate->name);
-
-  if (mndAddStreamToTrans(pMnode, &streamObj, pCreate->ast, pTrans) != 0) {
-    mError("trans:%d, failed to add stream since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-
-  if (streamObj.targetSTbName[0] && mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
-    mError("trans:%d, failed to create stb for stream since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-
-  mndTransDrop(pTrans);
   return 0;
 }
 
@@ -594,37 +539,21 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // TODO check read auth for source and write auth for target
-#if 0
-  pDb = mndAcquireDb(pMnode, createStreamReq.sourceDB);
-  if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
+  // build stream obj from request
+  SStreamObj streamObj = {0};
+  if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
+    /*ASSERT(0);*/
+    mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
-
-  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
-    goto _OVER;
-  }
-#endif
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq);
   if (pTrans == NULL) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
-
-  mndTransSetDbName(pTrans, createStreamReq.sourceDB);
-  // TODO
-  /*mndTransSetDbName(pTrans, streamObj.targetDb);*/
+  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
   mDebug("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
-
-  // build stream obj from request
-  SStreamObj streamObj = {0};
-  if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
-    ASSERT(0);
-    mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
-    goto _OVER;
-  }
 
   // create stb for stream
   if (mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
@@ -634,7 +563,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   // schedule stream task for stream obj
-  if (mndScheduleStream(pMnode, pTrans, &streamObj) < 0) {
+  if (mndScheduleStream(pMnode, &streamObj) < 0) {
     mError("stream:%s, failed to schedule since %s", createStreamReq.name, terrstr());
     mndTransDrop(pTrans);
     goto _OVER;
@@ -643,6 +572,16 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   // add stream to trans
   if (mndPersistStream(pMnode, pTrans, &streamObj) < 0) {
     mError("stream:%s, failed to schedule since %s", createStreamReq.name, terrstr());
+    mndTransDrop(pTrans);
+    goto _OVER;
+  }
+
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, streamObj.sourceDb) != 0) {
+    mndTransDrop(pTrans);
+    goto _OVER;
+  }
+
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, streamObj.targetDb) != 0) {
     mndTransDrop(pTrans);
     goto _OVER;
   }
@@ -656,8 +595,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   mndTransDrop(pTrans);
 
-  /*code = mndCreateStream(pMnode, pReq, &createStreamReq, pDb);*/
-  /*if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;*/
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
@@ -674,45 +611,47 @@ _OVER:
 
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
-  int32_t     code = -1;
   SStreamObj *pStream = NULL;
   /*SDbObj     *pDb = NULL;*/
   /*SUserObj   *pUser = NULL;*/
 
-  SMDropStreamReq dropReq = *(SMDropStreamReq *)pReq->pCont;
+  SMDropStreamReq dropReq = {0};
+  if (tDeserializeSMDropStreamReq(pReq->pCont, pReq->contLen, &dropReq) < 0) {
+    ASSERT(0);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
 
   pStream = mndAcquireStream(pMnode, dropReq.name);
 
   if (pStream == NULL) {
     if (dropReq.igNotExists) {
       mDebug("stream:%s, not exist, ignore not exist is set", dropReq.name);
-      code = 0;
-      goto DROP_STREAM_OVER;
+      sdbRelease(pMnode->pSdb, pStream);
+      return 0;
     } else {
       terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
       return -1;
     }
   }
 
-#if 0
-  // todo check auth
-  pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
-  if (pUser == NULL) {
-    goto DROP_STREAM_OVER;
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb) != 0) {
+    return -1;
   }
-#endif
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq);
   if (pTrans == NULL) {
     mError("stream:%s, failed to drop since %s", dropReq.name, terrstr());
-    return code;
+    sdbRelease(pMnode->pSdb, pStream);
+    return -1;
   }
   mDebug("trans:%d, used to drop stream:%s", pTrans->id, dropReq.name);
 
   // drop all tasks
   if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
     mError("stream:%s, failed to drop task since %s", dropReq.name, terrstr());
-    return code;
+    sdbRelease(pMnode->pSdb, pStream);
+    return -1;
   }
 
   // drop stream
@@ -721,33 +660,50 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-DROP_STREAM_OVER:
-  return code;
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, terrstr());
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  sdbRelease(pMnode->pSdb, pStream);
+
+  return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
 int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
 
-  void       *pIter = NULL;
-  SStreamObj *pStream = NULL;
   while (1) {
+    SStreamObj *pStream = NULL;
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
 
     if (pStream->sourceDbUid == pDb->uid || pStream->targetDbUid == pDb->uid) {
       if (pStream->sourceDbUid != pStream->targetDbUid) {
         sdbRelease(pSdb, pStream);
+        sdbCancelFetch(pSdb, pIter);
+        mError("db:%s, failed to drop stream:%s since sourceDbUid:%" PRId64 " not match with targetDbUid:%" PRId64,
+               pDb->name, pStream->name, pStream->sourceDbUid, pStream->targetDbUid);
+        terrno = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
         return -1;
       } else {
-        // TODO drop all task on snode
+#if 0
+        if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
+          mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
+          sdbRelease(pMnode->pSdb, pStream);
+          sdbCancelFetch(pSdb, pIter);
+          return -1;
+        }
+#endif
         if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
           sdbRelease(pSdb, pStream);
+          sdbCancelFetch(pSdb, pIter);
           return -1;
         }
       }
-    } else {
-      sdbRelease(pSdb, pStream);
-      continue;
     }
 
 #if 0

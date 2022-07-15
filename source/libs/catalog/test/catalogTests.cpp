@@ -109,7 +109,7 @@ void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
   createReq.compression = 2;
   createReq.replications = 1;
   createReq.strict = 1;
-  createReq.cacheLastRow = 0;
+  createReq.cacheLast = 0;
   createReq.ignoreExist = 1;
 
   int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
@@ -1386,7 +1386,7 @@ TEST(tableMeta, updateStbMeta) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n != 3) {
       taosMsleep(50);
     } else {
@@ -1456,7 +1456,7 @@ TEST(refreshGetMeta, normal2normal) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1535,7 +1535,7 @@ TEST(refreshGetMeta, normal2notexist) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1609,7 +1609,7 @@ TEST(refreshGetMeta, normal2child) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1693,7 +1693,7 @@ TEST(refreshGetMeta, stable2child) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1778,7 +1778,7 @@ TEST(refreshGetMeta, stable2stable) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -1866,7 +1866,7 @@ TEST(refreshGetMeta, child2stable) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -2083,7 +2083,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n > 0) {
       break;
     }
@@ -2109,7 +2109,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
 
   while (true) {
     uint64_t n = 0;
-    ctgdGetStatNum("runtime.qDoneNum", (void *)&n);
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
     if (n != 3) {
       taosMsleep(50);
     } else {

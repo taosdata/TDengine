@@ -18,6 +18,7 @@
 
 #include "sync.h"
 #include "syncTools.h"
+#include "ttrace.h"
 #include "vnodeInt.h"
 
 #ifdef __cplusplus
@@ -31,6 +32,14 @@ extern "C" {
 #define vInfo(...)  do { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
 #define vDebug(...) do { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", DEBUG_DEBUG, vDebugFlag, __VA_ARGS__); }}    while(0)
 #define vTrace(...) do { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", DEBUG_TRACE, vDebugFlag, __VA_ARGS__); }}    while(0)
+
+#define vGTrace(param, ...) do { if (vDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vTrace(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
+#define vGFatal(param, ...) do { if (vDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vFatal(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
+#define vGError(param, ...) do { if (vDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vError(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
+#define vGWarn(param, ...)  do { if (vDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vWarn(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
+#define vGInfo(param, ...)  do { if (vDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vInfo(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
+#define vGDebug(param, ...) do { if (vDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vDebug(param ", gtid:%s", __VA_ARGS__, buf);}}    while(0)
+
 // clang-format on
 
 // vnodeCfg.c
@@ -69,6 +78,7 @@ void    vnodeBufPoolReset(SVBufPool* pPool);
 int32_t vnodeQueryOpen(SVnode* pVnode);
 void    vnodeQueryClose(SVnode* pVnode);
 int32_t vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
+int     vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg);
 
 // vnodeCommit.c
 int32_t vnodeBegin(SVnode* pVnode);
@@ -84,6 +94,8 @@ int32_t vnodeAsyncCommit(SVnode* pVnode);
 int32_t vnodeSyncOpen(SVnode* pVnode, char* path);
 void    vnodeSyncStart(SVnode* pVnode);
 void    vnodeSyncClose(SVnode* pVnode);
+void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg);
+bool    vnodeIsLeader(SVnode* pVnode);
 
 #ifdef __cplusplus
 }

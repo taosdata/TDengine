@@ -19,7 +19,7 @@
 #include "catalogInt.h"
 
 extern SCatalogMgmt gCtgMgmt;
-SCtgDebug gCTGDebug = {.cacheEnable = true};
+SCtgDebug gCTGDebug = {0};
 
 void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
   ASSERT(*(int32_t*)param == 1);
@@ -64,7 +64,7 @@ void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
       qDebug("db %d vgInfo:", i);
       for (int32_t j = 0; j < vgNum; ++j) {
         SVgroupInfo* pInfo = taosArrayGet(pDb, j);
-        qDebug("vg %d info: vgId:%d", j, pInfo->vgId);
+        qDebug("vg :%d info: vgId:%d", j, pInfo->vgId);
       }
     }
   } else {
@@ -210,7 +210,7 @@ int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, SRequestConnInfo* pConn, uint64_t re
   
   int64_t jobId = 0;
 
-  CTG_ERR_JRET(catalogAsyncGetAllMeta(pCtg, pConn, reqId, &req, ctgdUserCallback, param, &jobId));
+  CTG_ERR_JRET(catalogAsyncGetAllMeta(pCtg, pConn, &req, ctgdUserCallback, param, &jobId));
 
 _return:
 
@@ -255,8 +255,8 @@ int32_t ctgdEnableDebug(char *option) {
 }
 
 int32_t ctgdGetStatNum(char *option, void *res) {
-  if (0 == strcasecmp(option, "runtime.qDoneNum")) {
-    *(uint64_t *)res = atomic_load_64(&gCtgMgmt.stat.runtime.qDoneNum);
+  if (0 == strcasecmp(option, "runtime.numOfOpDequeue")) {
+    *(uint64_t *)res = atomic_load_64(&gCtgMgmt.stat.runtime.numOfOpDequeue);
     return TSDB_CODE_SUCCESS;
   }
 

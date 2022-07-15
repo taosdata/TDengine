@@ -86,7 +86,7 @@ void sifAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *sl
     SColumnInfoData idata = {0};
     idata.info = *colInfo;
 
-    colInfoDataEnsureCapacity(&idata, 0, rows);
+    colInfoDataEnsureCapacity(&idata, rows);
 
     taosArrayPush(res->pDataBlock, &idata);
 

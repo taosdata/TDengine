@@ -309,7 +309,7 @@ static int32_t smlApplySchemaAction(SSmlHandle *info, SSchemaAction *action) {
     case SCHEMA_ACTION_ADD_COLUMN: {
       int n = sprintf(result, "alter stable `%s` add column ", action->alterSTable.sTableName);
       smlBuildColumnDescription(action->alterSTable.field, result + n, capacity - n, &outBytes);
-      TAOS_RES *res = taos_query((TAOS*)info->taos->id, result);  // TODO async doAsyncQuery
+      TAOS_RES *res = taos_query((TAOS*)&info->taos->id, result);  // TODO async doAsyncQuery
       code = taos_errno(res);
       const char *errStr = taos_errstr(res);
       if (code != TSDB_CODE_SUCCESS) {
@@ -323,7 +323,7 @@ static int32_t smlApplySchemaAction(SSmlHandle *info, SSchemaAction *action) {
     case SCHEMA_ACTION_ADD_TAG: {
       int n = sprintf(result, "alter stable `%s` add tag ", action->alterSTable.sTableName);
       smlBuildColumnDescription(action->alterSTable.field, result + n, capacity - n, &outBytes);
-      TAOS_RES *res = taos_query((TAOS*)info->taos->id, result);  // TODO async doAsyncQuery
+      TAOS_RES *res = taos_query((TAOS*)&info->taos->id, result);  // TODO async doAsyncQuery
       code = taos_errno(res);
       const char *errStr = taos_errstr(res);
       if (code != TSDB_CODE_SUCCESS) {
@@ -337,7 +337,7 @@ static int32_t smlApplySchemaAction(SSmlHandle *info, SSchemaAction *action) {
     case SCHEMA_ACTION_CHANGE_COLUMN_SIZE: {
       int n = sprintf(result, "alter stable `%s` modify column ", action->alterSTable.sTableName);
       smlBuildColumnDescription(action->alterSTable.field, result + n, capacity - n, &outBytes);
-      TAOS_RES *res = taos_query((TAOS*)info->taos->id, result);  // TODO async doAsyncQuery
+      TAOS_RES *res = taos_query((TAOS*)&info->taos->id, result);  // TODO async doAsyncQuery
       code = taos_errno(res);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " apply schema action. error : %s", info->id, taos_errstr(res));
@@ -350,7 +350,7 @@ static int32_t smlApplySchemaAction(SSmlHandle *info, SSchemaAction *action) {
     case SCHEMA_ACTION_CHANGE_TAG_SIZE: {
       int n = sprintf(result, "alter stable `%s` modify tag ", action->alterSTable.sTableName);
       smlBuildColumnDescription(action->alterSTable.field, result + n, capacity - n, &outBytes);
-      TAOS_RES *res = taos_query((TAOS*)info->taos->id, result);  // TODO async doAsyncQuery
+      TAOS_RES *res = taos_query((TAOS*)&info->taos->id, result);  // TODO async doAsyncQuery
       code = taos_errno(res);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " apply schema action. error : %s", info->id, taos_errstr(res));
@@ -405,7 +405,7 @@ static int32_t smlApplySchemaAction(SSmlHandle *info, SSchemaAction *action) {
       pos--;
       ++freeBytes;
       outBytes = snprintf(pos, freeBytes, ")");
-      TAOS_RES *res = taos_query((TAOS*)info->taos->id, result);
+      TAOS_RES *res = taos_query((TAOS*)&info->taos->id, result);
       code = taos_errno(res);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " apply schema action. error : %s", info->id, taos_errstr(res));
@@ -1570,41 +1570,40 @@ static int32_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int64_t *tsV
     return TSDB_CODE_TSC_INVALID_TIME_STAMP;
   }
 
+  *tsVal = timeDouble;
   size_t typeLen = strlen(type->valuestring);
   if (typeLen == 1 && (type->valuestring[0] == 's' || type->valuestring[0] == 'S')) {
     // seconds
-    timeDouble = timeDouble * 1e9;
+    *tsVal = *tsVal * NANOSECOND_PER_SEC;
+    timeDouble = timeDouble * NANOSECOND_PER_SEC;
     if (smlDoubleToInt64OverFlow(timeDouble)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
       return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
-    *tsVal = timeDouble;
   } else if (typeLen == 2 && (type->valuestring[1] == 's' || type->valuestring[1] == 'S')) {
     switch (type->valuestring[0]) {
       case 'm':
       case 'M':
         // milliseconds
-        timeDouble = timeDouble * 1e6;
+        *tsVal = *tsVal * NANOSECOND_PER_MSEC;
+        timeDouble = timeDouble * NANOSECOND_PER_MSEC;
         if (smlDoubleToInt64OverFlow(timeDouble)) {
           smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
           return TSDB_CODE_TSC_INVALID_TIME_STAMP;
         }
-        *tsVal = timeDouble;
         break;
       case 'u':
       case 'U':
         // microseconds
-        timeDouble = timeDouble * 1e3;
+        *tsVal = *tsVal * NANOSECOND_PER_USEC;
+        timeDouble = timeDouble * NANOSECOND_PER_USEC;
         if (smlDoubleToInt64OverFlow(timeDouble)) {
           smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
           return TSDB_CODE_TSC_INVALID_TIME_STAMP;
         }
-        *tsVal = timeDouble;
         break;
       case 'n':
       case 'N':
-        // nanoseconds
-        *tsVal = timeDouble;
         break;
       default:
         return TSDB_CODE_TSC_INVALID_JSON;
@@ -1641,21 +1640,23 @@ static int32_t smlParseTSFromJSON(SSmlHandle *info, cJSON *root, SArray *cols) {
     if (timeDouble < 0) {
       return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
+
     uint8_t tsLen = smlGetTimestampLen((int64_t)timeDouble);
+    tsVal = (int64_t)timeDouble;
     if (tsLen == TSDB_TIME_PRECISION_SEC_DIGITS) {
-      timeDouble = timeDouble * 1e9;
+      tsVal = tsVal * NANOSECOND_PER_SEC;
+      timeDouble = timeDouble * NANOSECOND_PER_SEC;
       if (smlDoubleToInt64OverFlow(timeDouble)) {
         smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
         return TSDB_CODE_TSC_INVALID_TIME_STAMP;
       }
-      tsVal = timeDouble;
     } else if (tsLen == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-      timeDouble = timeDouble * 1e6;
+      tsVal = tsVal * NANOSECOND_PER_MSEC;
+      timeDouble = timeDouble * NANOSECOND_PER_MSEC;
       if (smlDoubleToInt64OverFlow(timeDouble)) {
         smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
         return TSDB_CODE_TSC_INVALID_TIME_STAMP;
       }
-      tsVal = timeDouble;
     } else if (timeDouble == 0) {
       tsVal = taosGetTimestampNs();
     } else {
@@ -2255,7 +2256,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
     (*pMeta)->tableMeta->uid = tableData->uid;  // one table merge data block together according uid
 
     code = smlBindData(info->exec, tableData->tags, (*pMeta)->cols, tableData->cols, info->dataFormat,
-                       (*pMeta)->tableMeta, tableData->childTableName, info->msgBuf.buf, info->msgBuf.len);
+                       (*pMeta)->tableMeta, tableData->childTableName, tableData->sTableName, tableData->sTableNameLen, info->msgBuf.buf, info->msgBuf.len);
     if (code != TSDB_CODE_SUCCESS) {
       uError("SML:0x%" PRIx64 " smlBindData failed", info->id);
       return code;
@@ -2274,7 +2275,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
   //  info->affectedRows = taos_affected_rows(info->pRequest);
   //  return info->pRequest->code;
 
-  launchAsyncQuery(info->pRequest, info->pQuery);
+  launchAsyncQuery(info->pRequest, info->pQuery, NULL);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2389,17 +2390,19 @@ static int32_t isSchemalessDb(STscObj *taos, SRequestObj *request) {
 static void smlInsertCallback(void *param, void *res, int32_t code) {
   SRequestObj *pRequest = (SRequestObj *)res;
   SSmlHandle  *info = (SSmlHandle *)param;
+  int32_t rows = taos_affected_rows(pRequest);
 
   uDebug("SML:0x%" PRIx64 " result. code:%d, msg:%s", info->id, pRequest->code, pRequest->msgBuf);
   // lock
+  taosThreadSpinLock(&info->params->lock);
+  info->params->request->body.resInfo.numOfRows += rows;
   if (code != TSDB_CODE_SUCCESS) {
-    taosThreadSpinLock(&info->params->lock);
     info->params->request->code = code;
-    taosThreadSpinUnlock(&info->params->lock);
   }
+  taosThreadSpinUnlock(&info->params->lock);
   // unlock
 
-  printf("SML:0x%" PRIx64 " insert finished, code: %d, total: %d\n", info->id, code, info->affectedRows);
+  uDebug("SML:0x%" PRIx64 " insert finished, code: %d, rows: %d, total: %d", info->id, code, rows, info->affectedRows);
   Params *pParam = info->params;
   bool    isLast = info->isLast;
   info->cost.endTime = taosGetTimestampUs();
@@ -2434,24 +2437,23 @@ static void smlInsertCallback(void *param, void *res, int32_t code) {
  */
 
 TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision) {
-  STscObj* pTscObj = acquireTscObj((int64_t)taos);
-  if (NULL == pTscObj) {
+  if (NULL == taos) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
-    uError("SML:taos_schemaless_insert invalid taos");
     return NULL;
   }
-  
-  SRequestObj* request = (SRequestObj*)createRequest(pTscObj, TSDB_SQL_INSERT);
+
+  SRequestObj* request = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT);
   if(!request){
-    releaseTscObj((int64_t)taos);
     uError("SML:taos_schemaless_insert error request is null");
     return NULL;
   }
 
+  int    batchs = 0;
+  STscObj* pTscObj = request->pTscObj;
+
   pTscObj->schemalessType = 1;
   SSmlMsgBuf msg = {ERROR_MSG_BUF_DEFAULT_SIZE, request->msgBuf};
 
-  int    cnt = ceil(((double)numLines) / LINE_BATCH);
   Params params;
   params.request = request;
   tsem_init(&params.sem, 0, 0);
@@ -2488,8 +2490,17 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
     goto end;
   }
 
-  for (int i = 0; i < cnt; ++i) {
-    SRequestObj* req = (SRequestObj*)createRequest(pTscObj, TSDB_SQL_INSERT);
+  if(protocol == TSDB_SML_JSON_PROTOCOL){
+    numLines = 1;
+  }else if(numLines <= 0){
+    request->code = TSDB_CODE_SML_INVALID_DATA;
+    smlBuildInvalidDataMsg(&msg, "line num is invalid", NULL);
+    goto end;
+  }
+
+  batchs = ceil(((double)numLines) / LINE_BATCH);
+  for (int i = 0; i < batchs; ++i) {
+    SRequestObj* req = (SRequestObj*)createRequest(pTscObj->id, TSDB_SQL_INSERT);
     if(!req){
       request->code = TSDB_CODE_OUT_OF_MEMORY;
       uError("SML:taos_schemaless_insert error request is null");
@@ -2531,6 +2542,5 @@ end:
 //  ((STscObj *)taos)->schemalessType = 0;
   pTscObj->schemalessType = 1;
   uDebug("resultend:%s", request->msgBuf);
-  releaseTscObj((int64_t)taos);
   return (TAOS_RES*)request;
 }

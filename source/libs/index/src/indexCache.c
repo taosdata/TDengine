@@ -22,7 +22,7 @@
 #define MAX_INDEX_KEY_LEN 256  // test only, change later
 
 #define MEM_TERM_LIMIT     10 * 10000
-#define MEM_THRESHOLD      64 * 1024
+#define MEM_THRESHOLD      512 * 1024
 #define MEM_SIGNAL_QUIT    MEM_THRESHOLD * 20
 #define MEM_ESTIMATE_RADIO 1.5
 
@@ -204,7 +204,6 @@ static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr
     if (0 == strcmp(c->colVal, pCt->colVal)) {
       if (c->operaType == ADD_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->del, tr->add, c->uid)
-        // taosArrayPush(result, &c->uid);
         *s = kTypeValue;
       } else if (c->operaType == DEL_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->add, tr->del, c->uid)
@@ -309,7 +308,6 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
     if (cond == MATCH) {
       if (c->operaType == ADD_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->del, tr->add, c->uid)
-        // taosArrayPush(result, &c->uid);
         *s = kTypeValue;
       } else if (c->operaType == DEL_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->add, tr->del, c->uid)
@@ -464,8 +462,8 @@ Iterate* idxCacheIteratorCreate(IndexCache* cache) {
   if (cache->imm == NULL) {
     return NULL;
   }
-  Iterate* iiter = taosMemoryCalloc(1, sizeof(Iterate));
-  if (iiter == NULL) {
+  Iterate* iter = taosMemoryCalloc(1, sizeof(Iterate));
+  if (iter == NULL) {
     return NULL;
   }
   taosThreadMutexLock(&cache->mtx);
@@ -473,15 +471,15 @@ Iterate* idxCacheIteratorCreate(IndexCache* cache) {
   idxMemRef(cache->imm);
 
   MemTable* tbl = cache->imm;
-  iiter->val.val = taosArrayInit(1, sizeof(uint64_t));
-  iiter->val.colVal = NULL;
-  iiter->iter = tbl != NULL ? tSkipListCreateIter(tbl->mem) : NULL;
-  iiter->next = idxCacheIteratorNext;
-  iiter->getValue = idxCacheIteratorGetValue;
+  iter->val.val = taosArrayInit(1, sizeof(uint64_t));
+  iter->val.colVal = NULL;
+  iter->iter = tbl != NULL ? tSkipListCreateIter(tbl->mem) : NULL;
+  iter->next = idxCacheIteratorNext;
+  iter->getValue = idxCacheIteratorGetValue;
 
   taosThreadMutexUnlock(&cache->mtx);
 
-  return iiter;
+  return iter;
 }
 void idxCacheIteratorDestroy(Iterate* iter) {
   if (iter == NULL) {
@@ -566,13 +564,13 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   idxMemUnRef(tbl);
 
   taosThreadMutexUnlock(&pCache->mtx);
-
   idxCacheUnRef(pCache);
   return 0;
   // encode end
 }
 void idxCacheForceToMerge(void* cache) {
   IndexCache* pCache = cache;
+
   idxCacheRef(pCache);
   taosThreadMutexLock(&pCache->mtx);
 

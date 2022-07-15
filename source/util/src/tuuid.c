@@ -49,7 +49,7 @@ int64_t tGenIdPI64(void) {
   }
 
   int64_t id;
-  
+
   while (true) {
     int64_t  ts = taosGetTimestampMs();
     uint64_t pid = taosGetPId();

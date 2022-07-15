@@ -382,7 +382,7 @@ class TDDnode:
 
         if self.valgrind == 0:
             if platform.system().lower() == 'windows':
-                cmd = "mintty -h never -w hide %s -c %s" % (
+                cmd = "mintty -h never %s -c %s" % (
                     binPath, self.cfgDir)
             else:
                 cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
@@ -391,7 +391,7 @@ class TDDnode:
             valgrindCmdline = "valgrind --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
 
             if platform.system().lower() == 'windows':
-                cmd = "mintty -h never -w hide %s %s -c %s" % (
+                cmd = "mintty -h never %s %s -c %s" % (
                     valgrindCmdline, binPath, self.cfgDir)
             else:
                 cmd = "nohup %s %s -c %s 2>&1 & " % (
@@ -508,7 +508,6 @@ class TDDnode:
 
     def stoptaosd(self):
         if (not self.remoteIP == ""):
-            print("123")
             self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].running=1\ntdDnodes.dnodes[%d].stop()"%(self.index-1,self.index-1))
             tdLog.info("stop dnode%d"%self.index)
             return
@@ -518,7 +517,10 @@ class TDDnode:
             toBeKilled = "valgrind.bin"
 
         if self.running != 0:
-            psCmd = "ps -ef|grep -w %s| grep dnode%d|grep -v grep | awk '{print $2}'" % (toBeKilled,self.index)
+            if platform.system().lower() == 'windows':
+                psCmd = "for /f %a in ('wmic process where \"name='taosd.exe' and CommandLine like '%%dnode%d%%'\" get processId ^| xargs echo ^| awk ^'{print $2}^'') do @(ps | grep %a | awk '{print $1}' | xargs kill -INT )" % (self.index)
+            else:
+                psCmd = "ps -ef|grep -w %s| grep dnode%d|grep -v grep | awk '{print $2}'" % (toBeKilled,self.index)
             processID = subprocess.check_output(
                 psCmd, shell=True).decode("utf-8")
 

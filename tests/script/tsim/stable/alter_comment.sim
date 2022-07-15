@@ -159,7 +159,7 @@ sql alter table db.stb rename tag t1 tx
 
 print ========== alter common
 sql alter table db.stb comment 'abcde' ;
-sql alter table db.stb ttl 10 ;
+sql_error alter table db.stb ttl 10 ;
 
 sql show db.stables;
 if $data[0][6] != abcde then

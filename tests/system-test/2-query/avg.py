@@ -10,11 +10,11 @@ from util.cases import *
 class TDTestCase:
     updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 , 
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
-    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143}
+    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), True)
-    
+
     def prepare_datas(self):
         tdSql.execute(
             '''create table stb1
@@ -22,7 +22,7 @@ class TDTestCase:
             tags (t1 int)
             '''
         )
-        
+
         tdSql.execute(
             '''
             create table t1
@@ -64,7 +64,7 @@ class TDTestCase:
             ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             '''
         )
-    
+
     def check_avg(self ,origin_query , check_query):
         avg_result = tdSql.getResult(origin_query)
         origin_result = tdSql.getResult(check_query)
@@ -73,13 +73,13 @@ class TDTestCase:
         for row_index , row in enumerate(avg_result):
             for col_index , elem in enumerate(row):
                 if avg_result[row_index][col_index] != origin_result[row_index][col_index]:
-                    check_status = False 
+                    check_status = False
         if not check_status:
             tdLog.notice("avg function value has not as expected , sql is \"%s\" "%origin_query )
             sys.exit(1)
         else:
             tdLog.info("avg value check pass , it work as expected ,sql is \"%s\"   "%check_query )
-        
+
     def test_errors(self):
         error_sql_lists = [
             "select avg from t1",
@@ -113,42 +113,42 @@ class TDTestCase:
         ]
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
-    
+
     def support_types(self):
         type_error_sql_lists = [
-            "select avg(ts) from t1" , 
+            "select avg(ts) from t1" ,
             "select avg(c7) from t1",
             "select avg(c8) from t1",
             "select avg(c9) from t1",
-            "select avg(ts) from ct1" , 
+            "select avg(ts) from ct1" ,
             "select avg(c7) from ct1",
             "select avg(c8) from ct1",
             "select avg(c9) from ct1",
-            "select avg(ts) from ct3" , 
+            "select avg(ts) from ct3" ,
             "select avg(c7) from ct3",
             "select avg(c8) from ct3",
             "select avg(c9) from ct3",
-            "select avg(ts) from ct4" , 
+            "select avg(ts) from ct4" ,
             "select avg(c7) from ct4",
             "select avg(c8) from ct4",
             "select avg(c9) from ct4",
-            "select avg(ts) from stb1" , 
+            "select avg(ts) from stb1" ,
             "select avg(c7) from stb1",
             "select avg(c8) from stb1",
             "select avg(c9) from stb1" ,
 
-            "select avg(ts) from stbbb1" , 
+            "select avg(ts) from stbbb1" ,
             "select avg(c7) from stbbb1",
 
             "select avg(ts) from tbname",
             "select avg(c9) from tbname"
 
         ]
-        
+
         for type_sql in type_error_sql_lists:
             tdSql.error(type_sql)
-        
-        
+
+
         type_sql_lists = [
             "select avg(c1) from t1",
             "select avg(c2) from t1",
@@ -178,16 +178,16 @@ class TDTestCase:
             "select avg(c5) from stb1",
             "select avg(c6) from stb1",
 
-            "select avg(c6) as alisb from stb1", 
-            "select avg(c6) alisb from stb1", 
+            "select avg(c6) as alisb from stb1",
+            "select avg(c6) alisb from stb1",
         ]
 
         for type_sql in type_sql_lists:
             tdSql.query(type_sql)
-    
+
     def basic_avg_function(self):
 
-        # basic query 
+        # basic query
         tdSql.query("select c1 from ct3")
         tdSql.checkRows(0)
         tdSql.query("select c1 from t1")
@@ -207,18 +207,18 @@ class TDTestCase:
         tdSql.query("select avg(c5) from ct3")
         tdSql.checkRows(0)
         tdSql.query("select avg(c6) from ct3")
-        
+
         # used for regular table
         tdSql.query("select avg(c1) from t1")
         tdSql.checkData(0, 0, 5.000000000)
-       
-       
+
+
         tdSql.query("select ts,c1, c2, c3 , c4, c5 from t1")
         tdSql.checkData(1, 5, 1.11000)
         tdSql.checkData(3, 4, 33)
         tdSql.checkData(5, 5, None)
         self.check_avg(" select avg(c1) , avg(c2) , avg(c3) from t1 " , " select sum(c1)/count(c1) , sum(c2)/count(c2) , sum(c3)/count(c3) from t1 ")
-        
+
         # used for sub table
         tdSql.query("select avg(c1) from ct1")
         tdSql.checkData(0, 0, 4.846153846)
@@ -229,8 +229,8 @@ class TDTestCase:
         self.check_avg(" select avg(abs(c1)) , avg(abs(c2)) , avg(abs(c3)) from t1 " , " select sum(abs(c1))/count(c1) , sum(abs(c2))/count(c2) , sum(abs(c3))/count(c3) from t1 ")
         self.check_avg(" select avg(abs(c1)) , avg(abs(c2)) , avg(abs(c3)) from stb1 " , " select sum(abs(c1))/count(c1) , sum(abs(c2))/count(c2) , sum(abs(c3))/count(c3) from stb1 ")
 
-        # used for stable table 
-        
+        # used for stable table
+
         tdSql.query("select avg(c1) from stb1")
         tdSql.checkRows(1)
 
@@ -241,10 +241,10 @@ class TDTestCase:
         tdSql.error("select avg(c1) from tbname")
         tdSql.error("select avg(c1) from ct5")
 
-        # mix with common col 
+        # mix with common col
         tdSql.error("select c1, avg(c1) from ct1")
         tdSql.error("select c1, avg(c1) from ct4")
-        
+
 
         # mix with common functions
         tdSql.error("select c1, avg(c1),c5, floor(c5) from ct4 ")
@@ -278,11 +278,11 @@ class TDTestCase:
         tdSql.query("select count(*) from stb1 ")
         tdSql.checkData(0,0,25)
 
-        # bug fix for compute 
+        # bug fix for compute
         tdSql.error("select c1, avg(c1) -0 ,ceil(c1)-0 from ct4 ")
         tdSql.error(" select c1, avg(c1) -0 ,avg(ceil(c1-0.1))-0.1 from ct4")
 
-        # mix with nest query 
+        # mix with nest query
         self.check_avg("select avg(col) from (select abs(c1) col from stb1)" , "select avg(abs(c1)) from stb1")
         self.check_avg("select avg(col) from (select ceil(abs(c1)) col from stb1)" , "select avg(abs(c1)) from stb1")
 
@@ -297,7 +297,7 @@ class TDTestCase:
         tdSql.query(" select avg(c1) from stb1 where c1 is null ")
         tdSql.checkRows(0)
 
-        
+
     def avg_func_filter(self):
         tdSql.execute("use db")
         tdSql.query(" select avg(c1), avg(c1) -0 ,avg(ceil(c1-0.1))-0 ,avg(floor(c1+0.1))-0.1 ,avg(ceil(log(c1,2)-0.5)) from ct4 where c1>5 ")
@@ -324,7 +324,7 @@ class TDTestCase:
 
     def avg_Arithmetic(self):
         pass
-    
+
     def check_boundary_values(self):
 
         tdSql.execute("drop database if exists bound_test")
@@ -344,11 +344,11 @@ class TDTestCase:
         tdSql.execute(
                 f"insert into sub1_bound values ( now(), 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        
+
         tdSql.execute(
                 f"insert into sub1_bound values ( now(), 2147483645, 9223372036854775805, 32765, 125, 3.40E+37, 1.7e+307, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        
+
         tdSql.execute(
                 f"insert into sub1_bound values ( now(), 2147483644, 9223372036854775804, 32764, 124, 3.40E+37, 1.7e+307, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
@@ -359,14 +359,14 @@ class TDTestCase:
         tdSql.execute(
                 f"insert into sub1_bound values ( now(), 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        
+
 
         tdSql.error(
                 f"insert into sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         self.check_avg("select avg(c1), avg(c2), avg(c3) , avg(c4), avg(c5) ,avg(c6) from sub1_bound " , " select sum(c1)/count(c1), sum(c2)/count(c2) ,sum(c3)/count(c3), sum(c4)/count(c4), sum(c5)/count(c5) ,sum(c6)/count(c6) from sub1_bound ")
 
-        
+
         # check basic elem for table per row
         tdSql.query("select avg(c1) ,avg(c2) , avg(c3) , avg(c4), avg(c5), avg(c6) from sub1_bound ")
         tdSql.checkRows(1)
@@ -376,8 +376,8 @@ class TDTestCase:
         tdSql.checkData(0,3,53.571428571)
         tdSql.checkData(0,4,5.828571332045761e+37)
         # tdSql.checkData(0,5,None)
-        
-       
+
+
         # check  + - * / in functions
         tdSql.query(" select avg(c1+1) ,avg(c2) , avg(c3*1) , avg(c4/2), avg(c5)/2, avg(c6) from sub1_bound ")
         tdSql.checkData(0,0,920350134.5714285)
@@ -386,33 +386,33 @@ class TDTestCase:
         tdSql.checkData(0,3,26.785714286)
         tdSql.checkData(0,4,2.9142856660228804e+37)
         # tdSql.checkData(0,5,None)
-        
-       
+
+
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
-        
+
         self.prepare_datas()
 
-        tdLog.printNoPrefix("==========step2:test errors ==============")    
+        tdLog.printNoPrefix("==========step2:test errors ==============")
 
         self.test_errors()
-        
-        tdLog.printNoPrefix("==========step3:support types ============") 
+
+        tdLog.printNoPrefix("==========step3:support types ============")
 
         self.support_types()
 
-        tdLog.printNoPrefix("==========step4: avg basic query ============") 
+        tdLog.printNoPrefix("==========step4: avg basic query ============")
 
         self.basic_avg_function()
 
-        tdLog.printNoPrefix("==========step5: avg boundary query ============") 
+        tdLog.printNoPrefix("==========step5: avg boundary query ============")
 
         self.check_boundary_values()
 
-        tdLog.printNoPrefix("==========step6: avg filter query ============") 
+        tdLog.printNoPrefix("==========step6: avg filter query ============")
 
         self.avg_func_filter()
 

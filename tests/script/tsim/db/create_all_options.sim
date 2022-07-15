@@ -5,55 +5,34 @@ system sh/deploy.sh -n dnode3 -i 3
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
-
-$loop_cnt = 0
-check_dnode_ready:
-	$loop_cnt = $loop_cnt + 1
-	sleep 200
-	if $loop_cnt == 10 then
-	  print ====> dnode not ready!
-		return -1
-	endi
-sql show dnodes
-print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
-if $data00 != 1 then
-  return -1
-endi
-if $data04 != ready then
-  goto check_dnode_ready
-endi
-
 sql connect
 sql create dnode $hostname port 7200
 sql create dnode $hostname port 7300
 
-$loop_cnt = 0
-check_dnode_ready_1:
-	$loop_cnt = $loop_cnt + 1
-	sleep 200
-	if $loop_cnt == 10 then
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
 	  print ====> dnode not ready!
 		return -1
 	endi
 sql show dnodes
-print ===> rows: $rows 
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
-if $data00 != 1 then
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+if $rows != 3 then
   return -1
 endi
-if $data01 != localhost:7100 then
-  return -1
+if $data(1)[4] != ready then
+  goto step1
 endi
-if $data04 != ready then
-  goto check_dnode_ready_1
+if $data(2)[4] != ready then
+  goto step1
 endi
-if $data14 != ready then
-  goto check_dnode_ready_1
-endi
-if $data24 != ready then
-  goto check_dnode_ready_1
+if $data(3)[4] != ready then
+  goto step1
 endi
 
 print ============= create database with all options
