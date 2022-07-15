@@ -90,7 +90,7 @@ static int32_t (*tfSearch[][QUERY_MAX])(void* reader, SIndexTerm* tem, SIdxTRslt
     {tfSearchEqual_JSON, tfSearchPrefix_JSON, tfSearchSuffix_JSON, tfSearchRegex_JSON, tfSearchLessThan_JSON,
      tfSearchLessEqual_JSON, tfSearchGreaterThan_JSON, tfSearchGreaterEqual_JSON, tfSearchRange_JSON}};
 
-TFileCache* tfileCacheCreate(const char* path) {
+TFileCache* tfileCacheCreate(SIndex* idx, const char* path) {
   TFileCache* tcache = taosMemoryCalloc(1, sizeof(TFileCache));
   if (tcache == NULL) {
     return NULL;
@@ -103,17 +103,20 @@ TFileCache* tfileCacheCreate(const char* path) {
   for (size_t i = 0; i < taosArrayGetSize(files); i++) {
     char* file = taosArrayGetP(files, i);
 
-    IFileCtx* wc = idxFileCtxCreate(TFile, file, true, 1024 * 1024 * 64);
-    if (wc == NULL) {
+    IFileCtx* ctx = idxFileCtxCreate(TFILE, file, true, 1024 * 1024 * 64);
+    if (ctx == NULL) {
       indexError("failed to open index:%s", file);
       goto End;
     }
+    ctx->lru = idx->lru;
 
-    TFileReader* reader = tfileReaderCreate(wc);
+    TFileReader* reader = tfileReaderCreate(ctx);
     if (reader == NULL) {
       indexInfo("skip invalid file: %s", file);
       continue;
     }
+    reader->lru = idx->lru;
+
     TFileHeader* header = &reader->header;
     ICacheKey    key = {.suid = header->suid, .colName = header->colName, .nColName = (int32_t)strlen(header->colName)};
 
@@ -160,9 +163,8 @@ TFileReader* tfileCacheGet(TFileCache* tcache, ICacheKey* key) {
   return *reader;
 }
 void tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader) {
-  char    buf[128] = {0};
-  int32_t sz = idxSerialCacheKey(key, buf);
-  // remove last version index reader
+  char          buf[128] = {0};
+  int32_t       sz = idxSerialCacheKey(key, buf);
   TFileReader** p = taosHashGet(tcache->tableCache, buf, sz);
   if (p != NULL && *p != NULL) {
     TFileReader* oldRdr = *p;
@@ -493,7 +495,7 @@ TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int64_t version, const c
   char fullname[256] = {0};
   tfileGenFileFullName(fullname, path, suid, colName, version);
   // indexInfo("open write file name %s", fullname);
-  IFileCtx* wcx = idxFileCtxCreate(TFile, fullname, false, 1024 * 1024 * 64);
+  IFileCtx* wcx = idxFileCtxCreate(TFILE, fullname, false, 1024 * 1024 * 64);
   if (wcx == NULL) {
     return NULL;
   }
@@ -506,16 +508,17 @@ TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int64_t version, const c
 
   return tfileWriterCreate(wcx, &tfh);
 }
-TFileReader* tfileReaderOpen(char* path, uint64_t suid, int64_t version, const char* colName) {
+TFileReader* tfileReaderOpen(SIndex* idx, uint64_t suid, int64_t version, const char* colName) {
   char fullname[256] = {0};
-  tfileGenFileFullName(fullname, path, suid, colName, version);
+  tfileGenFileFullName(fullname, idx->path, suid, colName, version);
 
-  IFileCtx* wc = idxFileCtxCreate(TFile, fullname, true, 1024 * 1024 * 1024);
+  IFileCtx* wc = idxFileCtxCreate(TFILE, fullname, true, 1024 * 1024 * 1024);
   if (wc == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     indexError("failed to open readonly file: %s, reason: %s", fullname, terrstr());
     return NULL;
   }
+  wc->lru = idx->lru;
   indexTrace("open read file name:%s, file size: %" PRId64 "", wc->file.buf, wc->file.size);
 
   TFileReader* reader = tfileReaderCreate(wc);
@@ -598,17 +601,11 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
       indexError("failed to write data: %s, offset: %d len: %d", v->colVal, v->offset,
                  (int)taosArrayGetSize(v->tableId));
     } else {
-      // indexInfo("success to write data: %s, offset: %d len: %d", v->colVal, v->offset,
-      //          (int)taosArrayGetSize(v->tableId));
-
-      // indexInfo("tfile write data size: %d", tw->ctx->size(tw->ctx));
+      indexInfo("success to write data: %s, offset: %d len: %d", v->colVal, v->offset,
+                (int)taosArrayGetSize(v->tableId));
     }
   }
-
-  fstBuilderFinish(tw->fb);
   fstBuilderDestroy(tw->fb);
-  tw->fb = NULL;
-
   tfileWriteFooter(tw);
   return 0;
 }
@@ -627,8 +624,8 @@ void tfileWriterDestroy(TFileWriter* tw) {
   taosMemoryFree(tw);
 }
 
-IndexTFile* idxTFileCreate(const char* path) {
-  TFileCache* cache = tfileCacheCreate(path);
+IndexTFile* idxTFileCreate(SIndex* idx, const char* path) {
+  TFileCache* cache = tfileCacheCreate(idx, path);
   if (cache == NULL) {
     return NULL;
   }
@@ -859,18 +856,6 @@ static int tfileWriteData(TFileWriter* write, TFileValue* tval) {
     return 0;
   }
   return -1;
-
-  // if (colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_NCHAR) {
-  //  FstSlice key = fstSliceCreate((uint8_t*)(tval->colVal), (size_t)strlen(tval->colVal));
-  //  if (fstBuilderInsert(write->fb, key, tval->offset)) {
-  //    fstSliceDestroy(&key);
-  //    return 0;
-  //  }
-  //  fstSliceDestroy(&key);
-  //  return -1;
-  //} else {
-  //  // handle other type later
-  //}
 }
 static int tfileWriteFooter(TFileWriter* write) {
   char  buf[sizeof(FILE_MAGIC_NUMBER) + 1] = {0};
@@ -887,6 +872,7 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
   char buf[TFILE_HEADER_SIZE] = {0};
 
   int64_t nread = reader->ctx->readFrom(reader->ctx, buf, sizeof(buf), 0);
+
   if (nread == -1) {
     indexError("actual Read: %d, to read: %d, errno: %d, filename: %s", (int)(nread), (int)sizeof(buf), errno,
                reader->ctx->file.buf);
@@ -914,7 +900,7 @@ static int tfileReaderLoadFst(TFileReader* reader) {
   int64_t cost = taosGetTimestampUs() - ts;
   indexInfo("nread = %d, and fst offset=%d, fst size: %d, filename: %s, file size: %" PRId64 ", time cost: %" PRId64
             "us",
-            nread, reader->header.fstOffset, fstSize, ctx->file.buf, ctx->file.size, cost);
+            nread, reader->header.fstOffset, fstSize, ctx->file.buf, size, cost);
   // we assuse fst size less than FST_MAX_SIZE
   assert(nread > 0 && nread <= fstSize);
 

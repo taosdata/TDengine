@@ -77,6 +77,7 @@ typedef struct SScanLogicNode {
   SArray*       pSmaIndexes;
   SNodeList*    pGroupTags;
   bool          groupSort;
+  int8_t        cacheLastMode;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
