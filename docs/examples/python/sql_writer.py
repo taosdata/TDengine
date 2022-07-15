@@ -18,6 +18,7 @@ class SQLWriter:
             name = r[0]
             if name == "maxSQLLength":
                 return int(r[1])
+        return 1024 * 1024
 
     def process_lines(self, lines: str):
         """
@@ -71,11 +72,19 @@ class SQLWriter:
             if error_code == 0x362 or error_code == 0x218:
                 self.create_tables()
             else:
+                self.log.error("Execute SQL: %s", sql)
                 raise e
+        except BaseException as baseException:
+            self.log.error("Execute SQL: %s", sql)
+            raise baseException
 
     def create_tables(self):
         sql = "CREATE TABLE "
         for tb in self._tb_values.keys():
             tag_values = self._tb_tags[tb]
             sql += "IF NOT EXISTS " + tb + " USING meters TAGS " + tag_values + " "
-        self._conn.execute(sql)
+        try:
+            self._conn.execute(sql)
+        except BaseException as e:
+            self.log.error("Execute SQL: %s", sql)
+            raise e
