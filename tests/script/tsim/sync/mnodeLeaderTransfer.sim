@@ -27,7 +27,7 @@ sql create dnode $hostname port 7300
 sleep 3000
 
 
-print =============== create mnode 2
+print =============== create mnode 2, 3
 sql create mnode on dnode 2
 sql create mnode on dnode 3
 sleep 3000
