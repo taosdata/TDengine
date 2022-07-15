@@ -1,10 +1,6 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
-system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 system sh/exec.sh -n dnode1 -s start
-sleep 100
 sql connect
 
 $dbPrefix = lr_db
@@ -58,7 +54,7 @@ endw
 
 print ====== test data created
 
-run general/parser/lastrow_query.sim
+run tsim/parser/lastrow_query.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -68,7 +64,7 @@ print ================== server restart completed
 sql connect
 sleep 100
 
-run general/parser/lastrow_query.sim
+run tsim/parser/lastrow_query.sim
 
 print =================== last_row + nested query
 sql use $db
