@@ -624,7 +624,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   }
 
   SClientHbBatchRsp batchRsp = {0};
-  batchRsp.svrTimestamp = taosGetTimestampMs();
+  batchRsp.svrTimestamp = taosGetTimestampSec();
   batchRsp.rsps = taosArrayInit(0, sizeof(SClientHbRsp));
 
   int32_t sz = taosArrayGetSize(batchReq.reqs);
