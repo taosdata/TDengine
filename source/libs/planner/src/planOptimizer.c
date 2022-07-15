@@ -2112,7 +2112,7 @@ static bool tagScanMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
   SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-  if (NULL != pScan->pScanCols) {
+  if (pScan->hasNormalCols) {
     return false;
   }
   if (NULL == pNode->pParent || QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent) ||

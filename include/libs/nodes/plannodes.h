@@ -78,6 +78,7 @@ typedef struct SScanLogicNode {
   SNodeList*    pGroupTags;
   bool          groupSort;
   int8_t        cacheLastMode;
+  bool          hasNormalCols; // neither tag column nor primary key tag column
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
