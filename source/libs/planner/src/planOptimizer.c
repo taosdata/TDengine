@@ -1993,7 +1993,8 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
   SNode* pFunc = NULL;
   FOREACH(pFunc, ((SAggLogicNode*)pNode)->pAggFuncs) {
     if (FUNCTION_TYPE_LAST_ROW != ((SFunctionNode*)pFunc)->funcType &&
-        FUNCTION_TYPE_SELECT_VALUE != ((SFunctionNode*)pFunc)->funcType) {
+        FUNCTION_TYPE_SELECT_VALUE != ((SFunctionNode*)pFunc)->funcType &&
+        FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pFunc)->funcType) {
       return false;
     }
   }
