@@ -147,7 +147,7 @@ int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwDbgResponseRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx) {
+int32_t qwDbgResponseRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx, bool *rsped) {
   if (gQWDebug.tmp) {
     if (TDMT_SCH_QUERY == qwMsg->msgType && (0 == taosRand() % 3)) {
       SEpSet epSet = {0};
@@ -162,16 +162,25 @@ int32_t qwDbgResponseRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx) {
 
       ctx->phase = QW_PHASE_POST_QUERY;      
       qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_RPC_REDIRECT, &epSet);
+      *rsped = true;
       return TSDB_CODE_SUCCESS;
     }
     
     if (TDMT_SCH_MERGE_QUERY == qwMsg->msgType && (0 == taosRand() % 3)) {
       QW_SET_PHASE(ctx, QW_PHASE_POST_QUERY);
       qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_RPC_REDIRECT, NULL);
+      *rsped = true;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if ((TDMT_SCH_FETCH == qwMsg->msgType) && (0 == taosRand() % 3)) {
+      qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_RPC_REDIRECT, NULL);
+      *rsped = true;
       return TSDB_CODE_SUCCESS;
     }
   }
 
+  *rsped = false;
   return TSDB_CODE_SUCCESS;
 }
 

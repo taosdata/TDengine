@@ -138,7 +138,17 @@ int32_t schUpdateTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int3
     return TSDB_CODE_SUCCESS;
   }
 
+  if ((execId != pTask->execId) || pTask->waitRetry) {  // ignore it
+    SCH_TASK_DLOG("handle not updated since execId %d is already not current execId %d, waitRetry %d", execId, pTask->execId, pTask->waitRetry);
+    return TSDB_CODE_SUCCESS;
+  }
+
   SSchNodeInfo *nodeInfo = taosHashGet(pTask->execNodes, &execId, sizeof(execId));
+  if (NULL == nodeInfo) {  // ignore it
+    SCH_TASK_DLOG("handle not updated since execId %d already not exist, current execId %d, waitRetry %d", execId, pTask->execId, pTask->waitRetry);
+    return TSDB_CODE_SUCCESS;
+  }
+
   nodeInfo->handle = handle;
 
   SCH_TASK_DLOG("handle updated to %p for execId %d", handle, execId);

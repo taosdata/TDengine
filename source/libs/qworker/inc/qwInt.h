@@ -132,7 +132,7 @@ typedef struct SQWTaskCtx {
   int8_t   taskType;
   int8_t   explain;
   int8_t   needFetch;
-  int32_t  queryType;
+  int32_t  msgType;
   int32_t  fetchType;
   int32_t  execId;
 
@@ -380,7 +380,7 @@ void qwDbgDumpMgmtInfo(SQWorker *mgmt);
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore);
 int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, SEpSet *pEpSet);
 int32_t qwAddTaskCtx(QW_FPARAMS_DEF);
-int32_t qwDbgResponseRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx);
+int32_t qwDbgResponseRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx, bool *rsped);
 
 
 #ifdef __cplusplus

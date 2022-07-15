@@ -428,7 +428,14 @@ _return:
 
   if (QW_PHASE_POST_QUERY == phase && ctx) {
     ctx->queryRsped = true;
-    qwBuildAndSendQueryRsp(input->msgType + 1, &ctx->ctrlConnInfo, code, ctx);
+
+    bool rsped = false;
+    SQWMsg qwMsg = {.msgType = ctx->msgType, .connInfo = ctx->ctrlConnInfo};
+    qwDbgResponseRedirect(&qwMsg, ctx, &rsped);
+    if (!rsped) {
+      qwBuildAndSendQueryRsp(input->msgType + 1, &ctx->ctrlConnInfo, code, ctx);
+    }
+    
     QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, code, tstrerror(code));
   }
 
@@ -476,8 +483,6 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_INIT));
 
-  qwDbgResponseRedirect(qwMsg, ctx);
-
 _return:
 
   if (ctx) {
@@ -505,7 +510,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, const char* sql) {
   ctx->taskType = qwMsg->msgInfo.taskType;
   ctx->explain = qwMsg->msgInfo.explain;
   ctx->needFetch = qwMsg->msgInfo.needFetch;
-  ctx->queryType = qwMsg->msgType;
+  ctx->msgType = qwMsg->msgType;
 
   //QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);
 
@@ -650,7 +655,7 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
 
-  ctx->queryType = qwMsg->msgType;
+  ctx->msgType = qwMsg->msgType;
 
   SOutputData sOutput = {0};
   QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
@@ -702,7 +707,11 @@ _return:
   }
 
   if (code || rsp) {
-    qwBuildAndSendFetchRsp(qwMsg->msgType + 1, &qwMsg->connInfo, rsp, dataLen, code);
+    bool rsped = false;
+    qwDbgResponseRedirect(qwMsg, ctx, &rsped);
+    if (!rsped) {
+      qwBuildAndSendFetchRsp(qwMsg->msgType + 1, &qwMsg->connInfo, rsp, dataLen, code);
+    }
     QW_TASK_DLOG("%s send, handle:%p, code:%x - %s, dataLen:%d", TMSG_INFO(qwMsg->msgType + 1), qwMsg->connInfo.handle, code, tstrerror(code),
                  dataLen);
   }
