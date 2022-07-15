@@ -242,7 +242,7 @@ if $data04 != 3 then
   return -1
 endi
 
-sql alter table $mt change tag tgcol1 tgcol4
+sql alter table $mt rename tag tgcol1 tgcol4
 sql alter table $mt drop tag tgcol2 
 sql alter table $mt drop tag tgcol3
 sql alter table $mt add tag tgcol5 binary(10)
@@ -322,7 +322,7 @@ if $data04 != 3 then
   return -1
 endi
 
-sql alter table $mt change tag tgcol1 tgcol4
+sql alter table $mt rename tag tgcol1 tgcol4
 sql alter table $mt drop tag tgcol2 
 sql alter table $mt drop tag tgcol3
 sql alter table $mt add tag tgcol5 bigint
@@ -383,7 +383,7 @@ if $data04 != 3 then
   return -1
 endi
 
-sql alter table $mt change tag tgcol1 tgcol4
+sql alter table $mt rename tag tgcol1 tgcol4
 sql alter table $mt drop tag tgcol2 
 sql alter table $mt drop tag tgcol3
 sql alter table $mt add tag tgcol5 binary(17)
@@ -444,7 +444,7 @@ if $data04 != 3 then
   return -1
 endi
 
-sql alter table $mt change tag tgcol1 tgcol4
+sql alter table $mt rename tag tgcol1 tgcol4
 sql alter table $mt drop tag tgcol2 
 sql alter table $mt drop tag tgcol3
 sql alter table $mt add tag tgcol5 bool
@@ -508,7 +508,7 @@ if $data05 != 4 then
   return -1
 endi
 
-sql alter table $mt change tag tgcol1 tgcol4 -x step103
+sql alter table $mt rename tag tgcol1 tgcol4 -x step103
   return -1
 step103:
 
@@ -582,7 +582,7 @@ if $data06 != 5 then
   return -1
 endi
 
-sql alter table $mt change tag tgcol1 tgcol4 -x step114
+sql alter table $mt rename tag tgcol1 tgcol4 -x step114
   return -1
 step114:
 

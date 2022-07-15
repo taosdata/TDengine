@@ -47,24 +47,30 @@ while $x < $rowNum
     $x = $x + 1  
 endw
 
+sql flush database $db
+
 print =============== step2
 $i = 0
 $tb = $tbPrefix . $i
 
-sql select _block_dist() from $tb
+#sql select _block_dist() from $tb
+print show table distributed $tb
+sql show table distributed $tb
 
-if $rows != 1 then
-  print expect 1, actual:$rows
+print $rows
+if $rows == 0 then
   return -1
 endi
 
 print =============== step3
 $i = 0
 $mt = $mtPrefix . $i
-sql select _block_dist() from $mt
+#sql select _block_dist() from $mt
 
-if $rows != 1 then
-  print expect 1, actual:$rows
+print show table distributed $mt
+sql show table distributed $mt
+
+if $rows == 0 then
   return -1
 endi
 
@@ -72,10 +78,11 @@ print =============== step4
 $i = 0
 $nt = $ntPrefix . $i
 
-sql select _block_dist() from $nt
+#sql select _block_dist() from $nt
+print show table distributed $nt
+sql show table distributed $nt
 
-if $rows != 1 then
-  print expect 1, actual:$rows
+if $rows == 0 then
   return -1
 endi
 

@@ -1,12 +1,8 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c wallevel -v 0
-system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
-
 system sh/exec.sh -n dnode1 -s start
-
-sleep 2000
 sql connect
+
 print ============================ dnode1 start
 
 sql create database d1
@@ -21,13 +17,10 @@ sql create table d3.t1(ts timestamp, i int)
 sql create database d4
 sql create table d4.t1(ts timestamp, i int)
 
-sleep 2000
-
 sql drop database d1
 sql drop database d2
 sql drop database d3
 sql drop database d4
-sleep 2000
 
 sql create database d5
 sql create table d5.t1(ts timestamp, i int)
@@ -41,14 +34,10 @@ sql create table d7.t1(ts timestamp, i int)
 sql create database d8
 sql create table d8.t1(ts timestamp, i int)
 
-sleep 2000
-
 sql drop database d5
 sql drop database d6
 sql drop database d7
 sql drop database d8
-
-sleep 2000
 
 sql create database d9;
 sql create table d9.t1(ts timestamp, i int)

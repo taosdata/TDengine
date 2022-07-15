@@ -244,6 +244,7 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
   pScan->showRewrite = pCxt->pPlanCxt->showRewrite;
   pScan->ratio = pRealTable->ratio;
   pScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;
+  pScan->cacheLastMode = pRealTable->cacheLastMode;
 
   *pLogicNode = (SLogicNode*)pScan;
 
