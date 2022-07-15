@@ -75,7 +75,7 @@ import TabItem from "@theme/TabItem";
 | WriteTask        | 从 Queue 中获取数据，组成一个 Batch，写入 TDengine                          |
 | MockDataSource   | 模拟生成一定数量 meters 子表的数据                                          |
 | SQLWriter        | WriteTask 依赖这个类完成 SQL 拼接、自动建表、 SQL 写入、SQL 长度检查        |
-| StmtWriter       | 实现参数绑定方式批量写入，暂未完成                                          |
+| StmtWriter       | 实现参数绑定方式批量写入（暂未完成）                                        |
 | DataBaseMonitor  | 统计写入速度，并每隔 10 秒把当前写入速度打印到控制台                        |
 
 
@@ -141,7 +141,7 @@ import TabItem from "@theme/TabItem";
 
 <summary>SQLWriter</summary>
 
-SQLWriter 类封装了拼 SQL 和写数据的逻辑。注意，所有的表都没有提前创建，而是写入出错的时候，再以超级表为模板批量建表，然后重新执行 INSERT 语句。
+SQLWriter 类封装了拼 SQL 和写数据的逻辑。注意，所有的表都没有提前创建，而是在 catch 到表不存在异常的时候，再以超级表为模板批量建表，然后重新执行 INSERT 语句。对于其它异常，这里简单地记录当时执行的 SQL 语句到日志中，你也可以记录更多线索到日志，已便排查错误和故障恢复。
 
 ```java
 {{#include docs/examples/java/src/main/java/com/taos/example/highvolume/SQLWriter.java}}
@@ -217,7 +217,7 @@ TDENGINE_JDBC_URL="jdbc:TAOS://localhost:6030?user=root&password=taosdata"
    ```
 
 6. 结束测试程序。测试程序不会自动结束，在获取到当前配置下稳定的写入速度后，按 <kbd>CTRL</kbd> + <kbd>C</kbd> 结束程序。
-   下面是一次实际运行的截图：
+   下面是一次实际运行的日志输出，机器配置 16核 + 64G + 固态硬盘。
 
    ```
    root@vm85$ java -classpath lib/*:javaexample-1.0.jar  com.taos.example.highvolume.FastWriteExample 2 12
@@ -276,6 +276,7 @@ Python 示例程序中采用了多进程的架构，并使用了跨进程的消�
 | MockDataSource 类        | 模拟数据源, 实现迭代器接口，每次批量返回每张表的接下来 1000 条数据   |
 | run_write_task 函数      | 写进程主要逻辑。每次从队列中取出尽量多的数据，并批量写入             |
 | SQLWriter类              | SQL 写入和自动建表                                                   |
+| StmtWriter 类            | 实现参数绑定方式批量写入（暂未完成）                                 |
 
 
 <details>
@@ -296,7 +297,7 @@ main 函数可以接收 5 个启动参数，依次是：
 5. 每批最多写入记录数量， 默认为 3000
 
 ```python
-{{#include docs/examples/python/highvolume_faster_queue.py:main}}
+{{#include docs/examples/python/fast_write_example.py:main}}
 ```
 
 </details>
@@ -307,7 +308,7 @@ main 函数可以接收 5 个启动参数，依次是：
 监控进程负责初始化数据库，并监控当前的写入速度。
 
 ```python
-{{#include docs/examples/python/highvolume_faster_queue.py:monitor}}
+{{#include docs/examples/python/fast_write_example.py:monitor}}
 ```
 
 </details>
@@ -319,7 +320,7 @@ main 函数可以接收 5 个启动参数，依次是：
 读进程，负责从其它数据系统读数据，并分发数据到为之分配的队列。
 
 ```python
-{{#include docs/examples/python/highvolume_faster_queue.py:read}}
+{{#include docs/examples/python/fast_write_example.py:read}}
 ```
 
 </details>
@@ -342,14 +343,14 @@ main 函数可以接收 5 个启动参数，依次是：
 写进程每次从队列中取出尽量多的数据，并批量写入。
 
 ```python
-{{#include docs/examples/python/highvolume_faster_queue.py:write}}
+{{#include docs/examples/python/fast_write_example.py:write}}
 ```
 
 </details>
 
 <details>
 
-SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提前创建，而是写入出错的时候，再以超级表为模板批量建表，然后重新执行 INSERT 语句。这个类也对 SQL 是否超过最大长度限制做了检查，如果接近 SQL 最大长度限制（maxSQLLength），将会立即执行 SQL。为了减少 SQL 此时，建议将 maxSQLLength 适当调大。
+SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提前创建，而是在发生表不存在错误的时候，再以超级表为模板批量建表，然后重新执行 INSERT 语句。对于其它错误会记录当时执行的 SQL， 以便排查错误和故障恢复。这个类也对 SQL 是否超过最大长度限制做了检查，如果接近 SQL 最大长度限制（maxSQLLength），将会立即执行 SQL。为了减少 SQL 此时，建议将 maxSQLLength 适当调大。
 
 <summary>SQLWriter</summary>
 
@@ -377,18 +378,18 @@ SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提�
    pip3 install faster-fifo
    ```
 
-3. 点击上面的“查看源码”链接复制 `highvolume_faster_queue.py` 和 `sql_writer.py` 两个文件。
+3. 点击上面的“查看源码”链接复制 `fast_write_example.py` 、 `sql_writer.py` 和 `mockdatasource.py` 三个文件。
 
 4. 执行示例程序
 
    ```
-   python3  highvolume_faster_queue.py <READ_TASK_COUNT> <WRITE_TASK_COUNT> <TABLE_COUNT> <QUEUE_SIZE> <MAX_BATCH_SIZE>
+   python3  fast_write_example.py <READ_TASK_COUNT> <WRITE_TASK_COUNT> <TABLE_COUNT> <QUEUE_SIZE> <MAX_BATCH_SIZE>
    ```
 
    下面是一次实际运行的输出：
 
    ```
-   root@vm85$ python3 highvolume_faster_queue.py  8 8
+   root@vm85$ python3 fast_write_example.py  8 8
    2022-07-14 19:13:45,869 [root] - READ_TASK_COUNT=8, WRITE_TASK_COUNT=8, TABLE_COUNT=1000, QUEUE_SIZE=1000000, MAX_BATCH_SIZE=3000
    2022-07-14 19:13:48,882 [root] - WriteTask-0 started with pid 718347
    2022-07-14 19:13:48,883 [root] - WriteTask-1 started with pid 718348
@@ -427,3 +428,5 @@ SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提�
 
 </TabItem>
 </Tabs>
+
+

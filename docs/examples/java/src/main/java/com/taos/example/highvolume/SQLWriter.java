@@ -154,11 +154,11 @@ public class SQLWriter {
                 createTables();
                 executeSQL(sql);
             } else {
-                logger.error("Error execute SQL: {}", sql);
+                logger.error("Execute SQL: {}", sql);
                 throw e;
             }
         } catch (Throwable throwable) {
-            logger.error("Error execute SQL: {}", sql);
+            logger.error("Execute SQL: {}", sql);
             throw throwable;
         }
     }
@@ -179,7 +179,7 @@ public class SQLWriter {
         try {
             stmt.executeUpdate(sql);
         } catch (Throwable throwable) {
-            logger.error("Error execute SQL: {}", sql);
+            logger.error("Execute SQL: {}", sql);
             throw throwable;
         }
     }
