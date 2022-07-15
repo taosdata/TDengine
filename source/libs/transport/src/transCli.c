@@ -25,18 +25,18 @@ typedef struct SCliConn {
 
   SConnBuffer readBuf;
   STransQueue cliMsgs;
-  queue       conn;
+  queue       conn;  // node in conn pool
   uint64_t    expireTime;
 
-  STransCtx  ctx;
   bool       broken;  // link broken or not
+  STransCtx  ctx;
   ConnStatus status;  //
 
-  int64_t  refId;
-  char*    ip;
-  uint32_t port;
+  int64_t refId;
 
   // debug and log info
+  char*              ip;
+  uint32_t           port;
   struct sockaddr_in addr;
   struct sockaddr_in localAddr;
 } SCliConn;
@@ -57,19 +57,20 @@ typedef struct SCliThrd {
   int64_t     pid;     // pid
   uv_loop_t*  loop;
   SAsyncPool* asyncPool;
-  uv_timer_t  timer;
   void*       pool;  // conn pool
 
   // msg queue
   queue         msg;
   TdThreadMutex msgMtx;
-  SDelayQueue*  delayQueue;
-  uint64_t      nextTimeout;  // next timeout
-  void*         pTransInst;   //
+
+  uv_timer_t   timer;
+  SDelayQueue* delayQueue;
+  uint64_t     nextTimeout;  // next timeout
 
   SCvtAddr cvtAddr;
 
-  bool quit;
+  bool  quit;
+  void* pTransInst;
 } SCliThrd;
 
 typedef struct SCliObj {
@@ -167,9 +168,10 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
   } while (0);
 
 // snprintf may cause performance problem
-#define CONN_CONSTRUCT_HASH_KEY(key, ip, port)          \
-  do {                                                  \
-    snprintf(key, sizeof(key), "%s:%d", ip, (int)port); \
+#define CONN_CONSTRUCT_HASH_KEY(key, ip, port) \
+  do {                                         \
+    memcpy(key, ip, strlen(ip));               \
+    memcpy(key, &port, sizeof(port));          \
   } while (0)
 
 #define CONN_HOST_THREAD_IDX1(idx, exh, refId, pThrd) \

@@ -72,7 +72,6 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
     char key[128] = {0};
     idxGenLRUKey(key, ctx->file.buf, blkId);
     LRUHandle* h = taosLRUCacheLookup(ctx->lru, key, strlen(key));
-
     if (h) {
       SDataBlock* blk = taosLRUCacheValue(ctx->lru, h);
       nread = TMIN(blkLeft, len);

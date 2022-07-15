@@ -119,7 +119,7 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
    * |<------STransMsgHead------->|<-------------------userdata--------------->|<-----auth data----->|<----user
    * info--->|
    */
-  static const int CAPACITY = sizeof(STransMsgHead);
+  static const int CAPACITY = 512;
 
   SConnBuffer* p = connBuf;
   if (p->cap == 0) {
@@ -151,7 +151,7 @@ bool transReadComplete(SConnBuffer* connBuf) {
     int32_t msgLen = (int32_t)htonl(head.msgLen);
     connBuf->total = msgLen;
   }
-  if (connBuf->len == connBuf->cap && connBuf->total == connBuf->cap) {
+  if (connBuf->len == connBuf->total) {
     return true;
   }
   return false;
