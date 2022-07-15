@@ -1165,7 +1165,11 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
   if (!fmIsRepeatScanFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
-  if (isSelectStmt(pCxt->pCurrStmt) && NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) {
+  if (isSelectStmt(pCxt->pCurrStmt)) {
+    //select percentile() is also valid
+    if (NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) {
+      return TSDB_CODE_SUCCESS;
+    }
     SNode* pTable = ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable;
     if (QUERY_NODE_REAL_TABLE == nodeType(pTable) &&
         (TSDB_CHILD_TABLE == ((SRealTableNode*)pTable)->pMeta->tableType ||
