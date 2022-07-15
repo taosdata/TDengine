@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndUser.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndShow.h"
 #include "mndTrans.h"
@@ -295,7 +295,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
-  userObj.superUser = pCreate->superUser;
+  userObj.superUser = 0;  // pCreate->superUser;
   userObj.sysInfo = pCreate->sysInfo;
   userObj.enable = pCreate->enable;
 
@@ -337,6 +337,9 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   }
 
   mDebug("user:%s, start to create", createReq.user);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_USER) != 0) {
+    goto _OVER;
+  }
 
   if (createReq.user[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_USER_FORMAT;
@@ -357,10 +360,6 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   pOperUser = mndAcquireUser(pMnode, pReq->info.conn.user);
   if (pOperUser == NULL) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
-
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_CREATE_USER) != 0) {
     goto _OVER;
   }
 
@@ -466,7 +465,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckAlterUserAuth(pOperUser, pUser, &alterReq) != 0) {
+  if (mndCheckAlterUserPrivilege(pOperUser, pUser, &alterReq) != 0) {
     goto _OVER;
   }
 
@@ -631,6 +630,9 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
   }
 
   mDebug("user:%s, start to drop", dropReq.user);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_USER) != 0) {
+    goto _OVER;
+  }
 
   if (dropReq.user[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_USER_FORMAT;
@@ -640,10 +642,6 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
   pUser = mndAcquireUser(pMnode, dropReq.user);
   if (pUser == NULL) {
     terrno = TSDB_CODE_MND_USER_NOT_EXIST;
-    goto _OVER;
-  }
-
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_DROP_USER) != 0) {
     goto _OVER;
   }
 

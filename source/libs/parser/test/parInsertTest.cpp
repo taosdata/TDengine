@@ -265,6 +265,11 @@ TEST_F(InsertTest, autoCreateTableTest) {
       "insert into st1s1 using st1 (tag1, tag2) tags(1, 'wxy') values (now, 1, \"beijing\")"
       "(now+1s, 2, \"shanghai\")(now+2s, 3, \"guangzhou\")");
   ASSERT_EQ(runAsync(), TSDB_CODE_SUCCESS);
+
+  bind(
+      "insert into st1s1 using st1 tags(1, 'wxy', now) values (now, 1, \"beijing\")"
+      "st1s1 using st1 tags(1, 'wxy', now) values (now+1s, 2, \"shanghai\")");
+  ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
 }
 
 TEST_F(InsertTest, toleranceTest) {

@@ -26,8 +26,18 @@ extern "C" {
 
 extern bool gRaftDetailLog;
 
+#define SYNC_RESP_TTL_MS 5000
+
+#define SYNC_MAX_BATCH_SIZE 500
 #define SYNC_INDEX_BEGIN 0
 #define SYNC_INDEX_INVALID -1
+#define SYNC_TERM_INVALID 0xFFFFFFFFFFFFFFFF
+
+typedef enum {
+  SYNC_STRATEGY_NO_SNAPSHOT = 0,
+  SYNC_STRATEGY_STANDARD_SNAPSHOT = 1,
+  SYNC_STRATEGY_WAL_FIRST = 2,
+} ESyncStrategy;
 
 typedef uint64_t SyncNodeId;
 typedef int32_t  SyncGroupId;
@@ -45,11 +55,6 @@ typedef enum {
   TAOS_SYNC_STATE_LEADER = 102,
   TAOS_SYNC_STATE_ERROR = 103,
 } ESyncState;
-
-typedef enum {
-  TAOS_SYNC_FSM_CB_SUCCESS = 0,
-  TAOS_SYNC_FSM_CB_OTHER_ERROR = 1,
-} ESyncFsmCbCode;
 
 typedef struct SNodeInfo {
   uint16_t nodePort;
@@ -94,6 +99,11 @@ typedef struct SReConfigCbMeta {
 
 } SReConfigCbMeta;
 
+typedef struct SSnapshotParam {
+  SyncIndex start;
+  SyncIndex end;
+} SSnapshotParam;
+
 typedef struct SSnapshot {
   void*     data;
   SyncIndex lastApplyIndex;
@@ -119,11 +129,11 @@ typedef struct SSyncFSM {
   int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot, void* pReaderParam, void** ppReader);
   int32_t (*FpGetSnapshotInfo)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
-  int32_t (*FpSnapshotStartRead)(struct SSyncFSM* pFsm, void** ppReader);
+  int32_t (*FpSnapshotStartRead)(struct SSyncFSM* pFsm, void* pReaderParam, void** ppReader);
   int32_t (*FpSnapshotStopRead)(struct SSyncFSM* pFsm, void* pReader);
   int32_t (*FpSnapshotDoRead)(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len);
 
-  int32_t (*FpSnapshotStartWrite)(struct SSyncFSM* pFsm, void** ppWriter);
+  int32_t (*FpSnapshotStartWrite)(struct SSyncFSM* pFsm, void* pWriterParam, void** ppWriter);
   int32_t (*FpSnapshotStopWrite)(struct SSyncFSM* pFsm, void* pWriter, bool isApply);
   int32_t (*FpSnapshotDoWrite)(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_t len);
 
@@ -155,14 +165,12 @@ typedef struct SSyncLogStore {
   // return commit index of log
   SyncIndex (*getCommitIndex)(struct SSyncLogStore* pLogStore);
 
-  // refactor, log[0 .. n] ==> log[m .. n]
-  int32_t (*syncLogSetBeginIndex)(struct SSyncLogStore* pLogStore, SyncIndex beginIndex);
-  int32_t (*syncLogResetBeginIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogBeginIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogEndIndex)(struct SSyncLogStore* pLogStore);
   bool (*syncLogIsEmpty)(struct SSyncLogStore* pLogStore);
   int32_t (*syncLogEntryCount)(struct SSyncLogStore* pLogStore);
-  bool (*syncLogInRange)(struct SSyncLogStore* pLogStore, SyncIndex index);
+  int32_t (*syncLogRestoreFromSnapshot)(struct SSyncLogStore* pLogStore, SyncIndex index);
+  bool (*syncLogExist)(struct SSyncLogStore* pLogStore, SyncIndex index);
 
   SyncIndex (*syncLogWriteIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogLastIndex)(struct SSyncLogStore* pLogStore);
@@ -175,14 +183,15 @@ typedef struct SSyncLogStore {
 } SSyncLogStore;
 
 typedef struct SSyncInfo {
-  bool        isStandBy;
-  bool        snapshotEnable;
-  SyncGroupId vgId;
-  SSyncCfg    syncCfg;
-  char        path[TSDB_FILENAME_LEN];
-  SWal*       pWal;
-  SSyncFSM*   pFsm;
-  SMsgCb*     msgcb;
+  bool          isStandBy;
+  ESyncStrategy snapshotStrategy;
+  SyncGroupId   vgId;
+  int32_t       batchSize;
+  SSyncCfg      syncCfg;
+  char          path[TSDB_FILENAME_LEN];
+  SWal*         pWal;
+  SSyncFSM*     pFsm;
+  SMsgCb*       msgcb;
   int32_t (*FpSendMsg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
   int32_t (*FpEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 } SSyncInfo;
@@ -199,10 +208,13 @@ const char* syncGetMyRoleStr(int64_t rid);
 SyncTerm    syncGetMyTerm(int64_t rid);
 SyncGroupId syncGetVgId(int64_t rid);
 void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
-int32_t     syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
+void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
+int32_t     syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak);
+int32_t     syncProposeBatch(int64_t rid, SRpcMsg* pMsgArr, bool* pIsWeakArr, int32_t arrSize);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
+int32_t     syncGetSnapshotByIndex(int64_t rid, SyncIndex index, SSnapshot* pSnapshot);
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg);
 

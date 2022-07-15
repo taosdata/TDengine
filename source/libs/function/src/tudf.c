@@ -75,6 +75,10 @@ static int32_t udfSpawnUdfd(SUdfdData* pData) {
   #ifdef WINDOWS
     GetModuleFileName(NULL, path, PATH_MAX);
     taosDirName(path);
+  #elif defined(_TD_DARWIN_64)
+    uint32_t pathSize = sizeof(path);
+    _NSGetExecutablePath(path, &pathSize);
+    taosDirName(path);
   #endif
   } else {
     strncpy(path, tsProcPath, strlen(tsProcPath));
@@ -199,7 +203,7 @@ int32_t udfStartUdfd(int32_t startDnodeId) {
     uv_async_send(&pData->stopAsync);
     uv_thread_join(&pData->thread);
     pData->needCleanUp = false;
-    fnInfo("dnode udfd cleaned up after spawn err");
+    fnInfo("udfd is cleaned up after spawn err");
   } else {
     pData->needCleanUp = true;
   }
@@ -208,7 +212,7 @@ int32_t udfStartUdfd(int32_t startDnodeId) {
 
 int32_t udfStopUdfd() {
   SUdfdData *pData = &udfdGlobal;
-  fnInfo("dnode to stop udfd. need cleanup: %d, spawn err: %d",
+  fnInfo("udfd start to stop, need cleanup:%d, spawn err:%d",
         pData->needCleanUp, pData->spawnErr);
   if (!pData->needCleanUp || atomic_load_32(&pData->stopCalled)) {
     return 0;
@@ -221,7 +225,7 @@ int32_t udfStopUdfd() {
 #ifdef WINDOWS
   if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
 #endif
-  fnInfo("dnode udfd cleaned up");
+  fnInfo("udfd is cleaned up");
   return 0;
 }
 
@@ -463,15 +467,15 @@ int32_t getUdfdPipeName(char* pipeName, int32_t size) {
   size_t  dnodeIdSize = sizeof(dnodeId);
   int32_t err = uv_os_getenv(UDF_DNODE_ID_ENV_NAME, dnodeId, &dnodeIdSize);
   if (err != 0) {
-    fnError("get dnode id from env. error: %s.", uv_err_name(err));
+    fnError("failed to get dnodeId from env since %s", uv_err_name(err));
     dnodeId[0] = '1';
   }
 #ifdef _WIN32
-  snprintf(pipeName, size, "%s%s", UDF_LISTEN_PIPE_NAME_PREFIX, dnodeId);
+  snprintf(pipeName, size, "%s.%x.%s", UDF_LISTEN_PIPE_NAME_PREFIX,MurmurHash3_32(tsDataDir, strlen(tsDataDir)), dnodeId);
 #else
   snprintf(pipeName, size, "%s/%s%s", tsDataDir, UDF_LISTEN_PIPE_NAME_PREFIX, dnodeId);
 #endif
-  fnInfo("get dnode id from env. dnode id: %s. pipe path: %s", dnodeId, pipeName);
+  fnInfo("get dnodeId:%s from env, pipe path:%s", dnodeId, pipeName);
   return 0;
 }
 
@@ -763,8 +767,8 @@ void freeUdfInterBuf(SUdfInterBuf *buf) {
 
 int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlock) {
   udfBlock->numOfRows = block->info.rows;
-  udfBlock->numOfCols = block->info.numOfCols;
-  udfBlock->udfCols = taosMemoryCalloc(udfBlock->numOfCols, sizeof(SUdfColumn*));
+  udfBlock->numOfCols = taosArrayGetSize(block->pDataBlock);
+  udfBlock->udfCols = taosMemoryCalloc(taosArrayGetSize(block->pDataBlock), sizeof(SUdfColumn*));
   for (int32_t i = 0; i < udfBlock->numOfCols; ++i) {
     udfBlock->udfCols[i] = taosMemoryCalloc(1, sizeof(SUdfColumn));
     SColumnInfoData *col= (SColumnInfoData*)taosArrayGet(block->pDataBlock, i);
@@ -799,7 +803,6 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
 }
 
 int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
-  block->info.numOfCols = 1;
   block->info.rows = udfCol->colData.numOfRows;
   block->info.hasVarCol = IS_VAR_DATA_TYPE(udfCol->colMeta.type);
 
@@ -830,25 +833,19 @@ int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
 
 int32_t convertScalarParamToDataBlock(SScalarParam *input, int32_t numOfCols, SSDataBlock *output) {
   output->info.rows = input->numOfRows;
-  output->info.numOfCols = numOfCols;
-  bool hasVarCol = false;
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    if (IS_VAR_DATA_TYPE((input+i)->columnData->info.type)) {
-      hasVarCol = true;
-      break;
-    }
-  }
-  output->info.hasVarCol = hasVarCol;
-
   output->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
   for (int32_t i = 0; i < numOfCols; ++i) {
     taosArrayPush(output->pDataBlock, (input + i)->columnData);
+
+    if (IS_VAR_DATA_TYPE((input+i)->columnData->info.type)) {
+      output->info.hasVarCol = true;
+    }
   }
   return 0;
 }
 
 int32_t convertDataBlockToScalarParm(SSDataBlock *input, SScalarParam *output) {
-  if (input->info.numOfCols != 1) {
+  if (taosArrayGetSize(input->pDataBlock) != 1) {
     fnError("scalar function only support one column");
     return -1;
   }
@@ -1089,24 +1086,14 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
   int32_t start = pInput->startRowIndex;
   int32_t numOfRows = pInput->numOfRows;
 
-
-  SSDataBlock tempBlock = {0};
-  tempBlock.info.numOfCols = numOfCols;
-  tempBlock.info.rows = pInput->totalRows;
-  tempBlock.info.uid = pInput->uid;
-  bool hasVarCol = false;
-  tempBlock.pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
-
+  SSDataBlock* pTempBlock = createDataBlock();
+  pTempBlock->info.rows = pInput->totalRows;
+  pTempBlock->info.uid = pInput->uid;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData *col = pInput->pData[i];
-    if (IS_VAR_DATA_TYPE(col->info.type)) {
-      hasVarCol = true;
-    }
-    taosArrayPush(tempBlock.pDataBlock, col);
+    blockDataAppendColInfo(pTempBlock, pInput->pData[i]);
   }
-  tempBlock.info.hasVarCol = hasVarCol;
 
-  SSDataBlock *inputBlock = blockDataExtractBlock(&tempBlock, start, numOfRows);
+  SSDataBlock *inputBlock = blockDataExtractBlock(pTempBlock, start, numOfRows);
 
   SUdfInterBuf state = {.buf = udfRes->interResBuf,
                         .bufLen = session->bufSize,
@@ -1131,7 +1118,9 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
   }
 
   blockDataDestroy(inputBlock);
-  taosArrayDestroy(tempBlock.pDataBlock);
+
+  taosArrayDestroy(pTempBlock->pDataBlock);
+  taosMemoryFree(pTempBlock);
 
   releaseUdfFuncHandle(pCtx->udfName);
   freeUdfInterBuf(&newState);
@@ -1580,6 +1569,10 @@ void constructUdfService(void *argsThread) {
   //TODO return value of uv_run
   uv_run(&udfc->uvLoop, UV_RUN_DEFAULT);
   uv_loop_close(&udfc->uvLoop);
+
+  uv_walk(&udfc->uvLoop, udfUdfdCloseWalkCb, NULL);
+  uv_run(&udfc->uvLoop, UV_RUN_DEFAULT);
+  uv_loop_close(&udfc->uvLoop);
 }
 
 int32_t udfcOpen() {
@@ -1616,7 +1609,7 @@ int32_t udfcClose() {
   taosArrayDestroy(udfc->udfStubs);
   uv_mutex_destroy(&udfc->udfStubsMutex);
   udfc->udfcState = UDFC_STATE_INITAL;
-  fnInfo("udfc cleaned up");
+  fnInfo("udfc is cleaned up");
   return 0;
 }
 

@@ -92,13 +92,13 @@ void test1() {
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
 
   sTrace("test1");
-  sTrace("hasSnapshot:%d, lastApplyIndex:%ld, lastApplyTerm:%lu", hasSnapshot, snapshot.lastApplyIndex,
+  sTrace("hasSnapshot:%d, lastApplyIndex:%" PRId64 ", lastApplyTerm:%" PRIu64, hasSnapshot, snapshot.lastApplyIndex,
          snapshot.lastApplyTerm);
-  sTrace("lastIndex: %ld", lastIndex);
-  sTrace("lastTerm: %lu", lastTerm);
-  sTrace("syncStartIndex: %ld", syncStartIndex);
-  sTrace("%ld's preIndex: %ld", testIndex, preIndex);
-  sTrace("%ld's preTerm: %lu", testIndex, preTerm);
+  sTrace("lastIndex: %" PRId64, lastIndex);
+  sTrace("lastTerm: %" PRIu64, lastTerm);
+  sTrace("syncStartIndex: %" PRId64, syncStartIndex);
+  sTrace("" PRId64 "'s preIndex: %" PRId64, testIndex, preIndex);
+  sTrace("" PRId64 "'s preTerm: %" PRIu64, testIndex, preTerm);
 
   if (gAssert) {
     assert(lastIndex == -1);
@@ -154,11 +154,11 @@ void test2() {
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
 
   sTrace("test2");
-  sTrace("hasSnapshot:%d, lastApplyIndex:%ld, lastApplyTerm:%lu", hasSnapshot, snapshot.lastApplyIndex,
+  sTrace("hasSnapshot:%d, lastApplyIndex:%" PRId64 ", lastApplyTerm:%" PRIu64, hasSnapshot, snapshot.lastApplyIndex,
          snapshot.lastApplyTerm);
-  sTrace("lastIndex: %ld", lastIndex);
-  sTrace("lastTerm: %lu", lastTerm);
-  sTrace("syncStartIndex: %ld", syncStartIndex);
+  sTrace("lastIndex: %" PRId64, lastIndex);
+  sTrace("lastTerm: %" PRIu64, lastTerm);
+  sTrace("syncStartIndex: %" PRId64, syncStartIndex);
 
   if (gAssert) {
     assert(lastIndex == 10);
@@ -170,8 +170,8 @@ void test2() {
     SyncIndex preIndex = syncNodeGetPreIndex(pSyncNode, i);
     SyncTerm  preTerm = syncNodeGetPreTerm(pSyncNode, i);
 
-    sTrace("%ld's preIndex: %ld", i, preIndex);
-    sTrace("%ld's preTerm: %lu", i, preTerm);
+    sTrace("" PRId64 "'s preIndex: %" PRId64, i, preIndex);
+    sTrace("" PRId64 "'s preTerm: %" PRIu64, i, preTerm);
 
     if (gAssert) {
       SyncIndex preIndexArr[12] = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
@@ -214,13 +214,13 @@ void test3() {
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
 
   sTrace("test3");
-  sTrace("hasSnapshot:%d, lastApplyIndex:%ld, lastApplyTerm:%lu", hasSnapshot, snapshot.lastApplyIndex,
+  sTrace("hasSnapshot:%d, lastApplyIndex:%" PRId64 ", lastApplyTerm:%" PRIu64, hasSnapshot, snapshot.lastApplyIndex,
          snapshot.lastApplyTerm);
-  sTrace("lastIndex: %ld", lastIndex);
-  sTrace("lastTerm: %lu", lastTerm);
-  sTrace("syncStartIndex: %ld", syncStartIndex);
-  sTrace("%d's preIndex: %ld", 6, preIndex);
-  sTrace("%d's preTerm: %lu", 6, preTerm);
+  sTrace("lastIndex: %" PRId64, lastIndex);
+  sTrace("lastTerm: %" PRIu64, lastTerm);
+  sTrace("syncStartIndex: %" PRId64, syncStartIndex);
+  sTrace("%d's preIndex: %" PRId64, 6, preIndex);
+  sTrace("%d's preTerm: %" PRIu64, 6, preTerm);
 
   if (gAssert) {
     assert(lastIndex == 5);
@@ -276,11 +276,11 @@ void test4() {
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
 
   sTrace("test4");
-  sTrace("hasSnapshot:%d, lastApplyIndex:%ld, lastApplyTerm:%lu", hasSnapshot, snapshot.lastApplyIndex,
+  sTrace("hasSnapshot:%d, lastApplyIndex:%" PRId64 ", lastApplyTerm:%" PRIu64, hasSnapshot, snapshot.lastApplyIndex,
          snapshot.lastApplyTerm);
-  sTrace("lastIndex: %ld", lastIndex);
-  sTrace("lastTerm: %lu", lastTerm);
-  sTrace("syncStartIndex: %ld", syncStartIndex);
+  sTrace("lastIndex: %" PRId64, lastIndex);
+  sTrace("lastTerm: %" PRIu64, lastTerm);
+  sTrace("syncStartIndex: %" PRId64, syncStartIndex);
 
   if (gAssert) {
     assert(lastIndex == 10);
@@ -292,8 +292,8 @@ void test4() {
     SyncIndex preIndex = syncNodeGetPreIndex(pSyncNode, i);
     SyncTerm  preTerm = syncNodeGetPreTerm(pSyncNode, i);
 
-    sTrace("%ld's preIndex: %ld", i, preIndex);
-    sTrace("%ld's preTerm: %lu", i, preTerm);
+    sTrace("" PRId64 "'s preIndex: %" PRId64, i, preIndex);
+    sTrace("" PRId64 "'s preTerm: %" PRIu64, i, preTerm);
   }
 
   logStoreDestory(pLogStore);
@@ -312,7 +312,8 @@ void test5() {
   pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest5 ----- ", pLogStore);
 
-  pSyncNode->pLogStore->syncLogSetBeginIndex(pSyncNode->pLogStore, 6);
+  // pSyncNode->pLogStore->syncLogSetBeginIndex(pSyncNode->pLogStore, 6);
+  pLogStore->syncLogRestoreFromSnapshot(pSyncNode->pLogStore, 5);
   for (int i = 6; i <= 10; ++i) {
     int32_t         dataLen = 10;
     SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
@@ -343,18 +344,18 @@ void test5() {
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
 
   sTrace("test5");
-  sTrace("hasSnapshot:%d, lastApplyIndex:%ld, lastApplyTerm:%lu", hasSnapshot, snapshot.lastApplyIndex,
+  sTrace("hasSnapshot:%d, lastApplyIndex:%" PRId64 ", lastApplyTerm:%" PRIu64, hasSnapshot, snapshot.lastApplyIndex,
          snapshot.lastApplyTerm);
-  sTrace("lastIndex: %ld", lastIndex);
-  sTrace("lastTerm: %lu", lastTerm);
-  sTrace("syncStartIndex: %ld", syncStartIndex);
+  sTrace("lastIndex: %" PRId64, lastIndex);
+  sTrace("lastTerm: %" PRIu64, lastTerm);
+  sTrace("syncStartIndex: %" PRId64, syncStartIndex);
 
   for (SyncIndex i = 11; i >= 6; --i) {
     SyncIndex preIndex = syncNodeGetPreIndex(pSyncNode, i);
     SyncTerm  preTerm = syncNodeGetPreTerm(pSyncNode, i);
 
-    sTrace("%ld's preIndex: %ld", i, preIndex);
-    sTrace("%ld's preTerm: %lu", i, preTerm);
+    sTrace("" PRId64 "'s preIndex: %" PRId64, i, preIndex);
+    sTrace("" PRId64 "'s preTerm: %" PRIu64, i, preTerm);
 
     if (gAssert) {
       SyncIndex preIndexArr[12] = {9999, 9999, 9999, 9999, 9999, 9999, 5, 6, 7, 8, 9, 10};
@@ -372,6 +373,7 @@ void test5() {
 int main(int argc, char** argv) {
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_INFO + DEBUG_SCREEN + DEBUG_FILE;
+  gRaftDetailLog = true;
 
   if (argc == 2) {
     gAssert = atoi(argv[1]);

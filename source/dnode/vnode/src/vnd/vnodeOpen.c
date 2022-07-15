@@ -28,7 +28,7 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   }
 
   // create vnode env
-  if (tfsMkdir(pTfs, path) < 0) {
+  if (tfsMkdirAt(pTfs, path, (SDiskID){0}) < 0) {
     vError("vgId:%d, failed to create vnode since: %s", pCfg->vgId, tstrerror(terrno));
     return -1;
   }
@@ -37,6 +37,7 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   info.config = *pCfg;
   info.state.committed = -1;
   info.state.applied = -1;
+  info.state.commitID = 0;
 
   if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir, &info) < 0) {
     vError("vgId:%d, failed to save vnode config since %s", pCfg->vgId, tstrerror(terrno));
@@ -78,10 +79,13 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   strcpy(pVnode->path, path);
   pVnode->config = info.config;
   pVnode->state.committed = info.state.committed;
+  pVnode->state.commitTerm = info.state.commitTerm;
   pVnode->state.applied = info.state.committed;
+  pVnode->state.commitID = info.state.commitID;
+  pVnode->state.commitTerm = info.state.commitTerm;
   pVnode->pTfs = pTfs;
   pVnode->msgCb = msgCb;
-  pVnode->syncCount = 0;
+  pVnode->blockCount = 0;
 
   tsem_init(&pVnode->syncSem, 0, 0);
   tsem_init(&(pVnode->canCommit), 0, 1);
@@ -113,6 +117,13 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   // open wal
   sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
   taosRealPath(tdir, NULL, sizeof(tdir));
+
+// for test tsdb snapshot
+#if 0
+  pVnode->config.walCfg.segSize = 200;
+  pVnode->config.walCfg.retentionSize = 2000;
+#endif
+
   pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
     vError("vgId:%d, failed to open vnode wal since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -156,12 +167,18 @@ _err:
   if (pVnode->pTq) tqClose(pVnode->pTq);
   if (pVnode->pWal) walClose(pVnode->pWal);
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
-  if (pVnode->pMeta) metaClose(pVnode->pMeta);
   if (pVnode->pSma) smaClose(pVnode->pSma);
+  if (pVnode->pMeta) metaClose(pVnode->pMeta);
 
   tsem_destroy(&(pVnode->canCommit));
   taosMemoryFree(pVnode);
   return NULL;
+}
+
+void vnodePreClose(SVnode *pVnode) {
+  if (pVnode) {
+    syncLeaderTransfer(pVnode->sync);
+  }
 }
 
 void vnodeClose(SVnode *pVnode) {
@@ -192,4 +209,9 @@ void vnodeStop(SVnode *pVnode) {}
 
 int64_t vnodeGetSyncHandle(SVnode *pVnode) { return pVnode->sync; }
 
-void vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot) { pSnapshot->lastApplyIndex = pVnode->state.committed; }
+void vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot) {
+  pSnapshot->data = NULL;
+  pSnapshot->lastApplyIndex = pVnode->state.committed;
+  pSnapshot->lastApplyTerm = pVnode->state.commitTerm;
+  pSnapshot->lastConfigIndex = -1;
+}

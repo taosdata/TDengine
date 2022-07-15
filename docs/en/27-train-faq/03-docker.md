@@ -109,7 +109,7 @@ taos>
 It's also able to access the REST interface provided by TDengine in container from the host.
 
 ```
-curl -u root:taosdata -d 'show databases' 127.0.0.1:6041/rest/sql
+curl -L -u root:taosdata -d "show databases" 127.0.0.1:6041/rest/sql
 ```
 
 Output is like below:
@@ -147,7 +147,7 @@ docker run -d --name tdengine-taosd -p 6030-6042:6030-6042 -p 6030-6042:6030-604
 - Verify the REST interface:
 
 ```bash
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0.0.1:6041/rest/sql
+curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "show databases;" 127.0.0.1:6041/rest/sql
 ```
 
 Below is an example output:

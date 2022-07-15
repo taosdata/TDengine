@@ -44,6 +44,7 @@ STqOffsetStore* tqOffsetOpen(STQ* pTq) {
   }
   char*     fname = buildFileName(pStore->pTq->path);
   TdFilePtr pFile = taosOpenFile(fname, TD_FILE_READ);
+  taosMemoryFree(fname);
   if (pFile != NULL) {
     STqOffsetHead head = {0};
     int64_t       code;
@@ -77,7 +78,6 @@ STqOffsetStore* tqOffsetOpen(STQ* pTq) {
     }
 
     taosCloseFile(&pFile);
-    taosMemoryFree(fname);
   }
   return pStore;
 }
@@ -85,6 +85,7 @@ STqOffsetStore* tqOffsetOpen(STQ* pTq) {
 void tqOffsetClose(STqOffsetStore* pStore) {
   tqOffsetSnapshot(pStore);
   taosHashCleanup(pStore->pHash);
+  taosMemoryFree(pStore);
 }
 
 STqOffset* tqOffsetRead(STqOffsetStore* pStore, const char* subscribeKey) {
@@ -92,9 +93,13 @@ STqOffset* tqOffsetRead(STqOffsetStore* pStore, const char* subscribeKey) {
 }
 
 int32_t tqOffsetWrite(STqOffsetStore* pStore, const STqOffset* pOffset) {
-  ASSERT(pOffset->type == TMQ_OFFSET__LOG);
-  ASSERT(pOffset->version >= 0);
+  /*ASSERT(pOffset->val.type == TMQ_OFFSET__LOG);*/
+  /*ASSERT(pOffset->val.version >= 0);*/
   return taosHashPut(pStore->pHash, pOffset->subKey, strlen(pOffset->subKey), pOffset, sizeof(STqOffset));
+}
+
+int32_t tqOffsetDelete(STqOffsetStore* pStore, const char* subscribeKey) {
+  return taosHashRemove(pStore->pHash, subscribeKey, strlen(subscribeKey));
 }
 
 int32_t tqOffsetSnapshot(STqOffsetStore* pStore) {
@@ -102,6 +107,7 @@ int32_t tqOffsetSnapshot(STqOffsetStore* pStore) {
   // TODO file name should be with a version
   char*     fname = buildFileName(pStore->pTq->path);
   TdFilePtr pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  taosMemoryFree(fname);
   if (pFile == NULL) {
     ASSERT(0);
     return -1;
@@ -133,13 +139,12 @@ int32_t tqOffsetSnapshot(STqOffsetStore* pStore) {
     int64_t writeLen;
     if ((writeLen = taosWriteFile(pFile, buf, totLen)) != totLen) {
       ASSERT(0);
-      tqError("write offset incomplete, len %d, write len %ld", bodyLen, writeLen);
+      tqError("write offset incomplete, len %d, write len %" PRId64, bodyLen, writeLen);
       taosHashCancelIterate(pStore->pHash, pIter);
       return -1;
     }
   }
   // close and rename file
   taosCloseFile(&pFile);
-  taosMemoryFree(fname);
   return 0;
 }

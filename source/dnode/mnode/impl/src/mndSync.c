@@ -56,26 +56,28 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     sdbSetApplyInfo(pMnode->pSdb, cbMeta.index, cbMeta.term, cbMeta.lastConfigIndex);
   }
 
-  if (pMgmt->transId == transId) {
+  if (pMgmt->transId == transId && transId != 0) {
     if (pMgmt->errCode != 0) {
       mError("trans:%d, failed to propose since %s", transId, tstrerror(pMgmt->errCode));
     }
     pMgmt->transId = 0;
     tsem_post(&pMgmt->syncSem);
   } else {
+#if 1
+    mError("trans:%d, invalid commit msg since trandId not match with %d", transId, pMgmt->transId);
+#else
     STrans *pTrans = mndAcquireTrans(pMnode, transId);
     if (pTrans != NULL) {
       mndTransExecute(pMnode, pTrans);
       mndReleaseTrans(pMnode, pTrans);
     }
-#if 0
-    sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
+    // sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
 #endif
   }
 }
 
 int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot, void *pReaderParam, void **ppReader) {
-  mInfo("start to read snapshot from sdb in atomic way");
+  mDebug("start to read snapshot from sdb in atomic way");
   SMnode *pMnode = pFsm->data;
   return sdbStartRead(pMnode->pSdb, (SSdbIter **)ppReader, &pSnapshot->lastApplyIndex, &pSnapshot->lastApplyTerm,
                       &pSnapshot->lastConfigIndex);
@@ -96,7 +98,7 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
     mndTransPullup(pMnode);
     mndSetRestore(pMnode, true);
   } else {
-    mInfo("mnode sync restore finished, and will set ready after first deploy");
+    mInfo("mnode sync restore finished");
   }
 }
 
@@ -117,14 +119,14 @@ void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbM
   }
 }
 
-int32_t mndSnapshotStartRead(struct SSyncFSM *pFsm, void **ppReader) {
-  mInfo("start to read snapshot from sdb");
+int32_t mndSnapshotStartRead(struct SSyncFSM *pFsm, void *pParam, void **ppReader) {
+  mDebug("start to read snapshot from sdb");
   SMnode *pMnode = pFsm->data;
   return sdbStartRead(pMnode->pSdb, (SSdbIter **)ppReader, NULL, NULL, NULL);
 }
 
 int32_t mndSnapshotStopRead(struct SSyncFSM *pFsm, void *pReader) {
-  mInfo("stop to read snapshot from sdb");
+  mDebug("stop to read snapshot from sdb");
   SMnode *pMnode = pFsm->data;
   return sdbStopRead(pMnode->pSdb, pReader);
 }
@@ -134,7 +136,7 @@ int32_t mndSnapshotDoRead(struct SSyncFSM *pFsm, void *pReader, void **ppBuf, in
   return sdbDoRead(pMnode->pSdb, pReader, ppBuf, len);
 }
 
-int32_t mndSnapshotStartWrite(struct SSyncFSM *pFsm, void **ppWriter) {
+int32_t mndSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void **ppWriter) {
   mInfo("start to apply snapshot to sdb");
   SMnode *pMnode = pFsm->data;
   return sdbStartWrite(pMnode->pSdb, (SSdbIter **)ppWriter);
@@ -178,7 +180,7 @@ int32_t mndInitSync(SMnode *pMnode) {
   syncInfo.pWal = pMnode->pWal;
   syncInfo.pFsm = mndSyncMakeFsm(pMnode);
   syncInfo.isStandBy = pMgmt->standby;
-  syncInfo.snapshotEnable = true;
+  syncInfo.snapshotStrategy = SYNC_STRATEGY_STANDARD_SNAPSHOT;
 
   mInfo("start to open mnode sync, standby:%d", pMgmt->standby);
   if (pMgmt->standby || pMgmt->replica.id > 0) {
@@ -188,7 +190,7 @@ int32_t mndInitSync(SMnode *pMnode) {
     SNodeInfo *pNode = &pCfg->nodeInfo[0];
     tstrncpy(pNode->nodeFqdn, pMgmt->replica.fqdn, sizeof(pNode->nodeFqdn));
     pNode->nodePort = pMgmt->replica.port;
-    mInfo("fqdn:%s port:%u", pNode->nodeFqdn, pNode->nodePort);
+    mInfo("mnode ep:%s:%u", pNode->nodeFqdn, pNode->nodePort);
   }
 
   tsem_init(&pMgmt->syncSem, 0, 0);
@@ -197,6 +199,11 @@ int32_t mndInitSync(SMnode *pMnode) {
     mError("failed to open sync since %s", terrstr());
     return -1;
   }
+
+  // decrease election timer
+  setPingTimerMS(pMgmt->sync, 5000);
+  setElectTimerMS(pMgmt->sync, 600);
+  setHeartbeatTimerMS(pMgmt->sync, 300);
 
   mDebug("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
   return 0;
@@ -261,7 +268,8 @@ bool mndIsMaster(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
   if (!syncIsReady(pMgmt->sync)) {
-    terrno = TSDB_CODE_SYN_NOT_LEADER;
+    // get terrno from syncIsReady
+    // terrno = TSDB_CODE_SYN_NOT_LEADER;
     return false;
   }
 

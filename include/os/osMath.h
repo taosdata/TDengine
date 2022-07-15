@@ -20,16 +20,21 @@
 extern "C" {
 #endif
 
+// If the error is in a third-party library, place this header file under the third-party library header file.
+// When you want to use this feature, you should find or add the same function in the following sectio
+#ifndef ALLOW_FORBID_FUNC
+#define qsort  QSORT_FUNC_TAOS_FORBID
+#endif
+
 #define TPOW2(x) ((x) * (x))
 #define TABS(x) ((x) > 0 ? (x) : -(x))
 
 #define TSWAP(a, b)                              \
   do {                                           \
-    char *__tmp = taosMemoryMalloc(sizeof(a));   \
+    char *__tmp = alloca(sizeof(a));             \
     memcpy(__tmp, &(a), sizeof(a));              \
     memcpy(&(a), &(b), sizeof(a));               \
     memcpy(&(b), __tmp, sizeof(a));              \
-    taosMemoryFree(__tmp);                       \
   } while (0)
 
 #ifdef WINDOWS
@@ -60,6 +65,13 @@ extern "C" {
     a = TMIN(a, c);     \
   })
 #endif
+
+#ifndef __COMPAR_FN_T
+#define __COMPAR_FN_T
+typedef int32_t (*__compar_fn_t)(const void *, const void *);
+#endif
+
+void taosSort(void* arr, int64_t sz, int64_t width, __compar_fn_t compar);
 
 #ifdef __cplusplus
 }

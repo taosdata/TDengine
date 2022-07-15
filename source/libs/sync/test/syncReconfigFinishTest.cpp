@@ -14,8 +14,8 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
-SSyncCfg* createSyncOldCfg() {
-  SSyncCfg* pCfg = (SSyncCfg*)taosMemoryMalloc(sizeof(SSyncCfg));
+SSyncCfg *createSyncOldCfg() {
+  SSyncCfg *pCfg = (SSyncCfg *)taosMemoryMalloc(sizeof(SSyncCfg));
   memset(pCfg, 0, sizeof(SSyncCfg));
 
   pCfg->replicaNum = 3;
@@ -28,8 +28,8 @@ SSyncCfg* createSyncOldCfg() {
   return pCfg;
 }
 
-SSyncCfg* createSyncNewCfg() {
-  SSyncCfg* pCfg = (SSyncCfg*)taosMemoryMalloc(sizeof(SSyncCfg));
+SSyncCfg *createSyncNewCfg() {
+  SSyncCfg *pCfg = (SSyncCfg *)taosMemoryMalloc(sizeof(SSyncCfg));
   memset(pCfg, 0, sizeof(SSyncCfg));
 
   pCfg->replicaNum = 3;
@@ -44,9 +44,9 @@ SSyncCfg* createSyncNewCfg() {
 
 SyncReconfigFinish *createMsg() {
   SyncReconfigFinish *pMsg = syncReconfigFinishBuild(1234);
- 
-  SSyncCfg* pOld = createSyncOldCfg();
-  SSyncCfg* pNew = createSyncNewCfg();
+
+  SSyncCfg *pOld = createSyncOldCfg();
+  SSyncCfg *pNew = createSyncNewCfg();
   pMsg->oldCfg = *pOld;
   pMsg->newCfg = *pNew;
 
@@ -60,18 +60,16 @@ SyncReconfigFinish *createMsg() {
   return pMsg;
 }
 
-
 void test1() {
   SyncReconfigFinish *pMsg = createMsg();
   syncReconfigFinishLog2((char *)"test1:", pMsg);
   syncReconfigFinishDestroy(pMsg);
 }
 
-
 void test2() {
   SyncReconfigFinish *pMsg = createMsg();
-  uint32_t         len = pMsg->bytes;
-  char *           serialized = (char *)taosMemoryMalloc(len);
+  uint32_t            len = pMsg->bytes;
+  char *              serialized = (char *)taosMemoryMalloc(len);
   syncReconfigFinishSerialize(pMsg, serialized, len);
   SyncReconfigFinish *pMsg2 = syncReconfigFinishBuild(1000);
   syncReconfigFinishDeserialize(serialized, len, pMsg2);
@@ -84,8 +82,8 @@ void test2() {
 
 void test3() {
   SyncReconfigFinish *pMsg = createMsg();
-  uint32_t         len;
-  char *           serialized = syncReconfigFinishSerialize2(pMsg, &len);
+  uint32_t            len;
+  char *              serialized = syncReconfigFinishSerialize2(pMsg, &len);
   SyncReconfigFinish *pMsg2 = syncReconfigFinishDeserialize2(serialized, len);
   syncReconfigFinishLog2((char *)"test3: SyncReconfigFinishSerialize2 -> syncReconfigFinishDeserialize2 ", pMsg2);
 
@@ -96,7 +94,7 @@ void test3() {
 
 void test4() {
   SyncReconfigFinish *pMsg = createMsg();
-  SRpcMsg          rpcMsg;
+  SRpcMsg             rpcMsg;
   syncReconfigFinish2RpcMsg(pMsg, &rpcMsg);
   SyncReconfigFinish *pMsg2 = (SyncReconfigFinish *)taosMemoryMalloc(rpcMsg.contLen);
   syncReconfigFinishFromRpcMsg(&rpcMsg, pMsg2);
@@ -109,7 +107,7 @@ void test4() {
 
 void test5() {
   SyncReconfigFinish *pMsg = createMsg();
-  SRpcMsg          rpcMsg;
+  SRpcMsg             rpcMsg;
   syncReconfigFinish2RpcMsg(pMsg, &rpcMsg);
   SyncReconfigFinish *pMsg2 = syncReconfigFinishFromRpcMsg2(&rpcMsg);
   syncReconfigFinishLog2((char *)"test5: syncReconfigFinish2RpcMsg -> syncReconfigFinishFromRpcMsg2 ", pMsg2);

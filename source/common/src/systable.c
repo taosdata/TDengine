@@ -108,13 +108,11 @@ static const SSysDbTableSchema userFuncSchema[] = {
 };
 
 static const SSysDbTableSchema userIdxSchema[] = {
+    {.name = "index_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "index_database", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "index_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "column_name", .bytes = SYSTABLE_SCH_COL_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "index_type", .bytes = 10, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "index_extensions", .bytes = 256, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 
 static const SSysDbTableSchema userStbsSchema[] = {
@@ -125,6 +123,9 @@ static const SSysDbTableSchema userStbsSchema[] = {
     {.name = "tags", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "last_update", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "table_comment", .bytes = TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "watermark", .bytes = 64 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "max_delay", .bytes = 64 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "rollup", .bytes = 128 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
 static const SSysDbTableSchema streamSchema[] = {
@@ -148,8 +149,8 @@ static const SSysDbTableSchema userTblsSchema[] = {
     {.name = "uid", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "ttl", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "table_comment", .bytes = TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "type", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "table_comment", .bytes = TSDB_TB_COMMENT_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "type", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
 static const SSysDbTableSchema userTblDistSchema[] = {
@@ -231,7 +232,13 @@ static const SSysDbTableSchema transSchema[] = {
 
 static const SSysDbTableSchema configSchema[] = {
     {.name = "name", .bytes = TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "value", .bytes = TSDB_CONIIG_VALUE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "value", .bytes = TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+};
+
+static const SSysDbTableSchema variablesSchema[] = {
+    {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "name", .bytes = TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "value", .bytes = TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
 static const SSysTableMeta infosMeta[] = {
@@ -248,11 +255,12 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_USER_STABLES, userStbsSchema, tListLen(userStbsSchema)},
     {TSDB_PERFS_TABLE_STREAMS, streamSchema, tListLen(streamSchema)},
     {TSDB_INS_TABLE_USER_TABLES, userTblsSchema, tListLen(userTblsSchema)},
-    {TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED, userTblDistSchema, tListLen(userTblDistSchema)},
+    // {TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED, userTblDistSchema, tListLen(userTblDistSchema)},
     {TSDB_INS_TABLE_USER_USERS, userUsersSchema, tListLen(userUsersSchema)},
     {TSDB_INS_TABLE_LICENCES, grantsSchema, tListLen(grantsSchema)},
     {TSDB_INS_TABLE_VGROUPS, vgroupsSchema, tListLen(vgroupsSchema)},
     {TSDB_INS_TABLE_CONFIGS, configSchema, tListLen(configSchema)},
+    {TSDB_INS_TABLE_DNODE_VARIABLES, variablesSchema, tListLen(variablesSchema)},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {
@@ -306,7 +314,7 @@ static const SSysDbTableSchema querySchema[] = {
     {.name = "query_id", .bytes = TSDB_QUERY_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "req_id", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
     {.name = "connId", .bytes = 4, .type = TSDB_DATA_TYPE_UINT},
-    {.name = "app", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},    
+    {.name = "app", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "user", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "end_point", .bytes = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
@@ -322,17 +330,17 @@ static const SSysDbTableSchema appSchema[] = {
     {.name = "app_id", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
     {.name = "ip", .bytes = TSDB_IPv4ADDR_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "name", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},    
-    {.name = "start_time", .bytes = 8 , .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "insert_req", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
-    {.name = "insert_row", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
-    {.name = "insert_time", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
-    {.name = "insert_bytes", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
-    {.name = "fetch_bytes", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
-    {.name = "query_time", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
-    {.name = "show_query", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
-    {.name = "total_req", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
-    {.name = "current_req", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "name", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
+    {.name = "insert_req", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "insert_row", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "insert_time", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "insert_bytes", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "fetch_bytes", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "query_time", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "show_query", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "total_req", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "current_req", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
     {.name = "last_access", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 
@@ -346,8 +354,7 @@ static const SSysTableMeta perfsMeta[] = {
     {TSDB_PERFS_TABLE_TRANS, transSchema, tListLen(transSchema)},
     {TSDB_PERFS_TABLE_SMAS, smaSchema, tListLen(smaSchema)},
     {TSDB_PERFS_TABLE_STREAMS, streamSchema, tListLen(streamSchema)},
-    {TSDB_PERFS_TABLE_APPS, appSchema, tListLen(appSchema)}
-};
+    {TSDB_PERFS_TABLE_APPS, appSchema, tListLen(appSchema)}};
 
 void getInfosDbMeta(const SSysTableMeta** pInfosTableMeta, size_t* size) {
   *pInfosTableMeta = infosMeta;

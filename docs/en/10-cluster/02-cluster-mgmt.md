@@ -54,14 +54,14 @@ Database changed.
 taos> show vgroups;
     vgId     |   tables    |  status  |   onlines   | v1_dnode | v1_status | compacting  |
 ==========================================================================================
-          14 |       38000 | ready    |           1 |        1 | master    |           0 |
-          15 |       38000 | ready    |           1 |        1 | master    |           0 |
-          16 |       38000 | ready    |           1 |        1 | master    |           0 |
-          17 |       38000 | ready    |           1 |        1 | master    |           0 |
-          18 |       37001 | ready    |           1 |        1 | master    |           0 |
-          19 |       37000 | ready    |           1 |        1 | master    |           0 |
-          20 |       37000 | ready    |           1 |        1 | master    |           0 |
-          21 |       37000 | ready    |           1 |        1 | master    |           0 |
+          14 |       38000 | ready    |           1 |        1 | leader    |           0 |
+          15 |       38000 | ready    |           1 |        1 | leader    |           0 |
+          16 |       38000 | ready    |           1 |        1 | leader    |           0 |
+          17 |       38000 | ready    |           1 |        1 | leader    |           0 |
+          18 |       37001 | ready    |           1 |        1 | leader    |           0 |
+          19 |       37000 | ready    |           1 |        1 | leader    |           0 |
+          20 |       37000 | ready    |           1 |        1 | leader    |           0 |
+          21 |       37000 | ready    |           1 |        1 | leader    |           0 |
 Query OK, 8 row(s) in set (0.001154s)
 ```
 
@@ -161,14 +161,14 @@ First `show vgroups` is executed to show the vgroup distribution.
 taos> show vgroups;
     vgId     |   tables    |  status  |   onlines   | v1_dnode | v1_status | compacting  |
 ==========================================================================================
-          14 |       38000 | ready    |           1 |        3 | master    |           0 |
-          15 |       38000 | ready    |           1 |        3 | master    |           0 |
-          16 |       38000 | ready    |           1 |        3 | master    |           0 |
-          17 |       38000 | ready    |           1 |        3 | master    |           0 |
-          18 |       37001 | ready    |           1 |        3 | master    |           0 |
-          19 |       37000 | ready    |           1 |        1 | master    |           0 |
-          20 |       37000 | ready    |           1 |        1 | master    |           0 |
-          21 |       37000 | ready    |           1 |        1 | master    |           0 |
+          14 |       38000 | ready    |           1 |        3 | leader    |           0 |
+          15 |       38000 | ready    |           1 |        3 | leader    |           0 |
+          16 |       38000 | ready    |           1 |        3 | leader    |           0 |
+          17 |       38000 | ready    |           1 |        3 | leader    |           0 |
+          18 |       37001 | ready    |           1 |        3 | leader    |           0 |
+          19 |       37000 | ready    |           1 |        1 | leader    |           0 |
+          20 |       37000 | ready    |           1 |        1 | leader    |           0 |
+          21 |       37000 | ready    |           1 |        1 | leader    |           0 |
 Query OK, 8 row(s) in set (0.001314s)
 ```
 
@@ -191,14 +191,14 @@ Query OK, 0 row(s) in set (0.000575s)
 taos> show vgroups;
     vgId     |   tables    |  status  |   onlines   | v1_dnode | v1_status | v2_dnode | v2_status | compacting  |
 =================================================================================================================
-          14 |       38000 | ready    |           1 |        3 | master    |        0 | NULL      |           0 |
-          15 |       38000 | ready    |           1 |        3 | master    |        0 | NULL      |           0 |
-          16 |       38000 | ready    |           1 |        3 | master    |        0 | NULL      |           0 |
-          17 |       38000 | ready    |           1 |        3 | master    |        0 | NULL      |           0 |
-          18 |       37001 | ready    |           2 |        1 | slave     |        3 | master    |           0 |
-          19 |       37000 | ready    |           1 |        1 | master    |        0 | NULL      |           0 |
-          20 |       37000 | ready    |           1 |        1 | master    |        0 | NULL      |           0 |
-          21 |       37000 | ready    |           1 |        1 | master    |        0 | NULL      |           0 |
+          14 |       38000 | ready    |           1 |        3 | leader    |        0 | NULL      |           0 |
+          15 |       38000 | ready    |           1 |        3 | leader    |        0 | NULL      |           0 |
+          16 |       38000 | ready    |           1 |        3 | leader    |        0 | NULL      |           0 |
+          17 |       38000 | ready    |           1 |        3 | leader    |        0 | NULL      |           0 |
+          18 |       37001 | ready    |           2 |        1 | follower     |        3 | leader    |           0 |
+          19 |       37000 | ready    |           1 |        1 | leader    |        0 | NULL      |           0 |
+          20 |       37000 | ready    |           1 |        1 | leader    |        0 | NULL      |           0 |
+          21 |       37000 | ready    |           1 |        1 | leader    |        0 | NULL      |           0 |
 Query OK, 8 row(s) in set (0.001242s)
 ```
 
@@ -207,7 +207,7 @@ It can be seen from above output that vgId 18 has been moved from dnode 3 to dno
 :::note
 
 - Manual load balancing can only be performed when the automatic load balancing is disabled, i.e. `balance` is set to 0.
-- Only a vnode in normal state, i.e. master or slave, can be moved. vnode can't be moved when its in status offline, unsynced or syncing.
+- Only a vnode in normal state, i.e. leader or follower, can be moved. vnode can't be moved when its in status offline, unsynced or syncing.
 - Before moving a vnode, it's necessary to make sure the target dnode has enough resources: CPU, memory and disk.
 
 :::

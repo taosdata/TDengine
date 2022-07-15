@@ -192,8 +192,11 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_DOUBLE:        
       case TSDB_DATA_TYPE_TIMESTAMP:        
         return 18;
+      case TSDB_DATA_TYPE_JSON:
+        terrno = TSDB_CODE_QRY_JSON_IN_ERROR;
+        return 0;
       default:
-        assert(0);
+        return 0;
     }
   }
 
@@ -215,8 +218,11 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_DOUBLE:        
       case TSDB_DATA_TYPE_TIMESTAMP:        
         return 24;
+      case TSDB_DATA_TYPE_JSON:
+        terrno = TSDB_CODE_QRY_JSON_IN_ERROR;
+        return 0;
       default:
-        assert(0);
+        return 0;
     }
   }
 
@@ -1036,11 +1042,17 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode* tree, SArray *group) {
     
     for (int32_t i = 0; i < listNode->pNodeList->length; ++i) {
       SValueNode *valueNode = (SValueNode *)cell->pNode;
-      if (valueNode->node.resType.type != type) {
-        code = doConvertDataType(valueNode, &out);
+      if (valueNode->node.resType.type != type) {        
+        int32_t overflow = 0;
+        code = doConvertDataType(valueNode, &out, &overflow);
         if (code) {
   //        fltError("convert from %d to %d failed", in.type, out.type);
           FLT_ERR_RET(code);
+        }
+
+        if (overflow) {
+          cell = cell->pNext;
+          continue;
         }
         
         len = tDataTypes[type].bytes;
@@ -1829,7 +1841,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       }
 
       // todo refactor the convert
-      int32_t code = doConvertDataType(var, &out);
+      int32_t code = doConvertDataType(var, &out, NULL);
       if (code != TSDB_CODE_SUCCESS) {
         qError("convert value to type[%d] failed", type);
         return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -2059,7 +2071,7 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t
     }
 
     if (colIdxi > 1) {
-      qsort(colIdx, colIdxi, sizeof(uint32_t), getComparFunc(TSDB_DATA_TYPE_USMALLINT, 0));
+      taosSort(colIdx, colIdxi, sizeof(uint32_t), getComparFunc(TSDB_DATA_TYPE_USMALLINT, 0));
     }
 
     for (uint32_t l = 0; l < colIdxi; ++l) {
@@ -2294,7 +2306,7 @@ int32_t filterMergeGroups(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t *gR
     return TSDB_CODE_SUCCESS;
   }
 
-  qsort(gRes, *gResNum, POINTER_BYTES, filterCompareGroupCtx);
+  taosSort(gRes, *gResNum, POINTER_BYTES, filterCompareGroupCtx);
 
   int32_t pEnd = 0, cStart = 0, cEnd = 0;
   uint32_t pColNum = 0, cColNum = 0; 
@@ -3611,7 +3623,8 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       return DEAL_RES_CONTINUE;
     }
 
-    if (FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP) && node->opType >= OP_TYPE_NOT_EQUAL) {
+    if (FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP) && 
+        (node->opType >= OP_TYPE_NOT_EQUAL) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)) {
       stat->scalarMode = true;
       return DEAL_RES_CONTINUE;
     }
@@ -3821,13 +3834,20 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnData
     SScalarParam output = {0};
 
     SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
-    output.columnData = createColumnInfoData(&type, pSrc->info.rows);
+    int32_t code = sclCreateColumnInfoData(&type, pSrc->info.rows, &output);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
 
     SArray *pList = taosArrayInit(1, POINTER_BYTES);
     taosArrayPush(pList, &pSrc);
 
     FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
-    *p = (int8_t *)output.columnData->pData;
+    *p = taosMemoryMalloc(output.numOfRows * sizeof(bool));
+
+    memcpy(*p, output.columnData->pData, output.numOfRows);
+    colDataDestroy(output.columnData);
+    taosMemoryFree(output.columnData);
 
     taosArrayDestroy(pList);
     return false;

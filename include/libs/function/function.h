@@ -172,24 +172,13 @@ typedef struct tExprNode {
 
 void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *));
 
-typedef struct SAggFunctionInfo {
-  char      name[FUNCTIONS_NAME_MAX_LENGTH];
-  int8_t    type;         // Scalar function or aggregation function
-  uint32_t  functionId;   // Function Id
-  int8_t    sFunctionId;  // Transfer function for super table query
-  uint16_t  status;
-
-  bool (*init)(SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);  // setup the execute environment
-  void (*addInput)(SqlFunctionCtx *pCtx);
-
-  // finalizer must be called after all exec has been executed to generated final result.
-  void (*finalize)(SqlFunctionCtx *pCtx);
-  void (*combine)(SqlFunctionCtx *pCtx);
-
-  int32_t (*dataReqFunc)(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId);
-} SAggFunctionInfo;
+typedef enum {
+  SHOULD_FREE_COLDATA    = 0x1,   // the newly created column data needs to be destroyed.
+  DELEGATED_MGMT_COLDATA = 0x2,   // input column data should not be released.
+} ECOLDATA_MGMT_TYPE_E;
 
 struct SScalarParam {
+  ECOLDATA_MGMT_TYPE_E type;
   SColumnInfoData *columnData;
   SHashObj        *pHashFilter;
   int32_t          hashValueType;

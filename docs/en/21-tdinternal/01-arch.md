@@ -22,9 +22,9 @@ A complete TDengine system runs on one or more physical nodes. Logically, it inc
 
 **Virtual node (vnode)**: To better support data sharding, load balancing and prevent data from overheating or skewing, data nodes are virtualized into multiple virtual nodes (vnode, V2, V3, V4, etc. in the figure). Each vnode is a relatively independent work unit, which is the basic unit of time-series data storage and has independent running threads, memory space and persistent storage path. A vnode contains a certain number of tables (data collection points). When a new table is created, the system checks whether a new vnode needs to be created. The number of vnodes that can be created on a data node depends on the capacity of the hardware of the physical node where the data node is located. A vnode belongs to only one DB, but a DB can have multiple vnodes. In addition to the stored time-series data, a vnode also stores the schema and tag values of the included tables. A virtual node is uniquely identified in the system by the EP of the data node and the VGroup ID to which it belongs and is created and managed by the management node.
 
-**Management node (mnode)**: A virtual logical unit responsible for monitoring and maintaining the running status of all data nodes and load balancing among nodes (M in the figure). At the same time, the management node is also responsible for the storage and management of metadata (including users, databases, tables, static tags, etc.), so it is also called Meta Node. Multiple (up to 5) mnodes can be configured in a TDengine cluster, and they are automatically constructed into a virtual management node group (M0, M1, M2 in the figure). The master/slave mechanism is adopted for the mnode group and the data synchronization is carried out in a strongly consistent way. Any data update operation can only be executed on the master. The creation of mnode cluster is completed automatically by the system without manual intervention. There is at most one mnode on each dnode, which is uniquely identified by the EP of the data node to which it belongs. Each dnode automatically obtains the EP of the dnode where all mnodes in the whole cluster are located, through internal messaging interaction.
+**Management node (mnode)**: A virtual logical unit responsible for monitoring and maintaining the running status of all data nodes and load balancing among nodes (M in the figure). At the same time, the management node is also responsible for the storage and management of metadata (including users, databases, tables, static tags, etc.), so it is also called Meta Node. Multiple (up to 3) mnodes can be configured in a TDengine cluster, and they are automatically constructed into a virtual management node group (M0, M1, M2 in the figure). The leader/follower mechanism is adopted for the mnode group and the data synchronization is carried out in a strongly consistent way. Any data update operation can only be executed on the leader. The creation of mnode cluster is completed automatically by the system without manual intervention. There is at most one mnode on each dnode, which is uniquely identified by the EP of the data node to which it belongs. Each dnode automatically obtains the EP of the dnode where all mnodes in the whole cluster are located, through internal messaging interaction.
 
-**Virtual node group (VGroup)**: Vnodes on different data nodes can form a virtual node group to ensure the high availability of the system. The virtual node group is managed in a master/slave mechanism. Write operations can only be performed on the master vnode, and then replicated to slave vnodes, thus ensuring that one single replica of data is copied on multiple physical nodes. The number of virtual nodes in a vgroup equals the number of data replicas. If the number of replicas of a DB is N, the system must have at least N data nodes. The number of replicas can be specified by the parameter `“replica”` when creating a DB, and the default is 1. Using the multi-replication feature of TDengine, the same high data reliability can be achieved without the need for expensive storage devices such as disk arrays. Virtual node groups are created and managed by the management node, and the management node assigns a system unique ID, aka VGroup ID. If two virtual nodes have the same vnode group ID, it means that they belong to the same group and the data is backed up to each other. The number of virtual nodes in a virtual node group can be dynamically changed, allowing only one, that is, no data replication. VGroup ID is never changed. Even if a virtual node group is deleted, its ID will not be reused.
+**Virtual node group (VGroup)**: Vnodes on different data nodes can form a virtual node group to ensure the high availability of the system. The virtual node group is managed in a leader/follower mechanism. Write operations can only be performed on the leader vnode, and then replicated to follower vnodes, thus ensuring that one single replica of data is copied on multiple physical nodes. The number of virtual nodes in a vgroup equals the number of data replicas. If the number of replicas of a DB is N, the system must have at least N data nodes. The number of replicas can be specified by the parameter `“replica”` when creating a DB, and the default is 1. Using the multi-replication feature of TDengine, the same high data reliability can be achieved without the need for expensive storage devices such as disk arrays. Virtual node groups are created and managed by the management node, and the management node assigns a system unique ID, aka VGroup ID. If two virtual nodes have the same vnode group ID, it means that they belong to the same group and the data is backed up to each other. The number of virtual nodes in a virtual node group can be dynamically changed, allowing only one, that is, no data replication. VGroup ID is never changed. Even if a virtual node group is deleted, its ID will not be reused.
 
 **TAOSC**: TAOSC is the driver provided by TDengine to applications. It is responsible for dealing with the interaction between application and cluster, and provides the native interface for the C/C++ language. It is also embedded in the JDBC, C #, Python, Go, Node.js language connection libraries. Applications interact with the whole cluster through TAOSC instead of directly connecting to data nodes in the cluster. This module is responsible for obtaining and caching metadata; forwarding requests for insertion, query, etc. to the correct data node; when returning the results to the application, TAOSC also needs to be responsible for the final level of aggregation, sorting, filtering and other operations. For JDBC, C/C++/C#/Python/Go/Node.js interfaces, this module runs on the physical node where the application is located. At the same time, in order to support the fully distributed RESTful interface, TAOSC has a running instance on each dnode of TDengine cluster.
 
@@ -62,13 +62,13 @@ To explain the relationship between vnode, mnode, TAOSC and application and thei
 1. Application initiates a request to insert data through JDBC, ODBC, or other APIs.
 2. TAOSC checks the cache to see if meta data exists for the table. If it does, it goes straight to Step 4. If not, TAOSC sends a get meta-data request to mnode.
 3. Mnode returns the meta-data of the table to TAOSC. Meta-data contains the schema of the table, and also the vgroup information to which the table belongs (the vnode ID and the End Point of the dnode where the table belongs. If the number of replicas is N, there will be N groups of End Points). If TAOSC does not receive a response from the mnode for a long time, and there are multiple mnodes, TAOSC will send a request to the next mnode.
-4. TAOSC initiates an insert request to master vnode.
+4. TAOSC initiates an insert request to leader vnode.
 5. After vnode inserts the data, it gives a reply to TAOSC, indicating that the insertion is successful. If TAOSC doesn't get a response from vnode for a long time, TAOSC will treat this node as offline. In this case, if there are multiple replicas of the inserted database, TAOSC will issue an insert request to the next vnode in vgroup.
 6. TAOSC notifies APP that writing is successful.
 
 For Step 2 and 3, when TAOSC starts, it does not know the End Point of mnode, so it will directly initiate a request to the configured serving End Point of the cluster. If the dnode that receives the request does not have a mnode configured, it will reply with the mnode EP list, so that TAOSC will re-issue a request to obtain meta-data to the EP of another mnode.
 
-For Step 4 and 5, without caching, TAOSC can't recognize the master in the virtual node group, so assumes that the first vnode is the master and sends a request to it. If this vnode is not the master, it will reply to the actual master as a new target to which TAOSC shall send a request. Once a response of successful insertion is obtained, TAOSC will cache the information of master node.
+For Step 4 and 5, without caching, TAOSC can't recognize the leader in the virtual node group, so assumes that the first vnode is the leader and sends a request to it. If this vnode is not the leader, it will reply to the actual leader as a new target to which TAOSC shall send a request. Once a response of successful insertion is obtained, TAOSC will cache the information of leader node.
 
 The above describes the process of inserting data. The processes of querying and computing are the same. TAOSC encapsulates and hides all these complicated processes, and it is transparent to applications.
 
@@ -119,65 +119,65 @@ The load balancing process does not require any manual intervention, and it is t
 
 ## Data Writing and Replication Process
 
-If a database has N replicas, a virtual node group has N virtual nodes. But only one is the Master and all others are slaves. When the application writes a new record to system, only the Master vnode can accept the writing request. If a slave vnode receives a writing request, the system will notifies TAOSC to redirect.
+If a database has N replicas, a virtual node group has N virtual nodes. But only one is the Leader and all others are slaves. When the application writes a new record to system, only the Leader vnode can accept the writing request. If a follower vnode receives a writing request, the system will notifies TAOSC to redirect.
 
-###  Master vnode Writing Process
+###  Leader vnode Writing Process
 
-Master Vnode uses a writing process as follows:
+Leader Vnode uses a writing process as follows:
 
-![TDengine Database Master Writing Process](write_master.webp)
-<center> Figure 3: TDengine Master writing process </center>
+![TDengine Database Leader Writing Process](write_master.webp)
+<center> Figure 3: TDengine Leader writing process </center>
 
-1. Master vnode receives the application data insertion request, verifies, and moves to next step;
+1. Leader vnode receives the application data insertion request, verifies, and moves to next step;
 2. If the system configuration parameter `“walLevel”` is greater than 0, vnode will write the original request packet into database log file WAL. If walLevel is set to 2 and fsync is set to 0, TDengine will make WAL data written immediately to ensure that even system goes down, all data can be recovered from database log file;
-3.  If there are multiple replicas, vnode will forward data packet to slave vnodes in the same virtual node group, and the forwarded packet has a version number with data;
+3.  If there are multiple replicas, vnode will forward data packet to follower vnodes in the same virtual node group, and the forwarded packet has a version number with data;
 4. Write into memory and add the record to “skip list”;
-5. Master vnode returns a confirmation message to the application, indicating a successful write.
+5. Leader vnode returns a confirmation message to the application, indicating a successful write.
 6. If any of Step 2, 3 or 4 fails, the error will directly return to the application.
 
-### Slave vnode Writing Process
+### Follower vnode Writing Process
 
-For a slave vnode, the write process as follows:
+For a follower vnode, the write process as follows:
 
-![TDengine Database Slave Writing Process](write_slave.webp)
-<center> Figure 4: TDengine Slave Writing Process </center>
+![TDengine Database Follower Writing Process](write_slave.webp)
+<center> Figure 4: TDengine Follower Writing Process </center>
 
-1. Slave vnode receives a data insertion request forwarded by Master vnode;
+1. Follower vnode receives a data insertion request forwarded by Leader vnode;
 2. If the system configuration parameter `“walLevel”` is greater than 0, vnode will write the original request packet into database log file WAL. If walLevel is set to 2 and fsync is set to 0, TDengine will make WAL data written immediately to ensure that even system goes down, all data can be recovered from database log file;
 3. Write into memory and add the record to “skip list”.
 
-Compared with Master vnode, slave vnode has no forwarding or reply confirmation step, means two steps less. But writing into memory and WAL is exactly the same.
+Compared with Leader vnode, follower vnode has no forwarding or reply confirmation step, means two steps less. But writing into memory and WAL is exactly the same.
 
 ### Remote Disaster Recovery and IDC (Internet Data Center) Migration
 
-As discussed above, TDengine writes using Master and Slave processes. TDengine adopts asynchronous replication for data synchronization. This method can greatly improve write performance, with no obvious impact from network delay. By configuring IDC and rack number for each physical node, it can be ensured that for a virtual node group, virtual nodes are composed of physical nodes from different IDC and different racks, thus implementing remote disaster recovery without other tools.
+As discussed above, TDengine writes using Leader and Follower processes. TDengine adopts asynchronous replication for data synchronization. This method can greatly improve write performance, with no obvious impact from network delay. By configuring IDC and rack number for each physical node, it can be ensured that for a virtual node group, virtual nodes are composed of physical nodes from different IDC and different racks, thus implementing remote disaster recovery without other tools.
 
-On the other hand, TDengine supports dynamic modification of the replica number. Once the number of replicas increases, the newly added virtual nodes will immediately enter the data synchronization process. After synchronization is complete, added virtual nodes can provide services. In the synchronization process, master and other synchronized virtual nodes keep serving. With this feature, TDengine can provide IDC migration without service interruption. It is only necessary to add new physical nodes to the existing IDC cluster, and then remove old physical nodes after the data synchronization is completed.
+On the other hand, TDengine supports dynamic modification of the replica number. Once the number of replicas increases, the newly added virtual nodes will immediately enter the data synchronization process. After synchronization is complete, added virtual nodes can provide services. In the synchronization process, leader and other synchronized virtual nodes keep serving. With this feature, TDengine can provide IDC migration without service interruption. It is only necessary to add new physical nodes to the existing IDC cluster, and then remove old physical nodes after the data synchronization is completed.
 
 However, the asynchronous replication has a very low probability scenario where data may be lost. The specific scenario is as follows:
 
-1. Master vnode has finished its 5-step operations, confirmed the success of writing to APP, and then goes down;
-2. Slave vnode receives the write request, then processing fails before writing to the log in Step 2;
-3. Slave vnode will become the new master, thus losing one record.
+1. Leader vnode has finished its 5-step operations, confirmed the success of writing to APP, and then goes down;
+2. Follower vnode receives the write request, then processing fails before writing to the log in Step 2;
+3. Follower vnode will become the new leader, thus losing one record.
 
 In theory, for asynchronous replication, there is no guarantee to prevent data loss. However, this is an extremely low probability scenario as described above.
 
 Note: Remote disaster recovery and no-downtime IDC migration are only supported by Enterprise Edition. **Hint: This function is not available yet**
 
-### Master/slave Selection
+### Leader/follower Selection
 
 Vnode maintains a version number. When memory data is persisted, the version number will also be persisted. For each data update operation, whether it is time-series data or metadata, this version number will be increased by one.
 
-When a vnode starts, the roles (master, slave) are uncertain, and the data is in an unsynchronized state. It’s necessary to establish TCP connections with other nodes in the virtual node group and exchange status, including version and its own roles. Through the exchange, the system implements a master-selection process. The rules are as follows:
+When a vnode starts, the roles (leader, follower) are uncertain, and the data is in an unsynchronized state. It’s necessary to establish TCP connections with other nodes in the virtual node group and exchange status, including version and its own roles. Through the exchange, the system implements a leader-selection process. The rules are as follows:
 
-1. If there’s only one replica, it’s always master
-2. When all replicas are online, the one with latest version is master
-3. Over half of online nodes are virtual nodes, and some virtual node is slave, it will automatically become master
-4. For 2 and 3, if multiple virtual nodes meet the requirement, the first vnode in virtual node group list will be selected as master.
+1. If there’s only one replica, it’s always leader
+2. When all replicas are online, the one with latest version is leader
+3. Over half of online nodes are virtual nodes, and some virtual node is follower, it will automatically become leader
+4. For 2 and 3, if multiple virtual nodes meet the requirement, the first vnode in virtual node group list will be selected as leader.
 
 ### Synchronous Replication
 
-For scenarios with strong data consistency requirements, asynchronous data replication is not applicable, because there is a small probability of data loss. So, TDengine provides a synchronous replication mechanism for users. When creating a database, in addition to specifying the number of replicas, user also needs to specify a new parameter “quorum”. If quorum is greater than one, it means that every time the Master forwards a message to the replica, it needs to wait for “quorum-1” reply confirms before informing the application that data has been successfully written in slave. If “quorum-1” reply confirms are not received within a certain period of time, the master vnode will return an error to the application.
+For scenarios with strong data consistency requirements, asynchronous data replication is not applicable, because there is a small probability of data loss. So, TDengine provides a synchronous replication mechanism for users. When creating a database, in addition to specifying the number of replicas, user also needs to specify a new parameter “quorum”. If quorum is greater than one, it means that every time the Leader forwards a message to the replica, it needs to wait for “quorum-1” reply confirms before informing the application that data has been successfully written in follower. If “quorum-1” reply confirms are not received within a certain period of time, the leader vnode will return an error to the application.
 
 With synchronous replication, performance of system will decrease and latency will increase. Because metadata needs strong consistency, the default for data synchronization between mnodes is synchronous replication.
 

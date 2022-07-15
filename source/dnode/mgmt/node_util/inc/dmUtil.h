@@ -40,18 +40,28 @@
 #include "wal.h"
 
 #include "libs/function/function.h"
-// clang-format off
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define dFatal(...) { if (dDebugFlag & DEBUG_FATAL) { taosPrintLog("DND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
-#define dError(...) { if (dDebugFlag & DEBUG_ERROR) { taosPrintLog("DND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
-#define dWarn(...)  { if (dDebugFlag & DEBUG_WARN)  { taosPrintLog("DND WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}
-#define dInfo(...)  { if (dDebugFlag & DEBUG_INFO)  { taosPrintLog("DND ", DEBUG_INFO, 255, __VA_ARGS__); }}
-#define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ", DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
-#define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
-#define dGTrace(param, ...) do { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dTrace(param ",GTID: %s", __VA_ARGS__, buf);} while(0)
+
+// clang-format off
+
+#define dFatal(...) { if (dDebugFlag & DEBUG_FATAL) { taosPrintLog("DND FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }}
+#define dError(...) { if (dDebugFlag & DEBUG_ERROR) { taosPrintLog("DND ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }}
+#define dWarn(...)  { if (dDebugFlag & DEBUG_WARN)  { taosPrintLog("DND WARN ",  DEBUG_WARN,  255,        __VA_ARGS__); }}
+#define dInfo(...)  { if (dDebugFlag & DEBUG_INFO)  { taosPrintLog("DND ",       DEBUG_INFO,  255,        __VA_ARGS__); }}
+#define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ",       DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
+#define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ",       DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
+
+#define dGFatal(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dFatal(param ", gtid:%s", __VA_ARGS__, buf);}
+#define dGError(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dError(param ", gtid:%s", __VA_ARGS__, buf);}
+#define dGWarn(param, ...)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dWarn (param ", gtid:%s", __VA_ARGS__, buf);}
+#define dGInfo(param, ...)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dInfo (param ", gtid:%s", __VA_ARGS__, buf);}
+#define dGDebug(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dDebug(param ", gtid:%s", __VA_ARGS__, buf);}
+#define dGTrace(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dTrace(param ", gtid:%s", __VA_ARGS__, buf);}
+
+// clang-format on
 
 typedef enum {
   DNODE = 0,
@@ -185,4 +195,3 @@ void    dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
 #endif
 
 #endif /*_TD_DM_INT_H_*/
-// clang-format on

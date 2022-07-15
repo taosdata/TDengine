@@ -20,7 +20,7 @@ class MyDnodes(TDDnodes):
         self.simDeployed = False
         
 class TDTestCase:
-
+    noConn = True
     def init(self,conn ,logSql):
         tdLog.debug(f"start to excute {__file__}")
         self.TDDnodes = None
@@ -40,7 +40,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
@@ -81,7 +81,7 @@ class TDTestCase:
             dnode_id = dnode.cfgDict["fqdn"] +  ":" +dnode.cfgDict["serverPort"]
             dnode_first_host = dnode.cfgDict["firstEp"].split(":")[0]
             dnode_first_port = dnode.cfgDict["firstEp"].split(":")[-1]
-            cmd = f" taos -h {dnode_first_host} -P {dnode_first_port} -s ' create dnode \"{dnode_id} \" ' ;"
+            cmd = f"{self.getBuildPath()}/build/bin/taos -h {dnode_first_host} -P {dnode_first_port} -s \"create dnode \\\"{dnode_id}\\\"\""
             print(cmd)
             os.system(cmd)
         
@@ -124,9 +124,9 @@ class TDTestCase:
         tdSql.query('show databases;')
         tdSql.checkData(2,5,'no_strict')
         tdSql.error('alter database db strict 0')
-        tdSql.execute('alter database db strict 1')
-        tdSql.query('show databases;')
-        tdSql.checkData(2,5,'strict')
+        # tdSql.execute('alter database db strict 1')
+        # tdSql.query('show databases;')
+        # tdSql.checkData(2,5,'strict')
 
     def getConnection(self, dnode):
         host = dnode.cfgDict["fqdn"]

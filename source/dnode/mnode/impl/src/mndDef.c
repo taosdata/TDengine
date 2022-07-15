@@ -28,7 +28,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   if (tEncodeI64(pEncoder, pObj->uid) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->status) < 0) return -1;
 
-  if (tEncodeI8(pEncoder, pObj->dropPolicy) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->igExpired) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->trigger) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->triggerParam) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->watermark) < 0) return -1;
@@ -73,7 +73,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
   if (tDecodeI64(pDecoder, &pObj->uid) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->status) < 0) return -1;
 
-  if (tDecodeI8(pDecoder, &pObj->dropPolicy) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->igExpired) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->trigger) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->triggerParam) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->watermark) < 0) return -1;
@@ -381,6 +381,7 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
   pSubNew->dbUid = pSub->dbUid;
   pSubNew->stbUid = pSub->stbUid;
   pSubNew->subType = pSub->subType;
+  pSubNew->withMeta = pSub->withMeta;
 
   pSubNew->vgNum = pSub->vgNum;
   pSubNew->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
@@ -414,6 +415,7 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
   tlen += taosEncodeFixedI64(buf, pSub->dbUid);
   tlen += taosEncodeFixedI32(buf, pSub->vgNum);
   tlen += taosEncodeFixedI8(buf, pSub->subType);
+  tlen += taosEncodeFixedI8(buf, pSub->withMeta);
   tlen += taosEncodeFixedI64(buf, pSub->stbUid);
 
   void   *pIter = NULL;
@@ -440,6 +442,7 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub) {
   buf = taosDecodeFixedI64(buf, &pSub->dbUid);
   buf = taosDecodeFixedI32(buf, &pSub->vgNum);
   buf = taosDecodeFixedI8(buf, &pSub->subType);
+  buf = taosDecodeFixedI8(buf, &pSub->withMeta);
   buf = taosDecodeFixedI64(buf, &pSub->stbUid);
 
   int32_t sz;

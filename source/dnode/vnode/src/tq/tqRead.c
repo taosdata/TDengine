@@ -15,22 +15,22 @@
 
 #include "tq.h"
 
-int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalHead** ppHeadWithCkSum) {
+int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** ppCkHead) {
   int32_t code = 0;
   taosThreadMutexLock(&pHandle->pWalReader->mutex);
   int64_t offset = *fetchOffset;
 
   while (1) {
-    if (walFetchHead(pHandle->pWalReader, offset, *ppHeadWithCkSum) < 0) {
-      tqDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", pHandle->consumerId,
-              pHandle->epoch, TD_VID(pTq->pVnode), offset);
+    if (walFetchHead(pHandle->pWalReader, offset, *ppCkHead) < 0) {
+      tqDebug("tmq poll: consumer:%" PRId64 ", (epoch %d) vgId:%d offset %" PRId64 ", no more log to return",
+              pHandle->consumerId, pHandle->epoch, TD_VID(pTq->pVnode), offset);
       *fetchOffset = offset - 1;
       code = -1;
       goto END;
     }
 
-    if ((*ppHeadWithCkSum)->head.msgType == TDMT_VND_SUBMIT) {
-      code = walFetchBody(pHandle->pWalReader, ppHeadWithCkSum);
+    if ((*ppCkHead)->head.msgType == TDMT_VND_SUBMIT) {
+      code = walFetchBody(pHandle->pWalReader, ppCkHead);
 
       if (code < 0) {
         ASSERT(0);
@@ -42,7 +42,23 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalHead*
       code = 0;
       goto END;
     } else {
-      code = walSkipFetchBody(pHandle->pWalReader, *ppHeadWithCkSum);
+      if (pHandle->fetchMeta) {
+        SWalCont* pHead = &((*ppCkHead)->head);
+        if (IS_META_MSG(pHead->msgType)) {
+          code = walFetchBody(pHandle->pWalReader, ppCkHead);
+
+          if (code < 0) {
+            ASSERT(0);
+            *fetchOffset = offset;
+            code = -1;
+            goto END;
+          }
+          *fetchOffset = offset;
+          code = 0;
+          goto END;
+        }
+      }
+      code = walSkipFetchBody(pHandle->pWalReader, *ppCkHead);
       if (code < 0) {
         ASSERT(0);
         *fetchOffset = offset;
@@ -57,57 +73,132 @@ END:
   return code;
 }
 
-STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
-  STqReadHandle* pReadHandle = taosMemoryMalloc(sizeof(STqReadHandle));
-  if (pReadHandle == NULL) {
+STqReader* tqOpenReader(SVnode* pVnode) {
+  STqReader* pReader = taosMemoryMalloc(sizeof(STqReader));
+  if (pReader == NULL) {
     return NULL;
   }
-  pReadHandle->pVnodeMeta = pMeta;
-  pReadHandle->pMsg = NULL;
-  pReadHandle->ver = -1;
-  pReadHandle->pColIdList = NULL;
-  pReadHandle->cachedSchemaVer = -1;
-  pReadHandle->cachedSchemaSuid = -1;
-  pReadHandle->pSchema = NULL;
-  pReadHandle->pSchemaWrapper = NULL;
-  pReadHandle->tbIdHash = NULL;
-  return pReadHandle;
-}
 
-int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t ver) {
-  pReadHandle->pMsg = pMsg;
-
-  if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
-  while (true) {
-    if (tGetSubmitMsgNext(&pReadHandle->msgIter, &pReadHandle->pBlock) < 0) return -1;
-    if (pReadHandle->pBlock == NULL) break;
+  pReader->pWalReader = walOpenReader(pVnode->pWal, NULL);
+  if (pReader->pWalReader == NULL) {
+    return NULL;
   }
 
-  if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
-  pReadHandle->ver = ver;
-  memset(&pReadHandle->blkIter, 0, sizeof(SSubmitBlkIter));
+  pReader->pVnodeMeta = pVnode->pMeta;
+  pReader->pMsg = NULL;
+  pReader->ver = -1;
+  pReader->pColIdList = NULL;
+  pReader->cachedSchemaVer = 0;
+  pReader->cachedSchemaSuid = 0;
+  pReader->pSchema = NULL;
+  pReader->pSchemaWrapper = NULL;
+  pReader->tbIdHash = NULL;
+  return pReader;
+}
+
+void tqCloseReader(STqReader* pReader) {
+  // close wal reader
+  // free cached schema
+  // free hash
+  taosMemoryFree(pReader);
+}
+
+int32_t tqSeekVer(STqReader* pReader, int64_t ver) {
+  if (walReadSeekVer(pReader->pWalReader, ver) < 0) {
+    ASSERT(pReader->pWalReader->curInvalid);
+    ASSERT(pReader->pWalReader->curVersion == ver);
+    return -1;
+  }
+  ASSERT(pReader->pWalReader->curVersion == ver);
   return 0;
 }
 
-bool tqNextDataBlock(STqReadHandle* pHandle) {
+int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
+  bool fromProcessedMsg = pReader->pMsg != NULL;
+
   while (1) {
-    if (tGetSubmitMsgNext(&pHandle->msgIter, &pHandle->pBlock) < 0) {
+    if (!fromProcessedMsg) {
+      if (walNextValidMsg(pReader->pWalReader) < 0) {
+        pReader->ver = pReader->pWalReader->curVersion - pReader->pWalReader->curInvalid;
+        ret->offset.type = TMQ_OFFSET__LOG;
+        ret->offset.version = pReader->ver;
+        ret->fetchType = FETCH_TYPE__NONE;
+        ASSERT(ret->offset.version >= 0);
+        return -1;
+      }
+      void* body = pReader->pWalReader->pHead->head.body;
+      if (pReader->pWalReader->pHead->head.msgType != TDMT_VND_SUBMIT) {
+        // TODO do filter
+        ret->fetchType = FETCH_TYPE__META;
+        ret->meta = pReader->pWalReader->pHead->head.body;
+        return 0;
+      } else {
+        tqReaderSetDataMsg(pReader, body, pReader->pWalReader->pHead->head.version);
+      }
+    }
+
+    while (tqNextDataBlock(pReader)) {
+      // TODO mem free
+      memset(&ret->data, 0, sizeof(SSDataBlock));
+      int32_t code = tqRetrieveDataBlock(&ret->data, pReader);
+      if (code != 0 || ret->data.info.rows == 0) {
+        ASSERT(0);
+        continue;
+      }
+      ret->fetchType = FETCH_TYPE__DATA;
+      return 0;
+    }
+
+    if (fromProcessedMsg) {
+      ret->offset.type = TMQ_OFFSET__LOG;
+      ret->offset.version = pReader->ver;
+      ASSERT(pReader->ver >= 0);
+      ret->fetchType = FETCH_TYPE__NONE;
+      return 0;
+    }
+  }
+}
+
+int32_t tqReaderSetDataMsg(STqReader* pReader, SSubmitReq* pMsg, int64_t ver) {
+  pReader->pMsg = pMsg;
+
+  if (tInitSubmitMsgIter(pMsg, &pReader->msgIter) < 0) return -1;
+  while (true) {
+    if (tGetSubmitMsgNext(&pReader->msgIter, &pReader->pBlock) < 0) return -1;
+    if (pReader->pBlock == NULL) break;
+  }
+
+  if (tInitSubmitMsgIter(pMsg, &pReader->msgIter) < 0) return -1;
+  pReader->ver = ver;
+  memset(&pReader->blkIter, 0, sizeof(SSubmitBlkIter));
+  return 0;
+}
+
+bool tqNextDataBlock(STqReader* pReader) {
+  if (pReader->pMsg == NULL) return false;
+  while (1) {
+    if (tGetSubmitMsgNext(&pReader->msgIter, &pReader->pBlock) < 0) {
       return false;
     }
-    if (pHandle->pBlock == NULL) return false;
+    if (pReader->pBlock == NULL) {
+      pReader->pMsg = NULL;
+      return false;
+    }
 
-    if (pHandle->tbIdHash == NULL) {
+    if (pReader->tbIdHash == NULL) {
       return true;
     }
-    void* ret = taosHashGet(pHandle->tbIdHash, &pHandle->msgIter.uid, sizeof(int64_t));
+    void* ret = taosHashGet(pReader->tbIdHash, &pReader->msgIter.uid, sizeof(int64_t));
+    /*tqDebug("search uid %" PRId64, pHandle->msgIter.uid);*/
     if (ret != NULL) {
+      /*tqDebug("find   uid %" PRId64, pHandle->msgIter.uid);*/
       return true;
     }
   }
   return false;
 }
 
-bool tqNextDataBlockFilterOut(STqReadHandle* pHandle, SHashObj* filterOutUids) {
+bool tqNextDataBlockFilterOut(STqReader* pHandle, SHashObj* filterOutUids) {
   while (1) {
     if (tGetSubmitMsgNext(&pHandle->msgIter, &pHandle->pBlock) < 0) {
       return false;
@@ -123,61 +214,48 @@ bool tqNextDataBlockFilterOut(STqReadHandle* pHandle, SHashObj* filterOutUids) {
   return false;
 }
 
-int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* pGroupId, uint64_t* pUid,
-                            int32_t* pNumOfRows, int16_t* pNumOfCols) {
-  *pUid = 0;
-
-  // TODO set to real sversion
-  /*int32_t sversion = 1;*/
-  int32_t sversion = htonl(pHandle->pBlock->sversion);
-  if (pHandle->cachedSchemaSuid == 0 || pHandle->cachedSchemaVer != sversion ||
-      pHandle->cachedSchemaSuid != pHandle->msgIter.suid) {
-    pHandle->pSchema = metaGetTbTSchema(pHandle->pVnodeMeta, pHandle->msgIter.uid, sversion);
-    if (pHandle->pSchema == NULL) {
-      tqWarn("cannot found tsschema for table: uid: %ld (suid: %ld), version %d, possibly dropped table",
-             pHandle->msgIter.uid, pHandle->msgIter.suid, pHandle->cachedSchemaVer);
+int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
+  // TODO: cache multiple schema
+  int32_t sversion = htonl(pReader->pBlock->sversion);
+  if (pReader->cachedSchemaSuid == 0 || pReader->cachedSchemaVer != sversion ||
+      pReader->cachedSchemaSuid != pReader->msgIter.suid) {
+    if (pReader->pSchema) taosMemoryFree(pReader->pSchema);
+    pReader->pSchema = metaGetTbTSchema(pReader->pVnodeMeta, pReader->msgIter.uid, sversion);
+    if (pReader->pSchema == NULL) {
+      tqWarn("cannot found tsschema for table: uid:%" PRId64 " (suid:%" PRId64 "), version %d, possibly dropped table",
+             pReader->msgIter.uid, pReader->msgIter.suid, pReader->cachedSchemaVer);
       /*ASSERT(0);*/
       terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
       return -1;
     }
 
-    // this interface use suid instead of uid
-    pHandle->pSchemaWrapper = metaGetTableSchema(pHandle->pVnodeMeta, pHandle->msgIter.uid, sversion, true);
-    if (pHandle->pSchemaWrapper == NULL) {
-      tqWarn("cannot found schema wrapper for table: suid: %ld, version %d, possibly dropped table",
-             pHandle->msgIter.uid, pHandle->cachedSchemaVer);
+    if (pReader->pSchemaWrapper) tDeleteSSchemaWrapper(pReader->pSchemaWrapper);
+    pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, pReader->msgIter.uid, sversion, true);
+    if (pReader->pSchemaWrapper == NULL) {
+      tqWarn("cannot found schema wrapper for table: suid:%" PRId64 ", version %d, possibly dropped table",
+             pReader->msgIter.uid, pReader->cachedSchemaVer);
       /*ASSERT(0);*/
       terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
       return -1;
     }
-    pHandle->cachedSchemaVer = sversion;
-    pHandle->cachedSchemaSuid = pHandle->msgIter.suid;
+    pReader->cachedSchemaVer = sversion;
+    pReader->cachedSchemaSuid = pReader->msgIter.suid;
   }
 
-  STSchema*       pTschema = pHandle->pSchema;
-  SSchemaWrapper* pSchemaWrapper = pHandle->pSchemaWrapper;
+  STSchema*       pTschema = pReader->pSchema;
+  SSchemaWrapper* pSchemaWrapper = pReader->pSchemaWrapper;
 
-  *pNumOfRows = pHandle->msgIter.numOfRows;
-  int32_t colNumNeed = taosArrayGetSize(pHandle->pColIdList);
+  int32_t colNumNeed = taosArrayGetSize(pReader->pColIdList);
 
   if (colNumNeed == 0) {
-    *ppCols = taosArrayInit(pSchemaWrapper->nCols, sizeof(SColumnInfoData));
-    if (*ppCols == NULL) {
-      return -1;
-    }
-
     int32_t colMeta = 0;
     while (colMeta < pSchemaWrapper->nCols) {
       SSchema*        pColSchema = &pSchemaWrapper->pSchema[colMeta];
-      SColumnInfoData colInfo = {0};
-      colInfo.info.bytes = pColSchema->bytes;
-      colInfo.info.colId = pColSchema->colId;
-      colInfo.info.type = pColSchema->type;
-
-      if (colInfoDataEnsureCapacity(&colInfo, 0, *pNumOfRows) < 0) {
+      SColumnInfoData colInfo = createColumnInfoData(pColSchema->type, pColSchema->bytes, pColSchema->colId);
+      int32_t         code = blockDataAppendColInfo(pBlock, &colInfo);
+      if (code != TSDB_CODE_SUCCESS) {
         goto FAIL;
       }
-      taosArrayPush(*ppCols, &colInfo);
       colMeta++;
     }
   } else {
@@ -185,75 +263,69 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
       colNumNeed = pSchemaWrapper->nCols;
     }
 
-    *ppCols = taosArrayInit(colNumNeed, sizeof(SColumnInfoData));
-    if (*ppCols == NULL) {
-      return -1;
-    }
-
     int32_t colMeta = 0;
     int32_t colNeed = 0;
     while (colMeta < pSchemaWrapper->nCols && colNeed < colNumNeed) {
       SSchema* pColSchema = &pSchemaWrapper->pSchema[colMeta];
       col_id_t colIdSchema = pColSchema->colId;
-      col_id_t colIdNeed = *(col_id_t*)taosArrayGet(pHandle->pColIdList, colNeed);
+      col_id_t colIdNeed = *(col_id_t*)taosArrayGet(pReader->pColIdList, colNeed);
       if (colIdSchema < colIdNeed) {
         colMeta++;
       } else if (colIdSchema > colIdNeed) {
         colNeed++;
       } else {
-        SColumnInfoData colInfo = {0};
-        colInfo.info.bytes = pColSchema->bytes;
-        colInfo.info.colId = pColSchema->colId;
-        colInfo.info.type = pColSchema->type;
-
-        if (colInfoDataEnsureCapacity(&colInfo, 0, *pNumOfRows) < 0) {
+        SColumnInfoData colInfo = createColumnInfoData(pColSchema->type, pColSchema->bytes, pColSchema->colId);
+        int32_t         code = blockDataAppendColInfo(pBlock, &colInfo);
+        if (code != TSDB_CODE_SUCCESS) {
           goto FAIL;
         }
-        taosArrayPush(*ppCols, &colInfo);
         colMeta++;
         colNeed++;
       }
     }
   }
 
-  int32_t colActual = taosArrayGetSize(*ppCols);
-  *pNumOfCols = colActual;
+  if (blockDataEnsureCapacity(pBlock, pReader->msgIter.numOfRows) < 0) {
+    goto FAIL;
+  }
 
-  // TODO in stream shuffle case, fetch groupId
-  *pGroupId = 0;
+  int32_t colActual = blockDataGetNumOfCols(pBlock);
 
   STSRowIter iter = {0};
   tdSTSRowIterInit(&iter, pTschema);
   STSRow* row;
   int32_t curRow = 0;
 
-  tInitSubmitBlkIter(&pHandle->msgIter, pHandle->pBlock, &pHandle->blkIter);
-  *pUid = pHandle->msgIter.uid;  // set the uid of table for submit block
+  tInitSubmitBlkIter(&pReader->msgIter, pReader->pBlock, &pReader->blkIter);
 
-  while ((row = tGetSubmitBlkNext(&pHandle->blkIter)) != NULL) {
+  pBlock->info.uid = pReader->msgIter.uid;
+  pBlock->info.rows = pReader->msgIter.numOfRows;
+
+  while ((row = tGetSubmitBlkNext(&pReader->blkIter)) != NULL) {
     tdSTSRowIterReset(&iter, row);
     // get all wanted col of that block
     for (int32_t i = 0; i < colActual; i++) {
-      SColumnInfoData* pColData = taosArrayGet(*ppCols, i);
+      SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
       SCellVal         sVal = {0};
       if (!tdSTSRowIterNext(&iter, pColData->info.colId, pColData->info.type, &sVal)) {
         break;
       }
-      if (colDataAppend(pColData, curRow, sVal.val, sVal.valType == TD_VTYPE_NULL) < 0) {
+      if (colDataAppend(pColData, curRow, sVal.val, sVal.valType != TD_VTYPE_NORM) < 0) {
         goto FAIL;
       }
     }
     curRow++;
   }
   return 0;
+
 FAIL:
-  if (*ppCols) taosArrayDestroy(*ppCols);
+  blockDataFreeRes(pBlock);
   return -1;
 }
 
-void tqReadHandleSetColIdList(STqReadHandle* pReadHandle, SArray* pColIdList) { pReadHandle->pColIdList = pColIdList; }
+void tqReaderSetColIdList(STqReader* pReadHandle, SArray* pColIdList) { pReadHandle->pColIdList = pColIdList; }
 
-int tqReadHandleSetTbUidList(STqReadHandle* pHandle, const SArray* tbUidList) {
+int tqReaderSetTbUidList(STqReader* pHandle, const SArray* tbUidList) {
   if (pHandle->tbIdHash) {
     taosHashClear(pHandle->tbIdHash);
   }
@@ -272,7 +344,7 @@ int tqReadHandleSetTbUidList(STqReadHandle* pHandle, const SArray* tbUidList) {
   return 0;
 }
 
-int tqReadHandleAddTbUidList(STqReadHandle* pHandle, const SArray* tbUidList) {
+int tqReaderAddTbUidList(STqReader* pHandle, const SArray* tbUidList) {
   if (pHandle->tbIdHash == NULL) {
     pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
     if (pHandle->tbIdHash == NULL) {
@@ -289,7 +361,7 @@ int tqReadHandleAddTbUidList(STqReadHandle* pHandle, const SArray* tbUidList) {
   return 0;
 }
 
-int tqReadHandleRemoveTbUidList(STqReadHandle* pHandle, const SArray* tbUidList) {
+int tqReaderRemoveTbUidList(STqReader* pHandle, const SArray* tbUidList) {
   ASSERT(pHandle->tbIdHash != NULL);
 
   for (int32_t i = 0; i < taosArrayGetSize(tbUidList); i++) {
@@ -326,8 +398,8 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   while (1) {
     pIter = taosHashIterate(pTq->pStreamTasks, pIter);
     if (pIter == NULL) break;
-    SStreamTask* pTask = (SStreamTask*)pIter;
-    if (pTask->inputType == STREAM_INPUT__DATA_SUBMIT) {
+    SStreamTask* pTask = *(SStreamTask**)pIter;
+    if (pTask->isDataScan) {
       int32_t code = qUpdateQualifiedTableId(pTask->exec.executor, tbUidList, isAdd);
       ASSERT(code == 0);
     }

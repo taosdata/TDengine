@@ -24,18 +24,20 @@ extern "C" {
 #include "taos.h"
 
 typedef struct SPlanContext {
-  uint64_t queryId;
-  int32_t  acctId;
-  SEpSet   mgmtEpSet;
-  SNode*   pAstRoot;
-  bool     topicQuery;
-  bool     streamQuery;
-  bool     rSmaQuery;
-  bool     showRewrite;
-  int8_t   triggerType;
-  int64_t  watermark;
-  char*    pMsg;
-  int32_t  msgLen;
+  uint64_t    queryId;
+  int32_t     acctId;
+  SEpSet      mgmtEpSet;
+  SNode*      pAstRoot;
+  bool        topicQuery;
+  bool        streamQuery;
+  bool        rSmaQuery;
+  bool        showRewrite;
+  int8_t      triggerType;
+  int64_t     watermark;
+  int8_t      igExpired;
+  char*       pMsg;
+  int32_t     msgLen;
+  const char* pUser;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.
@@ -46,6 +48,8 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 // @groupId id of a group of datasource subplans of this @pSubplan
 // @pSource one execution location of this group of datasource subplans
 int32_t qSetSubplanExecutionNode(SSubplan* pSubplan, int32_t groupId, SDownstreamSourceNode* pSource);
+
+void qClearSubplanExecutionNode(SSubplan* pSubplan);
 
 // Convert to subplan to string for the scheduler to send to the executor
 int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen);

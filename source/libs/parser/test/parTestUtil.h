@@ -54,12 +54,6 @@ class ParserDdlTest : public ParserTestBase {
   virtual void checkDdl(const SQuery* pQuery, ParserStage stage) {
     ASSERT_NE(pQuery, nullptr);
     ASSERT_NE(pQuery->pRoot, nullptr);
-    if (QUERY_EXEC_MODE_RPC == pQuery->execMode) {
-      ASSERT_EQ(pQuery->haveResultSet, false);
-      ASSERT_EQ(pQuery->numOfResCols, 0);
-      ASSERT_EQ(pQuery->pResSchema, nullptr);
-      ASSERT_EQ(pQuery->precision, 0);
-    }
     if (nullptr != checkDdl_) {
       checkDdl_(pQuery, stage);
     }

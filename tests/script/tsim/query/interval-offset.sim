@@ -68,8 +68,8 @@ sql insert into ct4 values ( '2022-12-01 01:01:30.000', 8 )
 sql insert into ct4 values ( '2022-12-31 01:01:36.000', 9 )
 
 print ================ start query ======================
-sql select _wstartts, _wendts, _wduration, _qstartts, _qendts, count(*) from ct1 interval(10s, 2s)
-print ===> select _wstartts, _wendts, _wduration, _qstartts, _qendts, count(*) from ct1 interval(10s, 2s)
+sql select _wstart, _wend, _wduration, _qstart, _qend, count(*) from ct1 interval(10s, 2s)
+print ===> select _wstart, _wend, _wduration, _qstart, _qend, count(*) from ct1 interval(10s, 2s)
 print ===> rows: $rows
 print ===> rows0: $data00 $data01 $data02 $data05
 print ===> rows1: $data10 $data11 $data12 $data15
@@ -89,8 +89,8 @@ if $data45 != 1 then
   return -1
 endi
 
-sql select _wstartts, _wendts, _wduration, _qstartts, _qendts,  count(*) from ct1 interval(10s, 2s) sliding(10s)
-print ===> select _wstartts, _wendts, _wduration, _qstartts, _qendts,  count(*) from ct1 interval(10s, 2s) sliding(10s)
+sql select _wstart, _wend, _wduration, _qstart, _qend,  count(*) from ct1 interval(10s, 2s) sliding(10s)
+print ===> select _wstart, _wend, _wduration, _qstart, _qend,  count(*) from ct1 interval(10s, 2s) sliding(10s)
 print ===> rows: $rows
 print ===> rows0: $data00 $data01 $data02 $data05
 print ===> rows1: $data10 $data11 $data12 $data15
@@ -177,7 +177,7 @@ if $data70 != 1 then
   return -1
 endi
 
-sql select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct3 interval(1n, 1w)
+sql select _wstart, count(tbcol), _wduration, _wstart, count(*) from ct3 interval(1n, 1w)
 print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct3 interval(1n, 1w)
 print ===> rows: $rows
 print ===> rows0: $data00 $data01 $data02 $data03 $data04
@@ -200,11 +200,11 @@ if $data02 != 2678400000 then
   return -1
 endi
 
-sql_error select  _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct3 interval(1n, 1w) sliding(2w)
-sql_error select _wstartts, count(tbcol), _wduration, _wstartts, count(*)  from ct3 interval(1n, 1w) sliding(4w)
+sql_error select  _wstart, count(tbcol), _wduration, _wstart, count(*) from ct3 interval(1n, 1w) sliding(2w)
+sql_error select _wstart, count(tbcol), _wduration, _wstart, count(*)  from ct3 interval(1n, 1w) sliding(4w)
 
-sql select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct4 interval(1y, 6n)
-print ===> select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct4 interval(1y, 6n)
+sql select _wstart, count(tbcol), _wduration, _wstart, count(*) from ct4 interval(1y, 6n)
+print ===> select _wstart, count(tbcol), _wduration, _wstart, count(*) from ct4 interval(1y, 6n)
 print ===> rows: $rows
 print ===> rows0: $data00 $data01 $data02 $data03 $data04
 print ===> rows1: $data10 $data11 $data12 $data13 $data14
@@ -220,7 +220,7 @@ if $data04 != 2 then
 endi
 
 sql_error select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct4 interval(1y, 6n) sliding(6n)
-sql_error select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct4 interval(1y, 6n) sliding(12n)
+sql_error select _wstart, count(tbcol), _wduration, _wstart, count(*) from ct4 interval(1y, 6n) sliding(12n)
 
 #=================================================
 print =============== stop and restart taosd

@@ -4,7 +4,8 @@ import logging
 import os
 import sys
 from typing import Optional
-
+import time , datetime
+from datetime import datetime
 import taos
 
 
@@ -44,6 +45,10 @@ class Logging:
     logger = None # type: Optional[MyLoggingAdapter]
 
     @classmethod
+    def _get_datetime(cls):
+        return datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-1]
+
+    @classmethod
     def getLogger(cls):
         return cls.logger
 
@@ -64,22 +69,22 @@ class Logging:
         # global logger
         cls.logger = MyLoggingAdapter(_logger, {})
         cls.logger.setLevel(logging.DEBUG if debugMode else logging.INFO)  # default seems to be INFO
-        
+
     @classmethod
     def info(cls, msg):
-        cls.logger.info(msg)
+        cls.logger.info("[time]: " + cls._get_datetime() +" [msg]: "+ msg)
 
     @classmethod
     def debug(cls, msg):
-        cls.logger.debug(msg)
+        cls.logger.debug("[time]: " + cls._get_datetime() +" [msg]: "+ msg)
 
     @classmethod
     def warning(cls, msg):
-        cls.logger.warning(msg)
+        cls.logger.warning("[time]: " + cls._get_datetime() +" [msg]: "+ msg)
 
     @classmethod
     def error(cls, msg):
-        cls.logger.error(msg)
+        cls.logger.error("[time]: " + cls._get_datetime() +" [msg]: "+ msg)
 
 class Status:
     STATUS_EMPTY    = 99

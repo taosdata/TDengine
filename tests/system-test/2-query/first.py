@@ -60,10 +60,10 @@ class TDTestCase:
             tdSql.checkRows(1)
             tdSql.checkData(0, 1, None)
         #!bug TD-16561
-        # for i in ['stb','db.stb']:
-        #     tdSql.query(f"select first(*) from {i}")
-        #     tdSql.checkRows(1)
-        #     tdSql.checkData(0, 1, None)
+        for i in ['stb','db.stb']:
+            tdSql.query(f"select first(*) from {i}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, None)
         for i in column_list:
             for j in ['stb_1','db.stb_1','stb_1','db.stb_1']:
                 tdSql.query(f"select first({i}) from {j}")
@@ -125,10 +125,10 @@ class TDTestCase:
             tdSql.execute(f"create table {stbname}_{i} using {stbname} tags('beijing')")
             tdSql.execute(f"insert into {stbname}_{i}(ts) values(%d)" % (self.ts - 1-i))
         #!bug TD-16561
-        # for i in [f'{stbname}', f'{dbname}.{stbname}']:
-        #     tdSql.query(f"select first(*) from {i}")
-        #     tdSql.checkRows(1)
-        #     tdSql.checkData(0, 1, None)
+        for i in [f'{stbname}', f'{dbname}.{stbname}']:
+            tdSql.query(f"select first(*) from {i}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, None)
         tdSql.query('show tables')
         vgroup_list = []
         for i in range(len(tdSql.queryResult)):
@@ -170,8 +170,8 @@ class TDTestCase:
                 elif 'nchar' in v:
                     tdSql.checkData(0, 0, f'{self.nchar_str}1')
         #!bug TD-16569
-        # tdSql.query(f"select first(*),last(*) from {stbname} where ts < 23 interval(1s)")
-        # tdSql.checkRows(0)
+        tdSql.query(f"select first(*),last(*) from {stbname} where ts < 23 interval(1s)")
+        tdSql.checkRows(0)
         tdSql.execute(f'drop database {dbname}')
         
         

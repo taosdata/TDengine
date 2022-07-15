@@ -19,9 +19,9 @@ int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* p
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->sourceTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->sourceVg) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->sourceChildId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->upstreamTaskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->dataSrcVgId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->upstreamChildId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->upstreamNodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->blockNum) < 0) return -1;
   ASSERT(taosArrayGetSize(pReq->data) == pReq->blockNum);
@@ -40,9 +40,9 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->sourceTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->sourceVg) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->sourceChildId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->upstreamTaskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->dataSrcVgId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->upstreamChildId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->upstreamNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->blockNum) < 0) return -1;
   ASSERT(pReq->blockNum > 0);
@@ -62,6 +62,106 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
   return 0;
 }
 
+int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* pReq) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->dstNodeId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->dstTaskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->srcNodeId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->srcTaskId) < 0) return -1;
+  if (tEncodeBinary(pEncoder, (const uint8_t*)pReq->pRetrieve, pReq->retrieveLen) < 0) return -1;
+  tEndEncode(pEncoder);
+  return pEncoder->pos;
+}
+
+int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->dstNodeId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->dstTaskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->srcNodeId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->srcTaskId) < 0) return -1;
+  uint64_t len = 0;
+  if (tDecodeBinaryAlloc(pDecoder, (void**)&pReq->pRetrieve, &len) < 0) return -1;
+  pReq->retrieveLen = (int32_t)len;
+  tEndDecode(pDecoder);
+  return 0;
+}
+
+int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock) {
+  SRetrieveTableRsp* pRetrieve = NULL;
+  void*              buf = NULL;
+  int32_t            dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+
+  pRetrieve = taosMemoryCalloc(1, dataStrLen);
+  if (pRetrieve == NULL) return -1;
+
+  int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  pRetrieve->useconds = 0;
+  pRetrieve->precision = TSDB_DEFAULT_PRECISION;
+  pRetrieve->compressed = 0;
+  pRetrieve->completed = 1;
+  pRetrieve->streamBlockType = pBlock->info.type;
+  pRetrieve->numOfRows = htonl(pBlock->info.rows);
+  pRetrieve->numOfCols = htonl(numOfCols);
+  pRetrieve->skey = htobe64(pBlock->info.window.skey);
+  pRetrieve->ekey = htobe64(pBlock->info.window.ekey);
+
+  int32_t actualLen = 0;
+  blockEncode(pBlock, pRetrieve->data, &actualLen, numOfCols, false);
+
+  SStreamRetrieveReq req = {
+      .streamId = pTask->streamId,
+      .srcNodeId = pTask->nodeId,
+      .srcTaskId = pTask->taskId,
+      .pRetrieve = pRetrieve,
+      .retrieveLen = dataStrLen,
+  };
+
+  int32_t sz = taosArrayGetSize(pTask->childEpInfo);
+  ASSERT(sz > 0);
+  for (int32_t i = 0; i < sz; i++) {
+    SStreamChildEpInfo* pEpInfo = taosArrayGetP(pTask->childEpInfo, i);
+    req.dstNodeId = pEpInfo->nodeId;
+    req.dstTaskId = pEpInfo->taskId;
+    int32_t code;
+    int32_t len;
+    tEncodeSize(tEncodeStreamRetrieveReq, &req, len, code);
+    if (code < 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    buf = rpcMallocCont(sizeof(SMsgHead) + len);
+    if (buf == NULL) {
+      goto FAIL;
+    }
+
+    ((SMsgHead*)buf)->vgId = htonl(pEpInfo->nodeId);
+    void*    abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+    SEncoder encoder;
+    tEncoderInit(&encoder, abuf, len);
+    tEncodeStreamRetrieveReq(&encoder, &req);
+
+    SRpcMsg rpcMsg = {
+        .code = 0,
+        .msgType = TDMT_STREAM_RETRIEVE,
+        .pCont = buf,
+        .contLen = sizeof(SMsgHead) + len,
+    };
+
+    if (tmsgSendReq(&pEpInfo->epSet, &rpcMsg) < 0) {
+      ASSERT(0);
+      return -1;
+    }
+  }
+  return 0;
+FAIL:
+  if (pRetrieve) taosMemoryFree(pRetrieve);
+  if (buf) taosMemoryFree(buf);
+  return -1;
+}
+
 static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDispatchReq* pReq) {
   int32_t dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
   void*   buf = taosMemoryCalloc(1, dataStrLen);
@@ -74,10 +174,14 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   pRetrieve->completed = 1;
   pRetrieve->streamBlockType = pBlock->info.type;
   pRetrieve->numOfRows = htonl(pBlock->info.rows);
-  pRetrieve->numOfCols = htonl(pBlock->info.numOfCols);
+  pRetrieve->skey = htobe64(pBlock->info.window.skey);
+  pRetrieve->ekey = htobe64(pBlock->info.window.ekey);
+
+  int32_t numOfCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+  pRetrieve->numOfCols = htonl(numOfCols);
 
   int32_t actualLen = 0;
-  blockCompressEncode(pBlock, pRetrieve->data, &actualLen, pBlock->info.numOfCols, false);
+  blockEncode(pBlock, pRetrieve->data, &actualLen, numOfCols, false);
   actualLen += sizeof(SRetrieveTableRsp);
   ASSERT(actualLen <= dataStrLen);
   taosArrayPush(pReq->dataLen, &actualLen);
@@ -86,7 +190,7 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   return 0;
 }
 
-int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
+int32_t streamBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
   void*   buf = NULL;
   int32_t code = -1;
   int32_t blockNum = taosArrayGetSize(data->blocks);
@@ -94,9 +198,9 @@ int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcM
 
   SStreamDispatchReq req = {
       .streamId = pTask->streamId,
-      .sourceTaskId = pTask->taskId,
-      .sourceVg = data->sourceVg,
-      .sourceChildId = pTask->childId,
+      .dataSrcVgId = data->srcVgId,
+      .upstreamTaskId = pTask->taskId,
+      .upstreamChildId = pTask->selfChildId,
       .upstreamNodeId = pTask->nodeId,
       .blockNum = blockNum,
   };
@@ -147,8 +251,8 @@ int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcM
   ASSERT(vgId > 0 || vgId == SNODE_HANDLE);
   req.taskId = downstreamTaskId;
 
-  qInfo("dispatch from task %d (child id %d) to down stream task %d in vnode %d", pTask->taskId, pTask->childId,
-        downstreamTaskId, vgId);
+  qDebug("dispatch from task %d (child id %d) to down stream task %d in vnode %d", pTask->taskId, pTask->selfChildId,
+         downstreamTaskId, vgId);
 
   // serialize
   int32_t tlen;
@@ -194,12 +298,13 @@ int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
 
   SStreamDataBlock* pBlock = streamQueueNextItem(pTask->outputQueue);
   if (pBlock == NULL) {
+    qDebug("stream stop dispatching since no output: task %d", pTask->taskId);
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     return 0;
   }
-  ASSERT(pBlock->type == STREAM_DATA_TYPE_SSDATA_BLOCK);
+  ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK);
 
-  qInfo("stream continue dispatching: task %d", pTask->taskId);
+  qDebug("stream continue dispatching: task %d", pTask->taskId);
 
   SRpcMsg dispatchMsg = {0};
   SEpSet* pEpSet = NULL;
@@ -208,6 +313,8 @@ int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     return -1;
   }
+  taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
+  taosFreeQitem(pBlock);
 
   tmsgSendReq(pEpSet, &dispatchMsg);
   return 0;

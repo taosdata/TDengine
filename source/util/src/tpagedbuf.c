@@ -193,7 +193,9 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
 
   char* pDataBuf = pg->pData;
   memset(pDataBuf, 0, getAllocPageSize(pBuf->pageSize));
-
+#ifdef BUF_PAGE_DEBUG
+  uDebug("page_flush %p, pageId:%d, offset:%d", pDataBuf, pg->pageId, pg->offset);
+#endif
   pg->length = size;  // on disk size
   return pDataBuf;
 }
@@ -440,6 +442,9 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId) {
   }
 
   ((void**)pi->pData)[0] = pi;
+#ifdef BUF_PAGE_DEBUG
+  uDebug("page_getNewBufPage , pi->pData:%p, pageId:%d, offset:%"PRId64, pi->pData, pi->pageId, pi->offset);
+#endif
   return (void*)(GET_DATA_PAYLOAD(pi));
 }
 
@@ -462,7 +467,9 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
 
     lruListMoveToFront(pBuf->lruList, (*pi));
     (*pi)->used = true;
-
+#ifdef BUF_PAGE_DEBUG
+    uDebug("page_getBufPage1 pageId:%d, offset:%"PRId64, (*pi)->pageId, (*pi)->offset);
+#endif
     return (void*)(GET_DATA_PAYLOAD(*pi));
   } else {  // not in memory
     assert((*pi)->pData == NULL && (*pi)->pn == NULL && (((*pi)->length >= 0 && (*pi)->offset >= 0) || ((*pi)->length == -1 && (*pi)->offset == -1)));
@@ -494,7 +501,9 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
         return NULL;
       }
     }
-
+#ifdef BUF_PAGE_DEBUG
+    uDebug("page_getBufPage2 pageId:%d, offset:%"PRId64, (*pi)->pageId, (*pi)->offset);
+#endif
     return (void*)(GET_DATA_PAYLOAD(*pi));
   }
 }
@@ -506,8 +515,11 @@ void releaseBufPage(SDiskbasedBuf* pBuf, void* page) {
 }
 
 void releaseBufPageInfo(SDiskbasedBuf* pBuf, SPageInfo* pi) {
-  assert(pi->pData != NULL && pi->used == true);
-
+#ifdef BUF_PAGE_DEBUG
+  uDebug("page_releaseBufPageInfo pageId:%d, used:%d, offset:%"PRId64, pi->pageId, pi->used, pi->offset);
+#endif
+  // assert(pi->pData != NULL && pi->used == true);
+  assert(pi->pData != NULL);
   pi->used = false;
   pBuf->statis.releasePages += 1;
 }
@@ -625,6 +637,7 @@ void dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage) {
   SListNode* pNode = tdListPopNode(pBuf->lruList, ppi->pn);
   taosMemoryFreeClear(ppi->pData);
   taosMemoryFreeClear(pNode);
+  ppi->pn = NULL;
 
   tdListAppend(pBuf->freePgList, &ppi);
 }

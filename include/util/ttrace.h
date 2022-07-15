@@ -45,9 +45,11 @@ typedef struct STraceId {
 
 #define TRACE_GET_MSGID(traceId) (traceId)->msgId
 
-#define TRACE_TO_STR(traceId, buf)                                                \
-  do {                                                                            \
-    sprintf(buf, "0x%" PRIx64 ":0x%" PRIx64 "", traceId->rootId, traceId->msgId); \
+#define TRACE_TO_STR(traceId, buf)                              \
+  do {                                                          \
+    int64_t rootId = (traceId) != NULL ? (traceId)->rootId : 0; \
+    int64_t msgId = (traceId) != NULL ? (traceId)->msgId : 0;   \
+    sprintf(buf, "0x%" PRIx64 ":0x%" PRIx64 "", rootId, msgId); \
   } while (0)
 
 #ifdef __cplusplus

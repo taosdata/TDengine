@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndFunc.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSync.h"
 #include "mndTrans.h"
@@ -283,6 +283,9 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
   }
 
   mDebug("func:%s, start to create", createReq.name);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_FUNC) != 0) {
+    goto _OVER;
+  }
 
   pFunc = mndAcquireFunc(pMnode, createReq.name);
   if (pFunc != NULL) {
@@ -318,10 +321,6 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_CREATE_FUNC) != 0) {
-    goto _OVER;
-  }
-
   code = mndCreateFunc(pMnode, pReq, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -347,6 +346,9 @@ static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
   }
 
   mDebug("func:%s, start to drop", dropReq.name);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_FUNC) != 0) {
+    goto _OVER;
+  }
 
   if (dropReq.name[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_FUNC_NAME;
@@ -363,10 +365,6 @@ static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
       terrno = TSDB_CODE_MND_FUNC_NOT_EXIST;
       goto _OVER;
     }
-  }
-
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_DROP_FUNC) != 0) {
-    goto _OVER;
   }
 
   code = mndDropFunc(pMnode, pReq, pFunc);

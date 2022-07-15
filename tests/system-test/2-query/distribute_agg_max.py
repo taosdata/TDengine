@@ -8,7 +8,7 @@ import random
 class TDTestCase:
     updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 , 
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
-    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143,
+    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143,
     "maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
 
     def init(self, conn, logSql):
@@ -55,7 +55,7 @@ class TDTestCase:
             '''
         )
         for i in range(20):
-            tdSql.execute(f'create table ct{i+1} using stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
+            tdSql.execute(f'create table ct{i+1} using stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {1*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
 
         for i in range(9):
             tdSql.execute(
@@ -244,6 +244,27 @@ class TDTestCase:
         tdSql.checkRows(30)
         tdSql.query(" select max(c1),c2  from stb1 group by c2 ")
         tdSql.checkRows(31)
+
+        # selective common cols of datas
+        tdSql.query("select max(c1),c2,c3,c5 from stb1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,28)
+        tdSql.checkData(0,1,311108)
+        tdSql.checkData(0,2,3108)
+        tdSql.checkData(0,3,31.08000)
+
+        tdSql.query("select max(c1),t1,c2,t3 from stb1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,28)
+        tdSql.checkData(0,1,19)
+        tdSql.checkData(0,2,311108)
+
+        tdSql.query("select max(c1),ceil(t1),pow(c2,1)+2,abs(t3) from stb1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,28)
+        tdSql.checkData(0,1,19)
+        tdSql.checkData(0,2,311110.000000000)   
+        tdSql.checkData(0,3,2109)  
 
         # partition by tbname or partition by tag
         tdSql.query("select max(c1),tbname from stb1 partition by tbname")

@@ -92,6 +92,13 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
     goto _err;
   }
 
+  // open pSuidIdx
+  ret = tdbTbOpen("suid.idx", sizeof(tb_uid_t), 0, uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pSuidIdx);
+  if (ret < 0) {
+    metaError("vgId:%d, failed to open meta super table index since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
   // open pTagIdx
   // TODO(yihaoDeng), refactor later
   char indexFullPath[128] = {0};
@@ -141,6 +148,7 @@ _err:
   if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
   if (pMeta->pTagIdx) tdbTbClose(pMeta->pTagIdx);
   if (pMeta->pCtbIdx) tdbTbClose(pMeta->pCtbIdx);
+  if (pMeta->pSuidIdx) tdbTbClose(pMeta->pSuidIdx);
   if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);
   if (pMeta->pUidIdx) tdbTbClose(pMeta->pUidIdx);
   if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
@@ -156,12 +164,10 @@ int metaClose(SMeta *pMeta) {
     if (pMeta->pIdx) metaCloseIdx(pMeta);
     if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
     if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
-#ifdef USE_INVERTED_INDEX
     if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
-#else
     if (pMeta->pTagIdx) tdbTbClose(pMeta->pTagIdx);
-#endif
     if (pMeta->pCtbIdx) tdbTbClose(pMeta->pCtbIdx);
+    if (pMeta->pSuidIdx) tdbTbClose(pMeta->pSuidIdx);
     if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);
     if (pMeta->pUidIdx) tdbTbClose(pMeta->pUidIdx);
     if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);

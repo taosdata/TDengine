@@ -18,7 +18,6 @@
 
 static inline int32_t mmAcquire(SMnodeMgmt *pMgmt) {
   int32_t code = 0;
-
   taosThreadRwlockRdlock(&pMgmt->lock);
   if (pMgmt->stopped) {
     code = -1;
@@ -48,7 +47,8 @@ static inline void mmSendRsp(SRpcMsg *pMsg, int32_t code) {
 static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
-  STraceId *  trace = &pMsg->info.traceId;
+
+  const STraceId *trace = &pMsg->info.traceId;
   dGTrace("msg:%p, get from mnode queue", pMsg);
 
   switch (pMsg->msgType) {
@@ -72,7 +72,7 @@ static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     mndPostProcessQueryMsg(pMsg);
   }
 
-  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  dGTrace("msg:%p, is freed, code:0x%x", pMsg, code);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
@@ -80,7 +80,9 @@ static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 static void mmProcessSyncMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
   pMsg->info.node = pMgmt->pMnode;
-  dTrace("msg:%p, get from mnode-sync queue", pMsg);
+
+  const STraceId *trace = &pMsg->info.traceId;
+  dGTrace("msg:%p, get from mnode-sync queue", pMsg);
 
   SMsgHead *pHead = pMsg->pCont;
   pHead->contLen = ntohl(pHead->contLen);
@@ -88,20 +90,22 @@ static void mmProcessSyncMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 
   int32_t code = mndProcessSyncMsg(pMsg);
 
-  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  dGTrace("msg:%p, is freed, code:0x%x", pMsg, code);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
 
 static inline int32_t mmPutMsgToWorker(SMnodeMgmt *pMgmt, SSingleWorker *pWorker, SRpcMsg *pMsg) {
+  const STraceId *trace = &pMsg->info.traceId;
+
   if (mmAcquire(pMgmt) == 0) {
-    dTrace("msg:%p, put into %s queue, type:%s", pMsg, pWorker->name, TMSG_INFO(pMsg->msgType));
+    dGTrace("msg:%p, put into %s queue, type:%s", pMsg, pWorker->name, TMSG_INFO(pMsg->msgType));
     taosWriteQitem(pWorker->queue, pMsg);
     mmRelease(pMgmt);
     return 0;
   } else {
-    dTrace("msg:%p, failed to put into %s queue since %s, type:%s", pMsg, pWorker->name, terrstr(),
-           TMSG_INFO(pMsg->msgType));
+    dGTrace("msg:%p, failed to put into %s queue since %s, type:%s", pMsg, pWorker->name, terrstr(),
+            TMSG_INFO(pMsg->msgType));
     return -1;
   }
 }
@@ -121,18 +125,16 @@ int32_t mmPutMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   pMsg->info.node = pMgmt->pMnode;
   if (mndPreProcessQueryMsg(pMsg) != 0) {
-    dError("msg:%p, failed to pre-process in mnode since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pMsg->msgType));
+    const STraceId *trace = &pMsg->info.traceId;
+    dGError("msg:%p, failed to pre-process in mnode since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pMsg->msgType));
     return -1;
   }
   return mmPutMsgToWorker(pMgmt, &pMgmt->queryWorker, pMsg);
 }
 
 int32_t mmPutMsgToFetchQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  pMsg->info.node = pMgmt->pMnode;
-
   return mmPutMsgToWorker(pMgmt, &pMgmt->fetchWorker, pMsg);
 }
-
 
 int32_t mmPutMsgToMonitorQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->monitorWorker, pMsg);
@@ -165,8 +167,13 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   if (pMsg == NULL) return -1;
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
 
-  dTrace("msg:%p, is created and will put int %s queue", pMsg, pWorker->name);
-  return mmPutMsgToWorker(pMgmt, pWorker, pMsg);
+  dTrace("msg:%p, is created and will put into %s queue, type:%s", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType));
+  int32_t code = mmPutMsgToWorker(pMgmt, pWorker, pMsg);
+  if (code != 0) {
+    dTrace("msg:%p, is freed", pMsg);
+    taosFreeQitem(pMsg);
+  }
+  return code;
 }
 
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {

@@ -41,7 +41,6 @@ extern "C" {
 #include <sys/types.h>
 #include <termios.h>
 #include <sys/statvfs.h>
-#include <sys/prctl.h>
 #include <sys/shm.h>
 #include <sys/wait.h>
 
@@ -52,6 +51,7 @@ extern "C" {
 #endif
 #else
 
+#include <malloc.h>
 #include <time.h>
 #ifndef TD_USE_WINSOCK
 #include <winsock2.h>
@@ -103,8 +103,6 @@ extern "C" {
 #include "osTimer.h"
 #include "osTimezone.h"
 #include "osEnv.h"
-
-void osDefaultInit();
 
 #ifdef __cplusplus
 }

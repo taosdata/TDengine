@@ -148,7 +148,10 @@ typedef struct {
   int32_t    accessTimes;
   int32_t    numOfVnodes;
   int32_t    numOfSupportVnodes;
-  int32_t    numOfCores;
+  float      numOfCores;
+  int64_t    memTotal;
+  int64_t    memAvail;
+  int64_t    memUsed;
   EDndReason offlineReason;
   uint16_t   port;
   char       fqdn[TSDB_FQDN_LEN];
@@ -243,6 +246,7 @@ typedef struct {
   int32_t buffer;
   int32_t pageSize;
   int32_t pages;
+  int32_t cacheLastSize;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -255,8 +259,8 @@ typedef struct {
   int8_t  compression;
   int8_t  replications;
   int8_t  strict;
-  int8_t  cacheLastRow;
   int8_t  hashMethod;  // default is 1
+  int8_t  cacheLast;
   int32_t numOfRetensions;
   SArray* pRetensions;
   int8_t  schemaless;
@@ -341,14 +345,16 @@ typedef struct {
   int32_t  colVer;
   int32_t  smaVer;
   int32_t  nextColId;
-  int64_t  watermark[2];
   int64_t  maxdelay[2];
+  int64_t  watermark[2];
   int32_t  ttl;
   int32_t  numOfColumns;
   int32_t  numOfTags;
+  int32_t  numOfFuncs;
   int32_t  commentLen;
   int32_t  ast1Len;
   int32_t  ast2Len;
+  SArray*  pFuncs;
   SSchema* pColumns;
   SSchema* pTags;
   char*    comment;
@@ -420,7 +426,8 @@ typedef struct {
   int64_t        uid;
   int64_t        dbUid;
   int32_t        version;
-  int8_t         subType;  // column, db or stable
+  int8_t         subType;   // column, db or stable
+  int8_t         withMeta;  // TODO
   SRWLatch       lock;
   int32_t        sqlLen;
   int32_t        astLen;
@@ -487,6 +494,7 @@ typedef struct {
   int64_t   dbUid;
   int32_t   vgNum;
   int8_t    subType;
+  int8_t    withMeta;
   int64_t   stbUid;
   SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
   SArray*   unassignedVgs;  // SArray<SMqVgEp*>
@@ -552,7 +560,7 @@ typedef struct {
   int64_t uid;
   int8_t  status;
   // config
-  int8_t  dropPolicy;
+  int8_t  igExpired;
   int8_t  trigger;
   int64_t triggerParam;
   int64_t watermark;

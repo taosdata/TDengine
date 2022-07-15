@@ -60,7 +60,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_EXPRIE_STATEMENT:
       return "This statement is no longer supported";
     case TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL:
-      return "Interval cannot be less than %d us";
+      return "Interval cannot be less than %d %s";
     case TSDB_CODE_PAR_DB_NOT_SPECIFIED:
       return "Database not specified";
     case TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME:
@@ -185,19 +185,21 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG:
       return "The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes";
     case TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC:
-      return "%s function does not supportted in fill query";
+      return "%s function is not supported in fill query";
     case TSDB_CODE_PAR_INVALID_WINDOW_PC:
-      return "_WSTARTTS, _WENDTS and _WDURATION can only be used in window query";
+      return "_WSTART, _WEND and _WDURATION can only be used in window query";
     case TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC:
-      return "%s function does not supportted in time window query";
+      return "%s function is not supported in time window query";
     case TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC:
-      return "%s function does not supportted in stream query";
+      return "%s function is not supported in stream query";
     case TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC:
-      return "%s function does not supportted in group query";
+      return "%s function is not supported in group query";
     case TSDB_CODE_PAR_INVALID_TABLE_OPTION:
       return "Invalid option %s";
     case TSDB_CODE_PAR_INVALID_INTERP_CLAUSE:
       return "Invalid usage of RANGE clause, EVERY clause or FILL clause";
+    case TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN:
+      return "No valid function in window query";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
@@ -213,19 +215,27 @@ int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...) {
   return errCode;
 }
 
+int32_t generateSyntaxErrMsgExt(SMsgBuf* pBuf, int32_t errCode, const char* pFormat, ...) {
+  va_list vArgList;
+  va_start(vArgList, pFormat);
+  vsnprintf(pBuf->buf, pBuf->len, pFormat, vArgList);
+  va_end(vArgList);
+  return errCode;
+}
+
 int32_t buildInvalidOperationMsg(SMsgBuf* pBuf, const char* msg) {
   strncpy(pBuf->buf, msg, pBuf->len);
   return TSDB_CODE_TSC_INVALID_OPERATION;
 }
 
 int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char* sourceStr) {
+  if (pBuf == NULL) return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
   const char* msgFormat1 = "syntax error near \'%s\'";
   const char* msgFormat2 = "syntax error near \'%s\' (%s)";
   const char* msgFormat3 = "%s";
 
   const char* prefix = "syntax error";
   if (sourceStr == NULL) {
-    assert(additionalInfo != NULL);
     snprintf(pBuf->buf, pBuf->len, msgFormat1, additionalInfo);
     return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
   }
@@ -243,40 +253,25 @@ int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char*
   return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
 }
 
-SSchema* getTableColumnSchema(const STableMeta* pTableMeta) {
-  assert(pTableMeta != NULL);
-  return (SSchema*)pTableMeta->schema;
-}
+SSchema* getTableColumnSchema(const STableMeta* pTableMeta) { return (SSchema*)pTableMeta->schema; }
 
 static SSchema* getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex) {
-  assert(pTableMeta != NULL && pTableMeta->schema != NULL && colIndex >= 0 &&
-         colIndex < (getNumOfColumns(pTableMeta) + getNumOfTags(pTableMeta)));
-
   SSchema* pSchema = (SSchema*)pTableMeta->schema;
   return &pSchema[colIndex];
 }
 
 SSchema* getTableTagSchema(const STableMeta* pTableMeta) {
-  assert(pTableMeta != NULL &&
-         (pTableMeta->tableType == TSDB_SUPER_TABLE || pTableMeta->tableType == TSDB_CHILD_TABLE));
   return getOneColumnSchema(pTableMeta, getTableInfo(pTableMeta).numOfColumns);
 }
 
 int32_t getNumOfColumns(const STableMeta* pTableMeta) {
-  assert(pTableMeta != NULL);
   // table created according to super table, use data from super table
   return getTableInfo(pTableMeta).numOfColumns;
 }
 
-int32_t getNumOfTags(const STableMeta* pTableMeta) {
-  assert(pTableMeta != NULL);
-  return getTableInfo(pTableMeta).numOfTags;
-}
+int32_t getNumOfTags(const STableMeta* pTableMeta) { return getTableInfo(pTableMeta).numOfTags; }
 
-STableComInfo getTableInfo(const STableMeta* pTableMeta) {
-  assert(pTableMeta != NULL);
-  return pTableMeta->tableInfo;
-}
+STableComInfo getTableInfo(const STableMeta* pTableMeta) { return pTableMeta->tableInfo; }
 
 STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   size_t size = TABLE_META_SIZE(pTableMeta);
@@ -337,12 +332,16 @@ int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen) {
 static bool isValidateTag(char* input) {
   if (!input) return false;
   for (size_t i = 0; i < strlen(input); ++i) {
+#ifdef WINDOWS
+    if (input[i] < 0x20 || input[i] > 0x7E) return false;
+#else
     if (isprint(input[i]) == 0) return false;
+#endif
   }
   return true;
 }
 
-int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, SMsgBuf* pMsgBuf) {
+int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, void* pMsgBuf) {
   int32_t   retCode = TSDB_CODE_SUCCESS;
   cJSON*    root = NULL;
   SHashObj* keyHash = NULL;
@@ -390,6 +389,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, SMs
       continue;
     }
     STagVal val = {0};
+//    strcpy(val.colName, colName);
     val.pKey = jsonKey;
     taosHashPut(keyHash, jsonKey, keyLen, &keyLen,
                 CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless
@@ -561,6 +561,9 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   if (TSDB_CODE_SUCCESS == code) {
     code = buildTableReq(pMetaCache->pTableIndex, &pCatalogReq->pTableIndex);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildTableReq(pMetaCache->pTableCfg, &pCatalogReq->pTableCfg);
+  }
   pCatalogReq->dNodeRequired = pMetaCache->dnodeRequired;
   return code;
 }
@@ -656,6 +659,9 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMet
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = putTableDataToCache(pCatalogReq->pTableIndex, pMetaData->pTableIndex, &pMetaCache->pTableIndex);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = putTableDataToCache(pCatalogReq->pTableCfg, pMetaData->pTableCfg, &pMetaCache->pTableCfg);
   }
   pMetaCache->pDnodes = pMetaData->pDnodeList;
   return code;
@@ -863,6 +869,10 @@ int32_t reserveTableIndexInCache(int32_t acctId, const char* pDb, const char* pT
   return reserveTableReqInCache(acctId, pDb, pTable, &pMetaCache->pTableIndex);
 }
 
+int32_t reserveTableCfgInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
+  return reserveTableReqInCache(acctId, pDb, pTable, &pMetaCache->pTableCfg);
+}
+
 int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes) {
   char fullName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(pName, fullName);
@@ -877,13 +887,53 @@ int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, 
   return code;
 }
 
+STableCfg* tableCfgDup(STableCfg* pCfg) {
+  STableCfg* pNew = taosMemoryMalloc(sizeof(*pNew));
+
+  memcpy(pNew, pCfg, sizeof(*pNew));
+  if (pNew->pComment) {
+    pNew->pComment = strdup(pNew->pComment);
+  }
+  if (pNew->pFuncs) {
+    pNew->pFuncs = taosArrayDup(pNew->pFuncs);
+  }
+
+  int32_t schemaSize = (pCfg->numOfColumns + pCfg->numOfTags) * sizeof(SSchema);
+
+  SSchema* pSchema = taosMemoryMalloc(schemaSize);
+  memcpy(pSchema, pCfg->pSchemas, schemaSize);
+
+  pNew->pSchemas = pSchema;
+
+  return pNew;
+}
+
+int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableCfg** pOutput) {
+  char fullName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pName, fullName);
+  STableCfg* pCfg = NULL;
+  int32_t    code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableCfg, (void**)&pCfg);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = tableCfgDup(pCfg);
+    if (NULL == *pOutput) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return code;
+}
+
 int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache) {
   pMetaCache->dnodeRequired = true;
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes) {
-  *pDnodes = taosArrayDup(pMetaCache->pDnodes);
+  SMetaRes* pRes = taosArrayGet(pMetaCache->pDnodes, 0);
+  if (TSDB_CODE_SUCCESS != pRes->code) {
+    return pRes->code;
+  }
+
+  *pDnodes = taosArrayDup((SArray*)pRes->pRes);
   if (NULL == *pDnodes) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -899,4 +949,5 @@ void destoryParseMetaCache(SParseMetaCache* pMetaCache) {
   taosHashCleanup(pMetaCache->pUserAuth);
   taosHashCleanup(pMetaCache->pUdf);
   taosHashCleanup(pMetaCache->pTableIndex);
+  taosHashCleanup(pMetaCache->pTableCfg);
 }

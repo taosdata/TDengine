@@ -117,8 +117,8 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->lastRollSeq = -1;
 
   // init write buffer
-  memset(&pWal->writeHead, 0, sizeof(SWalHead));
-  pWal->writeHead.head.headVer = WAL_HEAD_VER;
+  memset(&pWal->writeHead, 0, sizeof(SWalCkHead));
+  pWal->writeHead.head.protoVer = WAL_PROTO_VER;
   pWal->writeHead.magic = WAL_MAGIC;
 
   if (taosThreadMutexInit(&pWal->mutex, NULL) < 0) {

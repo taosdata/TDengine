@@ -37,7 +37,9 @@ static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFreeClear(pInfo->keyBuf);
   taosArrayDestroy(pInfo->pGroupCols);
   taosArrayDestroy(pInfo->pGroupColVals);
-  cleanupExecSupp(&pInfo->scalarSup);
+  cleanupExprSupp(&pInfo->scalarSup);
+  
+  taosMemoryFreeClear(param);
 }
 
 static int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char** keyBuf, const SArray* pGroupColList) {
@@ -141,6 +143,10 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
       pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
       if (pkey->type == TSDB_DATA_TYPE_JSON) {
+        if(tTagIsJson(val)){
+          terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
+          return;
+        }
         int32_t dataLen = getJsonValueLen(val);
         memcpy(pkey->pData, val, dataLen);
       } else if (IS_VAR_DATA_TYPE(pkey->type)) {
@@ -227,11 +233,15 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   int32_t     len = 0;
   STimeWindow w = TSWINDOW_INITIALIZER;
 
+  terrno = TSDB_CODE_SUCCESS;
   int32_t num = 0;
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (!pInfo->isInit) {
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
+      if (terrno != TSDB_CODE_SUCCESS) {  // group by json error
+        longjmp(pTaskInfo->env, terrno);
+      }
       pInfo->isInit = true;
       num++;
       continue;
@@ -247,6 +257,9 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     if (j == 0) {
       num++;
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
+      if (terrno != TSDB_CODE_SUCCESS) {  // group by json error
+        longjmp(pTaskInfo->env, terrno);
+      }
       continue;
     }
 
@@ -291,14 +304,21 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = pInfo->binfo.pRes;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
+    while(1) {
+      doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
+      doFilter(pInfo->pCondition, pRes);
 
-    size_t rows = pRes->info.rows;
-    if (rows == 0 || !hasDataInGroupInfo(&pInfo->groupResInfo)) {
-      doSetOperatorCompleted(pOperator);
+      bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
+      if (!hasRemain) {
+        doSetOperatorCompleted(pOperator);
+        break;
+      }
+
+      if (pRes->info.rows > 0) {
+        break;
+      }
     }
-
-    pOperator->resultInfo.totalRows += rows;
+    pOperator->resultInfo.totalRows += pRes->info.rows;
     return (pRes->info.rows == 0)? NULL:pRes;
   }
 
@@ -559,8 +579,8 @@ uint64_t calcGroupId(char* pData, int32_t len) {
 }
 
 int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity) {
-  size_t numOfCols = pBlock->info.numOfCols;
-  int32_t* offset = taosMemoryCalloc(pBlock->info.numOfCols, sizeof(int32_t));
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  int32_t* offset = taosMemoryCalloc(numOfCols, sizeof(int32_t));
 
   offset[0] = sizeof(int32_t) + sizeof(uint64_t);  // the number of rows in current page, ref to SSDataBlock paged serialization format
 
@@ -617,6 +637,7 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
   int32_t* pageId = taosArrayGet(pGroupInfo->pPageList, pInfo->pageIndex);
   void* page = getBufPage(pInfo->pBuf, *pageId);
 
+  blockDataEnsureCapacity(pInfo->binfo.pRes, pInfo->rowCapacity);
   blockDataFromBuf1(pInfo->binfo.pRes, page, pInfo->rowCapacity);
 
   pInfo->pageIndex += 1;
@@ -661,7 +682,11 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
       }
     }
 
+    terrno = TSDB_CODE_SUCCESS;
     doHashPartition(pOperator, pBlock);
+    if (terrno != TSDB_CODE_SUCCESS) {  // group by json error
+      longjmp(pTaskInfo->env, terrno);
+    }
   }
 
   SArray* groupArray = taosArrayInit(taosHashGetSize(pInfo->pGroupSet), sizeof(SDataGroupInfo));
@@ -701,7 +726,9 @@ static void destroyPartitionOperatorInfo(void* param, int32_t numOfOutput) {
   taosHashCleanup(pInfo->pGroupSet);
   taosMemoryFree(pInfo->columnOffset);
 
-  cleanupExecSupp(&pInfo->scalarSup);
+  cleanupExprSupp(&pInfo->scalarSup);
+  
+  taosMemoryFreeClear(param);
 }
 
 SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNode* pPartNode, SExecTaskInfo* pTaskInfo) {

@@ -38,7 +38,7 @@ extern "C" {
 
 #define MILLISECOND_PER_SECOND (1000i64)
 #else
-#define MILLISECOND_PER_SECOND ((int64_t)1000L)
+#define MILLISECOND_PER_SECOND ((int64_t)1000LL)
 #endif
 
 #define MILLISECOND_PER_MINUTE (MILLISECOND_PER_SECOND * 60)
@@ -46,9 +46,9 @@ extern "C" {
 #define MILLISECOND_PER_DAY    (MILLISECOND_PER_HOUR * 24)
 #define MILLISECOND_PER_WEEK   (MILLISECOND_PER_DAY * 7)
 
-#define NANOSECOND_PER_USEC   (1000L)
-#define NANOSECOND_PER_MSEC   (1000000L)
-#define NANOSECOND_PER_SEC    (1000000000L)
+#define NANOSECOND_PER_USEC   (1000LL)
+#define NANOSECOND_PER_MSEC   (1000000LL)
+#define NANOSECOND_PER_SEC    (1000000000LL)
 #define NANOSECOND_PER_MINUTE (NANOSECOND_PER_SEC * 60)
 #define NANOSECOND_PER_HOUR   (NANOSECOND_PER_MINUTE * 60)
 #define NANOSECOND_PER_DAY    (NANOSECOND_PER_HOUR * 24)
@@ -65,21 +65,21 @@ int32_t taosGetTimestampSec();
 static FORCE_INLINE int64_t taosGetTimestampMs() {
   struct timeval systemTime;
   taosGetTimeOfDay(&systemTime);
-  return (int64_t)systemTime.tv_sec * 1000L + (int64_t)systemTime.tv_usec / 1000;
+  return (int64_t)systemTime.tv_sec * 1000LL + (int64_t)systemTime.tv_usec / 1000;
 }
 
 //@return timestamp in microsecond
 static FORCE_INLINE int64_t taosGetTimestampUs() {
   struct timeval systemTime;
   taosGetTimeOfDay(&systemTime);
-  return (int64_t)systemTime.tv_sec * 1000000L + (int64_t)systemTime.tv_usec;
+  return (int64_t)systemTime.tv_sec * 1000000LL + (int64_t)systemTime.tv_usec;
 }
 
 //@return timestamp in nanosecond
 static FORCE_INLINE int64_t taosGetTimestampNs() {
   struct timespec systemTime = {0};
   taosClockGetTime(CLOCK_REALTIME, &systemTime);
-  return (int64_t)systemTime.tv_sec * 1000000000L + (int64_t)systemTime.tv_nsec;
+  return (int64_t)systemTime.tv_sec * 1000000000LL + (int64_t)systemTime.tv_nsec;
 }
 
 char *     taosStrpTime(const char *buf, const char *fmt, struct tm *tm);

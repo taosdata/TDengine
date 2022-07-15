@@ -34,3 +34,13 @@ TEST_F(PlanSessionTest, selectFunc) {
   // select function along with the columns of select row, and with SESSION clause
   run("SELECT MAX(c1), c2 FROM t1 SESSION(ts, 10s)");
 }
+
+TEST_F(PlanSessionTest, stable) {
+  useDb("root", "test");
+
+  // select function for SESSION clause
+  run("SELECT MAX(c1), MIN(c1) FROM st1 SESSION(ts, 10s)");
+  // select function along with the columns of select row, and with SESSION clause
+  run("SELECT MAX(c1), c2 FROM st1 SESSION(ts, 10s)");
+  run("SELECT count(ts) FROM st1 PARTITION BY c1 SESSION(ts, 10s)");
+}

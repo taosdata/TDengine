@@ -53,13 +53,28 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   pOperator->info         = pInfo;
   pOperator->pTaskInfo    = pTaskInfo;
 
-  SNode* pOnCondition = pJoinNode->pOnConditions;
-  if (nodeType(pOnCondition) == QUERY_NODE_OPERATOR) {
-    SOperatorNode* pNode = (SOperatorNode*)pOnCondition;
+  SNode* pMergeCondition = pJoinNode->pMergeCondition;
+  if (nodeType(pMergeCondition) == QUERY_NODE_OPERATOR) {
+    SOperatorNode* pNode = (SOperatorNode*)pMergeCondition;
     setJoinColumnInfo(&pInfo->leftCol, (SColumnNode*)pNode->pLeft);
     setJoinColumnInfo(&pInfo->rightCol, (SColumnNode*)pNode->pRight);
-  } else if (nodeType(pOnCondition) == QUERY_NODE_LOGIC_CONDITION) {
-    extractTimeCondition(pInfo, (SLogicConditionNode*)pOnCondition);
+  } else {
+    ASSERT(false);
+  }
+
+  if (pJoinNode->pOnConditions != NULL && pJoinNode->node.pConditions != NULL) {
+    pInfo->pCondAfterMerge = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+    SLogicConditionNode* pLogicCond = (SLogicConditionNode*)(pInfo->pCondAfterMerge);
+    pLogicCond->pParameterList = nodesMakeList();
+    nodesListMakeAppend(&pLogicCond->pParameterList, nodesCloneNode(pJoinNode->pOnConditions));
+    nodesListMakeAppend(&pLogicCond->pParameterList, nodesCloneNode(pJoinNode->node.pConditions));
+    pLogicCond->condType = LOGIC_COND_TYPE_AND;
+  } else if (pJoinNode->pOnConditions != NULL) {
+    pInfo->pCondAfterMerge = nodesCloneNode(pJoinNode->pOnConditions);
+  } else if (pJoinNode->node.pConditions != NULL) {
+    pInfo->pCondAfterMerge = nodesCloneNode(pJoinNode->node.pConditions);
+  } else {
+    pInfo->pCondAfterMerge = NULL;
   }
 
   pOperator->fpSet =
@@ -88,14 +103,13 @@ void setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode) {
 
 void destroyMergeJoinOperator(void* param, int32_t numOfOutput) {
   SJoinOperatorInfo* pJoinOperator = (SJoinOperatorInfo*)param;
+  nodesDestroyNode(pJoinOperator->pCondAfterMerge);
+  
+  taosMemoryFreeClear(param);
 }
 
-SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
+static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) {
   SJoinOperatorInfo* pJoinInfo = pOperator->info;
-
-  SSDataBlock* pRes = pJoinInfo->pRes;
-  blockDataCleanup(pRes);
-  blockDataEnsureCapacity(pRes, 4096);
 
   int32_t nrows = 0;
 
@@ -181,7 +195,28 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
       break;
     }
   }
+}
 
+SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
+  SJoinOperatorInfo* pJoinInfo = pOperator->info;
+
+  SSDataBlock* pRes = pJoinInfo->pRes;
+  blockDataCleanup(pRes);
+  blockDataEnsureCapacity(pRes, 4096);
+  while (true) {
+    int32_t numOfRowsBefore = pRes->info.rows;
+    doMergeJoinImpl(pOperator, pRes);
+    int32_t numOfNewRows = pRes->info.rows - numOfRowsBefore;
+    if (numOfNewRows == 0) {
+      break;
+    }
+    if (pJoinInfo->pCondAfterMerge != NULL) {
+      doFilter(pJoinInfo->pCondAfterMerge, pRes);
+    }
+    if (pRes->info.rows >= pOperator->resultInfo.threshold) {
+      break;
+    }
+  }
   return (pRes->info.rows > 0) ? pRes : NULL;
 }
 

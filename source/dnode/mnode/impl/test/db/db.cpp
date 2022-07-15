@@ -50,7 +50,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
     createReq.compression = 2;
     createReq.replications = 1;
     createReq.strict = 1;
-    createReq.cacheLastRow = 0;
+    createReq.cacheLast = 0;
     createReq.ignoreExist = 1;
     createReq.numOfStables = 0;
     createReq.numOfRetensions = 0;
@@ -84,7 +84,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
     alterdbReq.fsyncPeriod = 4000;
     alterdbReq.walLevel = 2;
     alterdbReq.strict = 1;
-    alterdbReq.cacheLastRow = 1;
+    alterdbReq.cacheLast = 1;
     alterdbReq.replications = 1;
 
     int32_t contLen = tSerializeSAlterDbReq(NULL, 0, &alterdbReq);
@@ -93,7 +93,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, 0);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_OPS_NOT_SUPPORT);
   }
 
   test.SendShowReq(TSDB_MGMT_TABLE_DB, "user_databases", "");
@@ -146,7 +146,7 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
     createReq.compression = 2;
     createReq.replications = 1;
     createReq.strict = 1;
-    createReq.cacheLastRow = 0;
+    createReq.cacheLast = 0;
     createReq.ignoreExist = 1;
     createReq.numOfStables = 0;
     createReq.numOfRetensions = 0;

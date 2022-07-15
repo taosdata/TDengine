@@ -9,6 +9,11 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import TDDnodes
 from util.dnodes import TDDnode
+from util.cluster import *
+from util.common import *
+sys.path.append("./7-tmq")
+from tmqCommon import *
+
 import time
 import socket
 import subprocess
@@ -17,26 +22,13 @@ import threading
 import time
 import inspect
 import ctypes
-class MyDnodes(TDDnodes):
-    def __init__(self ,dnodes_lists):
-        super(MyDnodes,self).__init__()
-        self.dnodes = dnodes_lists  # dnode must be TDDnode instance
-        self.simDeployed = False
-
 
 class TDTestCase:
 
     def init(self,conn ,logSql):
         tdLog.debug(f"start to excute {__file__}")
-        self.TDDnodes = None
-
-    def buildcluster(self,dnodenumber):
-        self.depoly_cluster(dnodenumber)
-        self.master_dnode = self.TDDnodes.dnodes[0]
-        self.host=self.master_dnode.cfgDict["fqdn"]
-        conn1 = taos.connect(self.master_dnode.cfgDict["fqdn"] , config=self.master_dnode.cfgDir)
-        tdSql.init(conn1.cursor())
-        
+        # tdSql.init(conn.cursor())
+        # self.host = socket.gethostname()
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -105,52 +97,6 @@ class TDTestCase:
             tdSql.query("select count(*) from %s%d"%(stbname,i))
             tdSql.checkData(0,0,rowsPerSTable)
         return 
-
-    def depoly_cluster(self ,dnodes_nums=5,independent=True): 
-
-        testCluster = False
-        valgrind = 0  
-        hostname = socket.gethostname()
-        dnodes = []
-        start_port = 6030
-        start_port_sec = 6130
-        for num in range(1, dnodes_nums+1):
-            dnode = TDDnode(num)
-            dnode.addExtraCfg("firstEp", f"{hostname}:{start_port}")
-            dnode.addExtraCfg("fqdn", f"{hostname}")
-            dnode.addExtraCfg("serverPort", f"{start_port + (num-1)*100}")
-            dnode.addExtraCfg("monitorFqdn", hostname)
-            dnode.addExtraCfg("monitorPort", 7043)
-            dnode.addExtraCfg("secondEp", f"{hostname}:{start_port_sec}")
-            # configure three dnoe don't support vnodes
-            if independent and (num < 4):
-                dnode.addExtraCfg("supportVnodes", 0)
-
-            dnodes.append(dnode)
-        
-        self.TDDnodes = MyDnodes(dnodes)
-        self.TDDnodes.init("")
-        self.TDDnodes.setTestCluster(testCluster)
-        self.TDDnodes.setValgrind(valgrind)
-        self.TDDnodes.stopAll()
-        for dnode in self.TDDnodes.dnodes:
-            self.TDDnodes.deploy(dnode.index,{})
-            
-        for dnode in self.TDDnodes.dnodes:
-            self.TDDnodes.starttaosd(dnode.index)
-
-        # create cluster 
-        for dnode in self.TDDnodes.dnodes[1:]:
-            # print(dnode.cfgDict)
-            dnode_id = dnode.cfgDict["fqdn"] +  ":" +dnode.cfgDict["serverPort"]
-            dnode_first_host = dnode.cfgDict["firstEp"].split(":")[0]
-            dnode_first_port = dnode.cfgDict["firstEp"].split(":")[-1]
-            cmd = f" taos -h {dnode_first_host} -P {dnode_first_port} -s ' create dnode \"{dnode_id} \" ' ;"
-            print(cmd)
-            os.system(cmd)
-        
-        time.sleep(2)
-        tdLog.info(" create cluster with %d dnode  done! " %dnodes_nums)
 
     def checkdnodes(self,dnodenumber):
         count=0
@@ -305,6 +251,14 @@ class TDTestCase:
         tdSql.checkData(2,2,'offline')
         tdSql.checkData(2,3,'ready')
 
+
+    def check5dnode(self):
+        tdSql.query("show dnodes;")
+        tdSql.checkData(0,1,'%s:6030'%self.host)
+        tdSql.checkData(4,1,'%s:6430'%self.host)
+        tdSql.checkData(0,4,'ready')
+        tdSql.checkData(4,4,'ready')
+        
     def five_dnode_three_mnode(self,dnodenumber):
         tdSql.query("show dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
@@ -346,6 +300,7 @@ class TDTestCase:
                     threads.join()
                 else:
                     print("456")
+                    threads.join()
                     self.stop_thread(threads)
                     assert 1 == 2 ,"some dnode started failed"
                     return False
@@ -357,16 +312,8 @@ class TDTestCase:
         self.check3mnode()
 
 
-    def getConnection(self, dnode):
-        host = dnode.cfgDict["fqdn"]
-        port = dnode.cfgDict["serverPort"]
-        config_dir = dnode.cfgDir
-        return taos.connect(host=host, port=int(port), config=config_dir)
-
-
     def run(self): 
         # print(self.master_dnode.cfgDict)
-        self.buildcluster(5)
         self.five_dnode_three_mnode(5)
 
     def stop(self):

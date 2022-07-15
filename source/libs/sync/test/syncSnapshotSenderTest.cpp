@@ -25,7 +25,7 @@ void ReConfigCb(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) 
 
 int32_t GetSnapshot(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) { return 0; }
 
-int32_t SnapshotStartRead(struct SSyncFSM* pFsm, void** ppReader) { return 0; }
+int32_t SnapshotStartRead(struct SSyncFSM* pFsm, void* pParam, void** ppReader) { return 0; }
 int32_t SnapshotStopRead(struct SSyncFSM* pFsm, void* pReader) { return 0; }
 int32_t SnapshotDoRead(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len) { return 0; }
 

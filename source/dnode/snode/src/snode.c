@@ -92,7 +92,7 @@ static int32_t sndProcessTaskDeployReq(SSnode *pNode, SRpcMsg *pMsg) {
   }
   tDecoderClear(&decoder);
 
-  pTask->status = TASK_STATUS__IDLE;
+  pTask->execStatus = TASK_EXEC_STATUS__IDLE;
 
   pTask->inputQueue = streamQueueOpen();
   pTask->outputQueue = streamQueueOpen();
@@ -105,13 +105,14 @@ static int32_t sndProcessTaskDeployReq(SSnode *pNode, SRpcMsg *pMsg) {
 
   ASSERT(pTask->execType != TASK_EXEC__NONE);
 
-  ASSERT(pTask->dataScan == 0);
+  ASSERT(pTask->isDataScan == 0);
   pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, NULL);
   ASSERT(pTask->exec.executor);
 
   streamSetupTrigger(pTask);
 
-  qInfo("deploy stream: stream id %ld task id %d child id %d on snode", pTask->streamId, pTask->taskId, pTask->childId);
+  qInfo("deploy stream: stream id %" PRId64 " task id %d child id %d on snode", pTask->streamId, pTask->taskId,
+        pTask->selfChildId);
 
   taosHashPut(pMeta->pHash, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void *));
 
@@ -198,6 +199,34 @@ static int32_t sndProcessTaskDropReq(SSnode *pNode, SRpcMsg *pMsg) {
   return code;
 }
 
+static int32_t sndProcessTaskRetrieveReq(SSnode *pNode, SRpcMsg *pMsg) {
+  SStreamMeta *pMeta = pNode->pMeta;
+
+  char              *msgStr = pMsg->pCont;
+  char              *msgBody = POINTER_SHIFT(msgStr, sizeof(SMsgHead));
+  int32_t            msgLen = pMsg->contLen - sizeof(SMsgHead);
+  SStreamRetrieveReq req;
+  SDecoder           decoder;
+  tDecoderInit(&decoder, msgBody, msgLen);
+  tDecodeStreamRetrieveReq(&decoder, &req);
+  int32_t      taskId = req.dstTaskId;
+  SStreamTask *pTask = *(SStreamTask **)taosHashGet(pMeta->pHash, &taskId, sizeof(int32_t));
+  if (atomic_load_8(&pTask->taskStatus) != TASK_STATUS__NORMAL) {
+    return 0;
+  }
+  SRpcMsg rsp = {
+      .info = pMsg->info,
+      .code = 0,
+  };
+  streamProcessRetrieveReq(pTask, &req, &rsp);
+  return 0;
+}
+
+static int32_t sndProcessTaskRetrieveRsp(SSnode *pNode, SRpcMsg *pMsg) {
+  //
+  return 0;
+}
+
 int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   // stream deploy
   // stream stop/resume
@@ -205,7 +234,7 @@ int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   switch (pMsg->msgType) {
     case TDMT_STREAM_TASK_DEPLOY:
       return sndProcessTaskDeployReq(pSnode, pMsg);
-    case TDMT_VND_STREAM_TASK_DROP:
+    case TDMT_STREAM_TASK_DROP:
       return sndProcessTaskDropReq(pSnode, pMsg);
     default:
       ASSERT(0);
@@ -221,10 +250,14 @@ int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       return sndProcessTaskDispatchReq(pSnode, pMsg);
     case TDMT_STREAM_TASK_RECOVER:
       return sndProcessTaskRecoverReq(pSnode, pMsg);
+    case TDMT_STREAM_RETRIEVE:
+      return sndProcessTaskRecoverReq(pSnode, pMsg);
     case TDMT_STREAM_TASK_DISPATCH_RSP:
       return sndProcessTaskDispatchRsp(pSnode, pMsg);
     case TDMT_STREAM_TASK_RECOVER_RSP:
       return sndProcessTaskRecoverRsp(pSnode, pMsg);
+    case TDMT_STREAM_RETRIEVE_RSP:
+      return sndProcessTaskRetrieveRsp(pSnode, pMsg);
     default:
       ASSERT(0);
   }

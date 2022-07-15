@@ -115,6 +115,14 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 
 #endif
 
+SName* toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName) {
+  pName->type = TSDB_TABLE_NAME_T;
+  pName->acctId = acctId;
+  strcpy(pName->dbname, pDbName);
+  strcpy(pName->tname, pTableName);
+  return pName;
+}
+
 int32_t tNameExtractFullName(const SName* name, char* dst) {
   assert(name != NULL && dst != NULL);
 
@@ -214,6 +222,20 @@ int32_t tNameSetDbName(SName* dst, int32_t acct, const char* dbName, size_t name
   return 0;
 }
 
+int32_t tNameAddTbName(SName* dst, const char* tbName, size_t nameLen) {
+  assert(dst != NULL && tbName != NULL && nameLen > 0);
+
+  // too long account id or too long db name
+  if (nameLen >= tListLen(dst->tname) || nameLen <= 0) {
+    return -1;
+  }
+
+  dst->type = TSDB_TABLE_NAME_T;
+  tstrncpy(dst->tname, tbName, nameLen + 1);
+  return 0;
+}
+
+
 int32_t tNameSetAcctId(SName* dst, int32_t acctId) {
   assert(dst != NULL);
   dst->acctId = acctId;
@@ -238,6 +260,15 @@ bool tNameDBNameEqual(SName* left, SName* right) {
   }
 
   return (0 == strcmp(left->dbname, right->dbname));
+}
+
+bool tNameTbNameEqual(SName* left, SName* right) {
+  bool equal = tNameDBNameEqual(left, right);
+  if (equal) {
+    return (0 == strcmp(left->tname, right->tname));
+  }
+
+  return equal;
 }
 
 int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {

@@ -62,7 +62,7 @@ else
   lib_files="${build_dir}/lib/libtaos.${version}.dylib"
 fi
 
-header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h"
+header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/libs/function/taosudf.h"
 if [ "$dbName" != "taos" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
 else
@@ -161,13 +161,11 @@ if [[ $productName == "TDengine" ]]; then
       mkdir -p ${install_dir}/connector
       if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
           if [ "$osType" != "Darwin" ]; then
-              cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
+              [ -f ${build_dir}/lib/*.jar ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
           fi
-          if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
-              cp -r ${connector_dir}/go ${install_dir}/connector
-          else
-              echo "WARNING: go connector not found, please check if want to use it!"
-          fi
+          git clone --depth 1 https://github.com/taosdata/driver-go ${install_dir}/connector/go
+          rm -rf ${install_dir}/connector/go/.git ||:
+
           git clone --depth 1 https://github.com/taosdata/taos-connector-python ${install_dir}/connector/python
           rm -rf ${install_dir}/connector/python/.git ||:
 #          cp -r ${connector_dir}/python ${install_dir}/connector

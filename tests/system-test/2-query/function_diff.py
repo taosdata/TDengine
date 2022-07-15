@@ -355,9 +355,63 @@ class TDTestCase:
             tdSql.execute(f"create table tt{i} using stb2 tags({i})")
 
         pass
+    def diff_support_stable(self):
+        tdSql.query(" select diff(1) from stb1 ")
+        tdSql.checkRows(229)
+        tdSql.checkData(0,0,0)
+        tdSql.query("select diff(c1) from stb1 partition by tbname ")
+        tdSql.checkRows(190)
+        # tdSql.query("select diff(st1) from stb1 partition by tbname")
+        # tdSql.checkRows(229)
+        tdSql.query("select diff(st1+c1) from stb1 partition by tbname")
+        tdSql.checkRows(190)
+        tdSql.query("select diff(st1+c1) from stb1 partition by tbname")
+        tdSql.checkRows(190)
+        tdSql.query("select diff(st1+c1) from stb1 partition by tbname")
+        tdSql.checkRows(190)
+
+        # # bug need fix
+        # tdSql.query("select diff(st1+c1) from stb1 partition by tbname slimit 1 ")
+        # tdSql.checkRows(19)
+        # tdSql.error("select diff(st1+c1) from stb1 partition by tbname limit 1 ")
+
+
+        # bug need fix
+        tdSql.query("select diff(st1+c1) from stb1 partition by tbname")
+        tdSql.checkRows(190)
+
+        # bug need fix
+        # tdSql.query("select tbname , diff(c1) from stb1 partition by tbname")
+        # tdSql.checkRows(199)
+        # tdSql.query("select tbname , diff(st1) from stb1 partition by tbname")
+        # tdSql.checkRows(199)
+        # tdSql.query("select tbname , diff(st1) from stb1 partition by tbname slimit 1")
+        # tdSql.checkRows(19)
+
+        # partition by tags
+        # tdSql.query("select st1 , diff(c1) from stb1 partition by st1")
+        # tdSql.checkRows(199)
+        # tdSql.query("select diff(c1) from stb1 partition by st1")
+        # tdSql.checkRows(199)
+        # tdSql.query("select st1 , diff(c1) from stb1 partition by st1 slimit 1")
+        # tdSql.checkRows(19)
+        # tdSql.query("select diff(c1) from stb1 partition by st1 slimit 1")
+        # tdSql.checkRows(19)
+
+        # partition by col
+        # tdSql.query("select c1 , diff(c1) from stb1 partition by c1")
+        # tdSql.checkRows(199)
+        # tdSql.query("select diff(c1) from stb1 partition by c1")
+        # tdSql.checkRows(41)
+        # tdSql.query("select c1 , diff(c1) from stb1 partition by st1 slimit 1")
+        # tdSql.checkRows(19)
+        # tdSql.query("select diff(c1) from stb1 partition by st1 slimit 1")
+        # tdSql.checkRows(19)
+
+
 
     def diff_test_run(self) :
-        tdLog.printNoPrefix("==========TD-10594==========")
+        tdLog.printNoPrefix("==========run test case for diff function==========")
         tbnum = 10
         nowtime = int(round(time.time() * 1000))
         per_table_rows = 10
@@ -422,6 +476,7 @@ class TDTestCase:
         try:
             # run in  develop branch
             self.diff_test_run()
+            self.diff_support_stable()
             pass
         except Exception as e:
             traceback.print_exc()

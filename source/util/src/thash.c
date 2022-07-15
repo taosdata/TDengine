@@ -31,12 +31,12 @@
 #define GET_HASH_NODE_DATA(_n) ((char *)(_n) + sizeof(SHashNode))
 #define GET_HASH_PNODE(_n)     ((SHashNode *)((char *)(_n) - sizeof(SHashNode)))
 
-#define FREE_HASH_NODE(_fp, _n) \
-  do {                          \
-    if (_fp != NULL) {          \
-      (_fp)(_n);                \
-    }                           \
-    taosMemoryFreeClear(_n);    \
+#define FREE_HASH_NODE(_fp, _n)      \
+  do {                               \
+    if (_fp != NULL) {               \
+      (_fp)(GET_HASH_NODE_DATA(_n)); \
+    }                                \
+    taosMemoryFreeClear(_n);         \
   } while (0);
 
 struct SHashNode {
@@ -56,7 +56,7 @@ typedef struct SHashEntry {
 } SHashEntry;
 
 struct SHashObj {
-  SHashEntry **     hashList;
+  SHashEntry      **hashList;
   size_t            capacity;      // number of slots
   int64_t           size;          // number of elements in hash table
   _hash_fn_t        hashFp;        // hash function
@@ -65,7 +65,7 @@ struct SHashObj {
   SRWLatch          lock;          // read-write spin lock
   SHashLockTypeE    type;          // lock type
   bool              enableUpdate;  // enable update
-  SArray *          pMemBlock;     // memory block allocated for SHashEntry
+  SArray           *pMemBlock;     // memory block allocated for SHashEntry
   _hash_before_fn_t callbackFp;    // function invoked before return the value to caller
 };
 
@@ -633,7 +633,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
   }
 
   int64_t st = taosGetTimestampUs();
-  void *  pNewEntryList = taosMemoryRealloc(pHashObj->hashList, sizeof(void *) * newCapacity);
+  void   *pNewEntryList = taosMemoryRealloc(pHashObj->hashList, sizeof(void *) * newCapacity);
   if (pNewEntryList == NULL) {
     //    uDebug("cache resize failed due to out of memory, capacity remain:%zu", pHashObj->capacity);
     return;
@@ -642,7 +642,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
   pHashObj->hashList = pNewEntryList;
 
   size_t inc = newCapacity - pHashObj->capacity;
-  void * p = taosMemoryCalloc(inc, sizeof(SHashEntry));
+  void  *p = taosMemoryCalloc(inc, sizeof(SHashEntry));
 
   for (int32_t i = 0; i < inc; ++i) {
     pHashObj->hashList[i + pHashObj->capacity] = (void *)((char *)p + i * sizeof(SHashEntry));
@@ -653,9 +653,9 @@ void taosHashTableResize(SHashObj *pHashObj) {
   pHashObj->capacity = newCapacity;
   for (int32_t idx = 0; idx < pHashObj->capacity; ++idx) {
     SHashEntry *pe = pHashObj->hashList[idx];
-    SHashNode * pNode;
-    SHashNode * pNext;
-    SHashNode * pPrev = NULL;
+    SHashNode  *pNode;
+    SHashNode  *pNext;
+    SHashNode  *pPrev = NULL;
 
     if (pe->num == 0) {
       assert(pe->next == NULL);

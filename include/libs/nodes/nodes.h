@@ -22,8 +22,8 @@ extern "C" {
 
 #include "tdef.h"
 
-#define nodeType(nodeptr)          (((const SNode*)(nodeptr))->type)
-#define setNodeType(nodeptr, type) (((SNode*)(nodeptr))->type = (type))
+#define nodeType(nodeptr)              (((const SNode*)(nodeptr))->type)
+#define setNodeType(nodeptr, nodetype) (((SNode*)(nodeptr))->type = (nodetype))
 
 #define LIST_LENGTH(l) (NULL != (l) ? (l)->length : 0)
 
@@ -59,10 +59,10 @@ extern "C" {
   for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
        (NULL != cell ? (node = &(cell->pNode), true) : (node = NULL, false)); cell = cell->pNext)
 
-#define DESTORY_LIST(list)    \
-  do {                        \
-    nodesDestroyList((list)); \
-    (list) = NULL;            \
+#define NODES_DESTORY_LIST(list) \
+  do {                           \
+    nodesDestroyList((list));    \
+    (list) = NULL;               \
   } while (0)
 
 #define NODES_CLEAR_LIST(list) \
@@ -111,6 +111,8 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_DATABASE_STMT,
   QUERY_NODE_DROP_DATABASE_STMT,
   QUERY_NODE_ALTER_DATABASE_STMT,
+  QUERY_NODE_FLUSH_DATABASE_STMT,
+  QUERY_NODE_TRIM_DATABASE_STMT,
   QUERY_NODE_CREATE_TABLE_STMT,
   QUERY_NODE_CREATE_SUBTABLE_CLAUSE,
   QUERY_NODE_CREATE_MULTI_TABLE_STMT,
@@ -118,6 +120,7 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_TABLE_STMT,
   QUERY_NODE_DROP_SUPER_TABLE_STMT,
   QUERY_NODE_ALTER_TABLE_STMT,
+  QUERY_NODE_ALTER_SUPER_TABLE_STMT,
   QUERY_NODE_CREATE_USER_STMT,
   QUERY_NODE_ALTER_USER_STMT,
   QUERY_NODE_DROP_USER_STMT,
@@ -188,10 +191,12 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_CREATE_STABLE_STMT,
   QUERY_NODE_SHOW_TRANSACTIONS_STMT,
   QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT,
+  QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT,
   QUERY_NODE_KILL_CONNECTION_STMT,
   QUERY_NODE_KILL_QUERY_STMT,
   QUERY_NODE_KILL_TRANSACTION_STMT,
   QUERY_NODE_DELETE_STMT,
+  QUERY_NODE_INSERT_STMT,
   QUERY_NODE_QUERY,
 
   // logic plan node
@@ -219,14 +224,17 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_PROJECT,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN,
   QUERY_NODE_PHYSICAL_PLAN_HASH_AGG,
   QUERY_NODE_PHYSICAL_PLAN_EXCHANGE,
   QUERY_NODE_PHYSICAL_PLAN_MERGE,
   QUERY_NODE_PHYSICAL_PLAN_SORT,
+  QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT,
   QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL,
+  QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL,
@@ -242,6 +250,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC,
   QUERY_NODE_PHYSICAL_PLAN_DISPATCH,
   QUERY_NODE_PHYSICAL_PLAN_INSERT,
+  QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT,
   QUERY_NODE_PHYSICAL_PLAN_DELETE,
   QUERY_NODE_PHYSICAL_SUBPLAN,
   QUERY_NODE_PHYSICAL_PLAN
@@ -281,6 +290,7 @@ int32_t    nodesListPushFront(SNodeList* pList, SNode* pNode);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
 void       nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc);
 SNode*     nodesListGetNode(SNodeList* pList, int32_t index);
+SListCell* nodesListGetCell(SNodeList* pList, int32_t index);
 void       nodesDestroyList(SNodeList* pList);
 // Only clear the linked list structure, without releasing the elements inside
 void nodesClearList(SNodeList* pList);

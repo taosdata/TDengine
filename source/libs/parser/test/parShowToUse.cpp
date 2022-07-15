@@ -25,6 +25,15 @@ class ParserShowToUseTest : public ParserDdlTest {};
 // todo SHOW apps
 // todo SHOW connections
 
+TEST_F(ParserShowToUseTest, showConsumers) {
+  useDb("root", "test");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SELECT_STMT); });
+
+  run("SHOW CONSUMERS");
+}
+
 TEST_F(ParserShowToUseTest, showCreateDatabase) {
   useDb("root", "test");
 
@@ -45,7 +54,7 @@ TEST_F(ParserShowToUseTest, showCreateSTable) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SHOW_CREATE_STABLE_STMT);
     ASSERT_EQ(pQuery->execMode, QUERY_EXEC_MODE_LOCAL);
     ASSERT_TRUE(pQuery->haveResultSet);
-    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pMeta, nullptr);
+    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pCfg, nullptr);
   });
 
   run("SHOW CREATE STABLE st1");
@@ -58,7 +67,7 @@ TEST_F(ParserShowToUseTest, showCreateTable) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SHOW_CREATE_TABLE_STMT);
     ASSERT_EQ(pQuery->execMode, QUERY_EXEC_MODE_LOCAL);
     ASSERT_TRUE(pQuery->haveResultSet);
-    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pMeta, nullptr);
+    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pCfg, nullptr);
   });
 
   run("SHOW CREATE TABLE t1");
@@ -143,6 +152,15 @@ TEST_F(ParserShowToUseTest, showStreams) {
   run("SHOW streams");
 }
 
+TEST_F(ParserShowToUseTest, showSubscriptions) {
+  useDb("root", "test");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SELECT_STMT); });
+
+  run("SHOW SUBSCRIPTIONS");
+}
+
 TEST_F(ParserShowToUseTest, showTransactions) {
   useDb("root", "test");
 
@@ -202,6 +220,25 @@ TEST_F(ParserShowToUseTest, splitVgroup) {
 
   setSplitVgroupReqFunc(15);
   run("SPLIT VGROUP 15");
+}
+
+TEST_F(ParserShowToUseTest, trimDatabase) {
+  useDb("root", "test");
+
+  STrimDbReq expect = {0};
+
+  auto setTrimDbReq = [&](const char* pDb) { snprintf(expect.db, sizeof(expect.db), "0.%s", pDb); };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_TRIM_DATABASE_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_TRIM_DB);
+    STrimDbReq req = {0};
+    ASSERT_EQ(tDeserializeSTrimDbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(std::string(req.db), std::string(expect.db));
+  });
+
+  setTrimDbReq("wxy_db");
+  run("TRIM DATABASE wxy_db");
 }
 
 TEST_F(ParserShowToUseTest, useDatabase) {

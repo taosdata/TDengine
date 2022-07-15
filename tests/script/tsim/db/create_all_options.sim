@@ -43,8 +43,16 @@ print ===> $data20 $data21 $data22 $data23 $data24 $data25
 if $data00 != 1 then
   return -1
 endi
-if $data01 != localhost:7100 then
-  return -1
+system_content printf %OS%
+if $system_content == Windows_NT then
+  system_content printf %COMPUTERNAME%:7100
+  if $data01 != $system_content then
+    return -1
+  endi
+else
+  if $data01 != localhost:7100 then
+    return -1
+  endi
 endi
 if $data04 != ready then
   goto check_dnode_ready_1
