@@ -166,7 +166,7 @@ int32_t qwDbgResponseREdirect(SQWMsg *qwMsg, SQWTaskCtx *ctx) {
     }
     
     if (TDMT_SCH_MERGE_QUERY == qwMsg->msgType) {
-      ctx->phase = QW_PHASE_POST_QUERY;
+      QW_SET_PHASE(ctx, QW_PHASE_POST_QUERY);
       qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_RPC_REDIRECT, NULL);
       gQWDebug.tmp = false;
       return TSDB_CODE_SUCCESS;

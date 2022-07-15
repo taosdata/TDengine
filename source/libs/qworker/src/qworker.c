@@ -293,11 +293,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
 
   QW_LOCK(QW_WRITE, &ctx->lock);
 
-  if (QW_PHASE_PRE_FETCH == phase) {
-    atomic_store_8((int8_t *)&ctx->queryFetched, true);
-  } else {
-    atomic_store_8(&ctx->phase, phase);
-  }
+  QW_SET_PHASE(ctx, phase);
 
   if (atomic_load_8((int8_t *)&ctx->queryEnd)) {
     QW_TASK_ELOG_E("query already end");
@@ -370,6 +366,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
   }
 
 _return:
+
   if (ctx) {
     QW_UPDATE_RSP_CODE(ctx, code);
 
@@ -390,7 +387,6 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
   int32_t         code = 0;
   SQWTaskCtx     *ctx = NULL;
   SRpcHandleInfo  connInfo = {0};
-  SRpcHandleInfo *rspConnection = NULL;
 
   QW_TASK_DLOG("start to handle event at phase %s", qwPhaseStr(phase));
 
@@ -401,13 +397,6 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
   if (QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
     QW_TASK_WLOG("task already dropped, phase:%s", qwPhaseStr(phase));
     QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
-  }
-
-  if (QW_PHASE_POST_QUERY == phase) {
-    connInfo = ctx->ctrlConnInfo;
-    rspConnection = &connInfo;
-
-    ctx->queryRsped = true;
   }
 
   if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
@@ -437,17 +426,16 @@ _return:
     qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_PART_SUCC);
   }
 
-  if (rspConnection) {
-    qwBuildAndSendQueryRsp(input->msgType + 1, rspConnection, code, ctx);
-    QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", rspConnection->handle, code, tstrerror(code));
+  if (QW_PHASE_POST_QUERY == phase) {
+    ctx->queryRsped = true;
+    qwBuildAndSendQueryRsp(input->msgType + 1, &ctx->ctrlConnInfo, code, ctx);
+    QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, code, tstrerror(code));
   }
 
   if (ctx) {
     QW_UPDATE_RSP_CODE(ctx, code);
 
-    if (QW_PHASE_POST_FETCH != phase) {
-      atomic_store_8(&ctx->phase, phase);
-    }
+    QW_SET_PHASE(ctx, phase);
 
     QW_UNLOCK(QW_WRITE, &ctx->lock);
     qwReleaseTaskCtx(mgmt, ctx);
@@ -634,8 +622,8 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
     QW_LOCK(QW_WRITE, &ctx->lock);
     if (queryEnd || code || 0 == atomic_load_8((int8_t *)&ctx->queryContinue)) {
-      // Note: if necessary, fetch need to put cquery to queue again
-      atomic_store_8(&ctx->phase, 0);
+      // Note: query is not running anymore
+      QW_SET_PHASE(ctx, 0);
       QW_UNLOCK(QW_WRITE, &ctx->lock);
       break;
     }
@@ -722,7 +710,7 @@ _return:
 
 int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   int32_t     code = 0;
-  bool        rsped = false;
+  bool        dropped = false;
   SQWTaskCtx *ctx = NULL;
   bool        locked = false;
 
@@ -740,14 +728,14 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   if (QW_QUERY_RUNNING(ctx)) {
     QW_ERR_JRET(qwKillTaskHandle(QW_FPARAMS(), ctx));
     qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_DROP);
-  } else if (ctx->phase > 0) {
+  } else if (QW_GET_PHASE(ctx) > 0) {
     QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
-    rsped = true;
+    dropped = true;
   } else {
     // task not started
   }
 
-  if (!rsped) {
+  if (!dropped) {
     ctx->ctrlConnInfo = qwMsg->connInfo;
 
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);

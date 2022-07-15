@@ -135,7 +135,6 @@ typedef struct SQWTaskCtx {
   int32_t  execId;
 
   bool    queryRsped;
-  bool    queryFetched;
   bool    queryEnd;
   bool    queryContinue;
   bool    queryInQueue;
@@ -228,6 +227,7 @@ typedef struct SQWorkerMgmt {
 #define QW_SET_EVENT_PROCESSED(ctx, event) atomic_store_8(&(ctx)->events[event], QW_EVENT_PROCESSED)
 
 #define QW_GET_PHASE(ctx) atomic_load_8(&(ctx)->phase)
+#define QW_SET_PHASE(ctx, _value) do { if ((_value) != QW_PHASE_PRE_FETCH && (_value) != QW_PHASE_POST_FETCH) { atomic_store_8(&(ctx)->phase, _value); } } while (0)
 
 #define QW_SET_RSP_CODE(ctx, code)    atomic_store_32(&(ctx)->rspCode, code)
 #define QW_UPDATE_RSP_CODE(ctx, code) atomic_val_compare_exchange_32(&(ctx)->rspCode, 0, code)
