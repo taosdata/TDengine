@@ -36,15 +36,15 @@ int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(u
 
   // alloc
   code = tRealloc((uint8_t **)&pMapData->aOffset, sizeof(int32_t) * pMapData->nItem);
-  if (code) goto _err;
+  if (code) goto _exit;
   code = tRealloc(&pMapData->pData, pMapData->nData);
-  if (code) goto _err;
+  if (code) goto _exit;
 
   // put
   pMapData->aOffset[nItem] = offset;
   tPutItemFn(pMapData->pData + offset, pItem);
 
-_err:
+_exit:
   return code;
 }
 
