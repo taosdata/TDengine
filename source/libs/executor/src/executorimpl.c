@@ -514,9 +514,10 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
         pInput->startRowIndex = 0;
 
         // NOTE: the last parameter is the primary timestamp column
-        if (fmIsTimelineFunc(pCtx[i].functionId) && (j == pOneExpr->base.numOfParams - 1) && pOneExpr->base.numOfParams > 1) {
-          pInput->pPTS = pInput->pData[j];
-          ASSERT(pInput->pPTS->info.type == TSDB_DATA_TYPE_TIMESTAMP);
+        // todo: refactor this
+        if (fmIsTimelineFunc(pCtx[i].functionId) && (j == pOneExpr->base.numOfParams - 1)) {
+          pInput->pPTS = pInput->pData[j];   // in case of merge function, this is not always the ts column data.
+//          ASSERT(pInput->pPTS->info.type == TSDB_DATA_TYPE_TIMESTAMP);
         }
         ASSERT(pInput->pData[j] != NULL);
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
