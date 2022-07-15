@@ -32,6 +32,7 @@ pNode will be freed in API;
 *pRes need to freed in caller
 */
 int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes);
+int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes);
 
 /*
 pDst need to freed in caller
@@ -94,6 +95,13 @@ int32_t qStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 int32_t qEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+/* Aggregation functions */
+int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t sumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t minScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t maxScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t stddevScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 #ifdef __cplusplus
 }

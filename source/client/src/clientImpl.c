@@ -153,7 +153,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   *pRequest = createRequest(connId, TSDB_SQL_SELECT);
   if (*pRequest == NULL) {
     tscError("failed to malloc sqlObj, %s", sql);
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pRequest)->sqlstr = taosMemoryMalloc(sqlLen + 1);
@@ -933,6 +933,8 @@ SRequestObj* launchQuery(uint64_t connId, const char* sql, int sqlLen, bool vali
 void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta) {
   int32_t code = 0;
 
+  pRequest->body.execMode = pQuery->execMode;
+  
   switch (pQuery->execMode) {
     case QUERY_EXEC_MODE_LOCAL:
       asyncExecLocalCmd(pRequest, pQuery);
@@ -1149,7 +1151,6 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
   SRequestObj* pRequest = createRequest(pTscObj->id, TDMT_MND_CONNECT);
   if (pRequest == NULL) {
     destroyTscObj(pTscObj);
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -2046,6 +2047,7 @@ void syncCatalogFn(SMetaData* pResult, void* param, int32_t code) {
 void syncQueryFn(void* param, void* res, int32_t code) {
   SSyncQueryParam* pParam = param;
   pParam->pRequest = res;
+
   if (pParam->pRequest) {
     pParam->pRequest->code = code;
   }
@@ -2092,6 +2094,8 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
 
   taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly);
   tsem_wait(&param->sem);
+
+  param->pRequest->syncQuery = true;
   return param->pRequest;
 #else
   size_t sqlLen = strlen(sql);

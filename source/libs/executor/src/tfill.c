@@ -53,8 +53,8 @@ static void setNullRow(SSDataBlock* pBlock, int64_t ts, int32_t rowIndex) {
   // the first are always the timestamp column, so start from the second column.
   for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
     SColumnInfoData* p = taosArrayGet(pBlock->pDataBlock, i);
-    if (p->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-        colDataAppend(p, rowIndex, (const char*)&ts, false);
+    if (p->info.type == TSDB_DATA_TYPE_TIMESTAMP) {  // handle timestamp
+      colDataAppend(p, rowIndex, (const char*)&ts, false);
     } else {
       colDataAppendNULL(p, rowIndex);
     }
@@ -71,66 +71,76 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
   SPoint  point1, point2, point;
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order);
 
-  // set the primary timestamp column value
-  int32_t          index = pFillInfo->numOfCurrent;
-  SColumnInfoData* pCol0 = taosArrayGet(pBlock->pDataBlock, pFillInfo->tsSlotId);
-  char*            val = colDataGetData(pCol0, index);
-
-  // set the primary timestamp value
-  *(TSKEY*)val = pFillInfo->currentKey;
+//   set the primary timestamp column value
+  int32_t index = pBlock->info.rows;
 
   // set the other values
   if (pFillInfo->type == TSDB_FILL_PREV) {
     SArray* p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->prev : pFillInfo->next;
 
-    for (int32_t i = 1; i < pFillInfo->numOfCols; ++i) {
+    for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
       SFillColInfo* pCol = &pFillInfo->pFillCol[i];
       if (TSDB_COL_IS_TAG(pCol->flag)) {
         continue;
       }
 
-      SGroupKeys*      pKey = taosArrayGet(p, i);
       SColumnInfoData* pDstColInfoData = taosArrayGet(pBlock->pDataBlock, GET_DEST_SLOT_ID(pCol));
-      doSetVal(pDstColInfoData, index, pKey);
+
+      if (pDstColInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        colDataAppend(pDstColInfoData, index, (const char*)&pFillInfo->currentKey, false);
+      } else {
+        SGroupKeys* pKey = taosArrayGet(p, i);
+        doSetVal(pDstColInfoData, index, pKey);
+      }
     }
   } else if (pFillInfo->type == TSDB_FILL_NEXT) {
     SArray* p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->next : pFillInfo->prev;
     // todo  refactor: start from 0 not 1
-    for (int32_t i = 1; i < pFillInfo->numOfCols; ++i) {
+    for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
       SFillColInfo* pCol = &pFillInfo->pFillCol[i];
       if (TSDB_COL_IS_TAG(pCol->flag)) {
         continue;
       }
 
-      SGroupKeys*      pKey = taosArrayGet(p, i);
       SColumnInfoData* pDstColInfoData = taosArrayGet(pBlock->pDataBlock, GET_DEST_SLOT_ID(pCol));
-      doSetVal(pDstColInfoData, index, pKey);
+
+      if (pDstColInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        colDataAppend(pDstColInfoData, index, (const char*)&pFillInfo->currentKey, false);
+      } else {
+        SGroupKeys* pKey = taosArrayGet(p, i);
+        doSetVal(pDstColInfoData, index, pKey);
+      }
     }
   } else if (pFillInfo->type == TSDB_FILL_LINEAR) {
     // TODO : linear interpolation supports NULL value
     if (outOfBound) {
       setNullRow(pBlock, pFillInfo->currentKey, index);
     } else {
-      for (int32_t i = 1; i < pFillInfo->numOfCols; ++i) {
+      for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
         SFillColInfo* pCol = &pFillInfo->pFillCol[i];
         if (TSDB_COL_IS_TAG(pCol->flag)) {
           continue;
         }
 
-        int32_t srcSlotId = GET_SRC_SLOT_ID(pCol);
-
         int32_t          dstSlotId = GET_DEST_SLOT_ID(pCol);
         SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
 
-        int16_t     type = pCol->pExpr->base.resSchema.type;
+        int16_t type = pDstCol->info.type;
+        if (type == TSDB_DATA_TYPE_TIMESTAMP) {
+          colDataAppend(pDstCol, index, (const char*)&pFillInfo->currentKey, false);
+          continue;
+        }
+
         SGroupKeys* pKey = taosArrayGet(pFillInfo->prev, i);
         if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_BOOL || pKey->isNull) {
           colDataAppendNULL(pDstCol, index);
           continue;
         }
 
-        SGroupKeys* pKey1 = taosArrayGet(pFillInfo->prev, 0);
-        int64_t     prevTs = *(int64_t*)pKey1->pData;
+        SGroupKeys* pKey1 = taosArrayGet(pFillInfo->prev, pFillInfo->tsSlotId);
+
+        int64_t prevTs = *(int64_t*)pKey1->pData;
+        int32_t srcSlotId = GET_SRC_SLOT_ID(pCol);
 
         SColumnInfoData* pSrcCol = taosArrayGet(pSrcBlock->pDataBlock, srcSlotId);
         char*            data = colDataGetData(pSrcCol, pFillInfo->index);
@@ -148,7 +158,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
   } else if (pFillInfo->type == TSDB_FILL_NULL) {  // fill with NULL
     setNullRow(pBlock, pFillInfo->currentKey, index);
   } else {  // fill with user specified value for each column
-    for (int32_t i = 1; i < pFillInfo->numOfCols; ++i) {
+    for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
       SFillColInfo* pCol = &pFillInfo->pFillCol[i];
       if (TSDB_COL_IS_TAG(pCol->flag) /* || IS_VAR_DATA_TYPE(pCol->schema.type)*/) {
         continue;
@@ -171,6 +181,8 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
         colDataAppend(pDst, index, (char*)&v, false);
       } else if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
         colDataAppend(pDst, index, (const char*)&pFillInfo->currentKey, false);
+      } else {  // varchar/nchar data
+        colDataAppendNULL(pDst, index);
       }
     }
   }
@@ -179,6 +191,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
   SInterval* pInterval = &pFillInfo->interval;
   pFillInfo->currentKey =
       taosTimeAdd(pFillInfo->currentKey, pInterval->sliding * step, pInterval->slidingUnit, pInterval->precision);
+  pBlock->info.rows += 1;
   pFillInfo->numOfCurrent++;
 }
 
@@ -229,8 +242,7 @@ static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SArray
 static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t outputRows) {
   pFillInfo->numOfCurrent = 0;
 
-  // todo make sure the first column is always the primary timestamp column?
-  SColumnInfoData* pTsCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, 0);
+  SColumnInfoData* pTsCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, pFillInfo->tsSlotId);
 
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order);
   bool    ascFill = FILL_IS_ASC_FILL(pFillInfo);
@@ -262,11 +274,11 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
       }
     } else {
       assert(pFillInfo->currentKey == ts);
+      int32_t index = pBlock->info.rows;
 
       if (pFillInfo->type == TSDB_FILL_NEXT && (pFillInfo->index + 1) < pFillInfo->numOfRows) {
-        ++pFillInfo->index;
-        copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, pFillInfo->next);
-        --pFillInfo->index;
+        int32_t nextRowIndex = pFillInfo->index + 1;
+        copyCurrentRowIntoBuf(pFillInfo, nextRowIndex, pFillInfo->next);
       }
 
       // assign rows to dst buffer
@@ -286,24 +298,24 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
         if (i == 0 || (/*pCol->functionId != FUNCTION_COUNT &&*/ !colDataIsNull_s(pSrc, pFillInfo->index)) /*||
             (pCol->functionId == FUNCTION_COUNT && GET_INT64_VAL(src) != 0)*/) {
           bool isNull = colDataIsNull_s(pSrc, pFillInfo->index);
-          colDataAppend(pDst, pFillInfo->numOfCurrent, src, isNull);
+          colDataAppend(pDst, index, src, isNull);
           saveColData(pFillInfo->prev, i, src, isNull);
         } else {  // i > 0 and data is null , do interpolation
           if (pFillInfo->type == TSDB_FILL_PREV) {
             SGroupKeys* pKey = taosArrayGet(pFillInfo->prev, i);
-            doSetVal(pDst, pFillInfo->numOfCurrent, pKey);
+            doSetVal(pDst, index, pKey);
           } else if (pFillInfo->type == TSDB_FILL_LINEAR) {
             bool isNull = colDataIsNull_s(pSrc, pFillInfo->index);
-            colDataAppend(pDst, pFillInfo->numOfCurrent, src, isNull);
+            colDataAppend(pDst, index, src, isNull);
             saveColData(pFillInfo->prev, i, src, isNull);
           } else if (pFillInfo->type == TSDB_FILL_NULL) {
-            colDataAppendNULL(pDst, pFillInfo->numOfCurrent);
+            colDataAppendNULL(pDst, index);
           } else if (pFillInfo->type == TSDB_FILL_NEXT) {
             SGroupKeys* pKey = taosArrayGet(pFillInfo->next, i);
-            doSetVal(pDst, pFillInfo->numOfCurrent, pKey);
+            doSetVal(pDst, index, pKey);
           } else {
             SVariant* pVar = &pFillInfo->pFillCol[i].fillVal;
-            colDataAppend(pDst, pFillInfo->numOfCurrent, (char*)&pVar->i, false);
+            colDataAppend(pDst, index, (char*)&pVar->i, false);
           }
         }
       }
@@ -314,6 +326,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
       pFillInfo->currentKey =
           taosTimeAdd(pFillInfo->currentKey, pInterval->sliding * step, pInterval->slidingUnit, pInterval->precision);
 
+      pBlock->info.rows += 1;
       pFillInfo->index += 1;
       pFillInfo->numOfCurrent += 1;
     }

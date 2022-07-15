@@ -1340,13 +1340,13 @@ static int32_t closeIntervalWindow(SHashObj* pHashMap, STimeWindowAggSupp* pSup,
     void*    key = taosHashGetKey(pIte, &keyLen);
     uint64_t groupId = *(uint64_t*)key;
     ASSERT(keyLen == GET_RES_WINDOW_KEY_LEN(sizeof(TSKEY)));
-    TSKEY          ts = *(int64_t*)((char*)key + sizeof(uint64_t));
-    SResultRowInfo dumyInfo;
-    dumyInfo.cur.pageId = -1;
-    STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, ts, pInterval, TSDB_ORDER_ASC);
-    SWinRes     winRe = {
-            .ts = win.skey,
-            .groupId = groupId,
+    TSKEY       ts = *(int64_t*)((char*)key + sizeof(uint64_t));
+    STimeWindow win;
+    win.skey = ts;
+    win.ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+    SWinRes winRe = {
+        .ts = win.skey,
+        .groupId = groupId,
     };
     void* chIds = taosHashGet(pPullDataMap, &winRe, sizeof(SWinRes));
     if (isCloseWindow(&win, pSup)) {
@@ -1537,7 +1537,6 @@ void destroyStreamFinalIntervalOperatorInfo(void* param, int32_t numOfOutput) {
     for (int32_t i = 0; i < size; i++) {
       SOperatorInfo* pChildOp = taosArrayGetP(pInfo->pChildren, i);
       destroyStreamFinalIntervalOperatorInfo(pChildOp->info, numOfOutput);
-      taosMemoryFreeClear(pChildOp->info);
       taosMemoryFreeClear(pChildOp);
     }
   }
@@ -1600,7 +1599,7 @@ static bool timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SInt
 }
 
 void increaseTs(SqlFunctionCtx* pCtx) {
-  if (pCtx[0].pExpr->pExpr->_function.pFunctNode->funcType == FUNCTION_TYPE_WSTARTTS) {
+  if (pCtx[0].pExpr->pExpr->_function.pFunctNode->funcType == FUNCTION_TYPE_WSTART) {
     pCtx[0].increase = true;
   }
 }
@@ -4507,13 +4506,14 @@ static SSDataBlock* doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
       setInputDataBlock(pOperator, pSup->pCtx, pBlock, iaInfo->order, scanFlag, true);
       doMergeAlignedIntervalAggImpl(pOperator, &iaInfo->binfo.resultRowInfo, pBlock, scanFlag, pRes);
       doFilter(miaInfo->pCondition, pRes);
-      if (pRes->info.rows > 0) {
+      if (pRes->info.rows >= pOperator->resultInfo.capacity) {
         break;
       }
     }
 
     pRes->info.groupId = miaInfo->groupId;
   }
+  miaInfo->hasGroupId = false;
 
   if (miaInfo->inputBlocksFinished) {
     doSetOperatorCompleted(pOperator);

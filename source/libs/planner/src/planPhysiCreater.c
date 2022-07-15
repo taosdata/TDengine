@@ -481,8 +481,6 @@ static ENodeType getScanOperatorType(EScanType scanType) {
       return QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
     case SCAN_TYPE_BLOCK_INFO:
       return QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN;
-    case SCAN_TYPE_LAST_ROW:
-      return QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN;
     default:
       break;
   }
@@ -500,6 +498,26 @@ static int32_t createSimpleScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSub
   SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
   taosArrayPush(pCxt->pExecNodeList, &node);
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, pScan, pPhyNode);
+}
+
+static int32_t createLastRowScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
+                                          SPhysiNode** pPhyNode) {
+  SLastRowScanPhysiNode* pScan =
+      (SLastRowScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode, QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN);
+  if (NULL == pScan) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pScan->pGroupTags = nodesCloneList(pScanLogicNode->pGroupTags);
+  if (NULL != pScanLogicNode->pGroupTags && NULL == pScan->pGroupTags) {
+    nodesDestroyNode((SNode*)pScan);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pScan->groupSort = pScanLogicNode->groupSort;
+  vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+
+  return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
 }
 
 static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
@@ -583,8 +601,9 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
   switch (pScanLogicNode->scanType) {
     case SCAN_TYPE_TAG:
     case SCAN_TYPE_BLOCK_INFO:
-    case SCAN_TYPE_LAST_ROW:
       return createSimpleScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
+    case SCAN_TYPE_LAST_ROW:
+      return createLastRowScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
     case SCAN_TYPE_TABLE:
       return createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
     case SCAN_TYPE_SYSTEM_TABLE:

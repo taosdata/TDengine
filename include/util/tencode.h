@@ -440,7 +440,7 @@ static FORCE_INLINE bool tDecodeIsEnd(SDecoder* pCoder) { return (pCoder->size =
 
 static FORCE_INLINE void* tEncoderMalloc(SEncoder* pCoder, int32_t size) {
   void*      p = NULL;
-  SCoderMem* pMem = (SCoderMem*)taosMemoryMalloc(sizeof(*pMem) + size);
+  SCoderMem* pMem = (SCoderMem*)taosMemoryCalloc(1, sizeof(*pMem) + size);
   if (pMem) {
     pMem->next = pCoder->mList;
     pCoder->mList = pMem;
@@ -451,7 +451,7 @@ static FORCE_INLINE void* tEncoderMalloc(SEncoder* pCoder, int32_t size) {
 
 static FORCE_INLINE void* tDecoderMalloc(SDecoder* pCoder, int32_t size) {
   void*      p = NULL;
-  SCoderMem* pMem = (SCoderMem*)taosMemoryMalloc(sizeof(*pMem) + size);
+  SCoderMem* pMem = (SCoderMem*)taosMemoryCalloc(1, sizeof(*pMem) + size);
   if (pMem) {
     pMem->next = pCoder->mList;
     pCoder->mList = pMem;

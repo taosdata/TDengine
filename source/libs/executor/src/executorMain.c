@@ -252,6 +252,15 @@ int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner) {
   }
 }
 
+#if 0
+int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
+  taosWriteQitem(pTaskInfo->streamInfo.inputQueue->queue, pItem);
+  return 0;
+}
+#endif
+
 void* qExtractReaderFromStreamScanner(void* scanner) {
   SStreamScanInfo* pInfo = scanner;
   return (void*)pInfo->tqReader;
