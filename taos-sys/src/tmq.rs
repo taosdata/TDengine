@@ -2,7 +2,7 @@ use std::{borrow::Cow, fmt::Display, os::raw::*};
 
 use taos_macros::c_cfg;
 
-use crate::ffi::TAOS_RES;
+use crate::ffi::{TAOS, TAOS_RES};
 
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -67,6 +67,29 @@ impl tmq_conf_res_t {
 pub type tmq_commit_cb =
     unsafe extern "C" fn(tmq: *mut tmq_t, resp: tmq_resp_err_t, param: *mut c_void);
 
+#[repr(C)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum tmq_res_t {
+    TMQ_RES_INVALID = -1,
+    TMQ_RES_DATA = 1,
+    TMQ_RES_TABLE_META = 2,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct tmq_raw_meta {
+    raw_meta: *mut c_void,
+    raw_meta_len: i32,
+    raw_meta_type: i16,
+}
+
+impl Drop for tmq_raw_meta {
+    fn drop(&mut self) {
+        let len = self.raw_meta_len as usize;
+        let _ = unsafe { Vec::from_raw_parts(self.raw_meta as *mut u8, len, len) };
+    }
+}
+
 // TMQ streaming/consuming API.
 #[c_cfg(taos_tmq)]
 extern "C" {
@@ -101,10 +124,24 @@ extern "C" {
         param: *mut c_void,
     );
 
+    pub fn tmq_get_raw_meta(res: *mut TAOS_RES) -> *mut tmq_raw_meta;
+    pub fn tmq_get_json_meta(res: *mut TAOS_RES) -> *mut c_char;
+    pub fn taos_write_raw_meta(taos: *mut TAOS, raw_meta: *mut tmq_raw_meta) -> i32;
+
     pub fn tmq_get_topic_name(res: *mut TAOS_RES) -> *const c_char;
     pub fn tmq_get_table_name(res: *mut TAOS_RES) -> *const c_char;
     pub fn tmq_get_db_name(res: *mut TAOS_RES) -> *const c_char;
     pub fn tmq_get_vgroup_id(res: *mut TAOS_RES) -> i32;
+}
+
+#[cfg(taos_tmq)]
+extern "C" {
+    pub fn tmq_get_res_type(res: *mut TAOS_RES) -> tmq_res_t;
+}
+
+#[cfg(not(taos_tmq))]
+pub unsafe fn tmq_get_res_type(res: *mut TAOS_RES) -> tmq_res_t {
+    tmq_res_t::TMQ_RES_INVALID
 }
 
 // TMQ Conf API

@@ -6,7 +6,7 @@ use super::{NullBits, NullsIter};
 
 use bytes::Bytes;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BoolView {
     pub(crate) nulls: NullBits,
     pub(crate) data: Bytes,
@@ -19,8 +19,8 @@ impl BoolView {
     }
 
     /// Raw slice of `bool` type.
-    unsafe fn as_raw_slice(&self) -> &[bool] {
-        std::slice::from_raw_parts(self.data.as_ptr() as *const bool, self.len())
+    pub fn as_raw_slice(&self) -> &[bool] {
+        unsafe { std::slice::from_raw_parts(self.data.as_ptr() as *const bool, self.len()) }
     }
 
     /// A iterator only decide if the value at some row index is NULL or not.
@@ -30,6 +30,11 @@ impl BoolView {
             row: 0,
             len: self.len(),
         }
+    }
+
+    /// Build a nulls vector.
+    pub fn to_nulls_vec(&self) -> Vec<bool> {
+        self.is_null_iter().collect()
     }
 
     /// Check if the value at `row` index is NULL or not.

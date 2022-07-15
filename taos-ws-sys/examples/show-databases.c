@@ -32,7 +32,7 @@ int main() {
   }
 
   int precision = ws_result_precision(rs);
-  int cols = ws_num_of_fields(rs);
+  int cols = ws_field_count(rs);
   const struct WS_FIELD_V2 *fields = ws_fetch_fields_v2(rs);
   for (int col = 0; col < cols; col++) {
     const struct WS_FIELD_V2 *field = &fields[col];

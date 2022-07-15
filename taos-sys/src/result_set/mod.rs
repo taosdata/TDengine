@@ -1,21 +1,27 @@
 use std::{
     cell::UnsafeCell,
-    ffi::CStr,
-    future::Future,
+    ffi::{CStr, CString},
     os::raw::{c_int, c_void},
     pin::Pin,
-    sync::{Arc, Mutex},
     task::{Context, Poll, Waker},
 };
 
 use futures::Stream;
-use taos_error::Error;
+use taos_error::{Code, Error};
 use taos_query::common::{Field, Precision, Raw};
 
-use crate::ffi::{taos_errstr, taos_fetch_raw_block_a, taos_get_raw_block, TAOS_RES};
+use crate::{
+    ffi::{
+        taos_errstr, taos_fetch_block, taos_fetch_fields, taos_fetch_raw_block,
+        taos_fetch_raw_block_a, taos_fetch_rows_a, taos_field_count, taos_get_raw_block,
+        taos_result_precision, TAOS_RES,
+    },
+    tmq_get_db_name, tmq_get_json_meta, tmq_get_res_type, tmq_get_table_name, tmq_res_t,
+};
 
 #[derive(Debug)]
 pub struct BlockStream {
+    msg_type: tmq_res_t,
     precision: Precision,
     fields: *const Field,
     cols: usize,
@@ -32,18 +38,72 @@ struct SharedState {
 }
 
 impl BlockStream {
+    #[inline]
     fn fields(&self) -> &[Field] {
         unsafe { std::slice::from_raw_parts(self.fields, self.cols) }
     }
 }
 
-impl Stream for BlockStream {
-    type Item = Result<Raw, Error>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+impl BlockStream {
+    /// TMQ message data block.
+    #[inline]
+    fn poll_next_tmq_data(
+        self: Pin<&mut Self>,
+        cx: &mut Context,
+    ) -> Poll<Option<Result<Raw, Error>>> {
         let res = self.res;
         let state = unsafe { &mut *self.shared_state.get() };
+        unsafe {
+            let mut raw: *mut c_void = std::ptr::null_mut();
+            let mut rows = 0;
+            let code = taos_fetch_raw_block(res, &mut rows as _, &mut raw as _);
 
+            if code != 0 {
+                return Poll::Ready(Some(Err(Error::new(
+                    code,
+                    CStr::from_ptr(taos_errstr(res))
+                        .to_str()
+                        .unwrap()
+                        .to_string(),
+                ))));
+            }
+
+            if rows == 0 {
+                return Poll::Ready(None);
+            }
+            let cols = taos_field_count(res) as usize;
+            let precision: Precision = taos_result_precision(res).into();
+
+            let mut raw = Raw::parse_from_ptr(raw as _, rows as usize, cols, precision);
+
+            let field = taos_fetch_fields(res);
+            let fields: Vec<Field> = std::slice::from_raw_parts(field, cols)
+                .iter()
+                .map(|f| f.into())
+                .collect();
+
+            raw.with_fields(fields);
+
+            let db_name = tmq_get_db_name(res);
+            if !db_name.is_null() {
+                raw.with_database_name(CStr::from_ptr(db_name).to_str().unwrap());
+            }
+
+            let tbname = tmq_get_table_name(res);
+            if !tbname.is_null() {
+                raw.with_table_name(CStr::from_ptr(tbname).to_str().unwrap());
+            }
+            return Poll::Ready(Some(Ok(raw)));
+        }
+    }
+    /// Common query data block
+    #[inline]
+    fn poll_next_query_data(
+        self: Pin<&mut Self>,
+        cx: &mut Context,
+    ) -> Poll<Option<Result<Raw, Error>>> {
+        let res = self.res;
+        let state = unsafe { &mut *self.shared_state.get() };
         if state.done {
             // handle errors
             if state.code != 0 {
@@ -111,11 +171,46 @@ impl Stream for BlockStream {
             Poll::Pending
         }
     }
+
+    /// TMQ meta data block.
+    #[inline]
+    fn poll_next_tmq_meta(
+        self: Pin<&mut Self>,
+        cx: &mut Context,
+    ) -> Poll<Option<Result<Raw, Error>>> {
+        let res = self.res;
+        let state = unsafe { &mut *self.shared_state.get() };
+        if state.done {
+            return Poll::Ready(None);
+        }
+        unsafe {
+            let meta = tmq_get_json_meta(res);
+            let meta = CString::from_raw(meta);
+            let meta: Result<serde_json::Value, _> = serde_json::from_slice(&meta.into_bytes())
+                .map_err(|err| Error::new(Code::Failed, err.to_string()));
+            state.done = true;
+            dbg!(&meta);
+            return Poll::Ready(None);
+        }
+    }
+}
+
+impl Stream for BlockStream {
+    type Item = Result<Raw, Error>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.msg_type {
+            tmq_res_t::TMQ_RES_DATA => self.poll_next_tmq_data(cx),
+            tmq_res_t::TMQ_RES_TABLE_META => self.poll_next_tmq_meta(cx),
+            _ => self.poll_next_query_data(cx),
+        }
+    }
 }
 
 impl BlockStream {
     /// Create a new `TimerFuture` which will complete after the provided
     /// timeout.
+    #[inline(always)]
     pub fn new(res: *mut TAOS_RES, fields: &[Field], precision: Precision) -> Self {
         let shared_state = UnsafeCell::new(SharedState {
             done: false,
@@ -124,8 +219,11 @@ impl BlockStream {
             code: 0,
         });
 
+        let msg_type = unsafe { tmq_get_res_type(res) };
+        // let msg_type = tmq_res_t::TMQ_RES_INVALID;
         BlockStream {
             res,
+            msg_type,
             fields: fields.as_ptr(),
             cols: fields.len(),
             precision,

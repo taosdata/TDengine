@@ -40,15 +40,17 @@ pub struct WsError {
     source: Option<Box<dyn std::error::Error + 'static>>,
 }
 
+#[derive(Debug)]
 pub struct WsMaybeError<T> {
     error: Option<WsError>,
     data: *mut T,
-    type_id: TypeId,
+    type_id: &'static str,
 }
 
 impl<T> Drop for WsMaybeError<T> {
     fn drop(&mut self) {
         if !self.data.is_null() {
+            log::debug!("dropping obj {}", self.type_id);
             let _ = unsafe { self.data.read() };
         }
     }
@@ -90,7 +92,7 @@ impl<T: 'static> From<T> for WsMaybeError<T> {
         Self {
             error: None,
             data: Box::into_raw(Box::new(value)),
-            type_id: std::any::TypeId::of::<T>(),
+            type_id: std::any::type_name::<T>(),
         }
     }
 }
@@ -100,7 +102,7 @@ impl<T: 'static> From<Box<T>> for WsMaybeError<T> {
         Self {
             error: None,
             data: Box::into_raw(value),
-            type_id: std::any::TypeId::of::<T>(),
+            type_id: std::any::type_name::<T>(),
         }
     }
 }
@@ -114,12 +116,12 @@ where
             Ok(value) => Self {
                 error: None,
                 data: Box::into_raw(Box::new(value)),
-                type_id: std::any::TypeId::of::<T>(),
+                type_id: std::any::type_name::<T>(),
             },
             Err(err) => Self {
                 error: Some(err.into()),
                 data: std::ptr::null_mut(),
-                type_id: std::any::TypeId::of::<T>(),
+                type_id: std::any::type_name::<T>(),
             },
         }
     }
@@ -134,20 +136,15 @@ where
             Ok(value) => Self {
                 error: None,
                 data: Box::into_raw(value),
-                type_id: std::any::TypeId::of::<T>(),
+                type_id: std::any::type_name::<T>(),
             },
             Err(err) => Self {
                 error: Some(err.into()),
                 data: std::ptr::null_mut(),
-                type_id: std::any::TypeId::of::<T>(),
+                type_id: std::any::type_name::<T>(),
             },
         }
     }
-}
-
-#[test]
-fn test_ws_res() {
-    let v: Box<i32> = unsafe { Box::from_raw(std::ptr::null_mut()) };
 }
 
 pub type WsResult<T> = Result<T, WsError>;
@@ -155,7 +152,7 @@ pub type WsResult<T> = Result<T, WsError>;
 impl WsError {
     fn new(code: Code, message: &str) -> Self {
         Self {
-            code: Code::Failed,
+            code,
             message: CString::new(message).unwrap(),
             source: None,
         }
@@ -218,7 +215,7 @@ type WsTaos = Result<WsClient, WsError>;
 /// It means that the struct has the same memory layout with the `TAOS_FIELD` struct
 /// in taos.h of TDengine 2.x
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct WS_FIELD_V2 {
     pub name: [c_char; 65usize],
     pub r#type: u8,
@@ -300,6 +297,7 @@ impl From<&Field> for WS_FIELD {
     }
 }
 
+#[derive(Debug)]
 struct WsResultSet {
     rs: ResultSet,
     block: Option<Block>,
@@ -356,6 +354,7 @@ impl WsResultSet {
     }
 
     unsafe fn fetch_block(&mut self, ptr: *mut *const c_void, rows: *mut i32) -> Result<(), Error> {
+        log::debug!("fetch block with ptr {ptr:p}");
         self.block = self.rs.fetch_block()?;
         if let Some(block) = self.block.as_ref() {
             *ptr = block.as_raw_bytes().as_ptr() as _;
@@ -363,6 +362,7 @@ impl WsResultSet {
         } else {
             *rows = 0;
         }
+        log::debug!("fetch block with ptr {ptr:p} with rows {}", *rows);
         Ok(())
     }
 
@@ -437,18 +437,30 @@ pub unsafe extern "C" fn ws_connect_with_dsn(dsn: *const c_char) -> *mut WS_TAOS
 #[no_mangle]
 /// Same to taos_close. This should always be called after everything done with the connection.
 pub unsafe extern "C" fn ws_get_server_info(taos: *mut WS_TAOS) -> *const c_char {
-    (taos as *mut WsClient)
-        .as_mut()
-        .map(|taos| taos.version().as_ptr() as *const c_char)
-        .unwrap_or(std::ptr::null())
+    static mut VERSION_INFO: [u8; 128] = [0; 128];
+    if taos.is_null() {
+        return VERSION_INFO.as_ptr() as *const c_char;
+    }
+    if VERSION_INFO[0] == 0 {
+        if let Some(taos) = (taos as *mut WsClient).as_mut() {
+            let v = taos.version();
+            std::ptr::copy_nonoverlapping(v.as_ptr(), VERSION_INFO.as_mut_ptr(), v.len());
+        }
+        VERSION_INFO.as_ptr() as *const c_char
+    } else {
+        VERSION_INFO.as_ptr() as *const c_char
+    }
 }
 
 #[no_mangle]
 /// Same to taos_close. This should always be called after everything done with the connection.
 pub unsafe extern "C" fn ws_close(taos: *mut WS_TAOS) {
-    let client = Box::from_raw(taos as *mut WsClient);
-    client.close();
-    drop(client);
+    if !taos.is_null() {
+        log::debug!("close connection {taos:p}");
+        let client = Box::from_raw(taos as *mut WsClient);
+        client.close();
+        drop(client);
+    }
 }
 
 unsafe fn query_with_sql(taos: *mut WS_TAOS, sql: *const c_char) -> WsResult<WsResultSet> {
@@ -480,7 +492,9 @@ unsafe fn query_with_sql_timeout(
 ///
 /// Please always use `ws_errno` to check it work and `ws_free_result` to free memory.
 pub unsafe extern "C" fn ws_query(taos: *mut WS_TAOS, sql: *const c_char) -> *mut WS_RES {
+    log::debug!("query {:?}", CStr::from_ptr(sql));
     let res: WsMaybeError<WsResultSet> = query_with_sql(taos, sql).into();
+    log::debug!("query done: {:?}", res);
     Box::into_raw(Box::new(res)) as _
 }
 
@@ -539,7 +553,7 @@ pub unsafe extern "C" fn ws_affected_rows(rs: *const WS_RES) -> i32 {
 
 #[no_mangle]
 /// Returns number of fields in current result set.
-pub unsafe extern "C" fn ws_num_of_fields(rs: *const WS_RES) -> i32 {
+pub unsafe extern "C" fn ws_field_count(rs: *const WS_RES) -> i32 {
     match (rs as *mut WsMaybeError<WsResultSet>).as_ref() {
         Some(rs) => rs.num_of_fields(),
         _ => 0,
@@ -590,10 +604,16 @@ pub unsafe extern "C" fn ws_fetch_block(
         },
         _ => {
             *rows = 0;
-            0
+
+            C_ERRNO = Code::Failed;
+            let dst = C_ERROR_CONTAINER.as_mut_ptr();
+            const NULL_PTR_RES: &'static str = "WS_RES is null";
+            std::ptr::copy_nonoverlapping(NULL_PTR_RES.as_ptr(), dst, NULL_PTR_RES.len());
+            Code::Failed.into()
         }
     }
 }
+
 #[no_mangle]
 /// Same to taos_free_result. Every websocket result-set object should be freed with this method.
 pub unsafe extern "C" fn ws_free_result(rs: *mut WS_RES) {
@@ -694,8 +714,6 @@ pub fn init_env() {
 
 #[cfg(test)]
 mod tests {
-    use std::{io::Read, num};
-
     use super::*;
     #[test]
     fn dsn_error() {
@@ -720,14 +738,19 @@ mod tests {
             let taos = ws_connect_with_dsn(b"ws://localhost:6041\0" as *const u8 as _);
             assert!(!taos.is_null(), "client pointer is not null when success");
 
-            let sql = b"show databasess\0" as *const u8 as _;
+            let sql = b"show x\0" as *const u8 as _;
             let rs = ws_query(taos, sql);
 
             let code = ws_errno(rs);
             let err = CStr::from_ptr(ws_errstr(rs) as _);
             // Incomplete SQL statement
             assert!(code != 0);
-            assert!(err.to_str().unwrap() == "Incomplete SQL statement");
+            assert!(err
+                .to_str()
+                .unwrap()
+                .match_indices("Incomplete SQL statement")
+                .next()
+                .is_some());
         }
     }
 
@@ -795,12 +818,12 @@ mod tests {
             let affected_rows = ws_affected_rows(rs);
             assert!(affected_rows == 0);
 
-            let num_of_fields = ws_num_of_fields(rs);
-            dbg!(num_of_fields);
+            let cols = ws_field_count(rs);
+            dbg!(cols);
             // assert!(num_of_fields == 21);
             let fields = ws_fetch_fields(rs);
 
-            for field in std::slice::from_raw_parts(fields, num_of_fields as usize) {
+            for field in std::slice::from_raw_parts(fields, cols as usize) {
                 dbg!(field);
             }
 
@@ -811,7 +834,7 @@ mod tests {
 
             dbg!(rows);
             for row in 0..rows {
-                for col in 0..num_of_fields {
+                for col in 0..cols {
                     let mut ty: Ty = Ty::Null;
                     let mut len = 0u32;
                     let v =

@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use bytes::{Bytes, BytesMut};
 
 /// A bitmap for nulls.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NullBits(pub(crate) Bytes);
 
 impl<T: Into<Bytes>> From<T> for NullBits {

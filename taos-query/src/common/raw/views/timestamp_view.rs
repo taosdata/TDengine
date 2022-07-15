@@ -14,7 +14,7 @@ pub struct Micros(i64);
 
 pub struct Nanos(i64);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TimestampView {
     pub(crate) nulls: NullBits,
     pub(crate) data: Bytes,
@@ -28,8 +28,13 @@ impl TimestampView {
     }
 
     /// Raw slice of target type.
-    unsafe fn as_raw_slice(&self) -> &[Target] {
-        std::slice::from_raw_parts(self.data.as_ptr() as *const Target, self.len())
+    pub fn as_raw_slice(&self) -> &[Target] {
+        unsafe { std::slice::from_raw_parts(self.data.as_ptr() as *const Target, self.len()) }
+    }
+
+    /// Build a nulls vector.
+    pub fn to_nulls_vec(&self) -> Vec<bool> {
+        self.is_null_iter().collect()
     }
 
     /// A iterator only decide if the value at some row index is NULL or not.

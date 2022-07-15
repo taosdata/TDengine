@@ -231,7 +231,7 @@ pub mod prelude {
     //! ```
     pub use crate::impls::Error;
     pub use crate::impls::ResultSet;
-    pub use crate::impls::SyncBlock;
+    // pub use crate::impls::SyncBlock;
     pub use crate::options::TaosOptions;
     pub use crate::query::FromDsn;
     pub use crate::schemaless::{SchemalessPrecision, SchemalessProtocol};
@@ -252,7 +252,7 @@ pub mod prelude {
 
         pub use crate::impls::Error;
         pub use crate::impls::ResultSet;
-        pub use crate::impls::SyncBlock;
+        // pub use crate::impls::SyncBlock;
         pub use crate::options::TaosOptions;
         pub use crate::query::FromDsn;
         pub use crate::schemaless::{SchemalessPrecision, SchemalessProtocol};
