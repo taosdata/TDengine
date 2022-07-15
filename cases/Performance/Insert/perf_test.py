@@ -56,6 +56,7 @@ class TestPerf(TDCase):
     def parse_case_param(self):
         try:
             if self.case_param is None:
+                self.set_error_msg("no case parameter specified")
                 return False
             self.logger.debug("case parameters: [{}]".format(self.case_param))
             param_array = self.case_param.split(" ")
@@ -76,16 +77,19 @@ class TestPerf(TDCase):
                     self.concurrency = int(val)
                 else:
                     self.logger.error("invalid case parameter: {}".format(key))
+                    self.set_error_msg("invalid case parameter: {}".format(key))
                     return False
             # check parameters
             if self.insert_tmpl_file is None:
                 self.logger.error(f"case parameter {self.insert_tmpl_file_param} not specified")
+                self.set_error_msg(f"case parameter {self.insert_tmpl_file_param} not specified")
                 return False
             # get full path
             self.insert_tmpl_file = os.path.join(os.environ["TEST_ROOT"], self.insert_tmpl_file)
             # check file existance
             if not os.path.isfile(self.insert_tmpl_file):
                 self.logger.error("{} not exist".format(self.insert_tmpl_file))
+                self.set_error_msg("{} not exist".format(self.insert_tmpl_file))
                 return False
             if not self.insert_cfg_file is None:
                 # get full path
@@ -93,9 +97,11 @@ class TestPerf(TDCase):
                 # check file existance
                 if not os.path.isfile(self.insert_cfg_file):
                     self.logger.error("{} not exist".format(self.insert_cfg_file))
+                    self.set_error_msg("{} not exist".format(self.insert_cfg_file))
                     return False
         except getopt.GetoptError:
             self.logger.error("parameter parse error [{}]".format(self.case_param))
+            self.set_error_msg("parameter parse error [{}]".format(self.case_param))
             return False
         return True
 
@@ -146,6 +152,7 @@ class TestPerf(TDCase):
             # self.logger.error(str(result))
             self.logger.error("cmd [{}] failed on [{}]".format(cmd, node))
             self.logger.error("cmd [{}] exit code: [{}]".format(cmd, result.exited))
+            self.set_error_msg("cmd [{}] failed on [{}]".format(cmd, node))
             self.ret = False
         else:
             self.logger.info("cmd [{}] succeed on [{}]".format(cmd, node))
@@ -251,6 +258,7 @@ class TestPerf(TDCase):
                 os.system(f"cat {local_result_file}")
             else:
                 self.logger.error(f"result file {local_result_file} not exist")
+                self.set_error_msg(f"result file {local_result_file} not exist")
                 self.ret = False
         if self.ret != True:
             return self.ret
@@ -275,6 +283,7 @@ class TestPerf(TDCase):
                         self.logger.debug(f"insert rows: {a}")
                         if a == "":
                             self.logger.error(f"insert rows: {a}")
+                            self.set_error_msg(f"error insert rows: {a}")
                             self.ret = False
                             break
                         a_int = int(a)
@@ -282,6 +291,7 @@ class TestPerf(TDCase):
                         b = self.get_number_before(line, "thread(s)")
                         if b == "":
                             self.logger.error(f"threads: {b}")
+                            self.set_error_msg(f"error threeds: {b}")
                             self.ret = False
                             break
                         b_int = int(b)
@@ -291,6 +301,7 @@ class TestPerf(TDCase):
                         self.logger.debug(f"speed: {c}")
                         if c == "":
                             self.logger.error(f"speed: {c}")
+                            self.set_error_msg(f"error speed: {c}")
                             self.ret = False
                             break
                         c_float = float(c)
@@ -299,12 +310,14 @@ class TestPerf(TDCase):
                         self.logger.debug(f"Spent: {d}")
                         if d == "":
                             self.logger.error(f"Spent: {d}")
+                            self.set_error_msg(f"error Spent: {d}")
                             self.ret = False
                             break
                         d_float = float(d)
                         time_elapsed = max(time_elapsed, d_float)
                 if insert_rows_found == False:
-                    self.logger.error("key word insert row not found in {local_result_file}")
+                    self.logger.error(f"key word insert row not found in {local_result_file}")
+                    self.set_error_msg(f"key word insert row not found in {local_result_file}")
                     self.ret = False
         if self.ret:
             taosd_count = len(taosd_fqdn)
