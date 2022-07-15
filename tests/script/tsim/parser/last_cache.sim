@@ -1,11 +1,8 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
-system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/exec.sh -n dnode1 -s start
-
-sleep 100
 sql connect
+
 print ======================== dnode1 start
 
 $db = testdb
@@ -57,13 +54,13 @@ sql insert into tbb values ("2021-05-10 10:12:28",33,NULL, '35', -3005)
 sql insert into tbc values ("2021-05-11 10:12:29",36,  37, NULL, -4005)
 sql insert into tbd values ("2021-05-11 10:12:29",NULL,NULL,NULL,NULL )
 
-run general/parser/last_cache_query.sim
+run tsim/parser/last_cache_query.sim
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
 system sh/exec.sh -n dnode1 -s start
 
-run general/parser/last_cache_query.sim
+run tsim/parser/last_cache_query.sim
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 

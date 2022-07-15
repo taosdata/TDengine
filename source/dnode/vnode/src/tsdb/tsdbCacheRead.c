@@ -177,7 +177,6 @@ int32_t tsdbRetrieveLastRow(void* pReader, SSDataBlock* pResBlock, const int32_t
       saveOneRow(pRow, pResBlock, pr, slotIds);
       taosArrayPush(pTableUidList, &pKeyInfo->uid);
 
-      // taosMemoryFree(pRow);
       tsdbCacheRelease(lruCache, h);
 
       pr->tableIndex += 1;
