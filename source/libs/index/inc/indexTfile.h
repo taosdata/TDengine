@@ -71,6 +71,7 @@ typedef struct TFileReader {
   IFileCtx*   ctx;
   TFileHeader header;
   bool        remove;
+  void*       lru;
 } TFileReader;
 
 typedef struct IndexTFile {
@@ -95,14 +96,14 @@ typedef struct TFileReaderOpt {
 } TFileReaderOpt;
 
 // tfile cache, manage tindex reader
-TFileCache*  tfileCacheCreate(const char* path);
+TFileCache*  tfileCacheCreate(SIndex* idx, const char* path);
 void         tfileCacheDestroy(TFileCache* tcache);
 TFileReader* tfileCacheGet(TFileCache* tcache, ICacheKey* key);
 void         tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader);
 
 TFileReader* tfileGetReaderByCol(IndexTFile* tf, uint64_t suid, char* colName);
 
-TFileReader* tfileReaderOpen(char* path, uint64_t suid, int64_t version, const char* colName);
+TFileReader* tfileReaderOpen(SIndex* idx, uint64_t suid, int64_t version, const char* colName);
 TFileReader* tfileReaderCreate(IFileCtx* ctx);
 void         tfileReaderDestroy(TFileReader* reader);
 int          tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTRslt* tr);
@@ -117,7 +118,7 @@ int          tfileWriterPut(TFileWriter* tw, void* data, bool order);
 int          tfileWriterFinish(TFileWriter* tw);
 
 //
-IndexTFile* idxTFileCreate(const char* path);
+IndexTFile* idxTFileCreate(SIndex* idx, const char* path);
 void        idxTFileDestroy(IndexTFile* tfile);
 int         idxTFilePut(void* tfile, SIndexTerm* term, uint64_t uid);
 int         idxTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* tr);
