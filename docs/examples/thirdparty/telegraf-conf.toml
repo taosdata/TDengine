@@ -1,0 +1,6 @@
+[[outputs.http]]
+  url = "${TDENGINE_CLOUD_URL}/influxdb/v1/write?db=telegraf&token=${TDENGINE_CLOUD_TOKEN}"
+  method = "POST"
+  timeout = "5s"
+  data_format = "influx"
+  influx_max_line_bytes = 250
