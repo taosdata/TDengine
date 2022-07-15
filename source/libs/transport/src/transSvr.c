@@ -1020,7 +1020,7 @@ void transRefSrvHandle(void* handle) {
     return;
   }
   int ref = T_REF_INC((SSvrConn*)handle);
-  tDebug("conn %p ref count:%d", handle, ref);
+  tTrace("conn %p ref count:%d", handle, ref);
 }
 
 void transUnrefSrvHandle(void* handle) {
@@ -1028,7 +1028,7 @@ void transUnrefSrvHandle(void* handle) {
     return;
   }
   int ref = T_REF_DEC((SSvrConn*)handle);
-  tDebug("conn %p ref count:%d", handle, ref);
+  tTrace("conn %p ref count:%d", handle, ref);
   if (ref == 0) {
     destroyConn((SSvrConn*)handle, true);
   }
