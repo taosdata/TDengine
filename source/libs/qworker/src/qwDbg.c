@@ -9,7 +9,7 @@
 #include "tmsg.h"
 #include "tname.h"
 
-SQWDebug     gQWDebug = {.statusEnable = true, .dumpEnable = false, .tmp = true};
+SQWDebug     gQWDebug = {.statusEnable = true, .dumpEnable = false, .tmp = false};
 
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore) {
   if (!gQWDebug.statusEnable) {
@@ -147,9 +147,9 @@ int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwDbgResponseREdirect(SQWMsg *qwMsg, SQWTaskCtx *ctx) {
+int32_t qwDbgResponseRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx) {
   if (gQWDebug.tmp) {
-    if (TDMT_SCH_QUERY == qwMsg->msgType) {
+    if (TDMT_SCH_QUERY == qwMsg->msgType && (0 == taosRand() % 3)) {
       SEpSet epSet = {0};
       epSet.inUse = 1;
       epSet.numOfEps = 3;
@@ -159,16 +159,15 @@ int32_t qwDbgResponseREdirect(SQWMsg *qwMsg, SQWTaskCtx *ctx) {
       epSet.eps[1].port = 7200;
       strcpy(epSet.eps[2].fqdn, "localhost");
       epSet.eps[2].port = 7300;
-      
+
+      ctx->phase = QW_PHASE_POST_QUERY;      
       qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_RPC_REDIRECT, &epSet);
-      gQWDebug.tmp = false;
       return TSDB_CODE_SUCCESS;
     }
     
-    if (TDMT_SCH_MERGE_QUERY == qwMsg->msgType) {
+    if (TDMT_SCH_MERGE_QUERY == qwMsg->msgType && (0 == taosRand() % 3)) {
       ctx->phase = QW_PHASE_POST_QUERY;
       qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_RPC_REDIRECT, NULL);
-      gQWDebug.tmp = false;
       return TSDB_CODE_SUCCESS;
     }
   }
