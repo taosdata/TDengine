@@ -2115,6 +2115,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSpreadFuncEnv,
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunction,
+    .sprocessFunc = spreadScalarFunction,
     .finalizeFunc = spreadFinalize,
     .invertFunc   = NULL,
     .combineFunc  = spreadCombine,
