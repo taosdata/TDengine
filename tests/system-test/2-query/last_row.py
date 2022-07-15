@@ -488,7 +488,14 @@ class TDTestCase:
 
         # bug fix for compute
         tdSql.query("select  last_row(c1) -0 ,last(c1)-0 ,last(c1)+last_row(c1) from ct4 ")
-        tdSql.query(" select c1, abs(c1) -0 ,last_row(c1-0.1)-0.1 from ct4")
+        tdSql.checkData(0,0,None)
+        tdSql.checkData(0,1,None)
+        tdSql.checkData(0,2,None)
+
+        tdSql.query(" select c1, abs(c1) -0 ,last_row(c1-0.1)-0.1 from ct1")
+        tdSql.checkData(0,0,9)
+        tdSql.checkData(0,1,9.000000000)
+        tdSql.checkData(0,2,8.800000000)
 
     def abs_func_filter(self):
         tdSql.execute("use db")
@@ -616,7 +623,7 @@ class TDTestCase:
 
         tdSql.error("select  last_row(c1) ,c1  from (select  count(c1) c1 from stb1 where ts >now -1h and ts <now interval(10s) fill(value ,10 ))")
 
-        # tag filter with abs function
+        # tag filter with last_row function
         tdSql.query("select last_row(t1) from stb1 where abs(t1)=1")
         tdSql.checkRows(1)
         tdSql.query(" select last_row(t1),last_row(c1) from ct1 where abs(c1+t1)=1")
@@ -660,84 +667,99 @@ class TDTestCase:
         tdSql.query("select last_row(c1+c3)+last_row(c2) from stb1 group by abs(c1+c3)+abs(c2) order by abs(c1+c3)+abs(c2)")
         tdSql.checkRows(11)
         
-        tdSql.query("select t1 from stb1 where abs(c1+t1)=1 partition by tbname")
-        tdSql.checkData(0,0,0)
+        tdSql.query("select last_row(t1) from stb1 where abs(c1+t1)=1 partition by tbname")
+        tdSql.checkData(0,0,1)
         
-        tdSql.query("select tbname , abs(c1) from stb1 partition by tbname order by tbname")
-        tdSql.checkRows(25)
-        tdSql.checkData(0,1,8)
-        tdSql.checkData(23,1,1)
-        tdSql.checkData(24,1,None)
+        tdSql.query("select tbname , last_row(c1) from stb1 partition by tbname order by tbname")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 'ct1')
+        tdSql.checkData(0, 1,  9)
+        tdSql.checkData(0, 2, 'ct4')
+        tdSql.checkData(0, 3, None)
         
-        tdSql.query("select tbname , abs(c1) from stb1 partition by t1 order by t1")
-        tdSql.checkRows(25)
-        tdSql.checkData(0,1,8)
-        tdSql.checkData(23,1,1)
-        tdSql.checkData(24,1,None)
+        tdSql.query("select tbname , last_row(c1) from stb1 partition by t1 order by t1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 'ct1')
+        tdSql.checkData(0, 1,  9)
+        tdSql.checkData(0, 2, 'ct4')
+        tdSql.checkData(0, 3, None)
 
-        tdSql.query("select tbname , abs(c1) from stb1 partition by c2 order by c1")
-        tdSql.checkRows(25)
-        tdSql.checkData(24,1,9)
+        # bug need fix 
+        # tdSql.query("select tbname , last_row(c1) from stb1 partition by c2 order by c1")
+        # tdSql.checkRows(11)
+        # tdSql.checkData(10,1,9)
 
-        tdSql.query("select tbname , abs(c1) from stb1 partition by c2 order by c2")
-        tdSql.checkRows(25)
-        tdSql.checkData(24,1,8)
+        # tdSql.query("select tbname , last_row(c1) from stb1 partition by c2 order by c2")
+        # tdSql.checkRows(11)
+        # tdSql.checkData(10,1,88888)
 
-        tdSql.query("select tbname , abs(t1) from stb1 partition by c2 order by t1")
-        tdSql.checkRows(25)
-        tdSql.checkData(24,1,3)
+        tdSql.query("select tbname , last_row(t1) from stb1 partition by c2 order by t1")
+        tdSql.checkRows(11)
 
-        tdSql.query("select abs(c1) , abs(t1) from stb1 partition by c2 order by t1")
-        tdSql.checkRows(25)
-        tdSql.checkData(16,0,None)
-        tdSql.checkData(16,1,3)
+        tdSql.query("select abs(c1) ,c2 ,t1, last_row(t1) from stb1 partition by c2 order by t1")
+        tdSql.checkRows(11)
+   
+        tdSql.query("select t1 ,last_row(t1) ,c2 from stb1 partition by c2 order by t1")
+        tdSql.checkRows(11)
 
-        tdSql.query("select abs(c1) , abs(t1) ,c2 from stb1 partition by c2 order by t1")
-        tdSql.checkRows(25)
-        tdSql.checkData(16,0,None)
-        tdSql.checkData(16,1,3)
-        tdSql.checkData(16,2,None)
+        tdSql.query("select last_row(t1) ,last_row(t1) ,last_row(c2) from stb1 partition by c2 order by c2")
+        tdSql.checkRows(11)
 
-        tdSql.query("select abs(c1) , abs(t1) ,c2 from stb1 partition by tbname order by tbname")
-        tdSql.checkRows(25)
-        tdSql.checkData(16,0,7)
-        tdSql.checkData(16,1,3)
-        tdSql.checkData(16,2,77777)
+        tdSql.query("select abs(c1) , last_row(t1) ,c2 from stb1 partition by tbname order by tbname")
+        tdSql.checkRows(2)
 
-        tdSql.query("select abs(c1) , abs(t1) ,c2 from stb1 partition by t1 order by t1")
-        tdSql.checkRows(25)
-        tdSql.checkData(16,0,7)
-        tdSql.checkData(16,1,3)
-        tdSql.checkData(16,2,77777)
+        tdSql.query("select last_row(c1) , ceil(t1) ,c2 from stb1 partition by t1 order by t1")
+        tdSql.checkRows(2)
 
-        tdSql.query("select abs(c1) , abs(t1) ,c2 from stb1 partition by abs(c1) order by abs(c1)")
-        tdSql.checkRows(25)
-        tdSql.checkData(16,0,6)
-        tdSql.checkData(16,1,3)
-        tdSql.checkData(16,2,66666)
+        tdSql.query("select last_row(c1) , abs(t1) ,c2 from stb1 partition by abs(c1) order by abs(c1)")
+        tdSql.checkRows(11)
 
-        tdSql.query("select abs(ceil(c1)) , abs(floor(t1)) ,floor(c2) from stb1 partition by abs(floor(c1)) order by abs(c1)")
-        tdSql.checkRows(25)
-        tdSql.checkData(16,0,6)
-        tdSql.checkData(16,1,3)
-        tdSql.checkData(16,2,66666)
+        tdSql.query("select abs(last_row(c1)) , abs(floor(t1)) ,floor(c2) from stb1 partition by abs(floor(c1)) order by abs(c1)")
+        tdSql.checkRows(11)
 
-        tdSql.query("select abs(ceil(c1-2)) , abs(floor(t1+1)) ,floor(c2-c1) from stb1 partition by abs(floor(c1)) order by abs(c1)")
-        tdSql.checkRows(25)
-        tdSql.checkData(16,0,4.000000000)
-        tdSql.checkData(16,1,4.000000000)
-        tdSql.checkData(16,2,66660.000000000)
+        tdSql.query("select last_row(ceil(c1-2)) , abs(floor(t1+1)) ,floor(c2-c1) from stb1 partition by abs(floor(c1)) order by abs(c1)")
+        tdSql.checkRows(11)
 
         # interval 
-        tdSql.query("select max(c1) from stb1 interval(50s) sliding(30s)")
-        tdSql.checkRows(13)
-        # bug need fix
-        # tdSql.query('select max(c1) from stb1 where ts>="2022-07-06 16:00:00.000 " and ts < "2022-07-06 17:00:00.000 " interval(50s) sliding(30s) fill(NULL)')
-        # tdSql.checkRows(40)
-        # tdSql.checkData(0,0,None)
-        tdSql.query('select max(c1) from stb1 where ts>="2022-07-06 16:00:00.000 " and ts < "2022-07-06 17:00:00.000 " interval(50s) sliding(30s)')
-        tdSql.checkRows(5)
+        tdSql.query("select last_row(c1) from stb1 interval(50s) sliding(30s)")
+        tdSql.checkRows(27)
 
+        tdSql.query("select last_row(c1) from ct1 interval(50s) sliding(30s)")
+        tdSql.checkRows(5)
+        last_row_result = tdSql.queryResult
+        tdSql.query("select last(c1) from ct1 interval(50s) sliding(30s)")
+        for ind , row in enumerate(last_row_result):
+            tdSql.checkData(ind , 0 , row[0])
+
+        # bug need fix
+        tdSql.query('select max(c1) from t1 where ts>="2021-01-01 01:01:06.000" and ts < "2021-07-21 01:01:01.000" interval(50d) sliding(30d) fill(NULL)')
+        tdSql.checkRows(8)
+        tdSql.checkData(7,0,None)
+
+        tdSql.query('select last_row(c1) from t1 where ts>="2021-01-01 01:01:06.000" and ts < "2021-07-21 01:01:01.000" interval(50d) sliding(30d) fill(value ,2 )')
+        tdSql.checkRows(8)
+        tdSql.checkData(7,0,2)
+
+        tdSql.query('select last_row(c1) from stb1 where ts>="2022-07-06 16:00:00.000 " and ts < "2022-07-06 17:00:00.000 " interval(50s) sliding(30s)')
+        tdSql.query('select last_row(c1) from (select ts ,  c1  from t1 where ts>="2021-01-01 01:01:06.000" and ts < "2021-07-21 01:01:01.000" ) interval(10s) sliding(5s)')
+
+        # join 
+        tdSql.query("use test")
+        tdSql.query("select last(sub_tb_1.c1), last(sub_tb_2.c2) from sub_tb_1, sub_tb_2 where sub_tb_1.ts=sub_tb_2.ts")
+        tdSql.checkCols(2)
+        last_row_result = tdSql.queryResult
+        tdSql.query("select last_row(sub_tb_1.c1), last_row(sub_tb_2.c2) from sub_tb_1, sub_tb_2 where sub_tb_1.ts=sub_tb_2.ts")
+        
+        for ind , row in enumerate(last_row_result):
+            tdSql.checkData(ind , 0 , row[0])
+
+        tdSql.query("select last(*), last(*) from sub_tb_1, sub_tb_2 where sub_tb_1.ts=sub_tb_2.ts")
+
+        last_row_result = tdSql.queryResult
+        tdSql.query("select last_row(*), last_row(*) from sub_tb_1, sub_tb_2 where sub_tb_1.ts=sub_tb_2.ts")
+        for ind , row in enumerate(last_row_result):
+            tdSql.checkData(ind , 0 , row[0])
+        
 
 
     def support_super_table_test(self):
