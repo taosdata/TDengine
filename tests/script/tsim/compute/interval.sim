@@ -103,7 +103,8 @@ $ms2 = 1601481600000 - $cc
 
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms and ts > $ms2 interval(1m) fill(value,0)
 print ===> $rows
-if $rows < 30 then 
+if $rows < 30 then
+  print expect greater than 30, actual: $rows
   return -1
 endi
 if $rows > 50 then 
