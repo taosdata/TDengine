@@ -152,6 +152,7 @@ typedef struct SRealTableNode {
   char               qualDbName[TSDB_DB_NAME_LEN];  // SHOW qualDbName.TABLES
   double             ratio;
   SArray*            pSmaIndexes;
+  int8_t             cacheLastMode;
 } SRealTableNode;
 
 typedef struct STempTableNode {
