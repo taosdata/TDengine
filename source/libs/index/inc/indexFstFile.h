@@ -27,7 +27,7 @@ extern "C" {
 #define DefaultMem 1024 * 1024
 
 static char tmpFile[] = "./index";
-typedef enum WriterType { TMemory, TFile } WriterType;
+typedef enum WriterType { TMEMORY, TFILE } WriterType;
 
 typedef struct IFileCtx {
   int (*write)(struct IFileCtx* ctx, uint8_t* buf, int len);
@@ -35,6 +35,8 @@ typedef struct IFileCtx {
   int (*flush)(struct IFileCtx* ctx);
   int (*readFrom)(struct IFileCtx* ctx, uint8_t* buf, int len, int32_t offset);
   int (*size)(struct IFileCtx* ctx);
+
+  SLRUCache* lru;
   WriterType type;
   union {
     struct {
