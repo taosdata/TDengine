@@ -1981,6 +1981,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getLeastSQRFuncEnv,
     .initFunc     = leastSQRFunctionSetup,
     .processFunc  = leastSQRFunction,
+    .sprocessFunc = leastSQRScalarFunction,
     .finalizeFunc = leastSQRFinalize,
     .invertFunc   = NULL,
     .combineFunc  = leastSQRCombine,
