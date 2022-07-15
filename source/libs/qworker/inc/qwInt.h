@@ -378,6 +378,7 @@ void qwDbgDumpMgmtInfo(SQWorker *mgmt);
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore);
 int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, SEpSet *pEpSet);
 int32_t qwAddTaskCtx(QW_FPARAMS_DEF);
+int32_t qwDbgResponseRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx);
 
 
 #ifdef __cplusplus

@@ -17,6 +17,8 @@
 #include "catalog.h"
 #include "tdatablock.h"
 #include "tglobal.h"
+#include "commandInt.h"
+#include "scheduler.h"
 
 extern SConfig* tsCfg;
 
@@ -479,7 +481,42 @@ static int32_t execShowCreateSTable(SShowCreateTableStmt* pStmt, SRetrieveTableR
   return execShowCreateTable(pStmt, pRsp);
 }
 
+static int32_t execAlterCmd(char* cmd, char* value, bool* processed) {
+  int32_t code = 0;
+  
+  if (0 == strcasecmp(cmd, COMMAND_RESET_LOG)) {
+    taosResetLog();
+    cfgDumpCfg(tsCfg, 0, false);
+  } else if (0 == strcasecmp(cmd, COMMAND_SCHEDULE_POLICY)) {
+    code = schedulerUpdatePolicy(atoi(value));
+  } else if (0 == strcasecmp(cmd, COMMAND_ENABLE_RESCHEDULE)) {
+    code = schedulerEnableReSchedule(atoi(value));
+  } else {
+    goto _return;
+  }
+
+  *processed = true;
+
+_return:
+
+  if (code) {
+    terrno = code;
+  }
+  
+  return code;  
+}
+
 static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
+  bool processed = false;
+  
+  if (execAlterCmd(pStmt->config, pStmt->value, &processed)) {
+    return terrno;
+  }
+
+  if (processed) {
+    goto _return;
+  }
+  
   if (cfgSetItem(tsCfg, pStmt->config, pStmt->value, CFG_STYPE_ALTER_CMD)) {
     return terrno;
   }
@@ -487,6 +524,8 @@ static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
   if (taosSetCfg(tsCfg, pStmt->config)) {
     return terrno;
   }
+
+_return:
 
   return TSDB_CODE_SUCCESS;
 }
