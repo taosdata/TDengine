@@ -32,6 +32,11 @@ extern "C" {
 typedef struct SStreamTask SStreamTask;
 
 enum {
+  STREAM_STATUS__NORMAL = 0,
+  STREAM_STATUS__RECOVER,
+};
+
+enum {
   TASK_STATUS__NORMAL = 0,
   TASK_STATUS__DROPPING,
   TASK_STATUS__FAIL,
