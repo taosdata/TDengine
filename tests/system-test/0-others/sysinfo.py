@@ -43,6 +43,7 @@ class TDTestCase:
     def get_server_status(self):
         tdSql.query('select server_status()')
         tdSql.checkData(0,0,1)
+        #!for bug
         tdDnodes.stoptaosd(1)
         sleep(10)
         tdSql.error('select server_status()')
