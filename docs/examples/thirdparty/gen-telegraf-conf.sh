@@ -1,0 +1,1 @@
+telegraf --sample-config --input-filter cpu:mem --output-filter http > telegraf.conf
