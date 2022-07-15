@@ -3,7 +3,7 @@ sidebar_label: Telegraf
 title: Telegraf for TDengine Cloud
 ---
 
-Telegraf is a open-source, metrics collection software. Telegraf can collect the operation information of various components without having to write any scripts to collect regularly, reducing the difficulty of data acquisition.
+Telegraf is an open-source, metrics collection software. Telegraf can collect the operation information of various components without having to write any scripts to collect regularly, reducing the difficulty of data acquisition.
 
 Telegraf's data can be written to TDengine by simply adding the output configuration of Telegraf to the URL corresponding to taosAdapter and modifying several configuration items. The presence of Telegraf data in TDengine can take advantage of TDengine's efficient storage query performance and clustering capabilities for time-series data.
 
@@ -29,11 +29,16 @@ For installation instructions on other platforms please refer to the [official d
 Run this command in your terminal to save TDengine cloud token and URL as variables:
 
 ```bash
-export TDENGINE_CLOUD_TOKEN="<token>"
 export TDENGINE_CLOUD_URL="<url>"
+export TDENGINE_CLOUD_TOKEN="<token>"
 ```
 
-Run this command to generate new telegraf.conf.
+<!-- exclude -->
+You are expected to replace `<url>` and `<token>` with real TDengine cloud URL and token. To obtain the real values, please log in [TDengine Cloud](https://cloud.tdengine.com).
+<!-- exclude-end -->
+
+
+Then run this command to generate new telegraf.conf.
 
 ```bash
 {{#include docs/examples/thirdparty/gen-telegraf-conf.sh:null:nrc}}
@@ -46,12 +51,6 @@ Edit section "outputs.http".
 ```
 
 The resulting configuration will collect CPU and memory data and sends it to TDengine database named "telegraf". Database "telegraf" will be created automatically if it dose not exist in advance.
-
-
-<!-- exclude -->
-You are expected to replace `<url>` and `<token>` with real TDengine cloud URL and token. To obtain the real values, please log in [TDengine Cloud](https://cloud.tdengine.com).
-<!-- exclude-end -->
-
 
 ## Start Telegraf
 
