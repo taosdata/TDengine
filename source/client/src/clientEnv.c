@@ -35,6 +35,8 @@ SAppInfo appInfo;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
 
+int32_t timestampDeltaLimit = 900;  // s
+
 static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t    tscInitRes = 0;
 
@@ -181,7 +183,7 @@ void destroyTscObj(void *pObj) {
 
   destroyAllRequests(pTscObj->pRequests);
   taosHashCleanup(pTscObj->pRequests);
-  
+
   schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
   tscDebug("connObj 0x%" PRIx64 " p:%p destroyed, remain inst totalConn:%" PRId64, pTscObj->id, pTscObj,
            pTscObj->pAppInfo->numOfConns);
