@@ -37,12 +37,13 @@ def checkRunTimeError():
         time.sleep(1)
         timeCount = timeCount + 1
         print("checkRunTimeError",timeCount)
-        if (timeCount>900):
+        if (timeCount>600):
             print("stop the test.")
             os.system("TASKKILL /F /IM taosd.exe")
             os.system("TASKKILL /F /IM taos.exe")
             os.system("TASKKILL /F /IM tmq_sim.exe")
             os.system("TASKKILL /F /IM mintty.exe")
+            os.system("TASKKILL /F /IM python.exe")
             quit(0)
         hwnd = win32gui.FindWindow(None, "Microsoft Visual C++ Runtime Library")
         if hwnd:
@@ -228,6 +229,22 @@ if __name__ == "__main__":
             tdDnodes.deploy(1,updateCfgDict)
             tdDnodes.start(1)
             tdCases.logSql(logSql)
+            if queryPolicy != 1:
+                queryPolicy=int(queryPolicy)
+                conn = taos.connect(
+                host,
+                config=tdDnodes.getSimCfgPath())
+                tdSql.init(conn.cursor())
+                tdSql.execute("create qnode on dnode 1")
+                tdSql.execute('alter local "queryPolicy" "%d"'%queryPolicy)     
+                tdSql.query("show local variables;")
+                for i in range(tdSql.queryRows):
+                    if tdSql.queryResult[i][0] == "queryPolicy" :
+                        if int(tdSql.queryResult[i][1]) == int(queryPolicy):
+                            tdLog.success('alter queryPolicy to %d successfully'%queryPolicy)
+                        else :
+                            tdLog.debug(tdSql.queryResult)
+                            tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy) 
         else :
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
             dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums,mnodeNums=mnodeNums)
@@ -370,3 +387,4 @@ if __name__ == "__main__":
                     tdLog.info("not need to query")
     if conn is not None:
         conn.close()
+    sys.exit(0)

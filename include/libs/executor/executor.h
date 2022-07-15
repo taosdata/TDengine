@@ -186,8 +186,11 @@ int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 
 void* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
 
-void*   qExtractReaderFromStreamScanner(void* scanner);
+void* qExtractReaderFromStreamScanner(void* scanner);
+
 int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
+
+int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem);
 
 #ifdef __cplusplus
 }

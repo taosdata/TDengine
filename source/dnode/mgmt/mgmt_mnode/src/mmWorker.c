@@ -168,7 +168,12 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
 
   dTrace("msg:%p, is created and will put into %s queue, type:%s", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType));
-  return mmPutMsgToWorker(pMgmt, pWorker, pMsg);
+  int32_t code = mmPutMsgToWorker(pMgmt, pWorker, pMsg);
+  if (code != 0) {
+    dTrace("msg:%p, is freed", pMsg);
+    taosFreeQitem(pMsg);
+  }
+  return code;
 }
 
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {

@@ -181,6 +181,7 @@ typedef struct SRequestSendRecvBody {
   tsem_t            rspSem;  // not used now
   __taos_async_fn_t queryFp;
   __taos_async_fn_t fetchFp;
+  EQueryExecMode    execMode;
   void*             param;
   SDataBuf          requestMsg;
   int64_t           queryJob;  // query job, created according to sql query DAG.
@@ -223,12 +224,12 @@ typedef struct SRequestObj {
   SArray*              tableList;
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
-  bool                 stableQuery;   // todo refactor
-  bool                 validateOnly;  // todo refactor
-
-  bool     killed;
-  uint32_t prevCode;  // previous error code: todo refactor, add update flag for catalog
-  uint32_t retry;
+  bool                 syncQuery;    // todo refactor: async query object
+  bool                 stableQuery;  // todo refactor
+  bool                 validateOnly; // todo refactor
+  bool                 killed;
+  uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
+  uint32_t             retry;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {

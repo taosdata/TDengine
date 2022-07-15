@@ -97,3 +97,29 @@ void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) {
     taosMemoryFree(pDataSubmit->dataRef);
   }
 }
+
+int32_t streamAppendQueueItem(SStreamQueueItem* dst, SStreamQueueItem* elem) {
+  ASSERT(elem);
+  if (dst->type == elem->type && dst->type == STREAM_INPUT__DATA_BLOCK) {
+    SStreamDataBlock* pBlock = (SStreamDataBlock*)dst;
+    SStreamDataBlock* pBlockSrc = (SStreamDataBlock*)elem;
+    taosArrayAddAll(pBlock->blocks, pBlockSrc->blocks);
+    return 0;
+  } else {
+    return -1;
+  }
+}
+
+void streamFreeQitem(SStreamQueueItem* data) {
+  int8_t type = data->type;
+  if (type == STREAM_INPUT__TRIGGER) {
+    blockDataDestroy(((SStreamTrigger*)data)->pBlock);
+    taosFreeQitem(data);
+  } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE) {
+    taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)blockDataFreeRes);
+    taosFreeQitem(data);
+  } else if (type == STREAM_INPUT__DATA_SUBMIT) {
+    streamDataSubmitRefDec((SStreamDataSubmit*)data);
+    taosFreeQitem(data);
+  }
+}

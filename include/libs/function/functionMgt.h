@@ -34,7 +34,6 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_ELAPSED,
   FUNCTION_TYPE_IRATE,
   FUNCTION_TYPE_LAST_ROW,
-  FUNCTION_TYPE_LAST_ROWT, //TODO: removed
   FUNCTION_TYPE_MAX,
   FUNCTION_TYPE_MIN,
   FUNCTION_TYPE_MODE,
@@ -114,10 +113,11 @@ typedef enum EFunctionType {
   // pseudo column function
   FUNCTION_TYPE_ROWTS = 3500,
   FUNCTION_TYPE_TBNAME,
-  FUNCTION_TYPE_QSTARTTS,
-  FUNCTION_TYPE_QENDTS,
-  FUNCTION_TYPE_WSTARTTS,
-  FUNCTION_TYPE_WENDTS,
+  FUNCTION_TYPE_QSTART,
+  FUNCTION_TYPE_QEND,
+  FUNCTION_TYPE_QDURATION,
+  FUNCTION_TYPE_WSTART,
+  FUNCTION_TYPE_WEND,
   FUNCTION_TYPE_WDURATION,
 
   // internal function
@@ -197,6 +197,7 @@ bool fmIsInterpFunc(int32_t funcId);
 bool fmIsLastRowFunc(int32_t funcId);
 bool fmIsSystemInfoFunc(int32_t funcId);
 bool fmIsImplicitTsFunc(int32_t funcId);
+bool fmIsClientPseudoColumnFunc(int32_t funcId);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "executor.h"
 #include "os.h"
 #include "query.h"
 #include "tdatablock.h"
@@ -120,7 +121,6 @@ static FORCE_INLINE void* streamQueueCurItem(SStreamQueue* queue) { return queue
 static FORCE_INLINE void* streamQueueNextItem(SStreamQueue* queue) {
   int8_t dequeueFlag = atomic_exchange_8(&queue->status, STREAM_QUEUE__PROCESSING);
   if (dequeueFlag == STREAM_QUEUE__FAILED) {
-    ASSERT(0);
     ASSERT(queue->qItem != NULL);
     return streamQueueCurItem(queue);
   } else {
@@ -307,14 +307,18 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
       atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
       return -1;
     }
-    qInfo("task %d %p submit enqueue %p %p %p", pTask->taskId, pTask, pItem, pSubmitClone, pSubmitClone->data);
+    qDebug("task %d %p submit enqueue %p %p %p", pTask->taskId, pTask, pItem, pSubmitClone, pSubmitClone->data);
     taosWriteQitem(pTask->inputQueue->queue, pSubmitClone);
+    // qStreamInput(pTask->exec.executor, pSubmitClone);
   } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
+    // qStreamInput(pTask->exec.executor, pItem);
   } else if (pItem->type == STREAM_INPUT__CHECKPOINT) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
+    // qStreamInput(pTask->exec.executor, pItem);
   } else if (pItem->type == STREAM_INPUT__TRIGGER) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
+    // qStreamInput(pTask->exec.executor, pItem);
   }
 
   if (pItem->type != STREAM_INPUT__TRIGGER && pItem->type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
@@ -336,12 +340,12 @@ static FORCE_INLINE int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBloc
   if (pTask->sinkType == TASK_SINK__TABLE) {
     ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
     pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
-    taosArrayDestroyEx(pBlock->blocks, (FDelete)tDeleteSSDataBlock);
+    taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
     taosFreeQitem(pBlock);
   } else if (pTask->sinkType == TASK_SINK__SMA) {
     ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
     pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
-    taosArrayDestroyEx(pBlock->blocks, (FDelete)tDeleteSSDataBlock);
+    taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
     taosFreeQitem(pBlock);
   } else {
     ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);

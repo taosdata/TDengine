@@ -13,11 +13,11 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         # name of normal table
-        self.ntbname = 'ntb'    
+        self.ntbname = 'ntb'
         # name of stable
-        self.stbname = 'stb'    
+        self.stbname = 'stb'
         # structure of column
-        self.column_dict = {    
+        self.column_dict = {
             'ts':'timestamp',
             'c1':'int',
             'c2':'float',
@@ -25,13 +25,13 @@ class TDTestCase:
             'c4':'nchar(20)'
         }
         # structure of tag
-        self.tag_dict = {       
+        self.tag_dict = {
             't0':'int'
         }
         # number of child tables
-        self.tbnum = 2       
+        self.tbnum = 2
         # values of tag,the number of values should equal to tbnum
-        self.tag_values = [     
+        self.tag_values = [
             f'10',
             f'100'
         ]
@@ -42,7 +42,7 @@ class TDTestCase:
 
         ]
         self.error_param = [1,'now()']
-    
+
     def run(self):  # sourcery skip: extract-duplicate-method
         tdSql.prepare()
         tdLog.printNoPrefix("==========step1:create tables==========")
@@ -93,7 +93,7 @@ class TDTestCase:
 
         tdSql.query("select ts from ntb where to_unixtimestamp('1970-01-01T08:00:00+08:00')=0")
         tdSql.checkRows(3)
-        
+
 
     def stop(self):
         tdSql.close()

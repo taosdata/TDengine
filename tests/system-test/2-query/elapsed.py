@@ -894,7 +894,7 @@ class TDTestCase:
             tdSql.query(sql_common)
             results= query_datas[0]
             if operator == "+":
-                for data in query_datas[1:]: 
+                for data in query_datas[1:]:
                     results += data
                 tdSql.checkData(0,0,results)
 

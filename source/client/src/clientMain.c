@@ -49,7 +49,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 }
 // this function may be called by user or system, or by both simultaneously.
 void taos_cleanup(void) {
-  tscInfo("start  to cleanup client environment");
+  tscDebug("start to cleanup client environment");
   if (atomic_val_compare_exchange_32(&sentinel, TSC_VAR_NOT_RELEASE, TSC_VAR_RELEASED) != TSC_VAR_NOT_RELEASE) {
     return;
   }
@@ -58,7 +58,10 @@ void taos_cleanup(void) {
   clientReqRefPool = -1;
   taosCloseRef(id);
 
-  cleanupTaskQueue();
+  hbMgrCleanUp();
+
+  catalogDestroy();
+  schedulerDestroy();
 
   fmFuncMgtDestroy();
   qCleanupKeywordsTable();
@@ -67,12 +70,11 @@ void taos_cleanup(void) {
   clientConnRefPool = -1;
   taosCloseRef(id);
 
-  hbMgrCleanUp();
-
-  catalogDestroy();
-  schedulerDestroy();
-
   rpcCleanup();
+  tscDebug("rpc cleanup");
+
+  cleanupTaskQueue();
+
   tscInfo("all local resources released");
   taosCleanupCfg();
   taosCloseLog();
@@ -686,8 +688,10 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
     tscDebug("0x%" PRIx64 " analysis semantics completed, start async query, reqId:0x%" PRIx64, pRequest->self,
              pRequest->requestId);
     launchAsyncQuery(pRequest, pQuery, pResultMeta);
+    qDestroyQuery(pQuery);
   } else {
     destorySqlParseWrapper(pWrapper);
+    qDestroyQuery(pQuery);
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
@@ -852,26 +856,23 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   }
 
   // all data has returned to App already, no need to try again
-  if (pResultInfo->completed && (pRequest->body.queryJob != 0)) {
-    pResultInfo->numOfRows = 0;
+  if (pResultInfo->completed) {
+    // it is a local executed query, no need to do async fetch
+    if (QUERY_EXEC_MODE_LOCAL == pRequest->body.execMode) {
+      ASSERT(pResultInfo->numOfRows >= 0);
+      if (pResultInfo->localResultFetched) {
+        pResultInfo->numOfRows = 0;
+        pResultInfo->current = 0;
+      } else {
+        pResultInfo->localResultFetched = true;
+      }
+    } else {
+      pResultInfo->numOfRows = 0;
+    }
+
     pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
     return;
   }
-
-  // it is a local executed query, no need to do async fetch
-  if (pRequest->body.queryJob == 0) {
-    ASSERT(pResultInfo->completed && pResultInfo->numOfRows >= 0);
-    if (pResultInfo->localResultFetched) {
-      pResultInfo->numOfRows = 0;
-      pResultInfo->current = 0;
-      pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
-    } else {
-      pResultInfo->localResultFetched = true;
-      pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
-    }
-    return;
-  }
-
 
   SSchedulerReq req = {
       .syncReq = false,
