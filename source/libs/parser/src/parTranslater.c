@@ -1177,6 +1177,29 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
                                  "%s is only supported in single table query", pFunc->functionName);
 }
 
+static bool isStar(SNode* pNode) {
+  return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]) &&
+         (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
+}
+
+static bool isTableStar(SNode* pNode) {
+  return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' != ((SColumnNode*)pNode)->tableAlias[0]) &&
+         (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
+}
+
+static int32_t translateMultiResFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  if (!fmIsMultiResFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (SQL_CLAUSE_SELECT != pCxt->currClause ) {
+    SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+    if (isStar(pPara) || isTableStar(pPara)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "%s(*) is only supported in SELECTed list", pFunc->functionName);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
 static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
   if (NULL != pCurrStmt && QUERY_NODE_SELECT_STMT == nodeType(pCurrStmt)) {
     SSelectStmt* pSelect = (SSelectStmt*)pCurrStmt;
@@ -1310,6 +1333,9 @@ static int32_t translateNoramlFunction(STranslateContext* pCxt, SFunctionNode* p
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateRepeatScanFunc(pCxt, pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateMultiResFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
     setFuncClassification(pCxt->pCurrStmt, pFunc);
@@ -1890,16 +1916,6 @@ static int32_t createTableAllCols(STranslateContext* pCxt, SColumnNode* pCol, bo
     code = createColumnsByTable(pCxt, pTable, igTags, *pOutput);
   }
   return code;
-}
-
-static bool isStar(SNode* pNode) {
-  return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]) &&
-         (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
-}
-
-static bool isTableStar(SNode* pNode) {
-  return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' != ((SColumnNode*)pNode)->tableAlias[0]) &&
-         (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
 }
 
 static int32_t createMultiResFuncsParas(STranslateContext* pCxt, SNodeList* pSrcParas, SNodeList** pOutput) {
