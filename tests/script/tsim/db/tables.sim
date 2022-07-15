@@ -1,12 +1,6 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
-system sh/cfg.sh -n dnode2 -c maxVgroupsPerDb -v 4
-system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
-
 system sh/exec.sh -n dnode1 -s start
-sleep 2000
 sql connect
 
 print =============== step2
@@ -14,7 +8,7 @@ sql create database db
 sql show databases
 print $rows $data07
 
-if $rows != 1 then 
+if $rows != 3 then 
   return -1
 endi
 
@@ -71,14 +65,13 @@ endi
 print =============== step6
 sql drop database db
 sql reset query cache
-sleep 4000
 
 print =============== step7
 sql create database db
 sql show databases
 print $rows $data07
 
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
 

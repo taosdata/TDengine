@@ -1,9 +1,5 @@
 system sh/stop_dnodes.sh
-
-system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
 system sh/deploy.sh -n dnode1 -i 1
-
-print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
@@ -20,8 +16,6 @@ while $i < 30
   sql create table $tb (ts timestamp, i int);
 
   sql insert into $tb values(now, 1);
-
-  sleep 1000
   sql drop database $db
 
   print times $i
@@ -30,9 +24,8 @@ while $i < 30
 endw 
 
 print ======== step2
-sleep 1000
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi 
 
@@ -73,7 +66,7 @@ while $i < 10
     sql insert into  $tb1 values(now, 1);
 
     $tb1 = $tb . 5
-    sql create table $tb1 using st tags(1)
+    sql_error create table $tb1 using st tags(1)
     sql insert into  $tb1 values(now, 1);
 
     $tb1 = $tb . 6
@@ -88,7 +81,6 @@ while $i < 10
     sql create table $tb1 using st tags(1)
     sql insert into  $tb1 values(now, 1);
 
-  sleep 1000
   sql drop database $db
 
   print times $i
@@ -97,9 +89,8 @@ while $i < 10
 endw
 
 print ======== step2
-sleep 1000
 sql show databases
-if $rows != 0 then
+if $rows != 2 then
   return -1
 endi
 
