@@ -363,8 +363,7 @@ void taos_init_imp(void) {
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   catalogInit(&cfg);
 
-  SSchedulerCfg scfg = {.maxJobNum = 100};
-  schedulerInit(&scfg);
+  schedulerInit();
   tscDebug("starting to initialize TAOS driver");
 
   taosSetCoreDump(true);

@@ -39,7 +39,7 @@ static void EnvCleanup() {}
 class FstWriter {
  public:
   FstWriter() {
-    _wc = idxFileCtxCreate(TFile, tindex, false, 64 * 1024 * 1024);
+    _wc = idxFileCtxCreate(TFILE, tindex, false, 64 * 1024 * 1024);
     _b = fstBuilderCreate(_wc, 0);
   }
   bool Put(const std::string& key, uint64_t val) {
@@ -54,7 +54,6 @@ class FstWriter {
     return ok;
   }
   ~FstWriter() {
-    fstBuilderFinish(_b);
     fstBuilderDestroy(_b);
 
     idxFileCtxDestroy(_wc, false);
@@ -68,7 +67,7 @@ class FstWriter {
 class FstReadMemory {
  public:
   FstReadMemory(size_t size) {
-    _wc = idxFileCtxCreate(TFile, tindex, true, 64 * 1024);
+    _wc = idxFileCtxCreate(TFILE, tindex, true, 64 * 1024);
     _w = idxFileCreate(_wc);
     _size = size;
     memset((void*)&_s, 0, sizeof(_s));
