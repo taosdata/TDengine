@@ -3,6 +3,9 @@ from taostest import TDCase, T
 
 class Telegraf(TDCase):
 
+    def init(self):
+        pass
+
     def run(self):
         # test run
         self.logger.info("aaa")
