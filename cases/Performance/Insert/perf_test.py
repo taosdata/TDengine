@@ -145,6 +145,7 @@ class TestPerf(TDCase):
         if result.failed:
             # self.logger.error(str(result))
             self.logger.error("cmd [{}] failed on [{}]".format(cmd, node))
+            self.logger.error("cmd [{}] exit code: [{}]".format(cmd, result.exited))
             self.ret = False
         else:
             self.logger.info("cmd [{}] succeed on [{}]".format(cmd, node))
