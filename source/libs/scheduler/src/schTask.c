@@ -42,32 +42,47 @@ void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
     taosHashCleanup(pTask->execNodes);
   }
 
-  taosMemoryFree(pTask->profile.execTime);
+  taosArrayDestroy(pTask->profile.execTime);
 }
 
-int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel, int32_t levelNum) {
+void schInitTaskRetryTimes(SSchJob *pJob, SSchTask *pTask, SSchLevel *pLevel) {
+  if (SCH_IS_DATA_BIND_TASK(pTask) || (!SCH_IS_QUERY_JOB(pJob)) || (SCH_ALL != schMgmt.cfg.schPolicy)) {
+    pTask->maxRetryTimes = SCH_MAX_CANDIDATE_EP_NUM;
+  } else {
+    int32_t nodeNum = taosArrayGetSize(pJob->nodeList);
+    pTask->maxRetryTimes = TMAX(nodeNum, SCH_MAX_CANDIDATE_EP_NUM);
+  }
+  
+  pTask->maxExecTimes = pTask->maxRetryTimes * (pLevel->level + 1);
+}
+
+int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel) {
   int32_t code = 0;
 
   pTask->plan = pPlan;
   pTask->level = pLevel;
   pTask->execId = -1;
-  pTask->maxExecTimes = SCH_TASK_MAX_EXEC_TIMES(pLevel->level, levelNum);
   pTask->timeoutUsec = SCH_DEFAULT_TASK_TIMEOUT_USEC;
   pTask->taskId = schGenTaskId();
   pTask->execNodes =
       taosHashInit(SCH_MAX_CANDIDATE_EP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
-  pTask->profile.execTime = taosMemoryCalloc(pTask->maxExecTimes, sizeof(int64_t));
+
+  schInitTaskRetryTimes(pJob, pTask, pLevel);
+
+  pTask->profile.execTime = taosArrayInit(pTask->maxExecTimes, sizeof(int64_t));
   if (NULL == pTask->execNodes || NULL == pTask->profile.execTime) {
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
 
+  SCH_TASK_DLOG("task initialized, max times %d:%d", pTask->maxRetryTimes, pTask->maxExecTimes);
+
   return TSDB_CODE_SUCCESS;
 
 _return:
 
-  taosMemoryFreeClear(pTask->profile.execTime);
+  taosArrayDestroy(pTask->profile.execTime);
   taosHashCleanup(pTask->execNodes);
 
   SCH_RET(code);
@@ -105,7 +120,7 @@ int32_t schDropTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int32_
   }
 
   if (taosHashRemove(pTask->execNodes, &execId, sizeof(execId))) {
-    SCH_TASK_ELOG("fail to remove execId %d from execNodeList", execId);
+    SCH_TASK_DLOG("execId %d already not in execNodeList", execId);
   } else {
     SCH_TASK_DLOG("execId %d removed from execNodeList", execId);
   }
@@ -235,7 +250,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
       }
 
       if (pTask->level->taskFailed > 0) {
-        SCH_RET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_FAIL, NULL));
+        SCH_RET(schHandleJobFailure(pJob, pJob->errCode));
       } else {
         SCH_RET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_PART_SUCC, NULL));
       }
@@ -285,6 +300,10 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 }
 
 int32_t schRescheduleTask(SSchJob *pJob, SSchTask *pTask) {
+  if (!schMgmt.cfg.enableReSchedule) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
   if (SCH_IS_DATA_BIND_TASK(pTask)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -304,13 +323,17 @@ int32_t schRescheduleTask(SSchJob *pJob, SSchTask *pTask) {
 int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32_t rspCode) {
   int32_t code = 0;
 
-  if ((pTask->execId + 1) >= pTask->maxExecTimes) {
-    SCH_TASK_DLOG("task no more retry since reach max try times, execId:%d", pTask->execId);
-    schSwitchJobStatus(pJob, JOB_TASK_STATUS_FAIL, (void *)&rspCode);
-    return TSDB_CODE_SUCCESS;
+  SCH_TASK_DLOG("task will be redirected now, status:%s", SCH_GET_TASK_STATUS_STR(pTask));
+
+  if (NULL == pData) {
+    pTask->retryTimes = 0;
   }
 
-  SCH_TASK_DLOG("task will be redirected now, status:%s", SCH_GET_TASK_STATUS_STR(pTask));
+  if (((pTask->execId + 1) >= pTask->maxExecTimes) || ((pTask->retryTimes + 1) > pTask->maxRetryTimes)) {
+    SCH_TASK_DLOG("task no more retry since reach max times %d:%d, execId %d", pTask->maxRetryTimes, pTask->maxExecTimes, pTask->execId);
+    schHandleJobFailure(pJob, rspCode);
+    return TSDB_CODE_SUCCESS;
+  }
 
   schDropTaskOnExecNode(pJob, pTask);
   taosHashClear(pTask->execNodes);
@@ -493,9 +516,15 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
     }
   }
 
+  if ((pTask->retryTimes + 1) > pTask->maxRetryTimes) {
+    *needRetry = false;
+    SCH_TASK_DLOG("task no more retry since reach max retry times, retryTimes:%d/%d", pTask->retryTimes, pTask->maxRetryTimes);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if ((pTask->execId + 1) >= pTask->maxExecTimes) {
     *needRetry = false;
-    SCH_TASK_DLOG("task no more retry since reach max try times, execId:%d", pTask->execId);
+    SCH_TASK_DLOG("task no more retry since reach max exec times, execId:%d/%d", pTask->execId, pTask->maxExecTimes);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -649,10 +678,31 @@ int32_t schUpdateTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSe
 
 int32_t schSwitchTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask) {
   int32_t candidateNum = taosArrayGetSize(pTask->candidateAddrs);
-  if (++pTask->candidateIdx >= candidateNum) {
-    pTask->candidateIdx = 0;
+  if (candidateNum <= 1) {
+    goto _return;
   }
-  SCH_TASK_DLOG("switch task candiateIdx to %d", pTask->candidateIdx);
+  
+  switch (schMgmt.cfg.schPolicy) {
+    case SCH_LOAD_SEQ:
+    case SCH_ALL: 
+    default:
+      if (++pTask->candidateIdx >= candidateNum) {
+        pTask->candidateIdx = 0;
+      }
+      break;
+    case SCH_RANDOM: {
+      int32_t lastIdx = pTask->candidateIdx;
+      while (lastIdx == pTask->candidateIdx) {
+        pTask->candidateIdx = taosRand() % candidateNum;
+      }
+      break;
+    }
+  }
+
+_return:
+
+  SCH_TASK_DLOG("switch task candiateIdx to %d/%d", pTask->candidateIdx, candidateNum);
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -739,8 +789,9 @@ int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
 
   atomic_add_fetch_32(&pTask->level->taskLaunchedNum, 1);
   pTask->execId++;
+  pTask->retryTimes++;
 
-  SCH_TASK_DLOG("start to launch task's %dth exec", pTask->execId);
+  SCH_TASK_DLOG("start to launch task, execId %d, retry %d", pTask->execId, pTask->retryTimes);
 
   SCH_LOG_TASK_START_TS(pTask);
 

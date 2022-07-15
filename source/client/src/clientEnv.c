@@ -320,6 +320,10 @@ void doDestroyRequest(void *p) {
     deregisterRequest(pRequest);
   }
 
+  if (pRequest->syncQuery) {
+    taosMemoryFree(pRequest->body.param);
+  }
+
   taosMemoryFree(pRequest);
   tscTrace("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
 }
@@ -359,8 +363,7 @@ void taos_init_imp(void) {
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   catalogInit(&cfg);
 
-  SSchedulerCfg scfg = {.maxJobNum = 100};
-  schedulerInit(&scfg);
+  schedulerInit();
   tscDebug("starting to initialize TAOS driver");
 
   taosSetCoreDump(true);

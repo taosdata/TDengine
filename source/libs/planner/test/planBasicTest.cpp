@@ -98,6 +98,24 @@ TEST_F(PlanBasicTest, interpFunc) {
 }
 
 TEST_F(PlanBasicTest, lastRowFunc) {
+  useDb("root", "cache_db");
+
+  run("SELECT LAST_ROW(c1) FROM t1");
+
+  run("SELECT LAST_ROW(*) FROM t1");
+
+  run("SELECT LAST_ROW(c1, c2) FROM t1");
+
+  run("SELECT LAST_ROW(c1), c2 FROM t1");
+
+  run("SELECT LAST_ROW(c1) FROM st1");
+
+  run("SELECT LAST_ROW(c1) FROM st1 PARTITION BY TBNAME");
+
+  run("SELECT LAST_ROW(c1), SUM(c3) FROM t1");
+}
+
+TEST_F(PlanBasicTest, lastRowFuncWithoutCache) {
   useDb("root", "test");
 
   run("SELECT LAST_ROW(c1) FROM t1");
@@ -105,6 +123,8 @@ TEST_F(PlanBasicTest, lastRowFunc) {
   run("SELECT LAST_ROW(*) FROM t1");
 
   run("SELECT LAST_ROW(c1, c2) FROM t1");
+
+  run("SELECT LAST_ROW(c1), c2 FROM t1");
 
   run("SELECT LAST_ROW(c1) FROM st1");
 

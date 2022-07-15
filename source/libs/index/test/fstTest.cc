@@ -19,7 +19,7 @@ class FstWriter {
  public:
   FstWriter() {
     taosRemoveFile(fileName.c_str());
-    _wc = idxFileCtxCreate(TFile, fileName.c_str(), false, 64 * 1024 * 1024);
+    _wc = idxFileCtxCreate(TFILE, fileName.c_str(), false, 64 * 1024 * 1024);
     _b = fstBuilderCreate(_wc, 0);
   }
   bool Put(const std::string& key, uint64_t val) {
@@ -34,7 +34,7 @@ class FstWriter {
     return ok;
   }
   ~FstWriter() {
-    fstBuilderFinish(_b);
+    // fstBuilderFinish(_b);
     fstBuilderDestroy(_b);
 
     idxFileCtxDestroy(_wc, false);
@@ -48,7 +48,7 @@ class FstWriter {
 class FstReadMemory {
  public:
   FstReadMemory(int32_t size, const std::string& fileName = TD_TMP_DIR_PATH "tindex.tindex") {
-    _wc = idxFileCtxCreate(TFile, fileName.c_str(), true, 64 * 1024);
+    _wc = idxFileCtxCreate(TFILE, fileName.c_str(), true, 64 * 1024);
     _w = idxFileCreate(_wc);
     _size = size;
     memset((void*)&_s, 0, sizeof(_s));
@@ -598,7 +598,9 @@ void fst_get(Fst* fst) {
 void validateTFile(char* arg) {
   std::thread threads[NUM_OF_THREAD];
   // std::vector<std::thread> threads;
-  TFileReader* reader = tfileReaderOpen(arg, 0, 20000000, "tag1");
+  SIndex* index = (SIndex*)taosMemoryCalloc(1, sizeof(SIndex));
+  index->path = strdup(arg);
+  TFileReader* reader = tfileReaderOpen(index, 0, 20000000, "tag1");
 
   for (int i = 0; i < NUM_OF_THREAD; i++) {
     threads[i] = std::thread(fst_get, reader->fst);
@@ -617,7 +619,7 @@ void iterTFileReader(char* path, char* uid, char* colName, char* ver) {
   uint64_t suid = atoi(uid);
   int      version = atoi(ver);
 
-  TFileReader* reader = tfileReaderOpen(path, suid, version, colName);
+  TFileReader* reader = tfileReaderOpen(NULL, suid, version, colName);
 
   Iterate* iter = tfileIteratorCreate(reader);
   bool     tn = iter ? iter->next(iter) : false;
