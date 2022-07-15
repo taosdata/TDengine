@@ -1985,7 +1985,8 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || !(((SAggLogicNode*)pNode)->hasLastRow) ||
       NULL != ((SAggLogicNode*)pNode)->pGroupKeys || 1 != LIST_LENGTH(pNode->pChildren) ||
       QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0)) ||
-      NULL != ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->node.pConditions) {
+      NULL != ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->node.pConditions ||
+      0 == ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->cacheLastMode) {
     return false;
   }
 
