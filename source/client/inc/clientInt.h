@@ -314,6 +314,11 @@ int taos_options_imp(TSDB_OPTION option, const char* str);
 
 void* openTransporter(const char* user, const char* auth, int32_t numOfThreads);
 
+typedef struct AsyncArg {
+  SRpcMsg msg;
+  SEpSet* pEpset;
+} AsyncArg;
+
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType);
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 

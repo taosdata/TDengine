@@ -31,7 +31,7 @@ typedef struct SIFParam {
   SHashObj *pFilter;
 
   SArray *result;
-  char *  condValue;
+  char   *condValue;
 
   SIdxFltStatus status;
   uint8_t       colValType;
@@ -45,7 +45,7 @@ typedef struct SIFParam {
 
 typedef struct SIFCtx {
   int32_t       code;
-  SHashObj *    pRes;    /* element is SIFParam */
+  SHashObj     *pRes;    /* element is SIFParam */
   bool          noExec;  // true: just iterate condition tree, and add hint to executor plan
   SIndexMetaArg arg;
   // SIdxFltStatus st;
@@ -137,7 +137,7 @@ static int32_t sifGetValueFromNode(SNode *node, char **value) {
   // covert data From snode;
   SValueNode *vn = (SValueNode *)node;
 
-  char *     pData = nodesGetValueFromNode(vn);
+  char      *pData = nodesGetValueFromNode(vn);
   SDataType *pType = &vn->node.resType;
   int32_t    type = pType->type;
   int32_t    valLen = 0;
@@ -175,7 +175,7 @@ static int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   SOperatorNode *nd = (SOperatorNode *)node;
   assert(nodeType(node) == QUERY_NODE_OPERATOR);
   SColumnNode *l = (SColumnNode *)nd->pLeft;
-  SValueNode * r = (SValueNode *)nd->pRight;
+  SValueNode  *r = (SValueNode *)nd->pRight;
 
   param->colId = l->colId;
   param->colValType = l->node.resType.type;
@@ -357,7 +357,7 @@ static Filter sifGetFilterFunc(EIndexQueryType type, bool *reverse) {
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
   int ret = 0;
 
-  SIndexMetaArg * arg = &output->arg;
+  SIndexMetaArg  *arg = &output->arg;
   EIndexQueryType qtype = 0;
   SIF_ERR_RET(sifGetFuncFromSql(operType, &qtype));
   if (left->colValType == TSDB_DATA_TYPE_JSON) {
@@ -749,7 +749,7 @@ int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, 
 
   SFilterInfo *filter = NULL;
 
-  SArray * output = taosArrayInit(8, sizeof(uint64_t));
+  SArray  *output = taosArrayInit(8, sizeof(uint64_t));
   SIFParam param = {.arg = *metaArg, .result = output};
   SIF_ERR_RET(sifCalculate((SNode *)pFilterNode, &param));
 
