@@ -54,6 +54,8 @@ header = """
 #define TSDB_DATA_TYPE_BINARY     TSDB_DATA_TYPE_VARCHAR  // string
 #define TSDB_DATA_TYPE_MAX        20
 
+#endif
+
 /**
  * Websocket errors defnitions.
  *
@@ -65,7 +67,6 @@ header = """
 #define TSDB_CODE_WS_SEND_TIMEOUT     0xE003
 #define TSDB_CODE_WS_RECV_TIMEOUT     0xE004
 
-#endif
 """
 
 trailer = """

@@ -184,6 +184,7 @@ impl RawTaos {
 #[derive(Debug)]
 pub struct RawRes {
     ptr: *mut TAOS_RES,
+    msg_type: tmq_res_t,
     fields: OnceCell<Vec<Field>>,
 }
 
@@ -263,9 +264,10 @@ impl RawRes {
     }
 
     #[inline]
-    pub const unsafe fn from_ptr_unchecked(ptr: *mut TAOS_RES) -> RawRes {
+    pub unsafe fn from_ptr_unchecked(ptr: *mut TAOS_RES) -> RawRes {
         RawRes {
             ptr,
+            msg_type: tmq_get_res_type(ptr),
             fields: OnceCell::new(),
         }
     }
@@ -291,14 +293,14 @@ impl RawRes {
     #[inline]
     pub fn fields<'any>(&self) -> &[Field] {
         let fields = self.fields.get_or_init(|| {
-            let len = unsafe { taos_num_fields(self.as_ptr()) };
+            let len = unsafe { taos_field_count(self.as_ptr()) };
             from_raw_fields(unsafe { taos_fetch_fields(self.as_ptr()) }, len as usize)
         });
         &fields
     }
 
     pub fn fetch_fields(&self) -> Vec<Field> {
-        let len = unsafe { taos_num_fields(self.as_ptr()) };
+        let len = unsafe { taos_field_count(self.as_ptr()) };
         from_raw_fields(unsafe { taos_fetch_fields(self.as_ptr()) }, len as usize)
     }
 
@@ -330,14 +332,11 @@ impl RawRes {
     }
 
     #[inline]
-    pub fn fetch_raw_block(&self) -> Result<(*mut u8, u32), Error> {
-        let block = Box::into_raw(Box::new(std::ptr::null_mut()));
-        let mut num = 0;
-        err_or!(
-            self,
-            taos_fetch_raw_block(self.as_ptr(), &mut num as _, block),
-            (*block as _, num as _)
-        )
+    pub fn fetch_raw_block(&self) -> Result<Option<Raw>, Error> {
+        #[cfg(taos_v3)]
+        return self.fetch_raw_block_v3();
+        #[cfg(not(taos_v3))]
+        self.fetch_raw_block_v2()
     }
 
     #[inline]
@@ -348,14 +347,41 @@ impl RawRes {
             self,
             taos_fetch_raw_block(self.as_ptr(), &mut num as _, &mut block as _),
             if num > 0 {
-                let mut raw = Raw::parse_from_ptr(
-                    block as _,
-                    num as usize,
-                    self.num_fields(),
-                    self.precision(),
-                );
-                raw.with_fields(self.fields().to_vec());
-                Some(raw)
+                match self.msg_type {
+                    tmq_res_t::TMQ_RES_INVALID => {
+                        let mut raw = Raw::parse_from_ptr(
+                            block as _,
+                            num as usize,
+                            self.num_fields(),
+                            self.precision(),
+                        );
+                        raw.with_fields(self.fields().to_vec());
+                        Some(raw)
+                    }
+                    tmq_res_t::TMQ_RES_DATA => {
+                        let fields = self.fetch_fields();
+
+                        let mut raw = Raw::parse_from_ptr(
+                            block as _,
+                            num as usize,
+                            fields.len(),
+                            self.precision(),
+                        );
+
+                        raw.with_fields(fields);
+
+                        if let Some(name) = self.tmq_db_name() {
+                            raw.with_database_name(name);
+                        }
+
+                        if let Some(name) = self.tmq_table_name() {
+                            raw.with_table_name(name);
+                        }
+
+                        Some(raw)
+                    }
+                    _ => None,
+                }
             } else {
                 None
             }
@@ -481,7 +507,7 @@ impl RawRes {
         }
     }
     #[inline]
-    pub fn tmq_db_name(&self) -> Option<&str> {
+    fn tmq_db_name(&self) -> Option<&str> {
         unsafe {
             let c = tmq_get_db_name(self.as_ptr());
             if c.is_null() {
@@ -491,7 +517,23 @@ impl RawRes {
             }
         }
     }
+
+    #[inline]
+    fn message_type(&self) -> Result<MessageType, Error> {
+        unsafe {
+            let t = tmq_get_res_type(self.as_ptr());
+            match t {
+                tmq_res_t::TMQ_RES_INVALID => Err(Error::new(Code::Failed, "unknown message type")),
+                tmq_res_t::TMQ_RES_DATA => Ok(MessageType::Schema),
+                tmq_res_t::TMQ_RES_TABLE_META => Ok(MessageType::Data),
+            }
+        }
+    }
 }
 
+pub enum MessageType {
+    Schema,
+    Data,
+}
 pub mod into_c_str;
 pub mod stmt;

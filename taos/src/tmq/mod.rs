@@ -298,9 +298,13 @@ mod test {
         println!("connect taos in a spawned thread");
         let taos = Taos::new((), "root", "taosdata", database, 0)?;
         println!("start to insert 10 rows");
+        let now = chrono::Local::now();
         for i in 0..max_inserts {
             use crate::prelude::sync::*;
-            taos.exec(&format!("insert into tu1 values (now, {i})"))?;
+            taos.exec(&format!(
+                "insert into tu1 values ('{}', {i})",
+                (now + chrono::Duration::seconds(i as _)).to_rfc3339(),
+            ))?;
             println!("- {i} rows inserted");
         }
         drop(taos);
@@ -382,7 +386,7 @@ mod test {
 
     /// Consume from one database and write to another.
     // #[crate::test(log_level = "trace")]
-    #[crate::test(log_level = "trace", naming = "tmq1", dropping = "none")]
+    #[crate::test(log_level = "info", naming = "tmq1", dropping = "none")]
     async fn tmq_stream(taos: &Taos, database: &str) -> Result<()> {
         let version = crate::client_info();
         println!("version: {}", version);
@@ -422,17 +426,19 @@ mod test {
             "create table if not exists db2.tu2 using db2.st1 tags(2)",
         ])?;
         let unfold = futures::sink::unfold(0, |mut sum, mut rs: ResultSet| async move {
-            for block in rs.blocks_iter() {
-                let bind: Vec<TaosMultiBind> = block.columns_iter().map(|col| col.into()).collect();
+            use taos_query::AsyncFetchable;
+            for block in rs.block_stream().next().await {
+                let bind: Vec<TaosMultiBind> =
+                    block.columns_iter().map(|col| dbg!(col).into()).collect();
                 let table = block.tmq_table_name().unwrap();
                 let mut stmt = taos.stmt(format!("insert into db2.{table} values(?,?)"))?;
-                stmt.multi_bind(&bind)?;
-                stmt.execute()?;
+                stmt.multi_bind(&bind).unwrap();
+                stmt.execute().unwrap();
                 let inserted = stmt.affected_rows();
                 log::info!("inserted {inserted} rows");
             }
-            let (blocks, rows) = rs.summary();
-            assert!(blocks == 1, "tmq response blocks always should be 1");
+            let (blocks, rows) = taos_query::AsyncFetchable::summary(&rs);
+            assert_eq!(blocks, 1, "tmq response blocks always should be 1");
             sum += rows;
             eprintln!("total: {sum}, rows in block = {rows}");
             Ok::<_, crate::Error>(sum)
@@ -440,12 +446,12 @@ mod test {
         futures::pin_mut!(unfold);
         use futures::prelude::*;
         consumer.forward(unfold).await?;
-        // tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(1000)).await;
         taos.exec("reset query cache").unwrap();
 
         let db2_rows: usize = taos.query_one("select count(*) from db2.tu1")?.unwrap_or(0);
         drop_topic(&taos, &topic)?;
-        taos.exec("drop database db2")?;
+        // taos.exec("drop database db2")?;
         if db2_rows != MAX_INSERTS {
             anyhow::bail!(
                 "inserted rows not match: inserted {MAX_INSERTS}, select count is {db2_rows}"

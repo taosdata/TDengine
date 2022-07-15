@@ -215,9 +215,9 @@ pub fn sync_table_with_transformer(
             },
         );
 
-        let names = names.join(",");
+        let names = names.iter().map(|name| format!("last(`{name}`) as `{name}`")).join(",");
         let children: Vec<Vec<Value>> = from
-            .query(format!("select tbname,{names} from {stable}"))?
+            .query(format!("select tbname,{names} from {stable} group by tbname"))?
             .deserialize()
             .try_collect()?;
 

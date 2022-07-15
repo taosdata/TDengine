@@ -13,7 +13,7 @@ use taos_sys::*;
 
 pub use taos_query::common::*;
 
-use crate::impls::SyncBlock;
+// use crate::impls::SyncBlock;
 
 #[derive(Debug)]
 pub struct BlockStream {
@@ -66,14 +66,14 @@ impl Stream for BlockStream {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        // todo(3.0): remove these line to use taos_query_a in async/await impl.
-        if crate::client_info().starts_with("3") {
-            return self
-                .block
-                .poll_next_unpin(cx)
-                .map(|res| res.and_then(|res| res.ok()));
-        }
-        todo!("v2 to be implemented")
+        self.block.poll_next_unpin(cx).map(|res| {
+            res.and_then(|res| {
+                res.ok().map(|raw| {
+                    self.append_num_of_rows(raw.nrows() as _);
+                    raw
+                })
+            })
+        })
 
         // let mut s = self.state.lock().unwrap();
         // unsafe extern "C" fn async_fetch_callback(

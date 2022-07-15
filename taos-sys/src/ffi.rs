@@ -141,8 +141,6 @@ extern "C" {
 
     pub fn taos_field_count(res: *mut TAOS_RES) -> c_int;
 
-    pub fn taos_num_fields(res: *mut TAOS_RES) -> c_int;
-
     pub fn taos_affected_rows(res: *mut TAOS_RES) -> c_int;
 
     pub fn taos_fetch_fields(res: *mut TAOS_RES) -> *mut TAOS_FIELD;

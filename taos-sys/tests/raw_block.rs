@@ -14,11 +14,8 @@ fn raw_block() -> Result<(), taos_error::Error> {
         0,
     )?;
     let rs = taos.query("show databases")?;
-    let fields = rs.fields();
-    let precision = rs.precision();
     let field_count = rs.field_count();
-    let (ptr, rows) = rs.fetch_raw_block()?;
-    let inner = unsafe { Raw::parse_from_ptr(ptr as _, rows as _, field_count as _, precision) };
+    let inner = rs.fetch_raw_block()?.unwrap();
 
     // let inner = unsafe { Raw::from_ptr(ptr, rows as _, field_count as _, precision) };
     let gid = inner.group_id();
@@ -27,7 +24,7 @@ fn raw_block() -> Result<(), taos_error::Error> {
     dbg!(inner.schemas());
 
     dbg!(unsafe { inner.get_ref_unchecked(0, field_count as usize - 1) });
-    for row in 0..dbg!(rows) as usize {
+    for row in 0..dbg!(inner.nrows()) as usize {
         for col in 0..field_count as usize {
             println!("({row}, {col}): ");
             let v = unsafe { inner.get_ref_unchecked(row, col) };
@@ -39,8 +36,8 @@ fn raw_block() -> Result<(), taos_error::Error> {
 
 // #[tokio::test]
 
-#[test]
-fn raw_block_async() -> Result<(), taos_error::Error> {
+#[tokio::test]
+async fn raw_block_async() -> Result<(), taos_error::Error> {
     use taos_sys::*;
     let taos = RawTaos::connect(
         std::ptr::null(),
@@ -50,7 +47,7 @@ fn raw_block_async() -> Result<(), taos_error::Error> {
         0,
     )?;
     let rs = taos.query("show databases")?;
-    if let Some(inner) = futures::executor::block_on(rs.fetch_raw_block_async().try_next())? {
+    if let Some(inner) = rs.fetch_raw_block_async().try_next().await? {
         // let inner = unsafe { Raw::from_ptr(ptr, rows as _, field_count as _, precision) };
         let gid = inner.group_id();
         println!("group id: {gid}");
@@ -101,15 +98,7 @@ fn raw_block_full_test() -> Result<(), taos_error::Error> {
     let fields = rs.fields();
     let precision = rs.precision();
     let field_count = rs.field_count();
-    let (ptr, rows) = rs.fetch_raw_block()?;
-    let mut len_bytes = [0u8; 4];
-    for i in 0..4 {
-        len_bytes[i] = unsafe { ptr.offset(i as isize).read() };
-    }
-    let len = u32::from_le_bytes(len_bytes);
-    let raw = dbg!(unsafe { slice::from_raw_parts(ptr, len as _) });
-
-    let inner = unsafe { Raw::parse_from_ptr(ptr as _, rows as _, field_count as _, precision) };
+    let inner = rs.fetch_raw_block()?.unwrap();
     let gid = inner.group_id();
     println!("group id: {gid}");
 
@@ -135,7 +124,7 @@ fn raw_block_full_test() -> Result<(), taos_error::Error> {
         println!("{field:?}, {col:#x?}");
     }
     dbg!(unsafe { inner.get_ref_unchecked(0, field_count as usize - 1) });
-    for row in 0..dbg!(rows) as usize {
+    for row in 0..dbg!(inner.nrows()) as usize {
         for col in 0..field_count as usize {
             println!("({row}, {col}): ");
             let v = unsafe { inner.get_ref_unchecked(row, col) };

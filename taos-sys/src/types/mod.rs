@@ -13,7 +13,7 @@ use derive_more::Deref;
 pub use field::*;
 pub use taos_query::common::{Precision, Ty};
 
-use taos_query::common::{itypes::*, BorrowedColumn, Column, Timestamp};
+use taos_query::common::{itypes::*, BorrowedColumn, Column, ColumnView, Timestamp};
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -452,11 +452,22 @@ impl TaosMultiBind {
             .iter()
             .map(|f| {
                 f.as_ref()
-                    .map(|s| dbg!(s.as_ref().to_string()).into_bytes())
+                    .map(|s| dbg!(s.as_ref().as_bytes()))
             })
             .collect();
         let mut s = Self::from_binary_vec(&values);
         s.buffer_type = Ty::NChar as _;
+        s
+    }
+
+
+    pub(crate) fn from_json(values: &[Option<impl AsRef<str>>]) -> Self {
+        let values: Vec<_> = values
+            .iter()
+            .map(|f| f.as_ref().map(|s| s.as_ref().as_bytes()))
+            .collect();
+        let mut s = Self::from_binary_vec(&values);
+        s.buffer_type = Ty::Json as _;
         s
     }
 
@@ -553,6 +564,82 @@ impl<'b> From<BorrowedColumn<'b>> for TaosMultiBind {
     }
 }
 
+impl<'b> From<&'b ColumnView> for TaosMultiBind {
+    fn from(view: &'b ColumnView) -> Self {
+        use ColumnView::*;
+        match view {
+            Bool(view) => {
+                let nulls: Vec<_> = view.is_null_iter().collect();
+                let values = view.as_raw_slice();
+                TaosMultiBind::from_primitives(nulls, values)
+            }
+            TinyInt(view) => {
+                let nulls: Vec<_> = view.is_null_iter().collect();
+                let values = view.as_raw_slice();
+                TaosMultiBind::from_primitives(nulls, values)
+            }
+            SmallInt(view) => {
+                let nulls: Vec<_> = view.is_null_iter().collect();
+                let values = view.as_raw_slice();
+                TaosMultiBind::from_primitives(nulls, values)
+            }
+            Int(view) => {
+                let nulls: Vec<_> = view.is_null_iter().collect();
+                let values = view.as_raw_slice();
+                TaosMultiBind::from_primitives(nulls, values)
+            }
+            BigInt(view) => {
+                let nulls: Vec<_> = view.is_null_iter().collect();
+                let values = view.as_raw_slice();
+                TaosMultiBind::from_primitives(nulls, values)
+            }
+            Float(view) => {
+                let nulls: Vec<_> = view.is_null_iter().collect();
+                let values = view.as_raw_slice();
+                TaosMultiBind::from_primitives(nulls, values)
+            }
+            Double(view) => {
+                let nulls: Vec<_> = view.is_null_iter().collect();
+                let values = view.as_raw_slice();
+                TaosMultiBind::from_primitives(nulls, values)
+            }
+            VarChar(view) => {
+                TaosMultiBind::from_binary_vec(&view.to_vec())
+            }
+            Timestamp(view) => {
+                let nulls: Vec<_> = view.is_null_iter().collect();
+                let values = view.as_raw_slice();
+                TaosMultiBind::from_raw_timestamps(nulls, values)
+            }
+            NChar(view) => {
+                TaosMultiBind::from_string_vec(&view.to_vec())
+            }
+            UTinyInt(view) => {
+                let nulls: Vec<_> = view.is_null_iter().collect();
+                let values = view.as_raw_slice();
+                TaosMultiBind::from_primitives(nulls, values)
+            }
+            USmallInt(view) => {
+                let nulls: Vec<_> = view.is_null_iter().collect();
+                let values = view.as_raw_slice();
+                TaosMultiBind::from_primitives(nulls, values)
+            }
+            UInt(view) => {
+                let nulls: Vec<_> = view.is_null_iter().collect();
+                let values = view.as_raw_slice();
+                TaosMultiBind::from_primitives(nulls, values)
+            }
+            UBigInt(view) => {
+                let nulls: Vec<_> = view.is_null_iter().collect();
+                let values = view.as_raw_slice();
+                TaosMultiBind::from_primitives(nulls, values)
+            }
+            Json(view) => {
+                TaosMultiBind::from_json(&view.to_vec())
+            }
+        }
+    }
+}
 // impl<'b, 'c> From<&'c BorrowedColumn<'b>> for MultiBind<'c> {
 //     fn from(col: &'c BorrowedColumn<'b>) -> Self {
 //         match col {

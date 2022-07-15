@@ -8,7 +8,7 @@ use crate::{
 
 use bytes::Bytes;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct JsonView {
     // version: Version,
     pub offsets: Offsets,

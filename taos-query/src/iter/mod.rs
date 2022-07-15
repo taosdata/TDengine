@@ -157,7 +157,7 @@ impl<'b, T> Iterator for ColsIter<'b, T>
 where
     T: BlockExt,
 {
-    type Item = BorrowedColumn<'b>;
+    type Item = &'b ColumnView;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.col >= self.block.field_count() {

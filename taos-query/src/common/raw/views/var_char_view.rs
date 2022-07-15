@@ -8,7 +8,7 @@ use crate::{
 
 use bytes::Bytes;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VarCharView {
     // version: Version,
     pub offsets: Offsets,
@@ -18,6 +18,19 @@ pub struct VarCharView {
 impl VarCharView {
     pub fn len(&self) -> usize {
         self.offsets.len()
+    }
+
+    /// A iterator only decide if the value at some row index is NULL or not.
+    pub fn is_null_iter(&self) -> VarCharNullsIter {
+        VarCharNullsIter {
+            view: &self,
+            row: 0,
+        }
+    }
+
+    /// Build a nulls vector.
+    pub fn to_nulls_vec(&self) -> Vec<bool> {
+        self.is_null_iter().collect()
     }
 
     /// Check if the value at `row` index is NULL or not.
@@ -85,5 +98,36 @@ impl<'a> Iterator for VarCharIter<'a> {
         } else {
             None
         }
+    }
+}
+
+impl<'a> ExactSizeIterator for VarCharIter<'a> {
+    fn len(&self) -> usize {
+        self.view.len() - self.row
+    }
+}
+
+pub struct VarCharNullsIter<'a> {
+    view: &'a VarCharView,
+    row: usize,
+}
+
+impl<'a> Iterator for VarCharNullsIter<'a> {
+    type Item = bool;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.row <= self.view.len() {
+            let row = self.row;
+            self.row += 1;
+            Some(unsafe { self.view.is_null_unchecked(row) })
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a> ExactSizeIterator for VarCharNullsIter<'a> {
+    fn len(&self) -> usize {
+        self.view.len() - self.row
     }
 }

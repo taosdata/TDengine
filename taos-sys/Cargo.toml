@@ -28,6 +28,7 @@ dotenv = "0.15.0"
 libloading = "0.7.3"
 
 [dev-dependencies]
+tokio = { version = "1", features = ["full"] }
 
 [features]
 default = ["backport"]

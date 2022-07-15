@@ -43,11 +43,12 @@ pub async fn sync_schema(from: &Taos, to: &Taos) -> Result<(), Error> {
         let table_name = &table.table_name;
         if let Some(stable) = table.stable_name {
             let fields = &stable_fields[&stable];
-            let tags = fields.tag_names().collect_vec();
+            // let tags = fields.tag_names().collect_vec();
+            // let names = fields.tag_names().map(|name| format!("last(`{name}`) as `{name}`")).join(",");
             let names = fields.tag_names().join(",");
             let fields: Vec<Value> = from
                 .query_one(format!(
-                    "select {names} from {stable} where tbname = '{table_name}'"
+                    "select {names} from `{table_name}`"
                 ))
                 .await?
                 .unwrap();
@@ -95,9 +96,10 @@ pub fn sync_table(from: &Taos, to: &Taos, db: &str, table: &str) -> Result<(), E
         let sql = desc.to_create_table_sql(&stable);
         to.exec(sql)?;
 
-        let names = desc.tag_names().join(",");
+        // let names = desc.tag_names().join(",");
+        let names = desc.tag_names().map(|name| format!("last(`{name}`) as `{name}`")).join(",");
         let children: Vec<Vec<Value>> = from
-            .query(format!("select tbname,{names} from {stable}"))?
+            .query(format!("select tbname,{names} from {stable} group by tbname"))?
             .deserialize()
             .try_collect()?;
 

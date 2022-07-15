@@ -178,12 +178,12 @@ impl WsAsyncClient {
                             ok?;
                             version
                         }
-                        _ => "version undetermined".to_string(),
+                        _ => "2.x".to_string(),
                     }
                 }
-                _ => "version undetermined".to_string(),
+                _ => "2.x".to_string(),
             },
-            _ => "version undetermined".to_string(),
+            _ => "2.x".to_string(),
         };
 
         let login = WsSend::Conn {

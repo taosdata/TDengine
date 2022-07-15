@@ -116,10 +116,10 @@ pub struct TaosBlock {
 }
 
 impl TaosBlock {
-    pub fn new<'b>(name: String, iter: impl Iterator<Item = BorrowedColumn<'b>>) -> Self {
+    pub fn new<'b>(name: String, iter: impl Iterator<Item = &'b ColumnView>) -> Self {
         let mut data = vec![];
         for col in iter {
-            data.push(TaosColumn::new(col.into_owned()));
+            data.push(TaosColumn::new(col.into_column()));
         }
         Self { name, data }
     }

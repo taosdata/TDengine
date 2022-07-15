@@ -42,6 +42,10 @@ pub unsafe extern "C" fn ws_stmt_prepare(
             let sql =
                 std::str::from_utf8_unchecked(std::slice::from_raw_parts(sql as _, length as _));
 
+            if let Some(no) = stmt.errno() {
+                return no;
+            }
+
             if let Err(e) = stmt.prepare(sql) {
                 let errno = e.errno();
                 stmt.error = Some(e.into());
@@ -461,6 +465,7 @@ mod tests {
             query!(b"create table ws_stmt_i.s1 (ts timestamp, v int, b binary(100))\0");
 
             let stmt = ws_stmt_init(taos);
+
             let sql = "insert into ws_stmt_i.s1 values(?, ?, ?)";
             let code = ws_stmt_prepare(stmt, sql.as_ptr() as _, sql.len() as _);
             if code != 0 {

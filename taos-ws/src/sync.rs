@@ -55,11 +55,12 @@ pub struct WsClient {
 
 impl Drop for WsClient {
     fn drop(&mut self) {
-        print!("dropping client");
+        log::debug!("dropping client");
         // send close signal to reader/writer spawned tasks.
     }
 }
 
+#[derive(Debug)]
 pub struct ResultSet {
     rt: Arc<tokio::runtime::Runtime>,
     timeout: Duration,
@@ -183,12 +184,12 @@ impl WsClient {
                             ok?;
                             version
                         }
-                        _ => "version undetermined".to_string(),
+                        _ => "2.x".to_string(),
                     }
                 }
-                _ => "version undetermined".to_string(),
+                _ => "2.x".to_string(),
             },
-            _ => "version undetermined".to_string(),
+            _ => "2.x".to_string(),
         };
 
         let req_id = 0;
@@ -253,8 +254,7 @@ impl WsClient {
                     },
 
                     _ = close_recv.changed() => {
-                        println!("close all");
-                        log::info!("close sender task");
+                        log::error!("close sender task");
                         break;
                     }
                 }
@@ -277,6 +277,7 @@ impl WsClient {
                                 match data {
                                     WsRecvData::Conn => todo!(),
                                     WsRecvData::Query(query) => {
+                                        log::info!("query result: {:?}", query);
                                         if let Some(sender) = queries_sender.remove(&req_id) {
                                             sender.1.send(ok.map(|_| query)).unwrap();
                                         }
@@ -305,7 +306,7 @@ impl WsClient {
                                     log::debug!("parse v3 raw block");
                                     if let Some(v) = fetches_sender.read(&res_id, |_, v| v.clone())
                                     {
-                                        log::info!("send data to fetches with id {}", res_id);
+                                        log::debug!("send data to fetches with id {}", res_id);
                                         v.send(Ok(WsFetchData::Block(block[8..].to_vec()).clone()))
                                             .unwrap();
                                     }
@@ -314,19 +315,24 @@ impl WsClient {
                                     log::warn!("the block is in format v2");
                                     if let Some(v) = fetches_sender.read(&res_id, |_, v| v.clone())
                                     {
-                                        log::info!("send data to fetches with id {}", res_id);
+                                        log::debug!("send data to fetches with id {}", res_id);
                                         v.send(Ok(WsFetchData::BlockV2(block[8..].to_vec())))
                                             .unwrap();
                                     }
                                 }
                             }
-                            Message::Close(_) => break,
+                            Message::Close(_) => {
+                                log::error!("received close message, stop");
+                                break;
+                            }
                             Message::Ping(bytes) => {
                                 // let mut writer = tx2recv.lock().unwrap();
                                 tx2recv.send(WsSend::Pong(bytes)).await.unwrap()
                             }
                             _ => {
                                 // do nothing
+                                log::error!("unexpected message, stop");
+                                break;
                             }
                         }
                     } else {
@@ -387,6 +393,7 @@ impl WsClient {
         self.s_query_timeout(sql, self.timeout)
     }
     pub fn s_query_timeout(&self, sql: &str, timeout: Duration) -> Result<ResultSet> {
+        log::info!("query with sql: {sql}");
         let req_id = self.req_id();
         let action = WsSend::Query {
             req_id,
@@ -410,6 +417,7 @@ impl WsClient {
                 .zip(bytes)
                 .map(|((name, ty), bytes)| Field::new(name, ty, bytes))
                 .collect();
+
             let (tx, rx) = std::sync::mpsc::sync_channel(100);
             {
                 self.fetches.insert(resp.id, tx).unwrap();
@@ -483,11 +491,11 @@ impl WsClient {
 }
 
 impl ResultSet {
-    async fn fetch_block_a(&mut self) -> Result<Option<Raw>> {
+    async fn fetch_block_a(&self) -> Result<Option<Raw>> {
         if self.receiver.is_none() {
             return Ok(None);
         }
-        let rx = self.receiver.as_mut().unwrap();
+        let rx = self.receiver.as_ref().unwrap();
         let fetch = WsSend::Fetch(self.args);
 
         self.sender.send_timeout(fetch, self.timeout).await?;
@@ -546,7 +554,9 @@ impl ResultSet {
         }
     }
     pub fn fetch_block(&mut self) -> Result<Option<Raw>> {
-        self.rt.clone().block_on(self.fetch_block_a())
+        let rt = &self.rt;
+        let future = self.fetch_block_a();
+        rt.block_on(future)
     }
 }
 impl Iterator for ResultSet {

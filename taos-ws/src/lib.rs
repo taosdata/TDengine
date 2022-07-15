@@ -9,7 +9,7 @@ use once_cell::sync::{Lazy, OnceCell};
 use asyn::WsAsyncClient;
 use sync::WsClient;
 
-use taos_query::{DeError, Dsn, DsnError, FromDsn, IntoDsn, Queryable};
+use taos_query::{Dsn, DsnError, FromDsn, IntoDsn, Queryable};
 
 pub mod infra;
 
