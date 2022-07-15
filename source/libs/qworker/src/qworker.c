@@ -726,7 +726,7 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   if (QW_QUERY_RUNNING(ctx)) {
-    QW_ERR_JRET(qwKillTaskHandle(QW_FPARAMS(), ctx));
+    QW_ERR_JRET(qwKillTaskHandle(ctx));
     qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_DROP);
   } else if (QW_GET_PHASE(ctx) > 0) {
     QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
@@ -940,7 +940,7 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
 
 _return:
 
-  qwFreeTaskCtx(QW_FPARAMS(), &ctx);
+  qwFreeTaskCtx(&ctx);
 
   QW_RET(TSDB_CODE_SUCCESS);
 }

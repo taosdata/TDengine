@@ -170,7 +170,7 @@ void rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   transSetDefaultAddr(thandle, ip, fqdn);
 }
 
-int64_t rpcAllocHandle() { return transAllocHandle(); }
+void* rpcAllocHandle() { return (void*)transAllocHandle(); }
 
 int32_t rpcInit() {
   transInit();

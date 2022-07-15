@@ -362,7 +362,7 @@ int32_t qwAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
 int32_t qwGetTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
 int32_t qwAddAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
 void qwReleaseTaskCtx(SQWorker *mgmt, void *ctx);
-int32_t qwKillTaskHandle(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
+int32_t qwKillTaskHandle(SQWTaskCtx *ctx);
 int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status);
 int32_t qwDropTask(QW_FPARAMS_DEF);
 void qwSaveTbVersionInfo(qTaskInfo_t       pTaskInfo, SQWTaskCtx *ctx);
@@ -372,7 +372,7 @@ int32_t qwUpdateTimeInQueue(SQWorker *mgmt, int64_t ts, EQueueType type);
 int64_t qwGetTimeInQueue(SQWorker *mgmt, EQueueType type);
 void qwClearExpiredSch(SQWorker *mgmt, SArray* pExpiredSch);
 int32_t qwAcquireScheduler(SQWorker *mgmt, uint64_t sId, int32_t rwType, SQWSchStatus **sch);
-void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
+void qwFreeTaskCtx(SQWTaskCtx *ctx);
 
 void qwDbgDumpMgmtInfo(SQWorker *mgmt);
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore);

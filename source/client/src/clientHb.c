@@ -171,6 +171,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
       pTscObj->pAppInfo->totalDnodes = pRsp->query->totalDnodes;
       pTscObj->pAppInfo->onlineDnodes = pRsp->query->onlineDnodes;
       pTscObj->connId = pRsp->query->connId;
+      tscTrace("conn %p hb rsp, dnodes %d/%d", pTscObj->connId, pTscObj->pAppInfo->onlineDnodes, pTscObj->pAppInfo->totalDnodes);
 
       if (pRsp->query->killRid) {
         tscDebug("request rid %" PRIx64 " need to be killed now", pRsp->query->killRid);
@@ -286,7 +287,8 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   taosMemoryFreeClear(param);
 
   if (code != 0) {
-    (*pInst)->onlineDnodes = 0;
+    (*pInst)->onlineDnodes = ((*pInst)->totalDnodes ? 0 : -1);
+    tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), (*pInst)->onlineDnodes, (*pInst)->totalDnodes);
   }
 
   if (rspNum) {

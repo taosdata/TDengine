@@ -1010,6 +1010,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       memcpy(pMsg->msg + len, pTask->msg, pTask->msgLen);
 
       persistHandle = true;
+      SCH_SET_TASK_HANDLE(pTask, rpcAllocHandle());
       break;
     }
     case TDMT_SCH_FETCH:
