@@ -296,8 +296,8 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 
   switch (call->callType) {
     case TSDB_UDF_CALL_SCALA_PROC: {
-      tDeleteSSDataBlock(&call->block);
-      tDeleteSSDataBlock(&subRsp->resultData);
+      blockDataFreeRes(&call->block);
+      blockDataFreeRes(&subRsp->resultData);
       break;
     }
     case TSDB_UDF_CALL_AGG_INIT: {
@@ -305,7 +305,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
       break;
     }
     case TSDB_UDF_CALL_AGG_PROC: {
-      tDeleteSSDataBlock(&call->block);
+      blockDataFreeRes(&call->block);
       freeUdfInterBuf(&subRsp->resultBuf);
       break;
     }

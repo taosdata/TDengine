@@ -293,7 +293,7 @@ int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader) {
 
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
   if (pSyncNode->peersNum == 0) {
-    sError("only one replica, cannot leader transfer");
+    sDebug("only one replica, cannot leader transfer");
     terrno = TSDB_CODE_SYN_ONE_REPLICA;
     return -1;
   }
@@ -307,7 +307,7 @@ int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
   int32_t ret = 0;
 
   if (pSyncNode->replicaNum == 1) {
-    sError("only one replica, cannot leader transfer");
+    sDebug("only one replica, cannot leader transfer");
     terrno = TSDB_CODE_SYN_ONE_REPLICA;
     return -1;
   }
@@ -1055,18 +1055,11 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   }
 
   // tools
-  pSyncNode->pSyncRespMgr = syncRespMgrCreate(pSyncNode, 0);
+  pSyncNode->pSyncRespMgr = syncRespMgrCreate(pSyncNode, SYNC_RESP_TTL_MS);
   ASSERT(pSyncNode->pSyncRespMgr != NULL);
 
   // restore state
   pSyncNode->restoreFinish = false;
-
-  // pSyncNode->pSnapshot = NULL;
-  // if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
-  //   pSyncNode->pSnapshot = taosMemoryMalloc(sizeof(SSnapshot));
-  //   pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, pSyncNode->pSnapshot);
-  // }
-  // tsem_init(&(pSyncNode->restoreSem), 0, 0);
 
   // snapshot senders
   for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
@@ -1860,8 +1853,8 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
       syncNodeBecomeLeader(pSyncNode, tmpbuf);
 
       // Raft 3.6.2 Committing entries from previous terms
-      syncNodeReplicate(pSyncNode);
       syncNodeAppendNoop(pSyncNode);
+      syncNodeReplicate(pSyncNode);
       syncMaybeAdvanceCommitIndex(pSyncNode);
 
     } else {
@@ -2036,8 +2029,8 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   syncNodeLog2("==state change syncNodeCandidate2Leader==", pSyncNode);
 
   // Raft 3.6.2 Committing entries from previous terms
-  syncNodeReplicate(pSyncNode);
   syncNodeAppendNoop(pSyncNode);
+  syncNodeReplicate(pSyncNode);
   syncMaybeAdvanceCommitIndex(pSyncNode);
 }
 

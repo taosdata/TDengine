@@ -388,6 +388,11 @@ static void destroyDataSinkNode(SDataSinkNode* pNode) { nodesDestroyNode((SNode*
 
 static void destroyExprNode(SExprNode* pExpr) { taosArrayDestroy(pExpr->pAssociation); }
 
+static void nodesDestroyNodePointer(void* node) {
+  SNode* pNode = *(SNode**)node;
+  nodesDestroyNode(pNode);
+}
+
 void nodesDestroyNode(SNode* pNode) {
   if (NULL == pNode) {
     return;
@@ -718,6 +723,7 @@ void nodesDestroyNode(SNode* pNode) {
       }
       taosArrayDestroy(pQuery->pDbList);
       taosArrayDestroy(pQuery->pTableList);
+      taosArrayDestroyEx(pQuery->pPlaceholderValues, nodesDestroyNodePointer);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
@@ -956,7 +962,6 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_SUBPLAN: {
       SSubplan* pSubplan = (SSubplan*)pNode;
-      // nodesDestroyList(pSubplan->pChildren);
       nodesClearList(pSubplan->pChildren);
       nodesDestroyNode((SNode*)pSubplan->pNode);
       nodesDestroyNode((SNode*)pSubplan->pDataSink);
@@ -965,25 +970,9 @@ void nodesDestroyNode(SNode* pNode) {
       nodesClearList(pSubplan->pParents);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN: {
-      SQueryPlan* pPlan = (SQueryPlan*)pNode;
-      if (NULL != pPlan->pSubplans) {
-        // only need to destroy the top-level subplans, because they will recurse to all the subplans below
-        bool   first = true;
-        SNode* pElement = NULL;
-        FOREACH(pElement, pPlan->pSubplans) {
-          if (first) {
-            // first = false;
-            nodesDestroyNode(pElement);
-          } else {
-            nodesClearList(((SNodeListNode*)pElement)->pNodeList);
-            taosMemoryFreeClear(pElement);
-          }
-        }
-        nodesClearList(pPlan->pSubplans);
-      }
+    case QUERY_NODE_PHYSICAL_PLAN:
+      nodesDestroyList(((SQueryPlan*)pNode)->pSubplans);
       break;
-    }
     default:
       break;
   }
@@ -1709,6 +1698,11 @@ int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots) {
 }
 
 void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
+  if (pNode->isNull) {
+    pVal->nType = TSDB_DATA_TYPE_NULL;
+    pVal->nLen = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
+    return;
+  }
   pVal->nType = pNode->node.resType.type;
   pVal->nLen = pNode->node.resType.bytes;
   switch (pNode->node.resType.type) {
@@ -1789,7 +1783,7 @@ static EDealRes classifyConditionImpl(SNode* pNode, void* pContext) {
   SClassifyConditionCxt* pCxt = (SClassifyConditionCxt*)pContext;
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
+    if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId && TSDB_SYSTEM_TABLE != pCol->tableType) {
       pCxt->hasPrimaryKey = true;
     } else if (pCol->hasIndex) {
       pCxt->hasTagIndexCol = true;

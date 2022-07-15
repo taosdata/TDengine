@@ -39,6 +39,7 @@ extern "C" {
 #include "tmsg.h"
 #include "tpagedbuf.h"
 #include "tstreamUpdate.h"
+#include "tstream.h"
 
 #include "vnode.h"
 #include "executorInt.h"
@@ -139,6 +140,7 @@ typedef struct STaskIdInfo {
 } STaskIdInfo;
 
 typedef struct {
+  //TODO remove prepareStatus
   STqOffsetVal   prepareStatus; // for tmq
   STqOffsetVal   lastStatus;    // for tmq
   void*          metaBlk;       // for tmq fetching meta
@@ -319,6 +321,7 @@ typedef struct SLastrowScanInfo {
   void           *pLastrowReader;
   SArray         *pColMatchInfo;
   int32_t        *pSlotIds;
+  SExprSupp       pseudoExprSup;
 } SLastrowScanInfo;
 
 typedef enum EStreamScanMode {
@@ -557,6 +560,7 @@ typedef struct SFillOperatorInfo {
   SNode*            pCondition;
   SArray*           pColMatchColInfo;
   int32_t           primaryTsCol;
+  uint64_t          curGroupId;       // current handled group id
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {
@@ -787,6 +791,8 @@ int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaul
 
 void    doSetOperatorCompleted(SOperatorInfo* pOperator);
 void    doFilter(const SNode* pFilterNode, SSDataBlock* pBlock);
+int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
+                               SSDataBlock* pBlock, const char* idStr);
 
 void    cleanupAggSup(SAggSupporter* pAggSup);
 void    destroyBasicOperatorInfo(void* param, int32_t numOfOutput);
@@ -851,8 +857,7 @@ SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* re
 SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle,
     STableScanPhysiNode* pTableScanNode, SExecTaskInfo* pTaskInfo, STimeWindowAggSupp* pTwSup, uint64_t queryId, uint64_t taskId);
 
-SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode, bool multigroupResult,
-                                      SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
                                              SSDataBlock* pResBlock, STimeWindowAggSupp *pTwAggSupp, int32_t tsSlotId,

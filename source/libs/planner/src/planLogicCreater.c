@@ -59,7 +59,7 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           strcpy(pCol->node.aliasName, pToBeRewrittenExpr->aliasName);
           strcpy(pCol->colName, ((SExprNode*)pExpr)->aliasName);
           if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
-            if (FUNCTION_TYPE_WSTARTTS == ((SFunctionNode*)pExpr)->funcType) {
+            if (FUNCTION_TYPE_WSTART == ((SFunctionNode*)pExpr)->funcType) {
               pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
             } else if (FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pExpr)->funcType) {
               pCol->colType = COLUMN_TYPE_TBNAME;
@@ -244,6 +244,7 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
   pScan->showRewrite = pCxt->pPlanCxt->showRewrite;
   pScan->ratio = pRealTable->ratio;
   pScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;
+  pScan->cacheLastMode = pRealTable->cacheLastMode;
 
   *pLogicNode = (SLogicNode*)pScan;
 

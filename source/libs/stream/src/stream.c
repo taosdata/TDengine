@@ -97,7 +97,7 @@ int32_t streamLaunchByWrite(SStreamTask* pTask, int32_t vgId) {
         .pCont = pRunReq,
         .contLen = sizeof(SStreamTaskRunReq),
     };
-    tmsgPutToQueue(pTask->pMsgCb, FETCH_QUEUE, &msg);
+    tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &msg);
   }
   return 0;
 }

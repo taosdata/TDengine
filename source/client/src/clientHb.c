@@ -314,7 +314,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   taosThreadMutexUnlock(&appInfo.mutex);
 
   tFreeClientHbBatchRsp(&pRsp);
-
+  taosMemoryFree(pMsg->pData);
   return code;
 }
 

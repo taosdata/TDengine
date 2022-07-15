@@ -45,9 +45,9 @@ print $data00 $data01 $data02
 
 sql use test
 sql create table t1(ts timestamp, a int, b int , c int, d double);
-sql create stream streams1 trigger at_once IGNORE EXPIRED into streamt1 as select  _wstartts, count(*) c1, sum(a) c3 from t1 interval(10s);
-sql create stream streams2 trigger at_once IGNORE EXPIRED into streamt2 as select  _wstartts, count(*) c1, sum(a) c3 from t1 session(ts,10s);
-sql create stream streams3 trigger at_once IGNORE EXPIRED into streamt3 as select  _wstartts, count(*) c1, sum(a) c3 from t1 state_window(a);
+sql create stream streams1 trigger at_once IGNORE EXPIRED into streamt1 as select  _wstart, count(*) c1, sum(a) c3 from t1 interval(10s);
+sql create stream streams2 trigger at_once IGNORE EXPIRED into streamt2 as select  _wstart, count(*) c1, sum(a) c3 from t1 session(ts,10s);
+sql create stream streams3 trigger at_once IGNORE EXPIRED into streamt3 as select  _wstart, count(*) c1, sum(a) c3 from t1 state_window(a);
 sql insert into t1 values(1648791213000,1,2,3,1.0);
 sql insert into t1 values(1648791223001,1,2,3,1.1);
 sql insert into t1 values(1648791233002,2,2,3,2.1);
@@ -111,8 +111,8 @@ sql use test1
 sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
 sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
-sql create stream stream_t1 trigger at_once IGNORE EXPIRED into streamtST1 as select  _wstartts, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st interval(10s) ;
-sql create stream stream_t2 trigger at_once IGNORE EXPIRED into streamtST2 as select  _wstartts, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st session(ts, 10s) ;
+sql create stream stream_t1 trigger at_once IGNORE EXPIRED into streamtST1 as select  _wstart, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st interval(10s) ;
+sql create stream stream_t2 trigger at_once IGNORE EXPIRED into streamtST2 as select  _wstart, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st session(ts, 10s) ;
 sql insert into ts1 values(1648791211000,1,2,3);
 sql insert into ts1 values(1648791222001,2,2,3);
 sql insert into ts2 values(1648791211000,1,2,3);

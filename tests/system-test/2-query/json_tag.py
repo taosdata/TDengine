@@ -197,7 +197,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, "true")
         # test select json tag->'key', value is null
         tdSql.query("select jtag->'tag1' from jsons1_4")
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, "null")
         # test select json tag->'key', value is double
         tdSql.query("select jtag->'tag1' from jsons1_5")
         tdSql.checkData(0, 0, "1.232000000")
@@ -394,16 +394,15 @@ class TDTestCase:
         # test distinct
         tdSql.execute("insert into jsons1_14 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":null}') values(1591062628000, 2, NULL, '你就会', 'dws')")
         tdSql.query("select distinct jtag->'tag1' from jsons1")
-        tdSql.checkRows(7)
-        # tdSql.query("select distinct jtag from jsons1")
-        # tdSql.checkRows(9)
+        tdSql.checkRows(8)
+        tdSql.error("select distinct jtag from jsons1")
 
         #test dumplicate key with normal colomn
         tdSql.execute("INSERT INTO jsons1_15 using jsons1 tags('{\"tbname\":\"tt\",\"databool\":true,\"datastr\":\"是是是\"}') values(1591060828000, 4, false, 'jjsf', \"你就会\")")
         tdSql.query("select * from jsons1 where jtag->'datastr' match '是' and datastr match 'js'")
         tdSql.checkRows(1)
-        # tdSql.query("select tbname,jtag->'tbname' from jsons1 where jtag->'tbname'='tt' and tbname='jsons1_14'")
-        # tdSql.checkRows(1)
+        tdSql.query("select tbname,jtag->'tbname' from jsons1 where jtag->'tbname'='tt' and tbname='jsons1_15'")
+        tdSql.checkRows(1)
 
         # test join
         tdSql.execute("create table if not exists jsons2(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json)")
@@ -477,15 +476,10 @@ class TDTestCase:
         tdSql.query("select top(dataint,2),jtag->'tag1' from jsons1 group by jtag->'tag1' order by jtag->'tag1'")
         tdSql.checkRows(11)
         tdSql.checkData(0, 1, None)
-        #tdSql.checkData(2, 0, 24)
-        #tdSql.checkData(3, 0, 3)
-        #tdSql.checkData(3, 1, "false")
-        #tdSql.checkData(8, 0, 2)
-        #tdSql.checkData(10, 1, '"femail"')
 
         # test having
-        # tdSql.query("select count(*),jtag->'tag1' from jsons1 group by jtag->'tag1' having count(*) > 1")
-        # tdSql.checkRows(3)
+        tdSql.query("select count(*),jtag->'tag1' from jsons1 group by jtag->'tag1' having count(*) > 1")
+        tdSql.checkRows(3)
 
         # subquery with json tag
         tdSql.query("select * from (select jtag, dataint from jsons1) order by dataint")
@@ -495,10 +489,7 @@ class TDTestCase:
 
         tdSql.error("select jtag->'tag1' from (select jtag->'tag1', dataint from jsons1)")
         tdSql.error("select t->'tag1' from (select jtag->'tag1' as t, dataint from jsons1)")
-        # tdSql.query("select ts,jtag->'tag1' from (select jtag->'tag1',tbname,ts from jsons1 order by ts)")
-        # tdSql.checkRows(11)
-        # tdSql.checkData(1, 1, "jsons1_1")
-        # tdSql.checkData(1, 2, '"femail"')
+        tdSql.error("select ts,jtag->'tag1' from (select jtag->'tag1',tbname,ts from jsons1 order by ts)")
 
         # union all
         tdSql.query("select jtag->'tag1' from jsons1 union all select jtag->'tag2' from jsons2")
