@@ -167,9 +167,10 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
   } while (0);
 
 // snprintf may cause performance problem
-#define CONN_CONSTRUCT_HASH_KEY(key, ip, port)          \
-  do {                                                  \
-    snprintf(key, sizeof(key), "%s:%d", ip, (int)port); \
+#define CONN_CONSTRUCT_HASH_KEY(key, ip, port)     \
+  do {                                             \
+    memcpy(key, ip, strlen(ip));                   \
+    memcpy(key + strlen(ip), &port, sizeof(port)); \
   } while (0)
 
 #define CONN_HOST_THREAD_IDX1(idx, exh, refId, pThrd) \
