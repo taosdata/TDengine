@@ -29,7 +29,7 @@ Then Prometheus is installed in current directory. For more installation options
 
 ## Configuration
 
-Configuring Prometheus is done by editing the Prometheus configuration file prometheus.yml (If you followed previous steps, you can find prometheus.xml in current directory).
+Configuring Prometheus is done by editing the Prometheus configuration file `prometheus.yml` (If you followed previous steps, you can find prometheus.xml in current directory).
 
 ```yaml
 remote_write:
