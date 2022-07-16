@@ -952,6 +952,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
       SQueryInserterNode* pSink = (SQueryInserterNode*)pNode;
       destroyDataSinkNode((SDataSinkNode*)pSink);
+      nodesDestroyList(pSink->pCols);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {

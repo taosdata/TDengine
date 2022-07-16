@@ -55,7 +55,7 @@ int32_t sclCreateColumnInfoData(SDataType* pType, int32_t numOfRows, SScalarPara
   }
 
   pParam->columnData = pColumnData;
-  pParam->type = SHOULD_FREE_COLDATA;
+  pParam->colAlloced = true;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -166,7 +166,7 @@ void sclFreeRes(SHashObj *res) {
 }
 
 void sclFreeParam(SScalarParam *param) {
-  if (param->columnData != NULL) {
+  if (param->columnData != NULL && param->colAlloced) {
     colDataDestroy(param->columnData);
     taosMemoryFreeClear(param->columnData);
   }
@@ -189,6 +189,19 @@ int32_t sclCopyValueNodeValue(SValueNode *pNode, void **res) {
 
   memcpy(*res, nodesGetValueFromNode(pNode), pNode->node.resType.bytes);
   return TSDB_CODE_SUCCESS;
+}
+
+void sclFreeParamList(SScalarParam *param, int32_t paramNum) {
+  if (NULL == param) {
+    return;
+  }
+
+  for (int32_t i = 0; i < paramNum; ++i) {
+    SScalarParam* p = param + i;
+    sclFreeParam(p);
+  }
+
+  taosMemoryFree(param);
 }
 
 int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t *rowNum) {
@@ -274,6 +287,7 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         SCL_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
       }
       *param = *res;
+      param->colAlloced = false;
       break;
     }
     default:
@@ -455,11 +469,7 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
 
 _return:
 
-  for (int32_t i = 0; i < paramNum; ++i) {
-//    sclFreeParamNoData(params + i);
-  }
-
-  taosMemoryFreeClear(params);
+  sclFreeParamList(params, paramNum);
   SCL_RET(code);
 }
 
@@ -533,11 +543,7 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
 
 _return:
 
-  for (int32_t i = 0; i < paramNum; ++i) {
-//    sclFreeParamNoData(params + i);
-  }
-
-  taosMemoryFreeClear(params);
+  sclFreeParamList(params, paramNum);
   SCL_RET(code);
 }
 
@@ -573,14 +579,8 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   code = terrno;
 
 _return:
-  for (int32_t i = 0; i < paramNum; ++i) {
-    if (params[i].type == SHOULD_FREE_COLDATA) {
-      colDataDestroy(params[i].columnData);
-      taosMemoryFreeClear(params[i].columnData);
-    }
-  }
 
-  taosMemoryFreeClear(params);
+  sclFreeParamList(params, paramNum);
   SCL_RET(code);
 }
 
@@ -871,7 +871,6 @@ EDealRes sclWalkFunction(SNode* pNode, SScalarCtx *ctx) {
     return DEAL_RES_ERROR;
   }
 
-  output.type = DELEGATED_MGMT_COLDATA;
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
     ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
@@ -906,7 +905,6 @@ EDealRes sclWalkOperator(SNode* pNode, SScalarCtx *ctx) {
     return DEAL_RES_ERROR;
   }
 
-  output.type = DELEGATED_MGMT_COLDATA;
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
     ctx->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
