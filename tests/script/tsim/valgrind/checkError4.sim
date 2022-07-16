@@ -57,7 +57,6 @@ sql drop table d1.stb2
 sql drop database d1
 sql drop database d2
 
-goto _OVER
 print =============== step7: repeat
 sql create database d1 vgroups 2 buffer 3
 sql create database d2 vgroups 2 buffer 3
