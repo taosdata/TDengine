@@ -1566,6 +1566,9 @@ static uint32_t funcNodeHash(const char* pKey, uint32_t len) {
 }
 
 static int32_t funcNodeEqual(const void* pLeft, const void* pRight, size_t len) {
+  if (0 != strcmp((*(const SExprNode**)pLeft)->aliasName, (*(const SExprNode**)pRight)->aliasName)) {
+    return 1;
+  }
   return nodesEqualNode(*(const SNode**)pLeft, *(const SNode**)pRight) ? 0 : 1;
 }
 
