@@ -149,18 +149,6 @@ struct SVSnapWriter {
   STsdbSnapWriter *pTsdbSnapWriter;
 };
 
-static int32_t vnodeSnapRollback(SVSnapWriter *pWriter) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
-static int32_t vnodeSnapCommit(SVSnapWriter *pWriter) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
 int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {
   int32_t       code = 0;
   SVSnapWriter *pWriter = NULL;
@@ -188,15 +176,15 @@ _err:
 int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback) {
   int32_t code = 0;
 
-  // TODO
+  if (pWriter->pMetaSnapWriter) {
+    code = metaSnapWriterClose(&pWriter->pMetaSnapWriter, rollback);
+    if (code) goto _err;
+  }
 
-  // if (rollback) {
-  //   code = vnodeSnapRollback(pWriter);
-  //   if (code) goto _err;
-  // } else {
-  //   code = vnodeSnapCommit(pWriter);
-  //   if (code) goto _err;
-  // }
+  if (pWriter->pTsdbSnapWriter) {
+    code = tsdbSnapWriterClose(&pWriter->pTsdbSnapWriter, rollback);
+    if (code) goto _err;
+  }
 
 _exit:
   vInfo("vgId:%d vnode snapshot writer closed, rollback:%d", TD_VID(pWriter->pVnode), rollback);
@@ -223,13 +211,13 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
   if (pHdr->type == 0) {
     // meta
 
-    // if (pWriter->pMetaSnapWriter == NULL) {
-    //   code = metaSnapWriterOpen(pVnode->pMeta, pWriter->sver, pWriter->ever, &pWriter->pMetaSnapWriter);
-    //   if (code) goto _err;
-    // }
+    if (pWriter->pMetaSnapWriter == NULL) {
+      code = metaSnapWriterOpen(pVnode->pMeta, pWriter->sver, pWriter->ever, &pWriter->pMetaSnapWriter);
+      if (code) goto _err;
+    }
 
-    // code = metaSnapWrite(pWriter->pMetaSnapWriter, pData , nData);
-    // if (code) goto _err;
+    code = metaSnapWrite(pWriter->pMetaSnapWriter, pData, nData);
+    if (code) goto _err;
   } else {
     // tsdb
 

@@ -399,18 +399,6 @@ struct STsdbSnapWriter {
   SArray*      aDelIdxW;
 };
 
-static int32_t tsdbSnapRollback(STsdbSnapWriter* pWriter) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
-static int32_t tsdbSnapCommit(STsdbSnapWriter* pWriter) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
 static int32_t tsdbSnapWriteAppendData(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t     code = 0;
   int32_t     iRow = 0;           // todo
@@ -738,6 +726,7 @@ static int32_t tsdbSnapWriteTableData(STsdbSnapWriter* pWriter, TABLEID id) {
     }
 
     // reader
+    pWriter->pBlockIdx = NULL;
     if (pWriter->iBlockIdx < taosArrayGetSize(pWriter->aBlockIdx)) {
       ASSERT(pWriter->pDataFReader);
 
@@ -1104,6 +1093,9 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
     goto _err;
   }
 
+  code = tsdbFSBegin(pTsdb->fs);
+  if (code) goto _err;
+
   *ppWriter = pWriter;
   return code;
 
@@ -1118,7 +1110,7 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
   STsdbSnapWriter* pWriter = *ppWriter;
 
   if (rollback) {
-    code = tsdbSnapRollback(pWriter);
+    code = tsdbFSRollback(pWriter->pTsdb->fs);
     if (code) goto _err;
   } else {
     code = tsdbSnapWriteDataEnd(pWriter);
@@ -1127,7 +1119,7 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
     code = tsdbSnapWriteDelEnd(pWriter);
     if (code) goto _err;
 
-    code = tsdbSnapCommit(pWriter);
+    code = tsdbFSCommit(pWriter->pTsdb->fs);
     if (code) goto _err;
   }
 
@@ -1137,7 +1129,8 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb snapshot writer close failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d vnode snapshot tsdb writer close failed since %s", TD_VID(pWriter->pTsdb->pVnode),
+            tstrerror(code));
   return code;
 }
 

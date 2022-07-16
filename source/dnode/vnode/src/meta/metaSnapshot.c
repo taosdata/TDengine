@@ -131,18 +131,6 @@ struct SMetaSnapWriter {
   int64_t ever;
 };
 
-static int32_t metaSnapRollback(SMetaSnapWriter* pWriter) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
-static int32_t metaSnapCommit(SMetaSnapWriter* pWriter) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
 int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWriter** ppWriter) {
   int32_t          code = 0;
   SMetaSnapWriter* pWriter;
@@ -171,10 +159,9 @@ int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback) {
   SMetaSnapWriter* pWriter = *ppWriter;
 
   if (rollback) {
-    code = metaSnapRollback(pWriter);
-    if (code) goto _err;
+    ASSERT(0);
   } else {
-    code = metaSnapCommit(pWriter);
+    code = metaCommit(pWriter->pMeta);
     if (code) goto _err;
   }
   taosMemoryFree(pWriter);
@@ -199,9 +186,10 @@ int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   code = metaHandleEntry(pMeta, &metaEntry);
   if (code) goto _err;
 
+  tDecoderClear(pDecoder);
   return code;
 
 _err:
-  metaError("vgId:%d meta snapshot write failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
+  metaError("vgId:%d vnode snapshot meta write failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
   return code;
 }
