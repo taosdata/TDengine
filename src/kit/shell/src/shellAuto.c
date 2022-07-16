@@ -118,6 +118,7 @@ SWords shellCommands[] = {
   {"show variables;", 0, 0, NULL},
   {"show vgroups;", 0, 0, NULL},
   {"insert into <tb_name> values(", 0, 0, NULL},
+  {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
   {"use <db_name>", 0, 0, NULL}
 };
 
@@ -227,14 +228,14 @@ char * db_options[] = {
 char * data_types[] = {
   "timestamp",
   "int",
-  "bigint",
   "float",
   "double",
-  "binary",
+  "binary(16)",
+  "nchar(16)",
+  "bigint",
   "smallint",
   "tinyint",
   "bool",
-  "nchar",
   "json"
 };
 
@@ -564,7 +565,7 @@ bool shellAutoInit() {
   pthread_mutex_init(&tiresMutex, NULL);
 
   // threads
-  memset(threads, 0, sizeof(pthread_t*) * WT_VAR_CNT);
+  memset(threads, 0, sizeof(pthread_t*) * WT_FROM_DB_CNT);
 
   // generate varType
   GenerateVarType(WT_VAR_FUNC,     functions,  sizeof(functions)  /sizeof(char *));
@@ -1535,9 +1536,6 @@ void pressOtherKey(char c) {
     freeMatch(lastMatch);
     lastMatch = NULL;
   }
-
-  //printf(" -> %d <-\n", c);
-
 }
 
 // put name into name, return name length

@@ -22,6 +22,7 @@
 #include "tkey.h"
 
 #include "tscLog.h"
+#include "shellAuto.h"
 
 #define OPT_ABORT 1 /* �Cabort */
 
@@ -255,7 +256,12 @@ int32_t shellReadCommand(TAOS *con, char *command) {
         utf8_array[k] = c;
       }
       insertChar(&cmd, utf8_array, count);
+      pressOtherKey(c);
+    } else if (c == TAB_KEY) {
+      // press TAB key
+      pressTabKey(con, &cmd);
     } else if (c < '\033') {
+      pressOtherKey(c);
       // Ctrl keys.  TODO: Implement ctrl combinations
       switch (c) {
         case 1:  // ctrl A
@@ -377,9 +383,11 @@ int32_t shellReadCommand(TAOS *con, char *command) {
           break;
       }
     } else if (c == 0x7f) {
+      pressOtherKey(c);
       // press delete key
       backspaceChar(&cmd);
     } else {
+      pressOtherKey(c);
       insertChar(&cmd, &c, 1);
     }
   }
@@ -528,14 +536,14 @@ void showOnScreen(Command *cmd) {
     /* assert(size >= 0); */
     int width = wcwidth(wc);
     if (remain_column > width) {
-      printf("%lc", wc);
+      fprintf(stdout, "%lc", wc);
       remain_column -= width;
     } else {
       if (remain_column == width) {
-        printf("%lc\n\r", wc);
+        fprintf(stdout, "%lc\n\r", wc);
         remain_column = w.ws_col;
       } else {
-        printf("\n\r%lc", wc);
+        fprintf(stdout, "\n\r%lc", wc);
         remain_column = w.ws_col - width;
       }
     }

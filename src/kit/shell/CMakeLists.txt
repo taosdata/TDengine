@@ -46,6 +46,8 @@ ELSEIF (TD_DARWIN)
   LIST(APPEND SRC ./src/shellCommand.c)
   LIST(APPEND SRC ./src/shellImport.c)
   LIST(APPEND SRC ./src/shellCheck.c)
+  LIST(APPEND SRC ./src/shellAuto.c)
+  LIST(APPEND SRC ./src/tire.c)
   ADD_EXECUTABLE(shell ${SRC})
   # linking with dylib
   TARGET_LINK_LIBRARIES(shell taos cJson)
