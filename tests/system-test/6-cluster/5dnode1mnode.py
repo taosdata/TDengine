@@ -122,9 +122,9 @@ class TDTestCase:
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
             
         tdSql.query('show databases;')
-        tdSql.checkData(2,5,'no_strict')
-        tdSql.error('alter database db strict 0')
-        # tdSql.execute('alter database db strict 1')
+        tdSql.checkData(2,5,'off')
+        tdSql.error('alter database db strict 'off'')
+        # tdSql.execute('alter database db strict 'on'')
         # tdSql.query('show databases;')
         # tdSql.checkData(2,5,'strict')
 

@@ -69,7 +69,7 @@ endi
 if $data4_db != 3 then  # replica
   return -1
 endi
-if $data5_db != no_strict then  # strict
+if $data5_db != off then  # strict
   return -1
 endi
 if $data6_db != 345600m then  # duration
@@ -333,31 +333,31 @@ sql_error alter database db comp 5
 sql_error alter database db comp -1
 
 print ============== modify cachelast [0, 1, 2, 3]
-sql alter database db cachelast 2
+sql alter database db cachemodel 'last_value'
 sql show databases
 print cachelast $data16_db
 if $data16_db != 2 then 
   return -1
 endi
-sql alter database db cachelast 1
+sql alter database db cachemodel 'last_row'
 sql show databases
 print cachelast $data16_db
 if $data16_db != 1 then 
   return -1
 endi
-sql alter database db cachelast 0
+sql alter database db cachemodel 'none'
 sql show databases
 print cachelast $data16_db
 if $data16_db != 0 then 
   return -1
 endi
-sql alter database db cachelast 2
+sql alter database db cachemodel 'last_value'
 sql show databases
 print cachelast $data16_db
 if $data16_db != 2 then 
   return -1
 endi
-sql alter database db cachelast 3
+sql alter database db cachemodel 'both'
 sql show databases
 print cachelast $data16_db
 if $data16_db != 3 then 

@@ -38,7 +38,7 @@ TEST_F(ParserInitialATest, alterDnode) {
 TEST_F(ParserInitialATest, alterDatabase) {
   useDb("root", "test");
 
-  run("ALTER DATABASE test CACHELAST 1 FSYNC 200 WAL 1");
+  run("ALTER DATABASE test CACHEMODEL 'last_row' FSYNC 200 WAL 1");
 
   run("ALTER DATABASE test KEEP 2400");
 }
