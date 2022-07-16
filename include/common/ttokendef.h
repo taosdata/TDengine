@@ -79,8 +79,8 @@
 #define TK_NOT            61
 #define TK_EXISTS         62
 #define TK_BUFFER         63
-#define TK_CACHELAST      64
-#define TK_CACHELASTSIZE  65
+#define TK_CACHEMODEL     64
+#define TK_CACHESIZE      65
 #define TK_COMP           66
 #define TK_DURATION       67
 #define TK_NK_VARIABLE    68
