@@ -1746,18 +1746,12 @@ int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
   SColumnInfoData *pOutputData = pOutput->columnData;
 
   int64_t *out = (int64_t *)pOutputData->pData;
-  bool hasNull = false;
   *out = 0;
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
-      hasNull = true;
-      break;
+      continue;
     }
     (*out)++;
-  }
-
-  if (hasNull) {
-    colDataAppendNULL(pOutputData, 0);
   }
 
   pOutput->numOfRows = 1;
