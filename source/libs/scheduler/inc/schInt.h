@@ -55,13 +55,11 @@ typedef enum {
 #define SCHEDULE_DEFAULT_MAX_TASK_NUM 1000
 #define SCHEDULE_DEFAULT_MAX_NODE_TABLE_NUM 200  // unit is TSDB_TABLE_NUM_UNIT
 #define SCHEDULE_DEFAULT_POLICY SCH_LOAD_SEQ
+#define SCHEDULE_DEFAULT_MAX_NODE_NUM 20
 
 #define SCH_DEFAULT_TASK_TIMEOUT_USEC 10000000
 #define SCH_MAX_TASK_TIMEOUT_USEC 60000000
-#define SCH_MAX_CANDIDATE_EP_NUM TSDB_MAX_REPLICA
-
-
-
+#define SCH_DEFAULT_MAX_RETRY_NUM 6
 
 typedef struct SSchDebug {
   bool     lockEnable;
@@ -211,6 +209,7 @@ typedef struct SSchTask {
   int32_t              maxExecTimes;    // task max exec times
   int32_t              maxRetryTimes;   // task max retry times
   int32_t              retryTimes;      // task retry times
+  bool                 waitRetry;       // wait for retry
   int32_t              execId;          // task current execute index
   SSchLevel           *level;           // level
   SRWLatch             planLock;        // task update plan lock
@@ -274,7 +273,8 @@ typedef struct SSchJob {
   int32_t            errCode;
   SRWLatch           resLock;
   SExecResult        execRes;
-  void              *resData;         //TODO free it or not
+  void              *fetchRes;         //TODO free it or not
+  bool               fetched;
   int32_t            resNumOfRows;
   SSchResInfo        userRes;
   const char        *sql;
@@ -326,7 +326,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_IS_EXPLAIN_JOB(_job) (EXPLAIN_MODE_ANALYZE == (_job)->attr.explainMode)
 #define SCH_NETWORK_ERR(_code) ((_code) == TSDB_CODE_RPC_BROKEN_LINK || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL)
 #define SCH_MERGE_TASK_NETWORK_ERR(_task, _code, _len) (SCH_NETWORK_ERR(_code) && (((_len) > 0) || (!SCH_IS_DATA_BIND_TASK(_task))))
-#define SCH_REDIRECT_MSGTYPE(_msgType) ((_msgType) == TDMT_SCH_QUERY || (_msgType) == TDMT_SCH_MERGE_QUERY || (_msgType) == TDMT_SCH_FETCH || (_msgType) == TDMT_SCH_MERGE_FETCH)
+#define SCH_REDIRECT_MSGTYPE(_msgType) ((_msgType) == TDMT_SCH_LINK_BROKEN || (_msgType) == TDMT_SCH_QUERY || (_msgType) == TDMT_SCH_MERGE_QUERY || (_msgType) == TDMT_SCH_FETCH || (_msgType) == TDMT_SCH_MERGE_FETCH)
 #define SCH_TASK_NEED_REDIRECT(_task, _msgType, _code, _rspLen) (SCH_REDIRECT_MSGTYPE(_msgType) && (NEED_SCHEDULER_REDIRECT_ERROR(_code) || SCH_MERGE_TASK_NETWORK_ERR((_task), (_code), (_rspLen))))
 #define SCH_NEED_RETRY(_msgType, _code) ((SCH_NETWORK_ERR(_code) && SCH_REDIRECT_MSGTYPE(_msgType)) || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
 
@@ -368,6 +368,8 @@ extern SSchedulerMgmt schMgmt;
   qError("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask),__VA_ARGS__)
 #define SCH_TASK_DLOG(param, ...) \
   qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask),__VA_ARGS__)
+#define SCH_TASK_TLOG(param, ...) \
+  qTrace("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask),__VA_ARGS__)
 #define SCH_TASK_DLOGL(param, ...) \
   qDebugL("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask),__VA_ARGS__)
 #define SCH_TASK_WLOG(param, ...) \
@@ -441,7 +443,7 @@ void    schFreeRpcCtx(SRpcCtx *pCtx);
 int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp);
 bool    schJobNeedToStop(SSchJob *pJob, int8_t *pStatus);
 int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask);
-int32_t schSaveJobQueryRes(SSchJob *pJob, SQueryTableRsp *rsp);
+int32_t schSaveJobExecRes(SSchJob *pJob, SQueryTableRsp *rsp);
 int32_t schProcessOnExplainDone(SSchJob *pJob, SSchTask *pTask, SRetrieveTableRsp *pRsp);
 void    schProcessOnDataFetched(SSchJob *job);
 int32_t schGetTaskInJob(SSchJob *pJob, uint64_t taskId, SSchTask **pTask);
@@ -492,7 +494,7 @@ int32_t schSwitchTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask);
 void    schDirectPostJobRes(SSchedulerReq* pReq, int32_t errCode);
 int32_t schHandleJobFailure(SSchJob *pJob, int32_t errCode);
 int32_t schHandleJobDrop(SSchJob *pJob, int32_t errCode);
-bool    schChkCurrentOp(SSchJob *pJob, int32_t op, bool sync);
+bool    schChkCurrentOp(SSchJob *pJob, int32_t op, int8_t sync);
 
 extern SSchDebug gSCHDebug;
 
