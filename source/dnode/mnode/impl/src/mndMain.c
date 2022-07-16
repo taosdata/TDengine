@@ -417,7 +417,7 @@ int32_t mndStart(SMnode *pMnode) {
     mndSetRestore(pMnode, true);
   }
   
-  grantResetNew(pMnode, TSDB_GRANT_ALL, 0);
+  grantReset(pMnode, TSDB_GRANT_ALL, 0);
 
   return mndInitTimer(pMnode);
 }

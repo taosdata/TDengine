@@ -25,8 +25,7 @@
 int32_t mndInitGrant(SMnode *pMnode);
 void    mndCleanupGrant();
 void    grantParseParameter();
-void    grantReset(EGrantType grant, uint64_t value);
-void    grantResetNew(SMnode *pMnode, EGrantType grant, uint64_t value);
+void    grantReset(SMnode *pMnode, EGrantType grant, uint64_t value);
 void    grantAdd(EGrantType grant, uint64_t value);
 void    grantRestore(EGrantType grant, uint64_t value);
 
