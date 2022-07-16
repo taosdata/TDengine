@@ -159,8 +159,8 @@ void generatePerformanceSchema(MockCatalogService* mcs) {
  *          c4         |       column       |       DOUBLE       |    8     |
  *          c5         |       column       |       DOUBLE       |    8     |
  */
-void generateTestTables(MockCatalogService* mcs) {
-  ITableBuilder& builder = mcs->createTableBuilder("test", "t1", TSDB_NORMAL_TABLE, 6)
+void generateTestTables(MockCatalogService* mcs, const std::string& db) {
+  ITableBuilder& builder = mcs->createTableBuilder(db, "t1", TSDB_NORMAL_TABLE, 6)
                                .setPrecision(TSDB_TIME_PRECISION_MILLI)
                                .setVgid(1)
                                .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
@@ -193,9 +193,9 @@ void generateTestTables(MockCatalogService* mcs) {
  *         jtag        |        tag         |        json        |    --    |
  * Child Table: st2s1, st2s2
  */
-void generateTestStables(MockCatalogService* mcs) {
+void generateTestStables(MockCatalogService* mcs, const std::string& db) {
   {
-    ITableBuilder& builder = mcs->createTableBuilder("test", "st1", TSDB_SUPER_TABLE, 3, 3)
+    ITableBuilder& builder = mcs->createTableBuilder(db, "st1", TSDB_SUPER_TABLE, 3, 3)
                                  .setPrecision(TSDB_TIME_PRECISION_MILLI)
                                  .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
                                  .addColumn("c1", TSDB_DATA_TYPE_INT)
@@ -204,20 +204,20 @@ void generateTestStables(MockCatalogService* mcs) {
                                  .addTag("tag2", TSDB_DATA_TYPE_BINARY, 20)
                                  .addTag("tag3", TSDB_DATA_TYPE_TIMESTAMP);
     builder.done();
-    mcs->createSubTable("test", "st1", "st1s1", 1);
-    mcs->createSubTable("test", "st1", "st1s2", 2);
-    mcs->createSubTable("test", "st1", "st1s3", 1);
+    mcs->createSubTable(db, "st1", "st1s1", 1);
+    mcs->createSubTable(db, "st1", "st1s2", 2);
+    mcs->createSubTable(db, "st1", "st1s3", 1);
   }
   {
-    ITableBuilder& builder = mcs->createTableBuilder("test", "st2", TSDB_SUPER_TABLE, 3, 1)
+    ITableBuilder& builder = mcs->createTableBuilder(db, "st2", TSDB_SUPER_TABLE, 3, 1)
                                  .setPrecision(TSDB_TIME_PRECISION_MILLI)
                                  .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
                                  .addColumn("c1", TSDB_DATA_TYPE_INT)
                                  .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
                                  .addTag("jtag", TSDB_DATA_TYPE_JSON);
     builder.done();
-    mcs->createSubTable("test", "st2", "st2s1", 1);
-    mcs->createSubTable("test", "st2", "st2s2", 2);
+    mcs->createSubTable(db, "st2", "st2s1", 1);
+    mcs->createSubTable(db, "st2", "st2s2", 2);
   }
 }
 
@@ -234,7 +234,14 @@ void generateDnodes(MockCatalogService* mcs) {
 }
 
 void generateDatabases(MockCatalogService* mcs) {
+  mcs->createDatabase(TSDB_INFORMATION_SCHEMA_DB);
+  mcs->createDatabase(TSDB_PERFORMANCE_SCHEMA_DB);
   mcs->createDatabase("test");
+  generateTestTables(g_mockCatalogService.get(), "test");
+  generateTestStables(g_mockCatalogService.get(), "test");
+  mcs->createDatabase("cache_db", false, 1);
+  generateTestTables(g_mockCatalogService.get(), "cache_db");
+  generateTestStables(g_mockCatalogService.get(), "cache_db");
   mcs->createDatabase("rollup_db", true);
 }
 
@@ -367,11 +374,8 @@ void generateMetaData() {
   generateDatabases(g_mockCatalogService.get());
   generateInformationSchema(g_mockCatalogService.get());
   generatePerformanceSchema(g_mockCatalogService.get());
-  generateTestTables(g_mockCatalogService.get());
-  generateTestStables(g_mockCatalogService.get());
   generateFunctions(g_mockCatalogService.get());
   generateDnodes(g_mockCatalogService.get());
-  g_mockCatalogService->showTables();
 }
 
 void destroyMetaDataEnv() { g_mockCatalogService.reset(); }

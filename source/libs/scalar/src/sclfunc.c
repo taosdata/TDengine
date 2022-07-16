@@ -702,6 +702,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   return TSDB_CODE_SUCCESS;
 }
 
+/** Conversion functions **/
 int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int16_t inputType  = GET_PARAM_TYPE(&pInput[0]);
   int16_t inputLen   = GET_PARAM_BYTES(&pInput[0]);
@@ -1164,6 +1165,7 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   return TSDB_CODE_SUCCESS;
 }
 
+/** Time functions **/
 int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(&pInput[0]);
 
@@ -1735,4 +1737,689 @@ int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
 
   pOutput->numOfRows += pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
+}
+
+
+/** Aggregation functions **/
+int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int64_t *out = (int64_t *)pOutputData->pData;
+  *out = 0;
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      continue;
+    }
+    (*out)++;
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t sumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+  bool hasNull = false;
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      int64_t *in  = (int64_t *)pInputData->pData;
+      int64_t *out = (int64_t *)pOutputData->pData;
+      *out += in[i];
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      uint64_t *in  = (uint64_t *)pInputData->pData;
+      uint64_t *out = (uint64_t *)pOutputData->pData;
+      *out += in[i];
+    } else if (IS_FLOAT_TYPE(type)) {
+      double *in  = (double *)pInputData->pData;
+      double *out = (double *)pOutputData->pData;
+      *out += in[i];
+    }
+  }
+
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t doMinMaxScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, bool isMinFunc) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+
+  bool hasNull = false;
+  if (isMinFunc) {
+    SET_TYPED_DATA_MAX(pOutputData->pData, type);
+  } else {
+    SET_TYPED_DATA_MIN(pOutputData->pData, type);
+  }
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+
+    switch(type) {
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_TINYINT: {
+        int8_t *in  = (int8_t *)pInputData->pData;
+        int8_t *out = (int8_t *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_SMALLINT: {
+        int16_t *in  = (int16_t *)pInputData->pData;
+        int16_t *out = (int16_t *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_INT: {
+        int32_t *in  = (int32_t *)pInputData->pData;
+        int32_t *out = (int32_t *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_BIGINT: {
+        int64_t *in  = (int64_t *)pInputData->pData;
+        int64_t *out = (int64_t *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_UTINYINT: {
+        uint8_t *in  = (uint8_t *)pInputData->pData;
+        uint8_t *out = (uint8_t *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT: {
+        uint16_t *in  = (uint16_t *)pInputData->pData;
+        uint16_t *out = (uint16_t *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_UINT: {
+        uint32_t *in  = (uint32_t *)pInputData->pData;
+        uint32_t *out = (uint32_t *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_UBIGINT: {
+        uint64_t *in  = (uint64_t *)pInputData->pData;
+        uint64_t *out = (uint64_t *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_FLOAT: {
+        float *in  = (float *)pInputData->pData;
+        float *out = (float *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double *in  = (double *)pInputData->pData;
+        double *out = (double *)pOutputData->pData;
+        if((in[i] > *out) ^ isMinFunc) {
+          *out = in[i];
+        }
+        break;
+      }
+    }
+  }
+
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t minScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doMinMaxScalarFunction(pInput, inputNum, pOutput, true);
+}
+
+int32_t maxScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return doMinMaxScalarFunction(pInput, inputNum, pOutput, false);
+}
+
+int32_t avgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+  int64_t count = 0;
+  bool hasNull = false;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+
+    switch(type) {
+      case TSDB_DATA_TYPE_TINYINT: {
+        int8_t *in   = (int8_t *)pInputData->pData;
+        int64_t *out = (int64_t *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_SMALLINT: {
+        int16_t *in  = (int16_t *)pInputData->pData;
+        int64_t *out = (int64_t *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_INT: {
+        int32_t *in  = (int32_t *)pInputData->pData;
+        int64_t *out = (int64_t *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_BIGINT: {
+        int64_t *in  = (int64_t *)pInputData->pData;
+        int64_t *out = (int64_t *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_UTINYINT: {
+        uint8_t *in   = (uint8_t *)pInputData->pData;
+        uint64_t *out = (uint64_t *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT: {
+        uint16_t *in  = (uint16_t *)pInputData->pData;
+        uint64_t *out = (uint64_t *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_UINT: {
+        uint32_t *in  = (uint32_t *)pInputData->pData;
+        uint64_t *out = (uint64_t *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_UBIGINT: {
+        uint64_t *in  = (uint64_t *)pInputData->pData;
+        uint64_t *out = (uint64_t *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_FLOAT: {
+        float *in  = (float *)pInputData->pData;
+        float *out = (float *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double *in  = (double *)pInputData->pData;
+        double *out = (double *)pOutputData->pData;
+        *out += in[i];
+        count++;
+        break;
+      }
+    }
+  }
+
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  } else {
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      int64_t *out   = (int64_t *)pOutputData->pData;
+      *(double *)out = *out / (double)count;
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      uint64_t *out  = (uint64_t *)pOutputData->pData;
+      *(double *)out = *out / (double)count;
+    } else if (IS_FLOAT_TYPE(type)) {
+      double *out    = (double *)pOutputData->pData;
+      *(double *)out = *out / (double)count;
+    }
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t stddevScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+  //int64_t count = 0, sum = 0, qSum = 0;
+  bool hasNull = false;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+#if 0
+    switch(type) {
+      case TSDB_DATA_TYPE_TINYINT: {
+        int8_t *in  = (int8_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_SMALLINT: {
+        int16_t *in  = (int16_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_INT: {
+        int32_t *in  = (int32_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_BIGINT: {
+        int64_t *in  = (int64_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_UTINYINT: {
+        uint8_t *in  = (uint8_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT: {
+        uint16_t *in  = (uint16_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_UINT: {
+        uint32_t *in  = (uint32_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_UBIGINT: {
+        uint64_t *in  = (uint64_t *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_FLOAT: {
+        float *in  = (float *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double *in  = (double *)pInputData->pData;
+        sum += in[i];
+        qSum += in[i] * in[i];
+        count++;
+        break;
+      }
+    }
+#endif
+  }
+
+  double *out  = (double *)pOutputData->pData;
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  } else {
+    *out = 0;
+#if 0
+    double avg = 0;
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      avg = (int64_t)sum / (double)count;
+      *out =  sqrt(fabs((int64_t)qSum / ((double)count) - avg * avg));
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      avg = (uint64_t)sum / (double)count;
+      *out =  sqrt(fabs((uint64_t)qSum / ((double)count) - avg * avg));
+    } else if (IS_FLOAT_TYPE(type)) {
+      avg = (double)sum / (double)count;
+      *out =  sqrt(fabs((double)qSum / ((double)count) - avg * avg));
+    }
+#endif
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+#define LEASTSQR_CAL(p, x, y, index, step) \
+  do {                                     \
+    (p)[0][0] += (double)(x) * (x);        \
+    (p)[0][1] += (double)(x);              \
+    (p)[0][2] += (double)(x) * (y)[index]; \
+    (p)[1][2] += (y)[index];               \
+    (x) += step;                           \
+  } while (0)
+
+int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  double startVal, stepVal;
+  double matrix[2][3] = {0};
+  GET_TYPED_DATA(startVal, double, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
+  GET_TYPED_DATA(stepVal, double, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+  int64_t count = 0;
+
+  switch(type) {
+    case TSDB_DATA_TYPE_TINYINT: {
+      int8_t *in   = (int8_t *)pInputData->pData;
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        if (colDataIsNull_s(pInputData, i)) {
+          continue;
+        }
+
+        count++;
+        LEASTSQR_CAL(matrix, startVal, in, i, stepVal);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int16_t *in  = (int16_t *)pInputData->pData;
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        if (colDataIsNull_s(pInputData, i)) {
+          continue;
+        }
+
+        count++;
+        LEASTSQR_CAL(matrix, startVal, in, i, stepVal);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      int32_t *in  = (int32_t *)pInputData->pData;
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        if (colDataIsNull_s(pInputData, i)) {
+          continue;
+        }
+
+        count++;
+        LEASTSQR_CAL(matrix, startVal, in, i, stepVal);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t *in  = (int64_t *)pInputData->pData;
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        if (colDataIsNull_s(pInputData, i)) {
+          continue;
+        }
+
+        count++;
+        LEASTSQR_CAL(matrix, startVal, in, i, stepVal);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      uint8_t *in   = (uint8_t *)pInputData->pData;
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        if (colDataIsNull_s(pInputData, i)) {
+          continue;
+        }
+
+        count++;
+        LEASTSQR_CAL(matrix, startVal, in, i, stepVal);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      uint16_t *in  = (uint16_t *)pInputData->pData;
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        if (colDataIsNull_s(pInputData, i)) {
+          continue;
+        }
+
+        count++;
+        LEASTSQR_CAL(matrix, startVal, in, i, stepVal);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      uint32_t *in  = (uint32_t *)pInputData->pData;
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        if (colDataIsNull_s(pInputData, i)) {
+          continue;
+        }
+
+        count++;
+        LEASTSQR_CAL(matrix, startVal, in, i, stepVal);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      uint64_t *in  = (uint64_t *)pInputData->pData;
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        if (colDataIsNull_s(pInputData, i)) {
+          continue;
+        }
+
+        count++;
+        LEASTSQR_CAL(matrix, startVal, in, i, stepVal);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      float *in  = (float *)pInputData->pData;
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        if (colDataIsNull_s(pInputData, i)) {
+          continue;
+        }
+
+        count++;
+        LEASTSQR_CAL(matrix, startVal, in, i, stepVal);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double *in  = (double *)pInputData->pData;
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        if (colDataIsNull_s(pInputData, i)) {
+          continue;
+        }
+
+        count++;
+        LEASTSQR_CAL(matrix, startVal, in, i, stepVal);
+      }
+      break;
+    }
+  }
+
+  if (count == 0) {
+    colDataAppendNULL(pOutputData, 0);
+  } else {
+    matrix[1][1] = (double)count;
+    matrix[1][0] = matrix[0][1];
+
+    double matrix00 = matrix[0][0] - matrix[1][0] * (matrix[0][1] / matrix[1][1]);
+    double matrix02 = matrix[0][2] - matrix[1][2] * (matrix[0][1] / matrix[1][1]);
+    double matrix12 = matrix[1][2] - matrix02 * (matrix[1][0] / matrix00);
+    matrix02 /= matrix00;
+
+    matrix12 /= matrix[1][1];
+
+    char   buf[64] = {0};
+    size_t len =
+        snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%.6lf, intercept:%.6lf}", matrix02, matrix12);
+    varDataSetLen(buf, len);
+    colDataAppend(pOutputData, 0, buf, false);
+
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t percentileScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+
+  double val;
+  bool hasNull = false;
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+    char *in = pInputData->pData;
+    GET_TYPED_DATA(val, double, type, in);
+  }
+
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  } else {
+    colDataAppend(pOutputData, 0, (char *)&val, false);
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t apercentileScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return percentileScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t spreadScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+
+  double min, max;
+  SET_DOUBLE_VAL(&min, DBL_MAX);
+  SET_DOUBLE_VAL(&max, -DBL_MAX);
+
+  bool hasNull = false;
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+
+    char *in = pInputData->pData;
+
+    double val = 0;
+    GET_TYPED_DATA(val, double, type, in);
+
+    if (val < GET_DOUBLE_VAL(&min)) {
+      SET_DOUBLE_VAL(&min, val);
+    }
+
+    if (val > GET_DOUBLE_VAL(&max)) {
+      SET_DOUBLE_VAL(&max, val);
+    }
+  }
+
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  } else {
+    double result = max - min;
+    colDataAppend(pOutputData, 0, (char *)&result, false);
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t nonCalcScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+  bool hasNull = false;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+  }
+
+  double *out  = (double *)pOutputData->pData;
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  } else {
+    *out = 0;
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t derivativeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return nonCalcScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t irateScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return nonCalcScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t twaScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return avgScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t mavgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return avgScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t hllScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return countScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t csumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return sumScalarFunction(pInput, inputNum, pOutput);
 }

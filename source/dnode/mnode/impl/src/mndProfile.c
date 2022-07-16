@@ -15,10 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "mndProfile.h"
-#include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
+#include "mndPrivilege.h"
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndStb.h"
@@ -274,6 +274,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.connId = pConn->id;
   connectRsp.connType = connReq.connType;
   connectRsp.dnodeNum = mndGetDnodeSize(pMnode);
+  connectRsp.svrTimestamp = taosGetTimestampSec();
 
   strcpy(connectRsp.sVer, version);
   snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
@@ -623,6 +624,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   }
 
   SClientHbBatchRsp batchRsp = {0};
+  batchRsp.svrTimestamp = taosGetTimestampSec();
   batchRsp.rsps = taosArrayInit(0, sizeof(SClientHbRsp));
 
   int32_t sz = taosArrayGetSize(batchReq.reqs);

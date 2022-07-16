@@ -77,6 +77,8 @@ typedef struct SScanLogicNode {
   SArray*       pSmaIndexes;
   SNodeList*    pGroupTags;
   bool          groupSort;
+  int8_t        cacheLastMode;
+  bool          hasNormalCols; // neither tag column nor primary key tag column
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -275,7 +277,12 @@ typedef struct SScanPhysiNode {
 
 typedef SScanPhysiNode STagScanPhysiNode;
 typedef SScanPhysiNode SBlockDistScanPhysiNode;
-typedef SScanPhysiNode SLastRowScanPhysiNode;
+
+typedef struct SLastRowScanPhysiNode {
+  SScanPhysiNode scan;
+  SNodeList*     pGroupTags;
+  bool           groupSort;
+} SLastRowScanPhysiNode;
 
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;

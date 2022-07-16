@@ -39,6 +39,6 @@ class DataBoundary:
         self.DB_PARAM_PRECISION_CONFIG = {"create_name": "precision", "query_name": "precision", "vnode_json_key": "", "boundary": ['ms', 'us', 'ns'], "default": "ms"}
         self.DB_PARAM_REPLICA_CONFIG = {"create_name": "replica", "query_name": "replica", "vnode_json_key": "", "boundary": [1], "default": 1}
         self.DB_PARAM_SINGLE_STABLE_CONFIG = {"create_name": "single_stable", "query_name": "single_stable_model", "vnode_json_key": "", "boundary": [0, 1], "default": 0}
-        self.DB_PARAM_STRICT_CONFIG = {"create_name": "strict", "query_name": "strict", "vnode_json_key": "", "boundary": {"no_strict": 0, "strict": 1}, "default": "no_strict"}
+        self.DB_PARAM_STRICT_CONFIG = {"create_name": "strict", "query_name": "strict", "vnode_json_key": "", "boundary": {"off": 0, "strict": 1}, "default": "off"}
         self.DB_PARAM_VGROUPS_CONFIG = {"create_name": "vgroups", "query_name": "vgroups", "vnode_json_key": "", "boundary": [1, 32], "default": 2}
         self.DB_PARAM_WAL_CONFIG = {"create_name": "wal", "query_name": "wal", "vnode_json_key": "", "boundary": [1, 2], "default": 1}

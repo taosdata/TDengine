@@ -27,6 +27,7 @@ typedef enum {
   TRANS_STOP_FUNC_TEST = 2,
   TRANS_START_FUNC_MQ_REB = 3,
   TRANS_STOP_FUNC_MQ_REB = 4,
+  TRANS_FUNC_RECOVER_STREAM_STEP_NEXT = 5,
 } ETrnFunc;
 
 typedef enum {

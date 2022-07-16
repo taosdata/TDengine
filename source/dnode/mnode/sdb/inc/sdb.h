@@ -137,17 +137,18 @@ typedef enum {
   SDB_USER = 7,
   SDB_AUTH = 8,
   SDB_ACCT = 9,
-  SDB_STREAM = 10,
-  SDB_OFFSET = 11,
-  SDB_SUBSCRIBE = 12,
-  SDB_CONSUMER = 13,
-  SDB_TOPIC = 14,
-  SDB_VGROUP = 15,
-  SDB_SMA = 16,
-  SDB_STB = 17,
-  SDB_DB = 18,
-  SDB_FUNC = 19,
-  SDB_MAX = 20
+  SDB_STREAM_CK = 10,
+  SDB_STREAM = 11,
+  SDB_OFFSET = 12,
+  SDB_SUBSCRIBE = 13,
+  SDB_CONSUMER = 14,
+  SDB_TOPIC = 15,
+  SDB_VGROUP = 16,
+  SDB_SMA = 17,
+  SDB_STB = 18,
+  SDB_DB = 19,
+  SDB_FUNC = 20,
+  SDB_MAX = 21
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -163,7 +164,6 @@ typedef struct SSdbRow {
   ESdbType   type;
   ESdbStatus status;
   int32_t    refCount;
-  int64_t    forAlign;
   char       pObj[];
 } SSdbRow;
 
@@ -309,7 +309,7 @@ void sdbRelease(SSdb *pSdb, void *pObj);
  * @return void* The next iterator of the table.
  */
 void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj);
-void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status) ;
+void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status);
 
 /**
  * @brief Cancel a traversal
