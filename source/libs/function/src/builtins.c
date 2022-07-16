@@ -2408,6 +2408,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getDiffFuncEnv,
     .initFunc     = diffFunctionSetup,
     .processFunc  = diffFunction,
+    .sprocessFunc = diffScalarFunction,
     .finalizeFunc = functionFinalize
   },
   {
