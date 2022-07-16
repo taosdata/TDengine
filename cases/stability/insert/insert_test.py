@@ -83,7 +83,7 @@ class TestInsert(TDCase):
         self.logger.debug("json template: {}".format(config_dict[TestInsert.key_json_template]))
         if not os.path.isfile(config_dict[TestInsert.key_json_template]):
             self.logger.error("{} not exist".format(config_dict[TestInsert.key_json_template]))
-            self.set_error_msg("{} not exist".format(config_dict[TestInsert.key_json_template])
+            self.set_error_msg("{} not exist".format(config_dict[TestInsert.key_json_template]))
             return False
 
         # create tmp dir
