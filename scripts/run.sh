@@ -12,12 +12,13 @@ function usage() {
     echo -e "\t -v TDengine version"
     echo -e "\t -n docker network prefix"
     echo -e "\t -N docker network"
+    echo -e "\t -M docker network map file"
     echo -e "\t -o default timeout value"
     echo -e "\t -e enable sub log dir"
     echo -e "\t -h help"
 }
 
-while getopts "m:t:b:l:o:v:d:w:n:N:esh" opt; do
+while getopts "m:t:b:l:o:v:d:w:n:N:M:esh" opt; do
     case $opt in
         m)
             config_file=$OPTARG
@@ -45,6 +46,9 @@ while getopts "m:t:b:l:o:v:d:w:n:N:esh" opt; do
             ;;
         N)
             docker_network=$OPTARG
+            ;;
+        M)
+            docker_network_map_file=$OPTARG
             ;;
         o)
             TIMEOUT_PREFIX="timeout $OPTARG"
@@ -78,6 +82,13 @@ if [ ! -z $t_file ] && [ ! -f $t_file ]; then
 fi
 if [ -z $docker_network_prefix ]; then
     docker_network_prefix=taosnet
+fi
+if [ ! -z "$docker_network_map_file" ]; then
+    if [ ! -f $docker_network_map_file ]; then
+        echo "$docker_network_map_file not found"
+        usage
+        exit 1
+    fi
 fi
 
 date_tag=`date +%Y%m%d-%H%M%S`
@@ -193,6 +204,28 @@ function run_thread() {
         if [ -z "$case_file" ]; then
             continue
         fi
+        local env_file=""
+        local setup_use=""
+        echo "$case_cmd" | grep -q "\-\-use"
+        if [ $? -eq 0 ]; then
+            setup_use="use"
+        fi
+        echo "$case_cmd" | grep -q "\-\-setup"
+        if [ $? -eq 0 ]; then
+            setup_use="setup"
+        fi
+        if [ ! -z "${setup_use}" ]; then
+            local env_param=`echo "$case_cmd" | grep -o "\-\-${setup_use}.*"`
+            echo "$env_param" | grep -q "\-\-${setup_use}="
+            if [ $? -eq 0 ]; then
+                env_file=`echo "$env_param" | cut -d= -f2 | cut -d' ' -f1`
+            else
+                env_file=`echo "$env_param" | awk '{print $2}'`
+            fi
+        fi
+        if [ -z "$env_file" ]; then
+            continue
+        fi
         # echo "$index_file"
         local case_index=`flock -x $lock_file -c "sh -c \"echo \\\$(( \\\$( cat $index_file ) + 1 )) | tee $index_file\""`
         case_index=`printf "%5d" $case_index`
@@ -224,6 +257,9 @@ function run_thread() {
         # set network
         if [ -z "${docker_network}" ]; then
             docker_network=${docker_network_prefix}_${thread_no}
+        fi
+        if [ ! -z "${docker_network_map_file}" ]; then
+            docker_network=`cat $docker_network_map_file | grep -w "^$env_file" | awk '{print $2}' | head -n1`
         fi
         cmd="$cmd --source-dir ${workdirs[index]}/TDinternal --docker-network ${docker_network} --sql_recording"
         local ret=0
