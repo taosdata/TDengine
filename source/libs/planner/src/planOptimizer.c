@@ -1993,7 +1993,8 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
   SNode* pFunc = NULL;
   FOREACH(pFunc, ((SAggLogicNode*)pNode)->pAggFuncs) {
     if (FUNCTION_TYPE_LAST_ROW != ((SFunctionNode*)pFunc)->funcType &&
-        FUNCTION_TYPE_SELECT_VALUE != ((SFunctionNode*)pFunc)->funcType) {
+        FUNCTION_TYPE_SELECT_VALUE != ((SFunctionNode*)pFunc)->funcType &&
+        FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pFunc)->funcType) {
       return false;
     }
   }
@@ -2112,7 +2113,7 @@ static bool tagScanMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
   SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-  if (NULL != pScan->pScanCols) {
+  if (pScan->hasNormalCols) {
     return false;
   }
   if (NULL == pNode->pParent || QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent) ||

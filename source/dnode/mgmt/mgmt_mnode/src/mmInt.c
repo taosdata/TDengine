@@ -148,9 +148,9 @@ static int32_t mmStart(SMnodeMgmt *pMgmt) {
 
 static void mmStop(SMnodeMgmt *pMgmt) {
   dDebug("mnode-mgmt start to stop");
+  mndPreClose(pMgmt->pMnode);
   taosThreadRwlockWrlock(&pMgmt->lock);
   pMgmt->stopped = 1;
-  mndPreClose(pMgmt->pMnode);
   taosThreadRwlockUnlock(&pMgmt->lock);
 
   mndStop(pMgmt->pMnode);
