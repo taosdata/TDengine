@@ -119,7 +119,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   taosRealPath(tdir, NULL, sizeof(tdir));
 
 // for test tsdb snapshot
-#if 1
+#if 0
   pVnode->config.walCfg.segSize = 200;
   pVnode->config.walCfg.retentionSize = 2000;
 #endif
