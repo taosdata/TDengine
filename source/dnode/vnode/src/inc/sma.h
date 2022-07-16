@@ -32,6 +32,8 @@ extern "C" {
 #define smaTrace(...) do { if (smaDebugFlag & DEBUG_TRACE) { taosPrintLog("SMA ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
+#define RSMA_TASK_INFO_HASH_SLOT 8
+
 typedef struct SSmaEnv       SSmaEnv;
 typedef struct SSmaStat      SSmaStat;
 typedef struct STSmaStat     STSmaStat;
@@ -41,7 +43,7 @@ typedef struct SRSmaInfo     SRSmaInfo;
 typedef struct SRSmaInfoItem SRSmaInfoItem;
 
 struct SSmaEnv {
-  TdThreadRwlock lock;
+  SRWLatch       lock;
   int8_t         type;
   SSmaStat      *pStat;
 };
@@ -52,7 +54,7 @@ typedef struct {
   void   *tmrHandle;  // shared by all fetch tasks
 } SSmaMgmt;
 
-#define SMA_ENV_LOCK(env) ((env)->lock)
+#define SMA_ENV_LOCK(env) (&(env)->lock)
 #define SMA_ENV_TYPE(env) ((env)->type)
 #define SMA_ENV_STAT(env) ((env)->pStat)
 
@@ -64,10 +66,14 @@ struct STSmaStat {
 
 struct SRSmaStat {
   SSma     *pSma;
-  int64_t   submitVer;
-  int64_t   refId;         // shared by fetch tasks
-  int8_t    triggerStat;   // shared by fetch tasks
-  SHashObj *rsmaInfoHash;  // key: stbUid, value: SRSmaInfo;
+  int64_t   commitAppliedVer;  // vnode applied version for async commit
+  int64_t   commitSubmitVer;   // rsma submit version for async commit
+  int64_t   submitVer;         // latest submit version
+  int64_t   refId;             // shared by fetch tasks
+  int8_t    triggerStat;       // shared by fetch tasks
+  int8_t    commitStat;        // 0 not in committing, 1 in committing
+  SHashObj *rsmaInfoHash;      // key: stbUid, value: SRSmaInfo;
+  SHashObj *iRsmaInfoHash;     // key: stbUid, value: SRSmaInfo; immutable rsmaInfoHash
 };
 
 struct SSmaStat {
@@ -78,12 +84,29 @@ struct SSmaStat {
   T_REF_DECLARE()
 };
 
-#define SMA_TSMA_STAT(s)     (&(s)->tsmaStat)
-#define SMA_RSMA_STAT(s)     (&(s)->rsmaStat)
-#define RSMA_INFO_HASH(r)    ((r)->rsmaInfoHash)
-#define RSMA_TRIGGER_STAT(r) (&(r)->triggerStat)
-#define RSMA_REF_ID(r)       ((r)->refId)
-#define RSMA_SUBMIT_VER(r)   ((r)->submitVer)
+#define SMA_TSMA_STAT(s)      (&(s)->tsmaStat)
+#define SMA_RSMA_STAT(s)      (&(s)->rsmaStat)
+#define RSMA_INFO_HASH(r)     ((r)->rsmaInfoHash)
+#define RSMA_IMU_INFO_HASH(r) ((r)->iRsmaInfoHash)
+#define RSMA_TRIGGER_STAT(r)  (&(r)->triggerStat)
+#define RSMA_COMMIT_STAT(r)   (&(r)->commitStat)
+#define RSMA_REF_ID(r)        ((r)->refId)
+#define RSMA_SUBMIT_VER(r)    ((r)->submitVer)
+
+struct SRSmaInfoItem {
+  void   *taskInfo;  // qTaskInfo_t
+  int64_t refId;
+  tmr_h   tmrId;
+  int32_t maxDelay;
+  int8_t  level;
+  int8_t  triggerStat;
+};
+
+struct SRSmaInfo {
+  STSchema     *pTSchema;
+  int64_t       suid;
+  SRSmaInfoItem items[TSDB_RETENTION_L2];
+};
 
 enum {
   TASK_TRIGGER_STAT_INIT = 0,
@@ -92,6 +115,14 @@ enum {
   TASK_TRIGGER_STAT_PAUSED = 3,
   TASK_TRIGGER_STAT_CANCELLED = 4,
   TASK_TRIGGER_STAT_DROPPED = 5,
+};
+
+enum {
+  RSMA_ROLE_CREATE = 0,
+  RSMA_ROLE_DROP = 1,
+  RSMA_ROLE_FETCH = 2,
+  RSMA_ROLE_SUBMIT = 3,
+  RSMA_ROLE_ITERATE = 4,
 };
 
 void  tdDestroySmaEnv(SSmaEnv *pSmaEnv);
@@ -111,33 +142,6 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType);
 
 int32_t tdLockSma(SSma *pSma);
 int32_t tdUnLockSma(SSma *pSma);
-
-static FORCE_INLINE int32_t tdRLockSmaEnv(SSmaEnv *pEnv) {
-  int code = taosThreadRwlockRdlock(&(pEnv->lock));
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return -1;
-  }
-  return 0;
-}
-
-static FORCE_INLINE int32_t tdWLockSmaEnv(SSmaEnv *pEnv) {
-  int code = taosThreadRwlockWrlock(&(pEnv->lock));
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return -1;
-  }
-  return 0;
-}
-
-static FORCE_INLINE int32_t tdUnLockSmaEnv(SSmaEnv *pEnv) {
-  int code = taosThreadRwlockUnlock(&(pEnv->lock));
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return -1;
-  }
-  return 0;
-}
 
 static FORCE_INLINE int8_t tdSmaStat(STSmaStat *pTStat) {
   if (pTStat) {
@@ -184,10 +188,12 @@ static FORCE_INLINE void tdSmaStatSetDropped(STSmaStat *pTStat) {
   }
 }
 
+int32_t        tdCloneRSmaInfo(SSma *pSma, SRSmaInfo *pDest, SRSmaInfo *pSrc);
+void           tdFreeQTaskInfo(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level);
 static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
-void          *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo);
-int32_t        tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat);
+void          *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
+int32_t        tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
 
 int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
 int32_t tdProcessRSmaRestoreImpl(SSma *pSma);
