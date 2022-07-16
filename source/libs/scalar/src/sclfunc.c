@@ -2421,3 +2421,7 @@ int32_t twaScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 int32_t mavgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return avgScalarFunction(pInput, inputNum, pOutput);
 }
+
+int32_t hllScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return countScalarFunction(pInput, inputNum, pOutput);
+}
