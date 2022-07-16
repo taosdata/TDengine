@@ -15,11 +15,13 @@
 
 #include "sma.h"
 
-static int32_t tdProcessRSmaPreCommitImpl(SSma *pSma);
-static int32_t tdProcessRSmaCommitImpl(SSma *pSma);
-static int32_t tdProcessRSmaPostCommitImpl(SSma *pSma);
+static int32_t tdProcessRSmaSyncPreCommitImpl(SSma *pSma);
+static int32_t tdProcessRSmaSyncCommitImpl(SSma *pSma);
+static int32_t tdProcessRSmaSyncPostCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma);
+static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma);
+static int32_t tdClearupQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat);
 
 /**
  * @brief Only applicable to Rollup SMA
@@ -27,7 +29,7 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma);
  * @param pSma
  * @return int32_t
  */
-int32_t smaSyncPreCommit(SSma *pSma) { return tdProcessRSmaPreCommitImpl(pSma); }
+int32_t smaSyncPreCommit(SSma *pSma) { return tdProcessRSmaSyncPreCommitImpl(pSma); }
 
 /**
  * @brief Only applicable to Rollup SMA
@@ -35,7 +37,7 @@ int32_t smaSyncPreCommit(SSma *pSma) { return tdProcessRSmaPreCommitImpl(pSma); 
  * @param pSma
  * @return int32_t
  */
-int32_t smaSyncCommit(SSma *pSma) { return tdProcessRSmaCommitImpl(pSma); }
+int32_t smaSyncCommit(SSma *pSma) { return tdProcessRSmaSyncCommitImpl(pSma); }
 
 /**
  * @brief Only applicable to Rollup SMA
@@ -43,7 +45,7 @@ int32_t smaSyncCommit(SSma *pSma) { return tdProcessRSmaCommitImpl(pSma); }
  * @param pSma
  * @return int32_t
  */
-int32_t smaSyncPostCommit(SSma *pSma) { return tdProcessRSmaPostCommitImpl(pSma); }
+int32_t smaSyncPostCommit(SSma *pSma) { return tdProcessRSmaSyncPostCommitImpl(pSma); }
 
 /**
  * @brief Only applicable to Rollup SMA
@@ -52,6 +54,14 @@ int32_t smaSyncPostCommit(SSma *pSma) { return tdProcessRSmaPostCommitImpl(pSma)
  * @return int32_t
  */
 int32_t smaAsyncPreCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma); }
+
+/**
+ * @brief Only applicable to Rollup SMA
+ *
+ * @param pSma
+ * @return int32_t
+ */
+int32_t smaAsyncCommit(SSma *pSma) { return tdProcessRSmaAsyncCommitImpl(pSma); }
 
 /**
  * @brief Only applicable to Rollup SMA
@@ -106,7 +116,7 @@ int32_t smaBegin(SSma *pSma) {
  * @param pSma
  * @return int32_t
  */
-static int32_t tdProcessRSmaPreCommitImpl(SSma *pSma) {
+static int32_t tdProcessRSmaSyncPreCommitImpl(SSma *pSma) {
   SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
   if (!pSmaEnv) {
     return TSDB_CODE_SUCCESS;
@@ -135,7 +145,9 @@ static int32_t tdProcessRSmaPreCommitImpl(SSma *pSma) {
   }
 
   // step 3: perform persist task for qTaskInfo
-  tdRSmaPersistExecImpl(pRSmaStat);
+  pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
+  pRSmaStat->commitSubmitVer = pRSmaStat->submitVer;
+  tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat));
 
   smaDebug("vgId:%d, rsma pre commit success", SMA_VID(pSma));
 
@@ -148,7 +160,7 @@ static int32_t tdProcessRSmaPreCommitImpl(SSma *pSma) {
  * @param pSma
  * @return int32_t
  */
-static int32_t tdProcessRSmaCommitImpl(SSma *pSma) {
+static int32_t tdProcessRSmaSyncCommitImpl(SSma *pSma) {
   SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
   if (!pSmaEnv) {
     return TSDB_CODE_SUCCESS;
@@ -156,21 +168,9 @@ static int32_t tdProcessRSmaCommitImpl(SSma *pSma) {
   return TSDB_CODE_SUCCESS;
 }
 
-/**
- * @brief post-commit for rollup sma
- *  1) clean up the outdated qtaskinfo files
- *
- * @param pSma
- * @return int32_t
- */
-static int32_t tdProcessRSmaPostCommitImpl(SSma *pSma) {
-  SVnode *pVnode = pSma->pVnode;
-
-  if (!VND_IS_RSMA(pVnode)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int64_t       committed = pVnode->state.committed;
+static int32_t tdClearupQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat) {
+  SVnode       *pVnode = pSma->pVnode;
+  int64_t       committed = pRSmaStat->commitAppliedVer;
   TdDirPtr      pDir = NULL;
   TdDirEntryPtr pDirEntry = NULL;
   char          dir[TSDB_FILENAME_LEN];
@@ -238,6 +238,29 @@ static int32_t tdProcessRSmaPostCommitImpl(SSma *pSma) {
 
   taosCloseDir(&pDir);
   regfree(&regex);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * @brief post-commit for rollup sma
+ *  1) clean up the outdated qtaskinfo files
+ *
+ * @param pSma
+ * @return int32_t
+ */
+static int32_t tdProcessRSmaSyncPostCommitImpl(SSma *pSma) {
+  SVnode *pVnode = pSma->pVnode;
+  if (!VND_IS_RSMA(pVnode)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSmaEnv   *pSmaEnv = SMA_RSMA_ENV(pSma);
+  SRSmaStat *pRSmaStat = SMA_RSMA_STAT(SMA_ENV_STAT(pSmaEnv));
+
+  // cleanup outdated qtaskinfo files
+  tdClearupQTaskInfoFiles(pSma, pRSmaStat);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -259,8 +282,9 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   SSmaStat  *pStat = SMA_ENV_STAT(pSmaEnv);
   SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pStat);
 
-  // step 1: set rsma stat paused
+  // step 1: set rsma stat
   atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_PAUSED);
+  atomic_store_8(RSMA_COMMIT_STAT(pRSmaStat), 1);
 
   // step 2: wait all triggered fetch tasks finished
   int32_t nLoops = 0;
@@ -285,19 +309,45 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   RSMA_IMU_INFO_HASH(pRSmaStat) = RSMA_INFO_HASH(pRSmaStat);
   RSMA_INFO_HASH(pRSmaStat) =
       taosHashInit(RSMA_TASK_INFO_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+
   if (!RSMA_INFO_HASH(pRSmaStat)) {
     smaError("vgId:%d, rsma async commit failed since %s", SMA_VID(pSma), terrstr());
     return TSDB_CODE_FAILED;
   }
+
+  // step 4: others
+  pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
+  pRSmaStat->commitSubmitVer = pRSmaStat->submitVer;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * @brief commit for rollup sma
+ *
+ * @param pSma
+ * @return int32_t
+ */
+static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma) {
+  SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
+  if (!pSmaEnv) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSmaStat  *pStat = SMA_ENV_STAT(pSmaEnv);
+  SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pStat);
+
+  // perform persist task for qTaskInfo
+  tdRSmaPersistExecImpl(pRSmaStat, RSMA_IMU_INFO_HASH(pRSmaStat));
 
   return TSDB_CODE_SUCCESS;
 }
 
 /**
  * @brief Migrate rsmaInfo from iRsmaInfo to rsmaInfo if rsmaInfoHash not empty.
- * 
- * @param pSma 
- * @return int32_t 
+ *
+ * @param pSma
+ * @return int32_t
  */
 static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
   SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
@@ -309,9 +359,10 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
   SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pStat);
 
   // step 1: merge rsmaInfoHash and iRsmaInfoHash
+  taosWLockLatch(SMA_ENV_LOCK(pSmaEnv));
 
   if (taosHashGetSize(RSMA_INFO_HASH(pRSmaStat)) <= 0) {
-    // TODO:
+    // TODO: optimization - just switch the hash pointer if rsmaInfoHash is empty
   }
 
   void *pIter = taosHashIterate(RSMA_IMU_INFO_HASH(pRSmaStat), NULL);
@@ -320,15 +371,12 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
 
     if (!taosHashGet(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t))) {
       taosHashPut(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t), pIter, sizeof(pIter));
-      smaDebug("vgId:%d, rsma async post commit, migrated from iRsmaInfoHash for table:%" PRIi64, SMA_VID(pSma), *pSuid);
+      smaDebug("vgId:%d, rsma async post commit, migrated from iRsmaInfoHash for table:%" PRIi64, SMA_VID(pSma),
+               *pSuid);
     } else {
+      // free the resources
       SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)pIter;
-      for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
-        SRSmaInfoItem *pItem = &pRSmaInfo->items[i];
-        if (pItem->taskInfo) {
-          tdFreeQTaskInfo(pItem->taskInfo, SMA_VID(pSma), i + 1);
-        }
-      }
+      tdFreeRSmaInfo(pSma, pRSmaInfo, false);
       smaDebug("vgId:%d, rsma async post commit, free rsma info since already COW for table:%" PRIi64, SMA_VID(pSma),
                *pSuid);
     }
@@ -338,6 +386,11 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
 
   taosHashCleanup(RSMA_IMU_INFO_HASH(pRSmaStat));
   RSMA_IMU_INFO_HASH(pRSmaStat) = NULL;
+
+  taosWUnLockLatch(SMA_ENV_LOCK(pSmaEnv));
+
+  // step 2: cleanup outdated qtaskinfo files
+  tdClearupQTaskInfoFiles(pSma, pRSmaStat);
 
   return TSDB_CODE_SUCCESS;
 }

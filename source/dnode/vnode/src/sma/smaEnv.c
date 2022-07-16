@@ -108,12 +108,7 @@ static SSmaEnv *tdNewSmaEnv(const SSma *pSma, int8_t smaType, const char *path) 
 
   SMA_ENV_TYPE(pEnv) = smaType;
 
-  int code = taosThreadRwlockInit(&(pEnv->lock), NULL);
-  if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    taosMemoryFree(pEnv);
-    return NULL;
-  }
+  taosInitRWLatch(&(pEnv->lock));
 
   if (tdInitSmaStat(&SMA_ENV_STAT(pEnv), smaType, pSma) != TSDB_CODE_SUCCESS) {
     tdFreeSmaEnv(pEnv);
@@ -147,7 +142,6 @@ static int32_t tdInitSmaEnv(SSma *pSma, int8_t smaType, const char *path, SSmaEn
 void tdDestroySmaEnv(SSmaEnv *pSmaEnv) {
   if (pSmaEnv) {
     pSmaEnv->pStat = tdFreeSmaState(pSmaEnv->pStat, SMA_ENV_TYPE(pSmaEnv));
-    taosThreadRwlockDestroy(&(pSmaEnv->lock));
   }
 }
 
@@ -259,7 +253,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
       void *infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), NULL);
       while (infoHash) {
         SRSmaInfo *pSmaInfo = *(SRSmaInfo **)infoHash;
-        tdFreeRSmaInfo(pSma, pSmaInfo);
+        tdFreeRSmaInfo(pSma, pSmaInfo, true);
         infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), infoHash);
       }
     }
@@ -359,7 +353,7 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
       }
       break;
     default:
-      smaError("vgId:%d, undefined smaType:%", SMA_VID(pSma), smaType);
+      smaError("vgId:%d undefined smaType:%", SMA_VID(pSma), smaType);
       return TSDB_CODE_FAILED;
   }
 

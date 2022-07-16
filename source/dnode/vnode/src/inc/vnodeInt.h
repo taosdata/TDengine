@@ -168,6 +168,7 @@ int32_t smaSyncPreCommit(SSma* pSma);
 int32_t smaSyncCommit(SSma* pSma);
 int32_t smaSyncPostCommit(SSma* pSma);
 int32_t smaAsyncPreCommit(SSma* pSma);
+int32_t smaAsyncCommit(SSma* pSma);
 int32_t smaAsyncPostCommit(SSma* pSma);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
