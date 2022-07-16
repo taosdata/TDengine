@@ -263,7 +263,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   taosArrayClear(pCommitter->aBlockIdx);
   tMapDataReset(&pCommitter->oBlockMap);
   tBlockDataReset(&pCommitter->oBlockData);
-  pRSet = tsdbFSStateGetDFileSet(pTsdb->fs->nState, pCommitter->commitFid);
+  pRSet = tsdbFSStateGetDFileSet(pTsdb->fs->nState, pCommitter->commitFid, TD_EQ);
   if (pRSet) {
     code = tsdbDataFReaderOpen(&pCommitter->pReader, pTsdb, pRSet);
     if (code) goto _err;
@@ -284,16 +284,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
                        .fLast = {.commitID = pCommitter->commitID, .size = 0},
                        .fSma = pRSet->fSma};
   } else {
-    STfs   *pTfs = pTsdb->pVnode->pTfs;
-    SDiskID did = {.level = 0, .id = 0};
-
-    // TODO: alloc a new disk
-    // tfsAllocDisk(pTfs, 0, &did);
-
-    // create the directory
-    tfsMkdirRecurAt(pTfs, pTsdb->path, did);
-
-    wSet = (SDFileSet){.diskId = did,
+    wSet = (SDFileSet){.diskId = (SDiskID){.level = 0, .id = 0},
                        .fid = pCommitter->commitFid,
                        .fHead = {.commitID = pCommitter->commitID, .offset = 0, .size = 0},
                        .fData = {.commitID = pCommitter->commitID, .size = 0},
@@ -1001,10 +992,10 @@ _exit:
 static void tsdbCommitDataEnd(SCommitter *pCommitter) {
   taosArrayDestroy(pCommitter->aBlockIdx);
   tMapDataClear(&pCommitter->oBlockMap);
-  tBlockDataClear(&pCommitter->oBlockData);
+  tBlockDataClear(&pCommitter->oBlockData, 1);
   taosArrayDestroy(pCommitter->aBlockIdxN);
   tMapDataClear(&pCommitter->nBlockMap);
-  tBlockDataClear(&pCommitter->nBlockData);
+  tBlockDataClear(&pCommitter->nBlockData, 1);
   tTSchemaDestroy(pCommitter->skmTable.pTSchema);
   tTSchemaDestroy(pCommitter->skmRow.pTSchema);
 }

@@ -139,18 +139,29 @@ SSDataBlock* doScanLastrow(SOperatorInfo* pOperator) {
         colDataAppend(pDst, 0, p, isNull);
       }
 
+      pInfo->pRes->info.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, pInfo->indexOfBufferedRes);
+      pInfo->pRes->info.rows = 1;
+
       if (pInfo->pseudoExprSup.numOfExprs > 0) {
         SExprSupp* pSup = &pInfo->pseudoExprSup;
-        addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes,
+        int32_t code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes,
                                GET_TASKID(pTaskInfo));
+        if (code != TSDB_CODE_SUCCESS) {
+          pTaskInfo->code = code;
+          return NULL;
+        }
       }
 
-      pInfo->pRes->info.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, pInfo->indexOfBufferedRes);
-      int64_t* groupId = taosHashGet(pTableList->map, &pInfo->pRes->info.uid, sizeof(int64_t));
-      pInfo->pRes->info.groupId = *groupId;
+      if (pTableList->map != NULL) {
+        int64_t* groupId = taosHashGet(pTableList->map, &pInfo->pRes->info.uid, sizeof(int64_t));
+        pInfo->pRes->info.groupId = *groupId;
+      } else {
+        ASSERT(taosArrayGetSize(pTableList->pTableList) == 1);
+        STableKeyInfo* pKeyInfo = taosArrayGet(pTableList->pTableList, 0);
+        pInfo->pRes->info.groupId = pKeyInfo->groupId;
+      }
 
       pInfo->indexOfBufferedRes += 1;
-      pInfo->pRes->info.rows = 1;
       return pInfo->pRes;
     } else {
       doSetOperatorCompleted(pOperator);
@@ -182,8 +193,12 @@ SSDataBlock* doScanLastrow(SOperatorInfo* pOperator) {
           STableKeyInfo* pKeyInfo = taosArrayGet(pGroupTableList, 0);
           pInfo->pRes->info.groupId = pKeyInfo->groupId;
 
-          addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes,
+          code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes,
                                  GET_TASKID(pTaskInfo));
+          if  (code != TSDB_CODE_SUCCESS) {
+            pTaskInfo->code = code;
+            return NULL;
+          }
         }
 
         tsdbLastrowReaderClose(pInfo->pLastrowReader);

@@ -62,11 +62,11 @@ class TDTestCase:
                 if coltype[1] in support_types:
                     self.check_result_auto(origin_sql , abs_sql)
                     
-
     def prepare_datas(self ,cache_value):
         tdSql.execute("drop database if exists db ")
         create_db_sql = f"create database if not exists db keep 3650 duration 1000 cachemodel {cache_value}"
         tdSql.execute(create_db_sql)
+
         tdSql.execute("use db")
         tdSql.execute(
             '''create table db.stb1
@@ -128,8 +128,8 @@ class TDTestCase:
 
         tdSql.execute("drop database if exists testdb ")
         # prepare datas
-        tdSql.execute(
-            f"create database if not exists testdb keep 3650 duration 1000 cachemodel {cache_value}")
+        tdSql.execute(f"create database if not exists testdb keep 3650 duration 1000 cachemodel {cache_value}")
+
         tdSql.execute(" use testdb ")
 
         tdSql.execute(f" create stable testdb.stb1 (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp , uc1 int unsigned,\
@@ -541,6 +541,7 @@ class TDTestCase:
 
         tdSql.execute("drop database if exists bound_test")
         tdSql.execute("create database if not exists bound_test cachemodel 'LAST_ROW' ")
+
         time.sleep(3)
         tdSql.execute("use bound_test")
         tdSql.execute(

@@ -261,6 +261,15 @@ int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem) {
 }
 #endif
 
+int32_t qStreamPrepareRecover(qTaskInfo_t tinfo, int64_t startVer, int64_t endVer) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
+  pTaskInfo->streamInfo.recoverStartVer = startVer;
+  pTaskInfo->streamInfo.recoverEndVer = endVer;
+  pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__PREPARE;
+  return 0;
+}
+
 void* qExtractReaderFromStreamScanner(void* scanner) {
   SStreamScanInfo* pInfo = scanner;
   return (void*)pInfo->tqReader;

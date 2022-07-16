@@ -309,6 +309,7 @@ void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 
 struct SSnapDataHdr {
   int8_t  type;
+  int64_t index;
   int64_t size;
   uint8_t data[];
 };

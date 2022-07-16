@@ -161,7 +161,7 @@ JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetTableNam
  * Signature: (JJLcom/taosdata/jdbc/TSDBResultSetBlockData;ILjava/util/List;)I
  */
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_fetchRawBlockImp(JNIEnv *, jobject, jlong, jlong,
-                                                                                jobject, jint, jobject);
+                                                                                jobject, jobject);
 
 #ifdef __cplusplus
 }
