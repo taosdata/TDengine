@@ -49,6 +49,12 @@ python3 ./test.py -f 2-query/bottom.py
 python3 ./test.py -f 2-query/bottom.py -R
 python3 ./test.py -f 2-query/cast.py
 python3 ./test.py -f 2-query/cast.py -R
+python3 ./test.py -f 2-query/ceil.py
+python3 ./test.py -f 2-query/ceil.py -R
+python3 ./test.py -f 2-query/char_length.py
+python3 ./test.py -f 2-query/char_length.py -R
+python3 ./test.py -f 2-query/check_tsdb.py
+python3 ./test.py -f 2-query/check_tsdb.py -R
 
 
 
@@ -57,7 +63,6 @@ python3 ./test.py -f 2-query/varchar.py
 python3 ./test.py -f 2-query/ltrim.py
 python3 ./test.py -f 2-query/rtrim.py
 python3 ./test.py -f 2-query/length.py
-python3 ./test.py -f 2-query/char_length.py
 python3 ./test.py -f 2-query/upper.py
 python3 ./test.py -f 2-query/lower.py
 python3 ./test.py -f 2-query/join.py
@@ -69,7 +74,6 @@ python3 ./test.py -f 2-query/concat.py
 python3 ./test.py -f 2-query/concat2.py
 python3 ./test.py -f 2-query/concat_ws.py
 python3 ./test.py -f 2-query/concat_ws2.py
-python3 ./test.py -f 2-query/check_tsdb.py
 python3 ./test.py -f 2-query/spread.py
 python3 ./test.py -f 2-query/hyperloglog.py
 python3 ./test.py -f 2-query/explain.py
@@ -94,7 +98,6 @@ python3 ./test.py -f 2-query/json_tag.py
 
 python3 ./test.py -f 2-query/top.py
 python3 ./test.py -f 2-query/percentile.py
-python3 ./test.py -f 2-query/ceil.py
 python3 ./test.py -f 2-query/floor.py
 python3 ./test.py -f 2-query/round.py
 python3 ./test.py -f 2-query/log.py
