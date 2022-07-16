@@ -2381,6 +2381,11 @@ int32_t spreadScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t derivativeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  pOutput->numOfRows = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t irateScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;

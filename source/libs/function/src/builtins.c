@@ -2207,6 +2207,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getDerivativeFuncEnv,
     .initFunc     = derivativeFuncSetup,
     .processFunc  = derivativeFunction,
+    .sprocessFunc = derivativeScalarFunction,
     .finalizeFunc = functionFinalize
   },
   {
