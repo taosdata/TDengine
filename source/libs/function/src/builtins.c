@@ -2034,6 +2034,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getPercentileFuncEnv,
     .initFunc     = percentileFunctionSetup,
     .processFunc  = percentileFunction,
+    .sprocessFunc = percentileScalarFunction,
     .finalizeFunc = percentileFinalize,
     .invertFunc   = NULL,
     .combineFunc  = NULL,
@@ -2046,6 +2047,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunction,
+    .sprocessFunc = apercentileScalarFunction,
     .finalizeFunc = apercentileFinalize,
     .invertFunc   = NULL,
     .combineFunc  = apercentileCombine,
@@ -2113,6 +2115,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSpreadFuncEnv,
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunction,
+    .sprocessFunc = spreadScalarFunction,
     .finalizeFunc = spreadFinalize,
     .invertFunc   = NULL,
     .combineFunc  = spreadCombine,
@@ -2204,6 +2207,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getDerivativeFuncEnv,
     .initFunc     = derivativeFuncSetup,
     .processFunc  = derivativeFunction,
+    .sprocessFunc = derivativeScalarFunction,
     .finalizeFunc = functionFinalize
   },
   {
@@ -2214,6 +2218,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getIrateFuncEnv,
     .initFunc     = irateFuncSetup,
     .processFunc  = irateFunction,
+    .sprocessFunc = irateScalarFunction,
     .finalizeFunc = irateFinalize
   },
   {
@@ -2315,6 +2320,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc    = getTwaFuncEnv,
     .initFunc      = twaFunctionSetup,
     .processFunc   = twaFunction,
+    .sprocessFunc  = twaScalarFunction,
     .finalizeFunc  = twaFinalize
   },
   {
@@ -2363,6 +2369,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = hllFunction,
+    .sprocessFunc = hllScalarFunction,
     .finalizeFunc = hllFinalize,
     .invertFunc   = NULL,
     .combineFunc  = hllCombine,
@@ -2401,6 +2408,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getDiffFuncEnv,
     .initFunc     = diffFunctionSetup,
     .processFunc  = diffFunction,
+    .sprocessFunc = diffScalarFunction,
     .finalizeFunc = functionFinalize
   },
   {
@@ -2431,6 +2439,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getCsumFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = csumFunction,
+    .sprocessFunc = csumScalarFunction,
     .finalizeFunc = NULL
   },
   {
@@ -2441,6 +2450,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getMavgFuncEnv,
     .initFunc     = mavgFunctionSetup,
     .processFunc  = mavgFunction,
+    .sprocessFunc = mavgScalarFunction,
     .finalizeFunc = NULL
   },
   {
@@ -2456,7 +2466,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "tail",
     .type = FUNCTION_TYPE_TAIL,
-    .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | 
+    .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC |
                       FUNC_MGT_IMPLICIT_TS_FUNC,
     .translateFunc = translateTail,
     .getEnvFunc   = getTailFuncEnv,
@@ -2467,7 +2477,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "unique",
     .type = FUNCTION_TYPE_UNIQUE,
-    .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | 
+    .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC |
                       FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
     .translateFunc = translateUnique,
     .getEnvFunc   = getUniqueFuncEnv,

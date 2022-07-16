@@ -72,10 +72,11 @@ CREATE DNODE "fqdn:port";
 taos> show dnodes;
    id   |            endpoint            | vnodes | support_vnodes |   status   |       create_time       |              note              |
 ============================================================================================================================================
-      1 | trd01:6030                     |    100 |           1024 | ready      | 2022-07-15 16:47:47.726 |                                |
-      2 | trd04:6030                     |      0 |           1024 | ready      | 2022-07-15 16:56:13.670 |                                |
+      1 | localhost:6030                     |    100 |           1024 | ready      | 2022-07-15 16:47:47.726 |                                |
+      2 | localhost:7030                     |      0 |           1024 | ready      | 2022-07-15 16:56:13.670 |                                |
 Query OK, 2 rows affected (0.007031s)
 ```
+
 从中可以看到两个 dnode 状态都为 ready
 
 ## 删除数据节点
@@ -85,13 +86,14 @@ Query OK, 2 rows affected (0.007031s)
 ```sql
 DROP DNODE "fqdn:port";
 ```
+
 或者
+
 ```sql
 DROP DNODE dnodeId;
 ```
 
 通过 “fqdn:port” 或 dnodeID 来指定一个具体的节点都是可以的。其中 fqdn 是被删除的节点的 FQDN，port 是其对外服务器的端口号；dnodeID 可以通过 SHOW DNODES 获得。
-
 
 :::warning
 
@@ -101,5 +103,3 @@ DROP DNODE dnodeId;
 dnodeID 是集群自动分配的，不得人工指定。它在生成时是递增的，不会重复。
 
 :::
-
-

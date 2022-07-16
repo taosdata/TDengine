@@ -36,22 +36,31 @@ class TDTestCase:
 
     def illegal_params(self):
 
-        illegal_params = ["1","0","NULL","None","False","True" ,"keep","now" ,"*" , "," ,"_" , "abc" ,"keep"]
+        illegal_params = ["1","0","NULL","False","True" ,"keep","now" ,"*" , "," ,"_" , "abc" ,"keep"]
         
         for value in illegal_params:
 
-            tdSql.error("create database testdb replica 1 cachelast '%s' " %value)
+            tdSql.error("create database testdb replica 1 cachemodel '%s' " %value)
 
         unexpected_numbers = [-1 , 0.0 , 3.0 , 4,  10 , 100]
 
         for number in unexpected_numbers:
-            tdSql.error("create database testdb replica 1 cachelast %s " %number)
+            tdSql.error("create database testdb replica 1 cachemodel %s " %number)
 
+    def getCacheModelStr(self, value):
+        numbers = {
+            0 : "none",
+            1 : "last_row",
+            2 : "last_value",
+            3 : "both"
+        }
+        return numbers.get(value, 'other')
 
     def prepare_datas(self):
         for i in range(4):
-            tdSql.execute("create database test_db_%d replica 1 cachelast %d " %(i,i))
-            tdSql.execute("use test_db_%d"%i)
+            str = self.getCacheModelStr(i)
+            tdSql.execute("create database testdb_%s replica 1 cachemodel '%s' " %(str, str))
+            tdSql.execute("use testdb_%s"%str)
             tdSql.execute("create stable st(ts timestamp , c1 int ,c2 float ) tags(ind int) ")
             tdSql.execute("create table tb1 using st tags(1) ")
             tdSql.execute("create table tb2 using st tags(2) ")
@@ -81,10 +90,10 @@ class TDTestCase:
         # cache_last_set value 
         for k , v in cache_lasts.items():
             
-            if k.split("_")[-1]==str(v):
-                tdLog.info(" database %s cache_last value check pass, value is %d "%(k,v) )
+            if k=="testdb_"+str(v):
+                tdLog.info(" database %s cache_last value check pass, value is %s "%(k,v) )
             else:
-                tdLog.exit(" database %s cache_last value check fail, value is %d "%(k,v) )
+                tdLog.exit(" database %s cache_last value check fail, value is %s "%(k,v) )
 
         # # check storage layer implementation
 
@@ -132,13 +141,10 @@ class TDTestCase:
 
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
-        
-
         self.illegal_params()
         self.prepare_datas()
         self.check_cache_last_sets()
         self.restart_check_cache_last_sets()
-
        
     def stop(self):
         tdSql.close()

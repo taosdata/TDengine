@@ -1167,7 +1167,11 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
   if (!fmIsRepeatScanFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
-  if (isSelectStmt(pCxt->pCurrStmt) && NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) {
+  if (isSelectStmt(pCxt->pCurrStmt)) {
+    //select percentile() without from clause is also valid
+    if (NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) {
+      return TSDB_CODE_SUCCESS;
+    }
     SNode* pTable = ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable;
     if (QUERY_NODE_REAL_TABLE == nodeType(pTable) &&
         (TSDB_CHILD_TABLE == ((SRealTableNode*)pTable)->pMeta->tableType ||
@@ -2938,7 +2942,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->compression = pStmt->pOptions->compressionLevel;
   pReq->replications = pStmt->pOptions->replica;
   pReq->strict = pStmt->pOptions->strict;
-  pReq->cacheLast = pStmt->pOptions->cacheLast;
+  pReq->cacheLast = pStmt->pOptions->cacheModel;
   pReq->cacheLastSize = pStmt->pOptions->cacheLastSize;
   pReq->schemaless = pStmt->pOptions->schemaless;
   pReq->ignoreExist = pStmt->ignoreExists;
@@ -3019,16 +3023,47 @@ static int32_t checkDbKeepOption(STranslateContext* pCxt, SDatabaseOptions* pOpt
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkDbCacheModelOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+  if ('\0' != pOptions->cacheModelStr[0]) {
+    if (0 == strcasecmp(pOptions->cacheModelStr, TSDB_CACHE_MODEL_NONE_STR)) {
+      pOptions->cacheModel = TSDB_CACHE_MODEL_NONE;
+    } else if (0 == strcasecmp(pOptions->cacheModelStr, TSDB_CACHE_MODEL_LAST_ROW_STR)) {
+      pOptions->cacheModel = TSDB_CACHE_MODEL_LAST_ROW;
+    } else if (0 == strcasecmp(pOptions->cacheModelStr, TSDB_CACHE_MODEL_LAST_VALUE_STR)) {
+      pOptions->cacheModel = TSDB_CACHE_MODEL_LAST_VALUE;
+    } else if (0 == strcasecmp(pOptions->cacheModelStr, TSDB_CACHE_MODEL_BOTH_STR)) {
+      pOptions->cacheModel = TSDB_CACHE_MODEL_BOTH;
+    } else {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STR_OPTION, "cacheModel",
+                                  pOptions->cacheModelStr);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkDbPrecisionOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
   if ('\0' != pOptions->precisionStr[0]) {
-    if (0 == strcmp(pOptions->precisionStr, TSDB_TIME_PRECISION_MILLI_STR)) {
+    if (0 == strcasecmp(pOptions->precisionStr, TSDB_TIME_PRECISION_MILLI_STR)) {
       pOptions->precision = TSDB_TIME_PRECISION_MILLI;
-    } else if (0 == strcmp(pOptions->precisionStr, TSDB_TIME_PRECISION_MICRO_STR)) {
+    } else if (0 == strcasecmp(pOptions->precisionStr, TSDB_TIME_PRECISION_MICRO_STR)) {
       pOptions->precision = TSDB_TIME_PRECISION_MICRO;
-    } else if (0 == strcmp(pOptions->precisionStr, TSDB_TIME_PRECISION_NANO_STR)) {
+    } else if (0 == strcasecmp(pOptions->precisionStr, TSDB_TIME_PRECISION_NANO_STR)) {
       pOptions->precision = TSDB_TIME_PRECISION_NANO;
     } else {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STR_OPTION, "precision", pOptions->precisionStr);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkDbStrictOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+  if ('\0' != pOptions->strictStr[0]) {
+    if (0 == strcasecmp(pOptions->strictStr, TSDB_DB_STRICT_OFF_STR)) {
+      pOptions->strict = TSDB_DB_STRICT_OFF;
+    } else if (0 == strcasecmp(pOptions->strictStr, TSDB_DB_STRICT_ON_STR)) {
+      pOptions->strict = TSDB_DB_STRICT_ON;
+    } else {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STR_OPTION, "strict", pOptions->strictStr);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -3100,11 +3135,10 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
   int32_t code =
       checkRangeOption(pCxt, "buffer", pOptions->buffer, TSDB_MIN_BUFFER_PER_VNODE, TSDB_MAX_BUFFER_PER_VNODE);
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkRangeOption(pCxt, "cacheLast", pOptions->cacheLast, TSDB_MIN_DB_CACHE_LAST, TSDB_MAX_DB_CACHE_LAST);
+    code = checkDbCacheModelOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkRangeOption(pCxt, "cacheLastSize", pOptions->cacheLastSize, TSDB_MIN_DB_CACHE_LAST_SIZE,
-                            TSDB_MAX_DB_CACHE_LAST_SIZE);
+    code = checkRangeOption(pCxt, "cacheSize", pOptions->cacheLastSize, TSDB_MIN_DB_CACHE_SIZE, TSDB_MAX_DB_CACHE_SIZE);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkRangeOption(pCxt, "compression", pOptions->compressionLevel, TSDB_MIN_COMP_LEVEL, TSDB_MAX_COMP_LEVEL);
@@ -3140,7 +3174,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbEnumOption(pCxt, "replications", pOptions->replica, TSDB_MIN_DB_REPLICA, TSDB_MAX_DB_REPLICA);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbEnumOption(pCxt, "strict", pOptions->strict, TSDB_DB_STRICT_OFF, TSDB_DB_STRICT_ON);
+    code = checkDbStrictOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbEnumOption(pCxt, "walLevel", pOptions->walLevel, TSDB_MIN_WAL_LEVEL, TSDB_MAX_WAL_LEVEL);
@@ -3225,7 +3259,7 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->fsyncPeriod = pStmt->pOptions->fsyncPeriod;
   pReq->walLevel = pStmt->pOptions->walLevel;
   pReq->strict = pStmt->pOptions->strict;
-  pReq->cacheLast = pStmt->pOptions->cacheLast;
+  pReq->cacheLast = pStmt->pOptions->cacheModel;
   pReq->cacheLastSize = pStmt->pOptions->cacheLastSize;
   pReq->replications = pStmt->pOptions->replica;
   return;
