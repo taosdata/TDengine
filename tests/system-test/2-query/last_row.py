@@ -26,7 +26,7 @@ class TDTestCase:
         tdSql.execute("drop database if exists test ")
         tdLog.info(" prepare datas for auto check abs function ")
 
-        tdSql.execute(f" create database test cachelast {cache_value} ")
+        tdSql.execute(f" create database test cachemodel {cache_value} ")
         tdSql.execute(" use test ")
         tdSql.execute(" create stable stb (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint,\
              c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int)")
@@ -65,7 +65,7 @@ class TDTestCase:
 
     def prepare_datas(self ,cache_value):
         tdSql.execute("drop database if exists db ")
-        create_db_sql = f"create database if not exists db keep 3650 duration 1000 cachelast {cache_value}"
+        create_db_sql = f"create database if not exists db keep 3650 duration 1000 cachemodel {cache_value}"
         tdSql.execute(create_db_sql)
         tdSql.execute("use db")
         tdSql.execute(
@@ -129,7 +129,7 @@ class TDTestCase:
         tdSql.execute("drop database if exists testdb ")
         # prepare datas
         tdSql.execute(
-            f"create database if not exists testdb keep 3650 duration 1000 cachelast {cache_value}")
+            f"create database if not exists testdb keep 3650 duration 1000 cachemodel {cache_value}")
         tdSql.execute(" use testdb ")
 
         tdSql.execute(f" create stable stb1 (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp , uc1 int unsigned,\
@@ -540,7 +540,7 @@ class TDTestCase:
     def check_boundary_values(self):
 
         tdSql.execute("drop database if exists bound_test")
-        tdSql.execute("create database if not exists bound_test cachelast 2")
+        tdSql.execute("create database if not exists bound_test cachemodel 'LAST_ROW' ")
         time.sleep(3)
         tdSql.execute("use bound_test")
         tdSql.execute(
@@ -841,27 +841,27 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step1:create table ==============")
 
         # cache_last 0
-        self.prepare_datas(0)
-        self.prepare_tag_datas(0)
-        self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,0)
+        self.prepare_datas("'NONE' ")
+        self.prepare_tag_datas("'NONE'")
+        self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,"'NONE'")
         self.basic_query()
 
         # cache_last 1 
-        self.prepare_datas(1)
-        self.prepare_tag_datas(1)
-        self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,1)
+        self.prepare_datas("'LAST_ROW'")
+        self.prepare_tag_datas("'LAST_ROW'")
+        self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,"'LAST_ROW'")
         self.basic_query()
 
         # cache_last 2 
-        self.prepare_datas(2)
-        self.prepare_tag_datas(2)
-        self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,2)
+        self.prepare_datas("'LAST_VALUE'")
+        self.prepare_tag_datas("'LAST_VALUE'")
+        self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,"'LAST_VALUE'")
         self.basic_query()
 
         # cache_last 3 
-        self.prepare_datas(3)
-        self.prepare_tag_datas(3)
-        self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,3)
+        self.prepare_datas("'BOTH'")
+        self.prepare_tag_datas("'BOTH'")
+        self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,"'BOTH'")
         self.basic_query()
 
 
