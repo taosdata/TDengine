@@ -453,6 +453,7 @@ int32_t tSerializeSClientHbBatchRsp(void *buf, int32_t bufLen, const SClientHbBa
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI64(&encoder, pBatchRsp->reqId) < 0) return -1;
   if (tEncodeI64(&encoder, pBatchRsp->rspId) < 0) return -1;
+  if (tEncodeI32(&encoder, pBatchRsp->svrTimestamp) < 0) return -1;
 
   int32_t rspNum = taosArrayGetSize(pBatchRsp->rsps);
   if (tEncodeI32(&encoder, rspNum) < 0) return -1;
@@ -474,6 +475,7 @@ int32_t tDeserializeSClientHbBatchRsp(void *buf, int32_t bufLen, SClientHbBatchR
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI64(&decoder, &pBatchRsp->reqId) < 0) return -1;
   if (tDecodeI64(&decoder, &pBatchRsp->rspId) < 0) return -1;
+  if (tDecodeI32(&decoder, &pBatchRsp->svrTimestamp) < 0) return -1;
 
   int32_t rspNum = 0;
   if (tDecodeI32(&decoder, &rspNum) < 0) return -1;
@@ -3613,6 +3615,7 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tEncodeI8(&encoder, pRsp->superUser) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->connType) < 0) return -1;
   if (tEncodeSEpSet(&encoder, &pRsp->epSet) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->svrTimestamp) < 0) return -1;
   if (tEncodeCStr(&encoder, pRsp->sVer) < 0) return -1;
   if (tEncodeCStr(&encoder, pRsp->sDetailVer) < 0) return -1;
   tEndEncode(&encoder);
@@ -3634,6 +3637,7 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tDecodeI8(&decoder, &pRsp->superUser) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->connType) < 0) return -1;
   if (tDecodeSEpSet(&decoder, &pRsp->epSet) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->svrTimestamp) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pRsp->sVer) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pRsp->sDetailVer) < 0) return -1;
   tEndDecode(&decoder);
@@ -4823,6 +4827,35 @@ int32_t tDeserializeSMDropStreamReq(void *buf, int32_t bufLen, SMDropStreamReq *
   return 0;
 }
 
+int32_t tSerializeSMRecoverStreamReq(void *buf, int32_t bufLen, const SMRecoverStreamReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMRecoverStreamReq(void *buf, int32_t bufLen, SMRecoverStreamReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
 void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosMemoryFreeClear(pReq->sql);
   taosMemoryFreeClear(pReq->ast);
@@ -4945,8 +4978,8 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
     if (tEncodeTag(pCoder, (const STag *)pReq->ctb.pTag) < 0) return -1;
     int32_t len = taosArrayGetSize(pReq->ctb.tagName);
     if (tEncodeI32(pCoder, len) < 0) return -1;
-    for (int32_t i = 0; i < len; i++){
-      char* name = taosArrayGet(pReq->ctb.tagName, i);
+    for (int32_t i = 0; i < len; i++) {
+      char *name = taosArrayGet(pReq->ctb.tagName, i);
       if (tEncodeCStr(pCoder, name) < 0) return -1;
     }
   } else if (pReq->type == TSDB_NORMAL_TABLE) {
@@ -4982,9 +5015,9 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     int32_t len = 0;
     if (tDecodeI32(pCoder, &len) < 0) return -1;
     pReq->ctb.tagName = taosArrayInit(len, TSDB_COL_NAME_LEN);
-    if(pReq->ctb.tagName == NULL) return -1;
-    for (int32_t i = 0; i < len; i++){
-      char name[TSDB_COL_NAME_LEN] = {0};
+    if (pReq->ctb.tagName == NULL) return -1;
+    for (int32_t i = 0; i < len; i++) {
+      char  name[TSDB_COL_NAME_LEN] = {0};
       char *tmp = NULL;
       if (tDecodeCStr(pCoder, &tmp) < 0) return -1;
       strcpy(name, tmp);

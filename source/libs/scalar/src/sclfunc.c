@@ -1746,18 +1746,12 @@ int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
   SColumnInfoData *pOutputData = pOutput->columnData;
 
   int64_t *out = (int64_t *)pOutputData->pData;
-  bool hasNull = false;
   *out = 0;
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
-      hasNull = true;
-      break;
+      continue;
     }
     (*out)++;
-  }
-
-  if (hasNull) {
-    colDataAppendNULL(pOutputData, 0);
   }
 
   pOutput->numOfRows = 1;
@@ -2306,4 +2300,130 @@ int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
 
   pOutput->numOfRows = 1;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t percentileScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+
+  double val;
+  bool hasNull = false;
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+    char *in = pInputData->pData;
+    GET_TYPED_DATA(val, double, type, in);
+  }
+
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  } else {
+    colDataAppend(pOutputData, 0, (char *)&val, false);
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t apercentileScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return percentileScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t spreadScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+
+  double min, max;
+  SET_DOUBLE_VAL(&min, DBL_MAX);
+  SET_DOUBLE_VAL(&max, -DBL_MAX);
+
+  bool hasNull = false;
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+
+    char *in = pInputData->pData;
+
+    double val = 0;
+    GET_TYPED_DATA(val, double, type, in);
+
+    if (val < GET_DOUBLE_VAL(&min)) {
+      SET_DOUBLE_VAL(&min, val);
+    }
+
+    if (val > GET_DOUBLE_VAL(&max)) {
+      SET_DOUBLE_VAL(&max, val);
+    }
+  }
+
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  } else {
+    double result = max - min;
+    colDataAppend(pOutputData, 0, (char *)&result, false);
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t nonCalcScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+  bool hasNull = false;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+  }
+
+  double *out  = (double *)pOutputData->pData;
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  } else {
+    *out = 0;
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t derivativeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return nonCalcScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t irateScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return nonCalcScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t diffScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return nonCalcScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t twaScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return avgScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t mavgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return avgScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t hllScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return countScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t csumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return sumScalarFunction(pInput, inputNum, pOutput);
 }

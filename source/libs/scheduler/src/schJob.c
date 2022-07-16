@@ -110,7 +110,7 @@ int32_t schUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
         break;
       case JOB_TASK_STATUS_PART_SUCC:
         if (newStatus != JOB_TASK_STATUS_FAIL && newStatus != JOB_TASK_STATUS_SUCC &&
-            newStatus != JOB_TASK_STATUS_DROP) {
+            newStatus != JOB_TASK_STATUS_DROP && newStatus != JOB_TASK_STATUS_EXEC) {
           SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
         }
 
@@ -389,13 +389,18 @@ int32_t schDumpJobExecRes(SSchJob* pJob, SExecResult* pRes) {
 
 int32_t schDumpJobFetchRes(SSchJob* pJob, void** pData) {
   int32_t code = 0;
-  if (pJob->resData && ((SRetrieveTableRsp *)pJob->resData)->completed) {
-    SCH_ERR_RET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_SUCC, NULL));
+  
+  SCH_LOCK(SCH_WRITE, &pJob->resLock);
+
+  pJob->fetched = true;
+  
+  if (pJob->fetchRes && ((SRetrieveTableRsp *)pJob->fetchRes)->completed) {
+    SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_SUCC, NULL));
   }
 
   while (true) {
-    *pData = atomic_load_ptr(&pJob->resData);
-    if (*pData != atomic_val_compare_exchange_ptr(&pJob->resData, *pData, NULL)) {
+    *pData = atomic_load_ptr(&pJob->fetchRes);
+    if (*pData != atomic_val_compare_exchange_ptr(&pJob->fetchRes, *pData, NULL)) {
       continue;
     }
 
@@ -414,7 +419,11 @@ int32_t schDumpJobFetchRes(SSchJob* pJob, void** pData) {
 
   SCH_JOB_DLOG("fetch done, totalRows:%d", pJob->resNumOfRows);
 
-  return TSDB_CODE_SUCCESS;
+_return:
+
+  SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
+  
+  return code;
 }
 
 int32_t schNotifyUserExecRes(SSchJob* pJob) {
@@ -512,8 +521,12 @@ int32_t schHandleJobDrop(SSchJob *pJob, int32_t errCode) {
 }
 
 
-int32_t schProcessOnJobPartialSuccess(SSchJob *pJob) {
-  schPostJobRes(pJob, SCH_OP_EXEC);
+int32_t schProcessOnJobPartialSuccess(SSchJob *pJob) {  
+  if (schChkCurrentOp(pJob, SCH_OP_FETCH, -1)) {
+    SCH_ERR_RET(schLaunchFetchTask(pJob));
+  } else {
+    schPostJobRes(pJob, 0);
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -526,7 +539,7 @@ int32_t schProcessOnExplainDone(SSchJob *pJob, SSchTask *pTask, SRetrieveTableRs
   SCH_TASK_DLOG("got explain rsp, rows:%d, complete:%d", htonl(pRsp->numOfRows), pRsp->completed);
 
   atomic_store_32(&pJob->resNumOfRows, htonl(pRsp->numOfRows));
-  atomic_store_ptr(&pJob->resData, pRsp);
+  atomic_store_ptr(&pJob->fetchRes, pRsp);
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_SUCC);
 
@@ -561,7 +574,7 @@ int32_t schLaunchJobLowerLevel(SSchJob *pJob, SSchTask *pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schSaveJobQueryRes(SSchJob *pJob, SQueryTableRsp *rsp) {
+int32_t schSaveJobExecRes(SSchJob *pJob, SQueryTableRsp *rsp) {
   if (rsp->tbFName[0]) {
     SCH_LOCK(SCH_WRITE, &pJob->resLock);
     
@@ -600,7 +613,7 @@ int32_t schGetTaskInJob(SSchJob *pJob, uint64_t taskId, SSchTask **pTask) {
 
 int32_t schLaunchJob(SSchJob *pJob) {
   if (EXPLAIN_MODE_STATIC == pJob->attr.explainMode) {
-    SCH_ERR_RET(qExecStaticExplain(pJob->pDag, (SRetrieveTableRsp **)&pJob->resData));
+    SCH_ERR_RET(qExecStaticExplain(pJob->pDag, (SRetrieveTableRsp **)&pJob->fetchRes));
     SCH_ERR_RET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_PART_SUCC, NULL));
   } else {
     SSchLevel *level = taosArrayGet(pJob->levels, pJob->levelIdx);
@@ -661,7 +674,7 @@ void schFreeJobImpl(void *job) {
   qDestroyQueryPlan(pJob->pDag);
 
   taosMemoryFreeClear(pJob->userRes.execRes);
-  taosMemoryFreeClear(pJob->resData);
+  taosMemoryFreeClear(pJob->fetchRes);
   taosMemoryFree(pJob);
 
   int32_t jobNum = atomic_sub_fetch_32(&schMgmt.jobNum, 1);
@@ -795,9 +808,14 @@ void schDirectPostJobRes(SSchedulerReq* pReq, int32_t errCode) {
   }
 }
 
-bool schChkCurrentOp(SSchJob *pJob, int32_t op, bool sync) {
+bool schChkCurrentOp(SSchJob *pJob, int32_t op, int8_t sync) {
+  bool r = false;
   SCH_LOCK(SCH_READ, &pJob->opStatus.lock);
-  bool r = (pJob->opStatus.op == op) && (pJob->opStatus.syncReq == sync);
+  if (sync >= 0) {
+    r = (pJob->opStatus.op == op) && (pJob->opStatus.syncReq == sync);
+  } else {
+    r = (pJob->opStatus.op == op);
+  }
   SCH_UNLOCK(SCH_READ, &pJob->opStatus.lock);
 
   return r;

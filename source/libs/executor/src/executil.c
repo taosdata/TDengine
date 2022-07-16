@@ -65,7 +65,7 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   }
 
   rowSize +=
-      (numOfOutput * sizeof(bool));  // expand rowSize to mark if col is null for top/bottom result(saveTupleData)
+      (numOfOutput * sizeof(bool));  // expand rowSize to mark if col is null for top/bottom result(doSaveTupleData)
   return rowSize;
 }
 
@@ -115,9 +115,6 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int
     p->groupId = *(uint64_t*)key;
     p->pos = *(SResultRowPosition*)pData;
     memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
-#ifdef BUF_PAGE_DEBUG
-    qDebug("page_groupRes, groupId:%" PRIu64 ",pageId:%d,offset:%d\n", p->groupId, p->pos.pageId, p->pos.offset);
-#endif
     taosArrayPush(pGroupResInfo->pRows, &p);
   }
 

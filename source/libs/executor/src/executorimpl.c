@@ -1506,15 +1506,11 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprI
                            int32_t numOfExprs) {
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
   int32_t start = pGroupResInfo->index;
-#ifdef BUF_PAGE_DEBUG
-  qDebug("\npage_copytoblock rows:%d", numOfRows);
-#endif
+
   for (int32_t i = start; i < numOfRows; i += 1) {
     SResKeyPos* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
     SFilePage*  page = getBufPage(pBuf, pPos->pos.pageId);
-#ifdef BUF_PAGE_DEBUG
-    qDebug("page_copytoblock pos pageId:%d, offset:%d", pPos->pos.pageId, pPos->pos.offset);
-#endif
+
     SResultRow* pRow = (SResultRow*)((char*)page + pPos->pos.offset);
 
     doUpdateNumOfRows(pRow, numOfExprs, rowCellOffset);
@@ -1980,6 +1976,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     qDebug("%s fetch rsp received, index:%d, rows:%d", pSourceDataInfo->taskId, index, pRsp->numOfRows);
   } else {
     pSourceDataInfo->code = code;
+    qDebug("%s fetch rsp received, index:%d, error:%d", pSourceDataInfo->taskId, index, tstrerror(code));
   }
 
   pSourceDataInfo->status = EX_SOURCE_DATA_READY;
@@ -2221,6 +2218,8 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SEx
     if (completed == totalSources) {
       return setAllSourcesCompleted(pOperator, startTs);
     }
+
+    sched_yield();
   }
 
 _error:
@@ -3747,7 +3746,7 @@ void doDestroyExchangeOperatorInfo(void* param) {
   taosArrayDestroy(pExInfo->pSources);
   taosArrayDestroy(pExInfo->pSourceDataInfo);
   if (pExInfo->pResult != NULL) {
-    blockDataDestroy(pExInfo->pResult);
+    pExInfo->pResult = blockDataDestroy(pExInfo->pResult);
   }
 
   tsem_destroy(&pExInfo->ready);

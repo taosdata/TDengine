@@ -536,6 +536,10 @@ static int32_t vnodeSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *
 #endif
 }
 
+static void vnodeLeaderTransfer(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
+  SVnode *pVnode = pFsm->data;
+}
+
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pVnode;
@@ -544,6 +548,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpRollBackCb = vnodeSyncRollBackMsg;
   pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshot;
   pFsm->FpRestoreFinishCb = NULL;
+  pFsm->FpLeaderTransferCb = vnodeLeaderTransfer;
   pFsm->FpReConfigCb = vnodeSyncReconfig;
   pFsm->FpSnapshotStartRead = vnodeSnapshotStartRead;
   pFsm->FpSnapshotStopRead = vnodeSnapshotStopRead;
@@ -579,8 +584,8 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   }
 
   setPingTimerMS(pVnode->sync, 5000);
-  setElectTimerMS(pVnode->sync, 500);
-  setHeartbeatTimerMS(pVnode->sync, 100);
+  setElectTimerMS(pVnode->sync, 1300);
+  setHeartbeatTimerMS(pVnode->sync, 900);
   return 0;
 }
 

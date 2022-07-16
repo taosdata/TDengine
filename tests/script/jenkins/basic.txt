@@ -87,7 +87,7 @@
 ./test.sh -f tsim/parser/alter__for_community_version.sim
 ./test.sh -f tsim/parser/alter_column.sim
 ./test.sh -f tsim/parser/alter_stable.sim
-# jira ./test.sh -f tsim/parser/auto_create_tb.sim
+# nojira ./test.sh -f tsim/parser/auto_create_tb.sim
 ./test.sh -f tsim/parser/auto_create_tb_drop_tb.sim
 ./test.sh -f tsim/parser/between_and.sim
 ./test.sh -f tsim/parser/binary_escapeCharacter.sim
@@ -266,26 +266,27 @@
 ./test.sh -f tsim/tmq/snapshot1.sim
 
 # --- stable
+./test.sh -f tsim/stable/alter_comment.sim
+./test.sh -f tsim/stable/alter_count.sim
+./test.sh -f tsim/stable/alter_import.sim
+./test.sh -f tsim/stable/alter_insert1.sim
+./test.sh -f tsim/stable/alter_insert2.sim
+./test.sh -f tsim/stable/alter_metrics.sim
+./test.sh -f tsim/stable/column_add.sim
+./test.sh -f tsim/stable/column_drop.sim
+./test.sh -f tsim/stable/column_modify.sim
 ./test.sh -f tsim/stable/disk.sim
 ./test.sh -f tsim/stable/dnode3.sim
 ./test.sh -f tsim/stable/metrics.sim
 ./test.sh -f tsim/stable/refcount.sim
 ./test.sh -f tsim/stable/show.sim
-./test.sh -f tsim/stable/values.sim
-./test.sh -f tsim/stable/vnode3.sim
-./test.sh -f tsim/stable/column_add.sim
-./test.sh -f tsim/stable/column_drop.sim
-./test.sh -f tsim/stable/column_modify.sim
 ./test.sh -f tsim/stable/tag_add.sim
 ./test.sh -f tsim/stable/tag_drop.sim
+./test.sh -f tsim/stable/tag_filter.sim
 ./test.sh -f tsim/stable/tag_modify.sim
 ./test.sh -f tsim/stable/tag_rename.sim
-./test.sh -f tsim/stable/alter_comment.sim
-./test.sh -f tsim/stable/alter_count.sim
-./test.sh -f tsim/stable/alter_insert1.sim
-./test.sh -f tsim/stable/alter_insert2.sim
-./test.sh -f tsim/stable/alter_import.sim
-./test.sh -f tsim/stable/tag_filter.sim
+./test.sh -f tsim/stable/values.sim
+./test.sh -f tsim/stable/vnode3.sim
 
 # --- for multi process mode
 ./test.sh -f tsim/user/basic.sim -m
@@ -309,6 +310,7 @@
 ./test.sh -f tsim/valgrind/checkError1.sim
 ./test.sh -f tsim/valgrind/checkError2.sim
 ./test.sh -f tsim/valgrind/checkError3.sim
+./test.sh -f tsim/valgrind/checkError4.sim
 
 # --- vnode
 # unsupport ./test.sh -f tsim/vnode/replica3_basic.sim
@@ -366,7 +368,7 @@
 ./test.sh -f tsim/compute/diff2.sim
 ./test.sh -f tsim/compute/first.sim
 ./test.sh -f tsim/compute/interval.sim
-# jira ./test.sh -f tsim/compute/last_row.sim
+./test.sh -f tsim/compute/last_row.sim
 ./test.sh -f tsim/compute/last.sim
 ./test.sh -f tsim/compute/leastsquare.sim
 ./test.sh -f tsim/compute/max.sim
@@ -415,7 +417,7 @@
 ./test.sh -f tsim/tag/4.sim
 ./test.sh -f tsim/tag/5.sim
 # jira ./test.sh -f tsim/tag/6.sim
-# jira ./test.sh -f tsim/tag/add.sim
+./test.sh -f tsim/tag/add.sim
 ./test.sh -f tsim/tag/bigint.sim
 ./test.sh -f tsim/tag/binary_binary.sim
 ./test.sh -f tsim/tag/binary.sim

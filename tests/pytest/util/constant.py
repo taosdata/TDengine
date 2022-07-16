@@ -54,7 +54,7 @@ TAOS_KEYWORDS = [
     "BOOL",			"EQ",			"LINEAR",		"RESET",		"TSERIES",
     "BY",			"EXISTS",		"LOCAL",		"RESTRICT",		"UMINUS",
     "CACHE",		"EXPLAIN",		"LP",			"ROW",			"UNION",
-    "CACHELAST",	"FAIL",			"LSHIFT",		"RP",			"UNSIGNED",
+    "CACHEMODEL",	"FAIL",			"LSHIFT",		"RP",			"UNSIGNED",
     "CASCADE",		"FILE",			"LT",			"RSHIFT",		"UPDATE",
     "CHANGE",		"FILL",			"MATCH",		"SCORES",		"UPLUS",
     "CLUSTER",		"FLOAT",		"MAXROWS",		"SELECT",		"USE",
