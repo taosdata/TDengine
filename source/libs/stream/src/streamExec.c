@@ -20,7 +20,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
 
   // set input
   SStreamQueueItem* pItem = (SStreamQueueItem*)data;
-  if (pItem->type == STREAM_INPUT__TRIGGER) {
+  if (pItem->type == STREAM_INPUT__GET_RES) {
     SStreamTrigger* pTrigger = (SStreamTrigger*)data;
     qSetMultiStreamInput(exec, pTrigger->pBlock, 1, STREAM_INPUT__DATA_BLOCK, false);
   } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
@@ -73,6 +73,15 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
   return 0;
 }
 
+static FORCE_INLINE int32_t streamUpdateVer(SStreamTask* pTask, SStreamDataBlock* pBlock) {
+  ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK);
+  int32_t             childId = pBlock->childId;
+  int64_t             ver = pBlock->sourceVer;
+  SStreamChildEpInfo* pChildInfo = taosArrayGetP(pTask->childEpInfo, childId);
+  pChildInfo->processedVer = ver;
+  return 0;
+}
+
 static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
   int32_t cnt = 0;
   void*   data = NULL;
@@ -84,14 +93,17 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
     }
     if (data == NULL) {
       data = qItem;
+      if (qItem->type == STREAM_INPUT__DATA_BLOCK) {
+        /*streamUpdateVer(pTask, (SStreamDataBlock*)qItem);*/
+      }
       streamQueueProcessSuccess(pTask->inputQueue);
-      continue;
     } else {
       if (streamAppendQueueItem(data, qItem) < 0) {
         streamQueueProcessFail(pTask->inputQueue);
         break;
       } else {
         cnt++;
+        /*streamUpdateVer(pTask, (SStreamDataBlock*)qItem);*/
         streamQueueProcessSuccess(pTask->inputQueue);
         taosArrayDestroy(((SStreamDataBlock*)qItem)->blocks);
         taosFreeQitem(qItem);
@@ -105,6 +117,12 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
   }
 
   if (data == NULL) return pRes;
+
+  if (pTask->execType == TASK_EXEC__NONE) {
+    ASSERT(((SStreamQueueItem*)data)->type == STREAM_INPUT__DATA_BLOCK);
+    streamTaskOutput(pTask, data);
+    return pRes;
+  }
 
   qDebug("stream task %d exec begin, msg batch: %d", pTask->taskId, cnt);
   streamTaskExecImpl(pTask, data, pRes);
@@ -124,6 +142,11 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
       taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
       taosFreeQitem(qRes);
       return NULL;
+    }
+    if (((SStreamQueueItem*)data)->type == STREAM_INPUT__DATA_SUBMIT) {
+      SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)data;
+      qRes->childId = pTask->selfChildId;
+      qRes->sourceVer = pSubmit->ver;
     }
     /*streamQueueProcessSuccess(pTask->inputQueue);*/
     pRes = taosArrayInit(0, sizeof(SSDataBlock));
