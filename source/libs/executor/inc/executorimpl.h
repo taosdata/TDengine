@@ -139,6 +139,12 @@ typedef struct STaskIdInfo {
   char*    str;
 } STaskIdInfo;
 
+enum {
+  STREAM_RECOVER_STEP__NONE = 0,
+  STREAM_RECOVER_STEP__PREPARE,
+  STREAM_RECOVER_STEP__SCAN,
+};
+
 typedef struct {
   //TODO remove prepareStatus
   STqOffsetVal   prepareStatus; // for tmq
@@ -147,6 +153,10 @@ typedef struct {
   SSDataBlock*   pullOverBlk;   // for streaming
   SWalFilterCond cond;
   int64_t        lastScanUid;
+  int8_t         recoverStep;
+  SQueryTableDataCond tableCond;
+  int64_t recoverStartVer;
+  int64_t recoverEndVer;
 } SStreamTaskInfo;
 
 typedef struct SExecTaskInfo {
@@ -361,6 +371,13 @@ typedef struct SessionWindowSupporter {
   uint8_t              parentType;
 } SessionWindowSupporter;
 
+typedef struct STimeWindowSupp {
+  int8_t           calTrigger;
+  int64_t          waterMark;
+  TSKEY            maxTs;
+  SColumnInfoData  timeWindowData;     // query time window info for scalar function execution.
+} STimeWindowAggSupp;
+
 typedef struct SStreamScanInfo {
   uint64_t    tableUid;  // queried super table uid
   SExprInfo*  pPseudoExpr;
@@ -397,6 +414,7 @@ typedef struct SStreamScanInfo {
   SSDataBlock*           pDeleteDataRes;  // delete data SSDataBlock
   int32_t                deleteDataIndex;
   STimeWindow            updateWin;
+  STimeWindowAggSupp     twAggSup;
 
   // status for tmq
   // SSchemaWrapper schema;
@@ -441,13 +459,6 @@ typedef struct SAggSupporter {
   SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
   int32_t        resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
 } SAggSupporter;
-
-typedef struct STimeWindowSupp {
-  int8_t           calTrigger;
-  int64_t          waterMark;
-  TSKEY            maxTs;
-  SColumnInfoData  timeWindowData;     // query time window info for scalar function execution.
-} STimeWindowAggSupp;
 
 typedef struct SIntervalAggOperatorInfo {
   // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
@@ -942,6 +953,7 @@ bool isInTimeWindow(STimeWindow* pWin, TSKEY ts, int64_t gap);
 int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pStartTs,
     TSKEY* pEndTs, int32_t rows, int32_t start, int64_t gap, SHashObj* pStDeleted);
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);
+bool isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup);
 
 int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
                                        SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs, const int32_t* rowCellOffset,
