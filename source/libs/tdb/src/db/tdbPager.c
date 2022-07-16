@@ -174,6 +174,13 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   for (ppPage = &pPager->pDirty; (*ppPage) && TDB_PAGE_PGNO(*ppPage) < TDB_PAGE_PGNO(pPage);
        ppPage = &((*ppPage)->pDirtyNext)) {
   }
+
+  if (*ppPage && TDB_PAGE_PGNO(*ppPage) == TDB_PAGE_PGNO(pPage)) {
+    tdbUnrefPage(pPage);
+
+    return 0;
+  }
+
   ASSERT(*ppPage == NULL || TDB_PAGE_PGNO(*ppPage) > TDB_PAGE_PGNO(pPage));
   pPage->pDirtyNext = *ppPage;
   *ppPage = pPage;
