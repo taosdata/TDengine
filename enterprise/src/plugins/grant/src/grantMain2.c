@@ -195,7 +195,7 @@ static int32_t dmGenerateGrantMsg(SGrantMsg *pGrantMsg, SGrantStatus *pGrantStat
     grantStatus.limitAccts = grantObj.limitAccts;
     grantStatus.limitDnodes = grantObj.limitDnodes;
     grantStatus.limitCpuCores = grantObj.limitCpuCores;
-  } else {
+  } else if (grantObj.granted) {
     if (pGrantStatus->usbDongle) {
       grantStatus.usbDongle = pGrantStatus->usbDongle;
     }
@@ -214,6 +214,23 @@ static int32_t dmGenerateGrantMsg(SGrantMsg *pGrantMsg, SGrantStatus *pGrantStat
     COMPARE_SET_VAL(grantStatus.limitAccts, pGrantStatus->limitAccts, <);
     COMPARE_SET_VAL(grantStatus.limitDnodes, pGrantStatus->limitDnodes, <);
     COMPARE_SET_VAL(grantStatus.limitCpuCores, pGrantStatus->limitCpuCores, <);
+  } else {
+    grantStatus.usbDongle = pGrantStatus->usbDongle;
+    grantStatus.officialVersion = pGrantStatus->officialVersion;
+    grantStatus.lastReceived = curTime;
+    grantStatus.expireTimeSec = pGrantStatus->expireTimeSec;
+    grantStatus.limitStorage = pGrantStatus->limitStorage;
+    grantStatus.limitSpeed = pGrantStatus->limitSpeed;
+    grantStatus.limitTimeSeries = pGrantStatus->limitTimeSeries;
+    grantStatus.limitQueryTime = pGrantStatus->limitQueryTime;
+    grantStatus.limitDbs = pGrantStatus->limitDbs;
+    grantStatus.limitUsers = pGrantStatus->limitUsers;
+    grantStatus.limitConns = pGrantStatus->limitConns;
+    grantStatus.limitStreams = pGrantStatus->limitStreams;
+    grantStatus.limitAccts = pGrantStatus->limitAccts;
+    grantStatus.limitDnodes = pGrantStatus->limitDnodes;
+    grantStatus.limitCpuCores = pGrantStatus->limitCpuCores;
+
   }
 
   char *ts = grantSecondsToString(grantStatus.expireTimeSec);
@@ -328,12 +345,7 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
 
   for (int32_t i = 0; i < taosArrayGetSize(pDnodeEps); ++i) {
     SDnodeEp *pDnodeEp = (SDnodeEp *)taosArrayGet(pDnodeEps, i);
-    if (pDnodeEp->isMnode) {
-      uInfo("dnode id:%d, is mnode:%" PRIi8 ", %s:%" PRIu16 ", not send grant status to itself", pDnodeEp->id,
-            pDnodeEp->isMnode, pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
-    } else {
-      mndSendGrantStatusToDnode(pMnode, pDnodeEp);
-    }
+    mndSendGrantStatusToDnode(pMnode, pDnodeEp);
   }
 
   taosArrayDestroy(pDnodeEps);
@@ -777,7 +789,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   if (pShow->numOfRows < 1) {
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    const char      *src = grantStatus.officialVersion ? "official" : "trial";
+    const char      *src = grantStatus.officialVersion ? " official" : "  trial";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
@@ -787,13 +799,13 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     time_t     tt = grantStatus.expireTimeSec;
     struct tm *ptm = taosLocalTime(&tt, NULL);
     strftime(expire, 21, "%Y-%m-%d %H:%M:%S", ptm);
-    src = grantStatus.expireTimeSec != GRANT_EXPIRE_TIME ? expire : "unlimited";
+    src = grantStatus.expireTimeSec != GRANT_EXPIRE_TIME ? expire : "      unlimited";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = grantStatus.expired ? "true" : "false";
+    src = grantStatus.expired ? " true" : " false";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
@@ -804,7 +816,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
               (uint32_t)(grantStatus.limitStorage / (int64_t)1073741824));
       src = tmp1;
     } else {
-      src = "unlimited";
+      src = "      unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
@@ -815,7 +827,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       sprintf(tmp1, "%" PRIu64 "/%" PRIu64, grantStatus.curTimeSeries, grantStatus.limitTimeSeries);
       src = tmp1;
     } else {
-      src = "unlimited";
+      src = "     unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
