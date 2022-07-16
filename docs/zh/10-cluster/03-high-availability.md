@@ -28,6 +28,6 @@ TDengine 集群是由 mnode（taosd 的一个模块，管理节点）负责管�
 SHOW MNODES;
 ```
 
-来查看 mnode 列表，该列表将列出 mnode 所处的 dnode 的 End Point 和角色（leader, follower, candidate）。当集群中第一个数据节点启动时，该数据节点一定会运行一个 mnode 实例，否则该数据节点 dnode 无法正常工作，因为一个系统是必须有至少一个 mnode 的。
+来查看 mnode 列表，该列表将列出 mnode 所处的 dnode 的 End Point 和角色（leader, follower, candidate, offline）。当集群中第一个数据节点启动时，该数据节点一定会运行一个 mnode 实例，否则该数据节点 dnode 无法正常工作，因为一个系统是必须有至少一个 mnode 的。
 
 在 TDengine 3.0 及以后的版本中，数据同步采用 RAFT 协议，所以 mnode 的数量应该被设置为 1 个或者 3 个。
