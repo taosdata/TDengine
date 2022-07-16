@@ -2438,6 +2438,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getCsumFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = csumFunction,
+    .sprocessFunc = csumScalarFunction,
     .finalizeFunc = NULL
   },
   {
