@@ -124,12 +124,16 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
     if (ret < 0) {
       return -1;
     }
+
     if (strcmp(TDB_MAINDB_NAME, tbname)) {
       ret = tdbTbInsert(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, &pgno, sizeof(SPgno), &txn);
       if (ret < 0) {
         return -1;
       }
     }
+
+    tdbUnrefPage(pPage);
+    tdbCommit(pPager->pEnv, &txn);
     tdbTxnClose(&txn);
   }
 
