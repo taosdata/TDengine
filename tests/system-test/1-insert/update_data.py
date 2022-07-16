@@ -85,12 +85,7 @@ class TDTestCase:
                 tdSql.execute(f'insert into {tbname} values({self.ts},"{self.binary}")')
             elif 'nchar' in col_type.lower():
                 tdSql.execute(f'insert into {tbname} values({self.ts},"{self.nchar}")')   
-                   
-    def update_and_check_data(self,tbname,col_name,col_type,value):
-        if 'binary' in col_type.lower() or 'nchar' in col_type.lower():
-            tdSql.execute(f'insert into {tbname} values({self.ts},"{value}")')
-        else:
-            tdSql.execute(f'insert into {tbname} values({self.ts},{value})')
+    def data_check(self,tbname,col_name,col_type,value):
         tdSql.query(f'select {col_name} from {tbname}')
         if col_type.lower() == 'float' or col_type.lower() == 'double':
             if abs(tdSql.queryResult[0][0] - value) / value <= 0.0001:
@@ -99,7 +94,15 @@ class TDTestCase:
                 tdLog.exit(f'{col_name} data check failure')
         else:
             tdSql.checkEqual(tdSql.queryResult[0][0],value)
-    
+        pass
+    def update_and_check_data(self,tbname,col_name,col_type,value,dbname):
+        if 'binary' in col_type.lower() or 'nchar' in col_type.lower():
+            tdSql.execute(f'insert into {tbname} values({self.ts},"{value}")')
+        else:
+            tdSql.execute(f'insert into {tbname} values({self.ts},{value})')
+        self.data_check(tbname,col_name,col_type,value)
+        tdSql.execute(f'flush database {dbname}')
+        self.data_check(tbname,col_name,col_type,value)
     def update_check_ntb(self):
         up_tinyint = random.randint(constant.TINYINT_MIN,constant.TINYINT_MAX)
         up_smallint = random.randint(constant.SMALLINT_MIN,constant.SMALLINT_MAX)
@@ -124,36 +127,39 @@ class TDTestCase:
             tdSql.execute(f'create table {self.ntbname} (ts timestamp,{col_name} {col_type})')
             self.insert_base_data(col_name,self.ntbname)
             if col_type.lower() == 'tinyint':
-                self.update_and_check_data(self.ntbname,col_name,col_type,up_tinyint)
+                self.update_and_check_data(self.ntbname,col_name,col_type,up_tinyint,self.dbname)
             elif col_type.lower() == 'smallint':
-                self.update_and_check_data(self.ntbname,col_name,col_type,up_smallint)
+                self.update_and_check_data(self.ntbname,col_name,col_type,up_smallint,self.dbname)
             elif col_type.lower() == 'int':
-                self.update_and_check_data(self.ntbname,col_name,col_type,up_int)
+                self.update_and_check_data(self.ntbname,col_name,col_type,up_int,self.dbname)
             elif col_type.lower() == 'bigint':
-                self.update_and_check_data(self.ntbname,col_name,col_type,up_bigint)
+                self.update_and_check_data(self.ntbname,col_name,col_type,up_bigint,self.dbname)
             elif col_type.lower() == 'tinyint unsigned':
-                self.update_and_check_data(self.ntbname,col_name,col_type,up_untinyint)
+                self.update_and_check_data(self.ntbname,col_name,col_type,up_untinyint,self.dbname)
             elif col_type.lower() == 'smallint unsigned':
-                self.update_and_check_data(self.ntbname,col_name,col_type,up_unsmallint)
+                self.update_and_check_data(self.ntbname,col_name,col_type,up_unsmallint,self.dbname)
             elif col_type.lower() == 'int unsigned':
-                self.update_and_check_data(self.ntbname,col_name,col_type,up_unint)
+                self.update_and_check_data(self.ntbname,col_name,col_type,up_unint,self.dbname)
             elif col_type.lower() == 'bigint unsigned':
-                self.update_and_check_data(self.ntbname,col_name,col_type,up_unbigint)
+                self.update_and_check_data(self.ntbname,col_name,col_type,up_unbigint,self.dbname)
             elif col_type.lower() == 'bool':
-                self.update_and_check_data(self.ntbname,col_name,col_type,up_bool)    
+                self.update_and_check_data(self.ntbname,col_name,col_type,up_bool,self.dbname)    
             elif col_type.lower() == 'float':
-                self.update_and_check_data(self.ntbname,col_name,col_type,up_float)      
+                self.update_and_check_data(self.ntbname,col_name,col_type,up_float,self.dbname)      
             elif col_type.lower() == 'double':
-                self.update_and_check_data(self.ntbname,col_name,col_type,up_double)
+                self.update_and_check_data(self.ntbname,col_name,col_type,up_double,self.dbname)
             elif 'binary' in col_type.lower():
-                self.update_and_check_data(self.ntbname,col_name,col_type,up_binary)
+                self.update_and_check_data(self.ntbname,col_name,col_type,up_binary,self.dbname)
             elif 'nchar' in col_type.lower():
-                self.update_and_check_data(self.ntbname,col_name,col_type,up_nchar)
+                self.update_and_check_data(self.ntbname,col_name,col_type,up_nchar,self.dbname)
             tdSql.execute(f'drop table {self.ntbname}')
         for col_name,col_type in self.column_dict.items():
             tdSql.execute(f'create table {self.ntbname} (ts timestamp,{col_name} {col_type})')
             self.insert_base_data(col_name,self.ntbname)
             tdSql.execute(f'insert into {self.ntbname} values({self.ts},null)')
+            tdSql.query(f'select {col_name} from {self.ntbname}')
+            tdSql.checkEqual(tdSql.queryResult[0][0],None)
+            tdSql.execute(f'flush database {self.dbname}')
             tdSql.query(f'select {col_name} from {self.ntbname}')
             tdSql.checkEqual(tdSql.queryResult[0][0],None)
             tdSql.execute(f'drop table {self.ntbname}')
