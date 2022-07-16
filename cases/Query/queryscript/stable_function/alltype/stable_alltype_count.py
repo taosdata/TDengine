@@ -342,7 +342,7 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
-                            sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            sql2 = "select %s from (select * from %s order by ts) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
@@ -362,12 +362,18 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
-                            sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            sql2 = "select %s from (select * from %s order by ts) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
-                                                    
+
+                            sql2 = "select %s from (select * from %s order by ts desc) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                            # cur1.execute(sql2)
+                            # self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
+                                                                                
             except Exception as e:
                 raise e   
 
@@ -1541,6 +1547,7 @@ class TDTestQuery(TDCase):
 
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        self.tdCreateData.drop_db("%s" % self.db)  
                                 
     def run(self):
         startTime = time.time() 
@@ -1549,7 +1556,9 @@ class TDTestQuery(TDCase):
          
         startTime1 = time.time()
         self.right_case_1()
+        self.data_create(self.db)
         self.right_case_1_tbname()
+        self.data_create(self.db)
         self.right_case_1_tbname_groupby()
         self.right_case_1_interval()
         self.right_case_1_interval_tbname()
@@ -1557,8 +1566,11 @@ class TDTestQuery(TDCase):
         self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
         startTime2 = time.time()
+        self.data_create(self.db)
         self.right_case_2()
+        self.data_create(self.db)
         self.right_case_2_tbname()
+        self.data_create(self.db)
         self.right_case_2_tbname_groupby()
         self.right_case_2_interval()
         self.right_case_2_interval_tbname()
@@ -1566,8 +1578,11 @@ class TDTestQuery(TDCase):
         self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
         startTime3 = time.time()
+        self.data_create(self.db)
         self.right_case_3()
+        self.data_create(self.db)
         self.right_case_3_tbname()
+        self.data_create(self.db)
         self.right_case_3_tbname_groupby()
         self.right_case_3_interval()
         self.right_case_3_interval_tbname()
