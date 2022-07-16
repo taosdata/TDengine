@@ -432,7 +432,8 @@ class TDTestQuery(TDCase):
         #self.tdSql.execute('''drop database if exists %s ;''' %self.db)
 
     def rm_sql(self):
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
+        self.tdCreateData.drop_db("%s" % self.db)  
         
     def run(self)-> bool:
         startTime = time.time() 

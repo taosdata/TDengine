@@ -50,6 +50,9 @@ class TDCreateData():
     def restartDnodes(self):
         self.tdDnodes.stop(1)
         self.tdDnodes.start(1)
+        
+    def drop_db(self,database):
+        self.tdSql.execute('''drop database if exists %s ;''' %database)
 
     def dropandcreateDB_random(self,database,n):
         self.ts = 1630000000000

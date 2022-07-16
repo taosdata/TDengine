@@ -486,7 +486,8 @@ class TDTestQuery(TDCase):
         self.logger.info("sqlnum3 interval %d" % num3)     
 
     def rm_sql(self):
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
+        self.tdCreateData.drop_db("%s" % self.db)  
                   
     def run(self):
         startTime = time.time() 

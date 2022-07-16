@@ -468,7 +468,7 @@ class TDTestQuery(TDCase):
 
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
-        #taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
+        self.tdCreateData.drop_db("%s" % self.db) 
         
     def run(self)-> bool:
         
