@@ -802,7 +802,12 @@ static bool isStateWindow(SStreamScanInfo* pInfo) {
 
 static bool isIntervalWindow(SStreamScanInfo* pInfo) {
   return pInfo->sessionSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL ||
-         pInfo->sessionSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL;
+         pInfo->sessionSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL ||
+         pInfo->sessionSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL;
+}
+
+static bool isSignleIntervalWindow(SStreamScanInfo* pInfo) {
+  return pInfo->sessionSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL;
 }
 
 static uint64_t getGroupId(SOperatorInfo* pOperator, uint64_t uid) {
@@ -1130,9 +1135,14 @@ static void setUpdateData(SStreamScanInfo* pInfo, SSDataBlock* pBlock, SSDataBlo
 static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock* pBlock, bool out) {
   SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
   ASSERT(pColDataInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
-  TSKEY* ts = (TSKEY*)pColDataInfo->pData;
+  TSKEY* tsCol = (TSKEY*)pColDataInfo->pData;
   for (int32_t rowId = 0; rowId < pBlock->info.rows; rowId++) {
-    if (updateInfoIsUpdated(pInfo->pUpdateInfo, pBlock->info.uid, ts[rowId]) && out) {
+    SResultRowInfo dumyInfo;
+    dumyInfo.cur.pageId = -1;
+    STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, tsCol[rowId], &pInfo->interval, TSDB_ORDER_ASC);
+    // must check update info first.
+    bool update = updateInfoIsUpdated(pInfo->pUpdateInfo, pBlock->info.uid, tsCol[rowId]);
+    if ( (update || (isSignleIntervalWindow(pInfo) && isCloseWindow(&win, &pInfo->twAggSup)) ) && out) {
       taosArrayPush(pInfo->tsArray, &rowId);
     }
   }
@@ -1413,6 +1423,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       pInfo->tsArrayIndex = 0;
       checkUpdateData(pInfo, true, pInfo->pRes, true);
       setUpdateData(pInfo, pInfo->pRes, pInfo->pUpdateRes);
+      pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, pBlockInfo->window.ekey);
       if (pInfo->pUpdateRes->info.rows > 0) {
         if (pInfo->pUpdateRes->info.type == STREAM_CLEAR) {
           pInfo->updateResIndex = 0;
@@ -1584,13 +1595,14 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->pUpdateRes = createResDataBlock(pDescNode);
   pInfo->pCondition = pScanPhyNode->node.pConditions;
   pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
-  pInfo->sessionSup = (SessionWindowSupporter){.pStreamAggSup = NULL, .gap = -1};
+  pInfo->sessionSup = (SessionWindowSupporter){.pStreamAggSup = NULL, .gap = -1, .parentType = QUERY_NODE_PHYSICAL_PLAN};
   pInfo->groupId = 0;
   pInfo->pPullDataRes = createPullDataBlock();
   pInfo->pStreamScanOp = pOperator;
   pInfo->deleteDataIndex = 0;
   pInfo->pDeleteDataRes = createPullDataBlock();
   pInfo->updateWin = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MAX};
+  pInfo->twAggSup = *pTwSup;
 
   pOperator->name = "StreamScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
