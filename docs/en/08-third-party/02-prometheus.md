@@ -53,7 +53,7 @@ The resulting configuration will collect data about prometheus itself from its o
 ./prometheus --config.file prometheus.yml
 ```
 
-Prometheus should start up. It also started a web server at <http://localhost:9090>.
+Prometheus should start up. It also started a web server at <http://localhost:9090>. If you want to access the web server from a browser which is not running on the same host as Prometheus, please change `localhost` to correct hostname, FQDN or IP address, depending on your network environment.
 
 ## Verify Remote Write
 
