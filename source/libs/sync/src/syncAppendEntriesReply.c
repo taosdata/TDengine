@@ -247,7 +247,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
         SSnapshot oldSnapshot;
         ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &oldSnapshot);
         SyncTerm newSnapshotTerm = oldSnapshot.lastApplyTerm;
-        syncNodeStartSnapshotOnce(ths, pMsg->matchIndex + 1, nextIndex, newSnapshotTerm, pMsg);
+        syncNodeStartSnapshotOnce(ths, pMsg->matchIndex + 1, oldSnapshot.lastApplyIndex, newSnapshotTerm, pMsg);
 
         // get sender
         SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(pMsg->srcId));
