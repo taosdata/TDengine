@@ -1151,7 +1151,7 @@ int32_t tBlockDataCorrectSchema(SBlockData *pBlockData, SBlockData *pBlockDataFr
         code = tBlockDataAddColData(pBlockData, iColData, &pColData);
         if (code) goto _exit;
 
-        tColDataInit(pColData, pColDataFrom->cid, pColData->type, pColData->smaOn);
+        tColDataInit(pColData, pColDataFrom->cid, pColDataFrom->type, pColDataFrom->smaOn);
         for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
           code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid, pColData->type));
           if (code) goto _exit;
