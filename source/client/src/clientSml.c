@@ -609,7 +609,7 @@ static bool smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg) {
     }
     kvVal->type = TSDB_DATA_TYPE_BIGINT;
     kvVal->i = (int64_t)result;
-  } else if ((left == 3 && strncasecmp(endptr, "u64", left) == 0)) {
+  } else if ((left == 1 && *endptr == 'u') || (left == 3 && strncasecmp(endptr, "u64", left) == 0)) {
     if (result >= (double)UINT64_MAX || result < 0) {
       errno = 0;
       uint64_t tmp = taosStr2UInt64(pVal, &endptr, 10);
