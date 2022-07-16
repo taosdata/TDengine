@@ -171,7 +171,7 @@ class TDTestCase:
                 for error_value in [tdCom.getLongName(self.str_length),True,False,1.1*constant.DOUBLE_MIN,1.1*constant.DOUBLE_MAX]:
                     tdSql.error(f'insert into {self.ntbname} values({self.ts},{error_value})')
             elif col_type.lower() == 'float':
-                for error_value in [tdCom.getLongName(self.str_length),True,False,10*constant.FLOAT_MIN,1.1*constant.FLOAT_MAX]:
+                for error_value in [tdCom.getLongName(self.str_length),True,False,1.1*constant.FLOAT_MIN,1.1*constant.FLOAT_MAX]:
                     tdSql.error(f'insert into {self.ntbname} values({self.ts},{error_value})')
             elif 'binary' in col_type.lower() or 'nchar' in col_type.lower():
                 for error_value in [tdCom.getLongName(str_length)]:
