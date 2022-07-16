@@ -155,11 +155,10 @@ static const SSysDbTableSchema userTblsSchema[] = {
 
 static const SSysDbTableSchema userTagsSchema[] = {
     {.name = "table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "uid", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
-    {.name = "stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "tag_name", .bytes = TSDB_COL_NAME_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BIGINT},
-    {.name = "tag_type", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "tag_type", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "tag_value", .bytes = TSDB_MAX_TAGS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
