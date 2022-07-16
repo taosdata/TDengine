@@ -2447,6 +2447,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getMavgFuncEnv,
     .initFunc     = mavgFunctionSetup,
     .processFunc  = mavgFunction,
+    .sprocessFunc = mavgScalarFunction,
     .finalizeFunc = NULL
   },
   {
