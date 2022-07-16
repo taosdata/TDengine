@@ -22,10 +22,11 @@ class TDTestCase:
         self.ts = 1434938400000
         self.time_step = 1000
 
-    def insert_datas_and_check_abs(self ,tbnums , rownums , time_step ):
+    def insert_datas_and_check_abs(self ,tbnums , rownums , time_step ,cache_value ):
+        tdSql.execute("drop database if exists test ")
         tdLog.info(" prepare datas for auto check abs function ")
 
-        tdSql.execute(" create database test cachelast 1 ")
+        tdSql.execute(f" create database test cachelast {cache_value} ")
         tdSql.execute(" use test ")
         tdSql.execute(" create stable stb (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint,\
              c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int)")
@@ -62,8 +63,10 @@ class TDTestCase:
                     self.check_result_auto(origin_sql , abs_sql)
                     
 
-    def prepare_datas(self):
-        tdSql.execute("create database if not exists db keep 3650 duration 1000 cachelast 1")
+    def prepare_datas(self ,cache_value):
+        tdSql.execute("drop database if exists db ")
+        create_db_sql = f"create database if not exists db keep 3650 duration 1000 cachelast {cache_value}"
+        tdSql.execute(create_db_sql)
         tdSql.execute("use db")
         tdSql.execute(
             '''create table stb1
@@ -121,10 +124,12 @@ class TDTestCase:
             '''
         )
 
-    def prepare_tag_datas(self):
+    def prepare_tag_datas(self,cache_value):
+
+        tdSql.execute("drop database if exists testdb ")
         # prepare datas
         tdSql.execute(
-            "create database if not exists testdb keep 3650 duration 1000 cachelast 1")
+            f"create database if not exists testdb keep 3650 duration 1000 cachelast {cache_value}")
         tdSql.execute(" use testdb ")
 
         tdSql.execute(f" create stable stb1 (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp , uc1 int unsigned,\
@@ -796,16 +801,9 @@ class TDTestCase:
         self.check_result_auto( " select t3,c1 from stb1 where c1 > 0 order by tbname  " , "select t3 ,abs(c1) from stb1 where c1 > 0 order by tbname" )
         self.check_result_auto( " select t4,c1 from stb1 where c1 > 0 order by tbname  " , "select t4 , abs(c1) from stb1 where c1 > 0 order by tbname" )
         pass
-
-
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
-        # tdSql.prepare()
-
-        tdLog.printNoPrefix("==========step1:create table ==============")
-
-        self.prepare_datas()
-        self.prepare_tag_datas()
-
+    
+    def basic_query(self):
+        
         tdLog.printNoPrefix("==========step2:test errors ==============")
 
         self.test_errors()
@@ -832,11 +830,40 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step7: check result of query ============")
 
-        self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step)
 
         tdLog.printNoPrefix("==========step8: check abs result of  stable query ============")
 
         self.support_super_table_test()
+
+    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+        # tdSql.prepare()
+
+        tdLog.printNoPrefix("==========step1:create table ==============")
+
+        # cache_last 0
+        self.prepare_datas(0)
+        self.prepare_tag_datas(0)
+        self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,0)
+        self.basic_query()
+
+        # cache_last 1 
+        self.prepare_datas(1)
+        self.prepare_tag_datas(1)
+        self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,1)
+        self.basic_query()
+
+        # cache_last 2 
+        self.prepare_datas(2)
+        self.prepare_tag_datas(2)
+        self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,2)
+        self.basic_query()
+
+        # cache_last 3 
+        self.prepare_datas(3)
+        self.prepare_tag_datas(3)
+        self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,3)
+        self.basic_query()
+
 
     def stop(self):
         tdSql.close()
