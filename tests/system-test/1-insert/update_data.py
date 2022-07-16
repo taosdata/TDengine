@@ -95,6 +95,8 @@ class TDTestCase:
                 tdSql.checkEqual(tdSql.queryResult[0][0],tdSql.queryResult[0][0])
             else:
                 tdLog.exit(f'{col_name} data check failure')
+        elif col_type.lower() == 'timestamp':
+            tdSql.checkEqual(str(tdSql.queryResult[0][0]),str(datetime.datetime.fromtimestamp(value/1000).strftime("%Y-%m-%d %H:%M:%S.%f")))
         else:
             tdSql.checkEqual(tdSql.queryResult[0][0],value)
     def update_and_check_data(self,tbname,col_name,col_type,value,dbname):
@@ -204,6 +206,8 @@ class TDTestCase:
                 self.update_and_check_data(tbname,col_name,col_type,up_binary,dbname)
             elif 'nchar' in col_type.lower():
                 self.update_and_check_data(tbname,col_name,col_type,up_nchar,dbname)
+            elif col_type.lower() == 'timestamp':
+                self.update_and_check_data(tbname,col_name,col_type,self.ts+1,dbname)
             tdSql.execute(f'insert into {tbname} values({self.ts},null)')
             tdSql.query(f'select {col_name} from {tbname}')
             tdSql.checkEqual(tdSql.queryResult[0][0],None)
