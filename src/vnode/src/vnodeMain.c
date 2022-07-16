@@ -461,7 +461,7 @@ void vnodeStopWaitingThread(SVnodeObj* pVnode) {
     if(loop == 0) {
       vInfo("vgId:%d :SDEL force kill thread to quit. pthread=%p pWrite=%p", pVnode->vgId, pWaitThread->pthread, pWaitThread->param);
       // thread not stop , so need kill
-      taosDestoryThread(pWaitThread->pthread);
+      taosDestroyThread(pWaitThread->pthread);
       // write msg need remove from queue
       SVWriteMsg* pWrite = (SVWriteMsg* )pWaitThread->param;
       if (pWrite)
