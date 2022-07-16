@@ -286,7 +286,7 @@ static FORCE_INLINE SReqResultInfo* tscGetCurResInfo(TAOS_RES* res) {
 extern SAppInfo appInfo;
 extern int32_t  clientReqRefPool;
 extern int32_t  clientConnRefPool;
-extern void*    tscQhandle;
+extern int32_t  timestampDeltaLimit;
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
 
