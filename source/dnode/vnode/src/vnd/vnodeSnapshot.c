@@ -173,7 +173,7 @@ _err:
   return code;
 }
 
-int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback) {
+int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *pSnapshot) {
   int32_t code = 0;
 
   if (pWriter->pMetaSnapWriter) {
