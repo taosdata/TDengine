@@ -109,6 +109,10 @@ static int32_t sortComparClearup(SMsortComparParam* cmpParam) {
 }
 
 void tsortDestroySortHandle(SSortHandle* pSortHandle) {
+  if (pSortHandle == NULL) {
+    return;
+  }
+
   tsortClose(pSortHandle);
   if (pSortHandle->pMergeTree != NULL) {
     tMergeTreeDestroy(pSortHandle->pMergeTree);
