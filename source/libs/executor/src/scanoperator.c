@@ -1766,73 +1766,80 @@ static SSDataBlock* buildInfoSchemaTableMetaBlock(char* tableName) {
   return pBlock;
 }
 
-//TODO: check more datatype, json? and return detailed error when len is not enough
-static int32_t convertTagDataToVarchar(int8_t tagType, char* tagVal, char* str, size_t len) {
+// TODO: check more datatype, json? and return detailed error when len is not enough
+static int32_t convertTagDataToTagVarchar(int8_t tagType, char* tagVal, uint32_t tagLen, char* varData,
+                                          int32_t bufSize) {
+  int outputLen = -1;
   switch (tagType) {
     case TSDB_DATA_TYPE_TINYINT:
-      snprintf(str, len, "%d", *((int8_t*)tagVal));
+      outputLen = snprintf(varDataVal(varData), bufSize, "%d", *((int8_t*)tagVal));
       break;
 
     case TSDB_DATA_TYPE_UTINYINT:
-      snprintf(str, len, "%u", *((uint8_t*)tagVal));
+      outputLen = snprintf(varDataVal(varData), bufSize, "%u", *((uint8_t*)tagVal));
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      snprintf(str, len, "%d", *((int16_t*)tagVal));
+      outputLen = snprintf(varDataVal(varData), bufSize, "%d", *((int16_t*)tagVal));
       break;
 
     case TSDB_DATA_TYPE_USMALLINT:
-      snprintf(str, len, "%u", *((uint16_t*)tagVal));
+      outputLen = snprintf(varDataVal(varData), bufSize, "%u", *((uint16_t*)tagVal));
       break;
 
     case TSDB_DATA_TYPE_INT:
-      snprintf(str, len, "%d", *((int32_t*)tagVal));
+      outputLen = snprintf(varDataVal(varData), bufSize, "%d", *((int32_t*)tagVal));
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      snprintf(str, len, "%u", *((uint32_t*)tagVal));
+      outputLen = snprintf(varDataVal(varData), bufSize, "%u", *((uint32_t*)tagVal));
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
-      snprintf(str, len, "%" PRId64, *((int64_t*)tagVal));
+      outputLen = snprintf(varDataVal(varData), bufSize, "%" PRId64, *((int64_t*)tagVal));
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      snprintf(str, len, "%" PRIu64, *((uint64_t*)tagVal));
+      outputLen = snprintf(varDataVal(varData), bufSize, "%" PRIu64, *((uint64_t*)tagVal));
       break;
 
     case TSDB_DATA_TYPE_FLOAT: {
       float fv = 0;
       fv = GET_FLOAT_VAL(tagVal);
-      snprintf(str, len, "%f", fv);
+      outputLen = snprintf(varDataVal(varData), bufSize, "%f", fv);
       break;
     }
 
     case TSDB_DATA_TYPE_DOUBLE: {
       double dv = 0;
       dv = GET_DOUBLE_VAL(tagVal);
-      snprintf(str, len, "%lf", dv);
+      outputLen = snprintf(varDataVal(varData), bufSize, "%lf", dv);
       break;
     }
 
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON: {
-      memcpy(str, tagVal, len);
+      memcpy(varDataVal(varData), tagVal, tagLen);
+      outputLen = tagLen;
       break;
     }
 
     case TSDB_DATA_TYPE_TIMESTAMP:
-      snprintf(str, len, "%" PRId64, *((int64_t*)tagVal));
+      outputLen = snprintf(varDataVal(varData), bufSize, "%" PRId64, *((int64_t*)tagVal));
       break;
 
     case TSDB_DATA_TYPE_BOOL:
-      snprintf(str, len, "%d", *((int8_t*)tagVal));
+      outputLen = snprintf(varDataVal(varData), bufSize, "%d", *((int8_t*)tagVal));
       break;
     default:
       return TSDB_CODE_FAILED;
   }
 
+  if (outputLen < 0 || outputLen == bufSize && !IS_VAR_DATA_TYPE(tagType) || outputLen > bufSize) {
+    return TSDB_CODE_FAILED;
+  }
+  varDataSetLen(varData, outputLen);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1917,25 +1924,44 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
       STagVal tagVal = {0};
       tagVal.cid = smr.me.stbEntry.schemaTag.pSchema[i].colId;
-      const char* pVal = metaGetTableTagVal(&pInfo->pCur->mr.me, tagType, &tagVal);
-
-      char* tagData = NULL;
-      if (tagType != TSDB_DATA_TYPE_JSON && p != NULL) {
-        tagData = tTagValToData((const STagVal*)pVal, false);
+      char*    tagData = NULL;
+      uint32_t tagLen = 0;
+      if (tagType == TSDB_DATA_TYPE_JSON) {
+        // TODO: json type?+varheader+data
+        tagData = varDataVal(pInfo->pCur->mr.me.ctbEntry.pTags + 1);
+        tagLen = varDataLen(pInfo->pCur->mr.me.ctbEntry.pTags + 1);
       } else {
-        tagData = (char*)pVal;
+        bool exist = tTagGet((STag*)pInfo->pCur->mr.me.ctbEntry.pTags, &tagVal);
+        if (exist) {
+          if (IS_VAR_DATA_TYPE(tagType)) {
+            tagData = (char*)tagVal.pData;
+            tagLen = tagVal.nData;
+          } else {
+            tagData = (char*)&tagVal.i64;
+            tagLen = tDataTypes[tagType].bytes;
+          }
+        }
       }
-      //TODO: memory allocation for varchar size and make sure enough memory
-      char tagStr[1024];
-      convertTagDataToVarchar(tagType, tagData, tagStr, 1024);
-      pColInfoData = taosArrayGet(p->pDataBlock, 5);
-      colDataAppend(pColInfoData, numOfRows, tagStr,
-                    (tagData == NULL) || (tagType == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(tagData)));
 
-      if (tagType != TSDB_DATA_TYPE_JSON && p != NULL && IS_VAR_DATA_TYPE(((const STagVal*)p)->type) &&
-          tagData != NULL) {
-        taosMemoryFree(tagData);
+      int32_t bufSize = IS_VAR_DATA_TYPE(tagType) ? tagLen : 1024;
+      char*   tagVarChar = NULL;
+      if (tagData != NULL) {
+        tagVarChar = taosMemoryMalloc(bufSize);
+        code = convertTagDataToTagVarchar(tagType, tagData, tagLen, tagVarChar, bufSize);
+        if (code != TSDB_CODE_SUCCESS) {
+          qError("failed to get super table meta, uid:0x%" PRIx64 ", code:%s, %s", suid, tstrerror(terrno),
+                 GET_TASKID(pTaskInfo));
+          taosMemoryFree(tagVarChar);
+          metaReaderClear(&smr);
+          metaCloseTbCursor(pInfo->pCur);
+          pInfo->pCur = NULL;
+          longjmp(pTaskInfo->env, terrno);
+        }
       }
+      pColInfoData = taosArrayGet(p->pDataBlock, 5);
+      colDataAppend(pColInfoData, numOfRows, tagVarChar,
+                    (tagData == NULL) || (tagType == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(tagData)));
+      taosMemoryFree(tagVarChar);
 
       ++numOfRows;
     }
