@@ -1978,7 +1978,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
         }
       }
 
-      int32_t bufSize = IS_VAR_DATA_TYPE(tagType) ? tagLen : 1024;
+      int32_t bufSize = IS_VAR_DATA_TYPE(tagType) ? tagLen + VARSTR_HEADER_SIZE : 1024;
       char*   tagVarChar = NULL;
       if (tagData != NULL) {
         tagVarChar = taosMemoryMalloc(bufSize);
