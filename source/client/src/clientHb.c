@@ -571,17 +571,13 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
   return TSDB_CODE_SUCCESS;
 }
 
-void hbMgrInitMqHbHandle() {
+static FORCE_INLINE void hbMgrInitHandle() {
+  // init all handle
   clientHbMgr.reqHandle[CONN_TYPE__QUERY] = hbQueryHbReqHandle;
   clientHbMgr.reqHandle[CONN_TYPE__TMQ] = hbMqHbReqHandle;
 
   clientHbMgr.rspHandle[CONN_TYPE__QUERY] = hbQueryHbRspHandle;
   clientHbMgr.rspHandle[CONN_TYPE__TMQ] = hbMqHbRspHandle;
-}
-
-static FORCE_INLINE void hbMgrInitHandle() {
-  // init all handle
-  hbMgrInitMqHbHandle();
 }
 
 SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
