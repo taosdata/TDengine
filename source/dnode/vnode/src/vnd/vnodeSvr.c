@@ -689,6 +689,7 @@ _exit:
   tEncoderInit(&encoder, pRsp->pCont, pRsp->contLen);
   tEncodeSVDropTbBatchRsp(&encoder, &rsp);
   tEncoderClear(&encoder);
+  taosArrayDestroy(rsp.pArray);
   return 0;
 }
 
