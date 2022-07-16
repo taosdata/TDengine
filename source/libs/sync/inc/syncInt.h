@@ -223,6 +223,7 @@ void syncNodeVoteForSelf(SSyncNode* pSyncNode);
 
 // snapshot --------------
 bool syncNodeHasSnapshot(SSyncNode* pSyncNode);
+void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode);
 
 SyncIndex syncNodeGetLastIndex(SSyncNode* pSyncNode);
 SyncTerm  syncNodeGetLastTerm(SSyncNode* pSyncNode);
