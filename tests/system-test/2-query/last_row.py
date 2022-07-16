@@ -25,7 +25,7 @@ class TDTestCase:
     def insert_datas_and_check_abs(self ,tbnums , rownums , time_step ):
         tdLog.info(" prepare datas for auto check abs function ")
 
-        tdSql.execute(" create database test cachelast 1 ")
+        tdSql.execute(" create database test cachemodel 'last_row' ")
         tdSql.execute(" use test ")
         tdSql.execute(" create stable stb (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint,\
              c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int)")
@@ -63,7 +63,7 @@ class TDTestCase:
                     
 
     def prepare_datas(self):
-        tdSql.execute("create database if not exists db keep 3650 duration 1000 cachelast 1")
+        tdSql.execute("create database if not exists db keep 3650 duration 1000 cachemodel 'last_row'")
         tdSql.execute("use db")
         tdSql.execute(
             '''create table stb1
@@ -124,7 +124,7 @@ class TDTestCase:
     def prepare_tag_datas(self):
         # prepare datas
         tdSql.execute(
-            "create database if not exists testdb keep 3650 duration 1000 cachelast 1")
+            "create database if not exists testdb keep 3650 duration 1000 cachemodel 'last_row'")
         tdSql.execute(" use testdb ")
 
         tdSql.execute(f" create stable stb1 (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp , uc1 int unsigned,\
@@ -528,7 +528,7 @@ class TDTestCase:
     def check_boundary_values(self):
 
         tdSql.execute("drop database if exists bound_test")
-        tdSql.execute("create database if not exists bound_test cachelast 2")
+        tdSql.execute("create database if not exists bound_test cachemodel 'last_value'")
         time.sleep(3)
         tdSql.execute("use bound_test")
         tdSql.execute(
