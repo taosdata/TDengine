@@ -74,6 +74,7 @@ class TestInsert(TDCase):
             config_dict[TestInsert.key_json_template] = self.case_param
         if not TestInsert.key_json_template in config_dict:
             self.logger.error("json template file not specified")
+            self.set_error_msg("json template file not specified")
             return False
 
         # get full path of json template
@@ -82,6 +83,7 @@ class TestInsert(TDCase):
         self.logger.debug("json template: {}".format(config_dict[TestInsert.key_json_template]))
         if not os.path.isfile(config_dict[TestInsert.key_json_template]):
             self.logger.error("{} not exist".format(config_dict[TestInsert.key_json_template]))
+            self.set_error_msg("{} not exist".format(config_dict[TestInsert.key_json_template])
             return False
 
         # create tmp dir
@@ -120,6 +122,8 @@ class TestInsert(TDCase):
         if result.failed:
             # self.logger.error(str(result))
             self.logger.error("cmd [{}] failed on [{}]".format(cmd, config_dict["HOST"]))
+            self.logger.error("cmd [{}] exit code: [{}]".format(cmd, result.exited))
+            self.set_error_msg("cmd [{}] failed on [{}]".format(cmd, config_dict["HOST"]))
             return False
         else:
             self.logger.info("cmd [{}] succeed on [{}]".format(cmd, config_dict["HOST"]))
@@ -141,7 +145,7 @@ class TestInsert(TDCase):
                 self.logger.debug("childtable_count: {}".format(childtable_count))
                 self.logger.debug("insert_rows: {}".format(insert_rows))
                 if childtable_count > 0:
-                    self.tdSql.query("select count(tbname) from {}.{};".format(db_name, stb_name))
+                    self.tdSql.query("select count(*) from information_schema.user_tables where db_name = '{}' and stable_name = '{}';".format(db_name, stb_name))
                     ret = self.tdSql.checkData(0, 0, childtable_count)
                 if childtable_count * insert_rows > 0:
                     self.tdSql.query("select count(*) from {}.{};".format(db_name, stb_name))

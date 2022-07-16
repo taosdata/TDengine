@@ -1,0 +1,2 @@
+#####
+taostest --use=common_cluster_30.yaml --case=Performance/Insert/perf_test_1db.py --keep --disable_collection --case-param="\"--insert-tmpl-file=cases/Performance/Insert/meters.json --insert-cfg-file=cases/Performance/Insert/mode_taosc_3.cfg --key=CHILDTABLECOUNT=2500 --key=VGROUPS=300 --concurrency=12\"" --swarm --uniform-dist taosd

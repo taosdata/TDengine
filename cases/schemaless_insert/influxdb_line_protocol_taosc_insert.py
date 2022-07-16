@@ -514,9 +514,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name, tb_name=tb_name, t0="t", c0="f", ct_add_tag=True)
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         self.tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
-        self.tdSql.checkData(0, 1, False)
-        #! TD-16348
-        # self.tdSql.checkData(0, 11, None)
+        self.tdSql.checkData(0, 1, True)
+        self.tdSql.checkData(0, 11, None)
         self.tdSql.checkData(0, 12, None)
         self.tdSql.checkData(0, 22, None)
         self.tdSql.checkData(0, 23, None)
