@@ -121,10 +121,10 @@ class TestChildTb(TDCase):
         tbname = self.tdCom.get_long_name()
         comment = "comment_test"
         self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
-        self.tdSql.execute(f'create table if not exists {tbname} using {stbname} tags (127) comment {comment}')
+        self.tdSql.execute(f'create table if not exists {tbname} using {stbname} tags (127) comment "{comment}"')
         self.tdSql.query(f'show tables')
         res = self.tdSql.get_db_field_kv(0, tbname)
-        self.tdSql.checkEqual(int(res["table_comment"]), comment)
+        self.tdSql.checkEqual(res["table_comment"], comment)
 
     def desc_check(self):
         """
@@ -175,12 +175,10 @@ class TestChildTb(TDCase):
         self.child_tbname_with_backquote()
         self.child_tbname_without_backquote()
         self.upper_lower_child_tbname_check()
-        # # #! bug
-        # # # self.ttl_check()
-        # # # self.comment_check()
-        # self.desc_check()
-        # ! TD-16445
-        # self.illegal_child_tbsql_check()
+        self.ttl_check()
+        self.comment_check()
+        self.desc_check()
+        self.illegal_child_tbsql_check()
 
     def desc(self) -> str:
         case_description = """
