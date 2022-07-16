@@ -30,15 +30,6 @@
 extern "C" {
 #endif
 
-enum {
-  STREAM_STATUS__RUNNING = 1,
-  STREAM_STATUS__STOPPED,
-  STREAM_STATUS__CREATING,
-  STREAM_STATUS__STOPING,
-  STREAM_STATUS__RESTORING,
-  STREAM_STATUS__DELETING,
-};
-
 typedef struct {
   SHashObj* pHash;  // taskId -> SStreamTask
 } SStreamMeta;

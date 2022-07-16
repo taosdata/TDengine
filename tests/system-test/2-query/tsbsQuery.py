@@ -121,6 +121,11 @@ class TDTestCase:
         # 8. daily-activity   
         tdSql.query(" SELECT model,ms1  FROM (SELECT _wstart as ts1,model, fleet,avg(status) AS ms1 FROM diagnostics WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'  partition by model, fleet interval(10m) fill(value,0)) WHERE ts1 >= '2016-01-01T00:00:00Z' AND ts1 < '2016-01-05T00:00:01Z'  AND ms1<1;")
         tdSql.query("SELECT _wstart,model,fleet,count(ms1)/144  FROM (SELECT _wstart as ts1,model, fleet,avg(status) AS ms1 FROM diagnostics WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'  partition by model, fleet interval(10m) fill(value,0)) WHERE ts1 >= '2016-01-01T00:00:00Z' AND ts1 < '2016-01-05T00:00:01Z'  AND ms1<1 partition by model, fleet interval(1d) ;")
+
+        #it's already supported:
+        # last-loc
+        tdSql.query("")
+
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdLog.printNoPrefix("==========step1:create database and table,insert data  ==============")
         self.prepareData()

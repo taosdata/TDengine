@@ -278,6 +278,10 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType);
 
+  if (NULL != pScan->pScanCols) {
+    pScan->hasNormalCols = true;
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = addPrimaryKeyCol(pScan->tableId, &pScan->pScanCols);
   }

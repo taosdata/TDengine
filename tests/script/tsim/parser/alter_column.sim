@@ -1,9 +1,6 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-sleep 100
 sql connect
 
 $dbPrefix = m_alt_db
@@ -26,51 +23,20 @@ sql use $db
 sql create table tb (ts timestamp, c1 int, c2 binary(10), c3 nchar(10))
 sql insert into tb values (now, 1, "1", "1")
 sql alter table tb modify column c2 binary(20);
-if $rows != 0 then
-  return -1
-endi
 sql alter table tb modify column c3 nchar(20);
-if $rows != 0 then
-  return -1
-endi
 
 
 sql create stable stb (ts timestamp, c1 int, c2 binary(10), c3 nchar(10)) tags(id1 int, id2 binary(10), id3 nchar(10))
 sql create table tb1 using stb tags(1, "a", "b")
 sql insert into tb1 values (now, 1, "1", "1")
 sql alter stable stb modify column c2 binary(20);
-if $rows != 0 then
-  return -1
-endi
 sql alter table stb modify column c2 binary(30);
-if $rows != 0 then
-  return -1
-endi
 sql alter stable stb modify column c3 nchar(20);
-if $rows != 0 then
-  return -1
-endi
 sql alter table stb modify column c3 nchar(30);
-if $rows != 0 then
-  return -1
-endi
-
 sql alter table stb modify tag id2 binary(11);
-if $rows != 0 then
-  return -1
-endi
-sql alter stable stb modify tag id2 binary(11);
-if $rows != 0 then
-  return -1
-endi
+sql_error alter stable stb modify tag id2 binary(11);
 sql alter table stb modify tag id3 nchar(11);
-if $rows != 0 then
-  return -1
-endi
-sql alter stable stb modify tag id3 nchar(11);
-if $rows != 0 then
-  return -1
-endi
+sql_error alter stable stb modify tag id3 nchar(11);
 
 ##### ILLEGAL OPERATIONS
 
@@ -82,14 +48,14 @@ sql_error alter table tb modify column c2 binary(10);
 sql_error alter table tb modify column c2 binary(9);
 sql_error alter table tb modify column c2 binary(-9);
 sql_error alter table tb modify column c2 binary(0);
-sql_error alter table tb modify column c2 binary(17000);
+sql alter table tb modify column c2 binary(17000);
 sql_error alter table tb modify column c2 nchar(30);
 sql_error alter table tb modify column c3 double;
 sql_error alter table tb modify column c3 nchar(10);
 sql_error alter table tb modify column c3 nchar(0);
 sql_error alter table tb modify column c3 nchar(-1);
 sql_error alter table tb modify column c3 binary(80);
-sql_error alter table tb modify column c3 nchar(17000);
+sql alter table tb modify column c3 nchar(17000);
 sql_error alter table tb modify column c3 nchar(100), c2 binary(30);
 sql_error alter table tb modify column c1 nchar(100), c2 binary(30);
 sql_error alter stable tb modify column c2 binary(30);

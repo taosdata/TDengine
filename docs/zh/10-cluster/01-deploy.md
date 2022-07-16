@@ -10,7 +10,7 @@ title: 集群部署
 
 ### 第一步
 
-如果搭建集群的物理节点中，存有之前的测试数据、装过 1.X 的版本，或者装过其他版本的 TDengine，请先将其删除，并清空所有数据（如果需要保留原有数据，请联系涛思交付团队进行旧版本升级、数据迁移），具体步骤请参考博客[《TDengine 多种安装包的安装和卸载》](https://www.taosdata.com/blog/2019/08/09/566.html)。
+如果搭建集群的物理节点中，存有之前的测试数据，或者装过其他版本的 TDengine，请先将其删除，并清空所有数据（如果需要保留原有数据，请联系涛思交付团队进行旧版本升级、数据迁移），具体步骤请参考博客[《TDengine 多种安装包的安装和卸载》](https://www.taosdata.com/blog/2019/08/09/566.html)。
 
 :::note
 因为 FQDN 的信息会写进文件，如果之前没有配置或者更改 FQDN，且启动了 TDengine。请一定在确保数据无用或者备份的前提下，清理一下之前的数据（rm -rf /var/lib/taos/\*）；
@@ -54,30 +54,16 @@ fqdn                  h1.taosdata.com
 // 配置本数据节点的端口号，缺省是 6030
 serverPort            6030
 
-// 副本数为偶数的时候，需要配置，请参考《Arbitrator 的使用》的部分
-arbitrator            ha.taosdata.com:6042
-```
-
 一定要修改的参数是 firstEp 和 fqdn。在每个数据节点，firstEp 需全部配置成一样，但 fqdn 一定要配置成其所在数据节点的值。其他参数可不做任何修改，除非你很清楚为什么要修改。
 
-加入到集群中的数据节点 dnode，涉及集群相关的下表 9 项参数必须完全相同，否则不能成功加入到集群中。
+加入到集群中的数据节点 dnode，下表中涉及集群相关的参数必须完全相同，否则不能成功加入到集群中。
 
 | **#** | **配置参数名称**   | **含义**                                    |
 | ----- | ------------------ | ------------------------------------------- |
-| 1     | numOfMnodes        | 系统中管理节点个数                          |
-| 2     | mnodeEqualVnodeNum | 一个 mnode 等同于 vnode 消耗的个数          |
-| 3     | offlineThreshold   | dnode 离线阈值，超过该时间将导致 Dnode 离线 |
-| 4     | statusInterval     | dnode 向 mnode 报告状态时长                 |
-| 5     | arbitrator         | 系统中裁决器的 End Point                    |
-| 6     | timezone           | 时区                                        |
-| 7     | balance            | 是否启动负载均衡                            |
-| 8     | maxTablesPerVnode  | 每个 vnode 中能够创建的最大表个数           |
-| 9     | maxVgroupsPerDb    | 每个 DB 中能够使用的最大 vgroup 个数        |
-
-:::note
-在 2.0.19.0 及更早的版本中，除以上 9 项参数外，dnode 加入集群时，还会要求 locale 和 charset 参数的取值也一致。
-
-:::
+| 1     | statusInterval     | dnode 向 mnode 报告状态时长                 |
+| 2     | timezone           | 时区                                        |
+| 3     | locale             | 系统区位信息及编码格式                       |
+| 4     | charset            | 字符集编码                                 |
 
 ## 启动集群
 
@@ -86,19 +72,22 @@ arbitrator            ha.taosdata.com:6042
 按照《立即开始》里的步骤，启动第一个数据节点，例如 h1.taosdata.com，然后执行 taos，启动 taos shell，从 shell 里执行命令“SHOW DNODES”，如下所示：
 
 ```
-Welcome to the TDengine shell from Linux, Client Version:2.0.0.0
+Welcome to the TDengine shell from Linux, Client Version:3.0.0.0
+Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.
 
-
-Copyright (c) 2017 by TAOS Data, Inc. All rights reserved.
+Server is Enterprise trial Edition, ver:3.0.0.0 and will never expire.
 
 taos> show dnodes;
- id |       end_point    | vnodes | cores | status | role |      create_time        |
-=====================================================================================
-  1 |  h1.taos.com:6030  |      0 |     2 |  ready |  any | 2020-07-31 03:49:29.202 |
-Query OK, 1 row(s) in set (0.006385s)
+   id   |            endpoint            | vnodes | support_vnodes |   status   |       create_time       |              note              |
+============================================================================================================================================
+      1 | h1.taosdata.com:6030                     |      0 |           1024 | ready      | 2022-07-16 10:50:42.673 |                                |
+Query OK, 1 rows affected (0.007984s)
 
 taos>
-```
+
+taos>
+
+````
 
 上述命令里，可以看到刚启动的数据节点的 End Point 是：h1.taos.com:6030，就是这个新集群的 firstEp。
 
@@ -112,7 +101,7 @@ taos>
 
 ```sql
 CREATE DNODE "h2.taos.com:6030";
-```
+````
 
 将新数据节点的 End Point（准备工作中第四步获知的）添加进集群的 EP 列表。“fqdn:port”需要用双引号引起来，否则出错。请注意将示例的“h2.taos.com:6030” 替换为这个新数据节点的 End Point。
 
