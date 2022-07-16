@@ -1,7 +1,5 @@
 import datetime
 
-from dataclasses import dataclass, field
-from typing import List, Any, Tuple
 from util.log import *
 from util.sql import *
 from util.cases import *
@@ -9,57 +7,22 @@ from util.dnodes import *
 
 PRIMARY_COL = "ts"
 
-INT_COL = "c_int"
-BINT_COL = "c_bint"
-SINT_COL = "c_sint"
-TINT_COL = "c_tint"
-FLOAT_COL = "c_float"
-DOUBLE_COL = "c_double"
-BOOL_COL = "c_bool"
-TINT_UN_COL = "c_utint"
-SINT_UN_COL = "c_usint"
-BINT_UN_COL = "c_ubint"
-INT_UN_COL = "c_uint"
-BINARY_COL = "c_binary"
-NCHAR_COL = "c_nchar"
-TS_COL = "c_ts"
+INT_COL     = "c1"
+BINT_COL    = "c2"
+SINT_COL    = "c3"
+TINT_COL    = "c4"
+FLOAT_COL   = "c5"
+DOUBLE_COL  = "c6"
+BOOL_COL    = "c7"
 
-NUM_COL = [INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, ]
-CHAR_COL = [BINARY_COL, NCHAR_COL, ]
-BOOLEAN_COL = [BOOL_COL, ]
-TS_TYPE_COL = [TS_COL, ]
+BINARY_COL  = "c8"
+NCHAR_COL   = "c9"
+TS_COL      = "c10"
 
-INT_TAG = "t_int"
-
-ALL_COL = [PRIMARY_COL, INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, BINARY_COL, NCHAR_COL, BOOL_COL, TS_COL]
-TAG_COL = [INT_TAG]
-# insert data args：
-TIME_STEP = 10000
-NOW = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
-
-# init db/table
-DBNAME  = "db"
-STBNAME = "stb1"
-CTBNAME = "ct1"
-NTBNAME = "nt1"
-
-@dataclass
-class DataSet:
-    ts_data     : List[int]     = field(default_factory=list)
-    int_data    : List[int]     = field(default_factory=list)
-    bint_data   : List[int]     = field(default_factory=list)
-    sint_data   : List[int]     = field(default_factory=list)
-    tint_data   : List[int]     = field(default_factory=list)
-    int_un_data : List[int]     = field(default_factory=list)
-    bint_un_data: List[int]     = field(default_factory=list)
-    sint_un_data: List[int]     = field(default_factory=list)
-    tint_un_data: List[int]     = field(default_factory=list)
-    float_data  : List[float]   = field(default_factory=list)
-    double_data : List[float]   = field(default_factory=list)
-    bool_data   : List[int]     = field(default_factory=list)
-    binary_data : List[str]     = field(default_factory=list)
-    nchar_data  : List[str]     = field(default_factory=list)
-
+NUM_COL     = [ INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, ]
+CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
+BOOLEAN_COL = [ BOOL_COL, ]
+TS_TYPE_COL = [ TS_COL, ]
 
 class TDTestCase:
 
@@ -144,15 +107,15 @@ class TDTestCase:
         return [
             # ["ct1", "ct2"],
             ["ct1", "ct4"],
-            ["ct1", "nt1"],
+            ["ct1", "t1"],
             # ["ct2", "ct4"],
-            # ["ct2", "nt1"],
-            # ["ct4", "nt1"],
+            # ["ct2", "t1"],
+            # ["ct4", "t1"],
             # ["ct1", "ct2", "ct4"],
-            # ["ct1", "ct2", "nt1"],
-            # ["ct1", "ct4", "nt1"],
-            # ["ct2", "ct4", "nt1"],
-            # ["ct1", "ct2", "ct4", "nt1"],
+            # ["ct1", "ct2", "t1"],
+            # ["ct1", "ct4", "t1"],
+            # ["ct2", "ct4", "t1"],
+            # ["ct1", "ct2", "ct4", "t1"],
         ]
 
     @property
@@ -209,7 +172,7 @@ class TDTestCase:
                     tdSql.error(sql=sql)
                     break
                 if len(tblist) == 2:
-                    if "ct1" in tblist or "nt1" in tblist:
+                    if "ct1" in tblist or "t1" in tblist:
                         self.__join_current(sql, checkrows)
                     elif where_condition or "not null" in group_condition:
                         self.__join_current(sql, checkrows + 2 )
@@ -228,10 +191,10 @@ class TDTestCase:
         # sourcery skip: extract-duplicate-method, move-assign-in-block
         tdLog.printNoPrefix("==========err sql condition check , must return error==========")
         err_list_1 = ["ct1","ct2", "ct4"]
-        err_list_2 = ["ct1","ct2", "nt1"]
-        err_list_3 = ["ct1","ct4", "nt1"]
-        err_list_4 = ["ct2","ct4", "nt1"]
-        err_list_5 = ["ct1", "ct2","ct4", "nt1"]
+        err_list_2 = ["ct1","ct2", "t1"]
+        err_list_3 = ["ct1","ct4", "t1"]
+        err_list_4 = ["ct2","ct4", "t1"]
+        err_list_5 = ["ct1", "ct2","ct4", "t1"]
         self.__join_check_old(err_list_1, -1)
         tdLog.printNoPrefix(f"==========err sql condition check in {err_list_1} over==========")
         self.__join_check_old(err_list_2, -1)
@@ -254,7 +217,7 @@ class TDTestCase:
         tdSql.error( f"select ct2.c1, ct4.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL} and ct1.c1 is not null " )
 
 
-        tbname = ["ct1", "ct2", "ct4", "nt1"]
+        tbname = ["ct1", "ct2", "ct4", "t1"]
 
         # for tb in tbname:
         #     for errsql in self.__join_err_check(tb):
@@ -267,89 +230,102 @@ class TDTestCase:
         self.__test_error()
 
 
-    def __create_tb(self, stb=STBNAME, ctb_num=20, ntbnum=1):
-        tdLog.printNoPrefix("==========step: create table")
-        create_stb_sql = f'''create table {stb}(
-                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
-                {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
-                {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
-                {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
-            ) tags ({INT_TAG} int)
-            '''
-        for i in range(ntbnum):
+    def __create_tb(self):
+        tdSql.prepare()
 
-            create_ntb_sql = f'''create table nt{i+1}(
-                    ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                    {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
-                    {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
-                    {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
-                    {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
-                )
-                '''
+        tdLog.printNoPrefix("==========step1:create table")
+        create_stb_sql  =  f'''create table stb1(
+                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
+            ) tags (tag1 int)
+            '''
+        create_ntb_sql = f'''create table t1(
+                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
+            )
+            '''
         tdSql.execute(create_stb_sql)
         tdSql.execute(create_ntb_sql)
 
-        for i in range(ctb_num):
-            tdSql.execute(f'create table ct{i+1} using {stb} tags ( {i+1} )')
+        for i in range(4):
+            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+            { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2}
 
-    def __data_set(self, rows):
-        data_set = DataSet()
+    def __insert_data(self, rows):
+        now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
+        for i in range(rows):
+            tdSql.execute(
+                f"insert into ct1 values ( { now_time - i * 1000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+            )
+            tdSql.execute(
+                f"insert into ct4 values ( { now_time - i * 7776000000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+            )
+            tdSql.execute(
+                f"insert into ct2 values ( { now_time - i * 7776000000 }, {-i},  {-11111 * i}, {-111 * i % 32767 }, {-11 * i % 127}, {-1.11*i}, {-1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+            )
+        tdSql.execute(
+            f'''insert into ct1 values
+            ( { now_time - rows * 5 }, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar_测试_0', { now_time + 8 } )
+            ( { now_time + 10000 }, { rows }, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar_测试_9', { now_time + 9 } )
+            '''
+        )
+
+        tdSql.execute(
+            f'''insert into ct4 values
+            ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time +  7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            (
+                { now_time + 5184000000}, {pow(2,31)-pow(2,15)}, {pow(2,63)-pow(2,30)}, 32767, 127,
+                { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000}
+                )
+            (
+                { now_time + 2592000000 }, {pow(2,31)-pow(2,16)}, {pow(2,63)-pow(2,31)}, 32766, 126,
+                { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000}
+                )
+            '''
+        )
+
+        tdSql.execute(
+            f'''insert into ct2 values
+            ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time + 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            (
+                { now_time + 5184000000 }, { -1 * pow(2,31) + pow(2,15) }, { -1 * pow(2,63) + pow(2,30) }, -32766, -126,
+                { -1 * 3.2 * pow(10,38) }, { -1.2 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000 }
+                )
+            (
+                { now_time + 2592000000 }, { -1 * pow(2,31) + pow(2,16) }, { -1 * pow(2,63) + pow(2,31) }, -32767, -127,
+                { - 3.3 * pow(10,38) }, { -1.3 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000 }
+                )
+            '''
+        )
 
         for i in range(rows):
-            data_set.ts_data.append(NOW + 1 * (rows - i))
-            data_set.int_data.append(rows - i)
-            data_set.bint_data.append(11111 * (rows - i))
-            data_set.sint_data.append(111 * (rows - i) % 32767)
-            data_set.tint_data.append(11 * (rows - i) % 127)
-            data_set.int_un_data.append(rows - i)
-            data_set.bint_un_data.append(11111 * (rows - i))
-            data_set.sint_un_data.append(111 * (rows - i) % 32767)
-            data_set.tint_un_data.append(11 * (rows - i) % 127)
-            data_set.float_data.append(1.11 * (rows - i))
-            data_set.double_data.append(1100.0011 * (rows - i))
-            data_set.bool_data.append((rows - i) % 2)
-            data_set.binary_data.append(f'binary{(rows - i)}')
-            data_set.nchar_data.append(f'nchar_测试_{(rows - i)}')
-
-        return data_set
-
-    def __insert_data(self):
-        tdLog.printNoPrefix("==========step: start inser data into tables now.....")
-        data = self.__data_set(rows=self.rows)
-
-        # now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
-        null_data = '''null, null, null, null, null, null, null, null, null, null, null, null, null, null'''
-        zero_data = "0, 0, 0, 0, 0, 0, 0, 'binary_0', 'nchar_0', 0, 0, 0, 0, 0"
-
-        for i in range(self.rows):
-            row_data = f'''
-                {data.int_data[i]}, {data.bint_data[i]}, {data.sint_data[i]}, {data.tint_data[i]}, {data.float_data[i]}, {data.double_data[i]},
-                {data.bool_data[i]}, '{data.binary_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {data.tint_un_data[i]},
-                {data.sint_un_data[i]}, {data.int_un_data[i]}, {data.bint_un_data[i]}
+            insert_data = f'''insert into t1 values
+                ( { now_time - i * 3600000 }, {i}, {i * 11111}, { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2},
+                "binary_{i}", "nchar_测试_{i}", { now_time - 1000 * i } )
+                '''
+            tdSql.execute(insert_data)
+        tdSql.execute(
+            f'''insert into t1 values
+            ( { now_time + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - (( rows // 2 ) * 60 + 30) * 60000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - rows * 3600000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time + 7200000 }, { pow(2,31) - pow(2,15) }, { pow(2,63) - pow(2,30) }, 32767, 127,
+                { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 },
+                "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000 }
+                )
+            (
+                { now_time + 3600000 } , { pow(2,31) - pow(2,16) }, { pow(2,63) - pow(2,31) }, 32766, 126,
+                { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 },
+                "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000 }
+                )
             '''
-            neg_row_data = f'''
-                {-1 * data.int_data[i]}, {-1 * data.bint_data[i]}, {-1 * data.sint_data[i]}, {-1 * data.tint_data[i]}, {-1 * data.float_data[i]}, {-1 * data.double_data[i]},
-                {data.bool_data[i]}, '{data.binary_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {1 * data.tint_un_data[i]},
-                {1 * data.sint_un_data[i]}, {1 * data.int_un_data[i]}, {1 * data.bint_un_data[i]}
-            '''
-
-            tdSql.execute( f"insert into ct1 values ( {NOW - i * TIME_STEP}, {row_data} )" )
-            tdSql.execute( f"insert into ct2 values ( {NOW - i * int(TIME_STEP * 0.6)}, {neg_row_data} )" )
-            tdSql.execute( f"insert into ct4 values ( {NOW - i * int(TIME_STEP * 0.8) }, {row_data} )" )
-            tdSql.execute( f"insert into {NTBNAME} values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )" )
-
-        tdSql.execute( f"insert into ct2 values ( {NOW + int(TIME_STEP * 0.6)}, {null_data} )" )
-        tdSql.execute( f"insert into ct2 values ( {NOW - (self.rows + 1) * int(TIME_STEP * 0.6)}, {null_data} )" )
-        tdSql.execute( f"insert into ct2 values ( {NOW - self.rows * int(TIME_STEP * 0.29) }, {null_data} )" )
-
-        tdSql.execute( f"insert into ct4 values ( {NOW + int(TIME_STEP * 0.8)}, {null_data} )" )
-        tdSql.execute( f"insert into ct4 values ( {NOW - (self.rows + 1) * int(TIME_STEP * 0.8)}, {null_data} )" )
-        tdSql.execute( f"insert into ct4 values ( {NOW - self.rows * int(TIME_STEP * 0.39)}, {null_data} )" )
-
-        tdSql.execute( f"insert into {NTBNAME} values ( {NOW + int(TIME_STEP * 1.2)}, {null_data} )" )
-        tdSql.execute( f"insert into {NTBNAME} values ( {NOW - (self.rows + 1) * int(TIME_STEP * 1.2)}, {null_data} )" )
-        tdSql.execute( f"insert into {NTBNAME} values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )" )
+        )
 
 
     def run(self):
@@ -360,38 +336,18 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:insert data")
         self.rows = 10
-        self.__insert_data()
+        self.__insert_data(self.rows)
 
         tdLog.printNoPrefix("==========step3:all check")
-        tdSql.query("select count(*) from ct1")
-        tdSql.checkData(0, 0, self.rows)
         self.all_test()
 
-        tdLog.printNoPrefix("==========step4:cross db check")
-        tdSql.execute("create database db1 duration 432000m")
-        tdSql.execute("use db1")
-        self.__create_tb()
-        self.__insert_data()
-
-        tdSql.query("select count(*) from ct1")
-        tdSql.checkData(0, 0, self.rows)
-
-        self.all_test()
-        tdSql.query("select count(*) from ct1")
-        tdSql.checkData(0, 0, self.rows)
-
-        tdSql.execute("flush database db")
-        # tdDnodes.stop(1)
-        # tdDnodes.start(1)
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
 
         tdSql.execute("use db")
-        tdSql.query("select count(*) from ct1")
-        tdSql.checkData(0, 0, self.rows)
 
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
-        tdSql.query("select count(*) from ct1")
-        tdSql.checkData(0, 0, self.rows)
 
     def stop(self):
         tdSql.close()
