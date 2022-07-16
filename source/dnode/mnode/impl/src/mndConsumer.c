@@ -306,7 +306,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   // 1. check consumer status
   int32_t status = atomic_load_32(&pConsumer->status);
 
-#if 0
+#if 1
   if (status == MQ_CONSUMER_STATUS__LOST_REBD) {
     SMqConsumerRecoverMsg *pRecoverMsg = rpcMallocCont(sizeof(SMqConsumerRecoverMsg));
 

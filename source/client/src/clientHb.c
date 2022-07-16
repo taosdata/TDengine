@@ -24,15 +24,9 @@ static SClientHbMgr clientHbMgr = {0};
 static int32_t hbCreateThread();
 static void    hbStopThread();
 
-static int32_t hbMqHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req) {
-  //
-  return 0;
-}
+static int32_t hbMqHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req) { return 0; }
 
-static int32_t hbMqHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
-  //
-  return 0;
-}
+static int32_t hbMqHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) { return 0; }
 
 static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
   int32_t code = 0;
@@ -276,6 +270,13 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
     tDeserializeSClientHbBatchRsp(pMsg->pData, pMsg->len, &pRsp);
   }
 
+  int32_t now = taosGetTimestampSec();
+  int32_t delta = abs(now - pRsp.svrTimestamp);
+  if (delta > timestampDeltaLimit) {
+    code = TSDB_CODE_TIME_UNSYNCED;
+    tscError("time diff: %ds is too big", delta);
+  }
+
   int32_t rspNum = taosArrayGetSize(pRsp.rsps);
 
   taosThreadMutexLock(&appInfo.mutex);
@@ -292,7 +293,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   taosMemoryFreeClear(param);
 
   if (code != 0) {
-    (*pInst)->onlineDnodes = 0;
+    (*pInst)->onlineDnodes = ((*pInst)->totalDnodes ? 0 : -1);
   }
 
   if (rspNum) {
@@ -313,7 +314,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   taosThreadMutexUnlock(&appInfo.mutex);
 
   tFreeClientHbBatchRsp(&pRsp);
-
+  taosMemoryFree(pMsg->pData);
   return code;
 }
 
@@ -694,6 +695,7 @@ static void *hbThreadFunc(void *param) {
       if (buf == NULL) {
         terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
         tFreeClientHbBatchReq(pReq);
+        // hbClearReqInfo(pAppHbMgr);
         break;
       }
 
@@ -703,6 +705,7 @@ static void *hbThreadFunc(void *param) {
       if (pInfo == NULL) {
         terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
         tFreeClientHbBatchReq(pReq);
+        // hbClearReqInfo(pAppHbMgr);
         taosMemoryFree(buf);
         break;
       }
@@ -719,6 +722,7 @@ static void *hbThreadFunc(void *param) {
       SEpSet        epSet = getEpSet_s(&pAppInstInfo->mgmtEp);
       asyncSendMsgToServer(pAppInstInfo->pTransporter, &epSet, &transporterId, pInfo);
       tFreeClientHbBatchReq(pReq);
+      // hbClearReqInfo(pAppHbMgr);
 
       atomic_add_fetch_32(&pAppHbMgr->reportCnt, 1);
     }
@@ -889,9 +893,12 @@ int hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, in
   };
 
   switch (connType) {
-    case CONN_TYPE__QUERY:
-    case CONN_TYPE__TMQ:
+    case CONN_TYPE__QUERY: {
       return hbRegisterConnImpl(pAppHbMgr, connKey, clusterId);
+    }
+    case CONN_TYPE__TMQ: {
+      return 0;
+    }
     default:
       return 0;
   }
@@ -910,4 +917,3 @@ void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey) {
 
   atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
 }
-

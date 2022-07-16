@@ -198,8 +198,7 @@ static bool stbSplHasGatherExecFunc(const SNodeList* pFuncs) {
 }
 
 static bool stbSplIsMultiTbScan(bool streamQuery, SScanLogicNode* pScan) {
-  return (NULL != pScan->pVgroupList && pScan->pVgroupList->numOfVgroups > 1) ||
-         (streamQuery && TSDB_SUPER_TABLE == pScan->tableType);
+  return (NULL != pScan->pVgroupList && pScan->pVgroupList->numOfVgroups > 1);
 }
 
 static bool stbSplHasMultiTbScan(bool streamQuery, SLogicNode* pNode) {
@@ -364,6 +363,8 @@ static int32_t stbSplCreatePartWindowNode(SWindowLogicNode* pMergeWindow, SLogic
   pMergeWindow->node.pTargets = NULL;
   SNodeList* pChildren = pMergeWindow->node.pChildren;
   pMergeWindow->node.pChildren = NULL;
+  SNode* pConditions = pMergeWindow->node.pConditions;
+  pMergeWindow->node.pConditions = NULL;
 
   int32_t           code = TSDB_CODE_SUCCESS;
   SWindowLogicNode* pPartWin = (SWindowLogicNode*)nodesCloneNode((SNode*)pMergeWindow);
@@ -373,6 +374,7 @@ static int32_t stbSplCreatePartWindowNode(SWindowLogicNode* pMergeWindow, SLogic
 
   if (TSDB_CODE_SUCCESS == code) {
     pMergeWindow->node.pTargets = pTargets;
+    pMergeWindow->node.pConditions = pConditions;
     pPartWin->node.pChildren = pChildren;
     splSetParent((SLogicNode*)pPartWin);
     code = stbSplRewriteFuns(pFunc, &pPartWin->pFuncs, &pMergeWindow->pFuncs);

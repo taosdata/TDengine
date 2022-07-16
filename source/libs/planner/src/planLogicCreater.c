@@ -244,6 +244,7 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
   pScan->showRewrite = pCxt->pPlanCxt->showRewrite;
   pScan->ratio = pRealTable->ratio;
   pScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;
+  pScan->cacheLastMode = pRealTable->cacheLastMode;
 
   *pLogicNode = (SLogicNode*)pScan;
 
@@ -276,6 +277,10 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType);
+
+  if (NULL != pScan->pScanCols) {
+    pScan->hasNormalCols = true;
+  }
 
   if (TSDB_CODE_SUCCESS == code) {
     code = addPrimaryKeyCol(pScan->tableId, &pScan->pScanCols);

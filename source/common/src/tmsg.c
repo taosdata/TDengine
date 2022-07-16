@@ -453,6 +453,7 @@ int32_t tSerializeSClientHbBatchRsp(void *buf, int32_t bufLen, const SClientHbBa
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI64(&encoder, pBatchRsp->reqId) < 0) return -1;
   if (tEncodeI64(&encoder, pBatchRsp->rspId) < 0) return -1;
+  if (tEncodeI32(&encoder, pBatchRsp->svrTimestamp) < 0) return -1;
 
   int32_t rspNum = taosArrayGetSize(pBatchRsp->rsps);
   if (tEncodeI32(&encoder, rspNum) < 0) return -1;
@@ -474,6 +475,7 @@ int32_t tDeserializeSClientHbBatchRsp(void *buf, int32_t bufLen, SClientHbBatchR
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI64(&decoder, &pBatchRsp->reqId) < 0) return -1;
   if (tDecodeI64(&decoder, &pBatchRsp->rspId) < 0) return -1;
+  if (tDecodeI32(&decoder, &pBatchRsp->svrTimestamp) < 0) return -1;
 
   int32_t rspNum = 0;
   if (tDecodeI32(&decoder, &rspNum) < 0) return -1;
@@ -3613,6 +3615,7 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tEncodeI8(&encoder, pRsp->superUser) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->connType) < 0) return -1;
   if (tEncodeSEpSet(&encoder, &pRsp->epSet) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->svrTimestamp) < 0) return -1;
   if (tEncodeCStr(&encoder, pRsp->sVer) < 0) return -1;
   if (tEncodeCStr(&encoder, pRsp->sDetailVer) < 0) return -1;
   tEndEncode(&encoder);
@@ -3634,6 +3637,7 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tDecodeI8(&decoder, &pRsp->superUser) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->connType) < 0) return -1;
   if (tDecodeSEpSet(&decoder, &pRsp->epSet) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->svrTimestamp) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pRsp->sVer) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pRsp->sDetailVer) < 0) return -1;
   tEndDecode(&decoder);

@@ -43,7 +43,8 @@ TEST_F(ParserInitialCTest, createBnode) {
  *
  * database_option: {
  *     BUFFER value
- *   | CACHELAST value
+ *   | CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
+ *   | CACHESIZE value
  *   | COMP {0 | 1 | 2}
  *   | DURATION value
  *   | FSYNC value
@@ -55,7 +56,7 @@ TEST_F(ParserInitialCTest, createBnode) {
  *   | PRECISION {'ms' | 'us' | 'ns'}
  *   | REPLICA value
  *   | RETENTIONS ingestion_duration:keep_duration ...
- *   | STRICT value
+ *   | STRICT {'off' | 'on'}
  *   | WAL value
  *   | VGROUPS value
  *   | SINGLE_STABLE {0 | 1}
@@ -76,8 +77,8 @@ TEST_F(ParserInitialCTest, createDatabase) {
     expect.db[len] = '\0';
     expect.ignoreExist = igExists;
     expect.buffer = TSDB_DEFAULT_BUFFER_PER_VNODE;
-    expect.cacheLast = TSDB_DEFAULT_CACHE_LAST;
-    expect.cacheLastSize = TSDB_DEFAULT_CACHE_LAST_SIZE;
+    expect.cacheLast = TSDB_DEFAULT_CACHE_MODEL;
+    expect.cacheLastSize = TSDB_DEFAULT_CACHE_SIZE;
     expect.compression = TSDB_DEFAULT_COMP_LEVEL;
     expect.daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
     expect.fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
@@ -203,8 +204,8 @@ TEST_F(ParserInitialCTest, createDatabase) {
   setDbSchemalessFunc(1);
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
       "BUFFER 64 "
-      "CACHELAST 2 "
-      "CACHELASTSIZE 20 "
+      "CACHEMODEL 'last_value' "
+      "CACHESIZE 20 "
       "COMP 1 "
       "DURATION 100 "
       "FSYNC 100 "
@@ -216,7 +217,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "PRECISION 'ns' "
       "REPLICA 3 "
       "RETENTIONS 15s:7d,1m:21d,15m:500d "
-      "STRICT 1 "
+      "STRICT 'on' "
       "WAL 2 "
       "VGROUPS 100 "
       "SINGLE_STABLE 1 "

@@ -224,12 +224,12 @@ typedef struct SRequestObj {
   SArray*              tableList;
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
-  bool                 stableQuery;   // todo refactor
-  bool                 validateOnly;  // todo refactor
-
-  bool     killed;
-  uint32_t prevCode;  // previous error code: todo refactor, add update flag for catalog
-  uint32_t retry;
+  bool                 syncQuery;    // todo refactor: async query object
+  bool                 stableQuery;  // todo refactor
+  bool                 validateOnly; // todo refactor
+  bool                 killed;
+  uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
+  uint32_t             retry;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -286,7 +286,7 @@ static FORCE_INLINE SReqResultInfo* tscGetCurResInfo(TAOS_RES* res) {
 extern SAppInfo appInfo;
 extern int32_t  clientReqRefPool;
 extern int32_t  clientConnRefPool;
-extern void*    tscQhandle;
+extern int32_t  timestampDeltaLimit;
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
 
@@ -313,6 +313,11 @@ void  resetConnectDB(STscObj* pTscObj);
 int taos_options_imp(TSDB_OPTION option, const char* str);
 
 void* openTransporter(const char* user, const char* auth, int32_t numOfThreads);
+
+typedef struct AsyncArg {
+  SRpcMsg msg;
+  SEpSet* pEpset;
+} AsyncArg;
 
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType);
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
