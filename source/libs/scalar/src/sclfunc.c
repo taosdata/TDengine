@@ -2380,3 +2380,29 @@ int32_t spreadScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   pOutput->numOfRows = 1;
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t irateScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+  //int64_t count = 0, sum = 0, qSum = 0;
+  bool hasNull = false;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      hasNull = true;
+      break;
+    }
+  }
+
+  double *out  = (double *)pOutputData->pData;
+  if (hasNull) {
+    colDataAppendNULL(pOutputData, 0);
+  } else {
+    *out = 0;
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}

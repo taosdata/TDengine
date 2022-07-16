@@ -2217,6 +2217,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getIrateFuncEnv,
     .initFunc     = irateFuncSetup,
     .processFunc  = irateFunction,
+    .sprocessFunc = irateScalarFunction,
     .finalizeFunc = irateFinalize
   },
   {
