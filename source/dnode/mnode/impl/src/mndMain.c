@@ -42,7 +42,6 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "qworker.h"
 
 static void *mndBuildTimerMsg(int32_t *pContLen) {
   SMTimerReq timerReq = {0};
@@ -387,7 +386,6 @@ void mndPreClose(SMnode *pMnode) {
 void mndClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     mDebug("start to close mnode");
-    qWorkerDestroy((void **)&pMnode->pQuery);    
     mndCleanupSteps(pMnode, -1);
     taosMemoryFreeClear(pMnode->path);
     taosMemoryFreeClear(pMnode);
