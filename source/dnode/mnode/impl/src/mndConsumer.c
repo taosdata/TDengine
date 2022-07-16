@@ -48,6 +48,7 @@ static void    mndCancelGetNextConsumer(SMnode *pMnode, void *pIter);
 
 static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg);
 static int32_t mndProcessAskEpReq(SRpcMsg *pMsg);
+static int32_t mndProcessMqHbReq(SRpcMsg *pMsg);
 static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg);
 static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg);
 static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg);
@@ -62,6 +63,7 @@ int32_t mndInitConsumer(SMnode *pMnode) {
                      .deleteFp = (SdbDeleteFp)mndConsumerActionDelete};
 
   mndSetMsgHandle(pMnode, TDMT_MND_SUBSCRIBE, mndProcessSubscribeReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_MQ_HB, mndProcessMqHbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_ASK_EP, mndProcessAskEpReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_TIMER, mndProcessMqTimerMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_CONSUMER_LOST, mndProcessConsumerLostMsg);
@@ -255,24 +257,15 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
   return 0;
 }
 
-static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
-  SMnode      *pMnode = pMsg->info.node;
-  SMqAskEpReq *pReq = (SMqAskEpReq *)pMsg->pCont;
-  SMqAskEpRsp  rsp = {0};
-  int64_t      consumerId = be64toh(pReq->consumerId);
-  int32_t      epoch = ntohl(pReq->epoch);
+static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
+  SMnode   *pMnode = pMsg->info.node;
+  SMqHbReq *pReq = (SMqHbReq *)pMsg->pCont;
+  int64_t   consumerId = be64toh(pReq->consumerId);
 
-  SMqConsumerObj *pConsumer = mndAcquireConsumer(pMsg->info.node, consumerId);
-  if (pConsumer == NULL) {
-    terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
-    return -1;
-  }
+  SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, consumerId);
 
-  ASSERT(strcmp(pReq->cgroup, pConsumer->cgroup) == 0);
-  /*int32_t hbStatus = atomic_load_32(&pConsumer->hbStatus);*/
   atomic_store_32(&pConsumer->hbStatus, 0);
 
-  // 1. check consumer status
   int32_t status = atomic_load_32(&pConsumer->status);
 
   if (status == MQ_CONSUMER_STATUS__LOST_REBD) {
@@ -285,6 +278,46 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
     pRpcMsg->contLen = sizeof(SMqConsumerRecoverMsg);
     tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, pRpcMsg);
   }
+
+  mndReleaseConsumer(pMnode, pConsumer);
+
+  return 0;
+}
+
+static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
+  SMnode      *pMnode = pMsg->info.node;
+  SMqAskEpReq *pReq = (SMqAskEpReq *)pMsg->pCont;
+  SMqAskEpRsp  rsp = {0};
+  int64_t      consumerId = be64toh(pReq->consumerId);
+  int32_t      epoch = ntohl(pReq->epoch);
+
+  SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, consumerId);
+  if (pConsumer == NULL) {
+    terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
+    return -1;
+  }
+
+  ASSERT(strcmp(pReq->cgroup, pConsumer->cgroup) == 0);
+
+#if 1
+  atomic_store_32(&pConsumer->hbStatus, 0);
+#endif
+
+  // 1. check consumer status
+  int32_t status = atomic_load_32(&pConsumer->status);
+
+#if 1
+  if (status == MQ_CONSUMER_STATUS__LOST_REBD) {
+    SMqConsumerRecoverMsg *pRecoverMsg = rpcMallocCont(sizeof(SMqConsumerRecoverMsg));
+
+    pRecoverMsg->consumerId = consumerId;
+    SRpcMsg *pRpcMsg = taosMemoryCalloc(1, sizeof(SRpcMsg));
+    pRpcMsg->msgType = TDMT_MND_MQ_CONSUMER_RECOVER;
+    pRpcMsg->pCont = pRecoverMsg;
+    pRpcMsg->contLen = sizeof(SMqConsumerRecoverMsg);
+    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, pRpcMsg);
+  }
+#endif
 
   if (status != MQ_CONSUMER_STATUS__READY) {
     terrno = TSDB_CODE_MND_CONSUMER_NOT_READY;

@@ -639,6 +639,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     if (pShow->pIter == NULL) break;
 
     if (pDb != NULL && pVgroup->dbUid != pDb->uid) {
+      sdbRelease(pSdb, pVgroup);
       continue;
     }
 

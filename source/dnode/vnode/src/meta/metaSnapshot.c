@@ -26,60 +26,72 @@ struct SMetaSnapReader {
 int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapReader** ppReader) {
   int32_t          code = 0;
   int32_t          c = 0;
-  SMetaSnapReader* pMetaSnapReader = NULL;
+  SMetaSnapReader* pReader = NULL;
 
   // alloc
-  pMetaSnapReader = (SMetaSnapReader*)taosMemoryCalloc(1, sizeof(*pMetaSnapReader));
-  if (pMetaSnapReader == NULL) {
+  pReader = (SMetaSnapReader*)taosMemoryCalloc(1, sizeof(*pReader));
+  if (pReader == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-  pMetaSnapReader->pMeta = pMeta;
-  pMetaSnapReader->sver = sver;
-  pMetaSnapReader->ever = ever;
+  pReader->pMeta = pMeta;
+  pReader->sver = sver;
+  pReader->ever = ever;
 
   // impl
-  code = tdbTbcOpen(pMeta->pTbDb, &pMetaSnapReader->pTbc, NULL);
+  code = tdbTbcOpen(pMeta->pTbDb, &pReader->pTbc, NULL);
   if (code) {
+    taosMemoryFree(pReader);
     goto _err;
   }
 
-  code = tdbTbcMoveTo(pMetaSnapReader->pTbc, &(STbDbKey){.version = sver, .uid = INT64_MIN}, sizeof(STbDbKey), &c);
+  code = tdbTbcMoveTo(pReader->pTbc, &(STbDbKey){.version = sver, .uid = INT64_MIN}, sizeof(STbDbKey), &c);
   if (code) {
+    taosMemoryFree(pReader);
     goto _err;
   }
 
-  *ppReader = pMetaSnapReader;
+  metaInfo("vgId:%d vnode snapshot meta reader opened", TD_VID(pMeta->pVnode));
+
+  *ppReader = pReader;
   return code;
 
 _err:
-  metaError("vgId:%d meta snap reader open failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
+  metaError("vgId:%d vnode snapshot meta reader open failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
   *ppReader = NULL;
   return code;
 }
 
 int32_t metaSnapReaderClose(SMetaSnapReader** ppReader) {
+  int32_t code = 0;
+
   tdbTbcClose((*ppReader)->pTbc);
   taosMemoryFree(*ppReader);
   *ppReader = NULL;
-  return 0;
+
+  return code;
 }
 
 int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
+  int32_t     code = 0;
   const void* pKey = NULL;
   const void* pData = NULL;
   int32_t     nKey = 0;
   int32_t     nData = 0;
-  int32_t     code = 0;
+  STbDbKey    key;
 
+  *ppData = NULL;
   for (;;) {
-    code = tdbTbcGet(pReader->pTbc, &pKey, &nKey, &pData, &nData);
-    if (code || ((STbDbKey*)pData)->version > pReader->ever) {
-      code = TSDB_CODE_VND_READ_END;
+    if (tdbTbcGet(pReader->pTbc, &pKey, &nKey, &pData, &nData)) {
       goto _exit;
     }
 
-    if (((STbDbKey*)pData)->version < pReader->sver) {
+    key = ((STbDbKey*)pKey)[0];
+    if (key.version > pReader->ever) {
+      goto _exit;
+    }
+
+    if (key.version < pReader->sver) {
       tdbTbcMoveToNext(pReader->pTbc);
       continue;
     }
@@ -88,16 +100,27 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
     break;
   }
 
-  // copy the data
-  if (tRealloc(ppData, sizeof(SSnapDataHdr) + nData) < 0) {
+  ASSERT(pData && nData);
+
+  *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + nData);
+  if (*ppData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    return code;
+    goto _err;
   }
-  ((SSnapDataHdr*)(*ppData))->type = 0;  // TODO: use macro
-  ((SSnapDataHdr*)(*ppData))->size = nData;
-  memcpy(((SSnapDataHdr*)(*ppData))->data, pData, nData);
+
+  SSnapDataHdr* pHdr = (SSnapDataHdr*)(*ppData);
+  pHdr->type = 0;  // TODO: use macro
+  pHdr->size = nData;
+  memcpy(pHdr->data, pData, nData);
+
+  metaInfo("vgId:%d vnode snapshot meta read data, version:%" PRId64 " uid:%" PRId64 " nData:%d",
+           TD_VID(pReader->pMeta->pVnode), key.version, key.uid, nData);
 
 _exit:
+  return code;
+
+_err:
+  metaError("vgId:%d vnode snapshot meta read data failed since %s", TD_VID(pReader->pMeta->pVnode), tstrerror(code));
   return code;
 }
 
@@ -107,18 +130,6 @@ struct SMetaSnapWriter {
   int64_t sver;
   int64_t ever;
 };
-
-static int32_t metaSnapRollback(SMetaSnapWriter* pWriter) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
-static int32_t metaSnapCommit(SMetaSnapWriter* pWriter) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
 
 int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWriter** ppWriter) {
   int32_t          code = 0;
@@ -148,10 +159,9 @@ int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback) {
   SMetaSnapWriter* pWriter = *ppWriter;
 
   if (rollback) {
-    code = metaSnapRollback(pWriter);
-    if (code) goto _err;
+    ASSERT(0);
   } else {
-    code = metaSnapCommit(pWriter);
+    code = metaCommit(pWriter->pMeta);
     if (code) goto _err;
   }
   taosMemoryFree(pWriter);
@@ -170,15 +180,16 @@ int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   SMetaEntry metaEntry = {0};
   SDecoder*  pDecoder = &(SDecoder){0};
 
-  tDecoderInit(pDecoder, pData, nData);
+  tDecoderInit(pDecoder, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   metaDecodeEntry(pDecoder, &metaEntry);
 
   code = metaHandleEntry(pMeta, &metaEntry);
   if (code) goto _err;
 
+  tDecoderClear(pDecoder);
   return code;
 
 _err:
-  metaError("vgId:%d meta snapshot write failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
+  metaError("vgId:%d vnode snapshot meta write failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
   return code;
 }
