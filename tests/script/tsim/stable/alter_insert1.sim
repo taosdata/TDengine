@@ -934,11 +934,8 @@ if $data79 != null then
 endi
 
 print ======== step9
-
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 3000
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
 
 sql select * from tb order by ts asc
 if $rows != 8 then
