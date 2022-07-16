@@ -516,13 +516,14 @@ static void idxCacheMakeRoomForWrite(IndexCache* cache) {
       idxCacheRef(cache);
       cache->imm = cache->mem;
       cache->mem = idxInternalCacheCreate(cache->type);
+
       cache->mem->pCache = cache;
       cache->occupiedMem = 0;
       if (quit == false) {
         atomic_store_32(&cache->merging, 1);
       }
-      // sched to merge
-      // unref cache in bgwork
+      // 1. sched to merge
+      // 2. unref cache in bgwork
       idxCacheSchedToMerge(cache, quit);
     }
   }
