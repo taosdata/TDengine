@@ -2413,3 +2413,11 @@ int32_t derivativeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalar
 int32_t irateScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return nonCalcScalarFunction(pInput, inputNum, pOutput);
 }
+
+int32_t twaScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return avgScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t mavgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return avgScalarFunction(pInput, inputNum, pOutput);
+}

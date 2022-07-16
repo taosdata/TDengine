@@ -2320,6 +2320,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc    = getTwaFuncEnv,
     .initFunc      = twaFunctionSetup,
     .processFunc   = twaFunction,
+    .sprocessFunc  = twaScalarFunction,
     .finalizeFunc  = twaFinalize
   },
   {
@@ -2446,6 +2447,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getMavgFuncEnv,
     .initFunc     = mavgFunctionSetup,
     .processFunc  = mavgFunction,
+    .sprocessFunc = mavgScalarFunction,
     .finalizeFunc = NULL
   },
   {

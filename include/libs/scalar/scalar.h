@@ -109,6 +109,8 @@ int32_t apercentileScalarFunction(SScalarParam *pInput, int32_t inputNum, SScala
 int32_t spreadScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t derivativeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t irateScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t twaScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t mavgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 #ifdef __cplusplus
 }
