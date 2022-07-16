@@ -123,7 +123,7 @@ class TDTestCase:
             
         tdSql.query('show databases;')
         tdSql.checkData(2,5,'off')
-        tdSql.error('alter database db strict 'off'')
+        tdSql.error("alter database db strict 'off'")
         # tdSql.execute('alter database db strict 'on'')
         # tdSql.query('show databases;')
         # tdSql.checkData(2,5,'strict')
