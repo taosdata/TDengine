@@ -180,7 +180,7 @@ int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   SMetaEntry metaEntry = {0};
   SDecoder*  pDecoder = &(SDecoder){0};
 
-  tDecoderInit(pDecoder, pData, nData);
+  tDecoderInit(pDecoder, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   metaDecodeEntry(pDecoder, &metaEntry);
 
   code = metaHandleEntry(pMeta, &metaEntry);
