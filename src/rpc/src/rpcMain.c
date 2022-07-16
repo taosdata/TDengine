@@ -1710,7 +1710,7 @@ bool doRpcSendProbe(SRpcConn *pConn) {
   memcpy(pHead->user, pConn->user, tListLen(pHead->user));
   pHead->code = htonl(code);
 
-  bool ret = rpcSendMsgToPeer(pConn, msg, sizeof(SRpcHead));
+  bool ret = rpcSendMsgToPeer(pConn, msg, sizeof(SRpcHead) + sizeof(int32_t));
   pConn->secured = 1; // connection shall be secured
 
   return ret;
@@ -1778,13 +1778,17 @@ bool rpcSaveSendInfo(int64_t rpcRid, void** ppContext, void** ppConn, void** ppF
     return false;
   }
 
+  if (pContext->pConn == NULL || pContext->pConn->chandle == NULL) {
+    return false;
+  }
+
   if (ppContext)
     *ppContext = pContext;
   if (ppConn)
     *ppConn    = pContext->pConn;
-  if (ppFdObj && pContext->pConn)
+  if (ppFdObj)
     *ppFdObj   = pContext->pConn->chandle;
-  if (pFd && pContext->pConn && pContext->pConn->chandle)
+  if (pFd)
     *pFd       = taosGetFdID(pContext->pConn->chandle);
 
   taosReleaseRef(tsRpcRefId, rpcRid);

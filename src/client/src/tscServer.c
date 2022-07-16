@@ -376,7 +376,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 
   // check queries already death
   static int activetyTimerCnt = 0;
-  if (++activetyTimerCnt > 5) { // 1.5s * 10 = 15s interval call
+  if (++activetyTimerCnt > 3) { // 1.5s * 10 = 15s interval call
     activetyTimerCnt = 0;
 
     // call check if have query doing
