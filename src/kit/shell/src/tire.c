@@ -58,13 +58,14 @@ void freeTire(STire* tire) {
     // free from list
     StrName * item = tire->head;
     while (item) {
+        StrName * next = item->next;
         // free string
         tfree(item->name);
         // free node
         tfree(item);
 
         // move next
-        item = item->next;
+        item = next;
     }
     tire->head = tire->tail = NULL;
 

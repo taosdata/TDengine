@@ -83,11 +83,11 @@ SWords shellCommands[] = {
   {"delete from <all_table> where", 0, 0, NULL},
 #endif
   {"drop database <db_name>", 0, 0, NULL},
+  {"drop table <all_table> ", 0, 0, NULL},
   {"drop dnode <dnode_id>", 0, 0, NULL},
+  {"drop user <user_name> ;", 0, 0, NULL},
   {"drop function", 0, 0, NULL},
   {"drop topic", 0, 0, NULL},
-  {"drop table <all_table>;", 0, 0, NULL},
-  {"drop user <user_name>;", 0, 0, NULL},
   {"kill connection", 0, 0, NULL},
   {"kill query", 0, 0, NULL},
   {"kill stream", 0, 0, NULL},
@@ -366,10 +366,10 @@ void showHelp() {
     describe <all_table> ;\n\
     delete from <all_table> where ... \n\
     drop database <db_name>;\n\
+    drop table <all_table>;\n\
     drop dnode <dnode_id>;\n\
     drop function <function_id>;\n\
     drop topic <topic_id>;\n\
-    drop table <all_table>;\n\
     drop user <user_name>;\n\
   ----- K ----- \n\
     kill connection <connection_id>; \n\
@@ -1087,12 +1087,14 @@ bool firstMatchCommand(TAOS * con, Command * cmd) {
   if (match == NULL) {
     // not match , nothing to do
     freeCommand(input);
+    free(input);
     return false;
   }
 
   // print to screen
   printScreen(con, cmd, match);
   freeCommand(input);
+  free(input);
   return true;
 }
 
@@ -1145,6 +1147,9 @@ bool nextMatchCommand(TAOS * con, Command * cmd, SWords * firstMatch) {
     match = matchCommand(input, false);
     if (match == NULL) {
       freeCommand(input);
+      if (input->source)
+        free(input->source);
+      free(input);
       return false;
     }
   }
@@ -1158,6 +1163,7 @@ bool nextMatchCommand(TAOS * con, Command * cmd, SWords * firstMatch) {
     input->source = NULL;
   }
   freeCommand(input);
+  free(input);
 
   return true;
 }
@@ -1247,22 +1253,20 @@ bool fieldsInputEnd(char* sql) {
   }
 
   // not in ','
-  char * p = strrchr(sql, ',');
+  char * p3 = strrchr(sql, ',');
+  char * p = p3;
   // like select ts, age,'    ' 
   if (p) {
     ++p;
-    bool allBlank = true;
-    int  cnt = 0; // blank count , continue many blank is one blank
-    char * plast = NULL;
+    bool allBlank = true; // after last ','  all char is blank
+    int  cnt = 0; // blank count , like '    ' as one blank
+    char * plast = NULL; // last blank position
     while(*p) {
-      if (*p != ' ') {
-        allBlank = false;
-        plast = NULL;
+      if (*p == ' ') {
+        plast = p;
+        cnt ++;
       } else {
-        if(plast == NULL) {
-          plast = p;
-          cnt ++;
-        }
+        allBlank = false;
       }
       ++p;
     }
@@ -1272,14 +1276,19 @@ bool fieldsInputEnd(char* sql) {
       return false;
     }
 
-    // if last char not ' ', then not end field, like select count(*), su + tab can fill sum(
+    // like 'select count(*),sum(age) fr' need return true
+    if (plast && plast > p3 && p2 > p1 && plast > p2 && p1 > p3) {
+      return true;
+    }
+
+    // if last char not ' ', then not end field, like 'select count(*), su' can fill sum(
     if(sql[strlen(sql)-1] != ' ' && cnt <= 1) {
       return false;
     }
   }
 
-  char * p3 = strrchr(sql, ' ');
-  if(p3 == NULL) {
+  char * p4 = strrchr(sql, ' ');
+  if(p4 == NULL) {
     // only one word
     return false;
   }
