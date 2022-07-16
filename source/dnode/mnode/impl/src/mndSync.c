@@ -56,23 +56,24 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     sdbSetApplyInfo(pMnode->pSdb, cbMeta.index, cbMeta.term, cbMeta.lastConfigIndex);
   }
 
-  if (pMgmt->transId == transId && transId != 0) {
+  if (transId <= 0) {
+    mError("trans:%d, invalid commit msg", transId);
+  } else if (transId == pMgmt->transId) {
     if (pMgmt->errCode != 0) {
       mError("trans:%d, failed to propose since %s", transId, tstrerror(pMgmt->errCode));
     }
     pMgmt->transId = 0;
     tsem_post(&pMgmt->syncSem);
   } else {
-#if 1
-    mError("trans:%d, invalid commit msg since trandId not match with %d", transId, pMgmt->transId);
-#else
     STrans *pTrans = mndAcquireTrans(pMnode, transId);
     if (pTrans != NULL) {
+      mDebug("trans:%d, execute in mnode which not leader", transId);
       mndTransExecute(pMnode, pTrans);
       mndReleaseTrans(pMnode, pTrans);
+      // sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
+    } else {
+      mError("trans:%d, not found while execute in mnode since %s", transId, terrstr());
     }
-    // sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
-#endif
   }
 }
 
@@ -153,6 +154,12 @@ int32_t mndSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *pBuf, int
   return sdbDoWrite(pMnode->pSdb, pWriter, pBuf, len);
 }
 
+void mndLeaderTransfer(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
+  SMnode *pMnode = pFsm->data;
+  atomic_store_8(&(pMnode->syncMgmt.leaderTransferFinish), 1);
+  mDebug("vgId:1, mnd leader transfer finish");
+}
+
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pMnode;
@@ -160,6 +167,7 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   pFsm->FpPreCommitCb = NULL;
   pFsm->FpRollBackCb = NULL;
   pFsm->FpRestoreFinishCb = mndRestoreFinish;
+  pFsm->FpLeaderTransferCb = mndLeaderTransfer;
   pFsm->FpReConfigCb = mndReConfig;
   pFsm->FpGetSnapshot = mndSyncGetSnapshot;
   pFsm->FpGetSnapshotInfo = mndSyncGetSnapshotInfo;
