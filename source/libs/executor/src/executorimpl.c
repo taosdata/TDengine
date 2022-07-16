@@ -2217,6 +2217,8 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SEx
     if (completed == totalSources) {
       return setAllSourcesCompleted(pOperator, startTs);
     }
+
+    sched_yield();
   }
 
 _error:
@@ -3743,7 +3745,7 @@ void doDestroyExchangeOperatorInfo(void* param) {
   taosArrayDestroy(pExInfo->pSources);
   taosArrayDestroy(pExInfo->pSourceDataInfo);
   if (pExInfo->pResult != NULL) {
-    blockDataDestroy(pExInfo->pResult);
+    pExInfo->pResult = blockDataDestroy(pExInfo->pResult);
   }
 
   tsem_destroy(&pExInfo->ready);

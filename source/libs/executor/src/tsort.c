@@ -119,7 +119,6 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
   blockDataDestroy(pSortHandle->pDataBlock);
   for (size_t i = 0; i < taosArrayGetSize(pSortHandle->pOrderedSource); i++){
     SSortSource** pSource = taosArrayGet(pSortHandle->pOrderedSource, i);
-    blockDataDestroy((*pSource)->src.pBlock);
     taosMemoryFreeClear(*pSource);
   }
   taosArrayDestroy(pSortHandle->pOrderedSource);
