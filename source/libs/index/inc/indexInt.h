@@ -24,11 +24,8 @@
 #include "tchecksum.h"
 #include "thash.h"
 #include "tlog.h"
+#include "tlrucache.h"
 #include "tutil.h"
-
-#ifdef USE_LUCENE
-#include <lucene++/Lucene_c.h>
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,28 +58,17 @@ struct SIndex {
   void*     tindex;
   SHashObj* colObj;  // < field name, field id>
 
-  int64_t suid;      // current super table id, -1 is normal table
-  int32_t cVersion;  // current version allocated to cache
-
-  char* path;
+  int64_t    suid;      // current super table id, -1 is normal table
+  int32_t    cVersion;  // current version allocated to cache
+  SLRUCache* lru;
+  char*      path;
 
   int8_t        status;
   SIndexStat    stat;
   TdThreadMutex mtx;
   tsem_t        sem;
   bool          quit;
-};
-
-struct SIndexOpts {
-#ifdef USE_LUCENE
-  void* opts;
-#endif
-
-#ifdef USE_INVERTED_INDEX
-  int32_t cacheSize;  // MB
-  // add cache module later
-#endif
-  int32_t cacheOpt;  // MB
+  SIndexOpts    opts;
 };
 
 struct SIndexMultiTermQuery {

@@ -274,10 +274,15 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
   return 0;
 }
 
-static int32_t smlFindNearestPowerOf2(int32_t length) {
+static int32_t smlFindNearestPowerOf2(int32_t length, uint8_t type) {
   int32_t result = 1;
   while (result <= length) {
     result *= 2;
+  }
+  if (type == TSDB_DATA_TYPE_BINARY && result > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE){
+    result = TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE;
+  } else if (type == TSDB_DATA_TYPE_NCHAR && result > (TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE){
+    result = (TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
   }
   return result;
 }
@@ -287,7 +292,7 @@ static int32_t smlBuildColumnDescription(SSmlKv *field, char *buf, int32_t bufSi
   char    tname[TSDB_TABLE_NAME_LEN] = {0};
   memcpy(tname, field->key, field->keyLen);
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    int32_t bytes = smlFindNearestPowerOf2(field->length);
+    int32_t bytes = smlFindNearestPowerOf2(field->length, type);
     int     out = snprintf(buf, bufSize, "`%s` %s(%d)", tname, tDataTypes[field->type].name, bytes);
     *outBytes = out;
   } else {
@@ -834,7 +839,7 @@ static int32_t smlParseTS(SSmlHandle *info, const char *data, int32_t len, SArra
     ASSERT(0);
   }
 
-  if (ts == -1) return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+  if (ts == -1) return TSDB_CODE_INVALID_TIMESTAMP;
 
   // add ts to
   SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
@@ -851,35 +856,41 @@ static int32_t smlParseTS(SSmlHandle *info, const char *data, int32_t len, SArra
   return TSDB_CODE_SUCCESS;
 }
 
-static bool smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
+static int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
   // binary
   if (smlIsBinary(pVal->value, pVal->length)) {
     pVal->type = TSDB_DATA_TYPE_BINARY;
     pVal->length -= BINARY_ADD_LEN;
+    if (pVal->length > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE){
+      return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+    }
     pVal->value += (BINARY_ADD_LEN - 1);
-    return true;
+    return TSDB_CODE_SUCCESS;
   }
   // nchar
   if (smlIsNchar(pVal->value, pVal->length)) {
     pVal->type = TSDB_DATA_TYPE_NCHAR;
     pVal->length -= NCHAR_ADD_LEN;
+    if(pVal->length > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE){
+      return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+    }
     pVal->value += (NCHAR_ADD_LEN - 1);
-    return true;
+    return TSDB_CODE_SUCCESS;
   }
 
   // bool
   if (smlParseBool(pVal)) {
     pVal->type = TSDB_DATA_TYPE_BOOL;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    return true;
+    return TSDB_CODE_SUCCESS;
   }
   // number
   if (smlParseNumber(pVal, msg)) {
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    return true;
+    return TSDB_CODE_SUCCESS;
   }
 
-  return false;
+  return TSDB_CODE_TSC_INVALID_VALUE;
 }
 
 static int32_t smlParseInfluxString(const char *sql, SSmlLineInfo *elements, SSmlMsgBuf *msg) {
@@ -906,7 +917,7 @@ static int32_t smlParseInfluxString(const char *sql, SSmlLineInfo *elements, SSm
   elements->measureLen = sql - elements->measure;
   if (IS_INVALID_TABLE_LEN(elements->measureLen)) {
     smlBuildInvalidDataMsg(msg, "measure is empty or too large than 192", NULL);
-    return TSDB_CODE_SML_INVALID_DATA;
+    return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }
 
   // parse tag
@@ -1001,11 +1012,11 @@ static int32_t smlParseTelnetTags(const char *data, SArray *cols, char *childTab
 
     if (IS_INVALID_COL_LEN(keyLen)) {
       smlBuildInvalidDataMsg(msg, "invalid key or key is too long than 64", key);
-      return TSDB_CODE_SML_INVALID_DATA;
+      return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
     if (smlCheckDuplicateKey(key, keyLen, dumplicateKey)) {
       smlBuildInvalidDataMsg(msg, "dumplicate key", key);
-      return TSDB_CODE_TSC_DUP_TAG_NAMES;
+      return TSDB_CODE_TSC_DUP_NAMES;
     }
 
     // parse value
@@ -1026,7 +1037,7 @@ static int32_t smlParseTelnetTags(const char *data, SArray *cols, char *childTab
 
     if (valueLen == 0) {
       smlBuildInvalidDataMsg(msg, "invalid value", value);
-      return TSDB_CODE_SML_INVALID_DATA;
+      return TSDB_CODE_TSC_INVALID_VALUE;
     }
 
     // handle child table name
@@ -1059,7 +1070,7 @@ static int32_t smlParseTelnetString(SSmlHandle *info, const char *sql, SSmlTable
   smlParseTelnetElement(&sql, &tinfo->sTableName, &tinfo->sTableNameLen);
   if (!(tinfo->sTableName) || IS_INVALID_TABLE_LEN(tinfo->sTableNameLen)) {
     smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", sql);
-    return TSDB_CODE_SML_INVALID_DATA;
+    return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }
 
   // parse timestamp
@@ -1074,7 +1085,7 @@ static int32_t smlParseTelnetString(SSmlHandle *info, const char *sql, SSmlTable
   int32_t ret = smlParseTS(info, timestamp, tLen, cols);
   if (ret != TSDB_CODE_SUCCESS) {
     smlBuildInvalidDataMsg(&info->msgBuf, "invalid timestamp", sql);
-    return TSDB_CODE_SML_INVALID_DATA;
+    return ret;
   }
 
   // parse value
@@ -1083,7 +1094,7 @@ static int32_t smlParseTelnetString(SSmlHandle *info, const char *sql, SSmlTable
   smlParseTelnetElement(&sql, &value, &valueLen);
   if (!value || valueLen == 0) {
     smlBuildInvalidDataMsg(&info->msgBuf, "invalid value", sql);
-    return TSDB_CODE_SML_INVALID_DATA;
+    return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
   SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
@@ -1093,15 +1104,15 @@ static int32_t smlParseTelnetString(SSmlHandle *info, const char *sql, SSmlTable
   kv->keyLen = VALUE_LEN;
   kv->value = value;
   kv->length = valueLen;
-  if (!smlParseValue(kv, &info->msgBuf)) {
-    return TSDB_CODE_SML_INVALID_DATA;
+  if ((ret = smlParseValue(kv, &info->msgBuf)) != TSDB_CODE_SUCCESS) {
+    return ret;
   }
 
   // parse tags
   ret = smlParseTelnetTags(sql, tinfo->tags, tinfo->childTableName, info->dumplicateKey, &info->msgBuf);
   if (ret != TSDB_CODE_SUCCESS) {
     smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", sql);
-    return TSDB_CODE_SML_INVALID_DATA;
+    return ret;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1135,11 +1146,11 @@ static int32_t smlParseCols(const char *data, int32_t len, SArray *cols, char *c
 
     if (IS_INVALID_COL_LEN(keyLen)) {
       smlBuildInvalidDataMsg(msg, "invalid key or key is too long than 64", key);
-      return TSDB_CODE_SML_INVALID_DATA;
+      return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
     if (smlCheckDuplicateKey(key, keyLen, dumplicateKey)) {
       smlBuildInvalidDataMsg(msg, "dumplicate key", key);
-      return TSDB_CODE_TSC_DUP_TAG_NAMES;
+      return TSDB_CODE_TSC_DUP_NAMES;
     }
 
     // parse value
@@ -1195,8 +1206,9 @@ static int32_t smlParseCols(const char *data, int32_t len, SArray *cols, char *c
     if (isTag) {
       kv->type = TSDB_DATA_TYPE_NCHAR;
     } else {
-      if (!smlParseValue(kv, msg)) {
-        return TSDB_CODE_SML_INVALID_DATA;
+      int32_t ret = smlParseValue(kv, msg);
+      if (ret != TSDB_CODE_SUCCESS) {
+        return ret;
       }
     }
   }
@@ -1204,8 +1216,8 @@ static int32_t smlParseCols(const char *data, int32_t len, SArray *cols, char *c
   return TSDB_CODE_SUCCESS;
 }
 
-static bool smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols, SSmlMsgBuf *msg) {
-  for (int i = 0; i < taosArrayGetSize(cols); ++i) {  // jump timestamp
+static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols, SSmlMsgBuf *msg) {
+  for (int i = 0; i < taosArrayGetSize(cols); ++i) {
     SSmlKv *kv = (SSmlKv *)taosArrayGetP(cols, i);
 
     int16_t *index = (int16_t *)taosHashGet(metaHash, kv->key, kv->keyLen);
@@ -1213,7 +1225,7 @@ static bool smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols, S
       SSmlKv **value = (SSmlKv **)taosArrayGet(metaArray, *index);
       if (kv->type != (*value)->type) {
         smlBuildInvalidDataMsg(msg, "the type is not the same like before", kv->key);
-        return false;
+        return TSDB_CODE_SML_NOT_SAME_TYPE;
       } else {
         if (IS_VAR_DATA_TYPE(kv->type)) {  // update string len, if bigger
           if (kv->length > (*value)->length) {
@@ -1230,7 +1242,7 @@ static bool smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols, S
     }
   }
 
-  return true;
+  return TSDB_CODE_SUCCESS;
 }
 
 static void smlInsertMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols) {
@@ -1564,10 +1576,16 @@ static int32_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int64_t *tsV
   double timeDouble = value->valuedouble;
   if (smlDoubleToInt64OverFlow(timeDouble)) {
     smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
-    return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+    return TSDB_CODE_INVALID_TIMESTAMP;
   }
-  if (timeDouble <= 0) {
-    return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+
+  if (timeDouble == 0) {
+    *tsVal = taosGetTimestampNs();
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (timeDouble < 0) {
+    return TSDB_CODE_INVALID_TIMESTAMP;
   }
 
   *tsVal = timeDouble;
@@ -1578,7 +1596,7 @@ static int32_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int64_t *tsV
     timeDouble = timeDouble * NANOSECOND_PER_SEC;
     if (smlDoubleToInt64OverFlow(timeDouble)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
-      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+      return TSDB_CODE_INVALID_TIMESTAMP;
     }
   } else if (typeLen == 2 && (type->valuestring[1] == 's' || type->valuestring[1] == 'S')) {
     switch (type->valuestring[0]) {
@@ -1589,7 +1607,7 @@ static int32_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int64_t *tsV
         timeDouble = timeDouble * NANOSECOND_PER_MSEC;
         if (smlDoubleToInt64OverFlow(timeDouble)) {
           smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
-          return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+          return TSDB_CODE_INVALID_TIMESTAMP;
         }
         break;
       case 'u':
@@ -1599,7 +1617,7 @@ static int32_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int64_t *tsV
         timeDouble = timeDouble * NANOSECOND_PER_USEC;
         if (smlDoubleToInt64OverFlow(timeDouble)) {
           smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
-          return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+          return TSDB_CODE_INVALID_TIMESTAMP;
         }
         break;
       case 'n':
@@ -1634,11 +1652,11 @@ static int32_t smlParseTSFromJSON(SSmlHandle *info, cJSON *root, SArray *cols) {
     double timeDouble = timestamp->valuedouble;
     if (smlDoubleToInt64OverFlow(timeDouble)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
-      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+      return TSDB_CODE_INVALID_TIMESTAMP;
     }
 
     if (timeDouble < 0) {
-      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+      return TSDB_CODE_INVALID_TIMESTAMP;
     }
 
     uint8_t tsLen = smlGetTimestampLen((int64_t)timeDouble);
@@ -1648,19 +1666,19 @@ static int32_t smlParseTSFromJSON(SSmlHandle *info, cJSON *root, SArray *cols) {
       timeDouble = timeDouble * NANOSECOND_PER_SEC;
       if (smlDoubleToInt64OverFlow(timeDouble)) {
         smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
-        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+        return TSDB_CODE_INVALID_TIMESTAMP;
       }
     } else if (tsLen == TSDB_TIME_PRECISION_MILLI_DIGITS) {
       tsVal = tsVal * NANOSECOND_PER_MSEC;
       timeDouble = timeDouble * NANOSECOND_PER_MSEC;
       if (smlDoubleToInt64OverFlow(timeDouble)) {
         smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
-        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+        return TSDB_CODE_INVALID_TIMESTAMP;
       }
     } else if (timeDouble == 0) {
       tsVal = taosGetTimestampNs();
     } else {
-      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+      return TSDB_CODE_INVALID_TIMESTAMP;
     }
   } else if (cJSON_IsObject(timestamp)) {
     int32_t ret = smlParseTSFromJSONObj(info, timestamp, &tsVal);
@@ -1779,6 +1797,14 @@ static int32_t smlConvertJSONString(SSmlKv *pVal, char *typeStr, cJSON *value) {
     return TSDB_CODE_TSC_INVALID_JSON_TYPE;
   }
   pVal->length = (int16_t)strlen(value->valuestring);
+
+  if (pVal->type == TSDB_DATA_TYPE_BINARY && pVal->length > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE){
+    return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+  }
+  if (pVal->type == TSDB_DATA_TYPE_NCHAR  && pVal->length > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE){
+    return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+  }
+
   return smlJsonCreateSring(&pVal->value, value->valuestring, pVal->length);
 }
 
@@ -1913,7 +1939,7 @@ static int32_t smlParseTagsFromJSON(cJSON *root, SArray *pKVs, char *childTableN
     }
     // check duplicate keys
     if (smlCheckDuplicateKey(tag->string, keyLen, dumplicateKey)) {
-      return TSDB_CODE_TSC_DUP_TAG_NAMES;
+      return TSDB_CODE_TSC_DUP_NAMES;
     }
 
     // handle child table name
@@ -2033,7 +2059,7 @@ static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql) {
   }
   if (taosArrayGetSize(cols) > TSDB_MAX_COLUMNS) {
     smlBuildInvalidDataMsg(&info->msgBuf, "too many columns than 4096", NULL);
-    return TSDB_CODE_SML_INVALID_DATA;
+    return TSDB_CODE_PAR_TOO_MANY_COLUMNS;
   }
 
   bool            hasTable = true;
@@ -2065,7 +2091,7 @@ static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql) {
 
     if (taosArrayGetSize((*oneTable)->tags) > TSDB_MAX_TAGS) {
       smlBuildInvalidDataMsg(&info->msgBuf, "too many tags than 128", NULL);
-      return TSDB_CODE_SML_INVALID_DATA;
+      return TSDB_CODE_PAR_INVALID_TAGS_NUM;
     }
 
     (*oneTable)->sTableName = elements.measure;
@@ -2084,12 +2110,12 @@ static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql) {
   SSmlSTableMeta **tableMeta = (SSmlSTableMeta **)taosHashGet(info->superTables, elements.measure, elements.measureLen);
   if (tableMeta) {  // update meta
     ret = smlUpdateMeta((*tableMeta)->colHash, (*tableMeta)->cols, cols, &info->msgBuf);
-    if (!hasTable && ret) {
+    if (!hasTable && ret == TSDB_CODE_SUCCESS) {
       ret = smlUpdateMeta((*tableMeta)->tagHash, (*tableMeta)->tags, (*oneTable)->tags, &info->msgBuf);
     }
-    if (!ret) {
+    if (ret != TSDB_CODE_SUCCESS) {
       uError("SML:0x%" PRIx64 " smlUpdateMeta failed", info->id);
-      return TSDB_CODE_SML_INVALID_DATA;
+      return ret;
     }
   } else {
     SSmlSTableMeta *meta = smlBuildSTableMeta();
@@ -2138,7 +2164,7 @@ static int32_t smlParseTelnetLine(SSmlHandle *info, void *data) {
     smlDestroyTableInfo(info, tinfo);
     smlDestroyCols(cols);
     taosArrayDestroy(cols);
-    return TSDB_CODE_SML_INVALID_DATA;
+    return TSDB_CODE_PAR_INVALID_TAGS_NUM;
   }
   taosHashClear(info->dumplicateKey);
 
@@ -2169,9 +2195,9 @@ static int32_t smlParseTelnetLine(SSmlHandle *info, void *data) {
     if (!hasTable && ret) {
       ret = smlUpdateMeta((*tableMeta)->tagHash, (*tableMeta)->tags, (*oneTable)->tags, &info->msgBuf);
     }
-    if (!ret) {
+    if (ret != TSDB_CODE_SUCCESS) {
       uError("SML:0x%" PRIx64 " smlUpdateMeta failed", info->id);
-      return TSDB_CODE_SML_INVALID_DATA;
+      return ret;
     }
   } else {
     SSmlSTableMeta *meta = smlBuildSTableMeta();

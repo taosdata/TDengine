@@ -293,7 +293,7 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->buffer < TSDB_MIN_BUFFER_PER_VNODE || pCfg->buffer > TSDB_MAX_BUFFER_PER_VNODE) return -1;
   if (pCfg->pageSize < TSDB_MIN_PAGESIZE_PER_VNODE || pCfg->pageSize > TSDB_MAX_PAGESIZE_PER_VNODE) return -1;
   if (pCfg->pages < TSDB_MIN_PAGES_PER_VNODE || pCfg->pages > TSDB_MAX_PAGES_PER_VNODE) return -1;
-  if (pCfg->cacheLastSize < TSDB_MIN_DB_CACHE_LAST_SIZE || pCfg->cacheLastSize > TSDB_MAX_DB_CACHE_LAST_SIZE) return -1;
+  if (pCfg->cacheLastSize < TSDB_MIN_DB_CACHE_SIZE || pCfg->cacheLastSize > TSDB_MAX_DB_CACHE_SIZE) return -1;
   if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return -1;
   if (pCfg->daysToKeep0 < TSDB_MIN_KEEP || pCfg->daysToKeep0 > TSDB_MAX_KEEP) return -1;
   if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > TSDB_MAX_KEEP) return -1;
@@ -312,7 +312,7 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->replications != 1 && pCfg->replications != 3) return -1;
   if (pCfg->strict < TSDB_DB_STRICT_OFF || pCfg->strict > TSDB_DB_STRICT_ON) return -1;
   if (pCfg->schemaless < TSDB_DB_SCHEMALESS_OFF || pCfg->schemaless > TSDB_DB_SCHEMALESS_ON) return -1;
-  if (pCfg->cacheLast < TSDB_MIN_DB_CACHE_LAST || pCfg->cacheLast > TSDB_MAX_DB_CACHE_LAST) return -1;
+  if (pCfg->cacheLast < TSDB_CACHE_MODEL_NONE || pCfg->cacheLast > TSDB_CACHE_MODEL_BOTH) return -1;
   if (pCfg->hashMethod != 1) return -1;
   if (pCfg->replications > mndGetDnodeSize(pMnode)) {
     terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
@@ -341,8 +341,8 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->compression < 0) pCfg->compression = TSDB_DEFAULT_COMP_LEVEL;
   if (pCfg->replications < 0) pCfg->replications = TSDB_DEFAULT_DB_REPLICA;
   if (pCfg->strict < 0) pCfg->strict = TSDB_DEFAULT_DB_STRICT;
-  if (pCfg->cacheLast < 0) pCfg->cacheLast = TSDB_DEFAULT_CACHE_LAST;
-  if (pCfg->cacheLastSize <= 0) pCfg->cacheLastSize = TSDB_DEFAULT_CACHE_LAST_SIZE;
+  if (pCfg->cacheLast < 0) pCfg->cacheLast = TSDB_DEFAULT_CACHE_MODEL;
+  if (pCfg->cacheLastSize <= 0) pCfg->cacheLastSize = TSDB_DEFAULT_CACHE_SIZE;
   if (pCfg->numOfRetensions < 0) pCfg->numOfRetensions = 0;
   if (pCfg->schemaless < 0) pCfg->schemaless = TSDB_DB_SCHEMALESS_OFF;
 }
@@ -1443,6 +1443,22 @@ char *buildRetension(SArray *pRetension) {
   return p1;
 }
 
+static const char *getCacheModelStr(int8_t cacheModel) {
+  switch (cacheModel) {
+    case TSDB_CACHE_MODEL_NONE:
+      return TSDB_CACHE_MODEL_NONE_STR;
+    case TSDB_CACHE_MODEL_LAST_ROW:
+      return TSDB_CACHE_MODEL_LAST_ROW_STR;
+    case TSDB_CACHE_MODEL_LAST_VALUE:
+      return TSDB_CACHE_MODEL_LAST_VALUE_STR;
+    case TSDB_CACHE_MODEL_BOTH:
+      return TSDB_CACHE_MODEL_BOTH_STR;
+    default:
+      break;
+  }
+  return "unknown";
+}
+
 static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, int32_t rows, int64_t numOfTables,
                            bool sysDb, ESdbStatus objStatus, bool sysinfo) {
   int32_t cols = 0;
@@ -1491,7 +1507,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
 
-    const char *strictStr = pDb->cfg.strict ? "strict" : "no_strict";
+    const char *strictStr = pDb->cfg.strict ? "on" : "off";
     char        strictVstr[24] = {0};
     STR_WITH_SIZE_TO_VARSTR(strictVstr, strictStr, strlen(strictStr));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1539,8 +1555,11 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
 
+    const char *cacheModelStr = getCacheModelStr(pDb->cfg.cacheLast);
+    char        cacheModelVstr[24] = {0};
+    STR_WITH_SIZE_TO_VARSTR(cacheModelVstr, cacheModelStr, strlen(cacheModelStr));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.cacheLast, false);
+    colDataAppend(pColInfo, rows, (const char *)cacheModelVstr, false);
 
     const char *precStr = NULL;
     switch (pDb->cfg.precision) {

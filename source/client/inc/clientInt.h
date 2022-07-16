@@ -286,7 +286,7 @@ static FORCE_INLINE SReqResultInfo* tscGetCurResInfo(TAOS_RES* res) {
 extern SAppInfo appInfo;
 extern int32_t  clientReqRefPool;
 extern int32_t  clientConnRefPool;
-extern void*    tscQhandle;
+extern int32_t  timestampDeltaLimit;
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
 
@@ -313,6 +313,11 @@ void  resetConnectDB(STscObj* pTscObj);
 int taos_options_imp(TSDB_OPTION option, const char* str);
 
 void* openTransporter(const char* user, const char* auth, int32_t numOfThreads);
+
+typedef struct AsyncArg {
+  SRpcMsg msg;
+  SEpSet* pEpset;
+} AsyncArg;
 
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType);
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);

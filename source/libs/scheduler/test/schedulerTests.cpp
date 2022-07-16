@@ -477,7 +477,7 @@ void* schtRunJobThread(void *aa) {
   schtInitLogFile();
 
   
-  int32_t code = schedulerInit(NULL);
+  int32_t code = schedulerInit();
   assert(code == 0);
 
 
@@ -649,7 +649,7 @@ TEST(queryTest, normalCase) {
   qnodeAddr.port = 6031;
   taosArrayPush(qnodeList, &qnodeAddr);
   
-  int32_t code = schedulerInit(NULL);
+  int32_t code = schedulerInit();
   ASSERT_EQ(code, 0);
 
   schtBuildQueryDag(&dag);
@@ -756,7 +756,7 @@ TEST(queryTest, readyFirstCase) {
   qnodeAddr.port = 6031;
   taosArrayPush(qnodeList, &qnodeAddr);
   
-  int32_t code = schedulerInit(NULL);
+  int32_t code = schedulerInit();
   ASSERT_EQ(code, 0);
 
   schtBuildQueryDag(&dag);
@@ -866,7 +866,7 @@ TEST(queryTest, flowCtrlCase) {
   qnodeAddr.port = 6031;
   taosArrayPush(qnodeList, &qnodeAddr);
   
-  int32_t code = schedulerInit(NULL);
+  int32_t code = schedulerInit();
   ASSERT_EQ(code, 0);
 
   schtBuildQueryFlowCtrlDag(&dag);
@@ -975,7 +975,7 @@ TEST(insertTest, normalCase) {
   qnodeAddr.port = 6031;
   taosArrayPush(qnodeList, &qnodeAddr);
   
-  int32_t code = schedulerInit(NULL);
+  int32_t code = schedulerInit();
   ASSERT_EQ(code, 0);
 
   schtBuildInsertDag(&dag);
