@@ -2,6 +2,7 @@
 sidebar_label: Prometheus
 title: Prometheus for TDengine Cloud
 ---
+
 Prometheus is a widespread open-source monitoring and alerting system. Prometheus joined the Cloud Native Computing Foundation (CNCF) in 2016 as the second incubated project after Kubernetes, which has a very active developer and user community.
 
 Prometheus provides `remote_write` and `remote_read` interfaces to leverage other database products as its storage engine. To enable users of the Prometheus ecosystem to take advantage of TDengine's efficient writing and querying, TDengine also provides support for these two interfaces.
@@ -10,72 +11,65 @@ Prometheus data can be stored in TDengine via the `remote_write` interface with 
 
 ## Install Prometheus
 
-Please refer to the [official documentation](https://prometheus.io/docs/prometheus/latest/installation/) for installing Prometheus
+Supposed that you use Linux system with architecture amd64:
+1. Download
+  ```
+  wget https://github.com/prometheus/prometheus/releases/download/v2.37.0/prometheus-2.37.0.linux-amd64.tar.gz
+  ```
+2. Decompress and rename
+   ```
+   tar xvfz prometheus-*.tar.gz && mv prometheus-2.37.0.linux-amd64 prometheus
+   ```  
+3. Change to directory prometheus
+   ```
+   cd prometheus
+   ```
 
-## Configuration steps
+Then Prometheus is installed in current directory. For more installation options, please refer to the [official documentation](https://prometheus.io/docs/prometheus/latest/installation/).
 
-Configuring Prometheus is done by editing the Prometheus configuration file prometheus.yml (default location `/etc/prometheus/prometheus.yml`).
+## Configuration
+
+Configuring Prometheus is done by editing the Prometheus configuration file prometheus.yml (If you followed previous steps, you can find prometheus.xml in current directory).
 
 ```yaml
 remote_write:
-  - url: "<url>/prometheus/v1/remote_write/prometheus_data?token=<token>"
+  - url: "<cloud_url>/prometheus/v1/remote_write/prometheus_data?token=<cloud_token>"
 
 remote_read:
-  - url: "<url>/prometheus/v1/remote_read/prometheus_data?token=<token>"
+  - url: "<cloud_url>/prometheus/v1/remote_read/prometheus_data?token=<cloud_token>"
     remote_timeout: 10s
     read_recent: true
 ```
 
-## Verification plugin
+<!-- exclude -->
+You are expected to replace `<cloud_url>` and `<cloud_token>` with real TDengine cloud URL and token. To obtain the real values, please log in [TDengine Cloud](https://cloud.tdengine.com).
+<!-- exclude-end -->
 
-After restarting Prometheus, you can refer to the following example to verify that data is written from Prometheus to TDengine and can read out correctly.
+The resulting configuration will collect data about prometheus itself from its own HTTP metrics endpoint, and store data to TDengine Cloud.
+
+## Start Prometheus
 
 ```
-taos> show databases;
-              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
-====================================================================================================================================================================================================================================================================================
- test                           | 2022-04-12 08:07:58.756 |           1 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ms        |      0 | ready      |
- log                            | 2022-04-20 07:19:50.260 |           2 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ms        |      0 | ready      |
- prometheus_data                | 2022-04-20 07:21:09.202 |         158 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ns        |      2 | ready      |
- db                             | 2022-04-15 06:37:08.512 |           1 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ms        |      0 | ready      |
-Query OK, 4 row(s) in set (0.000585s)
-
-taos> use prometheus_data;
-Database changed.
-
-taos> show stables;
-              name              |      created_time       | columns |  tags  |   tables    |
-============================================================================================
- metrics                        | 2022-04-20 07:21:09.209 |       2 |      1 |        1389 |
-Query OK, 1 row(s) in set (0.000487s)
-
-taos> select * from metrics limit 10;
-              ts               |           value           |             labels             |
-=============================================================================================
- 2022-04-20 07:21:09.193000000 |               0.000024996 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:14.193000000 |               0.000024996 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:19.193000000 |               0.000024996 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:24.193000000 |               0.000024996 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:29.193000000 |               0.000024996 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:09.193000000 |               0.000054249 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:14.193000000 |               0.000054249 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:19.193000000 |               0.000054249 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:24.193000000 |               0.000054249 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:29.193000000 |               0.000054249 | {"__name__":"go_gc_duration... |
-Query OK, 10 row(s) in set (0.011146s)
+./prometheus --config.file prometheus.yml
 ```
 
-## Use promql-cli
+Prometheus should start up. It also started a web server at <http://localhost:9090>.
 
-Install promql-cli
+## Verify Remote Write
 
-```bash
- go install github.com/nalbury/promql-cli@latest
+Log in TDengine Cloud, click "Explorer" on the left navigation bar. You will see metrics collected by prometheus.
+
+![TDengine prometheus remote_write result](prometheus_data.png)
+
+## Verify Remote Read
+
+Lets retrieve some metrics from TDengine Cloud via prometheus web server. Browse to http://localhost:9090/graph and use the "Graph" tab.
+
+Enter the following expression to graph the per-second rate of chunks being created in the self-scraped Prometheus:
+
+```
+rate(prometheus_tsdb_head_chunks_created_total[1m])
 ```
 
-Query Prometheus data in the running state of TDengine and taosAdapter services
-
-```bash
-promql-cli --host "<url>" "sum(up) by (job)"
-```
+![TDengine prometheus remote_read](prometheus_read.png)
 
