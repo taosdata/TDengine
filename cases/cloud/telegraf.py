@@ -31,7 +31,7 @@ class Telegraf(TDCase):
                 return False
             line = p.stdout.readline()
             self.logger.info(line)
-            if "Successfully connected to outputs.http" in line:
+            if b"Successfully connected to outputs.http" in line:
                 p.kill()
                 return True
         self.set_error_msg("Not found success message from telegraf's log")
