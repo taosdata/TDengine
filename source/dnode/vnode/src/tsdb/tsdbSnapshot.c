@@ -641,14 +641,15 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
 
           ASSERT(c);
 
-          if (c < 0) break;
+          if (c > 0) {
+            pWriter->pBlockData = &pWriter->bDataR;
+            code =
+                tsdbReadBlockData(pWriter->pDataFReader, pWriter->pBlockIdx, &block, pWriter->pBlockData, NULL, NULL);
+            if (code) goto _err;
+            pWriter->iRow = 0;
 
-          pWriter->pBlockData = &pWriter->bDataR;
-          code = tsdbReadBlockData(pWriter->pDataFReader, pWriter->pBlockIdx, &block, pWriter->pBlockData, NULL, NULL);
-          if (code) goto _err;
-          pWriter->iRow = 0;
-
-          pWriter->iBlock++;
+            pWriter->iBlock++;
+          }
           break;
         }
       }
@@ -684,6 +685,8 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
   return code;
 
 _err:
+  tsdbError("vgId:%d vnode snapshot tsdb write table data impl failed since %s", TD_VID(pWriter->pTsdb->pVnode),
+            tstrerror(code));
   return code;
 }
 
