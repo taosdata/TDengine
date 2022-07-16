@@ -868,7 +868,8 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
     }
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY: {
-      if (strict && (pVal->node.resType.bytes > targetDt.bytes - VARSTR_HEADER_SIZE)) {
+      if (strict && (!IS_VAR_DATA_TYPE(pVal->node.resType.type) ||
+                     pVal->node.resType.bytes > targetDt.bytes - VARSTR_HEADER_SIZE)) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
       }
       pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + 1);
@@ -888,6 +889,9 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
       break;
     }
     case TSDB_DATA_TYPE_NCHAR: {
+      if (strict && !IS_VAR_DATA_TYPE(pVal->node.resType.type)) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
       pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + 1);
       if (NULL == pVal->datum.p) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
@@ -1168,7 +1172,7 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
     return TSDB_CODE_SUCCESS;
   }
   if (isSelectStmt(pCxt->pCurrStmt)) {
-    //select percentile() without from clause is also valid
+    // select percentile() without from clause is also valid
     if (NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) {
       return TSDB_CODE_SUCCESS;
     }
