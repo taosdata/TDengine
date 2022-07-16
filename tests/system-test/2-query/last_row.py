@@ -759,8 +759,15 @@ class TDTestCase:
         tdSql.query("select last_row(*), last_row(*) from sub_tb_1, sub_tb_2 where sub_tb_1.ts=sub_tb_2.ts")
         for ind , row in enumerate(last_row_result):
             tdSql.checkData(ind , 0 , row[0])
-        
 
+        tdSql.query("select last(*), last_row(*) from sub_tb_1, sub_tb_2 where sub_tb_1.ts=sub_tb_2.ts")
+        for ind , row in enumerate(last_row_result):
+            tdSql.checkData(ind , 0 , row[0])
+
+        tdSql.query("select last_row(*), last(*) from sub_tb_1, sub_tb_2 where sub_tb_1.ts=sub_tb_2.ts")
+        for ind , row in enumerate(last_row_result):
+            tdSql.checkData(ind , 0 , row[0])
+        
 
     def support_super_table_test(self):
         tdSql.execute(" use testdb ")
