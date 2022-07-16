@@ -1596,8 +1596,7 @@ static void destroySysScanOperator(void* param, int32_t numOfOutput) {
 
   const char* name = tNameGetTableName(&pInfo->name);
   if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
-      strncasecmp(name, TSDB_INS_TABLE_USER_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
-      pInfo->pCur != NULL) {
+      strncasecmp(name, TSDB_INS_TABLE_USER_TAGS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
     metaCloseTbCursor(pInfo->pCur);
     pInfo->pCur = NULL;
   }
@@ -1767,6 +1766,76 @@ static SSDataBlock* buildInfoSchemaTableMetaBlock(char* tableName) {
   return pBlock;
 }
 
+//TODO: check more datatype, json? and return detailed error when len is not enough
+static int32_t convertTagDataToVarchar(int8_t tagType, char* tagVal, char* str, size_t len) {
+  switch (tagType) {
+    case TSDB_DATA_TYPE_TINYINT:
+      snprintf(str, len, "%d", *((int8_t*)tagVal));
+      break;
+
+    case TSDB_DATA_TYPE_UTINYINT:
+      snprintf(str, len, "%u", *((uint8_t*)tagVal));
+      break;
+
+    case TSDB_DATA_TYPE_SMALLINT:
+      snprintf(str, len, "%d", *((int16_t*)tagVal));
+      break;
+
+    case TSDB_DATA_TYPE_USMALLINT:
+      snprintf(str, len, "%u", *((uint16_t*)tagVal));
+      break;
+
+    case TSDB_DATA_TYPE_INT:
+      snprintf(str, len, "%d", *((int32_t*)tagVal));
+      break;
+
+    case TSDB_DATA_TYPE_UINT:
+      snprintf(str, len, "%u", *((uint32_t*)tagVal));
+      break;
+
+    case TSDB_DATA_TYPE_BIGINT:
+      snprintf(str, len, "%" PRId64, *((int64_t*)tagVal));
+      break;
+
+    case TSDB_DATA_TYPE_UBIGINT:
+      snprintf(str, len, "%" PRIu64, *((uint64_t*)tagVal));
+      break;
+
+    case TSDB_DATA_TYPE_FLOAT: {
+      float fv = 0;
+      fv = GET_FLOAT_VAL(tagVal);
+      snprintf(str, len, "%f", fv);
+      break;
+    }
+
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double dv = 0;
+      dv = GET_DOUBLE_VAL(tagVal);
+      snprintf(str, len, "%lf", dv);
+      break;
+    }
+
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON: {
+      memcpy(str, tagVal, len);
+      break;
+    }
+
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      snprintf(str, len, "%" PRId64, *((int64_t*)tagVal));
+      break;
+
+    case TSDB_DATA_TYPE_BOOL:
+      snprintf(str, len, "%d", *((int8_t*)tagVal));
+      break;
+    default:
+      return TSDB_CODE_FAILED;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
@@ -1856,9 +1925,11 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
       } else {
         tagData = (char*)pVal;
       }
-
+      //TODO: memory allocation for varchar size and make sure enough memory
+      char tagStr[1024];
+      convertTagDataToVarchar(tagType, tagData, tagStr, 1024);
       pColInfoData = taosArrayGet(p->pDataBlock, 5);
-      colDataAppend(pColInfoData, numOfRows, tagData,
+      colDataAppend(pColInfoData, numOfRows, tagStr,
                     (tagData == NULL) || (tagType == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(tagData)));
 
       if (tagType != TSDB_DATA_TYPE_JSON && p != NULL && IS_VAR_DATA_TYPE(((const STagVal*)p)->type) &&
@@ -2068,7 +2139,6 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
     pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
     return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
   }
-
 }
 
 static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {

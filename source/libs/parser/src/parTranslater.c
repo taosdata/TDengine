@@ -1677,7 +1677,8 @@ static int32_t dnodeToVgroupsInfo(SArray* pDnodes, SVgroupsInfo** pVgsInfo) {
 
 static bool sysTableFromVnode(const char* pTable) {
   return (0 == strcmp(pTable, TSDB_INS_TABLE_USER_TABLES)) ||
-         (0 == strcmp(pTable, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED));
+         (0 == strcmp(pTable, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED) ||
+         (0 == strcmp(pTable, TSDB_INS_TABLE_USER_TAGS)));
 }
 
 static bool sysTableFromDnode(const char* pTable) { return 0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES); }
@@ -1693,7 +1694,7 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
     code = getDBVgInfoImpl(pCxt, pName, &vgroupList);
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && 0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES)) {
     code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &vgroupList);
   }
 
@@ -1782,7 +1783,8 @@ static bool isSingleTable(SRealTableNode* pRealTable) {
   int8_t tableType = pRealTable->pMeta->tableType;
   if (TSDB_SYSTEM_TABLE == tableType) {
     return 0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES) &&
-           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED);
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED) &&
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TAGS);
   }
   return (TSDB_CHILD_TABLE == tableType || TSDB_NORMAL_TABLE == tableType);
 }
@@ -5025,6 +5027,8 @@ static const char* getSysTableName(ENodeType type) {
       return TSDB_INS_TABLE_USER_DATABASES;
     case QUERY_NODE_SHOW_TABLES_STMT:
       return TSDB_INS_TABLE_USER_TABLES;
+    case QUERY_NODE_SHOW_TAGS_STMT:
+      return TSDB_INS_TABLE_USER_TAGS;
     case QUERY_NODE_SHOW_STABLES_STMT:
       return TSDB_INS_TABLE_USER_STABLES;
     case QUERY_NODE_SHOW_USERS_STMT:
