@@ -1177,6 +1177,29 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
                                  "%s is only supported in single table query", pFunc->functionName);
 }
 
+static bool isStar(SNode* pNode) {
+  return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]) &&
+         (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
+}
+
+static bool isTableStar(SNode* pNode) {
+  return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' != ((SColumnNode*)pNode)->tableAlias[0]) &&
+         (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
+}
+
+static int32_t translateMultiResFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  if (!fmIsMultiResFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (SQL_CLAUSE_SELECT != pCxt->currClause ) {
+    SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+    if (isStar(pPara) || isTableStar(pPara)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "%s(*) is only supported in SELECTed list", pFunc->functionName);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
 static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
   if (NULL != pCurrStmt && QUERY_NODE_SELECT_STMT == nodeType(pCurrStmt)) {
     SSelectStmt* pSelect = (SSelectStmt*)pCurrStmt;
@@ -1310,6 +1333,9 @@ static int32_t translateNoramlFunction(STranslateContext* pCxt, SFunctionNode* p
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateRepeatScanFunc(pCxt, pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateMultiResFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
     setFuncClassification(pCxt->pCurrStmt, pFunc);
@@ -1772,6 +1798,19 @@ static int32_t setTableIndex(STranslateContext* pCxt, SName* pName, SRealTableNo
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t setTableCacheLastMode(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
+  if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SDbCfgInfo dbCfg = {0};
+  int32_t    code = getDBCfg(pCxt, pRealTable->table.dbName, &dbCfg);
+  if (TSDB_CODE_SUCCESS == code) {
+    pRealTable->cacheLastMode = dbCfg.cacheLast;
+  }
+  return code;
+}
+
 static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pTable)) {
@@ -1790,6 +1829,9 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
         code = setTableVgroupList(pCxt, &name, pRealTable);
         if (TSDB_CODE_SUCCESS == code) {
           code = setTableIndex(pCxt, &name, pRealTable);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = setTableCacheLastMode(pCxt, &name, pRealTable);
         }
       }
       pRealTable->table.precision = pRealTable->pMeta->tableInfo.precision;
@@ -1890,16 +1932,6 @@ static int32_t createTableAllCols(STranslateContext* pCxt, SColumnNode* pCol, bo
     code = createColumnsByTable(pCxt, pTable, igTags, *pOutput);
   }
   return code;
-}
-
-static bool isStar(SNode* pNode) {
-  return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]) &&
-         (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
-}
-
-static bool isTableStar(SNode* pNode) {
-  return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' != ((SColumnNode*)pNode)->tableAlias[0]) &&
-         (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
 }
 
 static int32_t createMultiResFuncsParas(STranslateContext* pCxt, SNodeList* pSrcParas, SNodeList** pOutput) {
@@ -5413,11 +5445,12 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
 }
 
 static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, SCreateSubTableClause* pStmt,
-                                     const STag* pTag, uint64_t suid, const char* sTableNmae, SVgroupInfo* pVgInfo, SArray* tagName) {
-//  char  dbFName[TSDB_DB_FNAME_LEN] = {0};
-//  SName name = {.type = TSDB_DB_NAME_T, .acctId = acctId};
-//  strcpy(name.dbname, pStmt->dbName);
-//  tNameGetFullDbName(&name, dbFName);
+                                     const STag* pTag, uint64_t suid, const char* sTableNmae, SVgroupInfo* pVgInfo,
+                                     SArray* tagName) {
+  //  char  dbFName[TSDB_DB_FNAME_LEN] = {0};
+  //  SName name = {.type = TSDB_DB_NAME_T, .acctId = acctId};
+  //  strcpy(name.dbname, pStmt->dbName);
+  //  tNameGetFullDbName(&name, dbFName);
 
   struct SVCreateTbReq req = {0};
   req.type = TD_CHILD_TABLE;
@@ -5524,7 +5557,7 @@ static int32_t buildNormalTagVal(STranslateContext* pCxt, SSchema* pTagSchema, S
   if (pVal->node.resType.type != TSDB_DATA_TYPE_NULL) {
     void*   nodeVal = nodesGetValueFromNode(pVal);
     STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-//    strcpy(val.colName, pTagSchema->name);
+    //    strcpy(val.colName, pTagSchema->name);
     if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
       val.pData = varDataVal(nodeVal);
       val.nData = varDataLen(nodeVal);
@@ -5621,7 +5654,7 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
       } else if (pVal->node.resType.type != TSDB_DATA_TYPE_NULL && !pVal->isNull) {
         char*   tmpVal = nodesGetValueFromNode(pVal);
         STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-//        strcpy(val.colName, pTagSchema->name);
+        //        strcpy(val.colName, pTagSchema->name);
         if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
           val.pData = varDataVal(tmpVal);
           val.nData = varDataLen(tmpVal);
@@ -5664,7 +5697,7 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
     code = getTableMeta(pCxt, pStmt->useDbName, pStmt->useTableName, &pSuperTableMeta);
   }
 
-  STag* pTag = NULL;
+  STag*   pTag = NULL;
   SArray* tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -5680,7 +5713,8 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
     code = getTableHashVgroup(pCxt, pStmt->dbName, pStmt->tableName, &info);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    addCreateTbReqIntoVgroup(pCxt->pParseCxt->acctId, pVgroupHashmap, pStmt, pTag, pSuperTableMeta->uid, pStmt->useTableName, &info, tagName);
+    addCreateTbReqIntoVgroup(pCxt->pParseCxt->acctId, pVgroupHashmap, pStmt, pTag, pSuperTableMeta->uid,
+                             pStmt->useTableName, &info, tagName);
   }
 
   taosArrayDestroy(tagName);

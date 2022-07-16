@@ -44,13 +44,6 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
     goto _error;
   }
 
-  if (model == OPTR_EXEC_MODEL_STREAM) {
-    (*pTask)->streamInfo.inputQueue = streamQueueOpen();
-    if ((*pTask)->streamInfo.inputQueue == NULL) {
-      goto _error;
-    }
-  }
-
   SDataSinkMgtCfg cfg = {.maxDataBlockNum = 1000, .maxDataBlockNumPerQuery = 100};
   code = dsDataSinkMgtInit(&cfg);
   if (code != TSDB_CODE_SUCCESS) {
@@ -259,10 +252,21 @@ int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner) {
   }
 }
 
+#if 0
 int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
   taosWriteQitem(pTaskInfo->streamInfo.inputQueue->queue, pItem);
+  return 0;
+}
+#endif
+
+int32_t qStreamPrepareRecover(qTaskInfo_t tinfo, int64_t startVer, int64_t endVer) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
+  pTaskInfo->streamInfo.recoverStartVer = startVer;
+  pTaskInfo->streamInfo.recoverEndVer = endVer;
+  pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__PREPARE;
   return 0;
 }
 

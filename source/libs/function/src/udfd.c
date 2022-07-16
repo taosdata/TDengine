@@ -296,8 +296,8 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 
   switch (call->callType) {
     case TSDB_UDF_CALL_SCALA_PROC: {
-      tDeleteSSDataBlock(&call->block);
-      tDeleteSSDataBlock(&subRsp->resultData);
+      blockDataFreeRes(&call->block);
+      blockDataFreeRes(&subRsp->resultData);
       break;
     }
     case TSDB_UDF_CALL_AGG_INIT: {
@@ -305,7 +305,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
       break;
     }
     case TSDB_UDF_CALL_AGG_PROC: {
-      tDeleteSSDataBlock(&call->block);
+      blockDataFreeRes(&call->block);
       freeUdfInterBuf(&subRsp->resultBuf);
       break;
     }
@@ -382,6 +382,15 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   if (msgInfo->rpcType == UDFD_RPC_MNODE_CONNECT) {
     SConnectRsp connectRsp = {0};
     tDeserializeSConnectRsp(pMsg->pCont, pMsg->contLen, &connectRsp);
+    
+    int32_t now = taosGetTimestampSec();
+    int32_t delta = abs(now - connectRsp.svrTimestamp);
+    if (delta > 900) {
+      msgInfo->code = TSDB_CODE_TIME_UNSYNCED;
+      goto _return;
+    }
+    
+     
     if (connectRsp.epSet.numOfEps == 0) {
       msgInfo->code = TSDB_CODE_MND_APP_ERROR;
       goto _return;

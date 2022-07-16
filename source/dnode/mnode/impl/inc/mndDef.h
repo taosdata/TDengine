@@ -559,6 +559,7 @@ typedef struct {
   // info
   int64_t uid;
   int8_t  status;
+  int8_t  isDistributed;
   // config
   int8_t  igExpired;
   int8_t  trigger;
@@ -585,6 +586,23 @@ typedef struct {
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
 int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj);
+
+typedef struct {
+  char    streamName[TSDB_STREAM_FNAME_LEN];
+  int64_t uid;
+  int64_t streamUid;
+  SArray* childInfo;  // SArray<SStreamChildEpInfo>
+} SStreamCheckpointObj;
+
+#if 0
+typedef struct {
+  int64_t uid;
+  int64_t streamId;
+  int8_t  isDistributed;
+  int8_t  status;
+  int8_t  stage;
+} SStreamRecoverObj;
+#endif
 
 #ifdef __cplusplus
 }

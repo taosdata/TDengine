@@ -343,7 +343,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
         SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
 
-      SCH_ERR_JRET(schInitTask(pJob, pTask, plan, pLevel, levelNum));
+      SCH_ERR_JRET(schInitTask(pJob, pTask, plan, pLevel));
 
       SCH_ERR_JRET(schAppendJobDataSrc(pJob, pTask));
 
@@ -476,7 +476,7 @@ _return:
   SCH_UNLOCK(SCH_WRITE, &pJob->opStatus.lock);
 }
 
-int32_t schProcessOnJobFailureImpl(SSchJob *pJob, int32_t status, int32_t errCode) {
+int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode) {
   schUpdateJobErrCode(pJob, errCode);
   
   int32_t code = atomic_load_32(&pJob->errCode);
@@ -489,20 +489,28 @@ int32_t schProcessOnJobFailureImpl(SSchJob *pJob, int32_t status, int32_t errCod
   SCH_RET(TSDB_CODE_SCH_IGNORE_ERROR);
 }
 
-// Note: no more task error processing, handled in function internal
-int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode) {
+int32_t schHandleJobFailure(SSchJob *pJob, int32_t errCode) {
   if (TSDB_CODE_SCH_IGNORE_ERROR == errCode) {
     return TSDB_CODE_SCH_IGNORE_ERROR;
   }
 
-  schProcessOnJobFailureImpl(pJob, JOB_TASK_STATUS_FAIL, errCode);
+  schSwitchJobStatus(pJob, JOB_TASK_STATUS_FAIL, &errCode);
   return TSDB_CODE_SCH_IGNORE_ERROR;
 }
 
-// Note: no more error processing, handled in function internal
 int32_t schProcessOnJobDropped(SSchJob *pJob, int32_t errCode) {
-  SCH_RET(schProcessOnJobFailureImpl(pJob, JOB_TASK_STATUS_DROP, errCode));
+  SCH_RET(schProcessOnJobFailure(pJob, errCode));
 }
+
+int32_t schHandleJobDrop(SSchJob *pJob, int32_t errCode) {
+  if (TSDB_CODE_SCH_IGNORE_ERROR == errCode) {
+    return TSDB_CODE_SCH_IGNORE_ERROR;
+  }
+
+  schSwitchJobStatus(pJob, JOB_TASK_STATUS_DROP, &errCode);
+  return TSDB_CODE_SCH_IGNORE_ERROR;
+}
+
 
 int32_t schProcessOnJobPartialSuccess(SSchJob *pJob) {
   schPostJobRes(pJob, SCH_OP_EXEC);
@@ -828,7 +836,7 @@ void schProcessOnOpEnd(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq* pReq, int
   }
 
   if (errCode) {
-    schSwitchJobStatus(pJob, JOB_TASK_STATUS_FAIL, (void*)&errCode);
+    schHandleJobFailure(pJob, errCode);
   }
 
   SCH_JOB_DLOG("job end %s operation with code %s", schGetOpStr(type), tstrerror(errCode));
@@ -907,7 +915,7 @@ void schProcessOnCbEnd(SSchJob *pJob, SSchTask *pTask, int32_t errCode) {
   }
 
   if (errCode) {
-    schSwitchJobStatus(pJob, JOB_TASK_STATUS_FAIL, (void*)&errCode);
+    schHandleJobFailure(pJob, errCode);
   }
   
   if (pJob) {

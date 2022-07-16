@@ -179,6 +179,12 @@ TEST_F(ParserShowToUseTest, showTables) {
   run("SHOW test.tables like 'c%'");
 }
 
+TEST_F(ParserShowToUseTest, showTableDistributed) {
+  useDb("root", "test");
+
+  run("SHOW TABLE DISTRIBUTED st1");
+}
+
 // todo SHOW topics
 
 TEST_F(ParserShowToUseTest, showUsers) {

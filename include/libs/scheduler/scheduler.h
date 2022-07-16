@@ -25,11 +25,6 @@ extern "C" {
 
 extern tsem_t schdRspSem;
 
-typedef struct SSchedulerCfg {
-  uint32_t maxJobNum;
-  int32_t  maxNodeTableNum;
-} SSchedulerCfg;
-
 typedef struct SQueryProfileSummary {
   int64_t startTs;      // Object created and added into the message queue
   int64_t endTs;        // the timestamp when the task is completed
@@ -84,7 +79,7 @@ typedef struct SSchedulerReq {
 } SSchedulerReq;
 
 
-int32_t schedulerInit(SSchedulerCfg *cfg);
+int32_t schedulerInit(void);
 
 int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJob);
 
@@ -96,6 +91,8 @@ int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub);
 
 void schedulerStopQueryHb(void *pTrans);
 
+int32_t schedulerUpdatePolicy(int32_t policy);
+int32_t schedulerEnableReSchedule(bool enableResche);
 
 /**
  * Cancel query job

@@ -221,11 +221,11 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
 
 static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   SDnode *pDnode = dmInstance();
-  if (pDnode->status != DND_STAT_RUNNING) {
+  if (pDnode->status != DND_STAT_RUNNING && pMsg->msgType < TDMT_SYNC_MSG) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
     terrno = TSDB_CODE_NODE_OFFLINE;
-    dError("failed to send rpc msg since %s, handle:%p", terrstr(), pMsg->info.handle);
+    dError("failed to send rpc msg:%s since %s, handle:%p", TMSG_INFO(pMsg->msgType), terrstr(), pMsg->info.handle);
     return -1;
   } else {
     rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL);

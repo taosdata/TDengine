@@ -112,11 +112,11 @@ int32_t streamAppendQueueItem(SStreamQueueItem* dst, SStreamQueueItem* elem) {
 
 void streamFreeQitem(SStreamQueueItem* data) {
   int8_t type = data->type;
-  if (type == STREAM_INPUT__TRIGGER) {
+  if (type == STREAM_INPUT__GET_RES) {
     blockDataDestroy(((SStreamTrigger*)data)->pBlock);
     taosFreeQitem(data);
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE) {
-    taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);
+    taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)blockDataFreeRes);
     taosFreeQitem(data);
   } else if (type == STREAM_INPUT__DATA_SUBMIT) {
     streamDataSubmitRefDec((SStreamDataSubmit*)data);
