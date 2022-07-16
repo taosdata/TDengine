@@ -2207,6 +2207,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getDerivativeFuncEnv,
     .initFunc     = derivativeFuncSetup,
     .processFunc  = derivativeFunction,
+    .sprocessFunc = derivativeScalarFunction,
     .finalizeFunc = functionFinalize
   },
   {
@@ -2217,6 +2218,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getIrateFuncEnv,
     .initFunc     = irateFuncSetup,
     .processFunc  = irateFunction,
+    .sprocessFunc = irateScalarFunction,
     .finalizeFunc = irateFinalize
   },
   {
