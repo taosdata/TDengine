@@ -2,6 +2,8 @@
 假设目标机器上已经安装好了 telegraf, 并且已经按照文档的操作步骤生成了配置文件
 用例的输入是连接云服务的环境变量
 这个用例只是启动 telegraf, 测试到云服务的连通性
+
+启动命令 tt --case=cloud/telegraf.py --use=cloud.yaml
 """
 
 import subprocess as sp
