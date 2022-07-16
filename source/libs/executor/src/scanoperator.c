@@ -520,6 +520,10 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
     int32_t code = tsdbReaderOpen(pInfo->readHandle.vnode, &pInfo->cond, tableList, (STsdbReader**)&pInfo->dataReader,
                                   GET_TASKID(pTaskInfo));
+    if (code != TSDB_CODE_SUCCESS) {
+      longjmp(pTaskInfo->env, code);
+      return NULL;
+    }
   }
 
   SSDataBlock* result = doTableScanGroup(pOperator);
