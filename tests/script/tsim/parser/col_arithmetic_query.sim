@@ -173,7 +173,7 @@ endi
 # multi row result aggregation [d.4]
 sql_error select top(c1, 1) - bottom(c1, 1) from $tb
 sql_error select top(c1, 99) - bottom(c1, 99) from $tb
-sql_error select top(c1,1) - 88 from $tb
+sql       select top(c1,1) - 88 from $tb
 
 # all data types [d.6] ================================================================
 sql select c2-c1*1.1, c3/c2, c4*c3, c5%c4, (c6+c4)%22, c2-c2 from $tb
@@ -227,13 +227,13 @@ endi
 
 # error case, ts/bool/binary/nchar not support arithmetic expression
 sql_error select ts+ts from $tb
-sql_error select ts+22 from $tb
-sql_error select c7*12 from $tb
-sql_error select c8/55 from $tb
-sql_error select c9+c8 from $tb
-sql_error select c7-c8, c9-c8 from $tb
+sql       select ts+22 from $tb
+sql       select c7*12 from $tb
+sql       select c8/55 from $tb
+sql       select c9+c8 from $tb
+sql       select c7-c8, c9-c8 from $tb
 sql_error select ts-c9 from $tb
-sql_error select c8+c7, c9+c9+c8+c7/c6 from $tb
+sql       select c8+c7, c9+c9+c8+c7/c6 from $tb
 
 # arithmetic expression in join [d.7]==================================================
 
@@ -339,7 +339,7 @@ if $data20 != 0 then
 endi
 
 # tag filter(not support for normal table). [d.15]=====================================
-sql_error select c2+99 from $tb where t1=12;
+sql select c2+99 from $tb where t1=12;
 
 # multi-field output [d.16]============================================================
 sql select c4*1+1/2,c4*1+1/2,c4*1+1/2,c4*1+1/2,c4*1+1/2 from $tb
@@ -391,7 +391,7 @@ if $data00 != 0.000000000 then
   return -1
 endi
 
-sql select (count(c1) * 2) % 7.9, (count(c1) * 2), ( count(1)*2) from $stb order by ts desc;
+sql select (count(c1) * 2) % 7.9, (count(c1) * 2), ( count(1)*2) from $stb
 if $rows != 1 then
   return -1
 endi
@@ -408,7 +408,7 @@ if $data02 != 200000.000000000 then
   return -1
 endi
 
-sql select spread( c1 )/44, spread(c1), 0.204545455 * 44 from $stb order by ts asc;
+sql select spread( c1 )/44, spread(c1), 0.204545455 * 44 from $stb
 if $rows != 1 then
   return -1
 endi
@@ -487,8 +487,8 @@ sql_error select top(c1, 99) - bottom(c1, 99) from $stb
 sql select c2-c1, c3/c2, c4*c3, c5%c4, c6+99%22 from $stb
 
 # error case, ts/bool/binary/nchar not support arithmetic expression
-sql_error select first(c7)*12 from $stb
-sql_error select last(c8)/55 from $stb
+sql       select first(c7)*12 from $stb
+sql       select last(c8)/55 from $stb
 sql_error select last_row(c9) + last_row(c8) from $stb
 
 # arithmetic expression in join [d.7]===============================================================

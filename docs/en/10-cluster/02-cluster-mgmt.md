@@ -39,31 +39,25 @@ USE SOME_DATABASE;
 SHOW VGROUPS;
 ```
 
-The example output is below:
-
-```
-taos> show dnodes;
-   id   |           end_point            | vnodes | cores  |   status   | role  |       create_time       |      offline reason      |
-======================================================================================================================================
-      1 | localhost:6030                 |      9 |      8 | ready      | any   | 2022-04-15 08:27:09.359 |                          |
-Query OK, 1 row(s) in set (0.008298s)
+The output is like below:
 
 taos> use db;
 Database changed.
 
 taos> show vgroups;
-    vgId     |   tables    |  status  |   onlines   | v1_dnode | v1_status | compacting  |
+vgId | tables | status | onlines | v1_dnode | v1_status | compacting |
 ==========================================================================================
-          14 |       38000 | ready    |           1 |        1 | leader    |           0 |
-          15 |       38000 | ready    |           1 |        1 | leader    |           0 |
-          16 |       38000 | ready    |           1 |        1 | leader    |           0 |
-          17 |       38000 | ready    |           1 |        1 | leader    |           0 |
-          18 |       37001 | ready    |           1 |        1 | leader    |           0 |
-          19 |       37000 | ready    |           1 |        1 | leader    |           0 |
-          20 |       37000 | ready    |           1 |        1 | leader    |           0 |
-          21 |       37000 | ready    |           1 |        1 | leader    |           0 |
+14 | 38000 | ready | 1 | 1 | leader | 0 |
+15 | 38000 | ready | 1 | 1 | leader | 0 |
+16 | 38000 | ready | 1 | 1 | leader | 0 |
+17 | 38000 | ready | 1 | 1 | leader | 0 |
+18 | 37001 | ready | 1 | 1 | leader | 0 |
+19 | 37000 | ready | 1 | 1 | leader | 0 |
+20 | 37000 | ready | 1 | 1 | leader | 0 |
+21 | 37000 | ready | 1 | 1 | leader | 0 |
 Query OK, 8 row(s) in set (0.001154s)
-```
+
+````
 
 ## Add DNODE
 
@@ -71,7 +65,7 @@ Launch TDengine CLI `taos` and execute the command below to add the end point of
 
 ```sql
 CREATE DNODE "fqdn:port";
-```
+````
 
 The example output is as below:
 
@@ -140,74 +134,5 @@ In the above example, when `show dnodes` is executed the first time, two dnodes 
 - Please note that `drop dnode` is different from stopping `taosd` process. `drop dnode` just removes the dnode out of TDengine cluster. Only after a dnode is dropped, can the corresponding `taosd` process be stopped.
 - Once a dnode is dropped, other dnodes in the cluster will be notified of the drop and will not accept the request from the dropped dnode.
 - dnodeID is allocated automatically and can't be manually modified. dnodeID is generated in ascending order without duplication.
-
-:::
-
-## Move VNODE
-
-A vnode can be manually moved from one dnode to another.
-
-Launch TDengine CLI `taos` and execute below command:
-
-```sql
-ALTER DNODE <source-dnodeId> BALANCE "VNODE:<vgId>-DNODE:<dest-dnodeId>";
-```
-
-In the above command, `source-dnodeId` is the original dnodeId where the vnode resides, `dest-dnodeId` specifies the target dnode. vgId (vgroup ID) can be shown by `SHOW VGROUPS `.
-
-First `show vgroups` is executed to show the vgroup distribution.
-
-```
-taos> show vgroups;
-    vgId     |   tables    |  status  |   onlines   | v1_dnode | v1_status | compacting  |
-==========================================================================================
-          14 |       38000 | ready    |           1 |        3 | leader    |           0 |
-          15 |       38000 | ready    |           1 |        3 | leader    |           0 |
-          16 |       38000 | ready    |           1 |        3 | leader    |           0 |
-          17 |       38000 | ready    |           1 |        3 | leader    |           0 |
-          18 |       37001 | ready    |           1 |        3 | leader    |           0 |
-          19 |       37000 | ready    |           1 |        1 | leader    |           0 |
-          20 |       37000 | ready    |           1 |        1 | leader    |           0 |
-          21 |       37000 | ready    |           1 |        1 | leader    |           0 |
-Query OK, 8 row(s) in set (0.001314s)
-```
-
-It can be seen that there are 5 vgroups in dnode 3 and 3 vgroups in node 1, now we want to move vgId 18 from dnode 3 to dnode 1. Execute the below command in `taos`
-
-```
-taos> alter dnode 3 balance "vnode:18-dnode:1";
-
-DB error: Balance already enabled (0.00755
-```
-
-However, the operation fails with error message show above, which means automatic load balancing has been enabled in the current database so manual load balance can't be performed.
-
-Shutdown the cluster, configure `balance` parameter in all the dnodes to 0, then restart the cluster, and execute `alter dnode` and `show vgroups` as below.
-
-```
-taos> alter dnode 3 balance "vnode:18-dnode:1";
-Query OK, 0 row(s) in set (0.000575s)
-
-taos> show vgroups;
-    vgId     |   tables    |  status  |   onlines   | v1_dnode | v1_status | v2_dnode | v2_status | compacting  |
-=================================================================================================================
-          14 |       38000 | ready    |           1 |        3 | leader    |        0 | NULL      |           0 |
-          15 |       38000 | ready    |           1 |        3 | leader    |        0 | NULL      |           0 |
-          16 |       38000 | ready    |           1 |        3 | leader    |        0 | NULL      |           0 |
-          17 |       38000 | ready    |           1 |        3 | leader    |        0 | NULL      |           0 |
-          18 |       37001 | ready    |           2 |        1 | follower     |        3 | leader    |           0 |
-          19 |       37000 | ready    |           1 |        1 | leader    |        0 | NULL      |           0 |
-          20 |       37000 | ready    |           1 |        1 | leader    |        0 | NULL      |           0 |
-          21 |       37000 | ready    |           1 |        1 | leader    |        0 | NULL      |           0 |
-Query OK, 8 row(s) in set (0.001242s)
-```
-
-It can be seen from above output that vgId 18 has been moved from dnode 3 to dnode 1.
-
-:::note
-
-- Manual load balancing can only be performed when the automatic load balancing is disabled, i.e. `balance` is set to 0.
-- Only a vnode in normal state, i.e. leader or follower, can be moved. vnode can't be moved when its in status offline, unsynced or syncing.
-- Before moving a vnode, it's necessary to make sure the target dnode has enough resources: CPU, memory and disk.
 
 :::

@@ -382,6 +382,15 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   if (msgInfo->rpcType == UDFD_RPC_MNODE_CONNECT) {
     SConnectRsp connectRsp = {0};
     tDeserializeSConnectRsp(pMsg->pCont, pMsg->contLen, &connectRsp);
+    
+    int32_t now = taosGetTimestampSec();
+    int32_t delta = abs(now - connectRsp.svrTimestamp);
+    if (delta > 900) {
+      msgInfo->code = TSDB_CODE_TIME_UNSYNCED;
+      goto _return;
+    }
+    
+     
     if (connectRsp.epSet.numOfEps == 0) {
       msgInfo->code = TSDB_CODE_MND_APP_ERROR;
       goto _return;

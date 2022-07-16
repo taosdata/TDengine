@@ -223,6 +223,7 @@ void syncNodeVoteForSelf(SSyncNode* pSyncNode);
 
 // snapshot --------------
 bool syncNodeHasSnapshot(SSyncNode* pSyncNode);
+void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode);
 
 SyncIndex syncNodeGetLastIndex(SSyncNode* pSyncNode);
 SyncTerm  syncNodeGetLastTerm(SSyncNode* pSyncNode);
@@ -253,6 +254,7 @@ bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pNewCfg);
 
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode);
 int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader);
+int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry);
 
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj);

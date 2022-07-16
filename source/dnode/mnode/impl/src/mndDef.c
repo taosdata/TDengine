@@ -27,6 +27,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
 
   if (tEncodeI64(pEncoder, pObj->uid) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->status) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->isDistributed) < 0) return -1;
 
   if (tEncodeI8(pEncoder, pObj->igExpired) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->trigger) < 0) return -1;
@@ -72,6 +73,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
 
   if (tDecodeI64(pDecoder, &pObj->uid) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->status) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->isDistributed) < 0) return -1;
 
   if (tDecodeI8(pDecoder, &pObj->igExpired) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->trigger) < 0) return -1;

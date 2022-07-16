@@ -34,6 +34,7 @@ int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo)
   if (tEncodeI32(pEncoder, pInfo->taskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pInfo->nodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pInfo->childId) < 0) return -1;
+  if (tEncodeI64(pEncoder, pInfo->processedVer) < 0) return -1;
   if (tEncodeSEpSet(pEncoder, &pInfo->epSet) < 0) return -1;
   return 0;
 }
@@ -42,6 +43,7 @@ int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo) {
   if (tDecodeI32(pDecoder, &pInfo->taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pInfo->nodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pInfo->childId) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pInfo->processedVer) < 0) return -1;
   if (tDecodeSEpSet(pDecoder, &pInfo->epSet) < 0) return -1;
   return 0;
 }

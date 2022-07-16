@@ -477,6 +477,13 @@ static int32_t syncNodeDoMakeLogSame(SSyncNode* ths, SyncIndex FromIndex) {
 static int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   SRpcMsg rpcMsg;
   syncEntry2OriginalRpc(pEntry, &rpcMsg);
+
+  // leader transfer
+  if (pEntry->originalRpcType == TDMT_SYNC_LEADER_TRANSFER) {
+    int32_t code = syncDoLeaderTransfer(ths, &rpcMsg, pEntry);
+    ASSERT(code == 0);
+  }
+
   if (ths->pFsm != NULL) {
     if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
       SFsmCbMeta cbMeta = {0};
@@ -704,6 +711,9 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
         syncNodeEventLog(ths, logBuf);
       } while (0);
 
+      // maybe update commit index by snapshot
+      syncNodeMaybeUpdateCommitBySnapshot(ths);
+
       // prepare response msg
       SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
       pReply->srcId = ths->myRaftId;
@@ -711,7 +721,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
       pReply->term = ths->pRaftStore->currentTerm;
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
       pReply->success = false;
-      pReply->matchIndex = SYNC_INDEX_INVALID;
+      pReply->matchIndex = ths->commitIndex;
 
       // msg event log
       do {
