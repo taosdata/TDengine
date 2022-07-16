@@ -323,8 +323,9 @@ int      cntDel    = 0;   // delete byte count after next press tab
 void printfIntroduction() {
   printf("   ****************************  SUPPORT TAB KEY ************************************\n"); 
   printf("   *   Taos shell support press TAB key to complete word. You can try it.           *\n"); 
-  printf("   *   Anywhere press SPACE key following TAB key, You'll get surprise.             *\n");
-  printf("   *   SUPPORT SHORTCUT:                                                            *\n");
+  printf("   *   Press TAB key anywhere, You'll get surprise.                                 *\n");
+  printf("   *   SUPPORT KEYBOARD SHORTCUT:                                                   *\n");
+  printf("   *    [ TAB ]        ......  if prefix nothing show help else complete word       *\n");
   printf("   *    [ Ctrl + A ]   ......  move cursor to line [A]head                          *\n");
   printf("   *    [ Ctrl + M ]   ......  move cursor to line [M]iddle                         *\n");
   printf("   *    [ Ctrl + E ]   ......  move cursor to line [E]nd                            *\n");
