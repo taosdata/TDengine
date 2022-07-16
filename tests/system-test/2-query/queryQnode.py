@@ -392,6 +392,31 @@ class TDTestCase:
         tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
         assert unionallQnode==tdSql.queryResult
 
+        queryPolicy=1
+
+        tdSql.execute('alter local  "queryPolicy" "%d"'%queryPolicy)
+        tdSql.query("show local variables;")
+        for i in range(tdSql.queryRows):
+            if tdSql.queryResult[i][0] == "queryPolicy" :
+                if int(tdSql.queryResult[i][1]) == int(queryPolicy):
+                    tdLog.success('alter queryPolicy to %d successfully'%queryPolicy)
+                else :
+                    tdLog.debug(tdSql.queryResult)
+                    tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy)
+        tdSql.execute("reset query cache")
+
+        tdSql.execute("use db1;")
+        tdSql.query("show dnodes;")
+        dnodeId=tdSql.getData(0,0)
+        tdSql.query("select max(c1) from stb10;")
+        assert maxQnode==tdSql.getData(0,0)
+        tdSql.query("select min(c1) from stb11;")
+        assert minQnode==tdSql.getData(0,0)
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        assert unionQnode==tdSql.queryResult
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        assert unionallQnode==tdSql.queryResult
+
     # test case : queryPolicy = 2
     def test_case2(self):
         self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 10, 2, 1*10)

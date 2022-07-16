@@ -1,13 +1,10 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/deploy.sh -n dnode2 -i 2
+system sh/cfg.sh -n dnode1 -c debugflag -v 131
 system sh/exec.sh -n dnode1 -s start -v
-system sh/exec.sh -n dnode2 -s start -v
 sql connect
 
-print =============== add dnode2 into cluster
-sql create dnode $hostname port 7200
-
+print =============== step1: create drop show dnodes
 $x = 0
 step1:
 	$x = $x + 1
@@ -18,135 +15,59 @@ step1:
 	endi
 sql show dnodes
 print ---> $data00 $data01 $data02 $data03 $data04 $data05
-print ---> $data10 $data11 $data12 $data13 $data14 $data15
-if $rows != 2 then
+if $rows != 1 then
   return -1
 endi
 if $data(1)[4] != ready then
   goto step1
 endi
-if $data(2)[4] != ready then
-  goto step1
-endi
 
-print =============== create database, stable, table
-sql create database db vgroups 3
-sql use db
-sql create table stb (ts timestamp, c int) tags (t int)
-sql create table t0 using stb tags (0)
-sql create table tba (ts timestamp, c1 binary(10), c2 nchar(10));
-
-print =============== run show xxxx
-sql show dnodes
-if $rows != 2 then 
-  return -1
-endi
-
-sql show mnodes
-if $rows != 1 then 
-  return -1
-endi
-
+print =============== step2: create db
+sql create database d1 vgroups 2 buffer 3
 sql show databases
-if $rows != 3 then
-  return -1
-endi
+sql use d1
+sql show vgroups
 
+print =============== step3: create show stable
+sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
 sql show stables
 if $rows != 1 then 
   return -1
 endi
 
+print =============== step4: create show table
+sql create table ct1 using stb tags(1000)
+sql create table ct2 using stb tags(2000)
+sql create table ct3 using stb tags(3000)
 sql show tables
-if $rows != 2 then 
-  return -1
-endi
-
-sql show users
-if $rows != 1 then 
-  return -1
-endi
-
-sql show vgroups
 if $rows != 3 then 
   return -1
 endi
 
-print =============== run select * from information_schema.xxxx
-sql select * from information_schema.`dnodes`
-if $rows != 2 then 
-  return -1
-endi
+print =============== step5: insert data
+sql insert into ct1 values(now+0d, 10, 2.0, 3.0)
+sql insert into ct1 values(now+1d, 11, 2.1, 3.1)(now+2d, -12, -2.2, -3.2)(now+3d, -13, -2.3, -3.3)
+sql insert into ct2 values(now+0d, 10, 2.0, 3.0)
+sql insert into ct2 values(now+1d, 11, 2.1, 3.1)(now+2d, -12, -2.2, -3.2)(now+3d, -13, -2.3, -3.3)
+sql insert into ct3 values('2022-01-01 00:00:00.000', 10, 2.0, 3.0)
 
-sql select * from information_schema.`mnodes`
-if $rows != 1 then 
-  return -1
-endi
+print =============== step6: query data
+sql select * from ct1 where ts < now -1d and ts > now +1d 
+sql select * from stb where ts < now -1d and ts > now +1d 
+sql select * from ct1 where ts < now -1d and ts > now +1d order by ts desc 
+sql select * from stb where ts < now -1d and ts > now +1d order by ts desc 
 
-sql select * from information_schema.user_databases
-if $rows != 3 then
-  return -1
-endi
-
-sql select * from information_schema.user_stables
-if $rows != 1 then 
-  return -1
-endi
-
-sql select * from information_schema.user_tables
-if $rows != 31 then
-  return -1
-endi
-
-sql select * from information_schema.user_users
-if $rows != 1 then 
-  return -1
-endi
-
-sql select * from information_schema.`vgroups`
-if $rows != 3 then 
-  return -1
-endi
-
-sql show variables;
-if $rows != 4 then
-  return -1
-endi
-
-sql show dnode 1 variables;
-if $rows <= 0 then
-  return -1
-endi
-
-sql show local variables;
-if $rows <= 0 then
-  return -1
-endi
-
-print ==== stop dnode1 and dnode2, and restart dnodes
+_OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
+print =============== check
+$null=
 
-print =============== check dnode1
 system_content sh/checkValgrind.sh -n dnode1 
 print cmd return result ----> [ $system_content ]
-if $system_content <= 0 then
-  return 0
+if $system_content > 1 then
+  return -1
 endi 
 
-$null=
 if $system_content == $null then
-  return 0
-endi 
-
-print =============== check dnode2
-system_content sh/checkValgrind.sh -n dnode2 
-print cmd return result ----> [ $system_content ]
-if $system_content <= 0 then
-  return 0
-endi 
-
-$null=
-if $system_content == $null then
-  return 0
+  return -1
 endi 
