@@ -145,8 +145,7 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
         input_sql = self.tdCom.gen_full_type_sql(ts="now")[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        # ! TD-17393
-        # self.tdSql.checkIn("Invalid combination of client/service time", res.text)
+        self.tdSql.checkIn("Invalid timestamp format", res.text)
 
     def date_format_check(self):
         """
@@ -156,8 +155,7 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
         input_sql = self.tdCom.gen_full_type_sql(ts="2021-07-21\ 19:01:46.920")[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        # ! TD-17393
-        # self.tdSql.checkIn("Invalid combination of client/service time", res.text)
+        self.tdSql.checkIn("Invalid timestamp format", res.text)
 
     def illegal_ts_check(self):
         """
@@ -167,8 +165,7 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
         input_sql = self.tdCom.gen_full_type_sql(ts="16260068336390us19")[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        # ! TD-17393
-        # self.tdSql.checkIn("Invalid combination of client/service time", res.text)
+        self.tdSql.checkIn("Invalid timestamp format", res.text)
 
     def tbname_check(self):
         """
@@ -211,12 +208,12 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
         stb_name = self.tdCom.get_long_name()
         input_sql = f'{stb_name} 1626006833640 t t0=t t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}'
         res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
-        # ! TD-17284
-        # self.tdSql.checkEqual(res.status_code, 204)
-        input_sql = f'{stb_name} 1626006833640 t t0=t t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)}'
-        res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
-        self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("Invalid binary/nchar column length", res.text)
+        self.tdSql.checkEqual(res.status_code, 200)
+        # # ! TD-17459
+        # input_sql = f'{stb_name} 1626006833640 t t0=t t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)}'
+        # res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
+        # self.tdSql.checkEqual(res.status_code, 500)
+        # self.tdSql.checkIn("Invalid binary/nchar column length", res.text)
 
     def col_value_length_check(self):
         """
@@ -232,8 +229,7 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
             input_sql = self.tdCom.gen_full_type_sql(value=value)[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            # ! TD-17258
-            # self.tdSql.checkIn("Invalid value in client", res.text)
+            self.tdSql.checkIn("Invalid value in client", res.text)
         # i16
         for value in [f'-{self.tdCom.boundary_config["SMALLINT_MAX"]}i16']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(value=value)
@@ -242,8 +238,7 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
             input_sql = self.tdCom.gen_full_type_sql(value=value)[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            # ! TD-17258
-            # self.tdSql.checkIn("Invalid value in client", res.text)
+            self.tdSql.checkIn("Invalid value in client", res.text)
 
         # i32
         for value in [f'-{self.tdCom.boundary_config["INT_MAX"]}i32']:
@@ -253,8 +248,7 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
             input_sql = self.tdCom.gen_full_type_sql(value=value)[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            # ! TD-17258
-            # self.tdSql.checkIn("Invalid value in client", res.text)
+            self.tdSql.checkIn("Invalid value in client", res.text)
 
         # i64
         for value in [f'-{self.tdCom.boundary_config["BIGINT_MAX"]}i64']:
@@ -264,8 +258,7 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
             input_sql = self.tdCom.gen_full_type_sql(value=value)[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            # ! TD-17258
-            # self.tdSql.checkIn("Invalid value in client", res.text)
+            self.tdSql.checkIn("Invalid value in client", res.text)
 
         # f64
         for value in [f'{-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)}f64', f'{-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)}f64']:
@@ -281,24 +274,12 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
 
         # # binary
         stb_name = self.tdCom.get_long_name()
-        input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}" 1626006833639000000'
+        input_sql = f'{stb_name} 1626006833640 "{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}" t0=t'
         self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
-        input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1)}" 1626006833639000000'
+        input_sql = f'{stb_name} 1626006833640 "{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1)}" t0=t'
         res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-            # ! TD-17258
-        # self.tdSql.checkIn("Invalid operation", res.text)
-
-        # nchar
-        # * legal nchar could not be larger than 16374/4
-        stb_name = self.tdCom.get_long_name()
-        input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}" 1626006833639000000'
-        self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
-        input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)}" 1626006833639000000'
-        res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
-        self.tdSql.checkEqual(res.status_code, 500)
-            # ! TD-17258
-        # self.tdSql.checkIn("Invalid operation", res.text)
+        self.tdSql.checkIn("Invalid binary/nchar column length", res.text)
 
     def tag_col_illegal_value_check(self):
 
@@ -344,15 +325,13 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
         input_sql_id = self.tdCom.gen_full_type_sql(id_double_tag=True)[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql_id, url_type="telnet", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        # ! TD-17398
-        # self.tdSql.checkIn("duplicated tag names", res.text)
+        self.tdSql.checkIn("duplicated names", res.text)
 
         input_sql = self.tdCom.gen_full_type_sql()[0]
         input_sql_tag = input_sql.replace("t5", "t6")
         res = self.tdRest.schemalessApiPost(sql=input_sql_tag, url_type="telnet", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        # ! TD-17398
-        # self.tdSql.checkIn("duplicated tag names", res.text)
+        self.tdSql.checkIn("duplicated names", res.text)
 
     ##### stb exist #####
     def duplicate_insert_exist_check(self):
@@ -490,8 +469,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
                 {stb_name},t2=5f64,t3=L\"ste\" c1=tRue,c2=4i64,c3=\"iam\" 1626056811823316532ns'
         res = self.tdRest.schemalessApiPost(sql=lines, url_type="telnet", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        #! TD-17399
-        # self.tdSql.checkIn("Invalid combination of client/service time", res.text)
+        self.tdSql.checkIn("Invalid timestamp format", res.text)
 
     def multi_cols_insert_check(self):
         """
@@ -532,6 +510,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
 
     def run(self):
+        self.col_value_length_check()
         self.init_check()
         self.bool_check()
         self.symbols_check()

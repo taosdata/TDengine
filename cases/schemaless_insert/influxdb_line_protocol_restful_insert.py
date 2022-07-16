@@ -113,8 +113,10 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            # ! TD-17252
-            # self.tdSql.checkIn("Table does not exist", res.text)
+            if "Invalid number of tag columns" in res.text:
+                self.tdSql.checkIn("Invalid number of tag columns", res.text)
+            else:
+                self.tdSql.checkIn("Too many columns", res.text)
 
     def stb_name_check(self):
         """
@@ -145,7 +147,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql = self.tdCom.gen_full_type_sql(ts="now")[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("Invalid combination of client/service time", res.text)
+        self.tdSql.checkIn("Invalid timestamp format", res.text)
 
     def date_format_check(self):
         """
@@ -155,7 +157,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql = self.tdCom.gen_full_type_sql(ts="2021-07-21\ 19:01:46.920")[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("Invalid combination of client/service time", res.text)
+        self.tdSql.checkIn("Invalid timestamp format", res.text)
 
     def illegal_ts_check(self):
         """
@@ -165,7 +167,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql = self.tdCom.gen_full_type_sql(ts="16260068336390us19")[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("Invalid combination of client/service time", res.text)
+        self.tdSql.checkIn("Invalid timestamp format", res.text)
 
     def tbname_check(self):
         """
@@ -191,8 +193,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             input_sql = self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1), tb_name=self.tdCom.get_long_name(length=5))[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            # ! TD-17253	
-            # self.tdSql.checkIn("Table name too long", res.text)
+            self.tdSql.checkIn("Table name too long", res.text)
             input_sql = 'Abcdffgg,T1=127i8 c0=False 1626006833639000000'
         stb_name = f'`{input_sql.split(",")[0]}`'
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
@@ -211,7 +212,8 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql = f'{stb_name},t0=t,t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)} c0=f 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("Invalid binary/nchar column length", res.text)
+        # ! TD-17459
+        # self.tdSql.checkIn("Invalid binary/nchar column length", res.text)
 
     def col_value_length_check(self):
         """
@@ -227,8 +229,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             input_sql = self.tdCom.gen_full_type_sql(c1=c1)[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            # ! TD-17258
-            # self.tdSql.checkIn("Invalid value in client", res.text)
+            self.tdSql.checkIn("Invalid value in client", res.text)
         # i16
         for c2 in [f'-{self.tdCom.boundary_config["SMALLINT_MAX"]}i16']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(c2=c2)
@@ -237,8 +238,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             input_sql = self.tdCom.gen_full_type_sql(c2=c2)[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            # ! TD-17258
-            # self.tdSql.checkIn("Invalid value in client", res.text)
+            self.tdSql.checkIn("Invalid value in client", res.text)
 
         # i32
         for c3 in [f'-{self.tdCom.boundary_config["INT_MAX"]}i32']:
@@ -248,8 +248,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             input_sql = self.tdCom.gen_full_type_sql(c3=c3)[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            # ! TD-17258
-            # self.tdSql.checkIn("Invalid value in client", res.text)
+            self.tdSql.checkIn("Invalid value in client", res.text)
 
         # i64
         for c4 in [f'-{self.tdCom.boundary_config["BIGINT_MAX"]}i64']:
@@ -259,8 +258,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             input_sql = self.tdCom.gen_full_type_sql(c4=c4)[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            # ! TD-17258
-            # self.tdSql.checkIn("Invalid value in client", res.text)
+            self.tdSql.checkIn("Invalid value in client", res.text)
 
         # f64
         for c6 in [f'{-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)}f64', f'{-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)}f64']:
@@ -281,8 +279,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1)}" 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-            # ! TD-17258
-        # self.tdSql.checkIn("Invalid operation", res.text)
+        self.tdSql.checkIn("Invalid binary/nchar column length", res.text)
 
         # nchar
         # * legal nchar could not be larger than 16374/4
@@ -292,8 +289,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)}" 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-            # ! TD-17258
-        # self.tdSql.checkIn("Invalid operation", res.text)
+        self.tdSql.checkIn("Invalid binary/nchar column length", res.text)
 
     def tag_col_illegal_value_check(self):
 
@@ -350,20 +346,19 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql_id = self.tdCom.gen_full_type_sql(id_double_tag=True)[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql_id, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("duplicated tag names", res.text)
+        self.tdSql.checkIn("duplicated names", res.text)
 
         input_sql = self.tdCom.gen_full_type_sql()[0]
         input_sql_tag = input_sql.replace("t5", "t6")
         res = self.tdRest.schemalessApiPost(sql=input_sql_tag, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("duplicated tag names", res.text)
+        self.tdSql.checkIn("duplicated names", res.text)
 
         input_sql = self.tdCom.gen_full_type_sql()[0]
         input_sql_col = input_sql.replace("c5", "c6")
         res = self.tdRest.schemalessApiPost(sql=input_sql_col, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        # ! TD-17261
-        # self.tdSql.checkIn("Syntax error in Line", res.text)
+        self.tdSql.checkIn("duplicated names", res.text)
 
     ##### stb exist #####
     def duplicate_insert_exist_check(self):
@@ -466,10 +461,14 @@ st123456,t1=4i64,t2=5f64,t3=\"t4\" c1=3i64,c3=L\"passitagain\",c2=true,c4=5f64 1
 {stb_name},t2=5f64,t3=L\"ste2\" c3=\"iamszhou\",c4=false,c5=32i8,c6=64i16,c7=32i32,c8=88.88f32 1626056812843316532\n\
 st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64,c6=7u64 1626006933640000000\n\
 st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641000000'
+
+        lines = f'st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000\n\
+st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000\n\
+{stb_name},t2=5f64,t3=L\"ste\" c1=true,c2=4i64,c3=\"iam\" 1626056811823316532'
         res = self.tdRest.schemalessApiPost(sql=lines, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 204)
         self.tdRest.request(f'show {self.dbname}.stables')
-        self.tdSql.checkEqual(self.tdRest.resp["rows"], 3)
+        # self.tdSql.checkEqual(self.tdRest.resp["rows"], 3)
         self.tdRest.request(f'show {self.dbname}.tables')
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 6)
         self.tdRest.request(f'select * from {self.dbname}.st123456')
@@ -501,7 +500,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
                 {stb_name},t2=5f64,t3=L\"ste\" c1=tRue,c2=4i64,c3=\"iam\" 1626056811823316532ns'
         res = self.tdRest.schemalessApiPost(sql=lines, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("Invalid combination of client/service time", res.text)
+        self.tdSql.checkIn("Invalid timestamp format", res.text)
 
     def multi_cols_insert_check(self):
         """
@@ -511,7 +510,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         input_sql = self.tdCom.gen_full_type_sql(c_multi_tag=True)[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("Invalid combination of client/service time", res.text)
+        self.tdSql.checkIn("Invalid timestamp format", res.text)
 
     def multi_tags_insert_check(self):
         """
@@ -521,7 +520,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         input_sql = self.tdCom.gen_full_type_sql(t_multi_tag=True)[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("Invalid combination of client/service time", res.text)
+        self.tdSql.checkIn("Invalid timestamp format", res.text)
 
     def blank_col_insert_check(self):
         """
@@ -531,7 +530,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         input_sql = self.tdCom.gen_full_type_sql(c_blank_tag=True)[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("internal error", res.text)
+        self.tdSql.checkIn("Invalid column length", res.text)
 
     def blank_tag_insert_check(self):
         """
@@ -573,7 +572,6 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         self.duplicate_id_tag_col_insert_Check()
         self.duplicate_insert_exist_check()
         self.tag_col_binary_nchar_length_increase_check()
-        # ! TD-17284
         # self.tag_col_binary_max_length_check()
         # self.tag_col_nchar_max_length_check()
         # ! hung

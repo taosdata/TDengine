@@ -1011,8 +1011,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         return
 
     def run(self):
-        self.test()
-        return
+        # self.test()
+        # return
         
         if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
             if self.taospy_setting["spec"]["config"]["smlChildTableName"].upper() == "ID":
