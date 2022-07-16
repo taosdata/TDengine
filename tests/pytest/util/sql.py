@@ -13,6 +13,7 @@
 
 import sys
 import os
+from tabnanny import check
 import time
 import datetime
 import inspect
@@ -301,13 +302,32 @@ class TDSql:
             args = (caller.filename, caller.lineno, self.sql, col_name_list, expect_col_name_list)
             tdLog.exit("%s(%d) failed: sql:%s, col_name_list:%s != expect_col_name_list:%s" % args)
 
+    def __check_equal(self, elm, expect_elm):
+        if not type(elm) in(list, tuple) and elm == expect_elm:
+            return True
+        if type(elm) in(list, tuple) and type(expect_elm) in(list, tuple):
+            if len(elm) != len(expect_elm):
+                return False
+            if len(elm) == 0:
+                return True
+            for i in range(len(elm)):
+                flag = self.__check_equal(elm[i], expect_elm[i])
+                if not flag:
+                    return False
+            return True
+        return False
+
     def checkEqual(self, elm, expect_elm):
         if elm == expect_elm:
             tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
-        else:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
-            tdLog.exit("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
+            return
+        if self.__check_equal(elm, expect_elm):
+            tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
+            return
+
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
+        args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
+        tdLog.exit("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
 
     def checkNotEqual(self, elm, expect_elm):
         if elm != expect_elm:

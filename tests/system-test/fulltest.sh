@@ -37,10 +37,21 @@ python3 ./test.py -f 2-query/apercentile.py
 python3 ./test.py -f 2-query/apercentile.py -R
 python3 ./test.py -f 2-query/arccos.py
 python3 ./test.py -f 2-query/arccos.py -R
-
-
-
+python3 ./test.py -f 2-query/arcsin.py
+python3 ./test.py -f 2-query/arcsin.py -R
+python3 ./test.py -f 2-query/arctan.py
+python3 ./test.py -f 2-query/arctan.py -R
+python3 ./test.py -f 2-query/avg.py
+python3 ./test.py -f 2-query/avg.py -R
 python3 ./test.py -f 2-query/between.py
+python3 ./test.py -f 2-query/between.py -R
+python3 ./test.py -f 2-query/bottom.py
+python3 ./test.py -f 2-query/bottom.py -R
+python3 ./test.py -f 2-query/cast.py
+python3 ./test.py -f 2-query/cast.py -R
+
+
+
 python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
 python3 ./test.py -f 2-query/ltrim.py
@@ -51,7 +62,6 @@ python3 ./test.py -f 2-query/upper.py
 python3 ./test.py -f 2-query/lower.py
 python3 ./test.py -f 2-query/join.py
 python3 ./test.py -f 2-query/join2.py
-python3 ./test.py -f 2-query/cast.py
 python3 ./test.py -f 2-query/substr.py
 python3 ./test.py -f 2-query/union.py
 python3 ./test.py -f 2-query/union1.py
@@ -83,7 +93,6 @@ python3 ./test.py -f 2-query/Timediff.py
 python3 ./test.py -f 2-query/json_tag.py
 
 python3 ./test.py -f 2-query/top.py
-python3 ./test.py -f 2-query/bottom.py
 python3 ./test.py -f 2-query/percentile.py
 python3 ./test.py -f 2-query/ceil.py
 python3 ./test.py -f 2-query/floor.py
@@ -94,15 +103,12 @@ python3 ./test.py -f 2-query/sqrt.py
 python3 ./test.py -f 2-query/sin.py
 python3 ./test.py -f 2-query/cos.py
 python3 ./test.py -f 2-query/tan.py
-python3 ./test.py -f 2-query/arcsin.py
-python3 ./test.py -f 2-query/arctan.py
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py
 # python3 ./test.py -f 2-query/nestedQuery.py
 # TD-15983 subquery output duplicate name column.
 # Please Xiangyang Guo modify the following script
 # python3 ./test.py -f 2-query/nestedQuery_str.py
 
-python3 ./test.py -f 2-query/avg.py
 python3 ./test.py -f 2-query/elapsed.py
 python3 ./test.py -f 2-query/csum.py
 python3 ./test.py -f 2-query/mavg.py

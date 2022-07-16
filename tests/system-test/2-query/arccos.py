@@ -15,7 +15,6 @@ class TDTestCase:
     def init(self, conn, powSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
-        self.PI =3.1415926
 
     def prepare_datas(self, dbname="db"):
         tdSql.execute(
