@@ -167,15 +167,12 @@ class TDTestCase:
         for col_name,col_type in self.column_dict.items():
             tdSql.execute(f'create table {self.ntbname} (ts timestamp,{col_name} {col_type})')
             self.insert_base_data(col_name,self.ntbname)
-            
-                
             if col_type.lower() == 'double':
-                for error_value in [tdCom.getLongName(self.str_length),True,False,random.uniform(constant.DOUBLE_MIN*1.01,constant.DOUBLE_MAX*1.01)]:
+                for error_value in [tdCom.getLongName(self.str_length),True,False,1.1*constant.DOUBLE_MIN,1.1*constant.DOUBLE_MAX]:
                     tdSql.error(f'insert into {self.ntbname} values({self.ts},{error_value})')
-            #!bug TD-17453
-            # elif col_type.lower() == 'float':
-            #     for error_value in [tdCom.getLongName(self.str_length),True,False,random.uniform(constant.FLOAT_MIN*1.01,constant.FLOAT_MAX*1.01)]:
-            #         tdSql.error(f'insert into {self.ntbname} values({self.ts},{error_value})')
+            elif col_type.lower() == 'float':
+                for error_value in [tdCom.getLongName(self.str_length),True,False,10*constant.FLOAT_MIN,1.1*constant.FLOAT_MAX]:
+                    tdSql.error(f'insert into {self.ntbname} values({self.ts},{error_value})')
             elif 'binary' in col_type.lower() or 'nchar' in col_type.lower():
                 for error_value in [tdCom.getLongName(str_length)]:
                     tdSql.error(f'insert into {self.ntbname} values({self.ts},"{error_value}")')
