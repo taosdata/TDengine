@@ -1047,6 +1047,10 @@ static int32_t smlParseTelnetTags(const char *data, SArray *cols, char *childTab
       continue;
     }
 
+    if(valueLen > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE){
+      return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+    }
+
     // add kv to SSmlKv
     SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
     if (!kv) return TSDB_CODE_OUT_OF_MEMORY;
