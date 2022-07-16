@@ -36,7 +36,7 @@ static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pStream, SStreamObj *pNewStream);
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq);
-/*static int32_t mndProcessDropStreamInRsp(SRpcMsg *pRsp);*/
+static int32_t mndProcessRecoverStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessStreamMetaReq(SRpcMsg *pReq);
 static int32_t mndGetStreamMeta(SRpcMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -55,6 +55,7 @@ int32_t mndInitStream(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_RECOVER_STREAM, mndProcessRecoverStreamReq);
 
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DEPLOY_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DROP_RSP, mndTransProcessRsp);
@@ -176,7 +177,7 @@ static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStream
 
   taosWLockLatch(&pOldStream->lock);
 
-  // TODO handle update
+  pOldStream->status = pNewStream->status;
 
   taosWUnLockLatch(&pOldStream->lock);
   return 0;
@@ -394,6 +395,20 @@ int32_t mndPersistDropStreamLog(SMnode *pMnode, STrans *pTrans, SStreamObj *pStr
   return 0;
 }
 
+static int32_t mndSetStreamRecover(SMnode *pMnode, STrans *pTrans, const SStreamObj *pStream) {
+  SStreamObj streamObj = {0};
+  memcpy(streamObj.name, pStream->name, TSDB_STREAM_FNAME_LEN);
+  streamObj.status = STREAM_STATUS__RECOVER;
+  SSdbRaw *pCommitRaw = mndStreamActionEncode(&streamObj);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("stream trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  return 0;
+}
+
 static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStreamObj *pStream, const char *user) {
   SStbObj *pStb = NULL;
   SDbObj  *pDb = NULL;
@@ -488,6 +503,76 @@ static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
   }
   /*}*/
 
+  return 0;
+}
+
+static int32_t mndPersistTaskRecoverReq(STrans *pTrans, SStreamTask *pTask) {
+  SMStreamTaskRecoverReq *pReq = taosMemoryCalloc(1, sizeof(SMStreamTaskRecoverReq));
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  pReq->streamId = pTask->streamId;
+  pReq->taskId = pTask->taskId;
+  int32_t len;
+  int32_t code;
+  tEncodeSize(tEncodeSMStreamTaskRecoverReq, pReq, len, code);
+  if (code != 0) {
+    return -1;
+  }
+  void *buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
+  if (buf == NULL) {
+    return -1;
+  }
+  void    *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  SEncoder encoder;
+  tEncoderInit(&encoder, abuf, len);
+  tEncodeSMStreamTaskRecoverReq(&encoder, pReq);
+  ((SMsgHead *)buf)->vgId = pTask->nodeId;
+
+  STransAction action = {0};
+  memcpy(&action.epSet, &pTask->epSet, sizeof(SEpSet));
+  action.pCont = buf;
+  action.contLen = sizeof(SMsgHead) + len;
+  action.msgType = TDMT_STREAM_TASK_RECOVER;
+  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFree(buf);
+    return -1;
+  }
+  return 0;
+}
+
+int32_t mndRecoverStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
+  if (pStream->isDistributed) {
+    int32_t lv = taosArrayGetSize(pStream->tasks);
+    for (int32_t i = 0; i < lv; i++) {
+      SArray      *pTasks = taosArrayGetP(pStream->tasks, i);
+      int32_t      sz = taosArrayGetSize(pTasks);
+      SStreamTask *pTask = taosArrayGetP(pTasks, 0);
+      if (!pTask->isDataScan && pTask->execType != TASK_EXEC__NONE) {
+        ASSERT(sz == 1);
+        if (mndPersistTaskRecoverReq(pTrans, pTask) < 0) {
+          return -1;
+        }
+      } else {
+        continue;
+      }
+    }
+  } else {
+    int32_t lv = taosArrayGetSize(pStream->tasks);
+    for (int32_t i = 0; i < lv; i++) {
+      SArray *pTasks = taosArrayGetP(pStream->tasks, i);
+      int32_t sz = taosArrayGetSize(pTasks);
+      for (int32_t j = 0; j < sz; j++) {
+        SStreamTask *pTask = taosArrayGetP(pTasks, j);
+        if (!pTask->isDataScan) break;
+        ASSERT(pTask->execType != TASK_EXEC__NONE);
+        if (mndPersistTaskRecoverReq(pTrans, pTask) < 0) {
+          return -1;
+        }
+      }
+    }
+  }
   return 0;
 }
 
@@ -662,6 +747,69 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, terrstr());
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  sdbRelease(pMnode->pSdb, pStream);
+
+  return TSDB_CODE_ACTION_IN_PROGRESS;
+}
+
+static int32_t mndProcessRecoverStreamReq(SRpcMsg *pReq) {
+  SMnode     *pMnode = pReq->info.node;
+  SStreamObj *pStream = NULL;
+  /*SDbObj     *pDb = NULL;*/
+  /*SUserObj   *pUser = NULL;*/
+
+  SMRecoverStreamReq recoverReq = {0};
+  if (tDeserializeSMRecoverStreamReq(pReq->pCont, pReq->contLen, &recoverReq) < 0) {
+    ASSERT(0);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  pStream = mndAcquireStream(pMnode, recoverReq.name);
+
+  if (pStream == NULL) {
+    if (recoverReq.igNotExists) {
+      mDebug("stream:%s, not exist, ignore not exist is set", recoverReq.name);
+      sdbRelease(pMnode->pSdb, pStream);
+      return 0;
+    } else {
+      terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
+      return -1;
+    }
+  }
+
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb) != 0) {
+    return -1;
+  }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq);
+  if (pTrans == NULL) {
+    mError("stream:%s, failed to recover since %s", recoverReq.name, terrstr());
+    sdbRelease(pMnode->pSdb, pStream);
+    return -1;
+  }
+  mDebug("trans:%d, used to drop stream:%s", pTrans->id, recoverReq.name);
+
+  // broadcast to recover all tasks
+  if (mndRecoverStreamTasks(pMnode, pTrans, pStream) < 0) {
+    mError("stream:%s, failed to recover task since %s", recoverReq.name, terrstr());
+    sdbRelease(pMnode->pSdb, pStream);
+    return -1;
+  }
+
+  // update stream status
+  if (mndSetStreamRecover(pMnode, pTrans, pStream) < 0) {
+    sdbRelease(pMnode->pSdb, pStream);
+    return -1;
+  }
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare recover stream trans since %s", pTrans->id, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return -1;

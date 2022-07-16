@@ -198,8 +198,7 @@ static bool stbSplHasGatherExecFunc(const SNodeList* pFuncs) {
 }
 
 static bool stbSplIsMultiTbScan(bool streamQuery, SScanLogicNode* pScan) {
-  return (NULL != pScan->pVgroupList && pScan->pVgroupList->numOfVgroups > 1) ||
-         (streamQuery && TSDB_SUPER_TABLE == pScan->tableType);
+  return (NULL != pScan->pVgroupList && pScan->pVgroupList->numOfVgroups > 1);
 }
 
 static bool stbSplHasMultiTbScan(bool streamQuery, SLogicNode* pNode) {

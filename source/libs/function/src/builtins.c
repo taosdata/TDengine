@@ -2079,7 +2079,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "top",
     .type = FUNCTION_TYPE_TOP,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateTopBot,
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = topBotFunctionSetup,
@@ -2093,7 +2093,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "bottom",
     .type = FUNCTION_TYPE_BOTTOM,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateTopBot,
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = topBotFunctionSetup,
@@ -2233,7 +2233,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
-    .processFunc  = cacheLastRowFunction,
+    .processFunc  = cachedLastRowFunction,
     .finalizeFunc = firstLastFinalize
   },
   {
@@ -2320,7 +2320,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "histogram",
     .type = FUNCTION_TYPE_HISTOGRAM,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateHistogram,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
@@ -2396,7 +2396,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "diff",
     .type = FUNCTION_TYPE_DIFF,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_WINDOW_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateDiff,
     .getEnvFunc   = getDiffFuncEnv,
     .initFunc     = diffFunctionSetup,
@@ -2406,7 +2406,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "statecount",
     .type = FUNCTION_TYPE_STATE_COUNT,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_WINDOW_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateStateCount,
     .getEnvFunc   = getStateFuncEnv,
     .initFunc     = functionSetup,
@@ -2416,7 +2416,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "stateduration",
     .type = FUNCTION_TYPE_STATE_DURATION,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_WINDOW_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateStateDuration,
     .getEnvFunc   = getStateFuncEnv,
     .initFunc     = functionSetup,
@@ -2426,7 +2426,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "csum",
     .type = FUNCTION_TYPE_CSUM,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_WINDOW_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateCsum,
     .getEnvFunc   = getCsumFuncEnv,
     .initFunc     = functionSetup,
@@ -2436,7 +2436,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "mavg",
     .type = FUNCTION_TYPE_MAVG,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_WINDOW_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateMavg,
     .getEnvFunc   = getMavgFuncEnv,
     .initFunc     = mavgFunctionSetup,
@@ -2446,7 +2446,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "sample",
     .type = FUNCTION_TYPE_SAMPLE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateSample,
     .getEnvFunc   = getSampleFuncEnv,
     .initFunc     = sampleFunctionSetup,
@@ -2457,7 +2457,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "tail",
     .type = FUNCTION_TYPE_TAIL,
     .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | 
-                      FUNC_MGT_FORBID_WINDOW_FUNC | FUNC_MGT_FORBID_GROUP_BY_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+                      FUNC_MGT_IMPLICIT_TS_FUNC,
     .translateFunc = translateTail,
     .getEnvFunc   = getTailFuncEnv,
     .initFunc     = tailFunctionSetup,
@@ -2468,7 +2468,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "unique",
     .type = FUNCTION_TYPE_UNIQUE,
     .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | 
-                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_WINDOW_FUNC | FUNC_MGT_FORBID_GROUP_BY_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
     .translateFunc = translateUnique,
     .getEnvFunc   = getUniqueFuncEnv,
     .initFunc     = uniqueFunctionSetup,

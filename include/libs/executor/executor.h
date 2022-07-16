@@ -192,6 +192,8 @@ int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
 
 int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem);
 
+int32_t qStreamPrepareRecover(qTaskInfo_t tinfo, int64_t startVer, int64_t endVer);
+
 #ifdef __cplusplus
 }
 #endif
