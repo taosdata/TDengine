@@ -21,7 +21,7 @@ static int32_t tdProcessRSmaSyncPostCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma);
-static int32_t tdClearupQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat);
+static int32_t tdCleanupQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat);
 
 /**
  * @brief Only applicable to Rollup SMA
@@ -168,7 +168,7 @@ static int32_t tdProcessRSmaSyncCommitImpl(SSma *pSma) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tdClearupQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat) {
+static int32_t tdCleanupQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat) {
   SVnode       *pVnode = pSma->pVnode;
   int64_t       committed = pRSmaStat->commitAppliedVer;
   TdDirPtr      pDir = NULL;
@@ -259,7 +259,7 @@ static int32_t tdProcessRSmaSyncPostCommitImpl(SSma *pSma) {
   SRSmaStat *pRSmaStat = SMA_RSMA_STAT(SMA_ENV_STAT(pSmaEnv));
 
   // cleanup outdated qtaskinfo files
-  tdClearupQTaskInfoFiles(pSma, pRSmaStat);
+  tdCleanupQTaskInfoFiles(pSma, pRSmaStat);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -390,7 +390,7 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
   taosWUnLockLatch(SMA_ENV_LOCK(pSmaEnv));
 
   // step 2: cleanup outdated qtaskinfo files
-  tdClearupQTaskInfoFiles(pSma, pRSmaStat);
+  tdCleanupQTaskInfoFiles(pSma, pRSmaStat);
 
   return TSDB_CODE_SUCCESS;
 }
