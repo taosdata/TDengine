@@ -2320,6 +2320,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc    = getTwaFuncEnv,
     .initFunc      = twaFunctionSetup,
     .processFunc   = twaFunction,
+    .sprocessFunc  = twaScalarFunction,
     .finalizeFunc  = twaFinalize
   },
   {
