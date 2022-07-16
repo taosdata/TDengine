@@ -47,10 +47,10 @@ void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
 
 void schInitTaskRetryTimes(SSchJob *pJob, SSchTask *pTask, SSchLevel *pLevel) {
   if (SCH_IS_DATA_BIND_TASK(pTask) || (!SCH_IS_QUERY_JOB(pJob)) || (SCH_ALL != schMgmt.cfg.schPolicy)) {
-    pTask->maxRetryTimes = SCH_MAX_CANDIDATE_EP_NUM;
+    pTask->maxRetryTimes = SCH_DEFAULT_MAX_RETRY_NUM;
   } else {
     int32_t nodeNum = taosArrayGetSize(pJob->nodeList);
-    pTask->maxRetryTimes = TMAX(nodeNum, SCH_MAX_CANDIDATE_EP_NUM);
+    pTask->maxRetryTimes = TMAX(nodeNum, SCH_DEFAULT_MAX_RETRY_NUM);
   }
   
   pTask->maxExecTimes = pTask->maxRetryTimes * (pLevel->level + 1);
@@ -64,11 +64,11 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
   pTask->execId = -1;
   pTask->timeoutUsec = SCH_DEFAULT_TASK_TIMEOUT_USEC;
   pTask->taskId = schGenTaskId();
-  pTask->execNodes =
-      taosHashInit(SCH_MAX_CANDIDATE_EP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
   schInitTaskRetryTimes(pJob, pTask, pLevel);
 
+  pTask->execNodes =
+      taosHashInit(pTask->maxExecTimes, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   pTask->profile.execTime = taosArrayInit(pTask->maxExecTimes, sizeof(int64_t));
   if (NULL == pTask->execNodes || NULL == pTask->profile.execTime) {
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -405,6 +405,18 @@ _return:
 int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32_t rspCode) {
   int32_t code = 0;
 
+  if (JOB_TASK_STATUS_PART_SUCC == pJob->status) {
+    SCH_LOCK(SCH_WRITE, &pJob->resLock);
+    if (pJob->fetched) {
+      SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
+      SCH_TASK_ELOG("already fetched while got error %s", tstrerror(rspCode));
+      SCH_ERR_RET(rspCode);
+    }
+    SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
+
+    schUpdateJobStatus(pJob, JOB_TASK_STATUS_EXEC);
+  }
+
   if (SCH_IS_DATA_BIND_TASK(pTask)) {
     if (NULL == pData->pEpSet) {
       SCH_TASK_ELOG("no epset updated while got error %s", tstrerror(rspCode));
@@ -602,7 +614,7 @@ int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask) {
   if (pJob->nodeList) {
     nodeNum = taosArrayGetSize(pJob->nodeList);
 
-    for (int32_t i = 0; i < nodeNum && addNum < SCH_MAX_CANDIDATE_EP_NUM; ++i) {
+    for (int32_t i = 0; i < nodeNum; ++i) {
       SQueryNodeLoad *nload = taosArrayGet(pJob->nodeList, i);
       SQueryNodeAddr *naddr = &nload->addr;
 
@@ -611,8 +623,8 @@ int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask) {
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
 
-      SCH_TASK_DLOG("set %dth candidate addr, id %d, fqdn:%s, port:%d", i, naddr->nodeId, SCH_GET_CUR_EP(naddr)->fqdn,
-                    SCH_GET_CUR_EP(naddr)->port);
+      SCH_TASK_TLOG("set %dth candidate addr, id %d, inUse:%d/%d, fqdn:%s, port:%d", i, naddr->nodeId, naddr->epSet.inUse, naddr->epSet.numOfEps, 
+                    SCH_GET_CUR_EP(naddr)->fqdn, SCH_GET_CUR_EP(naddr)->port);
 
       ++addNum;
     }
@@ -632,9 +644,9 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   }
 
   pTask->candidateIdx = 0;
-  pTask->candidateAddrs = taosArrayInit(SCH_MAX_CANDIDATE_EP_NUM, sizeof(SQueryNodeAddr));
+  pTask->candidateAddrs = taosArrayInit(SCHEDULE_DEFAULT_MAX_NODE_NUM, sizeof(SQueryNodeAddr));
   if (NULL == pTask->candidateAddrs) {
-    SCH_TASK_ELOG("taosArrayInit %d condidate addrs failed", SCH_MAX_CANDIDATE_EP_NUM);
+    SCH_TASK_ELOG("taosArrayInit %d condidate addrs failed", SCHEDULE_DEFAULT_MAX_NODE_NUM);
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
@@ -897,9 +909,9 @@ void schDropTaskInHashList(SSchJob *pJob, SHashObj *list) {
 int32_t schLaunchFetchTask(SSchJob *pJob) {
   int32_t code = 0;
 
-  void *resData = atomic_load_ptr(&pJob->resData);
-  if (resData) {
-    SCH_JOB_DLOG("res already fetched, res:%p", resData);
+  void *fetchRes = atomic_load_ptr(&pJob->fetchRes);
+  if (fetchRes) {
+    SCH_JOB_DLOG("res already fetched, res:%p", fetchRes);
     return TSDB_CODE_SUCCESS;
   }
 

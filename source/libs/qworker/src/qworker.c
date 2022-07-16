@@ -83,6 +83,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
 
     // if *taskHandle is NULL, it's killed right now
     if (taskHandle) {
+      qwDbgSimulateSleep();
       code = qExecTask(taskHandle, &pRes, &useconds);
       if (code) {
         if (code != TSDB_CODE_OPS_NOT_SUPPORT) {
@@ -431,12 +432,12 @@ _return:
 
     bool rsped = false;
     SQWMsg qwMsg = {.msgType = ctx->msgType, .connInfo = ctx->ctrlConnInfo};
-    qwDbgResponseRedirect(&qwMsg, ctx, &rsped);
+    qwDbgSimulateRedirect(&qwMsg, ctx, &rsped);
+    qwDbgSimulateDead(QW_FPARAMS(), ctx, &rsped);
     if (!rsped) {
       qwBuildAndSendQueryRsp(input->msgType + 1, &ctx->ctrlConnInfo, code, ctx);
-    }
-    
-    QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, code, tstrerror(code));
+      QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, code, tstrerror(code));
+    }    
   }
 
   if (ctx) {
@@ -656,13 +657,12 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
 
   ctx->msgType = qwMsg->msgType;
+  ctx->dataConnInfo = qwMsg->connInfo;
 
   SOutputData sOutput = {0};
   QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
 
   if (NULL == rsp) {
-    ctx->dataConnInfo = qwMsg->connInfo;
-
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
   } else {
     bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
@@ -708,12 +708,15 @@ _return:
 
   if (code || rsp) {
     bool rsped = false;
-    qwDbgResponseRedirect(qwMsg, ctx, &rsped);
+    if (ctx) {
+      qwDbgSimulateRedirect(qwMsg, ctx, &rsped);    
+      qwDbgSimulateDead(QW_FPARAMS(), ctx, &rsped);
+    }
     if (!rsped) {
       qwBuildAndSendFetchRsp(qwMsg->msgType + 1, &qwMsg->connInfo, rsp, dataLen, code);
+      QW_TASK_DLOG("%s send, handle:%p, code:%x - %s, dataLen:%d", TMSG_INFO(qwMsg->msgType + 1), qwMsg->connInfo.handle, code, tstrerror(code),
+                   dataLen);
     }
-    QW_TASK_DLOG("%s send, handle:%p, code:%x - %s, dataLen:%d", TMSG_INFO(qwMsg->msgType + 1), qwMsg->connInfo.handle, code, tstrerror(code),
-                 dataLen);
   }
 
   QW_RET(TSDB_CODE_SUCCESS);
@@ -745,8 +748,6 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   if (!dropped) {
-    ctx->ctrlConnInfo = qwMsg->connInfo;
-
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
   }
 
