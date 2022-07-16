@@ -164,3 +164,5 @@ nmake/
 sln/
 
 .history/
+enterprise/contrib/*
+!enterprise/contrib/CMakeLists.txt

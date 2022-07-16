@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+#set -x
 scriptDir=$(dirname $(realpath $0 || readlink -f $0))
 #
 version=$1
