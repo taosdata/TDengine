@@ -67,7 +67,8 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *
 static int tdbBtcMoveDownward(SBTC *pBtc);
 static int tdbBtcMoveUpward(SBTC *pBtc);
 
-int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, tdb_cmpr_fn_t kcmpr, SBTree **ppBt) {
+int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPgno pgno, tdb_cmpr_fn_t kcmpr,
+                 SBTree **ppBt) {
   SBTree *pBt;
   int     ret;
 
@@ -99,13 +100,49 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, tdb_cmpr_fn_t kcmpr, SB
   // pBt->minLeaf
   pBt->minLeaf = pBt->minLocal;
 
+  // if pgno == 0 fetch new btree root leaf page
+  if (pgno == 0) {
+    // fetch page & insert into main db
+    // allocate a new child page
+    SPage *pPage;
+    TXN    txn;
+    tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, 0);
+
+    pPager->inTran = 1;
+
+    SBtreeInitPageArg zArg;
+    zArg.flags = 0x1 | 0x2;  // root leaf node;
+    zArg.pBt = pBt;
+    ret = tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &zArg, &txn);
+    if (ret < 0) {
+      return -1;
+    }
+
+    // TODO: Need to zero the page
+
+    ret = tdbPagerWrite(pPager, pPage);
+    if (ret < 0) {
+      return -1;
+    }
+    if (strcmp(TDB_MAINDB_NAME, tbname)) {
+      ret = tdbTbInsert(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, &pgno, sizeof(SPgno), &txn);
+      if (ret < 0) {
+        return -1;
+      }
+    }
+    tdbTxnClose(&txn);
+  }
+
+  ASSERT(pgno != 0);
+  pBt->root = pgno;
+  /*
   // TODO: pBt->root
   ret = tdbBtreeOpenImpl(pBt);
   if (ret < 0) {
     tdbOsFree(pBt);
     return -1;
   }
-
+  */
   *ppBt = pBt;
   return 0;
 }
@@ -338,7 +375,6 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
 
   ASSERT(pgno != 0);
   pBt->root = pgno;
-
   return 0;
 }
 
