@@ -1746,18 +1746,12 @@ int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
   SColumnInfoData *pOutputData = pOutput->columnData;
 
   int64_t *out = (int64_t *)pOutputData->pData;
-  bool hasNull = false;
   *out = 0;
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
-      hasNull = true;
-      break;
+      continue;
     }
     (*out)++;
-  }
-
-  if (hasNull) {
-    colDataAppendNULL(pOutputData, 0);
   }
 
   pOutput->numOfRows = 1;
@@ -2420,4 +2414,12 @@ int32_t twaScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
 int32_t mavgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return avgScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t hllScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return countScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t csumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return sumScalarFunction(pInput, inputNum, pOutput);
 }
