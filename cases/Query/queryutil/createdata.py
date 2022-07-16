@@ -925,8 +925,8 @@ class TDCreateData():
             if pd.to_datetime(data) == pd.to_datetime(value):  
                 self.logger.debug(f"TIME（时间对比=）checkEqual success, elm={data} expect_elm={value}")                 
                 return True 
-            #做了差值比对，控制在1s之内
-            elif (float(chazhi.total_seconds())<5):
+            #做了差值比对，控制在10s之内
+            elif (float(chazhi.total_seconds())<10):
                 self.logger.debug(f"TIME（时间对比-）checkEqual success, elm={data} expect_elm={value}")                 
                 return True
             else:
@@ -945,7 +945,7 @@ class TDCreateData():
                 self.logger.debug(f"SYS_TIME（时间对比=）checkEqual success, elm={data} expect_elm={value}")                 
                 return True 
             #做了差值比对，控制在5s之内
-            elif (float(chazhi.total_seconds())<5):
+            elif (float(chazhi.total_seconds())<10):
                 self.logger.debug(f"SYS_TIME（时间对比-）checkEqual success, elm={data} expect_elm={value}")                 
                 return True
             else:
@@ -965,8 +965,8 @@ class TDCreateData():
             if pd.to_datetime(data) == pd.to_datetime(value):  
                 self.logger.debug(f"TODAY（时间对比=）checkEqual success, elm={data} expect_elm={value}")                 
                 return True 
-            #做了差值比对，控制在1天86400s+5s之内
-            elif (abs(float(chazhi.total_seconds()))<86405):
+            #做了差值比对，控制在1天86400s+30s之内
+            elif (abs(float(chazhi.total_seconds()))<86430):
                 self.logger.debug(f"TODAY（时间对比-）checkEqual success, elm={data} expect_elm={value}")                 
                 return True
             else:
@@ -983,8 +983,8 @@ class TDCreateData():
             if pd.to_datetime(data) == pd.to_datetime(value):  
                 self.logger.debug(f"SYS_TODAY（时间对比=）checkEqual success, elm={data} expect_elm={value}")                 
                 return True 
-            #做了差值比对，因为TODAY取的是当前时间，精确到秒，而不是天，所以控制在1天86400s+5s（sql运行时间）之内
-            elif (abs(float(chazhi.total_seconds()))<=86405):
+            #做了差值比对，因为TODAY取的是当前时间，精确到秒，而不是天，所以控制在1天86400s+30s（sql运行时间）之内
+            elif (abs(float(chazhi.total_seconds()))<=86430):
                 self.logger.debug(f"SYS_TODAY（时间对比-）checkEqual success, elm={data} expect_elm={value}")                 
                 return True
             else:
