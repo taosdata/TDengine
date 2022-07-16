@@ -15,10 +15,10 @@
 
 #include "command.h"
 #include "catalog.h"
-#include "tdatablock.h"
-#include "tglobal.h"
 #include "commandInt.h"
 #include "scheduler.h"
+#include "tdatablock.h"
+#include "tglobal.h"
 
 extern SConfig* tsCfg;
 
@@ -222,7 +222,7 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
   char* retentions = buildRetension(pCfg->pRetensions);
 
   len += sprintf(buf2 + VARSTR_HEADER_SIZE,
-                 "CREATE DATABASE `%s` BUFFER %d CACHELAST %d COMP %d DURATION %dm "
+                 "CREATE DATABASE `%s` BUFFER %d CACHEMODEL %d COMP %d DURATION %dm "
                  "FSYNC %d MAXROWS %d MINROWS %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
                  "STRICT %d WAL %d VGROUPS %d SINGLE_STABLE %d",
                  dbFName, pCfg->buffer, pCfg->cacheLast, pCfg->compression, pCfg->daysPerFile, pCfg->fsyncPeriod,
@@ -483,7 +483,7 @@ static int32_t execShowCreateSTable(SShowCreateTableStmt* pStmt, SRetrieveTableR
 
 static int32_t execAlterCmd(char* cmd, char* value, bool* processed) {
   int32_t code = 0;
-  
+
   if (0 == strcasecmp(cmd, COMMAND_RESET_LOG)) {
     taosResetLog();
     cfgDumpCfg(tsCfg, 0, false);
@@ -502,13 +502,13 @@ _return:
   if (code) {
     terrno = code;
   }
-  
-  return code;  
+
+  return code;
 }
 
 static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
   bool processed = false;
-  
+
   if (execAlterCmd(pStmt->config, pStmt->value, &processed)) {
     return terrno;
   }
@@ -516,7 +516,7 @@ static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
   if (processed) {
     goto _return;
   }
-  
+
   if (cfgSetItem(tsCfg, pStmt->config, pStmt->value, CFG_STYPE_ALTER_CMD)) {
     return terrno;
   }

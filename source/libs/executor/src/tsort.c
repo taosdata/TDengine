@@ -621,7 +621,7 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
       pHandle->sortElapsed += el;
 
       // All sorted data can fit in memory, external memory sort is not needed. Return to directly
-      if (size <= sortBufSize) {
+      if (size <= sortBufSize && pHandle->pBuf == NULL) {
         pHandle->cmpParam.numOfSources = 1;
         pHandle->inMemSort = true;
 

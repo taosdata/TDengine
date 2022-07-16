@@ -258,6 +258,7 @@ typedef struct SSelectStmt {
   bool        hasAggFuncs;
   bool        hasRepeatScanFuncs;
   bool        hasIndefiniteRowsFunc;
+  bool        hasMultiRowsFunc;
   bool        hasSelectFunc;
   bool        hasSelectValFunc;
   bool        hasOtherVectorFunc;

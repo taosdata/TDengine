@@ -335,7 +335,7 @@ class TDTestCase:
         # tdSql.checkRows(21)
 
         # group by
-        tdSql.query("select statecount(c1,'GT',1) from ct1 group by c1")
+        tdSql.error("select statecount(c1,'GT',1) from ct1 group by c1")
         tdSql.error("select statecount(c1,'GT',1) from ct1 group by tbname")
 
         # super table

@@ -125,7 +125,11 @@ int32_t streamProcessFailRecoverReq(SStreamTask* pTask, SMStreamTaskRecoverReq* 
   }
 
   if (pTask->taskStatus == TASK_STATUS__RECOVERING) {
-    streamProcessRunReq(pTask);
+    if (streamPipelineExec(pTask, 10) < 0) {
+      // set fail
+      return -1;
+    }
   }
+
   return 0;
 }
