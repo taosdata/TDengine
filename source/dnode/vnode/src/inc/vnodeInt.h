@@ -164,9 +164,12 @@ void    smaCleanUp();
 int32_t smaOpen(SVnode* pVnode);
 int32_t smaClose(SSma* pSma);
 int32_t smaBegin(SSma* pSma);
-int32_t smaPreCommit(SSma* pSma);
-int32_t smaCommit(SSma* pSma);
-int32_t smaPostCommit(SSma* pSma);
+int32_t smaSyncPreCommit(SSma* pSma);
+int32_t smaSyncCommit(SSma* pSma);
+int32_t smaSyncPostCommit(SSma* pSma);
+int32_t smaAsyncPreCommit(SSma* pSma);
+int32_t smaAsyncCommit(SSma* pSma);
+int32_t smaAsyncPostCommit(SSma* pSma);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);

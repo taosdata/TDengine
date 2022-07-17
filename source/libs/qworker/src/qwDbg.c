@@ -9,7 +9,7 @@
 #include "tmsg.h"
 #include "tname.h"
 
-SQWDebug     gQWDebug = {.statusEnable = true, .dumpEnable = false, .tmp = false};
+SQWDebug gQWDebug = {.statusEnable = true, .dumpEnable = false, .redirectSimulate = false, .deadSimulate = false, .sleepSimulate = false};
 
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore) {
   if (!gQWDebug.statusEnable) {
@@ -147,8 +147,17 @@ int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwDbgResponseRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx) {
-  if (gQWDebug.tmp) {
+void qwDbgSimulateRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx, bool *rsped) {
+  static int32_t ignoreTime = 0;
+  if (*rsped) {
+    return;
+  }
+  
+  if (gQWDebug.redirectSimulate) {
+    if (++ignoreTime <= 10) {
+      return;
+    }
+    
     if (TDMT_SCH_QUERY == qwMsg->msgType && (0 == taosRand() % 3)) {
       SEpSet epSet = {0};
       epSet.inUse = 1;
@@ -162,42 +171,94 @@ int32_t qwDbgResponseRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx) {
 
       ctx->phase = QW_PHASE_POST_QUERY;      
       qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_RPC_REDIRECT, &epSet);
-      return TSDB_CODE_SUCCESS;
+      *rsped = true;
+      return;
     }
     
     if (TDMT_SCH_MERGE_QUERY == qwMsg->msgType && (0 == taosRand() % 3)) {
-      ctx->phase = QW_PHASE_POST_QUERY;
+      QW_SET_PHASE(ctx, QW_PHASE_POST_QUERY);
       qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_RPC_REDIRECT, NULL);
-      return TSDB_CODE_SUCCESS;
+      *rsped = true;
+      return;
+    }
+
+    if ((TDMT_SCH_FETCH == qwMsg->msgType) && (0 == taosRand() % 9)) {
+      qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_RPC_REDIRECT, NULL);
+      *rsped = true;
+      return;
     }
   }
-
-  return TSDB_CODE_SUCCESS;
 }
+
+void qwDbgSimulateSleep(void) {
+  if (!gQWDebug.sleepSimulate) {
+    return;
+  }
+
+  static int32_t ignoreTime = 0;
+  if (++ignoreTime > 10) {
+    taosSsleep(taosRand() % 20);
+  }
+}
+
+void qwDbgSimulateDead(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *rsped) {
+  if (!gQWDebug.deadSimulate) {
+    return;
+  }
+
+  if (*rsped) {
+    return;
+  }
+
+  static int32_t ignoreTime = 0;
+
+  if (++ignoreTime > 10 && 0 == taosRand() % 9) {
+    SRpcHandleInfo *pConn = ((ctx->msgType == TDMT_SCH_FETCH || ctx->msgType == TDMT_SCH_MERGE_FETCH) ? &ctx->dataConnInfo : &ctx->ctrlConnInfo);
+    qwBuildAndSendErrorRsp(ctx->msgType + 1, pConn, TSDB_CODE_RPC_BROKEN_LINK);
+
+    qwBuildAndSendDropMsg(QW_FPARAMS(), pConn);
+    *rsped = true;
+    
+    return;
+  }
+}
+
 
 
 int32_t qwDbgEnableDebug(char *option) {
   if (0 == strcasecmp(option, "lock")) {
     gQWDebug.lockEnable = true;
-    qDebug("qw lock debug enabled");
+    qError("qw lock debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
   if (0 == strcasecmp(option, "status")) {
     gQWDebug.statusEnable = true;
-    qDebug("qw status debug enabled");
+    qError("qw status debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
   if (0 == strcasecmp(option, "dump")) {
     gQWDebug.dumpEnable = true;
-    qDebug("qw dump debug enabled");
+    qError("qw dump debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
-  if (0 == strcasecmp(option, "tmp")) {
-    gQWDebug.tmp = true;
-    qDebug("qw tmp debug enabled");
+  if (0 == strcasecmp(option, "sleep")) {
+    gQWDebug.sleepSimulate = true;
+    qError("qw sleep debug enabled");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (0 == strcasecmp(option, "dead")) {
+    gQWDebug.sleepSimulate = true;
+    qError("qw dead debug enabled");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (0 == strcasecmp(option, "redirect")) {
+    gQWDebug.redirectSimulate = true;
+    qError("qw redirect debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
