@@ -1865,7 +1865,7 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
   int32_t chosen_itr;
   void *value;
 
-  // the schema version info is embeded in SDataRow
+  // the schema version info is embedded in SDataRow
   int32_t numOfColsOfRow1 = 0;
 
   if (pSchema1 == NULL) {
