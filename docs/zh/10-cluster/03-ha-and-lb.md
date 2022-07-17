@@ -74,7 +74,8 @@ SHOW MNODES;
 
 Arbitrator 的执行程序名为 tarbitrator。该程序对系统资源几乎没有要求，只需要保证有网络连接，找任何一台 Linux 服务器运行它即可。以下简要描述安装配置的步骤：
 
-请点击 安装包下载，在 TDengine Arbitrator Linux 一节中，选择合适的版本下载并安装。
+请点击 安装包下载，在 TDengine Arbitrator Linux 一节中，选择合适的版本下载并安装后，通过 systemctl start tarbitratord 启动。
+
 该应用的命令行参数 -p 可以指定其对外服务的端口号，缺省是 6042。
 
 修改每个 taosd 实例的配置文件，在 taos.cfg 里将参数 arbitrator 设置为 tarbitrator 程序所对应的 End Point。（如果该参数配置了，当副本数为偶数时，系统将自动连接配置的 Arbitrator。如果副本数为奇数，即使配置了 Arbitrator，系统也不会去建立连接。）
