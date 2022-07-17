@@ -26,6 +26,7 @@ int32_t mndInitCluster(SMnode *pMnode);
 void    mndCleanupCluster(SMnode *pMnode);
 int32_t mndGetClusterName(SMnode *pMnode, char *clusterName, int32_t len);
 int64_t mndGetClusterId(SMnode *pMnode);
+int64_t mndGetClusterCreateTime(SMnode *pMnode);
 
 #ifdef __cplusplus
 }
