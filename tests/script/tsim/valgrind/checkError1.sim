@@ -152,7 +152,7 @@ endi
 
 system_content sh/checkValgrind.sh -n dnode2
 print cmd return result ----> [ $system_content ]
-if $system_content > 2 then
+if $system_content > 4 then
   return -1
 endi 
 
