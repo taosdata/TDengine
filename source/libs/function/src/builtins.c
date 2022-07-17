@@ -2430,6 +2430,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getStateFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = stateDurationFunction,
+    .sprocessFunc = stateDurationScalarFunction,
     .finalizeFunc = NULL
   },
   {

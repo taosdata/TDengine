@@ -2577,3 +2577,27 @@ int32_t stateCountScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalar
   pOutput->numOfRows = pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t stateDurationScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int8_t op = getStateOpType(varDataVal(pInput[1].columnData->pData));
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataAppendNULL(pOutputData, i);
+      continue;
+    }
+
+    bool ret = checkStateOp(op, pInputData, i, &pInput[2]);
+    int64_t out = -1;
+    if (ret) {
+      out = 0;
+    }
+    colDataAppend(pOutputData, i, (char*)&out, false);
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
