@@ -118,17 +118,21 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   return numOfRows;
 }
 
+static int32_t mndProcessGrantHB(SRpcMsg *pReq) { return TSDB_CODE_SUCCESS; }
+
 int32_t mndInitGrant(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
+  mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
   return 0;
 }
 
 void    mndCleanupGrant() {}
 void    grantParseParameter() { mError("can't parsed parameter k"); }
 int32_t grantCheck(EGrantType grant) { return TSDB_CODE_SUCCESS; }
-void    grantReset(EGrantType grant, uint64_t value) {}
+void    grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {}
 void    grantAdd(EGrantType grant, uint64_t value) {}
 void    grantRestore(EGrantType grant, uint64_t value) {}
+int32_t dmProcessGrantReq(SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
 
 #endif
 

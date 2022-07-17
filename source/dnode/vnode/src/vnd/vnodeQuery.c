@@ -239,9 +239,9 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->vgId = TD_VID(pVnode);
   pLoad->syncState = syncGetMyRole(pVnode->sync);
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
-  pLoad->numOfTimeSeries = 400;
-  pLoad->totalStorage = 300;
-  pLoad->compStorage = 200;
+  pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta);
+  pLoad->totalStorage = (int64_t)3 * 1073741824;
+  pLoad->compStorage = (int64_t)2 * 1073741824;
   pLoad->pointsWritten = 100;
   pLoad->numOfSelectReqs = 1;
   pLoad->numOfInsertReqs = 3;

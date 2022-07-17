@@ -69,8 +69,6 @@ if $rows != 2 then
   return -1
 endi
 
-sleep 100
-
 print =============== step2
 $i = 1
 $tb = $tbPrefix . $i

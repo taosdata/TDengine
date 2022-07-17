@@ -709,7 +709,7 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("sma:%s, failed to create since %s", createReq.name, terrstr(terrno));
+    mError("sma:%s, failed to create since %s", createReq.name, terrstr());
   }
 
   mndReleaseStb(pMnode, pStb);
