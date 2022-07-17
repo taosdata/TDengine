@@ -70,7 +70,10 @@ To resolve this problem, a new arbitrator component named `tarbitrator`, an abbr
 
 Normally, it's prudent to configure the replica number for each DB or system parameter `numOfMNodes` to be an odd number. However, if a user is very sensitive to storage space, a replica number of 2 plus arbitrator component can be used to achieve both lower cost of storage space and high availability.
 
-Arbitrator component is installed with the server package. For details about how to install, please refer to [Install](/operation/pkg-install). The `-p` parameter of `tarbitrator` can be used to specify the port on which it provides service.
+Arbitrator component is installed with the server package. For details about how to install, please refer to [Install](/operation/pkg-install). After
+installation , use `systemctl start tarbitratord` to start it. 
+
+ The `-p` parameter of `tarbitrator` can be used to specify the port on which it provides service.
 
 In the configuration file `taos.cfg` of each dnode, parameter `arbitrator` needs to be configured to the end point of the `tarbitrator` process. Arbitrator component will be used automatically if the replica is configured to an even number and will be ignored if the replica is configured to an odd number.
 
