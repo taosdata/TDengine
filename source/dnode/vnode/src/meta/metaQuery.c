@@ -466,7 +466,7 @@ _err:
 // N.B. Called by statusReq per second
 int64_t metaGetTbNum(SMeta *pMeta) {
   // TODO
-  return 100;
+  return 0;
 }
 
 // N.B. Called by statusReq per second

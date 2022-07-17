@@ -153,15 +153,9 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
 
   switch (qtype) {
     case QUERY_QUEUE:
-      if ((pMsg->msgType == TDMT_SCH_QUERY) && (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS)) {
-        terrno = TSDB_CODE_GRANT_EXPIRED;
-        code = terrno;
-        dDebug("vgId:%d, msg:%p put into vnode-query queue failed since %s", pVnode->vgId, pMsg, terrstr());
-      } else {
-        vnodePreprocessQueryMsg(pVnode->pImpl, pMsg);
-        dGTrace("vgId:%d, msg:%p put into vnode-query queue", pVnode->vgId, pMsg);
-        taosWriteQitem(pVnode->pQueryQ, pMsg);
-      }
+      vnodePreprocessQueryMsg(pVnode->pImpl, pMsg);
+      dGTrace("vgId:%d, msg:%p put into vnode-query queue", pVnode->vgId, pMsg);
+      taosWriteQitem(pVnode->pQueryQ, pMsg);
       break;
     case STREAM_QUEUE:
       dGTrace("vgId:%d, msg:%p put into vnode-stream queue", pVnode->vgId, pMsg);
@@ -172,14 +166,9 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
       taosWriteQitem(pVnode->pFetchQ, pMsg);
       break;
     case WRITE_QUEUE:
-      if ((pMsg->msgType == TDMT_VND_SUBMIT) && (grantCheck(TSDB_GRANT_STORAGE) != TSDB_CODE_SUCCESS)) {
-        terrno = TSDB_CODE_VND_NO_WRITE_AUTH;
-        code = terrno;
-        dDebug("vgId:%d, msg:%p put into vnode-write queue failed since %s", pVnode->vgId, pMsg, terrstr());
-      } else {
-        dGTrace("vgId:%d, msg:%p put into vnode-write queue", pVnode->vgId, pMsg);
-        taosWriteQitem(pVnode->pWriteQ, pMsg);
-      }
+
+      dGTrace("vgId:%d, msg:%p put into vnode-write queue", pVnode->vgId, pMsg);
+      taosWriteQitem(pVnode->pWriteQ, pMsg);
       break;
     case SYNC_QUEUE:
       dGTrace("vgId:%d, msg:%p put into vnode-sync queue", pVnode->vgId, pMsg);
