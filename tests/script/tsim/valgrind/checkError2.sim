@@ -60,8 +60,8 @@ sql select c1, c2, c3 from ct1
 sql select ts, c1, c2, c3 from stb
 sql select * from ct1 where ts < now -1d and ts > now +1d 
 sql select * from stb where ts < now -1d and ts > now +1d 
-#sql select * from ct1 where ts < now -1d and ts > now +1d order by ts desc 
-#sql select * from stb where ts < now -1d and ts > now +1d order by ts desc 
+sql select * from ct1 where ts < now -1d and ts > now +1d order by ts desc 
+sql select * from stb where ts < now -1d and ts > now +1d order by ts desc 
 
 print =============== step7: count
 sql select count(*) from ct1;
