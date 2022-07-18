@@ -162,6 +162,8 @@ class TDTestCase:
         tdSql.query("select tbname , max(c1) from stb partition by tbname interval(10s)")
         tdSql.checkRows(self.row_nums*2)
 
+        tdSql.query("select unique(c1) from stb1 partition  by tbname order by tbname")
+
         tdSql.query("select tbname , count(c1) from sub_stb_1 partition by tbname interval(10s)")
         tdSql.checkData(0,0,'sub_stb_1')
         tdSql.checkData(0,1,self.row_nums)

@@ -604,7 +604,7 @@ class TDTestCase:
         tdSql.checkData(0,0,None)
 
         tdSql.query("select ts , last_row(c1) ,c1  from (select ts , c1 ,t1 from stb1)")
-        tdSql.checkData(0,1,None,None)
+        tdSql.checkData(0,1,None)
 
         tdSql.query("select ts , last_row(c1) ,c1  from (select ts , max(c1) c1  ,t1 from stb1 where ts >now -1h and ts <now interval(10s) fill(value ,10 ))")
         tdSql.checkData(0,1,10)
@@ -737,6 +737,8 @@ class TDTestCase:
         # tdSql.checkData(0,0,None)
         tdSql.query('select max(c1) from stb1 where ts>="2022-07-06 16:00:00.000 " and ts < "2022-07-06 17:00:00.000 " interval(50s) sliding(30s)')
         tdSql.checkRows(5)
+
+        tdSql.query("select unique(c1) from stb1 partition by tbname")
 
 
 
