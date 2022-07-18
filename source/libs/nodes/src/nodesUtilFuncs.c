@@ -388,11 +388,6 @@ static void destroyDataSinkNode(SDataSinkNode* pNode) { nodesDestroyNode((SNode*
 
 static void destroyExprNode(SExprNode* pExpr) { taosArrayDestroy(pExpr->pAssociation); }
 
-static void nodesDestroyNodePointer(void* node) {
-  SNode* pNode = *(SNode**)node;
-  nodesDestroyNode(pNode);
-}
-
 void nodesDestroyNode(SNode* pNode) {
   if (NULL == pNode) {
     return;
@@ -716,6 +711,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_QUERY: {
       SQuery* pQuery = (SQuery*)pNode;
       nodesDestroyNode(pQuery->pRoot);
+      nodesDestroyNode(pQuery->pPrepareRoot);
       taosMemoryFreeClear(pQuery->pResSchema);
       if (NULL != pQuery->pCmdMsg) {
         taosMemoryFreeClear(pQuery->pCmdMsg->pMsg);
@@ -723,7 +719,7 @@ void nodesDestroyNode(SNode* pNode) {
       }
       taosArrayDestroy(pQuery->pDbList);
       taosArrayDestroy(pQuery->pTableList);
-      taosArrayDestroyEx(pQuery->pPlaceholderValues, nodesDestroyNodePointer);
+      taosArrayDestroy(pQuery->pPlaceholderValues);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_SCAN: {

@@ -6,11 +6,16 @@
 #include "clientStmt.h"
 
 static int32_t stmtCreateRequest(STscStmt* pStmt) {
+  int32_t code = 0;
+  
   if (pStmt->exec.pRequest == NULL)  {
-    return buildRequest(pStmt->taos->id, pStmt->sql.sqlStr, pStmt->sql.sqlLen, NULL, false, &pStmt->exec.pRequest);
-  } else {
-    return TSDB_CODE_SUCCESS;
+    code = buildRequest(pStmt->taos->id, pStmt->sql.sqlStr, pStmt->sql.sqlLen, NULL, false, &pStmt->exec.pRequest);
+    if (TSDB_CODE_SUCCESS == code) {
+      pStmt->exec.pRequest->syncQuery = true;
+    }
   }
+
+  return code;
 }
 
 int32_t stmtSwitchStatus(STscStmt* pStmt, STMT_STATUS newStatus) {
@@ -227,7 +232,7 @@ int32_t stmtParseSql(STscStmt* pStmt) {
   };
 
   STMT_ERR_RET(stmtCreateRequest(pStmt));
-
+  
   STMT_ERR_RET(parseSql(pStmt->exec.pRequest, false, &pStmt->sql.pQuery, &stmtCb));
 
   pStmt->bInfo.needParse = false;

@@ -218,7 +218,7 @@ typedef struct {
 } CaseCtrl;
 
 #if 0
-CaseCtrl gCaseCtrl = { // default
+CaseCtrl gCaseCtrl = {
   .precision = TIME_PRECISION_MICRO,
   .bindNullNum = 0,
   .printCreateTblSql = false,
@@ -251,7 +251,7 @@ CaseCtrl gCaseCtrl = { // default
 
 
 #if 1
-CaseCtrl gCaseCtrl = {
+CaseCtrl gCaseCtrl = {  // default
   .precision = TIME_PRECISION_MILLI,
   .bindNullNum = 0,
   .printCreateTblSql = false,
@@ -2596,6 +2596,8 @@ void runAll(TAOS *taos) {
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runCaseList(taos);
 
+#if 0
+
   strcpy(gCaseCtrl.caseCatalog, "Micro DB precision Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.precision = TIME_PRECISION_MICRO;
@@ -2626,7 +2628,6 @@ void runAll(TAOS *taos) {
   runCaseList(taos);
   gCaseCtrl.bindRowNum = 0;
 
-#if 0
   strcpy(gCaseCtrl.caseCatalog, "Row Num Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.rowNum = 1000;
@@ -2640,7 +2641,6 @@ void runAll(TAOS *taos) {
   gCaseCtrl.runTimes = 2;
   runCaseList(taos);
   gCaseCtrl.runTimes = 0;
-#endif
 
   strcpy(gCaseCtrl.caseCatalog, "Check Param Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
@@ -2648,7 +2648,6 @@ void runAll(TAOS *taos) {
   runCaseList(taos);
   gCaseCtrl.checkParamNum = false;
 
-#if 0
   strcpy(gCaseCtrl.caseCatalog, "Bind Col Num Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.bindColNum = 6;
