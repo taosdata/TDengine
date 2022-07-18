@@ -174,6 +174,13 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   for (ppPage = &pPager->pDirty; (*ppPage) && TDB_PAGE_PGNO(*ppPage) < TDB_PAGE_PGNO(pPage);
        ppPage = &((*ppPage)->pDirtyNext)) {
   }
+
+  if (*ppPage && TDB_PAGE_PGNO(*ppPage) == TDB_PAGE_PGNO(pPage)) {
+    tdbUnrefPage(pPage);
+
+    return 0;
+  }
+
   ASSERT(*ppPage == NULL || TDB_PAGE_PGNO(*ppPage) > TDB_PAGE_PGNO(pPage));
   pPage->pDirtyNext = *ppPage;
   *ppPage = pPage;
@@ -467,7 +474,7 @@ int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
   }
 
   TXN txn;
-  tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, 0);
+  tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
   SBtreeInitPageArg iArg;
   iArg.pBt = pBt;
   iArg.flags = 0;
@@ -487,6 +494,7 @@ int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
       return -1;
     }
 
+    /*
     ret = tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &iArg, &txn);
     if (ret < 0) {
       return -1;
@@ -499,6 +507,18 @@ int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
     }
 
     tdbPCacheRelease(pPager->pCache, pPage, &txn);
+    */
+    i64 offset = pPager->pageSize * (pgno - 1);
+    if (tdbOsLSeek(pPager->fd, offset, SEEK_SET) < 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    ret = tdbOsWrite(pPager->fd, pageBuf, pPager->pageSize);
+    if (ret < 0) {
+      ASSERT(0);
+      return -1;
+    }
   }
 
   tdbOsFSync(pPager->fd);

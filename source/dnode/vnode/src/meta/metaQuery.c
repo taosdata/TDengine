@@ -205,7 +205,7 @@ _query:
   }
 
   tDecoderInit(&dc, pData, nData);
-  tDecodeSSchemaWrapper(&dc, &schema);
+  tDecodeSSchemaWrapperEx(&dc, &schema);
   pSchema = tCloneSSchemaWrapper(&schema);
   tDecoderClear(&dc);
 
@@ -463,10 +463,16 @@ _err:
   return code;
 }
 
-int metaGetTbNum(SMeta *pMeta) {
+// N.B. Called by statusReq per second
+int64_t metaGetTbNum(SMeta *pMeta) {
   // TODO
-  // ASSERT(0);
   return 0;
+}
+
+// N.B. Called by statusReq per second
+int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
+  // TODO
+  return 400;
 }
 
 typedef struct {

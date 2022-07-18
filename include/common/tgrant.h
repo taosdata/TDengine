@@ -13,23 +13,35 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_CLUSTER_H_
-#define _TD_MND_CLUSTER_H_
-
-#include "mndInt.h"
+#ifndef _TD_COMMON_GRANT_H_
+#define _TD_COMMON_GRANT_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t mndInitCluster(SMnode *pMnode);
-void    mndCleanupCluster(SMnode *pMnode);
-int32_t mndGetClusterName(SMnode *pMnode, char *clusterName, int32_t len);
-int64_t mndGetClusterId(SMnode *pMnode);
-int64_t mndGetClusterCreateTime(SMnode *pMnode);
+#include "os.h"
+
+typedef enum {
+  TSDB_GRANT_ALL,
+  TSDB_GRANT_TIME,
+  TSDB_GRANT_USER,
+  TSDB_GRANT_DB,
+  TSDB_GRANT_TIMESERIES,
+  TSDB_GRANT_DNODE,
+  TSDB_GRANT_ACCT,
+  TSDB_GRANT_STORAGE,
+  TSDB_GRANT_SPEED,
+  TSDB_GRANT_QUERY_TIME,
+  TSDB_GRANT_CONNS,
+  TSDB_GRANT_STREAMS,
+  TSDB_GRANT_CPU_CORES,
+} EGrantType;
+
+int32_t grantCheck(EGrantType grant);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_CLUSTER_H_*/
+#endif /*_TD_COMMON_GRANT_H_*/

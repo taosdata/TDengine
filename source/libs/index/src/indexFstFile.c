@@ -85,11 +85,12 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
       blk->blockId = blkId;
       blk->nread = taosPReadFile(ctx->file.pFile, blk->buf, kBlockSize, blkId * kBlockSize);
       assert(blk->nread <= kBlockSize);
-      nread = TMIN(blkLeft, len);
 
       if (blk->nread < kBlockSize && blk->nread < len) {
         break;
       }
+
+      nread = TMIN(blkLeft, len);
       memcpy(buf + total, blk->buf + blkOffset, nread);
 
       LRUStatus s = taosLRUCacheInsert(ctx->lru, key, strlen(key), blk, cacheMemSize, deleteDataBlockFromLRU, NULL,

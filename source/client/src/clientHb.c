@@ -171,6 +171,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
       pTscObj->pAppInfo->totalDnodes = pRsp->query->totalDnodes;
       pTscObj->pAppInfo->onlineDnodes = pRsp->query->onlineDnodes;
       pTscObj->connId = pRsp->query->connId;
+      tscTrace("conn %p hb rsp, dnodes %d/%d", pTscObj->connId, pTscObj->pAppInfo->onlineDnodes, pTscObj->pAppInfo->totalDnodes);
 
       if (pRsp->query->killRid) {
         tscDebug("request rid %" PRIx64 " need to be killed now", pRsp->query->killRid);
@@ -294,6 +295,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
 
   if (code != 0) {
     (*pInst)->onlineDnodes = ((*pInst)->totalDnodes ? 0 : -1);
+    tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), (*pInst)->onlineDnodes, (*pInst)->totalDnodes);
   }
 
   if (rspNum) {
@@ -571,17 +573,13 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
   return TSDB_CODE_SUCCESS;
 }
 
-void hbMgrInitMqHbHandle() {
+static FORCE_INLINE void hbMgrInitHandle() {
+  // init all handle
   clientHbMgr.reqHandle[CONN_TYPE__QUERY] = hbQueryHbReqHandle;
   clientHbMgr.reqHandle[CONN_TYPE__TMQ] = hbMqHbReqHandle;
 
   clientHbMgr.rspHandle[CONN_TYPE__QUERY] = hbQueryHbRspHandle;
   clientHbMgr.rspHandle[CONN_TYPE__TMQ] = hbMqHbRspHandle;
-}
-
-static FORCE_INLINE void hbMgrInitHandle() {
-  // init all handle
-  hbMgrInitMqHbHandle();
 }
 
 SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
