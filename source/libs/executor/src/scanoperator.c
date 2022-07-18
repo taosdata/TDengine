@@ -1237,7 +1237,7 @@ static SSDataBlock* doDropInvisibleCol(SSDataBlock* pBlock, SArray* pColMatchInf
     }
   }
 
-  SSDataBlock* pRes = createOneDataBlock(pBlock, false);
+  SSDataBlock* pRes = createOneDataBlock(pBlock, true);
   if (ignoreCols) {
     int32_t i = 0;
     while(i < taosArrayGetSize(pRes->pDataBlock)) {
@@ -1255,10 +1255,11 @@ static SSDataBlock* doDropInvisibleCol(SSDataBlock* pBlock, SArray* pColMatchInf
     }
   }
 
+  pRes->info.rows = pBlock->info.rows;
   return pRes;
 }
 
-static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
+static SSDataBlock* doStreamScanImpl(SOperatorInfo* pOperator) {
   // NOTE: this operator does never check if current status is done or not
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
   SStreamScanInfo* pInfo = pOperator->info;
@@ -1470,10 +1471,20 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     }
 
     qDebug("scan rows: %d", pBlockInfo->rows);
-    return (pBlockInfo->rows == 0) ? NULL : doDropInvisibleCol(pInfo->pRes, pInfo->pColMatchInfo);
+    return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
 
   } else {
     ASSERT(0);
+    return NULL;
+  }
+}
+
+static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
+  SSDataBlock* pBlock = doStreamScanImpl(pOperator);
+  if (pBlock != NULL) {
+    SStreamScanInfo* pInfo = (SStreamScanInfo*) pOperator->info;
+    return doDropInvisibleCol(pInfo->pRes, pInfo->pColMatchInfo);
+  } else {
     return NULL;
   }
 }
