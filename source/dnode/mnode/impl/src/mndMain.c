@@ -90,6 +90,16 @@ static void mndPullupTelem(SMnode *pMnode) {
   }
 }
 
+static void mndGrantHeartBeat(SMnode *pMnode) {
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {
+        .msgType = TDMT_MND_GRANT_HB_TIMER, .pCont = pReq, .contLen = contLen, .info.ahandle = (void *)0x9527};
+    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+  }
+}
+
 static void *mndThreadFp(void *param) {
   SMnode *pMnode = param;
   int64_t lastTime = 0;
@@ -114,6 +124,10 @@ static void *mndThreadFp(void *param) {
 
     if (lastTime % (tsTelemInterval * 10) == 0) {
       mndPullupTelem(pMnode);
+    }
+
+    if (lastTime % (tsGrantHBInterval * 10) == 0) {
+      mndGrantHeartBeat(pMnode);
     }
   }
 
@@ -402,6 +416,9 @@ int32_t mndStart(SMnode *pMnode) {
     }
     mndSetRestore(pMnode, true);
   }
+  
+  grantReset(pMnode, TSDB_GRANT_ALL, 0);
+
   return mndInitTimer(pMnode);
 }
 

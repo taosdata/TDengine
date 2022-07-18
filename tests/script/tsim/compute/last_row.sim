@@ -65,8 +65,6 @@ if $data00 != 19 then
   return -1
 endi
 
-
-
 print =============== step7
 sql select last_row(tbcol) from $mt
 print ===> $data00
