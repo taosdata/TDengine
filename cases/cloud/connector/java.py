@@ -2,7 +2,6 @@
 到指定测试服务器目录，执行 mvn test
 启动命令： tt --case=cloud/connector/java.py --use=cloud_test.yaml
 """
-import subprocess as sp
 
 from taostest import TDCase, T
 
@@ -13,7 +12,7 @@ class Java(TDCase):
 
     def run(self):
         cwd = self.env_setting["work_dir"] + "/docs-cloud/docs/examples/java"
-        sp.run(["mvn", "test"], cwd=cwd, check=True, env=self.env_setting["env"])
+        self.lcmd.run("mvn test", cwd=cwd, env=self.env_setting["env"])
 
     def desc(self) -> str:
         return """Test Code Examples for Java Connector """
@@ -22,4 +21,4 @@ class Java(TDCase):
         return "Ding Bo"
 
     def tags(self):
-        T.Cloud.Connector.Java
+        return T.Cloud.Connector.Java
