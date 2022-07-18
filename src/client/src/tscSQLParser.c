@@ -3463,10 +3463,6 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
   const char* msg0 = "ambiguous column name";
   const char* msg1 = "invalid column name";
 
-  if (pToken->n == 0) {
-    return TSDB_CODE_TSC_INVALID_OPERATION;
-  }
-
   if (isTablenameToken(pToken)) {
     pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
   } else if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n &&
@@ -3546,6 +3542,11 @@ int32_t getTableIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColumnIn
 }
 
 int32_t getColumnIndexByName(const SStrToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex, char* msg) {
+  const char* msg0 = "invalid column name";
+
+  if (pToken->n == 0) {
+    return invalidOperationMsg(msg, msg0);
+  }
   if (pQueryInfo->pTableMetaInfo == NULL || pQueryInfo->numOfTables == 0) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
