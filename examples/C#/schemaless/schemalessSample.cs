@@ -289,7 +289,7 @@ namespace TDengineDriver
 
         static void ExitProgram()
         {
-            System.Environment.Exit(0);
+            System.Environment.Exit(1);
         }
 
         public void cleanup()

@@ -236,6 +236,7 @@
 30,,script,./test.sh -f general/import/commit.sim 
 30,,script,./test.sh -f general/compute/diff2.sim 
 30,,develop-test,bash 3-connectors/R/test.sh
+30,,develop-test,bash 3-connectors/c#/test.sh
 29,,system-test,python3 ./test.py -f 0-others/create_col_tag.py 
 29,,script,./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim 
 29,,script,./test.sh -f general/wal/maxtables.sim 
@@ -740,6 +741,7 @@
 4,,system-test,python3 ./test.py -f 2-query/TD-11561.py 
 4,,system-test,python3 test.py -f 1-insert/stmt_error.py 
 4,,pytest,python3 test.py -f user/pass_len.py 
+4,,pytest,python3 test.py -f client/dropTable.py  
 4,,pytest,python3 test.py -f TimeZone/TestCaseTimeZone.py 
 4,,pytest,python3 test.py -f tag_lite/unsignedBigint.py 
 4,,pytest,python3 test.py -f tag_lite/tinyint.py 
@@ -806,6 +808,14 @@
 4,,pytest,python3 test.py -f insert/line_insert.py
 3,,pytest,python3 test.py -f tag_lite/binary.py 
 3,,pytest,python3 test.py -f query/filterAllIntTypes.py 
+3,,pytest,python3 test.py -f dbmgmt/dbNameCaseSensitive.py 
+3,,pytest,python3 test.py -f insert/schemalessCaseSensitive.py  
+3,,pytest,python3 test.py -f table/columnNameCaseSensitive.py 
+3,,pytest,python3 test.py -f table/columnNameValidation.py
+3,,pytest,python3 test.py -f table/tagNameCaseSensitive.py  
+3,,pytest,python3 test.py -f table/tbNameCaseSensitive.py 
+3,,pytest,python3 test.py -f functions/function_max_row.py  
+3,,pytest,python3 test.py -f functions/function_min_row.py  
 3,,develop-test,python3 ./test.py -f 2-query/ts_hidden_column.py 
 3,,develop-test,python3 ./test.py -f 2-query/ts_shortcut.py
 3,,develop-test,python3 ./test.py -f 2-query/nchar_funcs.py

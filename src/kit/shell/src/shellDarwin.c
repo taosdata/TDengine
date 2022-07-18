@@ -54,13 +54,16 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "Script to run without enter the shell.");
   printf("%s%s\n", indent, "-d");
   printf("%s%s%s\n", indent, indent, "Database to use when connecting to the server.");
-  printf("%s%s\n", indent, "-t");
+  printf("%s%s\n", indent, "-z");
   printf("%s%s%s\n", indent, indent, "Time zone of the shell, default is local.");
   printf("%s%s\n", indent, "-D");
   printf("%s%s%s\n", indent, indent, "Use multi-thread to import all SQL files in the directory separately.");
   printf("%s%s\n", indent, "-T");
   printf("%s%s%s\n", indent, indent, "Number of threads when using multi-thread to import data.");
-
+  printf("%s%s\n", indent, "-R");
+  printf("%s%s%s\n", indent, indent, "Connect and interact with TDengine use restful.");
+  printf("%s%s\n", indent, "-E");
+  printf("%s%s%s\n", indent, indent, "The DSN to use when connecting TDengine's cloud services.");
   exit(EXIT_SUCCESS);
 }
 
@@ -73,12 +76,13 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   for (int i = 1; i < argc; i++) {
     // for host
     if (strcmp(argv[i], "-h") == 0) {
-      if (i < argc - 1) {
-        arguments->host = argv[++i];
-      } else {
-        fprintf(stderr, "option -h requires an argument\n");
-        exit(EXIT_FAILURE);
-      }
+        if (i < argc - 1) {
+            arguments->cloud = false;
+            arguments->host = argv[++i];
+        } else {
+            fprintf(stderr, "option -h requires an argument\n");
+            exit(EXIT_FAILURE);
+        }
     }
       // for password
     else if ((strncmp(argv[i], "-p", 2) == 0)
@@ -105,6 +109,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for management port
     else if (strcmp(argv[i], "-P") == 0) {
       if (i < argc - 1) {
+        arguments->cloud = false;
         arguments->port = atoi(argv[++i]);
       } else {
         fprintf(stderr, "option -P requires an argument\n");
@@ -121,6 +126,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       }
     } else if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
+        arguments->cloud = false;
         if (strlen(argv[++i]) >= TSDB_FILENAME_LEN) {
           fprintf(stderr, "config file path: %s overflow max len %d\n", argv[i], TSDB_FILENAME_LEN - 1);
           exit(EXIT_FAILURE);
@@ -159,11 +165,11 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       }
     }
       // For time zone
-    else if (strcmp(argv[i], "-t") == 0) {
+    else if (strcmp(argv[i], "-z") == 0) {
       if (i < argc - 1) {
         arguments->timezone = argv[++i];
       } else {
-        fprintf(stderr, "option -t requires an argument\n");
+        fprintf(stderr, "option -z requires an argument\n");
         exit(EXIT_FAILURE);
       }
     }
@@ -190,6 +196,21 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
+
+    else if (strcmp(argv[i], "-R") == 0) {
+        arguments->cloud = false;
+        arguments->restful = true;
+    }
+
+    else if (strcmp(argv[i], "-E") == 0) {
+        if (i < argc - 1) {
+            arguments->cloudDsn = argv[++i];
+        } else {
+            fprintf(stderr, "options -E requires an argument\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+
       // For temperory command TODO
     else if (strcmp(argv[i], "--help") == 0) {
       printHelp();
@@ -199,6 +220,16 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       printHelp();
       exit(EXIT_FAILURE);
     }
+  }
+  if (args.cloudDsn == NULL) {
+      if (args.cloud) {
+          args.cloudDsn = getenv("TDENGINE_CLOUD_DSN");
+          if (args.cloudDsn == NULL) {
+              args.cloud = false;
+          }
+      }
+  } else {
+      args.cloud = true;
   }
 }
 
@@ -546,4 +577,38 @@ void cleanup_handler(void *arg) { tcsetattr(0, TCSANOW, &oldtio); }
 void exitShell() {
   tcsetattr(0, TCSANOW, &oldtio);
   exit(EXIT_SUCCESS);
+}
+
+int tcpConnect(char* host, int port) {
+    struct sockaddr_in serv_addr;
+    if (port == 0) {
+        port = 6041;
+        args.port = 6041;
+    }
+    if (NULL == host) {
+        host = "localhost";
+        args.host = "localhost";
+    }
+
+    struct hostent *server = gethostbyname(host);
+    if ((server == NULL) || (server->h_addr == NULL)) {
+        fprintf(stderr, "no such host: %s\n", host);
+        return -1;
+    }
+    memset(&serv_addr, 0, sizeof(struct sockaddr_in));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(port);
+    memcpy(&(serv_addr.sin_addr.s_addr), server->h_addr, server->h_length);
+    args.socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (args.socket < 0) {
+        fprintf(stderr, "failed to create socket\n");
+        return -1;
+    }
+    int retConn = connect(args.socket, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr));
+    if (retConn < 0) {
+        fprintf(stderr, "failed to connect\n");
+        close(args.socket);
+        return -1;
+    }
+    return 0;
 }

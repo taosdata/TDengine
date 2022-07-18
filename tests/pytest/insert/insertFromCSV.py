@@ -30,7 +30,7 @@ class TDTestCase:
 
         self.ts = 1500074556514
         self.csvfile = "/tmp/csvfile.csv"
-        self.rows = 100000
+        self.rows = 10000
     
     def writeCSV(self):
         with open(self.csvfile, 'w', encoding='utf-8', newline='') as csvFile:
@@ -63,6 +63,8 @@ class TDTestCase:
         tdSql.execute("insert into t3 using stb tags(1, 'test') file '%s'" % self.csvfile)
         tdSql.query("select * from stb")
         tdSql.checkRows(self.rows * 2)
+
+        tdSql.error("insert into t4 using stb tags(2, 'test2') file '%s' t5 using stb(t1) tags(5) file '%s'" % (self.csvfile, self.csvfile))        
 
     def stop(self):
         tdSql.close()

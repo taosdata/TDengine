@@ -62,7 +62,7 @@ sql show mnodes -x step2
 print mnode1 $data2_1
 print mnode1 $data2_2
 print mnode1 $data2_3
-if $data2_1 != master then
+if $data2_1 != leader then
   goto step2
 endi
 
@@ -115,7 +115,7 @@ sql show mnodes -x step5
 print mnode1 $data2_1
 print mnode1 $data2_2
 print mnode1 $data2_3
-if $data2_1 != master then
+if $data2_1 != leader then
   goto step5
 endi
 
@@ -185,7 +185,7 @@ sql show mnodes -x step7
 print mnode1 $data2_1
 print mnode1 $data2_2
 print mnode1 $data2_3
-if $data2_1 != master then
+if $data2_1 != leader then
   goto step7
 endi
 
@@ -240,7 +240,7 @@ sql show mnodes -x step9
 print mnode1 $data2_1
 print mnode1 $data2_2
 print mnode1 $data2_3
-if $data2_1 != master then
+if $data2_1 != leader then
   goto step9
 endi
 
@@ -314,7 +314,7 @@ sql show mnodes -x step10
 print mnode1 $data2_1
 print mnode1 $data2_2
 print mnode1 $data2_3
-if $data2_1 != master then
+if $data2_1 != leader then
   goto step10
 endi
 
@@ -369,7 +369,7 @@ sql show mnodes -x step12
 print mnode1 $data2_1
 print mnode1 $data2_2
 print mnode1 $data2_3
-if $data2_1 != master then
+if $data2_1 != leader then
   goto step12
 endi
 

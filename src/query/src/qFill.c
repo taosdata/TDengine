@@ -63,8 +63,8 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order);
 
   // set the primary timestamp column value
-  int32_t index = pFillInfo->numOfCurrent;
-  char* val = elePtrAt(data[0], TSDB_KEYSIZE, index);
+  int32_t idx = pFillInfo->numOfCurrent;
+  char* val = elePtrAt(data[0], TSDB_KEYSIZE, idx);
   *(TSKEY*) val = pFillInfo->currentKey;
 
   // set the other values
@@ -78,11 +78,11 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
           continue;
         }
 
-        char* output = elePtrAt(data[i], pCol->col.bytes, index);
+        char* output = elePtrAt(data[i], pCol->col.bytes, idx);
         assignVal(output, p + pCol->col.offset, pCol->col.bytes, pCol->col.type);
       }
     } else {  // no prev value yet, set the value for NULL
-      setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, index);
+      setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, idx);
     }
   } else if (pFillInfo->type == TSDB_FILL_NEXT) {
     char* p = next;
@@ -94,11 +94,11 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
           continue;
         }
 
-        char* output = elePtrAt(data[i], pCol->col.bytes, index);
+        char* output = elePtrAt(data[i], pCol->col.bytes, idx);
         assignVal(output, p + pCol->col.offset, pCol->col.bytes, pCol->col.type);
       }
     } else { // no prev value yet, set the value for NULL
-      setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, index);
+      setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, idx);
     }
   } else if (pFillInfo->type == TSDB_FILL_LINEAR) {
     if (prev != NULL && !outOfBound) {
@@ -111,7 +111,7 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
         int16_t type  = pCol->col.type;
         int16_t bytes = pCol->col.bytes;
 
-        char *val1 = elePtrAt(data[i], pCol->col.bytes, index);
+        char *val1 = elePtrAt(data[i], pCol->col.bytes, idx);
         if (type == TSDB_DATA_TYPE_BINARY|| type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BOOL) {
           setNull(val1, pCol->col.type, bytes);
           continue;
@@ -128,7 +128,7 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
         taosGetLinearInterpolationVal(&point, type, &point1, &point2, type, &exceedMax, &exceedMin);
       }
     } else {
-      setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, index);
+      setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, idx);
     }
   } else { // fill the default value */
     for (int32_t i = 1; i < pFillInfo->numOfCols; ++i) {
@@ -137,12 +137,12 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
         continue;
       }
 
-      char* val1 = elePtrAt(data[i], pCol->col.bytes, index);
+      char* val1 = elePtrAt(data[i], pCol->col.bytes, idx);
       assignVal(val1, (char*)&pCol->fillVal.i, pCol->col.bytes, pCol->col.type);
     }
   }
 
-  setTagsValue(pFillInfo, data, index);
+  setTagsValue(pFillInfo, data, idx);
   pFillInfo->currentKey = taosTimeAdd(pFillInfo->currentKey, pFillInfo->interval.sliding * step, pFillInfo->interval.slidingUnit, pFillInfo->precision);
   pFillInfo->numOfCurrent++;
 }
@@ -303,11 +303,11 @@ static int32_t setTagColumnInfo(SFillInfo* pFillInfo, int32_t numOfCols, int32_t
       numOfTags += 1;
 
       bool exists = false;
-      int32_t index = -1;
+      int32_t idx = -1;
       for (int32_t j = 0; j < k; ++j) {
         if (pFillInfo->pTags[j].col.colId == pColInfo->col.colId) {
           exists = true;
-          index = j;
+          idx = j;
           break;
         }
       }
@@ -323,7 +323,7 @@ static int32_t setTagColumnInfo(SFillInfo* pFillInfo, int32_t numOfCols, int32_t
 
         k += 1;
       } else {
-        pColInfo->tagIndex = index;
+        pColInfo->tagIndex = idx;
       }
     }
 

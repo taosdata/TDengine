@@ -1,0 +1,12 @@
+```js title=Single Row Binding
+{{#include docs/examples/node/nativeexample/param_bind_example.js}}
+```
+
+```js title=Multiple Row Binding
+{{#include docs/examples/node/nativeexample/multi_bind_example.js:insertData}}
+```
+
+:::info
+Multiple row binding is better in performance than single row binding, but it can only be used with `INSERT` statement while single row binding can be used for other SQL statements besides `INSERT`.
+
+:::
