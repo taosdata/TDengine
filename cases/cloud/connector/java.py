@@ -13,7 +13,6 @@ class Java(TDCase):
 
     def run(self):
         cwd = self.env_setting["work_dir"] + "/docs-cloud/docs/examples/java"
-        sp.run(["git", "pull"], cwd=cwd)
         sp.run(["mvn", "test"], cwd=cwd, check=True, env=self.env_setting["env"])
 
     def desc(self) -> str:
