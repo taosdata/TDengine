@@ -749,7 +749,7 @@ void tdRemoveRSmaInfoBySuid(SSma *pSma, int64_t suid) {
 
   pRSmaInfo = taosHashGet(RSMA_INFO_HASH(pStat), &suid, sizeof(tb_uid_t));
   if (pRSmaInfo) {
-    if (pRSmaInfo = *(SRSmaInfo **)pRSmaInfo) {
+    if ((pRSmaInfo = *(SRSmaInfo **)pRSmaInfo)) {
       tdFreeRSmaInfo(pSma, pRSmaInfo, true);
     }
     taosHashRemove(RSMA_INFO_HASH(pStat), &suid, sizeof(tb_uid_t));
