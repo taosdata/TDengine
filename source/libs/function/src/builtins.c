@@ -2231,6 +2231,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastRowFunction,
+    .sprocessFunc = firstLastScalarFunction,
     .finalizeFunc = firstLastFinalize
   },
   {
@@ -2251,6 +2252,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = firstFunction,
+    .sprocessFunc = firstLastScalarFunction,
     .finalizeFunc = firstLastFinalize,
     .pPartialFunc = "_first_partial",
     .pMergeFunc   = "_first_merge",
@@ -2286,6 +2288,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastFunction,
+    .sprocessFunc = firstLastScalarFunction,
     .finalizeFunc = firstLastFinalize,
     .pPartialFunc = "_last_partial",
     .pMergeFunc   = "_last_merge",

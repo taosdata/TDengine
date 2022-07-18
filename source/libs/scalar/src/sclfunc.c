@@ -2845,3 +2845,7 @@ int32_t topScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 int32_t bottomScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return selectScalarFunction(pInput, inputNum, pOutput);
 }
+
+int32_t firstLastScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
+}
