@@ -242,6 +242,7 @@ void transCtxCleanup(STransCtx* ctx) {
   }
 
   taosHashCleanup(ctx->args);
+  ctx->freeFunc(ctx->brokenVal.val);
   ctx->args = NULL;
 }
 
