@@ -63,7 +63,7 @@ Log in TDengine Cloud, click "Explorer" on the left navigation bar. You will see
 
 ## Verify Remote Read
 
-Lets retrieve some metrics from TDengine Cloud via prometheus web server. Browse to http://localhost:9090/graph and use the "Graph" tab.
+Lets retrieve some metrics from TDengine Cloud via prometheus web server. Browse to <http://localhost:9090/graph> and use the "Graph" tab.
 
 Enter the following expression to graph the per-second rate of chunks being created in the self-scraped Prometheus:
 
