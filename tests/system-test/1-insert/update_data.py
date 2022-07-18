@@ -46,20 +46,6 @@ class TDTestCase:
             'col13': f'nchar({self.str_length})',
             'col_ts'  : 'timestamp'
         }
-        self.tinyint = None
-        self.smallint = None
-        self.int = None
-        self.bigint = None
-        self.untinyint = None
-        self.unsmallint = None
-        self.unint = None
-        self.unbigint = None
-        self.bool = None
-        self.float = None
-        self.double = None
-        self.binary = None
-        self.tnchar = None
-    
            
     def data_check(self,tbname,col_name,col_type,value):
         tdSql.query(f'select {col_name} from {tbname}')
@@ -147,7 +133,6 @@ class TDTestCase:
         nchar_length = random.randint(0,self.str_length)
         up_binary = tdCom.getLongName(binary_length)
         up_nchar = tdCom.getLongName(nchar_length)
-        
         for col_name,col_type in column_dict.items():
             if tb_type == 'ntb':
                 tdSql.execute(f'create table {tbname} (ts timestamp,{col_name} {col_type})')
@@ -210,7 +195,6 @@ class TDTestCase:
                 tdSql.execute(f'alter table {self.ntbname} modify column {col_name} nchar({self.str_length+1})')
                 self.update_and_check_data(self.ntbname,col_name,col_type,up_nchar,self.dbname)
             tdSql.execute(f'drop table {self.ntbname}')
-        
         self.update_data_check(self.ctbname,self.column_dict,self.dbname,'ctb',self.stbname)
         for col_name,col_type in self.column_dict.items():
             tdSql.execute(f'create table {self.stbname} (ts timestamp,{col_name} {col_type}) tags(t0 int)')
@@ -226,7 +210,6 @@ class TDTestCase:
                 self.update_and_check_data(self.ctbname,col_name,col_type,up_nchar,self.dbname)
             tdSql.execute(f'drop table {self.stbname}')
 
-                
     def update_check_error(self):
         tdSql.execute(f'drop database if exists {self.dbname}')
         tdSql.execute(f'create database {self.dbname}')
