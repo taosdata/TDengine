@@ -72,8 +72,12 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   assert(pGroupResInfo != NULL);
 
-  taosArrayDestroy(pGroupResInfo->pRows);
-  pGroupResInfo->pRows = NULL;
+  for(int32_t i = 0; i < taosArrayGetSize(pGroupResInfo->pRows); ++i) {
+    SResKeyPos* pRes = taosArrayGetP(pGroupResInfo->pRows, i);
+    taosMemoryFree(pRes);
+  }
+
+  pGroupResInfo->pRows = taosArrayDestroy(pGroupResInfo->pRows);
   pGroupResInfo->index = 0;
 }
 

@@ -377,6 +377,10 @@ void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow
   colDataAppendInt64(pColData, 4, &pQueryWindow->ekey);
 }
 
+void cleanupExecTimeWindowInfo(SColumnInfoData* pColData) {
+  colDataDestroy(pColData);
+}
+
 void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow* pWin,
                       SColumnInfoData* pTimeWindowData, int32_t offset, int32_t forwardStep, TSKEY* tsCol,
                       int32_t numOfTotal, int32_t numOfOutput, int32_t order) {
@@ -3737,7 +3741,7 @@ void destroyAggOperatorInfo(void* param, int32_t numOfOutput) {
   cleanupBasicInfo(&pInfo->binfo);
 
   cleanupAggSup(&pInfo->aggSup);
-  taosArrayDestroyEx(pInfo->groupResInfo.pRows, freeItem);
+  cleanupGroupResInfo(&pInfo->groupResInfo);
   taosMemoryFreeClear(param);
 }
 

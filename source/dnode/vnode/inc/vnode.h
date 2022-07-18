@@ -27,6 +27,7 @@
 #include "wal.h"
 
 #include "tcommon.h"
+#include "tgrant.h"
 #include "tfs.h"
 #include "tmsg.h"
 #include "trow.h"
