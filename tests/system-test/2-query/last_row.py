@@ -602,13 +602,13 @@ class TDTestCase:
         tdSql.query("select ts , last_row(c1) ,c1  from (select ts , c1 ,t1 from testdb.stb1)")
         tdSql.checkData(0,1,None)
 
-        tdSql.query("select ts , last_row(c1) ,c1  from (select ts , max(c1) c1  ,t1 from testdb.stb1 where ts >now -1h and ts <now interval(10s) fill(value ,10 ))")
+        tdSql.query("select ts , last_row(c1) ,c1  from (select ts , max(c1) c1  ,t1 from testdb.stb1 where ts >now -1h and ts <now+1h interval(10s) fill(value ,10 ))")
         tdSql.checkData(0,1,10)
         tdSql.checkData(0,1,10)
 
-        tdSql.error("select ts , last_row(c1) ,c1  from (select count(c1) c1 from testdb.stb1 where ts >now -1h and ts <now interval(10s) fill(value ,10 ))")
+        tdSql.error("select ts , last_row(c1) ,c1  from (select count(c1) c1 from testdb.stb1 where ts >now -1h and ts <now+1h interval(10s) fill(value ,10 ))")
 
-        tdSql.error("select  last_row(c1) ,c1  from (select  count(c1) c1 from testdb.stb1 where ts >now -1h and ts <now interval(10s) fill(value ,10 ))")
+        tdSql.error("select  last_row(c1) ,c1  from (select  count(c1) c1 from testdb.stb1 where ts >now -1h and ts <now+1h interval(10s) fill(value ,10 ))")
 
         # tag filter with last_row function
         tdSql.query("select last_row(t1) from testdb.stb1 where abs(t1)=1")
