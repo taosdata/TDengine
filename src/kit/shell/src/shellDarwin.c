@@ -64,6 +64,8 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "Connect and interact with TDengine use restful.");
   printf("%s%s\n", indent, "-E");
   printf("%s%s%s\n", indent, indent, "The DSN to use when connecting TDengine's cloud services.");
+  printf("%s%s\n", indent, "-t");
+  printf("%s%s%s\n", indent, indent, "The timeout in seconds for websocket interact.");
   exit(EXIT_SUCCESS);
 }
 
@@ -204,11 +206,20 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
 
     else if (strcmp(argv[i], "-E") == 0) {
         if (i < argc - 1) {
-            arguments->cloudDsn = argv[++i];
+            arguments->dsn = argv[++i];
         } else {
             fprintf(stderr, "options -E requires an argument\n");
             exit(EXIT_FAILURE);
         }
+    }
+    
+    else if (strcmp(argv[i], "-t") == 0) {
+      if (i < argc -1) {
+        arguments->timeout = atoi(argv[++i]);
+      } else {
+        fprintf(stderr, "options -t requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
     }
 
       // For temperory command TODO
@@ -221,10 +232,10 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       exit(EXIT_FAILURE);
     }
   }
-  if (args.cloudDsn == NULL) {
+  if (args.dsn == NULL) {
       if (args.cloud) {
-          args.cloudDsn = getenv("TDENGINE_CLOUD_DSN");
-          if (args.cloudDsn == NULL) {
+          args.dsn = getenv("TDENGINE_CLOUD_DSN");
+          if (args.dsn == NULL) {
               args.cloud = false;
           }
       }
@@ -577,38 +588,4 @@ void cleanup_handler(void *arg) { tcsetattr(0, TCSANOW, &oldtio); }
 void exitShell() {
   tcsetattr(0, TCSANOW, &oldtio);
   exit(EXIT_SUCCESS);
-}
-
-int tcpConnect(char* host, int port) {
-    struct sockaddr_in serv_addr;
-    if (port == 0) {
-        port = 6041;
-        args.port = 6041;
-    }
-    if (NULL == host) {
-        host = "localhost";
-        args.host = "localhost";
-    }
-
-    struct hostent *server = gethostbyname(host);
-    if ((server == NULL) || (server->h_addr == NULL)) {
-        fprintf(stderr, "no such host: %s\n", host);
-        return -1;
-    }
-    memset(&serv_addr, 0, sizeof(struct sockaddr_in));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(port);
-    memcpy(&(serv_addr.sin_addr.s_addr), server->h_addr, server->h_length);
-    args.socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (args.socket < 0) {
-        fprintf(stderr, "failed to create socket\n");
-        return -1;
-    }
-    int retConn = connect(args.socket, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr));
-    if (retConn < 0) {
-        fprintf(stderr, "failed to connect\n");
-        close(args.socket);
-        return -1;
-    }
-    return 0;
 }
