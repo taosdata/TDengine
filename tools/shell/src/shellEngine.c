@@ -737,13 +737,6 @@ int32_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool ver
 
 void shellReadHistory() {
   SShellHistory *pHistory = &shell.history;
-  int64_t file_size;
-  if (taosStatFile(pHistory->file, &file_size, NULL) != 0) {
-    return;
-  } else if (file_size > SHELL_MAX_COMMAND_SIZE) {
-    taosRemoveFile(pHistory->file);
-    return;
-  }
   TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) return;
 
@@ -763,10 +756,31 @@ void shellReadHistory() {
 
   if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
+  int64_t file_size;
+  if (taosStatFile(pHistory->file, &file_size, NULL) == 0 && file_size > SHELL_MAX_COMMAND_SIZE) {
+    fprintf(stdout,"%s(%d) %s %08" PRId64 "\n", __FILE__, __LINE__,__func__,taosGetSelfPthreadId());fflush(stdout);
+    TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_STREAM | TD_FILE_TRUNC);
+    if (pFile == NULL) return;
+    int32_t endIndex = pHistory->hstart;
+    if (endIndex != 0) {
+      endIndex = pHistory->hend;
+    }
+    for (int32_t i = (pHistory->hend + SHELL_MAX_HISTORY_SIZE - 1) % SHELL_MAX_HISTORY_SIZE; i != endIndex;) {
+      printf("%d ",i);
+      taosFprintfFile(pFile, "%s\n", pHistory->hist[i]);
+      i = (i + SHELL_MAX_HISTORY_SIZE - 1) % SHELL_MAX_HISTORY_SIZE;
+    }
+    taosFprintfFile(pFile, "%s\n", pHistory->hist[endIndex]);
+    printf("\n");
+    taosFsyncFile(pFile);
+    taosCloseFile(&pFile);
+  }
+  pHistory->hend = pHistory->hstart;
 }
 
 void shellWriteHistory() {
   SShellHistory *pHistory = &shell.history;
+  if (pHistory->hend == pHistory->hstart) return;
   TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_STREAM | TD_FILE_APPEND);
   if (pFile == NULL) return;
 
