@@ -1196,7 +1196,6 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
       if (pResCol->info.colId == pColMatchInfo->colId) {
         SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId);
         colDataAssign(pDst, pResCol, pBlock->info.rows, &pInfo->pRes->info);
-        //        taosArraySet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId, pResCol);
         colExists = true;
         break;
       }
@@ -1223,6 +1222,40 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
   blockDataFreeRes((SSDataBlock*)pBlock);
   return 0;
+}
+
+// todo opt perf
+static SSDataBlock* doDropInvisibleCol(SSDataBlock* pBlock, SArray* pColMatchInfo) {
+  size_t numOfMatchInfo = taosArrayGetSize(pColMatchInfo);
+
+  bool ignoreCols = false;
+  for (int32_t j = 0; j < numOfMatchInfo; ++j) {
+    SColMatchInfo* pInfo = taosArrayGet(pColMatchInfo, j);
+    if (!pInfo->output) {
+      ignoreCols = true;
+      break;
+    }
+  }
+
+  SSDataBlock* pRes = createOneDataBlock(pBlock, false);
+  if (ignoreCols) {
+    int32_t i = 0;
+    while(i < taosArrayGetSize(pRes->pDataBlock)) {
+      SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+      for (int32_t j = 0; j < numOfMatchInfo; ++j) {
+        SColMatchInfo* pInfo = taosArrayGet(pColMatchInfo, j);
+        if (pInfo->colId == pCol->info.colId && !pInfo->output) {
+          taosArrayRemove(pBlock->pDataBlock, i);
+          i -= 1;
+          break;
+        }
+      }
+
+      i += 1;
+    }
+  }
+
+  return pRes;
 }
 
 static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
@@ -1435,8 +1468,9 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         }
       }
     }
+
     qDebug("scan rows: %d", pBlockInfo->rows);
-    return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
+    return (pBlockInfo->rows == 0) ? NULL : doDropInvisibleCol(pInfo->pRes, pInfo->pColMatchInfo);
 
   } else {
     ASSERT(0);
@@ -1507,8 +1541,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     goto _error;
   }
 
-  SScanPhysiNode* pScanPhyNode = &pTableScanNode->scan;
-
+  SScanPhysiNode*     pScanPhyNode = &pTableScanNode->scan;
   SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
 
   pInfo->pTagCond = pTagCond;
