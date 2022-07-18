@@ -11,7 +11,6 @@
 
 # -*- coding: utf-8 -*-
 
-from optparse import Values
 import random
 import string
 from util import constant
@@ -23,7 +22,7 @@ from util.sqlset import TDSetSql
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(),logSql)
         self.setsql = TDSetSql()
         self.dbname = 'db_test'
         self.ntbname = 'ntb'
@@ -60,34 +59,8 @@ class TDTestCase:
         self.double = None
         self.binary = None
         self.tnchar = None
-    def insert_base_data(self,col_type,tbname,value=None):
-        if value == None:
-            if col_type.lower() == 'tinyint':
-                tdSql.execute(f'insert into {tbname} values({self.ts},{self.tinyint})')
-            elif col_type.lower() == 'smallint':
-                tdSql.execute(f'insert into {tbname} values({self.ts},{self.smallint})')
-            elif col_type.lower() == 'int':
-                tdSql.execute(f'insert into {tbname} values({self.ts},{self.int})')
-            elif col_type.lower() == 'bigint':
-                tdSql.execute(f'insert into {tbname} values({self.ts},{self.bigint})')
-            elif col_type.lower() == 'tinyint unsigned':
-                tdSql.execute(f'insert into {tbname} values({self.ts},{self.untinyint})')
-            elif col_type.lower() == 'smallint unsigned':
-                tdSql.execute(f'insert into {tbname} values({self.ts},{self.unsmallint})')
-            elif col_type.lower() == 'int unsigned':
-                tdSql.execute(f'insert into {tbname} values({self.ts},{self.unint})')
-            elif col_type.lower() == 'bigint unsigned':
-                tdSql.execute(f'insert into {tbname} values({self.ts},{self.unbigint})')
-            elif col_type.lower() == 'bool':
-                tdSql.execute(f'insert into {tbname} values({self.ts},{self.bool})')    
-            elif col_type.lower() == 'float':
-                tdSql.execute(f'insert into {tbname} values({self.ts},{self.float})')      
-            elif col_type.lower() == 'double':
-                tdSql.execute(f'insert into {tbname} values({self.ts},{self.double})')
-            elif 'binary' in col_type.lower():
-                tdSql.execute(f'insert into {tbname} values({self.ts},"{self.binary}")')
-            elif 'nchar' in col_type.lower():
-                tdSql.execute(f'insert into {tbname} values({self.ts},"{self.nchar}")')   
+    
+           
     def data_check(self,tbname,col_name,col_type,value):
         tdSql.query(f'select {col_name} from {tbname}')
         if col_type.lower() == 'float' or col_type.lower() == 'double':
@@ -118,7 +91,7 @@ class TDTestCase:
             elif tb_type == 'ctb':
                 tdSql.execute(f'create table {stbname} (ts timestamp,{col_name} {col_type}) tags(t0 int)')
                 tdSql.execute(f'create table {tbname} using {stbname} tags(1)')
-            self.insert_base_data(col_name,tbname)
+            tdSql.execute(f'insert into {tbname} values({self.ts},null)')
             if col_type.lower() == 'double':
                 for error_value in [tdCom.getLongName(self.str_length),True,False,1.1*constant.DOUBLE_MIN,1.1*constant.DOUBLE_MAX]:
                     tdSql.error(f'insert into {tbname} values({self.ts},{error_value})')
@@ -181,7 +154,7 @@ class TDTestCase:
             elif tb_type == 'ctb':
                 tdSql.execute(f'create table {stbname} (ts timestamp,{col_name} {col_type}) tags(t0 int)')
                 tdSql.execute(f'create table {tbname} using {stbname} tags(1)')
-            self.insert_base_data(col_name,tbname)
+            tdSql.execute(f'insert into {tbname} values({self.ts},null)')
             if col_type.lower() == 'tinyint':
                 self.update_and_check_data(tbname,col_name,col_type,up_tinyint,dbname)
             elif col_type.lower() == 'smallint':
@@ -227,7 +200,7 @@ class TDTestCase:
         self.update_data_check(self.ntbname,self.column_dict,self.dbname,'ntb')
         for col_name,col_type in self.column_dict.items():
             tdSql.execute(f'create table {self.ntbname} (ts timestamp,{col_name} {col_type})')
-            self.insert_base_data(col_name,self.ntbname)
+            tdSql.execute(f'insert into {self.ntbname} values({self.ts},null)')
             if 'binary' in col_type.lower():
                 up_binary = tdCom.getLongName(self.str_length+1)
                 tdSql.execute(f'alter table {self.ntbname} modify column {col_name} binary({self.str_length+1})')
@@ -242,7 +215,7 @@ class TDTestCase:
         for col_name,col_type in self.column_dict.items():
             tdSql.execute(f'create table {self.stbname} (ts timestamp,{col_name} {col_type}) tags(t0 int)')
             tdSql.execute(f'create table {self.ctbname} using {self.stbname} tags(1)')
-            self.insert_base_data(col_name,self.ctbname)
+            tdSql.execute(f'insert into {self.ctbname} values({self.ts},null)')
             if 'binary' in col_type.lower():
                 up_binary = tdCom.getLongName(self.str_length+1)
                 tdSql.execute(f'alter table {self.stbname} modify column {col_name} binary({self.str_length+1})')
