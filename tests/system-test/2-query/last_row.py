@@ -335,19 +335,9 @@ class TDTestCase:
         tdSql.checkData(0,1,None)
         tdSql.checkData(0,2,None)
 
-        # tdSql.query("select last_row(c1 ,c2 ,c3) ,last_row(c4) from stb1 where ts <now-1d")
-        # tdSql.checkData(0,0,9)
-        # tdSql.checkData(0,1,-99999)
-        # tdSql.checkData(0,2,-999)
-        # tdSql.checkData(0,3,None)
 
-        # tdSql.query("select last_row(c1 ,c2 ,c3 ,c4) ,last(c4) from stb1 where ts <now-1d")
-        # tdSql.checkData(0,0,9)
-        # tdSql.checkData(0,1,-99999)
-        # tdSql.checkData(0,2,-999)
-        # tdSql.checkData(0,3,None)
-        # tdSql.checkData(0,4,-99)
-
+        tdSql.query('select last_row(c1) from testdb.t1 where ts <"2022-12-31 01:01:36.000"')
+        tdSql.checkData(0,0,8)
         # bug need fix 
         tdSql.query("select abs(last_row(c1)-2)+max(c1),ceil(last_row(c4)-2) from testdb.stb1 where c4 is not null")
         tdSql.checkData(0,0,16.000000000)
@@ -364,13 +354,6 @@ class TDTestCase:
         tdSql.checkData(0,0,10.000000000)
 
         # filter for last_row
-
-        # bug need fix 
-        # tdSql.query("select last_row(ts ,c1 ) from testdb.stb1 where ts < now-1d ")
-        # tdSql.checkData(0,1,9)
-
-        # tdSql.query("select last_row(ts ,c1 ) from testdb.ct4 where ts < now-1d ")
-        # tdSql.checkData(0,1,9)
 
         # bug need fix for all function
 
