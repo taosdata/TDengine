@@ -74,6 +74,10 @@ class TDTestCase:
         tdSql.query("select * from `STB6`")
         tdSql.checkRows(2)
 
+        tdSql.execute("alter table `STB6` add tag `1` int")
+        tdSql.execute("create table t1 using `STB6`(`1`) tags(1)")
+        tdSql.error("alter table t1 set tag 1=2222")
+
         tdSql.error("alter table `STB6` add tag `` nchar(20)")
 
     def stop(self):
