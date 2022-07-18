@@ -108,6 +108,8 @@ class TDTestCase:
         tdSql.execute(f'flush database {dbname}')
         tdSql.execute('reset query cache')
         self.data_check(tbname,col_name,col_type,value)
+        for func in ['first','last']:
+            tdSql.execute(f'select {func}({col_name}) from {tbname}')
     def error_check(self,tbname,column_dict,tb_type=None,stbname=None):
         str_length = self.str_length+1
         for col_name,col_type in column_dict.items():
