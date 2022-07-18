@@ -635,7 +635,7 @@ bool simCreateTaosdConnect(SScript *script, char *rest) {
 bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
   char       timeStr[30] = {0};
   time_t     tt;
-  struct tm *tp;
+  struct tm  tp;
   SCmdLine  *line = &script->lines[script->linePos];
   int32_t    ret = -1;
 
@@ -768,20 +768,9 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               } else {
                 tt = (*(int64_t *)row[i]) / 1000000000;
               }
-              /* comment out as it make testcases like select_with_tags.sim fail.
-                but in windows, this may cause the call to localtime crash if tt < 0,
-                need to find a better solution.
-              if (tt < 0) {
-                tt = 0;
-              }
-              */
 
-#ifdef WINDOWS
-              if (tt < 0) tt = 0;
-#endif
-
-              tp = taosLocalTime(&tt, NULL);
-              strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", tp);
+              taosLocalTime(&tt, &tp);
+              strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", &tp);
               if (precision == TSDB_TIME_PRECISION_MILLI) {
                 sprintf(value, "%s.%03d", timeStr, (int32_t)(*((int64_t *)row[i]) % 1000));
               } else if (precision == TSDB_TIME_PRECISION_MICRO) {

@@ -194,8 +194,9 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
 void static addTimezoneParam(SNodeList* pList) {
   char       buf[6] = {0};
   time_t     t = taosTime(NULL);
-  struct tm* tmInfo = taosLocalTime(&t, NULL);
-  strftime(buf, sizeof(buf), "%z", tmInfo);
+  struct tm  tmInfo;
+  taosLocalTime(&t, &tmInfo);
+  strftime(buf, sizeof(buf), "%z", &tmInfo);
   int32_t len = (int32_t)strlen(buf);
 
   SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
