@@ -1609,11 +1609,13 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
   if (pResultInfo->convertJson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
   char* p1 = pResultInfo->convertJson;
 
+  int32_t totalLen = 0;
   int32_t len = sizeof(int32_t) + sizeof(uint64_t) + numOfCols * (sizeof(int16_t) + sizeof(int32_t));
   memcpy(p1, p, len);
 
   p += len;
   p1 += len;
+  totalLen += len;
 
   len = sizeof(int32_t) * numOfCols;
   int32_t* colLength = (int32_t*)p;
@@ -1621,6 +1623,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
   memcpy(p1, p, len);
   p += len;
   p1 += len;
+  totalLen += len;
 
   char* pStart = p;
   char* pStart1 = p1;
@@ -1636,6 +1639,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
       memcpy(pStart1, pStart, len);
       pStart += len;
       pStart1 += len;
+      totalLen += len;
 
       len = 0;
       for (int32_t j = 0; j < numOfRows; ++j) {
@@ -1680,24 +1684,30 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
         len += varDataTLen(dst);
       }
       colLen1 = len;
+      totalLen += colLen1;
       colLength1[i] = htonl(len);
     } else if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
       len = numOfRows * sizeof(int32_t);
       memcpy(pStart1, pStart, len);
       pStart += len;
       pStart1 += len;
+      totalLen += len;
+      totalLen += colLen;
       memcpy(pStart1, pStart, colLen);
     } else {
       len = BitmapLen(pResultInfo->numOfRows);
       memcpy(pStart1, pStart, len);
       pStart += len;
       pStart1 += len;
+      totalLen += len;
+      totalLen += colLen;
       memcpy(pStart1, pStart, colLen);
     }
     pStart += colLen;
     pStart1 += colLen1;
   }
 
+  *(int32_t*)(pResultInfo->convertJson) = totalLen;
   pResultInfo->pData = pResultInfo->convertJson;
   return TSDB_CODE_SUCCESS;
 }

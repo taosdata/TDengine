@@ -388,13 +388,11 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics, int32_t totalMsgs, int64_t walLog
   }
   /*taosSsleep(3);*/
   int32_t batchCnt = 0;
-  int32_t skipLogNum = 0;
   int64_t startTime = taosGetTimestampUs();
   while (running) {
     TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 3000);
     if (tmqmessage) {
       batchCnt++;
-      /*skipLogNum += tmqGetSkipLogNum(tmqmessage);*/
       if (0 != g_stConfInfo.showMsgFlag) {
         /*msg_process(tmqmessage);*/
       }
@@ -412,7 +410,7 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics, int32_t totalMsgs, int64_t walLog
   }
 
   if (0 == g_stConfInfo.simCase) {
-    printf("consume result: msgs: %d, skip log cnt: %d, time used:%.3f second\n", batchCnt, skipLogNum, consumeTime);
+    printf("consume result: msgs: %d, time used:%.3f second\n", batchCnt, consumeTime);
   } else {
     printf("{consume success: %d}", totalMsgs);
   }

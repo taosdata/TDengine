@@ -499,6 +499,32 @@ TEST(testCase, smlGetTimestampLen_Test) {
   ASSERT_EQ(len, 3);
 }
 
+TEST(testCase, smlParseNumber_Test) {
+  SSmlKv kv = {0};
+  char buf[64] = {0};
+  SSmlMsgBuf msg = {0};
+  msg.buf = buf;
+  msg.len = 64;
+  kv.value = "3.2e-900";
+  kv.length = 8;
+  bool res = smlParseNumber(&kv, &msg);
+  printf("res:%d,v:%f, %f\n", res,kv.d, HUGE_VAL);
+}
+
+//#include <stdlib.h>
+//TEST(testCase, number_Test) {
+//  char *str[] = {
+////    "-000 0999",
+//      "- abc",
+//  };
+//  for(int i = 0; i < sizeof(str)/sizeof(str[0]); i++){
+//    errno = 0;
+//    char *end = NULL;
+//    long result = strtol(str[i], &end, 10);
+//    printf("errno:%d,len:%d,result:%ld\n", errno, end - str[i], result);
+//  }
+//
+//}
 /*
 TEST(testCase, smlProcess_influx_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);

@@ -64,9 +64,16 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVa
   qTaskInfo_t          task = pExec->execCol.task[0];
 
   if (qStreamPrepareScan(task, pOffset) < 0) {
-    ASSERT(pOffset->type == TMQ_OFFSET__LOG);
-    pRsp->rspOffset = *pOffset;
-    return 0;
+    if (pOffset->type == TMQ_OFFSET__LOG) {
+      pRsp->rspOffset = *pOffset;
+      return 0;
+    } else {
+      tqOffsetResetToLog(pOffset, pHandle->snapshotVer + 1);
+      if (qStreamPrepareScan(task, pOffset) < 0) {
+        pRsp->rspOffset = *pOffset;
+        return 0;
+      }
+    }
   }
 
   int32_t rowCnt = 0;
@@ -217,7 +224,6 @@ int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataR
   }
 
   if (pRsp->blockNum == 0) {
-    pRsp->skipLogNum++;
     return -1;
   }
 
