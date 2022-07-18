@@ -143,6 +143,9 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
 
   // enqueue
   if (pData != NULL) {
+    qDebug("task %d(child %d) recv retrieve req from task %d, reqId %ld", pTask->taskId, pTask->selfChildId,
+           pReq->srcTaskId, pReq->reqId);
+
     pData->type = STREAM_INPUT__DATA_RETRIEVE;
     pData->srcVgId = 0;
     // decode

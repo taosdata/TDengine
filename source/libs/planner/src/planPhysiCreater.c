@@ -255,7 +255,7 @@ static int32_t addDataBlockSlot(SPhysiPlanContext* pCxt, SNode** pNode, SDataBlo
 
 static int32_t addDataBlockSlotsForProject(SPhysiPlanContext* pCxt, const char* pStmtName, SNodeList* pList,
                                            SDataBlockDescNode* pDataBlockDesc) {
-  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, pStmtName, true, false);
+  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, pStmtName, false, false);
 }
 
 static int32_t pushdownDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc) {

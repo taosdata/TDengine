@@ -24,6 +24,7 @@
 #include "tcache.h"
 #include "tdatablock.h"
 #include "tglobal.h"
+#include "tgrant.h"
 #include "tqueue.h"
 #include "ttime.h"
 #include "version.h"

@@ -1513,12 +1513,25 @@ static void destroyStateWindowOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFreeClear(param);
 }
 
+static void freeItem(void* param) {
+  SGroupKeys *pKey = (SGroupKeys*) param;
+  taosMemoryFree(pKey->pData);
+}
+
 void destroyIntervalOperatorInfo(void* param, int32_t numOfOutput) {
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
-  taosArrayDestroy(pInfo->pRecycledPages);
+  pInfo->pRecycledPages = taosArrayDestroy(pInfo->pRecycledPages);
+  pInfo->pInterpCols = taosArrayDestroy(pInfo->pInterpCols);
+  taosArrayDestroyEx(pInfo->pPrevValues, freeItem);
 
+  pInfo->pPrevValues = NULL;
+  pInfo->pDelWins = taosArrayDestroy(pInfo->pDelWins);
+  pInfo->pDelRes = blockDataDestroy(pInfo->pDelRes);
+
+  cleanupGroupResInfo(&pInfo->groupResInfo);
+  colDataDestroy(&pInfo->twAggSup.timeWindowData);
   taosMemoryFreeClear(param);
 }
 

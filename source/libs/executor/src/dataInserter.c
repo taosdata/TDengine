@@ -90,6 +90,7 @@ _return:
 
   tsem_post(&pInserter->ready);
 
+  taosMemoryFree(pMsg->pData);
   taosMemoryFree(param);
   
   return TSDB_CODE_SUCCESS;
@@ -283,6 +284,8 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pInserter->cachedSize);
   taosArrayDestroy(pInserter->pDataBlocks);
   taosMemoryFree(pInserter->pSchema);
+  taosMemoryFree(pInserter->pParam);
+  taosHashCleanup(pInserter->pCols);
   taosThreadMutexDestroy(&pInserter->mutex);
   return TSDB_CODE_SUCCESS;
 }

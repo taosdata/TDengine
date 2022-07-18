@@ -52,7 +52,6 @@ typedef struct {
   int64_t reqOffset;
   int64_t processedVer;
   int32_t epoch;
-  int32_t skipLogNum;
   // rpc info
   int64_t        reqId;
   SRpcHandleInfo rpcInfo;

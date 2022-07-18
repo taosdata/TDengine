@@ -173,8 +173,9 @@ _err:
   return code;
 }
 
-int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback) {
+int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *pSnapshot) {
   int32_t code = 0;
+  SVnode *pVnode = pWriter->pVnode;
 
   if (pWriter->pMetaSnapWriter) {
     code = metaSnapWriterClose(&pWriter->pMetaSnapWriter, rollback);
@@ -186,8 +187,31 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback) {
     if (code) goto _err;
   }
 
+  if (!rollback) {
+    SVnodeInfo info = {0};
+    char       dir[TSDB_FILENAME_LEN];
+
+    pVnode->state.committed = pWriter->ever;
+    pVnode->state.applied = pWriter->ever;
+    pVnode->state.applyTerm = pSnapshot->lastApplyTerm;
+    pVnode->state.commitTerm = pSnapshot->lastApplyTerm;
+
+    info.config = pVnode->config;
+    info.state.committed = pVnode->state.applied;
+    info.state.commitTerm = pVnode->state.applyTerm;
+    info.state.commitID = pVnode->state.commitID;
+    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
+    code = vnodeSaveInfo(dir, &info);
+    if (code) goto _err;
+
+    code = vnodeCommitInfo(dir, &info);
+    if (code) goto _err;
+  } else {
+    ASSERT(0);
+  }
+
 _exit:
-  vInfo("vgId:%d vnode snapshot writer closed, rollback:%d", TD_VID(pWriter->pVnode), rollback);
+  vInfo("vgId:%d vnode snapshot writer closed, rollback:%d", TD_VID(pVnode), rollback);
   taosMemoryFree(pWriter);
   return code;
 
