@@ -3186,6 +3186,7 @@ int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int6
   *suid = 0;
 
   if (mr.me.type == TSDB_CHILD_TABLE) {
+    tDecoderClear(&mr.coder);
     *suid = mr.me.ctbEntry.suid;
     code = metaGetTableEntryByUid(&mr, *suid);
     if (code != TSDB_CODE_SUCCESS) {

@@ -21,12 +21,11 @@ sql create table tb4 using st1 tags(4);
 
 sql insert into tb4 select * from tb1;
 
-goto _OVER
-
 sql select * from tb4;
 if $rows != 2 then
   return -1
 endi
+
 sql insert into tb4 select ts,f1,f2 from st1;
 sql select * from tb4;
 if $rows != 6 then
