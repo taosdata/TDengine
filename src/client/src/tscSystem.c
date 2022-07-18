@@ -47,7 +47,7 @@ int32_t    tscNumOfObj = 0;         // number of sqlObj in current process.
 static void  *tscCheckDiskUsageTmr;
 void      *tscRpcCache;            // cache to keep rpc obj
 int32_t    tscNumOfThreads = 1;     // num of rpc threads
-char       tscLogFileName[12] = "taoslog";
+char       tscLogFileName[] = "taoslog";
 int        tscLogFileNum = 10;
 
 static pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently
