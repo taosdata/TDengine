@@ -14,11 +14,12 @@ function usage() {
     echo -e "\t -N docker network"
     echo -e "\t -M docker network map file"
     echo -e "\t -o default timeout value"
+    echo -e "\t -E environment file"
     echo -e "\t -e enable sub log dir"
     echo -e "\t -h help"
 }
 
-while getopts "m:t:b:l:o:v:d:w:n:N:M:esh" opt; do
+while getopts "m:t:b:l:o:v:d:w:n:N:M:E:esh" opt; do
     case $opt in
         m)
             config_file=$OPTARG
@@ -49,6 +50,9 @@ while getopts "m:t:b:l:o:v:d:w:n:N:M:esh" opt; do
             ;;
         M)
             docker_network_map_file=$OPTARG
+            ;;
+        E)
+            setup_use_file=$OPTARG
             ;;
         o)
             TIMEOUT_PREFIX="timeout $OPTARG"
@@ -202,6 +206,7 @@ function run_thread() {
             fi
         fi
         if [ -z "$case_file" ]; then
+            echo "no case file specified"
             continue
         fi
         local env_file=""
@@ -224,7 +229,18 @@ function run_thread() {
             fi
         fi
         if [ -z "$env_file" ]; then
-            continue
+            if [ -z "${setup_use_file}" ]; then
+                echo "no env file specified"
+                continue
+            else
+                case_cmd="$case_cmd --setup=${setup_use_file}"
+                env_file="${setup_use_file}"
+            fi
+        else
+            if [ ! -z "${setup_use_file}" ]; then
+                case_cmd=`echo "$case_cmd"|sed "s:${env_file}:${setup_use_file}:g"`
+                env_file="${setup_use_file}"
+            fi
         fi
         # echo "$index_file"
         local case_index=`flock -x $lock_file -c "sh -c \"echo \\\$(( \\\$( cat $index_file ) + 1 )) | tee $index_file\""`
