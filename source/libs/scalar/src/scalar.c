@@ -166,13 +166,18 @@ void sclFreeRes(SHashObj *res) {
 }
 
 void sclFreeParam(SScalarParam *param) {
-  if (param->columnData != NULL && param->colAlloced) {
+  if (!param->colAlloced) {
+    return;
+  }
+  
+  if (param->columnData != NULL) {
     colDataDestroy(param->columnData);
     taosMemoryFreeClear(param->columnData);
   }
 
   if (param->pHashFilter != NULL) {
     taosHashCleanup(param->pHashFilter);
+    param->pHashFilter = NULL;
   }
 }
 
@@ -238,11 +243,14 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 
       SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type));
       param->hashValueType = type;
+      param->colAlloced = true;
       if (taosHashPut(ctx->pRes, &node, POINTER_BYTES, param, sizeof(*param))) {
         taosHashCleanup(param->pHashFilter);
+        param->pHashFilter = NULL;
         sclError("taosHashPut nodeList failed, size:%d", (int32_t)sizeof(*param));
         return TSDB_CODE_QRY_OUT_OF_MEMORY;
       }
+      param->colAlloced = false;
       break;
     }
     case QUERY_NODE_COLUMN: {
