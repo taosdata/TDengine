@@ -2331,6 +2331,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
     .processFunc  = histogramFunction,
+    .sprocessFunc = histogramScalarFunction,
     .finalizeFunc = histogramFinalize,
     .invertFunc   = NULL,
     .combineFunc  = histogramCombine,
