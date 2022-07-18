@@ -191,7 +191,7 @@ static int32_t tdCleanupQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat) {
   if ((pDir = taosOpenDir(dir)) == NULL) {
     regfree(&regex);
     terrno = TAOS_SYSTEM_ERROR(errno);
-    smaWarn("vgId:%d, rsma post commit, open dir %s failed since %s", TD_VID(pVnode), dir, terrstr());
+    smaDebug("vgId:%d, rsma post commit, open dir %s failed since %s", TD_VID(pVnode), dir, terrstr());
     return TSDB_CODE_FAILED;
   }
 
@@ -391,6 +391,8 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
 
   // step 2: cleanup outdated qtaskinfo files
   tdCleanupQTaskInfoFiles(pSma, pRSmaStat);
+
+  atomic_store_8(RSMA_COMMIT_STAT(pRSmaStat), 0);
 
   return TSDB_CODE_SUCCESS;
 }
