@@ -166,6 +166,7 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
       taosWriteQitem(pVnode->pFetchQ, pMsg);
       break;
     case WRITE_QUEUE:
+
       dGTrace("vgId:%d, msg:%p put into vnode-write queue", pVnode->vgId, pMsg);
       taosWriteQitem(pVnode->pWriteQ, pMsg);
       break;

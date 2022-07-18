@@ -64,6 +64,14 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb) {
 
   mkdir(dbname, 0755);
 
+#ifdef USE_MAINDB
+  // open main db
+  ret = tdbTbOpen(TDB_MAINDB_NAME, -1, sizeof(SPgno), NULL, pDb, &pDb->pMainDb);
+  if (ret < 0) {
+    return -1;
+  }
+#endif
+
   *ppDb = pDb;
   return 0;
 }
@@ -72,6 +80,10 @@ int tdbClose(TDB *pDb) {
   SPager *pPager;
 
   if (pDb) {
+#ifdef USE_MAINDB
+    if (pDb->pMainDb) tdbTbClose(pDb->pMainDb);
+#endif
+
     for (pPager = pDb->pgrList; pPager; pPager = pDb->pgrList) {
       pDb->pgrList = pPager->pNext;
       tdbPagerClose(pPager);

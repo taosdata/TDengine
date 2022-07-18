@@ -689,6 +689,7 @@ _exit:
   tEncoderInit(&encoder, pRsp->pCont, pRsp->contLen);
   tEncodeSVDropTbBatchRsp(&encoder, &rsp);
   tEncoderClear(&encoder);
+  taosArrayDestroy(rsp.pArray);
   return 0;
 }
 
@@ -900,7 +901,7 @@ static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *
 _err:
   tDecoderClear(&coder);
   vError("vgId:%d, failed to create tsma %s:%" PRIi64 " version %" PRIi64 "for table %" PRIi64 " since %s",
-         TD_VID(pVnode), req.indexName, req.indexUid, version, req.tableUid, terrstr(terrno));
+         TD_VID(pVnode), req.indexName, req.indexUid, version, req.tableUid, terrstr());
   return -1;
 }
 
