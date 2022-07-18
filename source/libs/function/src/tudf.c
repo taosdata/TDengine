@@ -855,6 +855,7 @@ int32_t convertDataBlockToScalarParm(SSDataBlock *input, SScalarParam *output) {
   memcpy(output->columnData,
          taosArrayGet(input->pDataBlock, 0),
          sizeof(SColumnInfoData));
+  output->colAlloced = true;       
 
   return 0;
 }
