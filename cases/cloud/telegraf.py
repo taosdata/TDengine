@@ -17,7 +17,7 @@ class Telegraf(TDCase):
         pass
 
     def run(self):
-        cwd = self.env_setting["work_dir"]
+        cwd = self.env_setting["work_dir"] + "/telegraf"
         self.logger.info("cwd: %s", cwd)
         env = self.env_setting["env"]
         self.logger.info("env: %s", env)
