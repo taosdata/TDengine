@@ -307,6 +307,18 @@ void shellRunCommandOnWebsocket(char command[]) {
     *sptr = '\0';
     printMode = true;  // When output to a file, the switch does not work.
   }
+  
+  if (args.ws_conn == NULL) {
+    args.ws_conn = ws_connect_with_dsn(args.dsn);
+    if (args.ws_conn == NULL) {
+      if (args.cloud) {
+        fprintf(stderr, "failed to connect %s, reason: %s\n", args.cloudHost, ws_errstr(NULL));
+      } else {
+        fprintf(stderr, "failed to connect %s, reason: %s\n", args.host, ws_errstr(NULL));
+      }
+      return;
+    }
+  }
 
   st = taosGetTimestampUs();
 
@@ -318,7 +330,8 @@ void shellRunCommandOnWebsocket(char command[]) {
     if (code == TSDB_CODE_WS_SEND_TIMEOUT || code == TSDB_CODE_WS_RECV_TIMEOUT) {
       fprintf(stderr, "Hint: use -t to increase the timeout in seconds\n");
     } else if (code == TSDB_CODE_WS_INTERNAL_ERRO || code == TSDB_CODE_WS_CLOSED) {
-      fprintf(stderr, "TDengine server is down, please re-start the shell\n");
+      fprintf(stderr, "TDengine server is down, will try to reconnect\n");
+      args.ws_conn = NULL;
     }
     ws_free_result(res);
     return;
