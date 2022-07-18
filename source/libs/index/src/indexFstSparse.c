@@ -78,8 +78,8 @@ bool sparSetContains(FstSparseSet *ss, int32_t ip) {
   if (ip >= ss->cap || ip < 0) {
     return false;
   }
-  int32_t i = ss->sparse[ip];
 
+  int32_t i = ss->sparse[ip];
   if (i >= 0 && i < ss->cap && i < ss->size && ss->dense[i] == ip) {
     return true;
   } else {
