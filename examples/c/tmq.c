@@ -28,8 +28,9 @@ static void msg_process(TAOS_RES* msg) {
   printf("db: %s\n", tmq_get_db_name(msg));
   printf("vg: %d\n", tmq_get_vgroup_id(msg));
   if (tmq_get_res_type(msg) == TMQ_RES_TABLE_META) {
-    tmq_raw_data* raw = tmq_get_raw_meta(msg);
-    if (raw) {
+    tmq_raw_data raw = {0};
+    int32_t code = tmq_get_raw_meta(msg, &raw);
+    if (code == 0) {
       TAOS* pConn = taos_connect("192.168.1.86", "root", "taosdata", NULL, 0);
       if (pConn == NULL) {
         return;
@@ -53,7 +54,6 @@ static void msg_process(TAOS_RES* msg) {
       printf("write raw data: %s\n", tmq_err2str(ret));
       taos_close(pConn);
     }
-    tmq_free_raw_meta(raw);
     char* result = tmq_get_json_meta(msg);
     if (result) {
       printf("meta result: %s\n", result);
