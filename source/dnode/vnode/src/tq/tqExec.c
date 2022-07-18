@@ -217,7 +217,6 @@ int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataR
   }
 
   if (pRsp->blockNum == 0) {
-    pRsp->skipLogNum++;
     return -1;
   }
 

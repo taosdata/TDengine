@@ -247,6 +247,16 @@ typedef struct SLoadRemoteDataInfo {
   uint64_t totalElapsed;  // total elapsed time
 } SLoadRemoteDataInfo;
 
+typedef struct SLimitInfo {
+    SLimit             limit;
+    SLimit             slimit;
+    uint64_t           currentGroupId;
+    int64_t            remainGroupOffset;
+    int64_t            numOfOutputGroups;
+    int64_t            remainOffset;
+    int64_t            numOfOutputRows;
+} SLimitInfo;
+
 typedef struct SExchangeInfo {
   SArray*             pSources;
   SArray*             pSourceDataInfo;
@@ -257,6 +267,7 @@ typedef struct SExchangeInfo {
   int32_t             current;
   SLoadRemoteDataInfo loadInfo;
   uint64_t            self;
+  SLimitInfo          limitInfo;
 } SExchangeInfo;
 
 typedef struct SColMatchInfo {
@@ -542,15 +553,7 @@ typedef struct SProjectOperatorInfo {
   SNode*             pFilterNode;  // filter info, which is push down by optimizer
   SSDataBlock*       existDataBlock;
   SArray*            pPseudoColInfo;
-  SLimit             limit;
-  SLimit             slimit;
-
-  uint64_t           groupId;
-  int64_t            curSOffset;
-  int64_t            curGroupOutput;
-
-  int64_t            curOffset;
-  int64_t            curOutput;
+  SLimitInfo         limitInfo;
 } SProjectOperatorInfo;
 
 typedef struct SIndefOperatorInfo {
@@ -791,6 +794,9 @@ int32_t initAggInfo(SExprSupp *pSup, SAggSupporter* pAggSup, SExprInfo* pExprInf
                     const char* pkey);
 void    initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows);
 void    doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo, SDiskbasedBuf* pBuf);
+int32_t handleLimitOffset(SOperatorInfo *pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock, bool holdDataInBuf);
+bool    hasLimitOffsetInfo(SLimitInfo* pLimitInfo);
+void    initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo);
 
 void    doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset,
                          int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput, int32_t order);
@@ -837,7 +843,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
 
 SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode *pNode, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* pProjPhyNode, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortPhyNode, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortNode, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** dowStreams, size_t numStreams, SMergePhysiNode* pMergePhysiNode, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t num, SArray* pSortInfo, SArray* pGroupInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pTableScanNode, SReadHandle* readHandle, SExecTaskInfo* pTaskInfo);

@@ -83,6 +83,7 @@ typedef struct {
   int32_t srcVgId;
   int32_t childId;
   int64_t sourceVer;
+  int64_t reqId;
 
   SArray* blocks;  // SArray<SSDataBlock*>
 } SStreamDataBlock;
@@ -324,6 +325,8 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
   if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit*)pItem);
     if (pSubmitClone == NULL) {
+      qDebug("task %d %p submit enqueue failed since out of memory", pTask->taskId, pTask);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
       return -1;
     }
@@ -412,6 +415,7 @@ typedef struct {
 
 typedef struct {
   int64_t            streamId;
+  int64_t            reqId;
   int32_t            srcTaskId;
   int32_t            srcNodeId;
   int32_t            dstTaskId;
