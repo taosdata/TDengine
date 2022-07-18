@@ -483,6 +483,7 @@ int32_t walReadVer(SWalReader *pRead, int64_t ver) {
            pRead->pHead->head.version, ver);
     pRead->curInvalid = 1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    ASSERT(0);
     return -1;
   }
 
@@ -491,6 +492,7 @@ int32_t walReadVer(SWalReader *pRead, int64_t ver) {
     wError("vgId:%d, unexpected wal log index:%" PRId64 ", since body checksum not passed", pRead->pWal->cfg.vgId, ver);
     pRead->curInvalid = 1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    ASSERT(0);
     return -1;
   }
   pRead->curVersion++;
