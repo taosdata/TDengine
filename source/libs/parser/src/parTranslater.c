@@ -1686,7 +1686,7 @@ static int32_t dnodeToVgroupsInfo(SArray* pDnodes, SVgroupsInfo** pVgsInfo) {
 static bool sysTableFromVnode(const char* pTable) {
   return (0 == strcmp(pTable, TSDB_INS_TABLE_USER_TABLES)) ||
          (0 == strcmp(pTable, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED) ||
-         (0 == strcmp(pTable, TSDB_INS_TABLE_USER_TAGS)));
+          (0 == strcmp(pTable, TSDB_INS_TABLE_USER_TAGS)));
 }
 
 static bool sysTableFromDnode(const char* pTable) { return 0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES); }
@@ -5968,6 +5968,7 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
   if (NULL == pReq->tagName) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pReq->colId = pSchema->colId;
 
   SDataType targetDt = schemaToDataType(pTableMeta->tableInfo.precision, pSchema);
   if (DEAL_RES_ERROR == translateValueImpl(pCxt, pStmt->pVal, targetDt, true)) {
@@ -6051,6 +6052,7 @@ static int32_t buildDropColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
   if (NULL == pReq->colName) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pReq->colId = pSchema->colId;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -6071,6 +6073,7 @@ static int32_t buildUpdateColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
   if (NULL == pReq->colName) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pReq->colId = pSchema->colId;
 
   return TSDB_CODE_SUCCESS;
 }
