@@ -46,8 +46,6 @@ python3 ./test.py -f 2-query/arctan.py
 python3 ./test.py -f 2-query/arctan.py -R
 python3 ./test.py -f 2-query/avg.py
 python3 ./test.py -f 2-query/avg.py -R
-
-python3 ./test.py -f 2-query/db.py
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/between.py -R
 python3 ./test.py -f 2-query/bottom.py
@@ -62,7 +60,7 @@ python3 ./test.py -f 2-query/check_tsdb.py
 python3 ./test.py -f 2-query/check_tsdb.py -R
 
 
-
+python3 ./test.py -f 2-query/db.py
 python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
 python3 ./test.py -f 2-query/ltrim.py
