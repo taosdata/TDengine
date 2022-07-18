@@ -621,11 +621,10 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   SDnodeObj      *pDnode = NULL;
   SCreateDnodeReq createReq = {0};
 
-  // code = grantCheck(TSDB_GRANT_DNODE);
-  // if (code != TSDB_CODE_SUCCESS) {
-  //   terrno = code;
-  //   goto _OVER;
-  // }
+  if ((terrno = grantCheck(TSDB_GRANT_DNODE)) != 0) {
+    code = terrno;
+    goto _OVER;
+  }
 
   if (tDeserializeSCreateDnodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
