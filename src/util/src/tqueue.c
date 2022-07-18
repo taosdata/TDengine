@@ -86,9 +86,8 @@ void taosCloseQueue(taos_queue param) {
   }
 
   pthread_mutex_destroy(&queue->mutex);
-  free(queue);
-
   uTrace("queue:%p is closed", queue);
+  free(queue);
 }
 
 void *taosAllocateQitem(int size) {
