@@ -554,8 +554,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4
         self.init_check()
         self.bool_check()
         self.symbols_check()
-        # # ! TD-17285
-        # self.iu_check()
+        self.iu_check()
         self.id_seq_check()
         self.id_letter_check()
         self.no_id_check()

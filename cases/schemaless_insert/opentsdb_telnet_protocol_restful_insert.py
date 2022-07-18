@@ -56,14 +56,17 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
 
     def iu_check(self):
-        self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
-        input_sql = f'{self.tdCom.get_long_name()},t0=127 c1=9223372036854775807i,c2=1u 0'
-        stb_name = input_sql.split(",")[0]
-        self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
-        self.tdRest.request(f'select * from {self.dbname}.{stb_name}')
-        self.tdRest.request(f'describe {self.dbname}.{stb_name}')
-        self.tdSql.checkEqual(self.tdRest.resp["data"][1][1], "BIGINT")
-        self.tdSql.checkEqual(self.tdRest.resp["data"][2][1], "BIGINT UNSIGNED")
+        for value in ["9223372036854775807i", "9223372036854775807u"]:
+            self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
+            input_sql = f'{self.tdCom.get_long_name()} 0 {value} t0=127'
+            stb_name = input_sql.split(" ")[0]
+            self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
+            self.tdRest.request(f'describe {self.dbname}.{stb_name}')
+            print(self.tdRest.resp["data"])
+            if value == "9223372036854775807i":
+                self.tdSql.checkEqual(self.tdRest.resp["data"][1][1], "BIGINT")
+            else:
+                self.tdSql.checkEqual(self.tdRest.resp["data"][1][1], "BIGINT UNSIGNED")
 
     def id_seq_check(self):
         """
@@ -514,8 +517,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         self.init_check()
         self.bool_check()
         self.symbols_check()
-        # # ! TD-17285
-        # self.iu_check()
+        self.iu_check()
         self.id_seq_check()
         self.id_letter_check()
         self.no_id_check()
