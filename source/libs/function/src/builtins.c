@@ -1422,14 +1422,6 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
 }
 
 static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
-  for (int32_t i = 0; i < numOfParams; ++i) {
-    SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, i);
-    if (QUERY_NODE_VALUE == nodeType(pParamNode)) {
-      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-  }
-
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
 }
