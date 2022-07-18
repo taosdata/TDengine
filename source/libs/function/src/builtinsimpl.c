@@ -2723,6 +2723,9 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
 
   int32_t blockDataOrder = (startKey <= endKey) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
 
+  //  please ref. to the comment in lastRowFunction for the reason why disabling the opt version of last/first function.
+  //  we will use this opt implementation in an new version that is only available in scan subplan
+#if 0
   if (blockDataOrder == TSDB_ORDER_ASC) {
     // filter according to current result firstly
     if (pResInfo->numOfRes > 0) {
@@ -2770,6 +2773,22 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
       }
     }
   }
+#else
+  for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+    if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+      continue;
+    }
+
+    numOfElems++;
+
+    char* data = colDataGetData(pInputCol, i);
+    TSKEY cts = getRowPTs(pInput->pPTS, i);
+    if (pResInfo->numOfRes == 0 || pInfo->ts > cts) {
+      doSaveCurrentVal(pCtx, i, cts, pInputCol->info.type, data);
+      pResInfo->numOfRes = 1;
+    }
+  }
+#endif
 
   SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
@@ -2801,6 +2820,8 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 
   int32_t blockDataOrder = (startKey <= endKey) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
 
+  //  please ref. to the comment in lastRowFunction for the reason why disabling the opt version of last/first function.
+#if 0
   if (blockDataOrder == TSDB_ORDER_ASC) {
     for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
       if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
@@ -2833,6 +2854,22 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       break;
     }
   }
+#else
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+    if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+      continue;
+    }
+
+    numOfElems++;
+
+    char* data = colDataGetData(pInputCol, i);
+    TSKEY cts = getRowPTs(pInput->pPTS, i);
+    if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
+      doSaveCurrentVal(pCtx, i, cts, type, data);
+      pResInfo->numOfRes = 1;
+    }
+  }
+#endif
 
   SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
@@ -2988,6 +3025,9 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
 
   int32_t blockDataOrder = (startKey <= endKey) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
 
+#if 0
+  // the optimized version only function if all tuples in one block are monotonious increasing or descreasing.
+  // this is NOT always works if project operator exists in downstream.
   if (blockDataOrder == TSDB_ORDER_ASC) {
     for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
       char* data = colDataGetData(pInputCol, i);
@@ -2997,6 +3037,7 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
       if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
         doSaveLastrow(pCtx, data, i, cts, pInfo);
       }
+
       break;
     }
   } else {  // descending order
@@ -3011,7 +3052,19 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
       break;
     }
   }
+#else
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+    char* data = colDataGetData(pInputCol, i);
+    TSKEY cts = getRowPTs(pInput->pPTS, i);
+    numOfElems++;
 
+    if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
+      doSaveLastrow(pCtx, data, i, cts, pInfo);
+      pResInfo->numOfRes = 1;
+    }
+  }
+
+#endif
   SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
@@ -4416,17 +4469,17 @@ bool getStateFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
 
 static int8_t getStateOpType(char* opStr) {
   int8_t opType;
-  if (strcasecmp(opStr, "LT") == 0) {
+  if (strncasecmp(opStr, "LT", 2) == 0) {
     opType = STATE_OPER_LT;
-  } else if (strcasecmp(opStr, "GT") == 0) {
+  } else if (strncasecmp(opStr, "GT", 2) == 0) {
     opType = STATE_OPER_GT;
-  } else if (strcasecmp(opStr, "LE") == 0) {
+  } else if (strncasecmp(opStr, "LE", 2) == 0) {
     opType = STATE_OPER_LE;
-  } else if (strcasecmp(opStr, "GE") == 0) {
+  } else if (strncasecmp(opStr, "GE", 2) == 0) {
     opType = STATE_OPER_GE;
-  } else if (strcasecmp(opStr, "NE") == 0) {
+  } else if (strncasecmp(opStr, "NE", 2) == 0) {
     opType = STATE_OPER_NE;
-  } else if (strcasecmp(opStr, "EQ") == 0) {
+  } else if (strncasecmp(opStr, "EQ", 2) == 0) {
     opType = STATE_OPER_EQ;
   } else {
     opType = STATE_OPER_INVALID;
@@ -5926,6 +5979,7 @@ int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx) {
     TSKEY cts = getRowPTs(pInput->pPTS, i);
     if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
       doSaveLastrow(pCtx, data, i, cts, pInfo);
+      pResInfo->numOfRes = 1;
     }
   }
 

@@ -250,8 +250,8 @@ sql alter table $mt add tag tgcol6 binary(10)
 
 sql reset query cache
 sql alter table $tb set tag tgcol4=false 
-sql alter table $tb set tag tgcol5=5 
-sql alter table $tb set tag tgcol6=6 
+sql alter table $tb set tag tgcol5='5' 
+sql alter table $tb set tag tgcol6='6' 
 sql reset query cache
 
 sql select * from $mt where tgcol5 = '5'
@@ -390,8 +390,8 @@ sql alter table $mt add tag tgcol5 binary(17)
 sql alter table $mt add tag tgcol6 bool
 sql reset query cache
 sql alter table $tb set tag tgcol4=4 
-sql alter table $tb set tag tgcol5=5 
-sql alter table $tb set tag tgcol6=1
+sql alter table $tb set tag tgcol5='5' 
+sql alter table $tb set tag tgcol6='1'
 sql reset query cache
 
 sql select * from $mt where tgcol5 = '5'
@@ -409,7 +409,7 @@ endi
 if $data03 != 5 then 
   return -1
 endi
-if $data04 != 1 then
+if $data04 != 0 then
   return -1
 endi
 
@@ -425,7 +425,7 @@ $i = 9
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 double, tgcol2 binary(10), tgcol3 binary(10))
-sql create table $tb using $mt tags( 1, 2, '3' )
+sql create table $tb using $mt tags( 1, '2', '3' )
 sql insert into $tb values(now, 1)  
 sql select * from $mt where tgcol2 = '2'
 if $rows != 1 then 
@@ -520,7 +520,7 @@ sql alter table $mt add tag tgcol4 binary(10)
 sql alter table $mt add tag tgcol5 bool
 
 sql reset query cache
-sql alter table $tb set tag tgcol4=4 
+sql alter table $tb set tag tgcol4='4' 
 sql alter table $tb set tag tgcol5=false
 sql reset query cache
 
@@ -598,9 +598,9 @@ sql alter table $mt add tag tgcol7 bigint
 sql alter table $mt add tag tgcol8 smallint
 
 sql reset query cache
-sql alter table $tb set tag tgcol4=4 
+sql alter table $tb set tag tgcol4='4' 
 sql alter table $tb set tag tgcol5=5
-sql alter table $tb set tag tgcol6=6
+sql alter table $tb set tag tgcol6='6'
 sql alter table $tb set tag tgcol7=7
 sql alter table $tb set tag tgcol8=8
 sql reset query cache
@@ -687,11 +687,11 @@ sql alter table $mt add tag tgcol5 bigint
 
 sql reset query cache
 sql alter table $tb set tag tgcol1=false 
-sql alter table $tb set tag tgcol2=5 
+sql alter table $tb set tag tgcol2='5' 
 sql alter table $tb set tag tgcol3=4
-sql alter table $tb set tag tgcol4=3
+sql alter table $tb set tag tgcol4='3'
 sql alter table $tb set tag tgcol5=2
-sql alter table $tb set tag tgcol6=1
+sql alter table $tb set tag tgcol6='1'
 sql reset query cache
 
 sql select * from $mt where tgcol4 = '3'
@@ -783,8 +783,8 @@ sql alter table $mt add tag tgcol4 int
 sql alter table $mt add tag tgcol6 bigint
 
 sql reset query cache
-sql alter table $tb set tag tgcol1=7 
-sql alter table $tb set tag tgcol2=8 
+sql alter table $tb set tag tgcol1='7' 
+sql alter table $tb set tag tgcol2='8' 
 sql alter table $tb set tag tgcol3=9
 sql alter table $tb set tag tgcol4=10
 sql alter table $tb set tag tgcol5=11

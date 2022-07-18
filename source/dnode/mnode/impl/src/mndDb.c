@@ -509,6 +509,11 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   SUserObj    *pUser = NULL;
   SCreateDbReq createReq = {0};
 
+  if ((terrno = grantCheck(TSDB_GRANT_DB)) != 0) {
+    code = terrno;
+    goto _OVER;
+  }
+
   if (tDeserializeSCreateDbReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;

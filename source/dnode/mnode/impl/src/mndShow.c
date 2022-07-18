@@ -76,6 +76,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_STB;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, len) == 0) {
     type = TSDB_MGMT_TABLE_TABLE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TAGS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TAG;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED, len) == 0) {
     //    type = TSDB_MGMT_TABLE_DIST;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_USERS, len) == 0) {

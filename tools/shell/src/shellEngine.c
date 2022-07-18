@@ -748,6 +748,13 @@ int32_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool ver
 
 void shellReadHistory() {
   SShellHistory *pHistory = &shell.history;
+  int64_t file_size;
+  if (taosStatFile(pHistory->file, &file_size, NULL) != 0) {
+    return;
+  } else if (file_size > SHELL_MAX_COMMAND_SIZE) {
+    taosRemoveFile(pHistory->file);
+    return;
+  }
   TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) return;
 

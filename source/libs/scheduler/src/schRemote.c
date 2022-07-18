@@ -256,7 +256,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
 
       SCH_ERR_JRET(rsp->code);
 
-      SCH_ERR_JRET(schSaveJobQueryRes(pJob, rsp));
+      SCH_ERR_JRET(schSaveJobExecRes(pJob, rsp));
 
       atomic_add_fetch_32(&pJob->resNumOfRows, rsp->affectedRows);
 
@@ -277,8 +277,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
-      if (pJob->resData) {
-        SCH_TASK_ELOG("explain result is already generated, res:%p", pJob->resData);
+      if (pJob->fetchRes) {
+        SCH_TASK_ELOG("explain result is already generated, res:%p", pJob->fetchRes);
         SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
       }
 
@@ -325,13 +325,13 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
         return TSDB_CODE_SUCCESS;
       }
 
-      if (pJob->resData) {
-        SCH_TASK_ELOG("got fetch rsp while res already exists, res:%p", pJob->resData);
+      if (pJob->fetchRes) {
+        SCH_TASK_ELOG("got fetch rsp while res already exists, res:%p", pJob->fetchRes);
         taosMemoryFreeClear(rsp);
         SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
       }
 
-      atomic_store_ptr(&pJob->resData, rsp);
+      atomic_store_ptr(&pJob->fetchRes, rsp);
       atomic_add_fetch_32(&pJob->resNumOfRows, htonl(rsp->numOfRows));
 
       if (rsp->completed) {
@@ -1010,6 +1010,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       memcpy(pMsg->msg + len, pTask->msg, pTask->msgLen);
 
       persistHandle = true;
+      SCH_SET_TASK_HANDLE(pTask, rpcAllocHandle());
       break;
     }
     case TDMT_SCH_FETCH:

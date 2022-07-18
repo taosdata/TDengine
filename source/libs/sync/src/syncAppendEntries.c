@@ -711,6 +711,9 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
         syncNodeEventLog(ths, logBuf);
       } while (0);
 
+      // maybe update commit index by snapshot
+      syncNodeMaybeUpdateCommitBySnapshot(ths);
+
       // prepare response msg
       SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
       pReply->srcId = ths->myRaftId;
@@ -718,7 +721,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
       pReply->term = ths->pRaftStore->currentTerm;
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
       pReply->success = false;
-      pReply->matchIndex = SYNC_INDEX_INVALID;
+      pReply->matchIndex = ths->commitIndex;
 
       // msg event log
       do {

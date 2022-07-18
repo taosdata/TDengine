@@ -99,7 +99,8 @@ STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
 int32_t         metaGetTbTSchemaEx(SMeta* pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema** ppTSchema);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
 tb_uid_t        metaGetTableEntryUidByName(SMeta* pMeta, const char* name);
-int             metaGetTbNum(SMeta* pMeta);
+int64_t         metaGetTbNum(SMeta* pMeta);
+int64_t         metaGetTimeSeriesNum(SMeta* pMeta);
 SMCtbCursor*    metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid);
 void            metaCloseCtbCursor(SMCtbCursor* pCtbCur);
 tb_uid_t        metaCtbCursorNext(SMCtbCursor* pCtbCur);
@@ -164,9 +165,12 @@ void    smaCleanUp();
 int32_t smaOpen(SVnode* pVnode);
 int32_t smaClose(SSma* pSma);
 int32_t smaBegin(SSma* pSma);
-int32_t smaPreCommit(SSma* pSma);
-int32_t smaCommit(SSma* pSma);
-int32_t smaPostCommit(SSma* pSma);
+int32_t smaSyncPreCommit(SSma* pSma);
+int32_t smaSyncCommit(SSma* pSma);
+int32_t smaSyncPostCommit(SSma* pSma);
+int32_t smaAsyncPreCommit(SSma* pSma);
+int32_t smaAsyncCommit(SSma* pSma);
+int32_t smaAsyncPostCommit(SSma* pSma);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
@@ -309,6 +313,7 @@ void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 
 struct SSnapDataHdr {
   int8_t  type;
+  int64_t index;
   int64_t size;
   uint8_t data[];
 };
