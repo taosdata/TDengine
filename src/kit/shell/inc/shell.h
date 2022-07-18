@@ -67,14 +67,11 @@ typedef struct SShellArguments {
   int   pktNum;
   char* pktType;
   char* netTestRole;
-  char* cloudDsn;
-  bool  cloud;
-  char* cloudHost;
-  char* cloudToken;
   char* dsn;
 #ifdef WEBSOCKET
   WS_TAOS* ws_conn;
 #endif
+  bool cloud;
   uint32_t timeout;
 } SShellArguments;
 
@@ -106,7 +103,6 @@ int shellDumpWebsocket(WS_RES *wres, char *fname, int *error_no, bool vertical);
 int shellDumpResult(TAOS_RES* con, char* fname, int* error_no, bool printMode);
 void shellGetGrantInfo(void* con);
 int isCommentLine(char* line);
-int parse_cloud_dsn();
 
 /**************** Global variable declarations ****************/
 extern char           PROMPT_HEADER[];

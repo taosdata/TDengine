@@ -179,7 +179,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'E':
       if (arg) {
-         arguments->cloudDsn = arg;
+         arguments->dsn = arg;
        } else {
          fprintf(stderr, "Invalid -E option\n");
          return -1;
@@ -245,10 +245,10 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
 
   argp_parse(&argp, argc, argv, 0, 0, arguments);
 
-  if (args.cloudDsn == NULL) {
+  if (args.dsn == NULL) {
     if (args.cloud) {
-      args.cloudDsn = getenv("TDENGINE_CLOUD_DSN");
-        if (args.cloudDsn == NULL) {
+      args.dsn = getenv("TDENGINE_CLOUD_DSN");
+        if (args.dsn == NULL) {
           args.cloud = false;
         }
     }

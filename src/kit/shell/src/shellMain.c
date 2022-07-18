@@ -93,10 +93,7 @@ SShellArguments args = {.host = NULL,
   .pktNum = 100,
   .pktType = "TCP",
   .netTestRole = NULL,
-  .cloudDsn = NULL,
   .cloud = true,
-  .cloudHost = NULL,
-  .cloudToken = NULL,
   .dsn = NULL,
   .timeout = 10,
   };
@@ -138,21 +135,17 @@ int main(int argc, char* argv[]) {
     exit(0);
   }
 
-  if (args.cloud) {
-      if (parse_cloud_dsn()) {
-          exit(EXIT_FAILURE);
-      }
-      args.dsn = calloc(1, 1024);
-      snprintf(args.dsn, 1024, "wss://%s:443/rest/ws?token=%s", args.cloudHost, args.cloudToken);
-  } else if (args.restful) {
+  if (args.restful) {
     args.dsn = calloc(1, 1024);
+
     if (args.host == NULL) {
       args.host = "localhost";
     }
+
     if (args.port == 0) {
       args.port = 6041;
     }
-    
+
     snprintf(args.dsn, 1024, "ws://%s:%d/rest/ws",args.host, args.port);
   }
 

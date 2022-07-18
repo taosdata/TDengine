@@ -72,7 +72,7 @@ void shellInit(SShellArguments *_args) {
     _args->user = TSDB_DEFAULT_USER;
   }
 #ifdef WEBSOCKET
-  if (_args->restful || _args->cloud) {
+  if (_args->dsn) {
 
     args.ws_conn = ws_connect_with_dsn(args.dsn);
     if (args.ws_conn == NULL) {
@@ -80,9 +80,9 @@ void shellInit(SShellArguments *_args) {
       exit(EXIT_FAILURE);
     }
     if (_args->restful) {
-      fprintf(stdout, "successfully connect to %s\n\n", args.host);
+      fprintf(stdout, "successfully connect to %s\n\n", args.dsn);
     } else {
-      fprintf(stdout, "successfully connect to %s\n\n", args.cloudHost);
+      fprintf(stdout, "successfully connect to cloud service\n\n");
     }
   } else {
 #endif
@@ -307,12 +307,12 @@ void shellRunCommandOnWebsocket(char command[]) {
     *sptr = '\0';
     printMode = true;  // When output to a file, the switch does not work.
   }
-  
+
   if (args.ws_conn == NULL) {
     args.ws_conn = ws_connect_with_dsn(args.dsn);
     if (args.ws_conn == NULL) {
       if (args.cloud) {
-        fprintf(stderr, "failed to connect %s, reason: %s\n", args.cloudHost, ws_errstr(NULL));
+        fprintf(stderr, "failed to connect cloud service, reason: %s\n", ws_errstr(NULL));
       } else {
         fprintf(stderr, "failed to connect %s, reason: %s\n", args.host, ws_errstr(NULL));
       }
@@ -1346,32 +1346,4 @@ void source_file(TAOS *con, char *fptr) {
 
 void shellGetGrantInfo(void *con) {
   return;
-}
-
-int parse_cloud_dsn() {
-    if (args.cloudDsn == NULL) {
-        fprintf(stderr, "Cannot read cloud service info\n");
-        return -1;
-    } else {
-        char *start = strstr(args.cloudDsn, "http://");
-        if (start != NULL) {
-            args.cloudHost = start + strlen("http://");
-        } else {
-            start = strstr(args.cloudDsn, "https://");
-            if (start != NULL) {
-                args.cloudHost = start + strlen("https://");
-            } else {
-                args.cloudHost = args.cloudDsn;
-            }
-        }
-        char *token = strstr(args.cloudDsn, "?token=");
-        if ((token == NULL) || (token + strlen("?token=")) == NULL ||
-            (strlen(token + strlen("?token=")) == 0)) {
-            fprintf(stderr, "Invalid format in TDengine cloud dsn: %s\n", args.cloudDsn);
-            return -1;
-        }
-        token[0] = '\0';
-        args.cloudToken = token + strlen("?token=");
-    }
-    return 0;
 }
