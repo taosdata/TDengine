@@ -96,9 +96,9 @@ static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRo
 }
 
 void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order);
-void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
-
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
+
+void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
 bool hasDataInGroupInfo(SGroupResInfo* pGroupResInfo);
 
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
