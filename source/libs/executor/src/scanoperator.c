@@ -2126,6 +2126,21 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
   }
 }
 
+
+static SSDataBlock* sysTableScanUserSTables(SOperatorInfo* pOperator) {
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SSysTableScanInfo* pInfo = pOperator->info;
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+
+  pInfo->pRes->info.rows = 0;
+  pOperator->status == OP_EXEC_DONE;
+
+  pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+  return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
+}
+
 static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   // build message and send to mnode to fetch the content of system tables.
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
@@ -2136,6 +2151,8 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
     return sysTableScanUserTables(pOperator);
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
     return sysTableScanUserTags(pOperator);
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STABLES, TSDB_TABLE_FNAME_LEN) == 0) {
+    return sysTableScanUserSTables(pOperator);
   } else {  // load the meta from mnode of the given epset
     if (pOperator->status == OP_EXEC_DONE) {
       return NULL;
