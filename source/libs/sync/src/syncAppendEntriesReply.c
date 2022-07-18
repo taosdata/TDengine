@@ -147,6 +147,15 @@ static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, Sync
 int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
   int32_t ret = 0;
 
+  // print log
+  do {
+    char logBuf[256];
+    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, term:%lu, match:%ld, success:%d", pMsg->term,
+             pMsg->matchIndex, pMsg->success);
+    syncNodeEventLog(ths, logBuf);
+
+  } while (0);
+
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
     syncNodeEventLog(ths, "recv sync-append-entries-reply,  maybe replica already dropped");
@@ -238,7 +247,14 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
         SSnapshot oldSnapshot;
         ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &oldSnapshot);
         SyncTerm newSnapshotTerm = oldSnapshot.lastApplyTerm;
-        syncNodeStartSnapshotOnce(ths, SYNC_INDEX_BEGIN, nextIndex, newSnapshotTerm, pMsg);
+
+        SyncIndex endIndex;
+        if (ths->pLogStore->syncLogExist(ths->pLogStore, nextIndex + 1)) {
+          endIndex = nextIndex;
+        } else {
+          endIndex = oldSnapshot.lastApplyIndex;
+        }
+        syncNodeStartSnapshotOnce(ths, pMsg->matchIndex + 1, endIndex, newSnapshotTerm, pMsg);
 
         // get sender
         SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(pMsg->srcId));
@@ -255,6 +271,11 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
       nextIndex = SYNC_INDEX_BEGIN;
     }
     syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), nextIndex);
+
+    SyncIndex oldMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
+    if (pMsg->matchIndex > oldMatchIndex) {
+      syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
+    }
 
     // event log, update next-index
     do {

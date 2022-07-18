@@ -63,10 +63,10 @@ typedef struct SBlockLoadSuppInfo {
 } SBlockLoadSuppInfo;
 
 typedef struct SFilesetIter {
-  int32_t          numOfFiles;  // number of total files
-  int32_t          index;       // current accessed index in the list
-  SArray*          pFileList;   // data file list
-  int32_t          order;
+  int32_t numOfFiles;  // number of total files
+  int32_t index;       // current accessed index in the list
+  SArray* pFileList;   // data file list
+  int32_t order;
 } SFilesetIter;
 
 typedef struct SFileDataBlockInfo {
@@ -830,8 +830,8 @@ static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockI
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
 
-  int32_t  code = tsdbReadColData(pReader->pFileReader, &pBlockScanInfo->blockIdx, pBlock, pSupInfo->colIds, numOfCols,
-                                  pBlockData, NULL, NULL);
+  int32_t code = tsdbReadColData(pReader->pFileReader, &pBlockScanInfo->blockIdx, pBlock, pSupInfo->colIds, numOfCols,
+                                 pBlockData, NULL, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -1991,7 +1991,7 @@ static TSDBKEY getCurrentKeyInBuf(SDataBlockIter* pBlockIter, STsdbReader* pRead
 
 static int32_t moveToNextFile(STsdbReader* pReader, int32_t* numOfBlocks) {
   SReaderStatus* pStatus = &pReader->status;
-  SArray* pIndexList = taosArrayInit(4, sizeof(SBlockIdx));
+  SArray*        pIndexList = taosArrayInit(4, sizeof(SBlockIdx));
 
   while (1) {
     bool hasNext = filesetIteratorNext(&pStatus->fileIter, pReader);
@@ -3006,14 +3006,14 @@ SArray* tsdbRetrieveDataBlock(STsdbReader* pReader, SArray* pIdList) {
 
   code = doLoadFileBlockData(pReader, &pStatus->blockIter, pBlockScanInfo, &pStatus->fileBlockData);
   if (code != TSDB_CODE_SUCCESS) {
-    tBlockDataClear(&pStatus->fileBlockData);
+    tBlockDataClear(&pStatus->fileBlockData, 1);
 
     terrno = code;
     return NULL;
   }
 
   copyBlockDataToSDataBlock(pReader, pBlockScanInfo);
-  tBlockDataClear(&pStatus->fileBlockData);
+  tBlockDataClear(&pStatus->fileBlockData, 1);
   return pReader->pResBlock->pDataBlock;
 }
 
@@ -3132,8 +3132,8 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
       hasNext = (pBlockIter->numOfBlocks > 0);
     }
 
-//    tsdbDebug("%p %d blocks found in file for %d table(s), fid:%d, %s", pReader, numOfBlocks, numOfTables,
-//              pReader->pFileGroup->fid, pReader->idStr);
+    //    tsdbDebug("%p %d blocks found in file for %d table(s), fid:%d, %s", pReader, numOfBlocks, numOfTables,
+    //              pReader->pFileGroup->fid, pReader->idStr);
   }
 
   return code;
@@ -3186,6 +3186,7 @@ int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int6
   *suid = 0;
 
   if (mr.me.type == TSDB_CHILD_TABLE) {
+    tDecoderClear(&mr.coder);
     *suid = mr.me.ctbEntry.suid;
     code = metaGetTableEntryByUid(&mr, *suid);
     if (code != TSDB_CODE_SUCCESS) {
@@ -3204,4 +3205,3 @@ int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int6
 
   return TSDB_CODE_SUCCESS;
 }
-

@@ -1479,10 +1479,12 @@ static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, s
     }
     beigin++;
   }
+
   if (dataOffset > 0) {
     memmove(pColInfoData->pData, pColInfoData->pData + dataOffset, dataLen);
-    memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[start], (end - start) * sizeof(int32_t));
   }
+
+  memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[start], (end - start) * sizeof(int32_t));
   return dataLen;
 }
 
@@ -1752,7 +1754,7 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
   int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
   int32_t rows = pDataBlock->info.rows;
   int32_t len = 0;
-  len += snprintf(dumpBuf + len, size - len, "%s |block type %d |child id %d|group id:%" PRIu64 "| uid:%ld|======\n", "dumpBlockData",
+  len += snprintf(dumpBuf + len, size - len, "===stream===%s |block type %d |child id %d|group id:%" PRIu64 "| uid:%ld|\n", flag,
                   (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.groupId,
                   pDataBlock->info.uid);
   if (len >= size - 1) return dumpBuf;

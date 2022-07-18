@@ -1083,6 +1083,17 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   return pSyncNode;
 }
 
+void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode) {
+  if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+    SSnapshot snapshot;
+    int32_t   code = pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
+    ASSERT(code == 0);
+    if (snapshot.lastApplyIndex > pSyncNode->commitIndex) {
+      pSyncNode->commitIndex = snapshot.lastApplyIndex;
+    }
+  }
+}
+
 void syncNodeStart(SSyncNode* pSyncNode) {
   // start raft
   if (pSyncNode->replicaNum == 1) {

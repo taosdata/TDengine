@@ -115,9 +115,6 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int
     p->groupId = *(uint64_t*)key;
     p->pos = *(SResultRowPosition*)pData;
     memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
-#ifdef BUF_PAGE_DEBUG
-    qDebug("page_groupRes, groupId:%" PRIu64 ",pageId:%d,offset:%d\n", p->groupId, p->pos.pageId, p->pos.offset);
-#endif
     taosArrayPush(pGroupResInfo->pRows, &p);
   }
 
@@ -901,4 +898,23 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
   }
 
   return w;
+}
+
+bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {
+  return (pLimitInfo->limit.limit != -1 || pLimitInfo->limit.offset != -1 || pLimitInfo->slimit.limit != -1 ||
+          pLimitInfo->slimit.offset != -1);
+}
+
+
+static int64_t getLimit(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->limit; }
+static int64_t getOffset(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->offset; }
+
+void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo) {
+  SLimit limit = {.limit = getLimit(pLimit), .offset = getOffset(pLimit)};
+  SLimit slimit = {.limit = getLimit(pSLimit), .offset = getOffset(pSLimit)};
+
+  pLimitInfo->limit = limit;
+  pLimitInfo->slimit= slimit;
+  pLimitInfo->remainOffset = limit.offset;
+  pLimitInfo->remainGroupOffset = slimit.offset;
 }

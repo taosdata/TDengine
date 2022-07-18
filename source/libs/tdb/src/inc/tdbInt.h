@@ -150,7 +150,8 @@ struct SBTC {
 };
 
 // SBTree
-int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, tdb_cmpr_fn_t kcmpr, SBTree **ppBt);
+int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, char const *tbname, SPgno pgno, tdb_cmpr_fn_t kcmpr,
+                 SBTree **ppBt);
 int tdbBtreeClose(SBTree *pBt);
 int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
 int tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn);
@@ -356,6 +357,12 @@ static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
   return pCell;
 }
 
+#define USE_MAINDB
+
+#ifdef USE_MAINDB
+#define TDB_MAINDB_NAME "main.tdb"
+#endif
+
 struct STDB {
   char    *dbName;
   char    *jnName;
@@ -365,6 +372,9 @@ struct STDB {
   int      nPager;
   int      nPgrHash;
   SPager **pgrHash;
+#ifdef USE_MAINDB
+  TTB *pMainDb;
+#endif
 };
 
 struct SPager {
@@ -381,6 +391,9 @@ struct SPager {
   u8       inTran;
   SPager  *pNext;      // used by TDB
   SPager  *pHashNext;  // used by TDB
+#ifdef USE_MAINDB
+  TDB *pEnv;
+#endif
 };
 
 #ifdef __cplusplus

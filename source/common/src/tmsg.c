@@ -4919,8 +4919,8 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
   if (tDecodeCStr(pCoder, &pReq->name) < 0) return -1;
   if (tDecodeI64(pCoder, &pReq->suid) < 0) return -1;
   if (tDecodeI8(pCoder, &pReq->rollup) < 0) return -1;
-  if (tDecodeSSchemaWrapper(pCoder, &pReq->schemaRow) < 0) return -1;
-  if (tDecodeSSchemaWrapper(pCoder, &pReq->schemaTag) < 0) return -1;
+  if (tDecodeSSchemaWrapperEx(pCoder, &pReq->schemaRow) < 0) return -1;
+  if (tDecodeSSchemaWrapperEx(pCoder, &pReq->schemaTag) < 0) return -1;
   if (pReq->rollup) {
     if (tDecodeSRSmaParam(pCoder, &pReq->rsmaParam) < 0) return -1;
   }

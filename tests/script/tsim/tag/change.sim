@@ -40,19 +40,19 @@ if $data03 != 2 then
   return -1
 endi
 
-sql alter table $mt change tag tagcx tgcol3 -x step21
+sql alter table $mt rename tag tagcx tgcol3 -x step21
   return -1
 step21:
-sql alter table $mt change tag tgcol1 tgcol2 -x step22
+sql alter table $mt rename tag tgcol1 tgcol2 -x step22
   return -1
 step22:
-#sql alter table $mt change tag tgcol1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx -x step20
+#sql alter table $mt rename tag tgcol1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx -x step20
 #  return -1
 #step20:
 
-sql alter table $mt change tag tgcol1 tgcol3
-sql alter table $mt change tag tgcol2 tgcol4
-sql alter table $mt change tag tgcol4 tgcol3 -x step23
+sql alter table $mt rename tag tgcol1 tgcol3
+sql alter table $mt rename tag tgcol2 tgcol4
+sql alter table $mt rename tag tgcol4 tgcol3 -x step23
   return -1
 step23:
 
@@ -77,8 +77,8 @@ if $data03 != 2 then
   return -1
 endi
 
-sql alter table $mt change tag tgcol1 tgcol3
-sql alter table $mt change tag tgcol2 tgcol4
+sql alter table $mt rename tag tgcol1 tgcol3
+sql alter table $mt rename tag tgcol2 tgcol4
 
 print =============== step4
 $i = 4
@@ -101,8 +101,8 @@ if $data03 != 2.00000 then
   return -1
 endi
 
-sql alter table $mt change tag tgcol1 tgcol3
-sql alter table $mt change tag tgcol2 tgcol4
+sql alter table $mt rename tag tgcol1 tgcol3
+sql alter table $mt rename tag tgcol2 tgcol4
   
 print =============== step5
 $i = 5
@@ -125,8 +125,8 @@ if $data03 != 2 then
   return -1
 endi
 
-sql alter table $mt change tag tgcol1 tgcol3
-sql alter table $mt change tag tgcol2 tgcol4
+sql alter table $mt rename tag tgcol1 tgcol3
+sql alter table $mt rename tag tgcol2 tgcol4
   
 print =============== step6
 $i = 6
@@ -163,15 +163,14 @@ endi
 
 sql alter table $mt drop tag tgcol3
 sql reset query cache
-sql alter table $mt change tag tgcol4 tgcol3
-sql alter table $mt change tag tgcol1 tgcol7
-sql alter table $mt change tag tgcol2 tgcol8
+sql alter table $mt rename tag tgcol4 tgcol3
+sql alter table $mt rename tag tgcol1 tgcol7
+sql alter table $mt rename tag tgcol2 tgcol8
 sql reset query cache
-sql alter table $mt change tag tgcol3 tgcol9
-sql alter table $mt change tag tgcol5 tgcol10
-sql alter table $mt change tag tgcol6 tgcol11
+sql alter table $mt rename tag tgcol3 tgcol9
+sql alter table $mt rename tag tgcol5 tgcol10
+sql alter table $mt rename tag tgcol6 tgcol11
 
-sleep 3000
 sql reset query cache
 
 print =============== step2

@@ -43,6 +43,11 @@
 
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
 
+enum {
+  PROJECT_RETRIEVE_CONTINUE = 0x1,
+  PROJECT_RETRIEVE_DONE = 0x2,
+};
+
 #if 0
 static UNUSED_FUNC void *u_malloc (size_t __size) {
   uint32_t v = taosRand();
@@ -624,7 +629,8 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
       ASSERT(pResult->info.capacity > 0);
       colDataMergeCol(pResColData, startOffset, &pResult->info.capacity, &idata, dest.numOfRows);
-
+      colDataDestroy(&idata);
+      
       numOfRows = dest.numOfRows;
       taosArrayDestroy(pBlockList);
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_FUNCTION) {
@@ -679,6 +685,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
         ASSERT(pResult->info.capacity > 0);
         colDataMergeCol(pResColData, startOffset, &pResult->info.capacity, &idata, dest.numOfRows);
+        colDataDestroy(&idata);
 
         numOfRows = dest.numOfRows;
         taosArrayDestroy(pBlockList);
@@ -1506,15 +1513,11 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprI
                            int32_t numOfExprs) {
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
   int32_t start = pGroupResInfo->index;
-#ifdef BUF_PAGE_DEBUG
-  qDebug("\npage_copytoblock rows:%d", numOfRows);
-#endif
+
   for (int32_t i = start; i < numOfRows; i += 1) {
     SResKeyPos* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
     SFilePage*  page = getBufPage(pBuf, pPos->pos.pageId);
-#ifdef BUF_PAGE_DEBUG
-    qDebug("page_copytoblock pos pageId:%d, offset:%d", pPos->pos.pageId, pPos->pos.offset);
-#endif
+
     SResultRow* pRow = (SResultRow*)((char*)page + pPos->pos.offset);
 
     doUpdateNumOfRows(pRow, numOfExprs, rowCellOffset);
@@ -1980,6 +1983,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     qDebug("%s fetch rsp received, index:%d, rows:%d", pSourceDataInfo->taskId, index, pRsp->numOfRows);
   } else {
     pSourceDataInfo->code = code;
+    qDebug("%s fetch rsp received, index:%d, error:%d", pSourceDataInfo->taskId, index, tstrerror(code));
   }
 
   pSourceDataInfo->status = EX_SOURCE_DATA_READY;
@@ -2221,6 +2225,8 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SEx
     if (completed == totalSources) {
       return setAllSourcesCompleted(pOperator, startTs);
     }
+
+    sched_yield();
   }
 
 _error:
@@ -2342,7 +2348,7 @@ static int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
   return TSDB_CODE_SUCCESS;
 }
 
-static SSDataBlock* doLoadRemoteData(SOperatorInfo* pOperator) {
+static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
@@ -2365,6 +2371,44 @@ static SSDataBlock* doLoadRemoteData(SOperatorInfo* pOperator) {
     return seqLoadRemoteData(pOperator);
   } else {
     return concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
+  }
+}
+
+static SSDataBlock* doLoadRemoteData(SOperatorInfo* pOperator) {
+  SExchangeInfo* pExchangeInfo = pOperator->info;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+
+  while(1) {
+    SSDataBlock* pBlock = doLoadRemoteDataImpl(pOperator);
+    if (pBlock == NULL) {
+      return NULL;
+    }
+
+    ASSERT(pBlock == pExchangeInfo->pResult);
+
+    SLimitInfo* pLimitInfo = &pExchangeInfo->limitInfo;
+    if (hasLimitOffsetInfo(pLimitInfo)) {
+      int32_t status = handleLimitOffset(pOperator, pLimitInfo, pExchangeInfo->pResult, false);
+      if (status == PROJECT_RETRIEVE_CONTINUE) {
+        continue;
+      } else if (status == PROJECT_RETRIEVE_DONE) {
+        size_t rows = pExchangeInfo->pResult->info.rows;
+        pExchangeInfo->limitInfo.numOfOutputRows += rows;
+
+        if (rows == 0) {
+          doSetOperatorCompleted(pOperator);
+          return NULL;
+        } else {
+          return pExchangeInfo->pResult;
+        }
+      }
+    } else {
+      return pExchangeInfo->pResult;
+    }
   }
 }
 
@@ -2407,6 +2451,7 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
     taosArrayPush(pInfo->pSources, pNode);
   }
 
+  initLimitInfo(pExNode->node.pLimit, pExNode->node.pSlimit, &pInfo->limitInfo);
   pInfo->self = taosAddRef(exchangeObjRefPool, pInfo);
 
   return initDataSource(numOfSources, pInfo, id);
@@ -3150,68 +3195,60 @@ int32_t aggDecodeResultRow(SOperatorInfo* pOperator, char* result) {
   return TDB_CODE_SUCCESS;
 }
 
-enum {
-  PROJECT_RETRIEVE_CONTINUE = 0x1,
-  PROJECT_RETRIEVE_DONE = 0x2,
-};
-
-static int32_t handleLimitOffset(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
-  SProjectOperatorInfo* pProjectInfo = pOperator->info;
-  SOptrBasicInfo*       pInfo = &pProjectInfo->binfo;
-  SSDataBlock*          pRes = pInfo->pRes;
-
-  if (pProjectInfo->curSOffset > 0) {
-    if (pProjectInfo->groupId == 0) {  // it is the first group
-      pProjectInfo->groupId = pBlock->info.groupId;
-      blockDataCleanup(pInfo->pRes);
+int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock, bool holdDataInBuf) {
+  if (pLimitInfo->remainGroupOffset > 0) {
+    if (pLimitInfo->currentGroupId == 0) {  // it is the first group
+      pLimitInfo->currentGroupId = pBlock->info.groupId;
+      blockDataCleanup(pBlock);
       return PROJECT_RETRIEVE_CONTINUE;
-    } else if (pProjectInfo->groupId != pBlock->info.groupId) {
-      pProjectInfo->curSOffset -= 1;
+    } else if (pLimitInfo->currentGroupId != pBlock->info.groupId) {
+      // now it is the data from a new group
+      pLimitInfo->remainGroupOffset -= 1;
 
       // ignore data block in current group
-      if (pProjectInfo->curSOffset > 0) {
-        blockDataCleanup(pInfo->pRes);
+      if (pLimitInfo->remainGroupOffset > 0) {
+        blockDataCleanup(pBlock);
         return PROJECT_RETRIEVE_CONTINUE;
       }
     }
 
     // set current group id of the project operator
-    pProjectInfo->groupId = pBlock->info.groupId;
+    pLimitInfo->currentGroupId = pBlock->info.groupId;
   }
 
-  if (pProjectInfo->groupId != 0 && pProjectInfo->groupId != pBlock->info.groupId) {
-    pProjectInfo->curGroupOutput += 1;
-    if ((pProjectInfo->slimit.limit > 0) && (pProjectInfo->slimit.limit <= pProjectInfo->curGroupOutput)) {
+  if (pLimitInfo->currentGroupId != 0 && pLimitInfo->currentGroupId != pBlock->info.groupId) {
+    pLimitInfo->numOfOutputGroups += 1;
+    if ((pLimitInfo->slimit.limit > 0) && (pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
       pOperator->status = OP_EXEC_DONE;
-      blockDataCleanup(pRes);
+      blockDataCleanup(pBlock);
 
       return PROJECT_RETRIEVE_DONE;
     }
 
     // reset the value for a new group data
-    pProjectInfo->curOffset = 0;
-    pProjectInfo->curOutput = 0;
+    pLimitInfo->numOfOutputRows = 0;
+    pLimitInfo->remainOffset = pLimitInfo->limit.offset;
   }
 
   // here we reach the start position, according to the limit/offset requirements.
 
   // set current group id
-  pProjectInfo->groupId = pBlock->info.groupId;
+  pLimitInfo->currentGroupId = pBlock->info.groupId;
 
-  if (pProjectInfo->curOffset >= pRes->info.rows) {
-    pProjectInfo->curOffset -= pRes->info.rows;
-    blockDataCleanup(pRes);
+  if (pLimitInfo->remainOffset >= pBlock->info.rows) {
+    pLimitInfo->remainOffset -= pBlock->info.rows;
+    blockDataCleanup(pBlock);
     return PROJECT_RETRIEVE_CONTINUE;
-  } else if (pProjectInfo->curOffset < pRes->info.rows && pProjectInfo->curOffset > 0) {
-    blockDataTrimFirstNRows(pRes, pProjectInfo->curOffset);
-    pProjectInfo->curOffset = 0;
+  } else if (pLimitInfo->remainOffset < pBlock->info.rows && pLimitInfo->remainOffset > 0) {
+    blockDataTrimFirstNRows(pBlock, pLimitInfo->remainOffset);
+    pLimitInfo->remainOffset = 0;
   }
 
   // check for the limitation in each group
-  if (pProjectInfo->limit.limit >= 0 && pProjectInfo->curOutput + pRes->info.rows >= pProjectInfo->limit.limit) {
-    int32_t keepRows = (int32_t)(pProjectInfo->limit.limit - pProjectInfo->curOutput);
-    blockDataKeepFirstNRows(pRes, keepRows);
-    if (pProjectInfo->slimit.limit > 0 && pProjectInfo->slimit.limit <= pProjectInfo->curGroupOutput) {
+  if (pLimitInfo->limit.limit >= 0 && pLimitInfo->numOfOutputRows + pBlock->info.rows >= pLimitInfo->limit.limit) {
+    int32_t keepRows = (int32_t)(pLimitInfo->limit.limit - pLimitInfo->numOfOutputRows);
+    blockDataKeepFirstNRows(pBlock, keepRows);
+    if (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups) {
       pOperator->status = OP_EXEC_DONE;
     }
 
@@ -3221,8 +3258,8 @@ static int32_t handleLimitOffset(SOperatorInfo* pOperator, SSDataBlock* pBlock) 
   // todo optimize performance
   // If there are slimit/soffset value exists, multi-round result can not be packed into one group, since the
   // they may not belong to the same group the limit/offset value is not valid in this case.
-  if (pRes->info.rows >= pOperator->resultInfo.threshold || pProjectInfo->slimit.offset != -1 ||
-      pProjectInfo->slimit.limit != -1) {
+  if ((!holdDataInBuf) || (pBlock->info.rows >= pOperator->resultInfo.threshold) || pLimitInfo->slimit.offset != -1 ||
+      pLimitInfo->slimit.limit != -1) {
     return PROJECT_RETRIEVE_DONE;
   } else {  // not full enough, continue to accumulate the output data in the buffer.
     return PROJECT_RETRIEVE_CONTINUE;
@@ -3308,7 +3345,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       longjmp(pTaskInfo->env, code);
     }
 
-    int32_t status = handleLimitOffset(pOperator, pBlock);
+    int32_t status = handleLimitOffset(pOperator, &pProjectInfo->limitInfo, pInfo->pRes, true);
 
     // filter shall be applied after apply functions and limit/offset on the result
     doFilter(pProjectInfo->pFilterNode, pInfo->pRes);
@@ -3320,9 +3357,9 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     }
   }
 
-  pProjectInfo->curOutput += pInfo->pRes->info.rows;
-
   size_t rows = pInfo->pRes->info.rows;
+  pProjectInfo->limitInfo.numOfOutputRows += rows;
+
   pOperator->resultInfo.totalRows += rows;
 
   if (pOperator->cost.openCost == 0) {
@@ -3747,7 +3784,7 @@ void doDestroyExchangeOperatorInfo(void* param) {
   taosArrayDestroy(pExInfo->pSources);
   taosArrayDestroy(pExInfo->pSourceDataInfo);
   if (pExInfo->pResult != NULL) {
-    blockDataDestroy(pExInfo->pResult);
+    pExInfo->pResult = blockDataDestroy(pExInfo->pResult);
   }
 
   tsem_destroy(&pExInfo->ready);
@@ -3766,10 +3803,6 @@ static SArray* setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols)
   return pList;
 }
 
-static int64_t getLimit(SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->limit; }
-
-static int64_t getOffset(SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->offset; }
-
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* pProjPhyNode,
                                          SExecTaskInfo* pTaskInfo) {
   SProjectOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SProjectOperatorInfo));
@@ -3782,13 +3815,8 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   SExprInfo* pExprInfo = createExprInfo(pProjPhyNode->pProjections, NULL, &numOfCols);
 
   SSDataBlock* pResBlock = createResDataBlock(pProjPhyNode->node.pOutputDataBlockDesc);
-  SLimit       limit = {.limit = getLimit(pProjPhyNode->node.pLimit), .offset = getOffset(pProjPhyNode->node.pLimit)};
-  SLimit slimit = {.limit = getLimit(pProjPhyNode->node.pSlimit), .offset = getOffset(pProjPhyNode->node.pSlimit)};
+  initLimitInfo(pProjPhyNode->node.pLimit, pProjPhyNode->node.pSlimit, &pInfo->limitInfo);
 
-  pInfo->limit = limit;
-  pInfo->slimit = slimit;
-  pInfo->curOffset = limit.offset;
-  pInfo->curSOffset = slimit.offset;
   pInfo->binfo.pRes = pResBlock;
   pInfo->pFilterNode = pProjPhyNode->node.pConditions;
 
