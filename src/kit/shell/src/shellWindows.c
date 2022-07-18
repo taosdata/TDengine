@@ -66,7 +66,7 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "Connect and interact with TDengine use restful.");
   printf("%s%s\n", indent, "-E");
   printf("%s%s%s\n", indent, indent, "The DSN to use when connecting TDengine's cloud services.");
-  pritnf("%s%s\n", indent, "-t");
+  printf("%s%s\n", indent, "-t");
   printf("%s%s%s\n", indent, indent, "The timeout seconds for websocekt to interact.");
   printf("%s%s\n", indent, "-S");
   printf("%s%s%s\n", indent, indent, "Packet type used for net test, default is TCP.");
