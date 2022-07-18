@@ -153,7 +153,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers) {
   return pTaskInfo;
 }
 
-static SArray* filterQualifiedChildTables(const SStreamScanInfo* pScanInfo, const SArray* tableIdList) {
+static SArray* filterQualifiedChildTables(const SStreamScanInfo* pScanInfo, const SArray* tableIdList, const char* idstr) {
   SArray* qa = taosArrayInit(4, sizeof(tb_uid_t));
 
   // let's discard the tables those are not created according to the queried super table.
@@ -164,7 +164,7 @@ static SArray* filterQualifiedChildTables(const SStreamScanInfo* pScanInfo, cons
 
     int32_t code = metaGetTableEntryByUid(&mr, *id);
     if (code != TSDB_CODE_SUCCESS) {
-      qError("failed to get table meta, uid:%" PRIu64 " code:%s", *id, tstrerror(terrno));
+      qError("failed to get table meta, uid:%" PRIu64 " code:%s, %s", *id, tstrerror(terrno), idstr);
       continue;
     }
 
@@ -172,6 +172,21 @@ static SArray* filterQualifiedChildTables(const SStreamScanInfo* pScanInfo, cons
     if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != pScanInfo->tableUid) {
       continue;
     }
+
+    if (pScanInfo->pTagCond != NULL) {
+      bool          qualified = false;
+      STableKeyInfo info = {.groupId = 0, .uid = mr.me.uid, .lastKey = 0};
+      code = isTableOk(&info, pScanInfo->pTagCond, pScanInfo->readHandle.meta, &qualified);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("failed to filter new table, uid:0x%" PRIx64 ", %s", info.uid, idstr);
+        continue;
+      }
+
+      if (!qualified) {
+        continue;
+      }
+    }
+
     /*pScanInfo->pStreamScanOp->pTaskInfo->tableqinfoList.*/
     // handle multiple partition
 
@@ -194,7 +209,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
   int32_t          code = 0;
   SStreamScanInfo* pScanInfo = pInfo->info;
   if (isAdd) {  // add new table id
-    SArray* qa = filterQualifiedChildTables(pScanInfo, tableIdList);
+    SArray* qa = filterQualifiedChildTables(pScanInfo, tableIdList, GET_TASKID(pTaskInfo));
 
     qDebug(" %d qualified child tables added into stream scanner", (int32_t)taosArrayGetSize(qa));
     code = tqReaderAddTbUidList(pScanInfo->tqReader, qa);
