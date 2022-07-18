@@ -63,7 +63,6 @@ static int32_t setTimeWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindo
                                       SResultRow** pResult, int64_t tableGroupId, SqlFunctionCtx* pCtx,
                                       int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup,
                                       SExecTaskInfo* pTaskInfo) {
-  assert(win->skey <= win->ekey);
   SResultRow* pResultRow = doSetResultOutBufByKey(pAggSup->pResultBuf, pResultRowInfo, (char*)&win->skey, TSDB_KEYSIZE,
                                                   masterscan, tableGroupId, pTaskInfo, true, pAggSup);
 
