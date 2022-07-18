@@ -206,7 +206,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
 
     else if (strcmp(argv[i], "-E") == 0) {
         if (i < argc - 1) {
-            arguments->cloudDsn = argv[++i];
+            arguments->dsn = argv[++i];
         } else {
             fprintf(stderr, "options -E requires an argument\n");
             exit(EXIT_FAILURE);
@@ -232,10 +232,10 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       exit(EXIT_FAILURE);
     }
   }
-  if (args.cloudDsn == NULL) {
+  if (args.dsn == NULL) {
       if (args.cloud) {
-          args.cloudDsn = getenv("TDENGINE_CLOUD_DSN");
-          if (args.cloudDsn == NULL) {
+          args.dsn = getenv("TDENGINE_CLOUD_DSN");
+          if (args.dsn == NULL) {
               args.cloud = false;
           }
       }
