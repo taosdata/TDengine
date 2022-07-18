@@ -899,3 +899,22 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
 
   return w;
 }
+
+bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {
+  return (pLimitInfo->limit.limit != -1 || pLimitInfo->limit.offset != -1 || pLimitInfo->slimit.limit != -1 ||
+          pLimitInfo->slimit.offset != -1);
+}
+
+
+static int64_t getLimit(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->limit; }
+static int64_t getOffset(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->offset; }
+
+void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo) {
+  SLimit limit = {.limit = getLimit(pLimit), .offset = getOffset(pLimit)};
+  SLimit slimit = {.limit = getLimit(pSLimit), .offset = getOffset(pSLimit)};
+
+  pLimitInfo->limit = limit;
+  pLimitInfo->slimit= slimit;
+  pLimitInfo->remainOffset = limit.offset;
+  pLimitInfo->remainGroupOffset = slimit.offset;
+}

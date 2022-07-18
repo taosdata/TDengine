@@ -143,7 +143,7 @@ int32_t mndSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void **ppWrit
   return sdbStartWrite(pMnode->pSdb, (SSdbIter **)ppWriter);
 }
 
-int32_t mndSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply) {
+int32_t mndSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply, SSnapshot *pSnapshot) {
   mInfo("stop to apply snapshot to sdb, apply:%d", isApply);
   SMnode *pMnode = pFsm->data;
   return sdbStopWrite(pMnode->pSdb, pWriter, isApply);
