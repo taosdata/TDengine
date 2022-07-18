@@ -993,6 +993,16 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
   pConn->peerPort = pRecv->port;
   if (pHead->port) pConn->peerPort = htons(pHead->port); 
 
+  // probe msg
+  if(pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN) {
+    pConn->inType   = pHead->msgType;
+    rpcSendQuickRsp(pConn, TSDB_CODE_SUCCESS);
+    rpcUnlockConn(pConn);
+    rpcFreeMsg(pRecv->msg);
+    pRecv->msg = NULL;
+    return pConn;
+  }
+
   terrno = rpcCheckAuthentication(pConn, (char *)pHead, pRecv->msgLen);
 
   // code can be transformed only after authentication
@@ -1710,6 +1720,7 @@ bool doRpcSendProbe(SRpcConn *pConn) {
   memcpy(pHead->user, pConn->user, tListLen(pHead->user));
   pHead->code = htonl(code);
 
+  pConn->outType = pHead->msgType;
   bool ret = rpcSendMsgToPeer(pConn, msg, sizeof(SRpcHead) + sizeof(int32_t));
   pConn->secured = 1; // connection shall be secured
 

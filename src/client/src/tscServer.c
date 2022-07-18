@@ -308,7 +308,7 @@ bool sendProbeConnMsg(SSqlObj* pSql) {
   if (diff > killTimeout) {
     // need kill query
     tscDebug("PROBE 0x%"PRIx64" need killed, noAckCnt:%d diff=%d", pSql->self, pSql->noAckCnt, diff);
-    return false;
+    //return false;
   }
 
   if (pSql->pPrevContext == NULL || pSql->pPrevConn == NULL ||  pSql->pPrevFdObj == NULL || pSql->prevFd <= 0) {
