@@ -194,8 +194,9 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
 void static addTimezoneParam(SNodeList* pList) {
   char       buf[6] = {0};
   time_t     t = taosTime(NULL);
-  struct tm* tmInfo = taosLocalTime(&t, NULL);
-  strftime(buf, sizeof(buf), "%z", tmInfo);
+  struct tm  tmInfo;
+  taosLocalTime(&t, &tmInfo);
+  strftime(buf, sizeof(buf), "%z", &tmInfo);
   int32_t len = (int32_t)strlen(buf);
 
   SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
@@ -1422,14 +1423,6 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
 }
 
 static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
-  for (int32_t i = 0; i < numOfParams; ++i) {
-    SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, i);
-    if (QUERY_NODE_VALUE == nodeType(pParamNode)) {
-      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-  }
-
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
 }
