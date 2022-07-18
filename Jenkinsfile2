@@ -333,6 +333,11 @@ pipeline {
     }
     stages {
         stage('run test') {
+            when {
+                allOf {
+                    not { expression { env.CHANGE_BRANCH =~ /docs\// }}
+                }
+            }
             parallel {
                 stage('windows test') {
                     agent{label " windows10_01 || windows10_02 || windows10_03 || windows10_04 "}
