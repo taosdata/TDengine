@@ -51,6 +51,11 @@ class TDTestCase:
         tdSql.query("describe `STB5`")
         tdSql.checkRows(5)
 
+        tdSql.execute("alter table `STB5` add tag `1` int")
+        tdSql.execute("create table t2 using `STB5`(`1`) tags(2)")
+        tdSql.error("alter table t2 set tag 1=2222")
+
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
