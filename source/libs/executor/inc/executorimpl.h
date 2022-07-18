@@ -311,19 +311,10 @@ typedef struct STableScanInfo {
   int32_t         dataBlockLoadFlag;
   SInterval       interval;     // if the upstream is an interval operator, the interval info is also kept here to get the time window to check if current data block needs to be loaded.
   SSampleExecInfo sample;       // sample execution info
-
   int32_t         currentGroupId;
   int32_t         currentTable;
-
-#if 0
-  struct {
-    uint64_t uid;
-    int64_t ts;
-  } lastStatus;
-#endif
-
-  int8_t scanMode;
-  int8_t noTable;
+  int8_t          scanMode;
+  int8_t          noTable;
 } STableScanInfo;
 
 typedef struct STagScanInfo {
@@ -429,8 +420,9 @@ typedef struct SStreamScanInfo {
 
   // status for tmq
   // SSchemaWrapper schema;
-  STqOffset offset;
-
+  STqOffset              offset;
+  SNode*                 pTagCond;
+  SNode*                 pTagIndexCond;
 } SStreamScanInfo;
 
 typedef struct SSysTableScanInfo {
@@ -874,8 +866,8 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
 SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* readHandle, uint64_t uid, SBlockDistScanPhysiNode* pBlockScanNode,
                                                SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle,
-    STableScanPhysiNode* pTableScanNode, SExecTaskInfo* pTaskInfo, STimeWindowAggSupp* pTwSup, uint64_t queryId, uint64_t taskId);
+SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
+                                            SExecTaskInfo* pTaskInfo, STimeWindowAggSupp* pTwSup);
 
 SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode, SExecTaskInfo* pTaskInfo);
 
@@ -966,12 +958,12 @@ int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosi
                                        SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
 int32_t createScanTableListInfo(SScanPhysiNode *pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
-                                STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId);
+                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond, const char* idstr);
 
 SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNode* pSortPhyNode,
                                            SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, STableListInfo *pTableListInfo,
-                                                SReadHandle* readHandle, SExecTaskInfo* pTaskInfo, uint64_t queryId, uint64_t taskId);
+                                                SReadHandle* readHandle, SExecTaskInfo* pTaskInfo);
 
 void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex);
 
