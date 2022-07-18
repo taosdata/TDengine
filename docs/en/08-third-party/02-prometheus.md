@@ -59,7 +59,7 @@ Prometheus should start up. It also started a web server at <http://localhost:90
 
 Log in TDengine Cloud, click "Explorer" on the left navigation bar. You will see metrics collected by prometheus.
 
-![TDengine prometheus remote_write result](prometheus_data.png)
+![TDengine prometheus remote_write result](prometheus_data.webp)
 
 ## Verify Remote Read
 
@@ -71,5 +71,5 @@ Enter the following expression to graph the per-second rate of chunks being crea
 rate(prometheus_tsdb_head_chunks_created_total[1m])
 ```
 
-![TDengine prometheus remote_read](prometheus_read.png)
+![TDengine prometheus remote_read](prometheus_read.webp)
 
