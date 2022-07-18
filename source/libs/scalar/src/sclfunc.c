@@ -2845,3 +2845,19 @@ int32_t topBotScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
 int32_t firstLastScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return selectScalarFunction(pInput, inputNum, pOutput);
 }
+
+int32_t sampleScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t tailScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t uniqueScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t modeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
+}
