@@ -103,10 +103,9 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
   // if pgno == 0 fetch new btree root leaf page
   if (pgno == 0) {
     // fetch page & insert into main db
-    // allocate a new child page
     SPage *pPage;
     TXN    txn;
-    tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, 0);
+    tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
 
     pPager->inTran = 1;
 
@@ -117,8 +116,6 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
     if (ret < 0) {
       return -1;
     }
-
-    // TODO: Need to zero the page
 
     ret = tdbPagerWrite(pPager, pPage);
     if (ret < 0) {
