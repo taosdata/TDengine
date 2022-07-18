@@ -316,9 +316,9 @@ void shellRunCommandOnWebsocket(char command[]) {
     et = taosGetTimestampUs();
     fprintf(stderr, "\nDB error: %s (%.6fs)\n", ws_errstr(res), (et - st)/1E6);
     if (code == TSDB_CODE_WS_SEND_TIMEOUT || code == TSDB_CODE_WS_RECV_TIMEOUT) {
-      fprintf(stderr, "Hint: use -t to increase the timeout time in seconds\n");
+      fprintf(stderr, "Hint: use -t to increase the timeout in seconds\n");
     } else if (code == TSDB_CODE_WS_INTERNAL_ERRO || code == TSDB_CODE_WS_CLOSED) {
-      fprintf(stderr, "TDengine server is down, please re-enter the shell\n");
+      fprintf(stderr, "TDengine server is down, please re-start the shell\n");
     }
     ws_free_result(res);
     return;
