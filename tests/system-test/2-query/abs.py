@@ -555,8 +555,8 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0,0,0)
         
-        tdSql.query("select last_row(c1) from (select ts , c1 ,t1 from stb1)")
-        tdSql.checkRows(20)
+        tdSql.query("select abs(c1) from (select ts , c1 ,t1 from stb1)")
+        tdSql.checkRows(25)
 
         tdSql.query(
             "select abs(c1+t1)*t1 from stb1 where abs(c1)/floor(abs(ceil(t1))) ==1")
