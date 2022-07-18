@@ -194,8 +194,9 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
 void static addTimezoneParam(SNodeList* pList) {
   char       buf[6] = {0};
   time_t     t = taosTime(NULL);
-  struct tm* tmInfo = taosLocalTime(&t, NULL);
-  strftime(buf, sizeof(buf), "%z", tmInfo);
+  struct tm  tmInfo;
+  taosLocalTime(&t, &tmInfo);
+  strftime(buf, sizeof(buf), "%z", &tmInfo);
   int32_t len = (int32_t)strlen(buf);
 
   SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
@@ -1132,9 +1133,9 @@ static bool validateStateOper(const SValueNode* pVal) {
   if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
     return false;
   }
-  return (0 == strcasecmp(varDataVal(pVal->datum.p), "GT") || 0 == strcasecmp(varDataVal(pVal->datum.p), "GE") ||
-          0 == strcasecmp(varDataVal(pVal->datum.p), "LT") || 0 == strcasecmp(varDataVal(pVal->datum.p), "LE") ||
-          0 == strcasecmp(varDataVal(pVal->datum.p), "EQ") || 0 == strcasecmp(varDataVal(pVal->datum.p), "NE"));
+  return (0 == strncasecmp(varDataVal(pVal->datum.p), "GT", 2) || 0 == strncasecmp(varDataVal(pVal->datum.p), "GE", 2) ||
+          0 == strncasecmp(varDataVal(pVal->datum.p), "LT", 2) || 0 == strncasecmp(varDataVal(pVal->datum.p), "LE", 2) ||
+          0 == strncasecmp(varDataVal(pVal->datum.p), "EQ", 2) || 0 == strncasecmp(varDataVal(pVal->datum.p), "NE", 2));
 }
 
 static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -2086,6 +2087,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = topBotFunctionSetup,
     .processFunc  = topFunction,
+    .sprocessFunc = topBotScalarFunction,
     .finalizeFunc = topBotFinalize,
     .combineFunc  = topCombine,
     .pPartialFunc = "top",
@@ -2100,6 +2102,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = topBotFunctionSetup,
     .processFunc  = bottomFunction,
+    .sprocessFunc = topBotScalarFunction,
     .finalizeFunc = topBotFinalize,
     .combineFunc  = bottomCombine,
     .pPartialFunc = "bottom",
@@ -2229,6 +2232,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastRowFunction,
+    .sprocessFunc = firstLastScalarFunction,
     .finalizeFunc = firstLastFinalize
   },
   {
@@ -2249,6 +2253,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = firstFunction,
+    .sprocessFunc = firstLastScalarFunction,
     .finalizeFunc = firstLastFinalize,
     .pPartialFunc = "_first_partial",
     .pMergeFunc   = "_first_merge",
@@ -2284,6 +2289,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastFunction,
+    .sprocessFunc = firstLastScalarFunction,
     .finalizeFunc = firstLastFinalize,
     .pPartialFunc = "_last_partial",
     .pMergeFunc   = "_last_merge",
@@ -2331,6 +2337,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
     .processFunc  = histogramFunction,
+    .sprocessFunc = histogramScalarFunction,
     .finalizeFunc = histogramFinalize,
     .invertFunc   = NULL,
     .combineFunc  = histogramCombine,
@@ -2419,6 +2426,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getStateFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = stateCountFunction,
+    .sprocessFunc = stateCountScalarFunction,
     .finalizeFunc = NULL
   },
   {
@@ -2429,6 +2437,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getStateFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = stateDurationFunction,
+    .sprocessFunc = stateDurationScalarFunction,
     .finalizeFunc = NULL
   },
   {
@@ -2461,6 +2470,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSampleFuncEnv,
     .initFunc     = sampleFunctionSetup,
     .processFunc  = sampleFunction,
+    .sprocessFunc = sampleScalarFunction,
     .finalizeFunc = sampleFinalize
   },
   {
@@ -2472,6 +2482,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTailFuncEnv,
     .initFunc     = tailFunctionSetup,
     .processFunc  = tailFunction,
+    .sprocessFunc = tailScalarFunction,
     .finalizeFunc = NULL
   },
   {
@@ -2483,6 +2494,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getUniqueFuncEnv,
     .initFunc     = uniqueFunctionSetup,
     .processFunc  = uniqueFunction,
+    .sprocessFunc = uniqueScalarFunction,
     .finalizeFunc = NULL
   },
   {
@@ -2493,6 +2505,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getModeFuncEnv,
     .initFunc     = modeFunctionSetup,
     .processFunc  = modeFunction,
+    .sprocessFunc = modeScalarFunction,
     .finalizeFunc = modeFinalize,
   },
   {

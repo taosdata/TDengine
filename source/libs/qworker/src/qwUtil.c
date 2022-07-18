@@ -270,7 +270,7 @@ int32_t qwAddAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) { return qwAddTask
 
 void qwReleaseTaskCtx(SQWorker *mgmt, void *ctx) { taosHashRelease(mgmt->ctxHash, ctx); }
 
-void qwFreeTaskHandle(QW_FPARAMS_DEF, qTaskInfo_t *taskHandle) {
+void qwFreeTaskHandle(qTaskInfo_t *taskHandle) {
   // Note: free/kill may in RC
   qTaskInfo_t otaskHandle = atomic_load_ptr(taskHandle);
   if (otaskHandle && atomic_val_compare_exchange_ptr(taskHandle, otaskHandle, NULL)) {
@@ -278,7 +278,7 @@ void qwFreeTaskHandle(QW_FPARAMS_DEF, qTaskInfo_t *taskHandle) {
   }
 }
 
-int32_t qwKillTaskHandle(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
+int32_t qwKillTaskHandle(SQWTaskCtx *ctx) {
   int32_t code = 0;
   // Note: free/kill may in RC
   qTaskInfo_t taskHandle = atomic_load_ptr(&ctx->taskHandle);
@@ -290,7 +290,7 @@ int32_t qwKillTaskHandle(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   QW_RET(code);
 }
 
-void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
+void qwFreeTaskCtx(SQWTaskCtx *ctx) {
   if (ctx->ctrlConnInfo.handle) {
     tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER);
   }
@@ -300,7 +300,7 @@ void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 
   // NO need to release dataConnInfo
 
-  qwFreeTaskHandle(QW_FPARAMS(), &ctx->taskHandle);
+  qwFreeTaskHandle(&ctx->taskHandle);
 
   if (ctx->sinkHandle) {
     dsDestroyDataSinker(ctx->sinkHandle);
@@ -336,7 +336,7 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
     QW_ERR_RET(TSDB_CODE_QRY_TASK_CTX_NOT_EXIST);
   }
 
-  qwFreeTaskCtx(QW_FPARAMS(), &octx);
+  qwFreeTaskCtx(&octx);
 
   QW_TASK_DLOG_E("task ctx dropped");
 
@@ -463,13 +463,21 @@ void qwDestroyImpl(void *pMgmt) {
   mgmt->hbTimer = NULL;
   taosTmrCleanUp(mgmt->timer);
 
-  // TODO STOP ALL QUERY
+  uint64_t qId, tId;
+  int32_t eId;
+  void *pIter = taosHashIterate(mgmt->ctxHash, NULL);
+  while (pIter) {
+    SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
+    void *key = taosHashGetKey(pIter, NULL);
+    QW_GET_QTID(key, qId, tId, eId);
 
-  // TODO FREE ALL
-
+    qwFreeTaskCtx(ctx);
+    QW_TASK_DLOG_E("task ctx freed");
+    pIter = taosHashIterate(mgmt->ctxHash, pIter);
+  }
   taosHashCleanup(mgmt->ctxHash);
 
-  void *pIter = taosHashIterate(mgmt->schHash, NULL);
+  pIter = taosHashIterate(mgmt->schHash, NULL);
   while (pIter) {
     SQWSchStatus *sch = (SQWSchStatus *)pIter;
     qwDestroySchStatus(sch);

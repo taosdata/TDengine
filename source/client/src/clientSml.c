@@ -609,7 +609,7 @@ static bool smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg) {
     }
     kvVal->type = TSDB_DATA_TYPE_BIGINT;
     kvVal->i = (int64_t)result;
-  } else if ((left == 3 && strncasecmp(endptr, "u64", left) == 0)) {
+  } else if ((left == 1 && *endptr == 'u') || (left == 3 && strncasecmp(endptr, "u64", left) == 0)) {
     if (result >= (double)UINT64_MAX || result < 0) {
       errno = 0;
       uint64_t tmp = taosStr2UInt64(pVal, &endptr, 10);
@@ -1045,6 +1045,10 @@ static int32_t smlParseTelnetTags(const char *data, SArray *cols, char *childTab
       memset(childTableName, 0, TSDB_TABLE_NAME_LEN);
       strncpy(childTableName, value, (valueLen < TSDB_TABLE_NAME_LEN ? valueLen : TSDB_TABLE_NAME_LEN));
       continue;
+    }
+
+    if(valueLen > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE){
+      return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
     }
 
     // add kv to SSmlKv

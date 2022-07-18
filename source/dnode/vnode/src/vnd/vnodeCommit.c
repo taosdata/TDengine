@@ -233,7 +233,8 @@ int vnodeCommit(SVnode *pVnode) {
   walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
 
   // preCommit
-  smaPreCommit(pVnode->pSma);
+  // smaSyncPreCommit(pVnode->pSma);
+  smaAsyncPreCommit(pVnode->pSma);
 
   // commit each sub-system
   if (metaCommit(pVnode->pMeta) < 0) {
@@ -242,6 +243,8 @@ int vnodeCommit(SVnode *pVnode) {
   }
 
   if (VND_IS_RSMA(pVnode)) {
+    smaAsyncCommit(pVnode->pSma);
+
     if (tsdbCommit(VND_RSMA0(pVnode)) < 0) {
       ASSERT(0);
       return -1;
@@ -276,7 +279,8 @@ int vnodeCommit(SVnode *pVnode) {
   pVnode->state.committed = info.state.committed;
 
   // postCommit
-  smaPostCommit(pVnode->pSma);
+  // smaSyncPostCommit(pVnode->pSma);
+  smaAsyncPostCommit(pVnode->pSma);
 
   // apply the commit (TODO)
   walEndSnapshot(pVnode->pWal);

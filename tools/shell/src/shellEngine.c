@@ -231,18 +231,6 @@ char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
     ms = val % 1000;
   }
 
-  /*
-    comment out as it make testcases like select_with_tags.sim fail.
-    but in windows, this may cause the call to localtime crash if tt < 0,
-    need to find a better solution.
-    if (tt < 0) {
-      tt = 0;
-    }
-  */
-
-#ifdef WINDOWS
-  if (tt < 0) tt = 0;
-#endif
   if (tt <= 0 && ms < 0) {
     tt--;
     if (precision == TSDB_TIME_PRECISION_NANO) {
@@ -254,8 +242,9 @@ char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
     }
   }
 
-  struct tm *ptm = taosLocalTime(&tt, NULL);
-  size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", ptm);
+  struct tm ptm = {0};
+  taosLocalTime(&tt, &ptm);
+  size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
 
   if (precision == TSDB_TIME_PRECISION_NANO) {
     sprintf(buf + pos, ".%09d", ms);
@@ -748,6 +737,13 @@ int32_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool ver
 
 void shellReadHistory() {
   SShellHistory *pHistory = &shell.history;
+  int64_t file_size;
+  if (taosStatFile(pHistory->file, &file_size, NULL) != 0) {
+    return;
+  } else if (file_size > SHELL_MAX_COMMAND_SIZE) {
+    taosRemoveFile(pHistory->file);
+    return;
+  }
   TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) return;
 

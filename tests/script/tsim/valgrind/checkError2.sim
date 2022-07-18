@@ -60,8 +60,8 @@ sql select c1, c2, c3 from ct1
 sql select ts, c1, c2, c3 from stb
 sql select * from ct1 where ts < now -1d and ts > now +1d 
 sql select * from stb where ts < now -1d and ts > now +1d 
-#sql select * from ct1 where ts < now -1d and ts > now +1d order by ts desc 
-#sql select * from stb where ts < now -1d and ts > now +1d order by ts desc 
+sql select * from ct1 where ts < now -1d and ts > now +1d order by ts desc 
+sql select * from stb where ts < now -1d and ts > now +1d order by ts desc 
 
 print =============== step7: count
 sql select count(*) from ct1;
@@ -78,18 +78,18 @@ sql select max(c1), max(c2), max(c3) from ct1
 sql select sum(c1), sum(c2), sum(c3) from ct1
 
 print =============== step9: insert select
-#sql create table ct4 using stb tags(4000);
-#sql insert into ct4 select * from ct1;
-#sql select * from ct4;
-#sql insert into ct4 select ts,c1,c2,c3 from stb;
+sql create table ct4 using stb tags(4000);
+sql insert into ct4 select * from ct1;
+sql select * from ct4;
+sql insert into ct4 select ts,c1,c2,c3 from stb;
 
-#sql create table tb1 (ts timestamp, c1 int, c2 float, c3 double);
-#sql insert into tb1 (ts, c1, c2, c3) select * from ct1;
-#sql select * from tb1;
+sql create table tb1 (ts timestamp, c1 int, c2 float, c3 double);
+sql insert into tb1 (ts, c1, c2, c3) select * from ct1;
+sql select * from tb1;
 
-#sql create table tb2 (ts timestamp, f1 binary(10), c1 int, c2 double);
-#sql insert into tb2 (c2, c1, ts) select c2+1, c1, ts+3 from ct2;
-#sql select * from tb2;
+sql create table tb2 (ts timestamp, f1 binary(10), c1 int, c2 double);
+sql insert into tb2 (c2, c1, ts) select c2+1, c1, ts+3 from ct2;
+sql select * from tb2;
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -98,7 +98,7 @@ $null=
 
 system_content sh/checkValgrind.sh -n dnode1 
 print cmd return result ----> [ $system_content ]
-if $system_content > 1 then
+if $system_content > 0 then
   return -1
 endi 
 

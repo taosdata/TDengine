@@ -20,6 +20,7 @@
 typedef struct SLogicPlanContext {
   SPlanContext* pPlanCxt;
   SLogicNode*   pCurrRoot;
+  bool          hasScan;
 } SLogicPlanContext;
 
 typedef int32_t (*FCreateLogicNode)(SLogicPlanContext*, void*, SLogicNode**);
@@ -161,23 +162,16 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
     return SCAN_TYPE_STREAM;
   }
 
+  if (TSDB_SYSTEM_TABLE == tableType) {
+    return SCAN_TYPE_SYSTEM_TABLE;
+  }
+
   if (NULL == pScanCols) {
     return NULL == pScanPseudoCols
                ? SCAN_TYPE_TABLE
                : ((FUNCTION_TYPE_BLOCK_DIST_INFO == ((SFunctionNode*)nodesListGetNode(pScanPseudoCols, 0))->funcType)
                       ? SCAN_TYPE_BLOCK_INFO
                       : SCAN_TYPE_TABLE);
-  }
-
-  if (TSDB_SYSTEM_TABLE == tableType) {
-    return SCAN_TYPE_SYSTEM_TABLE;
-  }
-
-  SNode* pCol = NULL;
-  FOREACH(pCol, pScanCols) {
-    if (COLUMN_TYPE_COLUMN == ((SColumnNode*)pCol)->colType) {
-      return SCAN_TYPE_TABLE;
-    }
   }
 
   return SCAN_TYPE_TABLE;
@@ -282,7 +276,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     pScan->hasNormalCols = true;
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && SCAN_TYPE_SYSTEM_TABLE != pScan->scanType) {
     code = addPrimaryKeyCol(pScan->tableId, &pScan->pScanCols);
   }
 
@@ -299,6 +293,8 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   } else {
     nodesDestroyNode((SNode*)pScan);
   }
+
+  pCxt->hasScan = true;
 
   return code;
 }
@@ -1339,9 +1335,9 @@ static void doSetLogicNodeParent(SLogicNode* pNode, SLogicNode* pParent) {
 
 static void setLogicNodeParent(SLogicNode* pNode) { doSetLogicNodeParent(pNode, NULL); }
 
-static void setLogicSubplanType(SLogicSubplan* pSubplan) {
+static void setLogicSubplanType(bool hasScan, SLogicSubplan* pSubplan) {
   if (QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY != nodeType(pSubplan->pNode)) {
-    pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
+    pSubplan->subplanType = hasScan ? SUBPLAN_TYPE_SCAN : SUBPLAN_TYPE_MERGE;
   } else {
     SVnodeModifyLogicNode* pModify = (SVnodeModifyLogicNode*)pSubplan->pNode;
     pSubplan->subplanType = (MODIFY_TABLE_TYPE_INSERT == pModify->modifyType && NULL != pModify->node.pChildren)
@@ -1351,7 +1347,7 @@ static void setLogicSubplanType(SLogicSubplan* pSubplan) {
 }
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
-  SLogicPlanContext cxt = {.pPlanCxt = pCxt};
+  SLogicPlanContext cxt = {.pPlanCxt = pCxt, .pCurrRoot = NULL, .hasScan = false};
 
   SLogicSubplan* pSubplan = (SLogicSubplan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
   if (NULL == pSubplan) {
@@ -1364,7 +1360,7 @@ int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
   int32_t code = createQueryLogicNode(&cxt, pCxt->pAstRoot, &pSubplan->pNode);
   if (TSDB_CODE_SUCCESS == code) {
     setLogicNodeParent(pSubplan->pNode);
-    setLogicSubplanType(pSubplan);
+    setLogicSubplanType(cxt.hasScan, pSubplan);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

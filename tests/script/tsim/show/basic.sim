@@ -99,7 +99,7 @@ if $rows != 1 then
 endi
 #sql select * from information_schema.`streams`
 sql select * from information_schema.user_tables
-if $rows != 30 then
+if $rows != 31 then
   return -1
 endi
 #sql select * from information_schema.user_table_distributed
@@ -197,7 +197,7 @@ if $rows != 1 then
 endi
 #sql select * from performance_schema.`streams`
 sql select * from information_schema.user_tables
-if $rows != 30 then
+if $rows != 31 then
   return -1
 endi
 #sql select * from information_schema.user_table_distributed
