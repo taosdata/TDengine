@@ -50,6 +50,12 @@ char* schGetOpStr(SCH_OP_TYPE type) {
   }
 }
 
+void schFreeHbTrans(SSchHbTrans *pTrans) {
+  rpcReleaseHandle(pTrans->trans.pHandle, TAOS_CONN_CLIENT);
+
+  schFreeRpcCtx(&pTrans->rpcCtx);  
+}
+
 void schCleanClusterHb(void* pTrans) {
   SCH_LOCK(SCH_WRITE, &schMgmt.hbLock);
 
@@ -57,7 +63,7 @@ void schCleanClusterHb(void* pTrans) {
   while (hb) {
     if (hb->trans.pTrans == pTrans) {
       SQueryNodeEpId* pEpId = taosHashGetKey(hb, NULL);
-      rpcReleaseHandle(hb->trans.pHandle, TAOS_CONN_CLIENT);
+      schFreeHbTrans(hb);
       taosHashRemove(schMgmt.hbConnections, pEpId, sizeof(SQueryNodeEpId));
     }
     
@@ -68,8 +74,6 @@ void schCleanClusterHb(void* pTrans) {
 }
 
 int32_t schRemoveHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *epId) {
-  return TSDB_CODE_SUCCESS; // TODO ENABLE IT WHEN RPC IS READY
-  
   int32_t     code = 0;
 
   SCH_LOCK(SCH_WRITE, &schMgmt.hbLock);
@@ -82,7 +86,7 @@ int32_t schRemoveHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *ep
 
   int64_t taskNum = atomic_load_64(&hb->taskNum);
   if (taskNum <= 0) {
-    rpcReleaseHandle(hb->trans.pHandle, TAOS_CONN_CLIENT);
+    schFreeHbTrans(hb);
     taosHashRemove(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId));
   }
   SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
@@ -265,9 +269,7 @@ void schFreeRpcCtxVal(const void *arg) {
   }
 
   SMsgSendInfo *pMsgSendInfo = (SMsgSendInfo *)arg;
-  taosMemoryFreeClear(pMsgSendInfo->param);
-  taosMemoryFreeClear(pMsgSendInfo->msgInfo.pData);  
-  taosMemoryFreeClear(pMsgSendInfo);
+  destroySendMsgInfo(pMsgSendInfo);
 }
 
 void schFreeRpcCtx(SRpcCtx *pCtx) {

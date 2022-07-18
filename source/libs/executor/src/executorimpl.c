@@ -1990,12 +1990,6 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
-  assert(pMsgBody != NULL);
-  taosMemoryFreeClear(pMsgBody->msgInfo.pData);
-  taosMemoryFreeClear(pMsgBody);
-}
-
 void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
   assert(pMsg->info.ahandle != NULL);
@@ -2055,6 +2049,7 @@ static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInf
   pWrapper->sourceIndex = sourceIndex;
 
   pMsgSendInfo->param = pWrapper;
+  pMsgSendInfo->paramFreeFp = taosMemoryFree;
   pMsgSendInfo->msgInfo.pData = pMsg;
   pMsgSendInfo->msgInfo.len = sizeof(SResFetchReq);
   pMsgSendInfo->msgType = pSource->fetchMsgType;
