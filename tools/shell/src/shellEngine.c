@@ -766,12 +766,10 @@ void shellReadHistory() {
       endIndex = pHistory->hend;
     }
     for (int32_t i = (pHistory->hend + SHELL_MAX_HISTORY_SIZE - 1) % SHELL_MAX_HISTORY_SIZE; i != endIndex;) {
-      printf("%d ",i);
       taosFprintfFile(pFile, "%s\n", pHistory->hist[i]);
       i = (i + SHELL_MAX_HISTORY_SIZE - 1) % SHELL_MAX_HISTORY_SIZE;
     }
     taosFprintfFile(pFile, "%s\n", pHistory->hist[endIndex]);
-    printf("\n");
     taosFsyncFile(pFile);
     taosCloseFile(&pFile);
   }
