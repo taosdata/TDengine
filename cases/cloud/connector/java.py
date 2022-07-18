@@ -1,5 +1,5 @@
 """
-到指定测试服务器目录，更新 Java 测试代码，执行 mvn test
+到指定测试服务器目录，执行 mvn test
 启动命令： tt --case=cloud/connector/java.py --use=cloud_test.yaml
 """
 import subprocess as sp
