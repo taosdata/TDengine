@@ -207,7 +207,7 @@ void flttMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
 
 void initScalarParam(SScalarParam* pParam) {
   memset(pParam, 0, sizeof(SScalarParam));
-  pParam->type = SHOULD_FREE_COLDATA;
+  pParam->colAlloced = true;
 }
 
 }

@@ -4469,17 +4469,17 @@ bool getStateFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
 
 static int8_t getStateOpType(char* opStr) {
   int8_t opType;
-  if (strcasecmp(opStr, "LT") == 0) {
+  if (strncasecmp(opStr, "LT", 2) == 0) {
     opType = STATE_OPER_LT;
-  } else if (strcasecmp(opStr, "GT") == 0) {
+  } else if (strncasecmp(opStr, "GT", 2) == 0) {
     opType = STATE_OPER_GT;
-  } else if (strcasecmp(opStr, "LE") == 0) {
+  } else if (strncasecmp(opStr, "LE", 2) == 0) {
     opType = STATE_OPER_LE;
-  } else if (strcasecmp(opStr, "GE") == 0) {
+  } else if (strncasecmp(opStr, "GE", 2) == 0) {
     opType = STATE_OPER_GE;
-  } else if (strcasecmp(opStr, "NE") == 0) {
+  } else if (strncasecmp(opStr, "NE", 2) == 0) {
     opType = STATE_OPER_NE;
-  } else if (strcasecmp(opStr, "EQ") == 0) {
+  } else if (strncasecmp(opStr, "EQ", 2) == 0) {
     opType = STATE_OPER_EQ;
   } else {
     opType = STATE_OPER_INVALID;

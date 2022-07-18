@@ -234,9 +234,9 @@ void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
   SSortOperatorInfo* pInfo = (SSortOperatorInfo*)param;
   pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
 
+  tsortDestroySortHandle(pInfo->pSortHandle);
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->pColMatchInfo);
-  
   taosMemoryFreeClear(param);
 }
 
@@ -539,14 +539,12 @@ int32_t doOpenMultiwayMergeOperator(SOperatorInfo* pOperator) {
   }
 
   pInfo->startTs = taosGetTimestampUs();
-
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
 
   pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize, numOfBufPage,
                                              pInfo->pInputBlock, pTaskInfo->id.str);
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, NULL, NULL);
-
   tsortSetCompareGroupId(pInfo->pSortHandle, pInfo->groupSort);
 
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
@@ -556,7 +554,6 @@ int32_t doOpenMultiwayMergeOperator(SOperatorInfo* pOperator) {
   }
 
   int32_t code = tsortOpen(pInfo->pSortHandle);
-
   if (code != TSDB_CODE_SUCCESS) {
     longjmp(pTaskInfo->env, terrno);
   }
@@ -674,6 +671,7 @@ void destroyMultiwayMergeOperatorInfo(void* param, int32_t numOfOutput) {
   pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
   pInfo->pInputBlock = blockDataDestroy(pInfo->pInputBlock);
 
+  tsortDestroySortHandle(pInfo->pSortHandle);
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->pColMatchInfo);
   

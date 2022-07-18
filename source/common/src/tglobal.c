@@ -184,6 +184,7 @@ int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushInterval = 60;
+int32_t tsGrantHBInterval = 60;
 
 void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary) {
   tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
