@@ -22,31 +22,31 @@ static int32_t      getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain
 
 static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput);
 
-SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortPhyNode,
-                                      SExecTaskInfo* pTaskInfo) {
+// todo add limit/offset impl
+SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortNode, SExecTaskInfo* pTaskInfo) {
   SSortOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortOperatorInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL /* || rowSize > 100 * 1024 * 1024*/) {
     goto _error;
   }
 
-  SDataBlockDescNode* pDescNode = pSortPhyNode->node.pOutputDataBlockDesc;
+  SDataBlockDescNode* pDescNode = pSortNode->node.pOutputDataBlockDesc;
 
   int32_t      numOfCols = 0;
   SSDataBlock* pResBlock = createResDataBlock(pDescNode);
-  SExprInfo*   pExprInfo = createExprInfo(pSortPhyNode->pExprs, NULL, &numOfCols);
+  SExprInfo*   pExprInfo = createExprInfo(pSortNode->pExprs, NULL, &numOfCols);
 
   int32_t numOfOutputCols = 0;
   SArray* pColMatchColInfo =
-      extractColMatchInfo(pSortPhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
+      extractColMatchInfo(pSortNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
 
   pOperator->exprSupp.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset);
   pInfo->binfo.pRes = pResBlock;
 
   initResultSizeInfo(pOperator, 1024);
 
-  pInfo->pSortInfo = createSortInfo(pSortPhyNode->pSortKeys);
-  pInfo->pCondition = pSortPhyNode->node.pConditions;
+  pInfo->pSortInfo = createSortInfo(pSortNode->pSortKeys);
+  pInfo->pCondition = pSortNode->node.pConditions;
   pInfo->pColMatchInfo = pColMatchColInfo;
   pOperator->name = "SortOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SORT;
