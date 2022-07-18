@@ -2086,6 +2086,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = topBotFunctionSetup,
     .processFunc  = topFunction,
+    .sprocessFunc = topBotScalarFunction,
     .finalizeFunc = topBotFinalize,
     .combineFunc  = topCombine,
     .pPartialFunc = "top",
@@ -2100,6 +2101,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = topBotFunctionSetup,
     .processFunc  = bottomFunction,
+    .sprocessFunc = topBotScalarFunction,
     .finalizeFunc = topBotFinalize,
     .combineFunc  = bottomCombine,
     .pPartialFunc = "bottom",
@@ -2229,6 +2231,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastRowFunction,
+    .sprocessFunc = firstLastScalarFunction,
     .finalizeFunc = firstLastFinalize
   },
   {
@@ -2249,6 +2252,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = firstFunction,
+    .sprocessFunc = firstLastScalarFunction,
     .finalizeFunc = firstLastFinalize,
     .pPartialFunc = "_first_partial",
     .pMergeFunc   = "_first_merge",
@@ -2284,6 +2288,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastFunction,
+    .sprocessFunc = firstLastScalarFunction,
     .finalizeFunc = firstLastFinalize,
     .pPartialFunc = "_last_partial",
     .pMergeFunc   = "_last_merge",
@@ -2464,6 +2469,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSampleFuncEnv,
     .initFunc     = sampleFunctionSetup,
     .processFunc  = sampleFunction,
+    .sprocessFunc = sampleScalarFunction,
     .finalizeFunc = sampleFinalize
   },
   {
@@ -2475,6 +2481,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTailFuncEnv,
     .initFunc     = tailFunctionSetup,
     .processFunc  = tailFunction,
+    .sprocessFunc = tailScalarFunction,
     .finalizeFunc = NULL
   },
   {
@@ -2486,6 +2493,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getUniqueFuncEnv,
     .initFunc     = uniqueFunctionSetup,
     .processFunc  = uniqueFunction,
+    .sprocessFunc = uniqueScalarFunction,
     .finalizeFunc = NULL
   },
   {
@@ -2496,6 +2504,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getModeFuncEnv,
     .initFunc     = modeFunctionSetup,
     .processFunc  = modeFunction,
+    .sprocessFunc = modeScalarFunction,
     .finalizeFunc = modeFinalize,
   },
   {

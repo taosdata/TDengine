@@ -2816,3 +2816,48 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   pOutput->numOfRows = numOfBins;
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t selectScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataAppendNULL(pOutputData, 0);
+      continue;
+    }
+
+    char* data = colDataGetData(pInputData, i);
+    colDataAppend(pOutputData, i, data, false);
+  }
+
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t topBotScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t firstLastScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t sampleScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t tailScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t uniqueScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t modeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
+}
