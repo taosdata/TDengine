@@ -65,7 +65,7 @@ class TDTestCase:
         tdSql.query("select * from `STB6`")
         tdSql.checkRows(6)
 
-        tdSql.execute("delete from `STB6` where ` ` = 1 and ts = '2022-06-24 11:17:31.000'")
+        tdSql.execute("delete from `STB6` where ` ` = 1 and ts = 1656040651000")
         tdSql.checkAffectedRows(1)
         tdSql.query("select * from `STB6`")
         tdSql.checkRows(5)
