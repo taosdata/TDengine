@@ -13,8 +13,8 @@ public class TestAll {
         ConnectCloudExample.main(new String[]{});
     }
 
-    @Test
-    public void testCloudTutorial() throws SQLException {
-        CloudTutorial.main(new String[]{});
-    }
+//    @Test
+//    public void testCloudTutorial() throws SQLException {
+//        CloudTutorial.main(new String[]{});
+//    }
 }
