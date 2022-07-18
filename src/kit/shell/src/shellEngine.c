@@ -1150,12 +1150,12 @@ int parse_cloud_dsn() {
             }
         }
         char *port = strstr(args.cloudHost, ":");
-        if ((port == NULL) || (port + strlen(":")) == NULL) {
+        if (port == NULL) {
             fprintf(stderr, "Invalid format in TDengine cloud dsn: %s\n", args.cloudDsn);
             return -1;
         }
         char *token = strstr(port + strlen(":"), "?token=");
-        if ((token == NULL) || (token + strlen("?token=")) == NULL ||
+        if ((token == NULL) ||
             (strlen(token + strlen("?token=")) == 0)) {
             fprintf(stderr, "Invalid format in TDengine cloud dsn: %s\n", args.cloudDsn);
             return -1;
