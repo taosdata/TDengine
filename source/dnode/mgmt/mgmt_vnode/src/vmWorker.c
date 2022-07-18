@@ -179,6 +179,16 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
       } else {
         dGTrace("vgId:%d, msg:%p put into vnode-write queue", pVnode->vgId, pMsg);
         taosWriteQitem(pVnode->pWriteQ, pMsg);
+#if 0  // tests for batch writes
+        if (pMsg->msgType == TDMT_VND_CREATE_TABLE) {
+          SRpcMsg *pDup = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
+          memcpy(pDup, pMsg, sizeof(SRpcMsg));
+          pDup->pCont = rpcMallocCont(pMsg->contLen);
+          memcpy(pDup->pCont, pMsg->pCont, pMsg->contLen);
+          pDup->info.handle = NULL;
+          taosWriteQitem(pVnode->pWriteQ, pDup);
+        }
+#endif
       }
       break;
     case SYNC_QUEUE:
