@@ -1,6 +1,6 @@
 """
 测试云服务 Rust 连接器示例代码
-启动命令: tt --case=cloud/connector/python.py --use=cloud_test.yaml
+启动命令: tt --case=cloud/connector/rust.py --use=cloud_test.yaml
 """
 from taostest import TDCase, T
 
