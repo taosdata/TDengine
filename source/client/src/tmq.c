@@ -1052,6 +1052,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   int32_t         code = -1;
 
   req.consumerId = tmq->consumerId;
+  tstrncpy(req.clientId, tmq->clientId, 256);
   tstrncpy(req.cgroup, tmq->groupId, TSDB_CGROUP_LEN);
   req.topicNames = taosArrayInit(sz, sizeof(void*));
   if (req.topicNames == NULL) goto FAIL;
@@ -1145,14 +1146,6 @@ void tmq_conf_set_auto_commit_cb(tmq_conf_t* conf, tmq_commit_cb* cb, void* para
   conf->commitCb = cb;
   conf->commitCbUserParam = param;
 }
-
-#if 0
-int32_t tmqGetSkipLogNum(tmq_message_t* tmq_message) {
-  if (tmq_message == NULL) return 0;
-  SMqPollRsp* pRsp = &tmq_message->msg;
-  return pRsp->skipLogNum;
-}
-#endif
 
 int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   SMqPollCbParam* pParam = (SMqPollCbParam*)param;
@@ -1296,9 +1289,6 @@ bool tmqUpdateEp2(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
         offsetNew = *pOffset;
       }
 
-      /*tscDebug("consumer:%" PRId64 ", (epoch %d) offset of vgId:%d updated to %" PRId64 ", vgKey is %s",
-       * tmq->consumerId, epoch,*/
-      /*pVgEp->vgId, offset, vgKey);*/
       SMqClientVg clientVg = {
           .pollCnt = 0,
           .currentOffsetNew = offsetNew,

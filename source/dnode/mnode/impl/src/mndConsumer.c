@@ -92,7 +92,9 @@ static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg) {
   SMnode             *pMnode = pMsg->info.node;
   SMqConsumerLostMsg *pLostMsg = pMsg->pCont;
   SMqConsumerObj     *pConsumer = mndAcquireConsumer(pMnode, pLostMsg->consumerId);
-  ASSERT(pConsumer);
+  if (pConsumer == NULL) {
+    return 0;
+  }
 
   mInfo("receive consumer lost msg, consumer id %" PRId64 ", status %s", pLostMsg->consumerId,
         mndConsumerStatusName(pConsumer->status));
@@ -450,6 +452,7 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   int32_t code = -1;
   SArray *newSub = subscribe.topicNames;
   taosArraySortString(newSub, taosArrayCompareString);
+  taosArrayRemoveDuplicate(newSub, taosArrayCompareString, taosMemoryFree);
 
   int32_t newTopicNum = taosArrayGetSize(newSub);
   // check topic existance
@@ -907,8 +910,8 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       colDataAppend(pColInfo, numOfRows, (const char *)cgroup, false);
 
       // client id
-      char clientId[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
-      tstrncpy(varDataVal(clientId), pConsumer->clientId, TSDB_CGROUP_LEN);
+      char clientId[256 + VARSTR_HEADER_SIZE] = {0};
+      tstrncpy(varDataVal(clientId), pConsumer->clientId, 256);
       varDataSetLen(clientId, strlen(varDataVal(clientId)));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, (const char *)clientId, false);

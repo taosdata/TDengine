@@ -242,6 +242,8 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
 
     void* data = taosMemoryMalloc(msgLen);
     if (data == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      qError("failed to copy data for stream since out of memory");
       return -1;
     }
     memcpy(data, msg, msgLen);
