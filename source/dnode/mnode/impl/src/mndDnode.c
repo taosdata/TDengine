@@ -262,7 +262,7 @@ bool mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs) {
   return true;
 }
 
-static void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
+void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
   SSdb *pSdb = pMnode->pSdb;
 
   int32_t numOfEps = 0;
@@ -620,6 +620,12 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   int32_t         code = -1;
   SDnodeObj      *pDnode = NULL;
   SCreateDnodeReq createReq = {0};
+
+  // code = grantCheck(TSDB_GRANT_DNODE);
+  // if (code != TSDB_CODE_SUCCESS) {
+  //   terrno = code;
+  //   goto _OVER;
+  // }
 
   if (tDeserializeSCreateDnodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;

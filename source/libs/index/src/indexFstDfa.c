@@ -19,8 +19,8 @@
 const static uint32_t STATE_LIMIT = 1000;
 
 static int dfaInstsEqual(const void *a, const void *b, size_t size) {
-  SArray *ar = (SArray *)a;
-  SArray *br = (SArray *)b;
+  SArray *ar = *(SArray **)a;
+  SArray *br = *(SArray **)b;
   size_t  al = ar != NULL ? taosArrayGetSize(ar) : 0;
   size_t  bl = br != NULL ? taosArrayGetSize(br) : 0;
   if (al != bl) {
@@ -71,8 +71,8 @@ FstDfa *dfaBuilderBuild(FstDfaBuilder *builder) {
 
   dfaAdd(builder->dfa, cur, 0);
 
-  SArray  *states = taosArrayInit(0, sizeof(uint32_t));
   uint32_t result;
+  SArray  *states = taosArrayInit(0, sizeof(uint32_t));
   if (dfaBuilderCacheState(builder, cur, &result)) {
     taosArrayPush(states, &result);
   }
@@ -146,10 +146,9 @@ bool dfaBuilderCacheState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *r
     *result = *v;
     taosArrayDestroy(tinsts);
   } else {
-    DfaState st;
-    st.insts = tinsts;
-    st.isMatch = isMatch;
+    DfaState st = {.insts = tinsts, .isMatch = isMatch};
     taosArrayPush(builder->dfa->states, &st);
+
     int32_t sz = taosArrayGetSize(builder->dfa->states) - 1;
     taosHashPut(builder->cache, &tinsts, sizeof(POINTER_BYTES), &sz, sizeof(sz));
     *result = sz;
