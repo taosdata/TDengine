@@ -1298,6 +1298,12 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   return ret;
 }
 
+int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode) {
+  syncNodeStopHeartbeatTimer(pSyncNode);
+  syncNodeStartHeartbeatTimer(pSyncNode);
+  return 0;
+}
+
 // utils --------------
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
   SEpSet epSet;
