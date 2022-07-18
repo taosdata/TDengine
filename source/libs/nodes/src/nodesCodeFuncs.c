@@ -548,36 +548,11 @@ static const char* jkScanLogicPlanScanPseudoCols = "ScanPseudoCols";
 static const char* jkScanLogicPlanTableType = "TableType";
 static const char* jkScanLogicPlanTableId = "TableId";
 static const char* jkScanLogicPlanStableId = "StableId";
+static const char* jkScanLogicPlanScanType = "ScanType";
 static const char* jkScanLogicPlanScanCount = "ScanCount";
 static const char* jkScanLogicPlanReverseScanCount = "ReverseScanCount";
 static const char* jkScanLogicPlanTagCond = "TagCond";
 static const char* jkScanLogicPlanGroupTags = "GroupTags";
-
-// typedef struct SScanLogicNode {
-//   uint64_t      stableId;
-//   SVgroupsInfo* pVgroupList;
-//   EScanType     scanType;
-//   uint8_t       scanSeq[2];  // first is scan count, and second is reverse scan count
-//   STimeWindow   scanRange;
-//   SName         tableName;
-//   bool          showRewrite;
-//   double        ratio;
-//   SNodeList*    pDynamicScanFuncs;
-//   int32_t       dataRequired;
-//   int64_t       interval;
-//   int64_t       offset;
-//   int64_t       sliding;
-//   int8_t        intervalUnit;
-//   int8_t        slidingUnit;
-//   SNode*        pTagCond;
-//   SNode*        pTagIndexCond;
-//   int8_t        triggerType;
-//   int64_t       watermark;
-//   int8_t        igExpired;
-//   SArray*       pSmaIndexes;
-//   SNodeList*    pGroupTags;
-//   bool          groupSort;
-// } SScanLogicNode;
 
 static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
   const SScanLogicNode* pNode = (const SScanLogicNode*)pObj;
@@ -597,6 +572,9 @@ static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanStableId, pNode->stableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanScanType, pNode->scanType);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanScanCount, pNode->scanSeq[0]);
@@ -633,6 +611,9 @@ static int32_t jsonToLogicScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetUBigIntValue(pJson, jkScanLogicPlanStableId, &pNode->stableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkScanLogicPlanScanType, pNode->scanType, code);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetUTinyIntValue(pJson, jkScanLogicPlanScanCount, &pNode->scanSeq[0]);
@@ -1677,6 +1658,7 @@ static int32_t jsonToPhysiSysTableScanNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkProjectPhysiPlanProjections = "Projections";
+static const char* jkProjectPhysiPlanMergeDataBlock = "MergeDataBlock";
 
 static int32_t physiProjectNodeToJson(const void* pObj, SJson* pJson) {
   const SProjectPhysiNode* pNode = (const SProjectPhysiNode*)pObj;
@@ -1684,6 +1666,9 @@ static int32_t physiProjectNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = physicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkProjectPhysiPlanProjections, pNode->pProjections);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkProjectPhysiPlanMergeDataBlock, pNode->mergeDataBlock);
   }
 
   return code;
@@ -1695,6 +1680,9 @@ static int32_t jsonToPhysiProjectNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToPhysicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkProjectPhysiPlanProjections, &pNode->pProjections);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkProjectPhysiPlanMergeDataBlock, &pNode->mergeDataBlock);
   }
 
   return code;
