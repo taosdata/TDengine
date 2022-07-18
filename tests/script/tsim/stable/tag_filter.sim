@@ -31,7 +31,6 @@ if $rows != 1 then
   return -1
 endi
 
-
 sql select * from db.stb where t1 < 1 
 if $rows != 0 then 
   return -=1

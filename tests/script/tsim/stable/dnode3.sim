@@ -86,12 +86,11 @@ if $data00 != $rowNum then
 endi
 
 print =============== step3
-# TODO : where condition
-# sql select count(tbcol) from $tb where ts <= 1519833840000
-# print ===> $data00
-# if $data00 != 5 then
-#   return -1
-# endi
+sql select count(tbcol) from $tb where ts <= 1519833840000
+print ===> $data00
+if $data00 != 5 then
+  return -1
+endi
 
 print =============== step4
 sql select count(tbcol) as b from $tb
@@ -114,82 +113,81 @@ if $data00 != $rowNum then
 endi
 
 print =============== step6
-# sql select count(tbcol) as b from $tb where ts <= 1519833840000 interval(1m)
-# print ===> $data00
-# if $data00 != 1 then
-#   return -1
-# endi
-# if $rows != 5 then
-#   return -1
-# endi
+sql select count(tbcol) as b from $tb where ts <= 1519833840000 interval(1m)
+print ===> $data00
+if $data00 != 1 then
+  return -1
+endi
+if $rows != 5 then
+  return -1
+endi
 
 print =============== step7
-# print select count(*) from $mt
-# sql select count(*) from $mt
-# print ===> $data00
-# if $data00 != $totalNum then
-#   return -1
-# endi
-#
-# sql select count(tbcol) from $mt
-# print ===> $data00
-# if $data00 != $totalNum then
-#   return -1
-# endi
+print select count(*) from $mt
+sql select count(*) from $mt
+print ===> $data00
+if $data00 != $totalNum then
+  return -1
+endi
+
+sql select count(tbcol) from $mt
+print ===> $data00
+if $data00 != $totalNum then
+  return -1
+endi
 
 print =============== step8
-# sql select count(tbcol) as c from $mt where ts <= 1519833840000
-# print ===> $data00
-# if $data00 != 50 then
-#   return -1
-# endi
-#
-# sql select count(tbcol) as c from $mt where tgcol < 5
-# print ===> $data00
-# if $data00 != 100 then
-#   return -1
-# endi
-#
-# sql select count(tbcol) as c from $mt where tgcol < 5 and ts <= 1519833840000
-# print ===> $data00
-# if $data00 != 25 then
-#   return -1
-# endi
+sql select count(tbcol) as c from $mt where ts <= 1519833840000
+print ===> $data00
+if $data00 != 50 then
+  return -1
+endi
+
+sql select count(tbcol) as c from $mt where tgcol < 5
+print ===> $data00
+if $data00 != 100 then
+  return -1
+endi
+
+sql select count(tbcol) as c from $mt where tgcol < 5 and ts <= 1519833840000
+print ===> $data00
+if $data00 != 25 then
+  return -1
+endi
 
 print =============== step9
-# TODO : group by in stable
-# sql select count(tbcol) as b from $mt interval(1m)
-# print ===> $data00
-# if $data00 != 10 then
-#   return -1
-# endi
-#
-# sql select count(tbcol) as b from $mt interval(1d)
-# print ===> $data00
-# if $data00 != 200 then
-#   return -1
-# endi
+sql select count(tbcol) as b from $mt interval(1m)
+print ===> $data00
+if $data00 != 10 then
+  return -1
+endi
+
+sql select count(tbcol) as b from $mt interval(1d)
+print ===> $data00
+if $data00 != 200 then
+  return -1
+endi
 
 print =============== step10
-# sql select count(tbcol) as b from $mt group by tgcol
-# print ===> $data00
-# if $data00 != $rowNum then
-#   return -1
-# endi
-#
-# if $rows != $tbNum then
-#   return -1
-# endi
+sql select count(tbcol) as b from $mt group by tgcol
+print ===> $data00
+if $data00 != $rowNum then
+  return -1
+endi
+
+if $rows != $tbNum then
+  return -1
+endi
 
 print =============== step11
-# sql select count(tbcol) as b from $mt  where ts <= 1519833840000 interval(1m) group by tgcol
-# print ===> $data00
-# if $data00 != 1 then
-#   return -1
-# endi
-# if $rows != 50 then
-#   return -1
-# endi
+sql select count(tbcol) as b from $mt  where ts <= 1519833840000 partition by tgcol interval(1m)
+print ===> $data00
+if $data00 != 1 then
+  return -1
+endi
+if $rows != 50 then
+  return -1
+endi
 
 print =============== clear
 sql drop database $db
