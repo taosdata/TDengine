@@ -65,6 +65,7 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
 int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->reqId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->dstNodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->dstTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->srcNodeId) < 0) return -1;
@@ -77,6 +78,7 @@ int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* p
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->reqId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->dstNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->dstTaskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->srcNodeId) < 0) return -1;
@@ -121,6 +123,7 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
   int32_t sz = taosArrayGetSize(pTask->childEpInfo);
   ASSERT(sz > 0);
   for (int32_t i = 0; i < sz; i++) {
+    req.reqId = tGenIdPI64();
     SStreamChildEpInfo* pEpInfo = taosArrayGetP(pTask->childEpInfo, i);
     req.dstNodeId = pEpInfo->nodeId;
     req.dstTaskId = pEpInfo->taskId;
@@ -154,6 +157,9 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
       ASSERT(0);
       return -1;
     }
+
+    qDebug("task %d(child %d) send retrieve req to task %d at node %d, reqId %ld", pTask->taskId, pTask->selfChildId,
+           pEpInfo->taskId, pEpInfo->nodeId, req.reqId);
   }
   return 0;
 FAIL:

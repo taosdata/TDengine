@@ -2923,7 +2923,6 @@ typedef struct {
   SMqRspHead   head;
   STqOffsetVal reqOffset;
   STqOffsetVal rspOffset;
-  int32_t      skipLogNum;
   int32_t      blockNum;
   int8_t       withTbName;
   int8_t       withSchema;
