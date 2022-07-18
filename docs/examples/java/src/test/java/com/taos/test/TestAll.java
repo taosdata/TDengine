@@ -1,12 +1,20 @@
 package com.taos.test;
 
-import com.taos.example.*;
-import org.junit.FixMethodOrder;
+import com.taos.example.CloudTutorial;
+import com.taos.example.ConnectCloudExample;
 import org.junit.Test;
 
-import java.sql.*;
+import java.sql.SQLException;
 
-@FixMethodOrder
 public class TestAll {
-    private String[] args = new String[]{};
+
+    @Test
+    public void testConnectCloudExample() throws SQLException {
+        ConnectCloudExample.main(new String[]{});
+    }
+
+    @Test
+    public void testCloudTutorial() throws SQLException {
+        CloudTutorial.main(new String[]{});
+    }
 }
