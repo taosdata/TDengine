@@ -13,7 +13,7 @@ class Node(TDCase):
         os.environ.update(self.env_setting["env"])
         self.lcmd.run("rm -rf node_modules", cwd=cwd)
         self.lcmd.run("npm i td2.0-rest-connector", cwd=cwd)
-        self.lcmd.run("node connect.js")
+        self.lcmd.run("node connect.js", cwd=cwd)
 
     def desc(self) -> str:
         return "Node.js connector for cloud"
