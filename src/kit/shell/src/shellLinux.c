@@ -53,7 +53,8 @@ static struct argp_option options[] = {
   {"pktnum",     'N', "PKTNUM",     0,                   "Packet numbers used for net test, default is 100."},
   {"pkttype",    'S', "PKTTYPE",    0,                   "Choose packet type used for net test, default is TCP. Only speed test could be either TCP or UDP."},
   {"restful", 'R', 0, 0, "Connect and interact with TDengine use restful."},
-  {0, 'E', "DSN", 0, "The DSN to use when connecting TDengine's cloud services."},
+  {"cloudDsn", 'E', "DSN", 0, "The DSN to use when connecting TDengine's cloud services."},
+  {"timeout", 't', "SECONDS", 0, "The timeout seconds for websocket to interact."},
   {0}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -183,6 +184,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
          fprintf(stderr, "Invalid -E option\n");
          return -1;
        }
+      break;
+    case 't':
+      if (arg) {
+        arguments->timeout = atoi(arg);
+      } else {
+        fprintf(stderr, "Invalid -t option\n");
+      }
       break;
     default:
       return ARGP_ERR_UNKNOWN;

@@ -310,10 +310,16 @@ void shellRunCommandOnWebsocket(char command[]) {
 
   st = taosGetTimestampUs();
 
-  WS_RES* res = ws_query(args.ws_conn, command);
-  if (ws_errno(res) != 0) {
+  WS_RES* res = ws_query_timeout(args.ws_conn, command, args.timeout);
+  int code = ws_errno(res);
+  if (code != 0) {
     et = taosGetTimestampUs();
     fprintf(stderr, "\nDB error: %s (%.6fs)\n", ws_errstr(res), (et - st)/1E6);
+    if (code == TSDB_CODE_WS_SEND_TIMEOUT || code == TSDB_CODE_WS_RECV_TIMEOUT) {
+      fprintf(stderr, "Hint: use -t to increase the timeout time in seconds\n");
+    } else if (code == TSDB_CODE_WS_INTERNAL_ERRO || code == TSDB_CODE_WS_CLOSED) {
+      fprintf(stderr, "TDengine server is donw, please re-enter the shell\n");
+    }
     ws_free_result(res);
     return;
   }
@@ -642,7 +648,7 @@ static int dumpWebsocketToFile(const char* fname, WS_RES* wres) {
   wordfree(&full_path);
   int numOfRows = 0;
   TAOS_FIELD* fields = (TAOS_FIELD*)ws_fetch_fields_v2(wres);
-  int num_fields = ws_num_of_fields(wres);
+  int num_fields = ws_field_count(wres);
   int precision = ws_result_precision(wres);
   for (int col = 0; col < num_fields; col++) {
     if (col > 0) {
@@ -883,7 +889,7 @@ bool isSelectQuery(TAOS_RES* tres) {
 
 #ifdef WEBSOCKET
 static int verticalPrintWebsocket(WS_RES* wres) {
-  int num_fields = ws_num_of_fields(wres);
+  int num_fields = ws_field_count(wres);
   TAOS_FIELD* fields = (TAOS_FIELD*)ws_fetch_fields_v2(wres);
   int precision = ws_result_precision(wres);
 
@@ -1065,7 +1071,7 @@ static void printHeader(TAOS_FIELD* fields, int* width, int num_fields) {
 
 #ifdef WEBSOCKET
 static int horizontalPrintWebsocket(WS_RES* wres) {
-  int num_fields = ws_num_of_fields(wres);
+  int num_fields = ws_field_count(wres);
   TAOS_FIELD* fields = (TAOS_FIELD*)ws_fetch_fields_v2(wres);
   int precision = ws_result_precision(wres);
 

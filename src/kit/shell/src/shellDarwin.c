@@ -64,6 +64,8 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "Connect and interact with TDengine use restful.");
   printf("%s%s\n", indent, "-E");
   printf("%s%s%s\n", indent, indent, "The DSN to use when connecting TDengine's cloud services.");
+  printf("%s%s\n", indent, "-t");
+  printf("%s%s%s\n", indent, indent, "The timeout in seconds for websocket interact.");
   exit(EXIT_SUCCESS);
 }
 
@@ -209,6 +211,15 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
             fprintf(stderr, "options -E requires an argument\n");
             exit(EXIT_FAILURE);
         }
+    }
+    
+    else if (strcmp(argv[i], "-t") == 0) {
+      if (i < argc -1) {
+        arguments->timeout = atoi(argv[++i]);
+      } else {
+        fprintf(stderr, "options -t requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
     }
 
       // For temperory command TODO

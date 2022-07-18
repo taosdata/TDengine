@@ -98,6 +98,7 @@ SShellArguments args = {.host = NULL,
   .cloudHost = NULL,
   .cloudToken = NULL,
   .dsn = NULL,
+  .timeout = 10,
   };
 
 /*

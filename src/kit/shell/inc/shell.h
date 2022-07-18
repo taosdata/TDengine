@@ -75,6 +75,7 @@ typedef struct SShellArguments {
 #ifdef WEBSOCKET
   WS_TAOS* ws_conn;
 #endif
+  uint32_t timeout;
 } SShellArguments;
 
 /**************** Function declarations ****************/
