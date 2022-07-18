@@ -126,7 +126,7 @@ python3 ./test.py -f 2-query/count_partition.py
 python3 ./test.py -f 2-query/function_null.py
 python3 ./test.py -f 2-query/queryQnode.py
 python3 ./test.py -f 2-query/max_partition.py
-
+python3 ./test.py -f 2-query/last_row.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py
 #BUG python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3
@@ -274,6 +274,7 @@ python3 ./test.py -f 2-query/irate.py  -Q 2
 python3 ./test.py -f 2-query/function_null.py  -Q 2
 python3 ./test.py -f 2-query/count_partition.py -Q 2
 python3 ./test.py -f 2-query/max_partition.py -Q 2
+python3 ./test.py -f 2-query/last_row.py -Q 2
 
 #------------querPolicy  3-----------
 
@@ -361,3 +362,4 @@ python3 ./test.py -f 2-query/irate.py -Q  3
 python3 ./test.py -f 2-query/function_null.py -Q  3
 python3 ./test.py -f 2-query/count_partition.py -Q 3
 python3 ./test.py -f 2-query/max_partition.py -Q 3
+python3 ./test.py -f 2-query/last_row.py -Q 3

@@ -5648,7 +5648,6 @@ int32_t tDecodeDeleteRes(SDecoder *pCoder, SDeleteRes *pRes) {
 int32_t tEncodeSMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
   if (tEncodeSTqOffsetVal(pEncoder, &pRsp->reqOffset) < 0) return -1;
   if (tEncodeSTqOffsetVal(pEncoder, &pRsp->rspOffset) < 0) return -1;
-  if (tEncodeI32(pEncoder, pRsp->skipLogNum) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->blockNum) < 0) return -1;
   if (pRsp->blockNum != 0) {
     if (tEncodeI8(pEncoder, pRsp->withTbName) < 0) return -1;
@@ -5674,7 +5673,6 @@ int32_t tEncodeSMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
 int32_t tDecodeSMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
   if (tDecodeSTqOffsetVal(pDecoder, &pRsp->reqOffset) < 0) return -1;
   if (tDecodeSTqOffsetVal(pDecoder, &pRsp->rspOffset) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->skipLogNum) < 0) return -1;
   if (tDecodeI32(pDecoder, &pRsp->blockNum) < 0) return -1;
   if (pRsp->blockNum != 0) {
     pRsp->blockData = taosArrayInit(pRsp->blockNum, sizeof(void *));

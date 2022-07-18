@@ -199,6 +199,7 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
   int32_t tlen = 0;
   int32_t sz;
   tlen += taosEncodeFixedI64(buf, pConsumer->consumerId);
+  tlen += taosEncodeString(buf, pConsumer->clientId);
   tlen += taosEncodeString(buf, pConsumer->cgroup);
   tlen += taosEncodeFixedI8(buf, pConsumer->updateType);
   tlen += taosEncodeFixedI32(buf, pConsumer->epoch);
@@ -264,6 +265,7 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
 void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer) {
   int32_t sz;
   buf = taosDecodeFixedI64(buf, &pConsumer->consumerId);
+  buf = taosDecodeStringTo(buf, pConsumer->clientId);
   buf = taosDecodeStringTo(buf, pConsumer->cgroup);
   buf = taosDecodeFixedI8(buf, &pConsumer->updateType);
   buf = taosDecodeFixedI32(buf, &pConsumer->epoch);

@@ -630,6 +630,9 @@ _exit:
   tEncoderInit(&ec, pRsp->pCont, pRsp->contLen);
   tEncodeSVAlterTbRsp(&ec, &vAlterTbRsp);
   tEncoderClear(&ec);
+  if (vMetaRsp.pSchemas) {
+    taosMemoryFree(vMetaRsp.pSchemas);
+  }
   return 0;
 }
 

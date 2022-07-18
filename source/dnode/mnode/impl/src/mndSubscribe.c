@@ -298,7 +298,8 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
                 .pVgEp = pVgEp,
             };
             taosHashPut(pHash, &pVgEp->vgId, sizeof(int32_t), &outputVg, sizeof(SMqRebOutputVg));
-            mInfo("mq rebalance: remove vgId:%d from consumer:%" PRId64 ",(first scan)", pVgEp->vgId, pConsumerEp->consumerId);
+            mInfo("mq rebalance: remove vgId:%d from consumer:%" PRId64 ",(first scan)", pVgEp->vgId,
+                  pConsumerEp->consumerId);
           }
           imbCnt++;
         }
@@ -312,7 +313,8 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
               .pVgEp = pVgEp,
           };
           taosHashPut(pHash, &pVgEp->vgId, sizeof(int32_t), &outputVg, sizeof(SMqRebOutputVg));
-          mInfo("mq rebalance: remove vgId:%d from consumer:%" PRId64 ",(first scan)", pVgEp->vgId, pConsumerEp->consumerId);
+          mInfo("mq rebalance: remove vgId:%d from consumer:%" PRId64 ",(first scan)", pVgEp->vgId,
+                pConsumerEp->consumerId);
         }
       }
     }
@@ -354,7 +356,8 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
       taosArrayPush(pConsumerEp->vgs, &pRebVg->pVgEp);
       pRebVg->newConsumerId = pConsumerEp->consumerId;
       taosArrayPush(pOutput->rebVgs, pRebVg);
-      mInfo("mq rebalance: add vgId:%d to consumer:%" PRId64 ",(second scan)", pRebVg->pVgEp->vgId, pConsumerEp->consumerId);
+      mInfo("mq rebalance: add vgId:%d to consumer:%" PRId64 ",(second scan)", pRebVg->pVgEp->vgId,
+            pConsumerEp->consumerId);
     }
   }
 
@@ -371,8 +374,14 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
       ASSERT(pConsumerEp->consumerId > 0);
       taosArrayPush(pConsumerEp->vgs, &pRebVg->pVgEp);
       pRebVg->newConsumerId = pConsumerEp->consumerId;
+      if (pRebVg->newConsumerId == pRebVg->oldConsumerId) {
+        mInfo("mq rebalance: skip vg %d for same consumer:%" PRId64 ",(second scan)", pRebVg->pVgEp->vgId,
+              pConsumerEp->consumerId);
+        continue;
+      }
       taosArrayPush(pOutput->rebVgs, pRebVg);
-      mInfo("mq rebalance: add vgId:%d to consumer:%" PRId64 ",(second scan)", pRebVg->pVgEp->vgId, pConsumerEp->consumerId);
+      mInfo("mq rebalance: add vgId:%d to consumer:%" PRId64 ",(second scan)", pRebVg->pVgEp->vgId,
+            pConsumerEp->consumerId);
     }
   } else {
     // if all consumer is removed, put all vg into unassigned
