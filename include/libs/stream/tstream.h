@@ -78,6 +78,13 @@ typedef struct {
 } SStreamDataSubmit;
 
 typedef struct {
+  int8_t  type;
+  int64_t ver;
+  SArray* dataRefs;  // SArray<int32_t*>
+  SArray* reqs;      // SArray<SSubmitReq*>
+} SStreamMergedSubmit;
+
+typedef struct {
   int8_t type;
 
   int32_t srcVgId;
