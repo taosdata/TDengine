@@ -1,6 +1,6 @@
 """
 测试云服务 Python 连接器示例
-启动命令： tt
+启动命令：tt --case=cloud/connector/python.py --use=cloud_test.yaml
 """
 import os
 
