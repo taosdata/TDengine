@@ -440,18 +440,18 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
     int32_t len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
 
-    SDataGroupInfo* pGInfo = NULL;
-    void *pPage = getCurrentDataGroupInfo(pInfo, &pGInfo, len);
+    SDataGroupInfo* pGroupInfo = NULL;
+    void *pPage = getCurrentDataGroupInfo(pInfo, &pGroupInfo, len);
 
-    pGInfo->numOfRows += 1;
-    if (pGInfo->groupId == 0) {
-      pGInfo->groupId = calcGroupId(pInfo->keyBuf, len);
+    pGroupInfo->numOfRows += 1;
+
+    // group id
+    if (pGroupInfo->groupId == 0) {
+      pGroupInfo->groupId = calcGroupId(pInfo->keyBuf, len);
     }
 
     // number of rows
     int32_t* rows = (int32_t*) pPage;
-
-    // group id
 
     size_t numOfCols = pOperator->exprSupp.numOfExprs;
     for(int32_t i = 0; i < numOfCols; ++i) {
@@ -603,7 +603,13 @@ static void clearPartitionOperator(SPartitionOperatorInfo* pInfo) {
 static int compareDataGroupInfo(const void* group1, const void* group2) {
   const SDataGroupInfo* pGroupInfo1 = group1;
   const SDataGroupInfo* pGroupInfo2 = group2;
-  return pGroupInfo1->groupId - pGroupInfo2->groupId;
+
+  if (pGroupInfo1->groupId == pGroupInfo2->groupId) {
+    ASSERT(0);
+    return 0;
+  }
+
+  return (pGroupInfo1->groupId < pGroupInfo2->groupId)? -1:1;
 }
 
 static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {

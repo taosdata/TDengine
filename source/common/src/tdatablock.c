@@ -1479,10 +1479,12 @@ static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, s
     }
     beigin++;
   }
+
   if (dataOffset > 0) {
     memmove(pColInfoData->pData, pColInfoData->pData + dataOffset, dataLen);
-    memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[start], (end - start) * sizeof(int32_t));
   }
+
+  memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[start], (end - start) * sizeof(int32_t));
   return dataLen;
 }
 

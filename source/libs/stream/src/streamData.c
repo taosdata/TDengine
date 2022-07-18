@@ -57,7 +57,9 @@ int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock
 
   pDataBlock->info.type = pRetrieve->streamBlockType;
 
+  pData->reqId = pReq->reqId;
   pData->blocks = pArray;
+
   return 0;
 }
 

@@ -91,7 +91,7 @@ SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t page
   tsortSetComparFp(pSortHandle, msortComparFn);
 
   if (idstr != NULL) {
-    pSortHandle->idStr    = strdup(idstr);
+    pSortHandle->idStr = strdup(idstr);
   }
 
   return pSortHandle;
