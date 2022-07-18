@@ -29,9 +29,9 @@ class TestCachelast(TDCase):
         self.tdRest.request(f'create database if not exists {dbname}')
         self.tdRest.request('show databases')
         #TODO
-        db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+        db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,get_param,dbname)
         # default
-        self.tdSql.checkEqual(db_field_kv_dict[get_param], self.cfg["default"])
+        self.tdSql.checkEqual(db_field, self.cfg["default"])
         self.tdRest.request(f'drop database {dbname}')
         # param_list
         for param_value in self.cfg["boundary"]:
@@ -39,8 +39,8 @@ class TestCachelast(TDCase):
             self.tdRest.request(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdRest.request('show databases')
             #TODO
-            db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-            self.tdSql.checkEqual(db_field_kv_dict[get_param], param_value)
+            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,get_param,dbname)
+            self.tdSql.checkEqual(db_field, param_value)
             self.tdRest.request(f'drop database {dbname}')
         self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
         self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][-1] + 1}')
