@@ -1,3 +1,7 @@
+"""
+测试云服务 Python 连接器示例
+启动命令： tt
+"""
 import os
 
 from taostest import TDCase, T
@@ -5,7 +9,7 @@ from taostest import TDCase, T
 
 class Python(TDCase):
     def init(self):
-        os.system("pip3 uninstall taospy")
+        os.system("pip3 uninstall -y taospy")
         os.system('pip3 install "taospy<=3.0.0"')
 
     def run(self):
