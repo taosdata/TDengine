@@ -49,8 +49,8 @@ static int32_t tqAddBlockSchemaToRsp(const STqExecHandle* pExec, int32_t workerI
 static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
+  // TODO add reference to gurantee success
   if (metaGetTableEntryByUid(&mr, uid) < 0) {
-    ASSERT(0);
     return -1;
   }
   char* tbName = strdup(mr.me.name);
@@ -87,16 +87,18 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVa
     tqDebug("task execute end, get %p", pDataBlock);
 
     if (pDataBlock != NULL) {
-      tqAddBlockDataToRsp(pDataBlock, pRsp);
-      pRsp->blockNum++;
       if (pRsp->withTbName) {
         if (pOffset->type == TMQ_OFFSET__LOG) {
           int64_t uid = pExec->pExecReader[0]->msgIter.uid;
-          tqAddTbNameToRsp(pTq, uid, pRsp);
+          if (tqAddTbNameToRsp(pTq, uid, pRsp) < 0) {
+            continue;
+          }
         } else {
           pRsp->withTbName = 0;
         }
       }
+      tqAddBlockDataToRsp(pDataBlock, pRsp);
+      pRsp->blockNum++;
       if (pOffset->type == TMQ_OFFSET__LOG) {
         continue;
       } else {
@@ -193,13 +195,14 @@ int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataR
       SSDataBlock block = {0};
       if (tqRetrieveDataBlock(&block, pReader) < 0) {
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;
-        ASSERT(0);
       }
-      tqAddBlockDataToRsp(&block, pRsp);
       if (pRsp->withTbName) {
         int64_t uid = pExec->pExecReader[workerId]->msgIter.uid;
-        tqAddTbNameToRsp(pTq, uid, pRsp);
+        if (tqAddTbNameToRsp(pTq, uid, pRsp) < 0) {
+          continue;
+        }
       }
+      tqAddBlockDataToRsp(&block, pRsp);
       tqAddBlockSchemaToRsp(pExec, workerId, pRsp);
       pRsp->blockNum++;
     }
@@ -211,13 +214,14 @@ int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataR
       SSDataBlock block = {0};
       if (tqRetrieveDataBlock(&block, pReader) < 0) {
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;
-        ASSERT(0);
       }
-      tqAddBlockDataToRsp(&block, pRsp);
       if (pRsp->withTbName) {
         int64_t uid = pExec->pExecReader[workerId]->msgIter.uid;
-        tqAddTbNameToRsp(pTq, uid, pRsp);
+        if (tqAddTbNameToRsp(pTq, uid, pRsp) < 0) {
+          continue;
+        }
       }
+      tqAddBlockDataToRsp(&block, pRsp);
       tqAddBlockSchemaToRsp(pExec, workerId, pRsp);
       pRsp->blockNum++;
     }
