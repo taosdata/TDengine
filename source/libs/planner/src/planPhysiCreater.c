@@ -35,7 +35,8 @@ typedef struct SPhysiPlanContext {
   int32_t       errCode;
   int16_t       nextDataBlockId;
   SArray*       pLocationHelper;
-  SArray*       pExecNodeList;  // SArray<SQueryNodeLoad>
+  bool          hasScan;
+  bool          hasSysScan;
 } SPhysiPlanContext;
 
 static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey) {
@@ -495,8 +496,6 @@ static int32_t createSimpleScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSub
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
-  SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
-  taosArrayPush(pCxt->pExecNodeList, &node);
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, pScan, pPhyNode);
 }
 
@@ -577,8 +576,6 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
     pSubplan->execNode.nodeId = MNODE_HANDLE;
     pSubplan->execNode.epSet = pCxt->pPlanCxt->mgmtEpSet;
   }
-  SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
-  taosArrayPush(pCxt->pExecNodeList, &node);
   if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_DNODE_VARIABLES)) {
     pScan->mgmtEpSet = pScanLogicNode->pVgroupList->vgroups->epSet;
   } else {
@@ -586,6 +583,7 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   }
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
 
+  pCxt->hasSysScan = true;
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
 }
 
@@ -601,6 +599,7 @@ static int32_t createTableMergeScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* 
 
 static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
                                    SPhysiNode** pPhyNode) {
+  pCxt->hasScan = true;
   switch (pScanLogicNode->scanType) {
     case SCAN_TYPE_TAG:
     case SCAN_TYPE_BLOCK_INFO:
@@ -1806,23 +1805,31 @@ static void setExplainInfo(SPlanContext* pCxt, SQueryPlan* pPlan) {
   }
 }
 
+static void setExecNodeList(SPhysiPlanContext* pCxt, SArray* pExecNodeList) {
+  if (NULL == pExecNodeList) {
+    return;
+  }
+  if (pCxt->hasSysScan || !pCxt->hasScan) {
+    SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
+    taosArrayPush(pExecNodeList, &node);
+  }
+}
+
 int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList) {
   SPhysiPlanContext cxt = {.pPlanCxt = pCxt,
                            .errCode = TSDB_CODE_SUCCESS,
                            .nextDataBlockId = 0,
                            .pLocationHelper = taosArrayInit(32, POINTER_BYTES),
-                           .pExecNodeList = pExecNodeList};
+                           .hasScan = false,
+                           .hasSysScan = false};
   if (NULL == cxt.pLocationHelper) {
     return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  if (QUERY_POLICY_VNODE == tsQueryPolicy) {
-    taosArrayClear(pExecNodeList);
   }
 
   int32_t code = doCreatePhysiPlan(&cxt, pLogicPlan, pPlan);
   if (TSDB_CODE_SUCCESS == code) {
     setExplainInfo(pCxt, *pPlan);
+    setExecNodeList(&cxt, pExecNodeList);
   }
 
   destoryPhysiPlanContext(&cxt);
