@@ -279,19 +279,12 @@ typedef struct {
 struct STsdb {
   char          *path;
   SVnode        *pVnode;
-  TdThreadRwlock rwLock;
   STsdbKeepCfg   keepCfg;
+  TdThreadRwlock rwLock;
   SMemTable     *mem;
   SMemTable     *imem;
   STsdbFS       *pFS;
   SLRUCache     *lruCache;
-};
-
-struct STable {
-  uint64_t  suid;
-  uint64_t  uid;
-  STSchema *pSchema;       // latest schema
-  STSchema *pCacheSchema;  // cached cache
 };
 
 struct TSDBKEY {

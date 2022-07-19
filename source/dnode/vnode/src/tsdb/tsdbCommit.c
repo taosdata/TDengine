@@ -960,10 +960,10 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   memset(pCommitter, 0, sizeof(*pCommitter));
   ASSERT(pTsdb->mem && pTsdb->imem == NULL);
 
-  // lock();
+  taosThreadRwlockWrlock(&pTsdb->rwLock);
   pTsdb->imem = pTsdb->mem;
   pTsdb->mem = NULL;
-  // unlock();
+  taosThreadRwlockUnlock(&pTsdb->rwLock);
 
   pCommitter->pTsdb = pTsdb;
   pCommitter->commitID = pTsdb->pVnode->state.commitID;
