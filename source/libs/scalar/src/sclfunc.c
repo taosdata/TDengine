@@ -1062,8 +1062,9 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       memmove(fraction, fraction + TSDB_TIME_PRECISION_SEC_DIGITS, TSDB_TIME_PRECISION_SEC_DIGITS);
     }
 
-    struct tm *tmInfo = taosLocalTime((const time_t *)&timeVal, NULL);
-    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", tmInfo);
+    struct tm tmInfo;
+    taosLocalTime((const time_t *)&timeVal, &tmInfo);
+    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmInfo);
     int32_t len = (int32_t)strlen(buf);
 
     //add timezone string
@@ -2815,4 +2816,49 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   taosMemoryFree(bins);
   pOutput->numOfRows = numOfBins;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t selectScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataAppendNULL(pOutputData, 0);
+      continue;
+    }
+
+    char* data = colDataGetData(pInputData, i);
+    colDataAppend(pOutputData, i, data, false);
+  }
+
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t topBotScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t firstLastScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t sampleScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t tailScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t uniqueScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t modeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return selectScalarFunction(pInput, inputNum, pOutput);
 }

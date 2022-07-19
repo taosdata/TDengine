@@ -5,103 +5,250 @@ import time
 import socket
 import os
 import threading
+from enum import Enum
 
 from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
-from util.common import *
 sys.path.append("./7-tmq")
 from tmqCommon import *
 
 class TDTestCase:
+    def __init__(self):
+        self.snapshot   = 0
+        self.vgroups    = 4
+        self.ctbNum     = 1
+        self.rowsPerTbl = 10000
+        
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        tdSql.init(conn.cursor(), False)
 
-    def tmqCase1(self):
-        tdLog.printNoPrefix("======== test case 1: ")
-        paraDict = {'dbName':     'db2',
+    def prepareTestEnv(self):
+        tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
+        paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
                     'event':      '',
-                    'vgroups':    1,
+                    'vgroups':    4,
                     'stbName':    'stb',
                     'colPrefix':  'c',
                     'tagPrefix':  't',
-                    'colSchema':   [{'type': 'INT', 'count':2}, {'type': 'binary', 'len':20, 'count':1},{'type': 'TIMESTAMP', 'count':1}],
-                    'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
+                    'colSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1},{'type': 'TIMESTAMP', 'count':1}],
+                    'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
-                    'ctbNum':     10,
-                    'rowsPerTbl': 1000,
-                    'batchNum':   10,
+                    'ctbNum':     1,
+                    'rowsPerTbl': 100000,
+                    'batchNum':   1200,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  10,
+                    'pollDelay':  3,
                     'showMsg':    1,
-                    'showRow':    1}
+                    'showRow':    1,
+                    'snapshot':   0}
 
-        topicNameList = ['topic1']
-        expectRowsList = []
+        paraDict['vgroups'] = self.vgroups
+        paraDict['ctbNum'] = self.ctbNum
+        paraDict['rowsPerTbl'] = self.rowsPerTbl
+        
         tmqCom.initConsumerTable()
-        tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=1,replica=1)
+        tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
         tdLog.info("create stb")
-        tdCom.create_stable(tdSql, dbname=paraDict["dbName"],stbname=paraDict["stbName"], column_elm_list=paraDict['colSchema'], tag_elm_list=paraDict['tagSchema'])
+        tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
         tdLog.info("create ctb")
-        tmqCom.create_ctable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict['ctbPrefix'], ctbNum=paraDict['ctbNum'], ctbStartIdx=paraDict['ctbStartIdx'])
+        tmqCom.create_ctable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict['ctbPrefix'],
+                             ctbNum=paraDict["ctbNum"],ctbStartIdx=paraDict['ctbStartIdx'])
         tdLog.info("insert data")
-        tmqCom.asyncInsertData(paraDict)
-
-        tdLog.info("create topics from stb with filter")
-        # queryString = "select ts, sin(c1), pow(c2,3) from %s.%s where t2 == 'beijing' or t2 == 'changsha'" %(paraDict['dbName'], paraDict['stbName'])
-        queryString = "select * from %s.%s where t2 == 'beijing' or t2 == 'changsha'" %(paraDict['dbName'], paraDict['stbName'])
-        sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
+        tmqCom.insert_data_interlaceByMultiTbl(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],
+                                               ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
+                                               startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
+        # tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix="ctbx",
+        #                                       ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
+        #                                       startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
+        
+        # tdLog.info("restart taosd to ensure that the data falls into the disk")        
+        # tdSql.query("flush database %s"%(paraDict['dbName']))
+        return
+   
+    def tmqCase1(self):
+        tdLog.printNoPrefix("======== test case 1: ")
+        paraDict = {'dbName':     'dbt',
+                    'dropFlag':   1,
+                    'event':      '',
+                    'vgroups':    4,
+                    'stbName':    'stb',
+                    'colPrefix':  'c',
+                    'tagPrefix':  't',
+                    'colSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1},{'type': 'TIMESTAMP', 'count':1}],
+                    'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
+                    'ctbPrefix':  'ctb',
+                    'ctbStartIdx': 0,
+                    'ctbNum':     1,
+                    'rowsPerTbl': 100000,
+                    'batchNum':   3000,
+                    'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
+                    'pollDelay':  5,
+                    'showMsg':    1,
+                    'showRow':    1,
+                    'snapshot':   0}
+        paraDict['snapshot'] = self.snapshot
+        paraDict['vgroups'] = self.vgroups
+        paraDict['ctbNum'] = self.ctbNum
+        paraDict['rowsPerTbl'] = self.rowsPerTbl
+        
+        # update to half tables
+        # paraDict['rowsPerTbl'] = int(self.rowsPerTbl / 2)
+        # tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix="ctbx",
+        #                                       ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
+        #                                       startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
+        # tmqCom.insert_data_interlaceByMultiTbl(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],
+        #                                        ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
+        #                                        startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])     
+        
+        tdLog.info("create topics from stb1")
+        topicFromStb1 = 'topic_stb1'                
+        queryString = "select ts, c1, c2 from %s.%s where t4 == 'shanghai' or t4 == 'changsha'"%(paraDict['dbName'], paraDict['stbName'])
+        # queryString = "select ts, c1, c2, t4 from %s.%s where t4 == 'shanghai' or t4 == 'changsha'"%(paraDict['dbName'], paraDict['stbName'])
+        sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
         tdLog.info("create topic sql: %s"%sqlString)
-        tdSql.execute(sqlString) 
-          
-        # start tmq consume processor
-        tdLog.info("insert consume info to consume processor")
-        consumerId   = 0
-        expectrowcnt = paraDict["rowsPerTbl"] * paraDict["ctbNum"] * 2
-        topicList    = topicNameList[0]
-        ifcheckdata  = 0
+        tdSql.execute(sqlString)        
+        
+        # paraDict['ctbNum'] = self.ctbNum
+        paraDict['rowsPerTbl'] = self.rowsPerTbl
+        consumerId     = 0
+        expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * 2)
+        topicList      = topicFromStb1
+        ifcheckdata    = 1
         ifManualCommit = 1
-        keyList      = 'group.id:cgrp1, enable.auto.commit:false, auto.commit.interval.ms:2000, auto.offset.reset:earliest'
+        keyList        = 'group.id:cgrp1,\
+                        enable.auto.commit:true,\
+                        auto.commit.interval.ms:1000,\
+                        auto.offset.reset:earliest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor")
-        tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'])
+        tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
-        # tmqCom.getStartCommitNotifyFromTmqsim()
-        tmqCom.getStartConsumeNotifyFromTmqsim()
-        tdLog.info("create some new ctb")
-        paraDict['ctbStartIdx'] = paraDict['ctbStartIdx'] + paraDict['ctbNum']
-        tmqCom.create_ctable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict['ctbPrefix'], ctbNum=paraDict['ctbNum'], ctbStartIdx=paraDict['ctbStartIdx'])
-        tdLog.info("insert data into new ctb")
-        pThread = tmqCom.asyncInsertData(paraDict)
-
-        pThread.join()
-        tdLog.info("wait insert end") 
-        tdSql.query(queryString)        
-        expectRowsList.append(tdSql.getRows())
-
-        tdLog.info("wait the consume result") 
+        tdLog.info("insert process end, and start to check consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
-        
-        if expectRowsList[0] != resultList[0]:
-            tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[0], resultList[0]))
-            tdLog.exit("0 tmq consume rows error!")
-        
-        time.sleep(10)        
-        for i in range(len(topicNameList)):
-            tdSql.query("drop topic %s"%topicNameList[i])
+        totalConsumeRows = 0
+        for i in range(expectRows):
+            totalConsumeRows += resultList[i]
 
+        tdLog.info("run select sql from db")
+        tdSql.query(queryString)
+        expectrowcnt = tdSql.getRows()
+                
+        tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
+        if totalConsumeRows != expectrowcnt:
+            tdLog.exit("tmq consume rows error!")
+            
+        tmqCom.checkFileContent(consumerId, queryString) 
+
+        tdSql.query("drop topic %s"%topicFromStb1)
         tdLog.printNoPrefix("======== test case 1 end ...... ")
+
+    def tmqCase2(self):
+        tdLog.printNoPrefix("======== test case 2: ")  
+        paraDict = {'dbName':     'dbt',
+                    'dropFlag':   1,
+                    'event':      '',
+                    'vgroups':    4,
+                    'stbName':    'stb',
+                    'colPrefix':  'c',
+                    'tagPrefix':  't',
+                    'colSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1},{'type': 'TIMESTAMP', 'count':1}],
+                    'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
+                    'ctbPrefix':  'ctb',
+                    'ctbStartIdx': 0,
+                    'ctbNum':     1,
+                    'rowsPerTbl': 10000,
+                    'batchNum':   5000,
+                    'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
+                    'pollDelay':  5,
+                    'showMsg':    1,
+                    'showRow':    1,
+                    'snapshot':   0}
+        
+        paraDict['snapshot'] = self.snapshot
+        paraDict['vgroups'] = self.vgroups
+        paraDict['ctbNum'] = self.ctbNum
+        paraDict['rowsPerTbl'] = self.rowsPerTbl
+        
+        tdLog.info("restart taosd to ensure that the data falls into the disk")        
+        tdSql.query("flush database %s"%(paraDict['dbName']))
+        
+        # update to half tables
+        paraDict['startTs'] = paraDict['startTs'] + int(self.rowsPerTbl / 2)
+        paraDict['rowsPerTbl'] = int(self.rowsPerTbl / 2)
+        tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict["ctbPrefix"],
+                                              ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
+                                              startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
+        # tmqCom.insert_data_interlaceByMultiTbl(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],
+        #                                        ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
+        #                                        startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])     
+
+        tmqCom.initConsumerTable()
+        tdLog.info("create topics from stb1")
+        topicFromStb1 = 'topic_stb1'                
+        queryString = "select ts, c1, c2 from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
+        sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
+        tdLog.info("create topic sql: %s"%sqlString)
+        tdSql.execute(sqlString)
+        
+        # paraDict['ctbNum'] = self.ctbNum
+        paraDict['rowsPerTbl'] = self.rowsPerTbl
+        consumerId     = 1
+        expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * 2)
+        topicList      = topicFromStb1
+        ifcheckdata    = 1
+        ifManualCommit = 1
+        keyList        = 'group.id:cgrp1,\
+                        enable.auto.commit:true,\
+                        auto.commit.interval.ms:1000,\
+                        auto.offset.reset:earliest'
+        tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
+
+        tdLog.info("start consume processor")
+        tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
+        
+        tdLog.info("insert process end, and start to check consume result")
+        expectRows = 1
+        resultList = tmqCom.selectConsumeResult(expectRows)
+        totalConsumeRows = 0
+        for i in range(expectRows):
+            totalConsumeRows += resultList[i]
+
+        tdSql.query(queryString)
+        totalRowsInserted = tdSql.getRows()
+        
+        tdLog.info("act consume rows: %d, act insert rows: %d, expect consume rows: %d, "%(totalConsumeRows, totalRowsInserted, expectrowcnt))
+        
+        if totalConsumeRows != expectrowcnt:
+            tdLog.exit("tmq consume rows error!")
+            
+        # tmqCom.checkFileContent(consumerId, queryString)   
+
+        tdSql.query("drop topic %s"%topicFromStb1)
+
+        tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def run(self):
         tdSql.prepare()
+        self.prepareTestEnv()
+        tdLog.printNoPrefix("=============================================")
+        tdLog.printNoPrefix("======== snapshot is 0: only consume from wal")
         self.tmqCase1()
+        # self.tmqCase2()
+        
+        # self.prepareTestEnv()
+        # tdLog.printNoPrefix("====================================================================")
+        # tdLog.printNoPrefix("======== snapshot is 1: firstly consume from tsbs, and then from wal")
+        # self.snapshot = 1
+        # self.tmqCase1()
+        # self.tmqCase2()
+        
 
     def stop(self):
         tdSql.close()

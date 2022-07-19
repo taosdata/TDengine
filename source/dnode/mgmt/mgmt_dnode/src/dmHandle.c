@@ -49,9 +49,9 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
       }
     }
-    rpcFreeCont(pRsp->pCont);
     tFreeSStatusRsp(&statusRsp);
   }
+  rpcFreeCont(pRsp->pCont);
 }
 
 void dmSendStatusReq(SDnodeMgmt *pMgmt) {

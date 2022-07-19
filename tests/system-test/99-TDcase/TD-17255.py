@@ -320,7 +320,7 @@ class TDTestCase:
         tdSql.prepare()
 
         self.tmqCase1()
-        # self.tmqCase2() 
+        self.tmqCase2() 
         self.tmqCase3()
 
     def stop(self):
