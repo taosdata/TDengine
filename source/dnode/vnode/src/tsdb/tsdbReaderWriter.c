@@ -246,7 +246,7 @@ int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb
 
   tsdbDelFileName(pTsdb, pFile, fname);
   pDelFReader->pReadH = taosOpenFile(fname, TD_FILE_READ);
-  if (pDelFReader == NULL) {
+  if (pDelFReader->pReadH == NULL) {
     code = TAOS_SYSTEM_ERROR(errno);
     taosMemoryFree(pDelFReader);
     goto _err;
