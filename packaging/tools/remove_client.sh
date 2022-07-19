@@ -47,6 +47,9 @@ function clean_lib() {
     ${csudo}rm -f ${lib_link_dir}/libtaos.*      || :
     ${csudo}rm -f ${lib64_link_dir}/libtaos.*    || :
     #${csudo}rm -rf ${v15_java_app_dir}           || :
+
+    ${csudo}rm -f ${lib_link_dir}/libtaosws.*      || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaosws.*    || :
 }
 
 function clean_header() {
@@ -54,6 +57,7 @@ function clean_header() {
     ${csudo}rm -f ${inc_link_dir}/taos.h           || :
     ${csudo}rm -f ${inc_link_dir}/taosdef.h        || :
     ${csudo}rm -f ${inc_link_dir}/taoserror.h      || :
+    ${csudo}rm -f ${inc_link_dir}/taosws.h         || :
 }
 
 function clean_config() {
