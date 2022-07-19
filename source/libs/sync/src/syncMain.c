@@ -1539,13 +1539,13 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(logBuf, sizeof(logBuf),
                "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", first:%" PRId64 ", last:%" PRId64
-               ", snapshot:%" PRId64
+               ", snapshot:%" PRId64 ", snapshot-term:%" PRIu64
                ", standby:%d, "
                "strategy:%d, batch:%d, "
                "replica-num:%d, "
                "lconfig:%" PRId64 ", changing:%d, restore:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
-               pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
+               pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy, pSyncNode->pRaftCfg->batchSize,
                pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing,
                pSyncNode->restoreFinish, printStr);
@@ -1561,13 +1561,13 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(s, len,
                "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", first:%" PRId64 ", last:%" PRId64
-               ", snapshot:%" PRId64
+               ", snapshot:%" PRId64 ", snapshot-term:%" PRIu64
                ", standby:%d, "
                "strategy:%d, batch:%d, "
                "replica-num:%d, "
                "lconfig:%" PRId64 ", changing:%d, restore:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
-               pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
+               pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy, pSyncNode->pRaftCfg->batchSize,
                pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing,
                pSyncNode->restoreFinish, printStr);
@@ -1608,14 +1608,16 @@ void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(logBuf, sizeof(logBuf),
                "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", first:%" PRId64 ", last:%" PRId64
-               ", snapshot:%" PRId64
+               ", snapshot:%" PRId64 ", snapshot-term:%" PRIu64
                ", standby:%d, "
+               "strategy:%d, batch:%d, "
                "replica-num:%d, "
                "lconfig:%" PRId64 ", changing:%d, restore:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
-               pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
-               pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
-               pSyncNode->changing, pSyncNode->restoreFinish, printStr);
+               pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
+               pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy, pSyncNode->pRaftCfg->batchSize,
+               pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing,
+               pSyncNode->restoreFinish, printStr);
     } else {
       snprintf(logBuf, sizeof(logBuf), "%s", str);
     }
@@ -1627,14 +1629,16 @@ void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(s, len,
                "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", first:%" PRId64 ", last:%" PRId64
-               ", snapshot:%" PRId64
+               ", snapshot:%" PRId64 ", snapshot-term:%" PRIu64
                ", standby:%d, "
+               "strategy:%d, batch:%d, "
                "replica-num:%d, "
                "lconfig:%" PRId64 ", changing:%d, restore:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
-               pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
-               pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
-               pSyncNode->changing, pSyncNode->restoreFinish, printStr);
+               pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
+               pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy, pSyncNode->pRaftCfg->batchSize,
+               pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing,
+               pSyncNode->restoreFinish, printStr);
     } else {
       snprintf(s, len, "%s", str);
     }
