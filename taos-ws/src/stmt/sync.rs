@@ -59,6 +59,11 @@ impl WsSyncStmt {
         self.rt.block_on(self.stmt.set_tags(tags))
     }
 
+    pub fn set_tbname_tags(&mut self, name: &str, tags: Vec<serde_json::Value>) -> Result<()> {
+        self.set_tbname(name)?;
+        self.set_tags(tags)
+    }
+
     pub fn exec(&mut self) -> Result<usize> {
         let rows = self.rt.block_on(self.stmt.exec())?;
         self.affected_rows += rows;
@@ -108,5 +113,42 @@ fn test_stmt_stable() -> anyhow::Result<()> {
 
     assert_eq!(res, 2);
     taos.exec("drop database stmt_s")?;
+    Ok(())
+}
+
+
+#[test]
+fn test_stmt_table() -> anyhow::Result<()> {
+    use crate::Ws;
+    use taos_query::Queryable;
+
+    let dsn = Dsn::from_str("taos://localhost:6041")?;
+    dbg!(&dsn);
+    let taos = crate::sync::WsClient::from_dsn(&dsn)?;
+
+    taos.exec("drop database if exists stmt_c")?;
+    taos.exec("create database stmt_c")?;
+    taos.exec("create table stmt_c.tb1 (ts timestamp, v int)")?;
+
+    std::env::set_var("RUST_LOG", "debug");
+    pretty_env_logger::init();
+
+    let mut stmt = taos.stmt_init()?;
+
+    stmt.prepare("insert into ? values(?, ?)")?;
+
+    stmt.set_tbname("stmt_c.`tb1`")?;
+
+    stmt.bind_all(vec![
+        json!([
+            "2022-06-07T11:02:44.022450088+08:00",
+            "2022-06-07T11:02:45.022450088+08:00"
+        ]),
+        json!([2, 3]),
+    ])?;
+    let res = stmt.exec()?;
+
+    assert_eq!(res, 2);
+    taos.exec("drop database stmt_c")?;
     Ok(())
 }

@@ -22,4 +22,4 @@ taos-ws = { path = "../taos-ws", default-features = false }
 cbindgen = "0.24.3"
 
 [dev-dependencies]
-pretty_env_logger = "*"
+pretty_env_logger = "0.4.0"

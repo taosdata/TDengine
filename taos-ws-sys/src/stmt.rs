@@ -16,6 +16,7 @@ use taos_ws::stmt::sync::WsSyncStmt;
 
 use crate::*;
 
+/// Opaque STMT type alias.
 pub type WS_STMT = c_void;
 
 unsafe fn stmt_init(taos: *const WS_TAOS) -> WsResult<WsSyncStmt> {
@@ -25,22 +26,29 @@ unsafe fn stmt_init(taos: *const WS_TAOS) -> WsResult<WsSyncStmt> {
     Ok(client.stmt_init()?)
 }
 
+/// Create new stmt object.
 #[no_mangle]
 pub unsafe extern "C" fn ws_stmt_init(taos: *const WS_TAOS) -> *mut WS_STMT {
     let stmt: WsMaybeError<WsSyncStmt> = stmt_init(taos).into();
     Box::into_raw(Box::new(stmt)) as _
 }
 
+/// Prepare with sql command
 #[no_mangle]
 pub unsafe extern "C" fn ws_stmt_prepare(
     stmt: *mut WS_STMT,
     sql: *const c_char,
-    length: c_ulong,
+    len: c_ulong,
 ) -> c_int {
     match (stmt as *mut WsMaybeError<WsSyncStmt>).as_mut() {
         Some(stmt) => {
-            let sql =
-                std::str::from_utf8_unchecked(std::slice::from_raw_parts(sql as _, length as _));
+            let sql = if len > 0 {
+                std::str::from_utf8_unchecked(std::slice::from_raw_parts(sql as _, len as _))
+            } else {
+                CStr::from_ptr(sql).to_str().expect(
+                    "ws_stmt_prepare with a sql len 0 means the input should always be valid utf-8",
+                )
+            };
 
             if let Some(no) = stmt.errno() {
                 return no;
@@ -58,11 +66,13 @@ pub unsafe extern "C" fn ws_stmt_prepare(
     }
 }
 
+/// Set table name.
 #[no_mangle]
 pub unsafe extern "C" fn ws_stmt_set_tbname(stmt: *mut WS_STMT, name: *const c_char) -> c_int {
     match (stmt as *mut WsMaybeError<WsSyncStmt>).as_mut() {
         Some(stmt) => {
             let name = CStr::from_ptr(name).to_str().unwrap();
+            dbg!(name);
 
             if let Err(e) = stmt.set_tbname(name) {
                 let errno = e.errno();
@@ -74,6 +84,41 @@ pub unsafe extern "C" fn ws_stmt_set_tbname(stmt: *mut WS_STMT, name: *const c_c
         }
         _ => 0,
     }
+}
+
+/// Set table name and tags.
+#[no_mangle]
+pub unsafe extern "C" fn ws_stmt_set_tbname_tags(
+    stmt: *mut WS_STMT,
+    name: *const c_char,
+    bind: *const WS_MULTI_BIND,
+    len: u32,
+) -> c_int {
+    match (stmt as *mut WsMaybeError<WsSyncStmt>).as_mut() {
+        Some(stmt) => {
+            let name = CStr::from_ptr(name).to_str().unwrap();
+            let tags = std::slice::from_raw_parts(bind, len as usize)
+                .iter()
+                .map(|bind| bind.first_to_json())
+                .collect();
+
+            if let Err(e) = stmt.set_tbname_tags(name, tags) {
+                let errno = e.errno();
+                stmt.error = Some(e.into());
+                errno.into()
+            } else {
+                0
+            }
+        }
+        _ => 0,
+    }
+}
+
+/// Currently only insert sql is supported.
+#[no_mangle]
+pub unsafe extern "C" fn ws_stmt_is_insert(stmt: *mut WS_STMT, insert: *mut c_int) -> c_int {
+    *insert = 1;
+    0
 }
 
 #[derive(Debug)]
@@ -116,6 +161,9 @@ impl TaosMultiBind {
             ($t:ty) => {{
                 let len = self.num as usize;
                 let slice = std::slice::from_raw_parts(self.buffer as *const $t, len);
+                if self.is_null.is_null() {
+                    return json!(slice);
+                }
                 let nulls = std::slice::from_raw_parts(self.is_null as *const bool, len);
                 let column: Vec<_> = slice
                     .iter()
@@ -130,17 +178,7 @@ impl TaosMultiBind {
                 Ty::Null => {
                     json!(Vec::from_iter(std::iter::repeat(Value::Null)))
                 }
-                Ty::Bool => {
-                    let len = self.num as usize;
-                    let slice = std::slice::from_raw_parts(self.buffer as *const bool, len);
-                    let nulls = std::slice::from_raw_parts(self.is_null as *const bool, len);
-                    let column: Vec<_> = slice
-                        .iter()
-                        .zip(nulls)
-                        .map(|(value, is_null)| if *is_null { None } else { Some(*value) })
-                        .collect();
-                    json!(column)
-                }
+                Ty::Bool => _impl_primitive!(bool),
                 Ty::TinyInt => _impl_primitive!(i8),
                 Ty::SmallInt => _impl_primitive!(i16),
                 Ty::Int => _impl_primitive!(i32),
@@ -149,6 +187,18 @@ impl TaosMultiBind {
                 Ty::Double => _impl_primitive!(f64),
                 Ty::VarChar => {
                     let len = self.num as usize;
+                    if self.is_null.is_null() {
+                        let column = (0..len)
+                            .map(|i| {
+                                let ptr = (self.buffer as *const u8)
+                                    .offset(self.buffer_length as isize * i as isize);
+                                let len = *self.length.offset(i as isize) as usize;
+                                let bytes = std::slice::from_raw_parts(ptr, len);
+                                std::str::from_utf8_unchecked(bytes)
+                            })
+                            .collect::<Vec<_>>();
+                        return json!(column);
+                    }
                     let nulls = std::slice::from_raw_parts(self.is_null as *const bool, len);
                     let column = (0..len)
                         .zip(nulls)
@@ -170,6 +220,18 @@ impl TaosMultiBind {
                 Ty::Timestamp => _impl_primitive!(i64),
                 Ty::NChar => {
                     let len = self.num as usize;
+                    if self.is_null.is_null() {
+                        let column = (0..len)
+                            .map(|i| {
+                                let ptr = (self.buffer as *const u8)
+                                    .offset(self.buffer_length as isize * i as isize);
+                                let len = *self.length.offset(i as isize) as usize;
+                                let bytes = std::slice::from_raw_parts(ptr, len);
+                                std::str::from_utf8_unchecked(bytes)
+                            })
+                            .collect::<Vec<_>>();
+                        return json!(column);
+                    }
                     let nulls = std::slice::from_raw_parts(self.is_null as *const bool, len);
                     let column = (0..len)
                         .zip(nulls)
@@ -193,6 +255,19 @@ impl TaosMultiBind {
                 Ty::UBigInt => _impl_primitive!(u64),
                 Ty::Json => {
                     let len = self.num as usize;
+                    if self.is_null.is_null() {
+                        let column = (0..len)
+                            .map(|i| {
+                                let ptr = (self.buffer as *const u8)
+                                    .offset(self.buffer_length as isize * i as isize);
+                                let len = *self.length.offset(i as isize) as usize;
+                                let bytes = std::slice::from_raw_parts(ptr, len);
+                                serde_json::from_slice::<serde_json::Value>(bytes)
+                                    .expect("input should be valid json format")
+                            })
+                            .collect::<Vec<_>>();
+                        return json!(column);
+                    }
                     let nulls = std::slice::from_raw_parts(self.is_null as *const bool, len);
                     let column = (0..len)
                         .zip(nulls)
@@ -401,6 +476,7 @@ pub unsafe extern "C" fn ws_stmt_add_batch(stmt: *mut WS_STMT) -> c_int {
     }
 }
 
+/// Execute the bind batch, get inserted rows in `affected_row` pointer.
 #[no_mangle]
 pub unsafe extern "C" fn ws_stmt_execute(stmt: *mut WS_STMT, affected_rows: *mut i32) -> c_int {
     match (stmt as *mut WsMaybeError<WsSyncStmt>).as_mut() {
@@ -419,6 +495,7 @@ pub unsafe extern "C" fn ws_stmt_execute(stmt: *mut WS_STMT, affected_rows: *mut
     }
 }
 
+/// Get inserted rows in current statement.
 #[no_mangle]
 pub unsafe extern "C" fn ws_stmt_affected_rows(stmt: *mut WS_STMT) -> c_int {
     match (stmt as *mut WsMaybeError<WsSyncStmt>).as_mut() {
@@ -427,6 +504,13 @@ pub unsafe extern "C" fn ws_stmt_affected_rows(stmt: *mut WS_STMT) -> c_int {
     }
 }
 
+/// Equivalent to ws_errstr
+#[no_mangle]
+pub unsafe extern "C" fn ws_stmt_errstr(stmt: *mut WS_STMT) -> *const c_char {
+    ws_errstr(stmt as _)
+}
+
+/// Same to taos_stmt_close
 #[no_mangle]
 pub unsafe extern "C" fn ws_stmt_close(stmt: *mut WS_STMT) {
     let _ = Box::from_raw(stmt as *mut WsMaybeError<WsSyncStmt>);
@@ -466,12 +550,19 @@ mod tests {
 
             let stmt = ws_stmt_init(taos);
 
-            let sql = "insert into ws_stmt_i.s1 values(?, ?, ?)";
+            let sql = "insert into ? values(?, ?, ?)";
             let code = ws_stmt_prepare(stmt, sql.as_ptr() as _, sql.len() as _);
             if code != 0 {
                 dbg!(CStr::from_ptr(ws_errstr(stmt)).to_str().unwrap());
+                panic!()
             }
 
+            let code = ws_stmt_set_tbname(stmt, b"ws_stmt_i.`s1`\0".as_ptr() as _);
+
+            if code != 0 {
+                dbg!(CStr::from_ptr(ws_errstr(stmt)).to_str().unwrap());
+                panic!()
+            }
             let params = vec![
                 TaosMultiBind::from_raw_timestamps(vec![false, false], &[0, 1]),
                 TaosMultiBind::from_primitives(vec![false, false], &[2, 3]),
@@ -480,17 +571,88 @@ mod tests {
             let code = ws_stmt_bind_param_batch(stmt, params.as_ptr(), params.len() as _);
             if code != 0 {
                 dbg!(CStr::from_ptr(ws_errstr(stmt)).to_str().unwrap());
+                panic!()
             }
 
             ws_stmt_add_batch(stmt);
             let mut rows = 0;
             ws_stmt_execute(stmt, &mut rows);
+            assert_eq!(rows, 2);
 
             assert_eq!(rows, 2);
             ws_stmt_close(stmt);
+            query!(b"drop database ws_stmt_i\0");
         }
     }
 
+    #[test]
+    fn stmt_child() {
+        use crate::*;
+        init_env();
+        unsafe {
+            let taos = ws_connect_with_dsn(b"ws://localhost:6041\0" as *const u8 as _);
+            if taos.is_null() {
+                let code = ws_errno(taos);
+                assert!(code != 0);
+                let str = ws_errstr(taos);
+                dbg!(CStr::from_ptr(str));
+            }
+            assert!(!taos.is_null());
+
+            macro_rules! query {
+                ($sql:expr) => {
+                    let sql = $sql as *const u8 as _;
+                    let rs = ws_query(taos, sql);
+                    let code = ws_errno(rs);
+                    assert!(code == 0, "{:?}", CStr::from_ptr(ws_errstr(rs)));
+                    ws_free_result(rs);
+                };
+            }
+
+            query!(b"drop database if exists ws_stmt_i\0");
+            query!(b"create database ws_stmt_i keep 36500\0");
+            query!(b"use ws_stmt_i\0");
+            query!(b"CREATE STABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` VARCHAR(16))\0");
+            query!(b"CREATE TABLE `d0` USING `meters` (`groupid`, `location`) TAGS (7, \"San Francisco\")\0");
+
+            let stmt = ws_stmt_init(taos);
+
+            let sql = "insert into ? values(?, ?, ?, ?)";
+            let code = ws_stmt_prepare(stmt, sql.as_ptr() as _, sql.len() as _);
+            if code != 0 {
+                dbg!(CStr::from_ptr(ws_errstr(stmt)).to_str().unwrap());
+                panic!()
+            }
+
+            let code = ws_stmt_set_tbname(stmt, b"ws_stmt_i.`d0`\0".as_ptr() as _);
+
+            if code != 0 {
+                dbg!(CStr::from_ptr(ws_errstr(stmt)).to_str().unwrap());
+                panic!()
+            }
+            let params = vec![
+                TaosMultiBind::from_raw_timestamps(vec![false, false], &[0, 1]),
+                TaosMultiBind::from_primitives(vec![false, false], &[0.0f32, 0.1f32]),
+                TaosMultiBind::from_primitives(vec![false, false], &[0, 0]),
+                TaosMultiBind::from_primitives(vec![false, false], &[0.0f32, 0.1f32]),
+                // TaosMultiBind::from_binary_vec(&vec![None, Some("涛思数据")]),
+            ];
+            let code = ws_stmt_bind_param_batch(stmt, params.as_ptr(), params.len() as _);
+            if code != 0 {
+                dbg!(CStr::from_ptr(ws_errstr(stmt)).to_str().unwrap());
+                panic!()
+            }
+
+            ws_stmt_add_batch(stmt);
+            let mut rows = 0;
+            ws_stmt_execute(stmt, &mut rows);
+            assert_eq!(rows, 2);
+
+            assert_eq!(rows, 2);
+            ws_stmt_close(stmt);
+            // query!(b"drop database ws_stmt_i\0");
+        }
+    }
     #[test]
     fn stmt_with_tags() {
         use crate::*;

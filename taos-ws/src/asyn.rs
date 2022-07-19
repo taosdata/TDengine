@@ -2,7 +2,7 @@ use futures::stream::SplitSink;
 use futures::{FutureExt, SinkExt, StreamExt};
 use scc::HashMap;
 // use std::sync::Mutex;
-use taos_query::common::{Field, Precision, Raw};
+use taos_query::common::{Field, Precision, RawData};
 use taos_query::{AsyncFetchable, AsyncQueryable, DeError, DsnError, IntoDsn};
 use thiserror::Error;
 use tokio::net::TcpStream;
@@ -446,7 +446,7 @@ impl WsAsyncClient {
 }
 
 impl ResultSetRef {
-    async fn fetch(&mut self) -> Result<Option<Raw>> {
+    async fn fetch(&mut self) -> Result<Option<RawData>> {
         let fetch = WsSend::Fetch(self.args);
         {
             log::info!("send fetch message: {fetch:?}");
@@ -478,7 +478,7 @@ impl ResultSetRef {
         log::info!("receiving block...");
         match self.receiver.as_mut().unwrap().recv()?? {
             WsFetchData::Block(mut raw) => {
-                let mut raw = Raw::parse_from_raw_block(
+                let mut raw = RawData::parse_from_raw_block(
                     raw,
                     fetch_resp.rows,
                     self.fields_count,
@@ -496,7 +496,7 @@ impl ResultSetRef {
                 Ok(Some(raw))
             }
             WsFetchData::BlockV2(raw) => {
-                let mut raw = Raw::parse_from_raw_block_v2(
+                let mut raw = RawData::parse_from_raw_block_v2(
                     raw,
                     self.fields.as_ref().unwrap(),
                     dbg!(fetch_resp.lengths.as_ref().unwrap()),
@@ -520,7 +520,7 @@ impl ResultSetRef {
 }
 
 impl futures::Stream for ResultSetRef {
-    type Item = Raw;
+    type Item = RawData;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,

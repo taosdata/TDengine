@@ -83,6 +83,8 @@ pub enum Error {
     FetchError(#[from] oneshot::error::RecvError),
     #[error("{0}")]
     SendError(#[from] tokio::sync::mpsc::error::SendError<Message>),
+    #[error(transparent)]
+    SendTimeoutError(#[from] tokio::sync::mpsc::error::SendTimeoutError<Message>),
     #[error("{0}")]
     StdSendError(#[from] std::sync::mpsc::SendError<tokio_tungstenite::tungstenite::Message>),
     #[error("{0}")]
@@ -164,13 +166,13 @@ impl WsStmtClient {
         let mut close_listener = rx.clone();
 
         tokio::spawn(async move {
-            let mut interval = time::interval(Duration::from_millis(10));
+            let mut interval = time::interval(Duration::from_secs(1));
 
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
                         //
-                        // println!("10ms passed");
+                        log::trace!("Check websocket message sender alive");
                     }
                     Some(msg) = msg_recv.recv() => {
                         // dbg!(&msg);
@@ -201,9 +203,12 @@ impl WsStmtClient {
                                             log::warn!("[{req_id}] received connected response in message loop");
                                         },
                                         StmtOk::Init(req_id, stmt_id) => {
+                                            log::info!("stmt init done: {{ req_id: {}, stmt_id: {:?}}}", req_id, stmt_id);
                                             if let Some((_, sender)) = queries_sender.remove(&req_id)
                                             {
                                                 sender.send(stmt_id).unwrap();
+                                            }  else {
+                                                log::error!("Stmt init failed because req id {req_id} not exist");
                                             }
                                         }
                                         StmtOk::Stmt(stmt_id, res) => {
@@ -220,7 +225,7 @@ impl WsStmtClient {
                                         _ => unreachable!("unknown stmt response"),
                                     }
                                 }
-                                Message::Binary(block) => {
+                                Message::Binary(_) => {
                                     log::warn!("received (unexpected) binary message, do nothing");
                                 }
                                 Message::Close(_) => {
@@ -355,7 +360,7 @@ impl WsAsyncStmt {
             args: self.args,
             name: name.to_string(),
         };
-        self.ws.send(message.to_msg()).await?;
+        self.ws.send_timeout(message.to_msg(), self.timeout).await?;
         let _ = self.receiver.recv_timeout(self.timeout)??;
         Ok(())
     }
@@ -365,7 +370,7 @@ impl WsAsyncStmt {
             args: self.args,
             tags: tags,
         };
-        self.ws.send(message.to_msg()).await?;
+        self.ws.send_timeout(message.to_msg(), self.timeout).await?;
         let _ = self.receiver.recv_timeout(self.timeout)?;
         Ok(())
     }
@@ -373,7 +378,7 @@ impl WsAsyncStmt {
     pub async fn exec(&self) -> Result<usize> {
         log::info!("exec");
         let message = StmtSend::Exec(self.args);
-        self.ws.send(message.to_msg()).await?;
+        self.ws.send_timeout(message.to_msg(), self.timeout).await?;
         if let Some(affected) = self.receiver.recv_timeout(self.timeout)?? {
             Ok(affected)
         } else {

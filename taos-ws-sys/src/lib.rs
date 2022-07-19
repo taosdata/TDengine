@@ -11,7 +11,7 @@ use std::{
 use taos_error::Code;
 
 use taos_query::{
-    common::{Field, Raw as Block, Timestamp},
+    common::{Field, RawData as Block, Timestamp},
     common::{Precision, Ty},
     Fetchable,
 };
@@ -367,11 +367,15 @@ impl WsResultSet {
     }
 
     unsafe fn get_raw_value(&mut self, row: usize, col: usize) -> (Ty, u32, *const c_void) {
+        log::debug!("try to get raw value at ({row}, {col})");
         match self.block.as_ref() {
             Some(block) => {
                 if row < block.nrows() && col < block.ncols() {
-                    block.get_raw_value_unchecked(row, col)
+                    let res = block.get_raw_value_unchecked(row, col);
+                    log::debug!("got raw value at ({row}, {col}): {:?}", res);
+                    res
                 } else {
+                    log::debug!("out of range at ({row}, {col}), return null");
                     (Ty::Null, 0, std::ptr::null())
                 }
             }

@@ -64,19 +64,19 @@ pub struct StmtClose {
     req_id: ReqId,
     stmt_id: StmtId,
 }
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
-pub enum WsSendData {
-    Conn(WsConnReq),
-    Init(StmtInit),
-    Prepare(StmtPrepare),
-    SetTableName(StmtSetTableName),
-    SetTags(StmtSetTags),
-    Bind(StmtBind),
-    AddBatch(StmtAddBatch),
-    Exec(StmtExec),
-    Close(),
-}
+// #[derive(Debug, Serialize)]
+// #[serde(untagged)]
+// pub enum WsSendData {
+//     Conn(WsConnReq),
+//     Init(StmtInit),
+//     Prepare(StmtPrepare),
+//     SetTableName(StmtSetTableName),
+//     SetTags(StmtSetTags),
+//     Bind(StmtBind),
+//     AddBatch(StmtAddBatch),
+//     Exec(StmtExec),
+//     Close(),
+// }
 
 #[derive(Debug, Serialize, Clone, Copy)]
 pub struct StmtArgs {
