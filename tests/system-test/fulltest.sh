@@ -10,7 +10,7 @@ python3 ./test.py -f 0-others/taosdMonitor.py
 python3 ./test.py -f 0-others/udfTest.py
 python3 ./test.py -f 0-others/udf_create.py
 python3 ./test.py -f 0-others/udf_restart_taosd.py
-python3 ./test.py -f 0-others/cachelast.py
+python3 ./test.py -f 0-others/cachemodel.py
 python3 ./test.py -f 0-others/udf_cfg1.py
 python3 ./test.py -f 0-others/udf_cfg2.py
 
@@ -32,7 +32,10 @@ python3 ./test.py -f 1-insert/block_wise.py
 python3 ./test.py -f 1-insert/create_retentions.py
 python3 ./test.py -f 1-insert/table_param_ttl.py
 
+python3 ./test.py -f 1-insert/update_data.py
+
 python3 ./test.py -f 2-query/db.py
+
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
@@ -182,7 +185,7 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
 python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
 #python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
-#python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
+python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
 python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb.py
 #python3 ./test.py -f 7-tmq/tmqDelete-1ctb.py
 
