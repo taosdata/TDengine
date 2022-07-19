@@ -2192,17 +2192,19 @@ static char* buildCreateCTableJson(STag* pTag, char* sname, char* name, SArray* 
     cJSON* ttype = cJSON_CreateNumber(pTagVal->type);
     cJSON_AddItemToObject(tag, "type", ttype);
 
-    char* buf = NULL;
+    cJSON* tvalue = NULL;
     if (IS_VAR_DATA_TYPE(pTagVal->type)) {
-      buf = taosMemoryCalloc(pTagVal->nData + 1, 1);
+      char* buf = taosMemoryCalloc(pTagVal->nData + 3, 1);
+      if(!buf) goto end;
       dataConverToStr(buf, pTagVal->type, pTagVal->pData, pTagVal->nData, NULL);
+      tvalue = cJSON_CreateString(buf);
+      taosMemoryFree(buf);
     } else {
-      buf = taosMemoryCalloc(32, 1);
-      dataConverToStr(buf, pTagVal->type, &pTagVal->i64, tDataTypes[pTagVal->type].bytes, NULL);
+      double val = 0;
+      GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64);
+      tvalue = cJSON_CreateNumber(val);
     }
 
-    cJSON* tvalue = cJSON_CreateString(buf);
-    taosMemoryFree(buf);
     cJSON_AddItemToObject(tag, "value", tvalue);
     cJSON_AddItemToArray(tags, tag);
   }
