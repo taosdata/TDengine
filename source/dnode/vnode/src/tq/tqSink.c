@@ -175,6 +175,8 @@ void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
   const SArray* pRes = (const SArray*)data;
   SVnode*       pVnode = (SVnode*)vnode;
 
+  tqDebug("task write into table, vgId %d, block num: %d", pVnode->config.vgId, (int32_t)pRes->size);
+
   ASSERT(pTask->tbSink.pTSchema);
   SSubmitReq* pReq = tdBlockToSubmit(pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid,
                                      pTask->tbSink.stbFullName, pVnode->config.vgId);
