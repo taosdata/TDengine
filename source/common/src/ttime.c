@@ -902,7 +902,7 @@ const char* fmtts(int64_t ts) {
 
 void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precision) {
   char       ts[40] = {0};
-  struct tm* ptm;
+  struct tm  ptm;
 
   int32_t fractionLen;
   char*   format = NULL;
@@ -939,10 +939,10 @@ void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precision) 
       assert(false);
   }
 
-  ptm = taosLocalTime(&quot, NULL);
-  int32_t length = (int32_t)strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", ptm);
+  taosLocalTime(&quot, &ptm);
+  int32_t length = (int32_t)strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", &ptm);
   length += snprintf(ts + length, fractionLen, format, mod);
-  length += (int32_t)strftime(ts + length, 40 - length, "%z", ptm);
+  length += (int32_t)strftime(ts + length, 40 - length, "%z", &ptm);
 
   tstrncpy(buf, ts, bufLen);
 }

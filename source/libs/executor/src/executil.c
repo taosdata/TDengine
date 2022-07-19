@@ -72,8 +72,12 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   assert(pGroupResInfo != NULL);
 
-  taosArrayDestroy(pGroupResInfo->pRows);
-  pGroupResInfo->pRows = NULL;
+  for(int32_t i = 0; i < taosArrayGetSize(pGroupResInfo->pRows); ++i) {
+    SResKeyPos* pRes = taosArrayGetP(pGroupResInfo->pRows, i);
+    taosMemoryFree(pRes);
+  }
+
+  pGroupResInfo->pRows = taosArrayDestroy(pGroupResInfo->pRows);
   pGroupResInfo->index = 0;
 }
 
@@ -261,7 +265,7 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static bool isTableOk(STableKeyInfo* info, SNode* pTagCond, SMeta* metaHandle) {
+int32_t isTableOk(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, metaHandle, 0);
   metaGetTableEntryByUid(&mr, info->uid);
@@ -276,19 +280,22 @@ static bool isTableOk(STableKeyInfo* info, SNode* pTagCond, SMeta* metaHandle) {
   if (TSDB_CODE_SUCCESS != code) {
     terrno = code;
     nodesDestroyNode(pTagCondTmp);
-    return false;
+    *pQualified = false;
+
+    return code;
   }
 
   ASSERT(nodeType(pNew) == QUERY_NODE_VALUE);
   SValueNode* pValue = (SValueNode*)pNew;
 
   ASSERT(pValue->node.resType.type == TSDB_DATA_TYPE_BOOL);
-  bool result = pValue->datum.b;
+  *pQualified = pValue->datum.b;
+
   nodesDestroyNode(pNew);
-  return result;
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, STableListInfo* pListInfo) {
+int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond, STableListInfo* pListInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   pListInfo->pTableList = taosArrayInit(8, sizeof(STableKeyInfo));
@@ -300,8 +307,6 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
 
   pListInfo->suid = pScanNode->suid;
 
-  SNode* pTagCond = (SNode*)pListInfo->pTagCond;
-  SNode* pTagIndexCond = (SNode*)pListInfo->pTagIndexCond;
   if (pScanNode->tableType == TSDB_SUPER_TABLE) {
     if (pTagIndexCond) {
       SIndexMetaArg metaArg = {
@@ -341,9 +346,14 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
     int32_t i = 0;
     while (i < taosArrayGetSize(pListInfo->pTableList)) {
       STableKeyInfo* info = taosArrayGet(pListInfo->pTableList, i);
-      bool           isOk = isTableOk(info, pTagCond, metaHandle);
-      if (terrno) return terrno;
-      if (!isOk) {
+
+      bool qualified = true;
+      code = isTableOk(info, pTagCond, metaHandle, &qualified);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
+      if (!qualified) {
         taosArrayRemove(pListInfo->pTableList, i);
         continue;
       }
@@ -358,7 +368,6 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
 
   // put into list as default group, remove it if grouping sorting is required later
   taosArrayPush(pListInfo->pGroupList, &pListInfo->pTableList);
-
   return code;
 }
 

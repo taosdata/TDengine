@@ -80,8 +80,6 @@ typedef struct {
   SArray*   pTableList;
   SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
   bool      needSortTableByGroupId;
-  void*     pTagCond;
-  void*     pTagIndexCond;
   uint64_t  suid;
 } STableListInfo;
 
@@ -267,26 +265,6 @@ typedef struct SSortExecInfo {
   int32_t writeBytes;  // write io bytes
   int32_t readBytes;   // read io bytes
 } SSortExecInfo;
-
-//======================================================================================================================
-// for grant 
-typedef enum {
-  TSDB_GRANT_ALL,
-  TSDB_GRANT_TIME,
-  TSDB_GRANT_USER,
-  TSDB_GRANT_DB,
-  TSDB_GRANT_TIMESERIES,
-  TSDB_GRANT_DNODE,
-  TSDB_GRANT_ACCT,
-  TSDB_GRANT_STORAGE,
-  TSDB_GRANT_SPEED,
-  TSDB_GRANT_QUERY_TIME,
-  TSDB_GRANT_CONNS,
-  TSDB_GRANT_STREAMS,
-  TSDB_GRANT_CPU_CORES,
-} EGrantType;
-
-int32_t grantCheck(EGrantType grant);
 
 #ifdef __cplusplus
 }

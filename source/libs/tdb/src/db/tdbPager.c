@@ -473,12 +473,6 @@ int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
     return -1;
   }
 
-  TXN txn;
-  tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
-  SBtreeInitPageArg iArg;
-  iArg.pBt = pBt;
-  iArg.flags = 0;
-
   for (int pgIndex = 0; pgIndex < journalSize; ++pgIndex) {
     // read pgno & the page from journal
     SPgno  pgno;
@@ -494,20 +488,6 @@ int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
       return -1;
     }
 
-    /*
-    ret = tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &iArg, &txn);
-    if (ret < 0) {
-      return -1;
-    }
-
-    // write the page to db
-    ret = tdbPagerWritePageToDB(pPager, pPage);
-    if (ret < 0) {
-      return -1;
-    }
-
-    tdbPCacheRelease(pPager->pCache, pPage, &txn);
-    */
     i64 offset = pPager->pageSize * (pgno - 1);
     if (tdbOsLSeek(pPager->fd, offset, SEEK_SET) < 0) {
       ASSERT(0);
@@ -522,8 +502,6 @@ int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
   }
 
   tdbOsFSync(pPager->fd);
-
-  tdbTxnClose(&txn);
 
   tdbOsFree(pageBuf);
 

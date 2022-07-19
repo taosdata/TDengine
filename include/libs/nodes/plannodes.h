@@ -26,6 +26,12 @@ extern "C" {
 
 #define SLOT_NAME_LEN TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN
 
+typedef enum EDataOrderLevel {
+  DATA_ORDER_LEVEL_NONE = 1,
+  DATA_ORDER_LEVEL_IN_BLOCK,
+  DATA_ORDER_LEVEL_IN_GROUP
+} EDataOrderLevel;
+
 typedef struct SLogicNode {
   ENodeType          type;
   SNodeList*         pTargets;  // SColumnNode
@@ -36,6 +42,8 @@ typedef struct SLogicNode {
   uint8_t            precision;
   SNode*             pLimit;
   SNode*             pSlimit;
+  EDataOrderLevel    requireDataOrder;  // requirements for input data
+  EDataOrderLevel    resultDataOrder;   // properties of the output data
 } SLogicNode;
 
 typedef enum EScanType {
@@ -78,7 +86,7 @@ typedef struct SScanLogicNode {
   SNodeList*    pGroupTags;
   bool          groupSort;
   int8_t        cacheLastMode;
-  bool          hasNormalCols; // neither tag column nor primary key tag column
+  bool          hasNormalCols;  // neither tag column nor primary key tag column
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -317,6 +325,7 @@ typedef STableScanPhysiNode SStreamScanPhysiNode;
 typedef struct SProjectPhysiNode {
   SPhysiNode node;
   SNodeList* pProjections;
+  bool       mergeDataBlock;
 } SProjectPhysiNode;
 
 typedef struct SIndefRowsFuncPhysiNode {

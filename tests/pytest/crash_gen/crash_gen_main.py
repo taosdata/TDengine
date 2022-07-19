@@ -30,6 +30,7 @@ import argparse
 import sys
 import os
 import io
+import datetime
 import signal
 import traceback
 import requests
@@ -1107,14 +1108,20 @@ class Database:
     # TODO: fix the error as result of above: "tsdb timestamp is out of range"
     @classmethod
     def setupLastTick(cls):
-        t1 = datetime.datetime(2020, 6, 1)
+        # start time will be auto generated , start at 10 years ago  local time 
+        local_time = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-16]
+        local_epoch_time = [int(i) for i in local_time.split("-")]
+        #local_epoch_time will be such as : [2022, 7, 18]
+
+        t1 = datetime.datetime(local_epoch_time[0]-5, local_epoch_time[1], local_epoch_time[2])
         t2 = datetime.datetime.now()
         # maybe a very large number, takes 69 years to exceed Python int range
         elSec = int(t2.timestamp() - t1.timestamp())
         elSec2 = (elSec % (8 * 12 * 30 * 24 * 60 * 60 / 500)) * \
             500  # a number representing seconds within 10 years
         # print("elSec = {}".format(elSec))
-        t3 = datetime.datetime(2012, 1, 1)  # default "keep" is 10 years
+
+        t3 = datetime.datetime(local_epoch_time[0]-10, local_epoch_time[1], local_epoch_time[2])  # default "keep" is 10 years
         t4 = datetime.datetime.fromtimestamp(
             t3.timestamp() + elSec2)  # see explanation above
         Logging.debug("Setting up TICKS to start from: {}".format(t4))

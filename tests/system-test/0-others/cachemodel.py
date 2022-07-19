@@ -56,6 +56,16 @@ class TDTestCase:
         }
         return numbers.get(value, 'other')
 
+    def getCacheModelNum(self,str):
+        numbers = {
+            "none" : 0,
+            "last_row" : 1,
+            "last_value" : 2,
+            "both" : 3
+
+        }
+        return numbers.get(str, 'other')
+
     def prepare_datas(self):
         for i in range(4):
             str = self.getCacheModelStr(i)
@@ -69,7 +79,7 @@ class TDTestCase:
                 tdSql.execute(" insert into tb1 values(now , %d, %f)" %(k,k*10) )
                 tdSql.execute(" insert into tb2 values(now , %d, %f)" %(k,k*10) )
 
-    def check_cache_last_sets(self):
+    def check_cachemodel_sets(self):
         
         
         # check cache_last value for database 
@@ -84,52 +94,54 @@ class TDTestCase:
             # print(cache_last_value)
             if dbname in ["information_schema" , "performance_schema"]:
                 continue
-            cache_lasts[dbname]=cache_last_value
+            cache_lasts[dbname]=self.getCacheModelNum(cache_last_value)
 
         
         # cache_last_set value 
         for k , v in cache_lasts.items():
             
-            if k=="testdb_"+str(v):
-                tdLog.info(" database %s cache_last value check pass, value is %s "%(k,v) )
+            if k=="testdb_"+str(self.getCacheModelStr(v)):
+                tdLog.info(" database %s cache_last value check pass, value is %s "%(k,self.getCacheModelStr(v)) )
             else:
-                tdLog.exit(" database %s cache_last value check fail, value is %s "%(k,v) )
+                tdLog.exit(" database %s cache_last value check fail, value is %s "%(k,self.getCacheModelStr(v)) )
 
         # # check storage layer implementation
 
 
-        # buildPath = self.getBuildPath()
-        # if (buildPath == ""):
-        #     tdLog.exit("taosd not found!")
-        # else:
-        #     tdLog.info("taosd found in %s" % buildPath)
-        # dataPath = buildPath + "/../sim/dnode1/data"
-        # abs_vnodePath = os.path.abspath(dataPath)+"/vnode/"
-        # tdLog.info("abs_vnodePath: %s" % abs_vnodePath)
+        buildPath = self.getBuildPath()
+        if (buildPath == ""):
+            tdLog.exit("taosd not found!")
+        else:
+            tdLog.info("taosd found in %s" % buildPath)
+        dataPath = buildPath + "/../sim/dnode1/data"
+        abs_vnodePath = os.path.abspath(dataPath)+"/vnode/"
+        tdLog.info("abs_vnodePath: %s" % abs_vnodePath)
         
-        # tdSql.query(" show dnodes ")
-        # dnode_id  = tdSql.queryResult[0][0]
+        tdSql.query(" show dnodes ")
+        dnode_id  = tdSql.queryResult[0][0]
 
-        # for dbname in cache_lasts.keys():
-        #     print(dbname)
-        #     tdSql.execute(" use %s" % dbname)
-        #     tdSql.query(" show vgroups ")
-        #     vgroups_infos = tdSql.queryResult
-        #     for vgroup_info in vgroups_infos:
-        #         vnode_json = abs_vnodePath + "/vnode" +f"{vgroup_info[0]}/" + "vnode.json"
-        #         vnode_info_of_db = f"cat {vnode_json}" 
-        #         vnode_info = subprocess.check_output(vnode_info_of_db, shell=True).decode("utf-8")
-        #         infoDict = json.loads(vnode_info)
-        #         vnode_json_of_dbname = f"{dnode_id}."+ dbname
-        #         config = infoDict["config"]
-        #         if infoDict["config"]["dbname"] == vnode_json_of_dbname:
-        #             if "cachelast" in infoDict["config"]:
-        #                 if int(infoDict["config"]["cachelast"]) != cache_lasts[dbname]:
-        #                     tdLog.exit("cachelast value is error in vnode.json of vnode%d "%(vgroup_info[0]))
-        #             else:
-        #                 tdLog.exit("cachelast not found in vnode.json of vnode%d "%(vgroup_info[0]))
+        for dbname in cache_lasts.keys():
+            # print(dbname)
+            tdSql.execute(" use %s" % dbname)
+            tdSql.query(" show vgroups ")
+            vgroups_infos = tdSql.queryResult
+            for vgroup_info in vgroups_infos:
+                vnode_json = abs_vnodePath + "/vnode" +f"{vgroup_info[0]}/" + "vnode.json"
+                vnode_info_of_db = f"cat {vnode_json}" 
+                vnode_info = subprocess.check_output(vnode_info_of_db, shell=True).decode("utf-8")
+                infoDict = json.loads(vnode_info)
+                vnode_json_of_dbname = f"{dnode_id}."+ dbname
+                config = infoDict["config"]
+                if infoDict["config"]["dbname"] == vnode_json_of_dbname:
+                    if "cacheLast" in infoDict["config"]:
+                        if int(infoDict["config"]["cacheLast"]) != cache_lasts[dbname]:
+                            tdLog.exit("cachemodel value is error in vnode.json of vnode%d "%(vgroup_info[0]))
+                        else:
+                            tdLog.info("cachemodel value is success in vnode.json of vnode%d "%(vgroup_info[0]))
+                    else:
+                        tdLog.exit("cacheLast not found in vnode.json of vnode%d "%(vgroup_info[0]))
 
-    def restart_check_cache_last_sets(self):
+    def restart_check_cachemodel_sets(self):
         
         for i in range(3):
             tdSql.query("show dnodes")
@@ -137,14 +149,14 @@ class TDTestCase:
             tdDnodes.stop(index)
             tdDnodes.start(index)
             time.sleep(3)
-            self.check_cache_last_sets()
+            self.check_cachemodel_sets()
 
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         self.illegal_params()
         self.prepare_datas()
-        self.check_cache_last_sets()
-        self.restart_check_cache_last_sets()
+        self.check_cachemodel_sets()
+        self.restart_check_cachemodel_sets()
        
     def stop(self):
         tdSql.close()

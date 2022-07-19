@@ -1497,9 +1497,8 @@ static void destroyStreamScanOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFree(pStreamScan);
 }
 
-SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode,
-                                            SExecTaskInfo* pTaskInfo, STimeWindowAggSupp* pTwSup, uint64_t queryId,
-                                            uint64_t taskId) {
+SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
+                                            SExecTaskInfo* pTaskInfo, STimeWindowAggSupp* pTwSup) {
   SStreamScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamScanInfo));
   SOperatorInfo*   pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
 
@@ -1511,6 +1510,8 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   SScanPhysiNode* pScanPhyNode = &pTableScanNode->scan;
 
   SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
+
+  pInfo->pTagCond = pTagCond;
 
   int32_t numOfCols = 0;
   pInfo->pColMatchInfo = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
@@ -2567,26 +2568,19 @@ typedef struct STableMergeScanInfo {
   int32_t         tableEndIndex;
   bool            hasGroupId;
   uint64_t        groupId;
+  SArray*         dataReaders;  // array of tsdbReaderT*
+  SReadHandle     readHandle;
+  int32_t         bufPageSize;
+  uint32_t        sortBufSize;  // max buffer size for in-memory sort
+  SArray*         pSortInfo;
+  SSortHandle*    pSortHandle;
 
-  SArray*     dataReaders;  // array of tsdbReaderT*
-  SReadHandle readHandle;
-
-  int32_t  bufPageSize;
-  uint32_t sortBufSize;  // max buffer size for in-memory sort
-
-  SArray*      pSortInfo;
-  SSortHandle* pSortHandle;
-
-  SSDataBlock* pSortInputBlock;
-  int64_t      startTs;  // sort start time
-
-  SArray*  sortSourceParams;
-  uint64_t queryId;
-  uint64_t taskId;
+  SSDataBlock*    pSortInputBlock;
+  int64_t         startTs;  // sort start time
+  SArray*         sortSourceParams;
 
   SFileBlockLoadRecorder readRecorder;
-  int64_t                numOfRows;
-  //  int32_t         prevGroupId;  // previous table group id
+  int64_t         numOfRows;
   SScanInfo       scanInfo;
   int32_t         scanTimes;
   SNode*          pFilterNode;  // filter info, which is push down by optimizer
@@ -2601,26 +2595,25 @@ typedef struct STableMergeScanInfo {
   SExprInfo*      pPseudoExpr;
   int32_t         numOfPseudoExpr;
   SqlFunctionCtx* pPseudoCtx;
-  //  int32_t*        rowEntryInfoOffset;
 
   SQueryTableDataCond cond;
-  int32_t             scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
-  int32_t             dataBlockLoadFlag;
-  SInterval interval;  // if the upstream is an interval operator, the interval info is also kept here to get the time
-                       // window to check if current data block needs to be loaded.
-
+  int32_t         scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
+  int32_t         dataBlockLoadFlag;
+  // if the upstream is an interval operator, the interval info is also kept here to get the time
+  // window to check if current data block needs to be loaded.
+  SInterval       interval;
   SSampleExecInfo sample;  // sample execution info
 } STableMergeScanInfo;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
-                                STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId) {
-  int32_t code = getTableList(pHandle->meta, pHandle->vnode, pScanNode, pTableListInfo);
+                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond, const char* idStr) {
+  int32_t code = getTableList(pHandle->meta, pHandle->vnode, pScanNode, pTagCond, pTagIndexCond, pTableListInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
   if (taosArrayGetSize(pTableListInfo->pTableList) == 0) {
-    qDebug("no table qualified for query, TID:0x%" PRIx64 ", QID:0x%" PRIx64, taskId, queryId);
+    qDebug("no table qualified for query, %s" PRIx64, idStr);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -3044,8 +3037,7 @@ int32_t compareTableKeyInfoByGid(const void* p1, const void* p2) {
 }
 
 SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, STableListInfo* pTableListInfo,
-                                                SReadHandle* readHandle, SExecTaskInfo* pTaskInfo, uint64_t queryId,
-                                                uint64_t taskId) {
+                                                SReadHandle* readHandle, SExecTaskInfo* pTaskInfo) {
   STableMergeScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableMergeScanInfo));
   SOperatorInfo*       pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -3084,9 +3076,6 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   pInfo->pResBlock = createResDataBlock(pDescNode);
   pInfo->dataReaders = taosArrayInit(64, POINTER_BYTES);
-  pInfo->queryId = queryId;
-  pInfo->taskId = taskId;
-
   pInfo->sortSourceParams = taosArrayInit(64, sizeof(STableMergeScanSortSourceParam));
 
   pInfo->pSortInfo = generateSortByTsInfo(pInfo->pColMatchInfo, pInfo->cond.order);
