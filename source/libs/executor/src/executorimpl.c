@@ -1337,7 +1337,9 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   if (pFilterNode == NULL) {
     return;
   }
-
+  if (pBlock->info.rows == 0) {
+    return;
+  }
   SFilterInfo* filter = NULL;
 
   // todo move to the initialization function
