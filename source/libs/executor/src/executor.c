@@ -104,7 +104,7 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
   return code;
 }
 
-qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers) {
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols) {
   if (msg == NULL) {
     // TODO create raw scan
     return NULL;
@@ -124,6 +124,19 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers) {
     terrno = code;
     return NULL;
   }
+
+  // extract the number of output columns
+  SDataBlockDescNode* pDescNode = plan->pNode->pOutputDataBlockDesc;
+  *numOfCols = 0;
+
+  SNode*  pNode;
+  FOREACH(pNode, pDescNode->pSlots) {
+    SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
+    if (pSlotDesc->output) {
+      ++(*numOfCols);
+    }
+  }
+
 
   return pTaskInfo;
 }

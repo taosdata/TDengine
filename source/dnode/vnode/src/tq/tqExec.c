@@ -15,7 +15,7 @@
 
 #include "tq.h"
 
-static int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp) {
+static int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols) {
   int32_t dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
   void*   buf = taosMemoryCalloc(1, dataStrLen);
   if (buf == NULL) return -1;
@@ -29,7 +29,7 @@ static int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp) 
 
   // TODO enable compress
   int32_t actualLen = 0;
-  blockEncode(pBlock, pRetrieve->data, &actualLen, taosArrayGetSize(pBlock->pDataBlock), false);
+  blockEncode(pBlock, pRetrieve->data, &actualLen, numOfCols, false);
   actualLen += sizeof(SRetrieveTableRsp);
   ASSERT(actualLen <= dataStrLen);
   taosArrayPush(pRsp->blockDataLen, &actualLen);
@@ -87,7 +87,7 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVa
     tqDebug("task execute end, get %p", pDataBlock);
 
     if (pDataBlock != NULL) {
-      tqAddBlockDataToRsp(pDataBlock, pRsp);
+      tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols);
       pRsp->blockNum++;
       if (pRsp->withTbName) {
         if (pOffset->type == TMQ_OFFSET__LOG) {
@@ -195,7 +195,7 @@ int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataR
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;
         ASSERT(0);
       }
-      tqAddBlockDataToRsp(&block, pRsp);
+      tqAddBlockDataToRsp(&block, pRsp, taosArrayGetSize(block.pDataBlock));
       if (pRsp->withTbName) {
         int64_t uid = pExec->pExecReader[workerId]->msgIter.uid;
         tqAddTbNameToRsp(pTq, uid, pRsp);
@@ -213,7 +213,7 @@ int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataR
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;
         ASSERT(0);
       }
-      tqAddBlockDataToRsp(&block, pRsp);
+      tqAddBlockDataToRsp(&block, pRsp, taosArrayGetSize(block.pDataBlock));
       if (pRsp->withTbName) {
         int64_t uid = pExec->pExecReader[workerId]->msgIter.uid;
         tqAddTbNameToRsp(pTq, uid, pRsp);

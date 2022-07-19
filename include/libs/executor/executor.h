@@ -63,7 +63,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers);
  * @param SReadHandle
  * @return
  */
-qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers);
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols);
 
 /**
  * Set the input data block for the stream scan.
