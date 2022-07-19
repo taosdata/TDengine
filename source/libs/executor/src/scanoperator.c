@@ -1224,42 +1224,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   return 0;
 }
 
-// todo opt perf
-static SSDataBlock* doDropInvisibleCol(SSDataBlock* pBlock, SArray* pColMatchInfo) {
-  size_t numOfMatchInfo = taosArrayGetSize(pColMatchInfo);
-
-  bool ignoreCols = false;
-  for (int32_t j = 0; j < numOfMatchInfo; ++j) {
-    SColMatchInfo* pInfo = taosArrayGet(pColMatchInfo, j);
-    if (!pInfo->output) {
-      ignoreCols = true;
-      break;
-    }
-  }
-
-  SSDataBlock* pRes = createOneDataBlock(pBlock, true);
-  if (ignoreCols) {
-    int32_t i = 0;
-    while(i < taosArrayGetSize(pRes->pDataBlock)) {
-      SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
-      for (int32_t j = 0; j < numOfMatchInfo; ++j) {
-        SColMatchInfo* pInfo = taosArrayGet(pColMatchInfo, j);
-        if (pInfo->colId == pCol->info.colId && !pInfo->output) {
-          taosArrayRemove(pBlock->pDataBlock, i);
-          i -= 1;
-          break;
-        }
-      }
-
-      i += 1;
-    }
-  }
-
-  pRes->info.rows = pBlock->info.rows;
-  return pRes;
-}
-
-static SSDataBlock* doStreamScanImpl(SOperatorInfo* pOperator) {
+static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   // NOTE: this operator does never check if current status is done or not
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
   SStreamScanInfo* pInfo = pOperator->info;
@@ -1475,16 +1440,6 @@ static SSDataBlock* doStreamScanImpl(SOperatorInfo* pOperator) {
 
   } else {
     ASSERT(0);
-    return NULL;
-  }
-}
-
-static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
-  SSDataBlock* pBlock = doStreamScanImpl(pOperator);
-  if (pBlock != NULL) {
-    SStreamScanInfo* pInfo = (SStreamScanInfo*) pOperator->info;
-    return doDropInvisibleCol(pInfo->pRes, pInfo->pColMatchInfo);
-  } else {
     return NULL;
   }
 }
