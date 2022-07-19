@@ -793,6 +793,9 @@ typedef struct {
   TSDBROW         memRow, imemRow, fsRow;
 
   TsdbNextRowState input[3];
+  SMemTable       *pMemTable;
+  SMemTable       *pIMemTable;
+  STsdb           *pTsdb;
 } CacheNextRowIter;
 
 static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTsdb) {
@@ -800,15 +803,19 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 
   tb_uid_t suid = getTableSuidByUid(uid, pTsdb);
 
+  tsdbTakeMemSnapshot(pTsdb, &pIter->pMemTable, &pIter->pIMemTable);
+
   STbData *pMem = NULL;
-  if (pTsdb->mem) {
-    tsdbGetTbDataFromMemTable(pTsdb->mem, suid, uid, &pMem);
+  if (pIter->pMemTable) {
+    tsdbGetTbDataFromMemTable(pIter->pMemTable, suid, uid, &pMem);
   }
 
   STbData *pIMem = NULL;
-  if (pTsdb->imem) {
-    tsdbGetTbDataFromMemTable(pTsdb->imem, suid, uid, &pIMem);
+  if (pIter->pIMemTable) {
+    tsdbGetTbDataFromMemTable(pIter->pIMemTable, suid, uid, &pIMem);
   }
+
+  pIter->pTsdb = pTsdb;
 
   pIter->pSkyline = taosArrayInit(32, sizeof(TSDBKEY));
 
@@ -877,6 +884,8 @@ static int32_t nextRowIterClose(CacheNextRowIter *pIter) {
   if (pIter->pSkyline) {
     taosArrayDestroy(pIter->pSkyline);
   }
+
+  tsdbUntakeMemSnapshot(pIter->pTsdb, pIter->pMemTable, pIter->pIMemTable);
 
   return code;
 _err:
