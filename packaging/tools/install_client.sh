@@ -140,6 +140,7 @@ function install_lib() {
         if [ -d "${lib64_link_dir}" ]; then
             ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1       || :
             ${csudo}ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so               || :
+
             [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -s ${install_main_dir}/driver/libtaosws.so ${lib64_link_dir}/libtaosws.so       || :
         fi
     else
@@ -162,6 +163,8 @@ function install_header() {
     ${csudo}ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
     ${csudo}ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
     ${csudo}ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
+
+    [ -f ${install_main_dir}/include/taosws.h ] && ${csudo}ln -s ${install_main_dir}/include/taosws.h ${inc_link_dir}/taos.h
 }
 
 function install_jemalloc() {
