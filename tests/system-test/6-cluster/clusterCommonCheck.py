@@ -89,7 +89,7 @@ class ClusterComCheck:
             # print(query_status)
             count+=1
             if query_status == dbNumbers:
-                tdLog.success("we find cluster with %d dnode and check all databases  are ready within 5s! " %dbNumbers)
+                tdLog.success(" check %d database and  all databases  are ready within 5s! " %dbNumbers)
                 return True
         else:
             tdLog.debug(tdSql.queryResult)

@@ -91,7 +91,6 @@ _return:
   tsem_post(&pInserter->ready);
 
   taosMemoryFree(pMsg->pData);
-  taosMemoryFree(param);
   
   return TSDB_CODE_SUCCESS;
 }
@@ -110,6 +109,7 @@ static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, SSubmitReq* pMs
   pParam->pInserter = pInserter;
 
   pMsgSendInfo->param = pParam;
+  pMsgSendInfo->paramFreeFp = taosMemoryFree;        
   pMsgSendInfo->msgInfo.pData = pMsg;
   pMsgSendInfo->msgInfo.len = ntohl(pMsg->length);
   pMsgSendInfo->msgType = TDMT_VND_SUBMIT;
