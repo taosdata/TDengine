@@ -1429,8 +1429,9 @@ static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
 
   for (int32_t i = 0; i < numOfParams; ++i) {
+    uint8_t nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, i));
     uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
-    if (IS_NULL_TYPE(paraType)) {
+    if (IS_NULL_TYPE(paraType) && QUERY_NODE_VALUE == nodeType) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
@@ -1447,8 +1448,9 @@ static int32_t translateFirstLastImpl(SFunctionNode* pFunc, char* pErrBuf, int32
   if (isPartial) {
     int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
     for (int32_t i = 0; i < numOfParams; ++i) {
+      uint8_t nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, i));
       uint8_t pType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
-      if (IS_NULL_TYPE(pType)) {
+      if (IS_NULL_TYPE(pType) && QUERY_NODE_VALUE == nodeType) {
         return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
       }
     }
