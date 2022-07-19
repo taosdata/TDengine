@@ -2143,6 +2143,12 @@ static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubp
   }
 
   pScanNode->scanType = SCAN_TYPE_TAG;
+  SLogicNode* pAgg = pScanNode->node.pParent;
+  int32_t code = replaceLogicNode(pLogicSubplan, pAgg, (SLogicNode*)pScanNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    NODES_CLEAR_LIST(pAgg->pChildren);
+  }
+  nodesDestroyNode((SNode*)pAgg);
   pCxt->optimized = true;
   return TSDB_CODE_SUCCESS;
 }
