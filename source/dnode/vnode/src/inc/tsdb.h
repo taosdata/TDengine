@@ -174,6 +174,10 @@ void    tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg);
 int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
 void    tsdbMemTableDestroy(SMemTable *pMemTable);
 void    tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData);
+void    tsdbRefMemTable(SMemTable *pMemTable);
+void    tsdbUnrefMemTable(SMemTable *pMemTable);
+int32_t tsdbTakeMemSnapshot(STsdb *pTsdb, SMemTable **ppMem, SMemTable **ppIMem);
+void    tsdbUntakeMemSnapshot(STsdb *pTsdb, SMemTable *pMem, SMemTable *pIMem);
 // STbDataIter
 int32_t  tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
 void    *tsdbTbDataIterDestroy(STbDataIter *pIter);
@@ -273,16 +277,14 @@ typedef struct {
 } SRtn;
 
 struct STsdb {
-  char         *path;
-  SVnode       *pVnode;
-  TdThreadMutex mutex;
-  bool          repoLocked;
-  STsdbKeepCfg  keepCfg;
-  SMemTable    *mem;
-  SMemTable    *imem;
-  SRtn          rtn;
-  STsdbFS      *fs;
-  SLRUCache    *lruCache;
+  char          *path;
+  SVnode        *pVnode;
+  TdThreadRwlock rwLock;
+  STsdbKeepCfg   keepCfg;
+  SMemTable     *mem;
+  SMemTable     *imem;
+  STsdbFS       *pFS;
+  SLRUCache     *lruCache;
 };
 
 struct STable {
@@ -330,20 +332,18 @@ struct STbData {
 };
 
 struct SMemTable {
-  SRWLatch latch;
-  STsdb   *pTsdb;
-  int32_t  nRef;
-  TSKEY    minKey;
-  TSKEY    maxKey;
-  int64_t  minVersion;
-  int64_t  maxVersion;
-  int64_t  nRow;
-  int64_t  nDel;
-  SArray  *aTbData;  // SArray<STbData*>
+  SRWLatch         latch;
+  STsdb           *pTsdb;
+  SVBufPool       *pPool;
+  volatile int32_t nRef;
+  TSKEY            minKey;
+  TSKEY            maxKey;
+  int64_t          minVersion;
+  int64_t          maxVersion;
+  int64_t          nRow;
+  int64_t          nDel;
+  SArray          *aTbData;  // SArray<STbData*>
 };
-
-int tsdbLockRepo(STsdb *pTsdb);
-int tsdbUnlockRepo(STsdb *pTsdb);
 
 struct TSDBROW {
   int8_t type;  // 0 for row from tsRow, 1 for row from block data

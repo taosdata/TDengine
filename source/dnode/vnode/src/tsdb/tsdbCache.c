@@ -464,7 +464,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
 
   switch (state->state) {
     case SFSNEXTROW_FS:
-      state->aDFileSet = state->pTsdb->fs->cState->aDFileSet;
+      state->aDFileSet = state->pTsdb->pFS->cState->aDFileSet;
       state->nFileSet = taosArrayGetSize(state->aDFileSet);
       state->iFileSet = state->nFileSet;
 
@@ -814,7 +814,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 
   SDelIdx delIdx;
 
-  SDelFile *pDelFile = tsdbFSStateGetDelFile(pTsdb->fs->cState);
+  SDelFile *pDelFile = tsdbFSStateGetDelFile(pTsdb->pFS->cState);
   if (pDelFile) {
     SDelFReader *pDelFReader;
 
@@ -1189,7 +1189,7 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, STSRow **ppRo
 
   SDelIdx delIdx;
 
-  SDelFile *pDelFile = tsdbFSStateGetDelFile(pTsdb->fs->cState);
+  SDelFile *pDelFile = tsdbFSStateGetDelFile(pTsdb->pFS->cState);
   if (pDelFile) {
     SDelFReader *pDelFReader;
 
@@ -1377,7 +1377,7 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
 
   SDelIdx delIdx;
 
-  SDelFile *pDelFile = tsdbFSStateGetDelFile(pTsdb->fs->cState);
+  SDelFile *pDelFile = tsdbFSStateGetDelFile(pTsdb->pFS->cState);
   if (pDelFile) {
     SDelFReader *pDelFReader;
 
