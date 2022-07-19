@@ -936,6 +936,9 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
   pVal->node.resType = targetDt;
   pVal->node.resType.scale = pVal->unit;
   pVal->translate = true;
+  if (!strict && TSDB_DATA_TYPE_UBIGINT == pVal->node.resType.type && pVal->datum.u <= INT64_MAX) {
+    pVal->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  }
   return res;
 }
 

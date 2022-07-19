@@ -1034,7 +1034,7 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
     // param1 ~ param3
     if (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type != TSDB_DATA_TYPE_BINARY ||
         ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_BINARY ||
-        ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type != TSDB_DATA_TYPE_BIGINT) {
+        !IS_INTEGER_TYPE(((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
 

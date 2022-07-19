@@ -2380,7 +2380,8 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
 
 int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SVariant* pVal = &pCtx->param[1].param;
-  double    v = (pVal->nType == TSDB_DATA_TYPE_BIGINT) ? pVal->i : pVal->d;
+  double    v =
+      (IS_SIGNED_NUMERIC_TYPE(pVal->nType) ? pVal->i : (IS_UNSIGNED_NUMERIC_TYPE(pVal->nType) ? pVal->u : pVal->d));
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo*     ppInfo = (SPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
