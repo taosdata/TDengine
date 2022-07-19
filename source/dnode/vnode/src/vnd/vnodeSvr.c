@@ -557,6 +557,7 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pRe
   SVDropStbReq req = {0};
   int32_t      rcode = TSDB_CODE_SUCCESS;
   SDecoder     decoder = {0};
+  SArray      *tbUidList = NULL;
 
   pRsp->msgType = TDMT_VND_CREATE_STB_RSP;
   pRsp->pCont = NULL;
@@ -570,7 +571,14 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pRe
   }
 
   // process request
-  if (metaDropSTable(pVnode->pMeta, version, &req) < 0) {
+  tbUidList = taosArrayInit(8, sizeof(int64_t));
+  if (tbUidList == NULL) goto _exit;
+  if (metaDropSTable(pVnode->pMeta, version, &req, tbUidList) < 0) {
+    rcode = terrno;
+    goto _exit;
+  }
+
+  if (tqUpdateTbUidList(pVnode->pTq, tbUidList, false) < 0) {
     rcode = terrno;
     goto _exit;
   }
@@ -582,6 +590,7 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pRe
 
   // return rsp
 _exit:
+  if (tbUidList) taosArrayDestroy(tbUidList);
   pRsp->code = rcode;
   tDecoderClear(&decoder);
   return 0;
