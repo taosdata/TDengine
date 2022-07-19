@@ -5098,12 +5098,7 @@ bool modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   return true;
 }
 
-static void doModeAdd(SModeInfo* pInfo, char* data, bool isNull) {
-  // ignore null elements
-  if (isNull) {
-    return;
-  }
-
+static void doModeAdd(SModeInfo* pInfo, char* data) {
   int32_t     hashKeyBytes = IS_VAR_DATA_TYPE(pInfo->colType) ? varDataTLen(data) : pInfo->colBytes;
   SModeItem** pHashItem = taosHashGet(pInfo->pHash, data, hashKeyBytes);
   if (pHashItem == NULL) {
@@ -5128,10 +5123,16 @@ int32_t modeFunction(SqlFunctionCtx* pCtx) {
   SColumnInfoData* pInputCol = pInput->pData[0];
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
 
+  int32_t numOfElems = 0;
   int32_t startOffset = pCtx->offset;
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
     char* data = colDataGetData(pInputCol, i);
-    doModeAdd(pInfo, data, colDataIsNull_s(pInputCol, i));
+    if (colDataIsNull_s(pInputCol, i)) {
+      continue;
+    }
+
+    numOfElems++;
+    doModeAdd(pInfo, data);
 
     if (sizeof(SModeInfo) + pInfo->numOfPoints * (sizeof(SModeItem) + pInfo->colBytes) >= MODE_MAX_RESULT_SIZE) {
       taosHashCleanup(pInfo->pHash);
@@ -5139,7 +5140,7 @@ int32_t modeFunction(SqlFunctionCtx* pCtx) {
     }
   }
 
-  SET_VAL(pResInfo, 1, 1);
+  SET_VAL(pResInfo, numOfElems, 1);
 
   return TSDB_CODE_SUCCESS;
 }
