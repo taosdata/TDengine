@@ -201,7 +201,8 @@ static int32_t calcConstProject(SNode* pProject, bool dual, SNode** pNew) {
 }
 
 static bool isUselessCol(SExprNode* pProj) {
-  if (QUERY_NODE_FUNCTION == nodeType(pProj) && !fmIsScalarFunc(((SFunctionNode*)pProj)->funcId)) {
+  if (QUERY_NODE_FUNCTION == nodeType(pProj) && !fmIsScalarFunc(((SFunctionNode*)pProj)->funcId) &&
+      !fmIsPseudoColumnFunc(((SFunctionNode*)pProj)->funcId)) {
     return false;
   }
   return NULL == ((SExprNode*)pProj)->pAssociation;
