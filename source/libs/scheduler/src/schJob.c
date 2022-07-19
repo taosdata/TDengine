@@ -719,7 +719,9 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
 
   pJob->attr.explainMode = pReq->pDag->explainInfo.mode;
   pJob->conn = *pReq->pConn;
-  pJob->sql = strdup(pReq->sql);
+  if (pReq->sql) {
+    pJob->sql = strdup(pReq->sql);
+  }
   pJob->pDag = pReq->pDag;
   pJob->chkKillFp = pReq->chkKillFp;
   pJob->chkKillParam = pReq->chkKillParam;

@@ -91,7 +91,6 @@ _return:
   tsem_post(&pInserter->ready);
 
   taosMemoryFree(pMsg->pData);
-  taosMemoryFree(param);
   
   return TSDB_CODE_SUCCESS;
 }
