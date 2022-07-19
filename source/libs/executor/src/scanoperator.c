@@ -2020,8 +2020,8 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
         uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
         int32_t  code = metaGetTableEntryByUid(&mr, suid);
         if (code != TSDB_CODE_SUCCESS) {
-          qError("failed to get super table meta, uid:0x%" PRIx64 ", code:%s, %s", suid, tstrerror(terrno),
-                 GET_TASKID(pTaskInfo));
+          qError("failed to get super table meta, cname:%s, suid:0x%" PRIx64 ", code:%s, %s", 
+                 pInfo->pCur->mr.me.name, suid, tstrerror(terrno), GET_TASKID(pTaskInfo));
           metaReaderClear(&mr);
           metaCloseTbCursor(pInfo->pCur);
           pInfo->pCur = NULL;
