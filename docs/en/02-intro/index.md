@@ -3,7 +3,7 @@ title: Introduction
 toc_max_heading_level: 2
 ---
 
-TDengine is a high-performance, scalable time-series database with SQL support. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](/develop/cache), [stream processing](/develop/continuous-query), [data subscription](/develop/subscribe)  and other functionalities to reduce the complexity and cost of development and operation.
+TDengine is a high-performance, scalable [time-series database](https://tdengine.com/tsdb) with SQL support. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](/develop/cache), [stream processing](/develop/continuous-query), [data subscription](/develop/subscribe)  and other functionalities to reduce the complexity and cost of development and operation.
 
 This section introduces the major features, competitive advantages, typical use-cases and benchmarks to help you get a high level overview of TDengine.
 
