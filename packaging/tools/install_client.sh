@@ -135,7 +135,7 @@ function install_lib() {
         ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
         ${csudo}ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
 
-        [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -s ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so
+        [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -s ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so ||:
 
         if [ -d "${lib64_link_dir}" ]; then
             ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1       || :
@@ -147,7 +147,7 @@ function install_lib() {
         ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
         ${csudo}ln -s ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
 
-        [ -f ${install_main_dir}/driver/libtaosws.dylib ] && ${csudo}ln -s ${install_main_dir}/driver/libtaosws.dylib ${lib_link_dir}/libtaosws.dylib
+        [ -f ${install_main_dir}/driver/libtaosws.dylib ] && ${csudo}ln -s ${install_main_dir}/driver/libtaosws.dylib ${lib_link_dir}/libtaosws.dylib ||:
     fi
 
     if [ "$osType" != "Darwin" ]; then
@@ -165,7 +165,7 @@ function install_header() {
     ${csudo}ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
     ${csudo}ln -s ${install_main_dir}/include/taosudf.h ${inc_link_dir}/taosudf.h    
 
-    [ -f ${install_main_dir}/include/taosws.h ] && ${csudo}ln -s ${install_main_dir}/include/taosws.h ${inc_link_dir}/taos.h
+    [ -f ${install_main_dir}/include/taosws.h ] && ${csudo}ln -s ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h ||:
 }
 
 function install_jemalloc() {
