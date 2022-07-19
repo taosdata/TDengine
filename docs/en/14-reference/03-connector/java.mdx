@@ -203,8 +203,8 @@ The configuration parameters in the URL are as follows.
 - charset: specify the charset to parse the string, this parameter is valid only when set batchfetch to true.
 - batchErrorIgnore: true: when executing executeBatch of Statement, if one SQL execution fails in the middle, continue to execute the following SQL. false: no longer execute any statement after the failed SQL. The default value is: false.
 - httpConnectTimeout: REST connection timeout in milliseconds, the default value is 5000 ms.
-- httpSocketTimeout: socket timeout in milliseconds, the default value is 5000 ms. only takes effect when batchfetch is false.
-- messageWaitTimeout: message transmission timeout in milliseconds, the default value is 3000 ms. only takes effect when batchfetch is true.
+- httpSocketTimeout: socket timeout in milliseconds, the default value is 5000 ms. It only takes effect when batchfetch is false.
+- messageWaitTimeout: message transmission timeout in milliseconds, the default value is 3000 ms. It only takes effect when batchfetch is true.
 - useSSL: connecting Securely Using SSL. true: using SSL conneciton, false: not using SSL connection.
 
 **Note**: Some configuration items (e.g., locale, timezone) do not work in the REST connection.
@@ -269,10 +269,10 @@ The configuration parameters in properties are as follows.
 - TSDBDriver.PROPERTY_KEY_CHARSET: In the character set used by the client, the default value is the system character set.
 - TSDBDriver.PROPERTY_KEY_LOCALE: this only takes effect when using JDBC native connection. Client language environment, the default value is system current locale.
 - TSDBDriver.PROPERTY_KEY_TIME_ZONE: only takes effect when using JDBC native connection. In the time zone used by the client, the default value is the system's current time zone.
-- TSDBDriver.HTTP_CONNECT_TIMEOUT: REST connection timeout in milliseconds, the default value is 5000 ms. only takes effect when using JDBC REST connection.
-- TSDBDriver.HTTP_SOCKET_TIMEOUT: socket timeout in milliseconds, the default value is 5000 ms. only takes effect when using JDBC REST connection and batchfetch is false.
-- TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: message transmission timeout in milliseconds, the default value is 3000 ms. only takes effect when using JDBC REST connection and batchfetch is true.
-- TSDBDriver.PROPERTY_KEY_USE_SSL: connecting Securely Using SSL. true: using SSL conneciton, false: not using SSL connection. only takes effect when using using JDBC REST connection.
+- TSDBDriver.HTTP_CONNECT_TIMEOUT: REST connection timeout in milliseconds, the default value is 5000 ms. It only takes effect when using JDBC REST connection.
+- TSDBDriver.HTTP_SOCKET_TIMEOUT: socket timeout in milliseconds, the default value is 5000 ms. It only takes effect when using JDBC REST connection and batchfetch is false.
+- TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: message transmission timeout in milliseconds, the default value is 3000 ms. It only takes effect when using JDBC REST connection and batchfetch is true.
+- TSDBDriver.PROPERTY_KEY_USE_SSL: connecting Securely Using SSL. true: using SSL conneciton, false: not using SSL connection. It only takes effect when using using JDBC REST connection.
   For JDBC native connections, you can specify other parameters, such as log level, SQL length, etc., by specifying URL and Properties. For more detailed configuration, please refer to [Client Configuration](/reference/config/#Client-Only).
 
 ### Priority of configuration parameters
