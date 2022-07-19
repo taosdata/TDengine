@@ -201,6 +201,10 @@ url 中的配置参数如下：
 - batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。逐行拉取结果集使用 HTTP 方式进行数据传输。从 taos-jdbcdriver-2.0.38 和 TDengine 2.4.0.12 版本开始，JDBC REST 连接增加批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输。相较于 HTTP，WebSocket 可以使 JDBC REST 连接支持大数据量查询，并提升查询性能。
 - charset: 当开启批量拉取数据时，指定解析字符串数据的字符集。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
+- httpConnectTimeout: 连接超时时间，单位 ms， 默认值为 5000。
+- httpSocketTimeout: socket 超时时间，单位 ms，默认值为 5000。仅在 batchfetch 设置为 false 时生效。
+- messageWaitTimeout: 消息超时时间, 单位 ms， 默认值为 3000。 仅在 batchfetch 设置为 true 时生效。
+- useSSL: 连接中是否使用 SSL。
 
 **注意**：部分配置项（比如：locale、timezone）在 REST 连接中不生效。
 
@@ -264,7 +268,11 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_CHARSET：客户端使用的字符集，默认值为系统字符集。
 - TSDBDriver.PROPERTY_KEY_LOCALE：仅在使用 JDBC 原生连接时生效。 客户端语言环境，默认值系统当前 locale。
 - TSDBDriver.PROPERTY_KEY_TIME_ZONE：仅在使用 JDBC 原生连接时生效。 客户端使用的时区，默认值为系统当前时区。
-- 此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。更多详细配置请参考[客户端配置](/reference/config/#仅客户端适用)。
+- TSDBDriver.HTTP_CONNECT_TIMEOUT: 连接超时时间，单位 ms， 默认值为 5000。仅在 REST 连接时生效。
+- TSDBDriver.HTTP_SOCKET_TIMEOUT: socket 超时时间，单位 ms，默认值为 5000。仅在 REST 连接且 batchfetch 设置为 false 时生效。
+- TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: 消息超时时间, 单位 ms， 默认值为 3000。 仅在 REST 连接且 batchfetch 设置为 true 时生效。
+- TSDBDriver.PROPERTY_KEY_USE_SSL: 连接中是否使用 SSL。仅在 REST 连接时生效。
+  此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。更多详细配置请参考[客户端配置](/reference/config/#仅客户端适用)。
 
 ### 配置参数的优先级
 
@@ -809,6 +817,7 @@ Query OK, 1 row(s) in set (0.000141s)
 
 | taos-jdbcdriver 版本 |            主要变化            |
 | :------------------: | :----------------------------: |
+|   2.0.39 - 2.0.40    |  增加 REST 连接/请求 超时设置  |
 |        2.0.38        | JDBC REST 连接增加批量拉取功能 |
 |        2.0.37        |      增加对 json tag 支持      |
 |        2.0.36        |   增加对 schemaless 写入支持   |
