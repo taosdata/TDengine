@@ -554,7 +554,7 @@ class TDTestQuery(TDCase):
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from %s where %s %s %s order by ts " %(self.table_null,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "(select * from %s where %s %s %s order by ts) " %(self.table_null,qt_where,qt_like_match,qt_in_where)
                         sql2 += " union all select * from %s where tbname in ('%s_1') and  %s %s %s order by ts limit 10 offset 5" %(self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         rows = self.tdSql.query(sql1).row_count 
                         self.tdCreateData.data_matrix_equal('%s' %sql1 , 1, rows, 1, 2,'%s' %sql2 , 1, rows//10, 1, 2)
@@ -691,30 +691,30 @@ class TDTestQuery(TDCase):
         
         self.data_create(self.db)
            
-        startTime1 = time.time()
-        self.data_create(self.db_1)
-        self.right_case1()
-        self.rm_sql_1()
-        endTime1 = time.time()       
-        self.logger.info("total time1 %d s" % (endTime1 - startTime1))
+        # startTime1 = time.time()
+        # self.data_create(self.db_1)
+        # self.right_case1()
+        # self.rm_sql_1()
+        # endTime1 = time.time()       
+        # self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
-        startTime2 = time.time()
-        self.data_create(self.db_2)
-        self.right_case2()
-        self.rm_sql_2()
-        endTime2 = time.time()       
-        self.logger.info("total time2 %d s" % (endTime2 - startTime2))
+        # startTime2 = time.time()
+        # self.data_create(self.db_2)
+        # self.right_case2()
+        # self.rm_sql_2()
+        # endTime2 = time.time()       
+        # self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
-        startTime3 = time.time()
-        self.data_create(self.db_3) 
-        self.right_case3()
-        self.rm_sql_3()
-        endTime3 = time.time()
-        self.logger.info("total time3 %ds" % (endTime3 - startTime3))
+        # startTime3 = time.time()
+        # self.data_create(self.db_3) 
+        # self.right_case3()
+        # self.rm_sql_3()
+        # endTime3 = time.time()
+        # self.logger.info("total time3 %ds" % (endTime3 - startTime3))
 
         startTime4 = time.time()
         self.data_create(self.db_4) 
-        # self.right_case4()  #TD-16905
+        self.right_case4()  #TD-16905
         self.rm_sql_4()
         endTime4 = time.time()
         self.logger.info("total time4 %ds" % (endTime4 - startTime4))
