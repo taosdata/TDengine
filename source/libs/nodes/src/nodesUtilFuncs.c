@@ -1919,15 +1919,18 @@ int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** 
     return partitionLogicCond(pCondition, pPrimaryKeyCond, pTagIndexCond, pTagCond, pOtherCond);
   }
 
+  bool needOutput = false;
   switch (classifyCondition(*pCondition)) {
     case COND_TYPE_PRIMARY_KEY:
       if (NULL != pPrimaryKeyCond) {
         *pPrimaryKeyCond = *pCondition;
+        needOutput = true;
       }
       break;
     case COND_TYPE_TAG_INDEX:
       if (NULL != pTagIndexCond) {
         *pTagIndexCond = *pCondition;
+        needOutput = true;
       }
       if (NULL != pTagCond) {
         SNode* pTempCond = *pCondition;
@@ -1938,21 +1941,26 @@ int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** 
           }
         }
         *pTagCond = pTempCond;
+        needOutput = true;
       }
       break;
     case COND_TYPE_TAG:
       if (NULL != pTagCond) {
         *pTagCond = *pCondition;
+        needOutput = true;
       }
       break;
     case COND_TYPE_NORMAL:
     default:
       if (NULL != pOtherCond) {
         *pOtherCond = *pCondition;
+        needOutput = true;
       }
       break;
   }
-  *pCondition = NULL;
+  if (needOutput) {
+    *pCondition = NULL;
+  }
 
   return TSDB_CODE_SUCCESS;
 }

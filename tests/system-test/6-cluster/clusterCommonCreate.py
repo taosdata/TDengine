@@ -127,6 +127,7 @@ class ClusterComCreate:
         for i in range(dbNumbers):
             if dropFlag == 1:
                 tsql.execute("drop database if exists %s_%d"%(dbNameIndex,i))
+            tdLog.debug("create database if not exists %s_%d vgroups %d replica %d"%(dbNameIndex,i, vgroups, replica))
             tsql.execute("create database if not exists %s_%d vgroups %d replica %d"%(dbNameIndex,i, vgroups, replica))
             tdLog.debug("complete to create database %s_%d"%(dbNameIndex,i))
         return
@@ -138,6 +139,7 @@ class ClusterComCreate:
 
     def create_stables(self,tsql,dbNameIndex,stbNameIndex,stbNumbers):
         for i in range(stbNumbers):
+            tdLog.debug("create table if not exists %s.%s_%d (ts timestamp, c1 int, c2 int, c3 binary(16)) tags(t1 int, t2 binary(32))"%(dbNameIndex, stbNameIndex,i))
             tsql.execute("create table if not exists %s.%s_%d (ts timestamp, c1 int, c2 int, c3 binary(16)) tags(t1 int, t2 binary(32))"%(dbNameIndex, stbNameIndex,i))
             tdLog.debug("complete to create %s.%s_%d" %(dbNameIndex, stbNameIndex,i))
         return 

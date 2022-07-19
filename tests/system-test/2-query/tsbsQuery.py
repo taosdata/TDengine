@@ -113,6 +113,7 @@ class TDTestCase:
         #taosc core dumped
         tdSql.execute("create table random_measure2_1 (ts timestamp,ela float, name binary(40))")
         tdSql.query("SELECT ts,diff(mv) AS difka  FROM (SELECT ts,name,floor(avg(velocity)/10)/floor(avg(velocity)/10) AS mv FROM readings   WHERE name!='' AND ts > '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition by name,ts interval(10m) fill(value,0))  GROUP BY name,ts;")
+        tdSql.query("select name,diff(mv) AS difka  FROM (SELECT  ts,name,mv  FROM (SELECT _wstart as ts,name,floor(avg(velocity)/10)/floor(avg(velocity)/10) AS mv FROM readings   WHERE name!='' AND ts > '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition by name interval(10m) fill(value,0)))  group  BY name ;")
         tdSql.query("SELECT _wstart,name,floor(avg(velocity)/10)/floor(avg(velocity)/10) AS mv FROM readings   WHERE name!='' AND ts > '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition by name interval(10m) fill(value,0)")
 
         # 7. avg-load
@@ -124,9 +125,16 @@ class TDTestCase:
 
         #it's already supported:
         # last-loc
-        tdSql.query("")
+        tdSql.query("SELECT last_row(ts),latitude,longitude,name,driver FROM readings WHERE fleet='South' and name IS NOT NULL partition BY name,driver order by name ;")
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+
+        #2. low-fuel
+        tdSql.query("SELECT last_row(ts),name,driver,fuel_state,driver FROM diagnostics WHERE fuel_state <= 0.1 AND fleet = 'South' and name IS NOT NULL GROUP BY name,driver order by name;")
+        
+        # 3. avg-vs-projected-fuel-consumption
+        tdSql.query("select avg(fuel_consumption) as avg_fuel_consumption,avg(nominal_fuel_consumption) as nominal_fuel_consumption from readings where velocity > 1 group by fleet")
+        
+    def run(self):  
         tdLog.printNoPrefix("==========step1:create database and table,insert data  ==============")
         self.prepareData()
         self.tsbsIotQuery()

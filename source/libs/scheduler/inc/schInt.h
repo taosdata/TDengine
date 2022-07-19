@@ -277,7 +277,7 @@ typedef struct SSchJob {
   bool               fetched;
   int32_t            resNumOfRows;
   SSchResInfo        userRes;
-  const char        *sql;
+  char              *sql;
   SQueryProfileSummary summary;
 } SSchJob;
 
@@ -461,7 +461,6 @@ int32_t schJobFetchRows(SSchJob *pJob);
 int32_t schJobFetchRowsA(SSchJob *pJob);
 int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, int32_t execId);
 int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId* pEpId, SArray* pStatusList);
-void    schFreeSMsgSendInfo(SMsgSendInfo *msgSendInfo);
 char*   schGetOpStr(SCH_OP_TYPE type);
 int32_t schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync);
 int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq);

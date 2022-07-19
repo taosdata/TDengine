@@ -162,9 +162,44 @@ class TDTestCase:
         tdSql.query("select tbname , max(c1) from stb partition by tbname interval(10s)")
         tdSql.checkRows(self.row_nums*2)
 
+        tdSql.query("select unique(c1) from stb partition  by tbname order by tbname")
+
         tdSql.query("select tbname , count(c1) from sub_stb_1 partition by tbname interval(10s)")
         tdSql.checkData(0,0,'sub_stb_1')
         tdSql.checkData(0,1,self.row_nums)
+
+        tdSql.query("select c1 , mavg(c1 ,2 ) from stb partition by c1")
+        tdSql.checkRows(72)
+
+        tdSql.query("select c1 , diff(c1 , 0) from stb partition by c1")
+        tdSql.checkRows(72)
+
+        tdSql.query("select c1 , csum(c1) from stb partition by c1")
+        tdSql.checkRows(80)
+
+        tdSql.query("select c1 , sample(c1,2) from stb partition by c1 order by c1")
+        tdSql.checkRows(21)
+        # bug need fix 
+        # tdSql.checkData(0,1,None)
+
+        tdSql.query("select c1 , twa(c1) from stb partition by c1 order by c1")
+        tdSql.checkRows(11)
+        tdSql.checkData(0,1,0.000000000)
+
+        tdSql.query("select c1 , irate(c1) from stb partition by c1 order by c1")
+        tdSql.checkRows(11)
+        tdSql.checkData(0,1,None)
+
+        tdSql.query("select c1 , DERIVATIVE(c1,2,1) from stb partition by c1 order by c1")
+        tdSql.checkRows(72)
+        # bug need fix 
+        # tdSql.checkData(0,1,None)
+
+
+
+
+
+
 
         # bug need fix 
         # tdSql.query(" select tbname , max(c1) from stb partition by tbname order by tbname slimit 5 soffset 0 ")  
