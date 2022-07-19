@@ -870,7 +870,10 @@ class TDTestCase:
         tdSql.query("select sample(c1 ,1000) from st")
         tdSql.checkRows(1000)
 
-
+        # bug need fix 
+        tdSql.query("select c1 ,t1, sample(c1,2) from db.stb1 partition by c1 ")
+        tdSql.query("select sample(c1,2) from db.stb1 partition by c1 ")
+        # tdSql.query("select c1 ,ind, sample(c1,2) from sample_db.st partition by c1 ")
 
     def run(self):
         import traceback
