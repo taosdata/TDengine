@@ -306,11 +306,6 @@ void qwFreeTaskCtx(SQWTaskCtx *ctx) {
     dsDestroyDataSinker(ctx->sinkHandle);
     ctx->sinkHandle = NULL;
   }
-
-  if (ctx->plan) {
-    nodesDestroyNode((SNode*)ctx->plan);
-    ctx->plan = NULL;
-  }
 }
 
 int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
@@ -327,7 +322,6 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
 
   atomic_store_ptr(&ctx->taskHandle, NULL);
   atomic_store_ptr(&ctx->sinkHandle, NULL);
-  atomic_store_ptr(&ctx->plan, NULL);
 
   QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_DROP);
 

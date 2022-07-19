@@ -4127,7 +4127,7 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
   SExecTaskInfo* pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo));
   setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
 
-  pTaskInfo->schemaVer.dbname = strdup(dbFName);
+  pTaskInfo->schemaInfo.dbname = strdup(dbFName);
   pTaskInfo->cost.created = taosGetTimestampMs();
   pTaskInfo->id.queryId = queryId;
   pTaskInfo->execModel = model;
@@ -4153,35 +4153,35 @@ int32_t extractTableSchemaInfo(SReadHandle* pHandle, uint64_t uid, SExecTaskInfo
     return terrno;
   }
 
-  pTaskInfo->schemaVer.tablename = strdup(mr.me.name);
+  pTaskInfo->schemaInfo.tablename = strdup(mr.me.name);
 
   if (mr.me.type == TSDB_SUPER_TABLE) {
-    pTaskInfo->schemaVer.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
-    pTaskInfo->schemaVer.tversion = mr.me.stbEntry.schemaTag.version;
+    pTaskInfo->schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
+    pTaskInfo->schemaInfo.tversion = mr.me.stbEntry.schemaTag.version;
   } else if (mr.me.type == TSDB_CHILD_TABLE) {
     tDecoderClear(&mr.coder);
 
     tb_uid_t suid = mr.me.ctbEntry.suid;
     metaGetTableEntryByUid(&mr, suid);
-    pTaskInfo->schemaVer.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
-    pTaskInfo->schemaVer.tversion = mr.me.stbEntry.schemaTag.version;
+    pTaskInfo->schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
+    pTaskInfo->schemaInfo.tversion = mr.me.stbEntry.schemaTag.version;
   } else {
-    pTaskInfo->schemaVer.sw = tCloneSSchemaWrapper(&mr.me.ntbEntry.schemaRow);
+    pTaskInfo->schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.ntbEntry.schemaRow);
   }
 
   metaReaderClear(&mr);
   return TSDB_CODE_SUCCESS;
 }
 
-static void cleanupTableSchemaInfo(SExecTaskInfo* pTaskInfo) {
-  taosMemoryFreeClear(pTaskInfo->schemaVer.dbname);
-  if (pTaskInfo->schemaVer.sw == NULL) {
+static void cleanupTableSchemaInfo(SSchemaInfo* pSchemaInfo) {
+  taosMemoryFreeClear(pSchemaInfo->dbname);
+  if (pSchemaInfo->sw == NULL) {
     return;
   }
 
-  taosMemoryFree(pTaskInfo->schemaVer.sw->pSchema);
-  taosMemoryFree(pTaskInfo->schemaVer.sw);
-  taosMemoryFree(pTaskInfo->schemaVer.tablename);
+  taosMemoryFree(pSchemaInfo->tablename);
+  taosMemoryFree(pSchemaInfo->sw->pSchema);
+  taosMemoryFree(pSchemaInfo->sw);
 }
 
 static int32_t sortTableGroup(STableListInfo* pTableListInfo, int32_t groupNum) {
@@ -4939,6 +4939,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   }
 
   (*pTaskInfo)->sql = sql;
+  (*pTaskInfo)->pSubplan = pPlan;
   (*pTaskInfo)->pRoot = createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, &(*pTaskInfo)->tableqinfoList, pPlan->pTagCond, pPlan->pTagIndexCond, pPlan->user);
 
   if (NULL == (*pTaskInfo)->pRoot) {
@@ -4977,7 +4978,9 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
 
   doDestroyTableList(&pTaskInfo->tableqinfoList);
   destroyOperatorInfo(pTaskInfo->pRoot);
-  cleanupTableSchemaInfo(pTaskInfo);
+  cleanupTableSchemaInfo(&pTaskInfo->schemaInfo);
+
+  nodesDestroyNode((SNode*)pTaskInfo->pSubplan);
 
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);

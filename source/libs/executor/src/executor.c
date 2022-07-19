@@ -138,7 +138,6 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* n
     }
   }
 
-  nodesDestroyNode((SNode*)pPlan);
   return pTaskInfo;
 }
 
@@ -165,7 +164,6 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers) {
     return NULL;
   }
 
-  nodesDestroyNode((SNode*)pPlan);
   return pTaskInfo;
 }
 
@@ -243,19 +241,19 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* table
   ASSERT(tinfo != NULL && dbName != NULL && tableName != NULL);
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
-  if (pTaskInfo->schemaVer.sw == NULL) {
+  if (pTaskInfo->schemaInfo.sw == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
-  *sversion = pTaskInfo->schemaVer.sw->version;
-  *tversion = pTaskInfo->schemaVer.tversion;
-  if (pTaskInfo->schemaVer.dbname) {
-    strcpy(dbName, pTaskInfo->schemaVer.dbname);
+  *sversion = pTaskInfo->schemaInfo.sw->version;
+  *tversion = pTaskInfo->schemaInfo.tversion;
+  if (pTaskInfo->schemaInfo.dbname) {
+    strcpy(dbName, pTaskInfo->schemaInfo.dbname);
   } else {
     dbName[0] = 0;
   }
-  if (pTaskInfo->schemaVer.tablename) {
-    strcpy(tableName, pTaskInfo->schemaVer.tablename);
+  if (pTaskInfo->schemaInfo.tablename) {
+    strcpy(tableName, pTaskInfo->schemaInfo.tablename);
   } else {
     tableName[0] = 0;
   }
