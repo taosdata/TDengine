@@ -319,6 +319,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
   int32_t totLevel = LIST_LENGTH(pPlan->pSubplans);
   ASSERT(totLevel <= 2);
   pStream->tasks = taosArrayInit(totLevel, sizeof(void*));
+  pStream->isDistributed = totLevel == 2;
 
   bool    hasExtraSink = false;
   bool    externalTargetDB = strcmp(pStream->sourceDb, pStream->targetDb) != 0;
@@ -381,6 +382,11 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
 
       // exec
       pInnerTask->execType = TASK_EXEC__PIPE;
+
+      SDbObj* pSourceDb = mndAcquireDb(pMnode, pStream->sourceDb);
+      ASSERT(pDbObj != NULL);
+      sdbRelease(pSdb, pSourceDb);
+      pInnerTask->numOfVgroups = pSourceDb->cfg.numOfVgroups;
 
       if (tsSchedStreamToSnode) {
         SSnodeObj* pSnode = mndSchedFetchOneSnode(pMnode);

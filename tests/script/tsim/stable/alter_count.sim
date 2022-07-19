@@ -249,9 +249,7 @@ endi
 
 print ============== step18
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 3000
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
 
 #sql select count(g) from tb
 #if $data00 != 12 then

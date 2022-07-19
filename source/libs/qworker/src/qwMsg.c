@@ -43,6 +43,20 @@ void qwFreeFetchRsp(void *msg) {
   }
 }
 
+int32_t qwBuildAndSendErrorRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code) {
+  SRpcMsg rpcRsp = {
+      .msgType = rspType,
+      .pCont = NULL,
+      .contLen = 0,
+      .code = code,
+      .info = *pConn,
+  };
+
+  tmsgSendRsp(&rpcRsp);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, SQWTaskCtx *ctx) {
   STbVerInfo* tbInfo = ctx ? &ctx->tbInfo : NULL;
   int64_t affectedRows = ctx ? ctx->affectedRows : 0;
@@ -184,7 +198,6 @@ int32_t qwBuildAndSendDropMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   int32_t code = tmsgPutToQueue(&mgmt->msgCb, FETCH_QUEUE, &pNewMsg);
   if (TSDB_CODE_SUCCESS != code) {
     QW_SCH_TASK_ELOG("put drop task msg to queue failed, vgId:%d, code:%s", mgmt->nodeId, tstrerror(code));
-    rpcFreeCont(req);
     QW_ERR_RET(code);
   }
 
@@ -315,10 +328,10 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg) {
   int64_t  rId = msg->refId;
   int32_t  eId = msg->execId;
 
-  SQWMsg qwMsg = {.msg = msg->msg + msg->sqlLen, .msgLen = msg->phyLen, .connInfo = pMsg->info};
+  SQWMsg qwMsg = {.msgType = pMsg->msgType, .msg = msg->msg + msg->sqlLen, .msgLen = msg->phyLen, .connInfo = pMsg->info};
 
   QW_SCH_TASK_DLOG("prerocessQuery start, handle:%p", pMsg->info.handle);
-  QW_ERR_RET(qwPrerocessQuery(QW_FPARAMS(), &qwMsg));
+  QW_ERR_RET(qwPreprocessQuery(QW_FPARAMS(), &qwMsg));
   QW_SCH_TASK_DLOG("prerocessQuery end, handle:%p", pMsg->info.handle);
 
   return TSDB_CODE_SUCCESS;
@@ -374,8 +387,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   qwMsg.msgInfo.needFetch = msg->needFetch;
   
   char * sql = strndup(msg->msg, msg->sqlLen);
-  QW_SCH_TASK_DLOG("processQuery start, node:%p, type:%s, handle:%p, sql:%s", node, TMSG_INFO(pMsg->msgType), pMsg->info.handle, sql);
-
+  QW_SCH_TASK_DLOG("processQuery start, node:%p, type:%s, handle:%p, SQL:%s", node, TMSG_INFO(pMsg->msgType), pMsg->info.handle, sql);
   QW_ERR_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg, sql));
   QW_SCH_TASK_DLOG("processQuery end, node:%p", node);
 

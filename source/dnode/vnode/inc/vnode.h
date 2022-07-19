@@ -27,6 +27,7 @@
 #include "wal.h"
 
 #include "tcommon.h"
+#include "tgrant.h"
 #include "tfs.h"
 #include "tmsg.h"
 #include "trow.h"
@@ -116,11 +117,11 @@ int32_t     metaTbCursorNext(SMTbCursor *pTbCur);
 // typedef struct STsdb STsdb;
 typedef struct STsdbReader STsdbReader;
 
-#define BLOCK_LOAD_OFFSET_ORDER   1
+#define BLOCK_LOAD_OFFSET_ORDER 1
 #define BLOCK_LOAD_TABLESEQ_ORDER 2
-#define BLOCK_LOAD_EXTERN_ORDER   3
+#define BLOCK_LOAD_EXTERN_ORDER 3
 
-#define LASTROW_RETRIEVE_TYPE_ALL    0x1
+#define LASTROW_RETRIEVE_TYPE_ALL 0x1
 #define LASTROW_RETRIEVE_TYPE_SINGLE 0x2
 
 int32_t tsdbSetTableId(STsdbReader *pReader, int64_t uid);
@@ -138,7 +139,7 @@ void   *tsdbGetIdx(SMeta *pMeta);
 void   *tsdbGetIvtIdx(SMeta *pMeta);
 
 int32_t tsdbLastRowReaderOpen(void *pVnode, int32_t type, SArray *pTableIdList, int32_t numOfCols, void **pReader);
-int32_t tsdbRetrieveLastRow(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, SArray* pTableUids);
+int32_t tsdbRetrieveLastRow(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, SArray *pTableUids);
 int32_t tsdbLastrowReaderClose(void *pReader);
 int32_t tsdbGetTableSchema(SVnode *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);
 
@@ -191,7 +192,7 @@ int32_t vnodeSnapReaderClose(SVSnapReader *pReader);
 int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData);
 // SVSnapWriter
 int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter);
-int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback);
+int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *pSnapshot);
 int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData);
 
 // structs
@@ -237,8 +238,8 @@ typedef struct {
   uint64_t groupId;
 } STableKeyInfo;
 
-#define TABLE_ROLLUP_ON       ((int8_t)0x1)
-#define TABLE_IS_ROLLUP(FLG)  (((FLG) & (TABLE_ROLLUP_ON)) != 0)
+#define TABLE_ROLLUP_ON ((int8_t)0x1)
+#define TABLE_IS_ROLLUP(FLG) (((FLG) & (TABLE_ROLLUP_ON)) != 0)
 #define TABLE_SET_ROLLUP(FLG) ((FLG) |= TABLE_ROLLUP_ON)
 struct SMetaEntry {
   int64_t  version;

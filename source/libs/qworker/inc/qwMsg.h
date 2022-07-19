@@ -24,7 +24,7 @@ extern "C" {
 #include "dataSinkMgt.h"
 
 int32_t qwAbortPrerocessQuery(QW_FPARAMS_DEF);
-int32_t qwPrerocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg);
+int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg);
 int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, const char* sql);
 int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg);
 int32_t qwProcessReady(QW_FPARAMS_DEF, SQWMsg *qwMsg);
@@ -40,11 +40,13 @@ void    qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, bool qComple
 int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn);
 int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, SQWTaskCtx *ctx);
 int32_t qwBuildAndSendExplainRsp(SRpcHandleInfo *pConn, SExplainExecInfo *execInfo, int32_t num);
+int32_t qwBuildAndSendErrorRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code);
 void    qwFreeFetchRsp(void *msg);
 int32_t qwMallocFetchRsp(int32_t length, SRetrieveTableRsp **rsp);
 int32_t qwBuildAndSendHbRsp(SRpcHandleInfo *pConn, SSchedulerHbRsp *rsp, int32_t code);
 int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn);
 int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SRpcHandleInfo *pConn);
+int32_t qwBuildAndSendDropMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn);
 
 #ifdef __cplusplus
 }

@@ -1083,6 +1083,17 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   return pSyncNode;
 }
 
+void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode) {
+  if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+    SSnapshot snapshot;
+    int32_t   code = pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
+    ASSERT(code == 0);
+    if (snapshot.lastApplyIndex > pSyncNode->commitIndex) {
+      pSyncNode->commitIndex = snapshot.lastApplyIndex;
+    }
+  }
+}
+
 void syncNodeStart(SSyncNode* pSyncNode) {
   // start raft
   if (pSyncNode->replicaNum == 1) {
@@ -1285,6 +1296,12 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   taosTmrStop(pSyncNode->pHeartbeatTimer);
   pSyncNode->pHeartbeatTimer = NULL;
   return ret;
+}
+
+int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode) {
+  syncNodeStopHeartbeatTimer(pSyncNode);
+  syncNodeStartHeartbeatTimer(pSyncNode);
+  return 0;
 }
 
 // utils --------------
@@ -1535,7 +1552,8 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     } else {
       snprintf(logBuf, sizeof(logBuf), "%s", str);
     }
-    sDebug("%s", logBuf);
+    // sDebug("%s", logBuf);
+    sInfo("%s", logBuf);
 
   } else {
     int   len = 256 + userStrLen;
@@ -1556,7 +1574,8 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     } else {
       snprintf(s, len, "%s", str);
     }
-    sDebug("%s", s);
+    // sDebug("%s", s);
+    sInfo("%s", s);
     taosMemoryFree(s);
   }
 
@@ -1853,8 +1872,8 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
       syncNodeBecomeLeader(pSyncNode, tmpbuf);
 
       // Raft 3.6.2 Committing entries from previous terms
-      syncNodeReplicate(pSyncNode);
       syncNodeAppendNoop(pSyncNode);
+      syncNodeReplicate(pSyncNode);
       syncMaybeAdvanceCommitIndex(pSyncNode);
 
     } else {
@@ -2029,8 +2048,8 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   syncNodeLog2("==state change syncNodeCandidate2Leader==", pSyncNode);
 
   // Raft 3.6.2 Committing entries from previous terms
-  syncNodeReplicate(pSyncNode);
   syncNodeAppendNoop(pSyncNode);
+  syncNodeReplicate(pSyncNode);
   syncMaybeAdvanceCommitIndex(pSyncNode);
 }
 
@@ -2598,9 +2617,13 @@ const char* syncStr(ESyncState state) {
   }
 }
 
-static int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry) {
+int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry) {
   SyncLeaderTransfer* pSyncLeaderTransfer = syncLeaderTransferFromRpcMsg2(pRpcMsg);
 
+  if (ths->state != TAOS_SYNC_STATE_FOLLOWER) {
+    syncNodeEventLog(ths, "I am not follower, can not do leader transfer");
+    return 0;
+  }
   syncNodeEventLog(ths, "do leader transfer");
 
   bool sameId = syncUtilSameId(&(pSyncLeaderTransfer->newLeaderId), &(ths->myRaftId));
@@ -2811,11 +2834,14 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
           ASSERT(code == 0);
         }
 
+#if 0
+        // execute in pre-commit
         // leader transfer
         if (pEntry->originalRpcType == TDMT_SYNC_LEADER_TRANSFER) {
           code = syncDoLeaderTransfer(ths, &rpcMsg, pEntry);
           ASSERT(code == 0);
         }
+#endif
 
         // restore finish
         // if only snapshot, a noop entry will be append, so syncLogLastIndex is always ok

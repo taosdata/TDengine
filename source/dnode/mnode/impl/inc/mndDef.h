@@ -36,6 +36,46 @@ extern "C" {
 #endif
 
 typedef enum {
+  MND_OPER_CONNECT = 1,
+  MND_OPER_CREATE_ACCT,
+  MND_OPER_DROP_ACCT,
+  MND_OPER_ALTER_ACCT,
+  MND_OPER_CREATE_USER,
+  MND_OPER_DROP_USER,
+  MND_OPER_ALTER_USER,
+  MND_OPER_CREATE_BNODE,
+  MND_OPER_DROP_BNODE,
+  MND_OPER_CREATE_DNODE,
+  MND_OPER_DROP_DNODE,
+  MND_OPER_CONFIG_DNODE,
+  MND_OPER_CREATE_MNODE,
+  MND_OPER_DROP_MNODE,
+  MND_OPER_CREATE_QNODE,
+  MND_OPER_DROP_QNODE,
+  MND_OPER_CREATE_SNODE,
+  MND_OPER_DROP_SNODE,
+  MND_OPER_REDISTRIBUTE_VGROUP,
+  MND_OPER_MERGE_VGROUP,
+  MND_OPER_SPLIT_VGROUP,
+  MND_OPER_BALANCE_VGROUP,
+  MND_OPER_CREATE_FUNC,
+  MND_OPER_DROP_FUNC,
+  MND_OPER_KILL_TRANS,
+  MND_OPER_KILL_CONN,
+  MND_OPER_KILL_QUERY,
+  MND_OPER_CREATE_DB,
+  MND_OPER_ALTER_DB,
+  MND_OPER_DROP_DB,
+  MND_OPER_COMPACT_DB,
+  MND_OPER_TRIM_DB,
+  MND_OPER_USE_DB,
+  MND_OPER_WRITE_DB,
+  MND_OPER_READ_DB,
+  MND_OPER_READ_OR_WRITE_DB,
+  MND_OPER_SHOW_VARIBALES,
+} EOperType;
+
+typedef enum {
   MND_AUTH_ACCT_START = 0,
   MND_AUTH_ACCT_USER,
   MND_AUTH_ACCT_DNODE,
@@ -109,9 +149,9 @@ typedef struct {
   ETrnPolicy     policy;
   ETrnConflct    conflict;
   ETrnExec       exec;
+  EOperType      oper;
   int32_t        code;
   int32_t        failedTimes;
-  SRpcHandleInfo rpcInfo;
   void*          rpcRsp;
   int32_t        rpcRspLen;
   int32_t        redoActionPos;
@@ -130,6 +170,7 @@ typedef struct {
   int32_t        stopFunc;
   int32_t        paramLen;
   void*          param;
+  SArray*        pRpcArray;
 } STrans;
 
 typedef struct {
@@ -559,6 +600,7 @@ typedef struct {
   // info
   int64_t uid;
   int8_t  status;
+  int8_t  isDistributed;
   // config
   int8_t  igExpired;
   int8_t  trigger;
@@ -585,6 +627,23 @@ typedef struct {
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
 int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj);
+
+typedef struct {
+  char    streamName[TSDB_STREAM_FNAME_LEN];
+  int64_t uid;
+  int64_t streamUid;
+  SArray* childInfo;  // SArray<SStreamChildEpInfo>
+} SStreamCheckpointObj;
+
+#if 0
+typedef struct {
+  int64_t uid;
+  int64_t streamId;
+  int8_t  isDistributed;
+  int8_t  status;
+  int8_t  stage;
+} SStreamRecoverObj;
+#endif
 
 #ifdef __cplusplus
 }

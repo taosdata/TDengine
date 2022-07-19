@@ -91,7 +91,7 @@ SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t page
   tsortSetComparFp(pSortHandle, msortComparFn);
 
   if (idstr != NULL) {
-    pSortHandle->idStr    = strdup(idstr);
+    pSortHandle->idStr = strdup(idstr);
   }
 
   return pSortHandle;
@@ -109,6 +109,10 @@ static int32_t sortComparClearup(SMsortComparParam* cmpParam) {
 }
 
 void tsortDestroySortHandle(SSortHandle* pSortHandle) {
+  if (pSortHandle == NULL) {
+    return;
+  }
+
   tsortClose(pSortHandle);
   if (pSortHandle->pMergeTree != NULL) {
     tMergeTreeDestroy(pSortHandle->pMergeTree);
@@ -119,7 +123,6 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
   blockDataDestroy(pSortHandle->pDataBlock);
   for (size_t i = 0; i < taosArrayGetSize(pSortHandle->pOrderedSource); i++){
     SSortSource** pSource = taosArrayGet(pSortHandle->pOrderedSource, i);
-    blockDataDestroy((*pSource)->src.pBlock);
     taosMemoryFreeClear(*pSource);
   }
   taosArrayDestroy(pSortHandle->pOrderedSource);
@@ -621,7 +624,7 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
       pHandle->sortElapsed += el;
 
       // All sorted data can fit in memory, external memory sort is not needed. Return to directly
-      if (size <= sortBufSize) {
+      if (size <= sortBufSize && pHandle->pBuf == NULL) {
         pHandle->cmpParam.numOfSources = 1;
         pHandle->inMemSort = true;
 

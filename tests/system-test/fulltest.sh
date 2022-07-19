@@ -10,7 +10,10 @@ python3 ./test.py -f 0-others/taosdMonitor.py
 python3 ./test.py -f 0-others/udfTest.py
 python3 ./test.py -f 0-others/udf_create.py
 python3 ./test.py -f 0-others/udf_restart_taosd.py
-python3 ./test.py -f 0-others/cachelast.py
+python3 ./test.py -f 0-others/cachemodel.py
+python3 ./test.py -f 0-others/udf_cfg1.py
+python3 ./test.py -f 0-others/udf_cfg2.py
+
 python3 ./test.py -f 0-others/sysinfo.py
 python3 ./test.py -f 0-others/user_control.py
 python3 ./test.py -f 0-others/fsync.py
@@ -28,6 +31,10 @@ python3 ./test.py -f 1-insert/time_range_wise.py
 python3 ./test.py -f 1-insert/block_wise.py
 python3 ./test.py -f 1-insert/create_retentions.py
 python3 ./test.py -f 1-insert/table_param_ttl.py
+
+python3 ./test.py -f 1-insert/update_data.py
+
+python3 ./test.py -f 2-query/db.py
 
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
@@ -122,7 +129,7 @@ python3 ./test.py -f 2-query/count_partition.py
 python3 ./test.py -f 2-query/function_null.py
 python3 ./test.py -f 2-query/queryQnode.py
 python3 ./test.py -f 2-query/max_partition.py
-
+python3 ./test.py -f 2-query/last_row.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py
 #BUG python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3
@@ -130,7 +137,7 @@ python3 ./test.py -f 6-cluster/5dnode1mnode.py
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
+# BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py  -N 5 -M 3
 # python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py  -N 5 -M 3
@@ -178,8 +185,9 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
 python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
 #python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
-#python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
+python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
 python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb.py
+#python3 ./test.py -f 7-tmq/tmqDelete-1ctb.py
 
 #------------querPolicy  2-----------
 
@@ -269,6 +277,7 @@ python3 ./test.py -f 2-query/irate.py  -Q 2
 python3 ./test.py -f 2-query/function_null.py  -Q 2
 python3 ./test.py -f 2-query/count_partition.py -Q 2
 python3 ./test.py -f 2-query/max_partition.py -Q 2
+python3 ./test.py -f 2-query/last_row.py -Q 2
 
 #------------querPolicy  3-----------
 
@@ -356,3 +365,4 @@ python3 ./test.py -f 2-query/irate.py -Q  3
 python3 ./test.py -f 2-query/function_null.py -Q  3
 python3 ./test.py -f 2-query/count_partition.py -Q 3
 python3 ./test.py -f 2-query/max_partition.py -Q 3
+python3 ./test.py -f 2-query/last_row.py -Q 3

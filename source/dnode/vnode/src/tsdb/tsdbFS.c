@@ -245,7 +245,7 @@ static int32_t tsdbApplyDelFileChange(STsdbFS *pFS, SDelFile *pFrom, SDelFile *p
   char    fname[TSDB_FILENAME_LEN];
 
   if (pFrom && pTo) {
-    if (pFrom != pTo) {
+    if (!tsdbDelFileIsSame(pFrom, pTo)) {
       tsdbDelFileName(pFS->pTsdb, pFrom, fname);
       if (taosRemoveFile(fname) < 0) {
         code = TAOS_SYSTEM_ERROR(errno);
@@ -698,6 +698,6 @@ void tsdbFSStateDeleteDFileSet(STsdbFSState *pState, int32_t fid) {
 
 SDelFile *tsdbFSStateGetDelFile(STsdbFSState *pState) { return pState->pDelFile; }
 
-SDFileSet *tsdbFSStateGetDFileSet(STsdbFSState *pState, int32_t fid) {
-  return (SDFileSet *)taosArraySearch(pState->aDFileSet, &(SDFileSet){.fid = fid}, tDFileSetCmprFn, TD_EQ);
+SDFileSet *tsdbFSStateGetDFileSet(STsdbFSState *pState, int32_t fid, int32_t flag) {
+  return (SDFileSet *)taosArraySearch(pState->aDFileSet, &(SDFileSet){.fid = fid}, tDFileSetCmprFn, flag);
 }

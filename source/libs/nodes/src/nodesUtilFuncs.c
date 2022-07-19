@@ -388,6 +388,11 @@ static void destroyDataSinkNode(SDataSinkNode* pNode) { nodesDestroyNode((SNode*
 
 static void destroyExprNode(SExprNode* pExpr) { taosArrayDestroy(pExpr->pAssociation); }
 
+static void nodesDestroyNodePointer(void* node) {
+  SNode* pNode = *(SNode**)node;
+  nodesDestroyNode(pNode);
+}
+
 void nodesDestroyNode(SNode* pNode) {
   if (NULL == pNode) {
     return;
@@ -718,6 +723,7 @@ void nodesDestroyNode(SNode* pNode) {
       }
       taosArrayDestroy(pQuery->pDbList);
       taosArrayDestroy(pQuery->pTableList);
+      taosArrayDestroyEx(pQuery->pPlaceholderValues, nodesDestroyNodePointer);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
@@ -946,6 +952,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
       SQueryInserterNode* pSink = (SQueryInserterNode*)pNode;
       destroyDataSinkNode((SDataSinkNode*)pSink);
+      nodesDestroyList(pSink->pCols);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
@@ -1537,7 +1544,7 @@ typedef struct SCollectFuncsCxt {
   int32_t         errCode;
   FFuncClassifier classifier;
   SNodeList*      pFuncs;
-  SHashObj*       pAliasName;
+  SHashObj*       pFuncsSet;
 } SCollectFuncsCxt;
 
 static EDealRes collectFuncs(SNode* pNode, void* pContext) {
@@ -1545,13 +1552,25 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId) &&
       !(((SExprNode*)pNode)->orderAlias)) {
     SExprNode* pExpr = (SExprNode*)pNode;
-    if (NULL == taosHashGet(pCxt->pAliasName, pExpr->aliasName, strlen(pExpr->aliasName))) {
+    if (NULL == taosHashGet(pCxt->pFuncsSet, &pExpr, POINTER_BYTES)) {
       pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, nodesCloneNode(pNode));
-      taosHashPut(pCxt->pAliasName, pExpr->aliasName, strlen(pExpr->aliasName), &pExpr, POINTER_BYTES);
+      taosHashPut(pCxt->pFuncsSet, &pExpr, POINTER_BYTES, &pExpr, POINTER_BYTES);
     }
     return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
   }
   return DEAL_RES_CONTINUE;
+}
+
+static uint32_t funcNodeHash(const char* pKey, uint32_t len) {
+  SExprNode* pExpr = *(SExprNode**)pKey;
+  return MurmurHash3_32(pExpr->aliasName, strlen(pExpr->aliasName));
+}
+
+static int32_t funcNodeEqual(const void* pLeft, const void* pRight, size_t len) {
+  if (0 != strcmp((*(const SExprNode**)pLeft)->aliasName, (*(const SExprNode**)pRight)->aliasName)) {
+    return 1;
+  }
+  return nodesEqualNode(*(const SNode**)pLeft, *(const SNode**)pRight) ? 0 : 1;
 }
 
 int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, FFuncClassifier classifier, SNodeList** pFuncs) {
@@ -1559,14 +1578,14 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, FFuncClassifi
     return TSDB_CODE_FAILED;
   }
 
-  SCollectFuncsCxt cxt = {
-      .errCode = TSDB_CODE_SUCCESS,
-      .classifier = classifier,
-      .pFuncs = (NULL == *pFuncs ? nodesMakeList() : *pFuncs),
-      .pAliasName = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, false)};
-  if (NULL == cxt.pFuncs) {
+  SCollectFuncsCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
+                          .classifier = classifier,
+                          .pFuncs = (NULL == *pFuncs ? nodesMakeList() : *pFuncs),
+                          .pFuncsSet = taosHashInit(4, funcNodeHash, false, false)};
+  if (NULL == cxt.pFuncs || NULL == cxt.pFuncsSet) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  taosHashSetEqualFp(cxt.pFuncsSet, funcNodeEqual);
   *pFuncs = NULL;
   nodesWalkSelectStmt(pSelect, clause, collectFuncs, &cxt);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
@@ -1578,7 +1597,7 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, FFuncClassifi
   } else {
     nodesDestroyList(cxt.pFuncs);
   }
-  taosHashCleanup(cxt.pAliasName);
+  taosHashCleanup(cxt.pFuncsSet);
 
   return cxt.errCode;
 }
@@ -1904,15 +1923,18 @@ int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** 
     return partitionLogicCond(pCondition, pPrimaryKeyCond, pTagIndexCond, pTagCond, pOtherCond);
   }
 
+  bool needOutput = false;
   switch (classifyCondition(*pCondition)) {
     case COND_TYPE_PRIMARY_KEY:
       if (NULL != pPrimaryKeyCond) {
         *pPrimaryKeyCond = *pCondition;
+        needOutput = true;
       }
       break;
     case COND_TYPE_TAG_INDEX:
       if (NULL != pTagIndexCond) {
         *pTagIndexCond = *pCondition;
+        needOutput = true;
       }
       if (NULL != pTagCond) {
         SNode* pTempCond = *pCondition;
@@ -1923,21 +1945,26 @@ int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** 
           }
         }
         *pTagCond = pTempCond;
+        needOutput = true;
       }
       break;
     case COND_TYPE_TAG:
       if (NULL != pTagCond) {
         *pTagCond = *pCondition;
+        needOutput = true;
       }
       break;
     case COND_TYPE_NORMAL:
     default:
       if (NULL != pOtherCond) {
         *pOtherCond = *pCondition;
+        needOutput = true;
       }
       break;
   }
-  *pCondition = NULL;
+  if (needOutput) {
+    *pCondition = NULL;
+  }
 
   return TSDB_CODE_SUCCESS;
 }

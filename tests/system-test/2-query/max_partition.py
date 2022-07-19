@@ -45,8 +45,8 @@ class TDTestCase:
         tdSql.query(" select max(c1) from stb group by tbname order by tbname ")
         tdSql.checkRows(self.tb_nums)
         # bug need fix 
-        # tdSql.query(" select max(t1) from stb group by t2 order by t2 ")
-        # tdSql.checkRows(self.tb_nums)
+        tdSql.query(" select max(t2) from stb group by t2 order by t2 ")
+        tdSql.checkRows(self.tb_nums)
         tdSql.query(" select max(c1) from stb group by c1 order by c1 ")
         tdSql.checkRows(self.row_nums+1)
 
@@ -90,8 +90,8 @@ class TDTestCase:
         tdSql.query("select tbname , max(t2) from stb partition by t2 order by t2")
 
         # # bug need fix 
-        # tdSql.query("select t2 , max(t2) from stb partition by t2 order by t2")
-        # tdSql.checkRows(self.tb_nums)
+        tdSql.query("select t2 , max(t2) from stb partition by t2 order by t2")
+        tdSql.checkRows(self.tb_nums)
 
         tdSql.query("select tbname , max(c1) from stb partition by tbname order by tbname")
         tdSql.checkRows(self.tb_nums)
@@ -126,8 +126,8 @@ class TDTestCase:
         tdSql.checkData(0,0,self.row_nums)
 
         # bug need fix 
-        # tdSql.query("select count(c1) , max(t1) ,abs(c1) from stb partition by abs(c1) order by abs(c1)")
-        # tdSql.checkRows(self.row_nums+1)
+        tdSql.query("select count(c1) , max(t2) ,abs(c1) from stb partition by abs(c1) order by abs(c1)")
+        tdSql.checkRows(self.row_nums+1)
    
 
         tdSql.query("select max(ceil(c2)) , max(floor(t2)) ,max(floor(c2)) from stb partition by abs(c2) order by abs(c2)")
@@ -136,6 +136,18 @@ class TDTestCase:
 
         tdSql.query("select max(ceil(c1-2)) , max(floor(t2+1)) ,max(c2-c1) from stb partition by abs(floor(c1)) order by abs(floor(c1))")
         tdSql.checkRows(self.row_nums+1)
+
+        tdSql.query("select tbname , max(c1) ,c1 from stb partition by tbname order by tbname")
+        tdSql.checkRows(self.tb_nums)
+        tdSql.checkData(0,0,'sub_stb_0')
+        tdSql.checkData(0,1,9)
+        tdSql.checkData(0,2,9)
+
+        tdSql.query("select tbname ,top(c1,1) ,c1 from stb partition by tbname order by tbname")
+        tdSql.checkRows(self.tb_nums)
+
+        tdSql.query(" select c1 , sample(c1,2) from stb partition by tbname order by tbname ")
+        tdSql.checkRows(self.tb_nums*2)
      
 
         # interval 
@@ -150,9 +162,44 @@ class TDTestCase:
         tdSql.query("select tbname , max(c1) from stb partition by tbname interval(10s)")
         tdSql.checkRows(self.row_nums*2)
 
+        tdSql.query("select unique(c1) from stb partition  by tbname order by tbname")
+
         tdSql.query("select tbname , count(c1) from sub_stb_1 partition by tbname interval(10s)")
         tdSql.checkData(0,0,'sub_stb_1')
         tdSql.checkData(0,1,self.row_nums)
+
+        tdSql.query("select c1 , mavg(c1 ,2 ) from stb partition by c1")
+        tdSql.checkRows(72)
+
+        tdSql.query("select c1 , diff(c1 , 0) from stb partition by c1")
+        tdSql.checkRows(72)
+
+        tdSql.query("select c1 , csum(c1) from stb partition by c1")
+        tdSql.checkRows(80)
+
+        tdSql.query("select c1 , sample(c1,2) from stb partition by c1 order by c1")
+        tdSql.checkRows(21)
+        # bug need fix 
+        # tdSql.checkData(0,1,None)
+
+        tdSql.query("select c1 , twa(c1) from stb partition by c1 order by c1")
+        tdSql.checkRows(11)
+        tdSql.checkData(0,1,0.000000000)
+
+        tdSql.query("select c1 , irate(c1) from stb partition by c1 order by c1")
+        tdSql.checkRows(11)
+        tdSql.checkData(0,1,None)
+
+        tdSql.query("select c1 , DERIVATIVE(c1,2,1) from stb partition by c1 order by c1")
+        tdSql.checkRows(72)
+        # bug need fix 
+        # tdSql.checkData(0,1,None)
+
+
+
+
+
+
 
         # bug need fix 
         # tdSql.query(" select tbname , max(c1) from stb partition by tbname order by tbname slimit 5 soffset 0 ")  

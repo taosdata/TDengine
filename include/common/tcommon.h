@@ -57,7 +57,7 @@ enum {
   // STREAM_INPUT__TABLE_SCAN,
   STREAM_INPUT__TQ_SCAN,
   STREAM_INPUT__DATA_RETRIEVE,
-  STREAM_INPUT__TRIGGER,
+  STREAM_INPUT__GET_RES,
   STREAM_INPUT__CHECKPOINT,
   STREAM_INPUT__DROP,
 };
@@ -80,8 +80,6 @@ typedef struct {
   SArray*   pTableList;
   SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
   bool      needSortTableByGroupId;
-  void*     pTagCond;
-  void*     pTagIndexCond;
   uint64_t  suid;
 } STableListInfo;
 
@@ -155,32 +153,18 @@ typedef struct SQueryTableDataCond {
   int32_t      numOfCols;
   SColumnInfo* colList;
   int32_t      type;  // data block load type:
-//  int32_t      numOfTWindows;
-  STimeWindow  twindows;
-  int64_t      startVersion;
-  int64_t      endVersion;
+                      //  int32_t      numOfTWindows;
+  STimeWindow twindows;
+  int64_t     startVersion;
+  int64_t     endVersion;
 } SQueryTableDataCond;
 
-void*   blockDataDestroy(SSDataBlock* pBlock);
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
 void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
 
 int32_t tEncodeDataBlocks(void** buf, const SArray* blocks);
 void*   tDecodeDataBlocks(const void* buf, SArray** blocks);
 void    colDataDestroy(SColumnInfoData* pColData);
-
-static FORCE_INLINE void blockDestroyInner(SSDataBlock* pBlock) {
-  int32_t numOfOutput = taosArrayGetSize(pBlock->pDataBlock);
-  for (int32_t i = 0; i < numOfOutput; ++i) {
-    SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
-    colDataDestroy(pColInfoData);
-  }
-
-  taosArrayDestroy(pBlock->pDataBlock);
-  taosMemoryFreeClear(pBlock->pBlockAgg);
-}
-
-static FORCE_INLINE void tDeleteSSDataBlock(SSDataBlock* pBlock) { blockDestroyInner(pBlock); }
 
 //======================================================================================================================
 // the following structure shared by parser and executor

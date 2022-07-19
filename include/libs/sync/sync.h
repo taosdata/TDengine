@@ -26,7 +26,7 @@ extern "C" {
 
 extern bool gRaftDetailLog;
 
-#define SYNC_RESP_TTL_MS 5000
+#define SYNC_RESP_TTL_MS 10000
 
 #define SYNC_MAX_BATCH_SIZE 500
 #define SYNC_INDEX_BEGIN 0
@@ -134,7 +134,7 @@ typedef struct SSyncFSM {
   int32_t (*FpSnapshotDoRead)(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len);
 
   int32_t (*FpSnapshotStartWrite)(struct SSyncFSM* pFsm, void* pWriterParam, void** ppWriter);
-  int32_t (*FpSnapshotStopWrite)(struct SSyncFSM* pFsm, void* pWriter, bool isApply);
+  int32_t (*FpSnapshotStopWrite)(struct SSyncFSM* pFsm, void* pWriter, bool isApply, SSnapshot* pSnapshot);
   int32_t (*FpSnapshotDoWrite)(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_t len);
 
 } SSyncFSM;

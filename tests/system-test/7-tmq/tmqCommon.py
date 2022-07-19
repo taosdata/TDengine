@@ -205,6 +205,13 @@ class TMQCom:
         tdLog.debug("complete to create %d child tables by %s.%s" %(ctbNum, dbName, stbName))
         return    
 
+    def drop_ctable(self, tsql, dbname=None, count=1, default_ctbname_prefix="ctb",ctbStartIdx=0):
+        for _ in range(count):
+            create_ctable_sql = f'drop table {dbname}.{default_ctbname_prefix}{ctbStartIdx};'
+            ctbStartIdx += 1
+            tdLog.info("drop ctb sql: %s"%create_ctable_sql)
+            tsql.execute(create_ctable_sql)
+
     # schema: (ts timestamp, c1 int, c2 binary(16))
     def insert_data(self,tsql,dbName,stbName,ctbNum,rowsPerTbl,batchNum,startTs=None):
         tdLog.debug("start to insert data ............")
@@ -428,7 +435,7 @@ class TMQCom:
         pThread.start()
         return pThread
 
-    def checkFileContent(self, consumerId, queryString):
+    def checkFileContent(self, consumerId, queryString, skipRowsOfCons=0):
         buildPath = tdCom.getBuildPath()
         cfgPath = tdCom.getClientCfgPath()
         dstFile = '%s/../log/dstrows_%d.txt'%(cfgPath, consumerId)
@@ -444,6 +451,11 @@ class TMQCom:
         
         # skip first line for it is schema
         queryFile.readline()
+        
+        # skip offset for consumer
+        for i in range(0,skipRowsOfCons):
+            consumeFile.readline()            
+        
         lines = 0
         while True:
             dst = queryFile.readline()

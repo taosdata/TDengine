@@ -426,7 +426,7 @@ class TDTestCase:
         tdSql.query(" select unique(t1+c1) from stb1 ")
         tdSql.checkRows(13)
         tdSql.query(" select unique(t1+c1) from stb1 partition by tbname ")
-        tdSql.checkRows(13)
+        tdSql.checkRows(20)
         tdSql.query(" select unique(t1) from stb1 partition by tbname ")
         tdSql.checkRows(2)
 

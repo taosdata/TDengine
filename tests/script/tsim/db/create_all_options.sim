@@ -5,63 +5,34 @@ system sh/deploy.sh -n dnode3 -i 3
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
-
-$loop_cnt = 0
-check_dnode_ready:
-	$loop_cnt = $loop_cnt + 1
-	sleep 200
-	if $loop_cnt == 10 then
-	  print ====> dnode not ready!
-		return -1
-	endi
-sql show dnodes
-print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
-if $data00 != 1 then
-  return -1
-endi
-if $data04 != ready then
-  goto check_dnode_ready
-endi
-
 sql connect
 sql create dnode $hostname port 7200
 sql create dnode $hostname port 7300
 
-$loop_cnt = 0
-check_dnode_ready_1:
-	$loop_cnt = $loop_cnt + 1
-	sleep 200
-	if $loop_cnt == 10 then
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
 	  print ====> dnode not ready!
 		return -1
 	endi
 sql show dnodes
-print ===> rows: $rows 
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
-if $data00 != 1 then
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+if $rows != 3 then
   return -1
 endi
-system_content printf %OS%
-if $system_content == Windows_NT then
-  system_content printf %COMPUTERNAME%:7100
-  if $data01 != $system_content then
-    return -1
-  endi
-else
-  if $data01 != localhost:7100 then
-    return -1
-  endi
+if $data(1)[4] != ready then
+  goto step1
 endi
-if $data04 != ready then
-  goto check_dnode_ready_1
+if $data(2)[4] != ready then
+  goto step1
 endi
-if $data14 != ready then
-  goto check_dnode_ready_1
-endi
-if $data24 != ready then
-  goto check_dnode_ready_1
+if $data(3)[4] != ready then
+  goto step1
 endi
 
 print ============= create database with all options
@@ -69,7 +40,7 @@ print ============= create database with all options
 #  | BUFFER value       [3~16384, default: 96]
 #  | PAGES value        [64~16384, default: 256]
 #  | PAGESIZE value     [1~16384, default: 4]
-#  | CACHELAST value    [0, 1, 2, 3, default: 0]
+#  | CACHEMODEL value   ['node', 'last_row', 'last_value', 'both', default: 'node']
 #  | COMP               [0 | 1 | 2, default: 2]
 #  | DURATION value         [60m ~ min(3650d,keep), default: 10d, unit may be minut/hour/day]
 #  | FSYNC value        [0 ~ 180000 ms, default: 3000]
@@ -118,7 +89,7 @@ if $data4_db != 1 then  # replica
   print expect 1, actual: $data4_db
   return -1
 endi
-if $data5_db != no_strict then  # strict
+if $data5_db != off then  # strict
   return -1
 endi
 if $data6_db != 14400m then  # duration
@@ -151,7 +122,7 @@ endi
 if $data15_db != 2 then  # comp
   return -1
 endi
-if $data16_db != 0 then  # cachelast
+if $data16_db != none then  # cachelast
   return -1
 endi
 if $data17_db != ms then  # precision
@@ -196,32 +167,32 @@ sql drop database db
 #endi
 #sql drop database db
 
-print ====> CACHELAST value [0, 1, 2, 3, default: 0]
-sql create database db CACHELAST 1
+print ====> CACHEMODEL value [0, 1, 2, 3, default: 0]
+sql create database db CACHEMODEL 'last_row'
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
-if $data16_db != 1 then
+if $data16_db != last_row then
   return -1
 endi
 sql drop database db
 
-sql create database db CACHELAST 2
+sql create database db CACHEMODEL 'last_value'
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
-if $data16_db != 2 then
+if $data16_db != last_value then
   return -1
 endi
 sql drop database db
 
-sql create database db CACHELAST 3
+sql create database db CACHEMODEL 'both'
 sql show databases
 print $data0_db $data1_db $data2_db $data3_db $data4_db $data5_db $data6_db $data7_db $data8_db $data9_db $data10_db $data11_db $data12_db $data13_db $data14_db $data15_db $data16_db $data17_db
-if $data16_db != 3 then
+if $data16_db != both then
   return -1
 endi
 sql drop database db
-sql_error create database db CACHELAST 4
-sql_error create database db CACHELAST -1
+sql_error create database db CACHEMODEL 'other'
+sql_error create database db CACHEMODEL '-1'
 
 print ====> COMP [0 | 1 | 2, default: 2]
 sql create database db COMP 1

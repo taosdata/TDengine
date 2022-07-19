@@ -131,6 +131,7 @@ void taos_close(TAOS *taos) {
 
   STscObj *pObj = acquireTscObj(*(int64_t *)taos);
   if (NULL == pObj) {
+    taosMemoryFree(taos);
     return;
   }
 
@@ -141,6 +142,7 @@ void taos_close(TAOS *taos) {
 
 int taos_errno(TAOS_RES *res) {
   if (res == NULL || TD_RES_TMQ_META(res)) {
+    if (terrno == TSDB_CODE_RPC_REDIRECT) terrno = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     return terrno;
   }
 
@@ -148,11 +150,13 @@ int taos_errno(TAOS_RES *res) {
     return 0;
   }
 
-  return ((SRequestObj *)res)->code;
+  return ((SRequestObj *)res)->code == TSDB_CODE_RPC_REDIRECT ? TSDB_CODE_RPC_NETWORK_UNAVAIL
+                                                              : ((SRequestObj *)res)->code;
 }
 
 const char *taos_errstr(TAOS_RES *res) {
   if (res == NULL || TD_RES_TMQ_META(res)) {
+    if (terrno == TSDB_CODE_RPC_REDIRECT) terrno = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     return (const char *)tstrerror(terrno);
   }
 
@@ -164,7 +168,8 @@ const char *taos_errstr(TAOS_RES *res) {
   if (NULL != pRequest->msgBuf && (strlen(pRequest->msgBuf) > 0 || pRequest->code == TSDB_CODE_RPC_FQDN_ERROR)) {
     return pRequest->msgBuf;
   } else {
-    return (const char *)tstrerror(pRequest->code);
+    return pRequest->code == TSDB_CODE_RPC_REDIRECT ? (const char *)tstrerror(TSDB_CODE_RPC_NETWORK_UNAVAIL)
+                                                    : (const char *)tstrerror(pRequest->code);
   }
 }
 
@@ -688,8 +693,10 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
     tscDebug("0x%" PRIx64 " analysis semantics completed, start async query, reqId:0x%" PRIx64, pRequest->self,
              pRequest->requestId);
     launchAsyncQuery(pRequest, pQuery, pResultMeta);
+    qDestroyQuery(pQuery);
   } else {
     destorySqlParseWrapper(pWrapper);
+    qDestroyQuery(pQuery);
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
@@ -867,7 +874,7 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
     } else {
       pResultInfo->numOfRows = 0;
     }
-    
+
     pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
     return;
   }

@@ -77,6 +77,8 @@ typedef struct SSnapDataHdr    SSnapDataHdr;
 // vnd.h
 void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
 void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
+void  vnodeBufPoolRef(SVBufPool* pPool);
+void  vnodeBufPoolUnRef(SVBufPool* pPool);
 
 // meta
 typedef struct SMCtbCursor SMCtbCursor;
@@ -99,7 +101,8 @@ STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
 int32_t         metaGetTbTSchemaEx(SMeta* pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema** ppTSchema);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
 tb_uid_t        metaGetTableEntryUidByName(SMeta* pMeta, const char* name);
-int             metaGetTbNum(SMeta* pMeta);
+int64_t         metaGetTbNum(SMeta* pMeta);
+int64_t         metaGetTimeSeriesNum(SMeta* pMeta);
 SMCtbCursor*    metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid);
 void            metaCloseCtbCursor(SMCtbCursor* pCtbCur);
 tb_uid_t        metaCtbCursorNext(SMCtbCursor* pCtbCur);
@@ -164,9 +167,12 @@ void    smaCleanUp();
 int32_t smaOpen(SVnode* pVnode);
 int32_t smaClose(SSma* pSma);
 int32_t smaBegin(SSma* pSma);
-int32_t smaPreCommit(SSma* pSma);
-int32_t smaCommit(SSma* pSma);
-int32_t smaPostCommit(SSma* pSma);
+int32_t smaSyncPreCommit(SSma* pSma);
+int32_t smaSyncCommit(SSma* pSma);
+int32_t smaSyncPostCommit(SSma* pSma);
+int32_t smaAsyncPreCommit(SSma* pSma);
+int32_t smaAsyncCommit(SSma* pSma);
+int32_t smaAsyncPostCommit(SSma* pSma);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
@@ -243,26 +249,26 @@ struct STsdbKeepCfg {
 };
 
 struct SVnode {
-  char*      path;
-  SVnodeCfg  config;
-  SVState    state;
-  STfs*      pTfs;
-  SMsgCb     msgCb;
-  SVBufPool* pPool;
-  SVBufPool* inUse;
-  SVBufPool* onCommit;
-  SVBufPool* onRecycle;
-  SMeta*     pMeta;
-  SSma*      pSma;
-  STsdb*     pTsdb;
-  SWal*      pWal;
-  STQ*       pTq;
-  SSink*     pSink;
-  tsem_t     canCommit;
-  int64_t    sync;
-  int32_t    blockCount;
-  tsem_t     syncSem;
-  SQHandle*  pQuery;
+  char*         path;
+  SVnodeCfg     config;
+  SVState       state;
+  STfs*         pTfs;
+  SMsgCb        msgCb;
+  TdThreadMutex mutex;
+  TdThreadCond  poolNotEmpty;
+  SVBufPool*    pPool;
+  SVBufPool*    inUse;
+  SMeta*        pMeta;
+  SSma*         pSma;
+  STsdb*        pTsdb;
+  SWal*         pWal;
+  STQ*          pTq;
+  SSink*        pSink;
+  tsem_t        canCommit;
+  int64_t       sync;
+  int32_t       blockCount;
+  tsem_t        syncSem;
+  SQHandle*     pQuery;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
@@ -309,6 +315,7 @@ void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
 
 struct SSnapDataHdr {
   int8_t  type;
+  int64_t index;
   int64_t size;
   uint8_t data[];
 };

@@ -64,8 +64,25 @@ int32_t tsdbBegin(STsdb *pTsdb) {
 
   if (!pTsdb) return code;
 
-  code = tsdbMemTableCreate(pTsdb, &pTsdb->mem);
+  SMemTable *pMemTable;
+  code = tsdbMemTableCreate(pTsdb, &pMemTable);
   if (code) goto _err;
+
+  // lock
+  code = taosThreadRwlockWrlock(&pTsdb->rwLock);
+  if (code) {
+    code = TAOS_SYSTEM_ERROR(code);
+    goto _err;
+  }
+
+  pTsdb->mem = pMemTable;
+
+  // unlock
+  code = taosThreadRwlockUnlock(&pTsdb->rwLock);
+  if (code) {
+    code = TAOS_SYSTEM_ERROR(code);
+    goto _err;
+  }
 
   return code;
 
@@ -83,9 +100,11 @@ int32_t tsdbCommit(STsdb *pTsdb) {
 
   // check
   if (pMemTable->nRow == 0 && pMemTable->nDel == 0) {
-    // TODO: lock?
+    taosThreadRwlockWrlock(&pTsdb->rwLock);
     pTsdb->mem = NULL;
-    tsdbMemTableDestroy(pMemTable);
+    taosThreadRwlockUnlock(&pTsdb->rwLock);
+
+    tsdbUnrefMemTable(pMemTable);
     goto _exit;
   }
 
@@ -139,7 +158,7 @@ static int32_t tsdbCommitDelStart(SCommitter *pCommitter) {
     goto _err;
   }
 
-  SDelFile *pDelFileR = pTsdb->fs->nState->pDelFile;
+  SDelFile *pDelFileR = pTsdb->pFS->nState->pDelFile;
   if (pDelFileR) {
     code = tsdbDelFReaderOpen(&pCommitter->pDelFReader, pDelFileR, pTsdb, NULL);
     if (code) goto _err;
@@ -228,7 +247,7 @@ static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
   code = tsdbUpdateDelFileHdr(pCommitter->pDelFWriter);
   if (code) goto _err;
 
-  code = tsdbFSStateUpsertDelFile(pTsdb->fs->nState, &pCommitter->pDelFWriter->fDel);
+  code = tsdbFSStateUpsertDelFile(pTsdb->pFS->nState, &pCommitter->pDelFWriter->fDel);
   if (code) goto _err;
 
   code = tsdbDelFWriterClose(&pCommitter->pDelFWriter, 1);
@@ -263,7 +282,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   taosArrayClear(pCommitter->aBlockIdx);
   tMapDataReset(&pCommitter->oBlockMap);
   tBlockDataReset(&pCommitter->oBlockData);
-  pRSet = tsdbFSStateGetDFileSet(pTsdb->fs->nState, pCommitter->commitFid);
+  pRSet = tsdbFSStateGetDFileSet(pTsdb->pFS->nState, pCommitter->commitFid, TD_EQ);
   if (pRSet) {
     code = tsdbDataFReaderOpen(&pCommitter->pReader, pTsdb, pRSet);
     if (code) goto _err;
@@ -284,16 +303,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
                        .fLast = {.commitID = pCommitter->commitID, .size = 0},
                        .fSma = pRSet->fSma};
   } else {
-    STfs   *pTfs = pTsdb->pVnode->pTfs;
-    SDiskID did = {.level = 0, .id = 0};
-
-    // TODO: alloc a new disk
-    // tfsAllocDisk(pTfs, 0, &did);
-
-    // create the directory
-    tfsMkdirRecurAt(pTfs, pTsdb->path, did);
-
-    wSet = (SDFileSet){.diskId = did,
+    wSet = (SDFileSet){.diskId = (SDiskID){.level = 0, .id = 0},
                        .fid = pCommitter->commitFid,
                        .fHead = {.commitID = pCommitter->commitID, .offset = 0, .size = 0},
                        .fData = {.commitID = pCommitter->commitID, .size = 0},
@@ -845,7 +855,7 @@ static int32_t tsdbCommitFileDataEnd(SCommitter *pCommitter) {
   if (code) goto _err;
 
   // upsert SDFileSet
-  code = tsdbFSStateUpsertDFileSet(pCommitter->pTsdb->fs->nState, tsdbDataFWriterGetWSet(pCommitter->pWriter));
+  code = tsdbFSStateUpsertDFileSet(pCommitter->pTsdb->pFS->nState, tsdbDataFWriterGetWSet(pCommitter->pWriter));
   if (code) goto _err;
 
   // close and sync
@@ -950,10 +960,10 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   memset(pCommitter, 0, sizeof(*pCommitter));
   ASSERT(pTsdb->mem && pTsdb->imem == NULL);
 
-  // lock();
+  taosThreadRwlockWrlock(&pTsdb->rwLock);
   pTsdb->imem = pTsdb->mem;
   pTsdb->mem = NULL;
-  // unlock();
+  taosThreadRwlockUnlock(&pTsdb->rwLock);
 
   pCommitter->pTsdb = pTsdb;
   pCommitter->commitID = pTsdb->pVnode->state.commitID;
@@ -963,7 +973,7 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   pCommitter->maxRow = pTsdb->pVnode->config.tsdbCfg.maxRows;
   pCommitter->cmprAlg = pTsdb->pVnode->config.tsdbCfg.compression;
 
-  code = tsdbFSBegin(pTsdb->fs);
+  code = tsdbFSBegin(pTsdb->pFS);
   if (code) goto _err;
 
   return code;
@@ -1001,10 +1011,10 @@ _exit:
 static void tsdbCommitDataEnd(SCommitter *pCommitter) {
   taosArrayDestroy(pCommitter->aBlockIdx);
   tMapDataClear(&pCommitter->oBlockMap);
-  tBlockDataClear(&pCommitter->oBlockData);
+  tBlockDataClear(&pCommitter->oBlockData, 1);
   taosArrayDestroy(pCommitter->aBlockIdxN);
   tMapDataClear(&pCommitter->nBlockMap);
-  tBlockDataClear(&pCommitter->nBlockData);
+  tBlockDataClear(&pCommitter->nBlockData, 1);
   tTSchemaDestroy(pCommitter->skmTable.pTSchema);
   tTSchemaDestroy(pCommitter->skmRow.pTSchema);
 }
@@ -1144,13 +1154,16 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
   SMemTable *pMemTable = pTsdb->imem;
 
   if (eno == 0) {
-    code = tsdbFSCommit(pTsdb->fs);
+    code = tsdbFSCommit(pTsdb->pFS);
   } else {
-    code = tsdbFSRollback(pTsdb->fs);
+    code = tsdbFSRollback(pTsdb->pFS);
   }
 
-  tsdbMemTableDestroy(pMemTable);
+  taosThreadRwlockWrlock(&pTsdb->rwLock);
   pTsdb->imem = NULL;
+  taosThreadRwlockUnlock(&pTsdb->rwLock);
+
+  tsdbUnrefMemTable(pMemTable);
 
   tsdbInfo("vgId:%d tsdb end commit", TD_VID(pTsdb->pVnode));
   return code;

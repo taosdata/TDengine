@@ -135,6 +135,7 @@ void    rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg
 int32_t rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
 void    rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
 void    rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
+void*   rpcAllocHandle();
 
 #ifdef __cplusplus
 }

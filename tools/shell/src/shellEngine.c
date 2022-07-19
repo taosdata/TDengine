@@ -231,18 +231,6 @@ char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
     ms = val % 1000;
   }
 
-  /*
-    comment out as it make testcases like select_with_tags.sim fail.
-    but in windows, this may cause the call to localtime crash if tt < 0,
-    need to find a better solution.
-    if (tt < 0) {
-      tt = 0;
-    }
-  */
-
-#ifdef WINDOWS
-  if (tt < 0) tt = 0;
-#endif
   if (tt <= 0 && ms < 0) {
     tt--;
     if (precision == TSDB_TIME_PRECISION_NANO) {
@@ -254,8 +242,9 @@ char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
     }
   }
 
-  struct tm *ptm = taosLocalTime(&tt, NULL);
-  size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", ptm);
+  struct tm ptm = {0};
+  taosLocalTime(&tt, &ptm);
+  size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
 
   if (precision == TSDB_TIME_PRECISION_NANO) {
     sprintf(buf + pos, ".%09d", ms);
@@ -767,10 +756,29 @@ void shellReadHistory() {
 
   if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
+  int64_t file_size;
+  if (taosStatFile(pHistory->file, &file_size, NULL) == 0 && file_size > SHELL_MAX_COMMAND_SIZE) {
+    fprintf(stdout,"%s(%d) %s %08" PRId64 "\n", __FILE__, __LINE__,__func__,taosGetSelfPthreadId());fflush(stdout);
+    TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_STREAM | TD_FILE_TRUNC);
+    if (pFile == NULL) return;
+    int32_t endIndex = pHistory->hstart;
+    if (endIndex != 0) {
+      endIndex = pHistory->hend;
+    }
+    for (int32_t i = (pHistory->hend + SHELL_MAX_HISTORY_SIZE - 1) % SHELL_MAX_HISTORY_SIZE; i != endIndex;) {
+      taosFprintfFile(pFile, "%s\n", pHistory->hist[i]);
+      i = (i + SHELL_MAX_HISTORY_SIZE - 1) % SHELL_MAX_HISTORY_SIZE;
+    }
+    taosFprintfFile(pFile, "%s\n", pHistory->hist[endIndex]);
+    taosFsyncFile(pFile);
+    taosCloseFile(&pFile);
+  }
+  pHistory->hend = pHistory->hstart;
 }
 
 void shellWriteHistory() {
   SShellHistory *pHistory = &shell.history;
+  if (pHistory->hend == pHistory->hstart) return;
   TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_STREAM | TD_FILE_APPEND);
   if (pFile == NULL) return;
 

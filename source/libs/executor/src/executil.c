@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <common/ttime.h>
+#include "ttime.h"
 #include "function.h"
 #include "functionMgt.h"
 #include "index.h"
@@ -65,15 +65,19 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   }
 
   rowSize +=
-      (numOfOutput * sizeof(bool));  // expand rowSize to mark if col is null for top/bottom result(saveTupleData)
+      (numOfOutput * sizeof(bool));  // expand rowSize to mark if col is null for top/bottom result(doSaveTupleData)
   return rowSize;
 }
 
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   assert(pGroupResInfo != NULL);
 
-  taosArrayDestroy(pGroupResInfo->pRows);
-  pGroupResInfo->pRows = NULL;
+  for(int32_t i = 0; i < taosArrayGetSize(pGroupResInfo->pRows); ++i) {
+    SResKeyPos* pRes = taosArrayGetP(pGroupResInfo->pRows, i);
+    taosMemoryFree(pRes);
+  }
+
+  pGroupResInfo->pRows = taosArrayDestroy(pGroupResInfo->pRows);
   pGroupResInfo->index = 0;
 }
 
@@ -115,9 +119,6 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int
     p->groupId = *(uint64_t*)key;
     p->pos = *(SResultRowPosition*)pData;
     memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
-#ifdef BUF_PAGE_DEBUG
-    qDebug("page_groupRes, groupId:%" PRIu64 ",pageId:%d,offset:%d\n", p->groupId, p->pos.pageId, p->pos.offset);
-#endif
     taosArrayPush(pGroupResInfo->pRows, &p);
   }
 
@@ -264,7 +265,7 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static bool isTableOk(STableKeyInfo* info, SNode* pTagCond, SMeta* metaHandle) {
+int32_t isTableOk(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, metaHandle, 0);
   metaGetTableEntryByUid(&mr, info->uid);
@@ -279,19 +280,22 @@ static bool isTableOk(STableKeyInfo* info, SNode* pTagCond, SMeta* metaHandle) {
   if (TSDB_CODE_SUCCESS != code) {
     terrno = code;
     nodesDestroyNode(pTagCondTmp);
-    return false;
+    *pQualified = false;
+
+    return code;
   }
 
   ASSERT(nodeType(pNew) == QUERY_NODE_VALUE);
   SValueNode* pValue = (SValueNode*)pNew;
 
   ASSERT(pValue->node.resType.type == TSDB_DATA_TYPE_BOOL);
-  bool result = pValue->datum.b;
+  *pQualified = pValue->datum.b;
+
   nodesDestroyNode(pNew);
-  return result;
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, STableListInfo* pListInfo) {
+int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond, STableListInfo* pListInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   pListInfo->pTableList = taosArrayInit(8, sizeof(STableKeyInfo));
@@ -303,11 +307,8 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
 
   pListInfo->suid = pScanNode->suid;
 
-  SNode* pTagCond = (SNode*)pListInfo->pTagCond;
-  SNode* pTagIndexCond = (SNode*)pListInfo->pTagIndexCond;
   if (pScanNode->tableType == TSDB_SUPER_TABLE) {
     if (pTagIndexCond) {
-      ///<<<<<<< HEAD
       SIndexMetaArg metaArg = {
           .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = tsdbGetIvtIdx(metaHandle), .suid = tableUid};
 
@@ -315,20 +316,9 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       SIdxFltStatus status = SFLT_NOT_INDEX;
       code = doFilterTag(pTagIndexCond, &metaArg, res, &status);
       if (code != 0 || status == SFLT_NOT_INDEX) {
-        code = TSDB_CODE_INDEX_REBUILDING;
-      }
-      //=======
-      //      SArray* res = taosArrayInit(8, sizeof(uint64_t));
-      //      // code = doFilterTag(pTagIndexCond, &metaArg, res);
-      //      code = TSDB_CODE_INDEX_REBUILDING;
-      //>>>>>>> dvv
-      if (code == TSDB_CODE_INDEX_REBUILDING) {
+        qError("failed to get tableIds from index, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
+//        code = TSDB_CODE_INDEX_REBUILDING;
         code = vnodeGetAllTableList(pVnode, tableUid, pListInfo->pTableList);
-      } else if (code != TSDB_CODE_SUCCESS) {
-        qError("failed to get tableIds, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
-        taosArrayDestroy(res);
-        terrno = code;
-        return code;
       } else {
         qDebug("success to get tableIds, size:%d, suid:%" PRIu64, (int)taosArrayGetSize(res), tableUid);
       }
@@ -347,23 +337,28 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       terrno = code;
       return code;
     }
-
-    if (pTagCond) {
-      int32_t i = 0;
-      while (i < taosArrayGetSize(pListInfo->pTableList)) {
-        STableKeyInfo* info = taosArrayGet(pListInfo->pTableList, i);
-        bool           isOk = isTableOk(info, pTagCond, metaHandle);
-        if (terrno) return terrno;
-        if (!isOk) {
-          taosArrayRemove(pListInfo->pTableList, i);
-          continue;
-        }
-        i++;
-      }
-    }
   } else {  // Create one table group.
     STableKeyInfo info = {.lastKey = 0, .uid = tableUid, .groupId = 0};
     taosArrayPush(pListInfo->pTableList, &info);
+  }
+
+  if (pTagCond) {
+    int32_t i = 0;
+    while (i < taosArrayGetSize(pListInfo->pTableList)) {
+      STableKeyInfo* info = taosArrayGet(pListInfo->pTableList, i);
+
+      bool qualified = true;
+      code = isTableOk(info, pTagCond, metaHandle, &qualified);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
+      if (!qualified) {
+        taosArrayRemove(pListInfo->pTableList, i);
+        continue;
+      }
+      i++;
+    }
   }
 
   pListInfo->pGroupList = taosArrayInit(4, POINTER_BYTES);
@@ -373,7 +368,6 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
 
   // put into list as default group, remove it if grouping sorting is required later
   taosArrayPush(pListInfo->pGroupList, &pListInfo->pTableList);
-
   return code;
 }
 
@@ -615,13 +609,15 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
   }
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
-    if (strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "_select_value") == 0 ||
-        strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "_group_key") == 0) {
+    const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
+    if ((strcmp(pName, "_select_value") == 0) ||
+        (strcmp(pName, "_group_key") == 0)) {
       pValCtx[num++] = &pCtx[i];
     } else if (fmIsSelectFunc(pCtx[i].functionId)) {
       p = &pCtx[i];
     }
   }
+
 #ifdef BUF_PAGE_DEBUG
   qDebug("page_setSelect num:%d", num);
 #endif
@@ -853,6 +849,9 @@ static STimeWindow doCalculateTimeWindow(int64_t ts, SInterval* pInterval) {
     w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
   } else {
     int64_t st = w.skey;
+    if (pInterval->offset > 0) {
+      st = taosTimeAdd(st, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+    }
 
     if (st > ts) {
       st -= ((st - ts + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
@@ -908,4 +907,23 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
   }
 
   return w;
+}
+
+bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {
+  return (pLimitInfo->limit.limit != -1 || pLimitInfo->limit.offset != -1 || pLimitInfo->slimit.limit != -1 ||
+          pLimitInfo->slimit.offset != -1);
+}
+
+
+static int64_t getLimit(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->limit; }
+static int64_t getOffset(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->offset; }
+
+void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo) {
+  SLimit limit = {.limit = getLimit(pLimit), .offset = getOffset(pLimit)};
+  SLimit slimit = {.limit = getLimit(pSLimit), .offset = getOffset(pSLimit)};
+
+  pLimitInfo->limit = limit;
+  pLimitInfo->slimit= slimit;
+  pLimitInfo->remainOffset = limit.offset;
+  pLimitInfo->remainGroupOffset = slimit.offset;
 }
