@@ -5661,7 +5661,12 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
         double r = ((v - pDerivInfo->prevValue) * pDerivInfo->tsWindow) / (tsList[i] - pDerivInfo->prevTs);
         if (pDerivInfo->ignoreNegative && r < 0) {
         } else {
-          colDataAppend(pOutput, pos, (const char*)&r, false);
+          if (isinf(r) || isnan(r)) {
+            colDataAppendNULL(pOutput, pos);
+          } else {
+            colDataAppend(pOutput, pos, (const char*)&r, false);
+          }
+
           if (pTsOutput != NULL) {
             colDataAppendInt64(pTsOutput, pos, &tsList[i]);
           }
@@ -5688,7 +5693,12 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
         double r = ((pDerivInfo->prevValue - v) * pDerivInfo->tsWindow) / (pDerivInfo->prevTs - tsList[i]);
         if (pDerivInfo->ignoreNegative && r < 0) {
         } else {
-          colDataAppend(pOutput, pos, (const char*)&r, false);
+          if (isinf(r) || isnan(r)) {
+            colDataAppendNULL(pOutput, pos);
+          } else {
+            colDataAppend(pOutput, pos, (const char*)&r, false);
+          }
+
           if (pTsOutput != NULL) {
             colDataAppendInt64(pTsOutput, pos, &pDerivInfo->prevTs);
           }

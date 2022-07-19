@@ -72,7 +72,7 @@ class TDTestCase:
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    4,
-                    'replica':    1,
+                    'replica':    3,
                     'stbName':    'stb',
                     'stbNumbers': 100,
                     'colPrefix':  'c',
@@ -160,7 +160,7 @@ class TDTestCase:
         clusterComCheck.checkDnodes(dnodeNumbers)
         tdSql.query("show databases")
         tdLog.debug("we find %d databases but exepect to create %d  databases "%(tdSql.queryRows-2,allDbNumbers-2))
-
+        
         # tdLog.info("check DB Rows:")
         # clusterComCheck.checkDbRows(allDbNumbers)
         # tdLog.info("check DB Status on by on")
