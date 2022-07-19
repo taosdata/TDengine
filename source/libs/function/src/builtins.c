@@ -1646,9 +1646,9 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (IS_VAR_DATA_TYPE(para2Type)) {
     para2Bytes -= VARSTR_HEADER_SIZE;
   }
-  if (para2Bytes <= 0 || para2Bytes > 1000) {  // cast dst var type length limits to 1000
+  if (para2Bytes <= 0 || para2Bytes > 4096) {  // cast dst var type length limits to 4096 bytes
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "CAST function converted length should be in range [0, 1000]");
+                           "CAST function converted length should be in range [0, 4096] bytes");
   }
 
   // add database precision as param
