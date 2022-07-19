@@ -36,7 +36,8 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
   } else if (pItem->type == STREAM_INPUT__MERGED_SUBMIT) {
     SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)data;
     SArray*              blocks = pMerged->reqs;
-    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__DATA_SUBMIT, false);
+    qDebug("task %d %p set submit input (merged), batch num: %d", pTask->taskId, pTask, (int32_t)blocks->size);
+    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__MERGED_SUBMIT, false);
   } else {
     ASSERT(0);
   }
@@ -147,7 +148,7 @@ int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum) {
 
 static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
   while (1) {
-    int32_t cnt = 0;
+    int32_t cnt = 1;
     void*   data = NULL;
     while (1) {
       SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
