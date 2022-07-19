@@ -184,7 +184,7 @@ class TDTestCase:
 
         tdSql.query("select c1 , twa(c1) from stb partition by c1 order by c1")
         tdSql.checkRows(11)
-        tdSql.checkData(0,1,0.000000000)
+        #tdSql.checkData(0,1,None)
 
         tdSql.query("select c1 , irate(c1) from stb partition by c1 order by c1")
         tdSql.checkRows(11)
@@ -193,7 +193,7 @@ class TDTestCase:
         tdSql.query("select c1 , DERIVATIVE(c1,2,1) from stb partition by c1 order by c1")
         tdSql.checkRows(72)
         # bug need fix 
-        # tdSql.checkData(0,1,None)
+        tdSql.checkData(0,1,None)
 
 
 
