@@ -97,18 +97,18 @@ class TDTestCase:
         paraDict['rowsPerTbl'] = self.rowsPerTbl
         
         # update to half tables
-        paraDict['rowsPerTbl'] = int(self.rowsPerTbl / 2)
+        # paraDict['rowsPerTbl'] = int(self.rowsPerTbl / 2)
         # tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix="ctbx",
         #                                       ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
         #                                       startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
-        tmqCom.insert_data_interlaceByMultiTbl(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],
-                                               ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
-                                               startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])     
+        # tmqCom.insert_data_interlaceByMultiTbl(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],
+        #                                        ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
+        #                                        startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])     
         
         tdLog.info("create topics from stb1")
         topicFromStb1 = 'topic_stb1'                
-        # queryString = "select ts, c1, c2 from %s.%s where t4 == 'beijing' or t4 == 'changsha'"%(paraDict['dbName'], paraDict['stbName'])
-        queryString = "select ts, c1, c2, t4 from %s.%s where t4 == 'shanghai' or t4 == 'changsha'"%(paraDict['dbName'], paraDict['stbName'])
+        queryString = "select ts, c1, c2 from %s.%s where t4 == 'shanghai' or t4 == 'changsha'"%(paraDict['dbName'], paraDict['stbName'])
+        # queryString = "select ts, c1, c2, t4 from %s.%s where t4 == 'shanghai' or t4 == 'changsha'"%(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)        
@@ -242,11 +242,11 @@ class TDTestCase:
         self.tmqCase1()
         # self.tmqCase2()
         
-        self.prepareTestEnv()
-        tdLog.printNoPrefix("====================================================================")
-        tdLog.printNoPrefix("======== snapshot is 1: firstly consume from tsbs, and then from wal")
-        self.snapshot = 1
-        self.tmqCase1()
+        # self.prepareTestEnv()
+        # tdLog.printNoPrefix("====================================================================")
+        # tdLog.printNoPrefix("======== snapshot is 1: firstly consume from tsbs, and then from wal")
+        # self.snapshot = 1
+        # self.tmqCase1()
         # self.tmqCase2()
         
 

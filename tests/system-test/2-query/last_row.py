@@ -48,7 +48,7 @@ class TDTestCase:
                 c9 = "'nchar_val'"
                 c10 = ts
                 tdSql.execute(f" insert into  {tbname} values ({ts},{c1},{c2},{c3},{c4},{c5},{c6},{c7},{c8},{c9},{c10})")
-        
+
         tdSql.execute("use test")
         tbnames = ["stb", "sub_tb_1"]
         support_types = ["BIGINT", "SMALLINT", "TINYINT", "FLOAT", "DOUBLE", "INT"]
@@ -61,7 +61,7 @@ class TDTestCase:
                 origin_sql = "select {} from {} order by tbname".format(colname, 'test.'+tbname)
                 if coltype[1] in support_types:
                     self.check_result_auto(origin_sql , abs_sql)
-                    
+
     def prepare_datas(self ,cache_value):
         tdSql.execute("drop database if exists db ")
         create_db_sql = f"create database if not exists db keep 3650 duration 1000 cachemodel {cache_value}"
@@ -220,22 +220,22 @@ class TDTestCase:
     def test_errors(self):
         tdSql.execute("use testdb")
 
-        # bug need fix 
-        tdSql.error("select last_row(c1 ,NULL) from testdb.t1")
+        # bug need fix
+        tdSql.query("select last_row(c1 ,NULL) from testdb.t1")
 
         error_sql_lists = [
             "select last_row from testdb.t1",
             "select last_row(-+--+c1) from testdb.t1",
             "select last_row(123--123)==1 from testdb.t1",
             "select last_row(c1) as 'd1' from testdb.t1",
-            "select last_row(c1 ,NULL) from testdb.t1",
+            #"select last_row(c1 ,NULL) from testdb.t1",
             "select last_row(,) from testdb.t1;",
             "select last_row(abs(c1) ab from testdb.t1)",
             "select last_row(c1) as int from testdb.t1",
             "select last_row from testdb.stb1",
             "select last_row(123--123)==1 from testdb.stb1",
             "select last_row(c1) as 'd1' from testdb.stb1",
-            "select last_row(c1 ,NULL) from testdb.stb1",
+            #"select last_row(c1 ,NULL) from testdb.stb1",
             "select last_row(,) from testdb.stb1;",
             "select last_row(abs(c1) ab from testdb.stb1)",
             "select last_row(c1) as int from testdb.stb1"
@@ -246,7 +246,7 @@ class TDTestCase:
     def support_types(self):
         tdSql.execute("use testdb")
         tbnames = ["stb1", "t1", "ct1", "ct2"]
-        
+
         for tbname in tbnames:
             tdSql.query("desc {}".format(tbname))
             coltypes = tdSql.queryResult
@@ -256,7 +256,7 @@ class TDTestCase:
                 if col_note != "TAG":
                     abs_sql = "select last_row({}) from {}".format(colname, "testdb."+tbname)
                     tdSql.query(abs_sql)
-                
+
 
     def basic_abs_function(self):
 
@@ -283,7 +283,7 @@ class TDTestCase:
 
         # used for regular table
 
-        # bug need fix 
+        # bug need fix
         tdSql.query("select last_row(c1) from testdb.t1")
         tdSql.checkData(0, 0, None)
         tdSql.query("select last_row(c1) from testdb.ct4")
@@ -291,21 +291,21 @@ class TDTestCase:
         tdSql.query("select last_row(c1) from testdb.stb1")
         tdSql.checkData(0, 0, None)
 
-        # # bug need fix 
+        # # bug need fix
         tdSql.query("select last_row(c1), c2, c3 , c4, c5 from testdb.t1")
         tdSql.checkData(0, 0, None)
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
 
-        # # bug need fix 
+        # # bug need fix
         tdSql.query("select last_row(c1), c2, c3 , c4, c5 from testdb.ct1")
         tdSql.checkData(0, 0, 9)
         tdSql.checkData(0, 1, -99999)
         tdSql.checkData(0, 2, -999)
         tdSql.checkData(0, 3, None)
         tdSql.checkData(0, 4,-9.99000)
-        
-        # bug need fix 
+
+        # bug need fix
         tdSql.query("select last_row(c1), c2, c3 , c4, c5 from testdb.stb1 where tbname='ct1'")
         tdSql.checkData(0, 0, 9)
         tdSql.checkData(0, 1, -99999)
@@ -313,14 +313,14 @@ class TDTestCase:
         tdSql.checkData(0, 3, None)
         tdSql.checkData(0, 4,-9.99000)
 
-        # bug fix 
+        # bug fix
         tdSql.query("select last_row(abs(c1)) from testdb.ct1")
         tdSql.checkData(0,0,9)
 
-        # # bug fix 
+        # # bug fix
         tdSql.query("select last_row(c1+1) from testdb.ct1")
-        tdSql.query("select last_row(c1+1) from testdb.stb1") 
-        tdSql.query("select last_row(c1+1) from testdb.t1")      
+        tdSql.query("select last_row(c1+1) from testdb.stb1")
+        tdSql.query("select last_row(c1+1) from testdb.t1")
 
         # used for stable table
         tdSql.query("select last_row(c1 ,c2 ,c3) ,last_row(c4) from testdb.ct1")
@@ -329,7 +329,7 @@ class TDTestCase:
         tdSql.checkData(0,2,-999)
         tdSql.checkData(0,3,None)
 
-        # bug need fix 
+        # bug need fix
         tdSql.query("select last_row(c1 ,c2 ,c3) from testdb.stb1 ")
         tdSql.checkData(0,0,None)
         tdSql.checkData(0,1,None)
@@ -338,7 +338,7 @@ class TDTestCase:
 
         tdSql.query('select last_row(c1) from testdb.t1 where ts <"2022-12-31 01:01:36.000"')
         tdSql.checkData(0,0,8)
-        # bug need fix 
+        # bug need fix
         tdSql.query("select abs(last_row(c1)-2)+max(c1),ceil(last_row(c4)-2) from testdb.stb1 where c4 is not null")
         tdSql.checkData(0,0,16.000000000)
         tdSql.checkData(0,1,-101.000000000)
@@ -371,7 +371,7 @@ class TDTestCase:
         tdSql.query("select last_row(c1) ,count(*)  from testdb.stb1 where  c1 is null")
         tdSql.checkData(0,0,None)
         tdSql.checkData(0,1,3)
-        
+
         tdSql.query("select last_row(c1) ,count(c1)  from testdb.stb1 where  c1 is null")
         tdSql.checkData(0,0,None)
         tdSql.checkData(0,1,0)
@@ -380,7 +380,7 @@ class TDTestCase:
         tdSql.query("select tbname ,last_row(c1) from testdb.stb1")
         tdSql.checkData(0,0,'ct4')
         tdSql.checkData(0,1,None)
-        
+
         tdSql.query(" select tbname ,last_row(c1) from testdb.stb1 partition by tbname order by tbname ")
         tdSql.checkData(0,0,'ct1')
         tdSql.checkData(0,1,9)
@@ -396,11 +396,11 @@ class TDTestCase:
         tdSql.query(" select t1 ,count(c1) from testdb.stb1 partition by t1 ")
         tdSql.checkRows(2)
 
-        # filter by tbname 
+        # filter by tbname
         tdSql.query("select last_row(c1) from testdb.stb1 where tbname = 'ct1' ")
         tdSql.checkData(0,0,9)
 
-        # bug need fix 
+        # bug need fix
         tdSql.query("select tbname ,last_row(c1) from testdb.stb1 where tbname = 'ct1' ")
         tdSql.checkData(0,1,9)
         tdSql.query("select tbname ,last_row(c1) from testdb.stb1 partition by tbname order by tbname")
@@ -428,7 +428,7 @@ class TDTestCase:
         tdSql.checkData(0,2,333)
         tdSql.checkData(0,3,3)
 
-        # filter by tag 
+        # filter by tag
         tdSql.query("select tbname ,last_row(c1) from testdb.stb1 where t1 =0 ")
         tdSql.checkData(0,1,9)
         tdSql.query("select tbname ,last_row(c1) ,t1 from testdb.stb1 partition by t1 order by t1")
@@ -437,7 +437,7 @@ class TDTestCase:
         tdSql.checkData(1, 0, 'ct4')
         tdSql.checkData(1, 1, None)
 
-        # filter by col 
+        # filter by col
 
         tdSql.query("select tbname ,last_row(c1),abs(c1)from testdb.stb1 where c1 =1;")
         tdSql.checkData(0, 0, 'ct1')
@@ -445,7 +445,7 @@ class TDTestCase:
         tdSql.checkData(0, 2, 1)
         tdSql.query("select last_row(c1) from testdb.stb1 where abs(ceil(c1))*c1==1")
         tdSql.checkData(0,0,1)
-    
+
         # mix with common functions
         tdSql.query("select last_row(*) ,last(*) from testdb.stb1  ")
         tdSql.checkRows(1)
@@ -457,11 +457,11 @@ class TDTestCase:
         tdSql.query("select last_row(c1+abs(c1)) from testdb.stb1 partition by tbname order by tbname")
         tdSql.query("select last(c1), max(c1+abs(c1)),last_row(c1+abs(c1)) from testdb.stb1 partition by tbname order by tbname")
 
-        # # bug need fix ,taosd crash 
+        # # bug need fix ,taosd crash
         tdSql.error("select last_row(*) ,last(*) from testdb.stb1 partition by tbname order by last(*)")
         tdSql.error("select last_row(*) ,last(*) from testdb.stb1 partition by tbname order by last_row(*)")
 
-        # mix with agg functions 
+        # mix with agg functions
         tdSql.query("select last(*), last_row(*),last(c1), last_row(c1) from testdb.stb1 ")
         tdSql.query("select last(*), last_row(*),last(c1), last_row(c1) from testdb.ct1 ")
         tdSql.query("select last(*), last_row(*),last(c1+1)*max(c1), last_row(c1+2)/2 from testdb.t1 ")
@@ -564,7 +564,7 @@ class TDTestCase:
 
         # bug need fix
 
-        tdSql.query(" select sum(c1) from testdb.stb1 where t1+10 >1; ")  
+        tdSql.query(" select sum(c1) from testdb.stb1 where t1+10 >1; ")
         tdSql.query("select c1 ,t1 from testdb.stb1 where t1 =0 ")
         tdSql.checkRows(13)
         tdSql.query("select last_row(c1,t1) from testdb.stb1 ")
@@ -627,8 +627,8 @@ class TDTestCase:
         tdSql.execute(" use testdb ")
         tdSql.query(" select last_row(c1) from testdb.stb1 group by t1 order by t1 ")
         tdSql.checkRows(2)
-        
-        # bug need fix 
+
+        # bug need fix
         tdSql.query("select last_row(c1) from testdb.stb1 group by c1 order by c1,t1 ")
         tdSql.checkRows(10)
         tdSql.checkData(9,0,8)
@@ -643,7 +643,7 @@ class TDTestCase:
         tdSql.checkRows(11)
         tdSql.checkData(10,0,9)
 
-        # bug need fix , result is error 
+        # bug need fix , result is error
         tdSql.query("select last_row(c1) from testdb.ct4 group by c1 order by t1 ")
         tdSql.query("select last_row(t1) from testdb.ct4 group by c1 order by t1 ")
 
@@ -661,24 +661,24 @@ class TDTestCase:
         tdSql.query("select last_row(c1+c3) from testdb.stb1 group by abs(c1+c3) order by abs(c1+c3)")
         tdSql.checkRows(11)
 
-        # bug need fix , taosd crash 
+        # bug need fix , taosd crash
         tdSql.query("select last_row(c1+c3)+c2 from testdb.stb1 group by abs(c1+c3)+c2 order by abs(c1+c3)+c2")
         tdSql.checkRows(11)
         tdSql.query("select last_row(c1+c3)+last_row(c2) from testdb.stb1 group by abs(c1+c3)+abs(c2) order by abs(c1+c3)+abs(c2)")
         tdSql.checkRows(11)
         tdSql.checkData(0,0,None)
         tdSql.checkData(2,0,11223.000000000)
-        
+
         tdSql.query("select last_row(t1) from testdb.stb1 where abs(c1+t1)=1 partition by tbname")
         tdSql.checkData(0,0,1)
-        
+
         tdSql.query("select tbname , last_row(c1) from testdb.stb1 partition by tbname order by tbname")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 'ct1')
         tdSql.checkData(0, 1,  9)
         tdSql.checkData(0, 2, 'ct4')
         tdSql.checkData(0, 3, None)
-        
+
         tdSql.query("select tbname , last_row(c1) from testdb.stb1 partition by t1 order by t1")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 'ct1')
@@ -686,7 +686,7 @@ class TDTestCase:
         tdSql.checkData(0, 2, 'ct4')
         tdSql.checkData(0, 3, None)
 
-        # bug need fix 
+        # bug need fix
         tdSql.query("select tbname , last_row(c1) from testdb.stb1 partition by c2 order by c1")
         tdSql.checkRows(11)
         tdSql.checkData(10,1,9)
@@ -700,7 +700,7 @@ class TDTestCase:
 
         tdSql.query("select abs(c1) ,c2 ,t1, last_row(t1) from testdb.stb1 partition by c2 order by t1")
         tdSql.checkRows(11)
-   
+
         tdSql.query("select t1 ,last_row(t1) ,c2 from testdb.stb1 partition by c2 order by t1")
         tdSql.checkRows(11)
 
@@ -722,9 +722,17 @@ class TDTestCase:
         tdSql.query("select last_row(ceil(c1-2)) , abs(floor(t1+1)) ,floor(c2-c1) from testdb.stb1 partition by abs(floor(c1)) order by abs(c1)")
         tdSql.checkRows(11)
 
-        # interval 
+
+        tdSql.query("select max(c1) from stb1 interval(50s) sliding(30s)")
+        tdSql.checkRows(13)
+
+        tdSql.query("select unique(c1) from stb1 partition by tbname")
+
+        # interval
+
         tdSql.query("select last_row(c1) from testdb.stb1 interval(50s) sliding(30s)")
         tdSql.checkRows(27)
+
 
         tdSql.query("select last_row(c1) from testdb.ct1 interval(50s) sliding(30s)")
         tdSql.checkRows(5)
@@ -745,13 +753,13 @@ class TDTestCase:
         tdSql.query('select last_row(c1) from testdb.stb1 where ts>="2022-07-06 16:00:00.000 " and ts < "2022-07-06 17:00:00.000 " interval(50s) sliding(30s)')
         tdSql.query('select last_row(c1) from (select ts ,  c1  from testdb.t1 where ts>="2021-01-01 01:01:06.000" and ts < "2021-07-21 01:01:01.000" ) interval(10s) sliding(5s)')
 
-        # join 
+        # join
         tdSql.query("use test")
         tdSql.query("select last(sub_tb_1.c1), last(sub_tb_2.c2) from sub_tb_1, sub_tb_2 where sub_tb_1.ts=sub_tb_2.ts")
         tdSql.checkCols(2)
         last_row_result = tdSql.queryResult
         tdSql.query("select last_row(sub_tb_1.c1), last_row(sub_tb_2.c2) from sub_tb_1, sub_tb_2 where sub_tb_1.ts=sub_tb_2.ts")
-        
+
         for ind , row in enumerate(last_row_result):
             tdSql.checkData(ind , 0 , row[0])
 
@@ -769,7 +777,7 @@ class TDTestCase:
         tdSql.query("select last_row(*), last(*) from sub_tb_1, sub_tb_2 where sub_tb_1.ts=sub_tb_2.ts")
         for ind , row in enumerate(last_row_result):
             tdSql.checkData(ind , 0 , row[0])
-        
+
 
     def support_super_table_test(self):
         tdSql.execute(" use testdb ")
@@ -783,9 +791,9 @@ class TDTestCase:
         self.check_result_auto( " select t3,c1 from testdb.stb1 where c1 > 0 order by tbname  " , "select t3 ,abs(c1) from testdb.stb1 where c1 > 0 order by tbname" )
         self.check_result_auto( " select t4,c1 from testdb.stb1 where c1 > 0 order by tbname  " , "select t4 , abs(c1) from testdb.stb1 where c1 > 0 order by tbname" )
         pass
-    
+
     def basic_query(self):
-        
+
         tdLog.printNoPrefix("==========step2:test errors ==============")
 
         self.test_errors()
@@ -828,19 +836,19 @@ class TDTestCase:
         self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,"'NONE'")
         self.basic_query()
 
-        # cache_last 1 
+        # cache_last 1
         self.prepare_datas("'LAST_ROW'")
         self.prepare_tag_datas("'LAST_ROW'")
         self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,"'LAST_ROW'")
         self.basic_query()
 
-        # cache_last 2 
+        # cache_last 2
         self.prepare_datas("'LAST_VALUE'")
         self.prepare_tag_datas("'LAST_VALUE'")
         self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,"'LAST_VALUE'")
         self.basic_query()
 
-        # cache_last 3 
+        # cache_last 3
         self.prepare_datas("'BOTH'")
         self.prepare_tag_datas("'BOTH'")
         self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step,"'BOTH'")
