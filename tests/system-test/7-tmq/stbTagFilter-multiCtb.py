@@ -107,8 +107,8 @@ class TDTestCase:
         
         tdLog.info("create topics from stb1")
         topicFromStb1 = 'topic_UpperCase_stb1'                
-        # queryString = "select ts, c1, c2 from %s.%s where t4 == 'beijing' or t4 == 'changsha'"%(paraDict['dbName'], paraDict['stbName'])
-        queryString = "select ts, c1, c2, t4 from %s.%s where t4 == 'beijing' or t4 == 'changsha'"%(paraDict['dbName'], paraDict['stbName'])
+        queryString = "select ts, c1, c2 from %s.%s where t4 == 'beijing' or t4 == 'changsha'"%(paraDict['dbName'], paraDict['stbName'])
+        # queryString = "select ts, c1, c2, t4 from %s.%s where t4 == 'beijing' or t4 == 'changsha'"%(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)        
