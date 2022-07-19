@@ -99,7 +99,7 @@ lib_files="${build_dir}/lib/libtaos.so.${version}"
 wslib_files="${build_dir}/lib/libtaosws.so."
 
 header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
-wsheader_files="${code_dir}/inc/taosws.h"
+wsheader_files="${build_dir}/include/taosws.h"
 
 if [ "$dbName" != "taos" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"

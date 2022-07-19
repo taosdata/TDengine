@@ -72,7 +72,7 @@ cp ${compile_dir}/build/lib/${wslibfile}            ${pkg_dir}${install_home_pat
 cp ${compile_dir}/../src/inc/taos.h                 ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../src/inc/taosdef.h              ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../src/inc/taoserror.h            ${pkg_dir}${install_home_path}/include
-cp ${compile_dir}/../src/inc/taosws.h               ${pkg_dir}${install_home_path}/include ||:
+cp ${compile_dir}/build/include/taosws.h            ${pkg_dir}${install_home_path}/include ||:
 cp -r ${top_dir}/examples/*                         ${pkg_dir}${install_home_path}/examples
 #cp -r ${top_dir}/src/connector/python               ${pkg_dir}${install_home_path}/connector
 #cp -r ${top_dir}/src/connector/go                   ${pkg_dir}${install_home_path}/connector

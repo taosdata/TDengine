@@ -57,12 +57,16 @@ if [ "$osType" != "Darwin" ]; then
         ${script_dir}/get_client.sh"
   fi
   lib_files="${build_dir}/lib/libtaos.so.${version}"
+  wslib_files="${build_dir}/lib/libtaosws.so"
 else
   bin_files="${build_dir}/bin/${clientName} ${script_dir}/remove_client.sh"
   lib_files="${build_dir}/lib/libtaos.${version}.dylib"
+  wslib_files="${build_dir}/lib/libtaosws.dylib"
 fi
 
 header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
+wsheader_files="${build_dir}/include/taosws.h"
+
 if [ "$dbName" != "taos" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
 else
@@ -74,6 +78,8 @@ install_files="${script_dir}/install_client.sh"
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
+[ -f ${wsheader_files} ] && cp ${wsheader_files} ${install_dir}/inc
+
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/*
 
@@ -183,6 +189,7 @@ fi
 # Copy driver
 mkdir -p ${install_dir}/driver
 cp ${lib_files} ${install_dir}/driver
+[ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver
 
 # Copy connector
 connector_dir="${code_dir}/connector"
