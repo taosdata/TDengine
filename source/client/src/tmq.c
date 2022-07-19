@@ -113,12 +113,6 @@ struct tmq_t {
   tsem_t rspSem;
 };
 
-struct tmq_raw_data {
-  void*   raw_meta;
-  int32_t raw_meta_len;
-  int16_t raw_meta_type;
-};
-
 enum {
   TMQ_VG_STATUS__IDLE = 0,
   TMQ_VG_STATUS__WAIT,
@@ -510,6 +504,7 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
   pMsgSendInfo->requestId = generateRequestId();
   pMsgSendInfo->requestObjRefId = 0;
   pMsgSendInfo->param = pParam;
+  pMsgSendInfo->paramFreeFp = taosMemoryFree;      
   pMsgSendInfo->fp = tmqCommitCb2;
   pMsgSendInfo->msgType = TDMT_VND_MQ_COMMIT_OFFSET;
   // send msg
@@ -1918,16 +1913,15 @@ const char* tmq_get_table_name(TAOS_RES* res) {
   return NULL;
 }
 
-tmq_raw_data* tmq_get_raw_meta(TAOS_RES* res) {
-  if (TD_RES_TMQ_META(res)) {
-    tmq_raw_data*  raw = taosMemoryCalloc(1, sizeof(tmq_raw_data));
+int32_t tmq_get_raw_meta(TAOS_RES* res, tmq_raw_data *raw) {
+  if (TD_RES_TMQ_META(res) && raw) {
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
     raw->raw_meta = pMetaRspObj->metaRsp.metaRsp;
     raw->raw_meta_len = pMetaRspObj->metaRsp.metaRspLen;
     raw->raw_meta_type = pMetaRspObj->metaRsp.resMsgType;
-    return raw;
+    return TSDB_CODE_SUCCESS;
   }
-  return NULL;
+  return TSDB_CODE_INVALID_PARA;
 }
 
 static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, char* name, int64_t id,
@@ -2199,17 +2193,19 @@ static char* buildCreateCTableJson(STag* pTag, char* sname, char* name, SArray* 
     cJSON* ttype = cJSON_CreateNumber(pTagVal->type);
     cJSON_AddItemToObject(tag, "type", ttype);
 
-    char* buf = NULL;
+    cJSON* tvalue = NULL;
     if (IS_VAR_DATA_TYPE(pTagVal->type)) {
-      buf = taosMemoryCalloc(pTagVal->nData + 1, 1);
+      char* buf = taosMemoryCalloc(pTagVal->nData + 3, 1);
+      if(!buf) goto end;
       dataConverToStr(buf, pTagVal->type, pTagVal->pData, pTagVal->nData, NULL);
+      tvalue = cJSON_CreateString(buf);
+      taosMemoryFree(buf);
     } else {
-      buf = taosMemoryCalloc(32, 1);
-      dataConverToStr(buf, pTagVal->type, &pTagVal->i64, tDataTypes[pTagVal->type].bytes, NULL);
+      double val = 0;
+      GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64);
+      tvalue = cJSON_CreateNumber(val);
     }
 
-    cJSON* tvalue = cJSON_CreateString(buf);
-    taosMemoryFree(buf);
     cJSON_AddItemToObject(tag, "value", tvalue);
     cJSON_AddItemToArray(tags, tag);
   }
@@ -2935,23 +2931,23 @@ end:
   return code;
 }
 
-int32_t taos_write_raw_meta(TAOS* taos, tmq_raw_data* raw_meta) {
-  if (!taos || !raw_meta) {
+int32_t taos_write_raw_meta(TAOS *taos, tmq_raw_data raw_meta){
+  if (!taos) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if (raw_meta->raw_meta_type == TDMT_VND_CREATE_STB) {
-    return taosCreateStb(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
-  } else if (raw_meta->raw_meta_type == TDMT_VND_ALTER_STB) {
-    return taosCreateStb(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
-  } else if (raw_meta->raw_meta_type == TDMT_VND_DROP_STB) {
-    return taosDropStb(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
-  } else if (raw_meta->raw_meta_type == TDMT_VND_CREATE_TABLE) {
-    return taosCreateTable(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
-  } else if (raw_meta->raw_meta_type == TDMT_VND_ALTER_TABLE) {
-    return taosAlterTable(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
-  } else if (raw_meta->raw_meta_type == TDMT_VND_DROP_TABLE) {
-    return taosDropTable(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
+  if(raw_meta.raw_meta_type == TDMT_VND_CREATE_STB) {
+    return taosCreateStb(taos, raw_meta.raw_meta, raw_meta.raw_meta_len);
+  }else if(raw_meta.raw_meta_type == TDMT_VND_ALTER_STB){
+    return taosCreateStb(taos, raw_meta.raw_meta, raw_meta.raw_meta_len);
+  }else if(raw_meta.raw_meta_type == TDMT_VND_DROP_STB){
+    return taosDropStb(taos, raw_meta.raw_meta, raw_meta.raw_meta_len);
+  }else if(raw_meta.raw_meta_type == TDMT_VND_CREATE_TABLE){
+    return taosCreateTable(taos, raw_meta.raw_meta, raw_meta.raw_meta_len);
+  }else if(raw_meta.raw_meta_type == TDMT_VND_ALTER_TABLE){
+    return taosAlterTable(taos, raw_meta.raw_meta, raw_meta.raw_meta_len);
+  }else if(raw_meta.raw_meta_type == TDMT_VND_DROP_TABLE){
+    return taosDropTable(taos, raw_meta.raw_meta, raw_meta.raw_meta_len);
   }
   return TSDB_CODE_INVALID_PARA;
 }

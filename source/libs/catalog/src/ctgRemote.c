@@ -244,10 +244,11 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
 int32_t ctgHandleMsgCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   SCtgTaskCallbackParam* cbParam = (SCtgTaskCallbackParam*)param;
   int32_t code = 0;
+  SCtgJob* pJob = NULL;
   
-  CTG_API_ENTER();
+  CTG_API_JENTER();
 
-  SCtgJob* pJob = taosAcquireRef(gCtgMgmt.jobPool, cbParam->refId);
+  pJob = taosAcquireRef(gCtgMgmt.jobPool, cbParam->refId);
   if (NULL == pJob) {
     qDebug("ctg job refId 0x%" PRIx64 " already dropped", cbParam->refId);
     goto _return;
@@ -266,8 +267,6 @@ _return:
   if (pJob) {
     taosReleaseRef(gCtgMgmt.jobPool, cbParam->refId);
   }
-  
-  taosMemoryFree(param);
 
   CTG_API_LEAVE(code);
 }
@@ -293,6 +292,7 @@ int32_t ctgMakeMsgSendInfo(SCtgTask* pTask, int32_t msgType, SMsgSendInfo **pMsg
   param->taskId = pTask->taskId;
 
   msgSendInfo->param = param;
+  msgSendInfo->paramFreeFp = taosMemoryFree;
   msgSendInfo->fp = ctgHandleMsgCallback;
 
   *pMsgSendInfo = msgSendInfo;

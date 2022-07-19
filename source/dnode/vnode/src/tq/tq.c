@@ -506,7 +506,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
             .initTqReader = true,
             .version = ver,
         };
-        pHandle->execHandle.execCol.task[i] = qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle);
+        pHandle->execHandle.execCol.task[i] = qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, &pHandle->execHandle.numOfCols);
         ASSERT(pHandle->execHandle.execCol.task[i]);
         void* scanner = NULL;
         qExtractStreamScanner(pHandle->execHandle.execCol.task[i], &scanner);
@@ -591,7 +591,11 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen) {
       };
       pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
     } else {
-      pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, NULL);
+      SReadHandle mgHandle = {
+          .vnode = NULL,
+          .numOfVgroups = pTask->numOfVgroups,
+      };
+      pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &mgHandle);
     }
     ASSERT(pTask->exec.executor);
   }

@@ -259,13 +259,17 @@ enum tmq_res_t {
   TMQ_RES_TABLE_META = 2,
 };
 
+typedef struct tmq_raw_data{
+  void*    raw_meta;
+  uint32_t raw_meta_len;
+  uint16_t raw_meta_type;
+} tmq_raw_data;
+
 typedef enum tmq_res_t tmq_res_t;
-typedef struct tmq_raw_data tmq_raw_data;
 
 DLL_EXPORT tmq_res_t     tmq_get_res_type(TAOS_RES *res);
-DLL_EXPORT tmq_raw_data *tmq_get_raw_meta(TAOS_RES *res);
-DLL_EXPORT int32_t       taos_write_raw_meta(TAOS *taos, tmq_raw_data *raw_meta);
-DLL_EXPORT void          tmq_free_raw_meta(tmq_raw_data *rawMeta);
+DLL_EXPORT int32_t       tmq_get_raw_meta(TAOS_RES *res, tmq_raw_data *raw_meta);
+DLL_EXPORT int32_t       taos_write_raw_meta(TAOS *taos, tmq_raw_data raw_meta);
 DLL_EXPORT char         *tmq_get_json_meta(TAOS_RES *res);   // Returning null means error. Returned result need to be freed by tmq_free_json_meta
 DLL_EXPORT void          tmq_free_json_meta(char* jsonMeta);
 DLL_EXPORT const char   *tmq_get_topic_name(TAOS_RES *res);

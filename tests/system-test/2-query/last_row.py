@@ -722,9 +722,17 @@ class TDTestCase:
         tdSql.query("select last_row(ceil(c1-2)) , abs(floor(t1+1)) ,floor(c2-c1) from testdb.stb1 partition by abs(floor(c1)) order by abs(c1)")
         tdSql.checkRows(11)
 
+
+        tdSql.query("select max(c1) from stb1 interval(50s) sliding(30s)")
+        tdSql.checkRows(13)
+
+        tdSql.query("select unique(c1) from stb1 partition by tbname")
+
         # interval
+
         tdSql.query("select last_row(c1) from testdb.stb1 interval(50s) sliding(30s)")
         tdSql.checkRows(27)
+
 
         tdSql.query("select last_row(c1) from testdb.ct1 interval(50s) sliding(30s)")
         tdSql.checkRows(5)

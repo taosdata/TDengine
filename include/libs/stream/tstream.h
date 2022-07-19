@@ -269,6 +269,7 @@ typedef struct SStreamTask {
   int64_t startVer;
   int64_t checkpointVer;
   int64_t processedVer;
+  int32_t numOfVgroups;
 
   // children info
   SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>

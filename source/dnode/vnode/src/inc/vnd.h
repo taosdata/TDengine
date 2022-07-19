@@ -62,12 +62,13 @@ struct SVBufPoolNode {
 };
 
 struct SVBufPool {
-  SVBufPool*     next;
-  int64_t        nRef;
-  int64_t        size;
-  uint8_t*       ptr;
-  SVBufPoolNode* pTail;
-  SVBufPoolNode  node;
+  SVBufPool*       next;
+  SVnode*          pVnode;
+  volatile int32_t nRef;
+  int64_t          size;
+  uint8_t*         ptr;
+  SVBufPoolNode*   pTail;
+  SVBufPoolNode    node;
 };
 
 int32_t vnodeOpenBufPool(SVnode* pVnode, int64_t size);
@@ -78,7 +79,7 @@ void    vnodeBufPoolReset(SVBufPool* pPool);
 int32_t vnodeQueryOpen(SVnode* pVnode);
 void    vnodeQueryClose(SVnode* pVnode);
 int32_t vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
-int     vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg);
+int     vnodeGetTableCfg(SVnode* pVnode, SRpcMsg* pMsg);
 
 // vnodeCommit.c
 int32_t vnodeBegin(SVnode* pVnode);
