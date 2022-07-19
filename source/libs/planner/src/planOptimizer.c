@@ -1378,6 +1378,22 @@ static bool planOptNodeListHasCol(SNodeList* pKeys) {
   return hasCol;
 }
 
+static EDealRes partTagsOptHasTbname(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    if (COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool planOptNodeListHasTbname(SNodeList* pKeys) {
+  bool hasCol = false;
+  nodesWalkExprs(pKeys, partTagsOptHasTbname, &hasCol);
+  return hasCol;
+}
+
 static bool partTagsIsOptimizableNode(SLogicNode* pNode) {
   return ((QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) ||
            (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode) && NULL != ((SAggLogicNode*)pNode)->pGroupKeys &&
@@ -2129,7 +2145,8 @@ static bool tagScanMayBeOptimized(SLogicNode* pNode) {
   }
 
   SAggLogicNode* pAgg = (SAggLogicNode*)(pNode->pParent);
-  if (NULL == pAgg->pGroupKeys || NULL != pAgg->pAggFuncs || planOptNodeListHasCol(pAgg->pGroupKeys)) {
+  if (NULL == pAgg->pGroupKeys || NULL != pAgg->pAggFuncs ||
+      planOptNodeListHasCol(pAgg->pGroupKeys) || !planOptNodeListHasTbname(pAgg->pGroupKeys)) {
     return false;
   }
 
