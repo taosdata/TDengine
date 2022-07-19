@@ -51,10 +51,13 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
       /*qError("submit msg messed up when initing stream block, %s" PRIx64, id);*/
       /*return TSDB_CODE_QRY_APP_ERROR;*/
       /*}*/
-      taosArrayClear(pInfo->pBlockLists);
-      for (int32_t i = 0; i < numOfBlocks; i++) {
-        SSubmitReq* pReq = POINTER_SHIFT(input, i * sizeof(void*));
-        taosArrayPush(pInfo->pBlockLists, &pReq);
+      if (numOfBlocks == 1) {
+        taosArrayPush(pInfo->pBlockLists, &input);
+      } else {
+        for (int32_t i = 0; i < numOfBlocks; i++) {
+          SSubmitReq* pReq = *(void**)POINTER_SHIFT(input, i * sizeof(void*));
+          taosArrayPush(pInfo->pBlockLists, &pReq);
+        }
       }
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {

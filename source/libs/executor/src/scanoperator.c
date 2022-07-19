@@ -1433,7 +1433,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         break;
       } else {
         pInfo->tqReader->pMsg = NULL;
-        return NULL;
+        continue;
       }
       /*blockDataCleanup(pInfo->pRes);*/
     }
