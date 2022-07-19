@@ -313,7 +313,7 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
       snprintf(logBuf, sizeof(logBuf), "wal read error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
                index, err, err, errStr, sysErr, sysErrStr);
       if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
-        syncNodeEventLog(pData->pSyncNode, logBuf);
+        // syncNodeEventLog(pData->pSyncNode, logBuf);
       } else {
         syncNodeErrorLog(pData->pSyncNode, logBuf);
       }
@@ -499,7 +499,7 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
         snprintf(logBuf, sizeof(logBuf), "wal read error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
                  index, err, err, errStr, sysErr, sysErrStr);
         if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
-          syncNodeEventLog(pData->pSyncNode, logBuf);
+          // syncNodeEventLog(pData->pSyncNode, logBuf);
         } else {
           syncNodeErrorLog(pData->pSyncNode, logBuf);
         }

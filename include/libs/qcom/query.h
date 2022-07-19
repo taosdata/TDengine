@@ -162,9 +162,12 @@ typedef struct SRequestConnInfo {
   SEpSet   mgmtEps;
 } SRequestConnInfo;
 
+typedef void (*__freeFunc)(void *param);
+
 typedef struct SMsgSendInfo {
   __async_send_cb_fn_t fp;      // async callback function
   STargetInfo          target;  // for update epset
+  __freeFunc           paramFreeFp;
   void*                param;
   uint64_t             requestId;
   uint64_t             requestObjRefId;
@@ -187,6 +190,8 @@ int32_t cleanupTaskQueue();
  * @return
  */
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
+
+void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
 
 int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo,
                                 bool persistHandle, void* ctx);

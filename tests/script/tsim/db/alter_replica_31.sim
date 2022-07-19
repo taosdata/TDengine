@@ -111,15 +111,6 @@ if $hasleader != 1 then
   goto step2
 endi
 
-# sql use db;
-# sql create table stb (ts timestamp, c int) tags (t int);
-# sql create table t0 using stb tags (0);
-# sql insert into t0 values(now, 1);
-# sql show db.stables;
-# sql show db.tables;
-# sql show db.vgroups;
-return
-
 sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 binary(16)) comment "abd"
 sql create table db.ctb using db.stb tags(101, "102")
 sql insert into db.ctb values(now, 1, "2")
