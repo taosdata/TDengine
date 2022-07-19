@@ -68,7 +68,7 @@ $null=
 
 system_content sh/checkValgrind.sh -n dnode1 
 print cmd return result ----> [ $system_content ]
-if $system_content > 0 then
+if $system_content > 3 then
   return -1
 endi 
 

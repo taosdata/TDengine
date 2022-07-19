@@ -613,7 +613,7 @@ int32_t sdbStartWrite(SSdb *pSdb, SSdbIter **ppIter) {
   return 0;
 }
 
-int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply) {
+int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, int64_t term, int64_t config) {
   int32_t code = 0;
 
   if (!isApply) {
@@ -639,6 +639,19 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply) {
   if (sdbReadFile(pSdb) != 0) {
     mError("sdbiter:%p, failed to read from %s since %s", pIter, datafile, terrstr());
     return -1;
+  }
+
+  if (config > 0) {
+    ASSERT(pSdb->commitConfig == config);
+    pSdb->commitConfig = config;
+  }
+  if (term > 0) {
+    ASSERT(pSdb->commitTerm == term);
+    pSdb->commitTerm = term;
+  }
+  if (index > 0) {
+    ASSERT(pSdb->commitIndex == index);
+    pSdb->commitIndex = index;
   }
 
   mDebug("sdbiter:%p, successfully applyed to sdb", pIter);

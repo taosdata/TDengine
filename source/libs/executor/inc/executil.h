@@ -15,6 +15,7 @@
 #ifndef TDENGINE_QUERYUTIL_H
 #define TDENGINE_QUERYUTIL_H
 
+#include "vnode.h"
 #include "function.h"
 #include "nodes.h"
 #include "plannodes.h"
@@ -106,7 +107,7 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode);
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
-int32_t  getTableList(void* metaHandle, void* vnode, SScanPhysiNode* pScanNode, STableListInfo* pListInfo);
+int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond, STableListInfo* pListInfo);
 SArray*  createSortInfo(SNodeList* pNodeList);
 SArray*  extractPartitionColInfo(SNodeList* pNodeList);
 SArray*  extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
@@ -127,5 +128,7 @@ void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 int32_t convertFillType(int32_t mode);
 
 int32_t resultrowComparAsc(const void* p1, const void* p2);
+
+int32_t isTableOk(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified);
 
 #endif  // TDENGINE_QUERYUTIL_H
