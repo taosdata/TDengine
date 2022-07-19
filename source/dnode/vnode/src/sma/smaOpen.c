@@ -123,11 +123,9 @@ int32_t smaOpen(SVnode *pVnode) {
     }
 
     // restore the rsma
-#if 1
     if (rsmaRestore(pSma) < 0) {
       goto _err;
     }
-#endif
   }
 
   return 0;

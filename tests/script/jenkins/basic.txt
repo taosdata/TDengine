@@ -56,6 +56,7 @@
 # unsupport ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v2.sim
 # unsupport ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
 # unsupport ./test.sh -f tsim/dnode/vnode_clean.sim
+./test.sh -f tsim/dnode/use_dropped_dnode.sim 
 
 # ---- import
 ./test.sh -f tsim/import/basic.sim

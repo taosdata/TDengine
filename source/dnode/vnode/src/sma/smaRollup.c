@@ -605,7 +605,7 @@ static int32_t tdRSmaFetchAndSubmitResult(SRSmaInfoItem *pItem, STSchema *pTSche
     snprintf(flag, 10, "level %" PRIi8, pItem->level);
     blockDebugShowDataBlocks(pResult, flag);
 #endif
-    STsdb      *sinkTsdb = (pItem->level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb1 : pSma->pRSmaTsdb2);
+    STsdb      *sinkTsdb = (pItem->level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb[0] : pSma->pRSmaTsdb[1]);
     SSubmitReq *pReq = NULL;
     // TODO: the schema update should be handled
     if (buildSubmitReqFromDataBlock(&pReq, pResult, pTSchema, SMA_VID(pSma), suid) < 0) {
@@ -949,13 +949,8 @@ _err:
  * @return int32_t
  */
 static int32_t tdRSmaRestoreTSDataReload(SSma *pSma, int64_t committed) {
-  // TODO
-  smaDebug("vgId:%d, rsma restore from %" PRIi64 ", ts data reload success", SMA_VID(pSma), committed);
+  // NOTHING TODO: the data would be restored from the unified WAL replay procedure
   return TSDB_CODE_SUCCESS;
-_err:
-  smaError("vgId:%d, rsma restore from %" PRIi64 ", ts data reload failed since %s", SMA_VID(pSma), committed,
-           terrstr());
-  return TSDB_CODE_FAILED;
 }
 
 int32_t tdProcessRSmaRestoreImpl(SSma *pSma) {

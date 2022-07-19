@@ -17,7 +17,7 @@
 
 /* ------------------------ STRUCTURES ------------------------ */
 
-static int vnodeBufPoolCreate(int64_t size, SVBufPool **ppPool);
+static int vnodeBufPoolCreate(SVnode *pVnode, int64_t size, SVBufPool **ppPool);
 static int vnodeBufPoolDestroy(SVBufPool *pPool);
 
 int vnodeOpenBufPool(SVnode *pVnode, int64_t size) {
@@ -28,7 +28,7 @@ int vnodeOpenBufPool(SVnode *pVnode, int64_t size) {
 
   for (int i = 0; i < 3; i++) {
     // create pool
-    ret = vnodeBufPoolCreate(size, &pPool);
+    ret = vnodeBufPoolCreate(pVnode, size, &pPool);
     if (ret < 0) {
       vError("vgId:%d, failed to open vnode buffer pool since %s", TD_VID(pVnode), tstrerror(terrno));
       vnodeCloseBufPool(pVnode);
@@ -120,7 +120,7 @@ void vnodeBufPoolFree(SVBufPool *pPool, void *p) {
 }
 
 // STATIC METHODS -------------------
-static int vnodeBufPoolCreate(int64_t size, SVBufPool **ppPool) {
+static int vnodeBufPoolCreate(SVnode *pVnode, int64_t size, SVBufPool **ppPool) {
   SVBufPool *pPool;
 
   pPool = taosMemoryMalloc(sizeof(SVBufPool) + size);
@@ -130,6 +130,7 @@ static int vnodeBufPoolCreate(int64_t size, SVBufPool **ppPool) {
   }
 
   pPool->next = NULL;
+  pPool->pVnode = pVnode;
   pPool->nRef = 0;
   pPool->size = 0;
   pPool->ptr = pPool->node.data;
@@ -146,4 +147,26 @@ static int vnodeBufPoolDestroy(SVBufPool *pPool) {
   vnodeBufPoolReset(pPool);
   taosMemoryFree(pPool);
   return 0;
+}
+
+void vnodeBufPoolRef(SVBufPool *pPool) {
+  int32_t nRef = atomic_fetch_add_32(&pPool->nRef, 1);
+  ASSERT(nRef > 0);
+}
+
+void vnodeBufPoolUnRef(SVBufPool *pPool) {
+  int32_t nRef = atomic_sub_fetch_32(&pPool->nRef, 1);
+  if (nRef == 0) {
+    SVnode *pVnode = pPool->pVnode;
+
+    vnodeBufPoolReset(pPool);
+
+    taosThreadMutexLock(&pVnode->mutex);
+
+    pPool->next = pVnode->pPool;
+    pVnode->pPool = pPool;
+    taosThreadCondSignal(&pVnode->poolNotEmpty);
+
+    taosThreadMutexUnlock(&pVnode->mutex);
+  }
 }
