@@ -532,6 +532,14 @@ typedef struct SCtgOperation {
   }                                                       \
 } while (0)
 
+#define CTG_API_JENTER() do {                             \
+  CTG_API_DEBUG("CTG API enter %s", __FUNCTION__);        \
+  CTG_LOCK(CTG_READ, &gCtgMgmt.lock);                     \
+  if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {           \
+    CTG_ERR_JRET(TSDB_CODE_CTG_OUT_OF_SERVICE);           \
+  }                                                       \
+} while (0)
+
 
 #define CTG_API_LEAVE_NOLOCK(c) do {                        \
     int32_t __code = c;                                     \

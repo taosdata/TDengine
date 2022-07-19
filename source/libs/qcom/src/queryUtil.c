@@ -138,6 +138,16 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) 
   return 0;
 }
 
+void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
+  assert(pMsgBody != NULL);
+  taosMemoryFreeClear(pMsgBody->target.dbFName);
+  taosMemoryFreeClear(pMsgBody->msgInfo.pData);
+  if (pMsgBody->paramFreeFp) {
+    (*pMsgBody->paramFreeFp)(pMsgBody->param);
+  }
+  taosMemoryFreeClear(pMsgBody);
+}
+
 int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo,
                                 bool persistHandle, void* rpcCtx) {
   char* pMsg = rpcMallocCont(pInfo->msgInfo.len);
