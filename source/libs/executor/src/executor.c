@@ -110,23 +110,24 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* n
     return NULL;
   }
 
-  struct SSubplan* plan = NULL;
-  int32_t          code = qStringToSubplan(msg, &plan);
+  struct SSubplan* pPlan = NULL;
+  int32_t          code = qStringToSubplan(msg, &pPlan);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     return NULL;
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(readers, 0, 0, plan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_QUEUE);
+  code = qCreateExecTask(readers, 0, 0, pPlan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_QUEUE);
   if (code != TSDB_CODE_SUCCESS) {
-    // TODO: destroy SSubplan & pTaskInfo
+    nodesDestroyNode((SNode*)pPlan);
+    qDestroyTask(pTaskInfo);
     terrno = code;
     return NULL;
   }
 
   // extract the number of output columns
-  SDataBlockDescNode* pDescNode = plan->pNode->pOutputDataBlockDesc;
+  SDataBlockDescNode* pDescNode = pPlan->pNode->pOutputDataBlockDesc;
   *numOfCols = 0;
 
   SNode*  pNode;
@@ -137,7 +138,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* n
     }
   }
 
-
+  nodesDestroyNode((SNode*)pPlan);
   return pTaskInfo;
 }
 
@@ -148,21 +149,23 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers) {
 
   /*qDebugL("stream task string %s", (const char*)msg);*/
 
-  struct SSubplan* plan = NULL;
-  int32_t          code = qStringToSubplan(msg, &plan);
+  struct SSubplan* pPlan = NULL;
+  int32_t          code = qStringToSubplan(msg, &pPlan);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     return NULL;
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(readers, 0, 0, plan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_STREAM);
+  code = qCreateExecTask(readers, 0, 0, pPlan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_STREAM);
   if (code != TSDB_CODE_SUCCESS) {
-    // TODO: destroy SSubplan & pTaskInfo
+    nodesDestroyNode((SNode*)pPlan);
+    qDestroyTask(pTaskInfo);
     terrno = code;
     return NULL;
   }
 
+  nodesDestroyNode((SNode*)pPlan);
   return pTaskInfo;
 }
 
