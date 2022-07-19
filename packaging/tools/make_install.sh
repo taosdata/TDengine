@@ -365,7 +365,7 @@ function install_header() {
 
     if [ -f ${binary_dir}/build/include/taosws.h ]; then
       ${csudo}cp -f ${binary_dir}/build/include/taosws.h ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/taosws.h ||:
-      ${csudo}ln -s ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h ||:
+      ${csudo}ln -sf ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h ||:
     fi
 
     ${csudo}ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
