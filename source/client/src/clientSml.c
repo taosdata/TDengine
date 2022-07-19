@@ -1217,6 +1217,9 @@ static int32_t smlParseCols(const char *data, int32_t len, SArray *cols, char *c
     kv->value = value;
     kv->length = valueLen;
     if (isTag) {
+      if(valueLen > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE){
+        return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+      }
       kv->type = TSDB_DATA_TYPE_NCHAR;
     } else {
       int32_t ret = smlParseValue(kv, msg);

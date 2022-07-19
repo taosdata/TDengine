@@ -286,12 +286,9 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   if (pInst == NULL || NULL == *pInst) {
     taosThreadMutexUnlock(&appInfo.mutex);
     tscError("cluster not exist, key:%s", key);
-    taosMemoryFreeClear(param);
     tFreeClientHbBatchRsp(&pRsp);
     return -1;
   }
-
-  taosMemoryFreeClear(param);
 
   if (code != 0) {
     (*pInst)->onlineDnodes = ((*pInst)->totalDnodes ? 0 : -1);
@@ -716,6 +713,7 @@ static void *hbThreadFunc(void *param) {
       pInfo->msgInfo.len = tlen;
       pInfo->msgType = TDMT_MND_HEARTBEAT;
       pInfo->param = strdup(pAppHbMgr->key);
+      pInfo->paramFreeFp = taosMemoryFree;      
       pInfo->requestId = generateRequestId();
       pInfo->requestObjRefId = 0;
 
