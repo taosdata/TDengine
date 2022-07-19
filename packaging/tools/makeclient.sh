@@ -78,7 +78,7 @@ install_files="${script_dir}/install_client.sh"
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-[ ${wsheader_files} ] && cp ${wsheader_files} ${install_dir}/inc
+[ -f ${wsheader_files} ] && cp ${wsheader_files} ${install_dir}/inc
 
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/*
@@ -189,7 +189,7 @@ fi
 # Copy driver
 mkdir -p ${install_dir}/driver
 cp ${lib_files} ${install_dir}/driver
-[ ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver
+[ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver
 
 # Copy connector
 connector_dir="${code_dir}/connector"
