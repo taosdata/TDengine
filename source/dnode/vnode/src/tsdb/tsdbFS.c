@@ -245,7 +245,7 @@ static int32_t tsdbApplyDelFileChange(STsdbFS *pFS, SDelFile *pFrom, SDelFile *p
   char    fname[TSDB_FILENAME_LEN];
 
   if (pFrom && pTo) {
-    if (pFrom != pTo) {
+    if (!tsdbDelFileIsSame(pFrom, pTo)) {
       tsdbDelFileName(pFS->pTsdb, pFrom, fname);
       if (taosRemoveFile(fname) < 0) {
         code = TAOS_SYSTEM_ERROR(errno);
