@@ -80,7 +80,7 @@ typedef struct STopBotRes {
 } STopBotRes;
 
 typedef struct SFirstLastRes {
-  bool      hasResult;
+  bool hasResult;
   // used for last_row function only, isNullRes in SResultRowEntry can not be passed to downstream.So,
   // this attribute is required
   bool      isNull;
@@ -2439,7 +2439,8 @@ bool apercentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResult
   SAPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
 
   SVariant* pVal = &pCtx->param[1].param;
-  pInfo->percent = (pVal->nType == TSDB_DATA_TYPE_BIGINT) ? pVal->i : pVal->d;
+  pInfo->percent =
+      (IS_SIGNED_NUMERIC_TYPE(pVal->nType) ? pVal->i : (IS_UNSIGNED_NUMERIC_TYPE(pVal->nType) ? pVal->u : pVal->d));
 
   if (pCtx->numOfParams == 2) {
     pInfo->algo = APERCT_ALGO_DEFAULT;
@@ -2640,9 +2641,7 @@ int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx)
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getFirstLastInfoSize(int32_t resBytes) {
-  return sizeof(SFirstLastRes) + resBytes;
-}
+int32_t getFirstLastInfoSize(int32_t resBytes) { return sizeof(SFirstLastRes) + resBytes; }
 
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
@@ -2968,7 +2967,7 @@ int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return 1;
 }
 
-//todo rewrite:
+// todo rewrite:
 int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
   char*                pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
@@ -2986,7 +2985,7 @@ int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void doSaveLastrow(SqlFunctionCtx *pCtx, char* pData, int32_t rowIndex, int64_t cts, SFirstLastRes* pInfo) {
+static void doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex, int64_t cts, SFirstLastRes* pInfo) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
