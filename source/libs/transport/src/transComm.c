@@ -240,7 +240,7 @@ void transCtxCleanup(STransCtx* ctx) {
     ctx->freeFunc(iter->val);
     iter = taosHashIterate(ctx->args, iter);
   }
-
+  ctx->freeFunc(ctx->brokenVal.val);
   taosHashCleanup(ctx->args);
   ctx->args = NULL;
 }
