@@ -215,7 +215,7 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s) where loc in ('%s_1') and %s %s %s; " %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        #self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
                         cur1.execute(sql2)      
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -481,8 +481,8 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s) where loc in ('%s_1') and  %s %s %s order by ts desc;" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
-                        # cur1.execute(sql2)      
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
+                        cur1.execute(sql2)      
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
@@ -742,9 +742,9 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where  loc in ('%s_1') and  %s %s %s order by ts limit 1000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
-                        # self.np_check(sql1,sql2)
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
+                        self.np_check(sql1,sql2)
                         cur1.execute(sql2)       
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2

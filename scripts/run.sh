@@ -11,12 +11,13 @@ function usage() {
     echo -e "\t -s force setup"
     echo -e "\t -v TDengine version"
     echo -e "\t -n docker network prefix"
+    echo -e "\t -N docker network"
     echo -e "\t -o default timeout value"
     echo -e "\t -e enable sub log dir"
     echo -e "\t -h help"
 }
 
-while getopts "m:t:b:l:o:v:d:w:n:esh" opt; do
+while getopts "m:t:b:l:o:v:d:w:n:N:esh" opt; do
     case $opt in
         m)
             config_file=$OPTARG
@@ -41,6 +42,9 @@ while getopts "m:t:b:l:o:v:d:w:n:esh" opt; do
             ;;
         n)
             docker_network_prefix=$OPTARG
+            ;;
+        N)
+            docker_network=$OPTARG
             ;;
         o)
             TIMEOUT_PREFIX="timeout $OPTARG"
@@ -218,7 +222,10 @@ function run_thread() {
             cmd="$cmd --taostest-pkg $taostest_pkg"
         fi
         # set network
-        cmd="$cmd --source-dir ${workdirs[index]}/TDinternal --docker-network ${docker_network_prefix}_${thread_no} --sql_recording"
+        if [ -z "${docker_network}" ]; then
+            docker_network=${docker_network_prefix}_${thread_no}
+        fi
+        cmd="$cmd --source-dir ${workdirs[index]}/TDinternal --docker-network ${docker_network} --sql_recording"
         local ret=0
         local redo_count=1
         start_time=`date +%s`
