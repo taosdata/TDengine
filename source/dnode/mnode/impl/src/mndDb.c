@@ -487,6 +487,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   mDebug("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
 
   mndTransSetDbName(pTrans, dbObj.name, NULL);
+  mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
   if (mndSetCreateDbRedoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
@@ -532,6 +533,14 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
       goto _OVER;
     } else {
       terrno = TSDB_CODE_MND_DB_ALREADY_EXIST;
+      goto _OVER;
+    }
+  } else if (terrno == TSDB_CODE_SDB_OBJ_CREATING) {
+    if (mndSetRpcInfoForDbTrans(pMnode, pReq, MND_OPER_CREATE_DB, createReq.db) == 0) {
+      mDebug("db:%s, is creating and response after trans finished", createReq.db);
+      code = TSDB_CODE_ACTION_IN_PROGRESS;
+      goto _OVER;
+    } else {
       goto _OVER;
     }
   } else if (terrno != TSDB_CODE_MND_DB_NOT_EXIST) {
