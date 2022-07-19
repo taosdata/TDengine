@@ -192,9 +192,9 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
 }
 
 void static addTimezoneParam(SNodeList* pList) {
-  char       buf[6] = {0};
-  time_t     t = taosTime(NULL);
-  struct tm  tmInfo;
+  char      buf[6] = {0};
+  time_t    t = taosTime(NULL);
+  struct tm tmInfo;
   taosLocalTime(&t, &tmInfo);
   strftime(buf, sizeof(buf), "%z", &tmInfo);
   int32_t len = (int32_t)strlen(buf);
@@ -976,7 +976,7 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   // param1 ~ param3
   if (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type != TSDB_DATA_TYPE_BINARY ||
       ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_BINARY ||
-      ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type != TSDB_DATA_TYPE_BIGINT) {
+      !IS_INTEGER_TYPE(((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -1034,7 +1034,7 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
     // param1 ~ param3
     if (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type != TSDB_DATA_TYPE_BINARY ||
         ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_BINARY ||
-        ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type != TSDB_DATA_TYPE_BIGINT) {
+        !IS_INTEGER_TYPE(((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
 
@@ -1133,9 +1133,10 @@ static bool validateStateOper(const SValueNode* pVal) {
   if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
     return false;
   }
-  return (0 == strncasecmp(varDataVal(pVal->datum.p), "GT", 2) || 0 == strncasecmp(varDataVal(pVal->datum.p), "GE", 2) ||
-          0 == strncasecmp(varDataVal(pVal->datum.p), "LT", 2) || 0 == strncasecmp(varDataVal(pVal->datum.p), "LE", 2) ||
-          0 == strncasecmp(varDataVal(pVal->datum.p), "EQ", 2) || 0 == strncasecmp(varDataVal(pVal->datum.p), "NE", 2));
+  return (
+      0 == strncasecmp(varDataVal(pVal->datum.p), "GT", 2) || 0 == strncasecmp(varDataVal(pVal->datum.p), "GE", 2) ||
+      0 == strncasecmp(varDataVal(pVal->datum.p), "LT", 2) || 0 == strncasecmp(varDataVal(pVal->datum.p), "LE", 2) ||
+      0 == strncasecmp(varDataVal(pVal->datum.p), "EQ", 2) || 0 == strncasecmp(varDataVal(pVal->datum.p), "NE", 2));
 }
 
 static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -1348,7 +1349,8 @@ static int32_t translateTail(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
     SValueNode* pValue = (SValueNode*)pParamNode;
 
-    if (pValue->datum.i < ((i > 1) ? 0 : 1) || pValue->datum.i > 100) {
+    if ((IS_SIGNED_NUMERIC_TYPE(pValue->node.resType.type) ? pValue->datum.i : pValue->datum.u) < ((i > 1) ? 0 : 1) ||
+        (IS_SIGNED_NUMERIC_TYPE(pValue->node.resType.type) ? pValue->datum.i : pValue->datum.u) > 100) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "TAIL function second parameter should be in range [1, 100], "
                              "third parameter should be in range [0, 100]");
@@ -1646,9 +1648,9 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (IS_VAR_DATA_TYPE(para2Type)) {
     para2Bytes -= VARSTR_HEADER_SIZE;
   }
-  if (para2Bytes <= 0 || para2Bytes > 1000) {  // cast dst var type length limits to 1000
+  if (para2Bytes <= 0 || para2Bytes > 4096) {  // cast dst var type length limits to 4096 bytes
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "CAST function converted length should be in range [0, 1000]");
+                           "CAST function converted length should be in range [0, 4096] bytes");
   }
 
   // add database precision as param

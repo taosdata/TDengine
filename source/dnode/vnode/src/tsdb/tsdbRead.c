@@ -1961,9 +1961,11 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
     SDelIdx  idx = {.suid = pReader->suid, .uid = pBlockScanInfo->uid};
     SDelIdx* pIdx = taosArraySearch(aDelIdx, &idx, tCmprDelIdx, TD_EQ);
 
-    code = tsdbReadDelData(pDelFReader, pIdx, pDelData, NULL);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _err;
+    if (pIdx != NULL) {
+      code = tsdbReadDelData(pDelFReader, pIdx, pDelData, NULL);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _err;
+      }
     }
   }
 
