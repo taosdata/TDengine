@@ -80,7 +80,7 @@ cp %{_compiledir}/../include/client/taos.h          %{buildroot}%{homepath}/incl
 cp %{_compiledir}/../include/common/taosdef.h       %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/util/taoserror.h       %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/libs/function/taosudf.h       %{buildroot}%{homepath}/include
-cp %{_compiledir}/../src/inc/taosws.h               %{buildroot}%{homepath}/include ||:
+cp %{_compiledir}/build/include/taosws.h            %{buildroot}%{homepath}/include ||:
 #cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
 #cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 #cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector

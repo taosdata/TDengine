@@ -107,7 +107,7 @@ class TDTestCase:
                     'ctbPrefix':  'ctb',
                     'ctbNum':     200,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    "rowsPerTbl": 1000,
+                    "rowsPerTbl": 100,
                     "batchNum": 5000
                     }
                     
@@ -213,7 +213,7 @@ class TDTestCase:
             tdSql.checkRows(rowsPerStb)
     def run(self): 
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=2,stopRole='dnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=1,stopRole='dnode')
 
     def stop(self):
         tdSql.close()

@@ -268,7 +268,7 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
     *actionNeeded = true;
   }
   if (*actionNeeded) {
-    uDebug("SML:0x%" PRIx64 " generate schema action. column name: %s, action: %d", info->id, colField->name,
+    uDebug("SML:0x%" PRIx64 " generate schema action. kv->name: %s, action: %d", info->id, kv->key,
            action->action);
   }
   return 0;
@@ -436,6 +436,7 @@ static int32_t smlProcessSchemaAction(SSmlHandle *info, SSchema *schemaField, SH
                                       SSchemaAction *action, bool isTag) {
   int32_t code = TSDB_CODE_SUCCESS;
   for (int j = 0; j < taosArrayGetSize(cols); ++j) {
+    if(j == 0 && !isTag) continue;
     SSmlKv *kv = (SSmlKv *)taosArrayGetP(cols, j);
     bool    actionNeeded = false;
     code = smlGenerateSchemaAction(schemaField, schemaHash, kv, isTag, action, &actionNeeded, info);
@@ -452,18 +453,25 @@ static int32_t smlProcessSchemaAction(SSmlHandle *info, SSchema *schemaField, SH
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols) {
+static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols, bool isTag) {
   SHashObj *hashTmp = taosHashInit(length, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  for (uint16_t i = 0; i < length; i++) {
+  int32_t i = 0;
+  for ( ;i < length; i++) {
     taosHashPut(hashTmp, schema[i].name, strlen(schema[i].name), &i, SHORT_BYTES);
   }
 
-  for (int32_t i = 0; i < taosArrayGetSize(cols); i++) {
+  if (isTag){
+    i = 0;
+  } else {
+    i = 1;
+  }
+  for (; i < taosArrayGetSize(cols); i++) {
     SSmlKv *kv = (SSmlKv *)taosArrayGetP(cols, i);
     if (taosHashGet(hashTmp, kv->key, kv->keyLen) == NULL) {
       return -1;
     }
   }
+  taosHashCleanup(hashTmp);
   return 0;
 }
 
@@ -523,7 +531,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
       }
 
       taosHashClear(hashTmp);
-      for (uint16_t i = 0; i < pTableMeta->tableInfo.numOfColumns; i++) {
+      for (uint16_t i = 1; i < pTableMeta->tableInfo.numOfColumns; i++) {
         taosHashPut(hashTmp, pTableMeta->schema[i].name, strlen(pTableMeta->schema[i].name), &i, SHORT_BYTES);
       }
       code = smlProcessSchemaAction(info, pTableMeta->schema, hashTmp, sTableData->cols, &schemaAction, false);
@@ -551,12 +559,12 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
 
     if (needCheckMeta) {
       code = smlCheckMeta(&(pTableMeta->schema[pTableMeta->tableInfo.numOfColumns]), pTableMeta->tableInfo.numOfTags,
-                          sTableData->tags);
+                          sTableData->tags, true);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " check tag failed. super table name %s", info->id, (char *)superTable);
         goto end;
       }
-      code = smlCheckMeta(&(pTableMeta->schema[0]), pTableMeta->tableInfo.numOfColumns, sTableData->cols);
+      code = smlCheckMeta(&(pTableMeta->schema[0]), pTableMeta->tableInfo.numOfColumns, sTableData->cols, false);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " check cols failed. super table name %s", info->id, (char *)superTable);
         goto end;
@@ -832,6 +840,7 @@ static int64_t smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32_t 
 static int32_t smlParseTS(SSmlHandle *info, const char *data, int32_t len, SArray *cols) {
   int64_t ts = 0;
   if (info->protocol == TSDB_SML_LINE_PROTOCOL) {
+//    uError("SML:data:%s,len:%d", data, len);
     ts = smlParseInfluxTime(info, data, len);
   } else if (info->protocol == TSDB_SML_TELNET_PROTOCOL) {
     ts = smlParseOpenTsdbTime(info, data, len);
@@ -1208,6 +1217,9 @@ static int32_t smlParseCols(const char *data, int32_t len, SArray *cols, char *c
     kv->value = value;
     kv->length = valueLen;
     if (isTag) {
+      if(valueLen > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE){
+        return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+      }
       kv->type = TSDB_DATA_TYPE_NCHAR;
     } else {
       int32_t ret = smlParseValue(kv, msg);
@@ -2031,6 +2043,8 @@ static int32_t smlParseJSONString(SSmlHandle *info, cJSON *root, SSmlTableInfo *
 
 static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql) {
   SSmlLineInfo elements = {0};
+  uDebug("SML:0x%" PRIx64 " smlParseInfluxLine sql:%s, hello", info->id, sql);
+
   int          ret = smlParseInfluxString(sql, &elements, &info->msgBuf);
   if (ret != TSDB_CODE_SUCCESS) {
     uError("SML:0x%" PRIx64 " smlParseInfluxLine failed", info->id);
