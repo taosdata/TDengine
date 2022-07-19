@@ -2040,7 +2040,7 @@ static int32_t smlParseJSONString(SSmlHandle *info, cJSON *root, SSmlTableInfo *
 
 static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql) {
   SSmlLineInfo elements = {0};
-  uError("SML:0x%" PRIx64 " smlParseInfluxLine sql:%s, hello", info->id, sql);
+  uDebug("SML:0x%" PRIx64 " smlParseInfluxLine sql:%s, hello", info->id, sql);
 
   int          ret = smlParseInfluxString(sql, &elements, &info->msgBuf);
   if (ret != TSDB_CODE_SUCCESS) {
