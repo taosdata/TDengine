@@ -55,6 +55,8 @@ class TestMinrows(TDCase):
             db_vnode_kv_dict = self.tdRest.getOneRow(1,dbname)
             data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
             self.tdSql.checkEqual(db_field,int(data['config'][self.cfg["vnode_json_key"]]))
+            for param_value_error in self.cfg["boundary"]:
+                self.tdRest.error(f'alter database {dbname} {test_param} {param_value_error}')
             self.tdRest.request(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name()
         self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
