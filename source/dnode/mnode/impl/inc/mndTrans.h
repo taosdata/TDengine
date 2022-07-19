@@ -73,12 +73,14 @@ void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
 void    mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *param, int32_t paramLen);
 void    mndTransSetDbName(STrans *pTrans, const char *dbname1, const char *dbname2);
 void    mndTransSetSerial(STrans *pTrans);
+void    mndTransSetOper(STrans *pTrans, EOperType oper);
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 int32_t mndTransProcessRsp(SRpcMsg *pRsp);
 void    mndTransPullup(SMnode *pMnode);
 int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans);
 void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
+int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, const char *dbname);
 
 #ifdef __cplusplus
 }

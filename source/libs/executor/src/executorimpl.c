@@ -4424,7 +4424,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
             .calTrigger = pTableScanNode->triggerType,
             .maxTs = INT64_MIN,
       };
-      if (pHandle) {
+      if (pHandle->vnode) {
         int32_t code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags,
                                                pTableScanNode->groupSort, pHandle, pTableListInfo, pTagCond, pTagIndexCond, GET_TASKID(pTaskInfo));
         if (code) {
@@ -4590,7 +4590,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     int32_t children = 0;
     pOptr = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL == type) {
-    int32_t children = 1;
+    int32_t children = pHandle->numOfVgroups;
     pOptr = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children);
   } else if (QUERY_NODE_PHYSICAL_PLAN_SORT == type) {
     pOptr = createSortOperatorInfo(ops[0], (SSortPhysiNode*)pPhyNode, pTaskInfo);
