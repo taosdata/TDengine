@@ -127,13 +127,13 @@ class TestKeep(TDCase):
 
     def keep_checkdata(self):
         self.tdSql.execute("drop database if exists db1 ")
-        self.tdSql.execute("create database if not exists db1 duration 1d keep 10d,15d,20d")
+        self.tdSql.execute("create database if not exists db1 duration 1d keep 10d,10d,10d")
         self.tdSql.execute("use db1")
         self.tdSql.execute("create table ntb (ts timestamp, c0 int)")
         self.tdSql.execute("insert into ntb values(now, 1)")
         self.tdSql.query("select * from ntb")
         self.tdSql.checkRow(1)
-        self.tdSql.error("insert into ntb values('2020-1-1 00:00:00',1)")
+        self.tdSql.error("insert into ntb values(now-11d,1)")
         self.tdSql.error("insert into ntb values(now+2d, 1)")
         self.tdSql.execute("drop database db1")
 

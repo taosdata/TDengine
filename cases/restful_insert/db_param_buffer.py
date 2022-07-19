@@ -66,16 +66,16 @@ class TestBuffer(TDCase):
         
         # self.cfg["boundary"] = [3,16384]
         # for param_value in self.cfg["boundary"]:
-        #     self.tdSql.execute(f'alter database {dbname} buffer {param_value}')
-        #     self.tdSql.query('show databases')
-        #     db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        #     self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
-        #     db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        #     data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
-        #     self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config'][self.cfg["vnode_json_key"]])/1024/1024)
+        # #     self.tdSql.execute(f'alter database {dbname} buffer {param_value}')
+        # #     self.tdSql.query('show databases')
+        # #     db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+        # #     self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+        # #     db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+        # #     data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+        # #     self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config'][self.cfg["vnode_json_key"]])/1024/1024)
         #! bug TD-16166
-        # for i in [self.cfg["boundary"][0] - 1,self.cfg["boundary"][-1] + 1,'abc',100.1]:
-        #     self.tdSql.error(f'alter database {dbname} {test_param} {i}')
+        for i in [self.cfg["boundary"][0] - 1,self.cfg["boundary"][-1] + 1,'abc',100.1]:
+            self.tdSql.error(f'alter database {dbname} {test_param} {i}')
         # self.tdSql.execute(f'drop database {dbname}')
 
     def run(self) -> bool:
