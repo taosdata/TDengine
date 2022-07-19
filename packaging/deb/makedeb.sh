@@ -73,7 +73,7 @@ cp ${compile_dir}/../include/client/taos.h          ${pkg_dir}${install_home_pat
 cp ${compile_dir}/../include/common/taosdef.h       ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/util/taoserror.h       ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/libs/function/taosudf.h       ${pkg_dir}${install_home_path}/include
-cp ${compile_dir}/../src/inc/taosws.h               ${pkg_dir}${install_home_path}/include ||:
+cp ${compile_dir}/build/include/taosws.h            ${pkg_dir}${install_home_path}/include ||:
 cp -r ${top_dir}/examples/*                         ${pkg_dir}${install_home_path}/examples
 #cp -r ${top_dir}/src/connector/python               ${pkg_dir}${install_home_path}/connector
 #cp -r ${top_dir}/src/connector/go                   ${pkg_dir}${install_home_path}/connector
