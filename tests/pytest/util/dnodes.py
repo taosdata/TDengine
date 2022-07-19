@@ -488,10 +488,13 @@ class TDDnode:
             psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
             processID = subprocess.check_output(
                 psCmd, shell=True).decode("utf-8")
-
+            
+            onlyKillOnceWindows = 0
             while(processID):
-                killCmd = "kill -INT %s > /dev/null 2>&1" % processID
-                os.system(killCmd)
+                if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
+                    killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+                    os.system(killCmd)
+                    onlyKillOnceWindows = 1
                 time.sleep(1)
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8")
@@ -524,9 +527,12 @@ class TDDnode:
             processID = subprocess.check_output(
                 psCmd, shell=True).decode("utf-8")
 
+            onlyKillOnceWindows = 0
             while(processID):
-                killCmd = "kill -INT %s > /dev/null 2>&1" % processID
-                os.system(killCmd)
+                if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
+                    killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+                    os.system(killCmd)
+                    onlyKillOnceWindows = 1
                 time.sleep(1)
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8")
@@ -550,9 +556,12 @@ class TDDnode:
             processID = subprocess.check_output(
                 psCmd, shell=True).decode("utf-8")
 
+            onlyKillOnceWindows = 0
             while(processID):
-                killCmd = "kill -KILL %s > /dev/null 2>&1" % processID
-                os.system(killCmd)
+                if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
+                    killCmd = "kill -KILL %s > /dev/null 2>&1" % processID
+                    os.system(killCmd)
+                    onlyKillOnceWindows = 1
                 time.sleep(1)
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8")

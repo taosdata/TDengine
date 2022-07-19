@@ -2093,8 +2093,9 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
 
   taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly);
   tsem_wait(&param->sem);
-
-  param->pRequest->syncQuery = true;
+  if (param->pRequest != NULL) {
+    param->pRequest->syncQuery = true;
+  }
   return param->pRequest;
 #else
   size_t sqlLen = strlen(sql);
