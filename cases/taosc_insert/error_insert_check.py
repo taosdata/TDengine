@@ -38,8 +38,6 @@ class TestErrorInsert(TDCase):
         symbol_list.remove('+')
         symbol_list.remove(';')
         symbol_list.remove('-')
-        # ! TD-17245
-        symbol_list.remove('.')
         # ! TD-13248	
         symbol_list.remove(',')
         for base_sql in [f'insert into {dbname}.{tbname} values (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, True)', f'insert into {dbname}.tb values (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, True)']:

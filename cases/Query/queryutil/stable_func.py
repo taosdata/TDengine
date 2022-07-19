@@ -61,22 +61,22 @@ class TDFunction():
     def all_column_tbname_1(self):  
         # support all table, support all data type  
         # 解决多个子表时，last_row\last\first返回值可能不一样的问题   
-        hanshu = ['FIRST']#'(*)',
-        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
+        hanshu = ['FIRST']
+        column = ['(*)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return all_column
     def all_column_tbname_2(self):  
         # last和limit使用时，取的是最后n条记录，不是前面n条记录TD-14978   
-        hanshu = ['LAST']#'(*)',
-        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
+        hanshu = ['LAST']
+        column = ['(*)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return all_column
     def all_column_tbname_3(self):  
         # LAST_ROW() 不能与 INTERVAL 一起使用   
-        hanshu = ['LAST_ROW']#'(*)',
-        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
+        hanshu = ['LAST_ROW']
+        column = ['(*)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return all_column
@@ -168,7 +168,7 @@ class TDFunction():
     def int_cloumn_n(self):  
         # support all int type \ double type              
         hanshu = ['TOP','BOTTOM']       
-        column = ['(q_bigint,num)','(q_smallint,num)','(q_tinyint,num)','(q_int,num)','(q_float,num)','(q_double,num)'] 
+        column = ['(q_bigint,num)','(q_smallint,num)','(q_int,num)','(q_float,num)','(q_double,num)'] #,'(q_tinyint,num)'避免数据过小而重复
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return int_cloumn

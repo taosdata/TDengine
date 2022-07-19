@@ -58,7 +58,7 @@ class TDTestQuery(TDCase):
     testcasePath = os.path.split(__file__)[0]
     testcaseFilename = os.path.split(__file__)[-1]
     #通过第三方的numpy的校验的数量
-    np_check_num = 5;
+    np_check_num = 3;
 
     # def case_common(self):
     #     #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
@@ -847,6 +847,7 @@ class TDTestQuery(TDCase):
  
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        self.tdCreateData.drop_db("%s" % self.db) 
  
                  
     def run(self):

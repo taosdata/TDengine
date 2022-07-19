@@ -30,16 +30,16 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
     #             pass
     #     return wrapper
 
-    def init_check(self, protocol=None):
+    def init_check(self):
         """
         normal tags and cols, one for every elm
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(protocol=protocol)
-        self.tdCom.check_res(input_sql, stb_name, protocol=protocol)
+        input_sql, stb_name = self.tdCom.gen_full_type_sql()
+        self.tdCom.check_res(input_sql, stb_name)
 
-    def bool_check(self, protocol=None):
+    def bool_check(self):
         """
         check all normal type
         """
@@ -47,10 +47,10 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.cleanTb()
         full_type_list = ["f", "F", "false", "False", "t", "T", "true", "True"]
         for t_type in full_type_list:
-            input_sql, stb_name = self.tdCom.gen_full_type_sql(t0=t_type, protocol=protocol)
-            self.tdCom.check_res(input_sql, stb_name, protocol=protocol)
+            input_sql, stb_name = self.tdCom.gen_full_type_sql(t0=t_type)
+            self.tdCom.check_res(input_sql, stb_name)
 
-    def symbols_check(self, protocol=None):
+    def symbols_check(self):
         """
         check symbols = `~!@#$%^&*()_-+={[}]\|:;'\",<.>/?
         """
@@ -62,10 +62,10 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.cleanTb()
         binary_symbols = '"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"'
         nchar_symbols = f'L{binary_symbols}'
-        input_sql1, stb_name1 = self.tdCom.gen_full_type_sql(value=binary_symbols, t7=binary_symbols, t8=nchar_symbols, protocol=protocol)
-        input_sql2, stb_name2 = self.tdCom.gen_full_type_sql(value=nchar_symbols, t7=binary_symbols, t8=nchar_symbols, protocol=protocol)
-        self.tdCom.check_res(input_sql1, stb_name1, protocol=protocol)
-        self.tdCom.check_res(input_sql2, stb_name2, protocol=protocol)
+        input_sql1, stb_name1 = self.tdCom.gen_full_type_sql(value=binary_symbols, t7=binary_symbols, t8=nchar_symbols)
+        input_sql2, stb_name2 = self.tdCom.gen_full_type_sql(value=nchar_symbols, t7=binary_symbols, t8=nchar_symbols)
+        self.tdCom.check_res(input_sql1, stb_name1)
+        self.tdCom.check_res(input_sql2, stb_name2)
 
     def ts_check(self):
         """
@@ -109,38 +109,38 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             except SchemalessError as err:
                 self.tdSql.checkNotEqual(err.errno, 0)
 
-    def id_seq_check(self, protocol=None):
+    def id_seq_check(self):
         """
         check id.index in tags
         eg: t0=**,id=**,t1=**
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(id_change_tag=True, protocol=protocol)
-        self.tdCom.check_res(input_sql, stb_name, protocol=protocol)
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(id_change_tag=True)
+        self.tdCom.check_res(input_sql, stb_name)
 
-    def id_letter_check(self, protocol=None):
+    def id_letter_check(self):
         """
         check id param
         eg: id and ID
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(id_upper_tag=True, protocol=protocol)
-        self.tdCom.check_res(input_sql, stb_name, protocol=protocol)
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(id_mixul_tag=True, protocol=protocol)
-        self.tdCom.check_res(input_sql, stb_name, protocol=protocol)
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(id_change_tag=True, id_upper_tag=True, protocol=protocol)
-        self.tdCom.check_res(input_sql, stb_name, protocol=protocol)
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(id_upper_tag=True)
+        self.tdCom.check_res(input_sql, stb_name)
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(id_mixul_tag=True)
+        self.tdCom.check_res(input_sql, stb_name)
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(id_change_tag=True, id_upper_tag=True)
+        self.tdCom.check_res(input_sql, stb_name)
 
-    def no_id_check(self, protocol=None):
+    def no_id_check(self):
         """
         id not exist
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(id_noexist_tag=True, protocol=protocol)
-        self.tdCom.check_res(input_sql, stb_name, protocol=protocol)
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(id_noexist_tag=True)
+        self.tdCom.check_res(input_sql, stb_name)
         query_sql = f"select tbname from {stb_name}"
         res_row_list = self.tdCom.res_handle(query_sql, stb_name)[0]
         if len(res_row_list[0][0]) > 0:
@@ -164,7 +164,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         #     except SchemalessError as err:
         #         self.tdSql.checkNotEqual(err.errno, 0)
 
-    def stb_tb_name_check(self, protocol=None):
+    def stb_tb_name_check(self):
         """
         test illegal id name
         mix "`~!@#$¥%^&*()-+{}|[]、「」【】:;《》<>?"
@@ -173,18 +173,18 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.cleanTb()
         rstr = list("~!@#$¥%^&*()-+{}|[]、「」【】:;《》<>?")
         for i in rstr:
-            input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=f"\"aaa{i}bbb\"", protocol=protocol)
-            self.tdCom.check_res(input_sql, f'`{stb_name}`', protocol=protocol)
+            input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=f"\"aaa{i}bbb\"")
+            self.tdCom.check_res(input_sql, f'`{stb_name}`')
             self.tdSql.execute(f'drop table if exists `{stb_name}`')
 
-    def id_start_with_num_check(self, protocol=None):
+    def id_start_with_num_check(self):
         """
         id is start with num
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name="1aaabbb", protocol=protocol)
-        self.tdCom.check_res(input_sql, stb_name, protocol=protocol)
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name="1aaabbb")
+        self.tdCom.check_res(input_sql, stb_name)
 
     def now_check(self):
         """
@@ -739,18 +739,18 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             stb_name = input_sql.split(' ')[0]
             self.tdCom.check_res(input_sql, stb_name)
 
-    def point_trans_check(self, protocol=None):
+    def point_trans_check(self):
         """
         metric value "." trans to "_"
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        input_sql = self.tdCom.gen_full_type_sql(point_trans_tag=True, protocol=protocol)[0]
-        if protocol == 'telnet-tcp':
+        input_sql = self.tdCom.gen_full_type_sql(point_trans_tag=True)[0]
+        if self.tdCom.sml_type == 'telnet-tcp':
             stb_name = f'`{input_sql.split(" ")[1]}`'
         else:
             stb_name = f'`{input_sql.split(" ")[0]}`'
-        self.tdCom.check_res(input_sql, stb_name, protocol=protocol)
+        self.tdCom.check_res(input_sql, stb_name)
         self.tdSql.execute("drop table `.point.trans.test`")
 
     def defaultType_check(self):
@@ -808,9 +808,9 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        input_sql = self.tdCom.gen_full_type_sql(tcp_keyword_tag=True, protocol=protocol)[0]
+        input_sql = self.tdCom.gen_full_type_sql(tcp_keyword_tag=True)[0]
         stb_name = f'`{input_sql.split(" ")[1]}`'
-        self.tdCom.check_res(input_sql, stb_name, protocol=protocol)
+        self.tdCom.check_res(input_sql, stb_name)
 
     def s_stb_s_tb_d_data_insert_multi_thread_check(self):
         """
@@ -1046,7 +1046,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             self.duplicate_id_tag_col_insert_check()
             self.duplicate_insert_exist_check()
             # self.tag_col_binary_max_length_check()
-            self.batch_insert_check()
+            # self.batch_insert_check()
             self.multiInsert_check(100)
             self.batch_error_insert_check()
             self.multi_cols_insert_check()
@@ -1071,20 +1071,22 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_d_ts_mt_insert_multi_thread_check()
 
-        # # for env_setting in self.env_setting["settings"]:
-        # #     if env_setting["name"] == "taosAdapter":
-        # #         self.dbname = env_setting["spec"]["adapter_config"]["opentsdb_telnet"]["dbs"][0]
-        # # self.tdCom.createDb(dbname=self.dbname, precision="us", protocol="telnet-tcp")
-        # # self.init_check('telnet-tcp')
-        # # self.bool_check('telnet-tcp')
-        # # self.symbols_check('telnet-tcp')
-        # # self.id_seq_check('telnet-tcp')
-        # # self.id_letter_check('telnet-tcp')
-        # # self.no_id_check('telnet-tcp')
-        # # self.stb_tb_name_check('telnet-tcp')
-        # # self.id_start_with_num_check('telnet-tcp')
-        # # self.point_trans_check('telnet-tcp')
-        # # self.tcp_keywords_check()
+            self.tdCom = TDCom(self.tdSql, env_setting=self.env_setting)
+            self.tdCom.sml_type = "telnet-tcp"
+            for env_setting in self.env_setting["settings"]:
+                if env_setting["name"] == "taosAdapter":
+                    self.dbname = env_setting["spec"]["adapter_config"]["opentsdb_telnet"]["dbs"][0]
+            self.tdCom.createDb(dbname=self.dbname, precision="us")
+            self.init_check()
+            self.bool_check()
+            self.symbols_check()
+            self.id_seq_check()
+            self.id_letter_check()
+            self.no_id_check()
+            self.stb_tb_name_check()
+            self.id_start_with_num_check()
+            self.point_trans_check()
+            self.tcp_keywords_check()
     def cleanup(self):
         pass
 
