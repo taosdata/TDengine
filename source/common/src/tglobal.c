@@ -556,7 +556,7 @@ static void taosSetSystemCfg(SConfig *pCfg) {
   osSetSystemLocale(locale, charset);
 
   bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
-  taosSetConsoleEcho(enableCore);
+  taosSetCoreDump(enableCore);
 
   // todo
   tsVersion = 30000000;
@@ -675,7 +675,7 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
     case 'e': {
       if (strcasecmp("enableCoreFile", name) == 0) {
         bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
-        taosSetConsoleEcho(enableCore);
+        taosSetCoreDump(enableCore);
       }
       break;
     }
