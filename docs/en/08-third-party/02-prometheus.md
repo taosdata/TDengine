@@ -27,7 +27,7 @@ Supposed that you use Linux system with architecture amd64:
 
 Then Prometheus is installed in current directory. For more installation options, please refer to the [official documentation](https://prometheus.io/docs/prometheus/latest/installation/).
 
-## Configuration
+## Configure
 
 Configuring Prometheus is done by editing the Prometheus configuration file `prometheus.yml` (If you followed previous steps, you can find prometheus.xml in current directory).
 

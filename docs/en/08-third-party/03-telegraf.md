@@ -23,7 +23,7 @@ sudo systemctl stop telegraf
 
 For installation instructions on other platforms please refer to the [official documentation](https://docs.influxdata.com/telegraf/v1.23/install/).
 
-## Configuration
+## Configure
 
 
 Run this command in your terminal to save TDengine cloud token and URL as variables:
@@ -60,7 +60,7 @@ Start telegraf using new generated telegraf.conf file.
 telegraf --config telegraf.conf
 ```
 
-## Verification 
+## Verify
 
 Log in TDengine Cloud, click "Explorer" on the left navigation bar.
 
