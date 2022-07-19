@@ -55,6 +55,7 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
     taosMemoryFree(pMemTable);
     goto _err;
   }
+  vnodeBufPoolRef(pMemTable->pPool);
 
   *ppMemTable = pMemTable;
   return code;
@@ -66,6 +67,7 @@ _err:
 
 void tsdbMemTableDestroy(SMemTable *pMemTable) {
   if (pMemTable) {
+    vnodeBufPoolUnRef(pMemTable->pPool);
     taosArrayDestroy(pMemTable->aTbData);
     taosMemoryFree(pMemTable);
   }
