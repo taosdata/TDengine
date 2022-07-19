@@ -159,6 +159,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowStreamsStmt";
     case QUERY_NODE_SHOW_TABLES_STMT:
       return "ShowTablesStmt";
+    case QUERY_NODE_SHOW_TAGS_STMT:
+      return "ShowTagsStmt";
     case QUERY_NODE_SHOW_USERS_STMT:
       return "ShowUsersStmt";
     case QUERY_NODE_SHOW_LICENCE_STMT:
@@ -4295,6 +4297,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return alterDnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
+    case QUERY_NODE_SHOW_TAGS_STMT:
       break;
     case QUERY_NODE_CREATE_TOPIC_STMT:
       return createTopicStmtToJson(pObj, pJson);

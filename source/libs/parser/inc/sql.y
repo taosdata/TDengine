@@ -82,7 +82,6 @@ alter_account_option ::= STATE literal.                                         
 /************************************************ create/alter/drop user **********************************************/
 cmd ::= CREATE USER user_name(A) PASS NK_STRING(B) sysinfo_opt(C).                { pCxt->pRootNode = createCreateUserStmt(pCxt, &A, &B, C); }
 cmd ::= ALTER USER user_name(A) PASS NK_STRING(B).                                { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_PASSWD, &B); }
-//cmd ::= ALTER USER user_name(A) PRIVILEGE NK_STRING(B).                           { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_PRIVILEGES, &B); }
 cmd ::= ALTER USER user_name(A) ENABLE NK_INTEGER(B).                             { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_ENABLE, &B); }
 cmd ::= ALTER USER user_name(A) SYSINFO NK_INTEGER(B).                            { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_SYSINFO, &B); }
 cmd ::= DROP USER user_name(A).                                                   { pCxt->pRootNode = createDropUserStmt(pCxt, &A); }
@@ -198,15 +197,15 @@ alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                 
 
 %type alter_db_option                                                             { SAlterOption }
 %destructor alter_db_option                                                       { }
-alter_db_option(A) ::= BUFFER NK_INTEGER(B).                                      { A.type = DB_OPTION_BUFFER; A.val = B; }
+//alter_db_option(A) ::= BUFFER NK_INTEGER(B).                                      { A.type = DB_OPTION_BUFFER; A.val = B; }
 alter_db_option(A) ::= CACHEMODEL NK_STRING(B).                                   { A.type = DB_OPTION_CACHEMODEL; A.val = B; }
 alter_db_option(A) ::= CACHESIZE NK_INTEGER(B).                                   { A.type = DB_OPTION_CACHESIZE; A.val = B; }
 alter_db_option(A) ::= FSYNC NK_INTEGER(B).                                       { A.type = DB_OPTION_FSYNC; A.val = B; }
 alter_db_option(A) ::= KEEP integer_list(B).                                      { A.type = DB_OPTION_KEEP; A.pList = B; }
 alter_db_option(A) ::= KEEP variable_list(B).                                     { A.type = DB_OPTION_KEEP; A.pList = B; }
-alter_db_option(A) ::= PAGES NK_INTEGER(B).                                       { A.type = DB_OPTION_PAGES; A.val = B; }
-alter_db_option(A) ::= REPLICA NK_INTEGER(B).                                     { A.type = DB_OPTION_REPLICA; A.val = B; }
-alter_db_option(A) ::= STRICT NK_INTEGER(B).                                      { A.type = DB_OPTION_STRICT; A.val = B; }
+//alter_db_option(A) ::= PAGES NK_INTEGER(B).                                       { A.type = DB_OPTION_PAGES; A.val = B; }
+//alter_db_option(A) ::= REPLICA NK_INTEGER(B).                                     { A.type = DB_OPTION_REPLICA; A.val = B; }
+//alter_db_option(A) ::= STRICT NK_STRING(B).                                       { A.type = DB_OPTION_STRICT; A.val = B; }
 alter_db_option(A) ::= WAL NK_INTEGER(B).                                         { A.type = DB_OPTION_WAL; A.val = B; }
 
 %type integer_list                                                                { SNodeList* }
@@ -394,6 +393,7 @@ cmd ::= SHOW TRANSACTIONS.                                                      
 cmd ::= SHOW TABLE DISTRIBUTED full_table_name(A).                                { pCxt->pRootNode = createShowTableDistributedStmt(pCxt, A); }
 cmd ::= SHOW CONSUMERS.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CONSUMERS_STMT); }
 cmd ::= SHOW SUBSCRIPTIONS.                                                       { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT); }
+cmd ::= SHOW TAGS FROM table_name_cond(A) from_db_opt(B).                         { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TAGS_STMT, B, A, OP_TYPE_EQUAL); }
 
 db_name_cond_opt(A) ::= .                                                         { A = createDefaultDatabaseCondValue(pCxt); }
 db_name_cond_opt(A) ::= db_name(B) NK_DOT.                                        { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
@@ -525,7 +525,7 @@ cmd ::= INSERT INTO full_table_name(A)
 cmd ::= INSERT INTO full_table_name(A) query_expression(B).                       { pCxt->pRootNode = createInsertStmt(pCxt, A, NULL, B); }
 
 /************************************************ literal *************************************************************/
-literal(A) ::= NK_INTEGER(B).                                                     { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B)); }
+literal(A) ::= NK_INTEGER(B).                                                     { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B)); }
 literal(A) ::= NK_FLOAT(B).                                                       { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &B)); }
 literal(A) ::= NK_STRING(B).                                                      { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B)); }
 literal(A) ::= NK_BOOL(B).                                                        { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &B)); }
@@ -536,8 +536,8 @@ literal(A) ::= NK_QUESTION(B).                                                  
 
 duration_literal(A) ::= NK_VARIABLE(B).                                           { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
 
-signed(A) ::= NK_INTEGER(B).                                                      { A = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
-signed(A) ::= NK_PLUS NK_INTEGER(B).                                              { A = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
+signed(A) ::= NK_INTEGER(B).                                                      { A = createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B); }
+signed(A) ::= NK_PLUS NK_INTEGER(B).                                              { A = createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B); }
 signed(A) ::= NK_MINUS(B) NK_INTEGER(C).                                          { 
                                                                                     SToken t = B;
                                                                                     t.n = (C.z + C.n) - B.z;
