@@ -36,6 +36,9 @@ taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/s
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_concat_ws.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_rtrim.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_substr.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_stddev_1.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_stddev_2.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_stddev_3.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_top_bottom.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_table_only_stable_groupby.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_table_only_stable_groupby.py --keep --containers
@@ -91,7 +94,6 @@ taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numer
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_csum_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_csum_2.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_diff.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_stddev.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_top_bottom.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_state.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_interval.py --keep --containers
