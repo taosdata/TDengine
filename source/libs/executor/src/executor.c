@@ -43,16 +43,24 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     // TODO: if a block was set but not consumed,
     // prevent setting a different type of block
     pInfo->blockType = type;
+    pInfo->validBlockIndex = 0;
+    taosArrayClear(pInfo->pBlockLists);
 
     if (type == STREAM_INPUT__DATA_SUBMIT) {
-      if (tqReaderSetDataMsg(pInfo->tqReader, input, 0) < 0) {
-        qError("submit msg messed up when initing stream block, %s" PRIx64, id);
-        return TSDB_CODE_QRY_APP_ERROR;
+      /*if (tqReaderSetDataMsg(pInfo->tqReader, input, 0) < 0) {*/
+      /*qError("submit msg messed up when initing stream block, %s" PRIx64, id);*/
+      /*return TSDB_CODE_QRY_APP_ERROR;*/
+      /*}*/
+      taosArrayClear(pInfo->pBlockLists);
+      for (int32_t i = 0; i < numOfBlocks; i++) {
+        SSubmitReq* pReq = POINTER_SHIFT(input, i * sizeof(void*));
+        taosArrayPush(pInfo->pBlockLists, &pReq);
       }
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
 
+        // TODO optimize
         SSDataBlock* p = createOneDataBlock(pDataBlock, false);
         p->info = pDataBlock->info;
 
@@ -153,7 +161,8 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers) {
   return pTaskInfo;
 }
 
-static SArray* filterQualifiedChildTables(const SStreamScanInfo* pScanInfo, const SArray* tableIdList, const char* idstr) {
+static SArray* filterQualifiedChildTables(const SStreamScanInfo* pScanInfo, const SArray* tableIdList,
+                                          const char* idstr) {
   SArray* qa = taosArrayInit(4, sizeof(tb_uid_t));
 
   // let's discard the tables those are not created according to the queried super table.

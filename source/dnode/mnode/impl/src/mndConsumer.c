@@ -452,7 +452,7 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   int32_t code = -1;
   SArray *newSub = subscribe.topicNames;
   taosArraySortString(newSub, taosArrayCompareString);
-  taosArrayRemoveDuplicate(newSub, taosArrayCompareString, taosMemoryFree);
+  taosArrayRemoveDuplicateP(newSub, taosArrayCompareString, taosMemoryFree);
 
   int32_t newTopicNum = taosArrayGetSize(newSub);
   // check topic existance

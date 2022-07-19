@@ -81,7 +81,7 @@ SStreamMergedSubmit* streamMergedSubmitNew() {
   SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)taosAllocateQitem(sizeof(SStreamMergedSubmit), DEF_QITEM);
   if (pMerged == NULL) return NULL;
   pMerged->reqs = taosArrayInit(0, sizeof(void*));
-  pMerged->dataRefs = taosArrayInit(0, sizeof(void*));
+  pMerged->dataRefs = taosArrayInit(0, sizeof(int32_t*));
   if (pMerged->dataRefs == NULL || pMerged->reqs == NULL) goto FAIL;
   return pMerged;
 FAIL:
@@ -93,7 +93,7 @@ FAIL:
 
 int32_t streamMergeSubmit(SStreamMergedSubmit* pMerged, SStreamDataSubmit* pSubmit) {
   taosArrayPush(pMerged->dataRefs, pSubmit->dataRef);
-  taosArrayPush(pMerged->reqs, pSubmit->data);
+  taosArrayPush(pMerged->reqs, &pSubmit->data);
   pMerged->ver = pSubmit->ver;
   return 0;
 }
@@ -167,7 +167,7 @@ void streamFreeQitem(SStreamQueueItem* data) {
       int32_t* ref = taosArrayGet(pMerge->dataRefs, i);
       (*ref)--;
       if (*ref == 0) {
-        void* data = taosArrayGet(pMerge->reqs, i);
+        void* data = taosArrayGetP(pMerge->reqs, i);
         taosMemoryFree(data);
         taosMemoryFree(ref);
       }
