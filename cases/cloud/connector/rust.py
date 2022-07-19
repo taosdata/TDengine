@@ -24,3 +24,6 @@ class Rust(TDCase):
 
     def init(self):
         pass
+
+    def cleanup(self):
+        pass

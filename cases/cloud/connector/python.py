@@ -12,6 +12,9 @@ class Python(TDCase):
         os.system("pip3 uninstall -y taospy")
         os.system('pip3 install "taospy<=3.0.0"')
 
+    def cleanup(self):
+        pass
+
     def run(self):
         cwd = self.env_setting["work_dir"] + "/docs-cloud/docs/examples/python"
         self.lcmd.run("python3 develop_tutorial.py", cwd=cwd, env=self.env_setting["env"])
