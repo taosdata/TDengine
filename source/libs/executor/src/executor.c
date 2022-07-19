@@ -104,25 +104,38 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
   return code;
 }
 
-qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers) {
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols) {
   if (msg == NULL) {
     // TODO create raw scan
     return NULL;
   }
 
-  struct SSubplan* plan = NULL;
-  int32_t          code = qStringToSubplan(msg, &plan);
+  struct SSubplan* pPlan = NULL;
+  int32_t          code = qStringToSubplan(msg, &pPlan);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     return NULL;
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(readers, 0, 0, plan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_QUEUE);
+  code = qCreateExecTask(readers, 0, 0, pPlan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_QUEUE);
   if (code != TSDB_CODE_SUCCESS) {
-    // TODO: destroy SSubplan & pTaskInfo
+    nodesDestroyNode((SNode*)pPlan);
+    qDestroyTask(pTaskInfo);
     terrno = code;
     return NULL;
+  }
+
+  // extract the number of output columns
+  SDataBlockDescNode* pDescNode = pPlan->pNode->pOutputDataBlockDesc;
+  *numOfCols = 0;
+
+  SNode*  pNode;
+  FOREACH(pNode, pDescNode->pSlots) {
+    SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
+    if (pSlotDesc->output) {
+      ++(*numOfCols);
+    }
   }
 
   return pTaskInfo;
@@ -135,17 +148,18 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers) {
 
   /*qDebugL("stream task string %s", (const char*)msg);*/
 
-  struct SSubplan* plan = NULL;
-  int32_t          code = qStringToSubplan(msg, &plan);
+  struct SSubplan* pPlan = NULL;
+  int32_t          code = qStringToSubplan(msg, &pPlan);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     return NULL;
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(readers, 0, 0, plan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_STREAM);
+  code = qCreateExecTask(readers, 0, 0, pPlan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_STREAM);
   if (code != TSDB_CODE_SUCCESS) {
-    // TODO: destroy SSubplan & pTaskInfo
+    nodesDestroyNode((SNode*)pPlan);
+    qDestroyTask(pTaskInfo);
     terrno = code;
     return NULL;
   }
@@ -227,19 +241,19 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* table
   ASSERT(tinfo != NULL && dbName != NULL && tableName != NULL);
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
-  if (pTaskInfo->schemaVer.sw == NULL) {
+  if (pTaskInfo->schemaInfo.sw == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
-  *sversion = pTaskInfo->schemaVer.sw->version;
-  *tversion = pTaskInfo->schemaVer.tversion;
-  if (pTaskInfo->schemaVer.dbname) {
-    strcpy(dbName, pTaskInfo->schemaVer.dbname);
+  *sversion = pTaskInfo->schemaInfo.sw->version;
+  *tversion = pTaskInfo->schemaInfo.tversion;
+  if (pTaskInfo->schemaInfo.dbname) {
+    strcpy(dbName, pTaskInfo->schemaInfo.dbname);
   } else {
     dbName[0] = 0;
   }
-  if (pTaskInfo->schemaVer.tablename) {
-    strcpy(tableName, pTaskInfo->schemaVer.tablename);
+  if (pTaskInfo->schemaInfo.tablename) {
+    strcpy(tableName, pTaskInfo->schemaInfo.tablename);
   } else {
     tableName[0] = 0;
   }
