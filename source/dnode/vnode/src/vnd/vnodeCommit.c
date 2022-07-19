@@ -15,7 +15,7 @@
 
 #include "vnd.h"
 
-#define VND_INFO_FNAME "vnode.json"
+#define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
 static int  vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
@@ -27,18 +27,18 @@ static void vnodeWaitCommit(SVnode *pVnode);
 
 int vnodeBegin(SVnode *pVnode) {
   // alloc buffer pool
-  /* pthread_mutex_lock(); */
+  taosThreadMutexLock(&pVnode->mutex);
 
   while (pVnode->pPool == NULL) {
-    /* pthread_cond_wait(); */
+    taosThreadCondWait(&pVnode->poolNotEmpty, &pVnode->mutex);
   }
 
   pVnode->inUse = pVnode->pPool;
+  pVnode->inUse->nRef = 1;
   pVnode->pPool = pVnode->inUse->next;
   pVnode->inUse->next = NULL;
-  /* ref pVnode->inUse buffer pool */
 
-  /* pthread_mutex_unlock(); */
+  taosThreadMutexUnlock(&pVnode->mutex);
 
   pVnode->state.commitID++;
   // begin meta
@@ -217,7 +217,7 @@ int vnodeCommit(SVnode *pVnode) {
   vInfo("vgId:%d, start to commit, commit ID:%" PRId64 " version:%" PRId64, TD_VID(pVnode), pVnode->state.commitID,
         pVnode->state.applied);
 
-  pVnode->onCommit = pVnode->inUse;
+  vnodeBufPoolUnRef(pVnode->inUse);
   pVnode->inUse = NULL;
 
   // save info
@@ -284,10 +284,6 @@ int vnodeCommit(SVnode *pVnode) {
 
   // apply the commit (TODO)
   walEndSnapshot(pVnode->pWal);
-  vnodeBufPoolReset(pVnode->onCommit);
-  pVnode->onCommit->next = pVnode->pPool;
-  pVnode->pPool = pVnode->onCommit;
-  pVnode->onCommit = NULL;
 
   vInfo("vgId:%d, commit over", TD_VID(pVnode));
 
