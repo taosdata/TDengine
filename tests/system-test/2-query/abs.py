@@ -566,8 +566,8 @@ class TDTestCase:
         tdSql.query(f"select t1 from {dbname}.stb1 where abs(c1+t1)=1")
         tdSql.checkRows(1)
         tdSql.checkData(0,0,0)
-        
-        tdSql.query("select abs(c1) from (select ts , c1 ,t1 from stb1)")
+
+        tdSql.query(f"select abs(c1) from (select ts , c1 ,t1 from {dbname}.stb1)")
         tdSql.checkRows(25)
 
         tdSql.query(

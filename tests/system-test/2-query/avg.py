@@ -1,4 +1,3 @@
-from pyrsistent import v
 import taos
 import sys
 import datetime
