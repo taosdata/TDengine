@@ -124,6 +124,7 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
   SConnBuffer* p = connBuf;
   if (p->cap == 0) {
     p->buf = (char*)taosMemoryCalloc(CAPACITY, sizeof(char));
+    tTrace("internal malloc mem:%p, size:%d", p->buf, CAPACITY);
     p->len = 0;
     p->cap = CAPACITY;
     p->total = -1;
@@ -136,7 +137,7 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
   } else {
     p->cap = p->total;
     p->buf = taosMemoryRealloc(p->buf, p->cap);
-    tTrace("internal malloc mem:%p, size:%d", p->buf, p->cap);
+    tTrace("internal realloc mem:%p, size:%d", p->buf, p->cap);
 
     uvBuf->base = p->buf + p->len;
     uvBuf->len = p->cap - p->len;

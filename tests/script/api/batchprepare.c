@@ -328,7 +328,7 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   //.optrIdxList = optrIdxList,
   //.bindColTypeNum = tListLen(bindColTypeList),
   //.bindColTypeList = bindColTypeList,
-  .caseIdx = 24,
+  .caseIdx = 8,
   .caseNum = 1,
   .caseRunNum = 1,
 };
@@ -1384,6 +1384,7 @@ void bpCheckTagFields(TAOS_STMT *stmt, TAOS_MULTI_BIND* pBind) {
   }
   
   bpCheckColTagFields(stmt, fieldNum, pFields, gCurCase->bindTagNum, pBind, BP_BIND_TAG);
+  taosMemoryFree(pFields);
 }
 
 void bpCheckColFields(TAOS_STMT *stmt, TAOS_MULTI_BIND* pBind) {
@@ -1401,6 +1402,7 @@ void bpCheckColFields(TAOS_STMT *stmt, TAOS_MULTI_BIND* pBind) {
   }
   
   bpCheckColTagFields(stmt, fieldNum, pFields, gCurCase->bindColNum, pBind, BP_BIND_COL);
+  taosMemoryFree(pFields);
 }
 
 void bpShowBindParam(TAOS_MULTI_BIND *bind, int32_t num) {
