@@ -40,6 +40,7 @@ typedef struct SReadHandle {
   bool    initMetaReader;
   bool    initTableReader;
   bool    initTqReader;
+  int32_t numOfVgroups;
 } SReadHandle;
 
 // in queue mode, data streams are seperated by msg

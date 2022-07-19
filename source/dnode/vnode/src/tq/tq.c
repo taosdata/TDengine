@@ -591,7 +591,11 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen) {
       };
       pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
     } else {
-      pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, NULL);
+      SReadHandle mgHandle = {
+          .vnode = NULL,
+          .numOfVgroups = pTask->numOfVgroups,
+      };
+      pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &mgHandle);
     }
     ASSERT(pTask->exec.executor);
   }

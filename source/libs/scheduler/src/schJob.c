@@ -675,6 +675,7 @@ void schFreeJobImpl(void *job) {
 
   taosMemoryFreeClear(pJob->userRes.execRes);
   taosMemoryFreeClear(pJob->fetchRes);
+  taosMemoryFreeClear(pJob->sql);
   taosMemoryFree(pJob);
 
   int32_t jobNum = atomic_sub_fetch_32(&schMgmt.jobNum, 1);
@@ -718,7 +719,9 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
 
   pJob->attr.explainMode = pReq->pDag->explainInfo.mode;
   pJob->conn = *pReq->pConn;
-  pJob->sql = pReq->sql;
+  if (pReq->sql) {
+    pJob->sql = strdup(pReq->sql);
+  }
   pJob->pDag = pReq->pDag;
   pJob->chkKillFp = pReq->chkKillFp;
   pJob->chkKillParam = pReq->chkKillParam;
