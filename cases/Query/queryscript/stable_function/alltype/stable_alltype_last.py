@@ -342,7 +342,7 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
-                            sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            sql2 = "select %s from (select * from %s order by ts) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
@@ -362,7 +362,7 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
-                            sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            sql2 = "select %s from (select * from %s order by ts) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
