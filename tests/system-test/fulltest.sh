@@ -189,7 +189,8 @@ python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot0.py
 python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot1.py
 #python3 ./test.py -f 7-tmq/tmqDelete-1ctb.py
 python3 ./test.py -f 7-tmq/tmqUdf.py
-python3 ./test.py -f 7-tmq/tmqUdf-multCtb.py
+python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot0.py
+python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot1.py
 python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
 python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 
