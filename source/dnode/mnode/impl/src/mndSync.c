@@ -144,9 +144,11 @@ int32_t mndSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void **ppWrit
 }
 
 int32_t mndSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply, SSnapshot *pSnapshot) {
-  mInfo("stop to apply snapshot to sdb, apply:%d", isApply);
+  mInfo("stop to apply snapshot to sdb, apply:%d, index:%" PRId64 " term:%" PRIu64 " config:%" PRId64, isApply,
+        pSnapshot->lastApplyIndex, pSnapshot->lastApplyTerm, pSnapshot->lastApplyIndex);
   SMnode *pMnode = pFsm->data;
-  return sdbStopWrite(pMnode->pSdb, pWriter, isApply);
+  return sdbStopWrite(pMnode->pSdb, pWriter, isApply, pSnapshot->lastApplyIndex, pSnapshot->lastApplyTerm,
+                      pSnapshot->lastConfigIndex);
 }
 
 int32_t mndSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *pBuf, int32_t len) {
@@ -157,7 +159,7 @@ int32_t mndSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *pBuf, int
 void mndLeaderTransfer(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   SMnode *pMnode = pFsm->data;
   atomic_store_8(&(pMnode->syncMgmt.leaderTransferFinish), 1);
-  mDebug("vgId:1, mnd leader transfer finish");
+  mDebug("vgId:1, mnode leader transfer finish");
 }
 
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {

@@ -88,7 +88,7 @@ typedef struct {
     STqExecTb  execTb;
     STqExecDb  execDb;
   };
-
+  int32_t numOfCols;  // number of out pout column, temporarily used
 } STqExecHandle;
 
 typedef struct {

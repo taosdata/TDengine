@@ -41,6 +41,7 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
   }
   taosInitRWLatch(&pMemTable->latch);
   pMemTable->pTsdb = pTsdb;
+  pMemTable->pPool = pTsdb->pVnode->inUse;
   pMemTable->nRef = 1;
   pMemTable->minKey = TSKEY_MAX;
   pMemTable->maxKey = TSKEY_MIN;
@@ -54,6 +55,7 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
     taosMemoryFree(pMemTable);
     goto _err;
   }
+  vnodeBufPoolRef(pMemTable->pPool);
 
   *ppMemTable = pMemTable;
   return code;
@@ -65,6 +67,7 @@ _err:
 
 void tsdbMemTableDestroy(SMemTable *pMemTable) {
   if (pMemTable) {
+    vnodeBufPoolUnRef(pMemTable->pPool);
     taosArrayDestroy(pMemTable->aTbData);
     taosMemoryFree(pMemTable);
   }
@@ -590,3 +593,58 @@ _err:
 }
 
 int32_t tsdbGetNRowsInTbData(STbData *pTbData) { return pTbData->sl.size; }
+
+void tsdbRefMemTable(SMemTable *pMemTable) {
+  int32_t nRef = atomic_fetch_add_32(&pMemTable->nRef, 1);
+  ASSERT(nRef > 0);
+}
+
+void tsdbUnrefMemTable(SMemTable *pMemTable) {
+  int32_t nRef = atomic_sub_fetch_32(&pMemTable->nRef, 1);
+  if (nRef == 0) {
+    tsdbMemTableDestroy(pMemTable);
+  }
+}
+
+int32_t tsdbTakeMemSnapshot(STsdb *pTsdb, SMemTable **ppMem, SMemTable **ppIMem) {
+  int32_t code = 0;
+
+  // lock
+  code = taosThreadRwlockRdlock(&pTsdb->rwLock);
+  if (code) {
+    code = TAOS_SYSTEM_ERROR(code);
+    goto _exit;
+  }
+
+  // take snapshot
+  *ppMem = pTsdb->mem;
+  *ppIMem = pTsdb->imem;
+
+  if (*ppMem) {
+    tsdbRefMemTable(*ppMem);
+  }
+
+  if (*ppIMem) {
+    tsdbRefMemTable(*ppIMem);
+  }
+
+  // unlock
+  code = taosThreadRwlockUnlock(&pTsdb->rwLock);
+  if (code) {
+    code = TAOS_SYSTEM_ERROR(code);
+    goto _exit;
+  }
+
+_exit:
+  return code;
+}
+
+void tsdbUntakeMemSnapshot(STsdb *pTsdb, SMemTable *pMem, SMemTable *pIMem) {
+  if (pMem) {
+    tsdbUnrefMemTable(pMem);
+  }
+
+  if (pIMem) {
+    tsdbUnrefMemTable(pIMem);
+  }
+}

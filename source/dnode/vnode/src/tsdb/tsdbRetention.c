@@ -20,10 +20,10 @@ static int32_t tsdbDoRetentionImpl(STsdb *pTsdb, int64_t now, int8_t try, int8_t
   STsdbFSState *pState;
 
   if (try) {
-    pState = pTsdb->fs->cState;
+    pState = pTsdb->pFS->cState;
     *canDo = 0;
   } else {
-    pState = pTsdb->fs->nState;
+    pState = pTsdb->pFS->nState;
   }
 
   for (int32_t iSet = 0; iSet < taosArrayGetSize(pState->aDFileSet); iSet++) {
@@ -83,7 +83,7 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
   if (!canDo) goto _exit;
 
   // begin
-  code = tsdbFSBegin(pTsdb->fs);
+  code = tsdbFSBegin(pTsdb->pFS);
   if (code) goto _err;
 
   // do retention
@@ -91,7 +91,7 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
   if (code) goto _err;
 
   // commit
-  code = tsdbFSCommit(pTsdb->fs);
+  code = tsdbFSCommit(pTsdb->pFS);
   if (code) goto _err;
 
 _exit:
@@ -99,6 +99,6 @@ _exit:
 
 _err:
   tsdbError("vgId:%d tsdb do retention failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  tsdbFSRollback(pTsdb->fs);
+  tsdbFSRollback(pTsdb->pFS);
   return code;
 }

@@ -45,7 +45,7 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
 
   while (true) {
     if (pReader->pDataFReader == NULL) {
-      SDFileSet* pSet = tsdbFSStateGetDFileSet(pTsdb->fs->cState, pReader->fid, TD_GT);
+      SDFileSet* pSet = tsdbFSStateGetDFileSet(pTsdb->pFS->cState, pReader->fid, TD_GT);
 
       if (pSet == NULL) goto _exit;
 
@@ -159,7 +159,7 @@ _err:
 static int32_t tsdbSnapReadDel(STsdbSnapReader* pReader, uint8_t** ppData) {
   int32_t   code = 0;
   STsdb*    pTsdb = pReader->pTsdb;
-  SDelFile* pDelFile = pTsdb->fs->cState->pDelFile;
+  SDelFile* pDelFile = pTsdb->pFS->cState->pDelFile;
 
   if (pReader->pDelFReader == NULL) {
     if (pDelFile == NULL) {
@@ -798,7 +798,7 @@ static int32_t tsdbSnapWriteDataEnd(STsdbSnapWriter* pWriter) {
   code = tsdbWriteBlockIdx(pWriter->pDataFWriter, pWriter->aBlockIdxW, NULL);
   if (code) goto _err;
 
-  code = tsdbFSStateUpsertDFileSet(pTsdb->fs->nState, tsdbDataFWriterGetWSet(pWriter->pDataFWriter));
+  code = tsdbFSStateUpsertDFileSet(pTsdb->pFS->nState, tsdbDataFWriterGetWSet(pWriter->pDataFWriter));
   if (code) goto _err;
 
   code = tsdbDataFWriterClose(&pWriter->pDataFWriter, 1);
@@ -843,7 +843,7 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
     pWriter->fid = fid;
 
     // read
-    SDFileSet* pSet = tsdbFSStateGetDFileSet(pTsdb->fs->nState, fid, TD_EQ);
+    SDFileSet* pSet = tsdbFSStateGetDFileSet(pTsdb->pFS->nState, fid, TD_EQ);
     if (pSet) {
       code = tsdbDataFReaderOpen(&pWriter->pDataFReader, pTsdb, pSet);
       if (code) goto _err;
@@ -907,7 +907,7 @@ static int32_t tsdbSnapWriteDel(STsdbSnapWriter* pWriter, uint8_t* pData, uint32
   STsdb*  pTsdb = pWriter->pTsdb;
 
   if (pWriter->pDelFWriter == NULL) {
-    SDelFile* pDelFile = tsdbFSStateGetDelFile(pTsdb->fs->nState);
+    SDelFile* pDelFile = tsdbFSStateGetDelFile(pTsdb->pFS->nState);
 
     // reader
     if (pDelFile) {
@@ -1017,7 +1017,7 @@ static int32_t tsdbSnapWriteDelEnd(STsdbSnapWriter* pWriter) {
   code = tsdbUpdateDelFileHdr(pWriter->pDelFWriter);
   if (code) goto _err;
 
-  code = tsdbFSStateUpsertDelFile(pTsdb->fs->nState, &pWriter->pDelFWriter->fDel);
+  code = tsdbFSStateUpsertDelFile(pTsdb->pFS->nState, &pWriter->pDelFWriter->fDel);
   if (code) goto _err;
 
   code = tsdbDelFWriterClose(&pWriter->pDelFWriter, 1);
@@ -1096,7 +1096,7 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
     goto _err;
   }
 
-  code = tsdbFSBegin(pTsdb->fs);
+  code = tsdbFSBegin(pTsdb->pFS);
   if (code) goto _err;
 
   *ppWriter = pWriter;
@@ -1113,7 +1113,7 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
   STsdbSnapWriter* pWriter = *ppWriter;
 
   if (rollback) {
-    code = tsdbFSRollback(pWriter->pTsdb->fs);
+    code = tsdbFSRollback(pWriter->pTsdb->pFS);
     if (code) goto _err;
   } else {
     code = tsdbSnapWriteDataEnd(pWriter);
@@ -1122,7 +1122,7 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
     code = tsdbSnapWriteDelEnd(pWriter);
     if (code) goto _err;
 
-    code = tsdbFSCommit(pWriter->pTsdb->fs);
+    code = tsdbFSCommit(pWriter->pTsdb->pFS);
     if (code) goto _err;
   }
 

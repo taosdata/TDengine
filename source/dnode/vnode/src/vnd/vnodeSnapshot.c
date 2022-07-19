@@ -27,6 +27,8 @@ struct SVSnapReader {
   // tsdb
   int8_t           tsdbDone;
   STsdbSnapReader *pTsdbReader;
+  // rsma
+  int8_t rsmaDone[TSDB_RETENTION_L2];
 };
 
 int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapReader **ppReader) {
@@ -114,6 +116,42 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       }
     }
   }
+
+  // RSMA ==============
+#if 0
+  if (VND_IS_RSMA(pReader->pVnode)) {
+    // RSMA1/RSMA2
+    for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
+      if (!pReader->rsmaDone[i]) {
+        if (!pReader->pVnode->pSma->pRSmaTsdb[i]) {
+          // no valid tsdb 
+          pReader->rsmaDone[i] = 1;
+          continue;
+        }
+        if (pReader->pTsdbReader == NULL) {
+          code = tsdbSnapReaderOpen(pReader->pVnode->pSma->pRSmaTsdb[i], pReader->sver, pReader->ever,
+                                    &pReader->pTsdbReader);
+          if (code) goto _err;
+        }
+
+        code = tsdbSnapRead(pReader->pTsdbReader, ppData);
+        if (code) {
+          goto _err;
+        } else {
+          if (*ppData) {
+            goto _exit;
+          } else {
+            pReader->tsdbDone = 1;
+            code = tsdbSnapReaderClose(&pReader->pTsdbReader);
+            if (code) goto _err;
+          }
+        }
+      }
+    }
+    // QTaskInfoFile
+    // TODO ...
+  }
+#endif
 
   *ppData = NULL;
   *nData = 0;
