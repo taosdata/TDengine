@@ -434,7 +434,7 @@ static void uvStartSendRespInternal(SSvrMsg* smsg) {
   uvPrepareSendData(smsg, &wb);
 
   transRefSrvHandle(pConn);
-  uv_write_t* req = transReqQueuePushReq(&pConn->wreqQueue);
+  uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
   uv_write(req, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
 }
 static void uvStartSendResp(SSvrMsg* smsg) {

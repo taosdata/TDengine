@@ -241,6 +241,7 @@ void transCtxCleanup(STransCtx* ctx) {
     iter = taosHashIterate(ctx->args, iter);
   }
 
+  ctx->freeFunc(ctx->brokenVal.val);
   taosHashCleanup(ctx->args);
   ctx->args = NULL;
 }
@@ -297,7 +298,7 @@ void transReqQueueInit(queue* q) {
   // init req queue
   QUEUE_INIT(q);
 }
-void* transReqQueuePushReq(queue* q) {
+void* transReqQueuePush(queue* q) {
   uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
   STransReq*  wreq = taosMemoryCalloc(1, sizeof(STransReq));
   wreq->data = req;

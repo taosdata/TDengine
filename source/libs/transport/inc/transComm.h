@@ -320,7 +320,7 @@ typedef struct STransReq {
 } STransReq;
 
 void  transReqQueueInit(queue* q);
-void* transReqQueuePushReq(queue* q);
+void* transReqQueuePush(queue* q);
 void* transReqQueueRemove(void* arg);
 void  transReqQueueClear(queue* q);
 

@@ -730,7 +730,7 @@ void cliSend(SCliConn* pConn) {
     CONN_SET_PERSIST_BY_APP(pConn);
   }
 
-  uv_write_t* req = transReqQueuePushReq(&pConn->wreqQueue);
+  uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
   uv_write(req, (uv_stream_t*)pConn->stream, &wb, 1, cliSendCb);
   return;
 _RETURN:
