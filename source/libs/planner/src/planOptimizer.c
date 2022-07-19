@@ -2143,6 +2143,16 @@ static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubp
   }
 
   pScanNode->scanType = SCAN_TYPE_TAG;
+  SNode* pTarget = NULL;
+  FOREACH(pTarget, pScanNode->node.pTargets) {
+      if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)(pTarget))->colId) {
+        ERASE_NODE(pScanNode->node.pTargets);
+        break;
+      }
+  }
+  
+  NODES_DESTORY_LIST(pScanNode->pScanCols);
+
   SLogicNode* pAgg = pScanNode->node.pParent;
   int32_t code = replaceLogicNode(pLogicSubplan, pAgg, (SLogicNode*)pScanNode);
   if (TSDB_CODE_SUCCESS == code) {
