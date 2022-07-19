@@ -30,18 +30,17 @@ class TestCachelast(TDCase):
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         # default
-        self.tdSql.checkEqual(db_field_kv_dict[get_param], self.cfg["default"])
+        self.tdSql.checkEqual(db_field_kv_dict[get_param], str(self.cfg["default"]).lower())
         self.tdSql.execute(f'drop database {dbname}')
         # param_list
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
-            self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
+            self.tdSql.execute(f'create database if not exists {dbname} {test_param} "{param_value}"')
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-            self.tdSql.checkEqual(db_field_kv_dict[get_param], param_value)
+            self.tdSql.checkEqual(db_field_kv_dict[get_param], str(param_value).lower())
             self.tdSql.execute(f'drop database {dbname}')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][-1] + 1}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} 0')
 
     def run(self) -> bool:
         self.cachelast_check()

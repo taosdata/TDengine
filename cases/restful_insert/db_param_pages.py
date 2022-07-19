@@ -42,6 +42,7 @@ class TestPages(TDCase):
         db_vnode_kv_dict = self.tdRest.getOneRow(1,dbname)
         data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
         self.tdSql.checkEqual(db_field, int(data['config'][self.cfg["vnode_json_key"]]))
+        
         self.tdRest.request(f'drop database {dbname}')
         # boundary
         for param_value in self.cfg["boundary"]:

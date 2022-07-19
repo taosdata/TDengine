@@ -38,9 +38,9 @@ class TestPages(TDCase):
         # default
         self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
         self.tdSql.query(f'show {dbname}.vgroups')
-        # db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        # data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
-        # self.tdSql.checkEqual(db_field_kv_dict[test_param], int(data['config'][self.cfg["vnode_json_key"]]))
+        db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+        data = json.loads(self.remote.cmd(self.fqdn,f'cat {self.vnode_dir}/vnode{db_vnode_kv_dict[0][0]}/vnode.json'))
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], int(data['config'][self.cfg["vnode_json_key"]]))
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
         for param_value in self.cfg["boundary"]:
@@ -56,10 +56,10 @@ class TestPages(TDCase):
             self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name()
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
-        
+        self.tdSql.execute(f'create database {dbname}')
         #! bug TD-16166
-        # for i in [self.cfg["boundary"][0]-1,100.1,'abc']:
-        #     self.tdSql.error(f'alter database {dbname} pages {i}')
+        for i in [self.cfg["boundary"][0]-1,100.1,'abc',self.cfg["boundary"][0]]:
+            self.tdSql.error(f'alter database {dbname} pages {i}')
         
         # self.tdSql.execute(f'drop database {dbname}')
     def run(self):
