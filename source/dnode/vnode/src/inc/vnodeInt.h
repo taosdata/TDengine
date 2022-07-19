@@ -77,6 +77,8 @@ typedef struct SSnapDataHdr    SSnapDataHdr;
 // vnd.h
 void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
 void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
+void  vnodeBufPoolRef(SVBufPool* pPool);
+void  vnodeBufPoolUnRef(SVBufPool* pPool);
 
 // meta
 typedef struct SMCtbCursor SMCtbCursor;
@@ -247,26 +249,26 @@ struct STsdbKeepCfg {
 };
 
 struct SVnode {
-  char*      path;
-  SVnodeCfg  config;
-  SVState    state;
-  STfs*      pTfs;
-  SMsgCb     msgCb;
-  SVBufPool* pPool;
-  SVBufPool* inUse;
-  SVBufPool* onCommit;
-  SVBufPool* onRecycle;
-  SMeta*     pMeta;
-  SSma*      pSma;
-  STsdb*     pTsdb;
-  SWal*      pWal;
-  STQ*       pTq;
-  SSink*     pSink;
-  tsem_t     canCommit;
-  int64_t    sync;
-  int32_t    blockCount;
-  tsem_t     syncSem;
-  SQHandle*  pQuery;
+  char*         path;
+  SVnodeCfg     config;
+  SVState       state;
+  STfs*         pTfs;
+  SMsgCb        msgCb;
+  TdThreadMutex mutex;
+  TdThreadCond  poolNotEmpty;
+  SVBufPool*    pPool;
+  SVBufPool*    inUse;
+  SMeta*        pMeta;
+  SSma*         pSma;
+  STsdb*        pTsdb;
+  SWal*         pWal;
+  STQ*          pTq;
+  SSink*        pSink;
+  tsem_t        canCommit;
+  int64_t       sync;
+  int32_t       blockCount;
+  tsem_t        syncSem;
+  SQHandle*     pQuery;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
