@@ -1517,7 +1517,6 @@ int32_t tmqAskEp(tmq_t* tmq, bool async) {
   sendInfo->requestId = generateRequestId();
   sendInfo->requestObjRefId = 0;
   sendInfo->param = pParam;
-  sendInfo->paramFreeFp = taosMemoryFree;      
   sendInfo->fp = tmqAskEpCb;
   sendInfo->msgType = TDMT_MND_MQ_ASK_EP;
 

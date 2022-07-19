@@ -863,8 +863,7 @@ _return:
   }
 
   if (pMsgSendInfo) {
-    taosMemoryFreeClear(pMsgSendInfo->param);
-    taosMemoryFreeClear(pMsgSendInfo);
+    destroySendMsgInfo(pMsgSendInfo);
   }
 
   SCH_RET(code);

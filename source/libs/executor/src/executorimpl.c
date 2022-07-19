@@ -1986,7 +1986,6 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   tsem_post(&pExchangeInfo->ready);
   taosReleaseRef(exchangeObjRefPool, pWrapper->exchangeId);
 
-  taosMemoryFree(pWrapper);
   return TSDB_CODE_SUCCESS;
 }
 

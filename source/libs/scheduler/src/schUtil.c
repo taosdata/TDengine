@@ -292,15 +292,6 @@ void schFreeRpcCtx(SRpcCtx *pCtx) {
   }
 }
 
-void schFreeSMsgSendInfo(SMsgSendInfo *msgSendInfo) {
-  if (NULL == msgSendInfo) {
-    return;
-  }
-
-  taosMemoryFree(msgSendInfo->param);
-  taosMemoryFree(msgSendInfo);
-}
-
 int32_t schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask) {
   int32_t s = taosHashGetSize(pTaskList);
   if (s <= 0) {
