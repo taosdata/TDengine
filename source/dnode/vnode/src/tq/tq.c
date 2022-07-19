@@ -591,7 +591,11 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen) {
       };
       pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
     } else {
-      pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, NULL);
+      SReadHandle mgHandle = {
+          .vnode = NULL,
+          .numOfVgroups = pTask->numOfVgroups,
+      };
+      pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &mgHandle);
     }
     ASSERT(pTask->exec.executor);
   }
@@ -635,6 +639,8 @@ int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* pReq) {
 
   pSubmit = streamDataSubmitNew(pReq);
   if (pSubmit == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    qError("failed to create data submit for stream since out of memory");
     failed = true;
   }
 
@@ -644,12 +650,16 @@ int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* pReq) {
     SStreamTask* pTask = *(SStreamTask**)pIter;
     if (!pTask->isDataScan) continue;
 
+    qDebug("data submit enqueue stream task: %d", pTask->taskId);
+
     if (!failed) {
       if (streamTaskInput(pTask, (SStreamQueueItem*)pSubmit) < 0) {
+        qError("stream task input failed, task id %d", pTask->taskId);
         continue;
       }
 
       if (streamLaunchByWrite(pTask, TD_VID(pTq->pVnode)) < 0) {
+        qError("stream task launch failed, task id %d", pTask->taskId);
         continue;
       }
     } else {

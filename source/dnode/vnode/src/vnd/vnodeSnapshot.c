@@ -173,7 +173,7 @@ _err:
   return code;
 }
 
-int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback) {
+int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *pSnapshot) {
   int32_t code = 0;
   SVnode *pVnode = pWriter->pVnode;
 
@@ -193,8 +193,8 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback) {
 
     pVnode->state.committed = pWriter->ever;
     pVnode->state.applied = pWriter->ever;
-    // pVnode->state.applyTerm = ;
-    // pVnode->state.commitTerm = ;
+    pVnode->state.applyTerm = pSnapshot->lastApplyTerm;
+    pVnode->state.commitTerm = pSnapshot->lastApplyTerm;
 
     info.config = pVnode->config;
     info.state.committed = pVnode->state.applied;

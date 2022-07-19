@@ -1298,6 +1298,12 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   return ret;
 }
 
+int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode) {
+  syncNodeStopHeartbeatTimer(pSyncNode);
+  syncNodeStartHeartbeatTimer(pSyncNode);
+  return 0;
+}
+
 // utils --------------
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
   SEpSet epSet;
@@ -1546,7 +1552,8 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     } else {
       snprintf(logBuf, sizeof(logBuf), "%s", str);
     }
-    sDebug("%s", logBuf);
+    // sDebug("%s", logBuf);
+    sInfo("%s", logBuf);
 
   } else {
     int   len = 256 + userStrLen;
@@ -1567,7 +1574,8 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     } else {
       snprintf(s, len, "%s", str);
     }
-    sDebug("%s", s);
+    // sDebug("%s", s);
+    sInfo("%s", s);
     taosMemoryFree(s);
   }
 

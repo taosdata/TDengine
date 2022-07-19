@@ -113,12 +113,6 @@ struct tmq_t {
   tsem_t rspSem;
 };
 
-struct tmq_raw_data {
-  void*   raw_meta;
-  int32_t raw_meta_len;
-  int16_t raw_meta_type;
-};
-
 enum {
   TMQ_VG_STATUS__IDLE = 0,
   TMQ_VG_STATUS__WAIT,
@@ -363,7 +357,11 @@ tmq_list_t* tmq_list_new() {
 
 int32_t tmq_list_append(tmq_list_t* list, const char* src) {
   SArray* container = &list->container;
-  char*   topic = strdup(src);
+  if (src == NULL || src[0] == 0) return -1;
+  char* topic = strdup(src);
+  if (topic[0] != '`') {
+    strtolower(topic, src);
+  }
   if (taosArrayPush(container, &topic) == NULL) return -1;
   return 0;
 }
@@ -506,6 +504,7 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
   pMsgSendInfo->requestId = generateRequestId();
   pMsgSendInfo->requestObjRefId = 0;
   pMsgSendInfo->param = pParam;
+  pMsgSendInfo->paramFreeFp = taosMemoryFree;      
   pMsgSendInfo->fp = tmqCommitCb2;
   pMsgSendInfo->msgType = TDMT_VND_MQ_COMMIT_OFFSET;
   // send msg
@@ -1052,6 +1051,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   int32_t         code = -1;
 
   req.consumerId = tmq->consumerId;
+  tstrncpy(req.clientId, tmq->clientId, 256);
   tstrncpy(req.cgroup, tmq->groupId, TSDB_CGROUP_LEN);
   req.topicNames = taosArrayInit(sz, sizeof(void*));
   if (req.topicNames == NULL) goto FAIL;
@@ -1145,14 +1145,6 @@ void tmq_conf_set_auto_commit_cb(tmq_conf_t* conf, tmq_commit_cb* cb, void* para
   conf->commitCb = cb;
   conf->commitCbUserParam = param;
 }
-
-#if 0
-int32_t tmqGetSkipLogNum(tmq_message_t* tmq_message) {
-  if (tmq_message == NULL) return 0;
-  SMqPollRsp* pRsp = &tmq_message->msg;
-  return pRsp->skipLogNum;
-}
-#endif
 
 int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   SMqPollCbParam* pParam = (SMqPollCbParam*)param;
@@ -1296,9 +1288,6 @@ bool tmqUpdateEp2(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
         offsetNew = *pOffset;
       }
 
-      /*tscDebug("consumer:%" PRId64 ", (epoch %d) offset of vgId:%d updated to %" PRId64 ", vgKey is %s",
-       * tmq->consumerId, epoch,*/
-      /*pVgEp->vgId, offset, vgKey);*/
       SMqClientVg clientVg = {
           .pollCnt = 0,
           .currentOffsetNew = offsetNew,
@@ -1924,16 +1913,15 @@ const char* tmq_get_table_name(TAOS_RES* res) {
   return NULL;
 }
 
-tmq_raw_data* tmq_get_raw_meta(TAOS_RES* res) {
-  if (TD_RES_TMQ_META(res)) {
-    tmq_raw_data*  raw = taosMemoryCalloc(1, sizeof(tmq_raw_data));
+int32_t tmq_get_raw_meta(TAOS_RES* res, tmq_raw_data *raw) {
+  if (TD_RES_TMQ_META(res) && raw) {
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
     raw->raw_meta = pMetaRspObj->metaRsp.metaRsp;
     raw->raw_meta_len = pMetaRspObj->metaRsp.metaRspLen;
     raw->raw_meta_type = pMetaRspObj->metaRsp.resMsgType;
-    return raw;
+    return TSDB_CODE_SUCCESS;
   }
-  return NULL;
+  return TSDB_CODE_INVALID_PARA;
 }
 
 static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, char* name, int64_t id,
@@ -2941,23 +2929,23 @@ end:
   return code;
 }
 
-int32_t taos_write_raw_meta(TAOS* taos, tmq_raw_data* raw_meta) {
-  if (!taos || !raw_meta) {
+int32_t taos_write_raw_meta(TAOS *taos, tmq_raw_data raw_meta){
+  if (!taos) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if (raw_meta->raw_meta_type == TDMT_VND_CREATE_STB) {
-    return taosCreateStb(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
-  } else if (raw_meta->raw_meta_type == TDMT_VND_ALTER_STB) {
-    return taosCreateStb(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
-  } else if (raw_meta->raw_meta_type == TDMT_VND_DROP_STB) {
-    return taosDropStb(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
-  } else if (raw_meta->raw_meta_type == TDMT_VND_CREATE_TABLE) {
-    return taosCreateTable(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
-  } else if (raw_meta->raw_meta_type == TDMT_VND_ALTER_TABLE) {
-    return taosAlterTable(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
-  } else if (raw_meta->raw_meta_type == TDMT_VND_DROP_TABLE) {
-    return taosDropTable(taos, raw_meta->raw_meta, raw_meta->raw_meta_len);
+  if(raw_meta.raw_meta_type == TDMT_VND_CREATE_STB) {
+    return taosCreateStb(taos, raw_meta.raw_meta, raw_meta.raw_meta_len);
+  }else if(raw_meta.raw_meta_type == TDMT_VND_ALTER_STB){
+    return taosCreateStb(taos, raw_meta.raw_meta, raw_meta.raw_meta_len);
+  }else if(raw_meta.raw_meta_type == TDMT_VND_DROP_STB){
+    return taosDropStb(taos, raw_meta.raw_meta, raw_meta.raw_meta_len);
+  }else if(raw_meta.raw_meta_type == TDMT_VND_CREATE_TABLE){
+    return taosCreateTable(taos, raw_meta.raw_meta, raw_meta.raw_meta_len);
+  }else if(raw_meta.raw_meta_type == TDMT_VND_ALTER_TABLE){
+    return taosAlterTable(taos, raw_meta.raw_meta, raw_meta.raw_meta_len);
+  }else if(raw_meta.raw_meta_type == TDMT_VND_DROP_TABLE){
+    return taosDropTable(taos, raw_meta.raw_meta, raw_meta.raw_meta_len);
   }
   return TSDB_CODE_INVALID_PARA;
 }

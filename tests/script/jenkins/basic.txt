@@ -248,8 +248,8 @@
 ./test.sh -f tsim/stream/sliding.sim
 
 # ---- transaction
- ./test.sh -f tsim/trans/lossdata1.sim
- ./test.sh -f tsim/trans/create_db.sim
+./test.sh -f tsim/trans/lossdata1.sim
+./test.sh -f tsim/trans/create_db.sim
 
 # ---- tmq
 ./test.sh -f tsim/tmq/basic1.sim
@@ -311,6 +311,8 @@
 ./test.sh -f tsim/valgrind/checkError2.sim
 ./test.sh -f tsim/valgrind/checkError3.sim
 ./test.sh -f tsim/valgrind/checkError4.sim
+./test.sh -f tsim/valgrind/checkError5.sim
+./test.sh -f tsim/valgrind/checkError6.sim
 
 # --- vnode
 # unsupport ./test.sh -f tsim/vnode/replica3_basic.sim

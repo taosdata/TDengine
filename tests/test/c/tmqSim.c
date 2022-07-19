@@ -171,7 +171,8 @@ static void printHelp() {
 
 char* getCurrentTimeString(char* timeString) {
   time_t    tTime = taosGetTimestampSec();
-  struct tm tm = *taosLocalTime(&tTime, NULL);
+  struct tm tm;
+  taosLocalTime(&tTime, &tm);
   sprintf(timeString, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
           tm.tm_min, tm.tm_sec);
 
@@ -420,18 +421,6 @@ static char* shellFormatTimestamp(char* buf, int64_t val, int32_t precision) {
     ms = val % 1000;
   }
 
-  /*
-    comment out as it make testcases like select_with_tags.sim fail.
-    but in windows, this may cause the call to localtime crash if tt < 0,
-    need to find a better solution.
-    if (tt < 0) {
-      tt = 0;
-    }
-  */
-
-#ifdef WINDOWS
-  if (tt < 0) tt = 0;
-#endif
   if (tt <= 0 && ms < 0) {
     tt--;
     if (precision == TSDB_TIME_PRECISION_NANO) {
@@ -443,8 +432,9 @@ static char* shellFormatTimestamp(char* buf, int64_t val, int32_t precision) {
     }
   }
 
-  struct tm* ptm = taosLocalTime(&tt, NULL);
-  size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", ptm);
+  struct tm ptm;
+  taosLocalTime(&tt, &ptm);
+  size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
 
   if (precision == TSDB_TIME_PRECISION_NANO) {
     sprintf(buf + pos, ".%09d", ms);
@@ -597,9 +587,10 @@ static int32_t meta_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
                   tmq_get_topic_name(msg), vgroupId);
 
   {
-    tmq_raw_data *raw = tmq_get_raw_meta(msg);
+    tmq_raw_data raw = {0};
+    int32_t code = tmq_get_raw_meta(msg, &raw);
 	
-    if(raw){
+    if(code == TSDB_CODE_SUCCESS){
 	  TAOS_RES* pRes = taos_query(pInfo->taos, "use metadb");
 	  if (taos_errno(pRes) != 0) {
 		pError("error when use metadb, reason:%s\n", taos_errstr(pRes));
@@ -609,10 +600,9 @@ static int32_t meta_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
 		exit(-1);
 	  }	  
 	  taos_free_result(pRes);
-	  taosFprintfFile(g_fp, "raw:%p\n", raw);
+	  taosFprintfFile(g_fp, "raw:%p\n", &raw);
 	
-      int32_t ret = taos_write_raw_meta(pInfo->taos, raw);
-      taosMemoryFree(raw);	  
+      taos_write_raw_meta(pInfo->taos, raw);
     }
 	
     char* result = tmq_get_json_meta(msg);

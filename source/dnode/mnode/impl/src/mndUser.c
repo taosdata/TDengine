@@ -363,11 +363,10 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // code = grantCheck(TSDB_GRANT_USER);
-  // if (code != TSDB_CODE_SUCCESS) {
-  //   terrno = code;
-  //   goto _OVER;
-  // }
+  if ((terrno = grantCheck(TSDB_GRANT_USER)) != 0) {
+    code = terrno;
+    goto _OVER;
+  }
 
   code = mndCreateUser(pMnode, pOperUser->acct, &createReq, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;

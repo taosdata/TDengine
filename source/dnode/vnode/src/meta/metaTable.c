@@ -277,7 +277,7 @@ _drop_super_table:
 _exit:
   tdbFree(pKey);
   tdbFree(pData);
-  metaDebug("vgId:%d,  super table %s uid:%" PRId64 " is dropped", TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
+  metaDebug("vgId:%d, super table %s uid:%" PRId64 " is dropped", TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
   return 0;
 }
 

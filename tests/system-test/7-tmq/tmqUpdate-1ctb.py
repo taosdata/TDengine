@@ -116,7 +116,12 @@ class TDTestCase:
         # paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
         consumerId     = 0
-        expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * 3/2)
+        
+        if self.snapshot == 0:
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 + 1/2))
+        elif self.snapshot == 1:
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1))
+            
         topicList      = topicFromStb1
         ifcheckdata    = 1
         ifManualCommit = 1
@@ -199,7 +204,11 @@ class TDTestCase:
         # paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
         consumerId     = 1
-        expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * 2)
+        if self.snapshot == 0:
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (2))
+        elif self.snapshot == 1:
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1))
+        
         topicList      = topicFromStb1
         ifcheckdata    = 1
         ifManualCommit = 1
