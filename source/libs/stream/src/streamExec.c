@@ -162,11 +162,13 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
         /*streamUpdateVer(pTask, (SStreamDataBlock*)qItem);*/
         /*}*/
       } else {
-        if (streamAppendQueueItem(data, qItem) < 0) {
+        void* newRet;
+        if ((newRet = streamAppendQueueItem(data, qItem)) == NULL) {
           streamQueueProcessFail(pTask->inputQueue);
           break;
         } else {
           cnt++;
+          data = newRet;
           /*streamUpdateVer(pTask, (SStreamDataBlock*)qItem);*/
           streamQueueProcessSuccess(pTask->inputQueue);
         }

@@ -1431,9 +1431,11 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       }
       if (pBlockInfo->rows > 0) {
         break;
+      } else {
+        pInfo->tqReader->pMsg = NULL;
+        return NULL;
       }
       /*blockDataCleanup(pInfo->pRes);*/
-      pInfo->tqReader->pMsg = NULL;
     }
 
     // record the scan action.
