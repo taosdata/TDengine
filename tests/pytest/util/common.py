@@ -17,6 +17,7 @@ import requests
 import time
 import socket
 import json
+import toml
 from .boundary import DataBoundary
 import taos
 from util.log import *
@@ -443,7 +444,9 @@ class TDCom:
         return buildPath
 
     def getClientCfgPath(self):
-        buildPath = self.getBuildPath()
+        # buildPath = self.getBuildPath()
+        buildPath = get_path()
+
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
         else:
@@ -751,5 +754,30 @@ def is_json(msg):
             return False
     else:
         return False
+
+def get_path(tool="taosd"):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+
+        paths = []
+        for root, dirs, files in os.walk(projPath):
+            if ((tool) in files or ("%s.exe"%tool) in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    paths.append(os.path.join(root, tool))
+                    break
+        if (len(paths) == 0):
+                return ""
+        return paths[0]
+
+def dict2toml(in_dict: dict, file:str):
+    if not isinstance(in_dict, dict):
+        return ""
+    with open(file, 'w') as f:
+        toml.dump(in_dict, f)
 
 tdCom = TDCom()

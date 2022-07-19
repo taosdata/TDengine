@@ -96,9 +96,9 @@ class TDSimClient:
 
         for key, value in self.cfgDict.items():
             self.cfg(key, value)
-        
+
         try:
-            if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:                    
+            if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:
                 clientCfg = dict (updatecfgDict[0][0].get('clientCfg'))
                 for key, value in clientCfg.items():
                     self.cfg(key, value)
@@ -244,7 +244,6 @@ class TDDnode:
         # print(updatecfgDict)
         isFirstDir = 1
         if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:
-            print(updatecfgDict[0][0])
             for key, value in updatecfgDict[0][0].items():
                 if key == "clientCfg" and self.remoteIP == "" and not platform.system().lower() == 'windows':
                     continue
@@ -324,7 +323,6 @@ class TDDnode:
             if os.system(cmd) != 0:
                 tdLog.exit(cmd)
             self.running = 1
-            print("dnode:%d is running with %s " % (self.index, cmd))
             tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
             if self.valgrind == 0:
                 time.sleep(0.1)
@@ -358,7 +356,7 @@ class TDDnode:
                 #         break
                 #     elif bkey2 in line:
                 #         popen.kill()
-                #         break                        
+                #         break
                 #     if time.time() > timeout:
                 #         print(time.time(),timeout)
                 #         tdLog.exit('wait too long for taosd start')
@@ -407,7 +405,6 @@ class TDDnode:
             if os.system(cmd) != 0:
                 tdLog.exit(cmd)
             self.running = 1
-            print("dnode:%d is running with %s " % (self.index, cmd))
             tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
             if self.valgrind == 0:
                 time.sleep(0.1)
@@ -655,7 +652,6 @@ class TDDnodes:
     def stoptaosd(self, index):
         self.check(index)
         self.dnodes[index - 1].stoptaosd()
-        
 
     def start(self, index):
         self.check(index)
