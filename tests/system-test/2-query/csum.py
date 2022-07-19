@@ -435,8 +435,8 @@ class TDTestCase:
         tdSql.checkRows(40)
 
         # # bug need fix
-        # tdSql.query("select csum(st1+c1) from stb1 partition by tbname slimit 1 ")
-        # tdSql.checkRows(4)
+        tdSql.query("select csum(st1+c1) from stb1 partition by tbname slimit 1 ")
+        tdSql.checkRows(4)
         # tdSql.error("select csum(st1+c1) from stb1 partition by tbname limit 1 ")
 
 

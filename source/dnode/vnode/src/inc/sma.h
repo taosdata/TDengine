@@ -43,9 +43,9 @@ typedef struct SRSmaInfo     SRSmaInfo;
 typedef struct SRSmaInfoItem SRSmaInfoItem;
 
 struct SSmaEnv {
-  SRWLatch       lock;
-  int8_t         type;
-  SSmaStat      *pStat;
+  SRWLatch  lock;
+  int8_t    type;
+  SSmaStat *pStat;
 };
 
 typedef struct {
@@ -103,10 +103,15 @@ struct SRSmaInfoItem {
 };
 
 struct SRSmaInfo {
-  STSchema     *pTSchema;
-  int64_t       suid;
+  STSchema *pTSchema;
+  int64_t   suid;
+  int8_t    delFlag;
+  T_REF_DECLARE()
   SRSmaInfoItem items[TSDB_RETENTION_L2];
 };
+#define RSMA_INFO_HEAD_LEN   24
+#define RSMA_INFO_IS_DEL(r)  ((r)->delFlag == 1)
+#define RSMA_INFO_SET_DEL(r) ((r)->delFlag = 1)
 
 enum {
   TASK_TRIGGER_STAT_INIT = 0,
@@ -120,8 +125,8 @@ enum {
 enum {
   RSMA_ROLE_CREATE = 0,
   RSMA_ROLE_DROP = 1,
-  RSMA_ROLE_FETCH = 2,
-  RSMA_ROLE_SUBMIT = 3,
+  RSMA_ROLE_SUBMIT = 2,
+  RSMA_ROLE_FETCH = 3,
   RSMA_ROLE_ITERATE = 4,
 };
 
@@ -134,6 +139,8 @@ int32_t tdInsertRSmaData(SSma *pSma, char *msg);
 
 int32_t tdRefSmaStat(SSma *pSma, SSmaStat *pStat);
 int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat);
+int32_t tdRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo);
+int32_t tdUnRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo);
 
 void   *tdAcquireSmaRef(int32_t rsetId, int64_t refId, const char *tags, int32_t ln);
 int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId, const char *tags, int32_t ln);
@@ -193,6 +200,7 @@ void           tdFreeQTaskInfo(qTaskInfo_t *taskHandle, int32_t vgId, int32_t le
 static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
 void          *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
+void           tdRemoveRSmaInfoBySuid(SSma *pSma, int64_t suid);
 int32_t        tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
 
 int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
@@ -258,8 +266,9 @@ void    tdUpdateTFileMagic(STFile *pTFile, void *pCksm);
 void    tdCloseTFile(STFile *pTFile);
 void    tdDestroyTFile(STFile *pTFile);
 
-void tdGetVndFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t version, char *outputName);
-void tdGetVndDirName(int32_t vgId,const char *pdname,  const char *dname, bool endWithSep, char *outputName);
+void tdGetVndFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t version,
+                      char *outputName);
+void tdGetVndDirName(int32_t vgId, const char *pdname, const char *dname, bool endWithSep, char *outputName);
 
 #ifdef __cplusplus
 }

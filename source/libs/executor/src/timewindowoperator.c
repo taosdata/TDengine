@@ -63,7 +63,6 @@ static int32_t setTimeWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindo
                                       SResultRow** pResult, int64_t tableGroupId, SqlFunctionCtx* pCtx,
                                       int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup,
                                       SExecTaskInfo* pTaskInfo) {
-  assert(win->skey <= win->ekey);
   SResultRow* pResultRow = doSetResultOutBufByKey(pAggSup->pResultBuf, pResultRowInfo, (char*)&win->skey, TSDB_KEYSIZE,
                                                   masterscan, tableGroupId, pTaskInfo, true, pAggSup);
 
@@ -1513,12 +1512,25 @@ static void destroyStateWindowOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFreeClear(param);
 }
 
+static void freeItem(void* param) {
+  SGroupKeys *pKey = (SGroupKeys*) param;
+  taosMemoryFree(pKey->pData);
+}
+
 void destroyIntervalOperatorInfo(void* param, int32_t numOfOutput) {
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
-  taosArrayDestroy(pInfo->pRecycledPages);
+  pInfo->pRecycledPages = taosArrayDestroy(pInfo->pRecycledPages);
+  pInfo->pInterpCols = taosArrayDestroy(pInfo->pInterpCols);
+  taosArrayDestroyEx(pInfo->pPrevValues, freeItem);
 
+  pInfo->pPrevValues = NULL;
+  pInfo->pDelWins = taosArrayDestroy(pInfo->pDelWins);
+  pInfo->pDelRes = blockDataDestroy(pInfo->pDelRes);
+
+  cleanupGroupResInfo(&pInfo->groupResInfo);
+  colDataDestroy(&pInfo->twAggSup.timeWindowData);
   taosMemoryFreeClear(param);
 }
 

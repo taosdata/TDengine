@@ -2071,9 +2071,10 @@ int32_t tDecodeSVDropTbBatchRsp(SDecoder* pCoder, SVDropTbBatchRsp* pRsp);
 
 // TDMT_VND_ALTER_TABLE =====================
 typedef struct {
-  char*  tbName;
-  int8_t action;
-  char*  colName;
+  char*   tbName;
+  int8_t  action;
+  char*   colName;
+  int32_t colId;
   // TSDB_ALTER_TABLE_ADD_COLUMN
   int8_t  type;
   int8_t  flags;
@@ -2924,7 +2925,6 @@ typedef struct {
   SMqRspHead   head;
   STqOffsetVal reqOffset;
   STqOffsetVal rspOffset;
-  int32_t      skipLogNum;
   int32_t      blockNum;
   int8_t       withTbName;
   int8_t       withSchema;

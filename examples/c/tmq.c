@@ -15,10 +15,10 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include "taos.h"
-#include <stdlib.h>
 
 static int  running = 1;
 static void msg_process(TAOS_RES* msg) {
@@ -28,8 +28,9 @@ static void msg_process(TAOS_RES* msg) {
   printf("db: %s\n", tmq_get_db_name(msg));
   printf("vg: %d\n", tmq_get_vgroup_id(msg));
   if (tmq_get_res_type(msg) == TMQ_RES_TABLE_META) {
-    tmq_raw_data *raw = tmq_get_raw_meta(msg);
-    if(raw){
+    tmq_raw_data raw = {0};
+    int32_t code = tmq_get_raw_meta(msg, &raw);
+    if (code == 0) {
       TAOS* pConn = taos_connect("192.168.1.86", "root", "taosdata", NULL, 0);
       if (pConn == NULL) {
         return;
@@ -53,9 +54,8 @@ static void msg_process(TAOS_RES* msg) {
       printf("write raw data: %s\n", tmq_err2str(ret));
       taos_close(pConn);
     }
-    tmq_free_raw_meta(raw);
     char* result = tmq_get_json_meta(msg);
-    if(result){
+    if (result) {
       printf("meta result: %s\n", result);
     }
     tmq_free_json_meta(result);
@@ -96,7 +96,9 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 nchar(8), t4 bool)");
+  pRes = taos_query(pConn,
+                    "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 "
+                    "nchar(8), t4 bool)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -152,6 +154,7 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
+#if 0
   pRes = taos_query(pConn, "alter table st1 add column c4 bigint");
   if (taos_errno(pRes) != 0) {
     printf("failed to alter super table st1, reason:%s\n", taos_errstr(pRes));
@@ -264,7 +267,9 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 nchar(8), t4 bool)");
+  pRes = taos_query(pConn,
+                    "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 "
+                    "nchar(8), t4 bool)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -277,6 +282,7 @@ int32_t init_env() {
     return -1;
   }
   taos_free_result(pRes);
+#endif
 
   return 0;
 }
@@ -296,8 +302,15 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create topic topic_ctb_column with meta as database abc1");
-  /*pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from st1");*/
+  /*pRes = taos_query(pConn, "create topic topic_ctb_column with meta as database abc1");*/
+  pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from st1");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create topic topic_ctb_column, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create topic topic2  as select ts, c1, c2, c3 from st1");
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topic_ctb_column, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -353,6 +366,7 @@ tmq_t* build_consumer() {
 
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "group.id", "tg2");
+  tmq_conf_set(conf, "client.id", "my app 1");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "msg.with.table.name", "true");
