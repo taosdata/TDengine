@@ -31,7 +31,7 @@ class TAdapter:
                 "rotationCount"         : 30,
                 "rotationTime"          : "24h",
                 "rotationSize"          : "1GB",
-                "enableRecordHttpSql"   : False,
+                "enableRecordHttpSql"   : True,
                 "sqlRotationCount"      : 2,
                 "sqlRotationTime"       : "24h",
                 "sqlRotationSize"       : "1GB",
