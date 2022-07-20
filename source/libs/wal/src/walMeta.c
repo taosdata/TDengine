@@ -94,7 +94,7 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
       haystack = candidate + 1;
     }
     if (found || offset == 0) break;
-    offset = TMIN(0, offset - readSize + 8);
+    offset = TMIN(0, offset - readSize + sizeof(uint64_t));
     int64_t offset2 = taosLSeekFile(pFile, offset, SEEK_SET);
     ASSERT(offset == offset2);
     if (readSize != taosReadFile(pFile, buf, readSize)) {
