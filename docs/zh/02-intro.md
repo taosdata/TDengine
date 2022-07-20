@@ -47,7 +47,7 @@ TDengine的主要功能如下：
 
 - **无缝集成**：不用一行代码，即可与 Telegraf、Grafana、Prometheus、EMQX、HiveMQ、StatsD、collectd、icinga、TCollector、Matlab、R 等第三方工具无缝集成。
 
-- **互动 Console**: 通过命令行 console，不用编程，执行 SQL 语句就能做即席查询、各种数据库的操作、管理以及集群的维护.
+- **互动 Console**: 通过命令行 console，不用编程，执行 SQL 语句就能做即时查询、各种数据库的操作、管理以及集群的维护.
 
 采用 TDengine，可将典型的物联网、车联网、工业互联网大数据平台的总拥有成本大幅降低。表现在几个方面：
 
