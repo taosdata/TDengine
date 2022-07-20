@@ -44,6 +44,10 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   SSdbRaw   *pRaw = pMsg->pCont;
 
+  // delete msg handle
+  SRpcMsg rpcMsg = {0};
+  syncGetAndDelRespRpc(pMnode->syncMgmt.sync, cbMeta.seqNum, &rpcMsg.info);
+
   int32_t transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
   pMgmt->errCode = cbMeta.code;
   mDebug("trans:%d, is proposed, saved:%d code:0x%x, apply index:%" PRId64 " term:%" PRIu64 " config:%" PRId64
