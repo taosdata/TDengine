@@ -2576,10 +2576,12 @@ void updateSchema(TSDBROW* pRow, uint64_t uid, STsdbReader* pReader) {
   int32_t sversion = TSDBROW_SVERSION(pRow);
 
   if (pReader->pSchema == NULL) {
-    pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, uid, sversion);
+    // pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, uid, sversion);
+    metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, 0, uid, sversion, &pReader->pSchema);
   } else if (pReader->pSchema->version != sversion) {
     taosMemoryFreeClear(pReader->pSchema);
-    pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, uid, sversion);
+    // pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, uid, sversion);
+    metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, 0, uid, sversion, &pReader->pSchema);
   }
 }
 
