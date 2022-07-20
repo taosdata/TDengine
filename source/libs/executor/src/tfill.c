@@ -544,8 +544,9 @@ bool taosFillHasMoreResults(SFillInfo* pFillInfo) {
     return true;
   }
 
-  if (pFillInfo->numOfTotal > 0 && (((pFillInfo->end > pFillInfo->start) && FILL_IS_ASC_FILL(pFillInfo)) ||
-                                    (pFillInfo->end < pFillInfo->start && !FILL_IS_ASC_FILL(pFillInfo)))) {
+  bool ascFill = FILL_IS_ASC_FILL(pFillInfo);
+  if (pFillInfo->numOfTotal > 0 &&
+      (((pFillInfo->end > pFillInfo->start) && ascFill) || (pFillInfo->end < pFillInfo->start && !ascFill))) {
     return getNumOfResultsAfterFillGap(pFillInfo, pFillInfo->end, 4096) > 0;
   }
 
