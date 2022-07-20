@@ -299,7 +299,7 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .printRes = true,
   .runTimes = 0,
   .caseRunIdx = -1,
-  .caseIdx = 23,
+  .caseIdx = 5,
   .caseNum = 1,
   .caseRunNum = 1,
 };
@@ -1408,7 +1408,7 @@ void bpCheckColFields(TAOS_STMT *stmt, TAOS_MULTI_BIND* pBind) {
 void bpShowBindParam(TAOS_MULTI_BIND *bind, int32_t num) {
   for (int32_t i = 0; i < num; ++i) {
     TAOS_MULTI_BIND* b = &bind[i];
-    printf("Bind %d: type[%d],buf[%p],buflen[%d],len[%],null[%d],num[%d]\n", 
+    printf("Bind %d: type[%d],buf[%p],buflen[%d],len[%d],null[%d],num[%d]\n", 
       i, b->buffer_type, b->buffer, b->buffer_length, b->length ? *b->length : 0, b->is_null ? *b->is_null : 0, b->num);
   }
 }
@@ -2599,7 +2599,6 @@ void runAll(TAOS *taos) {
   runCaseList(taos);
 
 #if 0
-
   strcpy(gCaseCtrl.caseCatalog, "Micro DB precision Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.precision = TIME_PRECISION_MICRO;
@@ -2655,13 +2654,15 @@ void runAll(TAOS *taos) {
   gCaseCtrl.bindColNum = 6;
   runCaseList(taos);
   gCaseCtrl.bindColNum = 0;
+#endif
 
+/*
   strcpy(gCaseCtrl.caseCatalog, "Bind Col Type Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.bindColTypeNum = tListLen(bindColTypeList);
   gCaseCtrl.bindColTypeList = bindColTypeList;  
   runCaseList(taos);
-#endif
+*/
 
   printf("All Test End\n");  
 }
