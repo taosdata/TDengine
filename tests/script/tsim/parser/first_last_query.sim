@@ -109,7 +109,7 @@ endi
 
 ### test if first works for committed data. An 'order by ts desc' clause should be present, and queried data should come from at least 2 file blocks
 $tb = $tbPrefix . 9
-sql select first(ts), first(c1) from $tb where ts < '2018-10-17 10:00:00.000' order by ts asc
+sql select first(ts), first(c1) from $tb where ts < '2018-10-17 10:00:00.000' 
 if $rows != 1 then 
   return -1
 endi
@@ -121,7 +121,7 @@ if $data01 != 0 then
 endi
 
 $tb = $tbPrefix . 9
-sql select first(ts), first(c1) from $tb where ts < '2018-10-17 10:00:00.000' order by ts desc 
+sql select first(ts), first(c1) from $tb where ts < '2018-10-17 10:00:00.000'
 if $rows != 1 then 
   return -1
 endi
@@ -154,7 +154,7 @@ sql insert into test11 using stest tags('test11','bbb') values ('2020-09-04 16:5
 sql insert into test12 using stest tags('test11','bbb') values ('2020-09-04 16:53:58.003',210,3);
 sql insert into test21 using stest tags('test21','ccc') values ('2020-09-04 16:53:59.003',210,3);
 sql insert into test22 using stest tags('test21','ccc') values ('2020-09-04 16:54:54.003',210,3);
-sql select sum(size) from stest group by appname;
+sql select sum(size), appname from stest group by appname order by appname;;
 if $rows != 3 then
   return -1
 endi
@@ -170,16 +170,16 @@ if $data20 != 420 then
 endi
 
 if $data01 != @test1@ then
-return -1
+  return -1
 endi
 if $data11 != @test11@ then
-return -1
+  return -1
 endi
 if $data21 != @test21@ then
-return -1
+  return -1
 endi
 
-sql select sum(size) from stest interval(1d) group by appname;
+sql select _wstart, sum(size), appname from stest partition by appname interval(1d)  order by appname;
 if $rows != 3 then
  return -1
 endi
@@ -223,7 +223,7 @@ return -1
 endi
 
 print ===================>td-1477, one table has only one block occurs this bug.
-sql select first(size),count(*),LAST(SIZE) from stest where tbname in ('test1', 'test2') interval(1d) group by tbname;
+sql select _wstart, first(size), count(*), LAST(SIZE), tbname from stest where tbname in ('test1', 'test2') partition by tbname interval(1d) ;
 if $rows != 2 then
  return -1
 endi
@@ -278,15 +278,13 @@ sql create table tm1 using m1 tags(2);
 sql insert into tm0 values('2020-3-1 1:1:1', 112);
 sql insert into tm1 values('2020-1-1 1:1:1', 1)('2020-3-1 0:1:1', 421);
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 1000
-
 system sh/exec.sh -n dnode1 -s start
+
 print ================== server restart completed
-sleep 1000
 sql connect
 sql use first_db0;
 
-sql select last(*) from m1 group by tbname;
+sql select last(*), tbname from m1 group by tbname;
 if $rows != 2 then
   return -1
 endi

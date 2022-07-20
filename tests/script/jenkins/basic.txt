@@ -83,13 +83,13 @@
 ./test.sh -f tsim/insert/update0.sim
 
 # ---- parser
-./test.sh -f tsim/parser/alter.sim
-# nojira ./test.sh -f tsim/parser/alter1.sim
 ./test.sh -f tsim/parser/alter__for_community_version.sim
 ./test.sh -f tsim/parser/alter_column.sim
 ./test.sh -f tsim/parser/alter_stable.sim
-# jira ./test.sh -f tsim/parser/auto_create_tb.sim
+./test.sh -f tsim/parser/alter.sim
+# nojira ./test.sh -f tsim/parser/alter1.sim
 ./test.sh -f tsim/parser/auto_create_tb_drop_tb.sim
+# jira ./test.sh -f tsim/parser/auto_create_tb.sim
 ./test.sh -f tsim/parser/between_and.sim
 ./test.sh -f tsim/parser/binary_escapeCharacter.sim
 # nojira ./test.sh -f tsim/parser/col_arithmetic_operation.sim     
@@ -104,10 +104,10 @@
 ## ./test.sh -f tsim/parser/create_tb_with_tag_name.sim
 # ./test.sh -f tsim/parser/dbtbnameValidate.sim
 ##./test.sh -f tsim/parser/distinct.sim
-# ./test.sh -f tsim/parser/fill.sim
-# ./test.sh -f tsim/parser/fill_stb.sim
-## ./test.sh -f tsim/parser/fill_us.sim
-# ./test.sh -f tsim/parser/first_last.sim
+./test.sh -f tsim/parser/fill_stb.sim
+./test.sh -f tsim/parser/fill_us.sim
+./test.sh -f tsim/parser/fill.sim
+./test.sh -f tsim/parser/first_last.sim
 ./test.sh -f tsim/parser/fourArithmetic-basic.sim
 ## ./test.sh -f tsim/parser/function.sim
 ./test.sh -f tsim/parser/groupby-basic.sim

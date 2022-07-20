@@ -97,7 +97,8 @@ $tsu = $tsu + $ts0
 #endi
 
 # number of fill values exceeds number of selected columns
-sql select max(c1), max(c2), max(c3), max(c4), max(c5) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, -1, -2, -3, -4, -5, -6, -7, -8)
+print select count(ts), max(c1), max(c2), max(c3), max(c4), max(c5) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, -1, -2, -3, -4, -5, -6, -7, -8)
+sql select count(ts), max(c1), max(c2), max(c3), max(c4), max(c5) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, -1, -2, -3, -4, -5, -6, -7, -8)
 $val = $rowNum * 2
 $val = $val - 1
 if $rows != $val then
