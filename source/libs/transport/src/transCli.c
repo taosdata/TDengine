@@ -1243,7 +1243,10 @@ void transReleaseCliHandle(void* handle) {
 
 void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
   STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
-  if (pTransInst == NULL) return;
+  if (pTransInst == NULL) {
+    transFreeMsg(pReq->pCont);
+    return;
+  }
 
   bool      valid = false;
   SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle, &valid);
@@ -1282,7 +1285,10 @@ void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
 
 void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp) {
   STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
-  if (pTransInst == NULL) return;
+  if (pTransInst == NULL) {
+    transFreeMsg(pReq->pCont);
+    return;
+  }
 
   bool      valid = false;
   SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle, &valid);
