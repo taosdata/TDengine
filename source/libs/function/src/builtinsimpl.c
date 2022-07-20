@@ -5210,6 +5210,11 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
   SPoint1*  last = &pInfo->p;
   int32_t   numOfElems = 0;
 
+  if (IS_NULL_TYPE(pInputCol->info.type)) {
+    pInfo->isNull = true;
+    goto _twa_over;
+  }
+
   int32_t i = pInput->startRowIndex;
   if (pCtx->start.key != INT64_MIN) {
     ASSERT((pCtx->start.key < tsList[i] && pCtx->order == TSDB_ORDER_ASC) ||
@@ -5393,10 +5398,6 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
       }
       break;
     }
-    case TSDB_DATA_TYPE_NULL: {
-      pInfo->isNull = true;
-      break;
-    }
 
     default:
       ASSERT(0);
@@ -5410,6 +5411,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
 
   pInfo->win.ekey = pInfo->p.key;
 
+_twa_over:
   if (numOfElems == 0) {
     pInfo->isNull = true;
   }
