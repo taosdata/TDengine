@@ -40,29 +40,40 @@
 int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
   int32_t ret = 0;
 
-  // print log
-  syncAppendEntriesReplyLog2("==syncNodeOnAppendEntriesReplyCb==", pMsg);
-
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    syncNodeEventLog(ths, "recv sync-append-entries-reply,  maybe replica already dropped");
-    return 0;
+    do {
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+      char logBuf[256];
+      snprintf(logBuf, sizeof(logBuf),
+               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
+               "}, maybe replica "
+               "already dropped",
+               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
+      syncNodeErrorLog(ths, logBuf);
+    } while (0);
+
+    return -1;
   }
 
   // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
-    char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, recv-term:%" PRIu64 ", drop stale response",
-             pMsg->term);
-    syncNodeEventLog(ths, logBuf);
+    do {
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+      char logBuf[256];
+      snprintf(logBuf, sizeof(logBuf),
+               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
+               "}, drop stale response",
+               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
+      syncNodeEventLog(ths, logBuf);
+    } while (0);
+
     return 0;
   }
-
-  if (gRaftDetailLog) {
-    syncNodeEventLog(ths, "recv sync-append-entries-reply, before");
-  }
-  syncIndexMgrLog2("==syncNodeOnAppendEntriesReplyCb== before pNextIndex", ths->pNextIndex);
-  syncIndexMgrLog2("==syncNodeOnAppendEntriesReplyCb== before pMatchIndex", ths->pMatchIndex);
 
   // no need this code, because if I receive reply.term, then I must have sent for that term.
   //  if (pMsg->term > ths->pRaftStore->currentTerm) {
@@ -70,9 +81,18 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
   //  }
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
-    char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, error term, recv-term:%" PRIu64, pMsg->term);
-    syncNodeErrorLog(ths, logBuf);
+    do {
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+      char logBuf[256];
+      snprintf(logBuf, sizeof(logBuf),
+               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
+               "}, error term",
+               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
+      syncNodeErrorLog(ths, logBuf);
+    } while (0);
+
     return -1;
   }
 
@@ -100,13 +120,23 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
     syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), nextIndex);
   }
 
-  if (gRaftDetailLog) {
-    syncNodeEventLog(ths, "recv sync-append-entries-reply, after");
-  }
-  syncIndexMgrLog2("==syncNodeOnAppendEntriesReplyCb== after pNextIndex", ths->pNextIndex);
-  syncIndexMgrLog2("==syncNodeOnAppendEntriesReplyCb== after pMatchIndex", ths->pMatchIndex);
+  do {
+    char     host[64];
+    uint16_t port;
+    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+    char      logBuf[256];
+    SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
+    SyncIndex matchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
+    snprintf(logBuf, sizeof(logBuf),
+             "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
+             "}, after next:" PRId64
+             ", "
+             "match:" PRId64 "",
+             host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex, nextIndex, matchIndex);
+    syncNodeEventLog(ths, logBuf);
+  } while (0);
 
-  return ret;
+  return 0;
 }
 
 // only start once
@@ -147,35 +177,55 @@ static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, Sync
 int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
   int32_t ret = 0;
 
-  // print log
-  do {
-    char logBuf[256];
-    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, term:%lu, match:%ld, success:%d", pMsg->term,
-             pMsg->matchIndex, pMsg->success);
-    syncNodeEventLog(ths, logBuf);
-
-  } while (0);
-
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    syncNodeEventLog(ths, "recv sync-append-entries-reply,  maybe replica already dropped");
+    do {
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+      char logBuf[256];
+      snprintf(logBuf, sizeof(logBuf),
+               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
+               "}, maybe replica "
+               "already dropped",
+               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
+      syncNodeErrorLog(ths, logBuf);
+    } while (0);
+
     return -1;
   }
 
   // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
-    char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, recv-term:%" PRIu64 ", drop stale response",
-             pMsg->term);
-    syncNodeEventLog(ths, logBuf);
-    return -1;
+    do {
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+      char logBuf[256];
+      snprintf(logBuf, sizeof(logBuf),
+               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
+               "}, drop stale response",
+               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
+      syncNodeEventLog(ths, logBuf);
+    } while (0);
+
+    return 0;
   }
 
   // error term
   if (pMsg->term > ths->pRaftStore->currentTerm) {
-    char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, error term, recv-term:%" PRIu64, pMsg->term);
-    syncNodeErrorLog(ths, logBuf);
+    do {
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+      char logBuf[256];
+      snprintf(logBuf, sizeof(logBuf),
+               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
+               "}, error term",
+               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
+      syncNodeErrorLog(ths, logBuf);
+    } while (0);
+
     return -1;
   }
 
@@ -293,35 +343,62 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
     } while (0);
   }
 
+  do {
+    char     host[64];
+    uint16_t port;
+    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+    char      logBuf[256];
+    SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
+    SyncIndex matchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
+    snprintf(logBuf, sizeof(logBuf),
+             "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
+             "}, after next:" PRId64
+             ", "
+             "match:" PRId64 "",
+             host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex, nextIndex, matchIndex);
+    syncNodeEventLog(ths, logBuf);
+  } while (0);
+
   return 0;
 }
 
 int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
   int32_t ret = 0;
 
-  // print log
-  syncAppendEntriesReplyLog2("==syncNodeOnAppendEntriesReplySnapshotCb==", pMsg);
-
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    syncNodeEventLog(ths, "recv sync-append-entries-reply,  maybe replica already dropped");
-    return 0;
+    do {
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+      char logBuf[256];
+      snprintf(logBuf, sizeof(logBuf),
+               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
+               "}, maybe replica "
+               "already dropped",
+               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
+      syncNodeErrorLog(ths, logBuf);
+    } while (0);
+
+    return -1;
   }
 
   // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
-    char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, recv-term:%" PRIu64 ", drop stale response",
-             pMsg->term);
-    syncNodeEventLog(ths, logBuf);
+    do {
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+      char logBuf[256];
+      snprintf(logBuf, sizeof(logBuf),
+               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
+               "}, drop stale response",
+               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
+      syncNodeEventLog(ths, logBuf);
+    } while (0);
+
     return 0;
   }
-
-  if (gRaftDetailLog) {
-    syncNodeEventLog(ths, "recv sync-append-entries-reply, before");
-  }
-  syncIndexMgrLog2("recv sync-append-entries-reply, before pNextIndex:", ths->pNextIndex);
-  syncIndexMgrLog2("recv sync-append-entries-reply, before pMatchIndex:", ths->pMatchIndex);
 
   // no need this code, because if I receive reply.term, then I must have sent for that term.
   //  if (pMsg->term > ths->pRaftStore->currentTerm) {
@@ -329,9 +406,18 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
   //  }
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
-    char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries-reply, error term, recv-term:%" PRIu64, pMsg->term);
-    syncNodeErrorLog(ths, logBuf);
+    do {
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+      char logBuf[256];
+      snprintf(logBuf, sizeof(logBuf),
+               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
+               "}, error term",
+               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
+      syncNodeErrorLog(ths, logBuf);
+    } while (0);
+
     return -1;
   }
 
@@ -404,11 +490,21 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
     }
   }
 
-  if (gRaftDetailLog) {
-    syncNodeEventLog(ths, "recv sync-append-entries-reply, after");
-  }
-  syncIndexMgrLog2("recv sync-append-entries-reply, after pNextIndex:", ths->pNextIndex);
-  syncIndexMgrLog2("recv sync-append-entries-reply, after pMatchIndex:", ths->pMatchIndex);
+  do {
+    char     host[64];
+    uint16_t port;
+    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+    char      logBuf[256];
+    SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
+    SyncIndex matchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
+    snprintf(logBuf, sizeof(logBuf),
+             "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
+             "}, after next:" PRId64
+             ", "
+             "match:" PRId64 "",
+             host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex, nextIndex, matchIndex);
+    syncNodeEventLog(ths, logBuf);
+  } while (0);
 
   return 0;
 }

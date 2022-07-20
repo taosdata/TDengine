@@ -1564,7 +1564,8 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
       snprintf(logBuf, sizeof(logBuf), "%s", str);
     }
     // sDebug("%s", logBuf);
-    sInfo("%s", logBuf);
+    // sInfo("%s", logBuf);
+    sTrace("%s", logBuf);
 
   } else {
     int   len = 256 + userStrLen;
@@ -1586,7 +1587,8 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
       snprintf(s, len, "%s", str);
     }
     // sDebug("%s", s);
-    sInfo("%s", s);
+    // sInfo("%s", s);
+    sTrace("%s", s);
     taosMemoryFree(s);
   }
 

@@ -92,13 +92,24 @@
 int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   int32_t ret = 0;
 
-  // print log
-  syncAppendEntriesLog2("==syncNodeOnAppendEntriesCb==", pMsg);
-
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    syncNodeEventLog(ths, "recv sync-append-entries, maybe replica already dropped");
-    return ret;
+    do {
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+      char logBuf[256];
+      snprintf(logBuf, sizeof(logBuf),
+               "recv sync-append-entries from %s:%d {term:" PRIu64 ", pre-index:" PRId64 ", pre-term:" PRIu64
+               ", commit:" PRId64 ", pterm:" PRIu64
+               ", "
+               "datalen:%d}, maybe replica already dropped",
+               host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
+               pMsg->dataLen);
+      syncNodeErrorLog(ths, logBuf);
+    } while (0);
+
+    return -1;
   }
 
   // maybe update term
@@ -117,12 +128,25 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   do {
     // return to follower state
     if (pMsg->term == ths->pRaftStore->currentTerm && ths->state == TAOS_SYNC_STATE_CANDIDATE) {
-      syncNodeEventLog(ths, "recv sync-append-entries, candidate to follower");
+      do {
+        char     host[64];
+        uint16_t port;
+        syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+        char logBuf[256];
+        snprintf(logBuf, sizeof(logBuf),
+                 "recv sync-append-entries from %s:%d {term:" PRIu64 ", pre-index:" PRId64 ", pre-term:" PRIu64
+                 ", commit:" PRId64 ", pterm:" PRIu64
+                 ", "
+                 "datalen:%d}, candidate to follower",
+                 host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
+                 pMsg->dataLen);
+        syncNodeEventLog(ths, logBuf);
+      } while (0);
 
       syncNodeBecomeFollower(ths, "from candidate by append entries");
 
       // ret or reply?
-      return ret;
+      return -1;
     }
   } while (0);
 
@@ -149,10 +173,17 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   if ((pMsg->term < ths->pRaftStore->currentTerm) ||
       ((pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) && !logOK)) {
     do {
-      char logBuf[128];
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+      char logBuf[256];
       snprintf(logBuf, sizeof(logBuf),
-               "recv sync-append-entries, reject, pre-index:%" PRId64 ", pre-term:%" PRIu64 ", datalen:%d",
-               pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
+               "recv sync-append-entries from %s:%d {term:" PRIu64 ", pre-index:" PRId64 ", pre-term:" PRIu64
+               ", commit:" PRId64 ", pterm:" PRIu64
+               ", "
+               "datalen:%d}, reject",
+               host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
+               pMsg->dataLen);
       syncNodeEventLog(ths, logBuf);
     } while (0);
 
@@ -165,12 +196,15 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
 
     // msg event log
     do {
-      char     host[128];
+      char     host[64];
       uint16_t port;
       syncUtilU642Addr(pReply->destId.addr, host, sizeof(host), &port);
-      sDebug("vgId:%d, send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64
-             ", success:%d, match-index:%" PRId64 "}",
-             ths->vgId, host, port, pReply->term, pReply->privateTerm, pReply->success, pReply->matchIndex);
+      char logBuf[256];
+      snprintf(logBuf, sizeof(logBuf),
+               "send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64
+               ", success:%d, match-index:%" PRId64 "}",
+               host, port, pReply->term, pReply->privateTerm, pReply->success, pReply->matchIndex);
+      syncNodeEventLog(ths, logBuf);
     } while (0);
 
     SRpcMsg rpcMsg;
@@ -193,10 +227,17 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
     bool hasAppendEntries = pMsg->dataLen > 0;
 
     do {
-      char logBuf[128];
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+      char logBuf[256];
       snprintf(logBuf, sizeof(logBuf),
-               "recv sync-append-entries, accept, pre-index:%" PRId64 ", pre-term:%" PRIu64 ", datalen:%d",
-               pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
+               "recv sync-append-entries from %s:%d {term:" PRIu64 ", pre-index:" PRId64 ", pre-term:" PRIu64
+               ", commit:" PRId64 ", pterm:" PRIu64
+               ", "
+               "datalen:%d}, accept",
+               host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
+               pMsg->dataLen);
       syncNodeEventLog(ths, logBuf);
     } while (0);
 
@@ -349,12 +390,15 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
 
     // msg event log
     do {
-      char     host[128];
+      char     host[64];
       uint16_t port;
       syncUtilU642Addr(pReply->destId.addr, host, sizeof(host), &port);
-      sDebug("vgId:%d, send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64
-             ", success:%d, match-index:%" PRId64 "}",
-             ths->vgId, host, port, pReply->term, pReply->privateTerm, pReply->success, pReply->matchIndex);
+      char logBuf[256];
+      snprintf(logBuf, sizeof(logBuf),
+               "send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64
+               ", success:%d, match-index:%" PRId64 "}",
+               host, port, pReply->term, pReply->privateTerm, pReply->success, pReply->matchIndex);
+      syncNodeEventLog(ths, logBuf);
     } while (0);
 
     SRpcMsg rpcMsg;
@@ -558,7 +602,21 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    syncNodeEventLog(ths, "recv sync-append-entries-batch, maybe replica already dropped");
+    do {
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+      char logBuf[256];
+      snprintf(logBuf, sizeof(logBuf),
+               "recv sync-append-entries-batch from %s:%d {term:" PRIu64 ", pre-index:" PRId64 ", pre-term:" PRIu64
+               ", commit:" PRId64 ", pterm:" PRIu64
+               ", "
+               "count:%d}, maybe replica already dropped",
+               host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
+               pMsg->dataCount);
+      syncNodeErrorLog(ths, logBuf);
+    } while (0);
+
     return ret;
   }
 
@@ -582,7 +640,20 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
   do {
     bool condition = pMsg->term == ths->pRaftStore->currentTerm && ths->state == TAOS_SYNC_STATE_CANDIDATE;
     if (condition) {
-      syncNodeEventLog(ths, "recv sync-append-entries-batch, candidate to follower");
+      do {
+        char     host[64];
+        uint16_t port;
+        syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+        char logBuf[256];
+        snprintf(logBuf, sizeof(logBuf),
+                 "recv sync-append-entries-batch from %s:%d {term:" PRIu64 ", pre-index:" PRId64 ", pre-term:" PRIu64
+                 ", commit:" PRId64 ", pterm:" PRIu64
+                 ", "
+                 "count:%d}, candidate to follower",
+                 host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
+                 pMsg->dataCount);
+        syncNodeEventLog(ths, logBuf);
+      } while (0);
 
       syncNodeBecomeFollower(ths, "from candidate by append entries");
       // do not reply?
@@ -603,11 +674,17 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
                      (pMsg->prevLogIndex <= ths->commitIndex);
     if (condition) {
       do {
-        char logBuf[128];
+        char     host[64];
+        uint16_t port;
+        syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+        char logBuf[256];
         snprintf(logBuf, sizeof(logBuf),
-                 "recv sync-append-entries-batch, fake match2, {pre-index:%" PRId64 ", pre-term:%" PRIu64
-                 ", datalen:%d, datacount:%d}",
-                 pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen, pMsg->dataCount);
+                 "recv sync-append-entries-batch from %s:%d {term:" PRIu64 ", pre-index:" PRId64 ", pre-term:" PRIu64
+                 ", commit:" PRId64 ", pterm:" PRIu64
+                 ", "
+                 "count:%d}, fake match2",
+                 host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
+                 pMsg->dataCount);
         syncNodeEventLog(ths, logBuf);
       } while (0);
 
@@ -663,12 +740,15 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
 
       // msg event log
       do {
-        char     host[128];
+        char     host[64];
         uint16_t port;
         syncUtilU642Addr(pReply->destId.addr, host, sizeof(host), &port);
-        sDebug("vgId:%d, send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64
-               ", success:%d, match-index:%" PRId64 "}",
-               ths->vgId, host, port, pReply->term, pReply->privateTerm, pReply->success, pReply->matchIndex);
+        char logBuf[256];
+        snprintf(logBuf, sizeof(logBuf),
+                 "send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64
+                 ", success:%d, match-index:%" PRId64 "}",
+                 host, port, pReply->term, pReply->privateTerm, pReply->success, pReply->matchIndex);
+        syncNodeEventLog(ths, logBuf);
       } while (0);
 
       // send response
@@ -703,11 +783,17 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
 
     if (condition) {
       do {
-        char logBuf[128];
+        char     host[64];
+        uint16_t port;
+        syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+        char logBuf[256];
         snprintf(logBuf, sizeof(logBuf),
-                 "recv sync-append-entries-batch, not match, {pre-index:%" PRId64 ", pre-term:%" PRIu64
-                 ", datalen:%d, datacount:%d}",
-                 pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen, pMsg->dataCount);
+                 "recv sync-append-entries-batch from %s:%d {term:" PRIu64 ", pre-index:" PRId64 ", pre-term:" PRIu64
+                 ", commit:" PRId64 ", pterm:" PRIu64
+                 ", "
+                 "count:%d}, not match",
+                 host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
+                 pMsg->dataCount);
         syncNodeEventLog(ths, logBuf);
       } while (0);
 
@@ -725,12 +811,15 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
 
       // msg event log
       do {
-        char     host[128];
+        char     host[64];
         uint16_t port;
         syncUtilU642Addr(pReply->destId.addr, host, sizeof(host), &port);
-        sDebug("vgId:%d, send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64
-               ", success:%d, match-index:%" PRId64 "}",
-               ths->vgId, host, port, pReply->term, pReply->privateTerm, pReply->success, pReply->matchIndex);
+        char logBuf[256];
+        snprintf(logBuf, sizeof(logBuf),
+                 "send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64
+                 ", success:%d, match-index:%" PRId64 "}",
+                 host, port, pReply->term, pReply->privateTerm, pReply->success, pReply->matchIndex);
+        syncNodeEventLog(ths, logBuf);
       } while (0);
 
       // send response
@@ -763,11 +852,17 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
       SOffsetAndContLen* metaTableArr = syncAppendEntriesBatchMetaTableArray(pMsg);
 
       do {
-        char logBuf[128];
+        char     host[64];
+        uint16_t port;
+        syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+        char logBuf[256];
         snprintf(logBuf, sizeof(logBuf),
-                 "recv sync-append-entries-batch, match, {pre-index:%" PRId64 ", pre-term:%" PRIu64
-                 ", datalen:%d, datacount:%d}",
-                 pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen, pMsg->dataCount);
+                 "recv sync-append-entries-batch from %s:%d {term:" PRIu64 ", pre-index:" PRId64 ", pre-term:" PRIu64
+                 ", commit:" PRId64 ", pterm:" PRIu64
+                 ", "
+                 "count:%d}, match",
+                 host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
+                 pMsg->dataCount);
         syncNodeEventLog(ths, logBuf);
       } while (0);
 
@@ -809,12 +904,15 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
 
       // msg event log
       do {
-        char     host[128];
+        char     host[64];
         uint16_t port;
         syncUtilU642Addr(pReply->destId.addr, host, sizeof(host), &port);
-        sDebug("vgId:%d, send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64
-               ", success:%d, match-index:%" PRId64 "}",
-               ths->vgId, host, port, pReply->term, pReply->privateTerm, pReply->success, pReply->matchIndex);
+        char logBuf[256];
+        snprintf(logBuf, sizeof(logBuf),
+                 "send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64
+                 ", success:%d, match-index:%" PRId64 "}",
+                 host, port, pReply->term, pReply->privateTerm, pReply->success, pReply->matchIndex);
+        syncNodeEventLog(ths, logBuf);
       } while (0);
 
       // send response
@@ -866,12 +964,23 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
   int32_t ret = 0;
   int32_t code = 0;
 
-  // print log
-  syncAppendEntriesLog2("==syncNodeOnAppendEntriesSnapshotCb==", pMsg);
-
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    syncNodeEventLog(ths, "recv sync-append-entries, maybe replica already dropped");
+    do {
+      char     host[64];
+      uint16_t port;
+      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+      char logBuf[256];
+      snprintf(logBuf, sizeof(logBuf),
+               "recv sync-append-entries from %s:%d {term:" PRIu64 ", pre-index:" PRId64 ", pre-term:" PRIu64
+               ", commit:" PRId64 ", pterm:" PRIu64
+               ", "
+               "datalen:%d}, maybe replica dropped",
+               host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
+               pMsg->dataLen);
+      syncNodeErrorLog(ths, logBuf);
+    } while (0);
+
     return ret;
   }
 
@@ -895,7 +1004,20 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
   do {
     bool condition = pMsg->term == ths->pRaftStore->currentTerm && ths->state == TAOS_SYNC_STATE_CANDIDATE;
     if (condition) {
-      syncNodeEventLog(ths, "recv sync-append-entries, candidate to follower");
+      do {
+        char     host[64];
+        uint16_t port;
+        syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+        char logBuf[256];
+        snprintf(logBuf, sizeof(logBuf),
+                 "recv sync-append-entries from %s:%d {term:" PRIu64 ", pre-index:" PRId64 ", pre-term:" PRIu64
+                 ", commit:" PRId64 ", pterm:" PRIu64
+                 ", "
+                 "datalen:%d}, candidate to follower",
+                 host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
+                 pMsg->dataLen);
+        syncNodeEventLog(ths, logBuf);
+      } while (0);
 
       syncNodeBecomeFollower(ths, "from candidate by append entries");
       // do not reply?
@@ -976,10 +1098,17 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
                      (pMsg->prevLogIndex <= ths->commitIndex);
     if (condition) {
       do {
-        char logBuf[128];
+        char     host[64];
+        uint16_t port;
+        syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+        char logBuf[256];
         snprintf(logBuf, sizeof(logBuf),
-                 "recv sync-append-entries, fake match2, pre-index:%" PRId64 ", pre-term:%" PRIu64 ", datalen:%d",
-                 pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
+                 "recv sync-append-entries from %s:%d {term:" PRIu64 ", pre-index:" PRId64 ", pre-term:" PRIu64
+                 ", commit:" PRId64 ", pterm:" PRIu64
+                 ", "
+                 "datalen:%d}, fake match2",
+                 host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
+                 pMsg->dataLen);
         syncNodeEventLog(ths, logBuf);
       } while (0);
 
@@ -1028,12 +1157,15 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
 
       // msg event log
       do {
-        char     host[128];
+        char     host[64];
         uint16_t port;
         syncUtilU642Addr(pReply->destId.addr, host, sizeof(host), &port);
-        sDebug("vgId:%d, send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64
-               ", success:%d, match-index:%" PRId64 "}",
-               ths->vgId, host, port, pReply->term, pReply->privateTerm, pReply->success, pReply->matchIndex);
+        char logBuf[256];
+        snprintf(logBuf, sizeof(logBuf),
+                 "send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64
+                 ", success:%d, match-index:%" PRId64 "}",
+                 host, port, pReply->term, pReply->privateTerm, pReply->success, pReply->matchIndex);
+        syncNodeEventLog(ths, logBuf);
       } while (0);
 
       // send response
@@ -1067,11 +1199,20 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     bool condition = condition1 || condition2;
 
     if (condition) {
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf),
-               "recv sync-append-entries, not match, pre-index:%" PRId64 ", pre-term:%" PRIu64 ", datalen:%d",
-               pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
-      syncNodeEventLog(ths, logBuf);
+      do {
+        char     host[64];
+        uint16_t port;
+        syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+        char logBuf[256];
+        snprintf(logBuf, sizeof(logBuf),
+                 "recv sync-append-entries from %s:%d {term:" PRIu64 ", pre-index:" PRId64 ", pre-term:" PRIu64
+                 ", commit:" PRId64 ", pterm:" PRIu64
+                 ", "
+                 "datalen:%d}, not match",
+                 host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
+                 pMsg->dataLen);
+        syncNodeEventLog(ths, logBuf);
+      } while (0);
 
       // prepare response msg
       SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
@@ -1084,12 +1225,15 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
 
       // msg event log
       do {
-        char     host[128];
+        char     host[64];
         uint16_t port;
         syncUtilU642Addr(pReply->destId.addr, host, sizeof(host), &port);
-        sDebug("vgId:%d, send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64
-               ", success:%d, match-index:%" PRId64 "}",
-               ths->vgId, host, port, pReply->term, pReply->privateTerm, pReply->success, pReply->matchIndex);
+        char logBuf[256];
+        snprintf(logBuf, sizeof(logBuf),
+                 "send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64
+                 ", success:%d, match-index:%" PRId64 "}",
+                 host, port, pReply->term, pReply->privateTerm, pReply->success, pReply->matchIndex);
+        syncNodeEventLog(ths, logBuf);
       } while (0);
 
       // send response
@@ -1120,11 +1264,20 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       // has entries in SyncAppendEntries msg
       bool hasAppendEntries = pMsg->dataLen > 0;
 
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf),
-               "recv sync-append-entries, match, pre-index:%" PRId64 ", pre-term:%" PRIu64 ", datalen:%d",
-               pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
-      syncNodeEventLog(ths, logBuf);
+      do {
+        char     host[64];
+        uint16_t port;
+        syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+        char logBuf[256];
+        snprintf(logBuf, sizeof(logBuf),
+                 "recv sync-append-entries from %s:%d {term:" PRIu64 ", pre-index:" PRId64 ", pre-term:" PRIu64
+                 ", commit:" PRId64 ", pterm:" PRIu64
+                 ", "
+                 "datalen:%d}, match",
+                 host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
+                 pMsg->dataLen);
+        syncNodeEventLog(ths, logBuf);
+      } while (0);
 
       if (hasExtraEntries) {
         // make log same, rollback deleted entries
@@ -1160,12 +1313,15 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
 
       // msg event log
       do {
-        char     host[128];
+        char     host[64];
         uint16_t port;
         syncUtilU642Addr(pReply->destId.addr, host, sizeof(host), &port);
-        sDebug("vgId:%d, send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64
-               ", success:%d, match-index:%" PRId64 "}",
-               ths->vgId, host, port, pReply->term, pReply->privateTerm, pReply->success, pReply->matchIndex);
+        char logBuf[256];
+        snprintf(logBuf, sizeof(logBuf),
+                 "send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64
+                 ", success:%d, match-index:%" PRId64 "}",
+                 host, port, pReply->term, pReply->privateTerm, pReply->success, pReply->matchIndex);
+        syncNodeEventLog(ths, logBuf);
       } while (0);
 
       // send response
