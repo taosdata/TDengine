@@ -2576,7 +2576,9 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
     apercentileTransferInfo(pInputInfo, pInfo);
   }
 
-  qDebug("after merge, total:%d, numOfEntry:%d, %p", pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries, pInfo->pHisto);
+  if (pInfo->algo != APERCT_ALGO_TDIGEST) {
+    qDebug("after merge, total:%d, numOfEntry:%d, %p", pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries, pInfo->pHisto);
+  }
 
   SET_VAL(pResInfo, 1, 1);
   return TSDB_CODE_SUCCESS;
