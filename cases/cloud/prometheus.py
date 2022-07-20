@@ -4,6 +4,7 @@
 启动 prometheus， 检查输出是否包括： Server is ready to receive web requests
 测试 remote read 的方法：
 启动 promql-cli 执行查询，不抛异常则成功
+启动命令： tt --case=cloud/prometheus.py --use=cloud_test.yaml
 """
 
 from taostest import TDCase, T
@@ -14,11 +15,18 @@ import time
 
 class Prometheus(TDCase):
 
-    def config(self):
+    def init(self):
+        os.environ.update(self.env_setting["env"])
+        self.cwd = self.env_setting["work_dir"] + "/prometheus/prometheus"
+        self.int_config(self.cwd)
+
+    def init_config(self):
         cloud_url = os.environ["TDENGINE_CLOUD_URL"]
         cloud_token = os.environ["TDENGINE_CLOUD_TOKEN"]
-        with open("config_template.yml", "rt") as f1:
-            with open("prometheus.yml", "wt") as f2:
+        in_path = os.path.join(self.cwd, "config_template.yml")
+        out_path = os.path.join(self.cwd, "prometheus.yml")
+        with open(in_path, "rt") as f1:
+            with open(out_path, "wt") as f2:
                 for line in f1:
                     if '<cloud_url>' in line:
                         line = line.replace('<cloud_url>', cloud_url)
@@ -27,10 +35,7 @@ class Prometheus(TDCase):
                     f2.write(line)
 
     def run(self):
-        os.environ.update(self.env_setting["env"])
-        cwd = self.env_setting["work_dir"] + "/prometheus/prometheus"
-        self.config()
-        prom_process = Popen('prometheus --config.file prometheus.yml', cwd=cwd, stdout=PIPE, stderr=STDOUT)
+        prom_process = Popen('prometheus --config.file prometheus.yml', cwd=self.cwd, stdout=PIPE, stderr=STDOUT)
         remote_write_success = False
         for _ in range(50):
             ret_status = prom_process.poll()
@@ -49,7 +54,7 @@ class Prometheus(TDCase):
             self.logger.info("remote write success")
         time.sleep(3)
         try:
-            self.lcmd.run('promql-cli "rate(prometheus_tsdb_head_chunks_created_total[1m])"', cwd=cwd)
+            self.lcmd.run('promql-cli "rate(prometheus_tsdb_head_chunks_created_total[1m])"', cwd=self.cwd)
         except BaseException as e:
             self.set_error_msg("remote read failed:" + str(e))
             return False
@@ -64,9 +69,6 @@ class Prometheus(TDCase):
 
     def tags(self):
         return T.Cloud.ThirdParty
-
-    def init(self):
-        pass
 
     def cleanup(self):
         pass
