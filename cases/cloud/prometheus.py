@@ -52,7 +52,7 @@ class Prometheus(TDCase):
             return False
         else:
             self.logger.info("remote write success")
-        time.sleep(30)
+        time.sleep(15)
         try:
             self.lcmd.run('promql-cli "count(prometheus_target_interval_length_seconds)"', cwd=self.cwd)
         finally:
