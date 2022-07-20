@@ -652,7 +652,7 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag) {
   if (!pBlock || pBlock->info.rows == 0) {
-    qDebug("======printDataBlock: Block is Null or Empty");
+    qDebug("===stream===printDataBlock: Block is Null or Empty");
     return;
   }
   char* pBuf = NULL;
@@ -770,12 +770,6 @@ int32_t binarySearch(void* keyList, int num, TSKEY key, int order, __get_value_f
   }
 
   return midPos;
-}
-
-int64_t getReskey(void* data, int32_t index) {
-  SArray*     res = (SArray*)data;
-  SResKeyPos* pos = taosArrayGetP(res, index);
-  return *(int64_t*)pos->key;
 }
 
 int32_t compareResKey(void* pKey, void* data, int32_t index) {
@@ -1537,8 +1531,10 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
     if (pInfo->binfo.pRes->info.rows == 0 || !hasDataInGroupInfo(&pInfo->groupResInfo)) {
       pOperator->status = OP_EXEC_DONE;
+      qDebug("===stream===single interval is done");
       freeAllPages(pInfo->pRecycledPages, pInfo->aggSup.pResultBuf);
     }
+    printDataBlock(pInfo->binfo.pRes, "single interval");
     return pInfo->binfo.pRes->info.rows == 0 ? NULL : pInfo->binfo.pRes;
   }
 
