@@ -221,7 +221,7 @@ class TDTestCase:
         tdSql.execute("use testdb")
 
         # bug need fix
-        tdSql.query("select last_row(c1 ,NULL) from testdb.t1")
+        tdSql.error("select last_row(c1 ,NULL) from testdb.t1")
 
         error_sql_lists = [
             "select last_row from testdb.t1",

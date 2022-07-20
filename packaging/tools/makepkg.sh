@@ -93,10 +93,10 @@ else
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
-wslib_files="${build_dir}/lib/libtaosws.so."
+wslib_files="${build_dir}/lib/libtaosws.so"
 header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/libs/function/taosudf.h"
 
-wsheader_files="${code_dir}/inc/taosws.h"
+wsheader_files="${build_dir}/include/taosws.h"
 
 if [ "$dbName" != "taos" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
@@ -114,7 +114,7 @@ init_file_rpm=${script_dir}/../rpm/taosd
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
 
-${wsheader_files} ${install_dir}/inc || :
+[ -f ${wsheader_files} ] && cp ${wsheader_files} ${install_dir}/inc || :
 
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
 

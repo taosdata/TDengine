@@ -75,12 +75,12 @@ if [ -f %{_compiledir}/build/bin/taosadapter ]; then
     cp %{_compiledir}/build/bin/taosadapter                    %{buildroot}%{homepath}/bin ||:
 fi
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
-cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver ||:
+[ -f %{_compiledir}/build/lib/${wslibfile} ] && cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver ||:
 cp %{_compiledir}/../include/client/taos.h          %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/common/taosdef.h       %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/util/taoserror.h       %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/libs/function/taosudf.h       %{buildroot}%{homepath}/include
-cp %{_compiledir}/../src/inc/taosws.h               %{buildroot}%{homepath}/include ||:
+[ -f %{_compiledir}/build/include/taosws.h ] && cp %{_compiledir}/build/include/taosws.h            %{buildroot}%{homepath}/include ||:
 #cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
 #cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 #cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector

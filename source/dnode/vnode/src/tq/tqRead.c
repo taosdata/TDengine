@@ -299,6 +299,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
   }
 
   if (blockDataEnsureCapacity(pBlock, pReader->msgIter.numOfRows) < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto FAIL;
   }
 

@@ -29,7 +29,6 @@
 
 static int32_t       initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest);
-static void          destroySendMsgInfo(SMsgSendInfo* pMsgBody);
 
 static bool stringLengthCheck(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -1215,13 +1214,6 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
   return pMsgSendInfo;
 }
 
-static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
-  assert(pMsgBody != NULL);
-  taosMemoryFreeClear(pMsgBody->target.dbFName);
-  taosMemoryFreeClear(pMsgBody->msgInfo.pData);
-  taosMemoryFreeClear(pMsgBody);
-}
-
 void updateTargetEpSet(SMsgSendInfo* pSendInfo, STscObj* pTscObj, SRpcMsg* pMsg, SEpSet* pEpSet) {
   if (NULL == pEpSet) {
     return;
@@ -2101,8 +2093,9 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
 
   taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly);
   tsem_wait(&param->sem);
-
-  param->pRequest->syncQuery = true;
+  if (param->pRequest != NULL) {
+    param->pRequest->syncQuery = true;
+  }
   return param->pRequest;
 #else
   size_t sqlLen = strlen(sql);

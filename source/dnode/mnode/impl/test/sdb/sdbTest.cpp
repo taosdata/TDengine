@@ -925,7 +925,7 @@ TEST_F(MndTestSdb, 01_Read_Str) {
     }
 
     sdbStopRead(pSdb, pReader);
-    sdbStopWrite(pSdb, pWritter, true);
+    sdbStopWrite(pSdb, pWritter, true, -1, -1, -1);
   }
 
   ASSERT_EQ(sdbGetSize(pSdb, SDB_CONSUMER), 1);

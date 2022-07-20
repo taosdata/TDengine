@@ -306,6 +306,8 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
       break;
   }
 
+  syncNodeRestartHeartbeatTimer(pSyncNode);
+
   return ret;
 }
 

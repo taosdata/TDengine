@@ -39,6 +39,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
 
   taosThreadOnce(&initPoolOnce, initRefPool);
   atexit(cleanupRefPool);
+
   int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle, taskId, sql, model);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;

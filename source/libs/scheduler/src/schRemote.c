@@ -386,7 +386,6 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   schProcessOnCbEnd(pJob, pTask, code);
 
   taosMemoryFreeClear(pMsg->pData);
-  taosMemoryFreeClear(param);
 
   qDebug("end to handle rsp msg, type:%s, handle:%p, code:%s", TMSG_INFO(pMsg->msgType), pMsg->handle,
          tstrerror(rspCode));
@@ -398,7 +397,6 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
   qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " drop task rsp received, code:0x%x", pParam->queryId, pParam->taskId,
          code);
-  taosMemoryFreeClear(param);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -447,8 +445,8 @@ int32_t schHandleHbCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SCH_ERR_JRET(schProcessOnTaskStatusRsp(&rsp.epId, rsp.taskStatus));
 
 _return:
+
   tFreeSSchedulerHbRsp(&rsp);
-  taosMemoryFree(param);
   taosMemoryFree(pMsg->pData);
   SCH_RET(code);
 }
@@ -514,7 +512,9 @@ int32_t schGenerateCallBackInfo(SSchJob *pJob, SSchTask *pTask, void *msg, uint3
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
+  msgSendInfo->paramFreeFp = taosMemoryFree;      
   SCH_ERR_JRET(schMakeCallbackParam(pJob, pTask, msgType, isHb, trans, &msgSendInfo->param));
+
   SCH_ERR_JRET(schGetCallbackFp(msgType, &msgSendInfo->fp));
 
   if (pJob) {
@@ -535,7 +535,7 @@ int32_t schGenerateCallBackInfo(SSchJob *pJob, SSchTask *pTask, void *msg, uint3
 
 _return:
 
-  schFreeSMsgSendInfo(msgSendInfo);
+  destroySendMsgInfo(msgSendInfo);
 
   SCH_RET(code);
 }
@@ -676,6 +676,7 @@ int32_t schMakeHbRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   param->pTrans = pJob->conn.pTrans;
 
   pMsgSendInfo->param = param;
+  pMsgSendInfo->paramFreeFp = taosMemoryFree;      
   pMsgSendInfo->fp = fp;
 
   SRpcCtxVal ctxVal = {.val = pMsgSendInfo, .clone = schCloneSMsgSendInfo};
@@ -795,6 +796,7 @@ int32_t schCloneSMsgSendInfo(void *src, void **dst) {
   pDst->param = NULL;
 
   SCH_ERR_JRET(schCloneCallbackParam(pSrc->param, (SSchCallbackParamHeader **)&pDst->param));
+  pDst->paramFreeFp = taosMemoryFree;      
 
   *dst = pDst;
 
@@ -861,8 +863,7 @@ _return:
   }
 
   if (pMsgSendInfo) {
-    taosMemoryFreeClear(pMsgSendInfo->param);
-    taosMemoryFreeClear(pMsgSendInfo);
+    destroySendMsgInfo(pMsgSendInfo);
   }
 
   SCH_RET(code);

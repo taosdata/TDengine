@@ -7,6 +7,7 @@ system sh/exec.sh -n dnode1 -s start -v
 system sh/exec.sh -n dnode2 -s start -v
 sql connect
 
+
 print =============== step1: create alter drop show user
 sql create user u1 pass 'taosdata'
 sql show users
@@ -152,7 +153,7 @@ endi
 
 system_content sh/checkValgrind.sh -n dnode2
 print cmd return result ----> [ $system_content ]
-if $system_content > 4 then
+if $system_content > 0 then
   return -1
 endi 
 

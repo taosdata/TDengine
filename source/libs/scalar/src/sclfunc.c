@@ -2750,6 +2750,7 @@ static bool getHistogramBinDesc(SHistoFuncBin** bins, int32_t* binNum, char* bin
     (*bins)[i].count = 0;
   }
 
+  cJSON_Delete(binDesc);
   taosMemoryFree(intervals);
   return true;
 }
