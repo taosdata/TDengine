@@ -3957,7 +3957,7 @@ static SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
 
     doFilter(pIndefInfo->pCondition, pInfo->pRes);
     size_t rows = pInfo->pRes->info.rows;
-    if (rows >= 0) {
+    if (rows > 0 || pOperator->status == OP_EXEC_DONE) {
       break;
     }
   }
