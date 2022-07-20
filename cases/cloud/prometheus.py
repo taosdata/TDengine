@@ -15,7 +15,16 @@ import time
 class Prometheus(TDCase):
 
     def config(self):
-        pass
+        cloud_url = os.environ["TDENGINE_CLOUD_URL"]
+        cloud_token = os.environ["TDENGINE_CLOUD_TOKEN"]
+        with open("config_template.yml", "rt") as f1:
+            with open("prometheus.yml", "wt") as f2:
+                for line in f1:
+                    if '<cloud_url>' in line:
+                        line = line.replace('<cloud_url>', cloud_url)
+                    if '<cloud_token>' in line:
+                        line = line.replace('<cloud_token>', cloud_token)
+                    f2.write(line)
 
     def run(self):
         os.environ.update(self.env_setting["env"])
@@ -36,13 +45,16 @@ class Prometheus(TDCase):
         if not remote_write_success:
             self.set_error_msg("remote write failed")
             return False
+        else:
+            self.logger.info("remote write success")
         time.sleep(3)
         try:
             self.lcmd.run('promql-cli "rate(prometheus_tsdb_head_chunks_created_total[1m])"', cwd=cwd)
         except BaseException as e:
             self.set_error_msg("remote read failed:" + str(e))
-            prom_process.kill()
             return False
+        finally:
+            prom_process.kill()
 
     def desc(self) -> str:
         return "TDengine Cloud integrate with Prometheus"
