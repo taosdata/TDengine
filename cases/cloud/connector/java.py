@@ -10,6 +10,9 @@ class Java(TDCase):
     def init(self):
         pass
 
+    def cleanup(self):
+        pass
+
     def run(self):
         cwd = self.env_setting["work_dir"] + "/docs-cloud/docs/examples/java"
         self.lcmd.run("mvn test", cwd=cwd, env=self.env_setting["env"])

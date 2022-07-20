@@ -16,6 +16,9 @@ class Telegraf(TDCase):
     def init(self):
         pass
 
+    def cleanup(self):
+        pass
+
     def run(self):
         cwd = self.env_setting["work_dir"] + "/telegraf"
         self.logger.info("cwd: %s", cwd)
@@ -46,4 +49,4 @@ class Telegraf(TDCase):
         return "DingBo"
 
     def tags(self):
-        return T.Cloud
+        return T.Cloud.ThirdParty

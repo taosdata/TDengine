@@ -2,7 +2,10 @@
 target_host: 192.168.0.31
 work_dir: /root/work
 env:
-  TDENGINE_CLOUD_TOKEN: "e623da51fb62b4b2611fc04ffd6b162c7ae3f5c0"
-  TDENGINE_CLOUD_URL: "http://cloud.tdengine.com:8085"
+  TDENGINE_CLOUD_TOKEN: "375beff2e1c84ac480bf8c98bdf2aaa0b62a10dd"
+  TDENGINE_CLOUD_URL: "http://gw-aws.cloud.tdengine.com:80"
+  TDENGINE_JDBC_URL: "jdbc:TAOS-RS://gw-aws.cloud.tdengine.com:80?usessl=false&token=375beff2e1c84ac480bf8c98bdf2aaa0b62a10dd"
+  TDENGINE_GO_DSN: "http(gw-aws.cloud.tdengine.com:80)/?token=375beff2e1c84ac480bf8c98bdf2aaa0b62a10dd"
+  TDENGINE_CLOUD_DSN: "http://gw-aws.cloud.tdengine.com:80?token=375beff2e1c84ac480bf8c98bdf2aaa0b62a10dd"
 
 settings: []
