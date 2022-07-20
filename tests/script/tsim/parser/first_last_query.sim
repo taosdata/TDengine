@@ -223,7 +223,7 @@ return -1
 endi
 
 print ===================>td-1477, one table has only one block occurs this bug.
-sql select _wstart, first(size), count(*), LAST(SIZE), tbname from stest where tbname in ('test1', 'test2') partition by tbname interval(1d) ;
+sql select _wstart, first(size), count(*), LAST(SIZE), tbname from stest where tbname in ('test1', 'test2') partition by tbname interval(1d) order by tbname asc;
 if $rows != 2 then
  return -1
 endi
