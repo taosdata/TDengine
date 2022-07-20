@@ -8,7 +8,7 @@
     "password": "taosdata",
     "thread_count": THREADCOUNT,
     "create_table_thread_count": THREADCOUNT_CREATETABLE,
-    "result_file": "./insert_res.txt",
+    "result_file": "RESULTFILE",
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,
     "interlace_rows": 1000,

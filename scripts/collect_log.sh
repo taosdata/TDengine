@@ -62,3 +62,5 @@ for container in $containers; do
     docker cp $container:/backup $dest_dir/
 done
 
+exit 0
+

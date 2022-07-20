@@ -22,20 +22,15 @@ import time
 import json
 import threading
 
-class TestPerf(TDCase):
+class TestInsertPro(TDCase):
     host_field_name = "HOST"
     port_field_name = "PORT"
     dbname_field_name = "DBNAME"
-    vgroups_field_name = "VGROUPS"
-    drop_field_name = "DROPENABLE"
-    default_dbname = "db"
-    default_vgroups = "24"
-    stable_field_name = "STABLENAME"
-    childtable_prefix_field_name = "CHILDTABLEPREFIX"
     resultfile_field_name = "RESULTFILE"
     insert_cfg_file_param = "insert-cfg-file"
     insert_tmpl_file_param = "insert-tmpl-file"
     check_result_enabled_param = "check-result"
+    check_performance_param = "check-performance"
     concurrency_param = "concurrency"
     key_param = "key"
 
@@ -44,6 +39,7 @@ class TestPerf(TDCase):
         self.insert_tmpl_file = None
         self.replace_keys = []
         self.check_result_enabled = False
+        self.check_performance = False
         self.concurrency = 1
         self.json_config_files = []
         self.result_files = []
@@ -52,11 +48,12 @@ class TestPerf(TDCase):
 
     def help(self):
         print("case parameters:")
-        print(f"\t--{TestPerf.insert_cfg_file_param}")
-        print(f"\t--{TestPerf.insert_tmpl_file_param}")
-        print(f"\t--{TestPerf.key_param}")
-        print(f"\t--{TestPerf.check_result_enabled_param}")
-        print(f"\t--{TestPerf.concurrency_param}")
+        print(f"\t--{TestInsertPro.insert_cfg_file_param}")
+        print(f"\t--{TestInsertPro.insert_tmpl_file_param}")
+        print(f"\t--{TestInsertPro.key_param}")
+        print(f"\t--{TestInsertPro.check_result_enabled_param}")
+        print(f"\t--{TestInsertPro.check_performance_param}")
+        print(f"\t--{TestInsertPro.concurrency_param}")
 
     # parse case parameters
     def parse_case_param(self):
@@ -67,19 +64,21 @@ class TestPerf(TDCase):
             self.logger.debug("case parameters: [{}]".format(self.case_param))
             param_array = self.case_param.split(" ")
             # parse parameters
-            opts, args = getopt.getopt(param_array, "h", ["help", f"{TestPerf.insert_cfg_file_param}=", f"{TestPerf.insert_tmpl_file_param}=", f"{TestPerf.key_param}=", f"{TestPerf.check_result_enabled_param}", f"{TestPerf.concurrency_param}="])
+            opts, args = getopt.getopt(param_array, "h", ["help", f"{TestInsertPro.insert_cfg_file_param}=", f"{TestInsertPro.insert_tmpl_file_param}=", f"{TestInsertPro.key_param}=", f"{TestInsertPro.check_result_enabled_param}", f"{TestInsertPro.check_performance_param}", f"{TestInsertPro.concurrency_param}="])
             self.logger.debug(str(opts))
             for key, val in opts:
                 self.logger.debug("key: {} value: {}".format(key, val))
-                if key in (f"--{TestPerf.insert_cfg_file_param}"):
+                if key in (f"--{TestInsertPro.insert_cfg_file_param}"):
                     self.insert_cfg_file = val
-                elif key in (f"--{TestPerf.insert_tmpl_file_param}"):
+                elif key in (f"--{TestInsertPro.insert_tmpl_file_param}"):
                     self.insert_tmpl_file = val
-                elif key in (f"--{TestPerf.key_param}"):
+                elif key in (f"--{TestInsertPro.key_param}"):
                     self.replace_keys.append(val)
-                elif key in (f"--{TestPerf.check_result_enabled_param}"):
+                elif key in (f"--{TestInsertPro.check_result_enabled_param}"):
                     self.check_result_enabled = True
-                elif key in (f"--{TestPerf.concurrency_param}"):
+                elif key in (f"--{TestInsertPro.check_performance_param}"):
+                    self.check_performance = True
+                elif key in (f"--{TestInsertPro.concurrency_param}"):
                     self.concurrency = int(val)
                 else:
                     self.logger.error("invalid case parameter: {}".format(key))
@@ -180,9 +179,9 @@ class TestPerf(TDCase):
         taosd_nodes = self.get_component_by_name("taosd")
         self.logger.debug(str(taosd_nodes))
         taosd_fqdn = []
-        host = ""
-        port = ""
-        vgroups = TestPerf.default_vgroups
+        self.replace_keys.insert(0, f"CHILDTABLEPREFIX=stb_")
+        self.replace_keys.insert(0, f"STABLENAME=stb")
+        self.replace_keys.insert(0, f"DROPENABLE=yes")
         for node in taosd_nodes:
             if not node["fqdn"] is None:
                 taosd_fqdn = node["fqdn"]
@@ -190,30 +189,15 @@ class TestPerf(TDCase):
                 host = node["spec"]["config"]["firstEP"].split(":")[0]
                 port = node["spec"]["config"]["firstEP"].split(":")[1]
                 self.logger.debug("{} : {}".format(host, port))
-                self.replace_keys.insert(0, f"{TestPerf.host_field_name}={host}")
-                self.replace_keys.insert(1, f"{TestPerf.port_field_name}={port}")
+                self.replace_keys.insert(0, f"{TestInsertPro.host_field_name}={host}")
+                self.replace_keys.insert(1, f"{TestInsertPro.port_field_name}={port}")
                 break
 
         # read config file and generate config dict
         insert_config_dict = self.parse_config_file(self.insert_cfg_file, self.replace_keys)
 
-        if not insert_config_dict[TestPerf.vgroups_field_name] is None:
-            vgroups = insert_config_dict[TestPerf.vgroups_field_name]
-
-        if (not TestPerf.host_field_name in insert_config_dict) or (not TestPerf.port_field_name in insert_config_dict):
+        if (not TestInsertPro.host_field_name in insert_config_dict) or (not TestInsertPro.port_field_name in insert_config_dict):
             self.logger.error("firstEP not specified in env file")
-
-        # TODO create database
-        ret = os.system(f"taos -h {host} -P {port} -s \"drop database if exists {TestPerf.default_dbname};\"")
-        if ret != 0:
-            self.logger.error("drop database failed")
-            self.set_error_msg("drop database failed")
-            return False
-        ret = os.system(f"taos -h {host} -P {port} -s \"create database if not exists {TestPerf.default_dbname} vgroups {vgroups};\"")
-        if ret != 0:
-            self.logger.error("create database failed")
-            self.set_error_msg("create database failed")
-            return False
 
         # create tmp dir
         tmp_dir = self.make_tmp_dir()
@@ -226,40 +210,34 @@ class TestPerf(TDCase):
             # copy query json template to a tmp directory
             os.system("cp -f {} {}".format(self.insert_tmpl_file, insert_json_file))
 
-            insert_config_dict[TestPerf.dbname_field_name] = TestPerf.default_dbname
-            insert_config_dict[TestPerf.drop_field_name] = "no"
-            insert_config_dict[TestPerf.stable_field_name] = f"stb{i}"
-            insert_config_dict[TestPerf.childtable_prefix_field_name] = f"stb{i}_"
-            insert_config_dict[TestPerf.resultfile_field_name] = f"\/tmp\/result_{i}.txt"
-            self.envMgr._remote.cmd(insert_config_dict[TestPerf.host_field_name], f"rm -rf /tmp/result_{i}.txt")
+            insert_config_dict[TestInsertPro.dbname_field_name] = f"db{i}"
+            insert_config_dict[TestInsertPro.resultfile_field_name] = f"\/tmp\/result_{i}.txt"
+            self.envMgr._remote.cmd(insert_config_dict[TestInsertPro.host_field_name], f"rm -rf /tmp/result_{i}.txt")
             # os.system(f"rm -rf /tmp/result_{i}.txt")
             # replace config settings in json template
             self.replace_config(insert_json_file, insert_config_dict)
             os.system("cat {}".format(insert_json_file))
 
             # put insert json file to host
-            self.envMgr._remote.put(insert_config_dict[TestPerf.host_field_name], insert_json_file, "/tmp")
+            self.envMgr._remote.put(insert_config_dict[TestInsertPro.host_field_name], insert_json_file, "/tmp")
 
-            self.result_files.append(insert_config_dict[TestPerf.resultfile_field_name])
+            self.result_files.append(insert_config_dict[TestInsertPro.resultfile_field_name])
             self.json_config_files.append(insert_json_file)
 
+        # run benchmark insert data
         thread_interval = 0.25
         stime = float(self.concurrency) * thread_interval
-        # run benchmark insert data
         for i in range (self.concurrency):
             self.logger.debug(f"command delay {stime}")
             config_file = os.path.join("/tmp", os.path.basename(self.json_config_files[i]))
             cmd = ["ulimit -n 1048576", f"sleep {stime}", f"taosBenchmark -f {config_file}"]
-            t = threading.Thread(target=self.run_benchmark, args=(insert_config_dict[TestPerf.host_field_name], cmd))
+            t = threading.Thread(target=self.run_benchmark, args=(insert_config_dict[TestInsertPro.host_field_name], cmd))
             self.threads.append(t)
-            stime = stime - thread_interval
         for t in self.threads:
-            time.sleep(thread_interval)
             t.start()
         for t in self.threads:
             t.join()
         if self.ret != True:
-            self.logger.error("run benchmark failed")
             return self.ret
 
         if self.check_result_enabled:
@@ -291,7 +269,7 @@ class TestPerf(TDCase):
         for i in range (self.concurrency):
             result_file = f"/tmp/result_{i}.txt"
             local_result_file = f"{self.run_log_dir}/tmp/result_{i}.txt"
-            self.envMgr._remote.get(insert_config_dict[TestPerf.host_field_name], result_file, f"{self.run_log_dir}/tmp")
+            self.envMgr._remote.get(insert_config_dict[TestInsertPro.host_field_name], result_file, f"{self.run_log_dir}/tmp")
             # check file
             if os.path.exists(local_result_file):
                 os.system(f"cat {local_result_file}")
@@ -303,77 +281,78 @@ class TestPerf(TDCase):
             return self.ret
 
         # analyze result
-        time_elapsed = 0.0
-        insert_rows = 0
-        total_threads = 0
-        insert_speed = 0.0
-        for i in range (self.concurrency):
-            result_file = f"{self.run_log_dir}/tmp/result_{i}.txt"
-            with open(result_file, 'r') as file:
-                insert_rows_found = False
-                while 1:
-                    line = file.readline()
-                    if not line:
-                        break
-                    # self.logger.debug(line)
-                    if line.find("insert rows:") >= 0:
-                        insert_rows_found = True
-                        a = self.get_number_after(line, "insert rows:")
-                        self.logger.debug(f"insert rows: {a}")
-                        if a == "":
-                            self.logger.error(f"insert rows: {a}")
-                            self.set_error_msg(f"error insert rows: {a}")
-                            self.ret = False
+        if self.check_performance:
+            time_elapsed = 0.0
+            insert_rows = 0
+            total_threads = 0
+            insert_speed = 0.0
+            for i in range (self.concurrency):
+                result_file = f"{self.run_log_dir}/tmp/result_{i}.txt"
+                with open(result_file, 'r') as file:
+                    insert_rows_found = False
+                    while 1:
+                        line = file.readline()
+                        if not line:
                             break
-                        a_int = int(a)
-                        insert_rows += a_int
-                        b = self.get_number_before(line, "thread(s)")
-                        if b == "":
-                            self.logger.error(f"threads: {b}")
-                            self.set_error_msg(f"error threads: {b}")
-                            self.ret = False
-                            break
-                        b_int = int(b)
-                        total_threads += b_int
-                        self.logger.debug(f"threads: {b}")
-                        c = self.get_number_before(line, "records\/second")
-                        self.logger.debug(f"speed: {c}")
-                        if c == "":
-                            self.logger.error(f"speed: {c}")
-                            self.set_error_msg(f"error speed: {c}")
-                            self.ret = False
-                            break
-                        c_float = float(c)
-                        insert_speed += c_float
-                        d = self.get_number_after(line, "Spent")
-                        self.logger.debug(f"Spent: {d}")
-                        if d == "":
-                            self.logger.error(f"Spent: {d}")
-                            self.set_error_msg(f"error Spent: {d}")
-                            self.ret = False
-                            break
-                        d_float = float(d)
-                        time_elapsed = max(time_elapsed, d_float)
-                if insert_rows_found == False:
-                    self.logger.error(f"key word insert row not found in {local_result_file}")
-                    self.set_error_msg(f"error insert row not found in {local_result_file}")
-                    self.ret = False
-        if self.ret:
-            taosd_count = len(taosd_fqdn)
-            vgroups = 0
-            insert_mode = ""
-            insert_json_file = self.json_config_files[0]
-            # get VGROUPS, INSERT MODE
-            # load taosBenchmark json
-            benchmark_config = dict()
-            with open(insert_json_file, 'r') as file: 
-                benchmark_config = json.load(file)
-            db = benchmark_config["databases"][0]
-            vgroups = db["dbinfo"]["vgroups"]
-            stb = db["super_tables"][0]
-            insert_mode = stb["insert_mode"]
-            self.logger.debug("vgroups: {}, insert mode:".format(vgroups, insert_mode))
-            os.system("echo @@##@@##  time spent: {:.1f}, insert rows: {}, total threads: {}, insert speed: {:.0f}, taosd count: {}, vgroups: {}, insert mode: {}".format(time_elapsed, insert_rows, total_threads, insert_speed, taosd_count, vgroups, insert_mode))
+                        # self.logger.debug(line)
+                        if line.find("insert rows:") >= 0:
+                            insert_rows_found = True
+                            a = self.get_number_after(line, "insert rows:")
+                            self.logger.debug(f"insert rows: {a}")
+                            if a == "":
+                                self.logger.error(f"insert rows: {a}")
+                                self.set_error_msg(f"error insert rows: {a}")
+                                self.ret = False
+                                break
+                            a_int = int(a)
+                            insert_rows += a_int
+                            b = self.get_number_before(line, "thread(s)")
+                            if b == "":
+                                self.logger.error(f"threads: {b}")
+                                self.set_error_msg(f"error threeds: {b}")
+                                self.ret = False
+                                break
+                            b_int = int(b)
+                            total_threads += b_int
+                            self.logger.debug(f"threads: {b}")
+                            c = self.get_number_before(line, "records\/second")
+                            self.logger.debug(f"speed: {c}")
+                            if c == "":
+                                self.logger.error(f"speed: {c}")
+                                self.set_error_msg(f"error speed: {c}")
+                                self.ret = False
+                                break
+                            c_float = float(c)
+                            insert_speed += c_float
+                            d = self.get_number_after(line, "Spent")
+                            self.logger.debug(f"Spent: {d}")
+                            if d == "":
+                                self.logger.error(f"Spent: {d}")
+                                self.set_error_msg(f"error Spent: {d}")
+                                self.ret = False
+                                break
+                            d_float = float(d)
+                            time_elapsed = max(time_elapsed, d_float)
+                    if insert_rows_found == False:
+                        self.logger.error(f"key word insert row not found in {local_result_file}")
+                        self.set_error_msg(f"key word insert row not found in {local_result_file}")
+                        self.ret = False
+            if self.ret:
+                taosd_count = len(taosd_fqdn)
+                vgroups = 0
+                insert_mode = ""
+                insert_json_file = self.json_config_files[0]
+                # get VGROUPS, INSERT MODE
+                # load taosBenchmark json
+                benchmark_config = dict()
+                with open(insert_json_file, 'r') as file: 
+                    benchmark_config = json.load(file)
+                db = benchmark_config["databases"][0]
+                vgroups = db["dbinfo"]["vgroups"]
+                stb = db["super_tables"][0]
+                insert_mode = stb["insert_mode"]
+                self.logger.debug("vgroups: {}, insert mode:".format(vgroups, insert_mode))
+                os.system("echo @@##@@##  time spent: {:.1f}, insert rows: {}, total threads: {}, insert speed: {:.0f}, taosd count: {}, vgroups: {}, insert mode: {}".format(time_elapsed, insert_rows, total_threads, insert_speed, taosd_count, vgroups, insert_mode))
         return self.ret
 
     def get_number_after(self, line, keyword):
@@ -391,7 +370,7 @@ class TestPerf(TDCase):
 
     def desc(self) -> str:
         case_description = """
-            performance insert
+            3mnodes insert
         """
         return case_description
 
