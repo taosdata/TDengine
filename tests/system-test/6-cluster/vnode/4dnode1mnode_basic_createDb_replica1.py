@@ -108,7 +108,7 @@ class TDTestCase:
         for vgroup_info in tdSql.queryResult:
             vgroup_id = vgroup_info[0]
             tmp_list = []
-            for role in vgroup_info[3:-3]:
+            for role in vgroup_info[3:-4]:
                 if role in ['leader','follower']:
                     tmp_list.append(role)
             vgroups_infos[vgroup_id]=tmp_list

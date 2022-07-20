@@ -15,7 +15,6 @@ from util.cluster import *
 import time
 import socket
 import subprocess
-sys.path.append(os.path.dirname(__file__))
 
 class TDTestCase:
     def init(self,conn ,logSql):
@@ -30,6 +29,7 @@ class TDTestCase:
         self.vgroups = 2
         self.tb_nums = 10 
         self.row_nums = 100
+        self.max_vote_time_cost = 10  # seconds
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -125,50 +125,77 @@ class TDTestCase:
             else:
                 tdLog.exit(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
 
-    def create_db_replica_1_insertdatas(self, dbname, replica_num ,vgroup_nums ,tb_nums , row_nums ):
-        drop_db_sql = "drop database if exists {}".format(dbname)
-        create_db_sql = "create database {} replica {} vgroups {}".format(dbname,replica_num,vgroup_nums)
+    def check_vgroups_init_done(self,dbname):
 
-        tdLog.info(" ==== create database {} and insert rows begin =====".format(dbname))
-        tdSql.execute(drop_db_sql)
-        tdSql.execute(create_db_sql)
-        tdSql.execute("use {}".format(dbname))
-        tdSql.execute(
-        '''create table stb1
-        (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(32),c9 nchar(32), c10 timestamp)
-        tags (t1 int)
-        '''
-        )
-        tdSql.execute(
-            '''
-            create table t1
-            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(32),c9 nchar(32), c10 timestamp)
-            '''
-        )
+        status = True
+
+        tdSql.query("show {}.vgroups".format(dbname))
+        for vgroup_info in tdSql.queryResult:
+            vgroup_id = vgroup_info[0]
+            vgroup_status = []
+            for ind , role in enumerate(vgroup_info[3:-4]):
+                
+                if ind%2==0:
+                    continue
+                else:
+                    vgroup_status.append(role)
+            if vgroup_status.count("leader")!=1 or vgroup_status.count("follower")!=2:
+                status = False
+                return status
+        return status
+
+
+    def vote_leader_time_costs(self,dbname):
+        start = time.time()
+        status = self.check_vgroups_init_done(dbname)
+        while not status:
+            time.sleep(0.1)
+            status = self.check_vgroups_init_done(dbname)
+            
+            # tdLog.info("=== database {} show vgroups vote the leader is in progress ===".format(dbname))
+        end = time.time()
+        cost_time = end - start
+        tdLog.info(" ==== database %s vote the leaders success , cost time is %.3f second ====="%(dbname,cost_time) )
+        # os.system("taos -s 'show {}.vgroups;'".format(dbname))
+        if cost_time >= self.max_vote_time_cost:
+            tdLog.exit(" ==== database %s vote the leaders cost too large time , cost time is %.3f second ===="%(dbname,cost_time) )
         
-        for i in range(tb_nums):
-            sub_tbname = "sub_tb_{}".format(i)
-            tdSql.execute("create table {} using stb1 tags({})".format(sub_tbname,i))
-            # insert datas about new database
+        
+        return cost_time
+        
+    def test_init_vgroups_time_costs(self):
 
-            for row_num in range(row_nums):
-                ts = self.ts + 1000*row_num
-                tdSql.execute(f"insert into {sub_tbname} values ({ts}, {row_num} ,{row_num}, 10 ,1 ,{row_num} ,{row_num},true,'bin_{row_num}','nchar_{row_num}',now) ")
+        tdLog.info(" ====start check time cost about vgroups vote leaders ==== ")
+        tdLog.info(" ==== current max time cost is set value : {} =======".format(self.max_vote_time_cost))
 
-        tdLog.info(" ==== create database {} and insert rows execute end =====".format(dbname))
+        # create database replica 3 vgroups 1 
 
-    def check_insert_status(self, dbname, tb_nums , row_nums):
-        tdSql.execute("use {}".format(dbname))
-        tdSql.query("select count(*) from {}.{}".format(dbname,'stb1'))
-        tdSql.checkData(0 , 0 , tb_nums*row_nums)
-        tdSql.query("select distinct tbname from {}.{}".format(dbname,'stb1'))
-        tdSql.checkRows(tb_nums)
+        db1 = 'db_1'
+        create_db_replica_3_vgroups_1 = "create database {} replica 3 vgroups 1".format(db1)
+        tdLog.info('=======database {} replica 3 vgroups 1 ======'.format(db1))
+        tdSql.execute(create_db_replica_3_vgroups_1)
+        self.vote_leader_time_costs(db1)
 
+        # create database replica 3 vgroups 10
+        db2 = 'db_2'
+        create_db_replica_3_vgroups_10 = "create database {} replica 3 vgroups 10".format(db2)
+        tdLog.info('=======database {} replica 3 vgroups 10 ======'.format(db2))
+        tdSql.execute(create_db_replica_3_vgroups_10)
+        self.vote_leader_time_costs(db2)
+
+        # create database replica 3 vgroups 100
+        db3 = 'db_3'
+        create_db_replica_3_vgroups_100 = "create database {} replica 3 vgroups 100".format(db3)
+        tdLog.info('=======database {} replica 3 vgroups 100 ======'.format(db3))
+        tdSql.execute(create_db_replica_3_vgroups_100)
+        self.vote_leader_time_costs(db3)
+        
+
+   
     def run(self): 
         self.check_setup_cluster_status()
-        self.create_db_check_vgroups()
-        self.create_db_replica_1_insertdatas(self.db_name , self.replica , self.vgroups , self.tb_nums , self.row_nums)
-        self.check_insert_status(self.db_name , self.tb_nums , self.row_nums)
+        self.test_init_vgroups_time_costs()
+
 
 
     def stop(self):
