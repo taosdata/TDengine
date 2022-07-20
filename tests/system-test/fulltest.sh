@@ -168,7 +168,6 @@ python3 ./test.py -f 7-tmq/schema.py
 python3 ./test.py -f 7-tmq/stbFilter.py
 python3 ./test.py -f 7-tmq/tmqCheckData.py
 python3 ./test.py -f 7-tmq/tmqCheckData1.py
-python3 ./test.py -f 7-tmq/tmqUdf.py
 #python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 5
 python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
 python3 ./test.py -f 7-tmq/tmqShow.py
@@ -188,8 +187,15 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
 python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
 #python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
 python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
-python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb.py
+python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot0.py
+python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot1.py
 #python3 ./test.py -f 7-tmq/tmqDelete-1ctb.py
+python3 ./test.py -f 7-tmq/tmqUdf.py
+python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot0.py
+python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot1.py
+python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
+python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
+
 
 #------------querPolicy  2-----------
 

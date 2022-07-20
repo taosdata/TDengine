@@ -250,12 +250,12 @@ class TDTestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def run(self):
-        tdSql.prepare()
-        self.prepareTestEnv()
-        tdLog.printNoPrefix("=============================================")
-        tdLog.printNoPrefix("======== snapshot is 0: only consume from wal")
-        self.tmqCase1()
-        self.tmqCase2()
+        # tdSql.prepare()
+        # self.prepareTestEnv()
+        # tdLog.printNoPrefix("=============================================")
+        # tdLog.printNoPrefix("======== snapshot is 0: only consume from wal")
+        # self.tmqCase1()
+        # self.tmqCase2()
         
         self.prepareTestEnv()
         tdLog.printNoPrefix("====================================================================")
