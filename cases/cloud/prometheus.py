@@ -18,7 +18,7 @@ class Prometheus(TDCase):
     def init(self):
         os.environ.update(self.env_setting["env"])
         self.cwd = self.env_setting["work_dir"] + "/prometheus/prometheus"
-        self.int_config()
+        self.init_config()
 
     def init_config(self):
         cloud_url = os.environ["TDENGINE_CLOUD_URL"]
