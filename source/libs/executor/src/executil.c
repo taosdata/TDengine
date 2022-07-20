@@ -324,7 +324,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       }
 
       for (int i = 0; i < taosArrayGetSize(res); i++) {
-        STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, .uid = *(uint64_t*)taosArrayGet(res, i), .groupId = 0};
+        STableKeyInfo info = {.uid = *(uint64_t*)taosArrayGet(res, i), .groupId = 0};
         taosArrayPush(pListInfo->pTableList, &info);
       }
       taosArrayDestroy(res);
@@ -338,7 +338,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       return code;
     }
   } else {  // Create one table group.
-    STableKeyInfo info = {.lastKey = 0, .uid = tableUid, .groupId = 0};
+    STableKeyInfo info = {.uid = tableUid, .groupId = 0};
     taosArrayPush(pListInfo->pTableList, &info);
   }
 

@@ -174,7 +174,7 @@ static SArray* filterQualifiedChildTables(const SStreamScanInfo* pScanInfo, cons
   SMetaReader mr = {0};
   metaReaderInit(&mr, pScanInfo->readHandle.meta, 0);
   for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
-    int64_t* id = (int64_t*)taosArrayGet(tableIdList, i);
+    uint64_t* id = (uint64_t*)taosArrayGet(tableIdList, i);
 
     int32_t code = metaGetTableEntryByUid(&mr, *id);
     if (code != TSDB_CODE_SUCCESS) {
@@ -189,7 +189,7 @@ static SArray* filterQualifiedChildTables(const SStreamScanInfo* pScanInfo, cons
 
     if (pScanInfo->pTagCond != NULL) {
       bool          qualified = false;
-      STableKeyInfo info = {.groupId = 0, .uid = mr.me.uid, .lastKey = 0};
+      STableKeyInfo info = {.groupId = 0, .uid = mr.me.uid};
       code = isTableOk(&info, pScanInfo->pTagCond, pScanInfo->readHandle.meta, &qualified);
       if (code != TSDB_CODE_SUCCESS) {
         qError("failed to filter new table, uid:0x%" PRIx64 ", %s", info.uid, idstr);
@@ -201,9 +201,7 @@ static SArray* filterQualifiedChildTables(const SStreamScanInfo* pScanInfo, cons
       }
     }
 
-    /*pScanInfo->pStreamScanOp->pTaskInfo->tableqinfoList.*/
     // handle multiple partition
-
     taosArrayPush(qa, id);
   }
 
@@ -227,6 +225,19 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
 
     qDebug(" %d qualified child tables added into stream scanner", (int32_t)taosArrayGetSize(qa));
     code = tqReaderAddTbUidList(pScanInfo->tqReader, qa);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    // add to qTaskInfo
+    // todo refactor STableList
+    for(int32_t i = 0; i < taosArrayGetSize(qa); ++i) {
+      uint64_t* uid = taosArrayGet(qa, i);
+
+      STableKeyInfo keyInfo = {.uid = *uid, .groupId = 0};
+      taosArrayPush(pTaskInfo->tableqinfoList.pTableList, &keyInfo);
+    }
+
     taosArrayDestroy(qa);
   } else {  // remove the table id in current list
     qDebug(" %d remove child tables from the stream scanner", (int32_t)taosArrayGetSize(tableIdList));
