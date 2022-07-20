@@ -366,18 +366,21 @@ if $data32 != 8 then
   goto loop1
 endi
 
+#$loop_all = 0
+#looptest:
+
 sql drop database IF EXISTS test2;
 sql drop stream IF EXISTS streams21;
 sql drop stream IF EXISTS streams22;
 
-sql create database test2 vgroups 2;
+sql create database test2 vgroups 6;
 sql use test2;
 sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 
-sql create stream streams21 trigger at_once  into streamt as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s);
-sql create stream streams22 trigger at_once  into streamt2 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s);
+sql create stream streams21 trigger at_once  into streamt as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s, 5s);
+sql create stream streams22 trigger at_once  into streamt2 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s, 5s);
 
 sql insert into t1 values(1648791213000,1,1,1,1.0);
 sql insert into t1 values(1648791223001,2,2,2,1.1);
@@ -394,7 +397,7 @@ sql insert into t2 values(1648791213004,4,10,10,4.1);
 $loop_count = 0
 
 loop2:
-sleep 300
+sleep 100
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -452,7 +455,7 @@ print step 6
 $loop_count = 0
 
 loop3:
-sleep 300
+# sleep 300
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -464,7 +467,7 @@ sql select * from streamt2;
 # row 0
 if $data01 != 4 then
   print =====data01=$data01
-  # goto loop3
+  goto loop3
 endi
 
 if $data02 != 10 then
@@ -504,5 +507,10 @@ if $data32 != 8 then
   print =====data32=$data32
   goto loop3
 endi
+
+$loop_all = $loop_all + 1
+print ============loop_all=$loop_all
+
+#goto looptest
 
 system sh/stop_dnodes.sh
