@@ -2572,16 +2572,41 @@ int32_t doMergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pSc
   return TSDB_CODE_SUCCESS;
 }
 
+static tb_uid_t getTableSuidByUid(tb_uid_t uid, STsdb* pTsdb) {
+  tb_uid_t suid = 0;
+
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, pTsdb->pVnode->pMeta, 0);
+  if (metaGetTableEntryByUid(&mr, uid) < 0) {
+    metaReaderClear(&mr);  // table not esist
+    return 0;
+  }
+
+  if (mr.me.type == TSDB_CHILD_TABLE) {
+    suid = mr.me.ctbEntry.suid;
+  } else if (mr.me.type == TSDB_NORMAL_TABLE) {
+    suid = 0;
+  } else {
+    suid = 0;
+  }
+
+  metaReaderClear(&mr);
+
+  return suid;
+}
+
 void updateSchema(TSDBROW* pRow, uint64_t uid, STsdbReader* pReader) {
   int32_t sversion = TSDBROW_SVERSION(pRow);
 
+  tb_uid_t suid = getTableSuidByUid(uid, pReader->pTsdb);
+
   if (pReader->pSchema == NULL) {
     // pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, uid, sversion);
-    metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, 0, uid, sversion, &pReader->pSchema);
+    metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, suid, uid, sversion, &pReader->pSchema);
   } else if (pReader->pSchema->version != sversion) {
     taosMemoryFreeClear(pReader->pSchema);
     // pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, uid, sversion);
-    metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, 0, uid, sversion, &pReader->pSchema);
+    metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, suid, uid, sversion, &pReader->pSchema);
   }
 }
 
