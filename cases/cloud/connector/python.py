@@ -20,7 +20,7 @@ class Python(TDCase):
         # self.lcmd.run("python3  reference_rest_client.py", cmw=cwd, env=self.env_setting["env"])
 
     def desc(self) -> str:
-        return "python connector for cloud"
+        return "Python connector for cloud"
 
     def author(self) -> str:
         return "Ding Bo"

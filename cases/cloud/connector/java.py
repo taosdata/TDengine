@@ -15,7 +15,7 @@ class Java(TDCase):
         self.lcmd.run("mvn test", cwd=cwd, env=self.env_setting["env"])
 
     def desc(self) -> str:
-        return """Test Code Examples for Java Connector """
+        return """Java connector for cloud """
 
     def author(self) -> str:
         return "Ding Bo"

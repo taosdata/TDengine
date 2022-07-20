@@ -14,7 +14,7 @@ class Rust(TDCase):
         self.lcmd.run("cargo run", cwd=cwd)
 
     def desc(self) -> str:
-        return "rust connector for cloud"
+        return "Rust connector for cloud"
 
     def author(self) -> str:
         return "Ding Bo"
