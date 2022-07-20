@@ -3007,8 +3007,8 @@ void syncLogSendAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntries
   snprintf(logBuf, sizeof(logBuf),
            "send sync-append-entries-batch to %s:%d, {term:%" PRIu64 ", pre-index:%" PRId64 ", pre-term:%" PRIu64
            ", pterm:%" PRIu64 ", commit:%" PRId64 ", datalen:%d, count:%d}, %s",
-           pSyncNode->vgId, host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm,
-           pMsg->commitIndex, pMsg->dataLen, pMsg->dataCount, s);
+           host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm, pMsg->commitIndex,
+           pMsg->dataLen, pMsg->dataCount, s);
   syncNodeEventLog(pSyncNode, logBuf);
 }
 
@@ -3020,8 +3020,8 @@ void syncLogRecvAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntries
   snprintf(logBuf, sizeof(logBuf),
            "recv sync-append-entries-batch from %s:%d, {term:%" PRIu64 ", pre-index:%" PRId64 ", pre-term:%" PRIu64
            ", pterm:%" PRIu64 ", commit:%" PRId64 ", datalen:%d, count:%d}, %s",
-           pSyncNode->vgId, host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm,
-           pMsg->commitIndex, pMsg->dataLen, pMsg->dataCount, s);
+           host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm, pMsg->commitIndex,
+           pMsg->dataLen, pMsg->dataCount, s);
   syncNodeErrorLog(pSyncNode, logBuf);
 }
 
