@@ -328,46 +328,6 @@ void initMetaDataEnv() {
   stub.set(catalogGetTableIndex, __catalogGetTableIndex);
   stub.set(catalogGetDnodeList, __catalogGetDnodeList);
   stub.set(catalogRefreshGetTableCfg, __catalogRefreshGetTableCfg);
-  // {
-  //   AddrAny any("libcatalog.so");
-  //   std::map<std::string,void*> result;
-  //   any.get_global_func_addr_dynsym("^catalogGetHandle$", result);
-  //   for (const auto& f : result) {
-  //     stub.set(f.second, __catalogGetHandle);
-  //   }
-  // }
-  // {
-  //   AddrAny any("libcatalog.so");
-  //   std::map<std::string,void*> result;
-  //   any.get_global_func_addr_dynsym("^catalogGetTableMeta$", result);
-  //   for (const auto& f : result) {
-  //     stub.set(f.second, __catalogGetTableMeta);
-  //   }
-  // }
-  // {
-  //   AddrAny any("libcatalog.so");
-  //   std::map<std::string,void*> result;
-  //   any.get_global_func_addr_dynsym("^catalogGetTableHashVgroup$", result);
-  //   for (const auto& f : result) {
-  //     stub.set(f.second, __catalogGetTableHashVgroup);
-  //   }
-  // }
-  // {
-  //   AddrAny any("libcatalog.so");
-  //   std::map<std::string,void*> result;
-  //   any.get_global_func_addr_dynsym("^catalogGetTableDistVgInfo$", result);
-  //   for (const auto& f : result) {
-  //     stub.set(f.second, __catalogGetTableDistVgInfo);
-  //   }
-  // }
-  // {
-  //   AddrAny any("libcatalog.so");
-  //   std::map<std::string,void*> result;
-  //   any.get_global_func_addr_dynsym("^catalogGetDBVgVersion$", result);
-  //   for (const auto& f : result) {
-  //     stub.set(f.second, __catalogGetDBVgVersion);
-  //   }
-  // }
 }
 
 void generateMetaData() {

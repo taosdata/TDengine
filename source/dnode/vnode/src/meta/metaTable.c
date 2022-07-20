@@ -212,7 +212,7 @@ _err:
   return -1;
 }
 
-int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
+int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq, SArray *tbUidList) {
   void *pKey = NULL;
   int   nKey = 0;
   void *pData = NULL;
@@ -228,8 +228,7 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
   }
 
   // drop all child tables
-  TBC    *pCtbIdxc = NULL;
-  SArray *pArray = taosArrayInit(8, sizeof(tb_uid_t));
+  TBC *pCtbIdxc = NULL;
 
   tdbTbcOpen(pMeta->pCtbIdx, &pCtbIdxc, &pMeta->txn);
   rc = tdbTbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = pReq->suid, .uid = INT64_MIN}, sizeof(SCtbIdxKey), &c);
@@ -249,19 +248,17 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
       break;
     }
 
-    taosArrayPush(pArray, &(((SCtbIdxKey *)pKey)->uid));
+    taosArrayPush(tbUidList, &(((SCtbIdxKey *)pKey)->uid));
   }
 
   tdbTbcClose(pCtbIdxc);
 
   metaWLock(pMeta);
 
-  for (int32_t iChild = 0; iChild < taosArrayGetSize(pArray); iChild++) {
-    tb_uid_t uid = *(tb_uid_t *)taosArrayGet(pArray, iChild);
+  for (int32_t iChild = 0; iChild < taosArrayGetSize(tbUidList); iChild++) {
+    tb_uid_t uid = *(tb_uid_t *)taosArrayGet(tbUidList, iChild);
     metaDropTableByUid(pMeta, uid, NULL);
   }
-
-  taosArrayDestroy(pArray);
 
   // drop super table
 _drop_super_table:
