@@ -64,6 +64,12 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
   return 0;
 }
 
+int32_t walApplyVer(SWal *pWal, int64_t ver) {
+  // TODO: error check
+  pWal->vers.appliedVer = ver;
+  return 0;
+}
+
 int32_t walCommit(SWal *pWal, int64_t ver) {
   ASSERT(pWal->vers.commitVer >= pWal->vers.snapshotVer);
   ASSERT(pWal->vers.commitVer <= pWal->vers.lastVer);
