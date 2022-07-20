@@ -2385,7 +2385,7 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
       if (format) {
         if (j < rowDataSize) {
           kv = taosArrayGetP(rowData, j);
-          if (rowDataSize != spd->numOfBound &&
+          if (rowDataSize != spd->numOfBound && j != 0 &&
               (kv->keyLen != strlen(pColSchema->name) || strncmp(kv->key, pColSchema->name, kv->keyLen) != 0)) {
             kv = NULL;
           } else {

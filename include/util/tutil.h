@@ -45,7 +45,6 @@ void     taosIp2String(uint32_t ip, char *str);
 void     taosIpPort2String(uint32_t ip, uint16_t port, char *str);
 
 void *tmemmem(const char *haystack, int hlen, const char *needle, int nlen);
-char *strDupUnquo(const char *src);
 
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
   T_MD5_CTX context;

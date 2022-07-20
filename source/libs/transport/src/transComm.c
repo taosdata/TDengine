@@ -456,7 +456,7 @@ int transDQCreate(uv_loop_t* loop, SDelayQueue** queue) {
   return 0;
 }
 
-void transDQDestroy(SDelayQueue* queue) {
+void transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg)) {
   taosMemoryFree(queue->timer);
 
   while (heapSize(queue->heap) > 0) {
@@ -467,6 +467,11 @@ void transDQDestroy(SDelayQueue* queue) {
     heapRemove(queue->heap, minNode);
 
     SDelayTask* task = container_of(minNode, SDelayTask, node);
+
+    STaskArg* arg = task->arg;
+    freeFunc(arg->param1);
+    taosMemoryFree(arg);
+
     taosMemoryFree(task);
   }
   heapDestroy(queue->heap);

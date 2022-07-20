@@ -7,7 +7,7 @@ import platform
 import math
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 , 
+    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
     "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143,
     "maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
@@ -22,7 +22,7 @@ class TDTestCase:
         self.time_step = 1000
 
     def prepare_datas_of_distribute(self):
-        
+
         # prepate datas for  20 tables distributed at different vgroups
         tdSql.execute("create database if not exists testdb keep 3650 duration 1000 vgroups 5")
         tdSql.execute(" use testdb ")
@@ -32,16 +32,16 @@ class TDTestCase:
             tags (t0 timestamp, t1 int, t2 bigint, t3 smallint, t4 tinyint, t5 float, t6 double, t7 bool, t8 binary(16),t9 nchar(32))
             '''
         )
-        
+
         for i in range(self.tb_nums):
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {1*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
             ts = self.ts
             for j in range(self.row_nums):
-                ts+=j*self.time_step 
+                ts+=j*self.time_step
                 tdSql.execute(
                     f"insert into ct{i+1} values({ts}, 1, 11111, 111, 1, 1.11, 11.11, 2, 'binary{j}', 'nchar{j}', now()+{1*j}a )"
                 )
-           
+
         tdSql.execute("insert into ct1 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
         tdSql.execute("insert into ct1 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
         tdSql.execute("insert into ct1 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
@@ -64,7 +64,7 @@ class TDTestCase:
         vgroups = tdSql.queryResult
 
         vnode_tables={}
-        
+
         for vgroup_id in vgroups:
             vnode_tables[vgroup_id[0]]=[]
 
@@ -73,7 +73,7 @@ class TDTestCase:
         table_names = tdSql.queryResult
         tablenames = []
         for table_name in table_names:
-            vnode_tables[table_name[6]].append(table_name[0]) 
+            vnode_tables[table_name[6]].append(table_name[0])
         self.vnode_disbutes = vnode_tables
 
         count = 0
@@ -103,12 +103,12 @@ class TDTestCase:
         tdSql.checkRows(self.tb_nums)
         tdSql.checkData(0,0,1.000000000)
 
-        # union all 
+        # union all
         tdSql.query(" select twa(c1) from stb1 partition by tbname union all select twa(c1) from stb1 partition by tbname ")
         tdSql.checkRows(40)
         tdSql.checkData(0,0,1.000000000)
 
-        # join 
+        # join
 
         tdSql.execute(" create database if not exists db ")
         tdSql.execute(" use db ")
@@ -116,7 +116,7 @@ class TDTestCase:
         tdSql.execute(" create table tb1 using st tags(1) ")
         tdSql.execute(" create table tb2 using st tags(2) ")
 
-        
+
         for i in range(10):
             ts = i*10 + self.ts
             tdSql.execute(f" insert into tb1 values({ts},{i},{i}.0)")
@@ -127,7 +127,7 @@ class TDTestCase:
         tdSql.checkData(0,0,4.500000000)
         tdSql.checkData(0,1,4.500000000)
 
-        # group by 
+        # group by
         tdSql.execute(" use testdb ")
 
         # mixup with other functions
@@ -141,7 +141,7 @@ class TDTestCase:
         self.check_distribute_datas()
         self.twa_support_types()
         self.distribute_twa_query()
-        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
