@@ -189,6 +189,7 @@ class TAdapter:
                 if time.time() > timeout:
                     tdLog.exit('wait too long for taosadapter start')
             tdLog.debug("the taosadapter has been started.")
+            time.sleep(2)
 
     def start_taosadapter(self):
         """
