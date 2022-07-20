@@ -120,12 +120,15 @@ int32_t syncNodeRequestVote(SSyncNode* pSyncNode, const SRaftId* destRaftId, con
   int32_t ret = 0;
 
   do {
-    char     host[128];
+    char     host[64];
     uint16_t port;
     syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
-    sDebug("vgId:%d, send sync-request-vote to %s:%d, {term:%" PRIu64 ", last-index:%" PRId64 ", last-term:%" PRIu64
-           "}",
-           pSyncNode->vgId, host, port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm);
+    char logBuf[256];
+    snprintf(logBuf, sizeof(logBuf),
+             "send sync-request-vote to %s:%d {term:%" PRIu64 ", lindex:%" PRId64 ", lterm:%" PRIu64 "", host, port,
+             pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm);
+    syncNodeEventLog(pSyncNode, logBuf);
+
   } while (0);
 
   SRpcMsg rpcMsg;
