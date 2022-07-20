@@ -191,8 +191,8 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
     uint16_t port;
     syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
     char logBuf[256];
-    snprintf(logBuf, sizeof(logBuf), "recv request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d} ", pMsg->term,
-             pMsg->voteGranted);
+    snprintf(logBuf, sizeof(logBuf), "recv request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d} ", host, port,
+             pMsg->term, pMsg->voteGranted);
     syncNodeEventLog(ths, logBuf);
   } while (0);
 
