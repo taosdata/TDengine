@@ -35,7 +35,7 @@ class Prometheus(TDCase):
                     f2.write(line)
 
     def run(self):
-        prom_process = Popen('./prometheus --config.file prometheus.yml', cwd=self.cwd, stdout=PIPE, stderr=STDOUT)
+        prom_process = Popen(['./prometheus', '--config.file', 'prometheus.yml'], cwd=self.cwd, stdout=PIPE, stderr=STDOUT)
         remote_write_success = False
         for _ in range(50):
             ret_status = prom_process.poll()
