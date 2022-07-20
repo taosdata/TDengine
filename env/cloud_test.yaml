@@ -3,10 +3,10 @@ target_host: 192.168.0.31
 work_dir: /root/work
 before_scripts: prepare.sh
 env:
-  TDENGINE_CLOUD_TOKEN: "440e561f6c55f0f271f095dc6cfb6607f4980a11"
+  TDENGINE_CLOUD_TOKEN: "b1f022e258b71ec58ef374ff7c0f6ebbf60d30af"
   TDENGINE_CLOUD_URL: "http://192.168.1.163:8085"
-  TDENGINE_JDBC_URL: "jdbc:TAOS-RS://192.168.1.163:8085?usessl=false&token=440e561f6c55f0f271f095dc6cfb6607f4980a11"
-  TDENGINE_GO_DSN: "http(192.168.1.163:8085)/?token=440e561f6c55f0f271f095dc6cfb6607f4980a11"
-  TDENGINE_CLOUD_DSN: "http://192.168.1.163:8085?token=440e561f6c55f0f271f095dc6cfb6607f4980a11"
+  TDENGINE_JDBC_URL: "jdbc:TAOS-RS://192.168.1.163:8085?usessl=false&token=b1f022e258b71ec58ef374ff7c0f6ebbf60d30af"
+  TDENGINE_GO_DSN: "http(192.168.1.163:8085)/?token=b1f022e258b71ec58ef374ff7c0f6ebbf60d30af"
+  TDENGINE_CLOUD_DSN: "http://192.168.1.163:8085?token=b1f022e258b71ec58ef374ff7c0f6ebbf60d30af"
 
 settings: []
