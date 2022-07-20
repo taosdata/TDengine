@@ -3043,7 +3043,7 @@ void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntries
   syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf),
-           "recv sync-append-entries-reply from %s:%d {term:%" PRIu64 ", pterm:%" PRIu64 ", success:%d, match:%" PRIu64
+           "recv sync-append-entries-reply from %s:%d {term:%" PRIu64 ", pterm:%" PRIu64 ", success:%d, match:%" PRId64
            "}, %s",
            host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex, s);
   syncNodeErrorLog(pSyncNode, logBuf);
