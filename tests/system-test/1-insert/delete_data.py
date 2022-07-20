@@ -25,7 +25,7 @@ from util.sqlset import TDSetSql
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(),logSql)
+        tdSql.init(conn.cursor())
         self.dbname = 'db_test'
         self.setsql = TDSetSql()
         self.stbname = 'stb'
@@ -208,10 +208,14 @@ class TDTestCase:
                 tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags(1)')
                 self.insert_base_data(col_type,f'{self.stbname}_{i}',self.rowNum,self.base_data)
                 self.delete_one_row(f'{self.stbname}_{i}',col_type,col_name,self.base_data,self.dbname)
+                self.delete_all_data(f'{self.stbname}_{i}',col_type,self.rowNum,self.base_data,self.dbname)
+                self.delete_error(f'{self.stbname}_{i}',col_name,col_type,self.base_data)
+                self.delete_rows(self.dbname,f'{self.stbname}_{i}',col_name,col_type,self.base_data,self.rowNum)
+            tdSql.execute(f'drop table {self.stbname}')
 
     def run(self):
-        # self.delete_data_ntb()
-        self.delete_data_ctb()
+        self.delete_data_ntb()
+        # self.delete_data_ctb()
 
     def stop(self):
         tdSql.close()
