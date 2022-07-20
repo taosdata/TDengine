@@ -360,7 +360,7 @@ class TMQCom:
         return pThread
 
     def insert_data_with_autoCreateTbl(self,tsql,dbName,stbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs=0,ctbStartIdx=0):
-        tdLog.debug("start to insert data wiht auto create child table ............")
+        tdLog.debug("start to insert data with auto create child table ............")
         tsql.execute("use %s" %dbName)
         pre_insert = "insert into "
         sql = pre_insert

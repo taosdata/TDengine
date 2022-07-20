@@ -294,10 +294,10 @@ function install_avro() {
 function install_lib() {
   # Remove links
   ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
-  ${csudo}rm -f ${lib_link_dir}/libtaosws.* || :
+  [ -f ${lib_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.so || :
   if [ "$osType" != "Darwin" ]; then
     ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
-    ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
+    [ -f ${lib64_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.so || :
   fi
 
   if [ "$osType" != "Darwin" ]; then
@@ -362,13 +362,13 @@ function install_header() {
 
   if [ "$osType" != "Darwin" ]; then
     ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/taosudf.h || :
-    ${csudo}rm -f ${inc_link_dir}/taosws.h ||:
+    [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h ||:
     ${csudo}cp -f ${source_dir}/include/client/taos.h ${source_dir}/include/common/taosdef.h ${source_dir}/include/util/taoserror.h ${source_dir}/include/libs/function/taosudf.h \
       ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/*
 
     if [ -f ${binary_dir}/build/include/taosws.h ]; then
       ${csudo}cp -f ${binary_dir}/build/include/taosws.h ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/taosws.h ||:
-      ${csudo}ln -s ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h ||:
+      ${csudo}ln -sf ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h ||:
     fi
 
     ${csudo}ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h

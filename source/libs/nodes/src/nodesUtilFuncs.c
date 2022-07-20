@@ -216,6 +216,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
+    case QUERY_NODE_SHOW_TAGS_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       return makeNode(type, sizeof(SShowDnodeVariablesStmt));
@@ -678,7 +679,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
-    case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT: {
+    case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
+    case QUERY_NODE_SHOW_TAGS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
@@ -1923,15 +1925,18 @@ int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** 
     return partitionLogicCond(pCondition, pPrimaryKeyCond, pTagIndexCond, pTagCond, pOtherCond);
   }
 
+  bool needOutput = false;
   switch (classifyCondition(*pCondition)) {
     case COND_TYPE_PRIMARY_KEY:
       if (NULL != pPrimaryKeyCond) {
         *pPrimaryKeyCond = *pCondition;
+        needOutput = true;
       }
       break;
     case COND_TYPE_TAG_INDEX:
       if (NULL != pTagIndexCond) {
         *pTagIndexCond = *pCondition;
+        needOutput = true;
       }
       if (NULL != pTagCond) {
         SNode* pTempCond = *pCondition;
@@ -1942,21 +1947,26 @@ int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** 
           }
         }
         *pTagCond = pTempCond;
+        needOutput = true;
       }
       break;
     case COND_TYPE_TAG:
       if (NULL != pTagCond) {
         *pTagCond = *pCondition;
+        needOutput = true;
       }
       break;
     case COND_TYPE_NORMAL:
     default:
       if (NULL != pOtherCond) {
         *pOtherCond = *pCondition;
+        needOutput = true;
       }
       break;
   }
-  *pCondition = NULL;
+  if (needOutput) {
+    *pCondition = NULL;
+  }
 
   return TSDB_CODE_SUCCESS;
 }

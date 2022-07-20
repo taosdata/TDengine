@@ -394,7 +394,7 @@ int32_t sdbStopRead(SSdb *pSdb, SSdbIter *pIter);
 int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len);
 
 int32_t sdbStartWrite(SSdb *pSdb, SSdbIter **ppIter);
-int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply);
+int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, int64_t term, int64_t config);
 int32_t sdbDoWrite(SSdb *pSdb, SSdbIter *pIter, void *pBuf, int32_t len);
 
 const char *sdbTableName(ESdbType type);

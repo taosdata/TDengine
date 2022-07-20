@@ -842,30 +842,10 @@ static void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindo
 }
 
 static STimeWindow doCalculateTimeWindow(int64_t ts, SInterval* pInterval) {
-  STimeWindow  w =  {0};
+  STimeWindow w = {0};
 
-  if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
-    w.skey = taosTimeTruncate(ts, pInterval, pInterval->precision);
-    w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-  } else {
-    int64_t st = w.skey;
-    if (pInterval->offset > 0) {
-      st = taosTimeAdd(st, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
-    }
-
-    if (st > ts) {
-      st -= ((st - ts + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
-    }
-
-    int64_t et = st + pInterval->interval - 1;
-    if (et < ts) {
-      st += ((ts - et + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
-    }
-
-    w.skey = st;
-    w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-  }
-
+  w.skey = taosTimeTruncate(ts, pInterval, pInterval->precision);
+  w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
   return w;
 }
 

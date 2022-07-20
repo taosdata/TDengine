@@ -92,7 +92,8 @@ int32_t tqMetaOpen(STQ* pTq) {
             .initTqReader = true,
             .version = handle.snapshotVer,
         };
-        handle.execHandle.execCol.task[i] = qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader);
+
+        handle.execHandle.execCol.task[i] = qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader, &handle.execHandle.numOfCols);
         ASSERT(handle.execHandle.execCol.task[i]);
         void* scanner = NULL;
         qExtractStreamScanner(handle.execHandle.execCol.task[i], &scanner);

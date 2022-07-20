@@ -89,6 +89,8 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
 
   tsem_init(&pVnode->syncSem, 0, 0);
   tsem_init(&(pVnode->canCommit), 0, 1);
+  taosThreadMutexInit(&pVnode->mutex, NULL);
+  taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
   // open buffer pool
   if (vnodeOpenBufPool(pVnode, pVnode->config.isHeap ? 0 : pVnode->config.szBuf / 3) < 0) {
@@ -195,6 +197,8 @@ void vnodeClose(SVnode *pVnode) {
     // destroy handle
     tsem_destroy(&(pVnode->canCommit));
     tsem_destroy(&pVnode->syncSem);
+    taosThreadCondDestroy(&pVnode->poolNotEmpty);
+    taosThreadMutexDestroy(&pVnode->mutex);
     taosMemoryFree(pVnode);
   }
 }

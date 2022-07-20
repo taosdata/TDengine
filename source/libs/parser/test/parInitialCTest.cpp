@@ -236,12 +236,12 @@ TEST_F(ParserInitialCTest, createDatabase) {
 TEST_F(ParserInitialCTest, createDatabaseSemanticCheck) {
   useDb("root", "test");
 
-  run("create database db2 retentions 0s:1d", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
-  run("create database db2 retentions 10s:0d", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
-  run("create database db2 retentions 1w:1d", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
-  run("create database db2 retentions 1w:1n", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
-  run("create database db2 retentions 15s:7d,15m:21d,10m:500d", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
-  run("create database db2 retentions 15s:7d,5m:21d,10m:10d", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
+  run("create database db2 retentions 0s:1d", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions 10s:0d", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions 1w:1d", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions 1w:1n", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions 15s:7d,15m:21d,10m:500d", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions 15s:7d,5m:21d,10m:10d", TSDB_CODE_PAR_INVALID_DB_OPTION);
 }
 
 TEST_F(ParserInitialCTest, createDnode) {
@@ -514,13 +514,13 @@ TEST_F(ParserInitialCTest, createStableSemanticCheck) {
   useDb("root", "test");
 
   run("CREATE STABLE rollup_db.stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(CEIL)",
-      TSDB_CODE_PAR_INVALID_ROLLUP_OPTION);
+      TSDB_CODE_PAR_INVALID_TABLE_OPTION);
 
   run("CREATE STABLE rollup_db.stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(MAX) MAX_DELAY 0s WATERMARK 1m",
-      TSDB_CODE_PAR_INVALID_RANGE_OPTION);
+      TSDB_CODE_PAR_INVALID_TABLE_OPTION);
 
   run("CREATE STABLE rollup_db.stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(MAX) MAX_DELAY 10s WATERMARK 18m",
-      TSDB_CODE_PAR_INVALID_RANGE_OPTION);
+      TSDB_CODE_PAR_INVALID_TABLE_OPTION);
 }
 
 TEST_F(ParserInitialCTest, createStream) {
