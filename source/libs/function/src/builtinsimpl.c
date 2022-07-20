@@ -165,6 +165,7 @@ typedef struct SElapsedInfo {
 
 typedef struct STwaInfo {
   double      dOutput;
+  bool        isNull;
   SPoint1     p;
   STimeWindow win;
 } STwaInfo;
@@ -5181,8 +5182,9 @@ bool twaFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
   }
 
   STwaInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  pInfo->p.key = INT64_MIN;
-  pInfo->win = TSWINDOW_INITIALIZER;
+  pInfo->isNull = false;
+  pInfo->p.key  = INT64_MIN;
+  pInfo->win    = TSWINDOW_INITIALIZER;
   return true;
 }
 
@@ -5214,21 +5216,36 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
            (pCtx->start.key > tsList[i] && pCtx->order == TSDB_ORDER_DESC));
 
     ASSERT(last->key == INT64_MIN);
-    last->key = tsList[i];
+    for (; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+      if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        continue;
+      }
 
-    GET_TYPED_DATA(last->val, double, pInputCol->info.type, colDataGetData(pInputCol, i));
+      last->key = tsList[i];
 
-    pInfo->dOutput += twa_get_area(pCtx->start, *last);
-    pInfo->win.skey = pCtx->start.key;
-    numOfElems++;
-    i += 1;
+      GET_TYPED_DATA(last->val, double, pInputCol->info.type, colDataGetData(pInputCol, i));
+
+      pInfo->dOutput += twa_get_area(pCtx->start, *last);
+      pInfo->win.skey = pCtx->start.key;
+      numOfElems++;
+      i += 1;
+      break;
+    }
   } else if (pInfo->p.key == INT64_MIN) {
-    last->key = tsList[i];
-    GET_TYPED_DATA(last->val, double, pInputCol->info.type, colDataGetData(pInputCol, i));
+    for (; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+      if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        continue;
+      }
 
-    pInfo->win.skey = last->key;
-    numOfElems++;
-    i += 1;
+      last->key = tsList[i];
+
+      GET_TYPED_DATA(last->val, double, pInputCol->info.type, colDataGetData(pInputCol, i));
+
+      pInfo->win.skey = last->key;
+      numOfElems++;
+      i += 1;
+      break;
+    }
   }
 
   SPoint1 st = {0};
@@ -5241,6 +5258,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
+        numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
@@ -5255,6 +5273,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
+        numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
@@ -5268,6 +5287,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
+        numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
@@ -5281,6 +5301,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
+        numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
@@ -5294,6 +5315,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
+        numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
@@ -5307,6 +5329,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
+        numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
@@ -5320,6 +5343,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
+        numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
@@ -5333,6 +5357,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
+        numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
@@ -5346,6 +5371,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
+        numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
@@ -5359,11 +5385,16 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
+        numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
+      break;
+    }
+    case TSDB_DATA_TYPE_NULL: {
+      pInfo->isNull = true;
       break;
     }
 
@@ -5379,7 +5410,11 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
 
   pInfo->win.ekey = pInfo->p.key;
 
-  SET_VAL(pResInfo, numOfElems, 1);
+  if (numOfElems == 0) {
+    pInfo->isNull = true;
+  }
+
+  SET_VAL(pResInfo, 1, 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5400,8 +5435,8 @@ int32_t twaFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
 
   STwaInfo* pInfo = (STwaInfo*)GET_ROWCELL_INTERBUF(pResInfo);
-  if (pResInfo->numOfRes == 0) {
-    pResInfo->isNullRes = 1;
+  if (pInfo->isNull == true) {
+    pResInfo->numOfRes = 0;
   } else {
     if (pInfo->win.ekey == pInfo->win.skey) {
       pInfo->dOutput = pInfo->p.val;
