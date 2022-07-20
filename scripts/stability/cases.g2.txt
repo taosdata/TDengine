@@ -1,7 +1,7 @@
 #####group2
-taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/write_1_meters.cfg
-taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/write_2.cfg
-taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/write_3_meters.cfg
-taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/medium.json --cfg-file=cases/stability/insert/write_1.cfg
-taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/medium.json --cfg-file=cases/stability/insert/write_2.cfg
-taostest --disable_collection --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/medium.json --cfg-file=cases/stability/insert/write_3.cfg
+taostest  --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/write_1_meters.cfg
+taostest  --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/write_2.cfg
+taostest  --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/write_3_meters.cfg
+taostest  --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/medium.json --cfg-file=cases/stability/insert/write_1.cfg
+taostest  --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/medium.json --cfg-file=cases/stability/insert/write_2.cfg
+taostest  --containers --keep --setup=common_insert.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/medium.json --cfg-file=cases/stability/insert/write_3.cfg

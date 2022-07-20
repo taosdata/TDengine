@@ -1,4 +1,4 @@
 #####group3 cluster 3 nodes
-taostest --disable_collection --containers --keep --setup=cluster/cluster_3_dnodes.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/write_1_meters.cfg
-taostest --disable_collection --containers --keep --setup=cluster/cluster_3_dnodes.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/write_2.cfg
-taostest --disable_collection --containers --keep --setup=cluster/cluster_3_dnodes.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/write_3_meters.cfg
+taostest  --containers --keep --setup=cluster/cluster_3_dnodes.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/write_1_meters.cfg
+taostest  --containers --keep --setup=cluster/cluster_3_dnodes.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/write_2.cfg
+taostest  --containers --keep --setup=cluster/cluster_3_dnodes.yaml --case=stability/insert/insert_test.py --case-param=cases/stability/insert/meters.json --cfg-file=cases/stability/insert/write_3_meters.cfg
