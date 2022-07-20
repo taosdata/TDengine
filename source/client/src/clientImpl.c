@@ -621,6 +621,7 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
           }
 
           taosArrayPush(pDbVgList, &pVgList);
+          taosArrayDestroy(pVgList);
         }
       }
 
