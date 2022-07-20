@@ -183,12 +183,16 @@ class TAdapter:
             s.settimeout(3)
             try:
                 res = s.connect_ex((self.remoteIP, taosadapter_port))
+                s.shutdown(2)
                 if res == 0:
                     tdLog.info(f"the taosadapter has been started, using port:{taosadapter_port}")
                 else:
                     tdLog.info(f"the taosadapter do not started!!!")
             except socket.error as  e:
                 tdLog.notice("socket connect error!")
+            finally:
+                if s:
+                    s.close()
             # tdLog.debug("the taosadapter has been started.")
             time.sleep(1)
 
