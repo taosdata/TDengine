@@ -3601,13 +3601,13 @@ int32_t initAggInfo(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInf
   return TSDB_CODE_SUCCESS;
 }
 
-void initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows) {
+void initResultSizeInfo(SResultInfo * pResultInfo, int32_t numOfRows) {
   ASSERT(numOfRows != 0);
-  pOperator->resultInfo.capacity = numOfRows;
-  pOperator->resultInfo.threshold = numOfRows * 0.75;
+  pResultInfo->capacity = numOfRows;
+  pResultInfo->threshold = numOfRows * 0.75;
 
-  if (pOperator->resultInfo.threshold == 0) {
-    pOperator->resultInfo.threshold = numOfRows;
+  if (pResultInfo->threshold == 0) {
+    pResultInfo->threshold = numOfRows;
   }
 }
 
@@ -3670,7 +3670,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
   int32_t numOfRows = 1024;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
 
-  initResultSizeInfo(pOperator, numOfRows);
+  initResultSizeInfo(&pOperator->resultInfo, numOfRows);
   int32_t code = initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -3825,7 +3825,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   if (numOfRows * pResBlock->info.rowSize > TWOMB) {
     numOfRows = TWOMB / pResBlock->info.rowSize;
   }
-  initResultSizeInfo(pOperator, numOfRows);
+  initResultSizeInfo(&pOperator->resultInfo, numOfRows);
 
   initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
   initBasicInfo(&pInfo->binfo, pResBlock);
@@ -4003,7 +4003,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
     numOfRows = TWOMB / pResBlock->info.rowSize;
   }
 
-  initResultSizeInfo(pOperator, numOfRows);
+  initResultSizeInfo(&pOperator->resultInfo, numOfRows);
 
   initAggInfo(pSup, &pInfo->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str);
   initBasicInfo(&pInfo->binfo, pResBlock);
@@ -4080,7 +4080,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   int32_t type = convertFillType(pPhyFillNode->mode);
 
   SResultInfo* pResultInfo = &pOperator->resultInfo;
-  initResultSizeInfo(pOperator, 4096);
+  initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->primaryTsCol = ((SColumnNode*)pPhyFillNode->pWStartTs)->slotId;
 
   int32_t numOfOutputCols = 0;
