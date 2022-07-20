@@ -336,22 +336,19 @@ class TestMultiThreads(TDCase):
         self.tdSql.execute(f'drop database if exists {dbname}')
 
     def run(self) -> bool:
-        for i in range(100):
-            # self.multi_threads_create_db()
-            # self.multi_threads_create_stb()
-            # self.multi_threads_create_tb()
-            # self.multi_threads_insert()
-            # self.multi_threads_create_drop_db_stb_tb()
-            # self.multi_threads_create_drop_db_stb_tb_mixed()
-            # self.insert_when_dropping_tb()
-            # # # ! TD-16209	
-            self.insert_when_dropping_db()
-            # # self.create_table_when_dropping_db()
-            # # # ! bug
-            # # # self.drop_table_when_dropping_db()
-            # self.del_column_inserting()
-            # self.add_column_when_inserting()
-            # self.alter_column_when_dropping()
+        self.multi_threads_create_db()
+        self.multi_threads_create_stb()
+        self.multi_threads_create_tb()
+        self.multi_threads_insert()
+        self.multi_threads_create_drop_db_stb_tb()
+        self.multi_threads_create_drop_db_stb_tb_mixed()
+        self.insert_when_dropping_tb()
+        self.insert_when_dropping_db()
+        self.create_table_when_dropping_db()
+        self.drop_table_when_dropping_db()
+        self.del_column_inserting()
+        self.add_column_when_inserting()
+        self.alter_column_when_dropping()
 
     def cleanup(self):
         pass
