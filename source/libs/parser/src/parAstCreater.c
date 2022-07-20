@@ -402,7 +402,11 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
     }
     taosMemoryFree(pVal->literal);
     pVal->literal = pNewLiteral;
-    pVal->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    if (IS_FLOAT_TYPE(pVal->node.resType.type)) {
+      pVal->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+    } else {
+      pVal->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    }
     return pLeft;
   }
   SOperatorNode* op = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
