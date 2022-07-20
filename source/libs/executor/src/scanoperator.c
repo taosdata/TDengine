@@ -125,7 +125,7 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
   }
 
   if (order == TSDB_ORDER_ASC) {
-    getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.skey, &w);
+    w = getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.skey);
     assert(w.ekey >= pBlockInfo->window.skey);
 
     if (w.ekey < pBlockInfo->window.ekey) {
@@ -144,7 +144,7 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
       }
     }
   } else {
-    getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.ekey, &w);
+    w = getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.ekey);
     assert(w.skey <= pBlockInfo->window.ekey);
 
     if (w.skey > pBlockInfo->window.skey) {

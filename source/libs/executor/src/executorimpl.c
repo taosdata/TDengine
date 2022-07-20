@@ -834,18 +834,20 @@ bool isTaskKilled(SExecTaskInfo* pTaskInfo) {
 void setTaskKilled(SExecTaskInfo* pTaskInfo) { pTaskInfo->code = TSDB_CODE_TSC_QUERY_CANCELLED; }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-// todo refactor : return window
-void getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, STimeWindow* win) {
-  win->skey = taosTimeTruncate(key, pInterval, precision);
+STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key) {
+  STimeWindow win  = {0};
+  win.skey = taosTimeTruncate(key, pInterval, precision);
 
   /*
    * if the realSkey > INT64_MAX - pInterval->interval, the query duration between
    * realSkey and realEkey must be less than one interval.Therefore, no need to adjust the query ranges.
    */
-  win->ekey = taosTimeAdd(win->skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
-  if (win->ekey < win->skey) {
-    win->ekey = INT64_MAX;
+  win.ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+  if (win.ekey < win.skey) {
+    win.ekey = INT64_MAX;
   }
+
+  return win;
 }
 
 #if 0
@@ -4042,8 +4044,7 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
                             STimeWindow win, int32_t capacity, const char* id, SInterval* pInterval, int32_t fillType) {
   SFillColInfo* pColInfo = createFillColInfo(pExpr, numOfCols, pValNode);
 
-  STimeWindow w = TSWINDOW_INITIALIZER;
-  getAlignQueryTimeWindow(pInterval, pInterval->precision, win.skey, &w);
+  STimeWindow w = getAlignQueryTimeWindow(pInterval, pInterval->precision, win.skey);
   w = getFirstQualifiedTimeWindow(win.skey, &w, pInterval, TSDB_ORDER_ASC);
 
   int32_t order = TSDB_ORDER_ASC;

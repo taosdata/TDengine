@@ -700,6 +700,8 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
     numOfMonth *= 12;
   }
 
+  int64_t fraction = t % TSDB_TICK_PER_SECOND(precision);
+
   struct tm tm;
   time_t    tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
   taosLocalTime(&tt, &tm);
@@ -707,7 +709,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
 
-  return (int64_t)(taosMktime(&tm) * TSDB_TICK_PER_SECOND(precision));
+  return (int64_t)(taosMktime(&tm) * TSDB_TICK_PER_SECOND(precision) + fraction);
 }
 
 int64_t taosTimeSub(int64_t t, int64_t duration, char unit, int32_t precision) {
@@ -851,7 +853,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
         newEnd = taosTimeAdd(newEnd, -pInterval->sliding, pInterval->slidingUnit, precision);
       }
 
-      start = taosTimeAdd(end, -pInterval->interval + 1, pInterval->intervalUnit, precision);
+      start = taosTimeAdd(end, -pInterval->interval, pInterval->intervalUnit, precision) + 1;
     }
   }
 

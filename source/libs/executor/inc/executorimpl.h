@@ -797,7 +797,7 @@ void    doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWin
 int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows, char* pData,
                                   int32_t compLen, int32_t numOfOutput, int64_t startTs, uint64_t* total,
                                   SArray* pColList);
-void    getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, STimeWindow* win);
+STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key);
 STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInterval* pInterval, int32_t order);
 
 int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t *order, int32_t* scanFlag);
