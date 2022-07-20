@@ -1,0 +1,111 @@
+[07/20 15:41:13.079248] INFO: start creating 2 table(s) with 8 thread(s)
+Spent 0.0240 seconds to create 2 table(s) with 8 thread(s), already exist 0 table(s), actual 2 table(s) pre created, 0 table(s) will be auto created
+[07/20 15:41:13.114894] INFO: Spent 0.007602 seconds to insert rows: 20 with 2 thread(s) into newtest 2630.89 records/second
+[07/20 15:41:13.114917] INFO: insert delay, min: 7.37ms, avg: 7.42ms, p90: 7.48ms, p95: 7.48ms, p99: 7.48ms, max: 7.48ms
+Querying On 20 records:
+SELECT * FROM newtest.meters WHERE t0 = 1
+| Speed:         1.22(per s) | Latency: 16418.0000(ms) |
+SELECT * FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         1.31(per s) | Latency: 15274.0000(ms) |
+SELECT count(*) FROM newtest.meters WHERE t0 = 1
+| Speed:         1.72(per s) | Latency: 11658.0000(ms) |
+SELECT count(*) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         1.85(per s) | Latency: 10824.0000(ms) |
+SELECT avg(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         1.89(per s) | Latency: 10578.0000(ms) |
+SELECT avg(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         1.75(per s) | Latency: 11434.0000(ms) |
+SELECT sum(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         1.88(per s) | Latency: 10651.0000(ms) |
+SELECT sum(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         1.64(per s) | Latency: 12227.0000(ms) |
+SELECT max(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         1.63(per s) | Latency: 12247.0000(ms) |
+SELECT max(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         1.66(per s) | Latency: 12078.0000(ms) |
+SELECT min(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         1.68(per s) | Latency: 11903.0000(ms) |
+SELECT min(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         1.44(per s) | Latency: 13841.0000(ms) |
+SELECT first(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         1.65(per s) | Latency: 12102.0000(ms) |
+SELECT first(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         1.47(per s) | Latency: 13581.0000(ms) |
+SELECT last(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         1.58(per s) | Latency: 12692.0000(ms) |
+SELECT last(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         1.65(per s) | Latency: 12118.0000(ms) |
+[07/20 15:43:50.350171] INFO: start creating 2 table(s) with 8 thread(s)
+Spent 0.0210 seconds to create 2 table(s) with 8 thread(s), already exist 0 table(s), actual 2 table(s) pre created, 0 table(s) will be auto created
+[07/20 15:43:50.382814] INFO: Spent 0.006046 seconds to insert rows: 20 with 2 thread(s) into newtest 3307.97 records/second
+[07/20 15:43:50.382839] INFO: insert delay, min: 5.72ms, avg: 5.81ms, p90: 5.90ms, p95: 5.90ms, p99: 5.90ms, max: 5.90ms
+Querying On 20 records:
+SELECT * FROM newtest.meters WHERE t0 = 1
+| Speed:         1.11(per s) | Latency: 17972.0000(ms) |
+SELECT * FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         1.29(per s) | Latency: 15454.0000(ms) |
+SELECT count(*) FROM newtest.meters WHERE t0 = 1
+| Speed:         1.52(per s) | Latency: 13198.0000(ms) |
+SELECT count(*) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         1.51(per s) | Latency: 13207.0000(ms) |
+SELECT avg(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         1.67(per s) | Latency: 11990.0000(ms) |
+SELECT avg(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         1.65(per s) | Latency: 12103.0000(ms) |
+SELECT sum(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         1.72(per s) | Latency: 11619.0000(ms) |
+SELECT sum(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         1.48(per s) | Latency: 13487.0000(ms) |
+SELECT max(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         1.39(per s) | Latency: 14358.0000(ms) |
+SELECT max(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         1.32(per s) | Latency: 15147.0000(ms) |
+SELECT min(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         1.62(per s) | Latency: 12345.0000(ms) |
+SELECT min(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         1.49(per s) | Latency: 13455.0000(ms) |
+SELECT first(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         1.86(per s) | Latency: 10747.0000(ms) |
+SELECT first(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         1.60(per s) | Latency: 12537.0000(ms) |
+SELECT last(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         1.60(per s) | Latency: 12509.0000(ms) |
+SELECT last(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         1.44(per s) | Latency: 13883.0000(ms) |
+[07/20 16:00:21.072160] INFO: start creating 2 table(s) with 8 thread(s)
+Spent 0.0190 seconds to create 2 table(s) with 8 thread(s), already exist 0 table(s), actual 2 table(s) pre created, 0 table(s) will be auto created
+[07/20 16:00:21.099273] INFO: Spent 0.003992 seconds to insert rows: 20 with 2 thread(s) into newtest 5010.02 records/second
+[07/20 16:00:21.099295] INFO: insert delay, min: 3.66ms, avg: 3.76ms, p90: 3.86ms, p95: 3.86ms, p99: 3.86ms, max: 3.86ms
+Querying On 20 records:
+SELECT * FROM newtest.meters WHERE t0 = 1
+| Speed:         2.63(per s) | Latency: 7615.0000(ms) |
+SELECT * FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         2.69(per s) | Latency: 7435.0000(ms) |
+SELECT count(*) FROM newtest.meters WHERE t0 = 1
+| Speed:         4.00(per s) | Latency: 5004.0000(ms) |
+SELECT count(*) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         3.49(per s) | Latency: 5727.0000(ms) |
+SELECT avg(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         3.32(per s) | Latency: 6017.0000(ms) |
+SELECT avg(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         3.78(per s) | Latency: 5297.0000(ms) |
+SELECT sum(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         3.70(per s) | Latency: 5399.0000(ms) |
+SELECT sum(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         3.67(per s) | Latency: 5455.0000(ms) |
+SELECT max(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         3.85(per s) | Latency: 5196.0000(ms) |
+SELECT max(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         3.64(per s) | Latency: 5492.0000(ms) |
+SELECT min(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         3.82(per s) | Latency: 5235.0000(ms) |
+SELECT min(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         3.52(per s) | Latency: 5686.0000(ms) |
+SELECT first(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         4.29(per s) | Latency: 4665.0000(ms) |
+SELECT first(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         3.53(per s) | Latency: 5670.0000(ms) |
+SELECT last(C0) FROM newtest.meters WHERE t0 = 1
+| Speed:         3.42(per s) | Latency: 5849.0000(ms) |
+SELECT last(C0) FROM newtest.meters WHERE t0 = 1 or t0 = 2 
+| Speed:         3.39(per s) | Latency: 5907.0000(ms) |
