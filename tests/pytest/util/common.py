@@ -444,8 +444,7 @@ class TDCom:
         return buildPath
 
     def getClientCfgPath(self):
-        # buildPath = self.getBuildPath()
-        buildPath = get_path()
+        buildPath = self.getBuildPath()
 
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
