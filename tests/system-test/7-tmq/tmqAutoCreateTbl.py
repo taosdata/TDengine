@@ -225,7 +225,7 @@ class TDTestCase:
         tdSql.prepare()
         self.prepareTestEnv()
         self.tmqCase1()
-        # self.tmqCase2()     TD-17267
+        # self.tmqCase2()     # TD-17267
         
 
     def stop(self):
