@@ -393,9 +393,16 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
     SValueNode* pVal = (SValueNode*)pLeft;
     char*       pNewLiteral = taosMemoryCalloc(1, strlen(pVal->literal) + 2);
     CHECK_OUT_OF_MEM(pNewLiteral);
-    sprintf(pNewLiteral, "-%s", pVal->literal);
+    if ('+' == pVal->literal[0]) {
+      sprintf(pNewLiteral, "-%s", pVal->literal + 1);
+    } else if ('-' == pVal->literal[0]) {
+      sprintf(pNewLiteral, "%s", pVal->literal + 1);
+    } else {
+      sprintf(pNewLiteral, "-%s", pVal->literal);
+    }
     taosMemoryFree(pVal->literal);
     pVal->literal = pNewLiteral;
+    pVal->node.resType.type = TSDB_DATA_TYPE_BIGINT;
     return pLeft;
   }
   SOperatorNode* op = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
@@ -1343,7 +1350,11 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
   CHECK_PARSER_STATUS(pCxt);
   SAlterDnodeStmt* pStmt = (SAlterDnodeStmt*)nodesMakeNode(QUERY_NODE_ALTER_DNODE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  pStmt->dnodeId = taosStr2Int32(pDnode->z, NULL, 10);
+  if (NULL != pDnode) {
+    pStmt->dnodeId = taosStr2Int32(pDnode->z, NULL, 10);
+  } else {
+    pStmt->dnodeId = -1;
+  }
   trimString(pConfig->z, pConfig->n, pStmt->config, sizeof(pStmt->config));
   if (NULL != pValue) {
     trimString(pValue->z, pValue->n, pStmt->value, sizeof(pStmt->value));
