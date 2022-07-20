@@ -9,10 +9,10 @@ class TAdapter:
         self.deployed = 0
         self.remoteIP = ""
         self.taosadapter_cfg_dict = {
-            "debug"         : False,
+            "debug"         : True,
             "taosConfigDir" : "",
             "port"          : 6041,
-            "logLevel"      : "info",
+            "logLevel"      : "debug",
             "cors"          : {
                 "allowAllOrigins" : True,
             },
