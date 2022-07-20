@@ -52,9 +52,9 @@ class Prometheus(TDCase):
             return False
         else:
             self.logger.info("remote write success")
-        time.sleep(10)
+        time.sleep(20)
         try:
-            self.lcmd.run('promql-cli "rate(prometheus_tsdb_head_chunks_created_total[1m])"', cwd=self.cwd)
+            self.lcmd.run('promql-cli "count(prometheus_target_interval_length_seconds)"', cwd=self.cwd)
         except BaseException as e:
             self.set_error_msg("remote read failed:" + str(e))
             return False
