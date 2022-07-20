@@ -573,6 +573,12 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
       pReceiver->pSyncNode->commitIndex = pReceiver->snapshot.lastApplyIndex;
     }
 
+    // maybe update term
+    if (pReceiver->snapshot.lastApplyTerm > pReceiver->pSyncNode->pRaftStore->currentTerm) {
+      pReceiver->pSyncNode->pRaftStore->currentTerm = pReceiver->snapshot.lastApplyTerm;
+      raftStorePersist(pReceiver->pSyncNode->pRaftStore);
+    }
+
     // stop writer, apply data
     code = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, true,
                                                            &(pReceiver->snapshot));
