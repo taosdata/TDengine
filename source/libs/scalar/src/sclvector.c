@@ -1195,7 +1195,7 @@ static void vectorMathTsSubHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pR
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
-      *output = taosTimeSub(getVectorBigintValueFnLeft(pLeftCol->pData, i), getVectorBigintValueFnRight(pRightCol->pData, 0),
+      *output = taosTimeAdd(getVectorBigintValueFnLeft(pLeftCol->pData, i), -getVectorBigintValueFnRight(pRightCol->pData, 0),
                             pRightCol->info.scale, pRightCol->info.precision);
       
     }

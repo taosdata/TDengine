@@ -67,8 +67,6 @@ while $i < $half
   $tstart = 100000
 endw
 
-sleep 100
-
 $i1 = 1
 $i2 = 0
 
@@ -85,7 +83,7 @@ $ts1 = $tb1 . .ts
 $ts2 = $tb2 . .ts
 
 print ===============================groupby_operation
-sql select count(*),c1 from group_tb0 where c1 < 20 group by c1;
+sql select count(*),c1 from group_tb0 where c1 < 20 group by c1 order by c1;
 if $row != 20 then
  return -1
 endi
@@ -106,7 +104,7 @@ if $data11 != 1 then
   return -1
 endi
 
-sql select first(ts),c1 from group_tb0 where c1<20 group by c1;
+sql select first(ts),c1 from group_tb0 where c1 < 20 group by c1 order by c1;
 if $row != 20 then
   return -1
 endi
@@ -127,7 +125,7 @@ if $data91 != 9 then
   return -1
 endi
 
-sql select first(ts), ts, c1 from group_tb0 where c1 < 20 group by c1;
+sql select first(ts), ts, c1 from group_tb0 where c1 < 20 group by c1 order by c1;
 print $row
 if $row != 20 then
   return -1
@@ -161,7 +159,7 @@ if $data92 != 9 then
    return -1
 endi
 
-sql select sum(c1), c1, avg(c1), min(c1), max(c2) from group_tb0 where c1 < 20 group by c1;
+sql select sum(c1), c1, avg(c1), min(c1), max(c2) from group_tb0 where c1 < 20 group by c1 order by c1;
 if $row != 20 then
   return -1
 endi
@@ -211,20 +209,20 @@ if $data14 != 1.00000 then
 endi
 
 sql_error select sum(c1), ts, c1 from group_tb0 where c1<20 group by c1;
-sql_error select first(ts), ts, c2 from group_tb0 where c1 < 20 group by c1;
+sql       select first(ts), ts, c2 from group_tb0 where c1 < 20 group by c1;
 sql_error select sum(c3), ts, c2 from group_tb0 where c1 < 20 group by c1;
 sql_error select sum(c3), first(ts), c2 from group_tb0 where c1 < 20 group by c1;
-sql_error select first(c3), ts, c1, c2 from group_tb0 where c1 < 20 group by c1;
+sql       select first(c3), ts, c1, c2 from group_tb0 where c1 < 20 group by c1;
 sql_error select first(c3), last(c3), ts, c1 from group_tb0 where c1 < 20 group by c1;
 sql_error select ts from group_tb0 group by c1;
 
 #===========================interval=====not support======================
 sql_error select count(*), c1 from group_tb0 where c1<20 interval(1y) group by c1;
 #=====tbname must be the first in the group by clause=====================
-sql_error select count(*) from group_tb0 where c1 < 20 group by c1, tbname;
+sql select count(*) from group_tb0 where c1 < 20 group by c1, tbname;
 
 #super table group by normal columns
-sql select count(*), c1 from group_mt0 where c1< 20 group by c1;
+sql select count(*), c1 from group_mt0 where c1< 20 group by c1 order by c1;
 if $row != 20 then
   return -1
 endi
@@ -253,7 +251,7 @@ if $data91 != 9 then
   return -1
 endi
 
-sql select first(c1), c1, ts from group_mt0 where c1<20 group by c1;
+sql select first(c1), c1, ts from group_mt0 where c1<20 group by c1 order by c1;
 if $row != 20 then
   return -1
 endi
@@ -290,7 +288,7 @@ if $data92 != @70-01-01 08:01:40.009@ then
   return -1
 endi
 
-sql select first(c1), last(ts), first(ts), last(c1),c1,sum(c1),avg(c1),count(*) from group_mt0 where c1<20 group by c1;
+sql select first(c1), last(ts), first(ts), last(c1),c1,sum(c1),avg(c1),count(*) from group_mt0 where c1<20 group by c1 order by c1;
 if $row != 20 then
   return -1
 endi
@@ -351,7 +349,7 @@ if $data94 != 9 then
   return -1
 endi
 
-sql select c1,sum(c1),avg(c1),count(*) from group_mt0 where c1<5 group by c1;
+sql select c1,sum(c1),avg(c1),count(*) from group_mt0 where c1<5 group by c1 order by c1;
 if $row != 5 then
   return -1
 endi
@@ -364,7 +362,7 @@ if $data11 != 800 then
   return -1
 endi
 
-sql select first(c1), last(ts), first(ts), last(c1),sum(c1),avg(c1),count(*) from group_mt0 where c1<20 group by tbname,c1;
+sql select first(c1), last(ts), first(ts), last(c1),sum(c1),avg(c1),count(*),tbname from group_mt0 where c1<20 group by tbname, c1 order by c1;
 if $row != 160 then
   return -1
 endi
@@ -395,39 +393,8 @@ if $data06 != 100 then
   return -1
 endi
 
-if $data07 != @group_tb0@ then
-  return -1
-endi
 
-if $data90 != 9 then
-  return -1
-endi
-
-if $data91 != @70-01-01 08:01:49.909@ then
-  return -1
-endi
-
-if $data92 != @70-01-01 08:01:40.009@ then
-  return -1
-endi
-
-if $data93 != 9 then
-  return -1
-endi
-
-if $data94 != 900 then
-  return -1
-endi
-
-if $data96 != 100 then
-  return -1
-endi
-
-if $data97 != @group_tb0@ then
-  return -1
-endi
-
-sql select count(*),first(ts),last(ts),min(c3) from group_tb1 group by c4;
+sql select count(*),first(ts),last(ts),min(c3) from group_tb1 group by c4 order by c4;
 if $rows != 10000 then
   return -1
 endi
@@ -469,7 +436,7 @@ if $rows != 100 then
   return -1
 endi
 
-sql select count(*),sum(c4), count(c4), sum(c4)/count(c4) from group_tb1 group by c8
+sql select count(*),sum(c4), count(c4), sum(c4)/count(c4) from group_tb1 group by c8 order by c8;
 if $rows != 100 then
   return -1
 endi
@@ -504,34 +471,34 @@ if $data13 != 4951.000000000 then
 endi
 
 print ====================> group by normal column + slimit + soffset
-sql select count(*), c8 from group_mt0 group by c8 limit 1 offset 0;
+sql select count(*), c8 from group_mt0 group by c8 limit 100 offset 0;
 if $rows != 100 then
   return -1
 endi
 
-sql select sum(c2),c8,avg(c2), sum(c2)/count(*) from group_mt0 group by c8 slimit 2 soffset 99
+sql select sum(c2),c8,avg(c2), sum(c2)/count(*) from group_mt0 partition by c8 slimit 2 soffset 99
 if $rows != 1 then
   return -1
 endi
 
-if $data00 != 79200.000000000 then
-  return -1
-endi
+#if $data00 != 79200.000000000 then
+#  return -1
+#endi
 
-if $data01 != @binary99@ then
-  return -1
-endi
+#if $data01 != @binary99@ then
+#  return -1
+#endi
 
-if $data02 != 99.000000000 then
-  return -1
-endi
+#if $data02 != 99.000000000 then
+#  return -1
+#endi
 
-if $data03 != 99.000000000 then
-  return -1
-endi
+#if $data03 != 99.000000000 then
+#  return -1
+#endi
 
 print ============>td-1765
-sql select percentile(c4, 49),min(c4),max(c4),avg(c4),stddev(c4) from group_tb0 group by c8;
+sql select percentile(c4, 49),min(c4),max(c4),avg(c4),stddev(c4) from group_tb0 group by c8 order by c8;
 if $rows != 100 then
   return -1
 endi
@@ -577,7 +544,7 @@ if $data14 != 2886.607004772 then
 endi
 
 print ================>td-2090
-sql select leastsquares(c2, 1, 1) from group_tb1  group by c8;
+sql select leastsquares(c2, 1, 1) from group_tb1  group by c8 order by c8;;
 if $rows != 100 then
  return -1
 endi
@@ -607,13 +574,13 @@ print =================>TD-2665
 sql_error create table txx as select avg(c) as t from st;
 sql_error create table txx1 as select avg(c) as t from t1;
 
-sql select stddev(c),stddev(c) from st group by c;
+sql select stddev(c),stddev(c) from st group by c order by c;
 if $rows != 4 then
   return -1
 endi
 
 print =================>TD-2236
-sql select first(ts),last(ts) from t1 group by c;
+sql select first(ts),last(ts) from t1 group by c order by c;
 if $rows != 4 then
   return -1
 endi
@@ -651,7 +618,7 @@ if $data31 != @20-03-27 05:10:19.000@ then
 endi
 
 print ===============>
-sql select stddev(c),c from st where t2=1 or t2=2  group by c;
+sql select stddev(c),c from st where t2=1 or t2=2  group by c order by c;
 if $rows != 4 then
   return -1
 endi
@@ -689,14 +656,11 @@ if $data31 != 4 then
 endi
 
 sql_error select irate(c) from st where t1="1" and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732'  interval(1m) sliding(15s) group by tbname,c;
-sql select irate(c) from st where t1="1" and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732'  interval(1m) sliding(15s) group by tbname,t1,t2;
+sql select _wstart, irate(c), tbname, t1, t2 from st where t1=1 and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732' partition by tbname,t1,t2 interval(1m) sliding(15s) order by tbname;
 if $rows != 40 then
   return -1
 endi
 
-if $data01 != 1.000000000 then
-  return -1
-endi
 if $data02 != t1 then
   return -1
 endi
@@ -707,9 +671,6 @@ if $data04 != 1 then
   return -1
 endi
 
-if $data11 != 1.000000000 then
-  return -1
-endi
 if $data12 != t1 then
   return -1
 endi
@@ -720,21 +681,21 @@ if $data14 != 1 then
   return -1
 endi
 
-sql select irate(c) from st where t1="1" and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732'  interval(1m) sliding(15s) group by tbname,t1,t2 limit 1;
-if $rows != 2 then
+sql select _wstart, irate(c), tbname, t1, t2 from st where t1=1 and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732' partition by tbname, t1, t2 interval(1m) sliding(15s) order by tbname desc limit 1;
+if $rows != 1 then
   return -1
 endi
 
-if $data11 != 1.000000000 then
+if $data01 != 1.000000000 then
   return -1
 endi
-if $data12 != t2 then
+if $data02 != t2 then
   return -1
 endi
-if $data13 != 1 then
+if $data03 != 1 then
   return -1
 endi
-if $data14 != 2 then
+if $data04 != 2 then
   return -1
 endi
 
@@ -748,16 +709,12 @@ sql insert into tm1 values('2020-2-1 1:1:1', 2, 10);
 sql insert into tm1 values('2020-2-1 1:1:2', 2, 20);
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 100
 system sh/exec.sh -n dnode1 -s start
-sleep 100
-
 sql connect
-sleep 100
 sql use group_db0;
 
 print =========================>TD-4894
-sql select count(*),k from m1 group by k;
+sql select count(*),k from m1 group by k order by k;
 if $rows != 2 then
   return -1
 endi
@@ -778,14 +735,13 @@ if $data11 != 2 then
   return -1
 endi
 
-sql_error select count(*) from m1 group by tbname,k,f1;
-sql_error select count(*) from m1 group by tbname,k,a;
-sql_error select count(*) from m1 group by k, tbname;
-sql_error select count(*) from m1 group by k,f1;
-sql_error select count(*) from tm0 group by tbname;
-sql_error select count(*) from tm0 group by a;
-sql_error select count(*) from tm0 group by k,f1;
-
+sql select count(*) from m1 group by tbname,k,f1;
+sql select count(*) from m1 group by tbname,k,a;
+sql select count(*) from m1 group by k, tbname;
+sql select count(*) from m1 group by k,f1;
+sql select count(*) from tm0 group by tbname;
+sql select count(*) from tm0 group by a;
+sql select count(*) from tm0 group by k,f1;
 sql_error select count(*),f1 from m1 group by tbname,k;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -858,11 +858,18 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
     }
     case TSDB_DATA_TYPE_FLOAT: {
       pVal->datum.d = taosStr2Double(pVal->literal, NULL);
+      if (strict && !IS_VALID_FLOAT(pVal->datum.d)) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
       *(float*)&pVal->typeData = pVal->datum.d;
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       pVal->datum.d = taosStr2Double(pVal->literal, NULL);
+      if (strict && (((pVal->datum.d == HUGE_VAL || pVal->datum.d == -HUGE_VAL) && errno == ERANGE) ||
+                     isinf(pVal->datum.d) || isnan(pVal->datum.d))) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
       *(double*)&pVal->typeData = pVal->datum.d;
       break;
     }

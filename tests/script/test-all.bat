@@ -63,4 +63,5 @@ goto :eof
 :CheckSkipCase
 set skipCase=false
 @REM if "%*" == "./test.sh -f tsim/query/scalarFunction.sim" ( set skipCase=true )
+echo %* | grep valgrind && set skipCase=true
 :goto eof

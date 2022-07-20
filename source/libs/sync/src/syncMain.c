@@ -999,7 +999,18 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   // init TLA+ log vars
   pSyncNode->pLogStore = logStoreCreate(pSyncNode);
   ASSERT(pSyncNode->pLogStore != NULL);
-  pSyncNode->commitIndex = SYNC_INDEX_INVALID;
+
+  SyncIndex commitIndex = SYNC_INDEX_INVALID;
+  if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+    SSnapshot snapshot = {0};
+    int32_t   code = pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
+    ASSERT(code == 0);
+    if (snapshot.lastApplyIndex > commitIndex) {
+      commitIndex = snapshot.lastApplyIndex;
+      syncNodeEventLog(pSyncNode, "reset commit index by snapshot");
+    }
+  }
+  pSyncNode->commitIndex = commitIndex;
 
   // timer ms init
   pSyncNode->pingBaseLine = PING_TIMER_MS;
@@ -1553,7 +1564,8 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
       snprintf(logBuf, sizeof(logBuf), "%s", str);
     }
     // sDebug("%s", logBuf);
-    sInfo("%s", logBuf);
+    // sInfo("%s", logBuf);
+    sTrace("%s", logBuf);
 
   } else {
     int   len = 256 + userStrLen;
@@ -1575,7 +1587,8 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
       snprintf(s, len, "%s", str);
     }
     // sDebug("%s", s);
-    sInfo("%s", s);
+    // sInfo("%s", s);
+    sTrace("%s", s);
     taosMemoryFree(s);
   }
 
@@ -2061,21 +2074,21 @@ void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER);
   pSyncNode->state = TAOS_SYNC_STATE_CANDIDATE;
 
-  syncNodeLog2("==state change syncNodeFollower2Candidate==", pSyncNode);
+  syncNodeEventLog(pSyncNode, "follower to candidate");
 }
 
 void syncNodeLeader2Follower(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
   syncNodeBecomeFollower(pSyncNode, "leader to follower");
 
-  syncNodeLog2("==state change syncNodeLeader2Follower==", pSyncNode);
+  syncNodeEventLog(pSyncNode, "leader to follower");
 }
 
 void syncNodeCandidate2Follower(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
   syncNodeBecomeFollower(pSyncNode, "candidate to follower");
 
-  syncNodeLog2("==state change syncNodeCandidate2Follower==", pSyncNode);
+  syncNodeEventLog(pSyncNode, "candidate to follower");
 }
 
 // raft vote --------------
@@ -2912,4 +2925,126 @@ bool syncNodeCanChange(SSyncNode* pSyncNode) {
   }
 
   return true;
+}
+
+void syncLogSendRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf),
+           "send sync-request-vote to %s:%d {term:%" PRIu64 ", lindex:%" PRId64 ", lterm:%" PRIu64 "}, %s", host, port,
+           pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
+
+void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s) {
+  char     logBuf[256];
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+  snprintf(logBuf, sizeof(logBuf),
+           "recv sync-request-vote from %s:%d, {term:%" PRIu64 ", lindex:%" PRId64 ", lterm:%" PRIu64 "}, %s", host,
+           port, pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
+
+void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf), "send sync-request-vote-reply to %s:%d {term:%" PRIu64 ", grant:%d}, %s", host, port,
+           pMsg->term, pMsg->voteGranted, s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
+
+void syncLogRecvRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf), "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, %s", host,
+           port, pMsg->term, pMsg->voteGranted, s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
+
+void syncLogSendAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf),
+           "send sync-append-entries to %s:%d, {term:%" PRIu64 ", pre-index:%" PRId64 ", pre-term:%" PRIu64
+           ", pterm:%" PRIu64 ", commit:%" PRId64
+           ", "
+           "datalen:%d}, %s",
+           host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm, pMsg->commitIndex,
+           pMsg->dataLen, s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
+
+void syncLogRecvAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf),
+           "recv sync-append-entries from %s:%d {term:%" PRIu64 ", pre-index:%" PRIu64 ", pre-term:%" PRIu64
+           ", commit:%" PRIu64 ", pterm:%" PRIu64
+           ", "
+           "datalen:%d}, %s",
+           host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
+           pMsg->dataLen, s);
+  syncNodeErrorLog(pSyncNode, logBuf);
+}
+
+void syncLogSendAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf),
+           "send sync-append-entries-batch to %s:%d, {term:%" PRIu64 ", pre-index:%" PRId64 ", pre-term:%" PRIu64
+           ", pterm:%" PRIu64 ", commit:%" PRId64 ", datalen:%d, count:%d}, %s",
+           host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm, pMsg->commitIndex,
+           pMsg->dataLen, pMsg->dataCount, s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
+
+void syncLogRecvAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf),
+           "recv sync-append-entries-batch from %s:%d, {term:%" PRIu64 ", pre-index:%" PRId64 ", pre-term:%" PRIu64
+           ", pterm:%" PRIu64 ", commit:%" PRId64 ", datalen:%d, count:%d}, %s",
+           host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm, pMsg->commitIndex,
+           pMsg->dataLen, pMsg->dataCount, s);
+  syncNodeErrorLog(pSyncNode, logBuf);
+}
+
+void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf),
+           "send sync-append-entries-reply to %s:%d, {term:%" PRIu64 ", pterm:%" PRIu64 ", success:%d, match:%" PRId64
+           "}, %s",
+           host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex, s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
+
+void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf),
+           "recv sync-append-entries-reply from %s:%d {term:%" PRIu64 ", pterm:%" PRIu64 ", success:%d, match:%" PRId64
+           "}, %s",
+           host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex, s);
+  syncNodeErrorLog(pSyncNode, logBuf);
 }
