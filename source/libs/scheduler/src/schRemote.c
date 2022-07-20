@@ -555,7 +555,7 @@ int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
       *fp = schHandleCallback;
       break;
     case TDMT_SCH_DROP_TASK:
-      *fp = schHandleDropCallback;
+      //*fp = schHandleDropCallback;
       break;
     case TDMT_SCH_QUERY_HEARTBEAT:
       *fp = schHandleHbCallback;
