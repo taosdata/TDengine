@@ -55,9 +55,6 @@ class Prometheus(TDCase):
         time.sleep(30)
         try:
             self.lcmd.run('promql-cli "count(prometheus_target_interval_length_seconds)"', cwd=self.cwd)
-        except BaseException as e:
-            self.set_error_msg("remote read failed:" + str(e))
-            return False
         finally:
             prom_process.kill()
 
