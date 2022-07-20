@@ -211,10 +211,10 @@ class TDTestCase:
                 for error in [constant.INT_UN_MIN-1,constant.INT_UN_MAX+1]:
                     tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}')  
             #! bug TD-17106
-            # elif v.lower() == 'bigint unsigned':
-                # self.tag_check(i,k,tag_unbigint)
-                # for error in [constant.BIGINT_UN_MIN-1,constant.BIGINT_UN_MAX+1]:
-                #     tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}') 
+            elif v.lower() == 'bigint unsigned':
+                self.tag_check(i,k,tag_unbigint)
+                for error in [constant.BIGINT_UN_MIN-1,constant.BIGINT_UN_MAX+1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}') 
             elif v.lower() == 'bool':     
                 self.tag_check(i,k,tag_bool)
             elif v.lower() == 'float':
@@ -225,8 +225,8 @@ class TDTestCase:
                 else:
                     tdLog.exit(f'select {k} from {self.stbname}_{i},data check failure')
             #! bug TD-17106    
-                # for error in [constant.FLOAT_MIN*1.1,constant.FLOAT_MAX*1.1]:
-                #     tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}') 
+                for error in [constant.FLOAT_MIN*1.1,constant.FLOAT_MAX*1.1]:
+                    tdSql.error(f'alter table {self.stbname}_{i} set tag {k} = {error}') 
             elif v.lower() == 'double':
                 tdSql.execute(f'alter table {self.stbname}_{i} set tag {k} = {tag_double}')
                 tdSql.query(f'select {k} from {self.stbname}_{i}')

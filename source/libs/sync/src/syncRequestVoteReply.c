@@ -40,22 +40,41 @@
 int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg) {
   int32_t ret = 0;
 
-  // print log
-  char logBuf[128] = {0};
-  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnRequestVoteReplyCb== term:%" PRIu64, ths->pRaftStore->currentTerm);
-  syncRequestVoteReplyLog2(logBuf, pMsg);
+  // trace log
+  do {
+    char     host[64];
+    uint16_t port;
+    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+    char logBuf[256];
+    snprintf(logBuf, sizeof(logBuf), "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d} ", host,
+             port, pMsg->term, pMsg->voteGranted);
+    syncNodeEventLog(ths, logBuf);
+  } while (0);
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    sInfo("recv SyncRequestVoteReply, maybe replica already dropped");
-    return ret;
+    char     host[64];
+    uint16_t port;
+    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+    char logBuf[256];
+    snprintf(logBuf, sizeof(logBuf),
+             "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, maybe replica dropped", host, port,
+             pMsg->term, pMsg->voteGranted);
+    syncNodeErrorLog(ths, logBuf);
+    return -1;
   }
 
   // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
-    sTrace("recv SyncRequestVoteReply, drop stale response, receive_term:%" PRIu64 " current_term:%" PRIu64, pMsg->term,
-           ths->pRaftStore->currentTerm);
-    return ret;
+    char     host[64];
+    uint16_t port;
+    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+    char logBuf[256];
+    snprintf(logBuf, sizeof(logBuf),
+             "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, drop stale response", host, port,
+             pMsg->term, pMsg->voteGranted);
+    syncNodeErrorLog(ths, logBuf);
+    return -1;
   }
 
   // ASSERT(!(pMsg->term > ths->pRaftStore->currentTerm));
@@ -65,12 +84,14 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
   //   }
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
-    char logBuf[128] = {0};
-    snprintf(logBuf, sizeof(logBuf), "syncNodeOnRequestVoteReplyCb error term, receive:%" PRIu64 " current:%" PRIu64,
-             pMsg->term, ths->pRaftStore->currentTerm);
-    syncNodePrint2(logBuf, ths);
-    sError("%s", logBuf);
-    return ret;
+    char     host[64];
+    uint16_t port;
+    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+    char logBuf[256];
+    snprintf(logBuf, sizeof(logBuf), "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, error term",
+             host, port, pMsg->term, pMsg->voteGranted);
+    syncNodeErrorLog(ths, logBuf);
+    return -1;
   }
 
   ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
@@ -99,7 +120,7 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
     }
   }
 
-  return ret;
+  return 0;
 }
 
 #if 0
@@ -164,22 +185,41 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
 int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteReply* pMsg) {
   int32_t ret = 0;
 
-  // print log
-  char logBuf[128] = {0};
-  snprintf(logBuf, sizeof(logBuf), "recv SyncRequestVoteReply, term:%" PRIu64, ths->pRaftStore->currentTerm);
-  syncRequestVoteReplyLog2(logBuf, pMsg);
+  // trace log
+  do {
+    char     host[64];
+    uint16_t port;
+    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+    char logBuf[256];
+    snprintf(logBuf, sizeof(logBuf), "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d} ", host,
+             port, pMsg->term, pMsg->voteGranted);
+    syncNodeEventLog(ths, logBuf);
+  } while (0);
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    sInfo("recv SyncRequestVoteReply, maybe replica already dropped");
-    return ret;
+    char     host[64];
+    uint16_t port;
+    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+    char logBuf[256];
+    snprintf(logBuf, sizeof(logBuf),
+             "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, maybe replica dropped", host, port,
+             pMsg->term, pMsg->voteGranted);
+    syncNodeErrorLog(ths, logBuf);
+    return -1;
   }
 
   // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
-    sTrace("recv SyncRequestVoteReply, drop stale response, receive_term:%" PRIu64 " current_term:%" PRIu64, pMsg->term,
-           ths->pRaftStore->currentTerm);
-    return ret;
+    char     host[64];
+    uint16_t port;
+    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+    char logBuf[256];
+    snprintf(logBuf, sizeof(logBuf),
+             "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, drop stale response", host, port,
+             pMsg->term, pMsg->voteGranted);
+    syncNodeErrorLog(ths, logBuf);
+    return -1;
   }
 
   // ASSERT(!(pMsg->term > ths->pRaftStore->currentTerm));
@@ -189,13 +229,14 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
   //   }
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
-    char logBuf[128] = {0};
-    snprintf(logBuf, sizeof(logBuf),
-             "recv SyncRequestVoteReply, error term, receive_term:%" PRIu64 " current_term:%" PRIu64, pMsg->term,
-             ths->pRaftStore->currentTerm);
-    syncNodePrint2(logBuf, ths);
-    sError("%s", logBuf);
-    return ret;
+    char     host[64];
+    uint16_t port;
+    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+    char logBuf[256];
+    snprintf(logBuf, sizeof(logBuf), "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, error term",
+             host, port, pMsg->term, pMsg->voteGranted);
+    syncNodeErrorLog(ths, logBuf);
+    return -1;
   }
 
   ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
@@ -224,5 +265,5 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
     }
   }
 
-  return ret;
+  return 0;
 }
