@@ -260,6 +260,8 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 
 #define REQUEST_TOTAL_EXEC_TIMES 2
 
+#define IS_SYS_DBNAME(_dbname) (((*(_dbname) == 'i') && (0 == strcmp(_dbname, TSDB_INFORMATION_SCHEMA_DB))) || ((*(_dbname) == 'p') && (0 == strcmp(_dbname, TSDB_PERFORMANCE_SCHEMA_DB))))
+
 #define qFatal(...)                                                                           \
   do {                                                                                        \
     if (qDebugFlag & DEBUG_FATAL) {                                                           \
