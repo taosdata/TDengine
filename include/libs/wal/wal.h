@@ -64,6 +64,7 @@ typedef struct {
   int64_t verInSnapshotting;
   int64_t snapshotVer;
   int64_t commitVer;
+  int64_t appliedVer;
   int64_t lastVer;
 } SWalVer;
 
@@ -172,6 +173,9 @@ int32_t walRollback(SWal *, int64_t ver);
 int32_t walBeginSnapshot(SWal *, int64_t ver);
 int32_t walEndSnapshot(SWal *);
 int32_t walRestoreFromSnapshot(SWal *, int64_t ver);
+// for tq
+int32_t walApplyVer(SWal *, int64_t ver);
+
 // int32_t  walDataCorrupted(SWal*);
 
 // read
@@ -186,7 +190,6 @@ void    walSetReaderCapacity(SWalReader *pRead, int32_t capacity);
 int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead);
 int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead);
 int32_t walSkipFetchBody(SWalReader *pRead, const SWalCkHead *pHead);
-
 typedef struct {
   int64_t refId;
   int64_t ver;
@@ -206,6 +209,7 @@ int64_t walGetFirstVer(SWal *);
 int64_t walGetSnapshotVer(SWal *);
 int64_t walGetLastVer(SWal *);
 int64_t walGetCommittedVer(SWal *);
+int64_t walGetAppliedVer(SWal *);
 
 #ifdef __cplusplus
 }

@@ -160,7 +160,7 @@ class TDTestCase:
             stableName= '%s_%d'%(paraDict['stbName'],i)
             newTdSql=tdCom.newTdSql()
             clusterComCreate.create_ctable(newTdSql, paraDict["dbName"],stableName,stableName, paraDict['ctbNum'])
-        #insert date
+        #insert data
         for i in range(paraDict['stbNumbers']):
             stableName= '%s_%d'%(paraDict['stbName'],i)
             newTdSql=tdCom.newTdSql()
@@ -170,7 +170,8 @@ class TDTestCase:
         dnode6Port=int(6030+5*100)
         tdSql.execute("create dnode '%s:%d'"%(hostname,dnode6Port))
         clusterComCheck.checkDnodes(dnodeNumbers)
-
+        for tr in threads:
+            tr.join()
         while stopcount < restartNumbers:
             tdLog.info(" restart loop: %d"%stopcount )
             if stopRole == "mnode":
@@ -202,8 +203,7 @@ class TDTestCase:
                 tdLog.exit("one or more of dnodes failed to start ")
                 # self.check3mnode()
             stopcount+=1
-        for tr in threads:
-            tr.join()
+
             
 
         clusterComCheck.checkDnodes(dnodeNumbers)
