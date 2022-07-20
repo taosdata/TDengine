@@ -2147,12 +2147,17 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   SSysTableScanInfo* pInfo = pOperator->info;
 
   const char* name = tNameGetTableName(&pInfo->name);
-  const char* dbName = tNameGetDbNameP(&pInfo->name);
+  if (pInfo->showRewrite) {
+    char dbName[TSDB_DB_NAME_LEN] = {0};
+    getDBNameFromCondition(pInfo->pCondition, dbName);
+    sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
+  }
+  
   if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, TSDB_TABLE_FNAME_LEN) == 0) {
     return sysTableScanUserTables(pOperator);
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
     return sysTableScanUserTags(pOperator);
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STABLES, TSDB_TABLE_FNAME_LEN) == 0 && IS_SYS_DBNAME(dbName)) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STABLES, TSDB_TABLE_FNAME_LEN) == 0 && IS_SYS_DBNAME(pInfo->req.db)) {
     return sysTableScanUserSTables(pOperator);
   } else {  // load the meta from mnode of the given epset
     if (pOperator->status == OP_EXEC_DONE) {
@@ -2163,12 +2168,6 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       int64_t startTs = taosGetTimestampUs();
       strncpy(pInfo->req.tb, tNameGetTableName(&pInfo->name), tListLen(pInfo->req.tb));
       strcpy(pInfo->req.user, pInfo->pUser);
-
-      if (pInfo->showRewrite) {
-        char dbName[TSDB_DB_NAME_LEN] = {0};
-        getDBNameFromCondition(pInfo->pCondition, dbName);
-        sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
-      }
 
       int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &pInfo->req);
       char*   buf1 = taosMemoryCalloc(1, contLen);
