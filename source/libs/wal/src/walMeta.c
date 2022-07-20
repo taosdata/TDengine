@@ -126,10 +126,11 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
     return -1;
   }
   SWalCkHead* lastEntry = (SWalCkHead*)found;
+  int64_t     retVer = lastEntry->head.version;
   taosCloseFile(&pFile);
   taosMemoryFree(buf);
 
-  return lastEntry->head.version;
+  return retVer;
 }
 
 int walCheckAndRepairMeta(SWal* pWal) {
