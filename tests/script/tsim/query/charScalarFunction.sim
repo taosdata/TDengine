@@ -43,4 +43,3 @@ sql insert into ctb6 values ("2022-01-01 00:00:00.001" , NULL , NULL, NULL )
 
 print ====> select c2 ,length(c2), char_length(c2) from ctb6
 sql select c2 ,length(c2), char_length(c2) from ctb6
-
