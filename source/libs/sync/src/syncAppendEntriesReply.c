@@ -42,36 +42,13 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    do {
-      char     host[64];
-      uint16_t port;
-      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-      char logBuf[256];
-      snprintf(logBuf, sizeof(logBuf),
-               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
-               "}, maybe replica "
-               "already dropped",
-               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
-      syncNodeErrorLog(ths, logBuf);
-    } while (0);
-
+    syncLogRecvAppendEntriesReply(ths, pMsg, "maybe replica already dropped");
     return -1;
   }
 
   // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
-    do {
-      char     host[64];
-      uint16_t port;
-      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-      char logBuf[256];
-      snprintf(logBuf, sizeof(logBuf),
-               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
-               "}, drop stale response",
-               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
-      syncNodeEventLog(ths, logBuf);
-    } while (0);
-
+    syncLogRecvAppendEntriesReply(ths, pMsg, "drop stale response");
     return 0;
   }
 
@@ -81,22 +58,14 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
   //  }
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
-    do {
-      char     host[64];
-      uint16_t port;
-      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-      char logBuf[256];
-      snprintf(logBuf, sizeof(logBuf),
-               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
-               "}, error term",
-               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
-      syncNodeErrorLog(ths, logBuf);
-    } while (0);
-
+    syncLogRecvAppendEntriesReply(ths, pMsg, "error term");
     return -1;
   }
 
   ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
+
+  SyncIndex beforeNextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
+  SyncIndex beforeMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
 
   if (pMsg->success) {
     // nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.mmatchIndex + 1]
@@ -120,20 +89,13 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
     syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), nextIndex);
   }
 
+  SyncIndex afterNextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
+  SyncIndex afterMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
   do {
-    char     host[64];
-    uint16_t port;
-    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-    char      logBuf[256];
-    SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
-    SyncIndex matchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
-    snprintf(logBuf, sizeof(logBuf),
-             "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
-             "}, after next:" PRId64
-             ", "
-             "match:" PRId64 "",
-             host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex, nextIndex, matchIndex);
-    syncNodeEventLog(ths, logBuf);
+    char logBuf[256];
+    snprintf(logBuf, sizeof(logBuf), "before next:%ld, match:%ld, after next:%ld, match:%ld", beforeNextIndex,
+             beforeMatchIndex, afterNextIndex, afterMatchIndex);
+    syncLogRecvAppendEntriesReply(ths, pMsg, logBuf);
   } while (0);
 
   return 0;
@@ -179,57 +141,26 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    do {
-      char     host[64];
-      uint16_t port;
-      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-      char logBuf[256];
-      snprintf(logBuf, sizeof(logBuf),
-               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
-               "}, maybe replica "
-               "already dropped",
-               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
-      syncNodeErrorLog(ths, logBuf);
-    } while (0);
-
+    syncLogRecvAppendEntriesReply(ths, pMsg, "maybe replica already dropped");
     return -1;
   }
 
   // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
-    do {
-      char     host[64];
-      uint16_t port;
-      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-      char logBuf[256];
-      snprintf(logBuf, sizeof(logBuf),
-               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
-               "}, drop stale response",
-               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
-      syncNodeEventLog(ths, logBuf);
-    } while (0);
-
+    syncLogRecvAppendEntriesReply(ths, pMsg, "drop stale response");
     return 0;
   }
 
   // error term
   if (pMsg->term > ths->pRaftStore->currentTerm) {
-    do {
-      char     host[64];
-      uint16_t port;
-      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-      char logBuf[256];
-      snprintf(logBuf, sizeof(logBuf),
-               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
-               "}, error term",
-               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
-      syncNodeErrorLog(ths, logBuf);
-    } while (0);
-
+    syncLogRecvAppendEntriesReply(ths, pMsg, "error term");
     return -1;
   }
 
   ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
+
+  SyncIndex beforeNextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
+  SyncIndex beforeMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
 
   if (pMsg->success) {
     SyncIndex newNextIndex = pMsg->matchIndex + 1;
@@ -343,20 +274,13 @@ int32_t syncNodeOnAppendEntriesReplySnapshot2Cb(SSyncNode* ths, SyncAppendEntrie
     } while (0);
   }
 
+  SyncIndex afterNextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
+  SyncIndex afterMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
   do {
-    char     host[64];
-    uint16_t port;
-    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-    char      logBuf[256];
-    SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
-    SyncIndex matchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
-    snprintf(logBuf, sizeof(logBuf),
-             "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
-             "}, after next:" PRId64
-             ", "
-             "match:" PRId64 "",
-             host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex, nextIndex, matchIndex);
-    syncNodeEventLog(ths, logBuf);
+    char logBuf[256];
+    snprintf(logBuf, sizeof(logBuf), "before next:%ld, match:%ld, after next:%ld, match:%ld", beforeNextIndex,
+             beforeMatchIndex, afterNextIndex, afterMatchIndex);
+    syncLogRecvAppendEntriesReply(ths, pMsg, logBuf);
   } while (0);
 
   return 0;
@@ -367,36 +291,13 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    do {
-      char     host[64];
-      uint16_t port;
-      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-      char logBuf[256];
-      snprintf(logBuf, sizeof(logBuf),
-               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
-               "}, maybe replica "
-               "already dropped",
-               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
-      syncNodeErrorLog(ths, logBuf);
-    } while (0);
-
+    syncLogRecvAppendEntriesReply(ths, pMsg, "maybe replica already dropped");
     return -1;
   }
 
   // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
-    do {
-      char     host[64];
-      uint16_t port;
-      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-      char logBuf[256];
-      snprintf(logBuf, sizeof(logBuf),
-               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
-               "}, drop stale response",
-               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
-      syncNodeEventLog(ths, logBuf);
-    } while (0);
-
+    syncLogRecvAppendEntriesReply(ths, pMsg, "drop stale response");
     return 0;
   }
 
@@ -406,22 +307,14 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
   //  }
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
-    do {
-      char     host[64];
-      uint16_t port;
-      syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-      char logBuf[256];
-      snprintf(logBuf, sizeof(logBuf),
-               "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
-               "}, error term",
-               host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex);
-      syncNodeErrorLog(ths, logBuf);
-    } while (0);
-
+    syncLogRecvAppendEntriesReply(ths, pMsg, "error term");
     return -1;
   }
 
   ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
+
+  SyncIndex beforeNextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
+  SyncIndex beforeMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
 
   if (pMsg->success) {
     // nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.mmatchIndex + 1]
@@ -490,20 +383,13 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
     }
   }
 
+  SyncIndex afterNextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
+  SyncIndex afterMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
   do {
-    char     host[64];
-    uint16_t port;
-    syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-    char      logBuf[256];
-    SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
-    SyncIndex matchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
-    snprintf(logBuf, sizeof(logBuf),
-             "recv sync-append-entries-reply from %s:%d {term:" PRIu64 ", pterm:" PRIu64 ", success:%d, match:" PRId64
-             "}, after next:" PRId64
-             ", "
-             "match:" PRId64 "",
-             host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex, nextIndex, matchIndex);
-    syncNodeEventLog(ths, logBuf);
+    char logBuf[256];
+    snprintf(logBuf, sizeof(logBuf), "before next:%ld, match:%ld, after next:%ld, match:%ld", beforeNextIndex,
+             beforeMatchIndex, afterNextIndex, afterMatchIndex);
+    syncLogRecvAppendEntriesReply(ths, pMsg, logBuf);
   } while (0);
 
   return 0;
