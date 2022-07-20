@@ -359,6 +359,7 @@ void setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData* p
 
   SScalarParam param = {.columnData = pColInfoData};
   fpSet.process(&srcParam, 1, &param);
+  colDataDestroy(&infoData);
 }
 
 static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {

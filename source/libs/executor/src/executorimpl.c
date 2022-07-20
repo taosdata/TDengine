@@ -4284,7 +4284,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
         REPLACE_NODE(pNew);
       } else {
         taosMemoryFree(keyBuf);
-        nodesClearList(groupNew);
+        nodesDestroyList(groupNew);
         metaReaderClear(&mr);
         return code;
       }
@@ -4302,7 +4302,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
           if (tTagIsJson(data)) {
             terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
             taosMemoryFree(keyBuf);
-            nodesClearList(groupNew);
+            nodesDestroyList(groupNew);
             metaReaderClear(&mr);
             return terrno;
           }
@@ -4325,7 +4325,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
     info->groupId = groupId;
     groupNum++;
 
-    nodesClearList(groupNew);
+    nodesDestroyList(groupNew);
     metaReaderClear(&mr);
   }
   taosMemoryFree(keyBuf);
