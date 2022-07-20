@@ -174,28 +174,27 @@ static void setBitMap(uint8_t *pb, uint8_t v, int32_t idx, uint8_t flags) {
     }                              \
   } while (0)
 
-int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow) {
-  int32_t code = 0;
-#if 0
+int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *aColVal, STSchema *pTSchema, STSRow2 **ppRow) {
+  int32_t   code = 0;
   STColumn *pTColumn;
   SColVal  *pColVal;
-  int32_t   nColVal = taosArrayGetSize(pArray);
+  int32_t   nColVal = taosArrayGetSize(aColVal);
   int32_t   iColVal;
 
   ASSERT(nColVal > 0);
 
-  // try
+  // scan
   uint8_t  flags = 0;
   uint32_t ntv = 0;
   uint32_t nkv = 0;
-  int16_t  nTag = 0;
+  int16_t  nIdx = 0;
   uint32_t maxIdx = 0;
 
   iColVal = 0;
   for (int32_t iColumn = 0; iColumn < pTSchema->numOfCols; iColumn++) {
     pTColumn = &pTSchema->columns[iColumn];
     if (iColVal < nColVal) {
-      pColVal = (SColVal *)taosArrayGet(pArray, iColVal);
+      pColVal = (SColVal *)taosArrayGet(aColVal, iColVal);
     } else {
       pColVal = NULL;
     }
@@ -209,19 +208,20 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
     } else {
       if (pColVal) {
         if (pColVal->cid == pTColumn->colId) {
-          iColVal++;
+          ASSERT(pColVal->type == pTColumn->type);
 
+          iColVal++;
           if (pColVal->isNone) {
             flags |= TSROW_HAS_NONE;
           } else if (pColVal->isNull) {
             flags |= TSROW_HAS_NULL;
             maxIdx = nkv;
-            nTag++;
+            nIdx++;
             nkv += tPutI16v(NULL, -pTColumn->colId);
           } else {
             flags |= TSROW_HAS_VAL;
             maxIdx = nkv;
-            nTag++;
+            nIdx++;
             nkv += tPutI16v(NULL, pTColumn->colId);
             nkv += tPutValue(NULL, &pColVal->value, pTColumn->type);
             if (IS_VAR_DATA_TYPE(pTColumn->type)) {
@@ -243,23 +243,25 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
 
   // decide
   uint32_t nData = 0;
-  uint32_t nDataT = 0;
-  uint32_t nDataK = 0;
   if (flags == TSROW_HAS_NONE || flags == TSROW_HAS_NULL) {
     nData = 0;
   } else {
+    uint32_t nDataT = 0;
+    uint32_t nDataK = 0;
+
+    // Tuple
     switch (flags) {
       case TSROW_HAS_VAL:
         nDataT = pTSchema->flen + ntv;
         break;
-      case TSROW_HAS_NULL | TSROW_HAS_NONE:
+      case TSROW_HAS_NONE | TSROW_HAS_NULL:
         nDataT = BIT1_SIZE(pTSchema->numOfCols - 1);
         break;
-      case TSROW_HAS_VAL | TSROW_HAS_NONE:
-      case TSROW_HAS_VAL | TSROW_HAS_NULL:
+      case TSROW_HAS_NONE | TSROW_HAS_VAL:
+      case TSROW_HAS_NULL | TSROW_HAS_VAL:
         nDataT = BIT1_SIZE(pTSchema->numOfCols - 1) + pTSchema->flen + ntv;
         break;
-      case TSROW_HAS_VAL | TSROW_HAS_NULL | TSROW_HAS_NONE:
+      case TSROW_HAS_NONE | TSROW_HAS_NULL | TSROW_HAS_VAL:
         nDataT = BIT2_SIZE(pTSchema->numOfCols - 1) + pTSchema->flen + ntv;
         break;
       default:
@@ -267,16 +269,17 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
         ASSERT(0);
     }
 
-    uint8_t tflags = 0;
+    // KV
+    uint8_t tflags;
     if (maxIdx <= UINT8_MAX) {
-      nDataK = sizeof(STSKVRow) + sizeof(uint8_t) * nTag + nkv;
-      tflags |= TSROW_KV_SMALL;
+      nDataK = sizeof(STSKVRow) + sizeof(uint8_t) * nIdx + nkv;
+      tflags = TSROW_KV_SMALL;
     } else if (maxIdx <= UINT16_MAX) {
-      nDataK = sizeof(STSKVRow) + sizeof(uint16_t) * nTag + nkv;
-      tflags |= TSROW_KV_MID;
+      nDataK = sizeof(STSKVRow) + sizeof(uint16_t) * nIdx + nkv;
+      tflags = TSROW_KV_MID;
     } else {
-      nDataK = sizeof(STSKVRow) + sizeof(uint32_t) * nTag + nkv;
-      tflags |= TSROW_KV_BIG;
+      nDataK = sizeof(STSKVRow) + sizeof(uint32_t) * nIdx + nkv;
+      tflags = TSROW_KV_BIG;
     }
 
     if (nDataT <= nDataK) {
@@ -288,55 +291,88 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
   }
 
   // alloc
+  nData = nData + sizeof(STSRow2) + tPutI32v(NULL, pTSchema->version) + tPutI32v(NULL, nData);
   if (pBuilder) {
-    // create from a builder
-    if (nData == 0) {
-      pBuilder->tsRow.nData = 0;
-      pBuilder->tsRow.pData = NULL;
-    } else {
-      if (pBuilder->szBuf < nData) {
-        uint8_t *p = taosMemoryRealloc(pBuilder->pBuf, nData);
-        if (p == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _exit;
-        }
-        pBuilder->pBuf = p;
-        pBuilder->szBuf = nData;
+    if (pBuilder->szBuf < nData) {
+      uint8_t *p = taosMemoryRealloc(pBuilder->pBuf, nData);
+      if (p == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exit;
       }
 
-      pBuilder->tsRow.nData = nData;
-      pBuilder->tsRow.pData = pBuilder->pBuf;
+      pBuilder->szBuf = nData;
+      pBuilder->pBuf = p;
     }
 
-    *ppRow = &pBuilder->tsRow;
+    *ppRow = (STSRow2 *)pBuilder->pBuf;
   } else {
-    // create a new one
-    *ppRow = (STSRow2 *)taosMemoryMalloc(sizeof(STSRow2));
+    *ppRow = (STSRow2 *)taosMemoryMalloc(nData);
     if (*ppRow == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
-    if (nData == 0) {
-      (*ppRow)->nData = 0;
-      (*ppRow)->pData = NULL;
-    } else {
-      (*ppRow)->nData = nData;
-      (*ppRow)->pData = taosMemoryMalloc(nData);
-      if ((*ppRow)->pData == NULL) {
-        taosMemoryFree(*ppRow);
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _exit;
-      }
-    }
   }
 
   // build
-  (*ppRow)->flags = flags;
-  (*ppRow)->sver = pTSchema->version;
+  int32_t n = 0;
 
-  pColVal = (SColVal *)taosArrayGet(pArray, 0);
+  pColVal = (SColVal *)taosArrayGet(aColVal, 0);
   (*ppRow)->ts = pColVal->value.ts;
+  (*ppRow)->flags = flags;
 
+  n += tPutI32v((*ppRow)->data + n, nData);
+  n += tPutI32v((*ppRow)->data + n, pTSchema->version);
+
+  if (nData == 0) goto _exit;
+
+  if ((flags & 0xf0) == 0) {
+    // Tuple
+  } else {
+    // KV
+
+    STSKVRow *pTSKVRow = (STSKVRow *)((*ppRow)->data + n);
+    uint8_t  *pkv;
+
+    if ((flags & 0xf0) == TSROW_KV_SMALL) {
+      pkv = pTSKVRow->idx + sizeof(uint8_t) * nIdx;
+    } else if ((flags & 0xf0) == TSROW_KV_MID) {
+      pkv = pTSKVRow->idx + sizeof(uint16_t) * nIdx;
+    } else if ((flags & 0xf0) == TSROW_KV_BIG) {
+      pkv = pTSKVRow->idx + sizeof(uint32_t) * nIdx;
+    } else {
+      ASSERT(0);
+    }
+
+    iColVal = 1;
+    for (int32_t iColumn = 1; iColumn < pTSchema->numOfCols; iColumn++) {
+      pTColumn = &pTSchema->columns[iColumn];
+      if (iColVal < nColVal) {
+        pColVal = (SColVal *)taosArrayGet(aColVal, iColVal);
+      } else {
+        break;
+      }
+
+      if (pColVal->cid == pTColumn->colId) {
+        if (pColVal->isNone) {
+          // NONE, do nothing
+        } else if (pColVal->isNull) {
+          pkv += tPutI16v(pkv, -pColVal->cid);
+        } else {
+          // set offset (todo)
+          pkv += tPutI16v(pkv, pColVal->cid);
+          pkv += tPutValue(pkv, &pColVal->value, pColVal->type);
+        }
+      } else if (pColVal->cid > pTColumn->colId) {
+        // NONE, do nothing
+      } else {
+        ASSERT(0);
+      }
+
+      iColVal++;
+    }
+  }
+
+#if 0
   if ((*ppRow)->pData) {
     STSKVRow *pTSKVRow = NULL;
     uint8_t  *pidx = NULL;
@@ -377,18 +413,18 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
       pTSKVRow->nCols = 0;
       pidx = pTSKVRow->idx;
       if (flags & TSROW_KV_SMALL) {
-        pkv = pidx + sizeof(uint8_t) * nTag;
+        pkv = pidx + sizeof(uint8_t) * nIdx;
       } else if (flags & TSROW_KV_MID) {
-        pkv = pidx + sizeof(uint16_t) * nTag;
+        pkv = pidx + sizeof(uint16_t) * nIdx;
       } else {
-        pkv = pidx + sizeof(uint32_t) * nTag;
+        pkv = pidx + sizeof(uint32_t) * nIdx;
       }
     }
 
     for (int32_t iColumn = 1; iColumn < pTSchema->numOfCols; iColumn++) {
       pTColumn = &pTSchema->columns[iColumn];
       if (iColVal < nColVal) {
-        pColVal = (SColVal *)taosArrayGet(pArray, iColVal);
+        pColVal = (SColVal *)taosArrayGet(aColVal, iColVal);
       } else {
         pColVal = NULL;
       }
@@ -462,8 +498,8 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
       continue;
     }
   }
-
 #endif
+
 _exit:
   return code;
 }
