@@ -1455,7 +1455,6 @@ static bool keyOverlapFileBlock(TSDBKEY key, SBlock* pBlock, SVersionRange* pVer
          (pBlock->minVersion <= pVerRange->maxVer);
 }
 
-
 static bool doCheckforDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, const SBlock* pBlock) {
   size_t num = taosArrayGetSize(pBlockScanInfo->delSkyline);
 
@@ -1507,7 +1506,7 @@ static bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBl
     return doCheckforDatablockOverlap(pBlockScanInfo, pBlock);
   } else {
     int32_t index = pBlockScanInfo->fileDelIndex;
-    while(1) {
+    while (1) {
       TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, index);
       if (p->ts > pBlock->minKey.ts && index > 0) {
         index -= 1;
@@ -2808,7 +2807,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
 
   if (pCond->suid != 0) {
     (*ppReader)->pSchema = metaGetTbTSchema((*ppReader)->pTsdb->pVnode->pMeta, (*ppReader)->suid, -1);
-    ASSERT((*ppReader)->pSchema);
+    // ASSERT((*ppReader)->pSchema);
   } else if (taosArrayGetSize(pTableList) > 0) {
     STableKeyInfo* pKey = taosArrayGet(pTableList, 0);
     (*ppReader)->pSchema = metaGetTbTSchema((*ppReader)->pTsdb->pVnode->pMeta, pKey->uid, -1);
