@@ -154,19 +154,19 @@
 # ./test.sh -f tsim/parser/set_tag_vals.sim
 # ./test.sh -f tsim/parser/single_row_in_tb.sim
 # ./test.sh -f tsim/parser/sliding.sim
+# ./test.sh -f tsim/parser/slimit_alter_tags.sim
 # ./test.sh -f tsim/parser/slimit.sim
 # ./test.sh -f tsim/parser/slimit1.sim
-# ./test.sh -f tsim/parser/slimit_alter_tags.sim
-# ./test.sh -f tsim/parser/stableOp.sim
+./test.sh -f tsim/parser/stableOp.sim
 # ./test.sh -f tsim/parser/tags_dynamically_specifiy.sim
 # ./test.sh -f tsim/parser/tags_filter.sim
-# ./test.sh -f tsim/parser/tbnameIn.sim
-# ./test.sh -f tsim/parser/timestamp.sim
-## ./test.sh -f tsim/parser/top_groupby.sim
-# ./test.sh -f tsim/parser/topbot.sim
-# ./test.sh -f tsim/parser/udf.sim
-# ./test.sh -f tsim/parser/udf_dll.sim
+# jira ./test.sh -f tsim/parser/tbnameIn.sim
+./test.sh -f tsim/parser/timestamp.sim
+./test.sh -f tsim/parser/top_groupby.sim
+./test.sh -f tsim/parser/topbot.sim
 # ./test.sh -f tsim/parser/udf_dll_stable.sim
+# ./test.sh -f tsim/parser/udf_dll.sim
+# ./test.sh -f tsim/parser/udf.sim
 # ./test.sh -f tsim/parser/union.sim
 # ./test.sh -f tsim/parser/where.sim
 
