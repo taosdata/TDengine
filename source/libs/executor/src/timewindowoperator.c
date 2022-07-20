@@ -1013,11 +1013,17 @@ SResultRowPosition addToOpenWindowList(SResultRowInfo* pResultRowInfo, const SRe
 
 int64_t* extractTsCol(SSDataBlock* pBlock, const SIntervalAggOperatorInfo* pInfo) {
   TSKEY* tsCols = NULL;
+
   if (pBlock->pDataBlock != NULL) {
     SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
     tsCols = (int64_t*)pColDataInfo->pData;
 
-    if (tsCols != NULL) {
+    // no data in primary ts
+    if (tsCols[0] == 0 && tsCols[pBlock->info.rows - 1] == 0) {
+      return NULL;
+    }
+
+    if (tsCols[0] != 0 && (pBlock->info.window.skey == 0 && pBlock->info.window.ekey == 0)) {
       blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);
     }
   }
