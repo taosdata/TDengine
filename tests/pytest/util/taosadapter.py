@@ -1,3 +1,4 @@
+import socket
 from fabric2 import Connection
 from util.log import *
 from util.common import *
@@ -46,8 +47,28 @@ class TAdapter:
                 "user"                      : "root",
                 "password"                  : "taosdata",
                 "writeInterval"             : "30s"
-            }
-
+            },
+            "opentsdb"      : {
+                "enable"        : False
+            },
+            "influxdb"      : {
+                "enable"        : False
+            },
+            "statsd"      : {
+                "enable"        : False
+            },
+            "collectd"      : {
+                "enable"        : False
+            },
+            "opentsdb_telnet"      : {
+                "enable"        : False
+            },
+            "node_exporter"      : {
+                "enable"        : False
+            },
+            "prometheus"      : {
+                "enable"        : False
+            },
         }
     # TODO: add taosadapter env:
     # 1. init cfg.toml.dict ：OK
@@ -156,40 +177,20 @@ class TAdapter:
             tdLog.debug(f"taosadapter is running with {cmd} " )
 
             time.sleep(0.1)
-            key = 'all plugin init finish'
-            bkey = bytes(key, encoding="utf8")
-            logFile = self.log_dir + "/taosadapter*"
-            file_exists =  False
-            i = 0
-            while (not file_exists):
-                for file in os.listdir(self.log_dir):
-                    if "taosadapter" in file:
-                        file_exists = True
-                        break
-                sleep(0.1)
-                i += 1
-                if i > 50:
-                    tdLog.notice("log file is too long to create")
-                    break
 
-            tailCmdStr = 'tail -f '
-            popen = subprocess.Popen(
-                tailCmdStr + logFile,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                shell=True)
-            # pid = popen.pid
-            # print('Popen.pid:' + str(pid))
-            timeout = time.time() + 60 * 2
-            while True:
-                line = popen.stdout.readline().strip()
-                if bkey in line:
-                    popen.kill()
-                    break
-                if time.time() > timeout:
-                    tdLog.exit('wait too long for taosadapter start')
-            tdLog.debug("the taosadapter has been started.")
-            time.sleep(2)
+            taosadapter_port = self.taosadapter_cfg_dict["port"]
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(3)
+            try:
+                res = s.connect_ex((self.remoteIP, taosadapter_port))
+                if res == 0:
+                    tdLog.info(f"the taosadapter has been started, using port:{taosadapter_port}")
+                else:
+                    tdLog.info(f"the taosadapter do not started!!!")
+            except socket.error as  e:
+                tdLog.notice("socket connect error!")
+            # tdLog.debug("the taosadapter has been started.")
+            time.sleep(1)
 
     def start_taosadapter(self):
         """
