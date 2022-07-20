@@ -1,6 +1,0 @@
-[07/20 16:39:17.879661] INFO: start creating 16 table(s) with 8 thread(s)
-Spent 0.0000 seconds to create 16 table(s) with 8 thread(s), already exist 0 table(s), actual 0 table(s) pre created, 16 table(s) will be auto created
-[07/20 16:39:17.908981] INFO: Spent 0.023143 seconds to insert rows: 160 with 4 thread(s) into db 6913.54 records/second
-[07/20 16:39:17.909004] INFO: insert delay, min: 2.42ms, avg: 5.62ms, p90: 12.25ms, p95: 12.87ms, p99: 12.87ms, max: 12.87ms
-[07/20 16:39:17.936494] INFO: Spent 0.024434 seconds to insert rows: 160 with 4 thread(s) into db 6548.25 records/second
-[07/20 16:39:17.936511] INFO: insert delay, min: 1.09ms, avg: 5.15ms, p90: 11.36ms, p95: 14.02ms, p99: 14.02ms, max: 14.02ms
