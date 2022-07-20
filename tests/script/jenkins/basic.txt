@@ -104,7 +104,7 @@
 ## ./test.sh -f tsim/parser/create_tb_with_tag_name.sim
 # ./test.sh -f tsim/parser/dbtbnameValidate.sim
 ##./test.sh -f tsim/parser/distinct.sim
-./test.sh -f tsim/parser/fill_stb.sim
+#./test.sh -f tsim/parser/fill_stb.sim
 ./test.sh -f tsim/parser/fill_us.sim
 ./test.sh -f tsim/parser/fill.sim
 ./test.sh -f tsim/parser/first_last.sim
@@ -112,8 +112,8 @@
 ## ./test.sh -f tsim/parser/function.sim
 ./test.sh -f tsim/parser/groupby-basic.sim
 # ./test.sh -f tsim/parser/groupby.sim
-## ./test.sh -f tsim/parser/having.sim
 # ./test.sh -f tsim/parser/having_child.sim
+## ./test.sh -f tsim/parser/having.sim
 ## ./test.sh -f tsim/parser/import.sim
 # ./test.sh -f tsim/parser/import_commit1.sim
 # ./test.sh -f tsim/parser/import_commit2.sim
