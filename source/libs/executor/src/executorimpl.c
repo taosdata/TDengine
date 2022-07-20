@@ -834,18 +834,20 @@ bool isTaskKilled(SExecTaskInfo* pTaskInfo) {
 void setTaskKilled(SExecTaskInfo* pTaskInfo) { pTaskInfo->code = TSDB_CODE_TSC_QUERY_CANCELLED; }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-// todo refactor : return window
-void getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, STimeWindow* win) {
-  win->skey = taosTimeTruncate(key, pInterval, precision);
+STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key) {
+  STimeWindow win  = {0};
+  win.skey = taosTimeTruncate(key, pInterval, precision);
 
   /*
    * if the realSkey > INT64_MAX - pInterval->interval, the query duration between
    * realSkey and realEkey must be less than one interval.Therefore, no need to adjust the query ranges.
    */
-  win->ekey = taosTimeAdd(win->skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
-  if (win->ekey < win->skey) {
-    win->ekey = INT64_MAX;
+  win.ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+  if (win.ekey < win.skey) {
+    win.ekey = INT64_MAX;
   }
+
+  return win;
 }
 
 #if 0
@@ -3603,13 +3605,13 @@ int32_t initAggInfo(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInf
   return TSDB_CODE_SUCCESS;
 }
 
-void initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows) {
+void initResultSizeInfo(SResultInfo * pResultInfo, int32_t numOfRows) {
   ASSERT(numOfRows != 0);
-  pOperator->resultInfo.capacity = numOfRows;
-  pOperator->resultInfo.threshold = numOfRows * 0.75;
+  pResultInfo->capacity = numOfRows;
+  pResultInfo->threshold = numOfRows * 0.75;
 
-  if (pOperator->resultInfo.threshold == 0) {
-    pOperator->resultInfo.threshold = numOfRows;
+  if (pResultInfo->threshold == 0) {
+    pResultInfo->threshold = numOfRows;
   }
 }
 
@@ -3672,7 +3674,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
   int32_t numOfRows = 1024;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
 
-  initResultSizeInfo(pOperator, numOfRows);
+  initResultSizeInfo(&pOperator->resultInfo, numOfRows);
   int32_t code = initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -3827,7 +3829,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   if (numOfRows * pResBlock->info.rowSize > TWOMB) {
     numOfRows = TWOMB / pResBlock->info.rowSize;
   }
-  initResultSizeInfo(pOperator, numOfRows);
+  initResultSizeInfo(&pOperator->resultInfo, numOfRows);
 
   initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
   initBasicInfo(&pInfo->binfo, pResBlock);
@@ -4005,7 +4007,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
     numOfRows = TWOMB / pResBlock->info.rowSize;
   }
 
-  initResultSizeInfo(pOperator, numOfRows);
+  initResultSizeInfo(&pOperator->resultInfo, numOfRows);
 
   initAggInfo(pSup, &pInfo->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str);
   initBasicInfo(&pInfo->binfo, pResBlock);
@@ -4044,8 +4046,7 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
                             STimeWindow win, int32_t capacity, const char* id, SInterval* pInterval, int32_t fillType) {
   SFillColInfo* pColInfo = createFillColInfo(pExpr, numOfCols, pValNode);
 
-  STimeWindow w = TSWINDOW_INITIALIZER;
-  getAlignQueryTimeWindow(pInterval, pInterval->precision, win.skey, &w);
+  STimeWindow w = getAlignQueryTimeWindow(pInterval, pInterval->precision, win.skey);
   w = getFirstQualifiedTimeWindow(win.skey, &w, pInterval, TSDB_ORDER_ASC);
 
   int32_t order = TSDB_ORDER_ASC;
@@ -4082,7 +4083,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   int32_t type = convertFillType(pPhyFillNode->mode);
 
   SResultInfo* pResultInfo = &pOperator->resultInfo;
-  initResultSizeInfo(pOperator, 4096);
+  initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->primaryTsCol = ((SColumnNode*)pPhyFillNode->pWStartTs)->slotId;
 
   int32_t numOfOutputCols = 0;

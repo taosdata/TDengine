@@ -824,10 +824,10 @@ int32_t convertFillType(int32_t mode) {
 
 static void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery) {
   if (ascQuery) {
-    getAlignQueryTimeWindow(pInterval, pInterval->precision, ts, w);
+    *w = getAlignQueryTimeWindow(pInterval, pInterval->precision, ts);
   } else {
     // the start position of the first time window in the endpoint that spreads beyond the queried last timestamp
-    getAlignQueryTimeWindow(pInterval, pInterval->precision, ts, w);
+    *w = getAlignQueryTimeWindow(pInterval, pInterval->precision, ts);
 
     int64_t key = w->skey;
     while (key < ts) {  // moving towards end
