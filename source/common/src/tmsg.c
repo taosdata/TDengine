@@ -2933,6 +2933,13 @@ int32_t tSerializeSTableIndexRsp(void *buf, int32_t bufLen, const STableIndexRsp
   return tlen;
 }
 
+void tFreeSerializeSTableIndexRsp(STableIndexRsp *pRsp) {
+  if (pRsp->pIndex != NULL) {
+    taosArrayDestroy(pRsp->pIndex);
+    pRsp->pIndex = NULL;
+  }
+}
+
 int32_t tDeserializeSTableIndexInfo(SDecoder *pDecoder, STableIndexInfo *pInfo) {
   if (tDecodeI8(pDecoder, &pInfo->intervalUnit) < 0) return -1;
   if (tDecodeI8(pDecoder, &pInfo->slidingUnit) < 0) return -1;
