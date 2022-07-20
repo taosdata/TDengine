@@ -33,7 +33,7 @@ python3 ./test.py -f 1-insert/create_retentions.py
 python3 ./test.py -f 1-insert/table_param_ttl.py
 
 python3 ./test.py -f 1-insert/update_data.py
-
+python3 ./test.py -f 1-insert/delete_data.py
 python3 ./test.py -f 2-query/db.py
 
 python3 ./test.py -f 2-query/between.py
