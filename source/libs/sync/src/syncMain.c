@@ -999,7 +999,18 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   // init TLA+ log vars
   pSyncNode->pLogStore = logStoreCreate(pSyncNode);
   ASSERT(pSyncNode->pLogStore != NULL);
-  pSyncNode->commitIndex = SYNC_INDEX_INVALID;
+
+  SyncIndex commitIndex = SYNC_INDEX_INVALID;
+  if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+    SSnapshot snapshot = {0};
+    int32_t   code = pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
+    ASSERT(code == 0);
+    if (snapshot.lastApplyIndex > commitIndex) {
+      commitIndex = snapshot.lastApplyIndex;
+      syncNodeEventLog(pSyncNode, "reset commit index by snapshot");
+    }
+  }
+  pSyncNode->commitIndex = commitIndex;
 
   // timer ms init
   pSyncNode->pingBaseLine = PING_TIMER_MS;

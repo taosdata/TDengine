@@ -46,8 +46,8 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
     uint16_t port;
     syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
     char logBuf[256];
-    snprintf(logBuf, sizeof(logBuf), "recv request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d} ", host, port,
-             pMsg->term, pMsg->voteGranted);
+    snprintf(logBuf, sizeof(logBuf), "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d} ", host,
+             port, pMsg->term, pMsg->voteGranted);
     syncNodeEventLog(ths, logBuf);
   } while (0);
 
@@ -58,7 +58,7 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
     syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
     char logBuf[256];
     snprintf(logBuf, sizeof(logBuf),
-             "recv request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, maybe replica dropped", host, port,
+             "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, maybe replica dropped", host, port,
              pMsg->term, pMsg->voteGranted);
     syncNodeErrorLog(ths, logBuf);
     return -1;
@@ -71,7 +71,7 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
     syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
     char logBuf[256];
     snprintf(logBuf, sizeof(logBuf),
-             "recv request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, drop stale response", host, port,
+             "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, drop stale response", host, port,
              pMsg->term, pMsg->voteGranted);
     syncNodeErrorLog(ths, logBuf);
     return -1;
@@ -88,7 +88,7 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
     uint16_t port;
     syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
     char logBuf[256];
-    snprintf(logBuf, sizeof(logBuf), "recv request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, error term",
+    snprintf(logBuf, sizeof(logBuf), "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, error term",
              host, port, pMsg->term, pMsg->voteGranted);
     syncNodeErrorLog(ths, logBuf);
     return -1;
@@ -191,8 +191,8 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
     uint16_t port;
     syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
     char logBuf[256];
-    snprintf(logBuf, sizeof(logBuf), "recv request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d} ", host, port,
-             pMsg->term, pMsg->voteGranted);
+    snprintf(logBuf, sizeof(logBuf), "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d} ", host,
+             port, pMsg->term, pMsg->voteGranted);
     syncNodeEventLog(ths, logBuf);
   } while (0);
 
@@ -203,7 +203,7 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
     syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
     char logBuf[256];
     snprintf(logBuf, sizeof(logBuf),
-             "recv request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, maybe replica dropped", host, port,
+             "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, maybe replica dropped", host, port,
              pMsg->term, pMsg->voteGranted);
     syncNodeErrorLog(ths, logBuf);
     return -1;
@@ -216,7 +216,7 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
     syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
     char logBuf[256];
     snprintf(logBuf, sizeof(logBuf),
-             "recv request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, drop stale response", host, port,
+             "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, drop stale response", host, port,
              pMsg->term, pMsg->voteGranted);
     syncNodeErrorLog(ths, logBuf);
     return -1;
@@ -233,7 +233,7 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
     uint16_t port;
     syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
     char logBuf[256];
-    snprintf(logBuf, sizeof(logBuf), "recv request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, error term",
+    snprintf(logBuf, sizeof(logBuf), "recv sync-request-vote-reply from %s:%d {term:%" PRIu64 ", grant:%d}, error term",
              host, port, pMsg->term, pMsg->voteGranted);
     syncNodeErrorLog(ths, logBuf);
     return -1;
