@@ -741,7 +741,10 @@ class AnyState:
                 sCnt += 1
                 if (sCnt >= 2):
                     raise CrashGenError(
-                        "Unexpected more than 1 success with task: {}".format(cls))
+                        "Unexpected more than 1 success with task: {}, in task set: {}".format(
+                            cls.__name__, # verified just now that isinstance(task, cls)
+                            [c.__class__.__name__ for c in tasks]
+                        ))
 
     def assertIfExistThenSuccess(self, tasks, cls):
         sCnt = 0
