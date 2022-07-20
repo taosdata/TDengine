@@ -71,6 +71,8 @@ int32_t syncNodeRequestVotePeersSnapshot(SSyncNode* pSyncNode) {
 }
 
 int32_t syncNodeElect(SSyncNode* pSyncNode) {
+  syncNodeEventLog(pSyncNode, "begin election");
+
   int32_t ret = 0;
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
     syncNodeFollower2Candidate(pSyncNode);

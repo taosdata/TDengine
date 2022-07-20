@@ -2061,21 +2061,21 @@ void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER);
   pSyncNode->state = TAOS_SYNC_STATE_CANDIDATE;
 
-  syncNodeLog2("==state change syncNodeFollower2Candidate==", pSyncNode);
+  syncNodeEventLog(pSyncNode, "follower to candidate");
 }
 
 void syncNodeLeader2Follower(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
   syncNodeBecomeFollower(pSyncNode, "leader to follower");
 
-  syncNodeLog2("==state change syncNodeLeader2Follower==", pSyncNode);
+  syncNodeEventLog(pSyncNode, "leader to follower");
 }
 
 void syncNodeCandidate2Follower(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
   syncNodeBecomeFollower(pSyncNode, "candidate to follower");
 
-  syncNodeLog2("==state change syncNodeCandidate2Follower==", pSyncNode);
+  syncNodeEventLog(pSyncNode, "candidate to follower");
 }
 
 // raft vote --------------
