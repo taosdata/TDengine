@@ -2576,10 +2576,10 @@ void updateSchema(TSDBROW* pRow, uint64_t uid, STsdbReader* pReader) {
   int32_t sversion = TSDBROW_SVERSION(pRow);
 
   if (pReader->pSchema == NULL) {
-    pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, uid, sversion);
+    metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, sversion, &pReader->pSchema);
   } else if (pReader->pSchema->version != sversion) {
     taosMemoryFreeClear(pReader->pSchema);
-    pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, uid, sversion);
+    metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, sversion, &pReader->pSchema);
   }
 }
 
@@ -2807,7 +2807,6 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
 
   if (pCond->suid != 0) {
     (*ppReader)->pSchema = metaGetTbTSchema((*ppReader)->pTsdb->pVnode->pMeta, (*ppReader)->suid, -1);
-    // ASSERT((*ppReader)->pSchema);
   } else if (taosArrayGetSize(pTableList) > 0) {
     STableKeyInfo* pKey = taosArrayGet(pTableList, 0);
     (*ppReader)->pSchema = metaGetTbTSchema((*ppReader)->pTsdb->pVnode->pMeta, pKey->uid, -1);

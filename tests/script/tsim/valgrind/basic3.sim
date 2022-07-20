@@ -1,6 +1,5 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c debugflag -v 131
 system sh/exec.sh -n dnode1 -s start -v
 sql connect
 
@@ -22,40 +21,43 @@ if $data(1)[4] != ready then
   goto step1
 endi
 
-print =============== step2: create db
-sql create database d1 vgroups 2 buffer 3
-sql show databases
-sql use d1
-sql show vgroups
+$tbPrefix = tb
+$tbNum = 5
+$rowNum = 10
 
-print =============== step3: create show stable
-sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
-sql show stables
-if $rows != 1 then 
-  return -1
-endi
+print =============== step2: prepare data
+sql create database db vgroups 2
+sql use db
+sql create table if not exists stb (ts timestamp, tbcol int, tbcol2 float, tbcol3 double) tags (tgcol int unsigned)
 
-print =============== step4: create show table
-sql create table ct1 using stb tags(1000)
-sql create table ct2 using stb tags(2000)
-sql create table ct3 using stb tags(3000)
-sql show tables
-if $rows != 3 then 
-  return -1
-endi
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using stb tags( $i )
+  $x = 0
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+    sql insert into $tb values ($ms , $x , $x , $x ) 
+    $x = $x + 1
+  endw 
+  $i = $i + 1
+endw 
 
-print =============== step5: insert data
-sql insert into ct1 values(now+0d, 10, 2.0, 3.0)
-sql insert into ct1 values(now+1d, 11, 2.1, 3.1)(now+2d, -12, -2.2, -3.2)(now+3d, -13, -2.3, -3.3)
-sql insert into ct2 values(now+0d, 10, 2.0, 3.0)
-sql insert into ct2 values(now+1d, 11, 2.1, 3.1)(now+2d, -12, -2.2, -3.2)(now+3d, -13, -2.3, -3.3)
-sql insert into ct3 values('2022-01-01 00:00:00.000', 10, 2.0, 3.0)
-
-print =============== step6: query data
-sql select * from ct1 where ts < now -1d and ts > now +1d 
-sql select * from stb where ts < now -1d and ts > now +1d 
-sql select * from ct1 where ts < now -1d and ts > now +1d order by ts desc 
-sql select * from stb where ts < now -1d and ts > now +1d order by ts desc 
+print =============== step3: avg
+sql select avg(tbcol) from tb1
+sql select avg(tbcol) from tb1 where ts <= 1601481840000
+sql select avg(tbcol) as b from tb1
+sql select avg(tbcol) as b from tb1 interval(1d)
+sql select avg(tbcol) as b from tb1 where ts <= 1601481840000s interval(1m)
+sql select avg(tbcol) as c from stb
+sql select avg(tbcol) as c from stb where ts <= 1601481840000
+sql select avg(tbcol) as c from stb where tgcol < 5 and ts <= 1601481840000
+sql select avg(tbcol) as c from stb interval(1m)
+sql select avg(tbcol) as c from stb interval(1d)
+sql select avg(tbcol) as b from stb where ts <= 1601481840000s interval(1m)
+sql select avg(tbcol) as c from stb group by tgcol
+sql select avg(tbcol) as b from stb where ts <= 1601481840000s partition by tgcol interval(1m)
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -64,7 +66,7 @@ $null=
 
 system_content sh/checkValgrind.sh -n dnode1 
 print cmd return result ----> [ $system_content ]
-if $system_content > 1 then
+if $system_content > 0 then
   return -1
 endi 
 

@@ -2933,6 +2933,13 @@ int32_t tSerializeSTableIndexRsp(void *buf, int32_t bufLen, const STableIndexRsp
   return tlen;
 }
 
+void tFreeSerializeSTableIndexRsp(STableIndexRsp *pRsp) {
+  if (pRsp->pIndex != NULL) {
+    taosArrayDestroy(pRsp->pIndex);
+    pRsp->pIndex = NULL;
+  }
+}
+
 int32_t tDeserializeSTableIndexInfo(SDecoder *pDecoder, STableIndexInfo *pInfo) {
   if (tDecodeI8(pDecoder, &pInfo->intervalUnit) < 0) return -1;
   if (tDecodeI8(pDecoder, &pInfo->slidingUnit) < 0) return -1;
@@ -5342,6 +5349,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
 
   if (tEncodeCStr(pEncoder, pReq->tbName) < 0) return -1;
   if (tEncodeI8(pEncoder, pReq->action) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->colId) < 0) return -1;
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
       if (tEncodeCStr(pEncoder, pReq->colName) < 0) return -1;
@@ -5392,6 +5400,7 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
 
   if (tDecodeCStr(pDecoder, &pReq->tbName) < 0) return -1;
   if (tDecodeI8(pDecoder, &pReq->action) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->colId) < 0) return -1;
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
       if (tDecodeCStr(pDecoder, &pReq->colName) < 0) return -1;

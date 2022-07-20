@@ -140,7 +140,7 @@ static void destroyUserdata(STransMsg* userdata);
 
 static int cliRBChoseIdx(STrans* pTransInst);
 
-static void destroyCmsg(SCliMsg* cmsg);
+static void destroyCmsg(void* cmsg);
 static void transDestroyConnCtx(STransConnCtx* ctx);
 // thread obj
 static SCliThrd* createThrdObj();
@@ -198,6 +198,7 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
       }                                                                                                           \
       destroyCmsg(pMsg);                                                                                          \
       cliReleaseUnfinishedMsg(conn);                                                                              \
+      transQueueClear(&conn->cliMsgs);                                                                            \
       addConnToPool(((SCliThrd*)conn->hostThrd)->pool, conn);                                                     \
       return;                                                                                                     \
     }                                                                                                             \
@@ -545,6 +546,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
 
   STrans* pTransInst = thrd->pTransInst;
   conn->expireTime = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
+  cliReleaseUnfinishedMsg(conn);
   transQueueClear(&conn->cliMsgs);
   transCtxCleanup(&conn->ctx);
   conn->status = ConnInPool;
@@ -645,6 +647,7 @@ static void cliDestroy(uv_handle_t* handle) {
   conn->stream->data = NULL;
   taosMemoryFree(conn->stream);
   transCtxCleanup(&conn->ctx);
+  cliReleaseUnfinishedMsg(conn);
   transQueueDestroy(&conn->cliMsgs);
   tTrace("%s conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
   transReqQueueClear(&conn->wreqQueue);
@@ -962,7 +965,8 @@ static void destroyUserdata(STransMsg* userdata) {
   transFreeMsg(userdata->pCont);
   userdata->pCont = NULL;
 }
-static void destroyCmsg(SCliMsg* pMsg) {
+static void destroyCmsg(void* arg) {
+  SCliMsg* pMsg = arg;
   if (pMsg == NULL) {
     return;
   }
@@ -1001,7 +1005,7 @@ static void destroyThrdObj(SCliThrd* pThrd) {
   TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SCliMsg, destroyCmsg);
   transDestroyAsyncPool(pThrd->asyncPool);
 
-  transDQDestroy(pThrd->delayQueue);
+  transDQDestroy(pThrd->delayQueue, destroyCmsg);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
 }

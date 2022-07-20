@@ -99,6 +99,7 @@ SScript *simProcessCallOver(SScript *script) {
     }
 
     if (simScriptPos == -1) return NULL;
+    if (!simExecSuccess) return NULL;
 
     return simScriptList[simScriptPos];
   } else {

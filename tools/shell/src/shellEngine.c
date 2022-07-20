@@ -197,7 +197,7 @@ void shellRunSingleCommandImp(char *command) {
 
     et = taosGetTimestampUs();
     if (error_no == 0) {
-      printf("Query OK, %d rows affected (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
+      printf("Query OK, %d rows in database (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
     } else {
       printf("Query interrupted (%s), %d rows affected (%.6fs)\r\n", taos_errstr(pSql), numOfRows, (et - st) / 1E6);
     }
