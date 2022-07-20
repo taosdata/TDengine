@@ -44,4 +44,20 @@ public class DataBaseMonitor {
         }
         return null;
     }
+
+    /**
+     * show test.stables;
+     *
+     *               name              |      created_time       | columns |  tags  |   tables    |
+     * ============================================================================================
+     *  meters                         | 2022-07-20 08:39:30.902 |       4 |      2 |      620000 |
+     */
+    public  Long getTableCount() throws SQLException {
+        if (!stmt.isClosed()) {
+            ResultSet result = stmt.executeQuery("show test.stables");
+            result.next();
+            return result.getLong(5);
+        }
+        return null;
+    }
 }
