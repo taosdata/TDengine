@@ -54,7 +54,7 @@ class Prometheus(TDCase):
             self.logger.info("remote write success")
         time.sleep(15)
         try:
-            self.lcmd.run('promql-cli "count(prometheus_target_interval_length_seconds)"', cwd=self.cwd)
+            self.lcmd.run('promql-cli count(prometheus_target_interval_length_seconds)', cwd=self.cwd)
         finally:
             prom_process.kill()
 
