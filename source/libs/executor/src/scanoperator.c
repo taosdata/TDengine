@@ -1392,24 +1392,49 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     }
 
     SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
-    blockDataCleanup(pInfo->pRes);
 
-    while (tqNextDataBlock(pInfo->tqReader)) {
-      SSDataBlock block = {0};
+    int32_t totBlockNum = taosArrayGetSize(pInfo->pBlockLists);
 
-      // todo refactor
-      int32_t code = tqRetrieveDataBlock(&block, pInfo->tqReader);
+    while (1) {
+      if (pInfo->tqReader->pMsg == NULL) {
+        if (pInfo->validBlockIndex >= totBlockNum) {
+          return NULL;
+        }
 
-      if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
-        pTaskInfo->code = code;
-        return NULL;
+        int32_t     current = pInfo->validBlockIndex++;
+        SSubmitReq* pSubmit = taosArrayGetP(pInfo->pBlockLists, current);
+        if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {
+          qError("submit msg messed up when initing stream submit block %p, current %d, total %d", pSubmit, current,
+                 totBlockNum);
+          pInfo->tqReader->pMsg = NULL;
+          continue;
+        }
       }
 
-      setBlockIntoRes(pInfo, &block);
+      blockDataCleanup(pInfo->pRes);
 
+      while (tqNextDataBlock(pInfo->tqReader)) {
+        SSDataBlock block = {0};
+
+        int32_t code = tqRetrieveDataBlock(&block, pInfo->tqReader);
+
+        if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
+          continue;
+        }
+
+        setBlockIntoRes(pInfo, &block);
+
+        if (pBlockInfo->rows > 0) {
+          break;
+        }
+      }
       if (pBlockInfo->rows > 0) {
         break;
+      } else {
+        pInfo->tqReader->pMsg = NULL;
+        continue;
       }
+      /*blockDataCleanup(pInfo->pRes);*/
     }
 
     // record the scan action.
@@ -1494,6 +1519,7 @@ static void destroyStreamScanOperatorInfo(void* param, int32_t numOfOutput) {
   blockDataDestroy(pStreamScan->pPullDataRes);
   blockDataDestroy(pStreamScan->pDeleteDataRes);
   taosArrayDestroy(pStreamScan->pBlockLists);
+  taosArrayDestroy(pStreamScan->tsArray);
   taosMemoryFree(pStreamScan);
 }
 
@@ -2557,30 +2583,30 @@ typedef struct STableMergeScanInfo {
   SArray*         pSortInfo;
   SSortHandle*    pSortHandle;
 
-  SSDataBlock*    pSortInputBlock;
-  int64_t         startTs;  // sort start time
-  SArray*         sortSourceParams;
+  SSDataBlock* pSortInputBlock;
+  int64_t      startTs;  // sort start time
+  SArray*      sortSourceParams;
 
   SFileBlockLoadRecorder readRecorder;
-  int64_t         numOfRows;
-  SScanInfo       scanInfo;
-  int32_t         scanTimes;
-  SNode*          pFilterNode;  // filter info, which is push down by optimizer
-  SqlFunctionCtx* pCtx;         // which belongs to the direct upstream operator operator query context
-  SResultRowInfo* pResultRowInfo;
-  int32_t*        rowEntryInfoOffset;
-  SExprInfo*      pExpr;
-  SSDataBlock*    pResBlock;
-  SArray*         pColMatchInfo;
-  int32_t         numOfOutput;
+  int64_t                numOfRows;
+  SScanInfo              scanInfo;
+  int32_t                scanTimes;
+  SNode*                 pFilterNode;  // filter info, which is push down by optimizer
+  SqlFunctionCtx*        pCtx;         // which belongs to the direct upstream operator operator query context
+  SResultRowInfo*        pResultRowInfo;
+  int32_t*               rowEntryInfoOffset;
+  SExprInfo*             pExpr;
+  SSDataBlock*           pResBlock;
+  SArray*                pColMatchInfo;
+  int32_t                numOfOutput;
 
   SExprInfo*      pPseudoExpr;
   int32_t         numOfPseudoExpr;
   SqlFunctionCtx* pPseudoCtx;
 
   SQueryTableDataCond cond;
-  int32_t         scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
-  int32_t         dataBlockLoadFlag;
+  int32_t             scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
+  int32_t             dataBlockLoadFlag;
   // if the upstream is an interval operator, the interval info is also kept here to get the time
   // window to check if current data block needs to be loaded.
   SInterval       interval;
@@ -2588,7 +2614,8 @@ typedef struct STableMergeScanInfo {
 } STableMergeScanInfo;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
-                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond, const char* idStr) {
+                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
+                                const char* idStr) {
   int32_t code = getTableList(pHandle->meta, pHandle->vnode, pScanNode, pTagCond, pTagIndexCond, pTableListInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;

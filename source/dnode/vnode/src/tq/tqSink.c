@@ -49,8 +49,11 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       }
 
       SVCreateTbReq createTbReq = {0};
+      SName         name = {0};
+      tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
       createTbReq.name = buildCtbNameByGroupId(stbFullName, pDataBlock->info.groupId);
-      createTbReq.ctb.name = strdup(stbFullName);
+      createTbReq.ctb.name = strdup((char*)tNameGetTableName(&name));  // strdup(stbFullName);
       createTbReq.flags = 0;
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
@@ -174,6 +177,8 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
 void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
   const SArray* pRes = (const SArray*)data;
   SVnode*       pVnode = (SVnode*)vnode;
+
+  tqDebug("task write into table, vgId %d, block num: %d", pVnode->config.vgId, (int32_t)pRes->size);
 
   ASSERT(pTask->tbSink.pTSchema);
   SSubmitReq* pReq = tdBlockToSubmit(pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid,

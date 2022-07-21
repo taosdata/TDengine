@@ -741,7 +741,10 @@ class AnyState:
                 sCnt += 1
                 if (sCnt >= 2):
                     raise CrashGenError(
-                        "Unexpected more than 1 success with task: {}".format(cls))
+                        "Unexpected more than 1 success with task: {}, in task set: {}".format(
+                            cls.__name__, # verified just now that isinstance(task, cls)
+                            [c.__class__.__name__ for c in tasks]
+                        ))
 
     def assertIfExistThenSuccess(self, tasks, cls):
         sCnt = 0
@@ -1326,7 +1329,7 @@ class Task():
                 0x03A1, # STable [does] not exist
                 0x03AA, # Tag already exists
                 0x0603, # Table already exists
-                0x2602, # Table does not exist
+                0x2603, # Table does not exist
                 0x260d, # Tags number not matched
 
 

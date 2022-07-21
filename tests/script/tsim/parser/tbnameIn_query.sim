@@ -1,4 +1,3 @@
-sleep 100
 sql connect
 
 $dbPrefix = ti_db
@@ -27,10 +26,11 @@ sql use $db
 sql select count(*) from $stb where tbname in ('ti_tb1', 'ti_tb300') and t1 > 2
 
 # tbname in used on meter
-sql_error select count(*) from $tb where tbname in ('ti_tb1', 'ti_tb300') 
+sql select count(*) from $tb where tbname in ('ti_tb1', 'ti_tb300') 
 
 ## tbname in + group by tag
-sql select count(*) from $stb where tbname in ('ti_tb1', 'ti_tb300') group by t1 order by t1 asc
+print select count(*) from $stb where tbname in ('ti_tb1', 'ti_tb300') group by t1 order by t1 asc
+sql select count(*), t1 from $stb where tbname in ('ti_tb1', 'ti_tb300') group by t1 order by t1 asc
 if $rows != 2 then
   return -1
 endi
@@ -48,7 +48,7 @@ if $data11 != 300 then
 endi
 
 ## duplicated tbnames
-sql select count(*) from $stb where tbname in ('ti_tb1', 'ti_tb1', 'ti_tb1', 'ti_tb2', 'ti_tb2', 'ti_tb3') group by t1 order by t1 asc
+sql select count(*), t1 from $stb where tbname in ('ti_tb1', 'ti_tb1', 'ti_tb1', 'ti_tb2', 'ti_tb2', 'ti_tb3') group by t1 order by t1 asc
 if $rows != 3 then
   return -1
 endi
@@ -72,7 +72,7 @@ if $data21 != 3 then
 endi
 
 ## wrong tbnames
-sql select count(*) from $stb where tbname in ('tbname in', 'ti_tb1', 'ti_stb0') group by t1 order by t1
+sql select count(*), t1 from $stb where tbname in ('tbname in', 'ti_tb1', 'ti_stb0') group by t1 order by t1
 if $rows != 1 then
   return -1
 endi
@@ -84,7 +84,7 @@ if $data01 != 1 then
 endi
 
 ## tbname in + colummn filtering
-sql select count(*) from $stb where tbname in ('tbname in', 'ti_tb1', 'ti_stb0', 'ti_tb2') and c8 like 'binary%' group by t1 order by t1 asc
+sql select count(*), t1 from $stb where tbname in ('tbname in', 'ti_tb1', 'ti_stb0', 'ti_tb2') and c8 like 'binary%' group by t1 order by t1 asc
 if $rows != 2 then
   return -1
 endi
@@ -102,7 +102,8 @@ if $data11 != 2 then
 endi
 
 ## tbname in can accpet Upper case table name
-sql select count(*) from $stb where tbname in ('ti_tb0', 'TI_tb1', 'TI_TB2') group by t1 order by t1
+print select count(*), t1 from $stb where tbname in ('ti_tb0', 'TI_tb1', 'TI_TB2') group by t1 order by t1
+sql select count(*), t1 from $stb where tbname in ('ti_tb0', 'TI_tb1', 'TI_TB2') group by t1 order by t1
 if $rows != 3 then
   return -1
 endi
@@ -126,7 +127,7 @@ if $data21 != 2 then
 endi
 
 # multiple tbname in is not allowed NOW
-sql_error select count(*) from $stb where tbname in ('ti_tb1', 'ti_tb300') and tbname in ('ti_tb5', 'ti_tb1000') group by t1 order by t1 asc
+sql select count(*), t1 from $stb where tbname in ('ti_tb1', 'ti_tb300') and tbname in ('ti_tb5', 'ti_tb1000') group by t1 order by t1 asc
 #if $rows != 4 then
 #  return -1
 #endi

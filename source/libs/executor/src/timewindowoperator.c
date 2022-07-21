@@ -652,12 +652,68 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag) {
   if (!pBlock || pBlock->info.rows == 0) {
-    qDebug("======printDataBlock: Block is Null or Empty");
+    qDebug("===stream===printDataBlock: Block is Null or Empty");
     return;
   }
   char* pBuf = NULL;
   qDebug("%s", dumpBlockData(pBlock, flag, &pBuf));
   taosMemoryFree(pBuf);
+}
+
+typedef int32_t (*__compare_fn_t)(void* pKey, void* data, int32_t index);
+
+int32_t binarySearchCom(void* keyList, int num, void* pKey, int order, __compare_fn_t comparefn) {
+  int firstPos = 0, lastPos = num - 1, midPos = -1;
+  int numOfRows = 0;
+
+  if (num <= 0) return -1;
+  if (order == TSDB_ORDER_DESC) {
+    // find the first position which is smaller or equal than the key
+    while (1) {
+      if (comparefn(pKey, keyList, lastPos) >= 0) return lastPos;
+      if (comparefn(pKey, keyList, firstPos) == 0) return firstPos;
+      if (comparefn(pKey, keyList, firstPos) < 0) return firstPos - 1;
+
+      numOfRows = lastPos - firstPos + 1;
+      midPos = (numOfRows >> 1) + firstPos;
+
+      if (comparefn(pKey, keyList, midPos) < 0) {
+        lastPos = midPos - 1;
+      } else if (comparefn(pKey, keyList, midPos) > 0) {
+        firstPos = midPos + 1;
+      } else {
+        break;
+      }
+    }
+
+  } else {
+    // find the first position which is bigger or equal than the key
+    while (1) {
+      if (comparefn(pKey, keyList, firstPos) <= 0) return firstPos;
+      if (comparefn(pKey, keyList, lastPos) == 0) return lastPos;
+
+      if (comparefn(pKey, keyList, lastPos) > 0) {
+        lastPos = lastPos + 1;
+        if (lastPos >= num)
+          return -1;
+        else
+          return lastPos;
+      }
+
+      numOfRows = lastPos - firstPos + 1;
+      midPos = (numOfRows >> 1) + firstPos;
+
+      if (comparefn(pKey, keyList, midPos) < 0) {
+        lastPos = midPos - 1;
+      } else if (comparefn(pKey, keyList, midPos) > 0) {
+        firstPos = midPos + 1;
+      } else {
+        break;
+      }
+    }
+  }
+
+  return midPos;
 }
 
 typedef int64_t (*__get_value_fn_t)(void* data, int32_t index);
@@ -716,20 +772,31 @@ int32_t binarySearch(void* keyList, int num, TSKEY key, int order, __get_value_f
   return midPos;
 }
 
-int64_t getReskey(void* data, int32_t index) {
+int32_t compareResKey(void* pKey, void* data, int32_t index) {
   SArray*     res = (SArray*)data;
   SResKeyPos* pos = taosArrayGetP(res, index);
-  return *(int64_t*)pos->key;
+  SWinRes*    pData = (SWinRes*) pKey;
+  if (pData->ts == *(int64_t*)pos->key) {
+    if (pData->groupId > pos->groupId) {
+      return 1;
+    } else if (pData->groupId < pos->groupId) {
+      return -1;
+    }
+    return 0;
+  } else if (pData->ts > *(int64_t*)pos->key) {
+    return 1;
+  }
+  return -1;
 }
 
 static int32_t saveResult(int64_t ts, int32_t pageId, int32_t offset, uint64_t groupId, SArray* pUpdated) {
   int32_t size = taosArrayGetSize(pUpdated);
-  int32_t index = binarySearch(pUpdated, size, ts, TSDB_ORDER_DESC, getReskey);
+  SWinRes data = {.ts = ts, .groupId = groupId};
+  int32_t index = binarySearchCom(pUpdated, size, &data, TSDB_ORDER_DESC, compareResKey);
   if (index == -1) {
     index = 0;
   } else {
-    TSKEY resTs = getReskey(pUpdated, index);
-    if (resTs < ts) {
+    if (compareResKey(&data, pUpdated, index) > 0) {
       index++;
     } else {
       return TSDB_CODE_SUCCESS;
@@ -753,10 +820,10 @@ static int32_t saveResultRow(SResultRow* result, uint64_t groupId, SArray* pUpda
   return saveResult(result->win.skey, result->pageId, result->offset, groupId, pUpdated);
 }
 
-static void removeResult(SArray* pUpdated, TSKEY key) {
+static void removeResult(SArray* pUpdated, SWinRes* pKey) {
   int32_t size = taosArrayGetSize(pUpdated);
-  int32_t index = binarySearch(pUpdated, size, key, TSDB_ORDER_DESC, getReskey);
-  if (index >= 0 && key == getReskey(pUpdated, index)) {
+  int32_t index = binarySearchCom(pUpdated, size, pKey, TSDB_ORDER_DESC, compareResKey);
+  if (index >= 0 && 0 == compareResKey(pKey, pUpdated, index)) {
     taosArrayRemove(pUpdated, index);
   }
 }
@@ -765,7 +832,7 @@ static void removeResults(SArray* pWins, SArray* pUpdated) {
   int32_t size = taosArrayGetSize(pWins);
   for (int32_t i = 0; i < size; i++) {
     SWinRes* pW = taosArrayGet(pWins, i);
-    removeResult(pUpdated, pW->ts);
+    removeResult(pUpdated, pW);
   }
 }
 
@@ -775,14 +842,30 @@ int64_t getWinReskey(void* data, int32_t index) {
   return pos->ts;
 }
 
+int32_t compareWinRes(void* pKey, void* data, int32_t index) {
+  SArray*     res = (SArray*)data;
+  SWinRes*    pos = taosArrayGetP(res, index);
+  SResKeyPos* pData = (SResKeyPos*) pKey;
+  if (*(int64_t*)pData->key == pos->ts) {
+    if (pData->groupId > pos->groupId) {
+      return 1;
+    } else if (pData->groupId < pos->groupId) {
+      return -1;
+    }
+    return 0;
+  } else if (*(int64_t*)pData->key > pos->ts) {
+    return 1;
+  }
+  return -1;
+}
+
 static void removeDeleteResults(SArray* pUpdated, SArray* pDelWins) {
   int32_t upSize = taosArrayGetSize(pUpdated);
   int32_t delSize = taosArrayGetSize(pDelWins);
   for (int32_t i = 0; i < upSize; i++) {
     SResKeyPos* pResKey = taosArrayGetP(pUpdated, i);
-    int64_t     key = *(int64_t*)pResKey->key;
-    int32_t     index = binarySearch(pDelWins, delSize, key, TSDB_ORDER_DESC, getWinReskey);
-    if (index >= 0 && key == getWinReskey(pDelWins, index)) {
+    int32_t     index = binarySearchCom(pDelWins, delSize, pResKey, TSDB_ORDER_DESC, compareWinRes);
+    if (index >= 0 && 0 == compareWinRes(pResKey, pDelWins, index)) {
       taosArrayRemove(pDelWins, index);
     }
   }
@@ -1448,8 +1531,10 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
     if (pInfo->binfo.pRes->info.rows == 0 || !hasDataInGroupInfo(&pInfo->groupResInfo)) {
       pOperator->status = OP_EXEC_DONE;
+      qDebug("===stream===single interval is done");
       freeAllPages(pInfo->pRecycledPages, pInfo->aggSup.pResultBuf);
     }
+    printDataBlock(pInfo->binfo.pRes, "single interval");
     return pInfo->binfo.pRes->info.rows == 0 ? NULL : pInfo->binfo.pRes;
   }
 

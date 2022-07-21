@@ -109,6 +109,10 @@ typedef struct {
 
   // exec
   STqExecHandle execHandle;
+
+  // prevent drop
+  int64_t ntbUid;
+  SArray* colIdList;  // SArray<int32_t>
 } STqHandle;
 
 struct STQ {

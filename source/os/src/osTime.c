@@ -371,7 +371,7 @@ time_t taosMktime(struct tm *timep) {
   localtime_s(&tm1, &tt);
   ss.wYear = tm1.tm_year + 1900;
   ss.wMonth = tm1.tm_mon + 1;
-  ss.wDay = tm1.tm_wday;
+  ss.wDay = tm1.tm_mday;
   ss.wHour = tm1.tm_hour;
   ss.wMinute = tm1.tm_min;
   ss.wSecond = tm1.tm_sec;
@@ -383,7 +383,7 @@ time_t taosMktime(struct tm *timep) {
 
   s.wYear = timep->tm_year + 1900;
   s.wMonth = timep->tm_mon + 1;
-  s.wDay = timep->tm_wday;
+  s.wDay = timep->tm_mday;
   s.wHour = timep->tm_hour;
   s.wMinute = timep->tm_min;
   s.wSecond = timep->tm_sec;
