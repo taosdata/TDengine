@@ -1944,17 +1944,20 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
   if (pDelFile) {
     SDelFReader* pDelFReader = NULL;
     code = tsdbDelFReaderOpen(&pDelFReader, pDelFile, pTsdb, NULL);
-    if (code) {
+    if (code != TSDB_CODE_SUCCESS) {
       goto _err;
     }
 
     SArray* aDelIdx = taosArrayInit(4, sizeof(SDelIdx));
     if (aDelIdx == NULL) {
+      tsdbDelFReaderClose(&pDelFReader);
       goto _err;
     }
 
     code = tsdbReadDelIdx(pDelFReader, aDelIdx, NULL);
-    if (code) {
+    if (code != TSDB_CODE_SUCCESS) {
+      taosArrayDestroy(aDelIdx);
+      tsdbDelFReaderClose(&pDelFReader);
       goto _err;
     }
 
@@ -1964,6 +1967,8 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
     if (pIdx != NULL) {
       code = tsdbReadDelData(pDelFReader, pIdx, pDelData, NULL);
       if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(aDelIdx);
+        tsdbDelFReaderClose(&pDelFReader);
         goto _err;
       }
     }
