@@ -66,7 +66,8 @@ sql_error create table $tb (ts timestamp, col $i_binary )
 sql_error create table $tb (ts timestamp, col $i_bigint )
 sql_error create table $tb (ts timestamp, col $i_smallint )
 sql_error create table $tb (ts timestamp, col $i_tinyint )
-sql_error create table $tb (ts timestamp, col $i_binary2 )
+sql create table $tb (ts timestamp, col $i_binary2 )
+sql drop table $tb
 sql_error create table $tb (ts timestamp, col $nchar )
 sql create table $tb (ts timestamp, col nchar(20))
 sql show tables
@@ -105,7 +106,8 @@ sql_error create table $tb (ts timestamp, $ses int)
 sql_error create table $tb (ts timestamp, $int int)
 sql_error create table $tb (ts timestamp, $bint int) 
 sql_error create table $tb (ts timestamp, $binary int) 
-sql_error create table $tb (ts timestamp, $str int) 
+sql create table $tb (ts timestamp, $str int) 
+sql drop table $tb
 sql_error create table $tb (ts timestamp, $tag int) 
 sql_error create table $tb (ts timestamp, $tags int)
 sql_error create table $tb (ts timestamp, $sint int) 
@@ -157,7 +159,7 @@ print chinese_char_in_table_support test passed
 print ========== create_tb.sim case6: table_already_exists
 sql create table tbs (ts timestamp, col int)
 sql insert into tbs values (now, 1)
-sql create table tbs (ts timestamp, col bool)
+sql_error create table tbs (ts timestamp, col bool)
 #sql_error create table tb (ts timestamp, col bool)
 print table_already_exists test passed
 
@@ -179,7 +181,7 @@ print table_already_exists test passed
 
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 
