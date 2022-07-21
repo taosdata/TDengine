@@ -142,6 +142,8 @@ class TDTestCase:
         # 9. breakdown-frequency
         # NULL ---count(NULL)=0 expect count(NULL)= 100
         tdSql.query("SELECT model,state_changed,count(state_changed)  FROM (SELECT model,diff(broken_down) AS state_changed   FROM (SELECT _wstart,model,cast(cast(floor(2*(sum(nzs)/count(nzs))) as bool) as int) AS broken_down FROM (SELECT ts,model, cast(cast(status as bool) as int) AS nzs FROM diagnostics WHERE  ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z' ) WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition BY model interval(10m)) partition BY model) where model is null  partition BY model,state_changed ")
+        parRows=tdSql.queryRows
+        assert parRows != 0 , "query result is wrong"
 
 
         tdSql.query(" SELECT model,state_changed,count(state_changed)  FROM (SELECT model,diff(broken_down) AS state_changed   FROM (SELECT _wstart,model,cast(cast(floor(2*(sum(nzs)/count(nzs))) as bool) as int) AS broken_down FROM (SELECT ts,model, cast(cast(status as bool) as int) AS nzs FROM diagnostics WHERE  ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z' ) WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition BY model interval(10m)) partition BY model) where state_changed =1 partition BY model,state_changed ;")
