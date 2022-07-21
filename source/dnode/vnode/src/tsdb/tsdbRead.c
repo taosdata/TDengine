@@ -286,8 +286,6 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, SArray* aDFileSet, int32
   return TSDB_CODE_SUCCESS;
 }
 
-static void cleanupFilesetIterator(SFilesetIter* pIter) { taosArrayDestroy(pIter->pFileList); }
-
 static bool filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader) {
   bool    asc = ASCENDING_TRAVERSE(pIter->order);
   int32_t step = asc ? 1 : -1;
@@ -2829,6 +2827,9 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
 
   SDataBlockIter* pBlockIter = &pReader->status.blockIter;
 
+  code = tsdbTakeReadSnap(pVnode->pTsdb, &pReader->pReadSnap);
+  if (code) goto _err;
+
   initFilesetIterator(&pReader->status.fileIter, (*ppReader)->pReadSnap->fs.aDFileSet, pReader->order, pReader->idStr);
   resetDataBlockIterator(&pReader->status.blockIter, pReader->order);
 
@@ -2841,9 +2842,6 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
       return code;
     }
   }
-
-  code = tsdbTakeReadSnap(pVnode->pTsdb, &pReader->pReadSnap);
-  if (code) goto _err;
 
   tsdbDebug("%p total numOfTable:%d in this query %s", pReader, numOfTables, pReader->idStr);
   return code;
@@ -2873,7 +2871,6 @@ void tsdbReaderClose(STsdbReader* pReader) {
   }
   taosMemoryFree(pSupInfo->buildBuf);
 
-  cleanupFilesetIterator(&pReader->status.fileIter);
   cleanupDataBlockIterator(&pReader->status.blockIter);
   destroyBlockScanInfo(pReader->status.pTableMap);
   blockDataDestroy(pReader->pResBlock);

@@ -1151,7 +1151,7 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
   STsdb     *pTsdb = pCommitter->pTsdb;
   SMemTable *pMemTable = pTsdb->imem;
 
-  ASSERT(eno);
+  ASSERT(eno == 0);
 
   code = tsdbFSCommit1(pTsdb, &pCommitter->fs);
   if (code) goto _err;
