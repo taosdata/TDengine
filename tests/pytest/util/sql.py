@@ -235,9 +235,17 @@ class TDSql:
                 tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                             (self.sql, row, col, self.queryResult[row][col], data))
                 return
-            elif isinstance(data, float) and abs(self.queryResult[row][col] - data) <= 0.000001:
-                tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
+            elif isinstance(data, float):
+                if abs(data) >= 1 and abs((self.queryResult[row][col] - data) / data) <= 0.000001:
+                    tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
+                                (self.sql, row, col, self.queryResult[row][col], data))
+                elif abs(data) < 1 and abs(self.queryResult[row][col] - data) <= 0.000001:
+                    tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
+                                (self.sql, row, col, self.queryResult[row][col], data))
+                else:
+                    caller = inspect.getframeinfo(inspect.stack()[1][0])
+                    args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
+                    tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
                 return
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -323,13 +331,32 @@ class TDSql:
             args = (caller.filename, caller.lineno, self.sql, col_name_list, expect_col_name_list)
             tdLog.exit("%s(%d) failed: sql:%s, col_name_list:%s != expect_col_name_list:%s" % args)
 
+    def __check_equal(self, elm, expect_elm):
+        if not type(elm) in(list, tuple) and elm == expect_elm:
+            return True
+        if type(elm) in(list, tuple) and type(expect_elm) in(list, tuple):
+            if len(elm) != len(expect_elm):
+                return False
+            if len(elm) == 0:
+                return True
+            for i in range(len(elm)):
+                flag = self.__check_equal(elm[i], expect_elm[i])
+                if not flag:
+                    return False
+            return True
+        return False
+
     def checkEqual(self, elm, expect_elm):
         if elm == expect_elm:
             tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
-        else:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
-            tdLog.exit("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
+            return
+        if self.__check_equal(elm, expect_elm):
+            tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
+            return
+
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
+        args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
+        tdLog.exit("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
 
     def checkNotEqual(self, elm, expect_elm):
         if elm != expect_elm:
