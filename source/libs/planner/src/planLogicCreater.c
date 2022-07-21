@@ -713,7 +713,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   pWindow->windowAlgo = pCxt->pPlanCxt->streamQuery ? INTERVAL_ALGO_STREAM_SINGLE : INTERVAL_ALGO_HASH;
   pWindow->node.groupAction = GROUP_ACTION_KEEP;
   pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_IN_BLOCK;
-  pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_IN_BLOCK;
+  pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_IN_GROUP;
 
   pWindow->pTspk = nodesCloneNode(pInterval->pCol);
   if (NULL == pWindow->pTspk) {
@@ -1416,7 +1416,7 @@ static int32_t adjustProjectDataRequirement(SProjectLogicNode* pProject, EDataOr
 }
 
 static int32_t adjustIntervalDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
-  if (requirement <= DATA_ORDER_LEVEL_IN_BLOCK) {
+  if (requirement <= DATA_ORDER_LEVEL_IN_GROUP) {
     return TSDB_CODE_SUCCESS;
   }
   pWindow->node.resultDataOrder = requirement;
