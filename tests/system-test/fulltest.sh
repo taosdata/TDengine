@@ -62,7 +62,7 @@ python3 ./test.py -f 2-query/char_length.py -R
 python3 ./test.py -f 2-query/check_tsdb.py
 python3 ./test.py -f 2-query/check_tsdb.py -R
 
-python3 ./test.py -f 1-insert/update_data.py
+# jira python3 ./test.py -f 1-insert/update_data.py
 python3 ./test.py -f 1-insert/delete_data.py
 python3 ./test.py -f 2-query/db.py
 
@@ -151,7 +151,7 @@ python3 ./test.py -f 2-query/max_partition.py
 python3 ./test.py -f 2-query/last_row.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py
-python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3
+#python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3
 #python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 5 -M 3
@@ -215,8 +215,8 @@ python3 ./test.py -f 7-tmq/tmqUdf.py
 # python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot0.py
 # python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot1.py
 python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
-# python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 
+# python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 
 #------------querPolicy  2-----------
 
