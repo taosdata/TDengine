@@ -94,7 +94,7 @@ class TDTestCase:
         tdLog.info("drop one stable")
         self.paraDict["stbName"] = 'stb1'    
         tdSql.execute("drop table %s.%s" %(self.paraDict['dbName'], self.paraDict['stbName']))        
-        tmqCom.drop_ctable(tdSql, dbname=self.paraDict['dbName'], count=self.paraDict["ctbNum"], default_ctbname_prefix=self.paraDict["ctbPrefix"])
+        # tmqCom.drop_ctable(tdSql, dbname=self.paraDict['dbName'], count=self.paraDict["ctbNum"], default_ctbname_prefix=self.paraDict["ctbPrefix"])
 
         pThread2.join()
     
