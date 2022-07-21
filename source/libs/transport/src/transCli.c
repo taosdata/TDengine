@@ -1284,6 +1284,7 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
           EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
   if (0 != transAsyncSend(pThrd->asyncPool, &(cliMsg->q))) {
     destroyCmsg(cliMsg);
+    transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
     return -1;
   }
   transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
@@ -1330,7 +1331,10 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
           EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
 
   if (0 != transAsyncSend(pThrd->asyncPool, &cliMsg->q)) {
+    tsem_destroy(sem);
+    taosMemoryFree(sem);
     destroyCmsg(cliMsg);
+    transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
     return -1;
   }
   tsem_wait(sem);
@@ -1369,6 +1373,7 @@ int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
 
     if (transAsyncSend(thrd->asyncPool, &(cliMsg->q)) != 0) {
       destroyCmsg(cliMsg);
+      transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
       return -1;
     }
   }
