@@ -2,11 +2,11 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 import numpy as np
-import random 
+import random
 
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 , 
+    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
     "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143,
     "maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
@@ -18,7 +18,7 @@ class TDTestCase:
         self.ts = 1537146000000
 
     def prepare_datas_of_distribute(self):
-        
+
         # prepate datas for  20 tables distributed at different vgroups
         tdSql.execute("create database if not exists testdb keep 3650 duration 1000 vgroups 5")
         tdSql.execute(" use testdb ")
@@ -89,17 +89,17 @@ class TDTestCase:
         vgroups = tdSql.queryResult
 
         vnode_tables={}
-        
+
         for vgroup_id in vgroups:
             vnode_tables[vgroup_id[0]]=[]
-        
+
 
         # check sub_table of per vnode ,make sure sub_table has been distributed
         tdSql.query("show tables like 'ct%'")
         table_names = tdSql.queryResult
         tablenames = []
         for table_name in table_names:
-            vnode_tables[table_name[6]].append(table_name[0]) 
+            vnode_tables[table_name[6]].append(table_name[0])
         self.vnode_disbutes = vnode_tables
 
         count = 0
@@ -108,7 +108,7 @@ class TDTestCase:
                 count+=1
         if count < 2:
             tdLog.exit(" the datas of all not satisfy sub_table has been distributed ")
-        
+
     def distribute_agg_query(self):
         # basic filter
         tdSql.query("select apercentile(c1 , 20) from stb1 where c1 is null")
@@ -129,12 +129,12 @@ class TDTestCase:
         tdSql.query("select apercentile(c1,20) from stb1 where t1> 4  partition by tbname")
         tdSql.checkRows(15)
 
-        # union all 
+        # union all
         tdSql.query("select apercentile(c1,20) from stb1 union all select apercentile(c1,20) from stb1 ")
         tdSql.checkRows(2)
         tdSql.checkData(0,0,7.389181281)
 
-        # join 
+        # join
 
         tdSql.execute(" create database if not exists db ")
         tdSql.execute(" use db ")
@@ -142,7 +142,7 @@ class TDTestCase:
         tdSql.execute(" create table tb1 using st tags(1) ")
         tdSql.execute(" create table tb2 using st tags(2) ")
 
-        
+
         for i in range(10):
             ts = i*10 + self.ts
             tdSql.execute(f" insert into tb1 values({ts},{i},{i}.0)")
@@ -153,7 +153,7 @@ class TDTestCase:
         tdSql.checkData(0,0,9.000000000)
         tdSql.checkData(0,0,9.000000000)
 
-        # group by 
+        # group by
         tdSql.execute(" use testdb ")
         tdSql.query(" select max(c1),c1  from stb1 group by t1 ")
         tdSql.checkRows(20)
@@ -189,7 +189,7 @@ class TDTestCase:
         self.check_distribute_datas()
         self.distribute_agg_query()
 
-    
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
