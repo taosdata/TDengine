@@ -708,9 +708,13 @@ int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, c
     if (pTrans->oper == oper) {
       if (strcasecmp(dbname, pTrans->dbname1) == 0) {
         mDebug("trans:%d, db:%s oper:%d matched with input", pTrans->id, dbname, oper);
-        if (taosArrayPush(pTrans->pRpcArray, &pMsg->info) != NULL) {
+        if (pTrans->pRpcArray == NULL) {
+          pTrans->pRpcArray = taosArrayInit(1, sizeof(SRpcHandleInfo));
+        }
+        if (pTrans->pRpcArray != NULL && taosArrayPush(pTrans->pRpcArray, &pMsg->info) != NULL) {
           code = 0;
         }
+
         sdbRelease(pMnode->pSdb, pTrans);
         break;
       }

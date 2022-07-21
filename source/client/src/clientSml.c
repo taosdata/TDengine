@@ -1217,6 +1217,9 @@ static int32_t smlParseCols(const char *data, int32_t len, SArray *cols, char *c
     kv->value = value;
     kv->length = valueLen;
     if (isTag) {
+      if(valueLen > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE){
+        return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+      }
       kv->type = TSDB_DATA_TYPE_NCHAR;
     } else {
       int32_t ret = smlParseValue(kv, msg);
@@ -2207,7 +2210,7 @@ static int32_t smlParseTelnetLine(SSmlHandle *info, void *data) {
       (SSmlSTableMeta **)taosHashGet(info->superTables, (*oneTable)->sTableName, (*oneTable)->sTableNameLen);
   if (tableMeta) {  // update meta
     ret = smlUpdateMeta((*tableMeta)->colHash, (*tableMeta)->cols, cols, &info->msgBuf);
-    if (!hasTable && ret) {
+    if (!hasTable && ret == TSDB_CODE_SUCCESS) {
       ret = smlUpdateMeta((*tableMeta)->tagHash, (*tableMeta)->tags, (*oneTable)->tags, &info->msgBuf);
     }
     if (ret != TSDB_CODE_SUCCESS) {

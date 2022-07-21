@@ -140,7 +140,7 @@ static void destroyUserdata(STransMsg* userdata);
 
 static int cliRBChoseIdx(STrans* pTransInst);
 
-static void destroyCmsg(SCliMsg* cmsg);
+static void destroyCmsg(void* cmsg);
 static void transDestroyConnCtx(STransConnCtx* ctx);
 // thread obj
 static SCliThrd* createThrdObj();
@@ -965,7 +965,8 @@ static void destroyUserdata(STransMsg* userdata) {
   transFreeMsg(userdata->pCont);
   userdata->pCont = NULL;
 }
-static void destroyCmsg(SCliMsg* pMsg) {
+static void destroyCmsg(void* arg) {
+  SCliMsg* pMsg = arg;
   if (pMsg == NULL) {
     return;
   }
@@ -1004,7 +1005,7 @@ static void destroyThrdObj(SCliThrd* pThrd) {
   TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SCliMsg, destroyCmsg);
   transDestroyAsyncPool(pThrd->asyncPool);
 
-  transDQDestroy(pThrd->delayQueue);
+  transDQDestroy(pThrd->delayQueue, destroyCmsg);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
 }

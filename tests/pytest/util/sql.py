@@ -94,6 +94,7 @@ class TDSql:
             except Exception as e:
                 i+=1
                 tdLog.notice("Try to query again, query times: %d "%i)
+                time.sleep(1)
                 pass
         else:
             try:
@@ -293,6 +294,7 @@ class TDSql:
             except Exception as e:
                 i+=1
                 tdLog.notice("Try to execute sql again, query times: %d "%i)
+                time.sleep(1)
                 pass
         else:               
             try:

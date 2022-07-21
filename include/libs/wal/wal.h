@@ -33,16 +33,16 @@ extern "C" {
 #define wTrace(...) { if (wDebugFlag & DEBUG_TRACE) { taosPrintLog("WAL ",       DEBUG_TRACE, wDebugFlag, __VA_ARGS__); }}
 // clang-format on
 
-#define WAL_PROTO_VER    0
-#define WAL_NOSUFFIX_LEN 20
-#define WAL_SUFFIX_AT    (WAL_NOSUFFIX_LEN + 1)
-#define WAL_LOG_SUFFIX   "log"
-#define WAL_INDEX_SUFFIX "idx"
-#define WAL_REFRESH_MS   1000
-#define WAL_MAX_SIZE     (TSDB_MAX_WAL_SIZE + sizeof(SWalCkHead))
-#define WAL_PATH_LEN     (TSDB_FILENAME_LEN + 12)
-#define WAL_FILE_LEN     (WAL_PATH_LEN + 32)
-#define WAL_MAGIC        0xFAFBFCFDULL
+#define WAL_PROTO_VER     0
+#define WAL_NOSUFFIX_LEN  20
+#define WAL_SUFFIX_AT     (WAL_NOSUFFIX_LEN + 1)
+#define WAL_LOG_SUFFIX    "log"
+#define WAL_INDEX_SUFFIX  "idx"
+#define WAL_REFRESH_MS    1000
+#define WAL_PATH_LEN      (TSDB_FILENAME_LEN + 12)
+#define WAL_FILE_LEN      (WAL_PATH_LEN + 32)
+#define WAL_MAGIC         0xFAFBFCFDULL
+#define WAL_SCAN_BUF_SIZE (1024 * 1024 * 3)
 
 typedef enum {
   TAOS_WAL_WRITE = 1,
@@ -64,6 +64,7 @@ typedef struct {
   int64_t verInSnapshotting;
   int64_t snapshotVer;
   int64_t commitVer;
+  int64_t appliedVer;
   int64_t lastVer;
 } SWalVer;
 
@@ -172,6 +173,9 @@ int32_t walRollback(SWal *, int64_t ver);
 int32_t walBeginSnapshot(SWal *, int64_t ver);
 int32_t walEndSnapshot(SWal *);
 int32_t walRestoreFromSnapshot(SWal *, int64_t ver);
+// for tq
+int32_t walApplyVer(SWal *, int64_t ver);
+
 // int32_t  walDataCorrupted(SWal*);
 
 // read
@@ -186,7 +190,6 @@ void    walSetReaderCapacity(SWalReader *pRead, int32_t capacity);
 int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead);
 int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead);
 int32_t walSkipFetchBody(SWalReader *pRead, const SWalCkHead *pHead);
-
 typedef struct {
   int64_t refId;
   int64_t ver;
@@ -206,6 +209,7 @@ int64_t walGetFirstVer(SWal *);
 int64_t walGetSnapshotVer(SWal *);
 int64_t walGetLastVer(SWal *);
 int64_t walGetCommittedVer(SWal *);
+int64_t walGetAppliedVer(SWal *);
 
 #ifdef __cplusplus
 }

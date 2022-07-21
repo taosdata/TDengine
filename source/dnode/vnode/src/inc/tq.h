@@ -88,7 +88,7 @@ typedef struct {
     STqExecTb  execTb;
     STqExecDb  execDb;
   };
-
+  int32_t numOfCols;  // number of out pout column, temporarily used
 } STqExecHandle;
 
 typedef struct {
@@ -108,6 +108,10 @@ typedef struct {
 
   // exec
   STqExecHandle execHandle;
+
+  // prevent drop
+  int64_t ntbUid;
+  SArray* colIdList;  // SArray<int32_t>
 } STqHandle;
 
 struct STQ {

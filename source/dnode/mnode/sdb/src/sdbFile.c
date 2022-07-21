@@ -231,7 +231,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   snprintf(file, sizeof(file), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
   mDebug("start to read sdb file:%s", file);
 
-  SSdbRaw *pRaw = taosMemoryMalloc(WAL_MAX_SIZE + 100);
+  SSdbRaw *pRaw = taosMemoryMalloc(TSDB_MAX_MSG_SIZE + 100);
   if (pRaw == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed read sdb file since %s", terrstr());
@@ -556,8 +556,9 @@ int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *ter
   if (term != NULL) *term = commitTerm;
   if (config != NULL) *config = commitConfig;
 
-  mDebug("sdbiter:%p, is created to read snapshot, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
-        pIter, commitIndex, commitTerm, commitConfig, pIter->name);
+  mDebug("sdbiter:%p, is created to read snapshot, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64
+         " file:%s",
+         pIter, commitIndex, commitTerm, commitConfig, pIter->name);
   return 0;
 }
 
@@ -613,7 +614,7 @@ int32_t sdbStartWrite(SSdb *pSdb, SSdbIter **ppIter) {
   return 0;
 }
 
-int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply) {
+int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, int64_t term, int64_t config) {
   int32_t code = 0;
 
   if (!isApply) {
@@ -639,6 +640,19 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply) {
   if (sdbReadFile(pSdb) != 0) {
     mError("sdbiter:%p, failed to read from %s since %s", pIter, datafile, terrstr());
     return -1;
+  }
+
+  if (config > 0) {
+    ASSERT(pSdb->commitConfig == config);
+    pSdb->commitConfig = config;
+  }
+  if (term > 0) {
+    ASSERT(pSdb->commitTerm == term);
+    pSdb->commitTerm = term;
+  }
+  if (index > 0) {
+    ASSERT(pSdb->commitIndex == index);
+    pSdb->commitIndex = index;
   }
 
   mDebug("sdbiter:%p, successfully applyed to sdb", pIter);

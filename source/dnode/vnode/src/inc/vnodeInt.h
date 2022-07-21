@@ -77,6 +77,8 @@ typedef struct SSnapDataHdr    SSnapDataHdr;
 // vnd.h
 void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
 void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
+void  vnodeBufPoolRef(SVBufPool* pPool);
+void  vnodeBufPoolUnRef(SVBufPool* pPool);
 
 // meta
 typedef struct SMCtbCursor SMCtbCursor;
@@ -89,7 +91,7 @@ int             metaBegin(SMeta* pMeta);
 int             metaCommit(SMeta* pMeta);
 int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
-int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
+int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq, SArray* tbUidList);
 int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
 int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq, SArray* tbUids);
 int             metaTtlDropTable(SMeta* pMeta, int64_t ttl, SArray* tbUids);
@@ -140,6 +142,7 @@ void    tqClose(STQ*);
 int     tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
 int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
+int32_t tqCheckColModifiable(STQ* pTq, int32_t colId);
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen);
@@ -247,34 +250,34 @@ struct STsdbKeepCfg {
 };
 
 struct SVnode {
-  char*      path;
-  SVnodeCfg  config;
-  SVState    state;
-  STfs*      pTfs;
-  SMsgCb     msgCb;
-  SVBufPool* pPool;
-  SVBufPool* inUse;
-  SVBufPool* onCommit;
-  SVBufPool* onRecycle;
-  SMeta*     pMeta;
-  SSma*      pSma;
-  STsdb*     pTsdb;
-  SWal*      pWal;
-  STQ*       pTq;
-  SSink*     pSink;
-  tsem_t     canCommit;
-  int64_t    sync;
-  int32_t    blockCount;
-  tsem_t     syncSem;
-  SQHandle*  pQuery;
+  char*         path;
+  SVnodeCfg     config;
+  SVState       state;
+  STfs*         pTfs;
+  SMsgCb        msgCb;
+  TdThreadMutex mutex;
+  TdThreadCond  poolNotEmpty;
+  SVBufPool*    pPool;
+  SVBufPool*    inUse;
+  SMeta*        pMeta;
+  SSma*         pSma;
+  STsdb*        pTsdb;
+  SWal*         pWal;
+  STQ*          pTq;
+  SSink*        pSink;
+  tsem_t        canCommit;
+  int64_t       sync;
+  int32_t       blockCount;
+  tsem_t        syncSem;
+  SQHandle*     pQuery;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
 
 #define VND_TSDB(vnd)       ((vnd)->pTsdb)
 #define VND_RSMA0(vnd)      ((vnd)->pTsdb)
-#define VND_RSMA1(vnd)      ((vnd)->pSma->pRSmaTsdb1)
-#define VND_RSMA2(vnd)      ((vnd)->pSma->pRSmaTsdb2)
+#define VND_RSMA1(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L0])
+#define VND_RSMA2(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L1])
 #define VND_RETENTIONS(vnd) (&(vnd)->config.tsdbCfg.retentions)
 #define VND_IS_RSMA(v)      ((v)->config.isRsma == 1)
 #define VND_IS_TSMA(v)      ((v)->config.isTsma == 1)
@@ -289,8 +292,7 @@ struct SSma {
   bool          locked;
   TdThreadMutex mutex;
   SVnode*       pVnode;
-  STsdb*        pRSmaTsdb1;
-  STsdb*        pRSmaTsdb2;
+  STsdb*        pRSmaTsdb[TSDB_RETENTION_L2];
   void*         pTSmaEnv;
   void*         pRSmaEnv;
 };
@@ -305,8 +307,8 @@ struct SSma {
 #define SMA_TSMA_ENV(s)   ((s)->pTSmaEnv)
 #define SMA_RSMA_ENV(s)   ((s)->pRSmaEnv)
 #define SMA_RSMA_TSDB0(s) ((s)->pVnode->pTsdb)
-#define SMA_RSMA_TSDB1(s) ((s)->pRSmaTsdb1)
-#define SMA_RSMA_TSDB2(s) ((s)->pRSmaTsdb2)
+#define SMA_RSMA_TSDB1(s) ((s)->pRSmaTsdb[TSDB_RETENTION_L0])
+#define SMA_RSMA_TSDB2(s) ((s)->pRSmaTsdb[TSDB_RETENTION_L1])
 
 // sma
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);

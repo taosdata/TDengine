@@ -197,7 +197,7 @@ void shellRunSingleCommandImp(char *command) {
 
     et = taosGetTimestampUs();
     if (error_no == 0) {
-      printf("Query OK, %d rows affected (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
+      printf("Query OK, %d rows in database (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
     } else {
       printf("Query interrupted (%s), %d rows affected (%.6fs)\r\n", taos_errstr(pSql), numOfRows, (et - st) / 1E6);
     }
@@ -758,7 +758,6 @@ void shellReadHistory() {
   taosCloseFile(&pFile);
   int64_t file_size;
   if (taosStatFile(pHistory->file, &file_size, NULL) == 0 && file_size > SHELL_MAX_COMMAND_SIZE) {
-    fprintf(stdout,"%s(%d) %s %08" PRId64 "\n", __FILE__, __LINE__,__func__,taosGetSelfPthreadId());fflush(stdout);
     TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_STREAM | TD_FILE_TRUNC);
     if (pFile == NULL) return;
     int32_t endIndex = pHistory->hstart;

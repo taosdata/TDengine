@@ -159,27 +159,28 @@ typedef struct {
   int64_t recoverEndVer;
 } SStreamTaskInfo;
 
+typedef struct {
+  char*           tablename;
+  char*           dbname;
+  int32_t         tversion;
+  SSchemaWrapper* sw;
+} SSchemaInfo;
+
 typedef struct SExecTaskInfo {
-  STaskIdInfo     id;
-  uint32_t        status;
-  STimeWindow     window;
-  STaskCostInfo   cost;
-  int64_t         owner;  // if it is in execution
-  int32_t         code;
+  STaskIdInfo      id;
+  uint32_t         status;
+  STimeWindow      window;
+  STaskCostInfo    cost;
+  int64_t          owner;  // if it is in execution
+  int32_t          code;
 
-  SStreamTaskInfo streamInfo;
-
-  struct {
-    char*           tablename;
-    char*           dbname;
-    int32_t         tversion;
-    SSchemaWrapper* sw;
-  } schemaVer;
-
-  STableListInfo        tableqinfoList;  // this is a table list
-  const char*           sql;             // query sql string
-  jmp_buf               env;             // jump to this position when error happens.
-  EOPTR_EXEC_MODEL      execModel;       // operator execution model [batch model|stream model]
+  SStreamTaskInfo  streamInfo;
+  SSchemaInfo      schemaInfo;
+  STableListInfo   tableqinfoList;  // this is a table list
+  const char*      sql;             // query sql string
+  jmp_buf          env;             // jump to this position when error happens.
+  EOPTR_EXEC_MODEL execModel;       // operator execution model [batch model|stream model]
+  SSubplan*        pSubplan;
   struct SOperatorInfo* pRoot;
 } SExecTaskInfo;
 
@@ -248,13 +249,13 @@ typedef struct SLoadRemoteDataInfo {
 } SLoadRemoteDataInfo;
 
 typedef struct SLimitInfo {
-    SLimit             limit;
-    SLimit             slimit;
-    uint64_t           currentGroupId;
-    int64_t            remainGroupOffset;
-    int64_t            numOfOutputGroups;
-    int64_t            remainOffset;
-    int64_t            numOfOutputRows;
+  SLimit              limit;
+  SLimit              slimit;
+  uint64_t            currentGroupId;
+  int64_t             remainGroupOffset;
+  int64_t             numOfOutputGroups;
+  int64_t             remainOffset;
+  int64_t             numOfOutputRows;
 } SLimitInfo;
 
 typedef struct SExchangeInfo {
@@ -743,8 +744,8 @@ typedef struct SSortOperatorInfo {
 
   int64_t      startTs;       // sort start time
   uint64_t     sortElapsed;   // sort elapsed time, time to flush to disk not included.
-
-  SNode*      pCondition;
+  SLimitInfo   limitInfo;
+  SNode*       pCondition;
 } SSortOperatorInfo;
 
 typedef struct STagFilterOperatorInfo {
@@ -784,7 +785,7 @@ int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr);
 void    cleanupExprSupp(SExprSupp* pSup);
 int32_t initAggInfo(SExprSupp *pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
                     const char* pkey);
-void    initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows);
+void    initResultSizeInfo(SResultInfo * pResultInfo, int32_t numOfRows);
 void    doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo, SDiskbasedBuf* pBuf);
 int32_t handleLimitOffset(SOperatorInfo *pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock, bool holdDataInBuf);
 bool    hasLimitOffsetInfo(SLimitInfo* pLimitInfo);
@@ -796,7 +797,7 @@ void    doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWin
 int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows, char* pData,
                                   int32_t compLen, int32_t numOfOutput, int64_t startTs, uint64_t* total,
                                   SArray* pColList);
-void    getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, STimeWindow* win);
+STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key);
 STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInterval* pInterval, int32_t order);
 
 int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t *order, int32_t* scanFlag);
