@@ -250,7 +250,7 @@ CaseCtrl gCaseCtrl = {
 #endif
 
 
-#if 0
+#if 1
 CaseCtrl gCaseCtrl = {  // default
   .precision = TIME_PRECISION_MILLI,
   .bindNullNum = 0,
@@ -282,7 +282,7 @@ CaseCtrl gCaseCtrl = {  // default
 };
 #endif
 
-#if 1
+#if 0
 CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .bindNullNum = 1,
   .printCreateTblSql = false,
