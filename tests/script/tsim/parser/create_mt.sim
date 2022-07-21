@@ -69,7 +69,8 @@ sql_error create table $mt (ts $i_ts , col int) tags (tag1 int)
 sql_error create table $mt (ts timestamp, col $i_binary ) tags (tag1 int)
 sql_error create table $mt (ts timestamp, col $i_bigint ) tags (tag1 int)
 sql_error create table $mt (ts timestamp, col $i_smallint ) tags (tag1 int)
-sql_error create table $mt (ts timestamp, col $i_binary2 ) tags (tag1 int)
+sql create table $mt (ts timestamp, col $i_binary2 ) tags (tag1 int)
+sql drop table $mt
 sql_error create table $mt (ts timestamp, col $i_tinyint ) tags (tag1 int)
 sql_error create table $mt (ts timestamp, col $i_nchar ) tags (tag1 int)
 
@@ -101,7 +102,8 @@ sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_binary )
 sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_bigint )
 sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_smallint )
 sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_tinyint )
-sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_binary2 )
+sql create table $mt (ts timestamp, col int) tags (tag1 $i_binary2 )
+sql drop table $mt
 sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_bool )
 sql_error create table $mt (ts timestamp, col int) tags (tag1 $nchar )
 # correct use of nchar in tags
@@ -144,7 +146,8 @@ sql_error create table $mt (ts timestamp, col1 int) tags ( $ses int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $int int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $bint int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $binary int)
-sql_error create table $mt (ts timestamp, col1 int) tags ( $str int) 
+sql create table $mt (ts timestamp, col1 int) tags ( $str int) 
+sql drop table $mt
 sql_error create table $mt (ts timestamp, col1 int) tags ( $tag int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $tags int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $sint int)
@@ -162,8 +165,8 @@ sql create table $tb using $mt tags (-1)
 # -x ng_tag_v
 #  return -1
 #ng_tag_v:
-sql select tg from $tb
-if $data00 != -1 then
+sql show tags from $tb
+if $data05 != -1 then
   return -1
 endi
 sql drop table $tb
@@ -172,28 +175,21 @@ sql drop table $tb
 print create_mt.sim unmatched_tag_types
 sql reset query cache
 sql create table $tb using $mt tags ('123')
-sql select tg from  $tb
-print data00 = $data00
-if $data00 != 123 then
+sql show tags from $tb
+print data05 = $data05
+if $data05 != 123 then
   return -1
 endi
 sql drop table $tb
+
 sql_error create table $tb using $mt tags (abc)
 #the case below might need more consideration
 sql_error create table $tb using $mt tags ('abc')  
 sql drop table if exists $tb
 sql reset query cache
-sql create table $tb using $mt tags (1e1)
-sql select tg from  $tb
-if $data00 != 10 then
-  return -1
-endi
-sql drop table $tb
-sql create table $tb using $mt tags ('1e1')
-sql select tg from  $tb
-if $data00 != 10 then
-  return -1
-endi
+sql_error create table $tb using $mt tags (1e1)
+
+sql_error create table $tb using $mt tags ('1e1')
 sql_error create table $tb using $mt tags (2147483649)
 
 ## case: chinese_char_in_metric
@@ -245,7 +241,7 @@ print chinese_char_in_metrics test passed
 
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 

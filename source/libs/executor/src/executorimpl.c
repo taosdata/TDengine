@@ -3963,6 +3963,8 @@ static SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
     size_t rows = pInfo->pRes->info.rows;
     if (rows > 0 || pOperator->status == OP_EXEC_DONE) {
       break;
+    } else {
+      blockDataCleanup(pInfo->pRes);
     }
   }
 
@@ -4291,7 +4293,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
         REPLACE_NODE(pNew);
       } else {
         taosMemoryFree(keyBuf);
-        nodesClearList(groupNew);
+        nodesDestroyList(groupNew);
         metaReaderClear(&mr);
         return code;
       }
@@ -4309,7 +4311,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
           if (tTagIsJson(data)) {
             terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
             taosMemoryFree(keyBuf);
-            nodesClearList(groupNew);
+            nodesDestroyList(groupNew);
             metaReaderClear(&mr);
             return terrno;
           }
@@ -4332,7 +4334,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
     info->groupId = groupId;
     groupNum++;
 
-    nodesClearList(groupNew);
+    nodesDestroyList(groupNew);
     metaReaderClear(&mr);
   }
   taosMemoryFree(keyBuf);

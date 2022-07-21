@@ -142,6 +142,7 @@ static FORCE_INLINE void* streamQueueNextItem(SStreamQueue* queue) {
     ASSERT(queue->qItem != NULL);
     return streamQueueCurItem(queue);
   } else {
+    queue->qItem = NULL;
     taosGetQitem(queue->qall, &queue->qItem);
     if (queue->qItem == NULL) {
       taosReadAllQitems(queue->queue, queue->qall);

@@ -4941,14 +4941,14 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
   return 0;
 }
 
-STSchema *tdGetSTSChemaFromSSChema(SSchema **pSchema, int32_t nCols) {
+STSchema *tdGetSTSChemaFromSSChema(SSchema *pSchema, int32_t nCols, int32_t sver) {
   STSchemaBuilder schemaBuilder = {0};
-  if (tdInitTSchemaBuilder(&schemaBuilder, 1) < 0) {
+  if (tdInitTSchemaBuilder(&schemaBuilder, sver) < 0) {
     return NULL;
   }
 
   for (int i = 0; i < nCols; i++) {
-    SSchema *schema = *pSchema + i;
+    SSchema *schema = pSchema + i;
     if (tdAddColToSchema(&schemaBuilder, schema->type, schema->flags, schema->colId, schema->bytes) < 0) {
       tdDestroyTSchemaBuilder(&schemaBuilder);
       return NULL;

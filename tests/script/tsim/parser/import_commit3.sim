@@ -18,7 +18,7 @@ $stb = $stbPrefix . $i
 
 sql drop database $db -x step1
 step1:
-sql create database $db cache 16
+sql create database $db 
 print ====== create tables
 sql use $db
 sql reset query cache
@@ -35,15 +35,11 @@ while $x < $rowNum
 endw 
 print ====== tables created
 
-sleep 500
-
 $ts = $ts + 1
 sql insert into $tb values ( $ts , -1, -1, -1, -1, -1)
 $ts = $ts0 + $delta
 $ts = $ts + 1
 sql import into $tb values ( $ts , -2, -2, -2, -2, -2)
-
-sleep 500
 
 sql show databases
 

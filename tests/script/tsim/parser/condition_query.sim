@@ -11,14 +11,14 @@ if $rows != 28 then
   return -1
 endi
 
-sql_error select * from stb1 where c8 > 0
-sql_error select * from stb1 where c7 in (0,2,3,1);
-sql_error select * from stb1 where c8 in (true);
-sql_error select * from stb1 where c8 in (1,2);
-sql_error select * from stb1 where t2 in (3.0);
-sql_error select ts,c1,c7 from stb1 where c7 > false
-sql_error select * from stb1 where c1 > NULL;
-sql_error select * from stb1 where c1 = NULL;
+sql select * from stb1 where c8 > 0
+sql select * from stb1 where c7 in (0,2,3,1);
+sql select * from stb1 where c8 in (true);
+sql select * from stb1 where c8 in (1,2);
+sql select * from stb1 where t2 in (3.0);
+sql select ts,c1,c7 from stb1 where c7 > false
+sql select * from stb1 where c1 > NULL;
+sql select * from stb1 where c1 = NULL;
 sql_error select * from stb1 where c1 LIKE '%1';
 sql_error select * from stb1 where c2 LIKE '%1';
 sql_error select * from stb1 where c3 LIKE '%1';
@@ -26,20 +26,20 @@ sql_error select * from stb1 where c4 LIKE '%1';
 sql_error select * from stb1 where c5 LIKE '%1';
 sql_error select * from stb1 where c6 LIKE '%1';
 sql_error select * from stb1 where c7 LIKE '%1';
-sql_error select * from stb1 where c1 = 'NULL';
-sql_error select * from stb1 where c2 > 'NULL';
-sql_error select * from stb1 where c3 <> 'NULL';
-sql_error select * from stb1 where c4 != 'null';
-sql_error select * from stb1 where c5 >= 'null';
-sql_error select * from stb1 where c6 <= 'null';
-sql_error select * from stb1 where c7 < 'nuLl';
-sql_error select * from stb1 where c8 < 'nuLl';
-sql_error select * from stb1 where c9 > 'nuLl';
+sql select * from stb1 where c1 = 'NULL';
+sql select * from stb1 where c2 > 'NULL';
+sql select * from stb1 where c3 <> 'NULL';
+sql select * from stb1 where c4 != 'null';
+sql select * from stb1 where c5 >= 'null';
+sql select * from stb1 where c6 <= 'null';
+sql select * from stb1 where c7 < 'nuLl';
+sql select * from stb1 where c8 < 'nuLl';
+sql select * from stb1 where c9 > 'nuLl';
 sql_error select * from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b;
 sql_error select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and a.c1 > 50 or b.c1 < 60;
 sql_error select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and ((a.c1 > 50 and a.c1 < 60) or (b.c2 > 60));
-sql_error select * from stb1 where 'c2' is null;
-sql_error select * from stb1 where 'c2' is not null;
+sql select * from stb1 where 'c2' is null;
+sql select * from stb1 where 'c2' is not null;
 
 sql select * from stb1 where c2 > 3.0 or c2 < 60;
 if $rows != 28 then
@@ -172,7 +172,6 @@ endi
 if $data32 != 0 then
   return -1
 endi
-
 
 sql select ts,c1,c7 from stb1 where c7 = true
 if $rows != 14 then
