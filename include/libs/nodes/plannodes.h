@@ -29,7 +29,8 @@ extern "C" {
 typedef enum EDataOrderLevel {
   DATA_ORDER_LEVEL_NONE = 1,
   DATA_ORDER_LEVEL_IN_BLOCK,
-  DATA_ORDER_LEVEL_IN_GROUP
+  DATA_ORDER_LEVEL_IN_GROUP,
+  DATA_ORDER_LEVEL_GLOBAL
 } EDataOrderLevel;
 
 typedef struct SLogicNode {

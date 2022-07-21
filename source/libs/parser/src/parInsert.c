@@ -735,11 +735,12 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
   return TSDB_CODE_SUCCESS;
 }
 
-static void buildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, int64_t suid, const char* sname, SArray* tagName) {
+static void buildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, int64_t suid, const char* sname,
+                             SArray* tagName) {
   pTbReq->type = TD_CHILD_TABLE;
   pTbReq->name = strdup(tname);
   pTbReq->ctb.suid = suid;
-  if(sname) pTbReq->ctb.name = strdup(sname);
+  if (sname) pTbReq->ctb.name = strdup(sname);
   pTbReq->ctb.pTag = (uint8_t*)pTag;
   pTbReq->ctb.tagName = taosArrayDup(tagName);
   pTbReq->commentLen = -1;
@@ -761,7 +762,7 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema, int16
     return TSDB_CODE_SUCCESS;
   }
 
-//  strcpy(val->colName, pSchema->name);
+  //  strcpy(val->colName, pSchema->name);
   val->cid = pSchema->colId;
   val->type = pSchema->type;
 
@@ -1321,7 +1322,11 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, TdFilePtr fp, STableDataB
 
 static int32_t parseDataFromFile(SInsertParseContext* pCxt, SToken filePath, STableDataBlocks* dataBuf) {
   char filePathStr[TSDB_FILENAME_LEN] = {0};
-  strncpy(filePathStr, filePath.z, filePath.n);
+  if (TK_NK_STRING == filePath.type) {
+    trimString(filePath.z, filePath.n, filePathStr, sizeof(filePathStr));
+  } else {
+    strncpy(filePathStr, filePath.z, filePath.n);
+  }
   TdFilePtr fp = taosOpenFile(filePathStr, TD_FILE_READ | TD_FILE_STREAM);
   if (NULL == fp) {
     return TAOS_SYSTEM_ERROR(errno);
@@ -1802,8 +1807,8 @@ int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName, TAOS_MULTI_BIND* bind,
-                           char* msgBuf, int32_t msgBufLen) {
+int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
+                           TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen) {
   STableDataBlocks*   pDataBlock = (STableDataBlocks*)pBlock;
   SMsgBuf             pBuf = {.buf = msgBuf, .len = msgBufLen};
   SParsedDataColInfo* tags = (SParsedDataColInfo*)boundTags;
@@ -1854,7 +1859,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       }
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-//      strcpy(val.colName, pTagSchema->name);
+      //      strcpy(val.colName, pTagSchema->name);
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY) {
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
@@ -2245,7 +2250,8 @@ static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SS
  * @param msg
  * @return int32_t
  */
-static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* pSchema, STag** ppTag, SArray** tagName, SMsgBuf* msg) {
+static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* pSchema, STag** ppTag, SArray** tagName,
+                              SMsgBuf* msg) {
   SArray* pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));
   if (!pTagArray) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -2262,7 +2268,7 @@ static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* p
 
     taosArrayPush(*tagName, pTagSchema->name);
     STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-//    strcpy(val.colName, pTagSchema->name);
+    //    strcpy(val.colName, pTagSchema->name);
     if (pTagSchema->type == TSDB_DATA_TYPE_BINARY) {
       val.pData = (uint8_t*)kv->value;
       val.nData = kv->length;
@@ -2318,7 +2324,7 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
     buildInvalidOperationMsg(&pBuf, "bound tags error");
     return ret;
   }
-  STag* pTag = NULL;
+  STag*   pTag = NULL;
   SArray* tagName = NULL;
   ret = smlBuildTagRow(tags, &smlHandle->tableExecHandle.tags, pTagsSchema, &pTag, &tagName, &pBuf);
   if (ret != TSDB_CODE_SUCCESS) {
@@ -2402,9 +2408,9 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
       } else {
         int32_t colLen = kv->length;
         if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
-//          uError("SML:data before:%ld, precision:%d", kv->i, pTableMeta->tableInfo.precision);
+          //          uError("SML:data before:%ld, precision:%d", kv->i, pTableMeta->tableInfo.precision);
           kv->i = convertTimePrecision(kv->i, TSDB_TIME_PRECISION_NANO, pTableMeta->tableInfo.precision);
-//          uError("SML:data after:%ld, precision:%d", kv->i, pTableMeta->tableInfo.precision);
+          //          uError("SML:data after:%ld, precision:%d", kv->i, pTableMeta->tableInfo.precision);
         }
 
         if (IS_VAR_DATA_TYPE(kv->type)) {

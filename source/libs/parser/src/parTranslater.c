@@ -1089,7 +1089,7 @@ static int32_t translateScanPseudoColumnFunc(STranslateContext* pCxt, SFunctionN
     return TSDB_CODE_SUCCESS;
   }
   if (0 == LIST_LENGTH(pFunc->pParameterList)) {
-    if (!isSelectStmt(pCxt->pCurrStmt) ||
+    if (!isSelectStmt(pCxt->pCurrStmt) || NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable ||
         QUERY_NODE_REAL_TABLE != nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TBNAME);
     }

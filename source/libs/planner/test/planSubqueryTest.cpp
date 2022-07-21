@@ -55,3 +55,11 @@ TEST_F(PlanSubqeuryTest, withSetOperator) {
 
   run("SELECT c1 FROM (SELECT c1 FROM t1 UNION SELECT c1 FROM t1)");
 }
+
+TEST_F(PlanSubqeuryTest, withFill) {
+  useDb("root", "test");
+
+  run("SELECT cnt FROM (SELECT _WSTART ts, COUNT(*) cnt FROM t1 "
+      "WHERE ts > '2022-04-01 00:00:00' and ts < '2022-04-30 23:59:59' INTERVAL(10s) FILL(LINEAR)) "
+      "WHERE ts > '2022-04-06 00:00:00'");
+}

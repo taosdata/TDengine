@@ -818,6 +818,8 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
 
   TSWAP(pProject->node.pLimit, pSelect->pLimit);
   TSWAP(pProject->node.pSlimit, pSelect->pSlimit);
+  pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pProject->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -1346,6 +1348,31 @@ static void setLogicSubplanType(bool hasScan, SLogicSubplan* pSubplan) {
   }
 }
 
+static int32_t adjustLogicNodeDataRequirementImpl(SLogicNode* pNode, EDataOrderLevel requirement) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_SCAN:
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+    case QUERY_NODE_LOGIC_PLAN_AGG:
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+    case QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY:
+    case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
+    case QUERY_NODE_LOGIC_PLAN_MERGE:
+    case QUERY_NODE_LOGIC_PLAN_WINDOW:
+    case QUERY_NODE_LOGIC_PLAN_FILL:
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+    default:
+      break;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode) {
+  return adjustLogicNodeDataRequirementImpl(pNode, DATA_ORDER_LEVEL_NONE);
+}
+
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
   SLogicPlanContext cxt = {.pPlanCxt = pCxt, .pCurrRoot = NULL, .hasScan = false};
 
@@ -1361,6 +1388,7 @@ int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
   if (TSDB_CODE_SUCCESS == code) {
     setLogicNodeParent(pSubplan->pNode);
     setLogicSubplanType(cxt.hasScan, pSubplan);
+    code = adjustLogicNodeDataRequirement(pSubplan->pNode);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

@@ -444,4 +444,11 @@ TEST_F(ParserSelectTest, withoutFrom) {
   run("SELECT USER()");
 }
 
+TEST_F(ParserSelectTest, withoutFromSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT c1", TSDB_CODE_PAR_INVALID_COLUMN);
+  run("SELECT TBNAME", TSDB_CODE_PAR_INVALID_TBNAME);
+}
+
 }  // namespace ParserTest
