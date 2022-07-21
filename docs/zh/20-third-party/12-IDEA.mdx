@@ -1,0 +1,84 @@
+---
+sidebar_label: IDEA
+title: 通过 IDEA 数据库管理工具连接 TDengine
+---
+
+IDEA 全称 IntelliJ IDEA，是 Java 语言开发的集成环境，被公认为最友好且使用范围最广的 Java 开发工具之一。
+
+IDEA Ultimate 版自带数据库管理工具，类似于一个小型 Navicat。这个工具让我们能在 IDEA 上对数据库做简单操作，不需要再切换到其他工具上。对于 TDengine 来说，用户可以通过 JDBC 驱动建立与 IDEA 的连接，不需要再到命令行去写 SQL 语句，直接在 IDEA 中执行即可。
+
+此处以 2.0.40 版本的 JDBC Connector 为例，给大家介绍如何使用源码编译、打包，以及如何使用 IDEA 数据库工具连接 TDengine。
+
+## 前置条件
+
+要让 IDEA 能正常连接 TDengine ，需要以下几方面的准备工作。
+
+- TDengine 集群已经部署并正常运行。
+- 若使用 TSDBDriver 驱动类连接请在本地安装 TDengine 客户端。
+- 若使用 RestfulDriver 驱动类连接 TDengine，请确保 taosAdapter 已经正常运行。
+
+## 配置步骤
+
+### 源码编译 JDBC-Connector
+
+去各大仓库下载 [dist-jar 包](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver)或者通过源码编译，此处介绍源码编译方法。
+
+- 首先从 GitHub 仓库克隆 JDBC 连接器的源码，`git clone https://github.com/taosdata/taos-connector-jdbc.git -b 2.0.40`（此处推荐 -b 指定发布了的 Tags 版本），也可以在 IDEA 上操作：
+
+![image](https://user-images.githubusercontent.com/70138133/180187698-395762d1-fcac-4cea-b44f-cc8cd07ea0c8.png)
+
+- 克隆完源码后，若是编译 2.0.40 及以下版本的 JDBC-Connector 需要修改 taos-connector-jdbc 目录下 pom.xml 文件,将 dependencies 下的 commons-logging 依赖包的 scope 值由 test 改为 compile，否则编译完后导入 IDEA database 管理工具可能提醒缺少此驱动类。 
+
+![image](https://user-images.githubusercontent.com/70138133/180206650-561f9e24-ebb9-4cd2-8868-6f1cede54803.png)
+
+- 在 taos-connector-jdbc 目录下执行：`mvn clean package -Dmaven.test.skip=true`
+
+![image](https://user-images.githubusercontent.com/70138133/180187879-486e24a7-3b20-4447-bff8-c0b651ab39b1.png)
+
+![image](https://user-images.githubusercontent.com/70138133/180187811-4e73b9fc-8787-4634-bd83-f1197b7699d9.png)
+
+- 此时 taos-connector-jdbc 目录的 target 文件夹内产生了 taos-jdbcdriver-2.0.40-dist.jar 等驱动包。
+
+### 使用 IDEA database 工具连接 TDengine
+
+- 打开 IDEA database 工具，新建驱动，驱动程序文件选择 target 文件夹下的 taos-jdbcdriver-2.0.40-dist.jar。
+
+- 选择 RESTful 方式进行连接（注意：若使用 com.taosdata.jdbc.TSDBDriver 驱动类需要安装 TDengine 客户端）。
+
+![image](https://user-images.githubusercontent.com/70138133/180208366-51d4f03c-a471-437a-96f3-7e138c37a57a.png)
+
+- 然后通过驱动创建数据源。TDengine 的 JDBC URL 规范为：
+`jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
+
+- 此处使用 RESTful 连接，URL 示例为：jdbc:TAOS-RS://VM-24-8-centos:6041/log（需要在 Hosts 文件内添加域名解析；URL 内的 locale、timezone 参数在 RESTful 连接中不生效）
+
+![image](https://user-images.githubusercontent.com/70138133/180197188-4ead4635-e479-4498-8252-c84041c1770e.png)
+
+- 点击测试连接，出现黄色感叹号不影响使用。
+
+![image](https://user-images.githubusercontent.com/70138133/180197251-98764434-bb7b-4e3a-9674-0620ab6d8bad.png)
+
+
+## 验证
+
+- 配置完后进行验证，点击刷新后再点击显示所有数据库：
+
+![image](https://user-images.githubusercontent.com/70138133/180202803-6e277132-44bd-4b22-8921-a54d16190d2b.png)
+
+
+- 右击数据源，新建查询控制台测试能否查询。需要注意的是，RESTful 请求是无状态的，查询、写入需要在表名前带上数据库名。
+
+- 2.X 版本中默认带 log 库，我们可以使用 `SHOW log.stables` 查看包含哪些超级表后对特定表进行查询、调试:
+
+![image](https://user-images.githubusercontent.com/70138133/180202329-6734c874-d4f5-40a3-be7d-c4fabbe73a19.png)
+
+- 可以看到有个超级表叫做 vgroups_info，执行 `DESCRIBE log.vgroups_info` 查看表结构：
+
+![image](https://user-images.githubusercontent.com/70138133/180204391-36fd0806-8cd6-43b8-97eb-1e7ff235846a.png)
+
+
+- 再执行`SELECT last_row(*) FROM log.vgroups_info GROUP BY vgroup_id`通过 vgroup_id 分组能查看各 VgroupId 下的最新一条数据。
+
+![image](https://user-images.githubusercontent.com/70138133/180205161-7f0314eb-cdaa-442c-acb5-d33931c32648.png)
+
+
