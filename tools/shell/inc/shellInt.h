@@ -26,6 +26,10 @@
 #include "ttypes.h"
 #include "tutil.h"
 
+#ifdef WEBSOCKET
+#include "taosws.h"
+#endif
+
 #define SHELL_MAX_HISTORY_SIZE                 1000
 #define SHELL_MAX_COMMAND_SIZE                 1048586
 #define SHELL_HISTORY_FILE                     ".taos_history"
@@ -53,6 +57,7 @@ typedef struct {
   const char* cfgdir;
   const char* commands;
   const char* netrole;
+  char* dsn;
   char        file[PATH_MAX];
   char        password[TSDB_USET_PASSWORD_LEN];
   bool        is_gen_auth;
@@ -62,11 +67,14 @@ typedef struct {
   bool        is_check;
   bool        is_startup;
   bool        is_help;
+  bool        restful;
+  bool        cloud;
   int32_t     port;
   int32_t     pktLen;
   int32_t     pktNum;
   int32_t     displayWidth;
   int32_t     abort;
+  int32_t     timeout;
 } SShellArgs;
 
 typedef struct {
@@ -83,6 +91,9 @@ typedef struct {
   SShellHistory   history;
   SShellOsDetails info;
   TAOS*           conn;
+#ifdef WEBSOCKET
+  WS_TAOS*        ws_conn;
+#endif
   TdThread        pid;
   tsem_t          cancelSem;
 } SShellObj;
@@ -95,7 +106,10 @@ int32_t shellReadCommand(char* command);
 
 // shellEngine.c
 int32_t shellExecute();
-
+int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision);
+void    shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields);
+void    shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision);
+void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision); 
 // shellUtil.c
 int32_t shellCheckIntSize();
 void    shellPrintVersion();
@@ -104,10 +118,18 @@ void    shellGenerateAuth();
 void    shellDumpConfig();
 void    shellCheckServerStatus();
 bool    shellRegexMatch(const char* s, const char* reg, int32_t cflags);
+void	shellCheckConnectMode();
 void    shellExit();
 
 // shellNettest.c
 void shellTestNetWork();
+
+#ifdef WEBSOCKET
+// shellWebsocket.c
+int shell_conn_ws_server(bool first);
+int32_t shell_run_websocket();
+void shellRunSingleCommandWebsocketImp(char *command); 
+#endif
 
 // shellMain.c
 extern SShellObj shell;

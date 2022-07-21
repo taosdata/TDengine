@@ -39,6 +39,8 @@
 #define SHELL_PKT_NUM  "Packet numbers used for net test, default is 100."
 #define SHELL_VERSION  "Print program version."
 #define SHELL_EMAIL    "<support@taosdata.com>"
+#define SHELL_DSN      "The dsn to use when connecting to cloud server."
+#define SHELL_REST     "Use restful mode when connecting."
 
 static int32_t shellParseSingleOpt(int32_t key, char *arg);
 
@@ -62,6 +64,8 @@ void shellPrintHelp() {
   printf("%s%s%s%s\r\n", indent, "-s,", indent, SHELL_CMD);
   printf("%s%s%s%s\r\n", indent, "-t,", indent, SHELL_STARTUP);
   printf("%s%s%s%s\r\n", indent, "-u,", indent, SHELL_USER);
+  printf("%s%s%s%s\r\n", indent, "-E,", indent, SHELL_DSN);
+  printf("%s%s%s%s\r\n", indent, "-R,", indent, SHELL_REST);
   printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
   printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
   printf("\r\n\r\nReport bugs to %s.\r\n", SHELL_EMAIL);
@@ -92,6 +96,8 @@ static struct argp_option shellOptions[] = {
     {"display-width", 'w', "WIDTH", 0, SHELL_WIDTH},
     {"netrole", 'n', "NETROLE", 0, SHELL_NET_ROLE},
     {"pktlen", 'l', "PKTLEN", 0, SHELL_PKG_LEN},
+    {"dsn", 'E', "DSN", 0, SHELL_DSN},
+    {"restful", 'R', 0, 0, SHELL_REST},
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {0},
 };
@@ -117,9 +123,11 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
   switch (key) {
     case 'h':
       pArgs->host = arg;
+      pArgs->cloud = false;
       break;
     case 'P':
       pArgs->port = atoi(arg);
+      pArgs->cloud = false;
       if (pArgs->port == 0) pArgs->port = -1;
       break;
     case 'u':
@@ -134,6 +142,7 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       pArgs->is_gen_auth = true;
       break;
     case 'c':
+      pArgs->cloud = false;
       pArgs->cfgdir = arg;
       break;
     case 'C':
@@ -168,6 +177,13 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       break;
     case 'N':
       pArgs->pktNum = atoi(arg);
+      break;
+    case 'R':
+      pArgs->restful = true;
+      break;
+    case 'E':
+      pArgs->dsn = arg;
+      pArgs->cloud = true;
       break;
     case 'V':
       pArgs->is_version = true;

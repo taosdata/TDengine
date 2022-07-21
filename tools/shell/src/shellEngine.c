@@ -25,14 +25,9 @@ static int32_t shellRunSingleCommand(char *command);
 static int32_t shellRunCommand(char *command);
 static void    shellRunSingleCommandImp(char *command);
 static char   *shellFormatTimestamp(char *buf, int64_t val, int32_t precision);
-static void    shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length,
-                                    int32_t precision);
 static int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres);
 static void    shellPrintNChar(const char *str, int32_t length, int32_t width);
-static void    shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision);
 static int32_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql);
-static int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision);
-static void    shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields);
 static int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql);
 static int32_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql);
 static void    shellReadHistory();
@@ -94,8 +89,15 @@ int32_t shellRunSingleCommand(char *command) {
     shellSourceFile(c_ptr);
     return 0;
   }
-
-  shellRunSingleCommandImp(command);
+#ifdef WEBSOCKET
+  if (shell.args.restful || shell.args.cloud) {
+	shellRunSingleCommandWebsocketImp(command);
+  } else {
+#endif
+	shellRunSingleCommandImp(command);
+#ifdef WEBSOCKET
+  }
+#endif
   return 0;
 }
 
@@ -975,16 +977,26 @@ int32_t shellExecute() {
   fflush(stdout);
 
   SShellArgs *pArgs = &shell.args;
-  if (shell.args.auth == NULL) {
-    shell.conn = taos_connect(pArgs->host, pArgs->user, pArgs->password, pArgs->database, pArgs->port);
+#ifdef WEBSOCKET
+  if (shell.args.restful || shell.args.cloud) {
+	if (shell_conn_ws_server(1)) {
+		return -1;
+	}	
   } else {
-    shell.conn = taos_connect_auth(pArgs->host, pArgs->user, pArgs->auth, pArgs->database, pArgs->port);
-  }
+#endif
+	if (shell.args.auth == NULL) {
+		shell.conn = taos_connect(pArgs->host, pArgs->user, pArgs->password, pArgs->database, pArgs->port);
+	} else {
+		shell.conn = taos_connect_auth(pArgs->host, pArgs->user, pArgs->auth, pArgs->database, pArgs->port);
+	}
 
-  if (shell.conn == NULL) {
-    fflush(stdout);
-    return -1;
+	if (shell.conn == NULL) {
+		fflush(stdout);
+		return -1;
+	}
+#ifdef WEBSOCKET
   }
+#endif
 
   shellReadHistory();
 
@@ -999,8 +1011,16 @@ int32_t shellExecute() {
     if (pArgs->file[0] != 0) {
       shellSourceFile(pArgs->file);
     }
+#ifdef WEBSOCKET
+	if (shell.args.restful || shell.args.cloud) {
+		ws_close(shell.ws_conn);
+	} else {
+#endif	
+		taos_close(shell.conn);
+#ifdef WEBSOCKET
+	}
+#endif
 
-    taos_close(shell.conn);
     shellWriteHistory();
     shellCleanupHistory();
     return 0;
@@ -1020,10 +1040,15 @@ int32_t shellExecute() {
 
   taosSetSignal(SIGINT, shellSigintHandler);
 
-  shellGetGrantInfo();
-
+#ifdef WEBSOCKET
+  if (!shell.args.restful && !shell.args.cloud) {
+#endif
+	shellGetGrantInfo();
+#ifdef WEBSOCKET
+  }
+#endif
   while (1) {
-    taosThreadCreate(&shell.pid, NULL, shellThreadLoop, shell.conn);
+    taosThreadCreate(&shell.pid, NULL, shellThreadLoop, NULL);
     taosThreadJoin(shell.pid, NULL);
     taosThreadClear(&shell.pid);
   }
