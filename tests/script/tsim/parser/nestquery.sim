@@ -53,8 +53,6 @@ while $i < $half
   $i = $i + 1
 endw
 
-sleep 100
-
 $i = 1
 $tb = $tbPrefix . $i
 
@@ -63,7 +61,6 @@ sql select count(*) from (select count(*) from nest_mt0)
 if $rows != 1 then
  return -1
 endi
-
 if $data00 != 1 then
   return -1
 endi
@@ -72,35 +69,31 @@ sql select count(*) from (select count(*) from nest_mt0 group by tbname)
 if $rows != 1 then
   return -1
 endi
-
 if $data00 != 10 then
   return -1
 endi
 
-sql select count(*) from (select count(*) from nest_mt0 interval(10h) group by tbname)
+sql select count(*) from (select count(*) from nest_mt0 partition by tbname interval(10h) )
 if $rows != 1 then
   return -1
 endi
-
 if $data00 != 170 then
   return -1
 endi
 
-sql select sum(a) from (select count(*) a from nest_mt0 interval(10h) group by tbname)
+sql select sum(a) from (select count(*) a from nest_mt0 partition by tbname interval(10h))
 if $rows != 1 then
   return -1
 endi
-
 if $data00 != 100000 then
   return -1
 endi
 
 print =================> alias name test
-sql select ts from (select count(*) a from nest_tb0 interval(1h))
+sql select ts from (select _wstart as ts, count(*) a from nest_tb0 interval(1h))
 if $rows != 167 then
   return -1
 endi
-
 if $data00 != @20-09-15 00:00:00.000@ then
   return -1
 endi
@@ -109,7 +102,6 @@ sql select count(a) from (select count(*) a from nest_tb0 interval(1h))
 if $rows != 1 then
   return -1
 endi
-
 if $data00 != 167 then
    return -1
 endi
@@ -125,19 +117,16 @@ if $rows != 0 then
   return -1
 endi
 
-sql select * from (select count(*) a, tbname f1 from nest_mt0 group by tbname) t where t.a>0 and f1 = 'nest_tb0';
+sql select * from (select count(*) a, tbname f1, tbname from nest_mt0 group by tbname) t where t.a>0 and f1 = 'nest_tb0';
 if $rows != 1 then
   return -1
 endi
-
 if $data00 != 10000 then
   return -1
 endi
-
 if $data01 != @nest_tb0@ then
   return -1
 endi
-
 if $data02 != @nest_tb0@ then
   return -1
 endi
@@ -145,37 +134,30 @@ endi
 print ===================> nest query interval
 sql_error select ts, avg(c1) from (select ts, c1 from nest_tb0);
 
-sql select avg(c1) from (select * from nest_tb0) interval(3d)
+sql select _wstart, avg(c1) from (select * from nest_tb0) interval(3d)
 if $rows != 3 then
   return -1
 endi
-
 if $data00 != @20-09-14 00:00:00.000@  then
   return -1
 endi
-
 if $data01 != 49.222222222 then
   return -1
 endi
-
 if $data10 != @20-09-17 00:00:00.000@  then
-  print expect 20-09-17 00:00:00.000, actual: $data10
   return -1
 endi
-
-if $data11 != 49.685185185 then
+if $data11 != 49.581325301 then
   return -1
 endi
-
 if $data20 != @20-09-20 00:00:00.000@  then
   return -1
 endi
-
-if $data21 != 49.500000000 then
+if $data21 != 49.703539823 then
   return -1
 endi
 
-sql_error select stddev(c1) from (select c1 from nest_tb0);
+sql select stddev(c1) from (select c1 from nest_tb0);
 sql_error select percentile(c1, 20) from (select * from nest_tb0);
 sql_error select interp(c1) from (select * from nest_tb0);
 sql_error select derivative(val, 1s, 0) from (select c1 val from nest_tb0);
@@ -184,39 +166,31 @@ sql_error select irate(c1) from (select c1 from nest_tb0);
 sql_error select diff(c1), twa(c1) from (select * from nest_tb0);
 sql_error select irate(c1), interp(c1), twa(c1) from (select * from nest_tb0);
 
-sql select apercentile(c1, 50) from (select * from nest_tb0) interval(1d)
+sql select _wstart, apercentile(c1, 50) from (select * from nest_tb0) interval(1d)
 if $rows != 7 then
   return -1
 endi
-
 if $data00 != @20-09-15 00:00:00.000@ then
   return -1
 endi
-
 if $data01 != 47.571428571 then
   return -1
 endi
-
 if $data10 != @20-09-16 00:00:00.000@ then
   return -1
 endi
-
 if $data11 != 49.666666667 then
   return -1
 endi
-
 if $data20 != @20-09-17 00:00:00.000@ then
   return -1
 endi
-
 if $data21 != 49.000000000 then
   return -1
 endi
-
 if $data30 != @20-09-18 00:00:00.000@ then
   return -1
 endi
-
 if $data31 != 48.333333333 then
   return -1
 endi
@@ -225,7 +199,6 @@ sql select twa(c1) from (select * from nest_tb0);
 if $rows != 1 then
   return -1
 endi
-
 if $data00 != 49.500000000 then
   return -1
 endi
@@ -234,7 +207,6 @@ sql select leastsquares(c1, 1, 1) from (select * from nest_tb0);
 if $rows != 1 then
   return -1
 endi
-
 if $data00 != @{slop:0.000100, intercept:49.000000}@ then
   return -1
 endi
@@ -248,19 +220,15 @@ sql select derivative(c1, 1s, 0) from (select * from nest_tb0);
 if $rows != 9999 then
   return -1
 endi
-
 if $data00 != @20-09-15 00:01:00.000@ then
   return -1
 endi
-
 if $data01 != 0.016666667 then
   return -1
 endi
-
 if $data10 != @20-09-15 00:02:00.000@ then
   return -1
 endi
-
 if $data11 != 0.016666667 then
   return -1
 endi
@@ -274,54 +242,42 @@ sql select avg(c1),sum(c2), max(c3), min(c4), count(*), first(c7), last(c7),spre
 if $rows != 7 then
   return -1
 endi
-
 if $data00 != @20-09-15 00:00:00.000@ then
   return -1
 endi
-
 if $data01 != 48.666666667 then
   print expect 48.666666667, actual: $data01
   return -1
 endi
-
 if $data02 != 70080.000000000 then
   return -1
 endi
-
 if $data03 != 99 then
   return -1
 endi
-
 if $data04 != 0 then
   return -1
 endi
-
 if $data05 != 1440 then
   return -1
 endi
-
 if $data06 != 0 then
   print $data06
   return -1
 endi
-
 if $data07 != 1 then
   return -1
 endi
-
 if $data08 != 99.000000000 then
   print expect 99.000000000, actual: $data08
   return -1
 endi
-
 if $data10 != @20-09-16 00:00:00.000@ then
   return -1
 endi
-
 if $data11 != 49.777777778 then
   return -1
 endi
-
 if $data12 != 71680.000000000 then
   return -1
 endi
@@ -332,39 +288,28 @@ sql select bottom(x, 20) from (select c1 x from nest_tb0)
 
 print ===================> group by + having
 
-
-
 print =========================> ascending order/descending order
-
-
-
 
 print =========================> nest query join
 sql select a.ts,a.k,b.ts from (select count(*) k from nest_tb0 interval(30a)) a, (select count(*) f from nest_tb1 interval(30a)) b where a.ts = b.ts ;
 if $rows != 10000 then
   return -1
 endi
-
 if $data00 != @20-09-15 00:00:00.000@ then
   return -1
 endi
-
 if $data01 != 1 then
   return -1
 endi
-
 if $data02 != @20-09-15 00:00:00.000@ then
   return -1
 endi
-
 if $data10 != @20-09-15 00:01:00.000@ then
   return -1
 endi
-
 if $data11 != 1 then
   return -1
 endi
-
 if $data12 != @20-09-15 00:01:00.000@ then
   return -1
 endi
@@ -373,11 +318,9 @@ sql select sum(a.k), sum(b.f) from (select count(*) k from nest_tb0 interval(30a
 if $rows != 1 then
   return -1
 endi
-
 if $data00 != 10000 then
   return -1
 endi
-
 if $data01 != 10000 then
   return -1
 endi
@@ -386,19 +329,15 @@ sql select a.ts,a.k,b.ts,c.ts,c.ts,c.x from (select count(*) k from nest_tb0 int
 if $rows != 10000 then
   return -1
 endi
-
 if $data00 != @20-09-15 00:00:00.000@ then
   return -1
 endi
-
 if $data01 != 1 then
   return -1
 endi
-
 if $data02 != @20-09-15 00:00:00.000@ then
   return -1
 endi
-
 if $data03 != @20-09-15 00:00:00.000@ then
   return -1
 endi
@@ -407,11 +346,9 @@ sql select diff(val) from (select c1 val from nest_tb0);
 if $rows != 9999 then
   return -1
 endi
-
 if $data00 != @70-01-01 08:00:00.000@ then
   return -1
 endi
-
 if $data01 != 1 then
   return -1
 endi
@@ -425,19 +362,15 @@ sql select count(*),c1 from (select * from nest_tb0) where c1 < 2 group by c1;
 if $rows != 2 then
   return -1
 endi
-
 if $data00 != 100 then
   return -1
 endi
-
 if $data01 != 0 then
   return -1
 endi
-
 if $data10 != 100 then
   return -1
 endi
-
 if $data11 != 1 then
   return -1
 endi
@@ -447,11 +380,9 @@ sql select twa(c1) from nest_tb1 interval(19a);
 if $rows != 10000 then
   return -1
 endi
-
 if $data00 != @20-09-14 23:59:59.992@ then
   return -1
 endi
-
 if $data01 != 0.000083333 then
   return -1
 endi
@@ -461,19 +392,15 @@ sql select min(val),max(val),first(val),last(val),count(val),sum(val),avg(val) f
 if $rows != 1 then
   return -1
 endi
-
 if $data00 != 10000 then
   return -1
 endi
-
 if $data01 != 10000 then
   return -1
 endi
-
 if $data04 != 10 then
   return -1
 endi
-
 if $data05 != 100000 then
   return -1
 endi
@@ -487,19 +414,15 @@ sql select avg(k) from (select avg(k) k from t1 interval(1s)) interval(1m);
 if $rows != 2 then
   return -1
 endi
-
 if $data00 != @20-01-01 01:01:00.000000@ then
   return -1
 endi
-
 if $data01 != 1.000000000 then
   return -1
 endi
-
 if $data10 != @20-01-01 01:02:00.000000@ then
   return -1
 endi
-
 if $data11 != 2.000000000 then
   return -1
 endi
