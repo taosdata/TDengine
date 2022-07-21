@@ -1359,6 +1359,7 @@ typedef struct {
   int32_t numOfCols;
   int64_t skey;
   int64_t ekey;
+  int64_t version;  // for stream
   char    data[];
 } SRetrieveTableRsp;
 

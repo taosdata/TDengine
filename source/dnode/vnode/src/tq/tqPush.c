@@ -249,6 +249,8 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
       return -1;
     }
     memcpy(data, msg, msgLen);
+    SSubmitReq* pReq = (SSubmitReq*)data;
+    pReq->version = ver;
 
     tqProcessStreamTrigger(pTq, data);
   }
