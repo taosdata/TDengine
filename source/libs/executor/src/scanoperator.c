@@ -2162,7 +2162,7 @@ static SSDataBlock* sysTableScanUserSTables(SOperatorInfo* pOperator) {
   }
 
   pInfo->pRes->info.rows = 0;
-  pOperator->status == OP_EXEC_DONE;
+  pOperator->status = OP_EXEC_DONE;
 
   pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
