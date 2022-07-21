@@ -1,2 +1,2 @@
 #####
-taostest --use=common_insert.yaml --case=Performance/Insert/perf_test.py --keep --disable_collection --case-param="\"--insert-tmpl-file=cases/Performance/Insert/meters.json --insert-cfg-file=cases/Performance/Insert/mode_smlrest_line.cfg --key=CHILDTABLECOUNT=2500 --concurrency=4\"" --containers
+taostest --use=common_insert.yaml --case=Performance/Insert/perf_test.py --keep  --case-param="\"--insert-tmpl-file=cases/Performance/Insert/meters.json --insert-cfg-file=cases/Performance/Insert/mode_smlrest_line.cfg --key=CHILDTABLECOUNT=2500 --concurrency=4\"" --containers
