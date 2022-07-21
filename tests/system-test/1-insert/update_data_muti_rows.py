@@ -25,13 +25,12 @@ from util.common import *
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(),logSql)
-        
+        tdSql.init(conn.cursor())
         self.dbname = 'db_test'
         self.ntbname = 'ntb'
         self.stbname = 'stb'
-        self.rowNum = 5
-        self.tbnum = 2
+        self.rowNum = 10
+        self.tbnum = 5
         self.ts = 1537146000000
         self.str_length = 20
         self.column_dict = {
@@ -87,7 +86,6 @@ class TDTestCase:
                 else:
                     sql += f'({self.ts+i},{values})'
             sql += ' '
-        print(sql)
         tdSql.execute(sql)
     
     def insert_data(self,col_type,tbname,rows,data):
