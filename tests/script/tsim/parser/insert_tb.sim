@@ -53,7 +53,7 @@ endi
 $col1 = 2
 $col3 = 3
 $col5 = 5
-sql create table $tb using $mt tags( $tag1 )
+sql create table if not exists $tb using $mt tags( $tag1 )
 sql insert into $tb ( ts, col1, col3, col5) values ( $ts + 2000a, $col1 , $col3 , $col5 )
 sql select * from $tb order by ts desc
 if $rows != 3 then
@@ -144,7 +144,7 @@ sql insert into tb1 values ('2018-09-17 09:00:00.000', '1', 1, 1, 1, '涛思ncha
 sql insert into tb2 values ('2018-09-17 09:00:00.000', 1, '1', 1, 1, '涛思nchar', 'quoted bigint')
 sql insert into tb3 values ('2018-09-17 09:00:00.000', 1, 1, '1', 1, '涛思nchar', 'quoted float')
 sql insert into tb4 values ('2018-09-17 09:00:00.000', 1, 1, 1, '1', '涛思nchar', 'quoted double')
-sql select * from stb
+sql select * from stb order by t1
 if $rows != 5 then
   return -1
 endi
@@ -225,6 +225,5 @@ endi
 #if $rows != 0 then 
 #  return -1
 #endi
-
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -118,16 +118,16 @@
 ./test.sh -f tsim/parser/import_commit3.sim
 # jira ./test.sh -f tsim/parser/import_file.sim
 ./test.sh -f tsim/parser/import.sim
-## ./test.sh -f tsim/parser/insert_multiTbl.sim
-# ./test.sh -f tsim/parser/insert_tb.sim
-## ./test.sh -f tsim/parser/interp.sim
+./test.sh -f tsim/parser/insert_multiTbl.sim
+./test.sh -f tsim/parser/insert_tb.sim
+# jira ./test.sh -f tsim/parser/interp.sim
 # ./test.sh -f tsim/parser/join.sim
 # ./test.sh -f tsim/parser/join_manyblocks.sim
 ## ./test.sh -f tsim/parser/join_multitables.sim
 # ./test.sh -f tsim/parser/join_multivnode.sim
-# ./test.sh -f tsim/parser/last_cache.sim
+./test.sh -f tsim/parser/last_cache.sim
 ## ./test.sh -f tsim/parser/last_groupby.sim
-# ./test.sh -f tsim/parser/lastrow.sim
+# jira ./test.sh -f tsim/parser/lastrow.sim
 ## ./test.sh -f tsim/parser/like.sim
 # ./test.sh -f tsim/parser/limit.sim
 # ./test.sh -f tsim/parser/limit1.sim
