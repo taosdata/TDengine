@@ -116,7 +116,7 @@ STSchema *genSTSchema(int16_t nCols) {
   }
 
   STSchema *pResult = NULL;
-  pResult = tdGetSTSChemaFromSSChema(&pSchema, nCols);
+  pResult = tdGetSTSChemaFromSSChema(pSchema, nCols, 1);
 
   taosMemoryFree(pSchema);
   return pResult;

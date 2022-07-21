@@ -48,8 +48,6 @@ while $x < $rowNum
     $x = $x + 1  
 endw
 
-sleep 100
-
 print =============== step2: select count(*) from tables
 $i = 0
 $tb = $tbPrefix . $i
@@ -103,7 +101,7 @@ sql select count(*) from $mt interval(100000000b) sliding(100000000b)
 print =============== clear
 sql drop database $db
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 

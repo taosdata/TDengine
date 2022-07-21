@@ -1616,7 +1616,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   FOREACH(pProjection, pProjectNode->pProjections) {
     SNode* pChildTarget = NULL;
     FOREACH(pChildTarget, pChild->pTargets) {
-      if (strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName) == 0) {
+      if (0 == strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)) {
         nodesListAppend(pNewChildTargets, nodesCloneNode(pChildTarget));
         break;
       }
@@ -2204,7 +2204,24 @@ static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubp
   NODES_DESTORY_LIST(pScanNode->pScanCols);
 
   SLogicNode* pAgg = pScanNode->node.pParent;
-  int32_t     code = replaceLogicNode(pLogicSubplan, pAgg, (SLogicNode*)pScanNode);
+  if (NULL == pAgg->pParent) {
+    SNodeList* pScanTargets = nodesMakeList();
+
+    SNode* pAggTarget = NULL;
+    FOREACH(pAggTarget, pAgg->pTargets) {
+      SNode* pScanTarget = NULL;
+      FOREACH(pScanTarget, pScanNode->node.pTargets) {
+        if (0 == strcmp(((SColumnNode*)pAggTarget)->colName, ((SColumnNode*)pAggTarget)->colName)) {
+          nodesListAppend(pScanTargets, nodesCloneNode(pScanTarget));
+          break;
+        }
+      }
+    }
+    nodesDestroyList(pScanNode->node.pTargets);
+    pScanNode->node.pTargets = pScanTargets;
+  }
+
+  int32_t code = replaceLogicNode(pLogicSubplan, pAgg, (SLogicNode*)pScanNode);
   if (TSDB_CODE_SUCCESS == code) {
     NODES_CLEAR_LIST(pAgg->pChildren);
   }

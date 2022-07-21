@@ -1019,7 +1019,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
 end:
   for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pTagVals, i);
-    if (IS_VAR_DATA_TYPE(p->type)) {
+    if (p->type == TSDB_DATA_TYPE_NCHAR) {
       taosMemoryFree(p->pData);
     }
   }
@@ -1201,7 +1201,7 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
 
     *gotRow = true;
 #ifdef TD_DEBUG_PRINT_ROW
-    STSchema* pSTSchema = tdGetSTSChemaFromSSChema(&schema, spd->numOfCols);
+    STSchema* pSTSchema = tdGetSTSChemaFromSSChema(schema, spd->numOfCols, 1);
     tdSRowPrint(row, pSTSchema, __func__);
     taosMemoryFree(pSTSchema);
 #endif
@@ -1502,7 +1502,6 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     memset(&pCxt->tags, 0, sizeof(pCxt->tags));
     pCxt->pVgroupsHashObj = NULL;
     pCxt->pTableBlockHashObj = NULL;
-    pCxt->pTableMeta = NULL;
 
     return TSDB_CODE_SUCCESS;
   }
@@ -1559,7 +1558,10 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery, SParseMetaCache
     if (NULL == *pQuery) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+  } else {
+    nodesDestroyNode((*pQuery)->pRoot);
   }
+  
   (*pQuery)->execMode = QUERY_EXEC_MODE_SCHEDULE;
   (*pQuery)->haveResultSet = false;
   (*pQuery)->msgType = TDMT_VND_SUBMIT;
@@ -1975,7 +1977,7 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
       }
     }
 #ifdef TD_DEBUG_PRINT_ROW
-    STSchema* pSTSchema = tdGetSTSChemaFromSSChema(&pSchema, spd->numOfCols);
+    STSchema* pSTSchema = tdGetSTSChemaFromSSChema(pSchema, spd->numOfCols, 1);
     tdSRowPrint(row, pSTSchema, __func__);
     taosMemoryFree(pSTSchema);
 #endif
@@ -2060,7 +2062,7 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
 
 #ifdef TD_DEBUG_PRINT_ROW
     if (rowEnd) {
-      STSchema* pSTSchema = tdGetSTSChemaFromSSChema(&pSchema, spd->numOfCols);
+      STSchema* pSTSchema = tdGetSTSChemaFromSSChema(pSchema, spd->numOfCols, 1);
       tdSRowPrint(row, pSTSchema, __func__);
       taosMemoryFree(pSTSchema);
     }
