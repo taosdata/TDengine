@@ -4440,11 +4440,6 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       return createExchangeOperatorInfo(pHandle->pMsgCb->clientRpc, (SExchangePhysiNode*)pPhyNode, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
-      STimeWindowAggSupp   twSup = {
-            .waterMark = pTableScanNode->watermark,
-            .calTrigger = pTableScanNode->triggerType,
-            .maxTs = INT64_MIN,
-      };
       if (pHandle->vnode) {
         int32_t code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags,
                                                pTableScanNode->groupSort, pHandle, pTableListInfo, pTagCond, pTagIndexCond, GET_TASKID(pTaskInfo));
@@ -4454,7 +4449,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         }
       }
 
-      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTaskInfo, &twSup);
+      extractTableSchemaInfo(pHandle, &pTableScanNode->scan, pTaskInfo);
+      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTaskInfo);
       return pOperator;
 
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
