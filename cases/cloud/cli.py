@@ -7,13 +7,16 @@
 import os
 
 from taostest import TDCase, T
+from taostest.util import caseutil
 from subprocess import run
 
 
 class TDengineCLI(TDCase):
     def init(self):
-        self.logger.info(f"--------case.params={self.case_param}--------------------")
         os.environ.update(self.env_setting["env"])
+        if self.case_param:
+            param = caseutil.parse_param(self.case_param)
+            print(param)
 
     def cleanup(self):
         pass
