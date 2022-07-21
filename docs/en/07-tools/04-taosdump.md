@@ -102,6 +102,8 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -n, --no-escape            No escape char '`'. Default is using it.
   -T, --thread-num=THREAD_NUM   Number of thread for dump in file. Default is
                              5.
+  -C, --cloud=CLOUD_DSN      specify a DSN to access TDengine cloud service
+  -R, --restful              Use RESTful interface to connect TDengine
   -g, --debug                Print debug info.
   -?, --help                 Give this help list
       --usage                Give a short usage message
