@@ -339,13 +339,13 @@ class TDTestCase:
         self.vote_leader_time_costs(db2)
         self.exec_revote_action(db2)
 
-        # # create database replica 3 vgroups 100
-        # db3 = 'db_3'
-        # create_db_replica_3_vgroups_100 = "create database {} replica 3 vgroups 100".format(db3)
-        # tdLog.info('=======database {} replica 3 vgroups 100 ======'.format(db3))
-        # tdSql.execute(create_db_replica_3_vgroups_100)
-        # self.vote_leader_time_costs(db3)
-        # self.exec_revote_action(db3)
+        # create database replica 3 vgroups 100
+        db3 = 'db_3'
+        create_db_replica_3_vgroups_100 = "create database {} replica 3 vgroups 100".format(db3)
+        tdLog.info('=======database {} replica 3 vgroups 100 ======'.format(db3))
+        tdSql.execute(create_db_replica_3_vgroups_100)
+        self.vote_leader_time_costs(db3)
+        self.exec_revote_action(db3)
         
 
    
