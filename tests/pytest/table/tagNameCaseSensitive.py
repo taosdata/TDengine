@@ -65,7 +65,7 @@ class TDTestCase:
         tdSql.query("select * from `STB6`")
         tdSql.checkRows(6)
 
-        tdSql.execute("delete from `STB6` where ` ` = 1 and ts = '2022-06-24 11:17:31.000'")
+        tdSql.execute("delete from `STB6` where ` ` = 1 and ts = 1656040651000")
         tdSql.checkAffectedRows(1)
         tdSql.query("select * from `STB6`")
         tdSql.checkRows(5)
@@ -73,6 +73,10 @@ class TDTestCase:
         tdSql.checkAffectedRows(3)
         tdSql.query("select * from `STB6`")
         tdSql.checkRows(2)
+
+        tdSql.execute("alter table `STB6` add tag `1` int")
+        tdSql.execute("create table t1 using `STB6`(`1`) tags(1)")
+        tdSql.error("alter table t1 set tag 1=2222")
 
         tdSql.error("alter table `STB6` add tag `` nchar(20)")
 
