@@ -94,6 +94,7 @@ taosBenchmark -f <json file>
 - **-f/--file <json file\>** :
   specify the configuration file to use. This file includes All parameters. Users should not use this parameter with other parameters on the command-line. There is no default value.
 
+- **-W/--cloud_dsn=<DSN\>** : The dsn to connect TDengine cloud service.
 - **-c/--config-dir <dir\>** :
   specify the directory of the TDengine cluster configuration file. the default path is `/etc/taos`.
 
