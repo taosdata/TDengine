@@ -20,12 +20,13 @@ from util.sqlset import TDSetSql
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(),logSql)
+        tdSql.init(conn.cursor(),False)
         self.rowNum = 10
         self.ts = 1537146000000
         self.setsql = TDSetSql()
-        self.ntbname = 'ntb'
-        self.stbname = 'stb'
+        self.dbname = "db"
+        self.ntbname = f"{self.dbname}.ntb"
+        self.stbname = f'{self.dbname}.stb'
         self.binary_length = 20 # the length of binary for column_dict
         self.nchar_length = 20  # the length of nchar for column_dict
         self.column_dict = {

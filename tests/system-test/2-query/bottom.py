@@ -26,7 +26,7 @@ class TDTestCase:
         tdSql.init(conn.cursor())
         self.dbname = 'db_test'
         self.setsql = TDSetSql()
-        self.ntbname = 'ntb'
+        self.ntbname = f'{self.dbname}.ntb'
         self.rowNum = 10
         self.tbnum = 20
         self.ts = 1537146000000
@@ -96,7 +96,7 @@ class TDTestCase:
         self.bottom_check_data(self.ntbname,'normal_table')
         tdSql.execute(f'drop database {self.dbname}')
     def bottom_check_stb(self):
-        stbname = tdCom.getLongName(5, "letters")
+        stbname = f'{self.dbname}.{tdCom.getLongName(5, "letters")}'
         tag_dict = {
             't0':'int'
         }
@@ -109,7 +109,7 @@ class TDTestCase:
         for i in range(self.tbnum):
             tdSql.execute(f"create table {stbname}_{i} using {stbname} tags({tag_values[0]})")
             self.insert_data(self.column_dict,f'{stbname}_{i}',self.rowNum)
-        tdSql.query('show tables')
+        tdSql.query(f'show {self.dbname}.tables')
         vgroup_list = []
         for i in range(len(tdSql.queryResult)):
             vgroup_list.append(tdSql.queryResult[i][6])

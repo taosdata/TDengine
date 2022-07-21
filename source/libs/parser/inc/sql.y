@@ -462,7 +462,7 @@ explain_options(A) ::= explain_options(B) VERBOSE NK_BOOL(C).                   
 explain_options(A) ::= explain_options(B) RATIO NK_FLOAT(C).                      { A = setExplainRatio(pCxt, B, &C); }
 
 /************************************************ compact *************************************************************/
-cmd ::= COMPACT VNODES IN NK_LP integer_list(A) NK_RP.                            { pCxt->pRootNode = createCompactStmt(pCxt, A); }
+cmd ::= COMPACT VNODES IN NK_LP integer_list NK_RP.                               { pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
 
 /************************************************ create/drop function ************************************************/
 cmd ::= CREATE agg_func_opt(A) FUNCTION not_exists_opt(F) function_name(B) 
