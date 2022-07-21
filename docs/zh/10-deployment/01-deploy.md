@@ -1,5 +1,5 @@
 ---
-title: 集群部署
+title: 集群部署和管理
 ---
 
 ## 准备工作
@@ -91,7 +91,7 @@ taos>
 
 上述命令里，可以看到刚启动的数据节点的 End Point 是：h1.taos.com:6030，就是这个新集群的 firstEp。
 
-### 启动后续数据节点
+### 添加数据节点
 
 将后续的数据节点添加到现有集群，具体有以下几步：
 
@@ -125,3 +125,75 @@ firstEp 这个参数仅仅在该数据节点首次加入集群时有作用，加
 两个没有配置 firstEp 参数的数据节点 dnode 启动后，会独立运行起来。这个时候，无法将其中一个数据节点加入到另外一个数据节点，形成集群。无法将两个独立的集群合并成为新的集群。
 
 :::
+
+## 查看数据节点
+
+启动 TDengine CLI 程序 taos，然后执行：
+
+```sql
+SHOW DNODES;
+```
+
+它将列出集群中所有的 dnode，每个 dnode 的 ID，end_point（fqdn:port），状态（ready，offline 等），vnode 数目，还未使用的 vnode 数目等信息。在添加或删除一个数据节点后，可以使用该命令查看。
+
+输出如下（具体内容仅供参考，取决于实际的集群配置）
+
+```
+taos> show dnodes;
+   id   |            endpoint            | vnodes | support_vnodes |   status   |       create_time       |              note              |
+============================================================================================================================================
+      1 | trd01:6030                     |    100 |           1024 | ready      | 2022-07-15 16:47:47.726 |                                |
+Query OK, 1 rows affected (0.006684s)
+```
+
+## 查看虚拟节点组
+
+为充分利用多核技术，并提供横向扩展能力，数据需要分片处理。因此 TDengine 会将一个 DB 的数据切分成多份，存放在多个 vnode 里。这些 vnode 可能分布在多个数据节点 dnode 里，这样就实现了水平扩展。一个 vnode 仅仅属于一个 DB，但一个 DB 可以有多个 vnode。vnode 所在的数据节点是 mnode 根据当前系统资源的情况，自动进行分配的，无需任何人工干预。
+
+启动 CLI 程序 taos，然后执行：
+
+```sql
+USE SOME_DATABASE;
+SHOW VGROUPS;
+```
+
+输出如下（具体内容仅供参考，取决于实际的集群配置）
+
+```
+taos> use db;
+Database changed.
+
+taos> show vgroups;
+  vgroup_id  |            db_name             |   tables    |  v1_dnode   | v1_status  |  v2_dnode   | v2_status  |  v3_dnode   | v3_status  |    status    |   nfiles    |  file_size  | tsma |
+================================================================================================================================================================================================
+           2 | db                             |           0 |           1 | leader     |        NULL | NULL       |        NULL | NULL       | NULL         |        NULL |        NULL |    0 |
+           3 | db                             |           0 |           1 | leader     |        NULL | NULL       |        NULL | NULL       | NULL         |        NULL |        NULL |    0 |
+           4 | db                             |           0 |           1 | leader     |        NULL | NULL       |        NULL | NULL       | NULL         |        NULL |        NULL |    0 |
+Query OK, 8 row(s) in set (0.001154s)
+```
+
+## 删除数据节点
+
+先停止要删除的数据节点的 taosd 进程，然后启动 CLI 程序 taos，执行：
+
+```sql
+DROP DNODE "fqdn:port";
+```
+
+或者
+
+```sql
+DROP DNODE dnodeId;
+```
+
+通过 “fqdn:port” 或 dnodeID 来指定一个具体的节点都是可以的。其中 fqdn 是被删除的节点的 FQDN，port 是其对外服务器的端口号；dnodeID 可以通过 SHOW DNODES 获得。
+
+:::warning
+
+数据节点一旦被 drop 之后，不能重新加入集群。需要将此节点重新部署（清空数据文件夹）。集群在完成 `drop dnode` 操作之前，会将该 dnode 的数据迁移走。
+请注意 `drop dnode` 和 停止 taosd 进程是两个不同的概念，不要混淆：因为删除 dnode 之前要执行迁移数据的操作，因此被删除的 dnode 必须保持在线状态。待删除操作结束之后，才能停止 taosd 进程。
+一个数据节点被 drop 之后，其他节点都会感知到这个 dnodeID 的删除操作，任何集群中的节点都不会再接收此 dnodeID 的请求。
+dnodeID 是集群自动分配的，不得人工指定。它在生成时是递增的，不会重复。
+
+:::
+
