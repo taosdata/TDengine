@@ -32,22 +32,48 @@ python3 ./test.py -f 1-insert/block_wise.py
 python3 ./test.py -f 1-insert/create_retentions.py
 python3 ./test.py -f 1-insert/table_param_ttl.py
 
+python3 ./test.py -f 2-query/abs.py
+python3 ./test.py -f 2-query/abs.py -R
+python3 ./test.py -f 2-query/and_or_for_byte.py
+python3 ./test.py -f 2-query/and_or_for_byte.py -R
+python3 ./test.py -f 2-query/apercentile.py
+python3 ./test.py -f 2-query/apercentile.py -R
+python3 ./test.py -f 2-query/arccos.py
+python3 ./test.py -f 2-query/arccos.py -R
+python3 ./test.py -f 2-query/arcsin.py
+python3 ./test.py -f 2-query/arcsin.py -R
+python3 ./test.py -f 2-query/arctan.py
+python3 ./test.py -f 2-query/arctan.py -R
+python3 ./test.py -f 2-query/avg.py
+python3 ./test.py -f 2-query/avg.py -R
+python3 ./test.py -f 2-query/between.py
+python3 ./test.py -f 2-query/between.py -R
+python3 ./test.py -f 2-query/bottom.py
+python3 ./test.py -f 2-query/bottom.py -R
+python3 ./test.py -f 2-query/cast.py
+python3 ./test.py -f 2-query/cast.py -R
+python3 ./test.py -f 2-query/ceil.py
+python3 ./test.py -f 2-query/ceil.py -R
+python3 ./test.py -f 2-query/char_length.py
+python3 ./test.py -f 2-query/char_length.py -R
+python3 ./test.py -f 2-query/check_tsdb.py
+python3 ./test.py -f 2-query/check_tsdb.py -R
+
 python3 ./test.py -f 1-insert/update_data.py
 python3 ./test.py -f 1-insert/delete_data.py
 python3 ./test.py -f 2-query/db.py
 
-python3 ./test.py -f 2-query/between.py
+
+python3 ./test.py -f 2-query/db.py
 python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
 python3 ./test.py -f 2-query/ltrim.py
 python3 ./test.py -f 2-query/rtrim.py
 python3 ./test.py -f 2-query/length.py
-python3 ./test.py -f 2-query/char_length.py
 python3 ./test.py -f 2-query/upper.py
 python3 ./test.py -f 2-query/lower.py
 python3 ./test.py -f 2-query/join.py
 python3 ./test.py -f 2-query/join2.py
-python3 ./test.py -f 2-query/cast.py
 python3 ./test.py -f 2-query/substr.py
 python3 ./test.py -f 2-query/union.py
 python3 ./test.py -f 2-query/union1.py
@@ -55,7 +81,6 @@ python3 ./test.py -f 2-query/concat.py
 python3 ./test.py -f 2-query/concat2.py
 python3 ./test.py -f 2-query/concat_ws.py
 python3 ./test.py -f 2-query/concat_ws2.py
-python3 ./test.py -f 2-query/check_tsdb.py
 python3 ./test.py -f 2-query/spread.py
 python3 ./test.py -f 2-query/hyperloglog.py
 python3 ./test.py -f 2-query/explain.py
@@ -79,11 +104,7 @@ python3 ./test.py -f 2-query/Timediff.py
 python3 ./test.py -f 2-query/json_tag.py
 
 python3 ./test.py -f 2-query/top.py
-python3 ./test.py -f 2-query/bottom.py
 python3 ./test.py -f 2-query/percentile.py
-python3 ./test.py -f 2-query/apercentile.py
-python3 ./test.py -f 2-query/abs.py
-python3 ./test.py -f 2-query/ceil.py
 python3 ./test.py -f 2-query/floor.py
 python3 ./test.py -f 2-query/round.py
 python3 ./test.py -f 2-query/log.py
@@ -92,16 +113,12 @@ python3 ./test.py -f 2-query/sqrt.py
 python3 ./test.py -f 2-query/sin.py
 python3 ./test.py -f 2-query/cos.py
 python3 ./test.py -f 2-query/tan.py
-python3 ./test.py -f 2-query/arcsin.py
-python3 ./test.py -f 2-query/arccos.py
-python3 ./test.py -f 2-query/arctan.py
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py
 # python3 ./test.py -f 2-query/nestedQuery.py
 # TD-15983 subquery output duplicate name column.
 # Please Xiangyang Guo modify the following script
 # python3 ./test.py -f 2-query/nestedQuery_str.py
 
-python3 ./test.py -f 2-query/avg.py
 python3 ./test.py -f 2-query/elapsed.py
 python3 ./test.py -f 2-query/csum.py
 python3 ./test.py -f 2-query/mavg.py
@@ -124,7 +141,6 @@ python3 ./test.py -f 2-query/distribute_agg_avg.py
 python3 ./test.py -f 2-query/distribute_agg_stddev.py
 python3 ./test.py -f 2-query/twa.py
 python3 ./test.py -f 2-query/irate.py
-python3 ./test.py -f 2-query/and_or_for_byte.py
 python3 ./test.py -f 2-query/count_partition.py
 python3 ./test.py -f 2-query/function_null.py
 python3 ./test.py -f 2-query/queryQnode.py
@@ -144,7 +160,7 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py  -N 5 
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py
 # python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
 # python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
-# BUG Redict python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5 
+# BUG Redict python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5
 # python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 5 -M 3
  python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5 
 
@@ -189,7 +205,9 @@ python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
 python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
 python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot0.py
 python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot1.py
-#python3 ./test.py -f 7-tmq/tmqDelete-1ctb.py
+python3 ./test.py -f 7-tmq/tmqDelete-1ctb.py
+python3 ./test.py -f 7-tmq/tmqDelete-multiCtb.py
+python3 ./test.py -f 7-tmq/tmqDropStb.py
 python3 ./test.py -f 7-tmq/tmqUdf.py
 # python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot0.py
 # python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot1.py
@@ -199,7 +217,7 @@ python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 
 #------------querPolicy  2-----------
 
-python3 ./test.py -f 2-query/between.py  -Q 2            
+python3 ./test.py -f 2-query/between.py  -Q 2
 python3 ./test.py -f 2-query/distinct.py -Q 2
 python3 ./test.py -f 2-query/varchar.py -Q 2
 python3 ./test.py -f 2-query/ltrim.py -Q 2
@@ -256,7 +274,7 @@ python3 ./test.py -f 2-query/arccos.py -Q 2
 python3 ./test.py -f 2-query/arctan.py -Q 2
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py  -Q 2
 
-# python3 ./test.py -f 2-query/nestedQuery.py  -Q 2 
+# python3 ./test.py -f 2-query/nestedQuery.py  -Q 2
 # python3 ./test.py -f 2-query/nestedQuery_str.py  -Q 2
 
 python3 ./test.py -f 2-query/avg.py   -Q 2

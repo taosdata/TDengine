@@ -867,10 +867,11 @@ static int32_t stbSplSplitSortNode(SSplitContext* pCxt, SStableSplitInfo* pInfo)
   if (TSDB_CODE_SUCCESS == code) {
     code = stbSplCreateMergeNode(pCxt, pInfo->pSubplan, pInfo->pSplitNode, pMergeKeys, pPartSort, groupSort);
   }
-  if (TSDB_CODE_SUCCESS == code && groupSort) {
-    stbSplSetScanPartSort(pPartSort);
-  }
   if (TSDB_CODE_SUCCESS == code) {
+    nodesDestroyNode((SNode*)pInfo->pSplitNode);
+    if (groupSort) {
+      stbSplSetScanPartSort(pPartSort);
+    }
     code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,
                                      (SNode*)splCreateScanSubplan(pCxt, pPartSort, SPLIT_FLAG_STABLE_SPLIT));
   }

@@ -387,6 +387,19 @@ SNode* createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType typ
   return (SNode*)cond;
 }
 
+static uint8_t getMinusDataType(uint8_t orgType) {
+  switch (orgType) {
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      return TSDB_DATA_TYPE_BIGINT;
+    default:
+      break;
+  }
+  return orgType;
+}
+
 SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pLeft, SNode* pRight) {
   CHECK_PARSER_STATUS(pCxt);
   if (OP_TYPE_MINUS == type && QUERY_NODE_VALUE == nodeType(pLeft)) {
@@ -402,7 +415,7 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
     }
     taosMemoryFree(pVal->literal);
     pVal->literal = pNewLiteral;
-    pVal->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    pVal->node.resType.type = getMinusDataType(pVal->node.resType.type);
     return pLeft;
   }
   SOperatorNode* op = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
