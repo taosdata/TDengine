@@ -8,7 +8,7 @@ import os
 
 from taostest import TDCase, T
 from subprocess import run
-from cloud_case import CloudCase
+from .cloud_case import CloudCase
 
 
 class TDengineCLI(TDCase, CloudCase):
