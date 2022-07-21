@@ -78,6 +78,9 @@ endi
 if $data25 != 33 then 
   return -1
 endi
+if $data35 != 44.000000000 then 
+  return -1
+endi
 
 sql_error create table tb5 using st2() tags (3,3,"3",33.0);
 sql_error create table tb6 using st2 (id,t1) tags (3,3,"3",33.0);
