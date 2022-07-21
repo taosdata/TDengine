@@ -1,5 +1,5 @@
 ---
-sidebar_labe: Helm
+sidebar_label: Helm
 title: 使用 Helm 部署 TDengine 集群
 ---
 

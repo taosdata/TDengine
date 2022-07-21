@@ -1,5 +1,5 @@
 ---
-sidebar_label: 部署集群
+sidebar_label: 手动部署
 title: 集群部署和管理
 ---
 
