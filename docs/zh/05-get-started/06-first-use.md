@@ -1,5 +1,5 @@
 ---
-sidebar_labe: 开始使用
+sidebar_label: 开始使用
 title: 快速体验 TDengine
 ---
 
