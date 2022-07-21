@@ -98,7 +98,7 @@ class TDTestCase:
                     'vgroups':    4,
                     'replica':    1,
                     'stbName':    'stb',
-                    'stbNumbers': 100,
+                    'stbNumbers': 80,
                     'colPrefix':  'c',
                     'tagPrefix':  't',
                     'colSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
@@ -190,6 +190,7 @@ class TDTestCase:
         tdSql.execute("use %s" %(paraDict["dbName"]))
         tdSql.query("show stables")
         tdLog.debug("we find %d stables but exepect to create %d  stables "%(tdSql.queryRows,allStbNumbers))
+        # # tdLog.info("check Stable Rows:")
         # tdSql.checkRows(allStbNumbers)
 
 
