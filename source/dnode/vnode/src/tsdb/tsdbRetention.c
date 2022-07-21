@@ -15,94 +15,99 @@
 
 #include "tsdb.h"
 
-static int32_t tsdbDoRetentionImpl(STsdb *pTsdb, int64_t now, int8_t try, int8_t *canDo) {
-  int32_t code = 0;
-#if 0
-  STsdbFSState *pState;
-
-  if (try) {
-    pState = pTsdb->pFS->cState;
-    *canDo = 0;
-  } else {
-    pState = pTsdb->pFS->nState;
-  }
-
-  for (int32_t iSet = 0; iSet < taosArrayGetSize(pState->aDFileSet); iSet++) {
-    SDFileSet *pDFileSet = (SDFileSet *)taosArrayGet(pState->aDFileSet, iSet);
-    int32_t    expLevel = tsdbFidLevel(pDFileSet->fid, &pTsdb->keepCfg, now);
+static bool tsdbShouldDoRetention(STsdb *pTsdb, int64_t now) {
+  for (int32_t iSet = 0; iSet < taosArrayGetSize(pTsdb->fs.aDFileSet); iSet++) {
+    SDFileSet *pSet = (SDFileSet *)taosArrayGet(pTsdb->fs.aDFileSet, iSet);
+    int32_t    expLevel = tsdbFidLevel(pSet->fid, &pTsdb->keepCfg, now);
     SDiskID    did;
 
-    // check
-    if (expLevel == pDFileSet->diskId.id) continue;
+    if (expLevel == pSet->diskId.level) continue;
 
-    // delete or move
     if (expLevel < 0) {
-      if (try) {
-        *canDo = 1;
-      } else {
-        tsdbFSStateDeleteDFileSet(pState, pDFileSet->fid);
-        iSet--;
-      }
+      return true;
     } else {
-      // alloc
+      if (tfsAllocDisk(pTsdb->pVnode->pTfs, expLevel, &did) < 0) {
+        return false;
+      }
+
+      if (did.level == pSet->diskId.level) continue;
+
+      return true;
+    }
+  }
+
+  return false;
+}
+
+int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
+  int32_t code = 0;
+
+  if (!tsdbShouldDoRetention(pTsdb, now)) {
+    return code;
+  }
+
+  // do retention
+  STsdbFS fs;
+
+  code = tsdbFSCopy(pTsdb, &fs);
+  if (code) goto _err;
+
+  for (int32_t iSet = 0; iSet < taosArrayGetSize(fs.aDFileSet); iSet++) {
+    SDFileSet *pSet = (SDFileSet *)taosArrayGet(pTsdb->fs.aDFileSet, iSet);
+    int32_t    expLevel = tsdbFidLevel(pSet->fid, &pTsdb->keepCfg, now);
+    SDiskID    did;
+
+    if (expLevel < 0) {
+      taosMemoryFree(pSet->pHeadF);
+      taosMemoryFree(pSet->pDataF);
+      taosMemoryFree(pSet->pLastF);
+      taosMemoryFree(pSet->pSmaF);
+      taosArrayRemove(fs.aDFileSet, iSet);
+      iSet--;
+    } else {
       if (tfsAllocDisk(pTsdb->pVnode->pTfs, expLevel, &did) < 0) {
         code = terrno;
         goto _exit;
       }
 
-      if (did.level == pDFileSet->diskId.level) continue;
+      if (did.level == pSet->diskId.level) continue;
 
-      if (try) {
-        *canDo = 1;
-      } else {
-        // copy the file to new disk
+      // copy file to new disk (todo)
+      SDFileSet fSet = *pSet;
+      fSet.diskId = did;
 
-        SDFileSet nDFileSet = *pDFileSet;
-        nDFileSet.diskId = did;
+      code = tsdbDFileSetCopy(pTsdb, pSet, &fSet);
+      if (code) goto _err;
 
-        tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, did);
-
-        code = tsdbDFileSetCopy(pTsdb, pDFileSet, &nDFileSet);
-        if (code) goto _exit;
-
-        code = tsdbFSUpsertFSet(pState, &nDFileSet);
-        if (code) goto _exit;
-      }
+      code = tsdbFSUpsertFSet(&fs, &fSet);
+      if (code) goto _err;
     }
+
+    /* code */
   }
 
-#endif
-_exit:
-  return code;
-}
-
-int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
-  int32_t code = 0;
-#if 0
-  int8_t  canDo;
-
-  // try
-  tsdbDoRetentionImpl(pTsdb, now, 1, &canDo);
-  if (!canDo) goto _exit;
-
-  // begin
-  code = tsdbFSBegin(pTsdb->pFS);
+  // do change fs
+  code = tsdbFSCommit1(pTsdb, &fs);
   if (code) goto _err;
 
-  // do retention
-  code = tsdbDoRetentionImpl(pTsdb, now, 0, NULL);
-  if (code) goto _err;
+  taosThreadRwlockWrlock(&pTsdb->rwLock);
 
-  // commit
-  code = tsdbFSCommit(pTsdb->pFS);
-  if (code) goto _err;
+  code = tsdbFSCommit2(pTsdb, &fs);
+  if (code) {
+    taosThreadRwlockUnlock(&pTsdb->rwLock);
+    goto _err;
+  }
+
+  taosThreadRwlockUnlock(&pTsdb->rwLock);
+
+  tsdbFSDestroy(&fs);
 
 _exit:
   return code;
 
 _err:
   tsdbError("vgId:%d tsdb do retention failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  tsdbFSRollback(pTsdb->pFS);
-#endif
+  ASSERT(0);
+  // tsdbFSRollback(pTsdb->pFS);
   return code;
 }
