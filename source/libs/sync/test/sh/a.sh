@@ -22,14 +22,14 @@ done
 
 echo ""
 echo "generate vgId ..."
-cat ${logpath}/log.dnode* | grep "vgId:" | grep -v ERROR | awk '{print $5}' | sort | uniq > ${logpath}/log.vgIds.tmp
+cat ${logpath}/log.dnode* | grep "vgId:" | grep -v ERROR | awk '{print $5}' | awk -F, '{print $1}' | sort | uniq > ${logpath}/log.vgIds.tmp
 echo "all vgIds:" > ${logpath}/log.vgIds
-cat ${logpath}/log.dnode* | grep "vgId:" | grep -v ERROR | awk '{print $5}' | sort | uniq >> ${logpath}/log.vgIds
+cat ${logpath}/log.dnode* | grep "vgId:" | grep -v ERROR | awk '{print $5}' | awk -F, '{print $1}' | sort | uniq >> ${logpath}/log.vgIds
 for dnode in `ls ${logpath} | grep dnode | grep -v log`;do
 	echo "" >> ${logpath}/log.vgIds
 	echo "" >> ${logpath}/log.vgIds
 	echo "${dnode}:" >> ${logpath}/log.vgIds
-	cat ${logpath}/${dnode}/log/taosdlog.* | grep SYN | grep "vgId:" | grep -v ERROR | awk '{print $5}' | sort | uniq >> ${logpath}/log.vgIds 
+	cat ${logpath}/${dnode}/log/taosdlog.* | grep SYN | grep "vgId:" | grep -v ERROR | awk '{print $5}' | awk -F, '{print $1}' | sort | uniq >> ${logpath}/log.vgIds 
 done
 
 echo ""
@@ -56,5 +56,12 @@ echo ""
 echo "generate log.leader.term ..."
 cat ${logpath}/*.main | grep "become leader" | grep -v "config change" | awk '{print $5,$0}' | awk -F, '{print $4"_"$0}' | sort -k1 > ${logpath}/log.leader.term
 
+echo ""
+echo "generate log.index ..."
+for file in `ls ${logpath}/log.dnode*vgId*`;do
+	destfile=${file}.index
+	echo "generate ${destfile}"
+	cat ${file} | awk '{ if(index($0, "write index:") > 0 || index($0, "wal truncate, from-index") > 0) {print $0} }' > ${destfile}
+done
 
 exit 0
