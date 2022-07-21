@@ -89,7 +89,7 @@
 ./test.sh -f tsim/parser/alter.sim
 # jira ./test.sh -f tsim/parser/alter1.sim
 ./test.sh -f tsim/parser/auto_create_tb_drop_tb.sim
-# jira ./test.sh -f tsim/parser/auto_create_tb.sim
+./test.sh -f tsim/parser/auto_create_tb.sim
 ./test.sh -f tsim/parser/between_and.sim
 ./test.sh -f tsim/parser/binary_escapeCharacter.sim
 # jira ./test.sh -f tsim/parser/col_arithmetic_operation.sim     
@@ -121,25 +121,21 @@
 ./test.sh -f tsim/parser/insert_multiTbl.sim
 ./test.sh -f tsim/parser/insert_tb.sim
 # jira ./test.sh -f tsim/parser/interp.sim
-# ./test.sh -f tsim/parser/join.sim
-# ./test.sh -f tsim/parser/join_manyblocks.sim
+./test.sh -f tsim/parser/join_manyblocks.sim
 ## ./test.sh -f tsim/parser/join_multitables.sim
 # ./test.sh -f tsim/parser/join_multivnode.sim
+# jira ./test.sh -f tsim/parser/join.sim
 ./test.sh -f tsim/parser/last_cache.sim
-## ./test.sh -f tsim/parser/last_groupby.sim
+./test.sh -f tsim/parser/last_groupby.sim
 # jira ./test.sh -f tsim/parser/lastrow.sim
-## ./test.sh -f tsim/parser/like.sim
-# ./test.sh -f tsim/parser/limit.sim
-# ./test.sh -f tsim/parser/limit1.sim
-# ./test.sh -f tsim/parser/limit1_tblocks100.sim
-## ./test.sh -f tsim/parser/limit2.sim
-## ./test.sh -f tsim/parser/limit2_tblocks100.sim
-## ./test.sh -f tsim/parser/limit_stb.sim
-## ./test.sh -f tsim/parser/limit_tb.sim
-## ./test.sh -f tsim/parser/line_insert.sim
+./test.sh -f tsim/parser/like.sim
+# jira ./test.sh -f tsim/parser/limit.sim
+# jira ./test.sh -f tsim/parser/limit1.sim
+# jira ./test.sh -f tsim/parser/limit2.sim
+# jira ./test.sh -f tsim/parser/line_insert.sim
 ./test.sh -f tsim/parser/mixed_blocks.sim
 ./test.sh -f tsim/parser/nchar.sim
-# ./test.sh -f tsim/parser/nestquery.sim
+# jira ./test.sh -f tsim/parser/nestquery.sim
 # jira ./test.sh -f tsim/parser/null_char.sim
 ./test.sh -f tsim/parser/precision_ns.sim
 ./test.sh -f tsim/parser/projection_limit_offset.sim
@@ -165,7 +161,8 @@
 # jira ./test.sh -f tsim/parser/udf_dll_stable.sim
 # jira ./test.sh -f tsim/parser/udf_dll.sim
 # jira ./test.sh -f tsim/parser/udf.sim
-# ./test.sh -f tsim/parser/union.sim
+./test.sh -f tsim/parser/union.sim
+# jira ./test.sh -f tsim/parser/union_sysinfo.sim
 # jira ./test.sh -f tsim/parser/where.sim
 
 # ---- query
