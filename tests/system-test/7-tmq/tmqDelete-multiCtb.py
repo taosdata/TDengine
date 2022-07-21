@@ -336,13 +336,13 @@ class TDTestCase:
                         auto.offset.reset:earliest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
-        tdLog.info("start consume processor")
-        tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
-
         # del some data
         rowsOfDelete = int(self.rowsPerTbl / 4 )
         paraDict["endTs"] = paraDict["startTs"] + rowsOfDelete - 1
         pDeleteThread = self.asyncDeleteData(paraDict)
+        
+        tdLog.info("start consume processor")
+        tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
         
         # update to 1/4 rows and insert 3/4 new rows
         paraDict['startTs'] = paraDict['startTs'] + int(self.rowsPerTbl * 3 / 4)

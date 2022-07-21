@@ -336,13 +336,13 @@ class TDTestCase:
                         auto.offset.reset:earliest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
-        tdLog.info("start consume processor")
-        tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
-
         # del some data
         rowsOfDelete = int(self.rowsPerTbl / 4 )
         paraDict["endTs"] = paraDict["startTs"] + rowsOfDelete - 1
         pDeleteThread = self.asyncDeleteData(paraDict)
+        
+        tdLog.info("start consume processor")
+        tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
         
         # update to 1/4 rows and insert 3/4 new rows
         paraDict['startTs'] = paraDict['startTs'] + int(self.rowsPerTbl * 3 / 4)
@@ -365,13 +365,12 @@ class TDTestCase:
         totalRowsFromQuery = tdSql.getRows()
         
         tdLog.info("act consume rows: %d, act query rows: %d, expect consume rows: %d, "%(totalConsumeRows, totalRowsFromQuery, expectrowcnt))
-        
-        
+                
         if self.snapshot == 0:
             if totalConsumeRows != expectrowcnt:
                 tdLog.exit("tmq consume rows error with snapshot = 0!")
         elif self.snapshot == 1:
-            if totalConsumeRows != totalRowsFromQuery:
+            if not ((totalConsumeRows >= totalRowsFromQuery) and (totalConsumeRows <= expectrowcnt)):
                 tdLog.exit("tmq consume rows error with snapshot = 1!")
                
         # tmqCom.checkFileContent(consumerId, queryString)   
