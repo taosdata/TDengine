@@ -13,6 +13,8 @@
 
 import random
 import string
+
+from numpy import logspace
 from util import constant
 from util.log import *
 from util.cases import *
@@ -23,7 +25,7 @@ from util.common import *
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(),logSql)
         
         self.dbname = 'db_test'
         self.ntbname = 'ntb'
@@ -45,8 +47,7 @@ class TDTestCase:
             'col10': 'double',
             'col11': 'bool',
             'col12': f'binary({self.str_length})',
-            'col13': f'nchar({self.str_length})',
-            'col_ts'  : 'timestamp'
+            'col13': f'nchar({self.str_length})'
         }
         self.tinyint_val = random.randint(constant.TINYINT_MIN,constant.TINYINT_MAX)
         self.smallint_val = random.randint(constant.SMALLINT_MIN,constant.SMALLINT_MAX)
@@ -86,6 +87,7 @@ class TDTestCase:
                 else:
                     sql += f'({self.ts+i},{values})'
             sql += ' '
+        print(sql)
         tdSql.execute(sql)
     
     def insert_data(self,col_type,tbname,rows,data):
@@ -117,6 +119,25 @@ class TDTestCase:
             elif 'nchar' in col_type.lower():
                 tdSql.execute(f'''insert into {tbname} values({self.ts+i},"{data['nchar']}")''') 
     
+    def data_check(self,dbname,tbname,tbnum,rownum,data,col_name,col_type):
+        if 'binary' in col_type.lower():
+            self.update_data(dbname,f'{tbname}',tbnum,rownum,data['binary'],col_type)
+        elif 'nchar' in col_type.lower():
+            self.update_data(dbname,f'{tbname}',tbnum,rownum,data['nchar'],col_type)
+        else:
+            self.update_data(dbname,f'{tbname}',tbnum,rownum,data[col_type],col_type)
+        for i in range(self.tbnum):
+            tdSql.query(f'select {col_name} from {dbname}.{tbname}_{i}')
+            for j in range(rownum):
+                if col_type.lower() == 'float' or col_type.lower() == 'double':
+                    if abs(tdSql.queryResult[j][0] - data[col_type]) / data[col_type] <= 0.0001:
+                        tdSql.checkEqual(tdSql.queryResult[j][0],tdSql.queryResult[j][0])
+                elif 'binary' in col_type.lower():
+                    tdSql.checkEqual(tdSql.queryResult[j][0],data['binary'])
+                elif 'nchar' in col_type.lower():
+                    tdSql.checkEqual(tdSql.queryResult[j][0],data['nchar'])
+                else:
+                    tdSql.checkEqual(tdSql.queryResult[j][0],data[col_type])
     def update_data_ntb(self):
         tdSql.execute(f'drop database if exists {self.dbname}')
         tdSql.execute(f'create database {self.dbname}')
@@ -126,21 +147,25 @@ class TDTestCase:
                 tdSql.execute(f'create table {self.dbname}.{self.ntbname}_{i} (ts timestamp,{col_name} {col_type})')
                 for j in range(self.rowNum):
                     tdSql.execute(f'insert into {self.dbname}.{self.ntbname}_{i} values({self.ts+j},null)' )
-            self.update_data(self.dbname,f'{self.ntbname}',self.tbnum,self.rowNum,self.data[col_type],col_type)
+            self.data_check(self.dbname,self.ntbname,self.tbnum,self.rowNum,self.data,col_name,col_type)
             for i in range(self.tbnum):
-                tdSql.query('select {col_name} from {self.dbname}.{self.ntbname}_{i}')
+                tdSql.execute(f'drop table {self.ntbname}_{i}')
+    def update_data_ctb(self):
+        tdSql.execute(f'drop database if exists {self.dbname}')
+        tdSql.execute(f'create database {self.dbname}')
+        tdSql.execute(f'use {self.dbname}')
+        for col_name,col_type in self.column_dict.items():
+            tdSql.execute(f'create table {self.dbname}.{self.stbname} (ts timestamp,{col_name} {col_type}) tags(t0 int)')
+            for i in range(self.tbnum):
+                tdSql.execute(f'create table {self.dbname}.{self.stbname}_{i} using {self.dbname}.{self.stbname} tags(1)')
                 for j in range(self.rowNum):
-                    if col_type.lower() == 'float' or col_type.lower() == 'double':
-                        if abs(tdSql.queryResult[0][0] - value) / value <= 0.0001:
-                            tdSql.checkEqual(tdSql.queryResult[0][0],tdSql.queryResult[0][0])
-
-            # for i in range(self.tbnum):
-            #     tdSql.execute(f'drop table {self.ntbname}_{i}')
-
+                    tdSql.execute(f'insert into {self.dbname}.{self.stbname}_{i} values({self.ts+j},null)' )
+            self.data_check(self.dbname,self.stbname,self.tbnum,self.rowNum,self.data,col_name,col_type)
+            tdSql.execute(f'drop table {self.stbname}')
     def run(self):
         self.update_data_ntb()
-        # self.update_data()
-        pass
+        self.update_data_ctb()
+
         
     def stop(self):
         tdSql.close()
