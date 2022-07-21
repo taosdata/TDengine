@@ -31,7 +31,7 @@
 ./test.sh -f tsim/db/len.sim
 ./test.sh -f tsim/db/repeat.sim
 ./test.sh -f tsim/db/show_create_db.sim
-./test.sh -f tsim/db/show_create_table.sim
+# jira ./test.sh -f tsim/db/show_create_table.sim
 ./test.sh -f tsim/db/tables.sim
 ./test.sh -f tsim/db/taosdlog.sim
 
