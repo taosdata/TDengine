@@ -154,7 +154,8 @@ class TestInsert(TDCase):
                     ret = self.tdSql.checkData(0, 0, childtable_count * insert_rows)
                 
                 # Query data check
-                stb_child_name = 'stb_1'                
+                self.tdSql.query("show {}.tables;".format(db_name))
+                stb_child_name = self.tdSql.getData(0,0)             
                 if insert_rows > 0:
                     #sum check
                     sum_sql1 = "select sum(c1) from {}.{};".format(db_name, stb_child_name);
