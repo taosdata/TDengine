@@ -20,7 +20,7 @@ $stb = $stbPrefix . $i
 
 sql drop database $db -x step1
 step1:
-sql create database $db cache 16 maxrows 4096 keep 36500
+sql create database $db maxrows 4096 keep 36500
 print ====== create tables
 sql use $db
 sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 int)
@@ -68,7 +68,7 @@ if $row != 100 then
   return -1
 endi
 
-sql select bottom(c3, 5) from tb_tb1 interval(1y);
+sql select _wstart, bottom(c3, 5) from tb_tb1 interval(1y);
 if $rows != 5 then
   return -1
 endi
@@ -90,7 +90,7 @@ if $data31 != 0.00000 then
   return -1
 endi
 
-sql select top(c4, 5) from tb_tb1 interval(1y);
+sql select _wstart, top(c4, 5) from tb_tb1 interval(1y);
 if $rows != 5 then
   return -1
 endi
@@ -112,7 +112,7 @@ if $data31 != 9.000000000 then
   return -1
 endi
 
-sql select top(c3, 5) from tb_tb1 interval(40h)
+sql select _wstart, top(c3, 5) from tb_tb1 interval(40h)
 if $rows != 25 then
   return -1
 endi
@@ -149,7 +149,7 @@ sql insert into test1 values(1537146000006, 7, 7, 7, 7, 6.100000, 6.100000, 0, '
 sql insert into test1 values(1537146000007, 8, 8, 8, 8, 7.100000, 7.100000, 1, 'taosdata8', '涛思数据8');
 sql insert into test1 values(1537146000008, 9, 9, 9, 9, 8.100000, 8.100000, 0, 'taosdata9', '涛思数据9');
 sql insert into test1 values(1537146000009, 10, 10, 10, 10, 9.100000, 9.100000, 1, 'taosdata10', '涛思数据10');
-sql select bottom(col5, 10) from test
+sql select ts, bottom(col5, 10) from test order by col5;
 if $rows != 10 then
   return -1
 endi
@@ -177,13 +177,11 @@ sql insert into test values(29999, 1)(70000, 2)(80000, 3)
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 500
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 sql connect
-sleep 100
 
-sql select count(*) from t1.test where ts>10000 and ts<90000 interval(5000a)
+sql select count(*) from t1.test where ts > 10000 and ts < 90000 interval(5000a)
 if $rows != 3 then
  return -1
 endi
@@ -218,7 +216,6 @@ endw
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
 sql connect
-sleep 100
 sql use db;
 
 $ts = 1000
@@ -270,10 +267,9 @@ sql insert into t2 values('2020-2-2 1:1:1', 1);
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
 sql connect
-sleep 100
 
 sql use db
-sql select count(*), first(ts), last(ts) from t2 interval(1d);
+sql select _wstart, count(*), first(ts), last(ts) from t2 interval(1d);
 if $rows != 2 then
   return -1
 endi
@@ -367,9 +363,9 @@ if $row != 1 then
   return -1
 endi
 
-sql_error select * from ttm2 where k=null
-sql_error select * from ttm2 where k<>null
+sql select * from ttm2 where k=null
+sql select * from ttm2 where k<>null
 sql_error select * from ttm2 where k like null
-sql_error select * from ttm2 where k<null
+sql select * from ttm2 where k<null
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

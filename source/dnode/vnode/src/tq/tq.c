@@ -208,6 +208,26 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen) {
   return 0;
 }
 
+int32_t tqCheckColModifiable(STQ* pTq, int32_t colId) {
+  void* pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pTq->handles, pIter);
+    if (pIter == NULL) break;
+    STqHandle* pExec = (STqHandle*)pIter;
+    if (pExec->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+      int32_t sz = taosArrayGetSize(pExec->colIdList);
+      for (int32_t i = 0; i < sz; i++) {
+        int32_t forbidColId = *(int32_t*)taosArrayGet(pExec->colIdList, i);
+        if (forbidColId == colId) {
+          taosHashCancelIterate(pTq->handles, pIter);
+          return -1;
+        }
+      }
+    }
+  }
+  return 0;
+}
+
 static int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq, int8_t subType) {
   pRsp->reqOffset = pReq->reqOffset;
 
@@ -752,8 +772,9 @@ int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen) {
 
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pTq->pStreamTasks, &pReq->taskId, sizeof(int32_t));
   if (ppTask) {
+    SStreamTask* pTask = *ppTask;
     taosHashRemove(pTq->pStreamTasks, &pReq->taskId, sizeof(int32_t));
-    atomic_store_8(&(*ppTask)->taskStatus, TASK_STATUS__DROPPING);
+    atomic_store_8(&pTask->taskStatus, TASK_STATUS__DROPPING);
   }
   // todo
   // clear queue
