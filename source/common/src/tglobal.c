@@ -51,15 +51,15 @@ int32_t tsNumOfShmThreads = 1;
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfCommitThreads = 2;
 int32_t tsNumOfTaskQueueThreads = 1;
-int32_t tsNumOfMnodeQueryThreads = 2;
+int32_t tsNumOfMnodeQueryThreads = 4;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
-int32_t tsNumOfVnodeQueryThreads = 2;
+int32_t tsNumOfVnodeQueryThreads = 4;
 int32_t tsNumOfVnodeStreamThreads = 2;
 int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeWriteThreads = 2;
 int32_t tsNumOfVnodeSyncThreads = 2;
-int32_t tsNumOfQnodeQueryThreads = 2;
+int32_t tsNumOfQnodeQueryThreads = 4;
 int32_t tsNumOfQnodeFetchThreads = 4;
 int32_t tsNumOfSnodeSharedThreads = 2;
 int32_t tsNumOfSnodeUniqueThreads = 2;
@@ -402,16 +402,16 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfCommitThreads = TRANGE(tsNumOfCommitThreads, 2, 4);
   if (cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 1024, 0) != 0) return -1;
 
-  tsNumOfMnodeQueryThreads = tsNumOfCores / 8;
-  tsNumOfMnodeQueryThreads = TRANGE(tsNumOfMnodeQueryThreads, 1, 4);
+  tsNumOfMnodeQueryThreads = tsNumOfCores * 2;
+  tsNumOfMnodeQueryThreads = TRANGE(tsNumOfMnodeQueryThreads, 4, 8);
   if (cfgAddInt32(pCfg, "numOfMnodeQueryThreads", tsNumOfMnodeQueryThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfMnodeReadThreads = tsNumOfCores / 8;
   tsNumOfMnodeReadThreads = TRANGE(tsNumOfMnodeReadThreads, 1, 4);
   if (cfgAddInt32(pCfg, "numOfMnodeReadThreads", tsNumOfMnodeReadThreads, 1, 1024, 0) != 0) return -1;
 
-  tsNumOfVnodeQueryThreads = tsNumOfCores / 4;
-  tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 2);
+  tsNumOfVnodeQueryThreads = tsNumOfCores * 2;
+  tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfVnodeStreamThreads = tsNumOfCores / 4;
@@ -430,8 +430,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfVnodeSyncThreads = TMAX(tsNumOfVnodeSyncThreads, 1);
   if (cfgAddInt32(pCfg, "numOfVnodeSyncThreads", tsNumOfVnodeSyncThreads, 1, 1024, 0) != 0) return -1;
 
-  tsNumOfQnodeQueryThreads = tsNumOfCores / 2;
-  tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 1);
+  tsNumOfQnodeQueryThreads = tsNumOfCores * 2;
+  tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 4);
   if (cfgAddInt32(pCfg, "numOfQnodeQueryThreads", tsNumOfQnodeQueryThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfQnodeFetchThreads = tsNumOfCores / 2;
