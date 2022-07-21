@@ -52,7 +52,9 @@ for file in `ls ${logpath}/log.dnode* | grep -v vgId`;do
 	cat ${file} | awk '{ if(index($0, "sync open") > 0 || index($0, "sync close") > 0 || index($0, "become leader") > 0) {print $0} }' > ${file}.main
 done
 
-
+echo ""
+echo "generate log.leader.term ..."
+cat ${logpath}/*.main | grep "become leader" | grep -v "config change" | awk '{print $5,$0}' | awk -F, '{print $4"_"$0}' | sort -k1 > ${logpath}/log.leader.term
 
 
 exit 0
