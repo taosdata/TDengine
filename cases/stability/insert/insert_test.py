@@ -241,7 +241,12 @@ class TestInsert(TDCase):
                     cast_sql1 = "select cast(c1 as bigint) from {}.{};".format(db_name, stb_child_name);
                     cast_sql2 = "select cast(c1 as bigint) from {}.{} where tbname = '{}';".format(db_name, stb_name, stb_child_name)
                     self.tdCreateData.dataequal('%s' %cast_sql1 ,1,1,'%s' %cast_sql2 ,1,1)
-                    
+
+                self.tdSql.execute("delete from {}.{};".format(db_name, stb_name))
+                self.tdSql.execute("flush database {};".format(db_name))
+                self.tdSql.execute("reset query cache;")
+                self.tdSql.query("select * from {}.{};".format(db_name, stb_name))
+                self.tdSql.checkRow(0)
                     
         return ret
 
