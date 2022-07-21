@@ -1550,12 +1550,12 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     char logBuf[256 + 256];
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(logBuf, sizeof(logBuf),
-               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", first:%" PRId64 ", last:%" PRId64
-               ", snapshot:%" PRId64 ", snapshot-term:%" PRIu64
-               ", standby:%d, "
-               "strategy:%d, batch:%d, "
-               "replica-num:%d, "
-               "lconfig:%" PRId64 ", changing:%d, restore:%d, %s",
+               "vgId:%d, sync %s %s, tm:%" PRIu64 ", cmt:%" PRId64 ", fst:%" PRId64 ", lst:%" PRId64 ", snap:%" PRId64
+               ", snap-tm:%" PRIu64
+               ", sby:%d, "
+               "stgy:%d, bch:%d, "
+               "r-num:%d, "
+               "lcfg:%" PRId64 ", chging:%d, rsto:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy, pSyncNode->pRaftCfg->batchSize,
@@ -1573,12 +1573,12 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     char* s = (char*)taosMemoryMalloc(len);
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(s, len,
-               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", first:%" PRId64 ", last:%" PRId64
-               ", snapshot:%" PRId64 ", snapshot-term:%" PRIu64
-               ", standby:%d, "
-               "strategy:%d, batch:%d, "
-               "replica-num:%d, "
-               "lconfig:%" PRId64 ", changing:%d, restore:%d, %s",
+               "vgId:%d, sync %s %s, tm:%" PRIu64 ", cmt:%" PRId64 ", fst:%" PRId64 ", lst:%" PRId64 ", snap:%" PRId64
+               ", snap-tm:%" PRIu64
+               ", sby:%d, "
+               "stgy:%d, bch:%d, "
+               "r-num:%d, "
+               "lcfg:%" PRId64 ", chging:%d, rsto:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy, pSyncNode->pRaftCfg->batchSize,
@@ -1621,12 +1621,12 @@ void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
     char logBuf[256 + 256];
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(logBuf, sizeof(logBuf),
-               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", first:%" PRId64 ", last:%" PRId64
-               ", snapshot:%" PRId64 ", snapshot-term:%" PRIu64
-               ", standby:%d, "
-               "strategy:%d, batch:%d, "
-               "replica-num:%d, "
-               "lconfig:%" PRId64 ", changing:%d, restore:%d, %s",
+               "vgId:%d, sync %s %s, tm:%" PRIu64 ", cmt:%" PRId64 ", fst:%" PRId64 ", lst:%" PRId64 ", snap:%" PRId64
+               ", snap-tm:%" PRIu64
+               ", sby:%d, "
+               "stgy:%d, bch:%d, "
+               "r-num:%d, "
+               "lcfg:%" PRId64 ", chging:%d, rsto:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy, pSyncNode->pRaftCfg->batchSize,
@@ -1642,12 +1642,12 @@ void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
     char* s = (char*)taosMemoryMalloc(len);
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(s, len,
-               "vgId:%d, sync %s %s, term:%" PRIu64 ", commit:%" PRId64 ", first:%" PRId64 ", last:%" PRId64
-               ", snapshot:%" PRId64 ", snapshot-term:%" PRIu64
-               ", standby:%d, "
-               "strategy:%d, batch:%d, "
-               "replica-num:%d, "
-               "lconfig:%" PRId64 ", changing:%d, restore:%d, %s",
+               "vgId:%d, sync %s %s, tm:%" PRIu64 ", cmt:%" PRId64 ", fst:%" PRId64 ", lst:%" PRId64 ", snap:%" PRId64
+               ", snap-tm:%" PRIu64
+               ", sby:%d, "
+               "stgy:%d, bch:%d, "
+               "r-num:%d, "
+               "lcfg:%" PRId64 ", chging:%d, rsto:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy, pSyncNode->pRaftCfg->batchSize,
@@ -1675,11 +1675,10 @@ char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
   SyncIndex logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
 
   snprintf(s, len,
-           "vgId:%d, sync %s, term:%" PRIu64 ", commit:%" PRId64 ", first:%" PRId64 ", last:%" PRId64
-           ", snapshot:%" PRId64
-           ", standby:%d, "
-           "replica-num:%d, "
-           "lconfig:%" PRId64 ", changing:%d, restore:%d",
+           "vgId:%d, sync %s, tm:%" PRIu64 ", cmt:%" PRId64 ", fst:%" PRId64 ", lst:%" PRId64 ", snap:%" PRId64
+           ", sby:%d, "
+           "r-num:%d, "
+           "lcfg:%" PRId64 ", chging:%d, rsto:%d",
            pSyncNode->vgId, syncUtilState2String(pSyncNode->state), pSyncNode->pRaftStore->currentTerm,
            pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy,
            pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing, pSyncNode->restoreFinish);
@@ -2977,7 +2976,7 @@ void syncLogSendAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMs
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf),
            "send sync-append-entries to %s:%d, {term:%" PRIu64 ", pre-index:%" PRId64 ", pre-term:%" PRIu64
-           ", pterm:%" PRIu64 ", commit:%" PRId64
+           ", pterm:%" PRIu64 ", cmt:%" PRId64
            ", "
            "datalen:%d}, %s",
            host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm, pMsg->commitIndex,
@@ -2992,7 +2991,7 @@ void syncLogRecvAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMs
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf),
            "recv sync-append-entries from %s:%d {term:%" PRIu64 ", pre-index:%" PRIu64 ", pre-term:%" PRIu64
-           ", commit:%" PRIu64 ", pterm:%" PRIu64
+           ", cmt:%" PRIu64 ", pterm:%" PRIu64
            ", "
            "datalen:%d}, %s",
            host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
@@ -3007,7 +3006,7 @@ void syncLogSendAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntries
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf),
            "send sync-append-entries-batch to %s:%d, {term:%" PRIu64 ", pre-index:%" PRId64 ", pre-term:%" PRIu64
-           ", pterm:%" PRIu64 ", commit:%" PRId64 ", datalen:%d, count:%d}, %s",
+           ", pterm:%" PRIu64 ", cmt:%" PRId64 ", datalen:%d, count:%d}, %s",
            host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm, pMsg->commitIndex,
            pMsg->dataLen, pMsg->dataCount, s);
   syncNodeEventLog(pSyncNode, logBuf);
@@ -3020,7 +3019,7 @@ void syncLogRecvAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntries
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf),
            "recv sync-append-entries-batch from %s:%d, {term:%" PRIu64 ", pre-index:%" PRId64 ", pre-term:%" PRIu64
-           ", pterm:%" PRIu64 ", commit:%" PRId64 ", datalen:%d, count:%d}, %s",
+           ", pterm:%" PRIu64 ", cmt:%" PRId64 ", datalen:%d, count:%d}, %s",
            host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm, pMsg->commitIndex,
            pMsg->dataLen, pMsg->dataCount, s);
   syncNodeEventLog(pSyncNode, logBuf);
