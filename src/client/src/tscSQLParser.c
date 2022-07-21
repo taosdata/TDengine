@@ -6940,6 +6940,9 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     SColumnIndex idx = COLUMN_INDEX_INITIALIZER;
+    if (pItem->pVar.nType != TSDB_DATA_TYPE_BINARY) {
+        return invalidOperationMsg(pMsg, msg17);
+    }
     SStrToken    name = {.z = pItem->pVar.pz, .n = pItem->pVar.nLen};
 
     if (getColumnIndexByName(&name, pQueryInfo, &idx, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
@@ -7013,6 +7016,9 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     int16_t       numOfTags = tscGetNumOfTags(pTableMeta);
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
+    if (item->pVar.nType != TSDB_DATA_TYPE_BINARY) {
+        return invalidOperationMsg(pMsg, msg17);
+    }
     SStrToken    name = {.z = item->pVar.pz, .n = item->pVar.nLen};
     if (getColumnIndexByName(&name, pQueryInfo, &columnIndex, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -7158,6 +7164,9 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     tVariantListItem* pItem = taosArrayGet(pAlterSQL->varList, 0);
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
+    if (pItem->pVar.nType != TSDB_DATA_TYPE_BINARY) {
+        return invalidOperationMsg(pMsg, msg17);
+    }
     SStrToken    name = {.z = pItem->pVar.pz, .n = pItem->pVar.nLen};
 
     if (getColumnIndexByName(&name, pQueryInfo, &columnIndex, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
