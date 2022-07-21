@@ -169,13 +169,13 @@ class TDTestCase:
         tdSql.checkData(0,1,self.row_nums)
 
         tdSql.query("select c1 , mavg(c1 ,2 ) from stb partition by c1")
-        tdSql.checkRows(72)
+        tdSql.checkRows(90)
 
         tdSql.query("select c1 , diff(c1 , 0) from stb partition by c1")
-        tdSql.checkRows(72)
+        tdSql.checkRows(90)
 
         tdSql.query("select c1 , csum(c1) from stb partition by c1")
-        tdSql.checkRows(80)
+        tdSql.checkRows(100)
 
         tdSql.query("select c1 , sample(c1,2) from stb partition by c1 order by c1")
         tdSql.checkRows(21)
@@ -191,7 +191,7 @@ class TDTestCase:
         tdSql.checkData(0,1,None)
 
         tdSql.query("select c1 , DERIVATIVE(c1,2,1) from stb partition by c1 order by c1")
-        tdSql.checkRows(72)
+        tdSql.checkRows(90)
         # bug need fix
         # tdSql.checkData(0,1,None)
 

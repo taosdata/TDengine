@@ -5,7 +5,6 @@ import json
 from dataclasses import dataclass, field
 from typing import List, Any, Tuple
 
-from certifi import where
 from util.log import tdLog
 from util.sql import tdSql
 from util.cases import tdCases
