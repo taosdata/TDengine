@@ -585,7 +585,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
       ASSERT(pTColumn->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
     } else {
       if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-        if (pColVal) {
+        if (pColVal && !pColVal->isNone && !pColVal->isNull) {
           varDataLen += (pColVal->value.nData + sizeof(VarDataLenT));
           if (maxVarDataLen < (pColVal->value.nData + sizeof(VarDataLenT))) {
             maxVarDataLen = pColVal->value.nData + sizeof(VarDataLenT);

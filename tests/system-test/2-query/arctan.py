@@ -9,48 +9,48 @@ from util.cases import *
 
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
-    "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
-    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
+    # updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
+    # "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
+    # "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
     def init(self, conn, powSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
-    def prepare_datas(self):
+    def prepare_datas(self, dbname="db"):
         tdSql.execute(
-            '''create table stb1
+            f'''create table {dbname}.stb1
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
             tags (t1 int)
             '''
         )
 
         tdSql.execute(
-            '''
-            create table t1
+            f'''
+            create table {dbname}.t1
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
             '''
         )
         for i in range(4):
-            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+            tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.stb1 tags ( {i+1} )')
 
         for i in range(9):
             tdSql.execute(
-                f"insert into ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+                f"insert into {dbname}.ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
             )
             tdSql.execute(
-                f"insert into ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+                f"insert into {dbname}.ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
             )
-        tdSql.execute("insert into ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
-        tdSql.execute("insert into ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
-        tdSql.execute("insert into ct1 values (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )")
-        tdSql.execute("insert into ct1 values (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
 
-        tdSql.execute("insert into ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
-        tdSql.execute("insert into ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
-        tdSql.execute("insert into ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
+        tdSql.execute(f"insert into {dbname}.ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(f"insert into {dbname}.ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(f"insert into {dbname}.ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
 
         tdSql.execute(
-            f'''insert into t1 values
+            f'''insert into {dbname}.t1 values
             ( '2020-04-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( '2020-10-21 01:01:01.000', 1, 11111, 111, 11, 1.11, 11.11, 1, "binary1", "nchar1", now()+1a )
             ( '2020-12-31 01:01:01.000', 2, 22222, 222, 22, 2.22, 22.22, 0, "binary2", "nchar2", now()+2a )
@@ -87,7 +87,7 @@ class TDTestCase:
 
         for row_index , row in enumerate(pow_result):
             for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index] == None  and not (auto_result[row_index][col_index] == None and elem == None):
+                if auto_result[row_index][col_index] == None  and elem:
                     check_status = False
                 elif auto_result[row_index][col_index] != None  and (auto_result[row_index][col_index] - elem > 0.00000001):
                     check_status = False
@@ -99,68 +99,68 @@ class TDTestCase:
         else:
             tdLog.info("atan value check pass , it work as expected ,sql is \"%s\"   "%pow_query )
 
-    def test_errors(self):
+    def test_errors(self, dbname="db"):
         error_sql_lists = [
-            "select atan from t1",
-            # "select atan(-+--+c1 ) from t1",
-            # "select +-atan(c1) from t1",
-            # "select ++-atan(c1) from t1",
-            # "select ++--atan(c1) from t1",
-            # "select - -atan(c1)*0 from t1",
-            # "select atan(tbname+1) from t1 ",
-            "select atan(123--123)==1 from t1",
-            "select atan(c1) as 'd1' from t1",
-            "select atan(c1 ,c2) from t1",
-            "select atan(c1 ,NULL ) from t1",
-            "select atan(,) from t1;",
-            "select atan(atan(c1) ab from t1)",
-            "select atan(c1 ) as int from t1",
-            "select atan from stb1",
-            # "select atan(-+--+c1) from stb1",
-            # "select +-atan(c1) from stb1",
-            # "select ++-atan(c1) from stb1",
-            # "select ++--atan(c1) from stb1",
-            # "select - -atan(c1)*0 from stb1",
-            # "select atan(tbname+1) from stb1 ",
-            "select atan(123--123)==1 from stb1",
-            "select atan(c1) as 'd1' from stb1",
-            "select atan(c1 ,c2 ) from stb1",
-            "select atan(c1 ,NULL) from stb1",
-            "select atan(,) from stb1;",
-            "select atan(atan(c1) ab from stb1)",
-            "select atan(c1) as int from stb1"
+            f"select atan from {dbname}.t1",
+            # f"select atan(-+--+c1 ) from {dbname}.t1",
+            # f"select +-atan(c1) from {dbname}.t1",
+            # f"select ++-atan(c1) from {dbname}.t1",
+            # f"select ++--atan(c1) from {dbname}.t1",
+            # f"select - -atan(c1)*0 from {dbname}.t1",
+            # f"select atan(tbname+1) from {dbname}.t1 ",
+            f"select atan(123--123)==1 from {dbname}.t1",
+            f"select atan(c1) as 'd1' from {dbname}.t1",
+            f"select atan(c1 ,c2) from {dbname}.t1",
+            f"select atan(c1 ,NULL ) from {dbname}.t1",
+            f"select atan(,) from {dbname}.t1;",
+            f"select atan(atan(c1) ab from {dbname}.t1)",
+            f"select atan(c1 ) as int from {dbname}.t1",
+            f"select atan from {dbname}.stb1",
+            # f"select atan(-+--+c1) from {dbname}.stb1",
+            # f"select +-atan(c1) from {dbname}.stb1",
+            # f"select ++-atan(c1) from {dbname}.stb1",
+            # f"select ++--atan(c1) from {dbname}.stb1",
+            # f"select - -atan(c1)*0 from {dbname}.stb1",
+            # f"select atan(tbname+1) from {dbname}.stb1 ",
+            f"select atan(123--123)==1 from {dbname}.stb1",
+            f"select atan(c1) as 'd1' from {dbname}.stb1",
+            f"select atan(c1 ,c2 ) from {dbname}.stb1",
+            f"select atan(c1 ,NULL) from {dbname}.stb1",
+            f"select atan(,) from {dbname}.stb1;",
+            f"select atan(atan(c1) ab from {dbname}.stb1)",
+            f"select atan(c1) as int from {dbname}.stb1"
         ]
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
 
-    def support_types(self):
+    def support_types(self, dbname="db"):
         type_error_sql_lists = [
-            "select atan(ts) from t1" ,
-            "select atan(c7) from t1",
-            "select atan(c8) from t1",
-            "select atan(c9) from t1",
-            "select atan(ts) from ct1" ,
-            "select atan(c7) from ct1",
-            "select atan(c8) from ct1",
-            "select atan(c9) from ct1",
-            "select atan(ts) from ct3" ,
-            "select atan(c7) from ct3",
-            "select atan(c8) from ct3",
-            "select atan(c9) from ct3",
-            "select atan(ts) from ct4" ,
-            "select atan(c7) from ct4",
-            "select atan(c8) from ct4",
-            "select atan(c9) from ct4",
-            "select atan(ts) from stb1" ,
-            "select atan(c7) from stb1",
-            "select atan(c8) from stb1",
-            "select atan(c9) from stb1" ,
+            f"select atan(ts) from {dbname}.t1" ,
+            f"select atan(c7) from {dbname}.t1",
+            f"select atan(c8) from {dbname}.t1",
+            f"select atan(c9) from {dbname}.t1",
+            f"select atan(ts) from {dbname}.ct1" ,
+            f"select atan(c7) from {dbname}.ct1",
+            f"select atan(c8) from {dbname}.ct1",
+            f"select atan(c9) from {dbname}.ct1",
+            f"select atan(ts) from {dbname}.ct3" ,
+            f"select atan(c7) from {dbname}.ct3",
+            f"select atan(c8) from {dbname}.ct3",
+            f"select atan(c9) from {dbname}.ct3",
+            f"select atan(ts) from {dbname}.ct4" ,
+            f"select atan(c7) from {dbname}.ct4",
+            f"select atan(c8) from {dbname}.ct4",
+            f"select atan(c9) from {dbname}.ct4",
+            f"select atan(ts) from {dbname}.stb1" ,
+            f"select atan(c7) from {dbname}.stb1",
+            f"select atan(c8) from {dbname}.stb1",
+            f"select atan(c9) from {dbname}.stb1" ,
 
-            "select atan(ts) from stbbb1" ,
-            "select atan(c7) from stbbb1",
+            f"select atan(ts) from {dbname}.stbbb1" ,
+            f"select atan(c7) from {dbname}.stbbb1",
 
-            "select atan(ts) from tbname",
-            "select atan(c9) from tbname"
+            f"select atan(ts) from {dbname}.tbname",
+            f"select atan(c9) from {dbname}.tbname"
 
         ]
 
@@ -169,103 +169,103 @@ class TDTestCase:
 
 
         type_sql_lists = [
-            "select atan(c1) from t1",
-            "select atan(c2) from t1",
-            "select atan(c3) from t1",
-            "select atan(c4) from t1",
-            "select atan(c5) from t1",
-            "select atan(c6) from t1",
+            f"select atan(c1) from {dbname}.t1",
+            f"select atan(c2) from {dbname}.t1",
+            f"select atan(c3) from {dbname}.t1",
+            f"select atan(c4) from {dbname}.t1",
+            f"select atan(c5) from {dbname}.t1",
+            f"select atan(c6) from {dbname}.t1",
 
-            "select atan(c1) from ct1",
-            "select atan(c2) from ct1",
-            "select atan(c3) from ct1",
-            "select atan(c4) from ct1",
-            "select atan(c5) from ct1",
-            "select atan(c6) from ct1",
+            f"select atan(c1) from {dbname}.ct1",
+            f"select atan(c2) from {dbname}.ct1",
+            f"select atan(c3) from {dbname}.ct1",
+            f"select atan(c4) from {dbname}.ct1",
+            f"select atan(c5) from {dbname}.ct1",
+            f"select atan(c6) from {dbname}.ct1",
 
-            "select atan(c1) from ct3",
-            "select atan(c2) from ct3",
-            "select atan(c3) from ct3",
-            "select atan(c4) from ct3",
-            "select atan(c5) from ct3",
-            "select atan(c6) from ct3",
+            f"select atan(c1) from {dbname}.ct3",
+            f"select atan(c2) from {dbname}.ct3",
+            f"select atan(c3) from {dbname}.ct3",
+            f"select atan(c4) from {dbname}.ct3",
+            f"select atan(c5) from {dbname}.ct3",
+            f"select atan(c6) from {dbname}.ct3",
 
-            "select atan(c1) from stb1",
-            "select atan(c2) from stb1",
-            "select atan(c3) from stb1",
-            "select atan(c4) from stb1",
-            "select atan(c5) from stb1",
-            "select atan(c6) from stb1",
+            f"select atan(c1) from {dbname}.stb1",
+            f"select atan(c2) from {dbname}.stb1",
+            f"select atan(c3) from {dbname}.stb1",
+            f"select atan(c4) from {dbname}.stb1",
+            f"select atan(c5) from {dbname}.stb1",
+            f"select atan(c6) from {dbname}.stb1",
 
-            "select atan(c6) as alisb from stb1",
-            "select atan(c6) alisb from stb1",
+            f"select atan(c6) as alisb from {dbname}.stb1",
+            f"select atan(c6) alisb from {dbname}.stb1",
         ]
 
         for type_sql in type_sql_lists:
             tdSql.query(type_sql)
 
-    def basic_atan_function(self):
+    def basic_atan_function(self, dbname="db"):
 
         # basic query
-        tdSql.query("select c1 from ct3")
+        tdSql.query(f"select c1 from {dbname}.ct3")
         tdSql.checkRows(0)
-        tdSql.query("select c1 from t1")
+        tdSql.query(f"select c1 from {dbname}.t1")
         tdSql.checkRows(12)
-        tdSql.query("select c1 from stb1")
+        tdSql.query(f"select c1 from {dbname}.stb1")
         tdSql.checkRows(25)
 
         # used for empty table  , ct3 is empty
-        tdSql.query("select atan(c1) from ct3")
+        tdSql.query(f"select atan(c1) from {dbname}.ct3")
         tdSql.checkRows(0)
-        tdSql.query("select atan(c2) from ct3")
+        tdSql.query(f"select atan(c2) from {dbname}.ct3")
         tdSql.checkRows(0)
-        tdSql.query("select atan(c3) from ct3")
+        tdSql.query(f"select atan(c3) from {dbname}.ct3")
         tdSql.checkRows(0)
-        tdSql.query("select atan(c4) from ct3")
+        tdSql.query(f"select atan(c4) from {dbname}.ct3")
         tdSql.checkRows(0)
-        tdSql.query("select atan(c5) from ct3")
+        tdSql.query(f"select atan(c5) from {dbname}.ct3")
         tdSql.checkRows(0)
-        tdSql.query("select atan(c6) from ct3")
+        tdSql.query(f"select atan(c6) from {dbname}.ct3")
         tdSql.checkRows(0)
 
 
         # # used for regular table
-        tdSql.query("select atan(c1) from t1")
+        tdSql.query(f"select atan(c1) from {dbname}.t1")
         tdSql.checkData(0, 0, None)
         tdSql.checkData(1 , 0, 0.785398163)
         tdSql.checkData(3 , 0, 1.249045772)
         tdSql.checkData(5 , 0, None)
 
-        tdSql.query("select c1, c2, c3 , c4, c5 from t1")
+        tdSql.query(f"select c1, c2, c3 , c4, c5 from {dbname}.t1")
         tdSql.checkData(1, 4, 1.11000)
         tdSql.checkData(3, 3, 33)
         tdSql.checkData(5, 4, None)
 
-        tdSql.query("select ts,c1, c2, c3 , c4, c5 from t1")
+        tdSql.query(f"select ts,c1, c2, c3 , c4, c5 from {dbname}.t1")
         tdSql.checkData(1, 5, 1.11000)
         tdSql.checkData(3, 4, 33)
         tdSql.checkData(5, 5, None)
 
-        self.check_result_auto_atan( "select abs(c1), abs(c2), abs(c3) , abs(c4), abs(c5) from t1", "select atan(abs(c1)), atan(abs(c2)) ,atan(abs(c3)), atan(abs(c4)), atan(abs(c5)) from t1")
+        self.check_result_auto_atan( f"select abs(c1), abs(c2), abs(c3) , abs(c4), abs(c5) from {dbname}.t1", f"select atan(abs(c1)), atan(abs(c2)) ,atan(abs(c3)), atan(abs(c4)), atan(abs(c5)) from {dbname}.t1")
 
         # used for sub table
-        tdSql.query("select c2 ,atan(c2) from ct1")
+        tdSql.query(f"select c2 ,atan(c2) from {dbname}.ct1")
         tdSql.checkData(0, 1, 1.570785077)
         tdSql.checkData(1 , 1, 1.570783470)
         tdSql.checkData(3 , 1, 1.570778327)
-        tdSql.checkData(4 , 1, 0.000000000)
+        tdSql.checkData(4 , 1, 0)
 
-        tdSql.query("select c1, c5 ,atan(c5) from ct4")
+        tdSql.query(f"select c1, c5 ,atan(c5) from {dbname}.ct4")
         tdSql.checkData(0 , 2, None)
         tdSql.checkData(1 , 2, 1.458656162)
         tdSql.checkData(2 , 2, 1.442799803)
         tdSql.checkData(3 , 2, 1.421759533)
         tdSql.checkData(5 , 2, None)
 
-        self.check_result_auto_atan( "select c1, c2, c3 , c4, c5 from ct1", "select atan(c1), atan(c2) ,atan(c3), atan(c4), atan(c5) from ct1")
+        self.check_result_auto_atan( f"select c1, c2, c3 , c4, c5 from {dbname}.ct1", f"select atan(c1), atan(c2) ,atan(c3), atan(c4), atan(c5) from {dbname}.ct1")
 
         # nest query for atan functions
-        tdSql.query("select c4  , atan(c4) ,atan(atan(c4)) , atan(atan(atan(c4))) from ct1;")
+        tdSql.query(f"select c4  , atan(c4) ,atan(atan(c4)) , atan(atan(atan(c4))) from {dbname}.ct1;")
         tdSql.checkData(0 , 0 , 88)
         tdSql.checkData(0 , 1 , 1.559433180)
         tdSql.checkData(0 , 2 , 1.000590740)
@@ -283,22 +283,22 @@ class TDTestCase:
 
         # used for stable table
 
-        tdSql.query("select atan(c1) from stb1")
+        tdSql.query(f"select atan(c1) from {dbname}.stb1")
         tdSql.checkRows(25)
 
 
         # used for not exists table
-        tdSql.error("select atan(c1) from stbbb1")
-        tdSql.error("select atan(c1) from tbname")
-        tdSql.error("select atan(c1) from ct5")
+        tdSql.error(f"select atan(c1) from {dbname}.stbbb1")
+        tdSql.error(f"select atan(c1) from {dbname}.tbname")
+        tdSql.error(f"select atan(c1) from {dbname}.ct5")
 
         # mix with common col
-        tdSql.query("select c1, atan(c1) from ct1")
-        tdSql.query("select c2, atan(c2) from ct4")
+        tdSql.query(f"select c1, atan(c1) from {dbname}.ct1")
+        tdSql.query(f"select c2, atan(c2) from {dbname}.ct4")
 
 
         # mix with common functions
-        tdSql.query("select c1, atan(c1),atan(c1), atan(atan(c1)) from ct4 ")
+        tdSql.query(f"select c1, atan(c1),atan(c1), atan(atan(c1)) from {dbname}.ct4 ")
         tdSql.checkData(0 , 0 ,None)
         tdSql.checkData(0 , 1 ,None)
         tdSql.checkData(0 , 2 ,None)
@@ -309,24 +309,24 @@ class TDTestCase:
         tdSql.checkData(3 , 2 ,1.405647649)
         tdSql.checkData(3 , 3 ,0.952449745)
 
-        tdSql.query("select c1, atan(c1),c5, floor(c5) from stb1 ")
+        tdSql.query(f"select c1, atan(c1),c5, floor(c5) from {dbname}.stb1 ")
 
         # # mix with agg functions , not support
-        tdSql.error("select c1, atan(c1),c5, count(c5) from stb1 ")
-        tdSql.error("select c1, atan(c1),c5, count(c5) from ct1 ")
-        tdSql.error("select atan(c1), count(c5) from stb1 ")
-        tdSql.error("select atan(c1), count(c5) from ct1 ")
-        tdSql.error("select c1, count(c5) from ct1 ")
-        tdSql.error("select c1, count(c5) from stb1 ")
+        tdSql.error(f"select c1, atan(c1),c5, count(c5) from {dbname}.stb1 ")
+        tdSql.error(f"select c1, atan(c1),c5, count(c5) from {dbname}.ct1 ")
+        tdSql.error(f"select atan(c1), count(c5) from {dbname}.stb1 ")
+        tdSql.error(f"select atan(c1), count(c5) from {dbname}.ct1 ")
+        tdSql.error(f"select c1, count(c5) from {dbname}.ct1 ")
+        tdSql.error(f"select c1, count(c5) from {dbname}.stb1 ")
 
         # agg functions mix with agg functions
 
-        tdSql.query("select max(c5), count(c5) from stb1")
-        tdSql.query("select max(c5), count(c5) from ct1")
+        tdSql.query(f"select max(c5), count(c5) from {dbname}.stb1")
+        tdSql.query(f"select max(c5), count(c5) from {dbname}.ct1")
 
 
         # # bug fix for compute
-        tdSql.query("select c1, atan(c1) -0 ,atan(c1-4)-0 from ct4 ")
+        tdSql.query(f"select c1, atan(c1) -0 ,atan(c1-4)-0 from {dbname}.ct4 ")
         tdSql.checkData(0, 0, None)
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
@@ -334,7 +334,7 @@ class TDTestCase:
         tdSql.checkData(1, 1, 1.446441332)
         tdSql.checkData(1, 2, 1.325817664)
 
-        tdSql.query(" select c1, atan(c1) -0 ,atan(c1-0.1)-0.1 from ct4")
+        tdSql.query(f" select c1, atan(c1) -0 ,atan(c1-0.1)-0.1 from {dbname}.ct4")
         tdSql.checkData(0, 0, None)
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
@@ -342,35 +342,35 @@ class TDTestCase:
         tdSql.checkData(1, 1, 1.446441332)
         tdSql.checkData(1, 2, 1.344883701)
 
-        tdSql.query("select c1, atan(c1), c2, atan(c2), c3, atan(c3) from ct1")
+        tdSql.query(f"select c1, atan(c1), c2, atan(c2), c3, atan(c3) from {dbname}.ct1")
 
-    def test_big_number(self):
+    def test_big_number(self, dbname="db"):
 
-        tdSql.query("select c1, atan(100000000) from ct1")  # bigint to double data overflow
+        tdSql.query(f"select c1, atan(100000000) from {dbname}.ct1")  # bigint to double data overflow
         tdSql.checkData(4, 1, math.atan(100000000))
 
 
-        tdSql.query("select c1, atan(10000000000000) from ct1")  # bigint to double data overflow
+        tdSql.query(f"select c1, atan(10000000000000) from {dbname}.ct1")  # bigint to double data overflow
         tdSql.checkData(4, 1, math.atan(10000000000000))
 
-        tdSql.query("select c1, atan(10000000000000000000000000) from ct1")  # bigint to double data overflow
-        tdSql.query("select c1, atan(10000000000000000000000000.0) from ct1") # 10000000000000000000000000.0 is a double value
+        tdSql.query(f"select c1, atan(10000000000000000000000000) from {dbname}.ct1")  # bigint to double data overflow
+        tdSql.query(f"select c1, atan(10000000000000000000000000.0) from {dbname}.ct1") # 10000000000000000000000000.0 is a double value
         tdSql.checkData(1, 1, math.atan(10000000000000000000000000.0))
 
-        tdSql.query("select c1, atan(10000000000000000000000000000000000) from ct1")  # bigint to double data overflow
-        tdSql.query("select c1, atan(10000000000000000000000000000000000.0) from ct1") # 10000000000000000000000000.0 is a double value
+        tdSql.query(f"select c1, atan(10000000000000000000000000000000000) from {dbname}.ct1")  # bigint to double data overflow
+        tdSql.query(f"select c1, atan(10000000000000000000000000000000000.0) from {dbname}.ct1") # 10000000000000000000000000.0 is a double value
         tdSql.checkData(4, 1, math.atan(10000000000000000000000000000000000.0))
 
-        tdSql.query("select c1, atan(10000000000000000000000000000000000000000) from ct1")  # bigint to double data overflow
-        tdSql.query("select c1, atan(10000000000000000000000000000000000000000.0) from ct1") # 10000000000000000000000000.0 is a double value
+        tdSql.query(f"select c1, atan(10000000000000000000000000000000000000000) from {dbname}.ct1")  # bigint to double data overflow
+        tdSql.query(f"select c1, atan(10000000000000000000000000000000000000000.0) from {dbname}.ct1") # 10000000000000000000000000.0 is a double value
 
         tdSql.checkData(4, 1, math.atan(10000000000000000000000000000000000000000.0))
 
-        tdSql.query("select c1, atan(10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000) from ct1")  # bigint to double data overflow
+        tdSql.query(f"select c1, atan(10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000) from {dbname}.ct1")  # bigint to double data overflow
 
-    def abs_func_filter(self):
-        tdSql.execute("use db")
-        tdSql.query("select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(atan(c1)-0.5) from ct4 where c1>5 ")
+    def abs_func_filter(self, dbname="db"):
+        tdSql.execute(f"use {dbname}")
+        tdSql.query(f"select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(atan(c1)-0.5) from {dbname}.ct4 where c1>5 ")
         tdSql.checkRows(3)
         tdSql.checkData(0,0,8)
         tdSql.checkData(0,1,8.000000000)
@@ -378,7 +378,7 @@ class TDTestCase:
         tdSql.checkData(0,3,7.900000000)
         tdSql.checkData(0,4,1.000000000)
 
-        tdSql.query("select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(atan(c1)-0.5) from ct4 where c1=5 ")
+        tdSql.query(f"select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(atan(c1)-0.5) from {dbname}.ct4 where c1=5 ")
         tdSql.checkRows(1)
         tdSql.checkData(0,0,5)
         tdSql.checkData(0,1,5.000000000)
@@ -386,7 +386,7 @@ class TDTestCase:
         tdSql.checkData(0,3,4.900000000)
         tdSql.checkData(0,4,1.000000000)
 
-        tdSql.query("select c1,c2 , abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(atan(c1)-0.5) from ct4 where c1=atan(c1) limit 1 ")
+        tdSql.query(f"select c1,c2 , abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(atan(c1)-0.5) from {dbname}.ct4 where c1=atan(c1) limit 1 ")
         tdSql.checkRows(1)
         tdSql.checkData(0,0,0)
         tdSql.checkData(0,1,0)
@@ -398,41 +398,41 @@ class TDTestCase:
     def pow_Arithmetic(self):
         pass
 
-    def check_boundary_values(self):
+    def check_boundary_values(self, dbname="bound_test"):
 
         PI=3.1415926
 
-        tdSql.execute("drop database if exists bound_test")
-        tdSql.execute("create database if not exists bound_test")
+        tdSql.execute(f"drop database if exists {dbname}")
+        tdSql.execute(f"create database if not exists {dbname}")
         time.sleep(3)
-        tdSql.execute("use bound_test")
+        tdSql.execute(f"use {dbname}")
         tdSql.execute(
-            "create table stb_bound (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(32),c9 nchar(32), c10 timestamp) tags (t1 int);"
+            f"create table {dbname}.stb_bound (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(32),c9 nchar(32), c10 timestamp) tags (t1 int);"
         )
-        tdSql.execute(f'create table sub1_bound using stb_bound tags ( 1 )')
+        tdSql.execute(f'create table {dbname}.sub1_bound using {dbname}.stb_bound tags ( 1 )')
         tdSql.execute(
-                f"insert into sub1_bound values ( now()-1s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()-1s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
-                f"insert into sub1_bound values ( now()-1s, -2147483647, -9223372036854775807, -32767, -127, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()-1s, -2147483647, -9223372036854775807, -32767, -127, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
-                f"insert into sub1_bound values ( now(), 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now(), 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
-                f"insert into sub1_bound values ( now(), -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now(), -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.error(
-                f"insert into sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        self.check_result_auto_atan( "select abs(c1), abs(c2), abs(c3) , abs(c4), abs(c5) from sub1_bound ", "select atan(abs(c1)), atan(abs(c2)) ,atan(abs(c3)), atan(abs(c4)), atan(abs(c5)) from sub1_bound")
+        self.check_result_auto_atan( f"select abs(c1), abs(c2), abs(c3) , abs(c4), abs(c5) from {dbname}.sub1_bound ", f"select atan(abs(c1)), atan(abs(c2)) ,atan(abs(c3)), atan(abs(c4)), atan(abs(c5)) from {dbname}.sub1_bound")
 
-        self.check_result_auto_atan( "select c1, c2, c3 , c3, c2 ,c1 from sub1_bound ", "select atan(c1), atan(c2) ,atan(c3), atan(c3), atan(c2) ,atan(c1) from sub1_bound")
+        self.check_result_auto_atan( f"select c1, c2, c3 , c3, c2 ,c1 from {dbname}.sub1_bound ", f"select atan(c1), atan(c2) ,atan(c3), atan(c3), atan(c2) ,atan(c1) from {dbname}.sub1_bound")
 
-        self.check_result_auto_atan("select abs(abs(abs(abs(abs(abs(abs(abs(abs(c1)))))))))  nest_col_func from sub1_bound" , "select atan(abs(c1)) from sub1_bound" )
+        self.check_result_auto_atan(f"select abs(abs(abs(abs(abs(abs(abs(abs(abs(c1)))))))))  nest_col_func from {dbname}.sub1_bound" , f"select atan(abs(c1)) from {dbname}.sub1_bound" )
 
         # check basic elem for table per row
-        tdSql.query("select atan(abs(c1)) ,atan(abs(c2)) , atan(abs(c3)) , atan(abs(c4)), atan(abs(c5)), atan(abs(c6)) from sub1_bound ")
+        tdSql.query(f"select atan(abs(c1)) ,atan(abs(c2)) , atan(abs(c3)) , atan(abs(c4)), atan(abs(c5)), atan(abs(c6)) from {dbname}.sub1_bound ")
         tdSql.checkData(0,0,math.atan(2147483647))
         tdSql.checkData(0,1,math.atan(9223372036854775807))
         tdSql.checkData(0,2,math.atan(32767))
@@ -450,46 +450,46 @@ class TDTestCase:
         tdSql.checkData(3,4,math.atan(339999995214436424907732413799364296704.00000))
 
         # check  + - * / in functions
-        tdSql.query("select atan(abs(c1+1)) ,atan(abs(c2)) , atan(abs(c3*1)) , atan(abs(c4/2)), atan(abs(c5))/2, atan(abs(c6)) from sub1_bound ")
+        tdSql.query(f"select atan(abs(c1+1)) ,atan(abs(c2)) , atan(abs(c3*1)) , atan(abs(c4/2)), atan(abs(c5))/2, atan(abs(c6)) from {dbname}.sub1_bound ")
         tdSql.checkData(0,0,math.atan(2147483648.000000000))
         tdSql.checkData(0,1,math.atan(9223372036854775807))
         tdSql.checkData(0,2,math.atan(32767.000000000))
         tdSql.checkData(0,3,math.atan(63.500000000))
 
-        tdSql.execute("create stable st (ts timestamp,  num1 float, num2 double) tags (t1 int);")
-        tdSql.execute(f'create table tb1 using st tags (1)')
-        tdSql.execute(f'create table tb2 using st tags (2)')
-        tdSql.execute(f'create table tb3 using st tags (3)')
-        tdSql.execute('insert into tb1 values (now()-40s, {}, {})'.format(PI/2 ,PI/2 ))
-        tdSql.execute('insert into tb1 values (now()-30s, {}, {})'.format(PI ,PI ))
-        tdSql.execute('insert into tb1 values (now()-20s, {}, {})'.format(PI*1.5 ,PI*1.5))
-        tdSql.execute('insert into tb1 values (now()-10s, {}, {})'.format(PI*2 ,PI*2))
-        tdSql.execute('insert into tb1 values (now(), {}, {})'.format(PI*2.5 ,PI*2.5))
+        tdSql.execute(f"create stable {dbname}.st (ts timestamp,  num1 float, num2 double) tags (t1 int);")
+        tdSql.execute(f'create table {dbname}.tb1 using {dbname}.st tags (1)')
+        tdSql.execute(f'create table {dbname}.tb2 using {dbname}.st tags (2)')
+        tdSql.execute(f'create table {dbname}.tb3 using {dbname}.st tags (3)')
+        tdSql.execute(f'insert into {dbname}.tb1 values (now()-40s, {PI/2}, {PI/2})')
+        tdSql.execute(f'insert into {dbname}.tb1 values (now()-30s, {PI}, {PI})')
+        tdSql.execute(f'insert into {dbname}.tb1 values (now()-20s, {PI*1.5}, {PI*1.5})')
+        tdSql.execute(f'insert into {dbname}.tb1 values (now()-10s, {PI*2}, {PI*2})')
+        tdSql.execute(f'insert into {dbname}.tb1 values (now(), {PI*2.5}, {PI*2.5})')
 
-        tdSql.execute('insert into tb2 values (now()-40s, {}, {})'.format(PI/2 ,PI/2 ))
-        tdSql.execute('insert into tb2 values (now()-30s, {}, {})'.format(PI ,PI ))
-        tdSql.execute('insert into tb2 values (now()-20s, {}, {})'.format(PI*1.5 ,PI*1.5))
-        tdSql.execute('insert into tb2 values (now()-10s, {}, {})'.format(PI*2 ,PI*2))
-        tdSql.execute('insert into tb2 values (now(), {}, {})'.format(PI*2.5 ,PI*2.5))
+        tdSql.execute(f'insert into {dbname}.tb2 values (now()-40s, {PI/2}, {PI/2})')
+        tdSql.execute(f'insert into {dbname}.tb2 values (now()-30s, {PI}, {PI})')
+        tdSql.execute(f'insert into {dbname}.tb2 values (now()-20s, {PI*1.5}, {PI*1.5})')
+        tdSql.execute(f'insert into {dbname}.tb2 values (now()-10s, {PI*2}, {PI*2})')
+        tdSql.execute(f'insert into {dbname}.tb2 values (now(), {PI*2.5}, {PI*2.5})')
 
         for i in range(100):
-            tdSql.execute('insert into tb3 values (now()+{}s, {}, {})'.format(i,PI*(5+i)/2 ,PI*(5+i)/2))
+            tdSql.execute(f'insert into {dbname}.tb3 values (now()+{i}s, {PI*(5+i)/2}, {PI*(5+i)/2})')
 
-        self.check_result_auto_atan("select num1,num2 from tb3;" , "select atan(num1),atan(num2) from tb3")
+        self.check_result_auto_atan(f"select num1,num2 from {dbname}.tb3;" , f"select atan(num1),atan(num2) from {dbname}.tb3")
 
+    def support_super_table_test(self, dbname="db"):
+        tdSql.execute(f" use {dbname} ")
+        self.check_result_auto_atan( f" select c5 from {dbname}.stb1 order by ts " , f"select atan(c5) from {dbname}.stb1 order by ts" )
+        self.check_result_auto_atan( f" select c5 from {dbname}.stb1 order by tbname " , f"select atan(c5) from {dbname}.stb1 order by tbname" )
+        self.check_result_auto_atan( f" select c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select atan(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_atan( f" select c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select atan(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
 
-    def support_super_table_test(self):
-        tdSql.execute(" use db ")
-        self.check_result_auto_atan( " select c5 from stb1 order by ts " , "select atan(c5) from stb1 order by ts" )
-        self.check_result_auto_atan( " select c5 from stb1 order by tbname " , "select atan(c5) from stb1 order by tbname" )
-        self.check_result_auto_atan( " select c5 from stb1 where c1 > 0 order by tbname  " , "select atan(c5) from stb1 where c1 > 0 order by tbname" )
-        self.check_result_auto_atan( " select c5 from stb1 where c1 > 0 order by tbname  " , "select atan(c5) from stb1 where c1 > 0 order by tbname" )
-
-        self.check_result_auto_atan( " select t1,c5 from stb1 order by ts " , "select atan(t1), atan(c5) from stb1 order by ts" )
-        self.check_result_auto_atan( " select t1,c5 from stb1 order by tbname " , "select atan(t1) ,atan(c5) from stb1 order by tbname" )
-        self.check_result_auto_atan( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select atan(t1) ,atan(c5) from stb1 where c1 > 0 order by tbname" )
-        self.check_result_auto_atan( " select t1,c5 from stb1 where c1 > 0 order by tbname  " , "select atan(t1) , atan(c5) from stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_atan( f" select t1,c5 from {dbname}.stb1 order by ts " , f"select atan(t1), atan(c5) from {dbname}.stb1 order by ts" )
+        self.check_result_auto_atan( f" select t1,c5 from {dbname}.stb1 order by tbname " , f"select atan(t1) ,atan(c5) from {dbname}.stb1 order by tbname" )
+        self.check_result_auto_atan( f" select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select atan(t1) ,atan(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_atan( f" select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select atan(t1) , atan(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
         pass
+
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
@@ -523,10 +523,9 @@ class TDTestCase:
 
         self.abs_func_filter()
 
-        tdLog.printNoPrefix("==========step8: check arctan result of  stable query ============")
+        tdLog.printNoPrefix("==========step8: check atan result of  stable query ============")
 
         self.support_super_table_test()
-
 
 
     def stop(self):
