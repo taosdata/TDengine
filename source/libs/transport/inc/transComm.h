@@ -232,6 +232,7 @@ typedef struct {
 SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb);
 void        transDestroyAsyncPool(SAsyncPool* pool);
 int         transAsyncSend(SAsyncPool* pool, queue* mq);
+bool        transAsyncPoolIsEmpty(SAsyncPool* pool);
 
 #define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc) \
   do {                                                        \

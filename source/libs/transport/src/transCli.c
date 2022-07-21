@@ -70,6 +70,8 @@ typedef struct SCliThrd {
 
   SCvtAddr cvtAddr;
 
+  SCliMsg* stopMsg;
+
   bool quit;
 } SCliThrd;
 
@@ -761,14 +763,17 @@ void cliConnCb(uv_connect_t* req, int status) {
 }
 
 static void cliHandleQuit(SCliMsg* pMsg, SCliThrd* pThrd) {
+  if (!transAsyncPoolIsEmpty(pThrd->asyncPool)) {
+    pThrd->stopMsg = pMsg;
+    return;
+  }
+  pThrd->stopMsg = NULL;
   pThrd->quit = true;
   tDebug("cli work thread %p start to quit", pThrd);
   destroyCmsg(pMsg);
   destroyConnPool(pThrd->pool);
   uv_timer_stop(&pThrd->timer);
   uv_walk(pThrd->loop, cliWalkCb, NULL);
-
-  // uv_stop(pThrd->loop);
 }
 static void cliHandleRelease(SCliMsg* pMsg, SCliThrd* pThrd) {
   int64_t    refId = (int64_t)(pMsg->msg.info.handle);
@@ -925,6 +930,7 @@ static void cliAsyncCb(uv_async_t* handle) {
   if (count >= 2) {
     tTrace("cli process batch size:%d", count);
   }
+  if (pThrd->stopMsg != NULL) cliHandleQuit(pThrd->stopMsg, pThrd);
 }
 
 static void* cliWorkThread(void* arg) {

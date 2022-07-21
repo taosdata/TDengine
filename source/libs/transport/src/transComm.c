@@ -228,6 +228,14 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   }
   return uv_async_send(async);
 }
+bool transAsyncPoolIsEmpty(SAsyncPool* pool) {
+  for (int i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+    SAsyncItem* item = async->data;
+    if (!QUEUE_IS_EMPTY(&item->qmsg)) return false;
+  }
+  return true;
+}
 
 void transCtxInit(STransCtx* ctx) {
   // init transCtx
