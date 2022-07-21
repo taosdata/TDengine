@@ -185,6 +185,7 @@ print ===> rows1: $data10 $data11 $data12 $data13 $data14
 print ===> rows2: $data20 $data21 $data22 $data23 $data24
 print ===> rows3: $data30 $data31 $data32 $data33 $data34
 if $rows != 4 then
+  print expect 4, actual: $rows
   return -1
 endi
 if $data00 != @21-12-08 00:00:00.000@ then

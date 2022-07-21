@@ -53,6 +53,7 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
         *(int64_t *)(dc.data + dc.pos) = uid;
         *(int64_t *)(dc.data + dc.pos + 8) = ctime;
 
+        vTrace("vgId:%d, table:%s uid:%" PRId64 " is generated", pVnode->config.vgId, name, uid);
         tEndDecode(&dc);
       }
 
@@ -381,7 +382,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *p
     goto end;
   }
 
-  vInfo("vgId:%d, drop ttl table req will be processed, time:%d", pVnode->config.vgId, ttlReq.timestamp);
+  vDebug("vgId:%d, drop ttl table req will be processed, time:%d", pVnode->config.vgId, ttlReq.timestamp);
   int32_t ret = metaTtlDropTable(pVnode->pMeta, ttlReq.timestamp, tbUids);
   if (ret != 0) {
     goto end;
@@ -422,8 +423,8 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *p
     goto _err;
   }
 
-  taosMemoryFree(req.schemaRow.pSchema);
-  taosMemoryFree(req.schemaTag.pSchema);
+  // taosMemoryFree(req.schemaRow.pSchema);
+  // taosMemoryFree(req.schemaTag.pSchema);
   tDecoderClear(&coder);
   return 0;
 
@@ -556,6 +557,7 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pRe
   SVDropStbReq req = {0};
   int32_t      rcode = TSDB_CODE_SUCCESS;
   SDecoder     decoder = {0};
+  SArray      *tbUidList = NULL;
 
   pRsp->msgType = TDMT_VND_CREATE_STB_RSP;
   pRsp->pCont = NULL;
@@ -569,7 +571,14 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pRe
   }
 
   // process request
-  if (metaDropSTable(pVnode->pMeta, version, &req) < 0) {
+  tbUidList = taosArrayInit(8, sizeof(int64_t));
+  if (tbUidList == NULL) goto _exit;
+  if (metaDropSTable(pVnode->pMeta, version, &req, tbUidList) < 0) {
+    rcode = terrno;
+    goto _exit;
+  }
+
+  if (tqUpdateTbUidList(pVnode->pTq, tbUidList, false) < 0) {
     rcode = terrno;
     goto _exit;
   }
@@ -581,6 +590,7 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pRe
 
   // return rsp
 _exit:
+  if (tbUidList) taosArrayDestroy(tbUidList);
   pRsp->code = rcode;
   tDecoderClear(&decoder);
   return 0;
@@ -630,6 +640,9 @@ _exit:
   tEncoderInit(&ec, pRsp->pCont, pRsp->contLen);
   tEncodeSVAlterTbRsp(&ec, &vAlterTbRsp);
   tEncoderClear(&ec);
+  if (vMetaRsp.pSchemas) {
+    taosMemoryFree(vMetaRsp.pSchemas);
+  }
   return 0;
 }
 
@@ -689,6 +702,7 @@ _exit:
   tEncoderInit(&encoder, pRsp->pCont, pRsp->contLen);
   tEncodeSVDropTbBatchRsp(&encoder, &rsp);
   tEncoderClear(&encoder);
+  taosArrayDestroy(rsp.pArray);
   return 0;
 }
 
@@ -864,6 +878,8 @@ _exit:
     tdProcessRSmaSubmit(pVnode->pSma, pReq, STREAM_INPUT__DATA_SUBMIT);
   }
 
+  vDebug("successful submit in vg %d version %ld", pVnode->config.vgId, version);
+
   return 0;
 }
 
@@ -900,7 +916,7 @@ static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *
 _err:
   tDecoderClear(&coder);
   vError("vgId:%d, failed to create tsma %s:%" PRIi64 " version %" PRIi64 "for table %" PRIi64 " since %s",
-         TD_VID(pVnode), req.indexName, req.indexUid, version, req.tableUid, terrstr(terrno));
+         TD_VID(pVnode), req.indexName, req.indexUid, version, req.tableUid, terrstr());
   return -1;
 }
 

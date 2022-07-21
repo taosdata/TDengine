@@ -44,6 +44,10 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   SSdbRaw   *pRaw = pMsg->pCont;
 
+  // delete msg handle
+  SRpcMsg rpcMsg = {0};
+  syncGetAndDelRespRpc(pMnode->syncMgmt.sync, cbMeta.seqNum, &rpcMsg.info);
+
   int32_t transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
   pMgmt->errCode = cbMeta.code;
   mDebug("trans:%d, is proposed, saved:%d code:0x%x, apply index:%" PRId64 " term:%" PRIu64 " config:%" PRId64
@@ -56,23 +60,24 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     sdbSetApplyInfo(pMnode->pSdb, cbMeta.index, cbMeta.term, cbMeta.lastConfigIndex);
   }
 
-  if (pMgmt->transId == transId && transId != 0) {
+  if (transId <= 0) {
+    mError("trans:%d, invalid commit msg", transId);
+  } else if (transId == pMgmt->transId) {
     if (pMgmt->errCode != 0) {
       mError("trans:%d, failed to propose since %s", transId, tstrerror(pMgmt->errCode));
     }
     pMgmt->transId = 0;
     tsem_post(&pMgmt->syncSem);
   } else {
-#if 1
-    mError("trans:%d, invalid commit msg since trandId not match with %d", transId, pMgmt->transId);
-#else
     STrans *pTrans = mndAcquireTrans(pMnode, transId);
     if (pTrans != NULL) {
+      mDebug("trans:%d, execute in mnode which not leader", transId);
       mndTransExecute(pMnode, pTrans);
       mndReleaseTrans(pMnode, pTrans);
+      // sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
+    } else {
+      mError("trans:%d, not found while execute in mnode since %s", transId, terrstr());
     }
-    // sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
-#endif
   }
 }
 
@@ -142,15 +147,23 @@ int32_t mndSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void **ppWrit
   return sdbStartWrite(pMnode->pSdb, (SSdbIter **)ppWriter);
 }
 
-int32_t mndSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply) {
-  mInfo("stop to apply snapshot to sdb, apply:%d", isApply);
+int32_t mndSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply, SSnapshot *pSnapshot) {
+  mInfo("stop to apply snapshot to sdb, apply:%d, index:%" PRId64 " term:%" PRIu64 " config:%" PRId64, isApply,
+        pSnapshot->lastApplyIndex, pSnapshot->lastApplyTerm, pSnapshot->lastApplyIndex);
   SMnode *pMnode = pFsm->data;
-  return sdbStopWrite(pMnode->pSdb, pWriter, isApply);
+  return sdbStopWrite(pMnode->pSdb, pWriter, isApply, pSnapshot->lastApplyIndex, pSnapshot->lastApplyTerm,
+                      pSnapshot->lastConfigIndex);
 }
 
 int32_t mndSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *pBuf, int32_t len) {
   SMnode *pMnode = pFsm->data;
   return sdbDoWrite(pMnode->pSdb, pWriter, pBuf, len);
+}
+
+void mndLeaderTransfer(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
+  SMnode *pMnode = pFsm->data;
+  atomic_store_8(&(pMnode->syncMgmt.leaderTransferFinish), 1);
+  mDebug("vgId:1, mnode leader transfer finish");
 }
 
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
@@ -160,6 +173,7 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   pFsm->FpPreCommitCb = NULL;
   pFsm->FpRollBackCb = NULL;
   pFsm->FpRestoreFinishCb = mndRestoreFinish;
+  pFsm->FpLeaderTransferCb = mndLeaderTransfer;
   pFsm->FpReConfigCb = mndReConfig;
   pFsm->FpGetSnapshot = mndSyncGetSnapshot;
   pFsm->FpGetSnapshotInfo = mndSyncGetSnapshotInfo;

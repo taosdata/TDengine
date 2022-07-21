@@ -462,6 +462,130 @@ if $data25 != 3 then
   return -1
 endi
 
+sql create database test2 vgroups 1
+sql show databases
 
+sql use test2
+sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+sql create table t3 using st tags(2,2,2);
+sql create table t4 using st tags(2,2,2);
+sql create table t5 using st tags(2,2,2);
+sql create stream streams2 trigger at_once  into streamt as select  _wstart, count(*) c1, sum(a) c3,max(b) c4 from st partition by tbname interval(10s);
+sql create stream streams3 trigger at_once  into streamt3 as select  _wstart, count(*) c1, sum(a) c3,max(b) c4, now c5 from st partition by tbname interval(10s);
+
+sql insert into t1 values(1648791213000,1,1,1,1.0) t2 values(1648791213000,2,2,2,2.0) t3 values(1648791213000,3,3,3,3.0) t4 values(1648791213000,4,4,4,4.0);
+
+$loop_count = 0
+
+loop0:
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt;
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop0
+endi
+
+sql insert into t1 values(1648791213000,5,5,5,5.0) t2 values(1648791213000,6,6,6,6.0) t5 values(1648791213000,7,7,7,7.0);
+
+
+$loop_count = 0
+
+loop1:
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt order by c4 desc;
+
+if $rows != 5 then
+  print =====rows=$rows
+  goto loop1
+endi
+
+# row 0
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop1
+endi
+
+if $data02 != 7 then
+  print =====data02=$data02
+  goto loop1
+endi
+
+# row 1
+if $data11 != 1 then
+  print =====data11=$data11
+  goto loop1
+endi
+
+if $data12 != 6 then
+  print =====data12=$data12
+  goto loop1
+endi
+
+# row 2
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop1
+endi
+
+if $data22 != 5 then
+  print =====data22=$data22
+  goto loop1
+endi
+
+sql insert into t1 values(1648791213000,8,8,8,8.0);
+
+$loop_count = 0
+
+loop2:
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt order by c4 desc;
+
+# row 0
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop2
+endi
+
+if $data02 != 8 then
+  print =====data02=$data02
+  goto loop2
+endi
+
+$loop_count = 0
+loop3:
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select count(*) from streamt3;
+# row 0
+if $data00 != 5 then
+  print =====data00=$data00
+  goto loop3
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

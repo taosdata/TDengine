@@ -1689,6 +1689,9 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
 _OVER:
   taosMemoryFreeClear(stbObj.pTags);
   taosMemoryFreeClear(stbObj.pColumns);
+  if (pAlter->commentLen > 0) {
+    taosMemoryFreeClear(stbObj.comment);
+  }
   return code;
 }
 
@@ -1733,7 +1736,7 @@ _OVER:
 
   mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
-  taosArrayDestroy(alterReq.pFields);
+  tFreeSMAltertbReq(&alterReq);
 
   return code;
 }

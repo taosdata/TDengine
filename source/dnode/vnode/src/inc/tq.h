@@ -52,7 +52,6 @@ typedef struct {
   int64_t reqOffset;
   int64_t processedVer;
   int32_t epoch;
-  int32_t skipLogNum;
   // rpc info
   int64_t        reqId;
   SRpcHandleInfo rpcInfo;
@@ -89,7 +88,7 @@ typedef struct {
     STqExecTb  execTb;
     STqExecDb  execDb;
   };
-
+  int32_t numOfCols;  // number of out pout column, temporarily used
 } STqExecHandle;
 
 typedef struct {
@@ -109,6 +108,10 @@ typedef struct {
 
   // exec
   STqExecHandle execHandle;
+
+  // prevent drop
+  int64_t ntbUid;
+  SArray* colIdList;  // SArray<int32_t>
 } STqHandle;
 
 struct STQ {

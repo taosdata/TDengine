@@ -88,6 +88,14 @@ void taosArrayRemoveBatch(SArray* pArray, const int32_t* pData, int32_t numOfEle
 void taosArrayRemoveDuplicate(SArray* pArray, __compar_fn_t comparFn, void (*fp)(void*));
 
 /**
+ *
+ * @param pArray
+ * @param comparFn
+ * @param fp
+ */
+void taosArrayRemoveDuplicateP(SArray* pArray, __compar_fn_t comparFn, void (*fp)(void*));
+
+/**
  *  add all element from the source array list into the destination
  * @param pArray
  * @param pInput

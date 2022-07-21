@@ -425,8 +425,8 @@ class TDTestCase:
         tdSql.checkRows(70)
         tdSql.query("select csum(c1) from stb1 partition by tbname ")
         tdSql.checkRows(40)
-        # tdSql.query("select csum(st1) from stb1 partition by tbname")
-        # tdSql.checkRows(70)
+        tdSql.query("select csum(st1) from stb1 partition by tbname")
+        tdSql.checkRows(70)
         tdSql.query("select csum(st1+c1) from stb1 partition by tbname")
         tdSql.checkRows(40)
         tdSql.query("select csum(st1+c1) from stb1 partition by tbname")
@@ -435,8 +435,8 @@ class TDTestCase:
         tdSql.checkRows(40)
 
         # # bug need fix
-        # tdSql.query("select csum(st1+c1) from stb1 partition by tbname slimit 1 ")
-        # tdSql.checkRows(4)
+        tdSql.query("select csum(st1+c1) from stb1 partition by tbname slimit 1 ")
+        tdSql.checkRows(4)
         # tdSql.error("select csum(st1+c1) from stb1 partition by tbname limit 1 ")
 
 
@@ -445,22 +445,22 @@ class TDTestCase:
         tdSql.checkRows(40)
 
         # bug need fix
-        # tdSql.query("select tbname , csum(c1) from stb1 partition by tbname")
-        # tdSql.checkRows(40)
-        # tdSql.query("select tbname , csum(st1) from stb1 partition by tbname")
-        # tdSql.checkRows(70)
-        # tdSql.query("select tbname , csum(st1) from stb1 partition by tbname slimit 1")
-        # tdSql.checkRows(7)
+        tdSql.query("select tbname , csum(c1) from stb1 partition by tbname")
+        tdSql.checkRows(40)
+        tdSql.query("select tbname , csum(st1) from stb1 partition by tbname")
+        tdSql.checkRows(70)
+        tdSql.query("select tbname , csum(st1) from stb1 partition by tbname slimit 1")
+        tdSql.checkRows(7)
 
         # partition by tags
-        # tdSql.query("select st1 , csum(c1) from stb1 partition by st1")
-        # tdSql.checkRows(40)
-        # tdSql.query("select csum(c1) from stb1 partition by st1")
-        # tdSql.checkRows(40)
-        # tdSql.query("select st1 , csum(c1) from stb1 partition by st1 slimit 1")
-        # tdSql.checkRows(4)
-        # tdSql.query("select csum(c1) from stb1 partition by st1 slimit 1")
-        # tdSql.checkRows(4)
+        tdSql.query("select st1 , csum(c1) from stb1 partition by st1")
+        tdSql.checkRows(40)
+        tdSql.query("select csum(c1) from stb1 partition by st1")
+        tdSql.checkRows(40)
+        tdSql.query("select st1 , csum(c1) from stb1 partition by st1 slimit 1")
+        tdSql.checkRows(4)
+        tdSql.query("select csum(c1) from stb1 partition by st1 slimit 1")
+        tdSql.checkRows(4)
 
         # partition by col
         # tdSql.query("select c1 , csum(c1) from stb1 partition by c1")

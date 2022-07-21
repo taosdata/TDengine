@@ -1,6 +1,5 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c debugflag -v 131
 system sh/exec.sh -n dnode1 -s start -v
 sql connect
 
@@ -23,62 +22,87 @@ if $data(1)[4] != ready then
 endi
 
 print =============== step2: create db
-sql create database d1 vgroups 3 buffer 3
-sql show databases
-sql use d1
-sql show vgroups
+sql create database db
+sql use db
+sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 float, t3 binary(16)) comment "abd"
+sql create table db.c1 using db.stb tags(101, 102, "103")
 
-print =============== step3: create show stable, include all type
-sql create table if not exists stb (ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 float, c7 double, c8 binary(16), c9 nchar(16), c10 timestamp, c11 tinyint unsigned, c12 smallint unsigned, c13 int unsigned, c14 bigint unsigned) tags (t1 bool, t2 tinyint, t3 smallint, t4 int, t5 bigint, t6 float, t7 double, t8 binary(16), t9 nchar(16), t10 timestamp, t11 tinyint unsigned, t12 smallint unsigned, t13 int unsigned, t14 bigint unsigned)
-sql create stable if not exists stb_1 (ts timestamp, c1 int) tags (j int)
-sql create table stb_2 (ts timestamp, c1 int) tags (t1 int)
-sql create stable stb_3 (ts timestamp, c1 int) tags (t1 int)
-sql show stables
-if $rows != 4 then 
-  return -1
-endi
+print =============== step3: alter stb
+sql_error alter table db.stb add column ts int
+sql alter table db.stb add column c3 int
+sql alter table db.stb add column c4 bigint
+sql alter table db.stb add column c5 binary(12)
+sql alter table db.stb drop column c1
+sql alter table db.stb drop column c4
+sql alter table db.stb MODIFY column c2 binary(32)
+sql alter table db.stb add tag t4 bigint
+sql alter table db.stb add tag c1 int  
+sql alter table db.stb add tag t5 binary(12)
+sql alter table db.stb drop tag c1
+sql alter table db.stb drop tag t5
+sql alter table db.stb MODIFY tag t3 binary(32)
+sql alter table db.stb rename tag t1 tx
+sql alter table db.stb comment 'abcde' ;
+sql drop table db.stb
 
-print =============== step4: ccreate child table
-sql create table c1 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
-sql create table c2 using stb tags(false, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 2', 'child tbl 2', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
-sql show tables
-if $rows != 2 then 
-  return -1
-endi
+print =============== step4: alter tb
+sql create table tb (ts timestamp, a int)
+sql insert into tb values(now-28d, -28)
+sql select count(a) from tb
+sql alter table tb add column b smallint
+sql insert into tb values(now-25d, -25, 0)
+sql select count(b) from tb
+sql alter table tb add column c tinyint
+sql insert into tb values(now-22d, -22, 3, 0)
+sql select count(c) from tb
+sql alter table tb add column d int
+sql insert into tb values(now-19d, -19, 6, 0, 0)
+sql select count(d) from tb
+sql alter table tb add column e bigint
+sql alter table tb add column f float
+sql alter table tb add column g double
+sql alter table tb add column h binary(10)
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+sql select * from tb order by ts desc
 
-print =============== step5: insert data
-sql insert into c1 values(now-1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
-sql insert into c1 values(now+0s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) (now+1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) (now+2s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
-sql insert into c2 values(now-1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
-sql insert into c2 values(now+0s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) (now+1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) (now+2s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
+print =============== step5: alter stb and insert data
+sql create table stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 float, t3 binary(16)) comment "abd"
+sql show db.stables
+sql describe stb
+sql_error alter table stb add column ts int
 
-print =============== step6: alter insert
-sql insert into c3 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) values(now-1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) 
-sql insert into c3 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) values(now+0s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) 
+sql create table db.ctb using db.stb tags(101, 102, "103")
+sql insert into db.ctb values(now, 1, "2")
+sql show db.tables
+sql select * from db.stb
+sql select * from tb
 
-goto _OVER
-print =============== stepa: query data
-sql select * from c1
-sql select * from stb
-sql select * from stb_1
-sql select ts, c1, c2, c3 from c1
-sql select ts, c1, c2, c3 from stb
-sql select ts, c1 from stb_2
-sql select ts, c1, t1 from c1
-sql select ts, c1, t1 from stb
-sql select ts, c1, t1 from stb_2
+sql alter table stb add column c3 int
+sql describe stb
+sql select * from db.stb
+sql select * from tb
+sql insert into db.ctb values(now+1s, 1, 2, 3)
+sql select * from db.stb
 
-print =============== stepb: count
-#sql select count(*) from c1;
-#sql select count(*) from stb;
-#sql select count(ts), count(c1), count(c2), count(c3) from c1
-#sql select count(ts), count(c1), count(c2), count(c3) from stb
+sql alter table db.stb add column c4 bigint
+sql select * from db.stb
+sql insert into db.ctb values(now+2s, 1, 2, 3, 4)
 
-print =============== stepc: func
-#sql select first(ts), first(c1), first(c2), first(c3) from c1
-#sql select min(c1), min(c2), min(c3) from c1
-#sql select max(c1), max(c2), max(c3) from c1
-#sql select sum(c1), sum(c2), sum(c3) from c1
+sql alter table db.stb drop column c1
+sql reset query cache
+sql select * from tb
+sql insert into db.ctb values(now+3s, 2, 3, 4)
+sql select * from db.stb
+
+sql alter table db.stb add tag t4 bigint
+sql select * from db.stb
+sql select * from db.stb
+sql_error create table db.ctb2 using db.stb tags(101, "102")
+sql create table db.ctb2 using db.stb tags(101, 102, "103", 104)
+sql insert into db.ctb2 values(now, 1, 2, 3)
+
+print =============== step6: query data
+sql select * from db.stb where tbname = 'ctb2';
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -87,7 +111,7 @@ $null=
 
 system_content sh/checkValgrind.sh -n dnode1 
 print cmd return result ----> [ $system_content ]
-if $system_content > 1 then
+if $system_content > 0 then
   return -1
 endi 
 

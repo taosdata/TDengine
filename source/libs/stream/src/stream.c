@@ -57,7 +57,7 @@ void streamTriggerByTimer(void* param, void* tmrId) {
   if (atomic_load_8(&pTask->triggerStatus) == TASK_TRIGGER_STATUS__ACTIVE) {
     SStreamTrigger* trigger = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM);
     if (trigger == NULL) return;
-    trigger->type = STREAM_INPUT__TRIGGER;
+    trigger->type = STREAM_INPUT__GET_RES;
     trigger->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
     if (trigger->pBlock == NULL) {
       taosFreeQitem(trigger);
@@ -143,6 +143,9 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
 
   // enqueue
   if (pData != NULL) {
+    qDebug("task %d(child %d) recv retrieve req from task %d, reqId %ld", pTask->taskId, pTask->selfChildId,
+           pReq->srcTaskId, pReq->reqId);
+
     pData->type = STREAM_INPUT__DATA_RETRIEVE;
     pData->srcVgId = 0;
     // decode
@@ -183,8 +186,11 @@ int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   // 2.1. idle: exec
   // 2.2. executing: return
   // 2.3. closing: keep trying
+#if 0
   if (pTask->execType != TASK_EXEC__NONE) {
-    streamExec(pTask, pTask->pMsgCb);
+#endif
+  streamExec(pTask, pTask->pMsgCb);
+#if 0
   } else {
     ASSERT(pTask->sinkType != TASK_SINK__NONE);
     while (1) {
@@ -195,11 +201,13 @@ int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, S
       }
     }
   }
+#endif
 
   // 3. handle output
   // 3.1 check and set status
   // 3.2 dispatch / sink
   if (pTask->dispatchType != TASK_DISPATCH__NONE) {
+    ASSERT(pTask->sinkType == TASK_SINK__NONE);
     streamDispatch(pTask, pTask->pMsgCb);
   }
 

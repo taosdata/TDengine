@@ -28,15 +28,6 @@ extern "C" {
 #include "trpc.h"
 #include "command.h"
 
-#define SCHEDULE_DEFAULT_MAX_JOB_NUM 1000
-#define SCHEDULE_DEFAULT_MAX_TASK_NUM 1000
-#define SCHEDULE_DEFAULT_MAX_NODE_TABLE_NUM 200  // unit is TSDB_TABLE_NUM_UNIT
-
-#define SCH_DEFAULT_TASK_TIMEOUT_USEC 10000000
-#define SCH_MAX_TASK_TIMEOUT_USEC 60000000
-
-#define SCH_MAX_CANDIDATE_EP_NUM TSDB_MAX_REPLICA
-
 enum {
   SCH_READ = 1,
   SCH_WRITE,
@@ -53,6 +44,22 @@ typedef enum {
   SCH_OP_FETCH,
   SCH_OP_GET_STATUS,
 } SCH_OP_TYPE;
+
+typedef enum {
+  SCH_LOAD_SEQ = 1,
+  SCH_RANDOM,
+  SCH_ALL,
+} SCH_POLICY;
+
+#define SCHEDULE_DEFAULT_MAX_JOB_NUM 1000
+#define SCHEDULE_DEFAULT_MAX_TASK_NUM 1000
+#define SCHEDULE_DEFAULT_MAX_NODE_TABLE_NUM 200  // unit is TSDB_TABLE_NUM_UNIT
+#define SCHEDULE_DEFAULT_POLICY SCH_LOAD_SEQ
+#define SCHEDULE_DEFAULT_MAX_NODE_NUM 20
+
+#define SCH_DEFAULT_TASK_TIMEOUT_USEC 10000000
+#define SCH_MAX_TASK_TIMEOUT_USEC 60000000
+#define SCH_DEFAULT_MAX_RETRY_NUM 6
 
 typedef struct SSchDebug {
   bool     lockEnable;
@@ -126,6 +133,13 @@ typedef struct SSchStatusFps {
   schStatusEventFp eventFp;
 } SSchStatusFps;
 
+typedef struct SSchedulerCfg {
+  uint32_t   maxJobNum;
+  int32_t    maxNodeTableNum;
+  SCH_POLICY schPolicy;
+  bool       enableReSchedule;
+} SSchedulerCfg;
+
 typedef struct SSchedulerMgmt {
   uint64_t        taskId; // sequential taksId
   uint64_t        sId;    // schedulerId
@@ -184,34 +198,37 @@ typedef struct SSchLevel {
 
 typedef struct SSchTaskProfile {
   int64_t  startTs;
-  int64_t* execTime;
+  SArray*  execTime;
   int64_t  waitTime;
   int64_t  endTs;
 } SSchTaskProfile;
 
 typedef struct SSchTask {
-  uint64_t             taskId;         // task id
-  SRWLatch             lock;           // task reentrant lock
-  int32_t              maxExecTimes;   // task may exec times
-  int32_t              execId;        // task current execute try index
-  SSchLevel           *level;          // level
-  SRWLatch             planLock;       // task update plan lock
-  SSubplan            *plan;           // subplan
-  char                *msg;            // operator tree
-  int32_t              msgLen;         // msg length
-  int8_t               status;         // task status
-  int32_t              lastMsgType;    // last sent msg type
-  int64_t              timeoutUsec;    // taks timeout useconds before reschedule
-  SQueryNodeAddr       succeedAddr;    // task executed success node address
-  int8_t               candidateIdx;   // current try condidation index
-  SArray              *candidateAddrs; // condidate node addresses, element is SQueryNodeAddr
-  SHashObj            *execNodes;      // all tried node for current task, element is SSchNodeInfo
-  SSchTaskProfile      profile;        // task execution profile
-  int32_t              childReady;     // child task ready number
-  SArray              *children;       // the datasource tasks,from which to fetch the result, element is SQueryTask*
-  SArray              *parents;        // the data destination tasks, get data from current task, element is SQueryTask*
-  void*                handle;         // task send handle 
-  bool                 registerdHb;    // registered in hb
+  uint64_t             taskId;          // task id
+  SRWLatch             lock;            // task reentrant lock
+  int32_t              maxExecTimes;    // task max exec times
+  int32_t              maxRetryTimes;   // task max retry times
+  int32_t              retryTimes;      // task retry times
+  bool                 waitRetry;       // wait for retry
+  int32_t              execId;          // task current execute index
+  SSchLevel           *level;           // level
+  SRWLatch             planLock;        // task update plan lock
+  SSubplan            *plan;            // subplan
+  char                *msg;             // operator tree
+  int32_t              msgLen;          // msg length
+  int8_t               status;          // task status
+  int32_t              lastMsgType;     // last sent msg type
+  int64_t              timeoutUsec;     // task timeout useconds before reschedule
+  SQueryNodeAddr       succeedAddr;     // task executed success node address
+  int8_t               candidateIdx;    // current try condidation index
+  SArray              *candidateAddrs;  // condidate node addresses, element is SQueryNodeAddr
+  SHashObj            *execNodes;       // all tried node for current task, element is SSchNodeInfo
+  SSchTaskProfile      profile;         // task execution profile
+  int32_t              childReady;      // child task ready number
+  SArray              *children;        // the datasource tasks,from which to fetch the result, element is SQueryTask*
+  SArray              *parents;         // the data destination tasks, get data from current task, element is SQueryTask*
+  void*                handle;          // task send handle 
+  bool                 registerdHb;     // registered in hb
 } SSchTask;
 
 typedef struct SSchJobAttr {
@@ -256,16 +273,17 @@ typedef struct SSchJob {
   int32_t            errCode;
   SRWLatch           resLock;
   SExecResult        execRes;
-  void              *resData;         //TODO free it or not
+  void              *fetchRes;         //TODO free it or not
+  bool               fetched;
   int32_t            resNumOfRows;
   SSchResInfo        userRes;
-  const char        *sql;
+  char              *sql;
   SQueryProfileSummary summary;
 } SSchJob;
 
 extern SSchedulerMgmt schMgmt;
 
-#define SCH_TASK_TIMEOUT(_task) ((taosGetTimestampUs() - (_task)->profile.execTime[(_task)->execId % (_task)->maxExecTimes]) > (_task)->timeoutUsec)
+#define SCH_TASK_TIMEOUT(_task) ((taosGetTimestampUs() - *(int64_t*)taosArrayGet((_task)->profile.execTime, (_task)->execId)) > (_task)->timeoutUsec)
 
 #define SCH_TASK_READY_FOR_LAUNCH(readyNum, task) ((readyNum) >= taosArrayGetSize((task)->children))
 
@@ -299,7 +317,6 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_TASK_NEED_FLOW_CTRL(_job, _task) (SCH_IS_DATA_BIND_QRY_TASK(_task) && SCH_JOB_NEED_FLOW_CTRL(_job) && SCH_IS_LEVEL_UNFINISHED((_task)->level))
 #define SCH_FETCH_TYPE(_pSrcTask) (SCH_IS_DATA_BIND_QRY_TASK(_pSrcTask) ? TDMT_SCH_FETCH : TDMT_SCH_MERGE_FETCH)
 #define SCH_TASK_NEED_FETCH(_task) ((_task)->plan->subplanType != SUBPLAN_TYPE_MODIFY)
-#define SCH_TASK_MAX_EXEC_TIMES(_levelIdx, _levelNum) (SCH_MAX_CANDIDATE_EP_NUM * ((_levelNum) - (_levelIdx)))
 
 #define SCH_SET_JOB_TYPE(_job, type) do { if ((type) != SUBPLAN_TYPE_MODIFY) { (_job)->attr.queryJob = true; } } while (0)
 #define SCH_IS_QUERY_JOB(_job) ((_job)->attr.queryJob) 
@@ -309,7 +326,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_IS_EXPLAIN_JOB(_job) (EXPLAIN_MODE_ANALYZE == (_job)->attr.explainMode)
 #define SCH_NETWORK_ERR(_code) ((_code) == TSDB_CODE_RPC_BROKEN_LINK || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL)
 #define SCH_MERGE_TASK_NETWORK_ERR(_task, _code, _len) (SCH_NETWORK_ERR(_code) && (((_len) > 0) || (!SCH_IS_DATA_BIND_TASK(_task))))
-#define SCH_REDIRECT_MSGTYPE(_msgType) ((_msgType) == TDMT_SCH_QUERY || (_msgType) == TDMT_SCH_MERGE_QUERY || (_msgType) == TDMT_SCH_FETCH || (_msgType) == TDMT_SCH_MERGE_FETCH)
+#define SCH_REDIRECT_MSGTYPE(_msgType) ((_msgType) == TDMT_SCH_LINK_BROKEN || (_msgType) == TDMT_SCH_QUERY || (_msgType) == TDMT_SCH_MERGE_QUERY || (_msgType) == TDMT_SCH_FETCH || (_msgType) == TDMT_SCH_MERGE_FETCH)
 #define SCH_TASK_NEED_REDIRECT(_task, _msgType, _code, _rspLen) (SCH_REDIRECT_MSGTYPE(_msgType) && (NEED_SCHEDULER_REDIRECT_ERROR(_code) || SCH_MERGE_TASK_NETWORK_ERR((_task), (_code), (_rspLen))))
 #define SCH_NEED_RETRY(_msgType, _code) ((SCH_NETWORK_ERR(_code) && SCH_REDIRECT_MSGTYPE(_msgType)) || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
 
@@ -321,8 +338,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_LOG_TASK_START_TS(_task)                          \
   do {                                                        \
     int64_t us = taosGetTimestampUs();                        \
-    int32_t idx = (_task)->execId % (_task)->maxExecTimes; \
-    (_task)->profile.execTime[idx] = us;                    \
+    taosArrayPush((_task)->profile.execTime, &us);           \
     if (0 == (_task)->execId) {                              \
       (_task)->profile.startTs = us;                          \
     }                                                         \
@@ -331,8 +347,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_LOG_TASK_WAIT_TS(_task)                        \
   do {                                                    \
     int64_t us = taosGetTimestampUs();                    \
-    int32_t idx = (_task)->execId % (_task)->maxExecTimes; \
-    (_task)->profile.waitTime += us - (_task)->profile.execTime[idx];    \
+    (_task)->profile.waitTime += us - *(int64_t*)taosArrayGet((_task)->profile.execTime, (_task)->execId);    \
   } while (0)  
 
 
@@ -340,7 +355,8 @@ extern SSchedulerMgmt schMgmt;
   do {                                                    \
     int64_t us = taosGetTimestampUs();                    \
     int32_t idx = (_task)->execId % (_task)->maxExecTimes; \
-    (_task)->profile.execTime[idx] = us - (_task)->profile.execTime[idx];    \
+    int64_t *startts = taosArrayGet((_task)->profile.execTime, (_task)->execId); \
+    *startts = us - *startts;                        \
     (_task)->profile.endTs = us;                          \
   } while (0)  
 
@@ -352,6 +368,8 @@ extern SSchedulerMgmt schMgmt;
   qError("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask),__VA_ARGS__)
 #define SCH_TASK_DLOG(param, ...) \
   qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask),__VA_ARGS__)
+#define SCH_TASK_TLOG(param, ...) \
+  qTrace("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask),__VA_ARGS__)
 #define SCH_TASK_DLOGL(param, ...) \
   qDebugL("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, SCH_TASK_ID(pTask), SCH_TASK_EID(pTask),__VA_ARGS__)
 #define SCH_TASK_WLOG(param, ...) \
@@ -425,7 +443,7 @@ void    schFreeRpcCtx(SRpcCtx *pCtx);
 int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp);
 bool    schJobNeedToStop(SSchJob *pJob, int8_t *pStatus);
 int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask);
-int32_t schSaveJobQueryRes(SSchJob *pJob, SQueryTableRsp *rsp);
+int32_t schSaveJobExecRes(SSchJob *pJob, SQueryTableRsp *rsp);
 int32_t schProcessOnExplainDone(SSchJob *pJob, SSchTask *pTask, SRetrieveTableRsp *pRsp);
 void    schProcessOnDataFetched(SSchJob *job);
 int32_t schGetTaskInJob(SSchJob *pJob, uint64_t taskId, SSchTask **pTask);
@@ -443,7 +461,6 @@ int32_t schJobFetchRows(SSchJob *pJob);
 int32_t schJobFetchRowsA(SSchJob *pJob);
 int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, int32_t execId);
 int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId* pEpId, SArray* pStatusList);
-void    schFreeSMsgSendInfo(SMsgSendInfo *msgSendInfo);
 char*   schGetOpStr(SCH_OP_TYPE type);
 int32_t schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync);
 int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq);
@@ -471,10 +488,12 @@ void    schFreeTask(SSchJob *pJob, SSchTask *pTask);
 void    schDropTaskInHashList(SSchJob *pJob, SHashObj *list);
 int32_t schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level);
 int32_t schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask);
-int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel, int32_t levelNum);
+int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel);
 int32_t schSwitchTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask);
 void    schDirectPostJobRes(SSchedulerReq* pReq, int32_t errCode);
-bool    schChkCurrentOp(SSchJob *pJob, int32_t op, bool sync);
+int32_t schHandleJobFailure(SSchJob *pJob, int32_t errCode);
+int32_t schHandleJobDrop(SSchJob *pJob, int32_t errCode);
+bool    schChkCurrentOp(SSchJob *pJob, int32_t op, int8_t sync);
 
 extern SSchDebug gSCHDebug;
 

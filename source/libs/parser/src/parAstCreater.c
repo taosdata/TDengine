@@ -393,9 +393,16 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
     SValueNode* pVal = (SValueNode*)pLeft;
     char*       pNewLiteral = taosMemoryCalloc(1, strlen(pVal->literal) + 2);
     CHECK_OUT_OF_MEM(pNewLiteral);
-    sprintf(pNewLiteral, "-%s", pVal->literal);
+    if ('+' == pVal->literal[0]) {
+      sprintf(pNewLiteral, "-%s", pVal->literal + 1);
+    } else if ('-' == pVal->literal[0]) {
+      sprintf(pNewLiteral, "%s", pVal->literal + 1);
+    } else {
+      sprintf(pNewLiteral, "-%s", pVal->literal);
+    }
     taosMemoryFree(pVal->literal);
     pVal->literal = pNewLiteral;
+    pVal->node.resType.type = TSDB_DATA_TYPE_BIGINT;
     return pLeft;
   }
   SOperatorNode* op = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
@@ -760,8 +767,8 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   SDatabaseOptions* pOptions = (SDatabaseOptions*)nodesMakeNode(QUERY_NODE_DATABASE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->buffer = TSDB_DEFAULT_BUFFER_PER_VNODE;
-  pOptions->cacheLast = TSDB_DEFAULT_CACHE_LAST;
-  pOptions->cacheLastSize = TSDB_DEFAULT_CACHE_LAST_SIZE;
+  pOptions->cacheModel = TSDB_DEFAULT_CACHE_MODEL;
+  pOptions->cacheLastSize = TSDB_DEFAULT_CACHE_SIZE;
   pOptions->compressionLevel = TSDB_DEFAULT_COMP_LEVEL;
   pOptions->daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
   pOptions->fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
@@ -787,7 +794,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   SDatabaseOptions* pOptions = (SDatabaseOptions*)nodesMakeNode(QUERY_NODE_DATABASE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->buffer = -1;
-  pOptions->cacheLast = -1;
+  pOptions->cacheModel = -1;
   pOptions->cacheLastSize = -1;
   pOptions->compressionLevel = -1;
   pOptions->daysPerFile = -1;
@@ -815,10 +822,10 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
     case DB_OPTION_BUFFER:
       ((SDatabaseOptions*)pOptions)->buffer = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
-    case DB_OPTION_CACHELAST:
-      ((SDatabaseOptions*)pOptions)->cacheLast = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+    case DB_OPTION_CACHEMODEL:
+      COPY_STRING_FORM_STR_TOKEN(((SDatabaseOptions*)pOptions)->cacheModelStr, (SToken*)pVal);
       break;
-    case DB_OPTION_CACHELASTSIZE:
+    case DB_OPTION_CACHESIZE:
       ((SDatabaseOptions*)pOptions)->cacheLastSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_COMP:
@@ -858,7 +865,7 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
       ((SDatabaseOptions*)pOptions)->replica = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_STRICT:
-      ((SDatabaseOptions*)pOptions)->strict = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      COPY_STRING_FORM_STR_TOKEN(((SDatabaseOptions*)pOptions)->strictStr, (SToken*)pVal);
       break;
     case DB_OPTION_WAL:
       ((SDatabaseOptions*)pOptions)->walLevel = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
@@ -872,10 +879,6 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
     case DB_OPTION_RETENTIONS:
       ((SDatabaseOptions*)pOptions)->pRetentions = pVal;
       break;
-      //    case DB_OPTION_SCHEMALESS:
-      //      ((SDatabaseOptions*)pOptions)->schemaless = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
-      //      ((SDatabaseOptions*)pOptions)->schemaless = 0;
-      //      break;
     default:
       break;
   }
@@ -1347,7 +1350,11 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
   CHECK_PARSER_STATUS(pCxt);
   SAlterDnodeStmt* pStmt = (SAlterDnodeStmt*)nodesMakeNode(QUERY_NODE_ALTER_DNODE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  pStmt->dnodeId = taosStr2Int32(pDnode->z, NULL, 10);
+  if (NULL != pDnode) {
+    pStmt->dnodeId = taosStr2Int32(pDnode->z, NULL, 10);
+  } else {
+    pStmt->dnodeId = -1;
+  }
   trimString(pConfig->z, pConfig->n, pStmt->config, sizeof(pStmt->config));
   if (NULL != pValue) {
     trimString(pValue->z, pValue->n, pStmt->value, sizeof(pStmt->value));

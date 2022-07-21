@@ -35,14 +35,14 @@ enum {
 
 /* label stack */
 typedef struct {
-  char    top;                                  /* number of labels */
+  int8_t  top;                                  /* number of labels */
   int16_t pos[MAX_NUM_LABLES];                  /* the position of the label */
   char    label[MAX_NUM_LABLES][MAX_LABEL_LEN]; /* name of the label */
 } SLabel;
 
 /* block definition */
 typedef struct {
-  char     top;                 /* the number of blocks stacked */
+  int8_t   top;                 /* the number of blocks stacked */
   char     type[MAX_NUM_BLOCK]; /* the block type */
   int16_t *pos[MAX_NUM_BLOCK];  /* position of the jump for if/elif/case */
   int16_t  back[MAX_NUM_BLOCK]; /* go back, endw and continue */

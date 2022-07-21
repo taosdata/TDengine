@@ -246,7 +246,7 @@ int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb
 
   tsdbDelFileName(pTsdb, pFile, fname);
   pDelFReader->pReadH = taosOpenFile(fname, TD_FILE_READ);
-  if (pDelFReader == NULL) {
+  if (pDelFReader->pReadH == NULL) {
     code = TAOS_SYSTEM_ERROR(errno);
     taosMemoryFree(pDelFReader);
     goto _err;
@@ -979,21 +979,21 @@ int32_t tsdbReadColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBl
 
       code = tBlockDataCopy(pBlockData, pBlockData2);
       if (code) {
-        tBlockDataClear(pBlockData1);
-        tBlockDataClear(pBlockData2);
+        tBlockDataClear(pBlockData1, 1);
+        tBlockDataClear(pBlockData2, 1);
         goto _err;
       }
 
       code = tBlockDataMerge(pBlockData1, pBlockData2, pBlockData);
       if (code) {
-        tBlockDataClear(pBlockData1);
-        tBlockDataClear(pBlockData2);
+        tBlockDataClear(pBlockData1, 1);
+        tBlockDataClear(pBlockData2, 1);
         goto _err;
       }
     }
 
-    tBlockDataClear(pBlockData1);
-    tBlockDataClear(pBlockData2);
+    tBlockDataClear(pBlockData1, 1);
+    tBlockDataClear(pBlockData2, 1);
   }
 
   tFree(pBuf1);
@@ -1115,29 +1115,29 @@ int32_t tsdbReadBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *p
     for (iSubBlock = 1; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
       code = tsdbReadSubBlockData(pReader, pBlockIdx, pBlock, iSubBlock, pBlockData1, ppBuf1, ppBuf2);
       if (code) {
-        tBlockDataClear(pBlockData1);
-        tBlockDataClear(pBlockData2);
+        tBlockDataClear(pBlockData1, 1);
+        tBlockDataClear(pBlockData2, 1);
         goto _err;
       }
 
       code = tBlockDataCopy(pBlockData, pBlockData2);
       if (code) {
-        tBlockDataClear(pBlockData1);
-        tBlockDataClear(pBlockData2);
+        tBlockDataClear(pBlockData1, 1);
+        tBlockDataClear(pBlockData2, 1);
         goto _err;
       }
 
       // merge two block data
       code = tBlockDataMerge(pBlockData1, pBlockData2, pBlockData);
       if (code) {
-        tBlockDataClear(pBlockData1);
-        tBlockDataClear(pBlockData2);
+        tBlockDataClear(pBlockData1, 1);
+        tBlockDataClear(pBlockData2, 1);
         goto _err;
       }
     }
 
-    tBlockDataClear(pBlockData1);
-    tBlockDataClear(pBlockData2);
+    tBlockDataClear(pBlockData1, 1);
+    tBlockDataClear(pBlockData2, 1);
   }
 
   ASSERT(pBlock->nRow == pBlockData->nRow);

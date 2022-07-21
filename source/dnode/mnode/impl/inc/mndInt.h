@@ -24,6 +24,7 @@
 #include "tcache.h"
 #include "tdatablock.h"
 #include "tglobal.h"
+#include "tgrant.h"
 #include "tqueue.h"
 #include "ttime.h"
 #include "version.h"
@@ -50,8 +51,8 @@ extern "C" {
 // clang-format on
 
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
-#define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
-#define SYSTABLE_SCH_COL_NAME_LEN   ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
+#define SYSTABLE_SCH_DB_NAME_LEN ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
+#define SYSTABLE_SCH_COL_NAME_LEN ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 
 typedef int32_t (*MndMsgFp)(SRpcMsg *pMsg);
 typedef int32_t (*MndInitFp)(SMnode *pMnode);
@@ -61,7 +62,7 @@ typedef void (*ShowFreeIterFp)(SMnode *pMnode, void *pIter);
 typedef struct SQWorker SQHandle;
 
 typedef struct {
-  const char * name;
+  const char  *name;
   MndInitFp    initFp;
   MndCleanupFp cleanupFp;
 } SMnodeStep;
@@ -70,7 +71,7 @@ typedef struct {
   int64_t        showId;
   ShowRetrieveFp retrieveFps[TSDB_MGMT_TABLE_MAX];
   ShowFreeIterFp freeIterFps[TSDB_MGMT_TABLE_MAX];
-  SCacheObj *    cache;
+  SCacheObj     *cache;
 } SShowMgmt;
 
 typedef struct {
@@ -84,12 +85,13 @@ typedef struct {
 } STelemMgmt;
 
 typedef struct {
-  tsem_t    syncSem;
+  tsem_t   syncSem;
   int64_t  sync;
   bool     standby;
   SReplica replica;
   int32_t  errCode;
   int32_t  transId;
+  int8_t   leaderTransferFinish;
 } SSyncMgmt;
 
 typedef struct {
@@ -107,14 +109,14 @@ typedef struct SMnode {
   bool           stopped;
   bool           restored;
   bool           deploy;
-  char *         path;
+  char          *path;
   int64_t        checkTime;
-  SSdb *         pSdb;
-  SArray *       pSteps;
-  SQHandle *     pQuery;
-  SHashObj *     infosMeta;
-  SHashObj *     perfsMeta;
-  SWal *         pWal;
+  SSdb          *pSdb;
+  SArray        *pSteps;
+  SQHandle      *pQuery;
+  SHashObj      *infosMeta;
+  SHashObj      *perfsMeta;
+  SWal          *pWal;
   SShowMgmt      showMgmt;
   SProfileMgmt   profileMgmt;
   STelemMgmt     telemMgmt;

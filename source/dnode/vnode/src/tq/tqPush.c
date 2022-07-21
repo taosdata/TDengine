@@ -237,11 +237,15 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 #endif
 
 int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
+  walApplyVer(pTq->pVnode->pWal, ver);
+
   if (msgType == TDMT_VND_SUBMIT) {
     if (taosHashGetSize(pTq->pStreamTasks) == 0) return 0;
 
     void* data = taosMemoryMalloc(msgLen);
     if (data == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      tqError("failed to copy data for stream since out of memory");
       return -1;
     }
     memcpy(data, msg, msgLen);
@@ -251,4 +255,3 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
 
   return 0;
 }
-

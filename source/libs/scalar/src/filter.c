@@ -3682,6 +3682,10 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       if (OP_TYPE_IN != node->opType) {
         SColumnNode *refNode = (SColumnNode *)node->pLeft;
         SValueNode *valueNode = (SValueNode *)node->pRight;
+        if (FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP) 
+            && TSDB_DATA_TYPE_UBIGINT == valueNode->node.resType.type && valueNode->datum.u <= INT64_MAX) {
+          valueNode->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+        }
         int32_t type = vectorGetConvertType(refNode->node.resType.type, valueNode->node.resType.type);
         if (0 != type && type != refNode->node.resType.type) {
           stat->scalarMode = true;

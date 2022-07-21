@@ -192,7 +192,7 @@ class ParserTestBaseImpl {
 
   void setParseContext(const string& sql, SParseContext* pCxt, bool async = false) {
     stmtEnv_.sql_ = sql;
-    transform(stmtEnv_.sql_.begin(), stmtEnv_.sql_.end(), stmtEnv_.sql_.begin(), ::tolower);
+    strtolower((char*)stmtEnv_.sql_.c_str(), sql.c_str());
 
     pCxt->acctId = atoi(caseEnv_.acctId_.c_str());
     pCxt->db = caseEnv_.db_.c_str();

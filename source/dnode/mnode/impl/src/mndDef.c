@@ -27,6 +27,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
 
   if (tEncodeI64(pEncoder, pObj->uid) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->status) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->isDistributed) < 0) return -1;
 
   if (tEncodeI8(pEncoder, pObj->igExpired) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->trigger) < 0) return -1;
@@ -72,6 +73,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
 
   if (tDecodeI64(pDecoder, &pObj->uid) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->status) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->isDistributed) < 0) return -1;
 
   if (tDecodeI8(pDecoder, &pObj->igExpired) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->trigger) < 0) return -1;
@@ -197,6 +199,7 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
   int32_t tlen = 0;
   int32_t sz;
   tlen += taosEncodeFixedI64(buf, pConsumer->consumerId);
+  tlen += taosEncodeString(buf, pConsumer->clientId);
   tlen += taosEncodeString(buf, pConsumer->cgroup);
   tlen += taosEncodeFixedI8(buf, pConsumer->updateType);
   tlen += taosEncodeFixedI32(buf, pConsumer->epoch);
@@ -262,6 +265,7 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
 void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer) {
   int32_t sz;
   buf = taosDecodeFixedI64(buf, &pConsumer->consumerId);
+  buf = taosDecodeStringTo(buf, pConsumer->clientId);
   buf = taosDecodeStringTo(buf, pConsumer->cgroup);
   buf = taosDecodeFixedI8(buf, &pConsumer->updateType);
   buf = taosDecodeFixedI32(buf, &pConsumer->epoch);

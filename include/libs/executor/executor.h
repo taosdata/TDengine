@@ -40,6 +40,7 @@ typedef struct SReadHandle {
   bool    initMetaReader;
   bool    initTableReader;
   bool    initTqReader;
+  int32_t numOfVgroups;
 } SReadHandle;
 
 // in queue mode, data streams are seperated by msg
@@ -63,7 +64,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers);
  * @param SReadHandle
  * @return
  */
-qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers);
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols);
 
 /**
  * Set the input data block for the stream scan.
@@ -191,6 +192,8 @@ void* qExtractReaderFromStreamScanner(void* scanner);
 int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
 
 int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem);
+
+int32_t qStreamPrepareRecover(qTaskInfo_t tinfo, int64_t startVer, int64_t endVer);
 
 #ifdef __cplusplus
 }

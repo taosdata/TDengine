@@ -205,6 +205,13 @@ class TMQCom:
         tdLog.debug("complete to create %d child tables by %s.%s" %(ctbNum, dbName, stbName))
         return    
 
+    def drop_ctable(self, tsql, dbname=None, count=1, default_ctbname_prefix="ctb",ctbStartIdx=0):
+        for _ in range(count):
+            create_ctable_sql = f'drop table {dbname}.{default_ctbname_prefix}{ctbStartIdx};'
+            ctbStartIdx += 1
+            tdLog.info("drop ctb sql: %s"%create_ctable_sql)
+            tsql.execute(create_ctable_sql)
+
     # schema: (ts timestamp, c1 int, c2 binary(16))
     def insert_data(self,tsql,dbName,stbName,ctbNum,rowsPerTbl,batchNum,startTs=None):
         tdLog.debug("start to insert data ............")
@@ -353,7 +360,7 @@ class TMQCom:
         return pThread
 
     def insert_data_with_autoCreateTbl(self,tsql,dbName,stbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs=0,ctbStartIdx=0):
-        tdLog.debug("start to insert data wiht auto create child table ............")
+        tdLog.debug("start to insert data with auto create child table ............")
         tsql.execute("use %s" %dbName)
         pre_insert = "insert into "
         sql = pre_insert

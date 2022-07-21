@@ -39,6 +39,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
 
   taosThreadOnce(&initPoolOnce, initRefPool);
   atexit(cleanupRefPool);
+
   int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle, taskId, sql, model);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -261,6 +262,15 @@ int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem) {
 }
 #endif
 
+int32_t qStreamPrepareRecover(qTaskInfo_t tinfo, int64_t startVer, int64_t endVer) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
+  pTaskInfo->streamInfo.recoverStartVer = startVer;
+  pTaskInfo->streamInfo.recoverEndVer = endVer;
+  pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__PREPARE;
+  return 0;
+}
+
 void* qExtractReaderFromStreamScanner(void* scanner) {
   SStreamScanInfo* pInfo = scanner;
   return (void*)pInfo->tqReader;
@@ -323,6 +333,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, const STqOffsetVal* pOffset) {
               STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, 0);
               uid = pTableInfo->uid;
               ts = INT64_MIN;
+            } else {
+              return -1;
             }
           }
           /*if (pTaskInfo->streamInfo.lastStatus.type != TMQ_OFFSET__SNAPSHOT_DATA ||*/

@@ -17,35 +17,22 @@
 #include "vnd.h"
 
 static inline bool vnodeIsMsgBlock(tmsg_t type) {
-  return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_CONFIRM) || (type == TDMT_VND_ALTER_REPLICA);
+  return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_CREATE_TABLE) ||
+         (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) || (type == TDMT_VND_UPDATE_TAG_VAL);
 }
 
 static inline bool vnodeIsMsgWeak(tmsg_t type) { return false; }
 
-static inline void vnodeAccumBlockMsg(SVnode *pVnode, tmsg_t type) {
-  if (!vnodeIsMsgBlock(type)) return;
-
-  int32_t count = atomic_add_fetch_32(&pVnode->blockCount, 1);
-  vTrace("vgId:%d, accum block, count:%d type:%s", pVnode->config.vgId, count, TMSG_INFO(type));
+static inline void vnodeWaitBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
+  if (vnodeIsMsgBlock(pMsg->msgType)) {
+    vTrace("vgId:%d, msg:%p wait block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
+    tsem_wait(&pVnode->syncSem);
+  }
 }
 
-static inline void vnodeWaitBlockMsg(SVnode *pVnode) {
-  int32_t count = atomic_load_32(&pVnode->blockCount);
-  if (count <= 0) return;
-
-  vTrace("vgId:%d, wait block finish, count:%d", pVnode->config.vgId, count);
-  tsem_wait(&pVnode->syncSem);
-}
-
-static inline void vnodePostBlockMsg(SVnode *pVnode, tmsg_t type) {
-  if (!vnodeIsMsgBlock(type)) return;
-
-  int32_t count = atomic_load_32(&pVnode->blockCount);
-  if (count <= 0) return;
-
-  count = atomic_sub_fetch_32(&pVnode->blockCount, 1);
-  vTrace("vgId:%d, post block, count:%d type:%s", pVnode->config.vgId, count, TMSG_INFO(type));
-  if (count <= 0) {
+static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
+  if (vnodeIsMsgBlock(pMsg->msgType)) {
+    vTrace("vgId:%d, msg:%p post block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
     tsem_post(&pVnode->syncSem);
   }
 }
@@ -143,6 +130,8 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
   int32_t  code = 0;
   SRpcMsg *pMsg = NULL;
 
+  vTrace("vgId:%d, get %d msgs from vnode-write queue", vgId, numOfMsgs);
+
   for (int32_t m = 0; m < numOfMsgs; m++) {
     if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
     const STraceId *trace = &pMsg->info.traceId;
@@ -165,13 +154,14 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
           if (rsp.info.handle != NULL) {
             tmsgSendRsp(&rsp);
           }
+        } else if (code == 0) {
+          vnodeWaitBlockMsg(pVnode, pMsg);
+        } else {
         }
       }
     }
 
-    if (code == 0) {
-      vnodeAccumBlockMsg(pVnode, pMsg->msgType);
-    } else if (code < 0) {
+    if (code < 0) {
       if (terrno == TSDB_CODE_SYN_NOT_LEADER) {
         vnodeRedirectRpcMsg(pVnode, pMsg);
       } else {
@@ -182,15 +172,12 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
           tmsgSendRsp(&rsp);
         }
       }
-    } else {
     }
 
     vGTrace("vgId:%d, msg:%p is freed, code:0x%x", vgId, pMsg, code);
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
-
-  vnodeWaitBlockMsg(pVnode);
 }
 
 void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
@@ -213,7 +200,7 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
       }
     }
 
-    vnodePostBlockMsg(pVnode, pMsg->msgType);
+    vnodePostBlockMsg(pVnode, pMsg);
     if (rsp.info.handle != NULL) {
       tmsgSendRsp(&rsp);
     }
@@ -418,7 +405,7 @@ static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReCon
     tmsgSendRsp(&rpcMsg);
   }
 
-  vnodePostBlockMsg(pVnode, TDMT_VND_ALTER_REPLICA);
+  vnodePostBlockMsg(pVnode, pMsg);
 }
 
 static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
@@ -515,10 +502,10 @@ static int32_t vnodeSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void
 #endif
 }
 
-static int32_t vnodeSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply) {
+static int32_t vnodeSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply, SSnapshot *pSnapshot) {
 #ifdef USE_TSDB_SNAPSHOT
   SVnode *pVnode = pFsm->data;
-  int32_t code = vnodeSnapWriterClose(pWriter, !isApply);
+  int32_t code = vnodeSnapWriterClose(pWriter, !isApply, pSnapshot);
   return code;
 #else
   taosMemoryFree(pWriter);
@@ -536,6 +523,10 @@ static int32_t vnodeSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *
 #endif
 }
 
+static void vnodeLeaderTransfer(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
+  SVnode *pVnode = pFsm->data;
+}
+
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pVnode;
@@ -544,6 +535,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpRollBackCb = vnodeSyncRollBackMsg;
   pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshot;
   pFsm->FpRestoreFinishCb = NULL;
+  pFsm->FpLeaderTransferCb = vnodeLeaderTransfer;
   pFsm->FpReConfigCb = vnodeSyncReconfig;
   pFsm->FpSnapshotStartRead = vnodeSnapshotStartRead;
   pFsm->FpSnapshotStopRead = vnodeSnapshotStopRead;
@@ -579,8 +571,8 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   }
 
   setPingTimerMS(pVnode->sync, 5000);
-  setElectTimerMS(pVnode->sync, 500);
-  setHeartbeatTimerMS(pVnode->sync, 100);
+  setElectTimerMS(pVnode->sync, 1300);
+  setHeartbeatTimerMS(pVnode->sync, 900);
   return 0;
 }
 

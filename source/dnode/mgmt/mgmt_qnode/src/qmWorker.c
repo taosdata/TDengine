@@ -81,6 +81,7 @@ int32_t qmPutRpcMsgToQueue(SQnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       taosWriteQitem(pMgmt->queryWorker.queue, pMsg);
       return 0;
     case READ_QUEUE:
+    case FETCH_QUEUE:
       dTrace("msg:%p, is created and will put into qnode-fetch queue", pMsg);
       taosWriteQitem(pMgmt->fetchWorker.queue, pMsg);
       return 0;

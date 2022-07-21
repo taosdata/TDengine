@@ -33,12 +33,13 @@ int64_t FORCE_INLINE walGetLastVer(SWal* pWal) { return pWal->vers.lastVer; }
 
 int64_t FORCE_INLINE walGetCommittedVer(SWal* pWal) { return pWal->vers.commitVer; }
 
+int64_t FORCE_INLINE walGetAppliedVer(SWal* pWal) { return pWal->vers.appliedVer; }
+
 static FORCE_INLINE int walBuildMetaName(SWal* pWal, int metaVer, char* buf) {
   return sprintf(buf, "%s/meta-ver%d", pWal->path, metaVer);
 }
 
 static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
-  ASSERT(pWal->fileInfoSet != NULL);
   int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
   ASSERT(sz > 0);
 #if 0
@@ -53,7 +54,7 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
 
   int64_t fileSize = 0;
   taosStatFile(fnameStr, &fileSize, NULL);
-  int readSize = TMIN(WAL_MAX_SIZE + 2, fileSize);
+  int32_t readSize = TMIN(WAL_SCAN_BUF_SIZE, fileSize);
   pLastFileInfo->fileSize = fileSize;
 
   TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ);
@@ -71,7 +72,8 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
     return -1;
   }
 
-  taosLSeekFile(pFile, -readSize, SEEK_END);
+  int64_t offset;
+  offset = taosLSeekFile(pFile, -readSize, SEEK_END);
   if (readSize != taosReadFile(pFile, buf, readSize)) {
     taosMemoryFree(buf);
     taosCloseFile(&pFile);
@@ -79,31 +81,56 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
     return -1;
   }
 
-  char* haystack = buf;
   char* found = NULL;
-  char* candidate;
-  while ((candidate = tmemmem(haystack, readSize - (haystack - buf), (char*)&magic, sizeof(uint64_t))) != NULL) {
-    // read and validate
-    SWalCkHead* logContent = (SWalCkHead*)candidate;
-    if (walValidHeadCksum(logContent) == 0 && walValidBodyCksum(logContent) == 0) {
-      found = candidate;
+  while (1) {
+    char* haystack = buf;
+    char* candidate;
+    while ((candidate = tmemmem(haystack, readSize - (haystack - buf), (char*)&magic, sizeof(uint64_t))) != NULL) {
+      // read and validate
+      SWalCkHead* logContent = (SWalCkHead*)candidate;
+      if (walValidHeadCksum(logContent) == 0 && walValidBodyCksum(logContent) == 0) {
+        found = candidate;
+      }
+      haystack = candidate + 1;
     }
-    haystack = candidate + 1;
-  }
-  if (found == buf) {
-    SWalCkHead* logContent = (SWalCkHead*)found;
-    if (walValidHeadCksum(logContent) != 0 || walValidBodyCksum(logContent) != 0) {
-      // file has to be deleted
+    if (found || offset == 0) break;
+    offset = TMIN(0, offset - readSize + sizeof(uint64_t));
+    int64_t offset2 = taosLSeekFile(pFile, offset, SEEK_SET);
+    ASSERT(offset == offset2);
+    if (readSize != taosReadFile(pFile, buf, readSize)) {
       taosMemoryFree(buf);
       taosCloseFile(&pFile);
-      terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+      terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
     }
+#if 0
+    if (found == buf) {
+      SWalCkHead* logContent = (SWalCkHead*)found;
+      if (walValidHeadCksum(logContent) != 0 || walValidBodyCksum(logContent) != 0) {
+        // file has to be deleted
+        taosMemoryFree(buf);
+        taosCloseFile(&pFile);
+        terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+        return -1;
+      }
+    }
+#endif
   }
-  taosCloseFile(&pFile);
-  SWalCkHead* lastEntry = (SWalCkHead*)found;
+  // TODO truncate file
 
-  return lastEntry->head.version;
+  if (found == NULL) {
+    // file corrupted, no complete log
+    // TODO delete and search in previous files
+    ASSERT(0);
+    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    return -1;
+  }
+  SWalCkHead* lastEntry = (SWalCkHead*)found;
+  int64_t     retVer = lastEntry->head.version;
+  taosCloseFile(&pFile);
+  taosMemoryFree(buf);
+
+  return retVer;
 }
 
 int walCheckAndRepairMeta(SWal* pWal) {

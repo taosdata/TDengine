@@ -374,14 +374,14 @@ cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
 
 char *snapshotSender2Str(SSyncSnapshotSender *pSender) {
   cJSON *pJson = snapshotSender2Json(pSender);
-  char * serialized = cJSON_Print(pJson);
+  char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
 
 char *snapshotSender2SimpleStr(SSyncSnapshotSender *pSender, char *event) {
   int32_t len = 256;
-  char *  s = taosMemoryMalloc(len);
+  char   *s = taosMemoryMalloc(len);
 
   SRaftId  destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
   char     host[64];
@@ -434,8 +434,8 @@ void snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver) {
   if (pReceiver != NULL) {
     // close writer
     if (pReceiver->pWriter != NULL) {
-      int32_t ret =
-          pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, false);
+      int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter,
+                                                                    false, &(pReceiver->snapshot));
       ASSERT(ret == 0);
       pReceiver->pWriter = NULL;
     }
@@ -483,8 +483,8 @@ static void snapshotReceiverDoStart(SSyncSnapshotReceiver *pReceiver, SyncSnapsh
 static void snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver) {
   // force close, abandon incomplete data
   if (pReceiver->pWriter != NULL) {
-    int32_t ret =
-        pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, false);
+    int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, false,
+                                                                  &(pReceiver->snapshot));
     ASSERT(ret == 0);
     pReceiver->pWriter = NULL;
   }
@@ -524,8 +524,8 @@ int32_t snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend
 // FpSnapshotStopWrite should not be called, assert writer == NULL
 int32_t snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
   if (pReceiver->pWriter != NULL) {
-    int32_t ret =
-        pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, false);
+    int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, false,
+                                                                  &(pReceiver->snapshot));
     ASSERT(ret == 0);
     pReceiver->pWriter = NULL;
   }
@@ -573,8 +573,15 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
       pReceiver->pSyncNode->commitIndex = pReceiver->snapshot.lastApplyIndex;
     }
 
+    // maybe update term
+    if (pReceiver->snapshot.lastApplyTerm > pReceiver->pSyncNode->pRaftStore->currentTerm) {
+      pReceiver->pSyncNode->pRaftStore->currentTerm = pReceiver->snapshot.lastApplyTerm;
+      raftStorePersist(pReceiver->pSyncNode->pRaftStore);
+    }
+
     // stop writer, apply data
-    code = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, true);
+    code = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, true,
+                                                           &(pReceiver->snapshot));
     if (code != 0) {
       syncNodeErrorLog(pReceiver->pSyncNode, "snapshot stop writer true error");
       ASSERT(0);
@@ -646,7 +653,7 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
     cJSON_AddStringToObject(pFromId, "addr", u64buf);
     {
       uint64_t u64 = pReceiver->fromId.addr;
-      cJSON *  pTmp = pFromId;
+      cJSON   *pTmp = pFromId;
       char     host[128] = {0};
       uint16_t port;
       syncUtilU642Addr(u64, host, sizeof(host), &port);
@@ -679,14 +686,14 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
 
 char *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver) {
   cJSON *pJson = snapshotReceiver2Json(pReceiver);
-  char * serialized = cJSON_Print(pJson);
+  char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
 
 char *snapshotReceiver2SimpleStr(SSyncSnapshotReceiver *pReceiver, char *event) {
   int32_t len = 256;
-  char *  s = taosMemoryMalloc(len);
+  char   *s = taosMemoryMalloc(len);
 
   SRaftId  fromId = pReceiver->fromId;
   char     host[128];
