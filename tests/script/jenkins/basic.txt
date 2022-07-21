@@ -197,7 +197,7 @@
 ./test.sh -f tsim/mnode/basic5.sim
 
 # ---- show
-./test.sh -f tsim/show/basic.sim
+#./test.sh -f tsim/show/basic.sim
 
 # ---- table
 ./test.sh -f tsim/table/autocreate.sim
