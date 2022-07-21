@@ -434,8 +434,8 @@ static FORCE_INLINE int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf,
 }
 
 static bool isNullStr(SToken* pToken) {
-  return (pToken->type == TK_NULL) || ((pToken->type == TK_NK_STRING) && (pToken->n != 0) &&
-                                       (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0));
+  return ((pToken->type == TK_NK_STRING) && (pToken->n != 0) &&
+          (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0));
 }
 
 static FORCE_INLINE int32_t toDouble(SToken* pToken, double* value, char** endPtr) {
@@ -461,7 +461,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
     return code;
   }
 
-  if (isNullStr(pToken)) {
+  if (TK_NULL == pToken->type || (!IS_VAR_DATA_TYPE(pSchema->type) && isNullStr(pToken))) {
     if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
       return buildSyntaxErrMsg(pMsgBuf, "primary timestamp should not be null", pToken->z);
     }
