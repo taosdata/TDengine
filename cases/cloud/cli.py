@@ -4,15 +4,15 @@
 启动命令： tt --case=cloud/cli.py --use=cloud_test.yaml
 """
 
-import os
-
-from taostest import TDCase, T
 from subprocess import run
 
+from taostest import TDCase, T
+from .cloud_case import CloudCase
 
-class TDengineCLI(TDCase):
+
+class TDengineCLI(TDCase, CloudCase):
     def init(self):
-        os.environ.update(self.env_setting["env"])
+        self.set_env()
 
     def cleanup(self):
         pass
