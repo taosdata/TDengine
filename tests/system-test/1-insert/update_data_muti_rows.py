@@ -124,6 +124,8 @@ class TDTestCase:
             self.update_data(dbname,f'{tbname}',tbnum,rownum,data['nchar'],col_type)
         else:
             self.update_data(dbname,f'{tbname}',tbnum,rownum,data[col_type],col_type)
+        tdSql.execute(f'flush database {dbname}')
+        tdSql.execute('reset query cache')
         for i in range(self.tbnum):
             tdSql.query(f'select {col_name} from {dbname}.{tbname}_{i}')
             for j in range(rownum):
@@ -145,6 +147,8 @@ class TDTestCase:
                 tdSql.execute(f'create table {self.dbname}.{self.ntbname}_{i} (ts timestamp,{col_name} {col_type})')
                 for j in range(self.rowNum):
                     tdSql.execute(f'insert into {self.dbname}.{self.ntbname}_{i} values({self.ts+j},null)' )
+            tdSql.execute(f'flush database {self.dbname}')
+            tdSql.execute('reset query cache')
             self.data_check(self.dbname,self.ntbname,self.tbnum,self.rowNum,self.data,col_name,col_type)
             for i in range(self.tbnum):
                 tdSql.execute(f'drop table {self.ntbname}_{i}')
@@ -158,6 +162,8 @@ class TDTestCase:
                 tdSql.execute(f'create table {self.dbname}.{self.stbname}_{i} using {self.dbname}.{self.stbname} tags(1)')
                 for j in range(self.rowNum):
                     tdSql.execute(f'insert into {self.dbname}.{self.stbname}_{i} values({self.ts+j},null)' )
+            tdSql.execute(f'flush database {self.dbname}')
+            tdSql.execute('reset query cache')
             self.data_check(self.dbname,self.stbname,self.tbnum,self.rowNum,self.data,col_name,col_type)
             tdSql.execute(f'drop table {self.stbname}')
     def run(self):
