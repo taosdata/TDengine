@@ -1393,7 +1393,9 @@ static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel 
   if (requirement <= pScan->node.resultDataOrder) {
     return TSDB_CODE_SUCCESS;
   }
-  pScan->scanType = SCAN_TYPE_TABLE_MERGE;
+  if (TSDB_SUPER_TABLE == pScan->tableType) {
+    pScan->scanType = SCAN_TYPE_TABLE_MERGE;
+  }
   pScan->node.resultDataOrder = requirement;
   return TSDB_CODE_SUCCESS;
 }
