@@ -7,22 +7,21 @@
 import os
 
 from taostest import TDCase, T
-from taostest.util import caseutil
 from subprocess import run
+from cloud_case import CloudCase
 
 
-class TDengineCLI(TDCase):
+class TDengineCLI(TDCase, CloudCase):
     def init(self):
-        os.environ.update(self.env_setting["env"])
-        if self.case_param:
-            param = caseutil.parse_param(self.case_param)
-            print(param)
+        self.set_env()
+        print(os.environ)
 
     def cleanup(self):
         pass
 
     def run(self):
-        run(["taos", "-s", "show databases"], check=True, timeout=10)
+        pass
+        # run(["taos", "-s", "show databases"], check=True, timeout=10)
 
     def desc(self) -> str:
         return "Test connect to cloud using CLI"
