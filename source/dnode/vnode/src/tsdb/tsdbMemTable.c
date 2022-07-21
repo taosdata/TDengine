@@ -607,6 +607,7 @@ void tsdbUnrefMemTable(SMemTable *pMemTable) {
 }
 
 int32_t tsdbTakeMemSnapshot(STsdb *pTsdb, SMemTable **ppMem, SMemTable **ppIMem) {
+  ASSERT(0);
   int32_t code = 0;
 
   // lock
@@ -640,6 +641,7 @@ _exit:
 }
 
 void tsdbUntakeMemSnapshot(STsdb *pTsdb, SMemTable *pMem, SMemTable *pIMem) {
+  ASSERT(0);
   if (pMem) {
     tsdbUnrefMemTable(pMem);
   }

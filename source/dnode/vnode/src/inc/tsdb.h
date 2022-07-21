@@ -64,6 +64,7 @@ typedef struct STsdbFS       STsdbFS;
 typedef struct SRowMerger    SRowMerger;
 typedef struct STsdbFSState  STsdbFSState;
 typedef struct STsdbSnapHdr  STsdbSnapHdr;
+typedef struct STsdbReadSnap STsdbReadSnap;
 
 #define TSDB_MAX_SUBBLOCKS 8
 #define TSDB_FHDR_SIZE     512
@@ -188,16 +189,22 @@ bool     tsdbTbDataIterNext(STbDataIter *pIter);
 int32_t tsdbGetNRowsInTbData(STbData *pTbData);
 // tsdbFile.c ==============================================================================================
 typedef enum { TSDB_HEAD_FILE = 0, TSDB_DATA_FILE, TSDB_LAST_FILE, TSDB_SMA_FILE } EDataFileT;
-void    tsdbDataFileName(STsdb *pTsdb, SDFileSet *pDFileSet, EDataFileT ftype, char fname[]);
-bool    tsdbFileIsSame(SDFileSet *pDFileSet1, SDFileSet *pDFileSet2, EDataFileT ftype);
+
 bool    tsdbDelFileIsSame(SDelFile *pDelFile1, SDelFile *pDelFile2);
-int32_t tsdbUpdateDFileHdr(TdFilePtr pFD, SDFileSet *pSet, EDataFileT ftype);
 int32_t tsdbDFileRollback(STsdb *pTsdb, SDFileSet *pSet, EDataFileT ftype);
-int32_t tPutDataFileHdr(uint8_t *p, SDFileSet *pSet, EDataFileT ftype);
+int32_t tPutHeadFile(uint8_t *p, SHeadFile *pHeadFile);
+int32_t tPutDataFile(uint8_t *p, SDataFile *pDataFile);
+int32_t tPutLastFile(uint8_t *p, SLastFile *pLastFile);
+int32_t tPutSmaFile(uint8_t *p, SSmaFile *pSmaFile);
 int32_t tPutDelFile(uint8_t *p, SDelFile *pDelFile);
 int32_t tGetDelFile(uint8_t *p, SDelFile *pDelFile);
 int32_t tPutDFileSet(uint8_t *p, SDFileSet *pSet);
 int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet);
+
+void tsdbHeadFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SHeadFile *pHeadF, char fname[]);
+void tsdbDataFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SDataFile *pDataF, char fname[]);
+void tsdbLastFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SLastFile *pLastF, char fname[]);
+void tsdbSmaFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSmaFile *pSmaF, char fname[]);
 // SDelFile
 void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]);
 // tsdbFS.c ==============================================================================================
@@ -222,8 +229,7 @@ int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBu
 int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_t **ppBuf1, uint8_t **ppBuf2,
                            SBlockIdx *pBlockIdx, SBlock *pBlock, int8_t cmprAlg);
 
-SDFileSet *tsdbDataFWriterGetWSet(SDataFWriter *pWriter);
-int32_t    tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo);
+int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo);
 // SDataFReader
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet);
 int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
@@ -245,6 +251,9 @@ int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb
 int32_t tsdbDelFReaderClose(SDelFReader **ppReader);
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData, uint8_t **ppBuf);
 int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx, uint8_t **ppBuf);
+// tsdbRead.c ==============================================================================================
+int32_t tsdbTakeReadSnap(STsdb *pTsdb, STsdbReadSnap **ppSnap);
+void    tsdbUntakeReadSnap(STsdb *pTsdb, STsdbReadSnap *pSnap);
 
 #define TSDB_CACHE_NO(c)       ((c).cacheLast == 0)
 #define TSDB_CACHE_LAST_ROW(c) (((c).cacheLast & 1) > 0)
@@ -465,12 +474,6 @@ struct SDelIdx {
   int64_t  size;
 };
 
-struct SDelFile {
-  int64_t commitID;
-  int64_t size;
-  int64_t offset;
-};
-
 #pragma pack(push, 1)
 struct SBlockDataHdr {
   uint32_t delimiter;
@@ -479,34 +482,50 @@ struct SBlockDataHdr {
 };
 #pragma pack(pop)
 
+struct SDelFile {
+  volatile int32_t nRef;
+
+  int64_t commitID;
+  int64_t size;
+  int64_t offset;
+};
+
 struct SHeadFile {
+  volatile int32_t nRef;
+
   int64_t commitID;
   int64_t size;
   int64_t offset;
 };
 
 struct SDataFile {
+  volatile int32_t nRef;
+
   int64_t commitID;
   int64_t size;
 };
 
 struct SLastFile {
+  volatile int32_t nRef;
+
   int64_t commitID;
   int64_t size;
 };
 
 struct SSmaFile {
+  volatile int32_t nRef;
+
   int64_t commitID;
   int64_t size;
 };
 
 struct SDFileSet {
-  SDiskID   diskId;
-  int32_t   fid;
-  SHeadFile fHead;
-  SDataFile fData;
-  SLastFile fLast;
-  SSmaFile  fSma;
+  SDiskID    diskId;
+  int32_t    fid;
+  SHeadFile *pHeadF;
+  SDataFile *pDataF;
+  SLastFile *pLastF;
+  SSmaFile  *pSmaF;
 };
 
 struct SRowIter {
@@ -528,17 +547,40 @@ struct STsdbFSState {
 };
 
 struct STsdbFS {
-  STsdb         *pTsdb;
-  TdThreadRwlock lock;
-  int8_t         inTxn;
-  STsdbFSState  *cState;
-  STsdbFSState  *nState;
+  STsdb        *pTsdb;
+  STsdbFSState *cState;
+  STsdbFSState *nState;
+
+  // new
+  SDelFile *pDelFile;
+  SArray    aDFileSetP;  // SArray<SDFileSet *>
 };
 
 struct SDelFWriter {
   STsdb    *pTsdb;
   SDelFile  fDel;
   TdFilePtr pWriteH;
+};
+
+struct SDataFWriter {
+  STsdb    *pTsdb;
+  SDFileSet wSet;
+
+  TdFilePtr pHeadFD;
+  TdFilePtr pDataFD;
+  TdFilePtr pLastFD;
+  TdFilePtr pSmaFD;
+
+  SHeadFile fHead;
+  SDataFile fData;
+  SLastFile fLast;
+  SSmaFile  fSma;
+};
+
+struct STsdbReadSnap {
+  SMemTable *pMem;
+  SMemTable *pIMem;
+  STsdbFS    fs;
 };
 
 #ifdef __cplusplus

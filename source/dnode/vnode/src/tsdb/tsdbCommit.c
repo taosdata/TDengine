@@ -273,7 +273,6 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   int32_t    code = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
   SDFileSet *pRSet = NULL;
-  SDFileSet  wSet;
 
   // memory
   pCommitter->nextKey = TSKEY_MAX;
@@ -292,23 +291,29 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   }
 
   // new
+  SHeadFile fHead;
+  SDataFile fData;
+  SLastFile fLast;
+  SSmaFile  fSma;
+  SDFileSet wSet = {.pHeadF = &fHead, .pDataF = &fData, .pLastF = &fLast, .pSmaF = &fSma};
+
   taosArrayClear(pCommitter->aBlockIdxN);
   tMapDataReset(&pCommitter->nBlockMap);
   tBlockDataReset(&pCommitter->nBlockData);
   if (pRSet) {
-    wSet = (SDFileSet){.diskId = pRSet->diskId,
-                       .fid = pCommitter->commitFid,
-                       .fHead = {.commitID = pCommitter->commitID, .offset = 0, .size = 0},
-                       .fData = pRSet->fData,
-                       .fLast = {.commitID = pCommitter->commitID, .size = 0},
-                       .fSma = pRSet->fSma};
+    wSet.diskId = pRSet->diskId;
+    wSet.fid = pCommitter->commitFid;
+    fHead = (SHeadFile){.commitID = pCommitter->commitID, .offset = 0, .size = 0};
+    fData = *pRSet->pDataF;
+    fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0};
+    fSma = *pRSet->pSmaF;
   } else {
-    wSet = (SDFileSet){.diskId = (SDiskID){.level = 0, .id = 0},
-                       .fid = pCommitter->commitFid,
-                       .fHead = {.commitID = pCommitter->commitID, .offset = 0, .size = 0},
-                       .fData = {.commitID = pCommitter->commitID, .size = 0},
-                       .fLast = {.commitID = pCommitter->commitID, .size = 0},
-                       .fSma = {.commitID = pCommitter->commitID, .size = 0}};
+    wSet.diskId = (SDiskID){.level = 0, .id = 0};
+    wSet.fid = pCommitter->commitFid;
+    fHead = (SHeadFile){.commitID = pCommitter->commitID, .offset = 0, .size = 0};
+    fData = (SDataFile){.commitID = pCommitter->commitID, .size = 0};
+    fLast = (SLastFile){.commitID = pCommitter->commitID, .size = 0};
+    fSma = (SSmaFile){.commitID = pCommitter->commitID, .size = 0};
   }
   code = tsdbDataFWriterOpen(&pCommitter->pWriter, pTsdb, &wSet);
   if (code) goto _err;
@@ -855,7 +860,7 @@ static int32_t tsdbCommitFileDataEnd(SCommitter *pCommitter) {
   if (code) goto _err;
 
   // upsert SDFileSet
-  code = tsdbFSStateUpsertDFileSet(pCommitter->pTsdb->pFS->nState, tsdbDataFWriterGetWSet(pCommitter->pWriter));
+  code = tsdbFSStateUpsertDFileSet(pCommitter->pTsdb->pFS->nState, &pCommitter->pWriter->wSet);
   if (code) goto _err;
 
   // close and sync

@@ -174,62 +174,64 @@ static int32_t tsdbApplyDFileSetChange(STsdbFS *pFS, SDFileSet *pFrom, SDFileSet
   char    fname[TSDB_FILENAME_LEN];
 
   if (pFrom && pTo) {
+    bool isSameDisk = (pFrom->diskId.level == pTo->diskId.level) && (pFrom->diskId.id == pTo->diskId.id);
+
     // head
-    if (tsdbFileIsSame(pFrom, pTo, TSDB_HEAD_FILE)) {
-      ASSERT(pFrom->fHead.size == pTo->fHead.size);
-      ASSERT(pFrom->fHead.offset == pTo->fHead.offset);
+    if (isSameDisk && pFrom->pHeadF->commitID == pTo->pHeadF->commitID) {
+      ASSERT(pFrom->pHeadF->size == pTo->pHeadF->size);
+      ASSERT(pFrom->pHeadF->offset == pTo->pHeadF->offset);
     } else {
-      tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_HEAD_FILE, fname);
+      tsdbHeadFileName(pFS->pTsdb, pFrom->diskId, pFrom->fid, pFrom->pHeadF, fname);
       taosRemoveFile(fname);
     }
 
     // data
-    if (tsdbFileIsSame(pFrom, pTo, TSDB_DATA_FILE)) {
-      if (pFrom->fData.size > pTo->fData.size) {
+    if (isSameDisk && pFrom->pDataF->commitID == pTo->pDataF->commitID) {
+      if (pFrom->pDataF->size > pTo->pDataF->size) {
         code = tsdbDFileRollback(pFS->pTsdb, pTo, TSDB_DATA_FILE);
         if (code) goto _err;
       }
     } else {
-      tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_DATA_FILE, fname);
+      tsdbDataFileName(pFS->pTsdb, pFrom->diskId, pFrom->fid, pFrom->pDataF, fname);
       taosRemoveFile(fname);
     }
 
     // last
-    if (tsdbFileIsSame(pFrom, pTo, TSDB_LAST_FILE)) {
-      if (pFrom->fLast.size > pTo->fLast.size) {
+    if (isSameDisk && pFrom->pLastF->commitID == pTo->pLastF->commitID) {
+      if (pFrom->pLastF->size > pTo->pLastF->size) {
         code = tsdbDFileRollback(pFS->pTsdb, pTo, TSDB_LAST_FILE);
         if (code) goto _err;
       }
     } else {
-      tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_LAST_FILE, fname);
+      tsdbLastFileName(pFS->pTsdb, pFrom->diskId, pFrom->fid, pFrom->pLastF, fname);
       taosRemoveFile(fname);
     }
 
     // sma
-    if (tsdbFileIsSame(pFrom, pTo, TSDB_SMA_FILE)) {
-      if (pFrom->fSma.size > pTo->fSma.size) {
+    if (isSameDisk && pFrom->pSmaF->commitID == pTo->pSmaF->commitID) {
+      if (pFrom->pSmaF->size > pTo->pSmaF->size) {
         code = tsdbDFileRollback(pFS->pTsdb, pTo, TSDB_SMA_FILE);
         if (code) goto _err;
       }
     } else {
-      tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_SMA_FILE, fname);
+      tsdbSmaFileName(pFS->pTsdb, pFrom->diskId, pFrom->fid, pFrom->pSmaF, fname);
       taosRemoveFile(fname);
     }
   } else if (pFrom) {
     // head
-    tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_HEAD_FILE, fname);
+    tsdbHeadFileName(pFS->pTsdb, pFrom->diskId, pFrom->fid, pFrom->pHeadF, fname);
     taosRemoveFile(fname);
 
     // data
-    tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_DATA_FILE, fname);
+    tsdbDataFileName(pFS->pTsdb, pFrom->diskId, pFrom->fid, pFrom->pDataF, fname);
     taosRemoveFile(fname);
 
     // last
-    tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_LAST_FILE, fname);
+    tsdbLastFileName(pFS->pTsdb, pFrom->diskId, pFrom->fid, pFrom->pLastF, fname);
     taosRemoveFile(fname);
 
     // fsm
-    tsdbDataFileName(pFS->pTsdb, pFrom, TSDB_SMA_FILE, fname);
+    tsdbSmaFileName(pFS->pTsdb, pFrom->diskId, pFrom->fid, pFrom->pSmaF, fname);
     taosRemoveFile(fname);
   }
 
@@ -341,7 +343,6 @@ static void tsdbFSDestroy(STsdbFS *pFS) {
       taosMemoryFree(pFS->cState);
     }
 
-    taosThreadRwlockDestroy(&pFS->lock);
     taosMemoryFree(pFS);
   }
   // TODO
@@ -357,15 +358,6 @@ static int32_t tsdbFSCreate(STsdb *pTsdb, STsdbFS **ppFS) {
     goto _err;
   }
   pFS->pTsdb = pTsdb;
-
-  code = taosThreadRwlockInit(&pFS->lock, NULL);
-  if (code) {
-    taosMemoryFree(pFS);
-    code = TAOS_SYSTEM_ERROR(code);
-    goto _err;
-  }
-
-  pFS->inTxn = 0;
 
   pFS->cState = (STsdbFSState *)taosMemoryCalloc(1, sizeof(STsdbFSState));
   if (pFS->cState == NULL) {
@@ -431,7 +423,7 @@ static int32_t tsdbScanAndTryFixFS(STsdbFS *pFS, int8_t deepScan) {
     SDFileSet *pDFileSet = (SDFileSet *)taosArrayGet(pFS->cState->aDFileSet, iSet);
 
     // head =========
-    tsdbDataFileName(pTsdb, pDFileSet, TSDB_HEAD_FILE, fname);
+    tsdbHeadFileName(pTsdb, pDFileSet->diskId, pDFileSet->fid, pDFileSet->pHeadF, fname);
     if (taosStatFile(fname, &size, NULL)) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
@@ -442,16 +434,16 @@ static int32_t tsdbScanAndTryFixFS(STsdbFS *pFS, int8_t deepScan) {
     }
 
     // data =========
-    tsdbDataFileName(pTsdb, pDFileSet, TSDB_DATA_FILE, fname);
+    tsdbDataFileName(pTsdb, pDFileSet->diskId, pDFileSet->fid, pDFileSet->pDataF, fname);
     if (taosStatFile(fname, &size, NULL)) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
 
-    if (size < pDFileSet->fData.size) {
+    if (size < pDFileSet->pDataF->size) {
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _err;
-    } else if (size > pDFileSet->fData.size) {
+    } else if (size > pDFileSet->pDataF->size) {
       ASSERT(0);
       // need to rollback the file
     }
@@ -461,16 +453,16 @@ static int32_t tsdbScanAndTryFixFS(STsdbFS *pFS, int8_t deepScan) {
     }
 
     // last ===========
-    tsdbDataFileName(pTsdb, pDFileSet, TSDB_LAST_FILE, fname);
+    tsdbLastFileName(pTsdb, pDFileSet->diskId, pDFileSet->fid, pDFileSet->pLastF, fname);
     if (taosStatFile(fname, &size, NULL)) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
 
-    if (size < pDFileSet->fLast.size) {
+    if (size < pDFileSet->pLastF->size) {
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _err;
-    } else if (size > pDFileSet->fLast.size) {
+    } else if (size > pDFileSet->pLastF->size) {
       ASSERT(0);
       // need to rollback the file
     }
@@ -480,16 +472,16 @@ static int32_t tsdbScanAndTryFixFS(STsdbFS *pFS, int8_t deepScan) {
     }
 
     // sma =============
-    tsdbDataFileName(pTsdb, pDFileSet, TSDB_SMA_FILE, fname);
+    tsdbSmaFileName(pTsdb, pDFileSet->diskId, pDFileSet->fid, pDFileSet->pSmaF, fname);
     if (taosStatFile(fname, &size, NULL)) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
 
-    if (size < pDFileSet->fSma.size) {
+    if (size < pDFileSet->pSmaF->size) {
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _err;
-    } else if (size > pDFileSet->fSma.size) {
+    } else if (size > pDFileSet->pSmaF->size) {
       ASSERT(0);
       // need to rollback the file
     }
@@ -573,8 +565,6 @@ int32_t tsdbFSClose(STsdbFS *pFS) {
 int32_t tsdbFSBegin(STsdbFS *pFS) {
   int32_t code = 0;
 
-  ASSERT(!pFS->inTxn);
-
   // SDelFile
   pFS->nState->pDelFile = NULL;
   if (pFS->cState->pDelFile) {
@@ -593,7 +583,6 @@ int32_t tsdbFSBegin(STsdbFS *pFS) {
     }
   }
 
-  pFS->inTxn = 1;
   return code;
 
 _err:
@@ -631,8 +620,6 @@ int32_t tsdbFSCommit(STsdbFS *pFS) {
   code = tsdbFSApplyDiskChange(pFS, pFS->nState, pFS->cState);
   if (code) goto _err;
 
-  pFS->inTxn = 0;
-
   return code;
 
 _err:
@@ -645,8 +632,6 @@ int32_t tsdbFSRollback(STsdbFS *pFS) {
 
   code = tsdbFSApplyDiskChange(pFS, pFS->nState, pFS->cState);
   if (code) goto _err;
-
-  pFS->inTxn = 0;
 
   return code;
 

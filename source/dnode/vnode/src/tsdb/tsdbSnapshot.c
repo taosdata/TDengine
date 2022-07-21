@@ -798,7 +798,7 @@ static int32_t tsdbSnapWriteDataEnd(STsdbSnapWriter* pWriter) {
   code = tsdbWriteBlockIdx(pWriter->pDataFWriter, pWriter->aBlockIdxW, NULL);
   if (code) goto _err;
 
-  code = tsdbFSStateUpsertDFileSet(pTsdb->pFS->nState, tsdbDataFWriterGetWSet(pWriter->pDataFWriter));
+  code = tsdbFSStateUpsertDFileSet(pTsdb->pFS->nState, &pWriter->pDataFWriter->wSet);
   if (code) goto _err;
 
   code = tsdbDataFWriterClose(&pWriter->pDataFWriter, 1);
@@ -863,22 +863,26 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
     tBlockDataReset(&pWriter->bDataR);
 
     // write
-    SDFileSet wSet;
+    SHeadFile fHead;
+    SDataFile fData;
+    SLastFile fLast;
+    SSmaFile  fSma;
+    SDFileSet wSet = {.pHeadF = &fHead, .pDataF = &fData, .pLastF = &fLast, .pSmaF = &fSma};
 
     if (pSet) {
-      wSet = (SDFileSet){.diskId = pSet->diskId,
-                         .fid = fid,
-                         .fHead = {.commitID = pWriter->commitID, .offset = 0, .size = 0},
-                         .fData = pSet->fData,
-                         .fLast = {.commitID = pWriter->commitID, .size = 0},
-                         .fSma = pSet->fSma};
+      wSet.diskId = pSet->diskId;
+      wSet.fid = fid;
+      fHead = (SHeadFile){.commitID = pWriter->commitID, .offset = 0, .size = 0};
+      fData = *pSet->pDataF;
+      fLast = (SLastFile){.commitID = pWriter->commitID, .size = 0};
+      fSma = *pSet->pSmaF;
     } else {
-      wSet = (SDFileSet){.diskId = (SDiskID){.level = 0, .id = 0},
-                         .fid = fid,
-                         .fHead = {.commitID = pWriter->commitID, .offset = 0, .size = 0},
-                         .fData = {.commitID = pWriter->commitID, .size = 0},
-                         .fLast = {.commitID = pWriter->commitID, .size = 0},
-                         .fSma = {.commitID = pWriter->commitID, .size = 0}};
+      wSet.diskId = (SDiskID){.level = 0, .id = 0};
+      wSet.fid = fid;
+      fHead = (SHeadFile){.commitID = pWriter->commitID, .offset = 0, .size = 0};
+      fData = (SDataFile){.commitID = pWriter->commitID, .size = 0};
+      fLast = (SLastFile){.commitID = pWriter->commitID, .size = 0};
+      fSma = (SSmaFile){.commitID = pWriter->commitID, .size = 0};
     }
 
     code = tsdbDataFWriterOpen(&pWriter->pDataFWriter, pTsdb, &wSet);

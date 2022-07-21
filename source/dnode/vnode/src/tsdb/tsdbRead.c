@@ -3244,3 +3244,59 @@ int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int6
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t tsdbTakeReadSnap(STsdb* pTsdb, STsdbReadSnap** ppSnap) {
+  int32_t code = 0;
+
+  // alloc
+  *ppSnap = (STsdbReadSnap*)taosMemoryCalloc(1, sizeof(STsdbReadSnap));
+  if (*ppSnap == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  // lock
+  code = taosThreadRwlockRdlock(&pTsdb->rwLock);
+  if (code) {
+    code = TAOS_SYSTEM_ERROR(code);
+    goto _exit;
+  }
+
+  // take snapshot
+  (*ppSnap)->pMem = pTsdb->mem;
+  (*ppSnap)->pIMem = pTsdb->imem;
+
+  if ((*ppSnap)->pMem) {
+    tsdbRefMemTable((*ppSnap)->pMem);
+  }
+
+  if ((*ppSnap)->pIMem) {
+    tsdbRefMemTable((*ppSnap)->pIMem);
+  }
+
+  // fs (todo)
+
+  // unlock
+  code = taosThreadRwlockUnlock(&pTsdb->rwLock);
+  if (code) {
+    code = TAOS_SYSTEM_ERROR(code);
+    goto _exit;
+  }
+
+_exit:
+  return code;
+}
+
+void tsdbUntakeReadSnap(STsdb* pTsdb, STsdbReadSnap* pSnap) {
+  if (pSnap) {
+    if (pSnap->pMem) {
+      tsdbUnrefMemTable(pSnap->pMem);
+    }
+
+    if (pSnap->pIMem) {
+      tsdbUnrefMemTable(pSnap->pIMem);
+    }
+
+    // fs (todo)
+  }
+}
