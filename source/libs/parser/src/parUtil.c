@@ -865,11 +865,14 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   STableCfg* pNew = taosMemoryMalloc(sizeof(*pNew));
 
   memcpy(pNew, pCfg, sizeof(*pNew));
-  if (pNew->pComment) {
+  if (NULL != pNew->pComment) {
     pNew->pComment = strdup(pNew->pComment);
   }
-  if (pNew->pFuncs) {
+  if (NULL != pNew->pFuncs) {
     pNew->pFuncs = taosArrayDup(pNew->pFuncs);
+  }
+  if (NULL != pNew->pTags) {
+    pNew->pTags = strdup(pNew->pTags);
   }
 
   int32_t schemaSize = (pCfg->numOfColumns + pCfg->numOfTags) * sizeof(SSchema);
