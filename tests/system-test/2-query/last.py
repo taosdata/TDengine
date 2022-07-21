@@ -224,7 +224,7 @@ class TDTestCase:
                 continue
             else:
                 tdLog.exit(
-                    'This scene does not meet the requirements with {vgroups_num} vgroup!\n')
+                    f'This scene does not meet the requirements with {vgroups_num} vgroup!\n')
 
         for i in range(self.tbnum):
             for j in range(self.rowNum):
