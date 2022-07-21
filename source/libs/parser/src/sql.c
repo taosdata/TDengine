@@ -4117,7 +4117,8 @@ static YYACTIONTYPE yy_reduce(
   yymsp[-2].minor.yy616 = yylhsminor.yy616;
         break;
       case 254: /* cmd ::= COMPACT VNODES IN NK_LP integer_list NK_RP */
-{ pCxt->pRootNode = createCompactStmt(pCxt, yymsp[-1].minor.yy356); }
+{ pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
+  yy_destructor(yypParser,273,&yymsp[-1].minor);
         break;
       case 255: /* cmd ::= CREATE agg_func_opt FUNCTION not_exists_opt function_name AS NK_STRING OUTPUTTYPE type_name bufsize_opt */
 { pCxt->pRootNode = createCreateFunctionStmt(pCxt, yymsp[-6].minor.yy151, yymsp[-8].minor.yy151, &yymsp[-5].minor.yy361, &yymsp[-3].minor.yy0, yymsp[-1].minor.yy600, yymsp[0].minor.yy734); }

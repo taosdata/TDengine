@@ -3355,7 +3355,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       break;
     }
 
-    if (status == PROJECT_RETRIEVE_CONTINUE) {
+    if (status == PROJECT_RETRIEVE_CONTINUE || pInfo->pRes->info.rows == 0) {
       continue;
     } else if (status == PROJECT_RETRIEVE_DONE) {
       break;
