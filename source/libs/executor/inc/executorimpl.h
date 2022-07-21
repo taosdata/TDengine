@@ -159,27 +159,28 @@ typedef struct {
   int64_t recoverEndVer;
 } SStreamTaskInfo;
 
+typedef struct {
+  char*           tablename;
+  char*           dbname;
+  int32_t         tversion;
+  SSchemaWrapper* sw;
+} SSchemaInfo;
+
 typedef struct SExecTaskInfo {
-  STaskIdInfo     id;
-  uint32_t        status;
-  STimeWindow     window;
-  STaskCostInfo   cost;
-  int64_t         owner;  // if it is in execution
-  int32_t         code;
+  STaskIdInfo      id;
+  uint32_t         status;
+  STimeWindow      window;
+  STaskCostInfo    cost;
+  int64_t          owner;  // if it is in execution
+  int32_t          code;
 
-  SStreamTaskInfo streamInfo;
-
-  struct {
-    char*           tablename;
-    char*           dbname;
-    int32_t         tversion;
-    SSchemaWrapper* sw;
-  } schemaVer;
-
-  STableListInfo        tableqinfoList;  // this is a table list
-  const char*           sql;             // query sql string
-  jmp_buf               env;             // jump to this position when error happens.
-  EOPTR_EXEC_MODEL      execModel;       // operator execution model [batch model|stream model]
+  SStreamTaskInfo  streamInfo;
+  SSchemaInfo      schemaInfo;
+  STableListInfo   tableqinfoList;  // this is a table list
+  const char*      sql;             // query sql string
+  jmp_buf          env;             // jump to this position when error happens.
+  EOPTR_EXEC_MODEL execModel;       // operator execution model [batch model|stream model]
+  SSubplan*        pSubplan;
   struct SOperatorInfo* pRoot;
 } SExecTaskInfo;
 
@@ -248,13 +249,13 @@ typedef struct SLoadRemoteDataInfo {
 } SLoadRemoteDataInfo;
 
 typedef struct SLimitInfo {
-    SLimit             limit;
-    SLimit             slimit;
-    uint64_t           currentGroupId;
-    int64_t            remainGroupOffset;
-    int64_t            numOfOutputGroups;
-    int64_t            remainOffset;
-    int64_t            numOfOutputRows;
+  SLimit              limit;
+  SLimit              slimit;
+  uint64_t            currentGroupId;
+  int64_t             remainGroupOffset;
+  int64_t             numOfOutputGroups;
+  int64_t             remainOffset;
+  int64_t             numOfOutputRows;
 } SLimitInfo;
 
 typedef struct SExchangeInfo {
