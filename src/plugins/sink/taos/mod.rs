@@ -13,7 +13,7 @@ use std::{
 
 use futures::{Sink, Stream, TryStreamExt};
 use taos::{
-    block::{itypes::IsValue, Describe, Ty, Raw},
+    block::{itypes::IsValue, Describe, Ty, RawData},
     helpers::{ColumnMeta, Described},
     query::Dsn,
     tmq::{Consumer, TmqBuilder},
@@ -337,7 +337,7 @@ pub fn sync_table_with_transformer(
     Ok(())
 }
 
-impl Sink<(&Taos, Raw)> for TaosSink {
+impl Sink<(&Taos, RawData)> for TaosSink {
     type Error = Error;
 
     fn poll_ready(
@@ -349,7 +349,7 @@ impl Sink<(&Taos, Raw)> for TaosSink {
 
     fn start_send(
         mut self: std::pin::Pin<&mut Self>,
-        item: (&Taos, Raw),
+        item: (&Taos, RawData),
     ) -> Result<(), Self::Error> {
         self.consume_block(item.0, &item.1)
     }
@@ -380,7 +380,7 @@ impl TaosxSink for TaosSink {
         Ok(())
     }
 
-    fn consume_block(&mut self, taos: &Taos, block: &Raw) -> Result<(), Self::Error> {
+    fn consume_block(&mut self, taos: &Taos, block: &RawData) -> Result<(), Self::Error> {
         let idx = self.id;
         let db = block.tmq_db_name().unwrap();
         taos.exec(format!("use {db}"))?;
@@ -389,71 +389,6 @@ impl TaosxSink for TaosSink {
         debug_assert!(!table.is_empty());
 
         if let Some(transformer) = self.transformer.as_ref() {
-            // if self.taos.exec(format!("describe {table}")).is_err() {
-            //     sync_table_with_transformer(taos, &self.taos, db, &table, &transformer)?;
-            // }
-            // let mut table = table.to_string();
-            // let fields = block.fields();
-
-            // let mut bind: Vec<TaosMultiBind> = Vec::new();
-
-            // for action in transformer {
-            //     match action {
-            //         Action::Select(Select::Subset { subset }) => {
-            //             bind = block
-            //                 .columns_iter()
-            //                 .zip(fields)
-            //                 .filter_map(|(col, field)| {
-            //                     if subset.contains(&field.name().to_string()) {
-            //                         Some(col.into())
-            //                     } else {
-            //                         None
-            //                     }
-            //                 })
-            //                 .collect()
-            //         }
-            //         Action::Select(Select::Exclude { exclude }) => {
-            //             bind = block
-            //                 .columns_iter()
-            //                 .zip(fields)
-            //                 .filter_map(|(col, field)| {
-            //                     if !exclude.contains(&field.name().to_string()) {
-            //                         Some(col.into())
-            //                     } else {
-            //                         None
-            //                     }
-            //                 })
-            //                 .collect()
-            //         }
-            //         Action::RenameChildTable(rename) | Action::RenameTable(rename) => {
-            //             match rename {
-            //                 crate::stream::transformer::RenameOpts::Prefix { prefix } => {
-            //                     table = format!("{prefix}{table}");
-            //                 }
-            //                 crate::stream::transformer::RenameOpts::Suffix { suffix } => {
-            //                     table = format!("{table}{suffix}");
-            //                 }
-            //                 crate::stream::transformer::RenameOpts::Template { template } => {
-            //                     table = template.replace("{{ name }}", &table);
-            //                 }
-            //             }
-            //         }
-            //         _ => (),
-            //     }
-            // }
-            // if bind.is_empty() {
-            //     bind = block.columns_iter().map(Into::into).collect();
-            // }
-
-            // let questions = std::iter::repeat("?").take(bind.len()).join(",");
-            // let mut stmt = self
-            //     .taos
-            //     .stmt(format!("insert into {table} values({questions})"))?;
-            // stmt.multi_bind(&bind)?;
-            // stmt.execute()?;
-            // let inserted = stmt.affected_rows();
-            // log::info!("[{idx}] inserted {inserted} rows into {table}");
-            // return Ok(());
             let mut table2 = table.to_string();
             let fields = block.fields();
 

@@ -2,7 +2,7 @@ use futures::{FutureExt, SinkExt, StreamExt};
 use scc::HashMap;
 use serde_json::json;
 use taos_query::common::{Column, Field, Precision};
-use taos_query::{AsyncFetchable, AsyncQueryable, DeError, Dsn, DsnError, FromDsn, IntoDsn};
+use taos_query::{AsyncFetchable, AsyncQueryable, Connectable, DeError, Dsn, DsnError, IntoDsn};
 use thiserror::Error;
 use tokio::sync::{oneshot, watch};
 
@@ -393,7 +393,7 @@ async fn test_client() -> anyhow::Result<()> {
     use crate::Ws;
     use taos_query::AsyncQueryable;
 
-    let taos = Ws::from_dsn("taos://localhost:6041")?;
+    let taos = WsInfo::from_dsn("taos://localhost:6041")?.connect()?;
     taos.exec("drop database if exists stmt").await?;
     taos.exec("create database stmt").await?;
     taos.exec("create table stmt.ctb (ts timestamp, v int)")
@@ -427,7 +427,7 @@ async fn test_stmt_stable() -> anyhow::Result<()> {
     let dsn = Dsn::from_str("taos://localhost:6041")?;
     dbg!(&dsn);
 
-    let taos = Ws::from_dsn("taos://localhost:6041")?;
+    let taos = WsInfo::from_dsn("taos://localhost:6041")?.connect()?;
     taos.exec("drop database if exists stmt_s").await?;
     taos.exec("create database stmt_s").await?;
     taos.exec("create table stmt_s.stb (ts timestamp, v int) tags(t1 int)")

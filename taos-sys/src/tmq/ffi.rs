@@ -78,9 +78,9 @@ pub enum tmq_res_t {
 #[repr(C)]
 #[derive(Debug)]
 pub struct tmq_raw_meta {
-    raw_meta: *mut c_void,
-    raw_meta_len: i32,
-    raw_meta_type: i16,
+    pub raw_meta: *mut c_void,
+    pub raw_meta_len: i32,
+    pub raw_meta_type: i16,
 }
 
 impl Drop for tmq_raw_meta {
@@ -108,6 +108,7 @@ extern "C" {
     pub fn tmq_err2str(err: tmq_resp_err_t) -> *const c_char;
 
     pub fn tmq_subscribe(tmq: *mut tmq_t, topic_list: *mut tmq_list_t) -> tmq_resp_err_t;
+    pub fn tmq_unsubscribe(tmq: *mut tmq_t) -> tmq_resp_err_t;
 
     pub fn tmq_subscription(tmq: *mut tmq_t, topic_list: *mut *mut tmq_list_t) -> tmq_resp_err_t;
 
@@ -124,9 +125,9 @@ extern "C" {
         param: *mut c_void,
     );
 
-    pub fn tmq_get_raw_meta(res: *mut TAOS_RES) -> *mut tmq_raw_meta;
+    pub fn tmq_get_raw_meta(res: *mut TAOS_RES, meta: *mut tmq_raw_meta) -> i32;
     pub fn tmq_get_json_meta(res: *mut TAOS_RES) -> *mut c_char;
-    pub fn taos_write_raw_meta(taos: *mut TAOS, raw_meta: *mut tmq_raw_meta) -> i32;
+    pub fn taos_write_raw_meta(taos: *mut TAOS, meta: tmq_raw_meta) -> i32;
 
     pub fn tmq_get_topic_name(res: *mut TAOS_RES) -> *const c_char;
     pub fn tmq_get_table_name(res: *mut TAOS_RES) -> *const c_char;

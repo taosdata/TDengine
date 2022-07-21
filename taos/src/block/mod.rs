@@ -17,14 +17,14 @@ pub use taos_query::common::*;
 
 #[derive(Debug)]
 pub struct BlockStream {
-    raw: Arc<RawRes>,
+    raw: Arc<ResultSet>,
     block: taos_sys::BlockStream,
     summary: Arc<(AtomicU64, AtomicU64)>,
     state: Arc<Mutex<BlockState>>,
 }
 
 impl BlockStream {
-    pub(crate) fn from_raw(raw: Arc<RawRes>, summary: Arc<(AtomicU64, AtomicU64)>) -> Self {
+    pub(crate) fn from_raw(raw: Arc<ResultSet>, summary: Arc<(AtomicU64, AtomicU64)>) -> Self {
         let state = Arc::new(Mutex::new(BlockState {
             completed: false,
             result: std::ptr::null_mut(),
@@ -60,7 +60,7 @@ struct BlockState {
 
 impl Stream for BlockStream {
     // type Item = (*mut TAOS_RES, i32);
-    type Item = Raw;
+    type Item = RawData;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,

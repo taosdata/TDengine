@@ -1,4 +1,4 @@
-#![cfg_attr(feature = "backtrace", feature(backtrace))]
+#![cfg_attr(nightly, feature(backtrace))]
 
 use std::{
     borrow::Cow,
@@ -7,7 +7,7 @@ use std::{
     str::FromStr,
 };
 
-#[cfg(feature = "backtrace")]
+#[cfg(nightly)]
 use std::backtrace::Backtrace;
 
 use thiserror::Error;
@@ -98,7 +98,7 @@ mod code {
 pub struct Error {
     code: Code,
     err: Cow<'static, str>,
-    #[cfg(feature = "backtrace")]
+    #[cfg(nightly)]
     backtrace: Backtrace,
 }
 
@@ -110,7 +110,7 @@ impl Error {
         Self {
             code: code.into(),
             err: err.into(),
-            #[cfg(feature = "backtrace")]
+            #[cfg(nightly)]
             backtrace: Backtrace::capture(),
         }
     }
@@ -143,6 +143,13 @@ impl FromStr for Error {
         Ok(Self::from_string(s.to_string()))
     }
 }
+
+
+// impl<T: std::error::Error> From<T> for Error {
+//     fn from(_: T) -> Self {
+//         todo!()
+//     }
+// }
 
 impl Display for Error {
     #[inline]

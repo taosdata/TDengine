@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     fn dsn_error() {
-        Ws::from_dsn("").unwrap_err();
+        WsInfo::from_dsn("").unwrap_err();
     }
 
     // #[test]

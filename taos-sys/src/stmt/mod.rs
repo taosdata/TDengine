@@ -1,4 +1,4 @@
-use crate::{ffi::*, into_c_str::IntoCStr, RawRes, RawTaos};
+use crate::{ffi::*, into_c_str::IntoCStr, RawRes, RawTaos, ResultSet, err_or};
 
 use std::{ffi::CStr, os::raw::*};
 
@@ -97,8 +97,8 @@ impl RawStmt {
     }
 
     #[inline]
-    pub fn use_result(&mut self) -> RawRes {
-        unsafe { RawRes::from_ptr_unchecked(taos_stmt_use_result(self.as_ptr())) }
+    pub fn use_result(&mut self) -> Result<ResultSet, Error> {
+        unsafe { RawRes::from_ptr(taos_stmt_use_result(self.as_ptr())).map(ResultSet::new) }
     }
 
     #[inline]

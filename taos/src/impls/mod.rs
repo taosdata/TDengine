@@ -62,7 +62,7 @@ pub struct ResultSet {
 
 impl ResultSet {
     pub(crate) fn from_ptr(ptr: *mut c_void) -> Result<Self, taos_error::Error> {
-        let raw = RawRes::from_ptr(ptr).map(DroppableRawRes::new)?;
+        let raw = ResultSet::from_ptr(ptr).map(DroppableRawRes::new)?;
         Ok(ResultSet {
             raw,
             independent: false,
@@ -73,7 +73,7 @@ impl ResultSet {
         ptr: *mut c_void,
         code: impl Into<Code>,
     ) -> Result<Self, taos_error::Error> {
-        let raw = RawRes::from_ptr_with_code(ptr, code.into()).map(DroppableRawRes::new)?;
+        let raw = ResultSet::from_ptr_with_code(ptr, code.into()).map(DroppableRawRes::new)?;
         Ok(ResultSet {
             raw,
             independent: false,
@@ -85,7 +85,7 @@ impl ResultSet {
         self.raw.as_ptr()
     }
 
-    pub(crate) fn from_raw_res(raw: RawRes) -> Self {
+    pub(crate) fn from_raw_res(raw: ResultSet) -> Self {
         Self {
             raw: DroppableRawRes::new(raw),
             independent: false,
@@ -328,7 +328,7 @@ impl Fetchable for ResultSet {
 }
 
 impl Iterator for ResultSet {
-    type Item = Raw;
+    type Item = RawData;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.raw.fetch_raw_block() {
@@ -371,7 +371,7 @@ impl Iterator for ResultSet {
 //     }
 // }
 
-impl<'q> Queryable<'q> for Taos {
+impl Queryable for Taos {
     type Error = Error;
 
     type ResultSet = ResultSet;

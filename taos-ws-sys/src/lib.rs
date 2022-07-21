@@ -621,7 +621,9 @@ pub unsafe extern "C" fn ws_fetch_block(
 #[no_mangle]
 /// Same to taos_free_result. Every websocket result-set object should be freed with this method.
 pub unsafe extern "C" fn ws_free_result(rs: *mut WS_RES) {
-    let _ = Box::from_raw(rs as *mut WsMaybeError<WsResultSet>);
+    if !rs.is_null() {
+        let _ = Box::from_raw(rs as *mut WsMaybeError<WsResultSet>);
+    }
 }
 
 #[no_mangle]

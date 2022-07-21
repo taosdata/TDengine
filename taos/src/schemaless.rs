@@ -61,7 +61,7 @@ impl Taos {
                 precision,
             );
 
-            taos_sys::RawRes::from_ptr(res).map(|res| res.affected_rows())
+            taos_sys::ResultSet::from_ptr(res).map(|res| res.affected_rows())
         }
     }
 }

@@ -23,3 +23,6 @@ cbindgen = "0.24.3"
 
 [dev-dependencies]
 pretty_env_logger = "0.4.0"
+
+[features]
+native-tls-vendored = ["taos-ws/native-tls-vendored"]

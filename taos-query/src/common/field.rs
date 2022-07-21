@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display};
 
 use crate::util::{Inlinable, InlinableRead, InlinableWrite};
 
-use super::{ty::Ty, ColSchema};
+use super::ty::Ty;
 
 /// A `Field` represents the name and data type of one column or tag.
 ///
@@ -78,10 +78,6 @@ impl Field {
         } else {
             ty.name().to_string()
         }
-    }
-
-    pub(crate) fn to_column_schema(&self) -> ColSchema {
-        ColSchema::new(self.ty, self.bytes as _)
     }
 }
 

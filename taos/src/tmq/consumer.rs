@@ -169,7 +169,7 @@ impl Consumer {
     pub fn unsubscribe(&mut self) {
         unsafe {
             log::trace!("close consumer");
-            tmq_consumer_close(self.as_raw());
+            tmq_unsubscribe(self.as_raw());
             log::trace!("consumer closed safely");
         }
     }

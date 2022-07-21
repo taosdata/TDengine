@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1"
 # backtrace = "0.3"
 itertools = "0.10.3"
 log = "0.4"
@@ -27,14 +28,14 @@ futures = { version = "0.3" }
 scc = "0.8"
 tokio = { version = "1", features = ["full"] }
 #tokio-tungstenite = { version = "0.17.1", features = ["__rustls-tls"] }
-tokio-tungstenite = { version = "0.17", features = ["native-tls-vendored"] }
+tokio-tungstenite = { version = "0.17", features = ["native-tls"] }
 
 [dev-dependencies]
-anyhow = "1"
 pretty_env_logger = "*"
 
 [features]
-default = [ "async", "tmq"]
+default = ["async", "tmq"]
+native-tls-vendored = ["tokio-tungstenite/native-tls-vendored"]
 async = ["async-trait", "taos-query/async"]
 sync = []
 tmq = ["async"]

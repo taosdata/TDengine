@@ -1,13 +1,31 @@
-use std::ops::{BitAndAssign, BitOrAssign};
+use std::ops::{BitAndAssign, BitOrAssign, BitAnd};
 
 use bitflags::bitflags;
 
 use crate::common::Precision;
 
+/// Inlined data format in backup file.
+pub enum InlineFormat {
+    /// Only located at the exactly header of a file, contains basic information describing the data included.
+    ///
+    /// 1. database name
+    /// 2. database schema
+    /// 3. single table or not.
+    Header,
+    /// Raw meta message from TMQ, which could be write back to a TDengine cluster seamlessly.
+    RawMeta,
+    /// Raw data message from TMQ, contains data block of a child table or common table.
+    RawData,
+    /// For stable data not use TMQ, contains STable schema and table name - tags entry map.
+    ///
+    /// This type of data will be built from legacy whole backup strategy.
+    StbData,
+}
+
 bitflags! {
     /// Inline memory layout for raw block.
     #[repr(transparent)]
-    struct Layout: u16 {
+    pub struct Layout: u16 {
         // Lowest 4 bits for layout components.
 
         /// With table name in the block.
@@ -69,6 +87,26 @@ bitflags! {
         const IS_MICROS = 0b1_0000_0000;
         const IS_NANOS = 0b10_0000_0000;
 
+        // Top 4 bits for data block type.
+        //
+        //  0: table raw data
+        //  1: table raw meta
+        //  2: stable schema and name-tags data.
+        //  3: database schema
+        const FORMAT_MASK = 0b_0011_0000_0000_0000;
+
+        /// is raw data
+        const IS_RAW_DATA = 0b_0000_0000_0000_0000;
+
+        /// is raw meta
+        const IS_RAW_META = 0b_0001_0000_0000_0000;
+
+        /// Is STable data, contains sql schema and table name - tags map.
+        const IS_STB_DATA = 0b_0010_0000_0000_0000;
+
+        /// Is database schema, used for database rebuild.
+        const IS_HEADER = 0b_0011_0000_0000_0000;
+
         // Non-exhausted.
     }
 }
@@ -79,6 +117,7 @@ impl Default for Layout {
         Self::INLINE_DEFAULT
     }
 }
+
 impl Layout {
     pub fn precision(&self) -> Precision {
         let layout = *self & Self::PRECISION_MASK;
@@ -135,6 +174,16 @@ impl Layout {
 
     pub fn schema_changed(&self) -> bool {
         self.contains(Self::SCHEMA_CHANGED)
+    }
+
+    pub fn inline_format(&self) -> InlineFormat {
+        match self.bitand(Self::FORMAT_MASK) {
+            Self::IS_RAW_DATA => InlineFormat::RawData,
+            Self::IS_RAW_META => InlineFormat::RawMeta,
+            Self::IS_STB_DATA => InlineFormat::StbData,
+            Self::IS_HEADER => InlineFormat::Header,
+            _ => unreachable!()
+        }
     }
 }
 

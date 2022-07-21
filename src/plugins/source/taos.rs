@@ -37,7 +37,7 @@ pub use taos::prelude::sync::*;
 
 #[derive(Debug)]
 pub enum TaosItem {
-    Block(Arc<Taos>, Raw),
+    Block(Arc<Taos>, RawData),
 }
 
 impl<'a> TaosxSinkItem for TaosItem {
@@ -47,7 +47,7 @@ impl<'a> TaosxSinkItem for TaosItem {
         }
     }
 
-    fn as_block(&self) -> (&Taos, &Raw) {
+    fn as_block(&self) -> (&Taos, &RawData) {
         match self {
             Self::Block(taos, block) => (taos.as_ref(), &block),
         }

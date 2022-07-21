@@ -156,9 +156,9 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'de> {
     forward_to_deserialize_any! {bool i8 u8 i16 u16 i32 u32 i64 u64 f32 f64 char}
 
     forward_to_deserialize_any! {
-        unit
-        bytes byte_buf unit_struct
-        tuple identifier ignored_any
+        // unit
+        bytes byte_buf
+        tuple identifier
     }
 
     fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -169,17 +169,17 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'de> {
         use BorrowedValue::*;
         match self {
             Null => visitor.visit_borrowed_str(""), // todo: empty string or error?
-            Bool(v) => visitor.visit_bool(v),
-            TinyInt(v) => visitor.visit_i8(v),
-            SmallInt(v) => visitor.visit_i16(v),
-            Int(v) => visitor.visit_i32(v),
-            BigInt(v) => visitor.visit_i64(v),
-            UTinyInt(v) => visitor.visit_u8(v),
-            USmallInt(v) => visitor.visit_u16(v),
-            UInt(v) => visitor.visit_u32(v),
-            UBigInt(v) => visitor.visit_u64(v),
-            Float(v) => visitor.visit_f32(v),
-            Double(v) => visitor.visit_f64(v),
+            Bool(v) => visitor.visit_string(format!("{v}")),
+            TinyInt(v) => visitor.visit_string(format!("{v}")),
+            SmallInt(v) => visitor.visit_string(format!("{v}")),
+            Int(v) => visitor.visit_string(format!("{v}")),
+            BigInt(v) => visitor.visit_string(format!("{v}")),
+            UTinyInt(v) => visitor.visit_string(format!("{v}")),
+            USmallInt(v) => visitor.visit_string(format!("{v}")),
+            UInt(v) => visitor.visit_string(format!("{v}")),
+            UBigInt(v) => visitor.visit_string(format!("{v}")),
+            Float(v) => visitor.visit_string(format!("{v}")),
+            Double(v) => visitor.visit_string(format!("{v}")),
             Json(v) => match v {
                 Cow::Borrowed(v) => std::str::from_utf8(v)
                     .map_err(<Self::Error as serde::de::Error>::custom)
@@ -381,6 +381,54 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'de> {
             _ => self.deserialize_any(visitor),
         }
     }
+
+    // fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    // where
+    //     V: Visitor<'de> {
+    //     todo!()
+    // }
+
+    // fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    // where
+    //     V: Visitor<'de> {
+    //     todo!()
+    // }
+
+    fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_unit()
+    }
+
+    fn deserialize_unit_struct<V>(
+        self,
+        _: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_unit()
+    }
+
+    // fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    // where
+    //     V: Visitor<'de> {
+    //     todo!()
+    // }
+
+    // fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    // where
+    //     V: Visitor<'de> {
+    //     todo!()
+    // }
+
+    fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        visitor.visit_unit()
+    }
 }
 
 impl<'de> serde::de::IntoDeserializer<'de, Error> for BorrowedValue<'de> {
@@ -506,17 +554,18 @@ mod tests {
         }
         _de_str! {
 
-            TinyInt(-1), is_err
-            SmallInt(-1), is_err
-            Int(-1), is_err
-            BigInt(-1), is_err
-            UTinyInt(1), is_err
-            USmallInt(1), is_err
-            UInt(1), is_err
-            UBigInt(1), is_err
-            ;
+            // TinyInt(-1), is_err
+            // SmallInt(-1), is_err
+            // Int(-1), is_err
+            // BigInt(-1), is_err
+            // UTinyInt(1), is_err
+            // USmallInt(1), is_err
+            // UInt(1), is_err
+            // UBigInt(1), is_err
+            // ;
 
             Null, ""
+            TinyInt(-1), "-1"
             Timestamp(crate::Timestamp::Milliseconds(0)), "1970-01-01T00:00:00"
             VarChar("String"), "String"
             VarChar("你好，世界"), "你好，世界"

@@ -185,6 +185,34 @@ impl<'b> BorrowedValue<'b> {
     }
 }
 
+impl<'b> Display for BorrowedValue<'b> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use BorrowedValue::*;
+        match self {
+            Null => f.write_str("NULL"),
+            Bool(v) => f.write_fmt(format_args!("{v}")),
+            TinyInt(v) => f.write_fmt(format_args!("{v}")),
+            SmallInt(v) => f.write_fmt(format_args!("{v}")),
+            Int(v) => f.write_fmt(format_args!("{v}")),
+            BigInt(v) => f.write_fmt(format_args!("{v}")),
+            Float(v) => f.write_fmt(format_args!("{v}")),
+            Double(v) => f.write_fmt(format_args!("{v}")),
+            VarChar(v) => f.write_fmt(format_args!("{v}")),
+            Timestamp(v) => f.write_fmt(format_args!("{v}")),
+            NChar(v) => f.write_fmt(format_args!("{v}")),
+            UTinyInt(v) => f.write_fmt(format_args!("{v}")),
+            USmallInt(v) => f.write_fmt(format_args!("{v}")),
+            UInt(v) => f.write_fmt(format_args!("{v}")),
+            UBigInt(v) => f.write_fmt(format_args!("{v}")),
+            Json(v) => f.write_fmt(format_args!("{}", v.as_ref().escape_ascii())),
+            VarBinary(_) => todo!(),
+            Decimal(_) => todo!(),
+            Blob(_) => todo!(),
+            MediumBlob(_) => todo!(),
+        }
+    }
+}
+
 unsafe impl<'b> Send for BorrowedValue<'b> {}
 
 // #[derive(Debug, Clone)]

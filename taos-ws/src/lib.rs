@@ -1,4 +1,7 @@
-use std::{fmt::Debug, sync::Once};
+use std::{
+    fmt::{Debug, Display},
+    sync::Once,
+};
 
 #[cfg(feature = "async")]
 use futures::FutureExt;
@@ -9,7 +12,7 @@ use once_cell::sync::{Lazy, OnceCell};
 use asyn::WsAsyncClient;
 use sync::WsClient;
 
-use taos_query::{Dsn, DsnError, FromDsn, IntoDsn, Queryable};
+use taos_query::{Connectable, Dsn, DsnError, IntoDsn, Queryable};
 
 pub mod infra;
 
@@ -30,6 +33,62 @@ pub struct WsInfo {
     addr: String,
     auth: WsAuth,
     database: Option<String>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub struct Error {
+    source: anyhow::Error,
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.source.to_string())
+    }
+}
+
+impl From<DsnError> for Error {
+    fn from(err: DsnError) -> Self {
+        Error { source: err.into() }
+    }
+}
+
+impl Connectable for WsInfo {
+    type Target = Ws;
+
+    type Error = Error;
+
+    fn available_params() -> &'static [&'static str] {
+        &["token"]
+    }
+
+    fn from_dsn<D: IntoDsn>(dsn: D) -> Result<Self, Self::Error> {
+        Ok(Self::from_dsn(dsn.into_dsn()?)?)
+    }
+
+    fn client_version() -> &'static str {
+        ""
+    }
+
+    fn server_version(&self) -> &str {
+        ""
+    }
+
+    fn ping(&self, _: &mut Self::Target) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn ready(&self) -> bool {
+        true
+    }
+
+    fn connect(&self) -> Result<Self::Target, Self::Error> {
+        Ok(Ws {
+            dsn: self.clone(),
+            #[cfg(feature = "async")]
+            async_client: OnceCell::new(),
+            sync_client: OnceCell::new(),
+        })
+    }
 }
 
 impl WsInfo {
@@ -115,7 +174,7 @@ impl WsInfo {
 
 #[derive(Debug)]
 pub struct Ws {
-    dsn: Dsn,
+    dsn: WsInfo,
     #[cfg(feature = "async")]
     async_client: OnceCell<WsAsyncClient>,
     sync_client: OnceCell<WsClient>,
@@ -124,52 +183,28 @@ pub struct Ws {
 unsafe impl Send for Ws {}
 unsafe impl Sync for Ws {}
 
-impl FromDsn for Ws {
-    type Err = DsnError;
-
-    fn hygienize(
-        dsn: taos_query::Dsn,
-    ) -> Result<(taos_query::Dsn, Vec<taos_query::Address>), taos_query::DsnError> {
-        todo!()
-    }
-
-    fn from_dsn<T: taos_query::IntoDsn>(dsn: T) -> Result<Self, Self::Err> {
-        let dsn = dsn.into_dsn()?;
-        Ok(Self {
-            dsn,
-            #[cfg(feature = "async")]
-            async_client: OnceCell::new(),
-            sync_client: OnceCell::new(),
-        })
-    }
-
-    fn ping(dsn: &taos_query::Dsn) -> Result<(), Self::Err> {
-        Ok(())
-    }
-}
-
-impl<'q> Queryable<'q> for Ws {
+impl Queryable for Ws {
     type Error = sync::Error;
 
     type ResultSet = sync::ResultSet;
 
-    fn query<T: AsRef<str>>(&'q self, sql: T) -> std::result::Result<Self::ResultSet, Self::Error> {
+    fn query<T: AsRef<str>>(&self, sql: T) -> std::result::Result<Self::ResultSet, Self::Error> {
         if let Some(ws) = self.sync_client.get() {
             ws.s_query(sql.as_ref())
         } else {
-            let sync_client = WsClient::from_dsn(&self.dsn)?;
+            let sync_client = WsClient::from_wsinfo(&self.dsn)?;
             self.sync_client
                 .get_or_init(|| sync_client)
                 .s_query(sql.as_ref())
         }
     }
 
-    fn exec<T: AsRef<str>>(&'q self, sql: T) -> std::result::Result<usize, Self::Error> {
+    fn exec<T: AsRef<str>>(&self, sql: T) -> std::result::Result<usize, Self::Error> {
         log::info!("execute sql: {}", sql.as_ref());
         if let Some(ws) = self.sync_client.get() {
             ws.s_exec(sql.as_ref())
         } else {
-            let sync_client = WsClient::from_dsn(&self.dsn)?;
+            let sync_client = WsClient::from_wsinfo(&self.dsn)?;
             self.sync_client
                 .get_or_init(|| sync_client)
                 .s_exec(sql.as_ref())
@@ -179,19 +214,19 @@ impl<'q> Queryable<'q> for Ws {
 
 #[cfg(feature = "async")]
 #[async_trait::async_trait]
-impl<'q> taos_query::AsyncQueryable<'q> for Ws {
+impl taos_query::AsyncQueryable for Ws {
     type Error = asyn::Error;
 
     type AsyncResultSet = asyn::ResultSet;
 
     async fn query<T: AsRef<str> + Send + Sync>(
-        &'q self,
+        &self,
         sql: T,
     ) -> Result<Self::AsyncResultSet, Self::Error> {
         if let Some(ws) = self.async_client.get() {
             ws.s_query(sql.as_ref()).await
         } else {
-            let async_client = WsAsyncClient::from_dsn(&self.dsn).await?;
+            let async_client = WsAsyncClient::from_wsinfo(&self.dsn).await?;
             self.async_client
                 .get_or_init(|| async_client)
                 .s_query(sql.as_ref())
@@ -202,7 +237,10 @@ impl<'q> taos_query::AsyncQueryable<'q> for Ws {
 
 #[cfg(test)]
 mod tests {
-    use taos_query::FromDsn;
+
+    use taos_query::Connectable;
+
+    use crate::WsInfo;
 
     use super::Ws;
     #[test]
@@ -210,7 +248,7 @@ mod tests {
         std::env::set_var("RUST_LOG", "trace");
         pretty_env_logger::init();
         use taos_query::{Fetchable, Queryable};
-        let client = Ws::from_dsn("ws://localhost:6041/")?;
+        let client = WsInfo::from_dsn("ws://localhost:6041/")?.connect()?;
         let db = "ws_sync_json";
         assert_eq!(client.exec(format!("drop database if exists {db}"))?, 0);
         assert_eq!(client.exec(format!("create database {db} keep 36500"))?, 0);
@@ -320,7 +358,7 @@ mod tests {
     #[test]
     fn ws_sync() -> anyhow::Result<()> {
         use taos_query::{Fetchable, Queryable};
-        let client = Ws::from_dsn("ws://localhost:6041/")?;
+        let client = WsInfo::from_dsn("ws://localhost:6041/")?.connect()?;
         assert_eq!(client.exec("drop database if exists wsabc")?, 0);
         assert_eq!(client.exec("create database wsabc keep 36500")?, 0);
         assert_eq!(
@@ -414,12 +452,12 @@ mod tests {
 
     #[test]
     fn ws_show_databases() -> anyhow::Result<()> {
-        use taos_query::{Fetchable, Queryable};
-        let client = Ws::from_dsn(
-            "https://gw-aws.cloud.tdengine.com?token=8c7a628b568b7d32cc50f36b0f2d6273ffd060fc",
-        )?;
+        use taos_query::{Connectable, Fetchable, Queryable};
+        let dsn = std::env::var("TEST_DSN").unwrap_or("taos:///".to_string());
+
+        let client = WsInfo::from_dsn(dsn)?.connect()?;
         let mut rs = client.query("select groupid from test.d0")?;
-        let values = rs.to_rows_vec();
+        let values = rs.to_rows_vec()?;
 
         dbg!(values);
         Ok(())
@@ -433,7 +471,7 @@ mod tests {
         use futures::TryStreamExt;
         use taos_query::{AsyncFetchable, AsyncQueryable};
 
-        let client = Ws::from_dsn("ws://localhost:6041/")?;
+        let client = WsInfo::from_dsn("ws://localhost:6041/")?.connect()?;
         assert_eq!(
             client
                 .exec("create database if not exists ws_abc_a")

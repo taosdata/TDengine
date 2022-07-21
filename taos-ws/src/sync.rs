@@ -11,6 +11,7 @@ use crate::stmt::sync::{WsSyncStmt, WsSyncStmtClient};
 use crate::{infra::*, stmt, WsInfo};
 
 use std::any;
+use std::cell::UnsafeCell;
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{mpsc::Sender, Arc, Mutex};
@@ -74,6 +75,7 @@ pub struct ResultSet {
     affected_rows: usize,
     precision: Precision,
     alive: Arc<AtomicBool>,
+    summary: UnsafeCell<(usize, usize)>,
 }
 
 impl Debug for WsClient {
@@ -466,6 +468,7 @@ impl WsClient {
                     id: resp.id,
                 },
                 alive: self.alive.clone(),
+                summary: UnsafeCell::default(),
             })
         } else {
             Ok(ResultSet {
@@ -483,6 +486,7 @@ impl WsClient {
                 fields_count: 0,
                 precision: resp.precision,
                 alive: self.alive.clone(),
+                summary: UnsafeCell::default(),
             })
         }
     }
@@ -534,6 +538,14 @@ impl WsClient {
 }
 
 impl ResultSet {
+    fn summary(&self) -> (usize, usize) {
+        unsafe { *self.summary.get() }
+    }
+    fn update_summary(&mut self, nrows: usize) {
+        let summary = self.summary.get_mut();
+        summary.0 += 1;
+        summary.1 += nrows;
+    }
     async fn fetch_block_a(&self) -> Result<Option<RawData>> {
         if self.receiver.is_none() {
             return Ok(None);
@@ -635,20 +647,28 @@ impl Fetchable for ResultSet {
     }
 
     fn summary(&self) -> (usize, usize) {
-        todo!()
+        self.summary()
+    }
+
+    fn update_summary(&mut self, nrows: usize) {
+        self.update_summary(nrows)
+    }
+
+    fn fetch_raw_block(&mut self) -> Result<Option<RawData>> {
+        self.fetch_block()
     }
 }
 
-impl<'q> Queryable<'q> for WsClient {
+impl Queryable for WsClient {
     type Error = Error;
 
     type ResultSet = ResultSet;
 
-    fn query<T: AsRef<str>>(&'q self, sql: T) -> std::result::Result<Self::ResultSet, Self::Error> {
+    fn query<T: AsRef<str>>(&self, sql: T) -> std::result::Result<Self::ResultSet, Self::Error> {
         self.s_query(sql.as_ref())
     }
 
-    fn exec<T: AsRef<str>>(&'q self, sql: T) -> std::result::Result<usize, Self::Error> {
+    fn exec<T: AsRef<str>>(&self, sql: T) -> std::result::Result<usize, Self::Error> {
         self.s_exec(sql.as_ref())
     }
 }
@@ -682,6 +702,8 @@ fn test_client() -> anyhow::Result<()> {
     let values: Vec<A> = rs.deserialize::<A>().try_collect()?;
 
     dbg!(values);
+
+    assert_eq!(rs.summary(), (1, 1), "should got 1 block with 1 row");
 
     assert_eq!(client.exec("drop database abc")?, 0);
     Ok(())
