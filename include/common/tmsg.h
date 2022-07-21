@@ -438,7 +438,7 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapperEx(SDecoder* pDecoder, SSchemaW
   return 0;
 }
 
-STSchema* tdGetSTSChemaFromSSChema(SSchema** pSchema, int32_t nCols);
+STSchema* tdGetSTSChemaFromSSChema(SSchema* pSchema, int32_t nCols, int32_t sver);
 
 typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
@@ -1359,6 +1359,7 @@ typedef struct {
   int32_t numOfCols;
   int64_t skey;
   int64_t ekey;
+  int64_t version;  // for stream
   char    data[];
 } SRetrieveTableRsp;
 

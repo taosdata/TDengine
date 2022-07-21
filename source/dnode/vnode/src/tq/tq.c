@@ -526,8 +526,8 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
             .initTqReader = true,
             .version = ver,
         };
-        pHandle->execHandle.execCol.task[i] =
-            qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, &pHandle->execHandle.numOfCols);
+        pHandle->execHandle.execCol.task[i] = qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, &pHandle->execHandle.numOfCols,
+            &pHandle->execHandle.pSchemaWrapper);
         ASSERT(pHandle->execHandle.execCol.task[i]);
         void* scanner = NULL;
         qExtractStreamScanner(pHandle->execHandle.execCol.task[i], &scanner);
@@ -634,7 +634,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen) {
     ASSERT(pTask->tbSink.pSchemaWrapper->pSchema);
 
     pTask->tbSink.pTSchema =
-        tdGetSTSChemaFromSSChema(&pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols);
+        tdGetSTSChemaFromSSChema(pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols, 1);
     ASSERT(pTask->tbSink.pTSchema);
   }
 

@@ -685,7 +685,7 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
 
   uint64_t resShowMaxNum = UINT64_MAX;
 
-  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsLimitQuery(sql) && !shellIsShowQuery(sql)) {
+  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsLimitQuery(sql)) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
@@ -706,8 +706,12 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
     } else if (showMore) {
       printf("\r\n");
       printf(" Notice: The result shows only the first %d rows.\r\n", SHELL_DEFAULT_RES_SHOW_NUM);
-      printf("         You can use the `LIMIT` clause to get fewer result to show.\r\n");
-      printf("           Or use '>>' to redirect the whole set of the result to a specified file.\r\n");
+      if (shellIsShowQuery(sql)) {
+        printf("         You can use '>>' to redirect the whole set of the result to a specified file.\r\n");
+      } else {
+        printf("         You can use the `LIMIT` clause to get fewer result to show.\r\n");
+        printf("           Or use '>>' to redirect the whole set of the result to a specified file.\r\n");
+      }
       printf("\r\n");
       printf("         You can use Ctrl+C to stop the underway fetching.\r\n");
       printf("\r\n");
