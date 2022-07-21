@@ -93,7 +93,11 @@ static int32_t tbDataPCmprFn(const void *p1, const void *p2) {
 }
 void tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData) {
   STbData *pTbData = &(STbData){.suid = suid, .uid = uid};
-  void    *p = taosArraySearch(pMemTable->aTbData, &pTbData, tbDataPCmprFn, TD_EQ);
+
+  taosRLockLatch(&pMemTable->latch);
+  void *p = taosArraySearch(pMemTable->aTbData, &pTbData, tbDataPCmprFn, TD_EQ);
+  taosRUnLockLatch(&pMemTable->latch);
+
   *ppTbData = p ? *(STbData **)p : NULL;
 }
 
@@ -363,10 +367,13 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
 
   void *p;
   if (idx < 0) {
-    p = taosArrayPush(pMemTable->aTbData, &pTbData);
-  } else {
-    p = taosArrayInsert(pMemTable->aTbData, idx, &pTbData);
+    idx = taosArrayGetSize(pMemTable->aTbData);
   }
+
+  taosWLockLatch(&pMemTable->latch);
+  p = taosArrayInsert(pMemTable->aTbData, idx, &pTbData);
+  taosWUnLockLatch(&pMemTable->latch);
+
   if (p == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
