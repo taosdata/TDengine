@@ -142,7 +142,8 @@ class TDTestCase:
         threads=[]
         for i in range(restartNumbers):
             stableName= '%s%d'%(paraDict['stbName'],i)
-            threads.append(threading.Thread(target=clusterComCreate.create_stables, args=(tdSql, paraDict["dbName"],stableName,paraDict['stbNumbers'])))
+            newTdSql=tdCom.newTdSql()
+            threads.append(threading.Thread(target=clusterComCreate.create_stables, args=(newTdSql, paraDict["dbName"],stableName,paraDict['stbNumbers'])))
 
         for tr in threads:
             tr.start()
