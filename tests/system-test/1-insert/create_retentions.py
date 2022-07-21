@@ -9,30 +9,40 @@ from util.dnodes import *
 
 PRIMARY_COL = "ts"
 
-INT_COL     = "c_int"
-BINT_COL    = "c_bint"
-SINT_COL    = "c_sint"
-TINT_COL    = "c_tint"
-FLOAT_COL   = "c_float"
-DOUBLE_COL  = "c_double"
-BOOL_COL    = "c_bool"
-TINT_UN_COL = "c_tint_un"
-SINT_UN_COL = "c_sint_un"
-BINT_UN_COL = "c_bint_un"
-INT_UN_COL  = "c_int_un"
+INT_COL = "c_int"
+BINT_COL = "c_bint"
+SINT_COL = "c_sint"
+TINT_COL = "c_tint"
+FLOAT_COL = "c_float"
+DOUBLE_COL = "c_double"
+BOOL_COL = "c_bool"
+TINT_UN_COL = "c_utint"
+SINT_UN_COL = "c_usint"
+BINT_UN_COL = "c_ubint"
+INT_UN_COL = "c_uint"
+BINARY_COL = "c_binary"
+NCHAR_COL = "c_nchar"
+TS_COL = "c_ts"
 
-BINARY_COL  = "c_binary"
-NCHAR_COL   = "c_nchar"
-TS_COL      = "c_ts"
+NUM_COL = [INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, TINT_UN_COL, SINT_UN_COL, BINT_UN_COL, INT_UN_COL]
+CHAR_COL = [BINARY_COL, NCHAR_COL, ]
+BOOLEAN_COL = [BOOL_COL, ]
+TS_TYPE_COL = [TS_COL, ]
 
-NUM_COL     = [ INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, ]
-CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
-BOOLEAN_COL = [ BOOL_COL, ]
-TS_TYPE_COL = [ TS_COL, ]
+INT_TAG = "t_int"
+
+ALL_COL = [PRIMARY_COL, INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, BINARY_COL, NCHAR_COL, BOOL_COL, TS_COL]
+TAG_COL = [INT_TAG]
 
 ## insert data args：
 TIME_STEP = 10000
 NOW = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
+
+# init db/table
+DBNAME  = "db"
+STBNAME = "stb1"
+CTBNAME = "ct1"
+NTBNAME = "nt1"
 
 @dataclass
 class DataSet:
@@ -152,29 +162,31 @@ class TDTestCase:
         self.test_create_databases()
         self.test_create_stb()
 
-    def __create_tb(self):
+    def __create_tb(self, stb=STBNAME, ctb_num=20, ntbnum=1, rsma=False):
         tdLog.printNoPrefix("==========step: create table")
-        create_stb_sql  =  f'''create table stb1(
+        create_stb_sql = f'''create table {stb}(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
                 {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
                 {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
-            ) tags (t1 int)
+            ) tags ({INT_TAG} int)
             '''
-        create_ntb_sql = f'''create table t1(
-                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
-                {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
-                {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
-                {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
-            )
-            '''
+        for i in range(ntbnum):
+
+            create_ntb_sql = f'''create table nt{i+1}(
+                    ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                    {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                    {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
+                    {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
+                    {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
+                )
+                '''
         tdSql.execute(create_stb_sql)
         tdSql.execute(create_ntb_sql)
 
-        for i in range(4):
-            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+        for i in range(ctb_num):
+            tdSql.execute(f'create table ct{i+1} using {stb} tags ( {i+1} )')
 
     def __data_set(self, rows):
         data_set = DataSet()
@@ -220,7 +232,7 @@ class TDTestCase:
             tdSql.execute( f"insert into ct1 values ( {NOW - i * TIME_STEP}, {row_data} )" )
             tdSql.execute( f"insert into ct2 values ( {NOW - i * int(TIME_STEP * 0.6)}, {neg_row_data} )" )
             tdSql.execute( f"insert into ct4 values ( {NOW - i * int(TIME_STEP * 0.8) }, {row_data} )" )
-            tdSql.execute( f"insert into t1 values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )" )
+            tdSql.execute( f"insert into {NTBNAME} values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )" )
 
         tdSql.execute( f"insert into ct2 values ( {NOW + int(TIME_STEP * 0.6)}, {null_data} )" )
         tdSql.execute( f"insert into ct2 values ( {NOW - (self.rows + 1) * int(TIME_STEP * 0.6)}, {null_data} )" )
@@ -230,9 +242,9 @@ class TDTestCase:
         tdSql.execute( f"insert into ct4 values ( {NOW - (self.rows + 1) * int(TIME_STEP * 0.8)}, {null_data} )" )
         tdSql.execute( f"insert into ct4 values ( {NOW - self.rows * int(TIME_STEP * 0.39)}, {null_data} )" )
 
-        tdSql.execute( f"insert into t1 values ( {NOW + int(TIME_STEP * 1.2)}, {null_data} )" )
-        tdSql.execute( f"insert into t1 values ( {NOW - (self.rows + 1) * int(TIME_STEP * 1.2)}, {null_data} )" )
-        tdSql.execute( f"insert into t1 values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )" )
+        tdSql.execute( f"insert into {NTBNAME} values ( {NOW + int(TIME_STEP * 1.2)}, {null_data} )" )
+        tdSql.execute( f"insert into {NTBNAME} values ( {NOW - (self.rows + 1) * int(TIME_STEP * 1.2)}, {null_data} )" )
+        tdSql.execute( f"insert into {NTBNAME} values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )" )
 
 
     def run(self):
