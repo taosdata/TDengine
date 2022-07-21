@@ -391,13 +391,13 @@ if $data02 != 4 then
   return -1
 endi
 
-if $data03 != 14 then
-  print ======$data03
+if $data03 != 50 then
+  print ======$data03 != 50
   return -1
 endi
 
-if $data04 != 4 then
-  print ======$data04
+if $data04 != 20 then
+  print ======$data04 != 20
   return -1
 endi
 
@@ -421,13 +421,13 @@ if $data12 != 4 then
   return -1
 endi
 
-if $data13 != 10 then
-  print ======$data13
+if $data13 != 46 then
+  print ======$data13 != 46
   return -1
 endi
 
-if $data14 != 3 then
-  print ======$data14
+if $data14 != 20 then
+  print ======$data14 != 20
   return -1
 endi
 

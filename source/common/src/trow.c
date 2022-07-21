@@ -1329,12 +1329,11 @@ void tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColV
   SCellVal  cv;
   SValue    value;
 
-  // ASSERT(iCol > 0);
+  ASSERT((pTColumn->colId == PRIMARYKEY_TIMESTAMP_COL_ID) || (iCol > 0));
 
   if (TD_IS_TP_ROW(pRow)) {
     tdSTpRowGetVal(pRow, pTColumn->colId, pTColumn->type, pTSchema->flen, pTColumn->offset, iCol - 1, &cv);
   } else if (TD_IS_KV_ROW(pRow)) {
-    ASSERT(iCol > 0);
     tdSKvRowGetVal(pRow, pTColumn->colId, iCol - 1, &cv);
   } else {
     ASSERT(0);
