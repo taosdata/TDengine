@@ -118,8 +118,7 @@ struct STsdbReader {
   char*              idStr;  // query info handle, for debug purpose
   int32_t            type;   // query type: 1. retrieve all data blocks, 2. retrieve direct prev|next rows
   SBlockLoadSuppInfo suppInfo;
-  SMemTable*         pMem;
-  SMemTable*         pIMem;
+  STsdbReadSnap*     pReadSnap;
 
   SIOCostSummary cost;
   STSchema*      pSchema;
@@ -275,12 +274,12 @@ static void limitOutputBufferSize(const SQueryTableDataCond* pCond, int32_t* cap
 }
 
 // init file iterator
-static int32_t initFilesetIterator(SFilesetIter* pIter, const STsdbFSState* pFState, int32_t order, const char* idstr) {
-  size_t numOfFileset = taosArrayGetSize(pFState->aDFileSet);
+static int32_t initFilesetIterator(SFilesetIter* pIter, SArray* aDFileSet, int32_t order, const char* idstr) {
+  size_t numOfFileset = taosArrayGetSize(aDFileSet);
 
   pIter->index = ASCENDING_TRAVERSE(order) ? -1 : numOfFileset;
   pIter->order = order;
-  pIter->pFileList = taosArrayDup(pFState->aDFileSet);
+  pIter->pFileList = aDFileSet;
   pIter->numOfFiles = numOfFileset;
 
   tsdbDebug("init fileset iterator, total files:%d %s", pIter->numOfFiles, idstr);
@@ -1881,8 +1880,8 @@ static int32_t initMemDataIterator(STableBlockScanInfo* pBlockScanInfo, STsdbRea
   int32_t backward = (!ASCENDING_TRAVERSE(pReader->order));
 
   STbData* d = NULL;
-  if (pReader->pMem != NULL) {
-    tsdbGetTbDataFromMemTable(pReader->pMem, pReader->suid, pBlockScanInfo->uid, &d);
+  if (pReader->pReadSnap->pMem != NULL) {
+    tsdbGetTbDataFromMemTable(pReader->pReadSnap->pMem, pReader->suid, pBlockScanInfo->uid, &d);
     if (d != NULL) {
       code = tsdbTbDataIterCreate(d, &startKey, backward, &pBlockScanInfo->iter.iter);
       if (code == TSDB_CODE_SUCCESS) {
@@ -1902,8 +1901,8 @@ static int32_t initMemDataIterator(STableBlockScanInfo* pBlockScanInfo, STsdbRea
   }
 
   STbData* di = NULL;
-  if (pReader->pIMem != NULL) {
-    tsdbGetTbDataFromMemTable(pReader->pIMem, pReader->suid, pBlockScanInfo->uid, &di);
+  if (pReader->pReadSnap->pIMem != NULL) {
+    tsdbGetTbDataFromMemTable(pReader->pReadSnap->pIMem, pReader->suid, pBlockScanInfo->uid, &di);
     if (di != NULL) {
       code = tsdbTbDataIterCreate(di, &startKey, backward, &pBlockScanInfo->iiter.iter);
       if (code == TSDB_CODE_SUCCESS) {
@@ -1939,7 +1938,7 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
 
   SArray* pDelData = taosArrayInit(4, sizeof(SDelData));
 
-  SDelFile* pDelFile = tsdbFSStateGetDelFile(pTsdb->pFS->cState);
+  SDelFile* pDelFile = pReader->pReadSnap->fs.pDelFile;
   if (pDelFile) {
     SDelFReader* pDelFReader = NULL;
     code = tsdbDelFReaderOpen(&pDelFReader, pDelFile, pTsdb, NULL);
@@ -2830,8 +2829,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
 
   SDataBlockIter* pBlockIter = &pReader->status.blockIter;
 
-  STsdbFSState* pFState = pReader->pTsdb->pFS->cState;
-  initFilesetIterator(&pReader->status.fileIter, pFState, pReader->order, pReader->idStr);
+  initFilesetIterator(&pReader->status.fileIter, (*ppReader)->pReadSnap->fs.aDFileSet, pReader->order, pReader->idStr);
   resetDataBlockIterator(&pReader->status.blockIter, pReader->order);
 
   // no data in files, let's try buffer in memory
@@ -2844,7 +2842,8 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
     }
   }
 
-  tsdbTakeMemSnapshot(pReader->pTsdb, &pReader->pMem, &pReader->pIMem);
+  code = tsdbTakeReadSnap(pVnode->pTsdb, &pReader->pReadSnap);
+  if (code) goto _err;
 
   tsdbDebug("%p total numOfTable:%d in this query %s", pReader, numOfTables, pReader->idStr);
   return code;
@@ -2861,7 +2860,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
 
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
 
-  tsdbUntakeMemSnapshot(pReader->pTsdb, pReader->pMem, pReader->pIMem);
+  tsdbUntakeReadSnap(pReader->pTsdb, pReader->pReadSnap);
 
   taosMemoryFreeClear(pSupInfo->plist);
   taosMemoryFree(pSupInfo->colIds);
@@ -3081,8 +3080,7 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
 
   tsdbDataFReaderClose(&pReader->pFileReader);
 
-  STsdbFSState* pFState = pReader->pTsdb->pFS->cState;
-  initFilesetIterator(&pReader->status.fileIter, pFState, pReader->order, pReader->idStr);
+  initFilesetIterator(&pReader->status.fileIter, pReader->pReadSnap->fs.aDFileSet, pReader->order, pReader->idStr);
   resetDataBlockIterator(&pReader->status.blockIter, pReader->order);
   resetDataBlockScanInfo(pReader->status.pTableMap);
 
@@ -3275,6 +3273,11 @@ int32_t tsdbTakeReadSnap(STsdb* pTsdb, STsdbReadSnap** ppSnap) {
   }
 
   // fs (todo)
+  code = tsdbFSRef(pTsdb, &(*ppSnap)->fs);
+  if (code) {
+    taosThreadRwlockUnlock(&pTsdb->rwLock);
+    goto _exit;
+  }
 
   // unlock
   code = taosThreadRwlockUnlock(&pTsdb->rwLock);
@@ -3297,6 +3300,6 @@ void tsdbUntakeReadSnap(STsdb* pTsdb, STsdbReadSnap* pSnap) {
       tsdbUnrefMemTable(pSnap->pIMem);
     }
 
-    // fs (todo)
+    tsdbFSUnref(pTsdb, &pSnap->fs);
   }
 }

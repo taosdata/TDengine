@@ -16,7 +16,8 @@
 #include "tsdb.h"
 
 static int32_t tsdbDoRetentionImpl(STsdb *pTsdb, int64_t now, int8_t try, int8_t *canDo) {
-  int32_t       code = 0;
+  int32_t code = 0;
+#if 0
   STsdbFSState *pState;
 
   if (try) {
@@ -64,18 +65,20 @@ static int32_t tsdbDoRetentionImpl(STsdb *pTsdb, int64_t now, int8_t try, int8_t
         code = tsdbDFileSetCopy(pTsdb, pDFileSet, &nDFileSet);
         if (code) goto _exit;
 
-        code = tsdbFSStateUpsertDFileSet(pState, &nDFileSet);
+        code = tsdbFSUpsertFSet(pState, &nDFileSet);
         if (code) goto _exit;
       }
     }
   }
 
+#endif
 _exit:
   return code;
 }
 
 int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
   int32_t code = 0;
+#if 0
   int8_t  canDo;
 
   // try
@@ -100,5 +103,6 @@ _exit:
 _err:
   tsdbError("vgId:%d tsdb do retention failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   tsdbFSRollback(pTsdb->pFS);
+#endif
   return code;
 }

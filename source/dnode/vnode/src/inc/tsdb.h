@@ -62,7 +62,6 @@ typedef struct SDelFReader   SDelFReader;
 typedef struct SRowIter      SRowIter;
 typedef struct STsdbFS       STsdbFS;
 typedef struct SRowMerger    SRowMerger;
-typedef struct STsdbFSState  STsdbFSState;
 typedef struct STsdbSnapHdr  STsdbSnapHdr;
 typedef struct STsdbReadSnap STsdbReadSnap;
 
@@ -177,8 +176,6 @@ void    tsdbMemTableDestroy(SMemTable *pMemTable);
 void    tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData);
 void    tsdbRefMemTable(SMemTable *pMemTable);
 void    tsdbUnrefMemTable(SMemTable *pMemTable);
-int32_t tsdbTakeMemSnapshot(STsdb *pTsdb, SMemTable **ppMem, SMemTable **ppIMem);
-void    tsdbUntakeMemSnapshot(STsdb *pTsdb, SMemTable *pMem, SMemTable *pIMem);
 // STbDataIter
 int32_t  tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
 void    *tsdbTbDataIterDestroy(STbDataIter *pIter);
@@ -208,17 +205,20 @@ void tsdbSmaFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSmaFile *pSmaF, ch
 // SDelFile
 void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]);
 // tsdbFS.c ==============================================================================================
-int32_t tsdbFSOpen(STsdb *pTsdb, STsdbFS **ppFS);
-int32_t tsdbFSClose(STsdbFS *pFS);
-int32_t tsdbFSBegin(STsdbFS *pFS);
-int32_t tsdbFSCommit(STsdbFS *pFS);
+int32_t tsdbFSOpen(STsdb *pTsdb);
+int32_t tsdbFSClose(STsdb *pTsdb);
+int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS);
+void    tsdbFSDestroy(STsdbFS *pFS);
+int32_t tDFileSetCmprFn(const void *p1, const void *p2);
+int32_t tsdbFSCommit1(STsdb *pTsdb, STsdbFS *pFS);
+int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFS);
+int32_t tsdbFSRef(STsdb *pTsdb, STsdbFS *pFS);
+void    tsdbFSUnref(STsdb *pTsdb, STsdbFS *pFS);
+
 int32_t tsdbFSRollback(STsdbFS *pFS);
 
-int32_t    tsdbFSStateUpsertDelFile(STsdbFSState *pState, SDelFile *pDelFile);
-int32_t    tsdbFSStateUpsertDFileSet(STsdbFSState *pState, SDFileSet *pSet);
-void       tsdbFSStateDeleteDFileSet(STsdbFSState *pState, int32_t fid);
-SDelFile  *tsdbFSStateGetDelFile(STsdbFSState *pState);
-SDFileSet *tsdbFSStateGetDFileSet(STsdbFSState *pState, int32_t fid, int32_t flag);
+int32_t tsdbFSUpsertFSet(STsdbFS *pFS, SDFileSet *pSet);
+int32_t tsdbFSUpsertDelFile(STsdbFS *pFS, SDelFile *pDelFile);
 // tsdbReaderWriter.c ==============================================================================================
 // SDataFWriter
 int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet);
@@ -285,6 +285,11 @@ typedef struct {
   TSKEY minKey;
 } SRtn;
 
+struct STsdbFS {
+  SDelFile *pDelFile;
+  SArray   *aDFileSet;  // SArray<SDFileSet>
+};
+
 struct STsdb {
   char          *path;
   SVnode        *pVnode;
@@ -292,7 +297,7 @@ struct STsdb {
   TdThreadRwlock rwLock;
   SMemTable     *mem;
   SMemTable     *imem;
-  STsdbFS       *pFS;
+  STsdbFS        fs;
   SLRUCache     *lruCache;
 };
 
@@ -538,22 +543,6 @@ struct SRowMerger {
   STSchema *pTSchema;
   int64_t   version;
   SArray   *pArray;  // SArray<SColVal>
-};
-
-struct STsdbFSState {
-  SDelFile *pDelFile;
-  SArray   *aDFileSet;  // SArray<aDFileSet>
-  SDelFile  delFile;
-};
-
-struct STsdbFS {
-  STsdb        *pTsdb;
-  STsdbFSState *cState;
-  STsdbFSState *nState;
-
-  // new
-  SDelFile *pDelFile;
-  SArray    aDFileSetP;  // SArray<SDFileSet *>
 };
 
 struct SDelFWriter {

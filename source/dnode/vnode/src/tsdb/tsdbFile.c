@@ -122,20 +122,10 @@ int32_t tsdbDFileRollback(STsdb *pTsdb, SDFileSet *pSet, EDataFileT ftype) {
 
   // truncate
   switch (ftype) {
-    case TSDB_HEAD_FILE:
-      size = pSet->pHeadF->size;
-      tsdbHeadFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pHeadF, fname);
-      tPutHeadFile(hdr, pSet->pHeadF);
-      break;
     case TSDB_DATA_FILE:
       size = pSet->pDataF->size;
       tsdbDataFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pDataF, fname);
       tPutDataFile(hdr, pSet->pDataF);
-      break;
-    case TSDB_LAST_FILE:
-      size = pSet->pLastF->size;
-      tsdbLastFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pLastF, fname);
-      tPutLastFile(hdr, pSet->pLastF);
       break;
     case TSDB_SMA_FILE:
       size = pSet->pSmaF->size;
@@ -186,6 +176,7 @@ int32_t tsdbDFileRollback(STsdb *pTsdb, SDFileSet *pSet, EDataFileT ftype) {
   return code;
 
 _err:
+  tsdbError("vgId:%d tsdb rollback file failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -219,10 +210,8 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
 
 // SDelFile ===============================================
 void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]) {
-  STfs *pTfs = pTsdb->pVnode->pTfs;
-
-  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%dver%" PRId64 "%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, pTsdb->path,
-           TD_DIRSEP, TD_VID(pTsdb->pVnode), pFile->commitID, ".del");
+  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%dver%" PRId64 "%s", tfsGetPrimaryPath(pTsdb->pVnode->pTfs),
+           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), pFile->commitID, ".del");
 }
 
 int32_t tPutDelFile(uint8_t *p, SDelFile *pDelFile) {

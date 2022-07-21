@@ -29,6 +29,7 @@ typedef struct {
   int32_t minRow;
   int32_t maxRow;
   int8_t  cmprAlg;
+  STsdbFS fs;
   // --------------
   TSKEY   nextKey;  // reset by each table commit
   int32_t commitFid;
@@ -119,9 +120,6 @@ int32_t tsdbCommit(STsdb *pTsdb) {
   code = tsdbCommitDel(&commith);
   if (code) goto _err;
 
-  code = tsdbCommitCache(&commith);
-  if (code) goto _err;
-
   // end commit
   code = tsdbEndCommit(&commith, 0);
   if (code) goto _err;
@@ -158,7 +156,7 @@ static int32_t tsdbCommitDelStart(SCommitter *pCommitter) {
     goto _err;
   }
 
-  SDelFile *pDelFileR = pTsdb->pFS->nState->pDelFile;
+  SDelFile *pDelFileR = pCommitter->fs.pDelFile;
   if (pDelFileR) {
     code = tsdbDelFReaderOpen(&pCommitter->pDelFReader, pDelFileR, pTsdb, NULL);
     if (code) goto _err;
@@ -247,7 +245,7 @@ static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
   code = tsdbUpdateDelFileHdr(pCommitter->pDelFWriter);
   if (code) goto _err;
 
-  code = tsdbFSStateUpsertDelFile(pTsdb->pFS->nState, &pCommitter->pDelFWriter->fDel);
+  code = tsdbFSUpsertDelFile(&pCommitter->fs, &pCommitter->pDelFWriter->fDel);
   if (code) goto _err;
 
   code = tsdbDelFWriterClose(&pCommitter->pDelFWriter, 1);
@@ -281,7 +279,8 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   taosArrayClear(pCommitter->aBlockIdx);
   tMapDataReset(&pCommitter->oBlockMap);
   tBlockDataReset(&pCommitter->oBlockData);
-  pRSet = tsdbFSStateGetDFileSet(pTsdb->pFS->nState, pCommitter->commitFid, TD_EQ);
+  pRSet = (SDFileSet *)taosArraySearch(pCommitter->fs.aDFileSet, &(SDFileSet){.fid = pCommitter->commitFid},
+                                       tDFileSetCmprFn, TD_EQ);
   if (pRSet) {
     code = tsdbDataFReaderOpen(&pCommitter->pReader, pTsdb, pRSet);
     if (code) goto _err;
@@ -860,7 +859,7 @@ static int32_t tsdbCommitFileDataEnd(SCommitter *pCommitter) {
   if (code) goto _err;
 
   // upsert SDFileSet
-  code = tsdbFSStateUpsertDFileSet(pCommitter->pTsdb->pFS->nState, &pCommitter->pWriter->wSet);
+  code = tsdbFSUpsertFSet(&pCommitter->fs, &pCommitter->pWriter->wSet);
   if (code) goto _err;
 
   // close and sync
@@ -978,7 +977,7 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   pCommitter->maxRow = pTsdb->pVnode->config.tsdbCfg.maxRows;
   pCommitter->cmprAlg = pTsdb->pVnode->config.tsdbCfg.compression;
 
-  code = tsdbFSBegin(pTsdb->pFS);
+  code = tsdbFSCopy(pTsdb, &pCommitter->fs);
   if (code) goto _err;
 
   return code;
@@ -1147,28 +1146,33 @@ _err:
   return code;
 }
 
-static int32_t tsdbCommitCache(SCommitter *pCommitter) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
 static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
   int32_t    code = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
   SMemTable *pMemTable = pTsdb->imem;
 
-  if (eno == 0) {
-    code = tsdbFSCommit(pTsdb->pFS);
-  } else {
-    code = tsdbFSRollback(pTsdb->pFS);
+  ASSERT(eno);
+
+  code = tsdbFSCommit1(pTsdb, &pCommitter->fs);
+  if (code) goto _err;
+
+  // lock
+  taosThreadRwlockWrlock(&pTsdb->rwLock);
+
+  // commit or rollback
+  code = tsdbFSCommit2(pTsdb, &pCommitter->fs);
+  if (code) {
+    taosThreadRwlockUnlock(&pTsdb->rwLock);
+    goto _err;
   }
 
-  taosThreadRwlockWrlock(&pTsdb->rwLock);
   pTsdb->imem = NULL;
+
+  // unlock
   taosThreadRwlockUnlock(&pTsdb->rwLock);
 
   tsdbUnrefMemTable(pMemTable);
+  tsdbFSDestroy(&pCommitter->fs);
 
   tsdbInfo("vgId:%d tsdb end commit", TD_VID(pTsdb->pVnode));
   return code;
