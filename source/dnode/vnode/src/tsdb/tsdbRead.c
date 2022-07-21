@@ -2539,8 +2539,7 @@ static int32_t checkForNeighborFileBlock(STsdbReader* pReader, STableBlockScanIn
 
     pDumpInfo->rowIndex =
         doMergeRowsInFileBlockImpl(pBlockData, pDumpInfo->rowIndex, key, pMerger, &pReader->verRange, step);
-
-    if (pDumpInfo->rowIndex >= pBlock->nRow) {
+    if (pDumpInfo->rowIndex >= pDumpInfo->totalRows) {
       *state = CHECK_FILEBLOCK_CONT;
     }
   }

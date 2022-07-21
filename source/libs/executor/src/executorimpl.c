@@ -4145,11 +4145,16 @@ static STsdbReader* doCreateDataReader(STableScanPhysiNode* pTableScanNode, SRea
 
 static SArray* extractColumnInfo(SNodeList* pNodeList);
 
+SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode);
+
 int32_t extractTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, SExecTaskInfo* pTaskInfo) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pHandle->meta, 0);
   int32_t code = metaGetTableEntryByUid(&mr, pScanNode->uid);
   if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to get the table meta, uid:0x%"PRIx64", suid:0x%"PRIx64 ", %s", pScanNode->uid, pScanNode->suid,
+        GET_TASKID(pTaskInfo));
+
     metaReaderClear(&mr);
     return terrno;
   }
@@ -4173,25 +4178,27 @@ int32_t extractTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, 
 
   metaReaderClear(&mr);
 
+  pSchemaInfo->qsw = extractQueriedColumnSchema(pScanNode);
+  return TSDB_CODE_SUCCESS;
+}
+
+SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
   int32_t numOfCols = LIST_LENGTH(pScanNode->pScanCols);
   SSchemaWrapper* pqSw = taosMemoryCalloc(1, sizeof(SSchemaWrapper));
   pqSw->pSchema = taosMemoryCalloc(numOfCols, sizeof(SSchema));
-  pqSw->version = pSchemaInfo->sw->version;
 
   for(int32_t i = 0; i < numOfCols; ++i) {
-    STargetNode* pNode = (STargetNode*) nodesListGetNode(pScanNode->pScanCols, i);
+    STargetNode* pNode = (STargetNode*)nodesListGetNode(pScanNode->pScanCols, i);
     SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
 
-    for(int32_t j = 0; j < pSchemaInfo->sw->nCols; ++j) {
-      if (pColNode->colId == pSchemaInfo->sw->pSchema[j].colId) {
-        pqSw->pSchema[pqSw->nCols++] = pSchemaInfo->sw->pSchema[j];
-        break;
-      }
-    }
+    SSchema* pSchema = &pqSw->pSchema[pqSw->nCols++];
+    pSchema->colId = pColNode->colId;
+    pSchema->type = pColNode->node.resType.type;
+    pSchema->type = pColNode->node.resType.bytes;
+    strncpy(pSchema->name, pColNode->colName, tListLen(pSchema->name));
   }
 
-  pSchemaInfo->qsw = pqSw;
-  return TSDB_CODE_SUCCESS;
+  return pqSw;
 }
 
 static void cleanupTableSchemaInfo(SSchemaInfo* pSchemaInfo) {
@@ -4449,7 +4456,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         }
       }
 
-      extractTableSchemaInfo(pHandle, &pTableScanNode->scan, pTaskInfo);
+      pTaskInfo->schemaInfo.qsw = extractQueriedColumnSchema(&pTableScanNode->scan);
       SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTaskInfo);
       return pOperator;
 
