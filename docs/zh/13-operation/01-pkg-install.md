@@ -8,9 +8,11 @@ import TabItem from "@theme/TabItem";
 
 本节将介绍一些关于安装和卸载更深层次的内容，以及升级的注意事项。
 
-## 安装和卸载
+## 安装
 
-关于安装和卸载，请参考 [安装和卸载](../get-started/package)
+关于安装，请参考 [安装和卸载](../get-started/package)
+
+
 
 ## 安装目录说明
 
@@ -39,6 +41,76 @@ lrwxrwxrwx  1 root root   13 Feb 22 09:34 log -> /var/log/taos/
 - /usr/local/taos/bin 目录下的可执行文件，会软链接到 /usr/bin 目录下；
 - /usr/local/taos/driver 目录下的动态库文件，会软链接到 /usr/lib 目录下；
 - /usr/local/taos/include 目录下的头文件，会软链接到到 /usr/include 目录下；
+
+## 卸载
+
+<Tabs>
+<TabItem label="apt-get 卸载" value="aptremove">
+
+内容 TBD
+
+</TabItem>
+<TabItem label="Deb 卸载" value="debuninst">
+
+卸载命令如下:
+
+```
+$ sudo dpkg -r tdengine
+(Reading database ... 137504 files and directories currently installed.)
+Removing tdengine (2.4.0.7) ...
+TDengine is removed successfully!
+
+```
+
+</TabItem>
+
+<TabItem label="RPM 卸载" value="rpmuninst">
+
+卸载命令如下:
+
+```
+$ sudo rpm -e tdengine
+TDengine is removed successfully!
+```
+
+</TabItem>
+
+<TabItem label="tar.gz 卸载" value="taruninst">
+
+卸载命令如下:
+
+```
+$ rmtaos
+Nginx for TDengine is running, stopping it...
+TDengine is removed successfully!
+
+taosKeeper is removed successfully!
+```
+
+</TabItem>
+</Tabs>
+
+:::info
+
+- TDengine 提供了多种安装包，但最好不要在一个系统上同时使用 tar.gz 安装包和 deb 或 rpm 安装包。否则会相互影响，导致在使用时出现问题。
+
+- 对于 deb 包安装后，如果安装目录被手工误删了部分，出现卸载、或重新安装不能成功。此时，需要清除 TDengine 包的安装信息，执行如下命令：
+
+  ```
+  $ sudo rm -f /var/lib/dpkg/info/tdengine*
+  ```
+
+然后再重新进行安装就可以了。
+
+- 对于 rpm 包安装后，如果安装目录被手工误删了部分，出现卸载、或重新安装不能成功。此时，需要清除 TDengine 包的安装信息，执行如下命令：
+
+  ```
+  $ sudo rpm -e --noscripts tdengine
+  ```
+
+然后再重新进行安装就可以了。
+
+:::
 
 ## 卸载和更新文件说明
 
