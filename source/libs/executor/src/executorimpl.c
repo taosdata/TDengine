@@ -3963,6 +3963,8 @@ static SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
     size_t rows = pInfo->pRes->info.rows;
     if (rows > 0 || pOperator->status == OP_EXEC_DONE) {
       break;
+    } else {
+      blockDataCleanup(pInfo->pRes);
     }
   }
 
