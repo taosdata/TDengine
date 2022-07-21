@@ -359,6 +359,7 @@ void setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData* p
 
   SScalarParam param = {.columnData = pColInfoData};
   fpSet.process(&srcParam, 1, &param);
+  colDataDestroy(&infoData);
 }
 
 static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
@@ -2045,8 +2046,8 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
         uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
         int32_t  code = metaGetTableEntryByUid(&mr, suid);
         if (code != TSDB_CODE_SUCCESS) {
-          qError("failed to get super table meta, uid:0x%" PRIx64 ", code:%s, %s", suid, tstrerror(terrno),
-                 GET_TASKID(pTaskInfo));
+          qError("failed to get super table meta, cname:%s, suid:0x%" PRIx64 ", code:%s, %s", 
+                 pInfo->pCur->mr.me.name, suid, tstrerror(terrno), GET_TASKID(pTaskInfo));
           metaReaderClear(&mr);
           metaCloseTbCursor(pInfo->pCur);
           pInfo->pCur = NULL;
@@ -2152,16 +2153,39 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
   }
 }
 
+
+static SSDataBlock* sysTableScanUserSTables(SOperatorInfo* pOperator) {
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SSysTableScanInfo* pInfo = pOperator->info;
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+
+  pInfo->pRes->info.rows = 0;
+  pOperator->status = OP_EXEC_DONE;
+
+  pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+  return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
+}
+
 static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   // build message and send to mnode to fetch the content of system tables.
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
 
   const char* name = tNameGetTableName(&pInfo->name);
+  if (pInfo->showRewrite) {
+    char dbName[TSDB_DB_NAME_LEN] = {0};
+    getDBNameFromCondition(pInfo->pCondition, dbName);
+    sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
+  }
+  
   if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, TSDB_TABLE_FNAME_LEN) == 0) {
     return sysTableScanUserTables(pOperator);
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
     return sysTableScanUserTags(pOperator);
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STABLES, TSDB_TABLE_FNAME_LEN) == 0 && IS_SYS_DBNAME(pInfo->req.db)) {
+    return sysTableScanUserSTables(pOperator);
   } else {  // load the meta from mnode of the given epset
     if (pOperator->status == OP_EXEC_DONE) {
       return NULL;
@@ -2171,12 +2195,6 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       int64_t startTs = taosGetTimestampUs();
       strncpy(pInfo->req.tb, tNameGetTableName(&pInfo->name), tListLen(pInfo->req.tb));
       strcpy(pInfo->req.user, pInfo->pUser);
-
-      if (pInfo->showRewrite) {
-        char dbName[TSDB_DB_NAME_LEN] = {0};
-        getDBNameFromCondition(pInfo->pCondition, dbName);
-        sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
-      }
 
       int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &pInfo->req);
       char*   buf1 = taosMemoryCalloc(1, contLen);

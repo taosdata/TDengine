@@ -226,11 +226,13 @@ typedef struct {
   int         index;
   int         nAsync;
   uv_async_t* asyncs;
+  int8_t      stop;
 } SAsyncPool;
 
 SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb);
 void        transDestroyAsyncPool(SAsyncPool* pool);
 int         transAsyncSend(SAsyncPool* pool, queue* mq);
+bool        transAsyncPoolIsEmpty(SAsyncPool* pool);
 
 #define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc) \
   do {                                                        \
@@ -289,14 +291,14 @@ void transUnrefSrvHandle(void* handle);
 void transRefCliHandle(void* handle);
 void transUnrefCliHandle(void* handle);
 
-void transReleaseCliHandle(void* handle);
-void transReleaseSrvHandle(void* handle);
+int transReleaseCliHandle(void* handle);
+int transReleaseSrvHandle(void* handle);
 
-void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
-void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
-void transSendResponse(const STransMsg* msg);
-void transRegisterMsg(const STransMsg* msg);
-void transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
+int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
+int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
+int transSendResponse(const STransMsg* msg);
+int transRegisterMsg(const STransMsg* msg);
+int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
 
 int64_t transAllocHandle();
 
