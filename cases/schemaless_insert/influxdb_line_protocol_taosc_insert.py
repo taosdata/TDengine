@@ -694,6 +694,22 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             raise Exception("should not reach here")
         except SchemalessError as err:
             self.tdSql.checkNotEqual(err.errno, 0)
+    
+    def same_ts_batch_insert(self):
+        """
+        test same ts batch insert
+        """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
+        self.tdCom.cleanTb()
+        input_sql = ['ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=false,c1=1i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="xcxvwjvf",c8=L"ncharColValue",c9=7u64 1626006833639000000',
+        'ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=T,c1=2i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="fixrzcuq",c8=L"ncharColValue",c9=7u64 1626006833639000000',
+        'ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=t,c1=3i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="iupzdqub",c8=L"ncharColValue",c9=7u64 1626006833639000000',
+        'ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=t,c1=4i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="yvvtzzof",c8=L"ncharColValue",c9=7u64 1626006833639000000',
+        'ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=t,c1=5i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="vbxpilkj",c8=L"ncharColValue",c9=7u64 1626006833639000000']
+        self.tdSql._conn.schemaless_insert(input_sql, TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+        self.tdSql.query('select * from ubzlsr')
+        self.tdSql.checkEqual(self.tdSql.query_row, 1)
+        self.tdSql.checkEqual(int(self.tdSql.query_data[0][2]), 5)
 
     def multi_tags_insert_check(self):
         """
@@ -1045,6 +1061,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             # TODO self.tag_col_binary_max_length_check()
             self.batch_insert_check()
             self.multi_insert_check(100)
+            self.same_ts_batch_insert()
             self.batch_error_insert_check()
             self.multi_cols_insert_check()
             self.multi_tags_insert_check()
