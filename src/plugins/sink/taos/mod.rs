@@ -13,7 +13,7 @@ use std::{
 
 use futures::{Sink, Stream, TryStreamExt};
 use taos::{
-    block::{itypes::IsValue, Describe, Ty, RawData},
+    block::{itypes::IsValue, Describe, RawData, Ty},
     helpers::{ColumnMeta, Described},
     query::Dsn,
     tmq::{Consumer, TmqBuilder},
@@ -215,9 +215,14 @@ pub fn sync_table_with_transformer(
             },
         );
 
-        let names = names.iter().map(|name| format!("last(`{name}`) as `{name}`")).join(",");
+        let names = names
+            .iter()
+            .map(|name| format!("last(`{name}`) as `{name}`"))
+            .join(",");
         let children: Vec<Vec<Value>> = from
-            .query(format!("select tbname,{names} from {stable} group by tbname"))?
+            .query(format!(
+                "select tbname,{names} from {stable} group by tbname"
+            ))?
             .deserialize()
             .try_collect()?;
 

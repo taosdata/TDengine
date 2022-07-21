@@ -2,7 +2,6 @@ use std::ffi::c_void;
 
 use bytes::Bytes;
 
-
 #[derive(Debug)]
 pub struct RawMeta {
     data: Bytes,

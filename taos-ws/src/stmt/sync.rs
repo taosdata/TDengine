@@ -116,7 +116,6 @@ fn test_stmt_stable() -> anyhow::Result<()> {
     Ok(())
 }
 
-
 #[test]
 fn test_stmt_table() -> anyhow::Result<()> {
     use crate::Ws;

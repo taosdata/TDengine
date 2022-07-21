@@ -1,9 +1,9 @@
 pub mod blocks;
+mod future;
 pub mod message;
 pub mod old;
 mod raw_res;
-mod future;
 
+pub use future::QueryFuture;
 pub use old::BlockStream;
 pub use raw_res::RawRes;
-pub use future::QueryFuture;

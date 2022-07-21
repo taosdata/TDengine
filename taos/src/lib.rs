@@ -226,10 +226,7 @@ mod tests {
             .unwrap()
             .block_on(async {
                 let taos = Taos::new("localhost", "root", "taosdata", "log", 0).unwrap();
-                let mut res = taos
-                    .query("show databases")
-                    .await
-                    .unwrap();
+                let mut res = taos.query("show databases").await.unwrap();
                 let stream = res.block_stream();
 
                 use futures::stream::StreamExt;

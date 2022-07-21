@@ -18,7 +18,6 @@ use crate::{
     tmq_get_db_name, tmq_get_json_meta, tmq_get_res_type, tmq_get_table_name, tmq_res_t,
 };
 
-
 #[derive(Debug)]
 pub struct BlockStream {
     msg_type: tmq_res_t,

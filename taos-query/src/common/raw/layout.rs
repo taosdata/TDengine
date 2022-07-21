@@ -1,4 +1,4 @@
-use std::ops::{BitAndAssign, BitOrAssign, BitAnd};
+use std::ops::{BitAnd, BitAndAssign, BitOrAssign};
 
 use bitflags::bitflags;
 
@@ -182,7 +182,7 @@ impl Layout {
             Self::IS_RAW_META => InlineFormat::RawMeta,
             Self::IS_STB_DATA => InlineFormat::StbData,
             Self::IS_HEADER => InlineFormat::Header,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }

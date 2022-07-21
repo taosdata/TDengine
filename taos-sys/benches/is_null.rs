@@ -21,7 +21,7 @@ unsafe fn is_null(ptr: *const u8, row: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test::{Bencher, black_box};
+    use test::{black_box, Bencher};
 
     #[test]
     fn test() {

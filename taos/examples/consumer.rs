@@ -1,5 +1,5 @@
-use taos::tmq::Consumer;
 use taos::prelude::sync::*;
+use taos::tmq::Consumer;
 
 fn main() -> anyhow::Result<()> {
     let mut consumer = taos::tmq::TmqBuilder::from_dsn("taos:///")?.build()?;
@@ -13,10 +13,8 @@ fn main() -> anyhow::Result<()> {
             // consume message.
             let data = message.to_owned_message();
 
-
             // you can save the offset and commit it after all message are consumed.
             consumer.commit_sync(offset);
-
         }
     }
     Ok(())

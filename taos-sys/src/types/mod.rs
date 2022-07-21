@@ -450,16 +450,12 @@ impl TaosMultiBind {
     pub(crate) fn from_string_vec(values: &[Option<impl AsRef<str>>]) -> Self {
         let values: Vec<_> = values
             .iter()
-            .map(|f| {
-                f.as_ref()
-                    .map(|s| dbg!(s.as_ref().as_bytes()))
-            })
+            .map(|f| f.as_ref().map(|s| dbg!(s.as_ref().as_bytes())))
             .collect();
         let mut s = Self::from_binary_vec(&values);
         s.buffer_type = Ty::NChar as _;
         s
     }
-
 
     pub(crate) fn from_json(values: &[Option<impl AsRef<str>>]) -> Self {
         let values: Vec<_> = values
@@ -603,17 +599,13 @@ impl<'b> From<&'b ColumnView> for TaosMultiBind {
                 let values = view.as_raw_slice();
                 TaosMultiBind::from_primitives(nulls, values)
             }
-            VarChar(view) => {
-                TaosMultiBind::from_binary_vec(&view.to_vec())
-            }
+            VarChar(view) => TaosMultiBind::from_binary_vec(&view.to_vec()),
             Timestamp(view) => {
                 let nulls: Vec<_> = view.is_null_iter().collect();
                 let values = view.as_raw_slice();
                 TaosMultiBind::from_raw_timestamps(nulls, values)
             }
-            NChar(view) => {
-                TaosMultiBind::from_string_vec(&view.to_vec())
-            }
+            NChar(view) => TaosMultiBind::from_string_vec(&view.to_vec()),
             UTinyInt(view) => {
                 let nulls: Vec<_> = view.is_null_iter().collect();
                 let values = view.as_raw_slice();
@@ -634,9 +626,7 @@ impl<'b> From<&'b ColumnView> for TaosMultiBind {
                 let values = view.as_raw_slice();
                 TaosMultiBind::from_primitives(nulls, values)
             }
-            Json(view) => {
-                TaosMultiBind::from_json(&view.to_vec())
-            }
+            Json(view) => TaosMultiBind::from_json(&view.to_vec()),
         }
     }
 }

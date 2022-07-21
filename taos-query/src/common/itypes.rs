@@ -145,7 +145,6 @@ pub trait IValue: Sized {
     fn into_inner(self) -> Self::Inner;
 }
 
-
 impl IValue for INull {
     const TY: Ty = Ty::Null;
 

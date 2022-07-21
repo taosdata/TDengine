@@ -47,9 +47,7 @@ pub async fn sync_schema(from: &Taos, to: &Taos) -> Result<(), Error> {
             // let names = fields.tag_names().map(|name| format!("last(`{name}`) as `{name}`")).join(",");
             let names = fields.tag_names().join(",");
             let fields: Vec<Value> = from
-                .query_one(format!(
-                    "select {names} from `{table_name}`"
-                ))
+                .query_one(format!("select {names} from `{table_name}`"))
                 .await?
                 .unwrap();
 
@@ -97,9 +95,14 @@ pub fn sync_table(from: &Taos, to: &Taos, db: &str, table: &str) -> Result<(), E
         to.exec(sql)?;
 
         // let names = desc.tag_names().join(",");
-        let names = desc.tag_names().map(|name| format!("last(`{name}`) as `{name}`")).join(",");
+        let names = desc
+            .tag_names()
+            .map(|name| format!("last(`{name}`) as `{name}`"))
+            .join(",");
         let children: Vec<Vec<Value>> = from
-            .query(format!("select tbname,{names} from {stable} group by tbname"))?
+            .query(format!(
+                "select tbname,{names} from {stable} group by tbname"
+            ))?
             .deserialize()
             .try_collect()?;
 

@@ -144,7 +144,6 @@ impl FromStr for Error {
     }
 }
 
-
 // impl<T: std::error::Error> From<T> for Error {
 //     fn from(_: T) -> Self {
 //         todo!()

@@ -1,6 +1,5 @@
 use super::*;
 
-
 // type DeserializeIter<'b, B, T> =
 //     std::iter::Map<RowsIter<'b, B>, fn(RowInBlock<'b, B>) -> Result<T, DeError>>;
 
@@ -123,7 +122,6 @@ pub trait BlockExt: Debug + Sized {
     //     futures::stream::iter(Self::deserialize(self))
     // }
 }
-
 
 pub struct CellIter<'b, T: BlockExt> {
     block: &'b T,

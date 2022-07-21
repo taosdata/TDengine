@@ -1,4 +1,4 @@
-use crate::{ffi::*, into_c_str::IntoCStr, RawRes, RawTaos, ResultSet, err_or};
+use crate::{err_or, ffi::*, into_c_str::IntoCStr, RawRes, RawTaos, ResultSet};
 
 use std::{ffi::CStr, os::raw::*};
 

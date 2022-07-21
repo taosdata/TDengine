@@ -1,7 +1,6 @@
-use std::os::raw::{c_int, c_void, c_char};
+use std::os::raw::{c_char, c_int, c_void};
 
-use crate::common::{Ty, itypes::IsValue};
-
+use crate::common::{itypes::IsValue, Ty};
 
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -26,7 +25,6 @@ impl RawMultiBind {
         }
     }
 }
-
 
 pub trait BindFrom: Sized {
     fn null() -> Self;
