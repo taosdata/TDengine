@@ -23,7 +23,7 @@ class TDTestCase:
         self.time_step = 1000
 
     def insert_datas_and_check_irate(self ,tbnums , rownums , time_step ):
-    
+
         tdLog.info(" prepare datas for auto check irate function ")
 
         tdSql.execute(" create database test ")
@@ -48,7 +48,7 @@ class TDTestCase:
                 c9 = "'nchar_val'"
                 c10 = ts
                 tdSql.execute(f" insert into  {tbname} values ({ts},{c1},{c2},{c3},{c4},{c5},{c6},{c7},{c8},{c9},{c10})")
-                
+
         tdSql.execute("use test")
         tbnames = ["stb", "sub_tb_1"]
         support_types = ["BIGINT", "SMALLINT", "TINYINT", "FLOAT", "DOUBLE", "INT"]
@@ -204,11 +204,11 @@ class TDTestCase:
         # used for sub table
         tdSql.query("select irate(abs(c1+c2)) from ct1")
         tdSql.checkData(0, 0, 0.000000000)
-   
+
 
         # mix with common col
         tdSql.error("select c1, irate(c1) from ct1")
-   
+
         # mix with common functions
         tdSql.error("select irate(c1), abs(c1) from ct4 ")
 
@@ -236,7 +236,7 @@ class TDTestCase:
             "select irate(c1+c2)/10 from stb1 where c1 = 5 partition by tbname ")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0.000000000)
-      
+
 
     def irate_Arithmetic(self):
         pass

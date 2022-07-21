@@ -1940,17 +1940,20 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
   if (pDelFile) {
     SDelFReader* pDelFReader = NULL;
     code = tsdbDelFReaderOpen(&pDelFReader, pDelFile, pTsdb, NULL);
-    if (code) {
+    if (code != TSDB_CODE_SUCCESS) {
       goto _err;
     }
 
     SArray* aDelIdx = taosArrayInit(4, sizeof(SDelIdx));
     if (aDelIdx == NULL) {
+      tsdbDelFReaderClose(&pDelFReader);
       goto _err;
     }
 
     code = tsdbReadDelIdx(pDelFReader, aDelIdx, NULL);
-    if (code) {
+    if (code != TSDB_CODE_SUCCESS) {
+      taosArrayDestroy(aDelIdx);
+      tsdbDelFReaderClose(&pDelFReader);
       goto _err;
     }
 
@@ -1959,9 +1962,13 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
 
     if (pIdx != NULL) {
       code = tsdbReadDelData(pDelFReader, pIdx, pDelData, NULL);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto _err;
-      }
+    }
+
+    taosArrayDestroy(aDelIdx);
+    tsdbDelFReaderClose(&pDelFReader);
+
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _err;
     }
   }
 
@@ -2529,8 +2536,7 @@ static int32_t checkForNeighborFileBlock(STsdbReader* pReader, STableBlockScanIn
 
     pDumpInfo->rowIndex =
         doMergeRowsInFileBlockImpl(pBlockData, pDumpInfo->rowIndex, key, pMerger, &pReader->verRange, step);
-
-    if (pDumpInfo->rowIndex >= pBlock->nRow) {
+    if (pDumpInfo->rowIndex >= pDumpInfo->totalRows) {
       *state = CHECK_FILEBLOCK_CONT;
     }
   }
