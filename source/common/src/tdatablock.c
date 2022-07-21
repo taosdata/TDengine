@@ -1169,7 +1169,9 @@ void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
   } else {
     if (pColumn->nullbitmap != NULL) {
       memset(pColumn->nullbitmap, 0, BitmapLen(numOfRows));
-      memset(pColumn->pData, 0, pColumn->info.bytes * numOfRows);
+      if (pColumn->pData != NULL) {
+        memset(pColumn->pData, 0, pColumn->info.bytes * numOfRows);
+      }
     }
   }
 }

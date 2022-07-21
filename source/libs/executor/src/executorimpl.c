@@ -1647,11 +1647,6 @@ static int32_t compressQueryColData(SColumnInfoData* pColRes, int32_t numOfRows,
                                                       colSize + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
 }
 
-int32_t doFillTimeIntervalGapsInResults(struct SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t capacity) {
-  int32_t numOfRows = (int32_t)taosFillResultDataBlock(pFillInfo, pBlock, capacity - pBlock->info.rows);
-  return pBlock->info.rows;
-}
-
 void queryCostStatis(SExecTaskInfo* pTaskInfo) {
   STaskCostInfo* pSummary = &pTaskInfo->cost;
 
