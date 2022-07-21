@@ -12,6 +12,7 @@ from subprocess import run
 
 class TDengineCLI(TDCase):
     def init(self):
+        self.logger.info(f"--------case.params={self.case_param}--------------------")
         os.environ.update(self.env_setting["env"])
 
     def cleanup(self):
