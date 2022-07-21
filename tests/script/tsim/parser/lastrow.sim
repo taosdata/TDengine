@@ -58,11 +58,9 @@ run tsim/parser/lastrow_query.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 500
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 sql connect
-sleep 100
 
 run tsim/parser/lastrow_query.sim
 

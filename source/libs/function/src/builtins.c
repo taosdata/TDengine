@@ -958,6 +958,7 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
     return false;
   }
 
+  cJSON_Delete(binDesc);
   taosMemoryFree(intervals);
   return true;
 }

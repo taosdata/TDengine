@@ -210,7 +210,7 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
 }
 
 
-bool taosCheckSystemIsSmallEnd() {
+bool taosCheckSystemIsLittleEnd() {
   union check {
     int16_t i;
     char    ch[2];

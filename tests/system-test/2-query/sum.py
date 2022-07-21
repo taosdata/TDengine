@@ -20,6 +20,8 @@ NUM_COL = [INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, ]
 UN_NUM_COL = [BOOL_COL, BINARY_COL, NCHAR_COL, ]
 TS_TYPE_COL = [TS_COL]
 
+DBNAME = "db"
+
 class TDTestCase:
 
     def init(self, conn, logSql):
@@ -54,14 +56,14 @@ class TDTestCase:
             where_condition = self.__where_condition(condition)
             group_condition = self.__group_condition(condition, having=f"{condition} is not null " )
 
-            tdSql.query(f"select {condition} from {tbname} {where_condition} ")
+            tdSql.query(f"select {condition} from {DBNAME}.{tbname} {where_condition} ")
             datas = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
             sum_data = sum(filter(None, datas))
-            tdSql.query(f"select sum( {condition} ) from {tbname} {where_condition} ")
+            tdSql.query(f"select sum( {condition} ) from {DBNAME}.{tbname} {where_condition} ")
             tdSql.checkData(0, 0, sum_data)
 
-            tdSql.query(f"select {condition} from {tbname} {where_condition} {group_condition} ")
-            tdSql.query(f"select sum( {condition} ) from {tbname} {where_condition} {group_condition} ")
+            tdSql.query(f"select {condition} from {DBNAME}.{tbname} {where_condition} {group_condition} ")
+            tdSql.query(f"select sum( {condition} ) from {DBNAME}.{tbname} {where_condition} {group_condition} ")
 
     def __sum_err_check(self,tbanme):
         sqls = []
@@ -69,19 +71,19 @@ class TDTestCase:
         for un_num_col in UN_NUM_COL:
             sqls.extend(
                 (
-                    f"select sum( {un_num_col} ) from {tbanme} ",
-                    f"select sum(ceil( {un_num_col} )) from {tbanme} ",
+                    f"select sum( {un_num_col} ) from {DBNAME}.{tbanme} ",
+                    f"select sum(ceil( {un_num_col} )) {DBNAME}.from {tbanme} ",
                 )
             )
             # sqls.extend( f"select sum( {un_num_col} + {un_num_col_2} ) from {tbanme} " for un_num_col_2 in UN_NUM_COL )
 
-        sqls.extend( f"select sum( {num_col} + {ts_col} ) from {tbanme} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
+        sqls.extend( f"select sum( {num_col} + {ts_col} ) from {DBNAME}.{tbanme} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
         sqls.extend(
             (
-                f"select sum() from {tbanme} ",
-                f"select sum(*) from {tbanme} ",
-                f"select sum(ccccccc) from {tbanme} ",
-                f"select sum('test') from {tbanme} ",
+                f"select sum() from {DBNAME}.{tbanme} ",
+                f"select sum(*) from {DBNAME}.{tbanme} ",
+                f"select sum(ccccccc) {DBNAME}.from {tbanme} ",
+                f"select sum('test') from {DBNAME}.{tbanme} ",
             )
         )
 
@@ -110,16 +112,15 @@ class TDTestCase:
 
 
     def __create_tb(self):
-        tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table")
-        create_stb_sql  =  f'''create table stb1(
+        create_stb_sql  =  f'''create table {DBNAME}.stb1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                  {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
                  {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
             ) tags (t1 int)
             '''
-        create_ntb_sql = f'''create table t1(
+        create_ntb_sql = f'''create table {DBNAME}.t1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                  {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
                  {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
@@ -129,29 +130,29 @@ class TDTestCase:
         tdSql.execute(create_ntb_sql)
 
         for i in range(4):
-            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+            tdSql.execute(f'create table {DBNAME}.ct{i+1} using {DBNAME}.stb1 tags ( {i+1} )')
 
     def __insert_data(self, rows):
         now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
         for i in range(rows):
             tdSql.execute(
-                f"insert into ct1 values ( { now_time - i * 1000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar{i}', { now_time + 1 * i } )"
+                f"insert into {DBNAME}.ct1 values ( { now_time - i * 1000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar{i}', { now_time + 1 * i } )"
             )
             tdSql.execute(
-                f"insert into ct4 values ( { now_time - i * 7776000000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar{i}', { now_time + 1 * i } )"
+                f"insert into {DBNAME}.ct4 values ( { now_time - i * 7776000000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar{i}', { now_time + 1 * i } )"
             )
             tdSql.execute(
-                f"insert into ct2 values ( { now_time - i * 7776000000 }, {-i},  {-11111 * i}, {-111 * i % 32767 }, {-11 * i % 127}, {-1.11*i}, {-1100.0011*i}, {i%2}, 'binary{i}', 'nchar{i}', { now_time + 1 * i } )"
+                f"insert into {DBNAME}.ct2 values ( { now_time - i * 7776000000 }, {-i},  {-11111 * i}, {-111 * i % 32767 }, {-11 * i % 127}, {-1.11*i}, {-1100.0011*i}, {i%2}, 'binary{i}', 'nchar{i}', { now_time + 1 * i } )"
             )
         tdSql.execute(
-            f'''insert into ct1 values
+            f'''insert into {DBNAME}.ct1 values
             ( { now_time - rows * 5 }, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', { now_time + 8 } )
             ( { now_time + 10000 }, { rows }, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', { now_time + 9 } )
             '''
         )
 
         tdSql.execute(
-            f'''insert into ct4 values
+            f'''insert into {DBNAME}.ct4 values
             ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time - rows * 3888000000+ 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time +  7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
@@ -167,7 +168,7 @@ class TDTestCase:
         )
 
         tdSql.execute(
-            f'''insert into ct2 values
+            f'''insert into {DBNAME}.ct2 values
             ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time - rows * 3888000000+ 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time + 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
@@ -183,13 +184,13 @@ class TDTestCase:
         )
 
         for i in range(rows):
-            insert_data = f'''insert into t1 values
+            insert_data = f'''insert into {DBNAME}.t1 values
                 ( { now_time - i * 3600000 }, {i}, {i * 11111}, { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2},
                 "binary_{i}", "nchar_{i}", { now_time - 1000 * i } )
                 '''
             tdSql.execute(insert_data)
         tdSql.execute(
-            f'''insert into t1 values
+            f'''insert into {DBNAME}.t1 values
             ( { now_time + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time - (( rows // 2 ) * 60 + 30) * 60000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time - rows * 3600000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
@@ -218,8 +219,11 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test()
 
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        # tdDnodes.stop(1)
+        # tdDnodes.start(1)
+
+        tdSql.execute("flush database db")
+
 
         tdSql.execute("use db")
 
