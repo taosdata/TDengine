@@ -3351,7 +3351,11 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     // filter shall be applied after apply functions and limit/offset on the result
     doFilter(pProjectInfo->pFilterNode, pInfo->pRes);
 
-    if (status == PROJECT_RETRIEVE_CONTINUE) {
+    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+      break;
+    }
+
+    if (status == PROJECT_RETRIEVE_CONTINUE || pInfo->pRes->info.rows == 0) {
       continue;
     } else if (status == PROJECT_RETRIEVE_DONE) {
       break;
@@ -3957,7 +3961,7 @@ static SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
 
     doFilter(pIndefInfo->pCondition, pInfo->pRes);
     size_t rows = pInfo->pRes->info.rows;
-    if (rows >= 0) {
+    if (rows > 0 || pOperator->status == OP_EXEC_DONE) {
       break;
     }
   }
@@ -4287,7 +4291,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
         REPLACE_NODE(pNew);
       } else {
         taosMemoryFree(keyBuf);
-        nodesClearList(groupNew);
+        nodesDestroyList(groupNew);
         metaReaderClear(&mr);
         return code;
       }
@@ -4305,7 +4309,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
           if (tTagIsJson(data)) {
             terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
             taosMemoryFree(keyBuf);
-            nodesClearList(groupNew);
+            nodesDestroyList(groupNew);
             metaReaderClear(&mr);
             return terrno;
           }
@@ -4328,7 +4332,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
     info->groupId = groupId;
     groupNum++;
 
-    nodesClearList(groupNew);
+    nodesDestroyList(groupNew);
     metaReaderClear(&mr);
   }
   taosMemoryFree(keyBuf);
@@ -4457,7 +4461,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
           return NULL;
         }
       } else {  // Create one table group.
-        STableKeyInfo info = {.lastKey = 0, .uid = pBlockNode->uid, .groupId = 0};
+        STableKeyInfo info = {.uid = pBlockNode->uid, .groupId = 0};
         taosArrayPush(pTableListInfo->pTableList, &info);
       }
 

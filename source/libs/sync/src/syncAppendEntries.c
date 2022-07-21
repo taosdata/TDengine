@@ -473,13 +473,13 @@ static bool syncNodeOnAppendEntriesBatchLogOK(SSyncNode* pSyncNode, SyncAppendEn
 
   SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
   if (pMsg->prevLogIndex > myLastIndex) {
-    sDebug("vgId:%d sync log not ok, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
+    sDebug("vgId:%d, sync log not ok, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
     return false;
   }
 
   SyncTerm myPreLogTerm = syncNodeGetPreTerm(pSyncNode, pMsg->prevLogIndex + 1);
   if (myPreLogTerm == SYNC_TERM_INVALID) {
-    sDebug("vgId:%d sync log not ok2, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
+    sDebug("vgId:%d, sync log not ok2, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
     return false;
   }
 
@@ -487,7 +487,7 @@ static bool syncNodeOnAppendEntriesBatchLogOK(SSyncNode* pSyncNode, SyncAppendEn
     return true;
   }
 
-  sDebug("vgId:%d sync log not ok3, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
+  sDebug("vgId:%d, sync log not ok3, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
   return false;
 }
 
@@ -500,13 +500,13 @@ static bool syncNodeOnAppendEntriesLogOK(SSyncNode* pSyncNode, SyncAppendEntries
 
   SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
   if (pMsg->prevLogIndex > myLastIndex) {
-    sDebug("vgId:%d sync log not ok, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
+    sDebug("vgId:%d, sync log not ok, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
     return false;
   }
 
   SyncTerm myPreLogTerm = syncNodeGetPreTerm(pSyncNode, pMsg->prevLogIndex + 1);
   if (myPreLogTerm == SYNC_TERM_INVALID) {
-    sDebug("vgId:%d sync log not ok2, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
+    sDebug("vgId:%d, sync log not ok2, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
     return false;
   }
 
@@ -514,7 +514,7 @@ static bool syncNodeOnAppendEntriesLogOK(SSyncNode* pSyncNode, SyncAppendEntries
     return true;
   }
 
-  sDebug("vgId:%d sync log not ok3, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
+  sDebug("vgId:%d, sync log not ok3, preindex:%" PRId64, pSyncNode->vgId, pMsg->prevLogIndex);
   return false;
 }
 

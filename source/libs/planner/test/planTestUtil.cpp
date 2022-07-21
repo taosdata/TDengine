@@ -126,9 +126,9 @@ class PlannerTestBaseImpl {
     reset();
     tsQueryPolicy = queryPolicy;
     try {
-      SQuery* pQuery = nullptr;
-      doParseSql(sql, &pQuery);
-      unique_ptr<SQuery, void (*)(SQuery*)> query(pQuery, qDestroyQuery);
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
+      doParseSql(sql, query.get());
+      SQuery* pQuery = *(query.get());
 
       SPlanContext cxt = {0};
       setPlanContext(pQuery, &cxt);
@@ -199,6 +199,8 @@ class PlannerTestBaseImpl {
 
       SLogicSubplan* pLogicSubplan = nullptr;
       doCreateLogicPlan(&cxt, &pLogicSubplan);
+      unique_ptr<SLogicSubplan, void (*)(SLogicSubplan*)> logicSubplan(pLogicSubplan,
+                                                                       (void (*)(SLogicSubplan*))nodesDestroyNode);
 
       doOptimizeLogicPlan(&cxt, pLogicSubplan);
 
@@ -206,9 +208,12 @@ class PlannerTestBaseImpl {
 
       SQueryLogicPlan* pLogicPlan = nullptr;
       doScaleOutLogicPlan(&cxt, pLogicSubplan, &pLogicPlan);
+      unique_ptr<SQueryLogicPlan, void (*)(SQueryLogicPlan*)> logicPlan(pLogicPlan,
+                                                                        (void (*)(SQueryLogicPlan*))nodesDestroyNode);
 
       SQueryPlan* pPlan = nullptr;
       doCreatePhysiPlan(&cxt, pLogicPlan, &pPlan);
+      unique_ptr<SQueryPlan, void (*)(SQueryPlan*)> plan(pPlan, (void (*)(SQueryPlan*))nodesDestroyNode);
 
       dump(g_dumpModule);
     } catch (...) {
@@ -248,6 +253,14 @@ class PlannerTestBaseImpl {
     string         physiPlan_;
     vector<string> physiSubplans_;
   };
+
+  static void _destroyQuery(SQuery** pQuery) {
+    if (nullptr == pQuery) {
+      return;
+    }
+    qDestroyQuery(*pQuery);
+    taosMemoryFree(pQuery);
+  }
 
   void reset() {
     stmtEnv_.sql_.clear();
@@ -400,20 +413,30 @@ class PlannerTestBaseImpl {
     pCxt->queryId = 1;
     pCxt->pUser = caseEnv_.user_.c_str();
     if (QUERY_NODE_CREATE_TOPIC_STMT == nodeType(pQuery->pRoot)) {
-      pCxt->pAstRoot = ((SCreateTopicStmt*)pQuery->pRoot)->pQuery;
+      SCreateTopicStmt* pStmt = (SCreateTopicStmt*)pQuery->pRoot;
+      pCxt->pAstRoot = pStmt->pQuery;
+      pStmt->pQuery = nullptr;
+      nodesDestroyNode(pQuery->pRoot);
+      pQuery->pRoot = pCxt->pAstRoot;
       pCxt->topicQuery = true;
     } else if (QUERY_NODE_CREATE_INDEX_STMT == nodeType(pQuery->pRoot)) {
       SMCreateSmaReq req = {0};
       tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req);
       g_mockCatalogService->createSmaIndex(&req);
       nodesStringToNode(req.ast, &pCxt->pAstRoot);
+      tFreeSMCreateSmaReq(&req);
+      nodesDestroyNode(pQuery->pRoot);
+      pQuery->pRoot = pCxt->pAstRoot;
       pCxt->streamQuery = true;
     } else if (QUERY_NODE_CREATE_STREAM_STMT == nodeType(pQuery->pRoot)) {
       SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pQuery->pRoot;
       pCxt->pAstRoot = pStmt->pQuery;
+      pStmt->pQuery = nullptr;
       pCxt->streamQuery = true;
       pCxt->triggerType = pStmt->pOptions->triggerType;
       pCxt->watermark = (NULL != pStmt->pOptions->pWatermark ? ((SValueNode*)pStmt->pOptions->pWatermark)->datum.i : 0);
+      nodesDestroyNode(pQuery->pRoot);
+      pQuery->pRoot = pCxt->pAstRoot;
     } else {
       pCxt->pAstRoot = pQuery->pRoot;
     }

@@ -865,7 +865,7 @@ int32_t catalogChkTbMetaVersion(SCatalog* pCtg, SRequestConnInfo *pConn, SArray*
 
     tNameFromString(&name, pTb->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-    if (CTG_IS_SYS_DBNAME(name.dbname)) {
+    if (IS_SYS_DBNAME(name.dbname)) {
       continue;
     }
 
@@ -936,7 +936,7 @@ int32_t catalogGetTableDistVgInfo(SCatalog* pCtg, SRequestConnInfo *pConn, const
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  if (CTG_IS_SYS_DBNAME(pTableName->dbname)) {
+  if (IS_SYS_DBNAME(pTableName->dbname)) {
     ctgError("no valid vgInfo for db, dbname:%s", pTableName->dbname);
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
@@ -947,7 +947,7 @@ int32_t catalogGetTableDistVgInfo(SCatalog* pCtg, SRequestConnInfo *pConn, const
 int32_t catalogGetTableHashVgroup(SCatalog *pCtg, SRequestConnInfo *pConn, const SName *pTableName, SVgroupInfo *pVgroup) {
   CTG_API_ENTER();
 
-  if (CTG_IS_SYS_DBNAME(pTableName->dbname)) {
+  if (IS_SYS_DBNAME(pTableName->dbname)) {
     ctgError("no valid vgInfo for db, dbname:%s", pTableName->dbname);
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }

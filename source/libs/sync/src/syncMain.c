@@ -559,10 +559,11 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
     snprintf(pEpSet->eps[i].fqdn, sizeof(pEpSet->eps[i].fqdn), "%s", (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodeFqdn);
     pEpSet->eps[i].port = (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodePort;
     (pEpSet->numOfEps)++;
-    sInfo("vgId:%d sync get retry epset: index:%d %s:%d", pSyncNode->vgId, i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+    sInfo("vgId:%d, sync get retry epset: index:%d %s:%d", pSyncNode->vgId, i, pEpSet->eps[i].fqdn,
+          pEpSet->eps[i].port);
   }
   pEpSet->inUse = (pSyncNode->pRaftCfg->cfg.myIndex + 1) % pEpSet->numOfEps;
-  sInfo("vgId:%d sync get retry epset in-use:%d", pSyncNode->vgId, pEpSet->inUse);
+  sInfo("vgId:%d, sync get retry epset in-use:%d", pSyncNode->vgId, pEpSet->inUse);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
 }
@@ -2996,7 +2997,7 @@ void syncLogRecvAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMs
            "datalen:%d}, %s",
            host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->privateTerm,
            pMsg->dataLen, s);
-  syncNodeErrorLog(pSyncNode, logBuf);
+  syncNodeEventLog(pSyncNode, logBuf);
 }
 
 void syncLogSendAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntriesBatch* pMsg, const char* s) {
@@ -3022,7 +3023,7 @@ void syncLogRecvAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntries
            ", pterm:%" PRIu64 ", commit:%" PRId64 ", datalen:%d, count:%d}, %s",
            host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm, pMsg->commitIndex,
            pMsg->dataLen, pMsg->dataCount, s);
-  syncNodeErrorLog(pSyncNode, logBuf);
+  syncNodeEventLog(pSyncNode, logBuf);
 }
 
 void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
@@ -3046,5 +3047,5 @@ void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntries
            "recv sync-append-entries-reply from %s:%d {term:%" PRIu64 ", pterm:%" PRIu64 ", success:%d, match:%" PRId64
            "}, %s",
            host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex, s);
-  syncNodeErrorLog(pSyncNode, logBuf);
+  syncNodeEventLog(pSyncNode, logBuf);
 }

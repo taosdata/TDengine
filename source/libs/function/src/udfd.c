@@ -913,8 +913,8 @@ void udfdConnectMnodeThreadFunc(void *args) {
 }
 
 int main(int argc, char *argv[]) {
-  if (!taosCheckSystemIsSmallEnd()) {
-    printf("failed to start since on non-small-end machines\n");
+  if (!taosCheckSystemIsLittleEnd()) {
+    printf("failed to start since on non-little-end machines\n");
     return -1;
   }
 

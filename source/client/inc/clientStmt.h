@@ -72,7 +72,6 @@ typedef struct SStmtBindInfo {
 typedef struct SStmtExecInfo {
   int32_t      affectedRows;
   SRequestObj* pRequest;
-  SHashObj*    pVgHash;
   SHashObj*    pBlockHash;
   bool         autoCreateTbl;
 } SStmtExecInfo;
@@ -88,6 +87,7 @@ typedef struct SStmtSQLInfo {
   SArray*           nodeList;
   SStmtQueryResInfo queryRes;
   bool              autoCreateTbl;
+  SHashObj*         pVgHash;
 } SStmtSQLInfo;
 
 typedef struct STscStmt {
