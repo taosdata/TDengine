@@ -3351,6 +3351,10 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     // filter shall be applied after apply functions and limit/offset on the result
     doFilter(pProjectInfo->pFilterNode, pInfo->pRes);
 
+    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+      break;
+    }
+
     if (status == PROJECT_RETRIEVE_CONTINUE) {
       continue;
     } else if (status == PROJECT_RETRIEVE_DONE) {
