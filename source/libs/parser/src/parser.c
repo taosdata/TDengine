@@ -239,6 +239,7 @@ int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx
   }
 
   if (TSDB_CODE_SUCCESS == code && (colIdx < 0 || colIdx + 1 == pQuery->placeholderNum)) {
+    nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = nodesCloneNode(pQuery->pPrepareRoot);
     if (NULL == pQuery->pRoot) {
       code = TSDB_CODE_OUT_OF_MEMORY;

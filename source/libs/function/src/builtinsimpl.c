@@ -2467,9 +2467,7 @@ bool apercentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResult
 int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
   int32_t              numOfElems = 0;
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-
   SInputColumnInfoData* pInput = &pCtx->input;
-  // SColumnDataAgg*       pAgg = pInput->pColumnDataAgg[0];
 
   SColumnInfoData* pCol = pInput->pData[0];
   int32_t          type = pCol->info.type;
@@ -2502,6 +2500,9 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
       GET_TYPED_DATA(v, double, type, data);
       tHistogramAdd(&pInfo->pHisto, v);
     }
+
+    qDebug("add %d elements into histogram, total:%d, numOfEntry:%d, %p", numOfElems, pInfo->pHisto->numOfElems,
+        pInfo->pHisto->numOfEntries, pInfo->pHisto);
   }
 
   SET_VAL(pResInfo, numOfElems, 1);
@@ -2540,11 +2541,19 @@ static void apercentileTransferInfo(SAPercentileInfo* pInput, SAPercentileInfo* 
     if (pHisto->numOfElems <= 0) {
       memcpy(pHisto, pInput->pHisto, sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1));
       pHisto->elems = (SHistBin*)((char*)pHisto + sizeof(SHistogramInfo));
+
+      qDebug("merge histo, total:%"PRId64", entry:%d, %p", pHisto->numOfElems, pHisto->numOfEntries, pHisto);
     } else {
       pHisto->elems = (SHistBin*)((char*)pHisto + sizeof(SHistogramInfo));
+      qDebug("input histogram, elem:%"PRId64", entry:%d, %p", pHisto->numOfElems, pHisto->numOfEntries,
+          pInput->pHisto);
+
       SHistogramInfo* pRes = tHistogramMerge(pHisto, pInput->pHisto, MAX_HISTOGRAM_BIN);
       memcpy(pHisto, pRes, sizeof(SHistogramInfo) + sizeof(SHistBin) * MAX_HISTOGRAM_BIN);
       pHisto->elems = (SHistBin*)((char*)pHisto + sizeof(SHistogramInfo));
+
+      qDebug("merge histo, total:%"PRId64", entry:%d, %p", pHisto->numOfElems, pHisto->numOfEntries,
+          pHisto);
       tHistogramDestroy(&pRes);
     }
   }
@@ -2560,12 +2569,18 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SAPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  int32_t start = pInput->startRowIndex;
+  qDebug("total %d rows will merge, %p", pInput->numOfRows, pInfo->pHisto);
 
+  int32_t start = pInput->startRowIndex;
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
-    char*             data = colDataGetData(pCol, i);
+    char* data = colDataGetData(pCol, i);
+
     SAPercentileInfo* pInputInfo = (SAPercentileInfo*)varDataVal(data);
     apercentileTransferInfo(pInputInfo, pInfo);
+  }
+
+  if (pInfo->algo != APERCT_ALGO_TDIGEST) {
+    qDebug("after merge, total:%d, numOfEntry:%d, %p", pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries, pInfo->pHisto);
   }
 
   SET_VAL(pResInfo, 1, 1);
@@ -2585,6 +2600,8 @@ int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     }
   } else {
     if (pInfo->pHisto->numOfElems > 0) {
+      qDebug("get the final res:%d, elements:%"PRId64", entry:%d", pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries);
+
       double  ratio[] = {pInfo->percent};
       double* res = tHistogramUniform(pInfo->pHisto, ratio, 1);
       pInfo->result = *res;
@@ -2638,6 +2655,9 @@ int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx)
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SAPercentileInfo*    pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
   ASSERT(pDBuf->algo == pSBuf->algo);
+
+  qDebug("start to combine apercentile, %p", pDBuf->pHisto);
+
   apercentileTransferInfo(pSBuf, pDBuf);
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   return TSDB_CODE_SUCCESS;
