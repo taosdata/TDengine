@@ -313,18 +313,7 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
 
 int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg) {
   int32_t ret = 0;
-
-  do {
-    char     host[128];
-    uint16_t port;
-    syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
-    sDebug("vgId:%d, send sync-append-entries to %s:%d, {term:%" PRIu64 ", pre-index:%" PRId64 ", pre-term:%" PRIu64
-           ", pterm:%" PRIu64 ", commit:%" PRId64
-           ", "
-           "datalen:%d}",
-           pSyncNode->vgId, host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm,
-           pMsg->commitIndex, pMsg->dataLen);
-  } while (0);
+  syncLogSendAppendEntries(pSyncNode, pMsg, "");
 
   SRpcMsg rpcMsg;
   syncAppendEntries2RpcMsg(pMsg, &rpcMsg);
@@ -334,15 +323,7 @@ int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, c
 
 int32_t syncNodeAppendEntriesBatch(SSyncNode* pSyncNode, const SRaftId* destRaftId,
                                    const SyncAppendEntriesBatch* pMsg) {
-  do {
-    char     host[128];
-    uint16_t port;
-    syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
-    sDebug("vgId:%d, send sync-append-entries-batch to %s:%d, {term:%" PRIu64 ", pre-index:%" PRId64
-           ", pre-term:%" PRIu64 ", pterm:%" PRIu64 ", commit:%" PRId64 ", datalen:%d, datacount:%d}",
-           pSyncNode->vgId, host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm,
-           pMsg->commitIndex, pMsg->dataLen, pMsg->dataCount);
-  } while (0);
+  syncLogSendAppendEntriesBatch(pSyncNode, pMsg, "");
 
   SRpcMsg rpcMsg;
   syncAppendEntriesBatch2RpcMsg(pMsg, &rpcMsg);

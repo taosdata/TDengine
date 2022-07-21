@@ -436,11 +436,6 @@ END:
 }
 
 int64_t walAppendLog(SWal *pWal, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen) {
-  if (bodyLen > TSDB_MAX_WAL_SIZE) {
-    terrno = TSDB_CODE_WAL_SIZE_LIMIT;
-    return -1;
-  }
-
   taosThreadMutexLock(&pWal->mutex);
 
   int64_t index = pWal->vers.lastVer + 1;
@@ -472,10 +467,6 @@ int32_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SWalSync
                              int32_t bodyLen) {
   int32_t code = 0;
 
-  if (bodyLen > TSDB_MAX_WAL_SIZE) {
-    terrno = TSDB_CODE_WAL_SIZE_LIMIT;
-    return -1;
-  }
   taosThreadMutexLock(&pWal->mutex);
 
   // concurrency control:

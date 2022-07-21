@@ -50,7 +50,7 @@ SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pScanNode, SRead
 
   STableListInfo* pTableList = &pTaskInfo->tableqinfoList;
 
-  initResultSizeInfo(pOperator, 1024);
+  initResultSizeInfo(&pOperator->resultInfo, 1024);
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   pInfo->pUidList = taosArrayInit(4, sizeof(int64_t));
 
