@@ -3414,6 +3414,7 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
 
   doHandleRemainBlockFromNewGroup(pInfo, pResultInfo, pTaskInfo);
   if (pResBlock->info.rows > pResultInfo->threshold || pResBlock->info.rows > 0) {
+    pResBlock->info.groupId = pInfo->curGroupId;
     return pResBlock;
   }
 
@@ -3456,17 +3457,20 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
       // 1. The result in current group not reach the threshold of output result, continue
       // 2. If multiple group results existing in one SSDataBlock is not allowed, return immediately
       if (pResBlock->info.rows > pResultInfo->threshold || pBlock == NULL || pInfo->existNewGroupBlock != NULL) {
+        pResBlock->info.groupId = pInfo->curGroupId;
         return pResBlock;
       }
 
       doHandleRemainBlockFromNewGroup(pInfo, pResultInfo, pTaskInfo);
       if (pResBlock->info.rows >= pOperator->resultInfo.threshold || pBlock == NULL) {
+        pResBlock->info.groupId = pInfo->curGroupId;
         return pResBlock;
       }
     } else if (pInfo->existNewGroupBlock) {  // try next group
       assert(pBlock != NULL);
       doHandleRemainBlockForNewGroupImpl(pInfo, pResultInfo, pTaskInfo);
       if (pResBlock->info.rows > pResultInfo->threshold) {
+        pResBlock->info.groupId = pInfo->curGroupId;
         return pResBlock;
       }
     } else {
@@ -3486,23 +3490,19 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
   SSDataBlock* fillResult = NULL;
   while (true) {
     fillResult = doFillImpl(pOperator);
-    if (fillResult != NULL) {
-      doFilter(pInfo->pCondition, fillResult);
-    }
-
     if (fillResult == NULL) {
       doSetOperatorCompleted(pOperator);
       break;
     }
 
+    doFilter(pInfo->pCondition, fillResult);
     if (fillResult->info.rows > 0) {
       break;
     }
   }
 
   if (fillResult != NULL) {
-    size_t rows = fillResult->info.rows;
-    pOperator->resultInfo.totalRows += rows;
+    pOperator->resultInfo.totalRows += fillResult->info.rows;
   }
 
   return fillResult;
@@ -4444,6 +4444,12 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       return createExchangeOperatorInfo(pHandle->pMsgCb->clientRpc, (SExchangePhysiNode*)pPhyNode, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
+      STimeWindowAggSupp aggSup = (STimeWindowAggSupp){
+          .waterMark = pTableScanNode->watermark,
+          .calTrigger = pTableScanNode->triggerType,
+          .maxTs = INT64_MIN,
+      };
+
       if (pHandle->vnode) {
         int32_t code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags,
                                                pTableScanNode->groupSort, pHandle, pTableListInfo, pTagCond, pTagIndexCond, GET_TASKID(pTaskInfo));
@@ -4454,7 +4460,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       }
 
       pTaskInfo->schemaInfo.qsw = extractQueriedColumnSchema(&pTableScanNode->scan);
-      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTaskInfo);
+      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle, pTableScanNode, pTagCond, &aggSup, pTaskInfo);
       return pOperator;
 
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
