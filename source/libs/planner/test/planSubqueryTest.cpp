@@ -48,7 +48,7 @@ TEST_F(PlanSubqeuryTest, doubleGroupBy) {
       "WHERE a > 100 GROUP BY b");
 }
 
-TEST_F(PlanSubqeuryTest, withSetOperator) {
+TEST_F(PlanSubqeuryTest, innerSetOperator) {
   useDb("root", "test");
 
   run("SELECT c1 FROM (SELECT c1 FROM t1 UNION ALL SELECT c1 FROM t1)");
@@ -56,10 +56,18 @@ TEST_F(PlanSubqeuryTest, withSetOperator) {
   run("SELECT c1 FROM (SELECT c1 FROM t1 UNION SELECT c1 FROM t1)");
 }
 
-TEST_F(PlanSubqeuryTest, withFill) {
+TEST_F(PlanSubqeuryTest, innerFill) {
   useDb("root", "test");
 
   run("SELECT cnt FROM (SELECT _WSTART ts, COUNT(*) cnt FROM t1 "
       "WHERE ts > '2022-04-01 00:00:00' and ts < '2022-04-30 23:59:59' INTERVAL(10s) FILL(LINEAR)) "
       "WHERE ts > '2022-04-06 00:00:00'");
+}
+
+TEST_F(PlanSubqeuryTest, outerInterval) {
+  useDb("root", "test");
+
+  run("SELECT COUNT(*) FROM (SELECT * FROM st1) INTERVAL(5s)");
+
+  run("SELECT COUNT(*) + SUM(c1) FROM (SELECT * FROM st1) INTERVAL(5s)");
 }
