@@ -1163,9 +1163,15 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
 void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
   if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
     pColumn->varmeta.length = 0;
+    if (pColumn->varmeta.offset > 0) {
+      memset(pColumn->varmeta.offset, 0, sizeof(int32_t) * numOfRows);
+    }
   } else {
     if (pColumn->nullbitmap != NULL) {
       memset(pColumn->nullbitmap, 0, BitmapLen(numOfRows));
+      if (pColumn->pData != NULL) {
+        memset(pColumn->pData, 0, pColumn->info.bytes * numOfRows);
+      }
     }
   }
 }

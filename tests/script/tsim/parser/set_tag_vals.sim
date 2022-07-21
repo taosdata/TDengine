@@ -55,10 +55,8 @@ while $i < $tbNum
 
   $i = $i + 1
 endw 
+
 print ====== tables created
-
-sleep 500
-
 sql show tables
 if $rows != $tbNum then
   return -1
@@ -74,12 +72,16 @@ while $i < $tbNum
   sql insert into $tb (ts, c1) values (now-100a, $i )
   sql alter table $tb set tag t3 = $i
   sql insert into $tb (ts, c1) values (now, $i )
-  sql alter table $tb set tag t4 = $i
+
+  $name = ' . $i
+  $name = $name . '
+  sql alter table $tb set tag t4 = $name
   $i = $i + 1
 endw
 
 print ================== all tags have been changed!
-sql_error select tbname from $stb where t3 = 'NULL'
+sql reset query cache
+sql select tbname from $stb where t3 = 'NULL'
 
 print ================== set tag to NULL
 sql create table stb1_tg (ts timestamp, c1 int) tags(t1 int,t2 bigint,t3 double,t4 float,t5 smallint,t6 tinyint)
@@ -142,7 +144,9 @@ sql alter table tb1_tg2 set tag t1 = false
 sql alter table tb1_tg2 set tag t2 = 'binary2'
 sql alter table tb1_tg2 set tag t3 = '涛思'
 sql reset query cache
+
 sql select * from stb1_tg
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 if $rows != 1 then
   return -1
 endi
@@ -164,7 +168,9 @@ endi
 if $data07 != -6 then
   return -1
 endi
+
 sql select * from stb2_tg
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 if $data02 != 0 then
   return -1
 endi
@@ -185,7 +191,9 @@ sql alter table tb1_tg2 set tag t1 = NULL
 sql alter table tb1_tg2 set tag t2 = NULL
 sql alter table tb1_tg2 set tag t3 = NULL
 sql reset query cache
+
 sql select * from stb1_tg
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 if $rows != 1 then
   return -1
 endi
@@ -207,12 +215,12 @@ endi
 if $data07 != NULL then
   return -1
 endi
+
 sql select * from stb2_tg
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 if $data02 != NULL then
   return -1
 endi
-
-print $data03
 if $data03 != NULL then
   return -1
 endi
