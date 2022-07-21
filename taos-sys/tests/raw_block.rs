@@ -2,9 +2,11 @@ use std::slice;
 
 use futures::TryStreamExt;
 // todo: some const functions are not available for stable Rust.
-use taos_query::common::{Raw, Value};
+use taos_query::common::{RawData, Value};
+
 #[test]
 fn raw_block() -> Result<(), taos_error::Error> {
+    use taos_query::Fetchable;
     use taos_sys::*;
     let taos = RawTaos::connect(
         std::ptr::null(),
@@ -13,8 +15,8 @@ fn raw_block() -> Result<(), taos_error::Error> {
         std::ptr::null(),
         0,
     )?;
-    let rs = taos.query("show databases")?;
-    let field_count = rs.field_count();
+    let mut rs = taos.query("show databases")?;
+    let field_count = rs.ncols();
     let inner = rs.fetch_raw_block()?.unwrap();
 
     // let inner = unsafe { Raw::from_ptr(ptr, rows as _, field_count as _, precision) };
@@ -34,10 +36,9 @@ fn raw_block() -> Result<(), taos_error::Error> {
     Ok(())
 }
 
-// #[tokio::test]
-
 #[tokio::test]
 async fn raw_block_async() -> Result<(), taos_error::Error> {
+    use taos_query::prelude::*;
     use taos_sys::*;
     let taos = RawTaos::connect(
         std::ptr::null(),
@@ -46,8 +47,11 @@ async fn raw_block_async() -> Result<(), taos_error::Error> {
         std::ptr::null(),
         0,
     )?;
-    let rs = taos.query("show databases")?;
-    if let Some(inner) = rs.fetch_raw_block_async().try_next().await? {
+    let mut rs = taos.query("show databases")?;
+    if let Some(inner) = <ResultSet as AsyncFetchable>::blocks(&mut rs)
+        .try_next()
+        .await?
+    {
         // let inner = unsafe { Raw::from_ptr(ptr, rows as _, field_count as _, precision) };
         let gid = inner.group_id();
         println!("group id: {gid}");
@@ -68,6 +72,7 @@ async fn raw_block_async() -> Result<(), taos_error::Error> {
 
 #[test]
 fn raw_block_full_test() -> Result<(), taos_error::Error> {
+    use taos_query::prelude::sync::*;
     use taos_sys::*;
     let taos = RawTaos::connect(
         std::ptr::null(),
@@ -94,11 +99,11 @@ fn raw_block_full_test() -> Result<(), taos_error::Error> {
         (1655793421375,true, -1, -1, -1, -1, 1, 1, 1, 1, 0.0, 0.0, 'abc', '涛思𝄞数据')",
     )?;
     // let rs = taos.query("select * from stb1 order by tbname,ts")?;
-    let rs = taos.query("select ts from tb1 limit 1")?;
+    let mut rs = taos.query("select ts from tb1 limit 1")?;
+    let inner = rs.fetch_raw_block()?.unwrap();
     let fields = rs.fields();
     let precision = rs.precision();
-    let field_count = rs.field_count();
-    let inner = rs.fetch_raw_block()?.unwrap();
+    let field_count = rs.ncols();
     let gid = inner.group_id();
     println!("group id: {gid}");
 

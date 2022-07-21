@@ -11,8 +11,8 @@ use bytes::Bytes;
 #[derive(Debug, Clone)]
 pub struct VarCharView {
     // version: Version,
-    pub offsets: Offsets,
-    pub data: Bytes,
+    pub(crate) offsets: Offsets,
+    pub(crate) data: Bytes,
 }
 
 impl VarCharView {
@@ -34,6 +34,8 @@ impl VarCharView {
     }
 
     /// Check if the value at `row` index is NULL or not.
+    ///
+    /// Returns null when `row` index out of bound.
     pub fn is_null(&self, row: usize) -> bool {
         if row < self.len() {
             unsafe { self.is_null_unchecked(row) }
@@ -42,12 +44,12 @@ impl VarCharView {
         }
     }
 
-    /// Unsafe version for [methods.is_null]
-    pub unsafe fn is_null_unchecked(&self, row: usize) -> bool {
+    /// Unsafe version for [is_null](#method.is_null)
+    pub(crate) unsafe fn is_null_unchecked(&self, row: usize) -> bool {
         *self.offsets.get_unchecked(row) < 0
     }
 
-    pub unsafe fn get_unchecked(&self, row: usize) -> Option<&InlineStr> {
+    pub(crate) unsafe fn get_unchecked(&self, row: usize) -> Option<&InlineStr> {
         let offset = self.offsets.get_unchecked(row);
         if *offset >= 0 {
             Some(InlineStr::<u16>::from_ptr(
@@ -58,13 +60,13 @@ impl VarCharView {
         }
     }
 
-    pub unsafe fn get_value_unchecked(&self, row: usize) -> BorrowedValue {
+    pub(crate) unsafe fn get_value_unchecked(&self, row: usize) -> BorrowedValue {
         self.get_unchecked(row)
             .map(|s| BorrowedValue::VarChar(s.as_str()))
             .unwrap_or(BorrowedValue::Null)
     }
 
-    pub unsafe fn get_raw_value_unchecked(&self, row: usize) -> (Ty, u32, *const c_void) {
+    pub(crate) unsafe fn get_raw_value_unchecked(&self, row: usize) -> (Ty, u32, *const c_void) {
         match self.get_unchecked(row) {
             Some(s) => (Ty::VarChar, s.len() as _, s.as_ptr() as _),
             None => (Ty::Null, 0, std::ptr::null()),

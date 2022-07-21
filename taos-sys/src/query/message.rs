@@ -1,0 +1,62 @@
+use std::{
+    cell::UnsafeCell,
+    ffi::{CStr, CString},
+    os::raw::{c_int, c_void},
+    pin::Pin,
+    task::{Context, Poll, Waker},
+};
+
+use futures::Stream;
+use taos_error::Error;
+use taos_query::{common::Precision, RawData};
+
+use crate::{tmq_res_t, Message};
+
+use super::raw_res::RawRes;
+
+#[derive(Debug)]
+pub struct MessageStream {
+    msg_type: tmq_res_t,
+    precision: Precision,
+    res: RawRes,
+    shared_state: UnsafeCell<SharedState>,
+}
+
+/// Shared state between the future and the waiting thread
+struct SharedState {
+    block: *mut c_void,
+    done: bool,
+    num: usize,
+    code: i32,
+}
+
+impl Stream for MessageStream {
+    type Item = RawData;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Poll::Ready(self.res.fetch_raw_message(self.precision))
+    }
+}
+
+impl MessageStream {
+    /// Create a new `TimerFuture` which will complete after the provided
+    /// timeout.
+    #[inline(always)]
+    pub(crate) fn new(res: RawRes) -> Self {
+        let shared_state = UnsafeCell::new(SharedState {
+            done: false,
+            block: std::ptr::null_mut(),
+            num: 0,
+            code: 0,
+        });
+
+        let msg_type = res.tmq_message_type();
+        let precision = res.precision();
+        MessageStream {
+            res,
+            msg_type,
+            precision,
+            shared_state,
+        }
+    }
+}

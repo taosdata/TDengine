@@ -1,4 +1,4 @@
-use crate::{TAOS, TAOS_RES};
+use crate::ffi::{TAOS, TAOS_RES};
 use std::os::raw::*;
 
 ///

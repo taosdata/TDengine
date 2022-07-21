@@ -15,6 +15,7 @@ use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
 use crate::{infra::*, WsInfo};
 
+use std::cell::UnsafeCell;
 use std::fmt::Debug;
 use std::result::Result as StdResult;
 use std::sync::atomic::AtomicU64;
@@ -49,7 +50,12 @@ pub struct ResultSet {
     fields_count: usize,
     affected_rows: usize,
     precision: Precision,
+    summary: (usize, usize),
 }
+
+unsafe impl Sync for ResultSet {}
+unsafe impl Send for ResultSet {}
+
 impl Debug for ResultSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ResultSet")
@@ -406,6 +412,7 @@ impl WsAsyncClient {
                     req_id,
                     id: resp.id,
                 },
+                summary: (0, 0),
             })
         } else {
             Ok(ResultSet {
@@ -421,6 +428,7 @@ impl WsAsyncClient {
                 fields: None,
                 fields_count: 0,
                 precision: resp.precision,
+                summary: (0, 0),
             })
         }
     }
@@ -445,6 +453,79 @@ impl WsAsyncClient {
     }
 }
 
+impl ResultSet {
+    async fn fetch(&mut self) -> Result<Option<RawData>> {
+        let fetch = WsSend::Fetch(self.args);
+        {
+            log::info!("send fetch message: {fetch:?}");
+            self.ws.send(fetch.to_msg()).await?;
+            log::info!("send done");
+            // unlock mutex when out of scope.
+        }
+        println!("wait for fetch message");
+        let fetch_resp = match self.receiver.as_mut().unwrap().recv()?? {
+            WsFetchData::Fetch(fetch) => fetch,
+            data => panic!("unexpected result {data:?}"),
+        };
+
+        if fetch_resp.completed {
+            return Ok(None);
+        }
+
+        log::info!("fetch with: {fetch_resp:?}");
+
+        let fetch_block = WsSend::FetchBlock(self.args);
+        {
+            // prepare for receiving.
+            log::info!("send fetch message: {fetch_block:?}");
+            self.ws.send(fetch_block.to_msg()).await?;
+            log::info!("send done");
+            // unlock mutex when out of scope.
+        }
+
+        log::info!("receiving block...");
+        match self.receiver.as_mut().unwrap().recv()?? {
+            WsFetchData::Block(mut raw) => {
+                let mut raw = RawData::parse_from_raw_block(
+                    raw,
+                    fetch_resp.rows,
+                    self.fields_count,
+                    self.precision,
+                );
+
+                for row in 0..raw.nrows() {
+                    for col in 0..raw.ncols() {
+                        log::debug!("at ({}, {})", row, col);
+                        let v = unsafe { raw.get_ref_unchecked(row, col) };
+                        println!("({}, {}): {:?}", row, col, v);
+                    }
+                }
+                raw.with_fields(self.fields.as_ref().unwrap().to_vec());
+                Ok(Some(raw))
+            }
+            WsFetchData::BlockV2(raw) => {
+                let mut raw = RawData::parse_from_raw_block_v2(
+                    raw,
+                    self.fields.as_ref().unwrap(),
+                    dbg!(fetch_resp.lengths.as_ref().unwrap()),
+                    fetch_resp.rows,
+                    self.precision,
+                );
+
+                for row in 0..raw.nrows() {
+                    for col in 0..raw.ncols() {
+                        log::debug!("at ({}, {})", row, col);
+                        let v = unsafe { raw.get_ref_unchecked(row, col) };
+                        println!("({}, {}): {:?}", row, col, v);
+                    }
+                }
+                raw.with_fields(self.fields.as_ref().unwrap().to_vec());
+                Ok(Some(raw))
+            }
+            _ => Ok(None),
+        }
+    }
+}
 impl ResultSetRef {
     async fn fetch(&mut self) -> Result<Option<RawData>> {
         let fetch = WsSend::Fetch(self.args);
@@ -520,16 +601,13 @@ impl ResultSetRef {
 }
 
 impl futures::Stream for ResultSetRef {
-    type Item = RawData;
+    type Item = Result<RawData>;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        self.fetch()
-            .map(|v| v.ok().unwrap_or(None))
-            .boxed()
-            .poll_unpin(cx)
+        self.fetch().map(|v| v.transpose()).boxed().poll_unpin(cx)
     }
 }
 
@@ -547,34 +625,32 @@ impl AsyncFetchable for ResultSet {
     }
 
     fn summary(&self) -> (usize, usize) {
-        todo!()
+        self.summary
     }
 
-    type BlockStream = ResultSetRef;
+    type Error = Error;
 
-    fn block_stream(&mut self) -> Self::BlockStream {
-        ResultSetRef {
-            timeout: self.timeout,
-            ws: self.ws.clone(),
-            fetches: self.fetches.clone(),
-            receiver: self.receiver.take(),
-            args: self.args,
-            fields: self.fields.clone(),
-            fields_count: self.fields_count,
-            affected_rows: self.affected_rows,
-            precision: self.precision,
-        }
+    fn update_summary(&mut self, nrows: usize) {
+        self.summary.0 += 1;
+        self.summary.1 += nrows;
+    }
+
+    fn fetch_raw_block(
+        self: &mut Self,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<StdResult<Option<RawData>, Self::Error>> {
+        self.fetch().boxed().poll_unpin(cx)
     }
 }
 
 #[async_trait::async_trait]
-impl<'q> AsyncQueryable<'q> for WsAsyncClient {
+impl AsyncQueryable for WsAsyncClient {
     type Error = Error;
 
     type AsyncResultSet = ResultSet;
 
     async fn query<T: AsRef<str> + Send + Sync>(
-        &'q self,
+        &self,
         sql: T,
     ) -> StdResult<Self::AsyncResultSet, Self::Error> {
         self.s_query(sql.as_ref()).await
@@ -644,7 +720,9 @@ async fn test_client_cloud() -> anyhow::Result<()> {
         use itertools::Itertools;
         println!(
             "{}",
-            row.into_iter().map(|value| format!("{value}")).join(" | ")
+            row.into_iter()
+                .map(|value| format!("{value:?}"))
+                .join(" | ")
         );
     }
     Ok(())

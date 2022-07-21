@@ -8,16 +8,16 @@ use std::{
 
 use futures::Stream;
 use taos_error::{Code, Error};
-use taos_query::common::{Field, Precision, Raw};
+use taos_query::common::{Field, Precision, RawData};
 
 use crate::{
     ffi::{
-        taos_errstr, taos_fetch_block, taos_fetch_fields, taos_fetch_raw_block,
-        taos_fetch_raw_block_a, taos_fetch_rows_a, taos_field_count, taos_get_raw_block,
-        taos_result_precision, TAOS_RES,
+        taos_errstr, taos_fetch_fields, taos_fetch_raw_block, taos_fetch_raw_block_a,
+        taos_field_count, taos_get_raw_block, taos_result_precision, TAOS_RES,
     },
     tmq_get_db_name, tmq_get_json_meta, tmq_get_res_type, tmq_get_table_name, tmq_res_t,
 };
+
 
 #[derive(Debug)]
 pub struct BlockStream {
@@ -50,7 +50,7 @@ impl BlockStream {
     fn poll_next_tmq_data(
         self: Pin<&mut Self>,
         cx: &mut Context,
-    ) -> Poll<Option<Result<Raw, Error>>> {
+    ) -> Poll<Option<Result<RawData, Error>>> {
         let res = self.res;
         let state = unsafe { &mut *self.shared_state.get() };
         unsafe {
@@ -74,7 +74,7 @@ impl BlockStream {
             let cols = taos_field_count(res) as usize;
             let precision: Precision = taos_result_precision(res).into();
 
-            let mut raw = Raw::parse_from_ptr(raw as _, rows as usize, cols, precision);
+            let mut raw = RawData::parse_from_ptr(raw as _, rows as usize, cols, precision);
 
             let field = taos_fetch_fields(res);
             let fields: Vec<Field> = std::slice::from_raw_parts(field, cols)
@@ -101,7 +101,7 @@ impl BlockStream {
     fn poll_next_query_data(
         self: Pin<&mut Self>,
         cx: &mut Context,
-    ) -> Poll<Option<Result<Raw, Error>>> {
+    ) -> Poll<Option<Result<RawData, Error>>> {
         let res = self.res;
         let state = unsafe { &mut *self.shared_state.get() };
         if state.done {
@@ -123,7 +123,7 @@ impl BlockStream {
             if state.num > 0 {
                 // has next block.
                 let mut raw = unsafe {
-                    Raw::parse_from_ptr(
+                    RawData::parse_from_ptr(
                         state.block as _,
                         state.num as usize,
                         self.fields().len(),
@@ -177,7 +177,7 @@ impl BlockStream {
     fn poll_next_tmq_meta(
         self: Pin<&mut Self>,
         cx: &mut Context,
-    ) -> Poll<Option<Result<Raw, Error>>> {
+    ) -> Poll<Option<Result<RawData, Error>>> {
         let res = self.res;
         let state = unsafe { &mut *self.shared_state.get() };
         if state.done {
@@ -196,7 +196,7 @@ impl BlockStream {
 }
 
 impl Stream for BlockStream {
-    type Item = Result<Raw, Error>;
+    type Item = Result<RawData, Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.msg_type {

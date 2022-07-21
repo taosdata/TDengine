@@ -58,6 +58,11 @@ impl<T: Into<BytesMut>> From<T> for NullsMut {
     }
 }
 
+impl FromIterator<bool> for NullsMut {
+    fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {
+        Self::from_bools(iter.into_iter().collect::<Vec<_>>().into_iter())
+    }
+}
 impl NullsMut {
     pub fn with_capacity(cap: usize) -> Self {
         let bytes_len = (cap + 7) / 8;
@@ -89,7 +94,6 @@ impl NullsMut {
         const BIT_POS_SHIFT: usize = 7;
         let loc = self.0.get_unchecked_mut(index >> BIT_LOC_SHIFT);
         *loc |= 1 << (BIT_POS_SHIFT - (index & BIT_POS_SHIFT));
-        println!("0x{:b}", loc);
         debug_assert!(self.is_null_unchecked(index));
     }
 

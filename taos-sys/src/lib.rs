@@ -2,28 +2,42 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
+//! TDengine database connector use native C library.
+//!
+
 use std::{
-    ffi::CStr,
-    future::Future,
-    marker::PhantomData,
+    cell::UnsafeCell,
+    ffi::CString,
+    fmt::Display,
     ops::Deref,
-    os::raw::*,
-    process::Output,
-    sync::{Arc, Mutex},
+    sync::Arc,
+    task::{Context, Poll},
 };
 
-use into_c_str::IntoCStr;
 use once_cell::sync::OnceCell;
-use taos_error::{Code, Error};
-use taos_query::common::{Field, Raw, Ty};
+use query::blocks::{Blocks, SharedState};
+use taos_error::{Code, Error as RawError};
+use taos_query::{
+    common::{Field, RawData, Ty},
+    AsyncFetchable, AsyncQueryable, Connectable, DsnError, Fetchable, Queryable,
+};
+
+pub enum MessageType {
+    Schema,
+    Data,
+}
+mod into_c_str;
+pub mod stmt;
+
+use into_c_str::IntoCStr;
 
 pub(crate) mod types;
 pub use types::*;
-pub mod ffi;
-use ffi::*;
+mod ffi;
+// use ffi::*;
 
 mod set_config;
-pub use set_config::*;
+use set_config::*;
 
 pub use ffi::taos_options;
 
@@ -33,6 +47,10 @@ pub use schemaless::*;
 mod tmq;
 pub use tmq::*;
 
+mod conn;
+pub use conn::RawTaos;
+
+#[macro_export(local_inner_macros)]
 macro_rules! err_or {
     ($res:ident, $code:expr, $ret:expr) => {
         unsafe {
@@ -65,475 +83,407 @@ macro_rules! err_or {
 }
 
 #[derive(Debug)]
-#[repr(transparent)]
-pub struct RawTaos(*mut TAOS);
+pub struct Taos {
+    raw: RawTaos,
+}
 
-impl Drop for RawTaos {
+impl Drop for Taos {
     fn drop(&mut self) {
-        self.close()
+        self.raw.close();
     }
 }
 
-impl RawTaos {
-    /// Client version.
-    pub fn version() -> &'static CStr {
-        unsafe { CStr::from_ptr(taos_get_client_info()) }
+impl Queryable for Taos {
+    type Error = RawError;
+
+    type ResultSet = ResultSet;
+
+    fn query<T: AsRef<str>>(&self, sql: T) -> Result<Self::ResultSet, Self::Error> {
+        self.raw.query(sql.as_ref())
+    }
+}
+
+#[async_trait::async_trait]
+impl AsyncQueryable for Taos {
+    type Error = RawError;
+
+    type AsyncResultSet = ResultSet;
+
+    async fn query<T: AsRef<str> + Send + Sync>(
+        &self,
+        sql: T,
+    ) -> Result<Self::AsyncResultSet, Self::Error> {
+        self.raw
+            .query_async(sql.as_ref())
+            .await
+            .map(|raw| ResultSet::new(raw))
+    }
+}
+
+/// Connection builder.
+///
+/// ## Examples
+///
+/// ### Synchronous
+///
+/// ```rust
+/// use taos_sys::Builder;
+/// use taos_query::prelude::sync::*;
+/// fn main() -> anyhow::Result<()> {
+///     let builder = Builder::from_dsn("taos://localhost:6030")?;
+///     let taos = builder.connect()?;
+///     let mut query = taos.query("show databases")?;
+///     for row in query.rows() {
+///         println!("{:?}", row?.into_values());
+///     }
+///     Ok(())
+/// }
+/// ```
+///
+/// ### Async
+///
+/// ```rust
+/// use taos_sys::Builder;
+/// use taos_query::prelude::*;
+///
+/// #[tokio::main]
+/// async fn main() -> anyhow::Result<()> {
+///     let builder = Builder::from_dsn("taos://localhost:6030")?;
+///     let taos = builder.connect()?;
+///     let mut query = taos.query("show databases").await?;
+///
+///     while let Some(row) = query.rows().try_next().await? {
+///         println!("{:?}", row.into_values());
+///     }
+///     Ok(())
+/// }
+/// #
+/// ```
+#[derive(Debug, Default)]
+pub struct Builder {
+    host: Option<CString>,
+    user: Option<CString>,
+    pass: Option<CString>,
+    db: Option<CString>,
+    port: u16,
+}
+
+#[derive(Debug)]
+pub struct Error(taos_error::Error);
+
+impl From<DsnError> for Error {
+    fn from(err: DsnError) -> Self {
+        Self(RawError::from_string(err.to_string()))
+    }
+}
+impl From<RawError> for Error {
+    fn from(err: RawError) -> Self {
+        Self(err)
+    }
+}
+impl std::error::Error for Error {}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl Connectable for Builder {
+    type Target = Taos;
+
+    type Error = Error;
+
+    fn available_params() -> &'static [&'static str] {
+        const PARAMS: &'static [&'static str] = &["configDir"];
+        &PARAMS
     }
 
-    #[inline]
-    pub fn connect(
-        host: *const c_char,
-        user: *const c_char,
-        pass: *const c_char,
-        db: *const c_char,
-        port: u16,
-    ) -> Result<Self, Error> {
-        let ptr = unsafe { taos_connect(host, user, pass, db, port) };
-        let null = std::ptr::null_mut();
-        let code = unsafe { taos_errno(null) };
-        if code != 0 {
-            let err = unsafe { CStr::from_ptr(taos_errstr(null)) }
-                .to_string_lossy()
-                .to_string();
-            let err = Error::new(code, err);
+    fn from_dsn<D: taos_query::IntoDsn>(dsn: D) -> Result<Self, Self::Error> {
+        let dsn = dsn.into_dsn()?;
+        let mut builder = Builder::default();
+        if let Some(addr) = dsn.addresses.into_iter().next() {
+            if let Some(host) = addr.host {
+                builder.host.replace(CString::new(host).unwrap());
+            }
+            if let Some(port) = addr.port {
+                builder.port = port;
+            }
         }
-
-        if ptr.is_null() {
-            let null = std::ptr::null_mut();
-            let code = unsafe { taos_errno(null) };
-            let err = unsafe { CStr::from_ptr(taos_errstr(null)) }
-                .to_string_lossy()
-                .to_string();
-            log::trace!("error: {err}");
-
-            Err(Error::new(code, err))
-        } else {
-            Ok(RawTaos(ptr))
+        if let Some(db) = dsn.database {
+            builder.db.replace(CString::new(db).unwrap());
         }
-    }
-    #[inline]
-    pub fn connect_auth(
-        host: *const c_char,
-        user: *const c_char,
-        auth: *const c_char,
-        db: *const c_char,
-        port: u16,
-    ) -> Result<Self, Error> {
-        let ptr = unsafe { taos_connect_auth(host, user, auth, db, port) };
-        if ptr.is_null() {
-            let null = std::ptr::null_mut();
-            let code = unsafe { taos_errno(null) };
-            let err = unsafe { CStr::from_ptr(taos_errstr(null)) }
-                .to_string_lossy()
-                .to_string();
-            Err(Error::new(code, err))
-        } else {
-            Ok(RawTaos(ptr))
+        if let Some(user) = dsn.username {
+            builder.user.replace(CString::new(user).unwrap());
         }
-    }
-
-    #[inline]
-    pub fn as_ptr(&self) -> *mut TAOS {
-        self.0
-    }
-
-    #[inline]
-    pub fn query<'a, S: IntoCStr<'a>>(&self, sql: S) -> Result<DroppableRawRes, Error> {
-        RawRes::from_ptr(unsafe { taos_query(self.as_ptr(), sql.into_c_str().as_ptr()) })
-            .map(DroppableRawRes::new)
-    }
-
-    #[inline]
-    pub fn query_a(&self, sql: *const i8, fp: taos_async_query_cb, param: *mut c_void) {
-        unsafe { taos_query_a(self.as_ptr(), sql, fp, param) }
-    }
-
-    #[inline]
-    pub fn validate_sql(self, sql: *const c_char) -> Result<(), Error> {
-        let code: Code = unsafe { taos_validate_sql(self.as_ptr(), sql) }.into();
-        if code.success() {
-            return Ok(());
-        } else {
-            let err = unsafe { taos_errstr(std::ptr::null_mut()) };
-            let err = unsafe { std::str::from_utf8_unchecked(CStr::from_ptr(err).to_bytes()) };
-            return Err(Error::new(code, err));
+        if let Some(pass) = dsn.password {
+            builder.pass.replace(CString::new(pass).unwrap());
         }
+        let params = dsn.params;
+        if let Some(dir) = params.get("configDir") {
+            let dir = CString::new(dir.as_bytes()).unwrap();
+            unsafe {
+                taos_options(TSDB_OPTION::ConfigDir, dir.as_ptr() as _);
+            }
+        }
+        // let raw = RawTaos::connect(host, user, pass, db, port)
+        Ok(builder)
     }
 
-    #[inline]
-    pub fn reset_current_db(&self) {
-        unsafe { taos_reset_current_db(self.as_ptr()) }
+    fn client_version() -> &'static str {
+        RawTaos::version()
     }
 
-    #[inline]
-    pub fn server_version(&self) -> &CStr {
-        unsafe { CStr::from_ptr(taos_get_server_info(self.as_ptr())) }
+    fn server_version(&self) -> &str {
+        "a"
     }
 
-    #[inline]
-    pub fn load_table_info(&self, list: *const c_char) -> Result<(), Error> {
-        err_or!(taos_load_table_info(self.as_ptr(), list))
+    fn ping(&self, conn: &mut Self::Target) -> Result<(), Self::Error> {
+        conn.raw.query("select 1")?;
+        Ok(())
     }
 
-    #[inline]
-    pub fn close(&mut self) {
-        unsafe { taos_close(self.as_ptr()) }
+    fn ready(&self) -> bool {
+        true
+    }
+
+    fn connect(&self) -> Result<Self::Target, Self::Error> {
+        let raw = RawTaos::connect(
+            self.host
+                .as_ref()
+                .map(|v| v.as_ptr())
+                .unwrap_or(std::ptr::null()),
+            self.user
+                .as_ref()
+                .map(|v| v.as_ptr())
+                .unwrap_or(std::ptr::null()),
+            self.pass
+                .as_ref()
+                .map(|v| v.as_ptr())
+                .unwrap_or(std::ptr::null()),
+            self.db
+                .as_ref()
+                .map(|v| v.as_ptr())
+                .unwrap_or(std::ptr::null()),
+            self.port,
+        )?;
+
+        Ok(Taos { raw })
     }
 }
 
 #[derive(Debug)]
-pub struct RawRes {
-    ptr: *mut TAOS_RES,
-    msg_type: tmq_res_t,
+pub struct ResultSet {
+    raw: RawRes,
     fields: OnceCell<Vec<Field>>,
+    summary: UnsafeCell<(usize, usize)>,
+    state: UnsafeCell<SharedState>,
 }
 
-unsafe impl Send for RawRes {}
-unsafe impl Sync for RawRes {}
+impl ResultSet {
+    fn new(raw: RawRes) -> Self {
+        Self {
+            raw,
+            fields: OnceCell::new(),
+            summary: UnsafeCell::new((0, 0)),
+            state: UnsafeCell::new(SharedState::default()),
+        }
+    }
 
-#[derive(Debug)]
-pub struct DroppableRawRes {
-    raw: Arc<RawRes>,
-}
+    pub fn precision(&self) -> Precision {
+        self.raw.precision()
+    }
 
-impl Deref for DroppableRawRes {
-    type Target = RawRes;
+    pub fn fields(&self) -> &[Field] {
+        &self.fields.get_or_init(|| self.raw.fetch_fields())
+    }
 
-    fn deref(&self) -> &Self::Target {
-        &self.raw
+    pub fn ncols(&self) -> usize {
+        self.raw.field_count()
+    }
+
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.fields().iter().map(|f| f.name())
+    }
+
+    fn update_summary(&mut self, nrows: usize) {
+        let summary = self.summary.get_mut();
+        summary.0 += 1;
+        summary.1 += nrows;
+    }
+
+    pub(crate) fn blocks(&self) -> Blocks {
+        self.raw.to_blocks()
+    }
+
+    pub(crate) fn summary(&self) -> &(usize, usize) {
+        unsafe { &*self.summary.get() }
+    }
+
+    pub(crate) fn affected_rows(&self) -> i32 {
+        self.raw.affected_rows() as _
+    }
+
+    pub(crate) fn fetch_raw_block(&self) -> Result<Option<RawData>, RawError> {
+        Ok(self.raw.fetch_raw_block(self.fields())?)
+    }
+
+    pub(crate) fn fetch_raw_block_async(
+        &self,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<Option<RawData>, RawError>> {
+        self.raw
+            .fetch_raw_block_async(self.fields(), self.precision(), &self.state, cx)
     }
 }
 
-impl DroppableRawRes {
-    pub fn new(raw: RawRes) -> Self {
-        Self { raw: Arc::new(raw) }
-    }
+impl Iterator for ResultSet {
+    type Item = Result<RawData, RawError>;
 
-    pub fn from_ptr_with_code(ptr: *mut TAOS_RES, code: Code) -> Result<Self, Error> {
-        RawRes::from_ptr_with_code(ptr, code).map(Self::new)
-    }
-
-    pub fn raw(&self) -> Arc<RawRes> {
-        self.raw.clone()
+    fn next(&mut self) -> Option<Self::Item> {
+        self.raw
+            .fetch_raw_block(self.fields())
+            .transpose()
+            .map(|block| {
+                block.map(|raw| {
+                    let mut summary = unsafe { &mut *self.summary.get() };
+                    summary.0 += 1;
+                    summary.1 += raw.nrows();
+                    raw
+                })
+            })
     }
 }
+
+impl Fetchable for ResultSet {
+    type Error = RawError;
+    fn affected_rows(&self) -> i32 {
+        self.affected_rows()
+    }
+
+    fn precision(&self) -> Precision {
+        self.precision()
+    }
+
+    fn fields(&self) -> &[Field] {
+        self.fields()
+    }
+
+    fn summary(&self) -> (usize, usize) {
+        *self.summary()
+    }
+
+    fn update_summary(&mut self, nrows: usize) {
+        self.update_summary(nrows)
+    }
+
+    fn fetch_raw_block(&mut self) -> Result<Option<RawData>, Self::Error> {
+        self.raw.fetch_raw_block(self.fields())
+    }
+}
+
+impl AsyncFetchable for ResultSet {
+    type Error = RawError;
+
+    fn affected_rows(&self) -> i32 {
+        self.affected_rows()
+    }
+
+    fn precision(&self) -> Precision {
+        self.precision()
+    }
+
+    fn fields(&self) -> &[Field] {
+        self.fields()
+    }
+
+    fn summary(&self) -> (usize, usize) {
+        *self.summary()
+    }
+
+    fn fetch_raw_block(
+        self: &mut Self,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<Option<RawData>, Self::Error>> {
+        self.fetch_raw_block_async(cx)
+    }
+
+    fn update_summary(&mut self, nrows: usize) {
+        self.update_summary(nrows)
+    }
+}
+
+impl Drop for ResultSet {
+    fn drop(&mut self) {
+        self.raw.drop();
+    }
+}
+
+unsafe impl Send for ResultSet {}
+unsafe impl Sync for ResultSet {}
+
+// #[derive(Debug)]
+// pub struct DroppableRawRes {
+//     raw: Arc<ResultSet>,
+// }
+
+// impl Deref for DroppableRawRes {
+//     type Target = ResultSet;
+
+//     fn deref(&self) -> &Self::Target {
+//         &self.raw
+//     }
+// }
+
+// impl DroppableRawRes {
+//     pub fn new(raw: ResultSet) -> Self {
+//         Self { raw: Arc::new(raw) }
+//     }
+
+//     pub fn from_ptr_with_code(ptr: *mut TAOS_RES, code: Code) -> Result<Self, Error> {
+//         todo!()
+//         // ResultSet::from_ptr_with_code(ptr, code).map(Self::new)
+//     }
+
+//     pub fn raw(&self) -> Arc<ResultSet> {
+//         self.raw.clone()
+//     }
+// }
 
 pub type VGroupId = i32;
 
-impl Drop for DroppableRawRes {
-    fn drop(&mut self) {
-        if let Some(raw) = Arc::get_mut(&mut self.raw) {
-            raw.free_result();
-        } else {
-            log::error!("there's other result pointer in-use, please check");
-            // todo: safely drop result pointer.
-            // panic!("there's other result pointer in-use, please check");
-        }
-    }
-}
+mod query;
 
-mod result_set;
-pub use result_set::BlockStream;
+pub use query::BlockStream;
+pub use query::RawRes;
 
-impl RawRes {
-    #[inline]
-    pub fn as_ptr(&self) -> *mut TAOS_RES {
-        self.ptr
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    #[inline]
-    pub fn errno(&self) -> Code {
-        unsafe { taos_errno(self.as_ptr()) & 0xffff }.into()
-    }
-    #[inline]
-    pub fn errstr(&self) -> &CStr {
-        unsafe { CStr::from_ptr(taos_errstr(self.as_ptr())) }
-    }
-    #[inline]
-    pub fn err_as_str(&self) -> &'static str {
-        unsafe {
-            std::str::from_utf8_unchecked(CStr::from_ptr(taos_errstr(self.as_ptr())).to_bytes())
-        }
-    }
+    #[test]
+    fn show_databases() -> Result<(), Error> {
+        let null = std::ptr::null();
+        let taos = RawTaos::connect(null, null, null, null, 0)?;
+        let mut set = taos.query("show databases")?;
 
-    #[inline]
-    pub fn from_ptr(ptr: *mut TAOS_RES) -> Result<RawRes, Error> {
-        let raw = unsafe { Self::from_ptr_unchecked(ptr) };
-        let code = raw.errno();
-        raw.with_code(code)
-    }
-
-    #[inline]
-    pub unsafe fn from_ptr_unchecked(ptr: *mut TAOS_RES) -> RawRes {
-        RawRes {
-            ptr,
-            msg_type: tmq_get_res_type(ptr),
-            fields: OnceCell::new(),
-        }
-    }
-
-    #[inline]
-    pub fn from_ptr_with_code(ptr: *mut TAOS_RES, code: Code) -> Result<RawRes, Error> {
-        unsafe { RawRes::from_ptr_unchecked(ptr) }.with_code(code)
-    }
-
-    #[inline]
-    fn with_code(self, code: Code) -> Result<Self, Error> {
-        if code.success() {
-            Ok(self)
-        } else {
-            Err(Error::new(code, self.err_as_str()))
-        }
-    }
-
-    #[inline]
-    pub fn num_fields(&self) -> usize {
-        self.fields().len()
-    }
-    #[inline]
-    pub fn fields<'any>(&self) -> &[Field] {
-        let fields = self.fields.get_or_init(|| {
-            let len = unsafe { taos_field_count(self.as_ptr()) };
-            from_raw_fields(unsafe { taos_fetch_fields(self.as_ptr()) }, len as usize)
-        });
-        &fields
-    }
-
-    pub fn fetch_fields(&self) -> Vec<Field> {
-        let len = unsafe { taos_field_count(self.as_ptr()) };
-        from_raw_fields(unsafe { taos_fetch_fields(self.as_ptr()) }, len as usize)
-    }
-
-    #[inline]
-    pub fn fetch_lengths(&self) -> *const i32 {
-        unsafe { taos_fetch_lengths(self.as_ptr()) }
-    }
-    #[inline]
-    unsafe fn fetch_lengths_raw(&self) -> *const i32 {
-        taos_fetch_lengths(self.as_ptr())
-    }
-
-    #[inline]
-    pub fn fetch_block(&self) -> Result<Option<(TAOS_ROW, i32, *const i32)>, Error> {
-        let block = Box::into_raw(Box::new(std::ptr::null_mut()));
-        // let mut num = 0;
-        let num = unsafe { taos_fetch_block(self.as_ptr(), block) };
-        // taos_fetch_block(res, rows)
-        if num > 0 {
-            Ok(Some(unsafe { (*block, num, self.fetch_lengths_raw()) }))
-        } else {
-            Ok(None)
-        }
-    }
-
-    #[inline]
-    pub fn get_column_data_offset(&self, col: usize) -> *const i32 {
-        unsafe { taos_get_column_data_offset(self.as_ptr(), col as i32) }
-    }
-
-    #[inline]
-    pub fn fetch_raw_block(&self) -> Result<Option<Raw>, Error> {
-        #[cfg(taos_v3)]
-        return self.fetch_raw_block_v3();
-        #[cfg(not(taos_v3))]
-        self.fetch_raw_block_v2()
-    }
-
-    #[inline]
-    pub fn fetch_raw_block_v3(&self) -> Result<Option<Raw>, Error> {
-        let mut block: *mut c_void = std::ptr::null_mut();
-        let mut num = 0;
-        err_or!(
-            self,
-            taos_fetch_raw_block(self.as_ptr(), &mut num as _, &mut block as _),
-            if num > 0 {
-                match self.msg_type {
-                    tmq_res_t::TMQ_RES_INVALID => {
-                        let mut raw = Raw::parse_from_ptr(
-                            block as _,
-                            num as usize,
-                            self.num_fields(),
-                            self.precision(),
-                        );
-                        raw.with_fields(self.fields().to_vec());
-                        Some(raw)
-                    }
-                    tmq_res_t::TMQ_RES_DATA => {
-                        let fields = self.fetch_fields();
-
-                        let mut raw = Raw::parse_from_ptr(
-                            block as _,
-                            num as usize,
-                            fields.len(),
-                            self.precision(),
-                        );
-
-                        raw.with_fields(fields);
-
-                        if let Some(name) = self.tmq_db_name() {
-                            raw.with_database_name(name);
-                        }
-
-                        if let Some(name) = self.tmq_table_name() {
-                            raw.with_table_name(name);
-                        }
-
-                        Some(raw)
-                    }
-                    _ => None,
+        for raw in &mut set {
+            let raw = raw?;
+            for (col, view) in raw.columns().into_iter().enumerate() {
+                for (row, value) in view.iter().enumerate() {
+                    println!("Value at (row: {}, col: {}) is: {}", row, col, value);
                 }
-            } else {
-                None
             }
-        )
-    }
-    #[inline]
-    pub fn fetch_raw_block_v2(&self) -> Result<Option<Raw>, Error> {
-        let mut block: *mut *mut c_void = std::ptr::null_mut();
-        let mut num = 0;
-        let lengths = self.fetch_lengths();
-        let cols = self.num_fields();
-        let lengths = unsafe { std::slice::from_raw_parts(lengths as *const u32, cols) };
-        err_or!(
-            self,
-            taos_fetch_block_s(self.as_ptr(), &mut num as _, &mut block as _),
-            if num > 0 {
-                let raw = Raw::parse_from_ptr_v2(
-                    block as _,
-                    self.fields(),
-                    lengths,
-                    num as usize,
-                    self.precision(),
-                );
-                Some(raw)
-            } else {
-                None
-            }
-        )
-    }
 
-    // #[inline]
-    pub fn fetch_raw_block_async(&self) -> BlockStream {
-        BlockStream::new(self.as_ptr(), self.fields(), self.precision())
-    }
-
-    #[inline]
-    pub fn is_update_query(&self) -> bool {
-        unsafe { taos_is_update_query(self.as_ptr()) }
-    }
-
-    #[inline]
-    pub fn is_null(&self, row: i32, col: i32) -> bool {
-        unsafe { taos_is_null(self.as_ptr(), row, col) }
-    }
-
-    #[inline]
-    pub fn stop_query(&self) {
-        unsafe { taos_stop_query(self.as_ptr()) }
-    }
-
-    #[inline]
-    pub fn select_db(&self, db: *const i8) -> Result<(), Error> {
-        err_or!(self, taos_select_db(self.as_ptr(), db))
-    }
-
-    #[inline]
-    pub fn affected_rows(&self) -> i32 {
-        unsafe { taos_affected_rows(self.as_ptr()) }
-    }
-
-    #[inline]
-    pub fn field_count(&self) -> i32 {
-        unsafe { taos_field_count(self.as_ptr()) }
-    }
-
-    #[inline]
-    pub fn free_result(&mut self) {
-        unsafe { taos_free_result(self.as_ptr()) }
-    }
-
-    #[inline]
-    pub fn precision(&self) -> Precision {
-        unsafe { taos_result_precision(self.as_ptr()) }.into()
-    }
-
-    #[inline]
-    pub fn fetch_row(&self) -> TAOS_ROW {
-        unsafe { taos_fetch_row(self.as_ptr()) }
-    }
-
-    #[inline]
-    pub fn fetch_rows_a(&self, fp: taos_async_fetch_cb, param: *mut c_void) {
-        unsafe { taos_fetch_rows_a(self.as_ptr(), fp, param) }
-    }
-
-    #[inline]
-    pub fn block(&self) -> *mut *mut c_void {
-        unsafe { taos_result_block(self.as_ptr()).read() }
-    }
-
-    #[inline]
-    pub fn tmq_topic_name(&self) -> Option<&str> {
-        unsafe {
-            let c = tmq_get_topic_name(self.as_ptr());
-            if c.is_null() {
-                None
-            } else {
-                CStr::from_ptr(c).to_str().ok()
+            for (row, view) in raw.rows().enumerate() {
+                for (col, value) in view.enumerate() {
+                    println!("Value at (row: {}, col: {}) is: {:?}", row, col, value);
+                }
             }
         }
-    }
-    #[inline]
-    pub fn tmq_vgroup_id(&self) -> Option<VGroupId> {
-        unsafe {
-            let c = tmq_get_vgroup_id(self.as_ptr());
-            if c == -1 {
-                None
-            } else {
-                Some(c)
-            }
-        }
-    }
 
-    #[inline]
-    pub fn tmq_table_name(&self) -> Option<&str> {
-        unsafe {
-            let c = tmq_get_table_name(self.as_ptr());
-            if c.is_null() {
-                None
-            } else {
-                CStr::from_ptr(c).to_str().ok()
-            }
-        }
-    }
-    #[inline]
-    fn tmq_db_name(&self) -> Option<&str> {
-        unsafe {
-            let c = tmq_get_db_name(self.as_ptr());
-            if c.is_null() {
-                None
-            } else {
-                CStr::from_ptr(c).to_str().ok()
-            }
-        }
-    }
+        println!("summary: {:?}", set.summary());
 
-    #[inline]
-    fn message_type(&self) -> Result<MessageType, Error> {
-        unsafe {
-            let t = tmq_get_res_type(self.as_ptr());
-            match t {
-                tmq_res_t::TMQ_RES_INVALID => Err(Error::new(Code::Failed, "unknown message type")),
-                tmq_res_t::TMQ_RES_DATA => Ok(MessageType::Schema),
-                tmq_res_t::TMQ_RES_TABLE_META => Ok(MessageType::Data),
-            }
-        }
+        Ok(())
     }
 }
-
-pub enum MessageType {
-    Schema,
-    Data,
-}
-pub mod into_c_str;
-pub mod stmt;

@@ -2,7 +2,7 @@ use std::{fmt::Debug, ops::Deref};
 
 use bytes::Bytes;
 
-use crate::common::Ty;
+use crate::common::{Field, Ty};
 
 // use packed(2) because [Ty] is int16_t in raw block.
 #[derive(Debug, Clone, Copy)]
@@ -11,6 +11,13 @@ use crate::common::Ty;
 pub struct ColSchema {
     pub(crate) ty: Ty,
     pub(crate) len: u32,
+}
+
+impl Field {
+    #[inline]
+    pub(crate) fn to_column_schema(&self) -> ColSchema {
+        ColSchema::new(self.ty(), self.bytes() as _)
+    }
 }
 
 impl ColSchema {
