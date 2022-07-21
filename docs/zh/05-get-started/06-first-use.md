@@ -1,6 +1,6 @@
 ---
-title: 开始使用
-description: '使用 TDengine'
+sidebar_labe: 开始使用
+title: 快速体验 TDengine
 ---
 
 import Tabs from "@theme/Tabs";
@@ -24,15 +24,15 @@ systemctl status taosd
 
 如果服务进程处于活动状态，则 status 指令会显示如下的相关信息：
 
-   ```
-   Active: active (running)
-   ```
+```
+Active: active (running)
+```
 
 如果后台服务进程处于停止状态，则 status 指令会显示如下的相关信息：
 
-   ```
-   Active: inactive (dead)
-   ```
+```
+Active: inactive (dead)
+```
 
 如果 TDengine 服务正常工作，那么您可以通过 TDengine 的命令行程序 `taos` 来访问并体验 TDengine。
 
@@ -47,6 +47,7 @@ systemctl 命令汇总：
 - 查看服务状态：`systemctl status taosd`
 
 :::info
+
 - systemctl 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 sudo 。
 - `systemctl stop taosd` 指令在执行后并不会马上停止 TDengine 服务，而是会等待系统中必要的落盘工作正常完成。在数据量很大的情况下，这可能会消耗较长时间。
 - 如果系统中不支持 `systemd`，也可以用手动运行 `/usr/local/taos/bin/taosd` 方式启动 TDengine 服务。

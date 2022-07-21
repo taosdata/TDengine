@@ -1,6 +1,6 @@
 ---
-title: 安装包
-description: 使用安装包安装和卸载
+sidebar_label: 安装包
+title: 使用安装包安装和卸载
 ---
 
 import Tabs from "@theme/Tabs";
@@ -174,7 +174,7 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 <Tabs>
 <TabItem label="apt-get 卸载" value="aptremove">
 
-内容TBD
+内容 TBD
 
 </TabItem>
 <TabItem label="Deb 卸载" value="debuninst">
@@ -218,21 +218,22 @@ taosKeeper is removed successfully!
 </Tabs>
 
 :::info
+
 - TDengine 提供了多种安装包，但最好不要在一个系统上同时使用 tar.gz 安装包和 deb 或 rpm 安装包。否则会相互影响，导致在使用时出现问题。
 
 - 对于 deb 包安装后，如果安装目录被手工误删了部分，出现卸载、或重新安装不能成功。此时，需要清除 TDengine 包的安装信息，执行如下命令：
 
-   ```
-   $ sudo rm -f /var/lib/dpkg/info/tdengine*
-   ```
+  ```
+  $ sudo rm -f /var/lib/dpkg/info/tdengine*
+  ```
 
 然后再重新进行安装就可以了。
 
 - 对于 rpm 包安装后，如果安装目录被手工误删了部分，出现卸载、或重新安装不能成功。此时，需要清除 TDengine 包的安装信息，执行如下命令：
 
-   ```
-   $ sudo rpm -e --noscripts tdengine
-   ```
+  ```
+  $ sudo rpm -e --noscripts tdengine
+  ```
 
 然后再重新进行安装就可以了。
 
@@ -272,46 +273,20 @@ lrwxrwxrwx  1 root root   13 Feb 22 09:34 log -> /var/log/taos/
 
 如果是更新安装，当缺省配置文件（ /etc/taos/taos.cfg ）存在时，仍然使用已有的配置文件，安装包中携带的配置文件修改为 taos.cfg.orig 保存在 /usr/local/taos/cfg/ 目录，可以作为设置配置参数的参考样例；如果不存在配置文件，就使用安装包中自带的配置文件。
 
-## 启动和停止
-
-TDengine 使用 Linux 系统的 systemd/systemctl/service 来管理系统的启动和、停止、重启操作。TDengine 的服务进程是 taosd，默认情况下 TDengine 在系统启动后将自动启动。DBA 可以通过 systemd/systemctl/service 手动操作停止、启动、重新启动服务。
-
-以 systemctl 为例，命令如下：
-
-- 启动服务进程：`systemctl start taosd`
-
-- 停止服务进程：`systemctl stop taosd`
-
-- 重启服务进程：`systemctl restart taosd`
-
-- 查看服务状态：`systemctl status taosd`
-
-注意：TDengine 在 2.4 版本之后包含一个独立组件 taosAdapter 需要使用 systemctl 命令管理 taosAdapter 服务的启动和停止。
-
-如果服务进程处于活动状态，则 status 指令会显示如下的相关信息：
-
-   ```
-   Active: active (running)
-   ```
-
-如果后台服务进程处于停止状态，则 status 指令会显示如下的相关信息：
-
-   ```
-   Active: inactive (dead)
-   ```
-
 ## 升级
+
 升级分为两个层面：升级安装包 和 升级运行中的实例。
 
 升级安装包请遵循前述安装和卸载的步骤先卸载旧版本再安装新版本。
 
 升级运行中的实例则要复杂得多，首先请注意版本号，TDengine 的版本号目前分为四段，如 2.4.0.14 和 2.4.0.16，只有前三段版本号一致（即只有第四段版本号不同）才能把一个运行中的实例进行升级。升级步骤如下：
+
 - 停止数据写入
 - 确保所有数据落盘，即写入时序数据库
 - 停止 TDengine 集群
 - 卸载旧版本并安装新版本
 - 重新启动 TDengine 集群
-- 进行简单的查询操作确认旧数据没有丢失 
+- 进行简单的查询操作确认旧数据没有丢失
 - 进行简单的写入操作确认 TDengine 集群可用
 - 重新恢复业务数据的写入
 

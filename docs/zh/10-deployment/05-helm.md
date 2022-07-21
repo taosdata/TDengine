@@ -1,4 +1,5 @@
 ---
+sidebar_labe: Helm
 title: 使用 Helm 部署 TDengine 集群
 ---
 
@@ -18,14 +19,14 @@ Helm 会使用 kubectl 和 kubeconfig 的配置来操作 Kubernetes，可以参�
 
 ## 安装 TDengine Chart
 
-TDengine Chart 尚未发布到 Helm 仓库，当前可以从GitHub直接下载：
+TDengine Chart 尚未发布到 Helm 仓库，当前可以从 GitHub 直接下载：
 
 ```bash
 wget https://github.com/taosdata/TDengine-Operator/raw/main/helm/tdengine-0.3.0.tgz
 
 ```
 
-获取当前Kubernetes的存储类：
+获取当前 Kubernetes 的存储类：
 
 ```bash
 kubectl get storageclass
@@ -34,7 +35,7 @@ kubectl get storageclass
 
 在 minikube 默认为 standard.
 
-之后，使用helm命令安装：
+之后，使用 helm 命令安装：
 
 ```bash
 helm install tdengine tdengine-0.3.0.tgz \
@@ -52,7 +53,7 @@ helm install tdengine tdengine-0.3.0.tgz \
 
 ```
 
-部署成功后，TDengine Chart将会输出操作TDengine的说明：
+部署成功后，TDengine Chart 将会输出操作 TDengine 的说明：
 
 ```bash
 export POD_NAME=$(kubectl get pods --namespace default \
@@ -79,13 +80,14 @@ kubectl --namespace default exec $POD_NAME -- \
 
 TDengine 支持 `values.yaml` 自定义。
 
-通过 helm show values可以获取TDengine Chart支持的全部values列表：
+通过 helm show values 可以获取 TDengine Chart 支持的全部 values 列表：
+
 ```bash
 helm show values tdengine-0.3.0.tgz
 
 ```
 
-你可以将结果保存为 values.yaml，之后可以修改其中的各项参数，如 replica 数量，存储类名称，容量大小，TDengine 配置等，然后使用如下命令安装TDengine集群：
+你可以将结果保存为 values.yaml，之后可以修改其中的各项参数，如 replica 数量，存储类名称，容量大小，TDengine 配置等，然后使用如下命令安装 TDengine 集群：
 
 ```bash
 helm install tdengine tdengine-0.3.0.tgz -f values.yaml
@@ -112,7 +114,26 @@ service:
   type: ClusterIP
   ports:
     # TCP range required
-    tcp: [6030,6031,6032,6033,6034, 6035,6036,6037,6038, 6039, 6040, 6041, 6042, 6043, 6044, 6045, 6060]
+    tcp:
+      [
+        6030,
+        6031,
+        6032,
+        6033,
+        6034,
+        6035,
+        6036,
+        6037,
+        6038,
+        6039,
+        6040,
+        6041,
+        6042,
+        6043,
+        6044,
+        6045,
+        6060,
+      ]
     # UDP range 6030-6039
     udp: [6030, 6031, 6032, 6033, 6034, 6035, 6036, 6037, 6038, 6039]
 
@@ -161,7 +182,6 @@ clusterDomainSuffix: ""
 #
 # Btw, keep quotes "" around the value like below, even the value will be number or not.
 taoscfg:
-
   # number of replications, for cluster only
   TAOS_REPLICA: "1"
 
@@ -360,14 +380,13 @@ taoscfg:
   # -1 no limit (default)
   # 0  no query allowed, queries are disabled
   #TAOS_QUERY_BUFFER_SIZE: "-1"
-
 ```
 
 ## 扩容
 
-关于扩容可参考上一节的说明，有一些额外的操作需要从helm的部署中获取。
+关于扩容可参考上一节的说明，有一些额外的操作需要从 helm 的部署中获取。
 
-首先，从部署中获取StatefulSet的名称。
+首先，从部署中获取 StatefulSet 的名称。
 
 ```bash
 export STS_NAME=$(kubectl get statefulset \
@@ -376,14 +395,14 @@ export STS_NAME=$(kubectl get statefulset \
 
 ```
 
-扩容操作极其简单，增加replica即可。以下命令将TDengine扩充到三节点：
+扩容操作极其简单，增加 replica 即可。以下命令将 TDengine 扩充到三节点：
 
 ```bash
 kubectl scale --replicas 3 statefulset/$STS_NAME
 
 ```
 
-使用命令 `show dnodes` 和  `show mnodes` 检查是否扩容成功。
+使用命令 `show dnodes` 和 `show mnodes` 检查是否扩容成功。
 
 ## 缩容
 
@@ -392,7 +411,7 @@ kubectl scale --replicas 3 statefulset/$STS_NAME
 
 :::
 
-获取需要缩容的dnode列表，并手动Drop。
+获取需要缩容的 dnode 列表，并手动 Drop。
 
 ```bash
 kubectl --namespace default exec $POD_NAME -- \
@@ -405,11 +424,11 @@ kubectl --namespace default exec $POD_NAME -- taos -s 'drop dnode "<you dnode in
 
 ## 删除集群
 
-Helm管理下，清理操作也变得简单：
+Helm 管理下，清理操作也变得简单：
 
 ```bash
 helm uninstall tdengine
 
 ```
 
-但Helm也不会自动移除PVC，需要手动获取PVC然后删除掉。
+但 Helm 也不会自动移除 PVC，需要手动获取 PVC 然后删除掉。
