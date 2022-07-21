@@ -124,6 +124,7 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
   SConnBuffer* p = connBuf;
   if (p->cap == 0) {
     p->buf = (char*)taosMemoryCalloc(CAPACITY, sizeof(char));
+    tTrace("internal malloc mem:%p, size:%d", p->buf, CAPACITY);
     p->len = 0;
     p->cap = CAPACITY;
     p->total = -1;
@@ -136,7 +137,7 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
   } else {
     p->cap = p->total;
     p->buf = taosMemoryRealloc(p->buf, p->cap);
-    tTrace("internal malloc mem:%p, size:%d", p->buf, p->cap);
+    tTrace("internal realloc mem:%p, size:%d", p->buf, p->cap);
 
     uvBuf->base = p->buf + p->len;
     uvBuf->len = p->cap - p->len;
@@ -176,7 +177,6 @@ int transSetConnOption(uv_tcp_t* stream) {
 
 SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
   SAsyncPool* pool = taosMemoryCalloc(1, sizeof(SAsyncPool));
-  pool->index = 0;
   pool->nAsync = sz;
   pool->asyncs = taosMemoryCalloc(1, sizeof(uv_async_t) * pool->nAsync);
 
@@ -206,6 +206,9 @@ void transDestroyAsyncPool(SAsyncPool* pool) {
   taosMemoryFree(pool);
 }
 int transAsyncSend(SAsyncPool* pool, queue* q) {
+  if (atomic_load_8(&pool->stop) == 1) {
+    return -1;
+  }
   int idx = pool->index;
   idx = idx % pool->nAsync;
   // no need mutex here
@@ -225,6 +228,14 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   }
   return uv_async_send(async);
 }
+bool transAsyncPoolIsEmpty(SAsyncPool* pool) {
+  for (int i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+    SAsyncItem* item = async->data;
+    if (!QUEUE_IS_EMPTY(&item->qmsg)) return false;
+  }
+  return true;
+}
 
 void transCtxInit(STransCtx* ctx) {
   // init transCtx
@@ -240,7 +251,7 @@ void transCtxCleanup(STransCtx* ctx) {
     ctx->freeFunc(iter->val);
     iter = taosHashIterate(ctx->args, iter);
   }
-
+  ctx->freeFunc(ctx->brokenVal.val);
   taosHashCleanup(ctx->args);
   ctx->args = NULL;
 }

@@ -590,6 +590,11 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
   return code;
 }
 
+void freeVgList(void *list) {
+  SArray* pList = *(SArray**)list;
+  taosArrayDestroy(pList);
+}
+
 int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList) {
   SArray* pDbVgList = NULL;
   SArray* pQnodeList = NULL;
@@ -641,7 +646,7 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
 
 _return:
 
-  taosArrayDestroy(pDbVgList);
+  taosArrayDestroyEx(pDbVgList, freeVgList);
   taosArrayDestroy(pQnodeList);
 
   return code;
