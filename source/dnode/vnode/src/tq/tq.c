@@ -506,7 +506,8 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
             .initTqReader = true,
             .version = ver,
         };
-        pHandle->execHandle.execCol.task[i] = qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, &pHandle->execHandle.numOfCols);
+        pHandle->execHandle.execCol.task[i] = qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, &pHandle->execHandle.numOfCols,
+            &pHandle->execHandle.pSchemaWrapper);
         ASSERT(pHandle->execHandle.execCol.task[i]);
         void* scanner = NULL;
         qExtractStreamScanner(pHandle->execHandle.execCol.task[i], &scanner);

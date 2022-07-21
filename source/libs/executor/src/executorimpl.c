@@ -4139,32 +4139,52 @@ static STsdbReader* doCreateDataReader(STableScanPhysiNode* pTableScanNode, SRea
 
 static SArray* extractColumnInfo(SNodeList* pNodeList);
 
-int32_t extractTableSchemaInfo(SReadHandle* pHandle, uint64_t uid, SExecTaskInfo* pTaskInfo) {
+int32_t extractTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, SExecTaskInfo* pTaskInfo) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pHandle->meta, 0);
-  int32_t code = metaGetTableEntryByUid(&mr, uid);
+  int32_t code = metaGetTableEntryByUid(&mr, pScanNode->uid);
   if (code != TSDB_CODE_SUCCESS) {
     metaReaderClear(&mr);
     return terrno;
   }
 
-  pTaskInfo->schemaInfo.tablename = strdup(mr.me.name);
+  SSchemaInfo* pSchemaInfo = &pTaskInfo->schemaInfo;
+  pSchemaInfo->tablename = strdup(mr.me.name);
 
   if (mr.me.type == TSDB_SUPER_TABLE) {
-    pTaskInfo->schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
-    pTaskInfo->schemaInfo.tversion = mr.me.stbEntry.schemaTag.version;
+    pSchemaInfo->sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
+    pSchemaInfo->tversion = mr.me.stbEntry.schemaTag.version;
   } else if (mr.me.type == TSDB_CHILD_TABLE) {
     tDecoderClear(&mr.coder);
 
     tb_uid_t suid = mr.me.ctbEntry.suid;
     metaGetTableEntryByUid(&mr, suid);
-    pTaskInfo->schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
-    pTaskInfo->schemaInfo.tversion = mr.me.stbEntry.schemaTag.version;
+    pSchemaInfo->sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
+    pSchemaInfo->tversion = mr.me.stbEntry.schemaTag.version;
   } else {
-    pTaskInfo->schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.ntbEntry.schemaRow);
+    pSchemaInfo->sw = tCloneSSchemaWrapper(&mr.me.ntbEntry.schemaRow);
   }
 
   metaReaderClear(&mr);
+
+  int32_t numOfCols = LIST_LENGTH(pScanNode->pScanCols);
+  SSchemaWrapper* pqSw = taosMemoryCalloc(1, sizeof(SSchemaWrapper));
+  pqSw->pSchema = taosMemoryCalloc(numOfCols, sizeof(SSchema));
+  pqSw->version = pSchemaInfo->sw->version;
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    STargetNode* pNode = (STargetNode*) nodesListGetNode(pScanNode->pScanCols, i);
+    SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
+
+    for(int32_t j = 0; j < pSchemaInfo->sw->nCols; ++j) {
+      if (pColNode->colId == pSchemaInfo->sw->pSchema[j].colId) {
+        pqSw->pSchema[pqSw->nCols++] = pSchemaInfo->sw->pSchema[j];
+        break;
+      }
+    }
+  }
+
+  pSchemaInfo->qsw = pqSw;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4175,8 +4195,8 @@ static void cleanupTableSchemaInfo(SSchemaInfo* pSchemaInfo) {
   }
 
   taosMemoryFree(pSchemaInfo->tablename);
-  taosMemoryFree(pSchemaInfo->sw->pSchema);
-  taosMemoryFree(pSchemaInfo->sw);
+  tDeleteSSchemaWrapper(pSchemaInfo->sw);
+  tDeleteSSchemaWrapper(pSchemaInfo->qsw);
 }
 
 static int32_t sortTableGroup(STableListInfo* pTableListInfo, int32_t groupNum) {
@@ -4377,7 +4397,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      code = extractTableSchemaInfo(pHandle, pTableScanNode->scan.uid, pTaskInfo);
+      code = extractTableSchemaInfo(pHandle, &pTableScanNode->scan, pTaskInfo);
       if (code) {
         pTaskInfo->code = terrno;
         return NULL;
@@ -4397,7 +4417,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      code = extractTableSchemaInfo(pHandle, pTableScanNode->scan.uid, pTaskInfo);
+      code = extractTableSchemaInfo(pHandle, &pTableScanNode->scan, pTaskInfo);
       if (code) {
         pTaskInfo->code = terrno;
         return NULL;
@@ -4479,7 +4499,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      code = extractTableSchemaInfo(pHandle, pScanNode->scan.uid, pTaskInfo);
+      code = extractTableSchemaInfo(pHandle, &pScanNode->scan, pTaskInfo);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
         return NULL;

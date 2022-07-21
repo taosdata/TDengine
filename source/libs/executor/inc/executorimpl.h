@@ -164,6 +164,7 @@ typedef struct {
   char*           dbname;
   int32_t         tversion;
   SSchemaWrapper* sw;
+  SSchemaWrapper* qsw;
 } SSchemaInfo;
 
 typedef struct SExecTaskInfo {
