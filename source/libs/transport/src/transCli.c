@@ -1020,6 +1020,7 @@ void cliSendQuit(SCliThrd* thrd) {
   SCliMsg* msg = taosMemoryCalloc(1, sizeof(SCliMsg));
   msg->type = Quit;
   transAsyncSend(thrd->asyncPool, &msg->q);
+  atomic_store_8(&thrd->asyncPool->stop, 1);
 }
 void cliWalkCb(uv_handle_t* handle, void* arg) {
   if (!uv_is_closing(handle)) {
@@ -1238,7 +1239,9 @@ int transReleaseCliHandle(void* handle) {
   cmsg->msg = tmsg;
   cmsg->type = Release;
 
-  transAsyncSend(pThrd->asyncPool, &cmsg->q);
+  if (0 != transAsyncSend(pThrd->asyncPool, &cmsg->q)) {
+    return -1;
+  }
   return 0;
 }
 
@@ -1279,7 +1282,10 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
   STraceId* trace = &pReq->info.traceId;
   tGDebug("%s send request at thread:%08" PRId64 ", dst:%s:%d, app:%p", transLabel(pTransInst), pThrd->pid,
           EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
-  ASSERT(transAsyncSend(pThrd->asyncPool, &(cliMsg->q)) == 0);
+  if (0 != transAsyncSend(pThrd->asyncPool, &(cliMsg->q))) {
+    destroyCmsg(cliMsg);
+    return -1;
+  }
   transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
   return 0;
 }
@@ -1323,7 +1329,10 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
   tGDebug("%s send request at thread:%08" PRId64 ", dst:%s:%d, app:%p", transLabel(pTransInst), pThrd->pid,
           EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
 
-  transAsyncSend(pThrd->asyncPool, &(cliMsg->q));
+  if (0 != transAsyncSend(pThrd->asyncPool, &cliMsg->q)) {
+    destroyCmsg(cliMsg);
+    return -1;
+  }
   tsem_wait(sem);
   tsem_destroy(sem);
   taosMemoryFree(sem);
@@ -1358,7 +1367,10 @@ int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
     SCliThrd* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[i];
     tDebug("%s update epset at thread:%08" PRId64, pTransInst->label, thrd->pid);
 
-    transAsyncSend(thrd->asyncPool, &(cliMsg->q));
+    if (transAsyncSend(thrd->asyncPool, &(cliMsg->q)) != 0) {
+      destroyCmsg(cliMsg);
+      return -1;
+    }
   }
   transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
   return 0;

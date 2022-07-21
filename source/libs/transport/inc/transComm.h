@@ -226,6 +226,7 @@ typedef struct {
   int         index;
   int         nAsync;
   uv_async_t* asyncs;
+  int8_t      stop;
 } SAsyncPool;
 
 SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb);

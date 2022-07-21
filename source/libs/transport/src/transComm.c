@@ -177,7 +177,6 @@ int transSetConnOption(uv_tcp_t* stream) {
 
 SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
   SAsyncPool* pool = taosMemoryCalloc(1, sizeof(SAsyncPool));
-  pool->index = 0;
   pool->nAsync = sz;
   pool->asyncs = taosMemoryCalloc(1, sizeof(uv_async_t) * pool->nAsync);
 
@@ -207,6 +206,9 @@ void transDestroyAsyncPool(SAsyncPool* pool) {
   taosMemoryFree(pool);
 }
 int transAsyncSend(SAsyncPool* pool, queue* q) {
+  if (atomic_load_8(&pool->stop) == 1) {
+    return -1;
+  }
   int idx = pool->index;
   idx = idx % pool->nAsync;
   // no need mutex here
