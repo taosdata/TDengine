@@ -1153,6 +1153,7 @@ _OVER:
     mError("failed to get table index %s since %s", indexReq.tbFName, terrstr());
   }
 
+  tFreeSerializeSTableIndexRsp(&rsp);
   return code;
 }
 

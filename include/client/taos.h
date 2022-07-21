@@ -259,7 +259,7 @@ enum tmq_res_t {
   TMQ_RES_TABLE_META = 2,
 };
 
-typedef struct {
+typedef struct tmq_raw_data{
   void*    raw_meta;
   uint32_t raw_meta_len;
   uint16_t raw_meta_type;

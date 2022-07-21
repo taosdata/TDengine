@@ -1455,7 +1455,6 @@ static bool keyOverlapFileBlock(TSDBKEY key, SBlock* pBlock, SVersionRange* pVer
          (pBlock->minVersion <= pVerRange->maxVer);
 }
 
-
 static bool doCheckforDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, const SBlock* pBlock) {
   size_t num = taosArrayGetSize(pBlockScanInfo->delSkyline);
 
@@ -1507,7 +1506,7 @@ static bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBl
     return doCheckforDatablockOverlap(pBlockScanInfo, pBlock);
   } else {
     int32_t index = pBlockScanInfo->fileDelIndex;
-    while(1) {
+    while (1) {
       TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, index);
       if (p->ts > pBlock->minKey.ts && index > 0) {
         index -= 1;
@@ -1961,9 +1960,11 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
     SDelIdx  idx = {.suid = pReader->suid, .uid = pBlockScanInfo->uid};
     SDelIdx* pIdx = taosArraySearch(aDelIdx, &idx, tCmprDelIdx, TD_EQ);
 
-    code = tsdbReadDelData(pDelFReader, pIdx, pDelData, NULL);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _err;
+    if (pIdx != NULL) {
+      code = tsdbReadDelData(pDelFReader, pIdx, pDelData, NULL);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _err;
+      }
     }
   }
 
@@ -2575,10 +2576,10 @@ void updateSchema(TSDBROW* pRow, uint64_t uid, STsdbReader* pReader) {
   int32_t sversion = TSDBROW_SVERSION(pRow);
 
   if (pReader->pSchema == NULL) {
-    pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, uid, sversion);
+    metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, sversion, &pReader->pSchema);
   } else if (pReader->pSchema->version != sversion) {
     taosMemoryFreeClear(pReader->pSchema);
-    pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, uid, sversion);
+    metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, sversion, &pReader->pSchema);
   }
 }
 
@@ -2806,7 +2807,6 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
 
   if (pCond->suid != 0) {
     (*ppReader)->pSchema = metaGetTbTSchema((*ppReader)->pTsdb->pVnode->pMeta, (*ppReader)->suid, -1);
-    ASSERT((*ppReader)->pSchema);
   } else if (taosArrayGetSize(pTableList) > 0) {
     STableKeyInfo* pKey = taosArrayGet(pTableList, 0);
     (*ppReader)->pSchema = metaGetTbTSchema((*ppReader)->pTsdb->pVnode->pMeta, pKey->uid, -1);

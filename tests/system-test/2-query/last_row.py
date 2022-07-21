@@ -221,7 +221,7 @@ class TDTestCase:
         tdSql.execute("use testdb")
 
         # bug need fix
-        tdSql.query("select last_row(c1 ,NULL) from testdb.t1")
+        tdSql.error("select last_row(c1 ,NULL) from testdb.t1")
 
         error_sql_lists = [
             "select last_row from testdb.t1",
@@ -290,6 +290,52 @@ class TDTestCase:
         tdSql.checkData(0, 0, None)
         tdSql.query("select last_row(c1) from testdb.stb1")
         tdSql.checkData(0, 0, None)
+        
+        # support regular query about last ,first ,last_row 
+        tdSql.error("select last_row(c1,NULL) from testdb.t1")
+        tdSql.error("select last_row(NULL) from testdb.t1")
+        tdSql.error("select last(NULL) from testdb.t1")
+        tdSql.error("select first(NULL) from testdb.t1")
+
+        tdSql.query("select last_row(c1,123) from testdb.t1")
+        tdSql.checkData(0,0,None)
+        tdSql.checkData(0,1,123)
+
+        tdSql.query("select last_row(123) from testdb.t1")
+        tdSql.checkData(0,0,123)
+
+        tdSql.error("select last(c1,NULL) from testdb.t1")
+
+        tdSql.query("select last(c1,123) from testdb.t1")
+        tdSql.checkData(0,0,9)
+        tdSql.checkData(0,1,123)
+
+        tdSql.error("select first(c1,NULL) from testdb.t1")
+
+        tdSql.query("select first(c1,123) from testdb.t1")
+        tdSql.checkData(0,0,1)
+        tdSql.checkData(0,1,123)
+
+        tdSql.error("select last_row(c1,c2,c3,NULL,c4) from testdb.t1")
+
+        tdSql.query("select last_row(c1,c2,c3,123,c4) from testdb.t1")
+        tdSql.checkData(0,0,None)
+        tdSql.checkData(0,1,None)
+        tdSql.checkData(0,2,None)
+        tdSql.checkData(0,3,123)
+        tdSql.checkData(0,4,None)
+        
+
+        tdSql.error("select last_row(c1,c2,c3,NULL,c4,t1,t2) from testdb.ct1")
+
+        tdSql.query("select last_row(c1,c2,c3,123,c4,t1,t2) from testdb.ct1")
+        tdSql.checkData(0,0,9)
+        tdSql.checkData(0,1,-99999)
+        tdSql.checkData(0,2,-999)
+        tdSql.checkData(0,3,123)
+        tdSql.checkData(0,4,None)
+        tdSql.checkData(0,5,0)
+        tdSql.checkData(0,5,0)
 
         # # bug need fix
         tdSql.query("select last_row(c1), c2, c3 , c4, c5 from testdb.t1")

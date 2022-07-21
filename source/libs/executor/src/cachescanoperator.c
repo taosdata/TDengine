@@ -50,7 +50,7 @@ SOperatorInfo* createLastrowScanOperator(SLastRowScanPhysiNode* pScanNode, SRead
 
   STableListInfo* pTableList = &pTaskInfo->tableqinfoList;
 
-  initResultSizeInfo(pOperator, 1024);
+  initResultSizeInfo(&pOperator->resultInfo, 1024);
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   pInfo->pUidList = taosArrayInit(4, sizeof(int64_t));
 
@@ -227,14 +227,14 @@ int32_t extractTargetSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInf
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColMatchInfo* pColMatch = taosArrayGet(pColMatchInfo, i);
-    for (int32_t j = 0; j < pTaskInfo->schemaVer.sw->nCols; ++j) {
-      if (pColMatch->colId == pTaskInfo->schemaVer.sw->pSchema[j].colId &&
+    for (int32_t j = 0; j < pTaskInfo->schemaInfo.sw->nCols; ++j) {
+      if (pColMatch->colId == pTaskInfo->schemaInfo.sw->pSchema[j].colId &&
           pColMatch->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         (*pSlotIds)[pColMatch->targetSlotId] = -1;
         break;
       }
 
-      if (pColMatch->colId == pTaskInfo->schemaVer.sw->pSchema[j].colId) {
+      if (pColMatch->colId == pTaskInfo->schemaInfo.sw->pSchema[j].colId) {
         (*pSlotIds)[pColMatch->targetSlotId] = j;
         break;
       }
